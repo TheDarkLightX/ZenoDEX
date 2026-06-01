@@ -75,6 +75,36 @@ when it is internet-facing. Exposing fixture intake or faucet endpoints directly
 on all interfaces is acceptable only for a controlled public-testnet window and
 must be explicit in the runbook.
 
+## Zero-Cost Public URL Flow
+
+If the operator machine cannot accept inbound Wi-Fi, router, or carrier-NAT
+traffic, use the outbound tunnel runner. It keeps the writer and bundle mirror
+on loopback, starts a local gateway, opens a Cloudflare Quick Tunnel from the
+machine to Cloudflare, and writes the resulting public URL into
+`public_network_config.json`.
+
+```bash
+python3 tools/zeno_ledger_public_tunnel_host.py \
+  --out-dir /tmp/zeno-ledger-public-testnet-tunnel \
+  --data-dir /tmp/zeno-ledger-node-a-tunnel \
+  --network-id zeno-ledger-public-testnet-v0-1-16-free-tunnel \
+  --chain-id zeno-ledger-public-testnet-v0-1-16-free-tunnel
+```
+
+The printed report includes:
+
+- `config_url`, a public `https://*.trycloudflare.com/public_network_config.json`
+  URL for Machine B;
+- `network_config_hash`, which Machine B must pin;
+- `write_auth_token_file`, whose contents must be copied to the Machine B peer
+  token file shown in the printed command;
+- `machine_b_acceptance_command`, the exact clean-machine acceptance command.
+
+This path costs $0 and does not require inbound connectivity. It is suitable for
+v0.1.16 public URL validation when no VPS is available. The tunnel URL is
+ephemeral, so each run produces a new network config hash. Archive the printed
+report and Machine B acceptance report as the evidence pair.
+
 ## Outside Operator Flow
 
 An outside operator should be able to join from one URL:

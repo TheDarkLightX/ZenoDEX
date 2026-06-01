@@ -309,6 +309,21 @@ python3 tools/zenoctl.py testnet join \
   --serve
 ```
 
+If the host machine cannot receive inbound router or Wi-Fi traffic and the
+budget is $0, use the outbound tunnel host:
+
+```bash
+python3 tools/zeno_ledger_public_tunnel_host.py \
+  --out-dir /tmp/zeno-ledger-public-testnet-tunnel \
+  --data-dir /tmp/zeno-ledger-node-a-tunnel
+```
+
+This starts the writer and bundle mirror on loopback, exposes one gateway
+through a Cloudflare Quick Tunnel, writes that tunnel URL into
+`public_network_config.json`, and prints the exact Machine B acceptance command.
+Copy the generated token file contents to the Machine B peer token path shown
+in the command.
+
 This is a thin wrapper over `tools/zeno_ledger_node.py join-network`. It:
 
 - downloads the published network config;
