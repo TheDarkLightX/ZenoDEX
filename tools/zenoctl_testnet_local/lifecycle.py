@@ -361,9 +361,20 @@ def cmd_up(opts: UpOptions) -> int:
         return 1
 
     _log("done", f"stack up: http://127.0.0.1:{opts.ui_port}")
-    # Summary text redacts local key material and token paths.
-    redacted_manifest = json.loads(json_dumps_for_log(manifest))
-    sys.stderr.write(_summary_text(redacted_manifest))
+    summary_manifest = {
+        "service_urls": {"ui": str(manifest["service_urls"]["ui"])},
+        "compose_project": str(manifest["compose_project"]),
+        "chain_id": str(manifest["chain_id"]),
+        "zk_mode_effective": str(manifest.get("zk_mode_effective", "open")),
+        "zk_mode_requested": str(manifest.get("zk_mode_requested", "open")),
+        "out_dir": str(manifest["out_dir"]),
+        "host_paths": {
+            "fixtures_dir": str(manifest["host_paths"]["fixtures_dir"]),
+            "oracle_home_dir": str(manifest["host_paths"]["oracle_home_dir"]),
+            "reports_dir": str(manifest["host_paths"]["reports_dir"]),
+        },
+    }
+    sys.stderr.write(_summary_text(summary_manifest))
     return 0
 
 
@@ -4015,7 +4026,5 @@ def _emit_status(report: dict[str, Any], *, as_json: bool) -> None:
 
 def _log(phase: str, msg: str) -> None:
     # Phase logs are bounded operator status strings; JSON reports are redacted separately.
-    redacted = json.loads(json_dumps_for_log({"phase": phase, "msg": msg}))
-    safe_phase = str(redacted.get("phase", "unknown"))
-    safe_msg = str(redacted.get("msg", ""))
-    sys.stderr.write(f"[testnet-local phase={safe_phase}] {safe_msg}\n")
+    safe_phase = str(phase)[:80]
+    sys.stderr.write(f"[testnet-local phase={safe_phase}] status update\n")

@@ -942,9 +942,27 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
         token_symbol=args.token_symbol,
         fixture_key_bundle_path=args.fixture_key_bundle,
     )
-    # Report stdout is redacted by key before operator display.
-    redacted_report = json.loads(json_dumps_for_log(report))
-    print(json.dumps(redacted_report, indent=2, sort_keys=True))
+    public_report = {
+        key: report[key]
+        for key in (
+            "schema",
+            "ok",
+            "status",
+            "bundle_root",
+            "public_manifest_path",
+            "launch_manifest_path",
+            "testnet_status_path",
+            "testnet_status_hash",
+            "bundle_archive_path",
+            "bundle_archive_sha256",
+            "report_path",
+        )
+        if key in report
+    }
+    if report.get("ok") is not True:
+        errors = report.get("errors")
+        public_report["error_count"] = len(errors) if isinstance(errors, list) else 1
+    print(json.dumps(public_report, indent=2, sort_keys=True))
     sys.stdout.flush()
     if args.stay_alive and report["ok"]:
         while True:

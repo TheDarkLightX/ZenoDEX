@@ -30,7 +30,6 @@ from tools.zeno_ledger_make_testnet_bundle import (
     build_testnet_bundle_v0,
 )
 from src.integration.zeno_ledger_tokenomics import load_role_pubkeys_from_key_bundle_v0
-from tools.zeno_log_redaction import json_dumps_for_log
 
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_public_testnet_bundle_report.v0"
@@ -327,6 +326,31 @@ def build_public_testnet_bundle_v0(
     }
 
 
+_PUBLIC_STDOUT_KEYS = (
+    "schema",
+    "ok",
+    "status",
+    "bundle_root",
+    "public_manifest_path",
+    "launch_manifest_path",
+    "bootstrap_manifest_path",
+    "core_suite_path",
+    "core_suite_run_report_path",
+    "testnet_status_path",
+    "testnet_status_hash",
+    "covered_feature_count",
+    "covered_features",
+)
+
+
+def _public_stdout_report(report: Mapping[str, Any]) -> dict[str, Any]:
+    out = {key: report[key] for key in _PUBLIC_STDOUT_KEYS if key in report}
+    if report.get("ok") is not True:
+        errors = report.get("errors")
+        out["error_count"] = len(errors) if isinstance(errors, list) else 1
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build and execute a public ZenoLedger testnet candidate bundle")
     parser.add_argument("--out-dir", required=True, type=Path)
@@ -355,9 +379,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
-    # Report stdout is redacted by key before operator display.
-    redacted_report = json.loads(json_dumps_for_log(report))
-    print(json.dumps(redacted_report, indent=2, sort_keys=True))
+    print(json.dumps(_public_stdout_report(report), indent=2, sort_keys=True))
     return 0 if report["ok"] else 1
 
 
