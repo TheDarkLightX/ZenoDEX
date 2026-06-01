@@ -1783,6 +1783,10 @@ _STDOUT_REPORT_KEYS = (
 )
 
 
+def _write_stdout_json(value: Mapping[str, Any]) -> None:
+    os.write(1, (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8"))
+
+
 def _stdout_report_v0(report: Mapping[str, Any]) -> dict[str, Any]:
     out = {key: report[key] for key in _STDOUT_REPORT_KEYS if key in report}
     if report.get("ok") is not True:
@@ -1893,7 +1897,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
-    print(json.dumps(_stdout_report_v0(result), indent=2, sort_keys=True))
+    _write_stdout_json(_stdout_report_v0(result))
     return 0 if result["ok"] else 1
 
 

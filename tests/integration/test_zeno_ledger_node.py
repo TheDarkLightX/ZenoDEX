@@ -49,6 +49,7 @@ from tools.zeno_ledger_node import (
     _public_network_config_to_join_config_v0,
     _tokenomics_buyback_source_pubkey_v0,
     _ui_swap_tx_v0,
+    _ui_token_catalog_v0,
     _ui_tokenomics_response_v0,
     _validate_tokenomics_claim_idempotent_payload_v0,
     append_dex_transaction_v0,
@@ -943,6 +944,34 @@ def test_tokenomics_market_buyback_purchase_uses_protocol_fee_route() -> None:
         assert purchase["reserve0_after"] < reserve0
 
 
+def test_ui_token_catalog_uses_release_display_symbols_and_raw_aliases() -> None:
+    status = {
+        "test_token_catalog": [
+            {
+                "symbol": "tAGRS",
+                "display_symbol": "AGRS",
+                "asset_id": DEFAULT_ASSET0,
+                "purpose": "fake-value AGRS test collateral",
+            },
+            {
+                "symbol": "tZDEX",
+                "display_symbol": "zDEX",
+                "asset_id": DEFAULT_ASSET1,
+                "purpose": "fake-value ZenoDEX test token",
+            },
+        ],
+    }
+
+    by_asset, by_symbol = _ui_token_catalog_v0(status)
+
+    assert by_asset[DEFAULT_ASSET0] == "AGRS"
+    assert by_asset[DEFAULT_ASSET1] == "zDEX"
+    assert by_symbol["AGRS"]["asset_id"] == DEFAULT_ASSET0
+    assert by_symbol["TAGRS"]["asset_id"] == DEFAULT_ASSET0
+    assert by_symbol["ZDEX"]["asset_id"] == DEFAULT_ASSET1
+    assert by_symbol["TZDEX"]["asset_id"] == DEFAULT_ASSET1
+
+
 @pytest.mark.xfail(
     reason=(
         "Test feeds an unsigned SWAP_EXACT_IN intent (intent_id 0xbb..bb) but "
@@ -1006,6 +1035,13 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
     assert status["token_symbol"] == "tZENO"
     assert [item["symbol"] for item in status["test_token_catalog"]] == ["tAGRS", "tZDEX", "zUSD"]
     assert status["token_posture"]["default_faucet_token"] == "tAGRS"
+    ui_by_asset, ui_by_symbol = _ui_token_catalog_v0(status)
+    assert ui_by_asset[status["test_token_catalog"][0]["asset_id"]] == "AGRS"
+    assert ui_by_asset[status["test_token_catalog"][1]["asset_id"]] == "zDEX"
+    assert ui_by_symbol["TAGRS"]["asset_id"] == status["test_token_catalog"][0]["asset_id"]
+    assert ui_by_symbol["AGRS"]["asset_id"] == status["test_token_catalog"][0]["asset_id"]
+    assert ui_by_symbol["TZDEX"]["asset_id"] == status["test_token_catalog"][1]["asset_id"]
+    assert ui_by_symbol["ZDEX"]["asset_id"] == status["test_token_catalog"][1]["asset_id"]
     assert status["testnet_faucet_posture"]["supports_fixture_mint"] is True
     assert status["testnet_token_support"]["faucet_scope"] == "testnet-only feature lanes"
 
