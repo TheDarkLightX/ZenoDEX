@@ -123,9 +123,9 @@ class _HttpRejectedError(ValueError):
 
 # Callers pass local operator/configured artifact paths, and HTTP-exposed paths
 # have their own root containment checks.
-# lgtm[py/path-injection]
+# codeql[py/path-injection]
 def _load_json_object(path: Path) -> Mapping[str, Any]:
-    # lgtm[py/path-injection]
+    # codeql[py/path-injection]
     obj = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(obj, Mapping):
         raise ValueError(f"{path} must decode to a JSON object")
@@ -1810,7 +1810,7 @@ def _ledger_body_and_receipts_paths_v0(*, data_dir: Path, height: int) -> tuple[
     live_body = data_dir / "live_ledger" / "bodies" / f"{height}.json"
     live_receipts = data_dir / "live_ledger" / "receipts" / f"{height}.json"
     # Height is parsed as a bounded integer and data_dir is the local node data root.
-    # lgtm[py/path-injection]
+    # codeql[py/path-injection]
     if live_body.is_file() and live_receipts.is_file():
         return live_body, live_receipts
     node_status = load_node_status_v0(data_dir)
@@ -2140,11 +2140,11 @@ def _source_receipt_for_tokenomics_claim_v0(
         raise ValueError("source_height_not_yet_available")
     body_path, receipts_path = _ledger_body_and_receipts_paths_v0(data_dir=data_dir, height=height)
     # Paths come from bounded-height construction in _ledger_body_and_receipts_paths_v0.
-    # lgtm[py/path-injection]
+    # codeql[py/path-injection]
     if not receipts_path.is_file() or not body_path.is_file():
         raise ValueError("source_receipt_not_found")
     # receipts_path is a local ledger artifact path derived from the bounded source height.
-    # lgtm[py/path-injection]
+    # codeql[py/path-injection]
     receipts = json.loads(receipts_path.read_text(encoding="utf-8"))
     if not isinstance(receipts, list) or tx_index >= len(receipts) or not isinstance(receipts[tx_index], Mapping):
         raise ValueError("source_receipt_index_not_found")
@@ -4643,7 +4643,7 @@ def make_node_http_server_v0(
                         return
                     bundle_root = Path(str(status["bundle_root"])).resolve()
                     # rel is checked as a safe relative path and constrained below bundle_root.
-                    # lgtm[py/path-injection]
+                    # codeql[py/path-injection]
                     path = (bundle_root / rel).resolve()
                     try:
                         path.relative_to(bundle_root)
@@ -4651,12 +4651,12 @@ def make_node_http_server_v0(
                         self._send_json({"ok": False, "error": "unsafe_bundle_path"}, status=HTTPStatus.BAD_REQUEST)
                         return
                     # path is confirmed to remain below bundle_root before filesystem access.
-                    # lgtm[py/path-injection]
+                    # codeql[py/path-injection]
                     if not path.is_file():
                         self._send_json({"ok": False, "error": "bundle_artifact_missing"}, status=HTTPStatus.NOT_FOUND)
                         return
                     # path is a confirmed file below bundle_root and size-capped before response.
-                    # lgtm[py/path-injection]
+                    # codeql[py/path-injection]
                     data = path.read_bytes()
                     max_bytes = (
                         MAX_REMOTE_BUNDLE_ARCHIVE_BYTES
@@ -5657,7 +5657,7 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
     except Exception as exc:
         report = {"schema": NODE_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
     # Report stdout is redacted by key before operator display.
-    # lgtm[py/clear-text-logging-sensitive-data]
+    # codeql[py/clear-text-logging-sensitive-data]
     print(json_dumps_for_log(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 

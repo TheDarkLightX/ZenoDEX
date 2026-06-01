@@ -1859,7 +1859,7 @@ def main(argv: list[str] | None = None) -> int:
             "errors": [str(exc)],
         }
     # Report stdout is redacted by key before operator display.
-    # lgtm[py/clear-text-logging-sensitive-data]
+    # codeql[py/clear-text-logging-sensitive-data]
     print(json_dumps_for_log(result, indent=2, sort_keys=True))
     return 0 if result["ok"] else 1
 
