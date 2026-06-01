@@ -460,7 +460,12 @@ def _check_release_publication_workflow(root: Path, checks: list[dict[str, Any]]
         "docker/build-push-action@v6",
         "npm publish --access public --provenance",
         "tools/build_operator_release_bundle.py build",
-        "cargo build --manifest-path rust-runtime/Cargo.toml --release -p zenodex-launcher",
+        "build-native-launchers:",
+        "cargo build --release -p zenodex-launcher",
+        "zenodex-native-launcher-",
+        "linux-x86_64",
+        "macos-x86_64",
+        "windows-x86_64",
         "tools/build_release_sboms.py",
         "SHA256SUMS",
     ):

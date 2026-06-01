@@ -69,10 +69,11 @@ The `native-launcher` workflow builds `zenodex` on:
 - `macos-latest`;
 - `windows-latest`.
 
-Those binaries are uploadable workflow artifacts. The existing release-publish
-workflow also attaches a Linux `zenodex` launcher binary beside the operator
-bundle. Windows and macOS release attachment should follow once signing and
-notarization are configured.
+Those binaries are uploadable workflow artifacts. The release-publish workflow
+also attaches unsigned Linux, macOS, and Windows `zenodex` launcher binaries
+beside the operator bundle and records them in `SHA256SUMS` plus the release
+manifest. Windows signing and macOS notarization still gate a polished
+double-click installer.
 
 ## Installer Track
 
