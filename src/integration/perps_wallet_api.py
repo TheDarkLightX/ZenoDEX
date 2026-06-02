@@ -7,10 +7,16 @@ is a demo/development API and does not verify caller authority.
 
 from __future__ import annotations
 
+import http.client
 import json
-import math
 import os
+import smtplib
+import ssl
+import threading
 import time
+import uuid
+from email.message import EmailMessage
+from email.utils import make_msgid
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple, cast
 from urllib.parse import urlsplit
@@ -18,7 +24,7 @@ from urllib.parse import urlsplit
 from ..core.dex import DexState
 from ..core.perps import PerpClearinghouse2pMarketState, PerpMarketState
 from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
-from .dex_snapshot import state_from_snapshot
+from .dex_snapshot import snapshot_with_legacy_lp_metadata_defaults, state_from_snapshot
 from .live_proof_wrapper import (
     live_zk_proof_required,
     proof_from_request,
@@ -29,10 +35,41 @@ from .perp_engine import PerpEngineConfig, apply_perp_ops
 from .perps_wallet_authority import (
     evaluate_perps_wallet_authority_profile_v1,
     evaluate_perps_wallet_device_approval_exercise_v1,
+    evaluate_perps_wallet_hardware_custody_v1,
     evaluate_perps_wallet_recovery_exercise_v1,
     evaluate_perps_wallet_rotation_exercise_v1,
+    evaluate_perps_wallet_signer_ceremony_v1,
     evaluate_perps_wallet_signer_device_integration_v1,
+    evaluate_perps_wallet_signer_execution_exercise_v1,
+    evaluate_perps_wallet_signer_prompt_capture_v1,
 )
+from .perps_wallet_encrypted_sss_backup import (
+    build_perps_wallet_encrypted_sss_live_delivery_receipt_v1,
+    evaluate_perps_wallet_encrypted_sss_backup_v1,
+    perps_wallet_encrypted_sss_backup_hash_v1,
+    recipient_root_keys_from_fixture_v1,
+)
+try:
+    from .production_promotion_evidence import evaluate_production_hardware_wallet_evidence_v1
+except ModuleNotFoundError:
+    def evaluate_production_hardware_wallet_evidence_v1(
+        evidence: Mapping[str, Any] | None,
+        *,
+        wallet_authority_profile_hash: object | None = None,
+        expected_device_pubkey: object | None = None,
+        **_: object,
+    ) -> dict[str, Any]:
+        return {
+            "schema": "zenodex/production-hardware-wallet-evidence-status/v1",
+            "ok": False,
+            "production_ready": False,
+            "status": "blocked",
+            "lane": "hardware_wallet",
+            "evidence_hash": None,
+            "wallet_authority_profile_hash": wallet_authority_profile_hash,
+            "expected_device_pubkey": expected_device_pubkey,
+            "gaps": ["production promotion evidence verifier module is unavailable"],
+        }
 from .tau_net_client import (
     TauNetRpcError,
     TauNetTcpClient,
@@ -40,7 +77,9 @@ from .tau_net_client import (
     bls_pubkey_hex_from_privkey,
     build_signed_tau_transaction,
     encode_tau_operations_for_wire,
+    tau_rpc_invalid_sequence_numbers,
     sign_perp_op_for_engine,
+    tau_rpc_response_is_success,
     verify_tau_transaction_payload_signature,
 )
 from .zeno_oracle_authority import evaluate_oracle_authority_profile_v1
@@ -56,6 +95,7 @@ _ACTIONS = {
     "init_market_2p",
     "deposit_collateral",
     "withdraw_collateral",
+    "deposit_insurance",
     "set_position_pair",
     "advance_epoch",
     "publish_clearing_price",
@@ -68,6 +108,7 @@ _PERPS_PROOF_INTENT_SCHEMA = "zenodex/perps_wallet/proof_intent_receipt/v1"
 _PERPS_PROOF_INTENT_HASH_DOMAIN = "zenodex.perps_wallet.proof_intent_receipt/v1"
 _PERPS_ZK_PROOF_ENV_PREFIX = "PERPS_WALLET"
 _PERPS_ZK_PROOF_REQUIRED_ENV = "PERPS_WALLET_REQUIRE_ZK_PROOF"
+_PERPS_TAU_WRITE_LOCK = threading.Lock()
 _ORACLE_AUTHORITY_EXERCISE_SCHEMA = "zenodex/perps_wallet/oracle_authority_exercise/v1"
 _ORACLE_AUTHORITY_EXERCISE_HASH_DOMAIN = "zenodex.perps_wallet.oracle_authority_exercise/v1"
 _ORACLE_AUTHORITY_ACTIONS = {"settle_epoch", "partial_liquidate"}
@@ -85,75 +126,44 @@ def _env_bool(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
         return bool(default)
-    value = raw.strip().lower()
-    if value in {"1", "true", "yes", "on"}:
-        return True
-    if value in {"0", "false", "no", "off"}:
-        return False
-    raise ValueError(
-        f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
-    )
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _env_float(name: str, default: float, *, lo: float, hi: float) -> float:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        value = float(default)
-    else:
-        try:
-            value = float(raw.strip())
-        except ValueError as exc:
-            raise ValueError(
-                f"{name} must be a finite float in [{lo}, {hi}]; got {raw!r}"
-            ) from exc
-    if not math.isfinite(value) or value < lo or value > hi:
-        raise ValueError(f"{name} must be finite and in [{lo}, {hi}]; got {value!r}")
-    return float(value)
-
-
-def _env_float_alias(primary: str, fallback: str, default: float, *, lo: float, hi: float) -> float:
-    if os.environ.get(primary, "").strip():
-        return _env_float(primary, default, lo=lo, hi=hi)
-    return _env_float(fallback, default, lo=lo, hi=hi)
+        return float(default)
+    try:
+        value = float(raw.strip())
+    except Exception:
+        return float(default)
+    return min(max(value, lo), hi)
 
 
 def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        value = int(default)
-    else:
-        try:
-            value = int(raw.strip())
-        except ValueError as exc:
-            raise ValueError(
-                f"{name} must be an integer in [{lo}, {hi}]; got {raw!r}"
-            ) from exc
-    if value < lo or value > hi:
-        raise ValueError(f"{name} must be in [{lo}, {hi}]; got {value}")
-    return int(value)
-
-
-def _env_int_alias(primary: str, fallback: str, default: int, *, lo: int, hi: int) -> int:
-    if os.environ.get(primary, "").strip():
-        return _env_int(primary, default, lo=lo, hi=hi)
-    return _env_int(fallback, default, lo=lo, hi=hi)
+        return int(default)
+    try:
+        value = int(raw.strip())
+    except Exception:
+        return int(default)
+    return min(max(value, lo), hi)
 
 
 def _tau_client() -> TauNetTcpClient:
     return TauNetTcpClient(
         TauNetTcpConfig(
             host=_env_str("PERPS_WALLET_TAU_HOST", _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", "127.0.0.1")),
-            port=_env_int_alias(
+            port=_env_int(
                 "PERPS_WALLET_TAU_PORT",
-                "ZUSD_MONETARY_WALLET_TAU_PORT",
-                65432,
+                _env_int("ZUSD_MONETARY_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
                 lo=1,
                 hi=65535,
             ),
-            timeout_s=_env_float_alias(
+            timeout_s=_env_float(
                 "PERPS_WALLET_TAU_TIMEOUT_S",
-                "ZUSD_MONETARY_WALLET_TAU_TIMEOUT_S",
-                3.0,
+                _env_float("ZUSD_MONETARY_WALLET_TAU_TIMEOUT_S", 3.0, lo=0.1, hi=60.0),
                 lo=0.1,
                 hi=60.0,
             ),
@@ -167,6 +177,10 @@ def _tau_chain_id() -> str:
 
 def _allow_signing() -> bool:
     return _env_bool("PERPS_WALLET_ALLOW_LOCAL_SIGNING", False)
+
+
+def _return_signed_tau_tx_payloads() -> bool:
+    return _env_bool("PERPS_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False)
 
 
 def _auto_mine() -> bool:
@@ -231,6 +245,503 @@ def _wallet_signer_device_integration_from_env() -> tuple[Mapping[str, Any] | No
         json_names=("PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_JSON",),
         file_names=("PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_FILE",),
         label="perps wallet signer-device integration",
+    )
+
+
+def _wallet_signer_execution_exercise_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
+    return _json_profile_from_env(
+        json_names=("PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_JSON",),
+        file_names=("PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_FILE",),
+        label="perps wallet signer execution exercise",
+    )
+
+
+def _wallet_signer_prompt_capture_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
+    return _json_profile_from_env(
+        json_names=("PERPS_WALLET_SIGNER_PROMPT_CAPTURE_JSON",),
+        file_names=("PERPS_WALLET_SIGNER_PROMPT_CAPTURE_FILE",),
+        label="perps wallet signer prompt capture",
+    )
+
+
+def _wallet_encrypted_sss_backup_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
+    return _json_profile_from_env(
+        json_names=("PERPS_WALLET_ENCRYPTED_SSS_BACKUP_JSON",),
+        file_names=("PERPS_WALLET_ENCRYPTED_SSS_BACKUP_FILE",),
+        label="perps wallet encrypted SSS backup",
+    )
+
+
+def _wallet_encrypted_sss_recipient_keys_from_env() -> tuple[dict[str, bytes] | None, str | None]:
+    raw, err = _json_profile_from_env(
+        json_names=("PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_JSON",),
+        file_names=("PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_FILE",),
+        label="perps wallet encrypted SSS recipient keys",
+    )
+    if err is not None or raw is None:
+        return None, err
+    try:
+        return recipient_root_keys_from_fixture_v1(raw), None
+    except Exception as exc:
+        return None, f"perps wallet encrypted SSS recipient keys invalid: {exc}"
+
+
+def _provider_delivery_mode(envelope: Mapping[str, Any]) -> str:
+    provider_kind = str(envelope.get("provider_kind") or "")
+    provider_id = str(envelope.get("provider_id") or "")
+    if provider_kind == "recovery_email":
+        return "smtp"
+    if provider_kind == "offline_export":
+        return "offline_export"
+    if provider_kind == "cloud_drive" and provider_id.startswith("box:"):
+        return "box"
+    if provider_kind == "cloud_drive":
+        return "dropbox"
+    raise ValueError(f"unsupported encrypted SSS provider kind: {provider_kind}")
+
+
+def _required_env(name: str) -> str:
+    value = _env_str(name, "")
+    if not value:
+        raise ValueError(f"missing required env: {name}")
+    return value
+
+
+def _safe_provider_filename_component(raw: object) -> str:
+    text = str(raw or "").strip()
+    cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_", "."} else "_" for ch in text)
+    cleaned = cleaned.strip("._")
+    return cleaned[:96] or "encrypted-sss-share"
+
+
+def _provider_delivery_payload_bytes(envelope: Mapping[str, Any]) -> bytes:
+    return canonical_json_bytes(
+        {
+            "schema": "zenodex/perps-wallet-encrypted-sss-provider-payload/v1",
+            "envelope": dict(envelope),
+        }
+    )
+
+
+def _provider_delivery_filename(envelope: Mapping[str, Any], *, delivered_at_epoch: int) -> str:
+    share = _safe_provider_filename_component(envelope.get("share_id"))
+    envelope_hash = str(envelope.get("envelope_hash") or "").removeprefix("0x")[:16]
+    nonce = uuid.uuid4().hex[:16]
+    return f"{share}-{delivered_at_epoch}-{envelope_hash}-{nonce}.json"
+
+
+def _email_recipient_from_provider_id(provider_id: str) -> str:
+    if not provider_id.startswith("email:"):
+        raise ValueError("recovery_email provider_id must start with email:")
+    recipient = provider_id.removeprefix("email:").strip()
+    if "@" not in recipient or recipient.startswith("@") or recipient.endswith("@"):
+        raise ValueError("recovery_email provider_id is not a valid email destination")
+    return recipient
+
+
+def _https_post_json(url: str, *, body: bytes, headers: Mapping[str, str], label: str) -> Mapping[str, Any]:
+    parsed = urlsplit(url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ValueError(f"{label} endpoint must be absolute https")
+    path = parsed.path or "/"
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+    timeout = _env_float("PERPS_WALLET_ENCRYPTED_SSS_HTTP_TIMEOUT_S", 20.0, lo=1.0, hi=120.0)
+    conn = http.client.HTTPSConnection(
+        parsed.hostname,
+        parsed.port or 443,
+        timeout=timeout,
+        context=ssl.create_default_context(),
+    )
+    try:
+        conn.request("POST", path, body=body, headers=dict(headers))
+        response = conn.getresponse()
+        response_body = response.read()
+    finally:
+        conn.close()
+    if response.status < 200 or response.status >= 300:
+        detail = response_body[:240].decode("utf-8", errors="replace")
+        raise ValueError(f"{label} upload failed with HTTP {response.status}: {detail}")
+    try:
+        payload = json.loads(response_body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError(f"{label} upload returned non-JSON response: {exc}") from exc
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"{label} upload returned non-object response")
+    return payload
+
+
+def _multipart_form_data(
+    *,
+    fields: Mapping[str, tuple[str, bytes, str | None]],
+    boundary: str,
+) -> bytes:
+    chunks: list[bytes] = []
+    for name, (filename, value, content_type) in fields.items():
+        chunks.append(f"--{boundary}\r\n".encode("ascii"))
+        disposition = f'Content-Disposition: form-data; name="{name}"'
+        if filename:
+            disposition += f'; filename="{filename}"'
+        chunks.append(f"{disposition}\r\n".encode("utf-8"))
+        if content_type:
+            chunks.append(f"Content-Type: {content_type}\r\n".encode("ascii"))
+        chunks.append(b"\r\n")
+        chunks.append(value)
+        chunks.append(b"\r\n")
+    chunks.append(f"--{boundary}--\r\n".encode("ascii"))
+    return b"".join(chunks)
+
+
+def _preflight_provider_delivery_config(envelopes: list[Mapping[str, Any]]) -> None:
+    modes = {_provider_delivery_mode(envelope) for envelope in envelopes}
+    missing: list[str] = []
+    if "smtp" in modes:
+        for name in ("PERPS_WALLET_ENCRYPTED_SSS_SMTP_HOST", "PERPS_WALLET_ENCRYPTED_SSS_SMTP_FROM"):
+            if not _env_str(name, ""):
+                missing.append(name)
+        username = _env_str("PERPS_WALLET_ENCRYPTED_SSS_SMTP_USERNAME", "")
+        password = os.environ.get("PERPS_WALLET_ENCRYPTED_SSS_SMTP_PASSWORD", "")
+        if bool(username) != bool(password):
+            missing.append("PERPS_WALLET_ENCRYPTED_SSS_SMTP_USERNAME_AND_PASSWORD")
+    if "dropbox" in modes and not _env_str("PERPS_WALLET_ENCRYPTED_SSS_DROPBOX_ACCESS_TOKEN", ""):
+        missing.append("PERPS_WALLET_ENCRYPTED_SSS_DROPBOX_ACCESS_TOKEN")
+    if "box" in modes:
+        for name in (
+            "PERPS_WALLET_ENCRYPTED_SSS_BOX_ACCESS_TOKEN",
+            "PERPS_WALLET_ENCRYPTED_SSS_BOX_PARENT_FOLDER_ID",
+        ):
+            if not _env_str(name, ""):
+                missing.append(name)
+    if "offline_export" in modes:
+        raw_dir = _env_str("PERPS_WALLET_ENCRYPTED_SSS_OFFLINE_EXPORT_DIR", "")
+        if not raw_dir:
+            missing.append("PERPS_WALLET_ENCRYPTED_SSS_OFFLINE_EXPORT_DIR")
+        else:
+            export_dir = Path(raw_dir).expanduser()
+            if not export_dir.is_dir():
+                missing.append("PERPS_WALLET_ENCRYPTED_SSS_OFFLINE_EXPORT_DIR_EXISTING_DIRECTORY")
+    if missing:
+        raise ValueError("encrypted_sss_delivery_provider_not_configured:" + ",".join(sorted(missing)))
+
+
+def _smtp_delivery_fields(
+    envelope: Mapping[str, Any],
+    *,
+    payload: bytes,
+    delivered_at_epoch: int,
+) -> dict[str, Any]:
+    share_id = str(envelope.get("share_id") or "")
+    provider_id = str(envelope.get("provider_id") or "")
+    recipient = _email_recipient_from_provider_id(provider_id)
+    host = _required_env("PERPS_WALLET_ENCRYPTED_SSS_SMTP_HOST")
+    sender = _required_env("PERPS_WALLET_ENCRYPTED_SSS_SMTP_FROM")
+    port = _env_int("PERPS_WALLET_ENCRYPTED_SSS_SMTP_PORT", 587, lo=1, hi=65535)
+    timeout = _env_float("PERPS_WALLET_ENCRYPTED_SSS_SMTP_TIMEOUT_S", 20.0, lo=1.0, hi=120.0)
+    starttls = _env_bool("PERPS_WALLET_ENCRYPTED_SSS_SMTP_STARTTLS", True)
+    username = _env_str("PERPS_WALLET_ENCRYPTED_SSS_SMTP_USERNAME", "")
+    password = os.environ.get("PERPS_WALLET_ENCRYPTED_SSS_SMTP_PASSWORD", "")
+    if bool(username) != bool(password):
+        raise ValueError("SMTP username and password must be configured together")
+
+    message_id = make_msgid(idstring=_safe_provider_filename_component(share_id))
+    message = EmailMessage()
+    message["From"] = sender
+    message["To"] = recipient
+    message["Subject"] = f"ZenoDEX encrypted SSS share {share_id}"
+    message["Message-ID"] = message_id
+    message.set_content(
+        "Encrypted SSS backup share envelope attached. "
+        "This message contains encrypted transport material only."
+    )
+    message.add_attachment(
+        payload,
+        maintype="application",
+        subtype="json",
+        filename=_provider_delivery_filename(envelope, delivered_at_epoch=delivered_at_epoch),
+    )
+
+    with smtplib.SMTP(host, port, timeout=timeout) as smtp:
+        smtp.ehlo()
+        if starttls:
+            smtp.starttls(context=ssl.create_default_context())
+            smtp.ehlo()
+        if username and password:
+            smtp.login(username, password)
+        refused = smtp.send_message(message)
+    if refused:
+        raise ValueError("SMTP refused encrypted SSS recipient")
+
+    provider_response_hash = sha256_hex(
+        canonical_json_bytes(
+            {
+                "mode": "smtp",
+                "provider_id": provider_id,
+                "share_id": share_id,
+                "envelope_hash": envelope.get("envelope_hash"),
+                "delivered_at_epoch": delivered_at_epoch,
+                "smtp_message_id": message_id,
+                "refused": refused,
+            }
+        )
+    )
+    return {
+        "provider_response_hash": provider_response_hash,
+        "receipt_reference": f"smtp:{message_id}",
+        "smtp_message_id": message_id,
+    }
+
+
+def _dropbox_delivery_fields(
+    envelope: Mapping[str, Any],
+    *,
+    payload: bytes,
+    delivered_at_epoch: int,
+) -> dict[str, Any]:
+    token = _required_env("PERPS_WALLET_ENCRYPTED_SSS_DROPBOX_ACCESS_TOKEN")
+    folder = _env_str("PERPS_WALLET_ENCRYPTED_SSS_DROPBOX_FOLDER", "/zenodex-encrypted-sss").rstrip("/")
+    if not folder.startswith("/"):
+        raise ValueError("PERPS_WALLET_ENCRYPTED_SSS_DROPBOX_FOLDER must start with /")
+    filename = _provider_delivery_filename(envelope, delivered_at_epoch=delivered_at_epoch)
+    dropbox_path = f"{folder}/{filename}"
+    api_arg = json.dumps(
+        {
+            "path": dropbox_path,
+            "mode": "add",
+            "autorename": True,
+            "mute": False,
+            "strict_conflict": False,
+        },
+        separators=(",", ":"),
+    )
+    response = _https_post_json(
+        "https://content.dropboxapi.com/2/files/upload",
+        body=payload,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/octet-stream",
+            "Dropbox-API-Arg": api_arg,
+        },
+        label="dropbox encrypted SSS delivery",
+    )
+    file_id = response.get("id")
+    revision = response.get("rev")
+    if not isinstance(file_id, str) or not file_id.strip():
+        raise ValueError("dropbox encrypted SSS delivery response missing id")
+    if not isinstance(revision, str) or not revision.strip():
+        raise ValueError("dropbox encrypted SSS delivery response missing rev")
+    return {
+        "provider_response_hash": sha256_hex(canonical_json_bytes(dict(response))),
+        "receipt_reference": f"dropbox:{dropbox_path}",
+        "provider_file_id": file_id,
+        "provider_revision": revision,
+    }
+
+
+def _box_delivery_fields(
+    envelope: Mapping[str, Any],
+    *,
+    payload: bytes,
+    delivered_at_epoch: int,
+) -> dict[str, Any]:
+    token = _required_env("PERPS_WALLET_ENCRYPTED_SSS_BOX_ACCESS_TOKEN")
+    parent_folder_id = _required_env("PERPS_WALLET_ENCRYPTED_SSS_BOX_PARENT_FOLDER_ID")
+    filename = _provider_delivery_filename(envelope, delivered_at_epoch=delivered_at_epoch)
+    attributes = canonical_json_bytes({"name": filename, "parent": {"id": parent_folder_id}})
+    boundary = "zenodex-encrypted-sss-" + uuid.uuid4().hex
+    body = _multipart_form_data(
+        fields={
+            "attributes": ("", attributes, "application/json"),
+            "file": (filename, payload, "application/json"),
+        },
+        boundary=boundary,
+    )
+    response = _https_post_json(
+        "https://upload.box.com/api/2.0/files/content",
+        body=body,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        },
+        label="box encrypted SSS delivery",
+    )
+    entries = response.get("entries")
+    entry = entries[0] if isinstance(entries, list) and entries else None
+    if not isinstance(entry, Mapping):
+        raise ValueError("box encrypted SSS delivery response missing entries")
+    file_id = entry.get("id")
+    revision = entry.get("etag") or entry.get("sha1")
+    if not isinstance(file_id, str) or not file_id.strip():
+        raise ValueError("box encrypted SSS delivery response missing id")
+    if not isinstance(revision, str) or not str(revision).strip():
+        raise ValueError("box encrypted SSS delivery response missing revision")
+    return {
+        "provider_response_hash": sha256_hex(canonical_json_bytes(dict(response))),
+        "receipt_reference": f"box:{file_id}",
+        "provider_file_id": file_id,
+        "provider_revision": str(revision),
+    }
+
+
+def _offline_export_delivery_fields(
+    envelope: Mapping[str, Any],
+    *,
+    payload: bytes,
+    delivered_at_epoch: int,
+) -> dict[str, Any]:
+    share_id = str(envelope.get("share_id") or "")
+    export_root = Path(_required_env("PERPS_WALLET_ENCRYPTED_SSS_OFFLINE_EXPORT_DIR")).expanduser().resolve()
+    if not export_root.is_dir():
+        raise ValueError("PERPS_WALLET_ENCRYPTED_SSS_OFFLINE_EXPORT_DIR must be an existing directory")
+    filename = _provider_delivery_filename(envelope, delivered_at_epoch=delivered_at_epoch)
+    export_path = (export_root / filename).resolve()
+    if export_root != export_path.parent:
+        raise ValueError("offline export path escapes configured export directory")
+    fd = os.open(export_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(payload)
+    manifest = {
+        "schema": "zenodex/perps-wallet-encrypted-sss-offline-export-manifest/v1",
+        "filename": filename,
+        "payload_sha256": sha256_hex(payload),
+        "payload_size": len(payload),
+        "envelope_hash": envelope.get("envelope_hash"),
+        "share_id": share_id,
+        "delivered_at_epoch": delivered_at_epoch,
+    }
+    manifest_hash = sha256_hex(canonical_json_bytes(manifest))
+    manifest_path = export_path.with_suffix(export_path.suffix + ".manifest.json")
+    manifest_bytes = canonical_json_bytes({**manifest, "manifest_hash": manifest_hash})
+    fd = os.open(manifest_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(manifest_bytes)
+    provider_response_hash = sha256_hex(
+        canonical_json_bytes(
+            {
+                "mode": "offline_export",
+                "manifest_hash": manifest_hash,
+                "manifest_filename": manifest_path.name,
+            }
+        )
+    )
+    return {
+        "provider_response_hash": provider_response_hash,
+        "receipt_reference": f"offline-export:{manifest_hash}",
+        "offline_export_manifest_hash": manifest_hash,
+    }
+
+
+def _deliver_encrypted_sss_envelope(
+    envelope: Mapping[str, Any],
+    *,
+    mode: str,
+    delivered_at_epoch: int,
+) -> dict[str, Any]:
+    payload = _provider_delivery_payload_bytes(envelope)
+    if mode == "smtp":
+        return _smtp_delivery_fields(envelope, payload=payload, delivered_at_epoch=delivered_at_epoch)
+    if mode == "dropbox":
+        return _dropbox_delivery_fields(envelope, payload=payload, delivered_at_epoch=delivered_at_epoch)
+    if mode == "box":
+        return _box_delivery_fields(envelope, payload=payload, delivered_at_epoch=delivered_at_epoch)
+    if mode == "offline_export":
+        return _offline_export_delivery_fields(envelope, payload=payload, delivered_at_epoch=delivered_at_epoch)
+    raise ValueError(f"unsupported encrypted SSS delivery mode: {mode}")
+
+
+def _build_encrypted_sss_provider_delivery_response(parsed: Mapping[str, Any]) -> dict[str, Any]:
+    chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+
+    backup_raw = parsed.get("backup")
+    if not isinstance(backup_raw, Mapping):
+        backup_raw, backup_error = _wallet_encrypted_sss_backup_from_env()
+        if backup_error is not None:
+            return {"ok": False, "error": backup_error, "production_security_claim": False}
+    if not isinstance(backup_raw, Mapping):
+        return {"ok": False, "error": "encrypted_sss_backup_missing", "production_security_claim": False}
+
+    delivered_at_epoch = parsed.get("delivered_at_epoch")
+    if delivered_at_epoch is None:
+        delivered_at_epoch = backup_raw.get("created_at_epoch", 0)
+    if not isinstance(delivered_at_epoch, int) or isinstance(delivered_at_epoch, bool) or delivered_at_epoch < 0:
+        return {"ok": False, "error": "bad_delivered_at_epoch", "production_security_claim": False}
+
+    backup = dict(backup_raw)
+    envelopes = backup.get("envelopes")
+    if not isinstance(envelopes, list):
+        return {"ok": False, "error": "encrypted_sss_envelopes_missing", "production_security_claim": False}
+    envelope_items: list[Mapping[str, Any]] = []
+    for item in envelopes:
+        if not isinstance(item, Mapping):
+            return {"ok": False, "error": "encrypted_sss_envelope_must_be_object", "production_security_claim": False}
+        envelope_items.append(item)
+    _preflight_provider_delivery_config(envelope_items)
+
+    delivery_evidence: list[dict[str, Any]] = []
+    delivery_modes: set[str] = set()
+    for item in envelope_items:
+        mode = _provider_delivery_mode(item)
+        delivery_modes.add(mode)
+        fields = _deliver_encrypted_sss_envelope(
+            item,
+            mode=mode,
+            delivered_at_epoch=delivered_at_epoch,
+        )
+        delivery_evidence.append(
+            build_perps_wallet_encrypted_sss_live_delivery_receipt_v1(
+                item,
+                delivery_mode=mode,
+                delivered_at_epoch=delivered_at_epoch,
+                **fields,
+            )
+        )
+
+    backup["delivery_evidence"] = delivery_evidence
+    backup["backup_hash"] = perps_wallet_encrypted_sss_backup_hash_v1(backup)
+
+    profile, profile_error = _wallet_authority_profile_from_env()
+    recipient_root_keys, recipient_root_keys_error = _wallet_encrypted_sss_recipient_keys_from_env()
+    status = evaluate_perps_wallet_encrypted_sss_backup_v1(
+        profile,
+        backup,
+        expected_chain_id=chain_id,
+        recipient_root_keys=recipient_root_keys,
+    )
+    if profile_error is not None:
+        status["ok"] = False
+        status["encrypted_sss_backup_ready"] = False
+        status["status"] = "blocked"
+        status.setdefault("errors", []).append(profile_error)
+    if recipient_root_keys_error is not None:
+        status["ok"] = False
+        status["encrypted_sss_backup_ready"] = False
+        status["status"] = "blocked"
+        status.setdefault("errors", []).append(recipient_root_keys_error)
+
+    return {
+        "ok": status.get("encrypted_sss_backup_ready") is True,
+        "mode": "real_provider_delivery",
+        "delivery_modes": sorted(delivery_modes),
+        "provider_delivery_claim": "real_external_delivery_receipts",
+        "production_security_claim": status.get("production_security_claim") is True,
+        "not_claimed": [
+            "does_not_claim_production_custody",
+            "does_not_claim_external_audit_completion",
+            "does_not_return_encrypted_share_material",
+        ],
+        "backup_hash": backup.get("backup_hash"),
+        "delivery_evidence_hashes": [
+            item.get("delivery_hash") for item in delivery_evidence if isinstance(item.get("delivery_hash"), str)
+        ],
+        "backup_redacted": True,
+        "encrypted_sss_backup": status,
+    }
+
+
+def _wallet_production_hardware_evidence_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
+    return _json_profile_from_env(
+        json_names=("PERPS_WALLET_PRODUCTION_HARDWARE_EVIDENCE_JSON",),
+        file_names=("PERPS_WALLET_PRODUCTION_HARDWARE_EVIDENCE_FILE",),
+        label="perps wallet production hardware evidence",
     )
 
 
@@ -303,10 +814,22 @@ def _bind_oracle_authority_status(
     return status
 
 
-def _require_production_oracle_authority_for_action(action: str) -> bool:
+def _is_local_chain_id(chain_id: str) -> bool:
+    value = str(chain_id or "").strip().lower()
+    return (
+        value in {"tau-local", "local", "localtest"}
+        or "localtest" in value
+        or value.endswith("-local")
+        or value.startswith("tau-test-")
+        or value.startswith("test-")
+    )
+
+
+def _require_production_oracle_authority_for_action(action: str, *, chain_id: str | None = None) -> bool:
     if action not in _ORACLE_AUTHORITY_ACTIONS:
         return False
-    return _env_bool("PERPS_WALLET_REQUIRE_PRODUCTION_ORACLE_AUTHORITY", False)
+    default = not _is_local_chain_id(chain_id or _tau_chain_id())
+    return _env_bool("PERPS_WALLET_REQUIRE_PRODUCTION_ORACLE_AUTHORITY", default)
 
 
 def _canonical_pubkey(value: object, *, name: str) -> str:
@@ -362,6 +885,33 @@ def _load_app_state(client: TauNetTcpClient) -> Tuple[Dict[str, Any], Optional[s
     return app_state, str(app_hash) if isinstance(app_hash, str) and app_hash else None
 
 
+def _app_hash_wait_timeout_s() -> float:
+    return _env_float("PERPS_WALLET_APP_HASH_WAIT_S", 2.0, lo=0.0, hi=30.0)
+
+
+def _wait_for_app_hash_change(
+    client: TauNetTcpClient,
+    app_hash_before: str | None,
+    *,
+    timeout_s: float | None = None,
+) -> Tuple[Dict[str, Any], Optional[str]]:
+    timeout = _app_hash_wait_timeout_s() if timeout_s is None else max(0.0, float(timeout_s))
+    deadline = time.monotonic() + timeout
+    last_state: Dict[str, Any] = {}
+    last_hash: str | None = None
+    while True:
+        state, observed_hash = _load_app_state(client)
+        last_state = state
+        last_hash = observed_hash
+        if observed_hash is not None and (
+            app_hash_before is None or observed_hash != app_hash_before
+        ):
+            return state, observed_hash
+        if time.monotonic() >= deadline:
+            return last_state, last_hash
+        time.sleep(0.25)
+
+
 def _dex_state_view(app_state: Mapping[str, Any]) -> Mapping[str, Any]:
     dex_state = app_state.get("dex_state")
     if isinstance(dex_state, Mapping):
@@ -370,7 +920,7 @@ def _dex_state_view(app_state: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def _state_from_app_state(app_state: Mapping[str, Any]) -> DexState:
-    return state_from_snapshot(_dex_state_view(app_state))
+    return state_from_snapshot(snapshot_with_legacy_lp_metadata_defaults(_dex_state_view(app_state)))
 
 
 def _balance_for_asset(app_state: Mapping[str, Any], *, pubkey: str, asset_id: str) -> int:
@@ -493,6 +1043,24 @@ def _request_tx_fee_limit(body: Mapping[str, Any]) -> int:
     return int(value)
 
 
+def _testnet_faucet_enabled() -> bool:
+    return _env_bool("PERPS_WALLET_TESTNET_FAUCET_ENABLED", False)
+
+
+def _testnet_faucet_max_amount() -> int:
+    return _env_int("PERPS_WALLET_TESTNET_FAUCET_MAX_AMOUNT", 100_000, lo=1, hi=10**18)
+
+
+def _testnet_faucet_authority_pubkey() -> str:
+    raw = _env_str(
+        "PERPS_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY",
+        _env_str("TAU_DEX_OPERATOR_PUBKEY", ""),
+    )
+    if not raw:
+        raise ValueError("perps_wallet_testnet_faucet_authority_missing")
+    return _canonical_pubkey(raw, name="testnet_faucet_authority_pubkey")
+
+
 def _fee_limit_posture(*, tx_fee_limit: int, native_balance: int | None) -> dict[str, Any]:
     ok = None if native_balance is None else bool(int(native_balance) >= int(tx_fee_limit))
     warning = None
@@ -512,36 +1080,30 @@ def _hash_payload(domain: str, payload: Mapping[str, Any]) -> str:
     return sha256_hex(domain_sep_bytes(domain) + canonical_json_bytes(dict(payload)))
 
 
-def _return_signed_tau_tx_payload() -> bool:
-    """Whether to echo the full signed Tau tx payload in API responses.
-
-    Default OFF: the signed payload (which carries the BLS signature and the full
-    operation bodies — a replay-capable authority artifact) must NOT appear in the
-    default API response (disaster class D-KEY-001). Clients submit via the server
-    (`sendtx`); the response only needs a hash + non-sensitive metadata. An
-    operator can opt back in for debugging via the explicit env flag.
-    """
-    return _env_bool("PERPS_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False)
-
-
 def _redacted_tau_tx_payload(payload: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
-    """Strip the BLS signature from the Tau tx payload in API responses unless
-    explicitly opted in. The signature is the replay-capable authority artifact;
-    without it the echoed object is just the (client-authored) operations +
-    metadata and cannot be replayed. Operations/sender/sequence/fee_limit are
-    preserved so clients can still inspect what was built; a `payload_hash` over
-    the full signed payload is added for integrity. (Disaster class D-KEY-001.)
-    """
     if payload is None:
         return None
-    if _return_signed_tau_tx_payload():
+    if _return_signed_tau_tx_payloads():
         return dict(payload)
-    if not isinstance(payload, Mapping):
-        return payload
-    redacted = {key: value for key, value in payload.items() if key != "signature"}
-    redacted["signature_redacted"] = True
-    redacted["payload_hash"] = _hash_payload("zenodex.perps_wallet.tau_tx_payload/v1", payload)
-    return redacted
+    raw_operations = payload.get("operations")
+    operation_streams = sorted(str(key) for key in raw_operations.keys()) if isinstance(raw_operations, Mapping) else []
+    return {
+        "redacted": True,
+        "redaction_reason": "signed_tau_tx_payload_response_redaction",
+        "payload_hash": _hash_payload("zenodex.perps_wallet.tau_tx_payload/v1", payload),
+        "sender_pubkey": payload.get("sender_pubkey"),
+        "sequence_number": payload.get("sequence_number"),
+        "expiration_time": payload.get("expiration_time"),
+        "fee_limit": str(payload.get("fee_limit")),
+        "operation_streams": operation_streams,
+    }
+
+
+def _redact_response_authority_material(payload: dict[str, Any]) -> dict[str, Any]:
+    report = payload.get("report")
+    if isinstance(report, dict) and isinstance(report.get("tau_tx_payload"), Mapping):
+        report["tau_tx_payload"] = _redacted_tau_tx_payload(report.get("tau_tx_payload"))
+    return payload
 
 
 def _perps_proof_profile() -> dict[str, Any]:
@@ -584,12 +1146,18 @@ def _bind_live_zk_wrapper(
     *,
     body: Mapping[str, Any],
     required: bool,
+    enforce_required: bool = True,
+    wrapper_key: str = "zk_wrapper",
 ) -> dict[str, Any]:
     proof_section = payload.get("proof")
     if not isinstance(proof_section, dict):
+        if required and enforce_required:
+            raise ValueError("zk_proof_required: missing proof section")
         return payload
     receipt = proof_section.get("intent_receipt")
     if not isinstance(receipt, Mapping):
+        if required and enforce_required:
+            raise ValueError("zk_proof_required: missing proof intent receipt")
         return payload
     zk_wrapper = verify_live_proof_wrapper(
         surface="perps_stream8",
@@ -598,16 +1166,59 @@ def _bind_live_zk_wrapper(
         proof=proof_from_request(body),
         required=required,
     )
-    require_live_proof_wrapper(zk_wrapper)
-    proof_section["zk_wrapper"] = zk_wrapper
+    proof_section[wrapper_key] = zk_wrapper
+    if wrapper_key != "zk_wrapper":
+        proof_section["zk_wrapper"] = zk_wrapper
     profile = proof_section.get("profile")
+    receipt_body = receipt.get("body") if isinstance(receipt, Mapping) else None
+    app_hash_after = receipt_body.get("app_hash_after") if isinstance(receipt_body, Mapping) else None
+    state_delta_witness_hash = (
+        receipt_body.get("state_delta_witness_hash") if isinstance(receipt_body, Mapping) else None
+    )
+    post_submit_bound = (
+        isinstance(app_hash_after, str)
+        and bool(app_hash_after.strip())
+        and isinstance(state_delta_witness_hash, str)
+        and bool(state_delta_witness_hash.strip())
+    )
     if isinstance(profile, dict):
         profile["zk_proof_verified"] = bool(zk_wrapper.get("zk_proof_verified"))
         profile["artifact_binding_complete"] = bool(zk_wrapper.get("artifact_binding_complete"))
-        profile["promotion_ready"] = bool(zk_wrapper.get("zk_proof_verified")) and bool(
-            zk_wrapper.get("artifact_binding_complete")
+        profile["promotion_ready"] = (
+            post_submit_bound
+            and bool(zk_wrapper.get("zk_proof_verified"))
+            and bool(zk_wrapper.get("artifact_binding_complete"))
         )
+    if required and zk_wrapper.get("zk_proof_verified") is not True:
+        proof_section[f"{wrapper_key}_gap"] = zk_wrapper.get("error") or "proof not verified"
+    if enforce_required:
+        require_live_proof_wrapper(zk_wrapper)
     return payload
+
+
+def _reject_payload(payload: dict[str, Any], *, status: str, error: str) -> dict[str, Any]:
+    proof_section = payload.get("proof")
+    if isinstance(proof_section, dict):
+        profile = proof_section.get("profile")
+        if isinstance(profile, dict):
+            profile["promotion_ready"] = False
+    return _redact_response_authority_material({
+        **payload,
+        "ok": False,
+        "status": status,
+        "error": error,
+    })
+
+
+def _safe_sequence_after_submission(client: Any, tx_sender_pubkey: str) -> int | None:
+    try:
+        return int(client.get_sequence(_pubkey_for_rpc(tx_sender_pubkey)))
+    except Exception:
+        return None
+
+
+def _invalid_sequence_numbers(response: object) -> tuple[int, int] | None:
+    return tau_rpc_invalid_sequence_numbers(response)
 
 
 def _perps_proof_intent_receipt(
@@ -706,7 +1317,7 @@ def _oracle_authority_exercise_for_action(
         "action": action,
         "chain_id": chain_id,
         "market_id": operation.get("market_id"),
-        "required_for_action": _require_production_oracle_authority_for_action(action),
+        "required_for_action": _require_production_oracle_authority_for_action(action, chain_id=chain_id),
         "authority_exercised": authority_exercised,
         "production_authority": authority_ready,
         "status": "exercised" if authority_exercised else "blocked",
@@ -740,6 +1351,7 @@ def _perps_state_delta_witness(
     *,
     chain_id: str,
     action: str,
+    operation: Mapping[str, Any] | None = None,
     app_hash_before: str | None,
     app_hash_after: str | None,
     app_state_before: Mapping[str, Any],
@@ -760,6 +1372,7 @@ def _perps_state_delta_witness(
         "position_base_a",
         "position_base_b",
         "index_price_e8",
+        "clearing_price_epoch",
         "clearing_price_e8",
         "now_epoch",
         "oracle_last_update_epoch",
@@ -825,6 +1438,45 @@ def _perps_state_delta_witness(
                     "liquidated_after": bool(after.get("liquidated_this_step", False)),
                 }
             )
+    target_already_satisfied: dict[str, Any] | None = None
+    if (
+        action == "set_position_pair"
+        and isinstance(operation, Mapping)
+        and isinstance(operation.get("market_id"), str)
+        and isinstance(operation.get("new_position_base_a"), int)
+        and isinstance(operation.get("new_position_base_b"), int)
+    ):
+        target_market_id = str(operation["market_id"])
+        before_target = before_by_id.get(target_market_id)
+        after_target = after_by_id.get(target_market_id)
+        if isinstance(before_target, Mapping) and isinstance(after_target, Mapping):
+            new_position_base_a = int(operation["new_position_base_a"])
+            new_position_base_b = int(operation["new_position_base_b"])
+            before_a = before_target.get("position_base_a")
+            before_b = before_target.get("position_base_b")
+            after_a = after_target.get("position_base_a")
+            after_b = after_target.get("position_base_b")
+            satisfied = (
+                isinstance(before_a, int)
+                and isinstance(before_b, int)
+                and isinstance(after_a, int)
+                and isinstance(after_b, int)
+                and int(before_a) == new_position_base_a
+                and int(before_b) == new_position_base_b
+                and int(after_a) == new_position_base_a
+                and int(after_b) == new_position_base_b
+            )
+            target_already_satisfied = {
+                "kind": "set_position_pair_target_already_satisfied",
+                "market_id": target_market_id,
+                "new_position_base_a": new_position_base_a,
+                "new_position_base_b": new_position_base_b,
+                "position_base_a_before": int(before_a) if isinstance(before_a, int) else None,
+                "position_base_b_before": int(before_b) if isinstance(before_b, int) else None,
+                "position_base_a_after": int(after_a) if isinstance(after_a, int) else None,
+                "position_base_b_after": int(after_b) if isinstance(after_b, int) else None,
+                "satisfied": bool(satisfied),
+            }
     return {
         "schema": "zenodex/perps_wallet/state_delta_witness/v1",
         "chain_id": str(chain_id),
@@ -835,7 +1487,42 @@ def _perps_state_delta_witness(
         "market_count_before": len(before_markets),
         "market_count_after": len(after_markets),
         "changed_markets": changed_markets,
+        "target_already_satisfied": target_already_satisfied,
     }
+
+
+def _state_delta_witness_matches_operation(
+    witness: Mapping[str, Any],
+    operation: Mapping[str, Any],
+) -> bool:
+    app_hash_before = witness.get("app_hash_before")
+    app_hash_after = witness.get("app_hash_after")
+    if not isinstance(app_hash_before, str) or not app_hash_before:
+        return False
+    if not isinstance(app_hash_after, str) or not app_hash_after:
+        return False
+    if app_hash_after == app_hash_before:
+        return False
+    changed_markets = witness.get("changed_markets")
+    if not isinstance(changed_markets, list):
+        return False
+    market_id = operation.get("market_id")
+    if not changed_markets:
+        target_already_satisfied = witness.get("target_already_satisfied")
+        return (
+            isinstance(target_already_satisfied, Mapping)
+            and target_already_satisfied.get("kind") == "set_position_pair_target_already_satisfied"
+            and target_already_satisfied.get("satisfied") is True
+            and isinstance(market_id, str)
+            and bool(market_id)
+            and target_already_satisfied.get("market_id") == market_id
+        )
+    if isinstance(market_id, str) and market_id:
+        for changed_market in changed_markets:
+            if isinstance(changed_market, Mapping) and changed_market.get("market_id") == market_id:
+                return True
+        return False
+    return True
 
 
 def _request_mapping(body: Mapping[str, Any], *, name: str) -> Mapping[str, Any] | None:
@@ -913,7 +1600,7 @@ def _market_id(body: Mapping[str, Any], *, action: str | None = None) -> str:
         raise ValueError("missing_market_id")
     if len(raw) > 128:
         raise ValueError("bad_market_id")
-    if action == "partial_liquidate":
+    if action in {"partial_liquidate", "deposit_insurance"}:
         if not raw.startswith("perp:") or raw.startswith("perp:ch2p:"):
             raise ValueError("isolated market_id must start with perp: and not perp:ch2p:")
         return raw
@@ -976,7 +1663,7 @@ def _tx_sender_for_action(body: Mapping[str, Any], *, action: str, account_a_pub
     raw = body.get("sender_pubkey") if "sender_pubkey" in body else body.get("senderPubkey")
     if isinstance(raw, str) and raw.strip():
         return _canonical_pubkey(raw, name="sender_pubkey")
-    if action in {"deposit_collateral", "withdraw_collateral", "publish_clearing_price", "partial_liquidate"} and account_pubkey is not None:
+    if action in {"deposit_collateral", "withdraw_collateral", "deposit_insurance", "publish_clearing_price", "partial_liquidate"} and account_pubkey is not None:
         return account_pubkey
     if account_a_pubkey is not None:
         return account_a_pubkey
@@ -1006,6 +1693,19 @@ def _build_operation_and_sender(
         operation = {
             "module": "TauPerp",
             "version": "1.0",
+            "market_id": market_id,
+            "action": action,
+            "account_pubkey": account_pubkey,
+            "amount": _request_positive_int(body, name="amount"),
+        }
+        return operation, tx_sender, meta
+
+    if action == "deposit_insurance":
+        account_pubkey = _account_pubkey(body, field="account_pubkey", privkey_field="account_privkey")
+        tx_sender = _tx_sender_for_action(body, action=action, account_a_pubkey=None, account_pubkey=account_pubkey)
+        operation = {
+            "module": "TauPerp",
+            "version": "0.1",
             "market_id": market_id,
             "action": action,
             "account_pubkey": account_pubkey,
@@ -1175,23 +1875,11 @@ def _build_perp_config(*, chain_id: str) -> PerpEngineConfig:
         oracle_adapter_bridge_verifier=_default_oracle_adapter_bridge_verifier,
         require_oracle_adapter_for_clearinghouse_settle_epoch=_env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
-            False,
-        ),
-        require_oracle_authorization_for_clearinghouse_settle_epoch=_env_bool(
-            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
-            False,
-        ),
-        require_oracle_adapter_for_isolated_settle_epoch=_env_bool(
-            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
-            False,
+            True,
         ),
         require_oracle_adapter_for_isolated_partial_liquidate=_env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
-            False,
-        ),
-        require_oracle_authorization_for_isolated_settle_epoch=_env_bool(
-            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH",
-            False,
+            True,
         ),
     )
 
@@ -1274,7 +1962,10 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
                     "now_epoch": int(market.global_state.get("now_epoch", 0)),
                     "index_price_e8": int(market.global_state.get("index_price_e8", 0)),
                     "fee_pool_quote": int(market.global_state.get("fee_pool_quote", 0)),
+                    "fee_income": int(market.global_state.get("fee_income", 0)),
+                    "initial_insurance": int(market.global_state.get("initial_insurance", 0)),
                     "insurance_balance": int(market.global_state.get("insurance_balance", 0)),
+                    "claims_paid": int(market.global_state.get("claims_paid", 0)),
                     "account_count": len(accounts),
                     "accounts": accounts,
                 }
@@ -1549,7 +2240,7 @@ def _tx_signer_privkey(body: Mapping[str, Any], *, action: str) -> object:
     privkey = body.get("tx_signer_privkey")
     if privkey is not None:
         return privkey
-    if action in {"deposit_collateral", "withdraw_collateral", "partial_liquidate"} and body.get("account_privkey") is not None:
+    if action in {"deposit_collateral", "withdraw_collateral", "deposit_insurance", "partial_liquidate"} and body.get("account_privkey") is not None:
         return body.get("account_privkey")
     if action == "publish_clearing_price" and body.get("oracle_privkey") is not None:
         return body.get("oracle_privkey")
@@ -1560,6 +2251,137 @@ def _tx_signer_privkey(body: Mapping[str, Any], *, action: str) -> object:
     if body.get("signer_privkey") is not None:
         return body.get("signer_privkey")
     raise ValueError("missing_tx_signer_privkey")
+
+
+def _testnet_faucet_signer_privkey(body: Mapping[str, Any]) -> object:
+    for key in ("signer_privkey", "account_privkey", "operator_privkey", "tx_signer_privkey"):
+        value = body.get(key)
+        if value is not None:
+            return value
+    raise ValueError("missing_signer_privkey")
+
+
+def _build_testnet_faucet_response(body: Mapping[str, Any]) -> Dict[str, Any]:
+    if not _testnet_faucet_enabled():
+        raise ValueError("perps_wallet_testnet_faucet_disabled")
+
+    chain_id = str(body.get("chain_id") or _tau_chain_id())
+    to_pubkey = _canonical_pubkey(body.get("to_pubkey", body.get("account_pubkey")), name="to_pubkey")
+    asset = _canonical_asset(body.get("asset", body.get("quote_asset", body.get("quoteAsset"))), name="asset")
+    amount = _request_positive_int(body, name="amount")
+    max_amount = _testnet_faucet_max_amount()
+    if amount > max_amount:
+        raise ValueError(f"testnet_faucet_amount_exceeds_cap:{amount}>{max_amount}")
+    tx_fee_limit = _request_tx_fee_limit(body)
+    deadline = _request_u32(body, name="deadline", default=_default_deadline())
+    signer_privkey = _testnet_faucet_signer_privkey(body)
+    signer_pubkey = _canonical_pubkey(_pubkey_from_privkey(signer_privkey), name="signer_pubkey")
+    authority_pubkey = _testnet_faucet_authority_pubkey()
+    if signer_pubkey.lower() != authority_pubkey.lower():
+        raise ValueError("testnet_faucet_authority_mismatch")
+
+    client = _tau_client()
+    app_state_before, app_hash_before = _load_app_state(client)
+    balance_before = _balance_for_asset(app_state_before, pubkey=to_pubkey, asset_id=asset)
+    tx_sequence_number = int(client.get_sequence(_pubkey_for_rpc(signer_pubkey)))
+    operations = {"7": {"mint": [{"pubkey": to_pubkey, "asset": asset, "amount": amount}]}}
+    tau_tx_payload = build_signed_tau_transaction(
+        privkey=cast(Any, signer_privkey),
+        sequence_number=tx_sequence_number,
+        expiration_time=deadline,
+        operations=operations,
+        fee_limit=tx_fee_limit,
+    )
+    send_resp = client.sendtx(tau_tx_payload)
+    submission: Dict[str, Any] = {"sendtx_response": send_resp}
+    if not tau_rpc_response_is_success(send_resp):
+        invalid_sequence = _invalid_sequence_numbers(send_resp)
+        if (
+            invalid_sequence is not None
+            and int(invalid_sequence[1]) == int(tx_sequence_number)
+            and int(invalid_sequence[0]) > int(tx_sequence_number)
+        ):
+            tx_sequence_number = int(invalid_sequence[0])
+            submission["retry_sequence_error"] = {
+                "expected": int(invalid_sequence[0]),
+                "got": int(invalid_sequence[1]),
+            }
+            tau_tx_payload = build_signed_tau_transaction(
+                privkey=cast(Any, signer_privkey),
+                sequence_number=tx_sequence_number,
+                expiration_time=deadline,
+                operations=operations,
+                fee_limit=tx_fee_limit,
+            )
+            retry_send_resp = client.sendtx(tau_tx_payload)
+            submission["retry_sendtx_response"] = retry_send_resp
+            send_resp = retry_send_resp
+        if tau_rpc_response_is_success(send_resp):
+            pass
+        else:
+            return {
+                "ok": False,
+                "error": "sendtx_failed",
+                "status": "submit_rejected",
+                "submission": submission,
+                "testnet_only": True,
+                "production_authority": False,
+            }
+
+    if _auto_mine():
+        createblock_resp = client.createblock()
+        submission["createblock_response"] = createblock_resp
+        if not tau_rpc_response_is_success(createblock_resp):
+            observed_state, observed_hash = _wait_for_app_hash_change(client, app_hash_before)
+            observed_balance = _balance_for_asset(observed_state, pubkey=to_pubkey, asset_id=asset)
+            submission["observed_app_hash_after_createblock"] = observed_hash
+            submission["observed_balance_after_createblock"] = observed_balance
+            if observed_balance <= balance_before:
+                submission["createblock_empty_without_balance_delta"] = True
+
+    app_state_after, app_hash_after = _load_app_state(client)
+    balance_after = _balance_for_asset(app_state_after, pubkey=to_pubkey, asset_id=asset)
+    if balance_after < balance_before + amount:
+        return {
+            "ok": False,
+            "error": "faucet_balance_delta_missing",
+            "status": "submit_indeterminate",
+            "submission": submission,
+            "testnet_only": True,
+            "production_authority": False,
+            "balance_before": balance_before,
+            "balance_after": balance_after,
+            "expected_balance_after_at_least": balance_before + amount,
+            "app_hash_before": app_hash_before,
+            "app_hash_after": app_hash_after,
+        }
+    return _redact_response_authority_material({
+        "ok": True,
+        "schema": "zenodex/perps-wallet-testnet-faucet/v1",
+        "testnet_only": True,
+        "production_authority": False,
+        "chain_id": chain_id,
+        "to_pubkey": to_pubkey,
+        "asset": asset,
+        "amount": amount,
+        "balance_before": balance_before,
+        "balance_after": balance_after,
+        "app_hash_before": app_hash_before,
+        "app_hash_after": app_hash_after,
+        "transport": {
+            "stream_key": "7",
+            "tx_sender_pubkey": signer_pubkey,
+            "testnet_faucet_authority_pubkey": authority_pubkey,
+            "tx_sequence_number": tx_sequence_number,
+            "tx_fee_limit": str(tx_fee_limit),
+            "auto_mine": _auto_mine(),
+        },
+        "report": {
+            "operations": operations,
+            "tau_tx_payload": tau_tx_payload,
+        },
+        "submission": submission,
+    })
 
 
 def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dict[str, Any]:
@@ -1581,7 +2403,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     fee_limit_posture = _fee_limit_posture(tx_fee_limit=tx_fee_limit, native_balance=native_balance)
     operations = {_STREAM_KEY: [operation]}
     tx_sequence_number = int(client.get_sequence(_pubkey_for_rpc(tx_sender_pubkey)))
-    block_timestamp = int(body.get("block_timestamp") if isinstance(body.get("block_timestamp"), int) else int(time.time()))
+    block_timestamp = int(time.time())
     preflight = _preflight(
         app_state=app_state,
         config=config,
@@ -1610,6 +2432,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     quote_balance = _balance_for_asset(app_state, pubkey=account_pubkey, asset_id=quote_asset) if quote_asset else 0
 
     tau_tx_payload: dict[str, Any] | None = None
+    local_signer_privkey: object | None = None
     signing_mode = "prepare_only"
     if for_submit:
         external_payload = _request_signed_tau_tx_payload(body)
@@ -1630,6 +2453,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             signer_pubkey = _canonical_pubkey(_pubkey_from_privkey(signer_privkey), name="tx_signer_pubkey")
             if signer_pubkey.lower() != tx_sender_pubkey.lower():
                 raise ValueError("tx_signer_privkey does not match sender_pubkey")
+            local_signer_privkey = signer_privkey
             tau_tx_payload = build_signed_tau_transaction(
                 privkey=cast(Any, signer_privkey),
                 sequence_number=tx_sequence_number,
@@ -1653,10 +2477,9 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "fee_limit_native_balance_ok": fee_limit_posture["native_balance_covers_fee_limit"],
             "fee_limit_warning": fee_limit_posture["warning"],
             "tau_host": _env_str("PERPS_WALLET_TAU_HOST", _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", "127.0.0.1")),
-            "tau_port": _env_int_alias(
+            "tau_port": _env_int(
                 "PERPS_WALLET_TAU_PORT",
-                "ZUSD_MONETARY_WALLET_TAU_PORT",
-                65432,
+                _env_int("ZUSD_MONETARY_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
                 lo=1,
                 hi=65535,
             ),
@@ -1671,7 +2494,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "operations": operations,
             "preflight": preflight,
             "fee_limit": fee_limit_posture,
-            "tau_tx_payload": _redacted_tau_tx_payload(tau_tx_payload),
+            "tau_tx_payload": tau_tx_payload,
             "nonce_a": meta.get("nonce_a"),
             "nonce_b": meta.get("nonce_b"),
             "oracle_nonce": meta.get("oracle_nonce"),
@@ -1702,17 +2525,123 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     if for_submit:
         send_resp = client.sendtx(cast(Mapping[str, Any], tau_tx_payload))
         payload["submission"] = {"sendtx_response": send_resp}
+        if not tau_rpc_response_is_success(send_resp):
+            invalid_sequence = _invalid_sequence_numbers(send_resp)
+            if (
+                signing_mode == "local_test_signing"
+                and local_signer_privkey is not None
+                and invalid_sequence is not None
+                and int(invalid_sequence[1]) == int(tx_sequence_number)
+                and int(invalid_sequence[0]) > int(tx_sequence_number)
+            ):
+                if zk_required:
+                    payload["submission"]["retry_sequence_error"] = {
+                        "expected": int(invalid_sequence[0]),
+                        "got": int(invalid_sequence[1]),
+                    }
+                    return _reject_payload(
+                        payload,
+                        status="submit_rejected",
+                        error="sequence_retry_requires_fresh_zk_proof",
+                    )
+                tx_sequence_number = int(invalid_sequence[0])
+                payload["submission"]["retry_sequence_error"] = {
+                    "expected": int(invalid_sequence[0]),
+                    "got": int(invalid_sequence[1]),
+                }
+                tau_tx_payload = build_signed_tau_transaction(
+                    privkey=cast(Any, local_signer_privkey),
+                    sequence_number=tx_sequence_number,
+                    expiration_time=deadline,
+                    operations=operations,
+                    fee_limit=tx_fee_limit,
+                )
+                payload["transport"]["tx_sequence_number"] = tx_sequence_number
+                payload["report"]["tau_tx_payload"] = tau_tx_payload
+                retry_send_resp = client.sendtx(tau_tx_payload)
+                payload["submission"]["retry_sendtx_response"] = retry_send_resp
+                send_resp = retry_send_resp
+            if tau_rpc_response_is_success(send_resp):
+                pass
+            else:
+                return _reject_payload(payload, status="submit_rejected", error="sendtx_failed")
         if _auto_mine():
-            payload["submission"]["createblock_response"] = client.createblock()
+            createblock_response = client.createblock()
+            payload["submission"]["createblock_response"] = createblock_response
+            if not tau_rpc_response_is_success(createblock_response):
+                _observed_state, observed_hash = _wait_for_app_hash_change(client, app_hash)
+                payload["submission"]["observed_app_hash_after_createblock"] = observed_hash
+                if observed_hash == app_hash:
+                    if "mempool is empty" in str(createblock_response).lower():
+                        retry_send_response = client.sendtx(tau_tx_payload)
+                        payload["submission"]["retry_sendtx_response"] = retry_send_response
+                        if tau_rpc_response_is_success(retry_send_response):
+                            retry_createblock_response = client.createblock()
+                            payload["submission"]["retry_createblock_response"] = retry_createblock_response
+                            if tau_rpc_response_is_success(retry_createblock_response):
+                                pass
+                            else:
+                                _retry_observed_state, retry_observed_hash = _wait_for_app_hash_change(client, app_hash)
+                                payload["submission"]["retry_observed_app_hash_after_createblock"] = retry_observed_hash
+                                if retry_observed_hash == app_hash:
+                                    return _reject_payload(payload, status="submit_rejected", error="createblock_failed")
+                        else:
+                            _late_state, late_hash = _wait_for_app_hash_change(client, app_hash)
+                            payload["submission"]["late_observed_app_hash_after_retry"] = late_hash
+                            if late_hash is not None and late_hash != app_hash:
+                                pass
+                            else:
+                                invalid_sequence = _invalid_sequence_numbers(retry_send_response)
+                                if invalid_sequence is not None:
+                                    expected_sequence, got_sequence = invalid_sequence
+                                    payload["submission"]["retry_sequence_error"] = {
+                                        "expected": expected_sequence,
+                                        "got": got_sequence,
+                                    }
+                                payload["submission"]["observed_sequence_after_retry"] = _safe_sequence_after_submission(
+                                    client,
+                                    tx_sender_pubkey,
+                                )
+                                if (
+                                    invalid_sequence is not None
+                                    and int(invalid_sequence[1]) == int(tx_sequence_number)
+                                    and int(invalid_sequence[0]) > int(tx_sequence_number)
+                                ) or (
+                                    "invalid sequence number" in str(retry_send_response).lower()
+                                    and payload["submission"]["observed_sequence_after_retry"] is not None
+                                    and int(payload["submission"]["observed_sequence_after_retry"]) > tx_sequence_number
+                                ):
+                                    return _reject_payload(
+                                        payload,
+                                        status="submit_indeterminate",
+                                        error="tau_sequence_consumed_without_app_delta",
+                                    )
+                                return _reject_payload(payload, status="submit_rejected", error="sendtx_retry_failed")
+                    else:
+                        return _reject_payload(payload, status="submit_rejected", error="createblock_failed")
+                elif observed_hash is None:
+                    return _reject_payload(payload, status="submit_rejected", error="createblock_failed")
         app_state_after, app_hash_after = _load_app_state(client)
         state_delta_witness = _perps_state_delta_witness(
             chain_id=chain_id,
             action=action,
+            operation=operation,
             app_hash_before=app_hash,
             app_hash_after=app_hash_after,
             app_state_before=app_state,
             app_state_after=app_state_after,
         )
+        if not _state_delta_witness_matches_operation(state_delta_witness, operation):
+            payload["post_submit"] = {
+                "app_hash": app_hash_after,
+                "markets": _market_summaries(app_state_after),
+                "state_delta_witness": state_delta_witness,
+            }
+            return _reject_payload(
+                payload,
+                status="submit_indeterminate",
+                error="state_delta_witness_missing",
+            )
         payload["post_submit"] = {
             "app_hash": app_hash_after,
             "markets": _market_summaries(app_state_after),
@@ -1735,8 +2664,14 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             state_delta_witness=state_delta_witness,
         )
         payload["proof"]["oracle_authority_exercise"] = oracle_authority_exercise
-        payload = _bind_live_zk_wrapper(payload, body=body, required=False)
-    return payload
+        payload = _bind_live_zk_wrapper(
+            payload,
+            body=body,
+            required=zk_required,
+            enforce_required=False,
+            wrapper_key="post_submit_zk_wrapper",
+        )
+    return _redact_response_authority_material(payload)
 
 
 def _status_payload() -> Dict[str, Any]:
@@ -1828,6 +2763,130 @@ def _status_payload() -> Dict[str, Any]:
             "environment_hash": None,
             "environment_policy_hash": None,
         }
+    signer_prompt_capture, signer_prompt_capture_error = _wallet_signer_prompt_capture_from_env()
+    if signer_prompt_capture is not None:
+        wallet_authority["signer_prompt_capture"] = evaluate_perps_wallet_signer_prompt_capture_v1(
+            wallet_authority_profile,
+            signer_prompt_capture,
+            expected_chain_id=chain_id,
+        )
+    elif signer_prompt_capture_error is not None:
+        wallet_authority["signer_prompt_capture"] = {
+            "schema": "zenodex/perps-wallet-signer-prompt-capture-status/v1",
+            "ok": False,
+            "signer_prompt_capture_ready": False,
+            "status": "blocked",
+            "errors": [signer_prompt_capture_error],
+            "wallet_authority_hash": None if wallet_authority_profile is None else wallet_authority_profile.get("wallet_authority_hash"),
+            "capture_hash": None,
+            "backend_hash": None,
+            "environment_hash": None,
+            "environment_policy_hash": None,
+        }
+    signer_execution_exercise, signer_execution_exercise_error = _wallet_signer_execution_exercise_from_env()
+    if signer_execution_exercise is not None:
+        wallet_authority["signer_execution_exercise"] = evaluate_perps_wallet_signer_execution_exercise_v1(
+            wallet_authority_profile,
+            signer_execution_exercise,
+            expected_chain_id=chain_id,
+        )
+    elif signer_execution_exercise_error is not None:
+        wallet_authority["signer_execution_exercise"] = {
+            "schema": "zenodex/perps-wallet-signer-execution-exercise-status/v1",
+            "ok": False,
+            "signer_execution_ready": False,
+            "status": "blocked",
+            "errors": [signer_execution_exercise_error],
+            "wallet_authority_hash": None if wallet_authority_profile is None else wallet_authority_profile.get("wallet_authority_hash"),
+            "exercise_hash": None,
+            "backend_hash": None,
+            "environment_hash": None,
+            "use_policy_hash": None,
+            "environment_policy_hash": None,
+        }
+    if any(
+        key in wallet_authority
+        for key in (
+            "device_approval_exercise",
+            "signer_device_integration",
+            "signer_prompt_capture",
+            "signer_execution_exercise",
+        )
+    ):
+        production_hardware_evidence, production_hardware_evidence_error = _wallet_production_hardware_evidence_from_env()
+        production_hardware_evidence_status = evaluate_production_hardware_wallet_evidence_v1(
+            production_hardware_evidence,
+            wallet_authority_profile_hash=None
+            if wallet_authority_profile is None
+            else wallet_authority_profile.get("wallet_authority_hash"),
+            expected_device_pubkey=None,
+        )
+        if production_hardware_evidence_error is not None:
+            production_hardware_evidence_status["ok"] = False
+            production_hardware_evidence_status["production_ready"] = False
+            production_hardware_evidence_status["status"] = "blocked"
+            production_hardware_evidence_status.setdefault("gaps", []).append(production_hardware_evidence_error)
+        wallet_authority["production_hardware_evidence"] = production_hardware_evidence_status
+        wallet_authority["signer_ceremony"] = evaluate_perps_wallet_signer_ceremony_v1(
+            wallet_authority_hash=None if wallet_authority_profile is None else wallet_authority_profile.get("wallet_authority_hash"),
+            device_approval_status=wallet_authority.get("device_approval_exercise")
+            if isinstance(wallet_authority.get("device_approval_exercise"), Mapping)
+            else None,
+            signer_device_status=wallet_authority.get("signer_device_integration")
+            if isinstance(wallet_authority.get("signer_device_integration"), Mapping)
+            else None,
+            signer_prompt_capture_status=wallet_authority.get("signer_prompt_capture")
+            if isinstance(wallet_authority.get("signer_prompt_capture"), Mapping)
+            else None,
+            signer_execution_status=wallet_authority.get("signer_execution_exercise")
+            if isinstance(wallet_authority.get("signer_execution_exercise"), Mapping)
+            else None,
+        )
+        wallet_authority["hardware_custody"] = evaluate_perps_wallet_hardware_custody_v1(
+            wallet_authority_hash=None if wallet_authority_profile is None else wallet_authority_profile.get("wallet_authority_hash"),
+            device_approval_status=wallet_authority.get("device_approval_exercise")
+            if isinstance(wallet_authority.get("device_approval_exercise"), Mapping)
+            else None,
+            signer_device_status=wallet_authority.get("signer_device_integration")
+            if isinstance(wallet_authority.get("signer_device_integration"), Mapping)
+            else None,
+            signer_prompt_capture_status=wallet_authority.get("signer_prompt_capture")
+            if isinstance(wallet_authority.get("signer_prompt_capture"), Mapping)
+            else None,
+            signer_execution_status=wallet_authority.get("signer_execution_exercise")
+            if isinstance(wallet_authority.get("signer_execution_exercise"), Mapping)
+            else None,
+            signer_ceremony_status=wallet_authority.get("signer_ceremony")
+            if isinstance(wallet_authority.get("signer_ceremony"), Mapping)
+            else None,
+            production_hardware_evidence_status=production_hardware_evidence_status,
+        )
+    encrypted_sss_backup, encrypted_sss_backup_error = _wallet_encrypted_sss_backup_from_env()
+    if encrypted_sss_backup is not None:
+        recipient_root_keys, recipient_root_keys_error = _wallet_encrypted_sss_recipient_keys_from_env()
+        wallet_authority["encrypted_sss_backup"] = evaluate_perps_wallet_encrypted_sss_backup_v1(
+            wallet_authority_profile,
+            encrypted_sss_backup,
+            expected_chain_id=chain_id,
+            recipient_root_keys=recipient_root_keys,
+        )
+        if recipient_root_keys_error is not None:
+            wallet_authority["encrypted_sss_backup"]["ok"] = False
+            wallet_authority["encrypted_sss_backup"]["encrypted_sss_backup_ready"] = False
+            wallet_authority["encrypted_sss_backup"]["status"] = "blocked"
+            wallet_authority["encrypted_sss_backup"].setdefault("errors", []).append(recipient_root_keys_error)
+    elif encrypted_sss_backup_error is not None:
+        wallet_authority["encrypted_sss_backup"] = {
+            "schema": "zenodex/perps-wallet-encrypted-sss-backup-status/v1",
+            "ok": False,
+            "encrypted_sss_backup_ready": False,
+            "status": "blocked",
+            "errors": [encrypted_sss_backup_error],
+            "wallet_authority_hash": None if wallet_authority_profile is None else wallet_authority_profile.get("wallet_authority_hash"),
+            "backup_hash": None,
+            "sss_implemented": True,
+            "production_security_claim": False,
+        }
     oracle_authority_profile, oracle_authority_error = _oracle_authority_profile_from_env()
     oracle_authority = _bind_oracle_authority_status(
         evaluate_oracle_authority_profile_v1(oracle_authority_profile),
@@ -1839,10 +2898,9 @@ def _status_payload() -> Dict[str, Any]:
         "enabled": True,
         "chain_id": chain_id,
         "tau_host": _env_str("PERPS_WALLET_TAU_HOST", _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", "127.0.0.1")),
-        "tau_port": _env_int_alias(
+        "tau_port": _env_int(
             "PERPS_WALLET_TAU_PORT",
-            "ZUSD_MONETARY_WALLET_TAU_PORT",
-            65432,
+            _env_int("ZUSD_MONETARY_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
             lo=1,
             hi=65535,
         ),
@@ -1853,24 +2911,12 @@ def _status_payload() -> Dict[str, Any]:
         "oracle_pubkey": os.environ.get("TAU_DEX_PERP_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY") or None,
         "require_oracle_adapter_for_clearinghouse_settle_epoch": _env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
-            False,
-        ),
-        "require_oracle_authorization_for_clearinghouse_settle_epoch": _env_bool(
-            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
-            False,
-        ),
-        "require_oracle_adapter_for_isolated_settle_epoch": _env_bool(
-            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
-            False,
+            True,
         ),
         "allow_isolated_markets": _env_bool("TAU_DEX_ALLOW_ISOLATED_PERPS", False),
         "require_oracle_adapter_for_isolated_partial_liquidate": _env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
-            False,
-        ),
-        "require_oracle_authorization_for_isolated_settle_epoch": _env_bool(
-            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH",
-            False,
+            True,
         ),
         "proof_profile": _perps_proof_profile(),
         "wallet_authority": wallet_authority,
@@ -1913,9 +2959,21 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
         if parsed is None:
             return 400, {"ok": False, "error": "bad_json"}
         if rest == ["prepare"]:
-            return 200, _build_prepare_response(parsed, for_submit=False)
+            payload = _build_prepare_response(parsed, for_submit=False)
+            return (200 if payload.get("ok") is True else 400), payload
         if rest == ["submit"]:
-            return 200, _build_prepare_response(parsed, for_submit=True)
+            # The local Tau writer exposes one mempool/sequence lane. Keep the
+            # read-build-send-mine-postcheck cycle atomic for this API process.
+            with _PERPS_TAU_WRITE_LOCK:
+                payload = _build_prepare_response(parsed, for_submit=True)
+            return (200 if payload.get("ok") is True else 400), payload
+        if rest == ["testnet-faucet"]:
+            # The local faucet is fixture-only and signs with one authority key.
+            # Share the write lock with /submit so post-state balance checks
+            # cannot race a collateral deposit or position update.
+            with _PERPS_TAU_WRITE_LOCK:
+                payload = _build_testnet_faucet_response(parsed)
+            return (200 if payload.get("ok") is True else 400), payload
         if rest == ["oracle-bridge-template"]:
             action = str(parsed.get("action", "settle_epoch")).strip().lower()
             if action not in {"settle_epoch", "partial_liquidate"}:
@@ -1997,6 +3055,153 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
                 signer_device["status"] = "blocked"
                 signer_device.setdefault("errors", []).append(profile_error)
             return 200, {"ok": signer_device.get("signer_device_ready") is True, "signer_device_integration": signer_device}
+        if rest == ["signer-prompt-capture", "evaluate"]:
+            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+            profile, profile_error = _wallet_authority_profile_from_env()
+            signer_prompt_capture = evaluate_perps_wallet_signer_prompt_capture_v1(
+                profile,
+                parsed,
+                expected_chain_id=chain_id,
+            )
+            if profile_error is not None:
+                signer_prompt_capture["ok"] = False
+                signer_prompt_capture["signer_prompt_capture_ready"] = False
+                signer_prompt_capture["status"] = "blocked"
+                signer_prompt_capture.setdefault("errors", []).append(profile_error)
+            return 200, {
+                "ok": signer_prompt_capture.get("signer_prompt_capture_ready") is True,
+                "signer_prompt_capture": signer_prompt_capture,
+            }
+        if rest == ["signer-execution", "evaluate"]:
+            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+            profile, profile_error = _wallet_authority_profile_from_env()
+            signer_execution = evaluate_perps_wallet_signer_execution_exercise_v1(
+                profile,
+                parsed,
+                expected_chain_id=chain_id,
+            )
+            if profile_error is not None:
+                signer_execution["ok"] = False
+                signer_execution["signer_execution_ready"] = False
+                signer_execution["status"] = "blocked"
+                signer_execution.setdefault("errors", []).append(profile_error)
+            return 200, {"ok": signer_execution.get("signer_execution_ready") is True, "signer_execution_exercise": signer_execution}
+        if rest == ["signer-ceremony", "evaluate"]:
+            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+            profile, profile_error = _wallet_authority_profile_from_env()
+            device_approval_status = evaluate_perps_wallet_device_approval_exercise_v1(
+                profile,
+                parsed.get("device_approval_exercise") if isinstance(parsed.get("device_approval_exercise"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_device_status = evaluate_perps_wallet_signer_device_integration_v1(
+                profile,
+                parsed.get("signer_device_integration") if isinstance(parsed.get("signer_device_integration"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_prompt_capture_status = evaluate_perps_wallet_signer_prompt_capture_v1(
+                profile,
+                parsed.get("signer_prompt_capture") if isinstance(parsed.get("signer_prompt_capture"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_execution_status = evaluate_perps_wallet_signer_execution_exercise_v1(
+                profile,
+                parsed.get("signer_execution_exercise") if isinstance(parsed.get("signer_execution_exercise"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_ceremony = evaluate_perps_wallet_signer_ceremony_v1(
+                wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+                device_approval_status=device_approval_status,
+                signer_device_status=signer_device_status,
+                signer_prompt_capture_status=signer_prompt_capture_status,
+                signer_execution_status=signer_execution_status,
+            )
+            if profile_error is not None:
+                signer_ceremony["ok"] = False
+                signer_ceremony["signer_ceremony_ready"] = False
+                signer_ceremony["status"] = "blocked"
+                signer_ceremony.setdefault("errors", []).append(profile_error)
+            return 200, {"ok": signer_ceremony.get("signer_ceremony_ready") is True, "signer_ceremony": signer_ceremony}
+        if rest == ["hardware-custody", "evaluate"]:
+            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+            profile, profile_error = _wallet_authority_profile_from_env()
+            device_approval_status = evaluate_perps_wallet_device_approval_exercise_v1(
+                profile,
+                parsed.get("device_approval_exercise") if isinstance(parsed.get("device_approval_exercise"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_device_status = evaluate_perps_wallet_signer_device_integration_v1(
+                profile,
+                parsed.get("signer_device_integration") if isinstance(parsed.get("signer_device_integration"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_prompt_capture_status = evaluate_perps_wallet_signer_prompt_capture_v1(
+                profile,
+                parsed.get("signer_prompt_capture") if isinstance(parsed.get("signer_prompt_capture"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_execution_status = evaluate_perps_wallet_signer_execution_exercise_v1(
+                profile,
+                parsed.get("signer_execution_exercise") if isinstance(parsed.get("signer_execution_exercise"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_ceremony = evaluate_perps_wallet_signer_ceremony_v1(
+                wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+                device_approval_status=device_approval_status,
+                signer_device_status=signer_device_status,
+                signer_prompt_capture_status=signer_prompt_capture_status,
+                signer_execution_status=signer_execution_status,
+            )
+            production_hardware_evidence_status = evaluate_production_hardware_wallet_evidence_v1(
+                parsed.get("production_hardware_evidence")
+                if isinstance(parsed.get("production_hardware_evidence"), Mapping)
+                else None,
+                wallet_authority_profile_hash=None if profile is None else profile.get("wallet_authority_hash"),
+                expected_device_pubkey=None,
+            )
+            hardware_custody = evaluate_perps_wallet_hardware_custody_v1(
+                wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+                device_approval_status=device_approval_status,
+                signer_device_status=signer_device_status,
+                signer_prompt_capture_status=signer_prompt_capture_status,
+                signer_execution_status=signer_execution_status,
+                signer_ceremony_status=signer_ceremony,
+                production_hardware_evidence_status=production_hardware_evidence_status,
+            )
+            hardware_custody["production_hardware_evidence"] = production_hardware_evidence_status
+            if profile_error is not None:
+                hardware_custody["ok"] = False
+                hardware_custody["hardware_custody_ready"] = False
+                hardware_custody["status"] = "blocked"
+                hardware_custody.setdefault("errors", []).append(profile_error)
+            return 200, {"ok": hardware_custody.get("hardware_custody_ready") is True, "hardware_custody": hardware_custody}
+        if rest == ["encrypted-sss-backup", "evaluate"]:
+            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+            profile, profile_error = _wallet_authority_profile_from_env()
+            recipient_root_keys, recipient_root_keys_error = _wallet_encrypted_sss_recipient_keys_from_env()
+            encrypted_sss_backup = evaluate_perps_wallet_encrypted_sss_backup_v1(
+                profile,
+                parsed,
+                expected_chain_id=chain_id,
+                recipient_root_keys=recipient_root_keys,
+            )
+            if profile_error is not None:
+                encrypted_sss_backup["ok"] = False
+                encrypted_sss_backup["encrypted_sss_backup_ready"] = False
+                encrypted_sss_backup["status"] = "blocked"
+                encrypted_sss_backup.setdefault("errors", []).append(profile_error)
+            if recipient_root_keys_error is not None:
+                encrypted_sss_backup["ok"] = False
+                encrypted_sss_backup["encrypted_sss_backup_ready"] = False
+                encrypted_sss_backup["status"] = "blocked"
+                encrypted_sss_backup.setdefault("errors", []).append(recipient_root_keys_error)
+            return 200, {
+                "ok": encrypted_sss_backup.get("encrypted_sss_backup_ready") is True,
+                "encrypted_sss_backup": encrypted_sss_backup,
+            }
+        if rest == ["encrypted-sss-backup", "deliver"]:
+            payload = _build_encrypted_sss_provider_delivery_response(parsed)
+            return (200 if payload.get("ok") is True else 400), payload
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:
         return 400, {"ok": False, "error": str(exc)}

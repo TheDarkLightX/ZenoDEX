@@ -79,10 +79,9 @@ def _profile(profile_id: str) -> DeploymentProfile:
 def _safe_core_config(base: DexConfig) -> DexConfig:
     return replace(
         base,
-        require_all_nonces=True,
-        allow_legacy_nonce_free_steps=False,
         settlement_validation="strong_proof_carrying",
         allow_snapshot_bound_quote_bindings=False,
+        reject_settlements_with_rejected_intents=True,
     )
 
 

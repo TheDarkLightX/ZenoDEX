@@ -11,6 +11,7 @@ Algorithm Design:
 - Invariant: After each swap, x' * y' >= k (where k = x * y before swap, adjusted for fees)
 """
 
+from dataclasses import dataclass
 from typing import Tuple
 
 from ..kernels.python.cpmm_swap_v8 import compute_fee_total as _kernel_compute_fee_total_v8
@@ -29,6 +30,19 @@ from .domain_limits import (
 
 # Minimum LP lock to prevent division by zero attacks
 MIN_LP_LOCK = 1000
+
+
+@dataclass(frozen=True)
+class SwapExactInProtocolFeeResult:
+    amount_out: Amount
+    fee_total: Amount
+    protocol_fee: Amount
+    lp_fee: Amount
+    net_in: Amount
+    new_reserve_in: Amount
+    new_reserve_out: Amount
+    k_before: int
+    k_after: int
 
 
 def compute_fee_total(gross_amount: Amount, fee_bps: int) -> Amount:
@@ -100,6 +114,58 @@ def swap_exact_in(
         raise ValueError(f"Invariant violation: new_k ({res.k_after}) < old_k ({res.k_before})")
 
     return res.amount_out, (res.new_reserve_in, res.new_reserve_out)
+
+
+def swap_exact_in_with_protocol_fee(
+    reserve_in: Amount,
+    reserve_out: Amount,
+    amount_in: Amount,
+    fee_bps: int,
+    protocol_fee_share_bps: int,
+) -> SwapExactInProtocolFeeResult:
+    """
+    Compute exact-in CPMM output while removing a protocol fee share from reserves.
+
+    The existing `swap_exact_in` entry point keeps `protocol_fee_share_bps=0`.
+    This helper exposes the same v8 kernel path for callers that need explicit
+    protocol-fee capture, such as tokenomics buyback/burn accounting.
+
+    Post-swap reserves:
+        new_reserve_in = reserve_in + amount_in - protocol_fee
+        new_reserve_out = reserve_out - amount_out
+    """
+    require_int_range("reserve_in", reserve_in, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("reserve_out", reserve_out, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("amount_in", amount_in, minimum=1, maximum=DEX_SWAP_AMOUNT_MAX)
+    require_int_range("fee_bps", fee_bps, minimum=0, maximum=10000)
+    require_int_range("protocol_fee_share_bps", protocol_fee_share_bps, minimum=0, maximum=10000)
+    if reserve_in + amount_in > DEX_POOL_RESERVE_MAX:
+        raise ValueError(
+            f"swap would exceed reserve_in domain max {DEX_POOL_RESERVE_MAX}: "
+            f"{reserve_in} + {amount_in}"
+        )
+
+    res = _kernel_swap_exact_in_v8(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_in=amount_in,
+        fee_bps=fee_bps,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+    )
+    if res.k_after < res.k_before:
+        raise ValueError(f"Invariant violation: new_k ({res.k_after}) < old_k ({res.k_before})")
+
+    return SwapExactInProtocolFeeResult(
+        amount_out=int(res.amount_out),
+        fee_total=int(res.fee_total),
+        protocol_fee=int(res.protocol_fee),
+        lp_fee=int(res.lp_fee),
+        net_in=int(res.net_in),
+        new_reserve_in=int(res.new_reserve_in),
+        new_reserve_out=int(res.new_reserve_out),
+        k_before=int(res.k_before),
+        k_after=int(res.k_after),
+    )
 
 
 def swap_exact_out(

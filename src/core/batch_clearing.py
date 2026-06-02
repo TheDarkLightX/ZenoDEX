@@ -37,7 +37,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..kernels.python.settlement_swap_runtime_v1 import (
     quote_cpmm_swap_exact_in,
-    quote_cpmm_swap_exact_in_for_ordering_simulation,
     quote_cpmm_swap_exact_out,
 )
 from ..state.balances import Amount, AssetId, BalanceTable, PubKey
@@ -94,6 +93,8 @@ def compute_settlement(
     lp_balances: Optional[LPTable] = None,
     *,
     swap_ordering: str = _SWAP_ORDERING_GREEDY_AB_REFINED,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
 ) -> Settlement:
     """
     Compute settlement for a batch of intents.
@@ -115,6 +116,10 @@ def compute_settlement(
     """
     if swap_ordering not in _SWAP_ORDERING_CHOICES:
         raise ValueError(f"unsupported swap_ordering: {swap_ordering!r}")
+    if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
+        raise ValueError("protocol_fee_share_bps must be an int in [0, 10000]")
+    if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
+        raise ValueError("protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0")
     # Work on local copies (functional core / imperative shell).
     pool_states: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pools.items()}
     balances_local = _copy_balance_table(balances)
@@ -154,8 +159,7 @@ def compute_settlement(
         if fill.action != FillAction.FILL:
             continue
 
-        if pool_id is None or created_pool is None:
-            raise RuntimeError("CREATE_POOL fill missing generated pool state")
+        assert pool_id is not None and created_pool is not None
         _apply_create_pool_to_locals(
             intent=intent,
             pool_id=pool_id,
@@ -189,6 +193,8 @@ def compute_settlement(
             balances_local,
             lp_local,
             swap_ordering=swap_ordering,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
         )
 
         for fill in fills:
@@ -209,6 +215,7 @@ def compute_settlement(
                 balance_deltas=all_balance_deltas,
                 reserve_deltas=all_reserve_deltas,
                 lp_deltas=all_lp_deltas,
+                protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
             )
 
         pool_states[pool_id] = pool_state
@@ -554,6 +561,7 @@ def _apply_filled_intent_to_locals(
     balance_deltas: List[BalanceDelta],
     reserve_deltas: List[ReserveDelta],
     lp_deltas: List[LPDelta],
+    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
 ) -> None:
     sender = intent.sender_pubkey
     recipient = intent.get_field("recipient", sender)
@@ -563,25 +571,40 @@ def _apply_filled_intent_to_locals(
         asset_out = intent.get_field("asset_out")
         amount_in = fill.amount_in_filled or 0
         amount_out = fill.amount_out_filled or 0
+        protocol_fee = fill.protocol_fee_paid or 0
 
         balances.subtract(sender, asset_in, amount_in)
         balances.add(recipient, asset_out, amount_out)
+        if protocol_fee:
+            if not protocol_fee_recipient_pubkey:
+                raise ValueError("protocol_fee_recipient_pubkey is required for protocol fee capture")
+            balances.add(protocol_fee_recipient_pubkey, asset_in, protocol_fee)
 
         balance_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=amount_in))
         balance_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=amount_out, delta_sub=0))
+        if protocol_fee:
+            balance_deltas.append(
+                BalanceDelta(
+                    pubkey=protocol_fee_recipient_pubkey,
+                    asset=asset_in,
+                    delta_add=protocol_fee,
+                    delta_sub=0,
+                )
+            )
 
         # CoW-style netting: do not touch pool reserves/deltas.
         if fill.reason == "COW_NETTED":
             return
 
-        reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_in, delta_add=amount_in, delta_sub=0))
+        reserve_amount_in = amount_in - protocol_fee
+        reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_in, delta_add=reserve_amount_in, delta_sub=0))
         reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=amount_out))
 
         if asset_in == pool_state.asset0:
-            pool_state.reserve0 += amount_in
+            pool_state.reserve0 += reserve_amount_in
             pool_state.reserve1 -= amount_out
         else:
-            pool_state.reserve1 += amount_in
+            pool_state.reserve1 += reserve_amount_in
             pool_state.reserve0 -= amount_out
         return
 
@@ -635,6 +658,8 @@ def clear_batch_single_pool(
     lp_balances: LPTable,
     *,
     swap_ordering: str = _SWAP_ORDERING_GREEDY_AB_REFINED,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
 ) -> List[Fill]:
     """
     Process batch of intents for a single pool.
@@ -651,6 +676,10 @@ def clear_batch_single_pool(
     """
     if swap_ordering not in _SWAP_ORDERING_CHOICES:
         raise ValueError(f"unsupported swap_ordering: {swap_ordering!r}")
+    if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
+        raise ValueError("protocol_fee_share_bps must be an int in [0, 10000]")
+    if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
+        raise ValueError("protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0")
     # Sort intents deterministically
     # For swaps: sort by effective limit price (best first)
     # For liquidity: process in order received
@@ -745,7 +774,13 @@ def clear_batch_single_pool(
         sorted_swaps = _order_swaps_limit_price(swap_intents)
     
     for intent in sorted_swaps:
-        fill = _process_swap_intent(intent, current_reserves, pool_state, balances_scratch)
+        fill = _process_swap_intent(
+            intent,
+            current_reserves,
+            pool_state,
+            balances_scratch,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+        )
         fills.append(fill)
         
         if fill.action == FillAction.FILL:
@@ -760,6 +795,7 @@ def clear_batch_single_pool(
                             reserve_out=current_reserves[1],
                             amount_in=fill.amount_in_filled or 0,
                             fee_bps=pool_state.fee_bps,
+                            protocol_fee_share_bps=protocol_fee_share_bps,
                         )
                         new_r0, new_r1 = quote.reserve_in_after, quote.reserve_out_after
                     else:
@@ -776,6 +812,7 @@ def clear_batch_single_pool(
                             reserve_out=current_reserves[1],
                             amount_out=fill.amount_out_filled or 0,
                             fee_bps=pool_state.fee_bps,
+                            protocol_fee_share_bps=protocol_fee_share_bps,
                         )
                         new_r0, new_r1 = quote.reserve_in_after, quote.reserve_out_after
                     else:
@@ -794,6 +831,7 @@ def clear_batch_single_pool(
                             reserve_out=current_reserves[0],
                             amount_in=fill.amount_in_filled or 0,
                             fee_bps=pool_state.fee_bps,
+                            protocol_fee_share_bps=protocol_fee_share_bps,
                         )
                         new_r1, new_r0 = quote.reserve_in_after, quote.reserve_out_after
                     else:
@@ -810,6 +848,7 @@ def clear_batch_single_pool(
                             reserve_out=current_reserves[0],
                             amount_out=fill.amount_out_filled or 0,
                             fee_bps=pool_state.fee_bps,
+                            protocol_fee_share_bps=protocol_fee_share_bps,
                         )
                         new_r1, new_r0 = quote.reserve_in_after, quote.reserve_out_after
                     else:
@@ -827,6 +866,11 @@ def clear_batch_single_pool(
             recipient = intent.get_field("recipient", intent.sender_pubkey)
             balances_scratch.subtract(intent.sender_pubkey, asset_in, fill.amount_in_filled or 0)
             balances_scratch.add(recipient, asset_out, fill.amount_out_filled or 0)
+            protocol_fee = int(fill.protocol_fee_paid or 0)
+            if protocol_fee:
+                if not protocol_fee_recipient_pubkey:
+                    raise ValueError("protocol_fee_recipient_pubkey is required for protocol fee capture")
+                balances_scratch.add(protocol_fee_recipient_pubkey, asset_in, protocol_fee)
     
     # Process liquidity intents (in order received)
     for intent in liquidity_intents:
@@ -952,7 +996,7 @@ def _order_swaps_optimal_ab_bounded(
                     continue
                 try:
                     if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_in_for_ordering_simulation(
+                        quote = quote_cpmm_swap_exact_in(
                             reserve_in=r_in,
                             reserve_out=r_out,
                             amount_in=amount_in,
@@ -1053,6 +1097,8 @@ def _process_swap_intent(
     reserves: Tuple[Amount, Amount],
     pool_state: PoolState,
     balances: BalanceTable,
+    *,
+    protocol_fee_share_bps: int = 0,
 ) -> Fill:
     """Process a single swap intent against a pool snapshot."""
     reserve0, reserve1 = reserves
@@ -1095,10 +1141,14 @@ def _process_swap_intent(
                     reserve_out=reserve_out,
                     amount_in=amount_in,
                     fee_bps=pool_state.fee_bps,
+                    protocol_fee_share_bps=protocol_fee_share_bps,
                 )
                 amount_out = quote.amount_out
                 fee = quote.fee_paid
+                protocol_fee = quote.protocol_fee_paid
             else:
+                if protocol_fee_share_bps:
+                    return _reject("PROTOCOL_FEE_UNSUPPORTED_CURVE")
                 amount_out, _new_reserves = swap_exact_in_for_pool(
                     pool_state,
                     reserve_in=reserve_in,
@@ -1106,6 +1156,7 @@ def _process_swap_intent(
                     amount_in=amount_in,
                 )
                 fee = compute_fee_total(amount_in, pool_state.fee_bps)
+                protocol_fee = 0
             
             # Check slippage constraint
             if amount_out < min_amount_out:
@@ -1116,6 +1167,7 @@ def _process_swap_intent(
                 amount_in_filled=amount_in,
                 amount_out_filled=amount_out,
                 fee_paid=fee,
+                protocol_fee_paid=protocol_fee,
                 reserve_in_before=int(reserve_in),
                 reserve_out_before=int(reserve_out),
             )
@@ -1134,10 +1186,14 @@ def _process_swap_intent(
                     reserve_out=reserve_out,
                     amount_out=amount_out,
                     fee_bps=pool_state.fee_bps,
+                    protocol_fee_share_bps=protocol_fee_share_bps,
                 )
                 amount_in = quote.amount_in
                 fee = quote.fee_paid
+                protocol_fee = quote.protocol_fee_paid
             else:
+                if protocol_fee_share_bps:
+                    return _reject("PROTOCOL_FEE_UNSUPPORTED_CURVE")
                 amount_in, _new_reserves = swap_exact_out_for_pool(
                     pool_state,
                     reserve_in=reserve_in,
@@ -1145,6 +1201,7 @@ def _process_swap_intent(
                     amount_out=amount_out,
                 )
                 fee = compute_fee_total(amount_in, pool_state.fee_bps)
+                protocol_fee = 0
 
             if balances.get(sender, asset_in) < amount_in:
                 return _reject("INSUFFICIENT_BALANCE")
@@ -1158,6 +1215,7 @@ def _process_swap_intent(
                 amount_in_filled=amount_in,
                 amount_out_filled=amount_out,
                 fee_paid=fee,
+                protocol_fee_paid=protocol_fee,
                 reserve_in_before=int(reserve_in),
                 reserve_out_before=int(reserve_out),
             )
@@ -1778,7 +1836,7 @@ def _simulate_swap_reserves(
 
     try:
         if pool_state.curve_tag == CURVE_TAG_CPMM:
-            quote = quote_cpmm_swap_exact_in_for_ordering_simulation(
+            quote = quote_cpmm_swap_exact_in(
                 reserve_in=reserve_in,
                 reserve_out=reserve_out,
                 amount_in=amount_in,
@@ -2014,8 +2072,7 @@ def _order_swaps_mci_ab(
                     best_idx = rem_idx
                     best_order = trial
                     best_key = trial_key
-        if best_order is None or best_idx < 0:
-            raise RuntimeError("failed to choose a settlement ordering")
+        assert best_order is not None and best_idx >= 0
         ordered = best_order
         remaining.pop(best_idx)
 

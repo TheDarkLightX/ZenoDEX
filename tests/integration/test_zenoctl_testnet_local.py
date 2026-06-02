@@ -14,6 +14,7 @@ Verifies:
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import socket
@@ -22,6 +23,7 @@ import sys
 import yaml
 from contextlib import closing
 from pathlib import Path
+from typing import Mapping
 
 import pytest
 
@@ -56,14 +58,23 @@ def _valid_manifest_kwargs(out_dir: Path) -> dict:
         },
         enabled_lanes=["DEX_API_ENABLED", "PERPS_WALLET_API_ENABLED"],
         fixture_paths={
-            "key_bundle": str(out_dir / "fixtures" / "keys.json"),
+            "key_bundle": str(out_dir / "secrets" / "keys.json"),
             "oracle_authority_profile": str(out_dir / "fixtures" / "oracle_authority_profile.json"),
             "perps_wallet_authority_profile": str(out_dir / "fixtures" / "perps_wallet_authority_profile.json"),
             "autotrader_supervisor_profile": str(out_dir / "fixtures" / "autotrader_supervisor_profile.json"),
             "guardian_quorum": str(out_dir / "fixtures" / "guardians.json"),
+            "perps_wallet_recovery_exercise": str(out_dir / "fixtures" / "perps_wallet_recovery_exercise.json"),
+            "perps_wallet_rotation_exercise": str(out_dir / "fixtures" / "perps_wallet_rotation_exercise.json"),
+            "perps_wallet_device_approval_exercise": str(out_dir / "fixtures" / "perps_wallet_device_approval_exercise.json"),
+            "perps_wallet_signer_device_integration": str(out_dir / "fixtures" / "perps_wallet_signer_device_integration.json"),
+            "perps_wallet_signer_prompt_capture": str(out_dir / "fixtures" / "perps_wallet_signer_prompt_capture.json"),
+            "perps_wallet_signer_execution_exercise": str(out_dir / "fixtures" / "perps_wallet_signer_execution_exercise.json"),
+            "perps_wallet_encrypted_sss_backup": str(out_dir / "fixtures" / "perps_wallet_encrypted_sss_backup.json"),
+            "perps_wallet_encrypted_sss_recipient_keys": str(out_dir / "fixtures" / "perps_wallet_encrypted_sss_recipient_keys.json"),
         },
         ledger_bundle_manifest=str(out_dir / "ledger" / "public_testnet_manifest.json"),
         writer_token="writer-secret-abc",
+        stdlib_token="stdlib-secret-xyz",
         created_at_ms=1_700_000_000_000,
     )
 
@@ -73,12 +84,19 @@ def test_manifest_build_validate_roundtrip(tmp_path: Path) -> None:
 
     body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
     assert mf.validate_manifest(body) == []
-    assert body["schema"] == mf.SCHEMA_V1
+    assert body["schema"] == mf.SCHEMA_V2
     assert body["compose_project"].startswith("zenodex-local-testnet-")
     assert body["writer_token_sha256"].startswith("sha256:")
+    assert body["stdlib_token_sha256"].startswith("sha256:")
+    assert body["zk_mode_requested"] == "auto-strict"
+    assert body["zk_mode_effective"] == "open"
+    assert body["zk_required"] is False
+    assert body["proof_verifier_kind"] == "disabled"
+    assert body["production_security_claim"] is False
     assert body["rendered_paths"]["nginx_conf"].startswith("/")
     assert body["rendered_paths"]["runtime_config"].startswith("/")
     assert body["host_paths"]["fixtures_dir"].startswith("/")
+    assert body["host_paths"]["secrets_dir"].startswith("/")
     assert body["host_paths"]["oracle_home_dir"].startswith("/")
     assert body["host_paths"]["reports_dir"].startswith("/")
     assert "writer-secret-abc" not in json.dumps(body, sort_keys=True), "raw token must not be in manifest"
@@ -93,6 +111,23 @@ def test_manifest_save_load_roundtrip(tmp_path: Path) -> None:
     assert path.is_file()
     loaded = mf.load_manifest(path)
     assert loaded == body
+
+
+def test_force_up_can_load_stale_manifest_for_reset(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["fixture_paths"].pop("perps_wallet_encrypted_sss_backup")
+    path = tmp_path / mf.MANIFEST_FILENAME
+    path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        lc._load_manifest_if_present(path)
+
+    loaded = lc._load_manifest_if_present(path, allow_invalid=True)
+    assert loaded is not None
+    assert loaded["compose_project"] == body["compose_project"]
 
 
 def test_manifest_rejects_bad_schema(tmp_path: Path) -> None:
@@ -113,6 +148,15 @@ def test_manifest_rejects_missing_keys(tmp_path: Path) -> None:
     assert any("service_urls" in e for e in errors)
 
 
+def test_manifest_rejects_malformed_writer_token_hash(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["writer_token_sha256"] = "writer-secret"
+    errors = mf.validate_manifest(body)
+    assert any("writer_token_sha256" in e for e in errors)
+
+
 def test_manifest_rejects_invalid_port(tmp_path: Path) -> None:
     from tools.zenoctl_testnet_local import manifest as mf
 
@@ -120,6 +164,47 @@ def test_manifest_rejects_invalid_port(tmp_path: Path) -> None:
     body["ports"]["ui"] = 99_999
     errors = mf.validate_manifest(body)
     assert any("ports[ui]" in e for e in errors)
+
+
+def test_manifest_rejects_auto_strict_as_effective_zk_mode(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["zk_mode_effective"] = "auto-strict"
+    errors = mf.validate_manifest(body)
+    assert any("zk_mode_effective" in e for e in errors)
+
+
+def test_manifest_rejects_local_production_security_claim(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["production_security_claim"] = True
+    errors = mf.validate_manifest(body)
+    assert any("production_security_claim must be false" in e for e in errors)
+
+
+def test_manifest_rejects_strict_without_required_zk_inputs(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(
+        **_valid_manifest_kwargs(tmp_path),
+        zk_posture={
+            "zk_mode_requested": "strict",
+            "zk_mode_effective": "strict",
+            "zk_required": False,
+            "zk_fallback_reason": None,
+            "proof_verifier_kind": "disabled",
+            "proof_artifact_hashes": {},
+            "production_security_claim": False,
+        },
+    )
+
+    errors = mf.validate_manifest(body)
+
+    assert "strict zk mode requires zk_required=true" in errors
+    assert "strict zk mode requires proof_verifier_kind=subprocess" in errors
+    assert "strict zk mode requires verifier and circuit artifact hashes" in errors
 
 
 def test_writer_token_sha256_is_stable() -> None:
@@ -130,6 +215,214 @@ def test_writer_token_sha256_is_stable() -> None:
     assert a == b
     c = mf.writer_token_sha256("different")
     assert a != c
+
+
+def test_zk_auto_strict_uses_bundled_local_wrapper_when_no_verifier_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    for name in (
+        "TAU_DEX_PROOF_VERIFIER_CMD_JSON",
+        "TAU_DEX_PROOF_VERIFIER_TIMEOUT_S",
+        "TAU_DEX_PROOF_VERIFIER_MAX_PROOF_BYTES",
+        "TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON",
+        "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON",
+        "TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE",
+        "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE",
+        "TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    posture = lc._resolve_zk_posture("auto-strict")
+    assert posture["ok"] is True
+    assert posture["zk_mode_requested"] == "auto-strict"
+    assert posture["zk_mode_effective"] == "strict"
+    assert posture["zk_required"] is True
+    assert posture["zk_fallback_reason"] is None
+    assert posture["proof_verifier_kind"] == "subprocess"
+    assert posture["proof_artifact_hashes"] == {
+        "verifier": "sha256:" + "33" * 32,
+        "circuit": "sha256:" + "44" * 32,
+    }
+    assert posture["production_security_claim"] is False
+
+
+def test_zk_strict_rejects_explicit_incomplete_verifier_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", json.dumps([sys.executable, "-c", "print()"]))
+    monkeypatch.delenv("TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON", raising=False)
+    monkeypatch.delenv("TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON", raising=False)
+    monkeypatch.delenv("TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE", raising=False)
+    monkeypatch.delenv("TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE", raising=False)
+    posture = lc._resolve_zk_posture("strict")
+    assert posture["ok"] is False
+    assert posture["zk_required"] is True
+    assert "proof verifier artifact hash unavailable" in posture["zk_fallback_reason"]
+    assert "proof circuit artifact hash unavailable" in posture["zk_fallback_reason"]
+
+
+def test_zk_strict_accepts_subprocess_verifier_and_artifacts(monkeypatch: pytest.MonkeyPatch) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", json.dumps([sys.executable, "-c", "print()"]))
+    monkeypatch.setenv(
+        "TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON",
+        json.dumps({"artifact_id": "verifier", "artifact_hash": "sha256:" + "11" * 32}),
+    )
+    monkeypatch.setenv(
+        "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON",
+        json.dumps({"artifact_id": "circuit", "artifact_hash": "0x" + "22" * 32, "proof_system": "risc0"}),
+    )
+    posture = lc._resolve_zk_posture("strict")
+    assert posture["ok"] is True
+    assert posture["zk_mode_effective"] == "strict"
+    assert posture["zk_required"] is True
+    assert posture["proof_verifier_kind"] == "subprocess"
+    assert posture["proof_artifact_hashes"] == {
+        "verifier": "sha256:" + "11" * 32,
+        "circuit": "0x" + "22" * 32,
+    }
+    assert posture["production_security_claim"] is False
+
+
+def test_zk_strict_rejects_relative_verifier_without_path_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", json.dumps(["python3", "-c", "print()"]))
+    monkeypatch.setenv(
+        "TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON",
+        json.dumps({"artifact_id": "verifier", "artifact_hash": "sha256:" + "11" * 32}),
+    )
+    monkeypatch.setenv(
+        "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON",
+        json.dumps({"artifact_id": "circuit", "artifact_hash": "0x" + "22" * 32, "proof_system": "risc0"}),
+    )
+    monkeypatch.delenv("TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP", raising=False)
+
+    posture = lc._resolve_zk_posture("strict")
+
+    assert posture["ok"] is False
+    assert "absolute executable path" in posture["zk_fallback_reason"]
+
+
+def test_zk_strict_env_gap_rejects_manifest_artifact_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", json.dumps([sys.executable, "-c", "print()"]))
+    monkeypatch.setenv(
+        "TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON",
+        json.dumps({"artifact_id": "verifier", "artifact_hash": "sha256:" + "11" * 32}),
+    )
+    monkeypatch.setenv(
+        "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON",
+        json.dumps({"artifact_id": "circuit", "artifact_hash": "0x" + "22" * 32, "proof_system": "risc0"}),
+    )
+
+    gap = lc._strict_zk_env_gap(
+        expected={
+            "proof_verifier_kind": "subprocess",
+            "proof_artifact_hashes": {
+                "verifier": "sha256:" + "aa" * 32,
+                "circuit": "0x" + "22" * 32,
+            },
+        }
+    )
+
+    assert gap == "current proof artifact hashes do not match manifest"
+
+
+def test_zk_strict_requires_complete_artifact_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", json.dumps([sys.executable, "-c", "print()"]))
+    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON", json.dumps({"artifact_hash": "sha256:" + "11" * 32}))
+    monkeypatch.setenv(
+        "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON",
+        json.dumps({"artifact_id": "circuit", "artifact_hash": "0x" + "22" * 32}),
+    )
+
+    posture = lc._resolve_zk_posture("strict")
+
+    assert posture["ok"] is False
+    assert "proof verifier artifact artifact_id missing or invalid" in posture["zk_fallback_reason"]
+    assert "proof circuit artifact proof_system missing or invalid" in posture["zk_fallback_reason"]
+
+
+def test_zk_artifact_file_must_be_json_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    artifact_path = tmp_path / "artifact.txt"
+    artifact_path.write_text(json.dumps({"artifact_hash": "sha256:" + "11" * 32}), encoding="utf-8")
+    monkeypatch.delenv("TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON", raising=False)
+    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE", str(artifact_path))
+
+    artifact_hash, error = lc._artifact_hash_from_env(
+        json_name="TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON",
+        file_name="TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE",
+        label="proof verifier artifact",
+    )
+
+    assert artifact_hash is None
+    assert error == "proof verifier artifact file must be JSON metadata"
+
+
+def test_existing_manifest_rejects_requested_zk_mode_change(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    manifest = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    gap = lc._existing_manifest_zk_request_gap(
+        opts=lc.UpOptions(out_dir=tmp_path, zk_mode="strict"),
+        manifest=manifest,
+    )
+
+    assert gap is not None
+    assert "use --force to recreate with --zk-mode strict" in gap
+
+
+def test_strict_browser_smoke_cases_include_local_fixture_zk_proof(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from urllib.parse import parse_qs, urlsplit
+
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    monkeypatch.setattr(
+        lc,
+        "_build_signed_live_swap_payload",
+        lambda **_: {"signature": "sig", "nonce": 7, "deadline": 123},
+    )
+    roles = {
+        "alice": {"public_key": "alice-pub", "privkey_hex": "0x01"},
+        "bob": {"public_key": "bob-pub", "privkey_hex": "0x02"},
+        "oracle_authority": {"public_key": "oracle-pub", "privkey_hex": "0x03"},
+    }
+
+    cases = lc._browser_smoke_cases(
+        ui_base="http://127.0.0.1:18080",
+        roles=roles,
+        seed_report={"market_id": "perp:ch2p:test"},
+        chain_id="chain",
+        zk_required=True,
+    )
+    by_name = {str(item["name"]): item for item in cases}
+
+    for name in ("zusd_monetary_ui", "perps_wallet_ui"):
+        query = parse_qs(urlsplit(str(by_name[name]["url"])).query)
+        proof = json.loads(query["zkProofJson"][0])
+        assert proof == {
+            "system": "local-testnet-live-wrapper-fixture-v1",
+            "production_security_claim": False,
+        }
+
+    spot_query = parse_qs(urlsplit(str(by_name["spot_swap_ui"]["url"])).query)
+    assert "zkProofJson" not in spot_query
 
 
 # ---------------------------------------------------------------------------
@@ -177,16 +470,31 @@ def test_fixture_bundle_writes_expected_files(tmp_path: Path) -> None:
     )
     for path in (
         bundle.key_bundle,
+        bundle.role_pubkeys,
         bundle.oracle_authority_profile,
         bundle.perps_wallet_authority_profile,
         bundle.autotrader_supervisor_profile,
         bundle.guardian_quorum,
+        bundle.perps_wallet_recovery_exercise,
+        bundle.perps_wallet_rotation_exercise,
+        bundle.perps_wallet_device_approval_exercise,
+        bundle.perps_wallet_signer_device_integration,
+        bundle.perps_wallet_signer_prompt_capture,
+        bundle.perps_wallet_signer_execution_exercise,
+        bundle.perps_wallet_encrypted_sss_backup,
+        bundle.perps_wallet_encrypted_sss_recipient_keys,
     ):
         assert path.is_file(), f"missing fixture file: {path}"
 
     doc = json.loads(bundle.key_bundle.read_text(encoding="utf-8"))
     assert doc["schema"] == "zenodex.local_testnet.key_bundle.v0"
     assert set(doc["roles"].keys()) == set(fx.KEY_ROLES)
+    public_doc = json.loads(bundle.role_pubkeys.read_text(encoding="utf-8"))
+    assert public_doc["schema"] == "zenodex.local_testnet.role_pubkeys.v0"
+    assert set(public_doc["roles"].keys()) == set(fx.KEY_ROLES)
+    assert all("privkey_hex" not in material for material in public_doc["roles"].values())
+    assert bundle.key_bundle.parent == tmp_path.resolve() / "secrets"
+    assert not (tmp_path / "fixtures" / "keys.json").exists()
 
 
 def test_fixture_bundle_writes_key_material_with_owner_only_mode(tmp_path: Path) -> None:
@@ -206,9 +514,18 @@ def test_fixture_bundle_writes_key_material_with_owner_only_mode(tmp_path: Path)
         bundle.perps_wallet_authority_profile,
         bundle.autotrader_supervisor_profile,
         bundle.guardian_quorum,
+        bundle.perps_wallet_recovery_exercise,
+        bundle.perps_wallet_rotation_exercise,
+        bundle.perps_wallet_device_approval_exercise,
+        bundle.perps_wallet_signer_device_integration,
+        bundle.perps_wallet_signer_prompt_capture,
+        bundle.perps_wallet_signer_execution_exercise,
+        bundle.perps_wallet_encrypted_sss_backup,
+        bundle.perps_wallet_encrypted_sss_recipient_keys,
     ):
         mode = path.stat().st_mode & 0o777
         assert mode == 0o600, f"{path} must be 0600, got {oct(mode)}"
+    assert bundle.role_pubkeys.stat().st_mode & 0o777 == 0o644
 
 
 def test_fixture_bundle_is_byte_identical_across_reruns(tmp_path: Path) -> None:
@@ -226,11 +543,28 @@ def test_fixture_bundle_is_byte_identical_across_reruns(tmp_path: Path) -> None:
     assert hashlib.sha256(b1.key_bundle.read_bytes()).hexdigest() == hashlib.sha256(
         b2.key_bundle.read_bytes()
     ).hexdigest()
+    assert hashlib.sha256(b1.perps_wallet_encrypted_sss_backup.read_bytes()).hexdigest() == hashlib.sha256(
+        b2.perps_wallet_encrypted_sss_backup.read_bytes()
+    ).hexdigest()
 
 
 def test_fixture_profiles_pass_live_authority_evaluators(tmp_path: Path) -> None:
     from src.integration.autotrader_supervisor_profile import evaluate_autotrader_supervisor_profile_v1
-    from src.integration.perps_wallet_authority import evaluate_perps_wallet_authority_profile_v1
+    from src.integration.perps_wallet_authority import (
+        evaluate_perps_wallet_authority_profile_v1,
+        evaluate_perps_wallet_device_approval_exercise_v1,
+        evaluate_perps_wallet_hardware_custody_v1,
+        evaluate_perps_wallet_recovery_exercise_v1,
+        evaluate_perps_wallet_rotation_exercise_v1,
+        evaluate_perps_wallet_signer_ceremony_v1,
+        evaluate_perps_wallet_signer_device_integration_v1,
+        evaluate_perps_wallet_signer_execution_exercise_v1,
+        evaluate_perps_wallet_signer_prompt_capture_v1,
+    )
+    from src.integration.perps_wallet_encrypted_sss_backup import (
+        evaluate_perps_wallet_encrypted_sss_backup_v1,
+        recipient_root_keys_from_fixture_v1,
+    )
     from src.integration.zeno_oracle_authority import evaluate_oracle_authority_profile_v1
     from tools.zenoctl_testnet_local import fixtures as fx
 
@@ -252,6 +586,76 @@ def test_fixture_profiles_pass_live_authority_evaluators(tmp_path: Path) -> None
         expected_chain_id=chain_id,
     )
     assert perps_status["ok"] is True, perps_status["readiness_gaps"]
+    recovery = evaluate_perps_wallet_recovery_exercise_v1(
+        perps_profile,
+        json.loads(bundle.perps_wallet_recovery_exercise.read_text(encoding="utf-8")),
+        expected_chain_id=chain_id,
+    )
+    rotation = evaluate_perps_wallet_rotation_exercise_v1(
+        perps_profile,
+        json.loads(bundle.perps_wallet_rotation_exercise.read_text(encoding="utf-8")),
+        expected_chain_id=chain_id,
+    )
+    device_approval = evaluate_perps_wallet_device_approval_exercise_v1(
+        perps_profile,
+        json.loads(bundle.perps_wallet_device_approval_exercise.read_text(encoding="utf-8")),
+        expected_chain_id=chain_id,
+    )
+    signer_device = evaluate_perps_wallet_signer_device_integration_v1(
+        perps_profile,
+        json.loads(bundle.perps_wallet_signer_device_integration.read_text(encoding="utf-8")),
+        expected_chain_id=chain_id,
+    )
+    signer_prompt = evaluate_perps_wallet_signer_prompt_capture_v1(
+        perps_profile,
+        json.loads(bundle.perps_wallet_signer_prompt_capture.read_text(encoding="utf-8")),
+        expected_chain_id=chain_id,
+    )
+    signer_execution = evaluate_perps_wallet_signer_execution_exercise_v1(
+        perps_profile,
+        json.loads(bundle.perps_wallet_signer_execution_exercise.read_text(encoding="utf-8")),
+        expected_chain_id=chain_id,
+    )
+    signer_ceremony = evaluate_perps_wallet_signer_ceremony_v1(
+        wallet_authority_hash=perps_profile["wallet_authority_hash"],
+        device_approval_status=device_approval,
+        signer_device_status=signer_device,
+        signer_prompt_capture_status=signer_prompt,
+        signer_execution_status=signer_execution,
+    )
+    hardware_custody = evaluate_perps_wallet_hardware_custody_v1(
+        wallet_authority_hash=perps_profile["wallet_authority_hash"],
+        device_approval_status=device_approval,
+        signer_device_status=signer_device,
+        signer_prompt_capture_status=signer_prompt,
+        signer_execution_status=signer_execution,
+        signer_ceremony_status=signer_ceremony,
+    )
+    encrypted_sss_backup = evaluate_perps_wallet_encrypted_sss_backup_v1(
+        perps_profile,
+        json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8")),
+        expected_chain_id=chain_id,
+        recipient_root_keys=recipient_root_keys_from_fixture_v1(
+            json.loads(bundle.perps_wallet_encrypted_sss_recipient_keys.read_text(encoding="utf-8"))
+        ),
+    )
+    assert recovery["recovery_exercise_ready"] is True, recovery["errors"]
+    assert rotation["rotation_exercise_ready"] is True, rotation["errors"]
+    assert device_approval["device_approval_ready"] is True, device_approval["errors"]
+    assert signer_device["signer_device_ready"] is True, signer_device["errors"]
+    assert signer_prompt["signer_prompt_capture_ready"] is True, signer_prompt["errors"]
+    assert signer_execution["signer_execution_ready"] is True, signer_execution["errors"]
+    assert signer_ceremony["signer_ceremony_ready"] is True, signer_ceremony["errors"]
+    assert hardware_custody["hardware_custody_ready"] is True, hardware_custody["errors"]
+    assert hardware_custody["production_hardware_custody_ready"] is False
+    assert hardware_custody["custody_evidence_mode"] == "local_fixture"
+    assert encrypted_sss_backup["encrypted_sss_backup_ready"] is True, encrypted_sss_backup["errors"]
+    assert encrypted_sss_backup["threshold"] == 3
+    assert set(encrypted_sss_backup["storage_provider_kinds"]) >= {"recovery_email", "cloud_drive", "offline_export"}
+    assert encrypted_sss_backup["provider_delivery_ready"] is True
+    assert encrypted_sss_backup["live_provider_delivery_ready"] is False
+    assert encrypted_sss_backup["delivery_modes"] == ["local_fixture"]
+    assert encrypted_sss_backup["external_audit_ready"] is False
 
     autotrader_profile = json.loads(bundle.autotrader_supervisor_profile.read_text(encoding="utf-8"))
     autotrader_status = evaluate_autotrader_supervisor_profile_v1(
@@ -259,6 +663,492 @@ def test_fixture_profiles_pass_live_authority_evaluators(tmp_path: Path) -> None
         expected_chain_id=chain_id,
     )
     assert autotrader_status["ok"] is True, autotrader_status["readiness_gaps"]
+
+
+def test_encrypted_sss_shamir_recovery_and_duplicate_rejection() -> None:
+    from src.integration.perps_wallet_encrypted_sss_backup import (
+        recover_secret_shamir_gf256,
+        split_secret_shamir_gf256,
+    )
+
+    secret = bytes(range(32))
+    shares = split_secret_shamir_gf256(
+        secret,
+        threshold=3,
+        share_count=5,
+        coefficient_seed=b"local-testnet-sss-unit-seed",
+    )
+    assert recover_secret_shamir_gf256(shares[:3]) == secret
+    assert recover_secret_shamir_gf256([shares[0], shares[2], shares[4]]) == secret
+    assert recover_secret_shamir_gf256(shares[:2]) != secret
+    with pytest.raises(ValueError, match="duplicate share"):
+        recover_secret_shamir_gf256([shares[0], shares[0], shares[2]])
+
+
+def test_encrypted_sss_backup_evaluator_rejects_tampered_envelope(tmp_path: Path) -> None:
+    from src.integration.perps_wallet_encrypted_sss_backup import (
+        evaluate_perps_wallet_encrypted_sss_backup_v1,
+        recipient_root_keys_from_fixture_v1,
+    )
+    from tools.zenoctl_testnet_local import fixtures as fx
+
+    chain_id = "zeno-ledger-localtest-v0"
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id=chain_id,
+        network_id=chain_id,
+        created_at_ms=1000,
+    )
+    profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
+    backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
+    recipient_root_keys = recipient_root_keys_from_fixture_v1(
+        json.loads(bundle.perps_wallet_encrypted_sss_recipient_keys.read_text(encoding="utf-8"))
+    )
+    assert evaluate_perps_wallet_encrypted_sss_backup_v1(
+        profile,
+        backup,
+        expected_chain_id=chain_id,
+        recipient_root_keys=recipient_root_keys,
+    )["encrypted_sss_backup_ready"] is True
+
+    backup["envelopes"][0]["ciphertext_b64"] = backup["envelopes"][0]["ciphertext_b64"][:-4] + "AAAA"
+    tampered = evaluate_perps_wallet_encrypted_sss_backup_v1(
+        profile,
+        backup,
+        expected_chain_id=chain_id,
+        recipient_root_keys=recipient_root_keys,
+    )
+    assert tampered["encrypted_sss_backup_ready"] is False
+    assert "encrypted SSS backup hash mismatch" in tampered["errors"]
+
+
+def test_encrypted_sss_backup_evaluator_replays_recovery_after_rehashed_tamper(tmp_path: Path) -> None:
+    from src.integration.perps_wallet_encrypted_sss_backup import (
+        evaluate_perps_wallet_encrypted_sss_backup_v1,
+        perps_wallet_encrypted_sss_backup_hash_v1,
+        perps_wallet_encrypted_sss_delivery_hash_v1,
+        perps_wallet_encrypted_sss_envelope_hash_v1,
+        recipient_root_keys_from_fixture_v1,
+    )
+    from tools.zenoctl_testnet_local import fixtures as fx
+
+    chain_id = "zeno-ledger-localtest-v0"
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id=chain_id,
+        network_id=chain_id,
+        created_at_ms=1000,
+    )
+    profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
+    backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
+    recipient_root_keys = recipient_root_keys_from_fixture_v1(
+        json.loads(bundle.perps_wallet_encrypted_sss_recipient_keys.read_text(encoding="utf-8"))
+    )
+    envelope = backup["envelopes"][0]
+    envelope["ciphertext_b64"] = envelope["ciphertext_b64"][:-4] + "AAAA"
+    envelope["envelope_hash"] = perps_wallet_encrypted_sss_envelope_hash_v1(envelope)
+    for delivery in backup["delivery_evidence"]:
+        if delivery["envelope_id"] == envelope["envelope_id"]:
+            delivery["envelope_hash"] = envelope["envelope_hash"]
+            delivery["delivery_hash"] = perps_wallet_encrypted_sss_delivery_hash_v1(delivery)
+    backup["backup_hash"] = perps_wallet_encrypted_sss_backup_hash_v1(backup)
+
+    tampered = evaluate_perps_wallet_encrypted_sss_backup_v1(
+        profile,
+        backup,
+        expected_chain_id=chain_id,
+        recipient_root_keys=recipient_root_keys,
+    )
+    assert tampered["encrypted_sss_backup_ready"] is False
+    assert any("encrypted SSS replay decrypt failed" in err for err in tampered["errors"])
+
+
+def test_encrypted_sss_public_fields_do_not_recover_key_from_one_share(tmp_path: Path) -> None:
+    import hashlib
+
+    from src.integration.perps_wallet_encrypted_sss_backup import (
+        _decrypt_share_envelope,
+        _derive_coefficient,
+        _gf_mul,
+        recipient_root_keys_from_fixture_v1,
+    )
+    from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
+    from tools.zenoctl_testnet_local import fixtures as fx
+
+    chain_id = "zeno-ledger-localtest-v0"
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id=chain_id,
+        network_id=chain_id,
+        created_at_ms=1000,
+    )
+    profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
+    backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
+    recipient_root_keys = recipient_root_keys_from_fixture_v1(
+        json.loads(bundle.perps_wallet_encrypted_sss_recipient_keys.read_text(encoding="utf-8"))
+    )
+    envelope = backup["envelopes"][0]
+    share = _decrypt_share_envelope(
+        backup_id=backup["backup_id"],
+        wallet_authority_hash=backup["wallet_authority_hash"],
+        envelope=envelope,
+        recipient_root_key=recipient_root_keys[envelope["recipient_id"]],
+    )
+
+    public_seed = hashlib.blake2b(
+        b"zenodex-localtest-sss-coefficients-v1|"
+        + backup["wallet_authority_hash"].encode("utf-8")
+        + b"|"
+        + backup["subject_key_id"].encode("utf-8"),
+        digest_size=32,
+    ).digest()
+    x = int(envelope["x"])
+    x2 = _gf_mul(x, x)
+    guessed_secret = bytes(
+        y
+        ^ _gf_mul(_derive_coefficient(public_seed, byte_index=index, degree=1), x)
+        ^ _gf_mul(_derive_coefficient(public_seed, byte_index=index, degree=2), x2)
+        for index, y in enumerate(share)
+    )
+    subject_public_key = next(
+        item["public_key"]
+        for item in profile["key_manager"]["key_refs"]
+        if item["key_id"] == backup["subject_key_id"]
+    )
+    try:
+        guessed_public_key = "0x" + bls_pubkey_hex_from_privkey(guessed_secret)
+    except ValueError:
+        guessed_public_key = None
+    assert guessed_public_key != subject_public_key
+
+
+def test_encrypted_sss_backup_requires_trusted_replay_keys(tmp_path: Path) -> None:
+    from src.integration.perps_wallet_encrypted_sss_backup import evaluate_perps_wallet_encrypted_sss_backup_v1
+    from tools.zenoctl_testnet_local import fixtures as fx
+
+    chain_id = "zeno-ledger-localtest-v0"
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id=chain_id,
+        network_id=chain_id,
+        created_at_ms=1000,
+    )
+    profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
+    backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
+
+    blocked = evaluate_perps_wallet_encrypted_sss_backup_v1(profile, backup, expected_chain_id=chain_id)
+    assert blocked["encrypted_sss_backup_ready"] is False
+    assert "encrypted SSS trusted recipient replay keys are missing" in blocked["errors"]
+
+
+def test_encrypted_sss_backup_requires_delivery_receipts(tmp_path: Path) -> None:
+    from src.integration.perps_wallet_encrypted_sss_backup import (
+        evaluate_perps_wallet_encrypted_sss_backup_v1,
+    )
+    from tools.zenoctl_testnet_local import fixtures as fx
+
+    chain_id = "zeno-ledger-localtest-v0"
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id=chain_id,
+        network_id=chain_id,
+        created_at_ms=1000,
+    )
+    profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
+    backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
+    backup.pop("delivery_evidence")
+
+    blocked = evaluate_perps_wallet_encrypted_sss_backup_v1(profile, backup, expected_chain_id=chain_id)
+    assert blocked["encrypted_sss_backup_ready"] is False
+    assert "delivery_evidence must be a list" in blocked["errors"]
+
+
+def test_encrypted_sss_backup_accepts_live_delivery_receipts(tmp_path: Path) -> None:
+    from src.integration.perps_wallet_encrypted_sss_backup import (
+        build_perps_wallet_encrypted_sss_live_delivery_receipt_v1,
+        evaluate_perps_wallet_encrypted_sss_backup_v1,
+        perps_wallet_encrypted_sss_backup_hash_v1,
+        recipient_root_keys_from_fixture_v1,
+    )
+    from tools.zenoctl_testnet_local import fixtures as fx
+
+    chain_id = "zeno-ledger-localtest-v0"
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id=chain_id,
+        network_id=chain_id,
+        created_at_ms=1000,
+    )
+    profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
+    backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
+    receipt_by_kind = {
+        "recovery_email": {"delivery_mode": "smtp", "smtp_message_id": "smtp:msg-1"},
+        "cloud_drive": {"delivery_mode": "dropbox", "provider_file_id": "dropbox:file-1", "provider_revision": "rev-a"},
+        "offline_export": {"delivery_mode": "offline_export", "offline_export_manifest_hash": "0x" + "44" * 32},
+    }
+    backup["delivery_evidence"] = [
+        build_perps_wallet_encrypted_sss_live_delivery_receipt_v1(
+            envelope,
+            delivered_at_epoch=15,
+            receipt_reference=f"live-delivery:{index}",
+            provider_response_hash="0x" + f"{index:064x}"[-64:],
+            **receipt_by_kind[str(envelope["provider_kind"])],
+        )
+        for index, envelope in enumerate(backup["envelopes"], start=1)
+    ]
+    backup["backup_hash"] = perps_wallet_encrypted_sss_backup_hash_v1(backup)
+
+    ready = evaluate_perps_wallet_encrypted_sss_backup_v1(
+        profile,
+        backup,
+        expected_chain_id=chain_id,
+        recipient_root_keys=recipient_root_keys_from_fixture_v1(
+            json.loads(bundle.perps_wallet_encrypted_sss_recipient_keys.read_text(encoding="utf-8"))
+        ),
+    )
+
+    assert ready["encrypted_sss_backup_ready"] is True, ready["errors"]
+    assert ready["provider_delivery_ready"] is True
+    assert ready["live_provider_delivery_ready"] is True
+    assert set(ready["delivery_modes"]) == {"smtp", "dropbox", "offline_export"}
+
+
+def test_perps_wallet_api_has_no_local_provider_delivery_route(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.integration import perps_wallet_api
+    from tools.zenoctl_testnet_local import fixtures as fx
+
+    chain_id = "zeno-ledger-localtest-v0"
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id=chain_id,
+        network_id=chain_id,
+        created_at_ms=1000,
+    )
+    profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
+    backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
+    recipient_keys = json.loads(bundle.perps_wallet_encrypted_sss_recipient_keys.read_text(encoding="utf-8"))
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
+    monkeypatch.setenv("PERPS_WALLET_AUTHORITY_PROFILE_JSON", json.dumps(profile, sort_keys=True))
+    monkeypatch.setenv("PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_JSON", json.dumps(recipient_keys, sort_keys=True))
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/encrypted-sss-backup/deliver-local",
+        json.dumps({"chain_id": chain_id, "backup": backup}).encode("utf-8"),
+    )
+
+    assert status_code == 404, payload
+    assert payload["ok"] is False
+    assert payload["error"] == "not_found"
+
+
+def test_perps_wallet_api_real_provider_delivery_fails_closed_without_provider_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.integration import perps_wallet_api
+    from tools.zenoctl_testnet_local import fixtures as fx
+
+    chain_id = "zeno-ledger-localtest-v0"
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id=chain_id,
+        network_id=chain_id,
+        created_at_ms=1000,
+    )
+    profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
+    backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
+    recipient_keys = json.loads(bundle.perps_wallet_encrypted_sss_recipient_keys.read_text(encoding="utf-8"))
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
+    monkeypatch.setenv("PERPS_WALLET_AUTHORITY_PROFILE_JSON", json.dumps(profile, sort_keys=True))
+    monkeypatch.setenv("PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_JSON", json.dumps(recipient_keys, sort_keys=True))
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/encrypted-sss-backup/deliver",
+        json.dumps({"chain_id": chain_id, "backup": backup}).encode("utf-8"),
+    )
+
+    assert status_code == 400, payload
+    assert payload["ok"] is False
+    assert str(payload["error"]).startswith("encrypted_sss_delivery_provider_not_configured:")
+    assert "PERPS_WALLET_ENCRYPTED_SSS_SMTP_HOST" in payload["error"]
+    assert "PERPS_WALLET_ENCRYPTED_SSS_DROPBOX_ACCESS_TOKEN" in payload["error"]
+    assert "PERPS_WALLET_ENCRYPTED_SSS_BOX_ACCESS_TOKEN" in payload["error"]
+    assert "PERPS_WALLET_ENCRYPTED_SSS_OFFLINE_EXPORT_DIR" in payload["error"]
+    assert "backup" not in payload
+
+
+def test_perps_wallet_api_real_provider_delivery_redacts_backup_material(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.integration import perps_wallet_api
+    from tools.zenoctl_testnet_local import fixtures as fx
+
+    chain_id = "zeno-ledger-localtest-v0"
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id=chain_id,
+        network_id=chain_id,
+        created_at_ms=1000,
+    )
+    profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
+    backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
+    recipient_keys = json.loads(bundle.perps_wallet_encrypted_sss_recipient_keys.read_text(encoding="utf-8"))
+    backup["envelopes"] = [item for item in backup["envelopes"] if item.get("provider_kind") == "offline_export"]
+    export_dir = tmp_path / "sss-export"
+    export_dir.mkdir()
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
+    monkeypatch.setenv("PERPS_WALLET_AUTHORITY_PROFILE_JSON", json.dumps(profile, sort_keys=True))
+    monkeypatch.setenv("PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_JSON", json.dumps(recipient_keys, sort_keys=True))
+    monkeypatch.setenv("PERPS_WALLET_ENCRYPTED_SSS_OFFLINE_EXPORT_DIR", str(export_dir))
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/encrypted-sss-backup/deliver",
+        json.dumps({"chain_id": chain_id, "backup": backup}).encode("utf-8"),
+    )
+
+    assert status_code == 400, payload
+    assert payload["ok"] is False
+    assert payload["backup_redacted"] is True
+    assert payload["backup_hash"] == payload["encrypted_sss_backup"]["backup_hash"]
+    assert len(payload["delivery_evidence_hashes"]) == 1
+    assert "backup" not in payload
+    assert "ciphertext_b64" not in json.dumps(payload, sort_keys=True)
+    assert list(export_dir.iterdir())
+
+
+def test_encrypted_sss_live_delivery_receipt_requires_provider_evidence(tmp_path: Path) -> None:
+    from src.integration.perps_wallet_encrypted_sss_backup import (
+        evaluate_perps_wallet_encrypted_sss_backup_v1,
+        perps_wallet_encrypted_sss_backup_hash_v1,
+        perps_wallet_encrypted_sss_delivery_hash_v1,
+    )
+    from tools.zenoctl_testnet_local import fixtures as fx
+
+    chain_id = "zeno-ledger-localtest-v0"
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id=chain_id,
+        network_id=chain_id,
+        created_at_ms=1000,
+    )
+    profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
+    backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
+    delivery = backup["delivery_evidence"][0]
+    delivery["delivery_mode"] = "smtp"
+    delivery["receipt_reference"] = "smtp:missing-provider-message"
+    delivery["delivery_hash"] = perps_wallet_encrypted_sss_delivery_hash_v1(delivery)
+    backup["backup_hash"] = perps_wallet_encrypted_sss_backup_hash_v1(backup)
+
+    blocked = evaluate_perps_wallet_encrypted_sss_backup_v1(profile, backup, expected_chain_id=chain_id)
+
+    assert blocked["encrypted_sss_backup_ready"] is False
+    assert "encrypted SSS live delivery evidence provider_response_hash is invalid" in blocked["errors"]
+    assert "encrypted SSS smtp delivery evidence missing smtp_message_id" in blocked["errors"]
+
+
+def test_encrypted_sss_external_audit_evidence_is_signed_and_bound(tmp_path: Path) -> None:
+    from src.integration.perps_wallet_encrypted_sss_backup import (
+        PERPS_WALLET_ENCRYPTED_SSS_AUDIT_EVIDENCE_SCHEMA_V1,
+        PERPS_WALLET_ENCRYPTED_SSS_AUDIT_PAYLOAD_KIND_V1,
+        evaluate_perps_wallet_encrypted_sss_backup_v1,
+        perps_wallet_encrypted_sss_audit_evidence_hash_v1,
+        perps_wallet_encrypted_sss_audit_subject_hash_v1,
+        perps_wallet_encrypted_sss_backup_hash_v1,
+        recipient_root_keys_from_fixture_v1,
+    )
+    from src.integration.zeno_ledger_signature import (
+        bls_public_key_hex_from_private_key_v0,
+        build_bls_signed_artifact_envelope_v0,
+    )
+    from tools.zenoctl_testnet_local import fixtures as fx
+
+    chain_id = "zeno-ledger-localtest-v0"
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id=chain_id,
+        network_id=chain_id,
+        created_at_ms=1000,
+    )
+    profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
+    backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
+    auditor_private_key = "0x" + "09" * 32
+    auditor_public_key = bls_public_key_hex_from_private_key_v0(auditor_private_key)
+    backup["audit_status"] = "external-audit-completed"
+    audit = {
+        "schema": PERPS_WALLET_ENCRYPTED_SSS_AUDIT_EVIDENCE_SCHEMA_V1,
+        "audit_id": "sss-audit-2026-05-local",
+        "audit_required_for_production": True,
+        "external_audit_ready": True,
+        "audit_status": "external-audit-completed",
+        "audit_subject_hash": perps_wallet_encrypted_sss_audit_subject_hash_v1(backup),
+        "audit_report_hash": "0x" + "55" * 32,
+        "wallet_authority_hash": backup["wallet_authority_hash"],
+        "findings_status": "no-critical-open",
+        "issued_at_epoch": 16,
+        "auditor_id": "external-auditor-a",
+        "auditor_public_key": auditor_public_key,
+    }
+    audit["audit_hash"] = perps_wallet_encrypted_sss_audit_evidence_hash_v1(audit)
+    audit["signature_envelope"] = build_bls_signed_artifact_envelope_v0(
+        payload_kind=PERPS_WALLET_ENCRYPTED_SSS_AUDIT_PAYLOAD_KIND_V1,
+        payload_hash=audit["audit_hash"],
+        signer_id="external-auditor-a",
+        key_id="external-auditor-a-bls",
+        private_key_hex=auditor_private_key,
+    )
+    backup["audit_evidence"] = audit
+    backup["backup_hash"] = perps_wallet_encrypted_sss_backup_hash_v1(backup)
+
+    ready = evaluate_perps_wallet_encrypted_sss_backup_v1(
+        profile,
+        backup,
+        expected_chain_id=chain_id,
+        recipient_root_keys=recipient_root_keys_from_fixture_v1(
+            json.loads(bundle.perps_wallet_encrypted_sss_recipient_keys.read_text(encoding="utf-8"))
+        ),
+    )
+
+    assert ready["encrypted_sss_backup_ready"] is True, ready["errors"]
+    assert ready["external_audit_ready"] is True
+
+    backup["audit_evidence"]["audit_subject_hash"] = "0x" + "66" * 32
+    backup["audit_evidence"]["audit_hash"] = perps_wallet_encrypted_sss_audit_evidence_hash_v1(
+        backup["audit_evidence"]
+    )
+    backup["backup_hash"] = perps_wallet_encrypted_sss_backup_hash_v1(backup)
+    blocked = evaluate_perps_wallet_encrypted_sss_backup_v1(
+        profile,
+        backup,
+        expected_chain_id=chain_id,
+        recipient_root_keys=recipient_root_keys_from_fixture_v1(
+            json.loads(bundle.perps_wallet_encrypted_sss_recipient_keys.read_text(encoding="utf-8"))
+        ),
+    )
+    assert blocked["encrypted_sss_backup_ready"] is False
+    assert "encrypted SSS external audit evidence subject hash mismatch" in blocked["errors"]
+    assert any("signature invalid" in error for error in blocked["errors"])
+
+
+def test_encrypted_sss_backup_fixture_has_no_plaintext_share_material(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import fixtures as fx
+
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id="zeno-ledger-localtest-v0",
+        network_id="zeno-ledger-localtest-v0",
+        created_at_ms=1000,
+    )
+    rendered = bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8")
+    forbidden = ("privkey_hex", "private_key", "raw_share", "share_plaintext", "plaintext_share_bytes")
+    for needle in forbidden:
+        assert needle not in rendered
 
 
 def test_fixture_seed_and_random_are_mutually_exclusive(tmp_path: Path) -> None:
@@ -381,9 +1271,21 @@ def test_nginx_path_split_targets_correct_upstreams() -> None:
     from tools.zenoctl_testnet_local import nginx as ng
 
     rendered = ng.render_nginx_conf(_nginx_inputs())
-    # /api/pools and /api/swap → writer (URI passed through)
+    # Spot read and mutation endpoints go to writer with URI passed through.
     assert "http://zeno-ledger-writer:8787/api/pools" in rendered
     assert "http://zeno-ledger-writer:8787/api/swap" in rendered
+    assert "http://zeno-ledger-writer:8787/api/liquidity/create" in rendered
+    assert "http://zeno-ledger-writer:8787/api/liquidity/add" in rendered
+    assert "http://zeno-ledger-writer:8787/api/liquidity/remove" in rendered
+    assert "http://zeno-ledger-writer:8787/faucet" in rendered
+    assert "http://zeno-ledger-writer:8787/api/tokenomics/status" in rendered
+    assert "http://zeno-ledger-writer:8787/tx" in rendered
+    assert "http://zeno-ledger-writer:8787/public_network_config.json" in rendered
+    assert "http://zeno-ledger-writer:8787/status" in rendered
+    assert "http://zeno-ledger-writer:8787/features" in rendered
+    assert "http://zeno-ledger-writer:8787/tokens" in rendered
+    assert "http://zeno-ledger-writer:8787/network" in rendered
+    assert "http://zeno-ledger-writer:8787/live" in rendered
     # /api/oracle/ → oracle. proxy_pass omits the trailing slash so the
     # full URI (/api/oracle/...) is preserved, matching the oracle
     # service's route table at tools/zenodex_oracle.py:/api/oracle/*.
@@ -393,12 +1295,41 @@ def test_nginx_path_split_targets_correct_upstreams() -> None:
     assert "proxy_pass http://zenodex-api:8000;" in rendered
 
 
+def test_nginx_has_no_plaintext_fixture_key_api_route() -> None:
+    from tools.zenoctl_testnet_local import nginx as ng
+
+    rendered = ng.render_nginx_conf(_nginx_inputs())
+    assert "location = /api/local-testnet/fixture-key" not in rendered
+
+
 def test_nginx_injects_bearer_tokens_for_writer_and_stdlib() -> None:
     from tools.zenoctl_testnet_local import nginx as ng
 
     rendered = ng.render_nginx_conf(_nginx_inputs())
     assert 'Bearer writer-secret-abc' in rendered
     assert 'Bearer stdlib-secret-xyz' in rendered
+
+
+def test_nginx_token_injected_routes_have_browser_request_guards() -> None:
+    from tools.zenoctl_testnet_local import nginx as ng
+
+    rendered = ng.render_nginx_conf(_nginx_inputs())
+    assert "map $http_origin $zenodex_origin_ok" in rendered
+    assert 'map "$request_method:$http_content_type" $zenodex_write_content_type_ok' in rendered
+    for block in ng.WRITER_MUTATION_LOCATION_BLOCKS:
+        chunk = ng._extract_location_block(rendered, block)
+        assert "if ($zenodex_origin_ok = 0) { return 403; }" in chunk
+        assert "if ($zenodex_write_content_type_ok = 0) { return 415; }" in chunk
+    stdlib_chunk = ng._extract_location_block(rendered, "location ^~ /api/ {")
+    assert "if ($zenodex_origin_ok = 0) { return 403; }" in stdlib_chunk
+
+
+def test_nginx_origin_guard_allows_cloudflare_quick_tunnel() -> None:
+    from tools.zenoctl_testnet_local import nginx as ng
+
+    rendered = ng.render_nginx_conf(_nginx_inputs())
+
+    assert "trycloudflare\\.com" in rendered
 
 
 def test_nginx_does_not_inject_writer_token_into_oracle_block() -> None:
@@ -462,9 +1393,22 @@ def test_runtime_config_has_no_tokens() -> None:
     runtime = ng.render_runtime_config(demo_mode=False)
     parsed = json.loads(runtime)
     assert parsed["demoMode"] is False
+    assert parsed["allowDemoMode"] is False
     assert parsed["apiBase"] == ""
     assert parsed["zenoOracleApiBase"] == ""
     assert parsed["oracleApiBase"] == ""
+    assert parsed["allowBrowserKeyGeneration"] is True
+    assert parsed["allowDefaultExternalSigner"] is True
+    assert parsed["uiSurfaceContractSchema"] == "zenodex.dex_ui.surface_contract.v1"
+    assert parsed["uiSurfaceContractVersion"] == ng.ui_surface_contract_version()
+    assert parsed["uiSurfaceContractHash"] == ng.ui_surface_contract_hash()
+    assert parsed["defaultExternalSigner"] == {
+        "schema": "zenodex/dex-ui/runtime-default-external-signer/v0",
+        "signerSecurityProfile": "native-desktop-loopback-signer-v0",
+        "connectUrl": "http://127.0.0.1:8799/public-receipt",
+        "signTauTransactionPayloadUrl": "http://127.0.0.1:8799/sign-tau-transaction-payload",
+        "signDexIntentForEngineUrl": "http://127.0.0.1:8799/sign-dex-intent",
+    }
     # No bearer-token-like fields
     serialized = json.dumps(parsed, sort_keys=True)
     assert "Bearer" not in serialized
@@ -477,6 +1421,41 @@ def test_runtime_config_rejects_overriding_builtin_keys() -> None:
 
     with pytest.raises(ValueError, match="conflicts"):
         ng.render_runtime_config(extra={"demoMode": True})
+    with pytest.raises(ValueError, match="conflicts"):
+        ng.render_runtime_config(extra={"allowDemoMode": True})
+    with pytest.raises(ValueError, match="conflicts"):
+        ng.render_runtime_config(extra={"allowBrowserKeyGeneration": False})
+    with pytest.raises(ValueError, match="conflicts"):
+        ng.render_runtime_config(extra={"defaultExternalSigner": {}})
+    with pytest.raises(ValueError, match="conflicts"):
+        ng.render_runtime_config(extra={"uiSurfaceContractVersion": "old-ui"})
+
+
+def test_existing_runtime_config_refresh_updates_ui_contract(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import nginx as ng
+
+    path = tmp_path / "zenodex-config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "demoMode": True,
+                "uiSurfaceContractSchema": "zenodex.dex_ui.surface_contract.v1",
+                "uiSurfaceContractVersion": "old-ui",
+                "uiSurfaceContractHash": "sha256:stale",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    lc._refresh_existing_runtime_config(path)
+    parsed = json.loads(path.read_text(encoding="utf-8"))
+
+    assert parsed["demoMode"] is False
+    assert parsed["allowBrowserKeyGeneration"] is True
+    assert parsed["uiSurfaceContractSchema"] == "zenodex.dex_ui.surface_contract.v1"
+    assert parsed["uiSurfaceContractVersion"] == ng.ui_surface_contract_version()
+    assert parsed["uiSurfaceContractHash"] == ng.ui_surface_contract_hash()
 
 
 def test_token_leak_guard_fires_when_token_present(tmp_path: Path) -> None:
@@ -562,16 +1541,28 @@ def test_compose_overlay_api_command_respects_operator_tools_entrypoint() -> Non
     assert command[:2] == ["-m", "src.integration.api_server"]
 
 
-def test_compose_overlay_api_explicitly_allows_local_demo_token_auth() -> None:
+def test_compose_overlay_api_does_not_enable_demo_or_fixture_shortcuts() -> None:
     doc = _load_compose_overlay()
     env = doc["services"]["zenodex-api"]["environment"]
-    assert env["ALLOW_DEMO_TOKEN_AUTH"] == "1"
+    assert env.get("ALLOW_DEMO_TOKEN_AUTH") not in {"1", "true", True}
+    assert "DEMO_API_TOKEN" not in env
+    assert "ZENODEX_API_BEARER_TOKEN" in env
+    assert env.get("LOCAL_TESTNET_ALLOW_PLAINTEXT_FIXTURE_KEYS") not in {"1", "true", True}
+    assert env.get("LOCAL_TESTNET_FIXTURE_KEY_API_ENABLED") not in {"1", "true", True}
+    assert "LOCAL_TESTNET_FIXTURE_KEY_BUNDLE_FILE" not in env
+    assert env.get("PERPS_API_ENABLED") == "false"
+    assert env.get("ZUSD_API_ENABLED") == "false"
 
 
 def test_compose_overlay_bootstrap_service_has_writer_token_for_controller_runs() -> None:
     doc = _load_compose_overlay()
-    env = doc["services"]["zeno-ledger-bootstrap"]["environment"]
+    service = doc["services"]["zeno-ledger-bootstrap"]
+    env = service["environment"]
     assert "ZENO_LEDGER_WRITER_TOKEN" in env
+    assert env["ZENO_LEDGER_TOKEN_SYMBOL"] == "${ZENO_LEDGER_TOKEN_SYMBOL:-tZDEX}"
+    assert "/app/fixtures/role_pubkeys.json" in service["command"]
+    assert "${FIXTURES_DIR:?FIXTURES_DIR must be set by the orchestrator}:/app/fixtures:ro" in service["volumes"]
+    assert all("/app/local-secrets" not in volume for volume in service["volumes"])
 
 
 def test_compose_overlay_readonly_authenticates_controller_rejection_probe() -> None:
@@ -581,6 +1572,10 @@ def test_compose_overlay_readonly_authenticates_controller_rejection_probe() -> 
     assert service["environment"] == doc["services"]["zeno-ledger-writer"]["environment"]
     assert "--write-auth-token-env" in command
     assert "ZENO_LEDGER_WRITER_TOKEN" in command
+    assert "--min-lp-position-age-seconds" in command
+    assert "${ZENO_LEDGER_MIN_LP_POSITION_AGE_SECONDS:-300}" in command
+    assert "--lp-duration-risk-policy" in command
+    assert "${ZENO_LEDGER_LP_DURATION_RISK_POLICY:-zeno-oracle}" in command
     assert "--enable-testnet-faucet" not in command
     assert "--enable-testnet-intake" not in command
 
@@ -588,8 +1583,122 @@ def test_compose_overlay_readonly_authenticates_controller_rejection_probe() -> 
 def test_compose_overlay_tau_local_enables_balance_patch_for_local_state_bootstrap() -> None:
     doc = _load_compose_overlay()
     env = doc["services"]["tau-local"]["environment"]
-    assert env["TAU_ENABLE_FAUCET"] == "0"
+    assert env["TAU_ENABLE_FAUCET"] == "1"
+    assert env["TAU_DEX_FAUCET"] == "1"
+    assert env["TAU_DEX_TOKEN_SYMBOL"] == "${ZENO_LEDGER_TOKEN_SYMBOL:-tZDEX}"
+    assert env["TAU_DEX_ALLOW_MISSING_SETTLEMENT"] == "1"
     assert env["TAU_APP_BRIDGE_ALLOW_BALANCE_PATCH"] == "1"
+
+
+def test_compose_overlay_exposes_capped_local_testnet_faucets() -> None:
+    doc = _load_compose_overlay()
+    env = doc["services"]["zenodex-api"]["environment"]
+    assert env["TAU_DEX_TOKEN_SYMBOL"] == "${ZENO_LEDGER_TOKEN_SYMBOL:-tZDEX}"
+    assert env["PERPS_WALLET_TESTNET_FAUCET_ENABLED"] == "true"
+    assert env["PERPS_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY"].startswith("${TAU_DEX_TOKEN_OPERATOR_PUBKEY")
+    assert env["PERPS_WALLET_TESTNET_FAUCET_MAX_AMOUNT"] == "100000"
+    assert env["PERPS_WALLET_ALLOW_LOCAL_SIGNING"] == "true"
+    assert env["ZUSD_MONETARY_WALLET_TESTNET_FAUCET_ENABLED"] == "true"
+    assert env["ZUSD_MONETARY_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY"].startswith("${TAU_DEX_TOKEN_OPERATOR_PUBKEY")
+    assert env["ZUSD_MONETARY_WALLET_TESTNET_FAUCET_SIGNER_PRIVKEY"].startswith("${TAU_DEX_TOKEN_OPERATOR_PRIVKEY")
+    assert env["ZUSD_MONETARY_WALLET_TESTNET_FAUCET_MAX_AMOUNT_E8"] == "1000"
+
+
+def test_compose_overlay_autotrader_uses_persistent_execution_journal() -> None:
+    doc = _load_compose_overlay()
+    env = doc["services"]["zenodex-api"]["environment"]
+    assert env["AUTOTRADER_LIVE_EXECUTION_JOURNAL_PATH"] == "/tmp/autotrader_execution_journal.jsonl"
+
+
+def test_seed_api_state_passes_private_fixture_material_on_stdin(monkeypatch) -> None:
+    from tools.zenoctl_testnet_local import compose as cm
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    captured: dict[str, object] = {}
+
+    def fake_compose_run(**kwargs):
+        captured.update(kwargs)
+        report = {
+            "ok": True,
+            "chain_id": "zeno-ledger-localtest-v0",
+            "market_id": "perp:ch2p:localtest-zusd-perps-v1",
+        }
+        return subprocess.CompletedProcess(args=["compose"], returncode=0, stdout=json.dumps(report), stderr="")
+
+    monkeypatch.setattr(lc.cm, "compose_run", fake_compose_run)
+    roles = {
+        "alice": {"public_key": "0x" + "11" * 48, "privkey_int": 123456789},
+        "bob": {"public_key": "0x" + "22" * 48, "privkey_int": 987654321},
+    }
+
+    report = lc._seed_api_state(
+        engine=cm.ComposeEngine(binary="docker"),
+        project="zenodex-local-testnet-test",
+        env={},
+        roles=roles,
+        chain_id="zeno-ledger-localtest-v0",
+        tau_rpc_timeout_s=900.0,
+    )
+
+    assert report["ok"] is True
+    command_text = json.dumps(captured["command"])
+    assert "123456789" not in command_text
+    assert "987654321" not in command_text
+    seed_script = captured["command"][1]
+    assert "wait_for_tau_rpc" in seed_script
+    assert 'client.rpc("hello version=1")' in seed_script
+    assert 'report["steps"]["tau_rpc_ready"] = wait_for_tau_rpc()' in seed_script
+    assert 'report["steps"]["materialize_fixture_native_balances"] = {}' in seed_script
+    assert 'report["steps"]["prefund_fixture_test_assets"] = send_and_mine(' in seed_script
+    assert '"amount": 1000000' in seed_script
+    assert '"amount": 25' in seed_script
+    assert captured["extra_args"] == ["-T"]
+    assert json.loads(str(captured["input_text"]))["roles"]["alice"]["privkey_int"] == 123456789
+
+
+def test_release_native_collateral_materializer_uses_prefunded_refiller(monkeypatch) -> None:
+    from tools.zenoctl_testnet_local import compose as cm
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    captured: dict[str, object] = {}
+
+    def fake_compose_run(**kwargs):
+        captured.update(kwargs)
+        report = {
+            "ok": True,
+            "schema": "zenodex.local_testnet.release_native_collateral_materialize.v0",
+            "status": "accepted",
+            "refiller_role": "carol",
+            "balance_after_e8": 1000,
+        }
+        return subprocess.CompletedProcess(args=["compose"], returncode=0, stdout=json.dumps(report), stderr="")
+
+    monkeypatch.setattr(lc.cm, "compose_run", fake_compose_run)
+    roles = {
+        "alice": {"public_key": "0x" + "11" * 48, "privkey_int": 111},
+        "carol": {"public_key": "0x" + "33" * 48, "privkey_int": 333},
+        "bob": {"public_key": "0x" + "22" * 48, "privkey_int": 222},
+    }
+
+    report = lc._materialize_release_native_collateral(
+        engine=cm.ComposeEngine(binary="docker"),
+        compose_project="zenodex-local-testnet-test",
+        env={},
+        roles=roles,
+        amount_e8=1000,
+    )
+
+    assert report["ok"] is True
+    payload = json.loads(str(captured["input_text"]))
+    assert payload["owner_pubkey"] == roles["alice"]["public_key"]
+    assert "owner_privkey_int" not in payload
+    assert "alice" not in payload["refiller_roles"]
+    assert payload["refiller_roles"]["carol"]["privkey_int"] == 333
+    assert payload["preferred_refiller_names"][0] == "carol"
+    script = captured["command"][1]
+    assert 'operations={"1": [[selected["rpc"], owner_rpc, str(needed_now)]]}' in script
+    assert 'operations={"1": [[owner_rpc, owner_rpc, str(needed)]]}' not in script
+    assert "no_release_native_refiller_with_sufficient_balance" in script
 
 
 def test_compose_overlay_requires_orchestrator_env() -> None:
@@ -598,7 +1707,7 @@ def test_compose_overlay_requires_orchestrator_env() -> None:
     raw = COMPOSE_OVERLAY.read_text(encoding="utf-8")
     for required in (
         "ZENO_LEDGER_WRITER_TOKEN",
-        "DEMO_API_TOKEN",
+        "ZENODEX_API_BEARER_TOKEN",
         "RENDERED_NGINX_CONF_PATH",
         "RENDERED_RUNTIME_CONFIG_PATH",
         "FIXTURES_DIR",
@@ -608,6 +1717,8 @@ def test_compose_overlay_requires_orchestrator_env() -> None:
         "TAU_DEX_TOKEN_OPERATOR_PUBKEY",
         "TAU_DEX_ORACLE_PUBKEY",
         "TAU_DEX_ZUSD_ORACLE_PUBKEY",
+        "CONFIDENTIAL_APPROVED_MEASUREMENTS",
+        "CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON",
     ):
         assert f"{required}:?" in raw, f"compose overlay must require env {required!r}"
 
@@ -626,9 +1737,212 @@ def test_compose_overlay_api_seeds_confidential_local_smoke_profile() -> None:
     assert env["CONFIDENTIAL_ATTESTATION_API_ENABLED"] == "true"
     assert env["CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED"] == "true"
     assert "CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON" in env
-    assert '["/usr/local/bin/python"' in env["CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON"]
-    assert env["CONFIDENTIAL_APPROVED_MEASUREMENTS"].startswith("nitro:pcr0:")
+    assert "must be set by the orchestrator" in env["CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON"]
+    assert "must be set by the orchestrator" in env["CONFIDENTIAL_APPROVED_MEASUREMENTS"]
     assert env["CONFIDENTIAL_OPERATOR_CONTACT"].startswith("https://")
+
+
+def test_compose_overlay_ledger_nodes_receive_proof_mining_verifier_env() -> None:
+    """Strict local proof-mining payouts must execute on the ledger nodes."""
+    doc = _load_compose_overlay()
+    services = doc["services"]
+    for service_name in ("zeno-ledger-writer", "zeno-ledger-forwarder", "zeno-ledger-readonly"):
+        env = services[service_name]["environment"]
+        assert "TAU_DEX_CHAIN_ID" in env
+        assert "TAU_DEX_TOKEN_SYMBOL" in env
+        assert "TAU_DEX_PROOF_MINING_POOL_PUBKEY" in env
+        assert "TAU_DEX_ALLOW_EXTERNAL_TOOLS" in env
+        assert "TAU_DEX_CONSENSUS_MODE" in env
+        assert "TAU_DEX_PROOF_VERIFIER_CMD_JSON" in env
+        assert "TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP" in env
+
+
+def test_lifecycle_compose_env_generates_nonplaceholder_confidential_fixture(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    paths = mf.ManifestPaths.from_out_dir(tmp_path)
+    roles = {
+        "operator": {"public_key": "op-pub"},
+        "oracle_authority": {"public_key": "oracle-pub"},
+        "alice": {"public_key": "alice-pub"},
+    }
+    fixture = lc._new_confidential_local_fixture()
+    env = lc._compose_env(
+        paths=paths,
+        ui_port=19108,
+        chain_id="chain",
+        network_id="network",
+        writer_token="writer-token",
+        stdlib_token="stdlib-token",
+        roles=roles,
+        zk_required=False,
+        confidential_fixture=fixture,
+    )
+
+    measurement = env["CONFIDENTIAL_APPROVED_MEASUREMENTS"]
+    assert measurement == fixture.measurement
+    assert "aaaaaaaa" not in measurement
+    assert "bbbbbbbb" not in measurement
+    assert len(set(fixture.nitro_pcr0)) >= 4
+    assert len(set(fixture.nitro_pcr8)) >= 4
+    assert fixture.measurement in env["CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON"]
+    assert env["TAU_DEX_PROOF_MINING_POOL_PUBKEY"] == "op-pub"
+
+
+def test_lifecycle_compose_env_wires_proof_mining_to_active_rewards_pool(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    paths = mf.ManifestPaths.from_out_dir(tmp_path)
+    roles = {
+        "operator": {"public_key": "op-pub"},
+        "oracle_authority": {"public_key": "oracle-pub"},
+        "alice": {"public_key": "alice-pub"},
+        "guardian_2": {"public_key": "guardian-two-pub"},
+    }
+
+    env = lc._compose_env(
+        paths=paths,
+        ui_port=19108,
+        chain_id="chain",
+        network_id="network",
+        writer_token="writer-token",
+        stdlib_token="stdlib-token",
+        roles=roles,
+        zk_required=False,
+    )
+
+    assert env["TAU_DEX_PROOF_MINING_POOL_PUBKEY"] == "guardian-two-pub"
+
+
+def test_lifecycle_compose_env_sets_local_external_tool_posture_for_strict_zk(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    for name in lc.GLOBAL_ZK_ENV_NAMES:
+        monkeypatch.delenv(name, raising=False)
+
+    paths = mf.ManifestPaths.from_out_dir(tmp_path)
+    roles = {
+        "operator": {"public_key": "op-pub"},
+        "oracle_authority": {"public_key": "oracle-pub"},
+        "alice": {"public_key": "alice-pub"},
+        "guardian_2": {"public_key": "guardian-two-pub"},
+    }
+
+    env = lc._compose_env(
+        paths=paths,
+        ui_port=19108,
+        chain_id="chain",
+        network_id="network",
+        writer_token="writer-token",
+        stdlib_token="stdlib-token",
+        roles=roles,
+        zk_required=True,
+    )
+
+    assert env["TAU_DEX_ALLOW_EXTERNAL_TOOLS"] == "1"
+    assert env["TAU_DEX_CONSENSUS_MODE"] == "0"
+    assert "local_live_wrapper_echo_v1.py" in env["TAU_DEX_PROOF_VERIFIER_CMD_JSON"]
+    assert env["TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP"] == "true"
+    assert env["TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON"]
+    assert env["TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON"]
+    assert env["ZUSD_MONETARY_WALLET_PROOF_VERIFIER_CMD_JSON"] == env["TAU_DEX_PROOF_VERIFIER_CMD_JSON"]
+    assert env["PERPS_WALLET_PROOF_VERIFIER_CMD_JSON"] == env["TAU_DEX_PROOF_VERIFIER_CMD_JSON"]
+
+
+def test_local_oracle_write_smoke_checks_duplicate_rewards_and_dispute_escrow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    def fake_post_json(url: str, payload: Mapping[str, object], *, timeout_s: float = 10.0) -> dict[str, object]:
+        path = "/" + url.split("/", 3)[3]
+        calls.append((path, dict(payload)))
+        if path == "/api/oracle/identity/create":
+            return {"status_code": 200, "ok": True, "reporter_id": "reporter:local-smoke"}
+        if path in {
+            "/api/oracle/query/register",
+            "/api/oracle/query/fund",
+            "/api/oracle/reporter/register",
+            "/api/oracle/reporter/bond",
+            "/api/oracle/source/register",
+        }:
+            return {"status_code": 200, "ok": True}
+        if path == "/api/oracle/report/submit":
+            if payload.get("reward_e8") == 999:
+                return {
+                    "status_code": 200,
+                    "ok": True,
+                    "report_id": "report:one",
+                    "reward_e8": 0,
+                    "original_reward_e8": 17,
+                    "pending_rewards_e8": 17,
+                    "idempotent_replay": True,
+                }
+            return {
+                "status_code": 200,
+                "ok": True,
+                "report_id": "report:one",
+                "reward_e8": 17,
+                "pending_rewards_e8": 17,
+            }
+        if path == "/api/oracle/dispute/open":
+            if payload.get("force") is True:
+                return {
+                    "status_code": 400,
+                    "ok": False,
+                    "error": "dispute bond exceeds available reporter bond",
+                }
+            if payload.get("reason") == "local-smoke-duplicate":
+                return {
+                    "status_code": 400,
+                    "ok": False,
+                    "error": "open dispute already exists for report_id: report:one",
+                }
+            return {
+                "status_code": 200,
+                "ok": True,
+                "dispute_id": "dispute:one",
+                "dispute": {"status": "open", "bond_escrow_status": "escrowed"},
+            }
+        if path == "/api/oracle/dispute/resolve":
+            return {
+                "status_code": 200,
+                "ok": True,
+                "dispute": {"status": "rejected", "bond_escrow_status": "slashed"},
+            }
+        if path == "/api/oracle/aggregate/build":
+            return {"status_code": 200, "ok": True, "aggregate_id": "aggregate:one"}
+        if path == "/api/oracle/read/accept":
+            return {"status_code": 200, "ok": True, "read_id": "read:one"}
+        if path == "/api/oracle/authorization/build":
+            return {"status_code": 200, "ok": True, "authorization_id": "authorization:one"}
+        if path == "/api/oracle/rewards/pay":
+            return {
+                "status_code": 200,
+                "ok": True,
+                "reward_receipt": {"reward_entry_id": "reward:one"},
+            }
+        raise AssertionError(f"unexpected oracle smoke path: {path}")
+
+    monkeypatch.setattr(lc, "_post_json", fake_post_json)
+
+    result = lc._run_oracle_write_smoke(ui_base="http://127.0.0.1:19108", run_id="unit")
+
+    assert result["ok"] is True
+    assert result["duplicate_report_idempotent"] is True
+    assert result["dispute_id"] == "dispute:one"
+    assert result["steps"]["report_duplicate_idempotency"]["idempotent_replay"] is True
+    assert result["steps"]["dispute_duplicate_open_rejected"]["ok"] is True
+    assert result["steps"]["dispute_overbond_rejected"]["ok"] is True
+    assert any(path == "/api/oracle/dispute/resolve" for path, _payload in calls)
 
 
 def test_operator_tools_image_copies_perps_reference_models() -> None:
@@ -647,6 +1961,7 @@ def test_local_seed_advances_perps_epoch_for_first_ui_publish() -> None:
     raw = (REPO_ROOT / "tools/zenoctl_testnet_local/lifecycle.py").read_text(encoding="utf-8")
     assert 'report["steps"]["perps_advance_epoch"]' in raw
     assert '"action": "advance_epoch"' in raw
+    assert "allow_empty_mempool=True" in raw
 
 
 def test_perps_pre_publish_step_handles_reusable_smoke_states() -> None:
@@ -665,6 +1980,126 @@ def test_perps_pre_publish_step_handles_reusable_smoke_states() -> None:
         )
         == "none"
     )
+
+
+def test_signed_live_swap_payload_binds_nonce_deadline_and_signature(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("py_ecc.bls")
+    from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    pubkey = "0x" + bls_pubkey_hex_from_privkey(17)
+    roles = {"alice": {"public_key": pubkey, "privkey_hex": "0x11", "privkey_int": 17}}
+    pool_id = "0x" + "aa" * 32
+    asset0 = "0x" + "11" * 32
+    asset1 = "0x" + "22" * 32
+
+    def fake_get_json(url: str, *, timeout_s: float = 5.0) -> dict[str, object]:
+        assert "/api/pools?" in url
+        return {
+            "ok": True,
+            "account_last_nonce": 4,
+            "pools": [
+                {
+                    "pool_id": pool_id,
+                    "token0": "tAGRS",
+                    "token1": "tZDEX",
+                    "asset0": asset0,
+                    "asset1": asset1,
+                    "account_balance0": 10,
+                    "account_balance1": 10,
+                }
+            ],
+        }
+
+    monkeypatch.setattr(lc, "_safe_get_json", fake_get_json)
+
+    payload, operation = lc._build_signed_live_swap_intent(
+        ui_base="http://127.0.0.1:18080",
+        roles=roles,
+        chain_id="zeno-ledger-localtest-v0",
+        sender_role="alice",
+        amount_in=3,
+        min_amount_out=1,
+        deadline=12345,
+    )
+
+    assert payload["nonce"] == 5
+    assert payload["deadline"] == 12345
+    assert payload["signature"] == operation["signature"]
+    assert operation["kind"] == "SWAP_EXACT_IN"
+    assert operation["pool_id"] == pool_id
+    assert operation["asset_in"] == asset0
+    assert operation["asset_out"] == asset1
+    assert str(operation["signature"]).startswith("0x")
+
+
+def test_complex_grouped_transaction_smoke_rejects_replay_without_partial_mint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("py_ecc.bls")
+    from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    pubkey = "0x" + bls_pubkey_hex_from_privkey(17)
+    roles = {"alice": {"public_key": pubkey, "privkey_hex": "0x11", "privkey_int": 17}}
+    pool_id = "0x" + "aa" * 32
+    asset0 = "0x" + "11" * 32
+    asset1 = "0x" + "22" * 32
+    balance = {"value": 12}
+    posted: list[dict[str, object]] = []
+
+    def fake_get_json(url: str, *, timeout_s: float = 5.0) -> dict[str, object]:
+        return {
+            "ok": True,
+            "account_last_nonce": 8,
+            "pools": [
+                {
+                    "pool_id": pool_id,
+                    "token0": "tAGRS",
+                    "token1": "tZDEX",
+                    "asset0": asset0,
+                    "asset1": asset1,
+                    "account_balance0": balance["value"],
+                    "account_balance1": 20,
+                }
+            ],
+        }
+
+    def fake_post_json(url: str, payload: Mapping[str, object], *, timeout_s: float = 10.0) -> dict[str, object]:
+        assert url.endswith("/tx")
+        tx = payload["tx"]
+        assert isinstance(tx, Mapping)
+        operations = tx["operations"]
+        assert isinstance(operations, Mapping)
+        assert set(operations) == {"5"}
+        swap_ops = operations["5"]
+        assert isinstance(swap_ops, list)
+        assert len(swap_ops) == 2
+        assert [op["nonce"] for op in swap_ops if isinstance(op, Mapping)] == [9, 10]
+        posted.append(dict(tx))
+        if len(posted) == 1:
+            balance["value"] = 14
+            return {"ok": True, "tx_accepted": True, "height": 10, "receipt": {"accepted": True}}
+        return {"ok": True, "tx_accepted": False, "height": 11, "receipt": {"accepted": False}}
+
+    monkeypatch.setattr(lc, "_safe_get_json", fake_get_json)
+    monkeypatch.setattr(lc, "_post_json", fake_post_json)
+
+    report = lc._run_complex_grouped_transaction_smoke(
+        ui_base="http://127.0.0.1:18080",
+        roles=roles,
+        chain_id="zeno-ledger-localtest-v0",
+        deadline=12345,
+        run_id="unit",
+    )
+
+    assert report["ok"] is True
+    assert report["replay_rejected"] is True
+    assert report["atomic_reject_preserved_balance"] is True
+    assert len(posted) == 2
+    assert posted[0]["tx_id"] != posted[1]["tx_id"]
 
 
 # ---------------------------------------------------------------------------
@@ -695,6 +2130,23 @@ def test_port_collision_check_accepts_free_port() -> None:
     cm.check_host_port_free(free_port)  # no raise
 
 
+def test_port_collision_check_accepts_recently_released_port() -> None:
+    from tools.zenoctl_testnet_local import compose as cm
+
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    port = listener.getsockname()[1]
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client.connect(("127.0.0.1", port))
+    accepted, _ = listener.accept()
+    accepted.close()
+    client.close()
+    listener.close()
+
+    cm.check_host_port_free(port)  # no raise
+
+
 def test_port_collision_rejects_out_of_range() -> None:
     from tools.zenoctl_testnet_local import compose as cm
 
@@ -722,7 +2174,7 @@ def _zenoctl(*args: str) -> subprocess.CompletedProcess:
 def test_cli_testnet_local_help_lists_full_lifecycle_surface() -> None:
     result = _zenoctl("testnet", "local", "--help")
     assert result.returncode == 0, result.stderr
-    for sub in ("up", "down", "status", "smoke", "logs", "reset"):
+    for sub in ("up", "down", "status", "smoke", "release-smoke", "public-up", "public", "logs", "reset"):
         assert sub in result.stdout, f"missing subcommand: {sub}"
 
 
@@ -735,7 +2187,7 @@ def test_cli_testnet_local_up_requires_out_dir() -> None:
 def test_cli_testnet_local_up_help_documents_options() -> None:
     result = _zenoctl("testnet", "local", "up", "--help")
     assert result.returncode == 0, result.stderr
-    for flag in ("--out-dir", "--chain-id", "--ui-port", "--engine", "--force", "--seed", "--random"):
+    for flag in ("--out-dir", "--chain-id", "--ui-port", "--engine", "--force", "--seed", "--random", "--zk-mode"):
         assert flag in result.stdout, f"missing flag in up help: {flag}"
 
 
@@ -744,6 +2196,54 @@ def test_cli_testnet_local_smoke_help_documents_browser_options() -> None:
     assert result.returncode == 0, result.stderr
     for flag in ("--out-dir", "--engine", "--browser", "--chrome-bin", "--browser-timeout"):
         assert flag in result.stdout, f"missing flag in smoke help: {flag}"
+
+
+def test_cli_testnet_local_public_help_documents_point_and_click_options() -> None:
+    result = _zenoctl("testnet", "local", "public", "--help")
+    assert result.returncode == 0, result.stderr
+    for flag in (
+        "--out-dir",
+        "--cloudflared-bin",
+        "--tunnel-url",
+        "--no-open",
+        "--no-release-smoke",
+        "--force",
+    ):
+        assert flag in result.stdout, f"missing flag in public help: {flag}"
+
+
+def test_cli_testnet_local_public_up_help_documents_open_and_smoke_options() -> None:
+    result = _zenoctl("testnet", "local", "public-up", "--help")
+    assert result.returncode == 0, result.stderr
+    for flag in ("--open", "--release-smoke", "--tunnel-url", "--cloudflared-bin"):
+        assert flag in result.stdout, f"missing flag in public-up help: {flag}"
+
+
+def test_cli_public_defaults_to_point_and_click_posture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import cli
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    captured: dict[str, lc.PublicUpOptions] = {}
+
+    def fake_public_up(opts: lc.PublicUpOptions) -> int:
+        captured["opts"] = opts
+        return 0
+
+    monkeypatch.setattr(lc, "cmd_public_up", fake_public_up)
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="testnet_command", required=True)
+    cli.register_subparser(sub)
+    args = parser.parse_args(["local", "public", "--out-dir", str(tmp_path), "--tunnel-url", "https://public.example"])
+
+    assert args.func(args) == 0
+    opts = captured["opts"]
+    assert opts.out_dir == tmp_path
+    assert opts.open_browser is True
+    assert opts.release_smoke_before_tunnel is True
+    assert opts.tunnel_url == "https://public.example"
 
 
 def test_cli_existing_testnet_subcommands_still_present() -> None:
@@ -781,6 +2281,42 @@ def test_cli_rejects_seed_and_random_together(tmp_path: Path) -> None:
     )
     assert result.returncode != 0
     assert "not allowed" in result.stderr.lower() or "argument" in result.stderr.lower()
+
+
+def test_public_up_fails_fast_when_cloudflared_missing(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    code = lc.cmd_public_up(
+        lc.PublicUpOptions(
+            out_dir=tmp_path,
+            cloudflared_bin="definitely-missing-cloudflared-for-test",
+        )
+    )
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "no Quick Tunnel runner found" in captured.err
+    assert not (tmp_path / "local_testnet_manifest.json").exists()
+
+
+def test_default_cloudflared_uses_container_runtime_when_binary_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    def fake_which(name: str) -> str | None:
+        if name == "docker":
+            return "/usr/bin/docker"
+        return None
+
+    monkeypatch.setattr(lc.shutil, "which", fake_which)
+
+    runner = lc._resolve_cloudflared_runner("cloudflared", engine="auto")
+    assert runner == ("container", "/usr/bin/docker")
+
+    command, source = lc._cloudflared_command(runner, "http://127.0.0.1:18080")
+    assert source == "cloudflare_quick_tunnel_docker_container"
+    assert command[:5] == ["/usr/bin/docker", "run", "--rm", "--network", "host"]
+    assert "cloudflare/cloudflared:latest" in command
+    assert command[-2:] == ["--url", "http://127.0.0.1:18080"]
 
 
 def test_cli_reset_requires_force(tmp_path: Path) -> None:
@@ -864,7 +2400,7 @@ def test_lifecycle_env_for_compose_returns_all_required_vars(tmp_path: Path) -> 
     env = lc._lifecycle_env_for_compose(body, paths)
     for required in (
         "ZENO_LEDGER_WRITER_TOKEN",
-        "DEMO_API_TOKEN",
+        "ZENODEX_API_BEARER_TOKEN",
         "RENDERED_NGINX_CONF_PATH",
         "RENDERED_RUNTIME_CONFIG_PATH",
         "FIXTURES_DIR",
@@ -874,9 +2410,13 @@ def test_lifecycle_env_for_compose_returns_all_required_vars(tmp_path: Path) -> 
         "UI_PORT",
         "CHAIN_ID",
         "NETWORK_ID",
+        "ZENO_LEDGER_TOKEN_SYMBOL",
+        "TAU_DEX_REQUIRE_LIVE_ZK_PROOF",
         "TAU_DEX_TOKEN_OPERATOR_PUBKEY",
         "TAU_DEX_ORACLE_PUBKEY",
         "TAU_DEX_ZUSD_ORACLE_PUBKEY",
+        "CONFIDENTIAL_APPROVED_MEASUREMENTS",
+        "CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON",
     ):
         assert env.get(required), f"compose env missing required var: {required}"
 
@@ -894,9 +2434,215 @@ def test_lifecycle_env_does_not_leak_real_tokens(tmp_path: Path) -> None:
     assert env["ZENO_LEDGER_WRITER_TOKEN"] != "writer-secret-abc"
 
 
+def test_key_management_authority_readiness_gates_tokenomics(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    manifest = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    wallet_authority = {
+        "ok": True,
+        "status": "ready",
+        "production_wallet_authority": True,
+        "readiness_gaps": [],
+        "authority_id": "perps-wallet-authority-v1",
+        "wallet_authority_hash": "0x" + "aa" * 32,
+        "signer_registry_hash": "0x" + "bb" * 32,
+        "key_manager_hash": "0x" + "cc" * 32,
+        "active_signer_count": 2,
+        "threshold": 2,
+        "recoverable_active_key_count": 2,
+        "recovery_exercise": {"recovery_exercise_ready": True},
+        "rotation_exercise": {"rotation_exercise_ready": True},
+        "device_approval_exercise": {"device_approval_ready": True},
+        "signer_ceremony": {"signer_ceremony_ready": True},
+        "hardware_custody": {"hardware_custody_ready": True},
+        "encrypted_sss_backup": {
+            "encrypted_sss_backup_ready": True,
+            "threshold": 3,
+            "share_count": 5,
+            "storage_provider_kinds": ["cloud_drive", "offline_export", "recovery_email"],
+            "provider_delivery_ready": True,
+            "recovery_drill_ready": True,
+            "replay_recovery_ready": True,
+            "subject_public_key_matches": True,
+            "hostile_share_tests_ready": True,
+            "replay_hostile_tests_ready": True,
+            "raw_material_absent": True,
+        },
+    }
+    ready = lc._key_management_authority_readiness(
+        manifest=manifest,
+        lanes={"perps_wallet": {"status": {"wallet_authority": wallet_authority}}},
+    )
+    assert ready["tokenomics_authority_ready"] is True
+    assert ready["rejection_code"] is None
+    assert ready["production_security_claim"] is False
+    assert ready["production_authority_ready"] is False
+    assert ready["production_checks"]["local_tokenomics_authority_ready"] is True
+    assert ready["production_checks"]["strict_zk_ready"] is False
+    assert ready["production_checks"]["live_provider_delivery_ready"] is False
+    assert ready["production_checks"]["external_audit_ready"] is False
+    assert ready["secret_sharing"]["sss_implemented"] is True
+    assert ready["checks"]["encrypted_sss_backup_ready"] is True
+
+    blocked_authority = {**wallet_authority, "signer_ceremony": {"signer_ceremony_ready": False}}
+    blocked = lc._key_management_authority_readiness(
+        manifest=manifest,
+        lanes={"perps_wallet": {"status": {"wallet_authority": blocked_authority}}},
+    )
+    assert blocked["tokenomics_authority_ready"] is False
+    assert blocked["rejection_code"] == "TOKENOMICS_AUTHORITY_NOT_READY"
+    assert "signer ceremony is not ready" in blocked["readiness_gaps"]
+
+    missing_sss = {**wallet_authority}
+    missing_sss.pop("encrypted_sss_backup")
+    sss_blocked = lc._key_management_authority_readiness(
+        manifest=manifest,
+        lanes={"perps_wallet": {"status": {"wallet_authority": missing_sss}}},
+    )
+    assert sss_blocked["tokenomics_authority_ready"] is False
+    assert "encrypted SSS backup is not ready" in sss_blocked["readiness_gaps"]
+
+
+def test_key_management_readiness_rejects_public_private_key_fields(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    manifest = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    wallet_authority = {
+        "production_wallet_authority": True,
+        "readiness_gaps": [],
+        "active_signer_count": 1,
+        "threshold": 1,
+        "recoverable_active_key_count": 1,
+        "recovery_exercise": {"recovery_exercise_ready": True},
+        "rotation_exercise": {"rotation_exercise_ready": True},
+        "device_approval_exercise": {"device_approval_ready": True},
+        "signer_ceremony": {"signer_ceremony_ready": True},
+        "hardware_custody": {"hardware_custody_ready": True},
+        "encrypted_sss_backup": {"encrypted_sss_backup_ready": True},
+        "private_key_hex": "0x" + "00" * 32,
+    }
+    report = lc._key_management_authority_readiness(
+        manifest=manifest,
+        lanes={"perps_wallet": {"status": {"wallet_authority": wallet_authority}}},
+    )
+    assert report["tokenomics_authority_ready"] is False
+    assert "raw private-key field detected in public status or manifest" in report["readiness_gaps"]
+
+
+def test_key_management_readiness_allows_secret_absence_status_fields(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    manifest = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    wallet_authority = {
+        "ok": True,
+        "status": "ready",
+        "production_wallet_authority": True,
+        "readiness_gaps": [],
+        "authority_id": "perps-wallet-authority-v1",
+        "wallet_authority_hash": "0x" + "aa" * 32,
+        "signer_registry_hash": "0x" + "bb" * 32,
+        "key_manager_hash": "0x" + "cc" * 32,
+        "active_signer_count": 1,
+        "threshold": 1,
+        "recoverable_active_key_count": 1,
+        "recovery_exercise": {"recovery_exercise_ready": True},
+        "rotation_exercise": {"rotation_exercise_ready": True},
+        "device_approval_exercise": {"device_approval_ready": True},
+        "signer_ceremony": {"signer_ceremony_ready": True},
+        "hardware_custody": {
+            "hardware_custody_ready": True,
+            "no_raw_private_key_exposure": True,
+        },
+        "encrypted_sss_backup": {
+            "encrypted_sss_backup_ready": True,
+            "provider_delivery_ready": True,
+            "replay_recovery_ready": True,
+            "subject_public_key_matches": True,
+            "replay_hostile_tests_ready": True,
+            "raw_material_absent": True,
+        },
+    }
+    report = lc._key_management_authority_readiness(
+        manifest=manifest,
+        lanes={"perps_wallet": {"status": {"wallet_authority": wallet_authority}}},
+    )
+    assert report["tokenomics_authority_ready"] is True
+    assert report["checks"]["no_raw_private_key_fields"] is True
+
+
+def test_lane_readiness_keeps_stack_ready_when_only_tokenomics_gate_blocks(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    manifest = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    wallet_authority = {
+        "ok": True,
+        "status": "ready",
+        "production_wallet_authority": True,
+        "readiness_gaps": [],
+        "authority_id": "perps-wallet-authority-v1",
+        "wallet_authority_hash": "0x" + "aa" * 32,
+        "signer_registry_hash": "0x" + "bb" * 32,
+        "key_manager_hash": "0x" + "cc" * 32,
+        "active_signer_count": 1,
+        "threshold": 1,
+        "recoverable_active_key_count": 1,
+        "recovery_exercise": {"recovery_exercise_ready": True},
+        "rotation_exercise": {"rotation_exercise_ready": True},
+        "device_approval_exercise": {"device_approval_ready": True},
+        "signer_ceremony": {"signer_ceremony_ready": False},
+        "hardware_custody": {"hardware_custody_ready": True},
+    }
+
+    def fake_get_json(url: str, **_: object) -> dict:
+        if url.endswith("/api/pools"):
+            return {"ok": True, "pools": [{"pool_id": "spot-a"}]}
+        if url.endswith("/api/zusd/wallet/status"):
+            return {"ok": True, "status": {"node_reachable": True}}
+        if url.endswith("/api/zusd/monetary/status"):
+            return {"ok": True, "status": {"node_reachable": True, "monetary_state_present": True}}
+        if url.endswith("/api/perps/wallet/status"):
+            return {
+                "ok": True,
+                "status": {
+                    "node_reachable": True,
+                    "market_count": 1,
+                    "wallet_authority": wallet_authority,
+                    "oracle_authority": {"ok": True},
+                },
+            }
+        if url.endswith("/api/strategy/autotrader/status"):
+            return {"ok": True, "status": {"supervisor": {"ok": True}}}
+        if url.endswith("/api/oracle/health"):
+            return {"ok": True}
+        if url.endswith("/api/oracle/dashboard"):
+            return {"ok": True}
+        if url.endswith("/api/confidential/status"):
+            return {"ok": True}
+        raise AssertionError(f"unexpected URL: {url}")
+
+    monkeypatch.setattr(lc, "_safe_get_json", fake_get_json)
+
+    report = lc._collect_lane_readiness(ui_base="http://127.0.0.1:18080", manifest=manifest)
+
+    assert report["ok"] is True
+    assert "key_management_authority" not in report["checks"]
+    assert report["key_management_authority"]["tokenomics_authority_ready"] is False
+    assert report["tokenomics_lane"] == {
+        "enabled": False,
+        "rejection_code": "TOKENOMICS_AUTHORITY_NOT_READY",
+    }
+
+
 def test_runtime_env_for_existing_manifest_recovers_tokens_and_roles(tmp_path: Path) -> None:
     """Restarting an existing stack must recover the live compose env from
-    saved local artifacts. The manifest stores only the writer-token hash."""
+    saved local artifacts. The manifest stores token hashes, not raw tokens."""
     from tools.zenoctl_testnet_local import fixtures as fx
     from tools.zenoctl_testnet_local import lifecycle as lc
     from tools.zenoctl_testnet_local import manifest as mf
@@ -930,14 +2676,17 @@ def test_runtime_env_for_existing_manifest_recovers_tokens_and_roles(tmp_path: P
         }
     )
     env = lc._runtime_env_for_existing_manifest(manifest=body, paths=paths)
+    role_pubkeys = json.loads(bundle.role_pubkeys.read_text(encoding="utf-8"))
 
     assert env["ZENO_LEDGER_WRITER_TOKEN"] == writer_token
-    assert env["DEMO_API_TOKEN"] == stdlib_token
+    assert env["ZENODEX_API_BEARER_TOKEN"] == stdlib_token
+    assert env["TAU_DEX_REQUIRE_LIVE_ZK_PROOF"] == "false"
     assert env["UI_PORT"] == "18080"
     assert env["CHAIN_ID"] == "zeno-ledger-localtest-v0"
     assert env["TAU_DEX_TOKEN_OPERATOR_PUBKEY"]
     assert env["TAU_DEX_ORACLE_PUBKEY"]
     assert env["TAU_DEX_ZUSD_ORACLE_PUBKEY"]
+    assert env["TAU_DEX_PROOF_MINING_POOL_PUBKEY"] == role_pubkeys["roles"]["guardian_2"]["public_key"]
 
 
 def test_runtime_env_for_existing_manifest_rejects_writer_hash_mismatch(tmp_path: Path) -> None:
@@ -975,6 +2724,41 @@ def test_runtime_env_for_existing_manifest_rejects_writer_hash_mismatch(tmp_path
         lc._runtime_env_for_existing_manifest(manifest=body, paths=paths)
 
 
+def test_runtime_env_for_existing_manifest_rejects_stdlib_hash_mismatch(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import fixtures as fx
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+    from tools.zenoctl_testnet_local import nginx as ng
+
+    paths = mf.ManifestPaths.from_out_dir(tmp_path)
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id="zeno-ledger-localtest-v0",
+        network_id="zeno-ledger-localtest-v0",
+        created_at_ms=1000,
+    )
+    rendered = ng.render_nginx_conf(
+        ng.NginxRenderInputs(
+            writer_upstream="zeno-ledger-writer:8787",
+            stdlib_upstream="zenodex-api:8000",
+            oracle_upstream="zenodex-oracle:9100",
+            writer_token="writer-secret-abc",
+            stdlib_token="rendered-stdlib-token",
+        )
+    )
+    ng.write_rendered_conf(rendered, out_path=paths.rendered_nginx)
+
+    body = mf.build_manifest(
+        **{
+            **_valid_manifest_kwargs(tmp_path),
+            "fixture_paths": bundle.as_manifest_paths(),
+            "stdlib_token": "different-stdlib-token",
+        }
+    )
+    with pytest.raises(ValueError, match="stdlib_token_sha256"):
+        lc._runtime_env_for_existing_manifest(manifest=body, paths=paths)
+
+
 def test_cmd_up_restarts_existing_manifest_without_force(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1004,10 +2788,11 @@ def test_cmd_up_restarts_existing_manifest_without_force(
         "_runtime_env_for_existing_manifest",
         lambda *, manifest, paths: {
             "ZENO_LEDGER_WRITER_TOKEN": "writer-secret-abc",
-            "DEMO_API_TOKEN": "stdlib-secret-xyz",
+            "ZENODEX_API_BEARER_TOKEN": "stdlib-secret-xyz",
             "UI_PORT": "18080",
             "CHAIN_ID": "zeno-ledger-localtest-v0",
             "NETWORK_ID": "zeno-ledger-localtest-v0",
+            "TAU_DEX_REQUIRE_LIVE_ZK_PROOF": "false",
             "RENDERED_NGINX_CONF_PATH": str(paths.rendered_nginx),
             "RENDERED_RUNTIME_CONFIG_PATH": str(paths.rendered_runtime_config),
             "FIXTURES_DIR": str(paths.fixtures_dir),

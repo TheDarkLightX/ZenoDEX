@@ -10,7 +10,7 @@ from typing import Iterable, Sequence
 DEFAULT_WORKFLOW_DIR = Path(".github/workflows")
 ALLOWED_JOB_WRITE_PERMISSIONS = {
     "release-integrity.yml": {
-        "release-integrity": {"attestations", "id-token"},
+        "release-integrity": {"attestations", "contents", "id-token"},
     },
     "release-publish.yml": {
         "publish-github-release": {"contents"},

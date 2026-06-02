@@ -206,13 +206,14 @@ def compose_run(
     env: dict[str, str] | None = None,
     extra_args: Sequence[str] = (),
     capture: bool = False,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run a transient compose service command on the existing project network."""
     cmd = [*engine.base_cmd(), "-p", project_name]
     for f in compose_files:
         cmd += ["-f", str(f)]
     cmd += ["run", "--rm", "--no-deps", *extra_args, service, *command]
-    return _run(cmd, env=env, check=False, capture=capture)
+    return _run(cmd, env=env, check=False, capture=capture, input_text=input_text)
 
 
 def wait_for_http(
@@ -279,6 +280,7 @@ def _run(
     env: dict[str, str] | None = None,
     check: bool = True,
     capture: bool = False,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """subprocess wrapper. Always text mode."""
     result = subprocess.run(
@@ -286,6 +288,7 @@ def _run(
         env=_merge_env(env),
         check=False,
         capture_output=capture,
+        input=input_text,
         text=True,
     )
     if check and result.returncode != 0:
