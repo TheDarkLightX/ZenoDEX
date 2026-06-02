@@ -58,6 +58,23 @@ DEFAULT_ZK_MODE = "auto-strict"
 DEFAULT_PUBLIC_OUT_DIR = Path.home() / ".zenodex" / "public-testnet-v0.1.16"
 ZK_MODES = ("auto-strict", "strict", "open")
 MAX_PROOF_ARTIFACT_METADATA_BYTES = 65_536
+GLOBAL_ZK_ENV_NAMES = (
+    "TAU_DEX_PROOF_VERIFIER_CMD_JSON",
+    "TAU_DEX_PROOF_VERIFIER_TIMEOUT_S",
+    "TAU_DEX_PROOF_VERIFIER_MAX_PROOF_BYTES",
+    "TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP",
+    "TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON",
+    "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON",
+    "TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE",
+    "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE",
+)
+GLOBAL_ZK_MATERIAL_ENV_NAMES = (
+    "TAU_DEX_PROOF_VERIFIER_CMD_JSON",
+    "TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON",
+    "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON",
+    "TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE",
+    "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE",
+)
 
 OPERATOR_TOOLS_IMAGE = "zenodex/operator-tools:local"
 TAU_LOCAL_IMAGE = "zenodex/tau-local:local-testnet"
@@ -594,11 +611,12 @@ def cmd_release_smoke(opts: ReleaseSmokeOptions) -> int:
         return 1
 
     engine = cm.detect_engine(opts.engine)
+    env = _runtime_env_for_existing_manifest(manifest=manifest, paths=paths)
     services = cm.compose_ps_json(
         engine=engine,
         project_name=str(manifest["compose_project"]),
         compose_files=[COMPOSE_FILE],
-        env=_lifecycle_env_for_compose(dict(manifest), paths),
+        env=env,
     )
     ui_base = str(manifest["service_urls"]["ui"])
     report: dict[str, Any] = {
@@ -617,7 +635,14 @@ def cmd_release_smoke(opts: ReleaseSmokeOptions) -> int:
         "checks": {},
     }
     try:
-        report["checks"] = _run_release_flow_smoke(ui_base=ui_base, paths=paths, manifest=manifest)
+        report["checks"] = _run_release_flow_smoke(
+            ui_base=ui_base,
+            paths=paths,
+            manifest=manifest,
+            engine=engine,
+            compose_project=str(manifest["compose_project"]),
+            env=env,
+        )
         report["ok"] = all(bool(item.get("ok")) for item in report["checks"].values())
         report["status"] = "accepted" if report["ok"] else "rejected"
     except Exception as exc:
@@ -832,16 +857,7 @@ def _compose_env(
     )
     env["CONFIDENTIAL_APPROVED_MEASUREMENTS"] = fixture.measurement
     env["CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON"] = _confidential_verifier_cmd_json(fixture)
-    for name in (
-        "TAU_DEX_PROOF_VERIFIER_CMD_JSON",
-        "TAU_DEX_PROOF_VERIFIER_TIMEOUT_S",
-        "TAU_DEX_PROOF_VERIFIER_MAX_PROOF_BYTES",
-        "TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP",
-        "TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON",
-        "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON",
-        "TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE",
-        "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE",
-    ):
+    for name in GLOBAL_ZK_ENV_NAMES:
         value = os.environ.get(name)
         if value is not None and value.strip():
             env[name] = value
@@ -854,6 +870,10 @@ def _local_live_wrapper_zk_env() -> dict[str, str]:
     verifier_artifact = json.dumps(_local_live_wrapper_verifier_artifact(), sort_keys=True)
     circuit_artifact = json.dumps(_local_live_wrapper_circuit_artifact(), sort_keys=True)
     return {
+        "TAU_DEX_PROOF_VERIFIER_CMD_JSON": cmd_json,
+        "TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP": "true",
+        "TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON": verifier_artifact,
+        "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON": circuit_artifact,
         "ZUSD_MONETARY_WALLET_PROOF_VERIFIER_CMD_JSON": cmd_json,
         "ZUSD_MONETARY_WALLET_PROOF_VERIFIER_ALLOW_PATH_LOOKUP": "true",
         "ZUSD_MONETARY_WALLET_PROOF_VERIFIER_ARTIFACT_JSON": verifier_artifact,
@@ -1243,8 +1263,9 @@ def _resolve_zk_posture(zk_mode: str) -> dict[str, Any]:
 
 
 def _strict_zk_posture() -> dict[str, Any]:
-    verifier_kind, verifier_error = _proof_verifier_kind_from_env()
-    artifact_hashes, artifact_error = _proof_artifact_hashes_from_env()
+    env = _strict_zk_source_env()
+    verifier_kind, verifier_error = _proof_verifier_kind_from_env(env=env)
+    artifact_hashes, artifact_error = _proof_artifact_hashes_from_env(env=env)
     errors = []
     if verifier_error:
         errors.append(verifier_error)
@@ -1265,6 +1286,25 @@ def _strict_zk_posture() -> dict[str, Any]:
     }
 
 
+def _strict_zk_source_env() -> Mapping[str, str]:
+    """Return the env used by local-testnet strict ZK posture checks.
+
+    An explicit global proof verifier configuration is treated as authoritative
+    and must be complete. With no explicit verifier material, the public
+    fake-value local testnet uses its bundled live-wrapper fixture verifier so
+    `auto-strict` starts fail-closed by default.
+    """
+
+    current = {key: value for key, value in os.environ.items()}
+    if any(str(current.get(name, "")).strip() for name in GLOBAL_ZK_MATERIAL_ENV_NAMES):
+        return current
+    merged = dict(current)
+    for key, value in _local_live_wrapper_zk_env().items():
+        if key in GLOBAL_ZK_ENV_NAMES and not str(merged.get(key, "")).strip():
+            merged[key] = value
+    return merged
+
+
 def _strict_zk_env_gap(*, expected: Mapping[str, Any] | None = None) -> str | None:
     strict = _strict_zk_posture()
     if strict["strict_ready"] is not True:
@@ -1283,8 +1323,9 @@ def _strict_zk_env_gap(*, expected: Mapping[str, Any] | None = None) -> str | No
     return None
 
 
-def _proof_verifier_kind_from_env() -> tuple[str, str | None]:
-    raw = os.environ.get("TAU_DEX_PROOF_VERIFIER_CMD_JSON", "").strip()
+def _proof_verifier_kind_from_env(*, env: Mapping[str, str] | None = None) -> tuple[str, str | None]:
+    source = os.environ if env is None else env
+    raw = str(source.get("TAU_DEX_PROOF_VERIFIER_CMD_JSON", "")).strip()
     if not raw:
         if _local_live_wrapper_verifier_host_path().is_file() and shutil.which("python3") is not None:
             return "subprocess", None
@@ -1296,7 +1337,7 @@ def _proof_verifier_kind_from_env() -> tuple[str, str | None]:
     if not isinstance(parsed, list) or not parsed or not all(isinstance(item, str) and item for item in parsed):
         return "misconfigured", "TAU_DEX_PROOF_VERIFIER_CMD_JSON must be a non-empty JSON string array"
     cmd0 = parsed[0]
-    allow_path_lookup = _env_bool("TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP", default=False)
+    allow_path_lookup = _env_bool_from(source, "TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP", default=False)
     if os.path.isabs(cmd0):
         if not (os.path.isfile(cmd0) and os.access(cmd0, os.X_OK)):
             return "misconfigured", f"proof verifier command is not executable: {cmd0}"
@@ -1313,7 +1354,11 @@ def _proof_verifier_kind_from_env() -> tuple[str, str | None]:
 
 
 def _env_bool(name: str, *, default: bool) -> bool:
-    raw = os.environ.get(name, "").strip().lower()
+    return _env_bool_from(os.environ, name, default=default)
+
+
+def _env_bool_from(env: Mapping[str, str], name: str, *, default: bool) -> bool:
+    raw = str(env.get(name, "")).strip().lower()
     if not raw:
         return bool(default)
     if raw in {"1", "true", "yes", "on"}:
@@ -1323,26 +1368,19 @@ def _env_bool(name: str, *, default: bool) -> bool:
     return bool(default)
 
 
-def _proof_artifact_hashes_from_env() -> tuple[dict[str, str], str | None]:
-    if not any(
-        os.environ.get(name, "").strip()
-        for name in (
-            "TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON",
-            "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON",
-            "TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE",
-            "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE",
-        )
-    ):
-        return _local_live_wrapper_artifact_hashes(), None
+def _proof_artifact_hashes_from_env(*, env: Mapping[str, str] | None = None) -> tuple[dict[str, str], str | None]:
+    source = os.environ if env is None else env
     hashes: dict[str, str] = {}
     errors: list[str] = []
     verifier_hash, verifier_error = _artifact_hash_from_env(
+        env=source,
         json_name="TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON",
         file_name="TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE",
         label="proof verifier artifact",
         require_proof_system=False,
     )
     circuit_hash, circuit_error = _artifact_hash_from_env(
+        env=source,
         json_name="TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON",
         file_name="TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE",
         label="proof circuit artifact",
@@ -1361,13 +1399,15 @@ def _proof_artifact_hashes_from_env() -> tuple[dict[str, str], str | None]:
 
 def _artifact_hash_from_env(
     *,
+    env: Mapping[str, str] | None = None,
     json_name: str,
     file_name: str,
     label: str,
     require_proof_system: bool = False,
 ) -> tuple[str | None, str | None]:
-    raw_json = os.environ.get(json_name, "").strip()
-    raw_file = os.environ.get(file_name, "").strip()
+    source = os.environ if env is None else env
+    raw_json = str(source.get(json_name, "")).strip()
+    raw_file = str(source.get(file_name, "")).strip()
     if raw_json:
         try:
             obj = json.loads(raw_json)
@@ -1605,6 +1645,12 @@ def _seed_api_state(
                 raise RuntimeError("Tau app_state missing")
             return app_state
 
+        def native_balance(pubkey):
+            key = str(pubkey)
+            if key.startswith("0x"):
+                key = key[2:]
+            return int(client.get_balance(key))
+
         def perps_market_state():
             app_state = load_state()
             dex_state = app_state.get("dex_state")
@@ -1807,7 +1853,9 @@ def _seed_api_state(
                         str({DEFAULT_ZUSD_BOOTSTRAP_COLLATERAL_E8}),
                     ]
                 ]
-            }},
+                }},
+            resend_on_empty=True,
+            accept_block_failure_if=lambda: native_balance(owner["public_key"]) >= {DEFAULT_ZUSD_BOOTSTRAP_COLLATERAL_E8},
         )
         report["steps"]["prefund_counterparty_zusd"] = send_and_mine(
             "prefund_counterparty_zusd",
@@ -2568,7 +2616,198 @@ def _run_feature_smoke(*, ui_base: str, paths: mf.ManifestPaths, manifest: Mappi
     }
 
 
-def _run_release_flow_smoke(*, ui_base: str, paths: mf.ManifestPaths, manifest: Mapping[str, Any]) -> dict[str, Any]:
+def _materialize_release_native_collateral(
+    *,
+    engine: cm.ComposeEngine,
+    compose_project: str,
+    env: Mapping[str, str],
+    roles: Mapping[str, Mapping[str, Any]],
+    amount_e8: int,
+) -> dict[str, Any]:
+    owner = roles["alice"]
+    preferred_refiller_names = [
+        "carol",
+        "guardian_1",
+        "guardian_2",
+        "guardian_3",
+        "operator",
+        "oracle_authority",
+        "perps_wallet_authority",
+        "bob",
+        "autotrader_supervisor",
+    ]
+    refiller_roles = {
+        name: {
+            "public_key": role["public_key"],
+            "privkey_int": role.get("privkey_int"),
+        }
+        for name, role in roles.items()
+        if name != "alice" and role.get("privkey_int") is not None
+    }
+    payload = {
+        "owner_pubkey": owner["public_key"],
+        "refiller_roles": refiller_roles,
+        "preferred_refiller_names": preferred_refiller_names,
+        "amount_e8": int(amount_e8),
+    }
+    script = textwrap.dedent(
+        """
+        import json
+        import sys
+        import time
+
+        from src.integration.tau_net_client import TauNetTcpClient, TauNetTcpConfig, tau_rpc_response_is_success
+
+        PAYLOAD = json.loads(sys.stdin.read())
+        client = TauNetTcpClient(TauNetTcpConfig(host="tau-local", port=65432, timeout_s=10.0))
+        owner_pubkey = str(PAYLOAD["owner_pubkey"])
+        owner_rpc = owner_pubkey[2:] if owner_pubkey.startswith("0x") else owner_pubkey
+        target = int(PAYLOAD["amount_e8"])
+
+        def native_balance():
+            return int(client.get_balance(owner_rpc))
+
+        before = native_balance()
+        needed = max(0, target - before)
+        report = {
+            "ok": True,
+            "schema": "zenodex.local_testnet.release_native_collateral_materialize.v0",
+            "testnet_only": True,
+            "production_authority": False,
+            "owner_pubkey": owner_pubkey,
+            "target_balance_e8": target,
+            "balance_before_e8": before,
+            "materialize_amount_e8": needed,
+        }
+        if needed == 0:
+            report["balance_after_e8"] = before
+            report["status"] = "already_funded"
+            print(json.dumps(report, sort_keys=True))
+            raise SystemExit(0)
+
+        raw_refillers = PAYLOAD.get("refiller_roles") or {}
+        preferred_names = list(PAYLOAD.get("preferred_refiller_names") or [])
+        for name in sorted(raw_refillers):
+            if name not in preferred_names:
+                preferred_names.append(name)
+
+        refiller_candidates = []
+        selected = None
+        for name in preferred_names:
+            role = raw_refillers.get(name)
+            if not isinstance(role, dict):
+                continue
+            refiller_pubkey = str(role.get("public_key") or "")
+            refiller_rpc = refiller_pubkey[2:] if refiller_pubkey.startswith("0x") else refiller_pubkey
+            try:
+                balance = int(client.get_balance(refiller_rpc))
+            except Exception as exc:
+                refiller_candidates.append({"role": name, "balance_error": str(exc)})
+                continue
+            refiller_candidates.append({"role": name, "balance_e8": balance})
+            if selected is None and balance >= needed:
+                selected = {
+                    "role": name,
+                    "pubkey": refiller_pubkey,
+                    "rpc": refiller_rpc,
+                    "privkey_int": int(role["privkey_int"]),
+                    "balance_e8": balance,
+                }
+
+        report["refiller_candidates"] = refiller_candidates
+        if selected is None:
+            report["ok"] = False
+            report["status"] = "no_release_native_refiller_with_sufficient_balance"
+            print(json.dumps(report, sort_keys=True))
+            raise SystemExit(0)
+
+        report["refiller_role"] = selected["role"]
+        report["refiller_pubkey"] = selected["pubkey"]
+        report["refiller_balance_before_e8"] = selected["balance_e8"]
+
+        last_block_response = None
+        last_send_response = None
+        last_after = before
+        for send_attempt in range(1, 3):
+            current = native_balance()
+            needed_now = max(0, target - current)
+            if needed_now == 0:
+                last_after = current
+                break
+            send_response = client.send_signed_tx(
+                privkey=selected["privkey_int"],
+                operations={"1": [[selected["rpc"], owner_rpc, str(needed_now)]]},
+                expiration_seconds=3600,
+            )
+            last_send_response = send_response
+            report["send"] = send_response
+            report["send_attempts"] = send_attempt
+            report["materialize_amount_e8"] = needed_now
+            if not tau_rpc_response_is_success(send_response):
+                report["ok"] = False
+                report["status"] = "send_rejected"
+                print(json.dumps(report, sort_keys=True))
+                raise SystemExit(0)
+            for block_attempt in range(1, 11):
+                block_response = client.createblock()
+                last_block_response = block_response
+                report["createblock"] = block_response
+                report["createblock_attempts"] = block_attempt
+                last_after = native_balance()
+                if last_after >= target:
+                    break
+                if tau_rpc_response_is_success(block_response):
+                    break
+                if "mempool is empty" not in str(block_response).lower():
+                    break
+                time.sleep(0.5)
+            if last_after >= target:
+                break
+            if "mempool is empty" in str(last_block_response).lower() and send_attempt < 2:
+                time.sleep(0.5)
+                continue
+            break
+
+        after = last_after
+        report["balance_after_e8"] = after
+        if after < target:
+            report["ok"] = False
+            report["status"] = "target_balance_not_materialized"
+            report["last_createblock"] = last_block_response
+            report["last_send"] = last_send_response
+        else:
+            report["status"] = "accepted"
+        print(json.dumps(report, sort_keys=True))
+        """
+    ).strip()
+    result = cm.compose_run(
+        engine=engine,
+        project_name=compose_project,
+        compose_files=[COMPOSE_FILE],
+        service="zenodex-api",
+        command=["-c", script],
+        env=dict(env),
+        extra_args=["-T"],
+        capture=True,
+        input_text=json.dumps(payload, sort_keys=True),
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "native collateral materialization failed")
+    report = _extract_json_from_text(result.stdout)
+    if report.get("ok") is not True:
+        raise RuntimeError(f"native collateral materialization failed: {json.dumps(report, sort_keys=True)}")
+    return report
+
+
+def _run_release_flow_smoke(
+    *,
+    ui_base: str,
+    paths: mf.ManifestPaths,
+    manifest: Mapping[str, Any],
+    engine: cm.ComposeEngine,
+    compose_project: str,
+    env: Mapping[str, str],
+) -> dict[str, Any]:
     key_bundle_path = Path(str(manifest["fixture_paths"]["key_bundle"]))
     roles = _role_materials(_load_json_file(key_bundle_path, label="key bundle"))
     seed_report = _load_json_file(paths.reports_dir / "api_seed_report.json", label="api seed report")
@@ -2653,6 +2892,17 @@ def _run_release_flow_smoke(*, ui_base: str, paths: mf.ManifestPaths, manifest: 
                 "tx_id": f"release-smoke-tagrs-faucet-{run_id}",
             },
             timeout_s=20.0,
+        ),
+    )
+
+    require(
+        "testnet_native_collateral_topup",
+        _materialize_release_native_collateral(
+            engine=engine,
+            compose_project=compose_project,
+            env=env,
+            roles=roles,
+            amount_e8=DEFAULT_ZUSD_BOOTSTRAP_COLLATERAL_E8,
         ),
     )
 
@@ -2824,6 +3074,7 @@ def _run_browser_smoke(
         roles=roles,
         seed_report=seed_report,
         chain_id=str(manifest["chain_id"]),
+        zk_required=manifest.get("zk_required") is True,
     ):
         checks[str(item["name"])] = _run_browser_case(
             chrome=chrome,
@@ -2878,6 +3129,7 @@ def _browser_smoke_cases(
     roles: Mapping[str, Mapping[str, Any]],
     seed_report: Mapping[str, Any],
     chain_id: str,
+    zk_required: bool = False,
 ) -> list[dict[str, Any]]:
     deadline = int(time.time()) + 3600
     alice = _role_pubkey(roles, "alice")
@@ -2900,6 +3152,8 @@ def _browser_smoke_cases(
 
     def url(params: Mapping[str, str]) -> str:
         return f"{ui_base}/?{urllib.parse.urlencode(params)}"
+
+    zk_query = {"zkProofJson": _local_fixture_zk_proof_json()} if zk_required else {}
 
     return [
         {
@@ -2950,6 +3204,7 @@ def _browser_smoke_cases(
                     "zusdDelta": "1",
                     "zusdDeadline": str(deadline),
                     "signerPrivkey": alice_priv,
+                    **zk_query,
                 }
             ),
             "snippets": ("zUSD Monetary Vault", "preflight accepted"),
@@ -2984,6 +3239,7 @@ def _browser_smoke_cases(
                     "perpsDeadline": str(deadline),
                     "oraclePubkey": oracle_auth,
                     "oraclePrivkey": oracle_priv,
+                    **zk_query,
                 }
             ),
             "snippets": ("Live Perps Wallet", "submit accepted"),
@@ -3102,6 +3358,11 @@ def _write_public_host_report(
         "read_only_tester_instructions": [
             f"Open {public_base} in a browser.",
             f"Fetch {public_base}/public_network_config.json and verify public_network_config_hash.",
+            f"Run: zenodex-public-follower --config-url {public_base}/public_network_config.json",
+            (
+                "For a faster bootstrap-only check, run: zenodex-public-follower "
+                f"--config-url {public_base}/public_network_config.json --skip-pull-live --no-require-live"
+            ),
             "Use the UI faucet and local test wallet flow for capped fake-value transactions.",
         ],
     }
@@ -3124,6 +3385,11 @@ def _public_host_summary(report: Mapping[str, Any]) -> str:
         "",
         "  Read-only tester path:",
         f"    curl -fsS {report.get('public_network_config_url')}",
+        f"    zenodex-public-follower --config-url {report.get('public_network_config_url')}",
+        (
+            "    zenodex-public-follower --config-url "
+            f"{report.get('public_network_config_url')} --skip-pull-live --no-require-live"
+        ),
         "",
         "  Fake-value warning: no production value, no mainnet custody.",
         "",
@@ -3361,6 +3627,7 @@ def _build_signed_live_swap_intent(
     deadline: int,
     from_symbol: str = "tAGRS",
     to_symbol: str = "tZDEX",
+    nonce_override: int | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     from src.integration.tau_net_client import sign_dex_intent_for_engine
     from src.integration.zeno_ledger_v0 import hash_v0
@@ -3379,7 +3646,9 @@ def _build_signed_live_swap_intent(
     pool_id = str(pool.get("pool_id") or pool.get("poolId") or "")
     if not pool_id:
         raise ValueError("live swap pool id missing")
-    nonce = int(last_nonce) + 1
+    nonce = int(nonce_override) if nonce_override is not None else int(last_nonce) + 1
+    if nonce <= int(last_nonce):
+        raise ValueError(f"swap nonce must advance account nonce: {nonce} <= {last_nonce}")
     intent_payload = {
         "sender_pubkey": sender,
         "recipient": sender,
@@ -3467,15 +3736,22 @@ def _run_complex_grouped_transaction_smoke(
         min_amount_out=0,
         deadline=deadline,
     )
+    _, operation_b = _build_signed_live_swap_intent(
+        ui_base=ui_base,
+        roles=roles,
+        chain_id=chain_id,
+        sender_role="alice",
+        amount_in=101,
+        min_amount_out=0,
+        deadline=deadline,
+        nonce_override=int(operation["nonce"]) + 1,
+    )
     asset_in = str(payload["assetIn"])
     good_group = {
-        "tx_id": f"local-smoke-grouped-faucet-swap-{run_id}",
+        "tx_id": f"local-smoke-grouped-swap-batch-{run_id}",
         "block_timestamp": int(time.time()),
         "tx_sender_pubkey": sender,
-        "operations": {
-            "7": {"mint": [{"pubkey": sender, "asset": asset_in, "amount": 105}]},
-            "5": [operation],
-        },
+        "operations": {"5": [operation, operation_b]},
     }
     good = _post_json(f"{ui_base}/tx", {"tx": good_group, "time_ms": int(time.time() * 1000)}, timeout_s=20.0)
     if good.get("tx_accepted") is not True:
@@ -3486,10 +3762,7 @@ def _run_complex_grouped_transaction_smoke(
         "tx_id": f"local-smoke-grouped-replay-reject-{run_id}",
         "block_timestamp": int(time.time()),
         "tx_sender_pubkey": sender,
-        "operations": {
-            "7": {"mint": [{"pubkey": sender, "asset": asset_in, "amount": 999}]},
-            "5": [operation],
-        },
+        "operations": {"5": [operation, operation_b]},
     }
     bad = _post_json(f"{ui_base}/tx", {"tx": bad_group, "time_ms": int(time.time() * 1000)}, timeout_s=20.0)
     if bad.get("tx_accepted") is True:
@@ -3529,11 +3802,19 @@ def _role_privkey_int(roles: Mapping[str, Mapping[str, Any]], role: str) -> int:
 def _with_local_fixture_zk_proof(payload: Mapping[str, Any], *, zk_required: bool) -> dict[str, Any]:
     body = dict(payload)
     if zk_required:
-        body["zk_proof"] = {
-            "system": "local-testnet-live-wrapper-fixture-v1",
-            "production_security_claim": False,
-        }
+        body["zk_proof"] = _local_fixture_zk_proof()
     return body
+
+
+def _local_fixture_zk_proof() -> dict[str, Any]:
+    return {
+        "system": "local-testnet-live-wrapper-fixture-v1",
+        "production_security_claim": False,
+    }
+
+
+def _local_fixture_zk_proof_json() -> str:
+    return json.dumps(_local_fixture_zk_proof(), sort_keys=True, separators=(",", ":"))
 
 
 def _smoke_run_id() -> str:
