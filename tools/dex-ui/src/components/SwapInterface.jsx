@@ -277,8 +277,8 @@ function SwapInterface({ wallet }) {
         const requestedFrom = String(uiSmokeSwap.fromSymbol || '').trim().toUpperCase();
         const requestedTo = String(uiSmokeSwap.toSymbol || '').trim().toUpperCase();
         if (!requestedFrom || !requestedTo || requestedFrom === requestedTo) return;
-        const nextFrom = tokens.find((token) => token.symbol === requestedFrom);
-        const nextTo = tokens.find((token) => token.symbol === requestedTo);
+        const nextFrom = tokens.find((token) => String(token.symbol || '').trim().toUpperCase() === requestedFrom);
+        const nextTo = tokens.find((token) => String(token.symbol || '').trim().toUpperCase() === requestedTo);
         if (!nextFrom || !nextTo) return;
         setFromToken(nextFrom);
         setToToken(nextTo);
@@ -1222,9 +1222,9 @@ function SwapInterface({ wallet }) {
     const routeProfiles = listRouteProfiles();
 
     // ── Runtime verification posture (honest, node-reported) ──────────────
-    // Strict ZK + a real subprocess verifier means settlement is proof-gated;
-    // otherwise the Tau spec still defines the math but proofs are not enforced
-    // in this environment. The header chip and proof panel reflect this exactly.
+    // Strict ZK + a subprocess verifier means the mounted live write gates are
+    // proof-wrapper checked. Spot swap still reports Tau-spec math posture here
+    // unless a dedicated spot proof surface is advertised by the node.
     const zkPosture = getRuntimeConfig()?.localTestnetZkPosture || {};
     const proofEnforced = zkPosture.zk_required === true
         && zkPosture.zk_mode_effective === 'strict'
@@ -1334,13 +1334,13 @@ function SwapInterface({ wallet }) {
                     <span className="swap-proof-posture-dot" aria-hidden="true" />
                     <span className="swap-proof-posture-label">
                         {proofEnforced
-                            ? 'Proof-enforced settlement'
+                            ? 'Proof-wrapper active'
                             : (postureKnown ? 'Spec-checked · proofs off' : 'Posture unavailable')}
                     </span>
                 </div>
                 <p className="swap-proof-posture-detail">
                     {proofEnforced ? (
-                        <>Swap math is validated by Tau spec <code>cpmm_v1</code> and settlement is gated by the <code>{zkPosture.proof_verifier_kind}</code> proof verifier (zk {zkPosture.zk_mode_effective}).</>
+                        <>This stack has the <code>{zkPosture.proof_verifier_kind}</code> proof verifier active for mounted live write gates (zk {zkPosture.zk_mode_effective}). Spot swap math is validated by Tau spec <code>cpmm_v1</code>; this is runtime posture, not a production spot ZK proof.</>
                     ) : (
                         <>Tau spec <code>cpmm_v1</code> defines the math, but this environment runs zk <code>{zkPosture.zk_mode_effective || 'unknown'}</code> with proof verification <strong>disabled</strong>. Treat green checks as spec conformance, not a production proof.</>
                     )}
@@ -1430,10 +1430,10 @@ function SwapInterface({ wallet }) {
                         <VerifiedBySpec
                             spec="cpmm_v1"
                             kind="tau"
-                            title={`Swap math validated by Tau spec cpmm_v1; settlement gated by the ${zkPosture.proof_verifier_kind} proof verifier (zk ${zkPosture.zk_mode_effective}).`}
+                            title={`Swap math validated by Tau spec cpmm_v1; mounted live write gates use the ${zkPosture.proof_verifier_kind} proof verifier (zk ${zkPosture.zk_mode_effective}).`}
                         />
                     ) : (
-                        <Tooltip text={`Tau spec cpmm_v1 defines the swap math, but this environment runs zk ${zkPosture.zk_mode_effective || 'unknown'} with proof verification disabled${zkPosture.zk_fallback_reason ? ` — ${zkPosture.zk_fallback_reason}` : ''}. Spec conformance only, not a production proof.`}>
+                        <Tooltip text={`Tau spec cpmm_v1 defines the swap math, but this environment runs zk ${zkPosture.zk_mode_effective || 'unknown'} with proof verification disabled${zkPosture.zk_fallback_reason ? `, ${zkPosture.zk_fallback_reason}` : ''}. Spec conformance only, not a production proof.`}>
                             <span className="swap-spec-advisory">Spec cpmm_v1 · proofs off</span>
                         </Tooltip>
                     )}
@@ -2138,7 +2138,7 @@ function SwapInterface({ wallet }) {
 
                 <div className="swap-footer">
                     {proofEnforced ? (
-                        <span className="verified-badge">✓ Proof-enforced</span>
+                        <span className="verified-badge">✓ Proof-wrapper active</span>
                     ) : (
                         <span className="verified-badge verified-badge-advisory">Spec-checked (proofs off)</span>
                     )}
