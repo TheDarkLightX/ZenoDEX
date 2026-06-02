@@ -50,6 +50,17 @@ def register_subparser(testnet_sub: argparse._SubParsersAction) -> None:
         default=lc.DEFAULT_HEALTH_TIMEOUT_S,
         help="seconds to wait for the UI to become reachable",
     )
+    up.add_argument(
+        "--zk-mode",
+        choices=lc.ZK_MODES,
+        default=lc.DEFAULT_ZK_MODE,
+        help=(
+            "ZK posture for local-testnet writes: auto-strict uses the bundled "
+            "local proof-wrapper verifier unless explicit verifier env is set, "
+            "strict refuses if verifier/artifacts are incomplete, open is "
+            "non-production local mode"
+        ),
+    )
     seed_grp = up.add_mutually_exclusive_group()
     seed_grp.add_argument(
         "--seed",
@@ -95,6 +106,99 @@ def register_subparser(testnet_sub: argparse._SubParsersAction) -> None:
         help="seconds per browser smoke case",
     )
     smoke.set_defaults(func=_cmd_smoke)
+
+    release_smoke = local_sub.add_parser(
+        "release-smoke",
+        help="exercise the public v0.1.16 release flow and write release_flow_smoke_report.json",
+    )
+    release_smoke.add_argument("--out-dir", type=Path, required=True)
+    release_smoke.add_argument("--engine", choices=["auto", "docker", "podman"], default="auto")
+    release_smoke.set_defaults(func=_cmd_release_smoke)
+
+    public_up = local_sub.add_parser(
+        "public-up",
+        help="bring up the local-testnet stack and expose it through a Cloudflare Quick Tunnel",
+    )
+    public_up.add_argument("--out-dir", type=Path, required=True, help="directory for manifest/fixtures/rendered configs")
+    public_up.add_argument("--chain-id", default=lc.DEFAULT_CHAIN_ID)
+    public_up.add_argument("--network-id", default=lc.DEFAULT_NETWORK_ID)
+    public_up.add_argument("--ui-port", type=int, default=lc.DEFAULT_UI_PORT, help="host TCP port for the UI (loopback)")
+    public_up.add_argument("--engine", choices=["auto", "docker", "podman"], default="auto")
+    public_up.add_argument("--force", action="store_true")
+    public_up.add_argument("--health-timeout", type=float, default=lc.DEFAULT_HEALTH_TIMEOUT_S)
+    public_up.add_argument("--zk-mode", choices=lc.ZK_MODES, default=lc.DEFAULT_ZK_MODE)
+    public_up.add_argument(
+        "--cloudflared-bin",
+        default="cloudflared",
+        help="cloudflared binary name/path; default falls back to Docker/Podman cloudflared container",
+    )
+    public_up.add_argument("--open", dest="open_browser", action="store_true", help="open the public UI URL in the default browser")
+    public_up.add_argument(
+        "--release-smoke",
+        dest="release_smoke_before_tunnel",
+        action="store_true",
+        help="run the v0.1.16 release smoke before opening the public tunnel",
+    )
+    public_up.add_argument(
+        "--tunnel-url",
+        default=None,
+        help="use an already-created public tunnel URL and print the host report without starting cloudflared",
+    )
+    public_seed_grp = public_up.add_mutually_exclusive_group()
+    public_seed_grp.add_argument("--seed", dest="seed_override_hex", default=None)
+    public_seed_grp.add_argument("--random", action="store_true")
+    public_up.set_defaults(func=_cmd_public_up)
+
+    public = local_sub.add_parser(
+        "public",
+        help="one-command public fake-value testnet: start stack, smoke it, open browser",
+        description=(
+            "Start the full local-testnet stack from a default operator data directory, "
+            "run the v0.1.16 release smoke, expose it through a Cloudflare Quick Tunnel, "
+            "and open the public UI URL in the default browser."
+        ),
+    )
+    public.add_argument(
+        "--out-dir",
+        type=Path,
+        default=lc.DEFAULT_PUBLIC_OUT_DIR,
+        help=f"operator data directory (default: {lc.DEFAULT_PUBLIC_OUT_DIR})",
+    )
+    public.add_argument("--chain-id", default=lc.DEFAULT_CHAIN_ID)
+    public.add_argument("--network-id", default=lc.DEFAULT_NETWORK_ID)
+    public.add_argument("--ui-port", type=int, default=lc.DEFAULT_UI_PORT, help="host TCP port for the UI (loopback)")
+    public.add_argument("--engine", choices=["auto", "docker", "podman"], default="auto")
+    public.add_argument("--force", action="store_true")
+    public.add_argument("--health-timeout", type=float, default=lc.DEFAULT_HEALTH_TIMEOUT_S)
+    public.add_argument("--zk-mode", choices=lc.ZK_MODES, default=lc.DEFAULT_ZK_MODE)
+    public.add_argument(
+        "--cloudflared-bin",
+        default="cloudflared",
+        help="cloudflared binary name/path; default falls back to Docker/Podman cloudflared container",
+    )
+    public.add_argument(
+        "--tunnel-url",
+        default=None,
+        help="use an already-created public tunnel URL and print the host report without starting cloudflared",
+    )
+    public.add_argument(
+        "--no-open",
+        dest="open_browser",
+        action="store_false",
+        default=True,
+        help="print the public UI URL without opening a browser",
+    )
+    public.add_argument(
+        "--no-release-smoke",
+        dest="release_smoke_before_tunnel",
+        action="store_false",
+        default=True,
+        help="skip the release-flow smoke before opening the public tunnel",
+    )
+    public_seed_grp = public.add_mutually_exclusive_group()
+    public_seed_grp.add_argument("--seed", dest="seed_override_hex", default=None)
+    public_seed_grp.add_argument("--random", action="store_true")
+    public.set_defaults(func=_cmd_public)
 
     logs = local_sub.add_parser("logs", help="stream or tail compose logs for the stack")
     logs.add_argument("--out-dir", type=Path, required=True)
@@ -144,6 +248,7 @@ def _cmd_up(args: argparse.Namespace) -> int:
             health_timeout_s=float(args.health_timeout),
             seed_override_hex=args.seed_override_hex,
             use_random_seed=bool(args.random),
+            zk_mode=args.zk_mode,
         )
     )
 
@@ -168,6 +273,80 @@ def _cmd_smoke(args: argparse.Namespace) -> int:
             browser_timeout_s=float(args.browser_timeout),
         )
     )
+
+
+def _cmd_release_smoke(args: argparse.Namespace) -> int:
+    return lc.cmd_release_smoke(
+        lc.ReleaseSmokeOptions(
+            out_dir=args.out_dir,
+            engine=args.engine,
+        )
+    )
+
+
+def _cmd_public_up(args: argparse.Namespace) -> int:
+    seed_error = _validate_seed_override(args.seed_override_hex)
+    if seed_error is not None:
+        return seed_error
+    return lc.cmd_public_up(
+        lc.PublicUpOptions(
+            out_dir=args.out_dir,
+            chain_id=args.chain_id,
+            network_id=args.network_id,
+            ui_port=int(args.ui_port),
+            engine=args.engine,
+            force=bool(args.force),
+            health_timeout_s=float(args.health_timeout),
+            seed_override_hex=args.seed_override_hex,
+            use_random_seed=bool(args.random),
+            zk_mode=args.zk_mode,
+            cloudflared_bin=str(args.cloudflared_bin),
+            tunnel_url=args.tunnel_url,
+            open_browser=bool(args.open_browser),
+            release_smoke_before_tunnel=bool(args.release_smoke_before_tunnel),
+        )
+    )
+
+
+def _cmd_public(args: argparse.Namespace) -> int:
+    seed_error = _validate_seed_override(args.seed_override_hex)
+    if seed_error is not None:
+        return seed_error
+    return lc.cmd_public_up(
+        lc.PublicUpOptions(
+            out_dir=args.out_dir,
+            chain_id=args.chain_id,
+            network_id=args.network_id,
+            ui_port=int(args.ui_port),
+            engine=args.engine,
+            force=bool(args.force),
+            health_timeout_s=float(args.health_timeout),
+            seed_override_hex=args.seed_override_hex,
+            use_random_seed=bool(args.random),
+            zk_mode=args.zk_mode,
+            cloudflared_bin=str(args.cloudflared_bin),
+            tunnel_url=args.tunnel_url,
+            open_browser=bool(args.open_browser),
+            release_smoke_before_tunnel=bool(args.release_smoke_before_tunnel),
+        )
+    )
+
+
+def _validate_seed_override(seed_hex: str | None) -> int | None:
+    if seed_hex is None:
+        return None
+    if len(seed_hex) != 64:
+        print(
+            f"error: --seed must be exactly 64 hex characters (32 bytes), got {len(seed_hex)}",
+            file=__import__("sys").stderr,
+        )
+        return 2
+    try:
+        bytes.fromhex(seed_hex)
+    except ValueError as exc:
+        print(f"error: --seed is not valid hex: {exc}", file=__import__("sys").stderr)
+        return 2
+    return None
 
 
 def _cmd_logs(args: argparse.Namespace) -> int:

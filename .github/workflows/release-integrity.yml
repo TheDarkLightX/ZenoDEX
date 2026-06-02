@@ -13,7 +13,7 @@ jobs:
   release-integrity:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
       attestations: write
     steps:
@@ -200,3 +200,27 @@ jobs:
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: "internal/release_artifacts/operator/zenodex-operator-*.tar.gz"
+
+      - name: Stage GitHub Release assets
+        if: github.ref_type == 'tag'
+        run: |
+          set -euo pipefail
+          mkdir -p internal/release_assets
+          cp internal/release_artifacts/operator/zenodex-operator-*.tar.gz internal/release_assets/
+          cp internal/release_artifacts/operator/zenodex-operator-*.tar.gz.manifest.json internal/release_assets/
+          cp internal/release_artifacts/checksums/SHA256SUMS internal/release_assets/
+          cp internal/release_artifacts/sbom/*.cdx.json internal/release_assets/ 2>/dev/null || true
+          ls -la internal/release_assets
+
+      - name: Create or update GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "${GITHUB_REF_NAME}" \
+              --notes "Automated ZenoDEX release artifacts for ${GITHUB_REF_NAME}."
+          fi
+          gh release upload "${GITHUB_REF_NAME}" internal/release_assets/* --clobber

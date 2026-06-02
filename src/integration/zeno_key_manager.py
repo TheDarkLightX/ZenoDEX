@@ -8,6 +8,8 @@ is limited to public key references and policy metadata.
 from __future__ import annotations
 
 import hashlib
+import re
+import secrets
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
@@ -31,6 +33,7 @@ KEY_REF_SCHEMA_V0 = "zenodex/zeno_key_manager/key_ref/v0"
 SOCIAL_RECOVERY_POLICY_SCHEMA_V0 = "zenodex/zeno_key_manager/social_recovery_policy/v0"
 RECOVERY_EVALUATION_SCHEMA_V0 = "zenodex/zeno_key_manager/recovery_evaluation/v0"
 TAU_NET_KEY_IMPORT_EVIDENCE_SCHEMA_V0 = "zenodex/zeno_key_manager/tau_net_key_import_evidence/v0"
+TAU_TESTNET_COMPATIBLE_KEYGEN_METHOD_V0 = "tau-testnet-console-wallet-py-ecc-g2basic-keygen-v0"
 
 KEY_STATUS_ACTIVE = "active"
 KEY_STATUS_REVOKED = "revoked"
@@ -54,15 +57,84 @@ SUPPORTED_KEY_ENVIRONMENTS = frozenset(
 
 SECRET_FIELD_NAMES = frozenset(
     {
+        "access_token",
+        "accesstoken",
+        "api_key",
+        "apikey",
+        "auth_token",
+        "authtoken",
+        "bearer_token",
+        "bearertoken",
+        "mnemonic",
         "private_key",
         "private_key_hex",
+        "privatekey",
+        "privatekeyhex",
         "privkey",
         "privkey_hex",
+        "privkeyhex",
         "secret",
         "secret_hex",
+        "secretkey",
+        "secret_key",
+        "secretkeyhex",
+        "secret_key_hex",
         "seed",
+        "seed_phrase",
+        "seedphrase",
     }
 )
+SECRET_FIELD_NORMALIZED_NAMES = frozenset(
+    "".join(ch for ch in name.lower() if ch.isalnum()) for name in SECRET_FIELD_NAMES
+)
+SECRET_FIELD_NORMALIZED_PUBLIC_POSTURE_NAMES = frozenset(
+    {
+        "nolivesecrets",
+        "norawprivatekeyexposure",
+        "rawprivatekeyimported",
+        "secretscan",
+        "secretscanfindingcount",
+        "secretscanok",
+    }
+)
+SECRET_FIELD_TOKEN_NAMES = frozenset({"mnemonic", "secret", "seed"})
+SECRET_FIELD_TOKEN_PAIRS = frozenset(
+    {
+        ("access", "token"),
+        ("api", "key"),
+        ("auth", "token"),
+        ("bearer", "token"),
+        ("private", "key"),
+        ("priv", "key"),
+        ("secret", "key"),
+        ("seed", "phrase"),
+    }
+)
+_CAMEL_CASE_BOUNDARY_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+_FIELD_TOKEN_SPLIT_RE = re.compile(r"[^A-Za-z0-9]+")
+
+
+def _field_name_tokens(key: object) -> tuple[str, ...]:
+    text = _CAMEL_CASE_BOUNDARY_RE.sub("_", str(key).strip())
+    return tuple(token.lower() for token in _FIELD_TOKEN_SPLIT_RE.split(text) if token)
+
+
+def is_secret_field_name(key: object) -> bool:
+    raw_text = str(key).strip()
+    text = raw_text.lower()
+    if text in SECRET_FIELD_NAMES:
+        return True
+    normalized = "".join(ch for ch in text if ch.isalnum())
+    if not normalized:
+        return False
+    if normalized in SECRET_FIELD_NORMALIZED_PUBLIC_POSTURE_NAMES:
+        return False
+    if normalized in SECRET_FIELD_NORMALIZED_NAMES:
+        return True
+    tokens = _field_name_tokens(raw_text)
+    if any(token in SECRET_FIELD_TOKEN_NAMES for token in tokens):
+        return True
+    return any(pair in zip(tokens, tokens[1:]) for pair in SECRET_FIELD_TOKEN_PAIRS)
 
 
 def _require_str(value: object, *, name: str) -> str:
@@ -103,7 +175,7 @@ def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
 def _reject_secret_fields(value: object, *, name: str = "metadata") -> None:
     if isinstance(value, Mapping):
         for key, item in value.items():
-            if str(key).lower() in SECRET_FIELD_NAMES:
+            if is_secret_field_name(key):
                 raise ValueError(f"{name} must not contain private key material")
             _reject_secret_fields(item, name=f"{name}.{key}")
         return
@@ -117,13 +189,6 @@ def _require_bls() -> None:
         raise RuntimeError("py_ecc.bls is required for local BLS signing")
 
 
-def _require_bls_basic() -> Any:
-    _require_bls()
-    if G2Basic is None:
-        raise RuntimeError("py_ecc.bls is required for local BLS signing")
-    return G2Basic
-
-
 def _parse_private_key_hex(private_key_hex: str) -> int:
     canonical = canonical_hex_fixed_allow_0x(private_key_hex, nbytes=32, name="private_key_hex")
     if private_key_hex != canonical:
@@ -135,6 +200,20 @@ def _parse_private_key_hex(private_key_hex: str) -> int:
     if _BLS12_381_CURVE_ORDER is not None and sk >= int(_BLS12_381_CURVE_ORDER):
         raise ValueError("private_key_hex out of range")
     return sk
+
+
+def generate_tau_testnet_compatible_private_key_hex() -> str:
+    """Generate a Tau-testnet-compatible BLS private key from local OS entropy."""
+
+    _require_bls()
+    ikm = secrets.token_bytes(32)
+    if not isinstance(ikm, bytes) or len(ikm) != 32:
+        raise RuntimeError("secrets.token_bytes(32) returned invalid entropy")
+    assert G2Basic is not None
+    sk = int(G2Basic.KeyGen(ikm))
+    private_key_hex = "0x" + sk.to_bytes(32, byteorder="big", signed=False).hex()
+    _parse_private_key_hex(private_key_hex)
+    return private_key_hex
 
 
 def validate_tau_bls_public_key(public_key: str, *, name: str = "public_key") -> str:
@@ -610,9 +689,10 @@ class LocalInMemoryBlsSigner:
     """Self-custody BLS signer. Private key material stays in process memory."""
 
     def __init__(self, *, key_ref: KeyRef, private_key_hex: str) -> None:
-        bls = _require_bls_basic()
+        _require_bls()
         sk = _parse_private_key_hex(private_key_hex)
-        public_key = "0x" + bls.SkToPk(sk).hex()
+        assert G2Basic is not None
+        public_key = "0x" + G2Basic.SkToPk(sk).hex()
         if validate_tau_bls_public_key(key_ref.public_key) != public_key:
             raise ValueError("private_key_hex does not match key_ref.public_key")
         if key_ref.origin != KEY_ORIGIN_LOCAL_MEMORY:
@@ -629,23 +709,52 @@ class LocalInMemoryBlsSigner:
         metadata: Mapping[str, Any] | None = None,
         recovery_policy_id: str | None = None,
     ) -> "LocalInMemoryBlsSigner":
-        bls = _require_bls_basic()
+        _require_bls()
         sk = _parse_private_key_hex(private_key_hex)
+        assert G2Basic is not None
         ref = KeyRef(
             key_id=key_id,
-            public_key="0x" + bls.SkToPk(sk).hex(),
+            public_key="0x" + G2Basic.SkToPk(sk).hex(),
             origin=KEY_ORIGIN_LOCAL_MEMORY,
             recovery_policy_id=recovery_policy_id,
             metadata=dict(metadata or {}),
         )
         return cls(key_ref=ref, private_key_hex=private_key_hex)
 
+    @classmethod
+    def generate_tau_testnet_compatible(
+        cls,
+        *,
+        key_id: str,
+        metadata: Mapping[str, Any] | None = None,
+        recovery_policy_id: str | None = None,
+    ) -> tuple["LocalInMemoryBlsSigner", str]:
+        private_key_hex = generate_tau_testnet_compatible_private_key_hex()
+        merged_metadata = dict(metadata or {})
+        merged_metadata.update(
+            {
+                "keygen_method": TAU_TESTNET_COMPATIBLE_KEYGEN_METHOD_V0,
+                "entropy_source": "python_secrets_token_bytes_32",
+                "zenodex_custody": False,
+                "browser_generated": False,
+            }
+        )
+        return (
+            cls.from_private_key_hex(
+                key_id=key_id,
+                private_key_hex=private_key_hex,
+                metadata=merged_metadata,
+                recovery_policy_id=recovery_policy_id,
+            ),
+            private_key_hex,
+        )
+
     def sign(self, payload: Mapping[str, Any], *, policy: KeyUsePolicy, context: SignRequestContext) -> dict[str, Any]:
         decision = policy.evaluate(key_ref=self.key_ref, context=context)
         decision.require_ok()
         _reject_secret_fields(payload, name="payload")
-        bls = _require_bls_basic()
-        signature = "0x" + bls.Sign(self._sk, _signature_message_digest(payload)).hex()
+        assert G2Basic is not None
+        signature = "0x" + G2Basic.Sign(self._sk, _signature_message_digest(payload)).hex()
         body = {
             "key_ref": self.key_ref.public_dict(),
             "payload_hash": hash_v0("zeno_key_manager_signing_payload_v0", dict(payload)),

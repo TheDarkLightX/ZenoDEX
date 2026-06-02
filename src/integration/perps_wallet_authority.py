@@ -21,13 +21,15 @@ from src.integration.zeno_key_manager import (
     KeyRef,
     KeyUsePolicy,
     RecoveryGuardian,
-    SECRET_FIELD_NAMES,
     SignRequestContext,
     SOCIAL_RECOVERY_POLICY_SCHEMA_V0,
     SocialRecoveryPolicy,
+    is_secret_field_name,
 )
 from src.integration.zeno_key_manager_v0 import (
+    BACKEND_HARDWARE_WALLET,
     BACKEND_HARDWARE_WALLET_PLACEHOLDER,
+    BACKEND_HSM,
     BACKEND_HSM_PLACEHOLDER,
     BACKEND_OS_KEYCHAIN,
     KeyBackendDescriptor,
@@ -40,6 +42,7 @@ from src.integration.zeno_ledger_signer_registry import (
     verify_signature_quorum_v0,
 )
 from src.integration.zeno_ledger_v0 import hash_v0
+from src.state.canonical import canonical_hex_fixed_allow_0x
 
 
 PERPS_WALLET_AUTHORITY_PROFILE_SCHEMA_V1 = "zenodex/perps-wallet-authority-profile/v1"
@@ -52,16 +55,26 @@ PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1 = "zenodex/perps-wallet-device-a
 PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-device-approval-exercise-status/v1"
 PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_SCHEMA_V1 = "zenodex/perps-wallet-signer-device-integration/v1"
 PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-signer-device-integration-status/v1"
+PERPS_WALLET_SIGNER_PROMPT_CAPTURE_SCHEMA_V1 = "zenodex/perps-wallet-signer-prompt-capture/v1"
+PERPS_WALLET_SIGNER_PROMPT_CAPTURE_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-signer-prompt-capture-status/v1"
+PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_SCHEMA_V1 = "zenodex/perps-wallet-signer-execution-exercise/v1"
+PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-signer-execution-exercise-status/v1"
+PERPS_WALLET_SIGNER_CEREMONY_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-signer-ceremony-status/v1"
+PERPS_WALLET_HARDWARE_CUSTODY_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-hardware-custody-status/v1"
 PERPS_WALLET_DEVICE_APPROVAL_USE_POLICY_SCHEMA_V1 = "zenodex/perps-wallet-device-approval-use-policy/v1"
 PERPS_WALLET_DEVICE_APPROVAL_ENVIRONMENT_POLICY_SCHEMA_V1 = "zenodex/perps-wallet-device-approval-environment-policy/v1"
 PERPS_WALLET_AUTHORITY_PAYLOAD_KIND = "perps_wallet_authority_profile"
 PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND = "perps_wallet_recovery_exercise"
 PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND = "perps_wallet_rotation_exercise"
 PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_PAYLOAD_KIND = "perps_wallet_device_approval_exercise"
+PERPS_WALLET_SIGNER_PROMPT_CAPTURE_PAYLOAD_KIND = "perps_wallet_signer_prompt_capture"
+PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_PAYLOAD_KIND = "perps_wallet_signer_execution_exercise"
 _RECOVERY_NON_HASH_FIELDS = frozenset({"exercise_hash", "signature_envelopes", "guardian_signature_quorum"})
 _ROTATION_NON_HASH_FIELDS = frozenset({"exercise_hash", "signature_envelopes", "guardian_signature_quorum"})
 _DEVICE_APPROVAL_NON_HASH_FIELDS = frozenset({"exercise_hash"})
 _SIGNER_DEVICE_INTEGRATION_NON_HASH_FIELDS = frozenset({"integration_hash"})
+_SIGNER_PROMPT_CAPTURE_NON_HASH_FIELDS = frozenset({"capture_hash"})
+_SIGNER_EXECUTION_NON_HASH_FIELDS = frozenset({"exercise_hash"})
 
 _REQUIRED_WALLET_UX_FLAGS = (
     "external_signer_required",
@@ -94,6 +107,14 @@ def _require_nonempty_str(value: object, *, name: str) -> str:
     if not isinstance(value, str) or value == "":
         raise ValueError(f"{name} must be a non-empty string")
     return value
+
+
+def _require_root_hash(value: object, *, name: str) -> str:
+    text = _require_nonempty_str(value, name=name)
+    canonical = canonical_hex_fixed_allow_0x(text, nbytes=32, name=name)
+    if text != canonical:
+        raise ValueError(f"{name} must be canonical lowercase 0x-prefixed hex")
+    return canonical
 
 
 def _require_nonnegative_int(value: object, *, name: str) -> int:
@@ -131,7 +152,7 @@ def _require_int_list(value: object, *, name: str) -> list[int]:
 def _reject_secret_fields(value: object, *, name: str = "payload") -> None:
     if isinstance(value, Mapping):
         for key, item in value.items():
-            if str(key).lower() in SECRET_FIELD_NAMES:
+            if is_secret_field_name(key):
                 raise ValueError(f"{name} must not contain private key material")
             _reject_secret_fields(item, name=f"{name}.{key}")
         return
@@ -178,6 +199,26 @@ def _signer_device_integration_body(payload: Mapping[str, Any]) -> dict[str, Any
 
 def perps_wallet_signer_device_integration_hash_v1(payload: Mapping[str, Any]) -> str:
     return hash_v0("perps_wallet_signer_device_integration_v1", _signer_device_integration_body(payload))
+
+
+def _signer_prompt_capture_body(capture: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in dict(capture).items()
+        if key not in _SIGNER_PROMPT_CAPTURE_NON_HASH_FIELDS
+    }
+
+
+def perps_wallet_signer_prompt_capture_hash_v1(capture: Mapping[str, Any]) -> str:
+    return hash_v0("perps_wallet_signer_prompt_capture_v1", _signer_prompt_capture_body(capture))
+
+
+def _signer_execution_exercise_body(exercise: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in dict(exercise).items() if key not in _SIGNER_EXECUTION_NON_HASH_FIELDS}
+
+
+def perps_wallet_signer_execution_exercise_hash_v1(exercise: Mapping[str, Any]) -> str:
+    return hash_v0("perps_wallet_signer_execution_exercise_v1", _signer_execution_exercise_body(exercise))
 
 
 def build_perps_wallet_authority_profile_v1(
@@ -358,6 +399,107 @@ def build_perps_wallet_signer_device_integration_v1(
     return {**body, "integration_hash": perps_wallet_signer_device_integration_hash_v1(body)}
 
 
+def build_perps_wallet_signer_prompt_capture_v1(
+    *,
+    authority_id: str,
+    chain_id: str,
+    key_id: str,
+    current_epoch: int,
+    backend_descriptor: Mapping[str, Any],
+    environment: Mapping[str, Any],
+    environment_policy: Mapping[str, Any],
+    device_label: str,
+    approval_reference: str,
+    prompt_reference: str,
+    prompt_source: str,
+    prompt_presented_at_epoch: int,
+    prompt_confirmed_at_epoch: int,
+    prompt_message_hash: str,
+    capture_source: str,
+    capture_evidence_hash: str,
+) -> dict[str, Any]:
+    body = {
+        "schema": PERPS_WALLET_SIGNER_PROMPT_CAPTURE_SCHEMA_V1,
+        "authority_id": _require_nonempty_str(authority_id, name="authority_id"),
+        "chain_id": _require_nonempty_str(chain_id, name="chain_id"),
+        "key_id": _require_nonempty_str(key_id, name="key_id"),
+        "current_epoch": _require_nonnegative_int(current_epoch, name="current_epoch"),
+        "backend_descriptor": dict(_require_mapping(backend_descriptor, name="backend_descriptor")),
+        "environment": dict(_require_mapping(environment, name="environment")),
+        "environment_policy": dict(_require_mapping(environment_policy, name="environment_policy")),
+        "device_label": _require_nonempty_str(device_label, name="device_label"),
+        "approval_reference": _require_nonempty_str(approval_reference, name="approval_reference"),
+        "prompt_reference": _require_nonempty_str(prompt_reference, name="prompt_reference"),
+        "prompt_source": _require_nonempty_str(prompt_source, name="prompt_source"),
+        "prompt_presented_at_epoch": _require_nonnegative_int(
+            prompt_presented_at_epoch,
+            name="prompt_presented_at_epoch",
+        ),
+        "prompt_confirmed_at_epoch": _require_nonnegative_int(
+            prompt_confirmed_at_epoch,
+            name="prompt_confirmed_at_epoch",
+        ),
+        "prompt_message_hash": _require_root_hash(prompt_message_hash, name="prompt_message_hash"),
+        "capture_source": _require_nonempty_str(capture_source, name="capture_source"),
+        "capture_evidence_hash": _require_root_hash(capture_evidence_hash, name="capture_evidence_hash"),
+    }
+    return {**body, "capture_hash": perps_wallet_signer_prompt_capture_hash_v1(body)}
+
+
+def build_perps_wallet_signer_execution_exercise_v1(
+    *,
+    authority_id: str,
+    chain_id: str,
+    key_id: str,
+    payload_kind: str,
+    purpose: str,
+    current_epoch: int,
+    backend_descriptor: Mapping[str, Any],
+    use_policy: Mapping[str, Any],
+    environment: Mapping[str, Any],
+    environment_policy: Mapping[str, Any],
+    device_label: str,
+    approval_reference: str,
+    prompt_reference: str,
+    prompt_presented_at_epoch: int,
+    prompt_confirmed_at_epoch: int,
+    payload: Mapping[str, Any],
+    seen_nonces: list[int] | None = None,
+    execution_reference: str,
+    signed_payload_hash: str,
+) -> dict[str, Any]:
+    _reject_secret_fields(payload, name="payload")
+    body = {
+        "schema": PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_SCHEMA_V1,
+        "authority_id": _require_nonempty_str(authority_id, name="authority_id"),
+        "chain_id": _require_nonempty_str(chain_id, name="chain_id"),
+        "key_id": _require_nonempty_str(key_id, name="key_id"),
+        "payload_kind": _require_nonempty_str(payload_kind, name="payload_kind"),
+        "purpose": _require_nonempty_str(purpose, name="purpose"),
+        "current_epoch": _require_nonnegative_int(current_epoch, name="current_epoch"),
+        "backend_descriptor": dict(_require_mapping(backend_descriptor, name="backend_descriptor")),
+        "use_policy": dict(_require_mapping(use_policy, name="use_policy")),
+        "environment": dict(_require_mapping(environment, name="environment")),
+        "environment_policy": dict(_require_mapping(environment_policy, name="environment_policy")),
+        "device_label": _require_nonempty_str(device_label, name="device_label"),
+        "approval_reference": _require_nonempty_str(approval_reference, name="approval_reference"),
+        "prompt_reference": _require_nonempty_str(prompt_reference, name="prompt_reference"),
+        "prompt_presented_at_epoch": _require_nonnegative_int(
+            prompt_presented_at_epoch,
+            name="prompt_presented_at_epoch",
+        ),
+        "prompt_confirmed_at_epoch": _require_nonnegative_int(
+            prompt_confirmed_at_epoch,
+            name="prompt_confirmed_at_epoch",
+        ),
+        "payload": dict(_require_mapping(payload, name="payload")),
+        "seen_nonces": [] if seen_nonces is None else _require_int_list(seen_nonces, name="seen_nonces"),
+        "execution_reference": _require_nonempty_str(execution_reference, name="execution_reference"),
+        "signed_payload_hash": _require_root_hash(signed_payload_hash, name="signed_payload_hash"),
+    }
+    return {**body, "exercise_hash": perps_wallet_signer_execution_exercise_hash_v1(body)}
+
+
 def _validate_key_manager_public(
     key_manager: Mapping[str, Any],
     gaps: list[str],
@@ -506,11 +648,11 @@ def _validate_recovery_policies_public(
         if ref.recovery_policy_id is None:
             gaps.append(f"active signer key_id {key_id} has no recovery_policy_id")
             continue
-        policy = policies_by_id.get(ref.recovery_policy_id)
-        if policy is None:
+        active_policy = policies_by_id.get(ref.recovery_policy_id)
+        if active_policy is None:
             gaps.append(f"active signer key_id {key_id} recovery policy missing")
             continue
-        if policy.get("subject_key_id") != key_id:
+        if active_policy.get("subject_key_id") != key_id:
             gaps.append(f"active signer key_id {key_id} recovery policy subject mismatch")
             continue
         recoverable_active_key_ids.add(key_id)
@@ -1097,6 +1239,7 @@ def _signer_device_integration_status(
     environment_policy_hash: str | None,
     provider: str | None,
     device_approval_mode: str | None,
+    no_raw_private_key_exposure: bool | None,
     attestation_present: bool,
     tee_measurement_present: bool,
 ) -> dict[str, Any]:
@@ -1122,6 +1265,7 @@ def _signer_device_integration_status(
         "environment_kind": None if integration is None else integration.get("environment", {}).get("environment_kind"),
         "provider": provider,
         "device_approval_mode": device_approval_mode,
+        "no_raw_private_key_exposure": no_raw_private_key_exposure,
         "local_user_presence_confirmed": None if integration is None else integration.get("environment", {}).get("local_user_presence_confirmed"),
         "rollback_protection_confirmed": None if integration is None else integration.get("environment", {}).get("rollback_protection_confirmed"),
         "attestation_present": bool(attestation_present),
@@ -1133,6 +1277,259 @@ def _signer_device_integration_status(
         ],
     }
     return {**body, "status_hash": hash_v0("perps_wallet_signer_device_integration_status_v1", body)}
+
+
+def _signer_prompt_capture_status(
+    *,
+    ok: bool,
+    errors: list[str],
+    capture: Mapping[str, Any] | None,
+    wallet_authority_hash: str | None,
+    backend_hash: str | None,
+    environment_hash: str | None,
+    environment_policy_hash: str | None,
+    provider: str | None,
+    device_approval_mode: str | None,
+) -> dict[str, Any]:
+    body = {
+        "schema": PERPS_WALLET_SIGNER_PROMPT_CAPTURE_STATUS_SCHEMA_V1,
+        "ok": bool(ok),
+        "signer_prompt_capture_ready": bool(ok),
+        "status": "ready" if ok else "blocked",
+        "errors": list(errors),
+        "wallet_authority_hash": wallet_authority_hash,
+        "capture_hash": None if capture is None else perps_wallet_signer_prompt_capture_hash_v1(capture),
+        "chain_id": None if capture is None else capture.get("chain_id"),
+        "authority_id": None if capture is None else capture.get("authority_id"),
+        "key_id": None if capture is None else capture.get("key_id"),
+        "current_epoch": None if capture is None else capture.get("current_epoch"),
+        "device_label": None if capture is None else capture.get("device_label"),
+        "approval_reference": None if capture is None else capture.get("approval_reference"),
+        "prompt_reference": None if capture is None else capture.get("prompt_reference"),
+        "prompt_source": None if capture is None else capture.get("prompt_source"),
+        "prompt_presented_at_epoch": None if capture is None else capture.get("prompt_presented_at_epoch"),
+        "prompt_confirmed_at_epoch": None if capture is None else capture.get("prompt_confirmed_at_epoch"),
+        "prompt_message_hash": None if capture is None else capture.get("prompt_message_hash"),
+        "capture_source": None if capture is None else capture.get("capture_source"),
+        "capture_evidence_hash": None if capture is None else capture.get("capture_evidence_hash"),
+        "backend_hash": backend_hash,
+        "environment_hash": environment_hash,
+        "environment_policy_hash": environment_policy_hash,
+        "provider": provider,
+        "device_approval_mode": device_approval_mode,
+        "not_claimed": [
+            "does_not_claim_live_os_prompt_verification",
+            "does_not_claim_hardware_wallet_execution",
+            "does_not_claim_production_chain_finality",
+        ],
+    }
+    return {**body, "status_hash": hash_v0("perps_wallet_signer_prompt_capture_status_v1", body)}
+
+
+def _signer_execution_exercise_status(
+    *,
+    ok: bool,
+    errors: list[str],
+    exercise: Mapping[str, Any] | None,
+    wallet_authority_hash: str | None,
+    sign_admission_receipt: Mapping[str, Any] | None,
+    backend_hash: str | None,
+    environment_hash: str | None,
+    use_policy_hash: str | None,
+    environment_policy_hash: str | None,
+    provider: str | None,
+    device_approval_mode: str | None,
+) -> dict[str, Any]:
+    body = {
+        "schema": PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_STATUS_SCHEMA_V1,
+        "ok": bool(ok),
+        "signer_execution_ready": bool(ok),
+        "status": "ready" if ok else "blocked",
+        "errors": list(errors),
+        "wallet_authority_hash": wallet_authority_hash,
+        "exercise_hash": None if exercise is None else perps_wallet_signer_execution_exercise_hash_v1(exercise),
+        "chain_id": None if exercise is None else exercise.get("chain_id"),
+        "authority_id": None if exercise is None else exercise.get("authority_id"),
+        "key_id": None if exercise is None else exercise.get("key_id"),
+        "payload_kind": None if exercise is None else exercise.get("payload_kind"),
+        "purpose": None if exercise is None else exercise.get("purpose"),
+        "current_epoch": None if exercise is None else exercise.get("current_epoch"),
+        "device_label": None if exercise is None else exercise.get("device_label"),
+        "approval_reference": None if exercise is None else exercise.get("approval_reference"),
+        "prompt_reference": None if exercise is None else exercise.get("prompt_reference"),
+        "prompt_presented_at_epoch": None if exercise is None else exercise.get("prompt_presented_at_epoch"),
+        "prompt_confirmed_at_epoch": None if exercise is None else exercise.get("prompt_confirmed_at_epoch"),
+        "execution_reference": None if exercise is None else exercise.get("execution_reference"),
+        "signed_payload_hash": None if exercise is None else exercise.get("signed_payload_hash"),
+        "backend_hash": backend_hash,
+        "environment_hash": environment_hash,
+        "use_policy_hash": use_policy_hash,
+        "environment_policy_hash": environment_policy_hash,
+        "provider": provider,
+        "device_approval_mode": device_approval_mode,
+        "sign_admission_receipt": None if sign_admission_receipt is None else dict(sign_admission_receipt),
+        "sign_admission_receipt_hash": None
+        if sign_admission_receipt is None
+        else sign_admission_receipt.get("receipt_hash"),
+        "not_claimed": [
+            "does_not_claim_system_prompt_capture_verification",
+            "does_not_claim_hardware_wallet_execution",
+            "does_not_claim_production_chain_finality",
+        ],
+    }
+    return {**body, "status_hash": hash_v0("perps_wallet_signer_execution_exercise_status_v1", body)}
+
+
+def _signer_ceremony_status(
+    *,
+    ok: bool,
+    errors: list[str],
+    wallet_authority_hash: str | None,
+    device_approval_status: Mapping[str, Any] | None,
+    signer_device_status: Mapping[str, Any] | None,
+    signer_prompt_capture_status: Mapping[str, Any] | None,
+    signer_execution_status: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    body = {
+        "schema": PERPS_WALLET_SIGNER_CEREMONY_STATUS_SCHEMA_V1,
+        "ok": bool(ok),
+        "signer_ceremony_ready": bool(ok),
+        "status": "ready" if ok else "blocked",
+        "errors": list(errors),
+        "wallet_authority_hash": wallet_authority_hash,
+        "device_approval_status_hash": None
+        if device_approval_status is None
+        else device_approval_status.get("status_hash"),
+        "signer_device_status_hash": None
+        if signer_device_status is None
+        else signer_device_status.get("status_hash"),
+        "signer_prompt_capture_status_hash": None
+        if signer_prompt_capture_status is None
+        else signer_prompt_capture_status.get("status_hash"),
+        "signer_execution_status_hash": None
+        if signer_execution_status is None
+        else signer_execution_status.get("status_hash"),
+        "key_id": None if signer_execution_status is None else signer_execution_status.get("key_id"),
+        "approval_reference": None
+        if signer_device_status is None
+        else signer_device_status.get("approval_reference"),
+        "prompt_reference": None
+        if signer_prompt_capture_status is None
+        else signer_prompt_capture_status.get("prompt_reference"),
+        "execution_reference": None
+        if signer_execution_status is None
+        else signer_execution_status.get("execution_reference"),
+        "provider": None if signer_device_status is None else signer_device_status.get("provider"),
+        "device_approval_mode": None
+        if signer_device_status is None
+        else signer_device_status.get("device_approval_mode"),
+        "backend_hash": None if signer_device_status is None else signer_device_status.get("backend_hash"),
+        "environment_hash": None if signer_device_status is None else signer_device_status.get("environment_hash"),
+        "not_claimed": [
+            "does_not_claim_live_os_prompt_verification",
+            "does_not_claim_hardware_wallet_custody",
+            "does_not_claim_hardware_wallet_execution",
+            "does_not_claim_production_chain_finality",
+        ],
+    }
+    return {**body, "status_hash": hash_v0("perps_wallet_signer_ceremony_status_v1", body)}
+
+
+def _hardware_custody_status(
+    *,
+    ok: bool,
+    errors: list[str],
+    wallet_authority_hash: str | None,
+    device_approval_status: Mapping[str, Any] | None,
+    signer_device_status: Mapping[str, Any] | None,
+    signer_prompt_capture_status: Mapping[str, Any] | None,
+    signer_execution_status: Mapping[str, Any] | None,
+    signer_ceremony_status: Mapping[str, Any] | None,
+    production_hardware_evidence_status: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    provider = None if signer_device_status is None else signer_device_status.get("provider")
+    backend_kind = None if signer_device_status is None else signer_device_status.get("backend_kind")
+    attestation_present = None if signer_device_status is None else signer_device_status.get("attestation_present")
+    tee_measurement_present = None if signer_device_status is None else signer_device_status.get("tee_measurement_present")
+    fixture_custody = provider == "local-testnet-fixture" or backend_kind in {
+        BACKEND_HARDWARE_WALLET_PLACEHOLDER,
+        BACKEND_HSM_PLACEHOLDER,
+    }
+    production_hardware_evidence_ready = (
+        production_hardware_evidence_status is not None
+        and production_hardware_evidence_status.get("production_ready") is True
+    )
+    production_hardware_custody_ready = (
+        bool(ok)
+        and not fixture_custody
+        and (attestation_present is True or tee_measurement_present is True)
+        and production_hardware_evidence_ready
+    )
+    production_evidence_gaps: list[str] = []
+    if production_hardware_evidence_status is not None:
+        raw_gaps = production_hardware_evidence_status.get("gaps", [])
+        production_evidence_gaps = [str(item) for item in raw_gaps] if isinstance(raw_gaps, list) else [str(raw_gaps)]
+    body = {
+        "schema": PERPS_WALLET_HARDWARE_CUSTODY_STATUS_SCHEMA_V1,
+        "ok": bool(ok),
+        "hardware_custody_ready": bool(ok),
+        "production_hardware_custody_ready": production_hardware_custody_ready,
+        "production_hardware_evidence_ready": production_hardware_evidence_ready,
+        "production_hardware_evidence_hash": None
+        if production_hardware_evidence_status is None
+        else production_hardware_evidence_status.get("evidence_hash"),
+        "production_hardware_evidence_gaps": production_evidence_gaps,
+        "custody_evidence_mode": "missing" if signer_device_status is None else ("local_fixture" if fixture_custody else "live_attested"),
+        "status": "ready" if ok else "blocked",
+        "errors": list(errors),
+        "wallet_authority_hash": wallet_authority_hash,
+        "device_approval_status_hash": None
+        if device_approval_status is None
+        else device_approval_status.get("status_hash"),
+        "signer_device_status_hash": None
+        if signer_device_status is None
+        else signer_device_status.get("status_hash"),
+        "signer_prompt_capture_status_hash": None
+        if signer_prompt_capture_status is None
+        else signer_prompt_capture_status.get("status_hash"),
+        "signer_execution_status_hash": None
+        if signer_execution_status is None
+        else signer_execution_status.get("status_hash"),
+        "signer_ceremony_status_hash": None
+        if signer_ceremony_status is None
+        else signer_ceremony_status.get("status_hash"),
+        "key_id": None if signer_device_status is None else signer_device_status.get("key_id"),
+        "approval_reference": None if signer_device_status is None else signer_device_status.get("approval_reference"),
+        "prompt_reference": None if signer_prompt_capture_status is None else signer_prompt_capture_status.get("prompt_reference"),
+        "execution_reference": None if signer_execution_status is None else signer_execution_status.get("execution_reference"),
+        "backend_kind": backend_kind,
+        "backend_id": None if signer_device_status is None else signer_device_status.get("backend_id"),
+        "environment_kind": None if signer_device_status is None else signer_device_status.get("environment_kind"),
+        "provider": provider,
+        "device_approval_mode": None
+        if signer_device_status is None
+        else signer_device_status.get("device_approval_mode"),
+        "no_raw_private_key_exposure": None
+        if signer_device_status is None
+        else signer_device_status.get("no_raw_private_key_exposure"),
+        "attestation_present": attestation_present,
+        "tee_measurement_present": tee_measurement_present,
+        "local_user_presence_confirmed": None
+        if signer_device_status is None
+        else signer_device_status.get("local_user_presence_confirmed"),
+        "rollback_protection_confirmed": None
+        if signer_device_status is None
+        else signer_device_status.get("rollback_protection_confirmed"),
+        "backend_hash": None if signer_device_status is None else signer_device_status.get("backend_hash"),
+        "environment_hash": None if signer_device_status is None else signer_device_status.get("environment_hash"),
+        "not_claimed": [
+            "does_not_claim_live_hardware_device_possession",
+            "does_not_claim_private_key_non_extractability_proof",
+            "does_not_claim_vendor_attestation_soundness",
+            "does_not_claim_production_chain_finality",
+        ],
+    }
+    return {**body, "status_hash": hash_v0("perps_wallet_hardware_custody_status_v1", body)}
 
 
 def evaluate_perps_wallet_rotation_exercise_v1(
@@ -1492,6 +1889,7 @@ def evaluate_perps_wallet_signer_device_integration_v1(
             environment_policy_hash=None,
             provider=None,
             device_approval_mode=None,
+            no_raw_private_key_exposure=None,
             attestation_present=False,
             tee_measurement_present=False,
         )
@@ -1509,6 +1907,7 @@ def evaluate_perps_wallet_signer_device_integration_v1(
             environment_policy_hash=None,
             provider=None,
             device_approval_mode=None,
+            no_raw_private_key_exposure=None,
             attestation_present=False,
             tee_measurement_present=False,
         )
@@ -1523,6 +1922,7 @@ def evaluate_perps_wallet_signer_device_integration_v1(
             environment_policy_hash=None,
             provider=None,
             device_approval_mode=None,
+            no_raw_private_key_exposure=None,
             attestation_present=False,
             tee_measurement_present=False,
         )
@@ -1537,6 +1937,7 @@ def evaluate_perps_wallet_signer_device_integration_v1(
     environment_policy_hash: str | None = None
     provider: str | None = None
     device_approval_mode: str | None = None
+    no_raw_private_key_exposure: bool | None = None
     attestation_present = False
     tee_measurement_present = False
 
@@ -1570,6 +1971,7 @@ def evaluate_perps_wallet_signer_device_integration_v1(
             environment_policy_hash=None,
             provider=None,
             device_approval_mode=None,
+            no_raw_private_key_exposure=None,
             attestation_present=False,
             tee_measurement_present=False,
         )
@@ -1603,13 +2005,19 @@ def evaluate_perps_wallet_signer_device_integration_v1(
         errors.append("signer-device backend device_approval_mode missing")
     else:
         device_approval_mode = device_mode_raw
+    no_raw_private_key_exposure = bool(backend_descriptor.no_raw_private_key_exposure)
 
     if backend_descriptor.backend_kind == BACKEND_OS_KEYCHAIN and environment.environment_kind not in {
         KEY_ENVIRONMENT_LOCAL_PROCESS,
         KEY_ENVIRONMENT_TEE_ATTESTED,
     }:
         errors.append("os_keychain_environment_kind_invalid")
-    if backend_descriptor.backend_kind in {BACKEND_HARDWARE_WALLET_PLACEHOLDER, BACKEND_HSM_PLACEHOLDER} and environment.environment_kind not in {
+    if backend_descriptor.backend_kind in {
+        BACKEND_HARDWARE_WALLET,
+        BACKEND_HARDWARE_WALLET_PLACEHOLDER,
+        BACKEND_HSM,
+        BACKEND_HSM_PLACEHOLDER,
+    } and environment.environment_kind not in {
         KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
         KEY_ENVIRONMENT_TEE_ATTESTED,
     }:
@@ -1641,8 +2049,585 @@ def evaluate_perps_wallet_signer_device_integration_v1(
         environment_policy_hash=environment_policy_hash,
         provider=provider,
         device_approval_mode=device_approval_mode,
+        no_raw_private_key_exposure=no_raw_private_key_exposure,
         attestation_present=attestation_present,
         tee_measurement_present=tee_measurement_present,
+    )
+
+
+def evaluate_perps_wallet_signer_prompt_capture_v1(
+    profile: Mapping[str, Any] | None,
+    capture: Mapping[str, Any] | None,
+    *,
+    expected_chain_id: str | None = None,
+) -> dict[str, Any]:
+    errors: list[str] = []
+    if capture is None:
+        return _signer_prompt_capture_status(
+            ok=False,
+            errors=["perps wallet signer prompt capture is missing"],
+            capture=None,
+            wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+            backend_hash=None,
+            environment_hash=None,
+            environment_policy_hash=None,
+            provider=None,
+            device_approval_mode=None,
+        )
+    try:
+        capture_obj = _require_mapping(capture, name="signer_prompt_capture")
+        _reject_secret_fields(capture_obj, name="signer_prompt_capture")
+    except Exception as exc:
+        return _signer_prompt_capture_status(
+            ok=False,
+            errors=[f"perps wallet signer prompt capture invalid: {exc}"],
+            capture=capture if isinstance(capture, Mapping) else None,
+            wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+            backend_hash=None,
+            environment_hash=None,
+            environment_policy_hash=None,
+            provider=None,
+            device_approval_mode=None,
+        )
+    if profile is None:
+        return _signer_prompt_capture_status(
+            ok=False,
+            errors=["perps wallet authority profile is missing"],
+            capture=capture_obj,
+            wallet_authority_hash=None,
+            backend_hash=None,
+            environment_hash=None,
+            environment_policy_hash=None,
+            provider=None,
+            device_approval_mode=None,
+        )
+
+    authority_status = evaluate_perps_wallet_authority_profile_v1(profile, expected_chain_id=expected_chain_id)
+    if authority_status["production_wallet_authority"] is not True:
+        errors.append("perps wallet authority profile is not ready")
+        errors.extend(str(gap) for gap in authority_status.get("readiness_gaps", []))
+
+    backend_hash: str | None = None
+    environment_hash: str | None = None
+    environment_policy_hash: str | None = None
+    provider: str | None = None
+    device_approval_mode: str | None = None
+
+    try:
+        if capture_obj.get("schema") != PERPS_WALLET_SIGNER_PROMPT_CAPTURE_SCHEMA_V1:
+            errors.append("perps wallet signer prompt capture schema mismatch")
+        chain_id = _require_nonempty_str(capture_obj.get("chain_id"), name="chain_id")
+        authority_id = _require_nonempty_str(capture_obj.get("authority_id"), name="authority_id")
+        key_id = _require_nonempty_str(capture_obj.get("key_id"), name="key_id")
+        current_epoch = _require_nonnegative_int(capture_obj.get("current_epoch"), name="current_epoch")
+        _require_nonempty_str(capture_obj.get("device_label"), name="device_label")
+        approval_reference = _require_nonempty_str(capture_obj.get("approval_reference"), name="approval_reference")
+        prompt_reference = _require_nonempty_str(capture_obj.get("prompt_reference"), name="prompt_reference")
+        _require_nonempty_str(capture_obj.get("prompt_source"), name="prompt_source")
+        prompt_presented_at_epoch = _require_nonnegative_int(
+            capture_obj.get("prompt_presented_at_epoch"),
+            name="prompt_presented_at_epoch",
+        )
+        prompt_confirmed_at_epoch = _require_nonnegative_int(
+            capture_obj.get("prompt_confirmed_at_epoch"),
+            name="prompt_confirmed_at_epoch",
+        )
+        _require_root_hash(capture_obj.get("prompt_message_hash"), name="prompt_message_hash")
+        _require_nonempty_str(capture_obj.get("capture_source"), name="capture_source")
+        _require_root_hash(capture_obj.get("capture_evidence_hash"), name="capture_evidence_hash")
+        backend_descriptor = _key_backend_descriptor_from_public_dict(
+            _require_mapping(capture_obj.get("backend_descriptor"), name="backend_descriptor")
+        )
+        environment = _key_execution_environment_from_public_dict(
+            _require_mapping(capture_obj.get("environment"), name="environment")
+        )
+        environment_policy = _device_approval_environment_policy_from_public_dict(
+            _require_mapping(capture_obj.get("environment_policy"), name="environment_policy")
+        )
+    except Exception as exc:
+        errors.append(str(exc))
+        return _signer_prompt_capture_status(
+            ok=False,
+            errors=errors,
+            capture=capture_obj,
+            wallet_authority_hash=profile.get("wallet_authority_hash"),
+            backend_hash=None,
+            environment_hash=None,
+            environment_policy_hash=None,
+            provider=None,
+            device_approval_mode=None,
+        )
+
+    if expected_chain_id is not None and chain_id != expected_chain_id:
+        errors.append("perps wallet signer prompt capture chain_id mismatch")
+    if chain_id != profile.get("chain_id"):
+        errors.append("perps wallet signer prompt capture profile chain_id mismatch")
+    if authority_id != profile.get("authority_id"):
+        errors.append("perps wallet signer prompt capture authority_id mismatch")
+    if prompt_reference != approval_reference:
+        errors.append("signer prompt capture prompt_reference does not match approval_reference")
+    if prompt_confirmed_at_epoch < prompt_presented_at_epoch:
+        errors.append("signer prompt capture confirmation precedes prompt presentation")
+    if current_epoch < prompt_confirmed_at_epoch:
+        errors.append("signer prompt capture current_epoch precedes prompt confirmation")
+
+    active_key_ids = {
+        str(item.get("key_id"))
+        for item in authority_status.get("active_signers", [])
+        if isinstance(item, Mapping)
+    }
+    if key_id not in active_key_ids:
+        errors.append("perps wallet signer prompt capture key is not active")
+    if backend_descriptor.key_id != key_id:
+        errors.append("signer prompt capture backend key_id mismatch")
+
+    provider_raw = backend_descriptor.metadata.get("provider")
+    device_mode_raw = backend_descriptor.metadata.get("device_approval_mode")
+    if not isinstance(provider_raw, str) or not provider_raw:
+        errors.append("signer prompt capture backend provider missing")
+    else:
+        provider = provider_raw
+    if not isinstance(device_mode_raw, str) or not device_mode_raw:
+        errors.append("signer prompt capture backend device_approval_mode missing")
+    else:
+        device_approval_mode = device_mode_raw
+
+    if backend_descriptor.backend_kind == BACKEND_OS_KEYCHAIN and environment.environment_kind not in {
+        KEY_ENVIRONMENT_LOCAL_PROCESS,
+        KEY_ENVIRONMENT_TEE_ATTESTED,
+    }:
+        errors.append("os_keychain_environment_kind_invalid")
+    if backend_descriptor.backend_kind in {
+        BACKEND_HARDWARE_WALLET,
+        BACKEND_HARDWARE_WALLET_PLACEHOLDER,
+        BACKEND_HSM,
+        BACKEND_HSM_PLACEHOLDER,
+    } and environment.environment_kind not in {
+        KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
+        KEY_ENVIRONMENT_TEE_ATTESTED,
+    }:
+        errors.append("hardware_signer_environment_kind_invalid")
+
+    try:
+        env_decision = environment_policy.evaluate(
+            environment=environment,
+            current_epoch=current_epoch,
+        )
+        if not env_decision.ok:
+            errors.append("signer_prompt_capture_environment_rejected")
+            errors.extend(str(item) for item in env_decision.errors)
+        backend_hash = backend_descriptor.public_dict()["backend_hash"]
+        environment_hash = environment.public_dict()["environment_hash"]
+        environment_policy_hash = _device_approval_environment_policy_public_dict(environment_policy)[
+            "environment_policy_hash"
+        ]
+    except Exception as exc:
+        errors.append(f"signer prompt capture environment evaluation failed: {exc}")
+
+    return _signer_prompt_capture_status(
+        ok=not errors,
+        errors=errors,
+        capture=capture_obj,
+        wallet_authority_hash=profile.get("wallet_authority_hash"),
+        backend_hash=backend_hash,
+        environment_hash=environment_hash,
+        environment_policy_hash=environment_policy_hash,
+        provider=provider,
+        device_approval_mode=device_approval_mode,
+    )
+
+
+def evaluate_perps_wallet_signer_execution_exercise_v1(
+    profile: Mapping[str, Any] | None,
+    exercise: Mapping[str, Any] | None,
+    *,
+    expected_chain_id: str | None = None,
+) -> dict[str, Any]:
+    errors: list[str] = []
+    if exercise is None:
+        return _signer_execution_exercise_status(
+            ok=False,
+            errors=["perps wallet signer execution exercise is missing"],
+            exercise=None,
+            wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+            sign_admission_receipt=None,
+            backend_hash=None,
+            environment_hash=None,
+            use_policy_hash=None,
+            environment_policy_hash=None,
+            provider=None,
+            device_approval_mode=None,
+        )
+    try:
+        exercise_obj = _require_mapping(exercise, name="signer_execution_exercise")
+        _reject_secret_fields(exercise_obj, name="signer_execution_exercise")
+    except Exception as exc:
+        return _signer_execution_exercise_status(
+            ok=False,
+            errors=[f"perps wallet signer execution exercise invalid: {exc}"],
+            exercise=exercise if isinstance(exercise, Mapping) else None,
+            wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+            sign_admission_receipt=None,
+            backend_hash=None,
+            environment_hash=None,
+            use_policy_hash=None,
+            environment_policy_hash=None,
+            provider=None,
+            device_approval_mode=None,
+        )
+    if profile is None:
+        return _signer_execution_exercise_status(
+            ok=False,
+            errors=["perps wallet authority profile is missing"],
+            exercise=exercise_obj,
+            wallet_authority_hash=None,
+            sign_admission_receipt=None,
+            backend_hash=None,
+            environment_hash=None,
+            use_policy_hash=None,
+            environment_policy_hash=None,
+            provider=None,
+            device_approval_mode=None,
+        )
+
+    authority_status = evaluate_perps_wallet_authority_profile_v1(profile, expected_chain_id=expected_chain_id)
+    if authority_status["production_wallet_authority"] is not True:
+        errors.append("perps wallet authority profile is not ready")
+        errors.extend(str(gap) for gap in authority_status.get("readiness_gaps", []))
+
+    backend_hash: str | None = None
+    environment_hash: str | None = None
+    use_policy_hash: str | None = None
+    environment_policy_hash: str | None = None
+    provider: str | None = None
+    device_approval_mode: str | None = None
+    sign_admission_receipt: Mapping[str, Any] | None = None
+
+    try:
+        if exercise_obj.get("schema") != PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_SCHEMA_V1:
+            errors.append("perps wallet signer execution exercise schema mismatch")
+        chain_id = _require_nonempty_str(exercise_obj.get("chain_id"), name="chain_id")
+        authority_id = _require_nonempty_str(exercise_obj.get("authority_id"), name="authority_id")
+        key_id = _require_nonempty_str(exercise_obj.get("key_id"), name="key_id")
+        payload_kind = _require_nonempty_str(exercise_obj.get("payload_kind"), name="payload_kind")
+        purpose = _require_nonempty_str(exercise_obj.get("purpose"), name="purpose")
+        current_epoch = _require_nonnegative_int(exercise_obj.get("current_epoch"), name="current_epoch")
+        _require_nonempty_str(exercise_obj.get("device_label"), name="device_label")
+        _require_nonempty_str(exercise_obj.get("approval_reference"), name="approval_reference")
+        _require_nonempty_str(exercise_obj.get("prompt_reference"), name="prompt_reference")
+        prompt_presented_at_epoch = _require_nonnegative_int(
+            exercise_obj.get("prompt_presented_at_epoch"),
+            name="prompt_presented_at_epoch",
+        )
+        prompt_confirmed_at_epoch = _require_nonnegative_int(
+            exercise_obj.get("prompt_confirmed_at_epoch"),
+            name="prompt_confirmed_at_epoch",
+        )
+        _require_nonempty_str(exercise_obj.get("execution_reference"), name="execution_reference")
+        signed_payload_hash = _require_root_hash(exercise_obj.get("signed_payload_hash"), name="signed_payload_hash")
+        backend_descriptor = _key_backend_descriptor_from_public_dict(
+            _require_mapping(exercise_obj.get("backend_descriptor"), name="backend_descriptor")
+        )
+        use_policy = _device_approval_use_policy_from_public_dict(
+            _require_mapping(exercise_obj.get("use_policy"), name="use_policy")
+        )
+        environment = _key_execution_environment_from_public_dict(
+            _require_mapping(exercise_obj.get("environment"), name="environment")
+        )
+        environment_policy = _device_approval_environment_policy_from_public_dict(
+            _require_mapping(exercise_obj.get("environment_policy"), name="environment_policy")
+        )
+        payload = dict(_require_mapping(exercise_obj.get("payload"), name="payload"))
+        seen_nonces = tuple(_require_int_list(exercise_obj.get("seen_nonces", []), name="seen_nonces"))
+        _reject_secret_fields(payload, name="payload")
+    except Exception as exc:
+        errors.append(str(exc))
+        return _signer_execution_exercise_status(
+            ok=False,
+            errors=errors,
+            exercise=exercise_obj,
+            wallet_authority_hash=profile.get("wallet_authority_hash"),
+            sign_admission_receipt=None,
+            backend_hash=None,
+            environment_hash=None,
+            use_policy_hash=None,
+            environment_policy_hash=None,
+            provider=None,
+            device_approval_mode=None,
+        )
+
+    if expected_chain_id is not None and chain_id != expected_chain_id:
+        errors.append("perps wallet signer execution exercise chain_id mismatch")
+    if chain_id != profile.get("chain_id"):
+        errors.append("perps wallet signer execution exercise profile chain_id mismatch")
+    if authority_id != profile.get("authority_id"):
+        errors.append("perps wallet signer execution exercise authority_id mismatch")
+    if prompt_confirmed_at_epoch < prompt_presented_at_epoch:
+        errors.append("signer execution prompt confirmation precedes prompt presentation")
+    if current_epoch < prompt_confirmed_at_epoch:
+        errors.append("signer execution current_epoch precedes prompt confirmation")
+
+    active_key_ids = {
+        str(item.get("key_id"))
+        for item in authority_status.get("active_signers", [])
+        if isinstance(item, Mapping)
+    }
+    if key_id not in active_key_ids:
+        errors.append("perps wallet signer execution exercise key is not active")
+    if backend_descriptor.key_id != key_id:
+        errors.append("signer execution backend key_id mismatch")
+
+    provider_raw = backend_descriptor.metadata.get("provider")
+    device_mode_raw = backend_descriptor.metadata.get("device_approval_mode")
+    if not isinstance(provider_raw, str) or not provider_raw:
+        errors.append("signer execution backend provider missing")
+    else:
+        provider = provider_raw
+    if not isinstance(device_mode_raw, str) or not device_mode_raw:
+        errors.append("signer execution backend device_approval_mode missing")
+    else:
+        device_approval_mode = device_mode_raw
+
+    if backend_descriptor.backend_kind == BACKEND_OS_KEYCHAIN and environment.environment_kind not in {
+        KEY_ENVIRONMENT_LOCAL_PROCESS,
+        KEY_ENVIRONMENT_TEE_ATTESTED,
+    }:
+        errors.append("os_keychain_environment_kind_invalid")
+    if backend_descriptor.backend_kind in {
+        BACKEND_HARDWARE_WALLET,
+        BACKEND_HARDWARE_WALLET_PLACEHOLDER,
+        BACKEND_HSM,
+        BACKEND_HSM_PLACEHOLDER,
+    } and environment.environment_kind not in {
+        KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
+        KEY_ENVIRONMENT_TEE_ATTESTED,
+    }:
+        errors.append("hardware_signer_environment_kind_invalid")
+
+    try:
+        key_manager = _require_mapping(profile.get("key_manager"), name="key_manager")
+        key_ref = _key_ref_from_key_manager_public(key_manager=key_manager, key_id=key_id)
+        context = SignRequestContext(
+            payload_kind=payload_kind,
+            chain_id=chain_id,
+            purpose=purpose,
+            current_epoch=current_epoch,
+        )
+        sign_admission_receipt = evaluate_sign_admission_v0(
+            SignAdmissionRequest(
+                key_ref=key_ref,
+                backend=backend_descriptor,
+                policy=use_policy,
+                context=context,
+                payload=payload,
+                environment=environment,
+                environment_policy=environment_policy,
+                seen_nonces=seen_nonces,
+            )
+        )
+        backend_hash = backend_descriptor.public_dict()["backend_hash"]
+        environment_hash = environment.public_dict()["environment_hash"]
+        use_policy_hash = _device_approval_use_policy_public_dict(use_policy)["use_policy_hash"]
+        environment_policy_hash = _device_approval_environment_policy_public_dict(environment_policy)[
+            "environment_policy_hash"
+        ]
+        if sign_admission_receipt.get("ok") is not True:
+            errors.append("signer_execution_sign_admission_rejected")
+            errors.extend(str(item) for item in sign_admission_receipt.get("errors", ()))
+        if sign_admission_receipt.get("payload_hash") != signed_payload_hash:
+            errors.append("signer execution signed_payload_hash mismatch")
+    except Exception as exc:
+        errors.append(f"signer execution sign admission failed: {exc}")
+
+    return _signer_execution_exercise_status(
+        ok=not errors and sign_admission_receipt is not None and sign_admission_receipt.get("ok") is True,
+        errors=errors,
+        exercise=exercise_obj,
+        wallet_authority_hash=profile.get("wallet_authority_hash"),
+        sign_admission_receipt=sign_admission_receipt,
+        backend_hash=backend_hash,
+        environment_hash=environment_hash,
+        use_policy_hash=use_policy_hash,
+        environment_policy_hash=environment_policy_hash,
+        provider=provider,
+        device_approval_mode=device_approval_mode,
+    )
+
+
+def evaluate_perps_wallet_signer_ceremony_v1(
+    *,
+    wallet_authority_hash: str | None,
+    device_approval_status: Mapping[str, Any] | None,
+    signer_device_status: Mapping[str, Any] | None,
+    signer_prompt_capture_status: Mapping[str, Any] | None,
+    signer_execution_status: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    errors: list[str] = []
+    components = {
+        "device_approval_status": device_approval_status,
+        "signer_device_status": signer_device_status,
+        "signer_prompt_capture_status": signer_prompt_capture_status,
+        "signer_execution_status": signer_execution_status,
+    }
+    for name, component in components.items():
+        if component is None:
+            errors.append(f"{name} is missing")
+
+    if device_approval_status is not None and device_approval_status.get("device_approval_ready") is not True:
+        errors.append("signer ceremony device approval is not ready")
+    if signer_device_status is not None and signer_device_status.get("signer_device_ready") is not True:
+        errors.append("signer ceremony signer-device report is not ready")
+    if signer_prompt_capture_status is not None and signer_prompt_capture_status.get("signer_prompt_capture_ready") is not True:
+        errors.append("signer ceremony signer prompt capture is not ready")
+    if signer_execution_status is not None and signer_execution_status.get("signer_execution_ready") is not True:
+        errors.append("signer ceremony signer execution is not ready")
+
+    if wallet_authority_hash is not None:
+        for label, component in (
+            ("device approval", device_approval_status),
+            ("signer device", signer_device_status),
+            ("signer prompt capture", signer_prompt_capture_status),
+            ("signer execution", signer_execution_status),
+        ):
+            if component is not None and component.get("wallet_authority_hash") != wallet_authority_hash:
+                errors.append(f"signer ceremony {label} wallet_authority_hash mismatch")
+
+    def _match(
+        label: str,
+        left: Mapping[str, Any] | None,
+        left_name: str,
+        right: Mapping[str, Any] | None,
+        right_name: str,
+    ) -> None:
+        if left is None or right is None:
+            return
+        if left.get(left_name) != right.get(right_name):
+            errors.append(f"signer ceremony {label} mismatch")
+
+    _match("key_id", signer_device_status, "key_id", signer_prompt_capture_status, "key_id")
+    _match("key_id", signer_device_status, "key_id", signer_execution_status, "key_id")
+    _match("approval_reference", signer_device_status, "approval_reference", signer_prompt_capture_status, "approval_reference")
+    _match("approval_reference", signer_device_status, "approval_reference", signer_execution_status, "approval_reference")
+    _match("prompt_reference", signer_prompt_capture_status, "prompt_reference", signer_execution_status, "prompt_reference")
+    _match("prompt_message_hash", signer_prompt_capture_status, "prompt_message_hash", signer_execution_status, "signed_payload_hash")
+    _match("provider", signer_device_status, "provider", signer_prompt_capture_status, "provider")
+    _match("provider", signer_device_status, "provider", signer_execution_status, "provider")
+    _match("device_approval_mode", signer_device_status, "device_approval_mode", signer_prompt_capture_status, "device_approval_mode")
+    _match("device_approval_mode", signer_device_status, "device_approval_mode", signer_execution_status, "device_approval_mode")
+    _match("backend_hash", signer_device_status, "backend_hash", signer_prompt_capture_status, "backend_hash")
+    _match("backend_hash", signer_device_status, "backend_hash", signer_execution_status, "backend_hash")
+    _match("environment_hash", signer_device_status, "environment_hash", signer_prompt_capture_status, "environment_hash")
+    _match("environment_hash", signer_device_status, "environment_hash", signer_execution_status, "environment_hash")
+
+    return _signer_ceremony_status(
+        ok=not errors,
+        errors=errors,
+        wallet_authority_hash=wallet_authority_hash,
+        device_approval_status=device_approval_status,
+        signer_device_status=signer_device_status,
+        signer_prompt_capture_status=signer_prompt_capture_status,
+        signer_execution_status=signer_execution_status,
+    )
+
+
+def evaluate_perps_wallet_hardware_custody_v1(
+    *,
+    wallet_authority_hash: str | None,
+    device_approval_status: Mapping[str, Any] | None,
+    signer_device_status: Mapping[str, Any] | None,
+    signer_prompt_capture_status: Mapping[str, Any] | None,
+    signer_execution_status: Mapping[str, Any] | None,
+    signer_ceremony_status: Mapping[str, Any] | None,
+    production_hardware_evidence_status: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    errors: list[str] = []
+    components = {
+        "device_approval_status": device_approval_status,
+        "signer_device_status": signer_device_status,
+        "signer_prompt_capture_status": signer_prompt_capture_status,
+        "signer_execution_status": signer_execution_status,
+        "signer_ceremony_status": signer_ceremony_status,
+    }
+    for name, component in components.items():
+        if component is None:
+            errors.append(f"{name} is missing")
+
+    if device_approval_status is not None and device_approval_status.get("device_approval_ready") is not True:
+        errors.append("hardware custody device approval is not ready")
+    if signer_device_status is not None and signer_device_status.get("signer_device_ready") is not True:
+        errors.append("hardware custody signer-device report is not ready")
+    if signer_prompt_capture_status is not None and signer_prompt_capture_status.get("signer_prompt_capture_ready") is not True:
+        errors.append("hardware custody signer prompt capture is not ready")
+    if signer_execution_status is not None and signer_execution_status.get("signer_execution_ready") is not True:
+        errors.append("hardware custody signer execution is not ready")
+    if signer_ceremony_status is not None and signer_ceremony_status.get("signer_ceremony_ready") is not True:
+        errors.append("hardware custody signer ceremony is not ready")
+
+    if wallet_authority_hash is not None:
+        for label, component in (
+            ("device approval", device_approval_status),
+            ("signer device", signer_device_status),
+            ("signer prompt capture", signer_prompt_capture_status),
+            ("signer execution", signer_execution_status),
+            ("signer ceremony", signer_ceremony_status),
+        ):
+            if component is not None and component.get("wallet_authority_hash") != wallet_authority_hash:
+                errors.append(f"hardware custody {label} wallet_authority_hash mismatch")
+
+    if signer_device_status is not None:
+        backend_kind = signer_device_status.get("backend_kind")
+        if backend_kind not in {
+            BACKEND_HARDWARE_WALLET,
+            BACKEND_HARDWARE_WALLET_PLACEHOLDER,
+            BACKEND_HSM,
+            BACKEND_HSM_PLACEHOLDER,
+        }:
+            errors.append("hardware custody backend_kind is not hardware-backed")
+
+        environment_kind = signer_device_status.get("environment_kind")
+        if environment_kind not in {KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE, KEY_ENVIRONMENT_TEE_ATTESTED}:
+            errors.append("hardware custody environment_kind is not hardware-backed")
+
+        if signer_device_status.get("no_raw_private_key_exposure") is not True:
+            errors.append("hardware custody backend raw private key exposure not ruled out")
+        if signer_device_status.get("local_user_presence_confirmed") is not True:
+            errors.append("hardware custody local user presence not confirmed")
+        if signer_device_status.get("rollback_protection_confirmed") is not True:
+            errors.append("hardware custody rollback protection not confirmed")
+        if environment_kind == KEY_ENVIRONMENT_TEE_ATTESTED and signer_device_status.get("tee_measurement_present") is not True:
+            errors.append("hardware custody tee measurement missing")
+
+    def _match(
+        label: str,
+        left: Mapping[str, Any] | None,
+        left_name: str,
+        right: Mapping[str, Any] | None,
+        right_name: str,
+    ) -> None:
+        if left is None or right is None:
+            return
+        if left.get(left_name) != right.get(right_name):
+            errors.append(f"hardware custody {label} mismatch")
+
+    _match("backend_hash", signer_device_status, "backend_hash", signer_prompt_capture_status, "backend_hash")
+    _match("backend_hash", signer_device_status, "backend_hash", signer_execution_status, "backend_hash")
+    _match("environment_hash", signer_device_status, "environment_hash", signer_prompt_capture_status, "environment_hash")
+    _match("environment_hash", signer_device_status, "environment_hash", signer_execution_status, "environment_hash")
+    _match("approval_reference", signer_device_status, "approval_reference", signer_prompt_capture_status, "approval_reference")
+    _match("approval_reference", signer_device_status, "approval_reference", signer_execution_status, "approval_reference")
+    _match("prompt_reference", signer_prompt_capture_status, "prompt_reference", signer_execution_status, "prompt_reference")
+    _match("execution_reference", signer_execution_status, "execution_reference", signer_ceremony_status, "execution_reference")
+
+    return _hardware_custody_status(
+        ok=not errors,
+        errors=errors,
+        wallet_authority_hash=wallet_authority_hash,
+        device_approval_status=device_approval_status,
+        signer_device_status=signer_device_status,
+        signer_prompt_capture_status=signer_prompt_capture_status,
+        signer_execution_status=signer_execution_status,
+        signer_ceremony_status=signer_ceremony_status,
+        production_hardware_evidence_status=production_hardware_evidence_status,
     )
 
 

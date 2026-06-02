@@ -1616,15 +1616,6 @@ def _apply_ch2p_op(
         if unknown is not None:
             return unknown
         participant_pubkeys = (ch2p_market.account_a_pubkey, ch2p_market.account_b_pubkey)
-        oracle_action_id = _perps_clearinghouse_runtime_oracle_action_id(
-            config,
-            market_id=market_id,
-            action_kind="settle_epoch",
-            market_kind="clearinghouse_2p_v1",
-            quote_asset=ch2p_market.quote_asset,
-            state=ch2p_market.state,
-            participant_pubkeys=participant_pubkeys,
-        )
         err = _require_oracle_adapter_bridge(
             config,
             data=data,
@@ -1632,7 +1623,15 @@ def _apply_ch2p_op(
             action_kind="settle_epoch",
             expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
             expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-            expected_action_id=oracle_action_id,
+            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
+                config,
+                market_id=market_id,
+                action_kind="settle_epoch",
+                market_kind="clearinghouse_2p_v1",
+                quote_asset=ch2p_market.quote_asset,
+                state=ch2p_market.state,
+                participant_pubkeys=participant_pubkeys,
+            ),
             required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
         )
         if err is not None:
@@ -1980,15 +1979,6 @@ def _apply_ch3p_op(
             ch3p_market.account_b_pubkey,
             ch3p_market.account_c_pubkey,
         )
-        oracle_action_id = _perps_clearinghouse_runtime_oracle_action_id(
-            config,
-            market_id=market_id,
-            action_kind="settle_epoch",
-            market_kind="clearinghouse_3p_transfer_v1",
-            quote_asset=ch3p_market.quote_asset,
-            state=ch3p_market.state,
-            participant_pubkeys=participant_pubkeys,
-        )
         err = _require_oracle_adapter_bridge(
             config,
             data=data,
@@ -1996,7 +1986,15 @@ def _apply_ch3p_op(
             action_kind="settle_epoch",
             expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
             expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-            expected_action_id=oracle_action_id,
+            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
+                config,
+                market_id=market_id,
+                action_kind="settle_epoch",
+                market_kind="clearinghouse_3p_transfer_v1",
+                quote_asset=ch3p_market.quote_asset,
+                state=ch3p_market.state,
+                participant_pubkeys=participant_pubkeys,
+            ),
             required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
         )
         if err is not None:

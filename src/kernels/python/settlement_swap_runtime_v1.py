@@ -35,6 +35,8 @@ class SettlementSwapExactInQuote:
     amount_in: int
     amount_out: int
     fee_paid: int
+    protocol_fee_paid: int
+    lp_fee_paid: int
     net_in: int
     reserve_in_before: int
     reserve_out_before: int
@@ -52,6 +54,8 @@ class SettlementSwapExactOutQuote:
     overdelivery_gap: int
     gap_bps: int
     fee_paid: int
+    protocol_fee_paid: int
+    lp_fee_paid: int
     net_in_actual: int
     reserve_in_before: int
     reserve_out_before: int
@@ -121,6 +125,8 @@ def _exact_in_quote_doc(q: SettlementSwapExactInQuote) -> dict[str, Any]:
             "amount_in": q.amount_in,
             "amount_out": q.amount_out,
             "fee_paid": q.fee_paid,
+            "protocol_fee_paid": q.protocol_fee_paid,
+            "lp_fee_paid": q.lp_fee_paid,
             "net_in": q.net_in,
             "reserve_in_before": q.reserve_in_before,
             "reserve_out_before": q.reserve_out_before,
@@ -143,6 +149,8 @@ def _exact_out_quote_doc(q: SettlementSwapExactOutQuote) -> dict[str, Any]:
             "overdelivery_gap": q.overdelivery_gap,
             "gap_bps": q.gap_bps,
             "fee_paid": q.fee_paid,
+            "protocol_fee_paid": q.protocol_fee_paid,
+            "lp_fee_paid": q.lp_fee_paid,
             "net_in_actual": q.net_in_actual,
             "reserve_in_before": q.reserve_in_before,
             "reserve_out_before": q.reserve_out_before,
@@ -193,6 +201,8 @@ def _rust_exact_in_doc(*, reserve_in: int, reserve_out: int, amount_in: int, fee
         amount_in=int(receipt["amount_in"]),
         amount_out=amount_out,
         fee_paid=fee_paid,
+        protocol_fee_paid=0,
+        lp_fee_paid=fee_paid,
         net_in=int(receipt["amount_in"]) - fee_paid,
         reserve_in_before=reserve_in,
         reserve_out_before=reserve_out,
@@ -240,6 +250,8 @@ def _rust_exact_out_doc(
         overdelivery_gap=int(receipt["overdelivery_gap"]),
         gap_bps=int(receipt["gap_bps"]),
         fee_paid=fee_paid,
+        protocol_fee_paid=0,
+        lp_fee_paid=fee_paid,
         net_in_actual=amount_in - fee_paid,
         reserve_in_before=reserve_in,
         reserve_out_before=reserve_out,
@@ -257,12 +269,19 @@ def _quote_cpmm_swap_exact_in_python(
     reserve_out: int,
     amount_in: int,
     fee_bps: int,
+    protocol_fee_share_bps: int = 0,
 ) -> SettlementSwapExactInQuote:
     """Return a kernel-backed exact-in settlement quote plus post-state."""
     reserve_in = _require_int_range("reserve_in", reserve_in, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
     reserve_out = _require_int_range("reserve_out", reserve_out, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
     amount_in = _require_int_range("amount_in", amount_in, minimum=1, maximum=DEX_SWAP_AMOUNT_MAX)
     fee_bps = _require_int_range("fee_bps", fee_bps, minimum=0, maximum=BPS_DENOM)
+    protocol_fee_share_bps = _require_int_range(
+        "protocol_fee_share_bps",
+        protocol_fee_share_bps,
+        minimum=0,
+        maximum=BPS_DENOM,
+    )
     if reserve_in + amount_in > DEX_POOL_RESERVE_MAX:
         raise ValueError(
             f"swap would exceed reserve_in domain max {DEX_POOL_RESERVE_MAX}: "
@@ -274,7 +293,7 @@ def _quote_cpmm_swap_exact_in_python(
         reserve_out=reserve_out,
         amount_in=amount_in,
         fee_bps=fee_bps,
-        protocol_fee_share_bps=0,
+        protocol_fee_share_bps=protocol_fee_share_bps,
     )
     if res.k_after < res.k_before:
         raise ValueError(f"Invariant violation: new_k ({res.k_after}) < old_k ({res.k_before})")
@@ -283,6 +302,8 @@ def _quote_cpmm_swap_exact_in_python(
         amount_in=int(amount_in),
         amount_out=int(res.amount_out),
         fee_paid=int(res.fee_total),
+        protocol_fee_paid=int(res.protocol_fee),
+        lp_fee_paid=int(res.lp_fee),
         net_in=int(res.net_in),
         reserve_in_before=int(reserve_in),
         reserve_out_before=int(reserve_out),
@@ -325,16 +346,18 @@ def quote_cpmm_swap_exact_in(
     reserve_out: int,
     amount_in: int,
     fee_bps: int,
+    protocol_fee_share_bps: int = 0,
 ) -> SettlementSwapExactInQuote:
     from src.runtime.authority import AuthorityMode, active_mode, decide
 
     mode = active_mode(CPMM_SETTLEMENT_SURFACE)
-    if mode is AuthorityMode.PYTHON_AUTHORITY:
+    if mode is AuthorityMode.PYTHON_AUTHORITY or int(protocol_fee_share_bps) != 0:
         return _quote_cpmm_swap_exact_in_python(
             reserve_in=reserve_in,
             reserve_out=reserve_out,
             amount_in=amount_in,
             fee_bps=fee_bps,
+            protocol_fee_share_bps=protocol_fee_share_bps,
         )
 
     def python_doc() -> dict[str, Any]:
@@ -345,6 +368,7 @@ def quote_cpmm_swap_exact_in(
                     reserve_out=reserve_out,
                     amount_in=amount_in,
                     fee_bps=fee_bps,
+                    protocol_fee_share_bps=protocol_fee_share_bps,
                 )
             )
         except (TypeError, ValueError) as exc:
@@ -369,6 +393,7 @@ def quote_cpmm_swap_exact_in(
             reserve_out=reserve_out,
             amount_in=amount_in,
             fee_bps=fee_bps,
+            protocol_fee_share_bps=protocol_fee_share_bps,
         )
     q = doc["quote"]
     return SettlementSwapExactInQuote(**q)
@@ -381,6 +406,7 @@ def _quote_cpmm_swap_exact_out_python(
     amount_out: int,
     fee_bps: int,
     max_overdelivery_gap_bps: int = CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+    protocol_fee_share_bps: int = 0,
 ) -> SettlementSwapExactOutQuote:
     """Return a kernel-backed exact-out settlement quote plus post-state."""
     reserve_in = _require_int_range("reserve_in", reserve_in, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
@@ -393,12 +419,19 @@ def _quote_cpmm_swap_exact_out_python(
         minimum=0,
         maximum=BPS_DENOM,
     )
+    protocol_fee_share_bps = _require_int_range(
+        "protocol_fee_share_bps",
+        protocol_fee_share_bps,
+        minimum=0,
+        maximum=BPS_DENOM,
+    )
 
     res = _kernel_swap_exact_out_v8(
         reserve_in=reserve_in,
         reserve_out=reserve_out,
         amount_out=amount_out,
         fee_bps=fee_bps,
+        protocol_fee_share_bps=protocol_fee_share_bps,
     )
     if res.new_reserve_in > DEX_POOL_RESERVE_MAX:
         raise ValueError(
@@ -420,6 +453,8 @@ def _quote_cpmm_swap_exact_out_python(
         overdelivery_gap=int(res.overdelivery_gap),
         gap_bps=int(gap_bps),
         fee_paid=int(res.fee_total),
+        protocol_fee_paid=int(res.protocol_fee),
+        lp_fee_paid=int(res.lp_fee),
         net_in_actual=int(res.net_in),
         reserve_in_before=int(reserve_in),
         reserve_out_before=int(reserve_out),
@@ -437,17 +472,19 @@ def quote_cpmm_swap_exact_out(
     amount_out: int,
     fee_bps: int,
     max_overdelivery_gap_bps: int = CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+    protocol_fee_share_bps: int = 0,
 ) -> SettlementSwapExactOutQuote:
     from src.runtime.authority import AuthorityMode, active_mode, decide
 
     mode = active_mode(CPMM_SETTLEMENT_SURFACE)
-    if mode is AuthorityMode.PYTHON_AUTHORITY:
+    if mode is AuthorityMode.PYTHON_AUTHORITY or int(protocol_fee_share_bps) != 0:
         return _quote_cpmm_swap_exact_out_python(
             reserve_in=reserve_in,
             reserve_out=reserve_out,
             amount_out=amount_out,
             fee_bps=fee_bps,
             max_overdelivery_gap_bps=max_overdelivery_gap_bps,
+            protocol_fee_share_bps=protocol_fee_share_bps,
         )
 
     def python_doc() -> dict[str, Any]:
@@ -459,6 +496,7 @@ def quote_cpmm_swap_exact_out(
                     amount_out=amount_out,
                     fee_bps=fee_bps,
                     max_overdelivery_gap_bps=max_overdelivery_gap_bps,
+                    protocol_fee_share_bps=protocol_fee_share_bps,
                 )
             )
         except (TypeError, ValueError) as exc:
@@ -485,6 +523,7 @@ def quote_cpmm_swap_exact_out(
             amount_out=amount_out,
             fee_bps=fee_bps,
             max_overdelivery_gap_bps=max_overdelivery_gap_bps,
+            protocol_fee_share_bps=protocol_fee_share_bps,
         )
     q = doc["quote"]
     return SettlementSwapExactOutQuote(**q)

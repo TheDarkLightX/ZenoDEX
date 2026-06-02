@@ -33,6 +33,7 @@ class Fill:
         amount_in_filled: Optional amount in (for swaps)
         amount_out_filled: Optional amount out (for swaps)
         fee_paid: Optional fee paid (for swaps)
+        protocol_fee_paid: Optional protocol fee removed from pool reserves
         # Liquidity-specific fields
         amount0_used: Optional amount0 used (for add liquidity)
         amount1_used: Optional amount1 used (for add liquidity)
@@ -52,6 +53,7 @@ class Fill:
     amount_in_filled: Optional[Amount] = None
     amount_out_filled: Optional[Amount] = None
     fee_paid: Optional[Amount] = None
+    protocol_fee_paid: Optional[Amount] = None
     
     # Liquidity fields
     amount0_used: Optional[Amount] = None

@@ -17,6 +17,7 @@ from src.integration.zeno_key_manager import (
     KeyUsePolicy,
     PolicyDecision,
     SignRequestContext,
+    is_secret_field_name,
 )
 from src.integration.zeno_ledger_v0 import hash_v0
 
@@ -27,36 +28,30 @@ SIGN_ADMISSION_RECEIPT_SCHEMA_V0 = "zenodex/zeno_key_manager/sign_admission_rece
 BACKEND_ENCRYPTED_LOCAL_KEYSTORE = "encrypted-local-keystore"
 BACKEND_EXTERNAL_SIGNER_COMMAND = "external-signer-command"
 BACKEND_OS_KEYCHAIN = "os-keychain"
+BACKEND_HARDWARE_WALLET = "hardware-wallet"
 BACKEND_HARDWARE_WALLET_PLACEHOLDER = "hardware-wallet-placeholder"
+BACKEND_HSM = "hsm"
 BACKEND_HSM_PLACEHOLDER = "hsm-placeholder"
 BACKEND_MPC_PLACEHOLDER = "mpc-placeholder"
 BACKEND_TAU_BLS_IMPORT = "tau-bls-import"
+BACKEND_THRESHOLD_BLS_LOCAL = "threshold-bls-local"
+BACKEND_THRESHOLD_BLS_EXTERNAL_SERVICE = "threshold-bls-external-service"
 
 SUPPORTED_BACKENDS = frozenset(
     {
         BACKEND_ENCRYPTED_LOCAL_KEYSTORE,
         BACKEND_EXTERNAL_SIGNER_COMMAND,
         BACKEND_OS_KEYCHAIN,
+        BACKEND_HARDWARE_WALLET,
         BACKEND_HARDWARE_WALLET_PLACEHOLDER,
+        BACKEND_HSM,
         BACKEND_HSM_PLACEHOLDER,
         BACKEND_MPC_PLACEHOLDER,
         BACKEND_TAU_BLS_IMPORT,
+        BACKEND_THRESHOLD_BLS_LOCAL,
+        BACKEND_THRESHOLD_BLS_EXTERNAL_SERVICE,
     }
 )
-
-SECRET_FIELD_NAMES = frozenset(
-    {
-        "private_key",
-        "private_key_hex",
-        "privkey",
-        "privkey_hex",
-        "secret",
-        "secret_hex",
-        "seed",
-        "mnemonic",
-    }
-)
-
 
 def _require_str(value: object, *, name: str) -> str:
     if not isinstance(value, str) or value == "":
@@ -73,7 +68,7 @@ def _require_nonnegative_int(value: object, *, name: str) -> int:
 def _reject_secret_fields(value: object, *, name: str = "payload") -> None:
     if isinstance(value, Mapping):
         for key, item in value.items():
-            if str(key).lower() in SECRET_FIELD_NAMES:
+            if is_secret_field_name(key):
                 raise ValueError(f"{name} must not contain private key material")
             _reject_secret_fields(item, name=f"{name}.{key}")
         return

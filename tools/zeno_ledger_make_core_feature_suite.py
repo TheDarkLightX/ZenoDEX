@@ -29,6 +29,8 @@ from tools.operator_report_output import emit_operator_json, write_public_json
 
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_core_feature_suite_report.v0"
+PROOF_MINING_POOL_PUBKEY = "0x" + "11" * 48
+PROOF_MINING_MINER_PUBKEY = "0x" + "22" * 48
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -818,7 +820,7 @@ def build_core_feature_suite_v0(
     proof_mining_state_path = proof_mining_dir / "source" / "proof_mining_state.json"
     proof_mining_state_path.parent.mkdir(parents=True, exist_ok=True)
     proof_mining_state = ProofMiningRuntimeState(
-        reward_pool_pubkey="proof-mining-pool",
+        reward_pool_pubkey=PROOF_MINING_POOL_PUBKEY,
         snapshot=ProofMiningManagerSnapshot(
             epoch=1,
             base_reward=8,
@@ -855,7 +857,7 @@ def build_core_feature_suite_v0(
             "ok": True,
             "job_digest": "core-suite-proof-mining-job",
             "winner": {
-                "miner_id": "proof-miner-0",
+                "miner_id": PROOF_MINING_MINER_PUBKEY,
                 "witness_sha256": witness_hash,
                 "improvement_u64": 7,
             },
@@ -879,7 +881,7 @@ def build_core_feature_suite_v0(
             "ok": True,
             "job_digest": "core-suite-proof-mining-job",
             "winner": {
-                "miner_id": "proof-miner-0",
+                "miner_id": PROOF_MINING_MINER_PUBKEY,
                 "witness_sha256": witness_hash,
                 "improvement_u64": 7,
             },

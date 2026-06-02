@@ -32,11 +32,12 @@ def test_perps_payload_redacted_by_default(monkeypatch, flag):
     monkeypatch.delenv(flag, raising=False)
     red = pw._redacted_tau_tx_payload(_PAYLOAD)
     blob = json.dumps(red)
-    # The replay-capable signature must be gone...
-    assert red.get("signature_redacted") is True
+    # The replay-capable signature and operation bodies must be gone.
+    assert red.get("redacted") is True
     assert "signature" not in red and _SIG not in blob
-    # ...but client-inspectable fields are preserved (so functional flows/tests work).
-    assert red["operations"] == _PAYLOAD["operations"]
+    assert "operations" not in red and "DO_NOT_LEAK" not in blob
+    # The response still exposes non-sensitive routing metadata.
+    assert red["operation_streams"] == ["8"]
     assert red["sender_pubkey"] == _PAYLOAD["sender_pubkey"]
     assert "payload_hash" in red
 
