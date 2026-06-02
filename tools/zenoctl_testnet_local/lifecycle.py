@@ -3582,12 +3582,22 @@ def _summarize_response(payload: Mapping[str, Any], *, require_any: tuple[str, .
     return summary
 
 
+def _pool_symbol_aliases(symbol: str) -> set[str]:
+    raw = str(symbol).strip()
+    aliases = {raw.upper()}
+    if raw.lower() == "tagrs":
+        aliases.add("AGRS")
+    if raw.lower() == "tzdex":
+        aliases.add("ZDEX")
+    return aliases
+
+
 def _pool_asset_for_symbol(pool: Mapping[str, Any], symbol: str) -> str | None:
-    wanted = str(symbol).strip().upper()
+    wanted = _pool_symbol_aliases(symbol)
     for token_key, asset_key in (("token0", "asset0"), ("token1", "asset1")):
         token = str(pool.get(token_key, "")).strip().upper()
         asset = pool.get(asset_key)
-        if token == wanted and isinstance(asset, str) and asset:
+        if token in wanted and isinstance(asset, str) and asset:
             return asset
     return None
 
