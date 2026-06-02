@@ -7,9 +7,19 @@ from .perp_v2.funding_rule import compute_funding_rate_bps
 from .perp_v2.math import BPS_SCALE, MAX_COLLATERAL, is_oracle_fresh, settle_price
 
 
+MARK_PRICE_SOURCE_UNSPECIFIED = 0
+MARK_PRICE_SOURCE_EXTERNAL_MEDIAN = 1
+
+
+def is_derivatives_safe_mark_price_source(source_kind: int) -> bool:
+    return int(source_kind) == MARK_PRICE_SOURCE_EXTERNAL_MEDIAN
+
+
 @dataclass(frozen=True)
 class PerpApplyFundingAutoGateOutcome:
     now_epoch: int
+    mark_price_source_kind: int
+    mark_price_source_kind_ok: bool
     clearing_price_seen_ok: bool
     clearing_price_epoch_ok: bool
     pre_settlement_window_ok: bool
@@ -48,6 +58,7 @@ def _require_flag(value: Any, *, name: str) -> bool:
 def evaluate_perp_apply_funding_auto_gate(
     *,
     now_epoch: int,
+    mark_price_source_kind: int = MARK_PRICE_SOURCE_EXTERNAL_MEDIAN,
     clearing_price_seen: Any,
     clearing_price_epoch: int,
     oracle_last_update_epoch: int,
@@ -65,6 +76,7 @@ def evaluate_perp_apply_funding_auto_gate(
     insurance_balance: int = 0,
 ) -> PerpApplyFundingAutoGateOutcome:
     now = _require_int(now_epoch, name="now_epoch")
+    source_kind = _require_int(mark_price_source_kind, name="mark_price_source_kind")
     clearing_seen = _require_flag(clearing_price_seen, name="clearing_price_seen")
     clearing_epoch = _require_int(clearing_price_epoch, name="clearing_price_epoch")
     oracle_last = _require_int(oracle_last_update_epoch, name="oracle_last_update_epoch")
@@ -81,6 +93,7 @@ def evaluate_perp_apply_funding_auto_gate(
     fee_income_pre = _require_int(fee_income, name="fee_income")
     insurance = _require_int(insurance_balance, name="insurance_balance")
 
+    mark_price_source_kind_ok = is_derivatives_safe_mark_price_source(source_kind)
     clearing_price_seen_ok = clearing_seen
     clearing_price_epoch_ok = clearing_epoch == now
     pre_settlement_window_ok = oracle_last < now
@@ -136,6 +149,7 @@ def evaluate_perp_apply_funding_auto_gate(
 
     funding_auto_allowed = bool(
         clearing_price_seen_ok
+        and mark_price_source_kind_ok
         and clearing_price_epoch_ok
         and pre_settlement_window_ok
         and oracle_seen_ok
@@ -151,6 +165,8 @@ def evaluate_perp_apply_funding_auto_gate(
 
     return PerpApplyFundingAutoGateOutcome(
         now_epoch=now,
+        mark_price_source_kind=source_kind,
+        mark_price_source_kind_ok=mark_price_source_kind_ok,
         clearing_price_seen_ok=clearing_price_seen_ok,
         clearing_price_epoch_ok=clearing_price_epoch_ok,
         pre_settlement_window_ok=pre_settlement_window_ok,
@@ -174,6 +190,8 @@ def evaluate_perp_apply_funding_auto_gate(
 def perp_apply_funding_auto_gate_error(outcome: PerpApplyFundingAutoGateOutcome) -> str | None:
     if not outcome.clearing_price_seen_ok:
         return "cannot apply funding before clearing price is published"
+    if not outcome.mark_price_source_kind_ok:
+        return "cannot apply funding: mark_price_source_kind is not derivatives-safe"
     if not outcome.clearing_price_epoch_ok:
         return "cannot apply funding: clearing price is not for current epoch"
     if not outcome.pre_settlement_window_ok:

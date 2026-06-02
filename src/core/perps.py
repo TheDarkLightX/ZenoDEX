@@ -20,7 +20,10 @@ from dataclasses import dataclass
 from typing import Dict, Literal
 
 from ..state.canonical import canonical_hex_fixed_allow_0x
-
+from .perp_apply_funding_auto_gate import (
+    MARK_PRICE_SOURCE_EXTERNAL_MEDIAN,
+    is_derivatives_safe_mark_price_source,
+)
 
 # Kernel value domain (mirrors the YAML spec / generated refs): bool | int | str
 Value = bool | int | str
@@ -73,6 +76,11 @@ _EPOCH_PHASE_INT_TO_STR: dict[int, str] = {0: "Open", 1: "PricePublished", 2: "S
 PERP_MARKET_KIND_ISOLATED_V2: Literal["isolated_v2"] = "isolated_v2"
 PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1: Literal["clearinghouse_2p_v1"] = "clearinghouse_2p_v1"
 PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1: Literal["clearinghouse_3p_transfer_v1"] = "clearinghouse_3p_transfer_v1"
+# Open, dynamic-membership N-party net-zero clearinghouse (3+ independent wallets).
+# Unlike the fixed-slot 2p/3p kernels this market has no a/b/c slots. It holds a
+# dynamic account set and delegates transition semantics to
+# `src/core/perp_np_clearinghouse.py`.
+PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1: Literal["clearinghouse_np_v1"] = "clearinghouse_np_v1"
 
 # Per `src/kernels/dex/perp_epoch_isolated_v3.yaml` (default posture).
 PERP_ACCOUNT_KEYS: set[str] = {
@@ -91,6 +99,7 @@ PERP_ISOLATED_GLOBAL_KEYS: set[str] = {
     "clearing_price_seen",
     "clearing_price_epoch",
     "clearing_price_e8",
+    "mark_price_source_kind",
     "oracle_seen",
     "oracle_last_update_epoch",
     "index_price_e8",
@@ -260,6 +269,8 @@ class PerpMarketState:
         if "epoch_phase" not in self.global_state:
             # frozen=True prevents direct assignment; use dict mutation.
             self.global_state["epoch_phase"] = _infer_epoch_phase(self.global_state)
+        if "mark_price_source_kind" not in self.global_state:
+            self.global_state["mark_price_source_kind"] = MARK_PRICE_SOURCE_EXTERNAL_MEDIAN
         keys = set(self.global_state.keys())
         extra = keys - PERP_ISOLATED_GLOBAL_KEYS
         missing = PERP_ISOLATED_GLOBAL_KEYS - keys
@@ -279,7 +290,7 @@ class PerpMarketState:
             if ep not in _EPOCH_PHASE_INT_TO_STR:
                 raise ValueError(f"global_state['epoch_phase'] int value {ep} out of range [0,2]")
         else:
-            raise TypeError(f"global_state['epoch_phase'] must be a str or int")
+            raise TypeError("global_state['epoch_phase'] must be a str or int")
         for k, v in list(self.global_state.items()):
             # epoch_phase must be the canonical int encoding (never bool/str after normalization).
             if k == "epoch_phase":
@@ -321,6 +332,7 @@ class PerpMarketState:
         clearing_price_seen = bool(gs["clearing_price_seen"])
         clearing_price_epoch = int(gs["clearing_price_epoch"])
         clearing_price_e8 = int(gs["clearing_price_e8"])
+        mark_price_source_kind = int(gs["mark_price_source_kind"])
 
         oracle_seen = bool(gs["oracle_seen"])
         oracle_last_update_epoch = int(gs["oracle_last_update_epoch"])
@@ -354,6 +366,8 @@ class PerpMarketState:
             raise ValueError("breaker_last_trigger_epoch must be 0 when breaker_active is false")
         if not clearing_price_seen and (clearing_price_epoch != 0 or clearing_price_e8 != 0):
             raise ValueError("clearing_price fields must be 0 when clearing_price_seen is false")
+        if clearing_price_seen and not is_derivatives_safe_mark_price_source(mark_price_source_kind):
+            raise ValueError("mark_price_source_kind must be derivatives-safe when clearing_price_seen is true")
         if not oracle_seen and (oracle_last_update_epoch != 0 or index_price_e8 != 0):
             raise ValueError("oracle fields must be 0 when oracle_seen is false")
         if oracle_seen and index_price_e8 <= 0:
@@ -586,7 +600,265 @@ class PerpClearinghouse3pTransferMarketState:
         return None
 
 
-PerpAnyMarketState = PerpMarketState | PerpClearinghouse2pMarketState | PerpClearinghouse3pTransferMarketState
+# --- N-party net-zero clearinghouse (dynamic membership) ---------------------
+# Global market state for the N-party market. Quote amounts are quote-e8
+# integers, mirroring the 2p/3p convention. Params are flattened so the pure core
+# can rehydrate MarketParams deterministically.
+PERP_CLEARINGHOUSE_NP_GLOBAL_KEYS: set[str] = {
+    "now_epoch",
+    "index_price_e8",
+    "clearing_price_seen",
+    "clearing_price_epoch",
+    "clearing_price_e8",
+    "fee_pool_e8",
+    "insurance_e8",
+    "insurance_ext_e8",
+    "claims_paid_e8",
+    "net_deposited_e8",
+    "initial_margin_bps",
+    "maintenance_margin_bps",
+    "depeg_buffer_bps",
+    "liquidation_penalty_bps",
+    "max_oracle_move_bps",
+    "funding_cap_bps",
+    "max_position_abs",
+    "min_notional_for_bounty_e8",
+}
+
+_PERP_CLEARINGHOUSE_NP_GLOBAL_DEFAULTS: dict[str, int] = {
+    "clearing_price_seen": 0,
+    "clearing_price_epoch": 0,
+    "clearing_price_e8": 0,
+}
+
+_PERP_CLEARINGHOUSE_NP_NONNEGATIVE_GLOBAL_KEYS: set[str] = {
+    "now_epoch",
+    "clearing_price_epoch",
+    "clearing_price_e8",
+    "fee_pool_e8",
+    "insurance_e8",
+    "insurance_ext_e8",
+    "claims_paid_e8",
+    "initial_margin_bps",
+    "maintenance_margin_bps",
+    "depeg_buffer_bps",
+    "liquidation_penalty_bps",
+    "max_oracle_move_bps",
+    "funding_cap_bps",
+    "max_position_abs",
+    "min_notional_for_bounty_e8",
+}
+
+_PERP_CLEARINGHOUSE_NP_PARAM_BOUNDS: dict[str, tuple[int, int]] = {
+    "initial_margin_bps": (0, 10_000),
+    "maintenance_margin_bps": (0, 10_000),
+    "depeg_buffer_bps": (0, 5_000),
+    "liquidation_penalty_bps": (0, 10_000),
+    "max_oracle_move_bps": (0, 10_000),
+    "funding_cap_bps": (1, 10_000),
+    "max_position_abs": (1, 1_000_000),
+    "min_notional_for_bounty_e8": (0, 1_000_000_000_000 * 100_000_000),
+}
+
+PERP_CLEARINGHOUSE_NP_ACCOUNT_KEYS: set[str] = {
+    "pubkey",
+    "position_base",
+    "entry_price_e8",
+    "collateral_e8",
+    "funding_paid_cum_e8",
+    "nonce",
+}
+
+
+@dataclass(frozen=True)
+class PerpClearinghouseNpAccount:
+    """One participant in an N-party clearinghouse market."""
+
+    pubkey: str
+    position_base: int = 0
+    entry_price_e8: int = 0
+    collateral_e8: int = 0
+    funding_paid_cum_e8: int = 0
+    nonce: int = 0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.pubkey, str) or not self.pubkey:
+            raise TypeError("account pubkey must be a non-empty string")
+        _pubkey_bytes48(self.pubkey, name="account pubkey")
+        for field_name in (
+            "position_base",
+            "entry_price_e8",
+            "collateral_e8",
+            "funding_paid_cum_e8",
+            "nonce",
+        ):
+            value = getattr(self, field_name)
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise TypeError(f"account {field_name} must be an int")
+        if self.entry_price_e8 < 0:
+            raise ValueError("account entry_price_e8 must be non-negative")
+        if self.collateral_e8 < 0:
+            raise ValueError("account collateral_e8 must be non-negative")
+        if self.nonce < 0:
+            raise ValueError("account nonce must be non-negative")
+
+
+PERP_CLEARINGHOUSE_NP_PENDING_INTENT_KEYS: set[str] = {
+    "pubkey",
+    "target_base",
+    "limit_price_e8",
+    "min_fill_base",
+    "expiry_epoch",
+    "nonce",
+}
+
+
+@dataclass(frozen=True)
+class PerpClearinghouseNpPendingIntent:
+    """A single-signed position intent queued for the next batch match."""
+
+    pubkey: str
+    target_base: int
+    nonce: int
+    limit_price_e8: int = 0
+    min_fill_base: int = 0
+    expiry_epoch: int = 1 << 62
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.pubkey, str) or not self.pubkey:
+            raise TypeError("pending intent pubkey must be a non-empty string")
+        _pubkey_bytes48(self.pubkey, name="pending intent pubkey")
+        for field_name in ("target_base", "nonce", "limit_price_e8", "min_fill_base", "expiry_epoch"):
+            value = getattr(self, field_name)
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise TypeError(f"pending intent {field_name} must be an int")
+        if self.nonce <= 0:
+            raise ValueError("pending intent nonce must be positive")
+        if self.limit_price_e8 < 0:
+            raise ValueError("pending intent limit_price_e8 must be non-negative")
+        if self.min_fill_base < 0:
+            raise ValueError("pending intent min_fill_base must be non-negative")
+        if self.expiry_epoch < 0:
+            raise ValueError("pending intent expiry_epoch must be non-negative")
+
+
+@dataclass(frozen=True)
+class PerpClearinghouseNpMarketState:
+    """Open N-party net-zero clearinghouse market state."""
+
+    quote_asset: str
+    global_state: Dict[str, int]
+    accounts: tuple[PerpClearinghouseNpAccount, ...] = ()
+    pending_intents: tuple[PerpClearinghouseNpPendingIntent, ...] = ()
+    kind: Literal["clearinghouse_np_v1"] = PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1
+
+    def __post_init__(self) -> None:
+        if self.kind != PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1:
+            raise ValueError(f"unsupported perps market kind: {self.kind}")
+        if not isinstance(self.quote_asset, str) or not self.quote_asset:
+            raise TypeError("quote_asset must be a non-empty string")
+        if not isinstance(self.global_state, dict):
+            raise TypeError("global_state must be a dict")
+        for k, v in _PERP_CLEARINGHOUSE_NP_GLOBAL_DEFAULTS.items():
+            self.global_state.setdefault(k, v)
+        keys = set(self.global_state.keys())
+        extra = keys - PERP_CLEARINGHOUSE_NP_GLOBAL_KEYS
+        missing = PERP_CLEARINGHOUSE_NP_GLOBAL_KEYS - keys
+        if extra:
+            raise ValueError(f"global_state has unknown keys: {sorted(extra)[:8]}")
+        if missing:
+            raise ValueError(f"global_state missing required keys: {sorted(missing)[:8]}")
+        for k, v in self.global_state.items():
+            if not isinstance(v, int) or isinstance(v, bool):
+                raise TypeError(f"global_state[{k!r}] must be an int")
+        for k in _PERP_CLEARINGHOUSE_NP_NONNEGATIVE_GLOBAL_KEYS:
+            if int(self.global_state[k]) < 0:
+                raise ValueError(f"global_state[{k!r}] must be non-negative")
+        for k, (lo, hi) in _PERP_CLEARINGHOUSE_NP_PARAM_BOUNDS.items():
+            value = int(self.global_state[k])
+            if value < lo or value > hi:
+                raise ValueError(f"global_state[{k!r}] out of range: {value} not in [{lo}, {hi}]")
+        if not isinstance(self.accounts, tuple):
+            raise TypeError("accounts must be a tuple")
+        for acct in self.accounts:
+            if not isinstance(acct, PerpClearinghouseNpAccount):
+                raise TypeError("accounts must be PerpClearinghouseNpAccount instances")
+        pubkey_bytes = [_pubkey_bytes48(a.pubkey, name="account pubkey") for a in self.accounts]
+        if len(set(pubkey_bytes)) != len(pubkey_bytes):
+            raise ValueError("clearinghouse_np accounts must be distinct")
+
+        if not isinstance(self.pending_intents, tuple):
+            raise TypeError("pending_intents must be a tuple")
+        member_bytes = set(pubkey_bytes)
+        intent_bytes: list[bytes] = []
+        for intent in self.pending_intents:
+            if not isinstance(intent, PerpClearinghouseNpPendingIntent):
+                raise TypeError("pending_intents must be PerpClearinghouseNpPendingIntent instances")
+            ib = _pubkey_bytes48(intent.pubkey, name="pending intent pubkey")
+            if ib not in member_bytes:
+                raise ValueError("pending intent pubkey is not a market member")
+            intent_bytes.append(ib)
+        if len(set(intent_bytes)) != len(intent_bytes):
+            raise ValueError("clearinghouse_np pending intents must be one-per-account")
+
+        if int(self.global_state["index_price_e8"]) <= 0:
+            raise ValueError("index_price_e8 must be positive")
+
+        clearing_price_seen = int(self.global_state["clearing_price_seen"])
+        clearing_price_epoch = int(self.global_state["clearing_price_epoch"])
+        clearing_price_e8 = int(self.global_state["clearing_price_e8"])
+        now_epoch = int(self.global_state["now_epoch"])
+        if clearing_price_seen not in (0, 1):
+            raise ValueError("clearinghouse_np clearing_price_seen must be 0 or 1")
+        if clearing_price_seen == 0:
+            if clearing_price_epoch != 0 or clearing_price_e8 != 0:
+                raise ValueError("clearinghouse_np clearing_price fields must be 0 when not seen")
+        else:
+            if clearing_price_e8 <= 0:
+                raise ValueError("clearinghouse_np clearing_price_e8 must be positive when seen")
+            if clearing_price_epoch != now_epoch:
+                raise ValueError("clearinghouse_np clearing_price_epoch must equal now_epoch when seen")
+
+        if sum(a.position_base for a in self.accounts) != 0:
+            raise ValueError("clearinghouse_np state must satisfy sum(position_base) == 0")
+
+        total_coll = sum(a.collateral_e8 for a in self.accounts)
+        gs = self.global_state
+        lhs = int(gs["net_deposited_e8"]) + int(gs["insurance_ext_e8"])
+        rhs = total_coll + int(gs["fee_pool_e8"]) + int(gs["insurance_e8"])
+        if lhs != rhs:
+            raise ValueError(
+                "clearinghouse_np state must satisfy net_deposited_e8 + insurance_ext_e8 "
+                "== sum(collateral_e8) + fee_pool_e8 + insurance_e8"
+            )
+
+        if int(gs["insurance_e8"]) != int(gs["insurance_ext_e8"]) - int(gs["claims_paid_e8"]):
+            raise ValueError("clearinghouse_np state must satisfy insurance_e8 == insurance_ext_e8 - claims_paid_e8")
+        if int(gs["insurance_e8"]) < 0:
+            raise ValueError("clearinghouse_np insurance_e8 must be non-negative")
+        if int(gs["fee_pool_e8"]) < 0:
+            raise ValueError("clearinghouse_np fee_pool_e8 must be non-negative")
+
+    def by_pubkey(self) -> dict[str, PerpClearinghouseNpAccount]:
+        return {a.pubkey: a for a in self.accounts}
+
+    def role_for_pubkey(self, pubkey: str) -> str | None:
+        """Return the participant's own pubkey if it is a member."""
+        pb = _pubkey_bytes48_or_none(pubkey)
+        if pb is None:
+            return None
+        for account in self.accounts:
+            if pb == _pubkey_bytes48_or_none(account.pubkey):
+                return account.pubkey
+        return None
+
+
+PerpAnyMarketState = (
+    PerpMarketState
+    | PerpClearinghouse2pMarketState
+    | PerpClearinghouse3pTransferMarketState
+    | PerpClearinghouseNpMarketState
+)
 
 
 @dataclass(frozen=True)
