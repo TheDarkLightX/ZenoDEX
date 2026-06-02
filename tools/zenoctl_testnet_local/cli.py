@@ -55,9 +55,10 @@ def register_subparser(testnet_sub: argparse._SubParsersAction) -> None:
         choices=lc.ZK_MODES,
         default=lc.DEFAULT_ZK_MODE,
         help=(
-            "ZK posture for local-testnet writes: auto-strict tries strict then records "
-            "an explicit local fallback, strict refuses without verifier/artifacts, open "
-            "is non-production local mode"
+            "ZK posture for local-testnet writes: auto-strict uses the bundled "
+            "local proof-wrapper verifier unless explicit verifier env is set, "
+            "strict refuses if verifier/artifacts are incomplete, open is "
+            "non-production local mode"
         ),
     )
     seed_grp = up.add_mutually_exclusive_group()

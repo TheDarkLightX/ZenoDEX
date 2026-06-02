@@ -94,11 +94,13 @@ Running `up` a second time on the same `--out-dir` produces byte-identical
 fixture keys (seed derived from `abspath(out_dir) + chain_id`). To rotate,
 use `--seed <64-hex>` or `--random`.
 
-`--zk-mode strict` refuses bring-up unless a subprocess verifier and verifier
-plus circuit artifact hashes are configured. `auto-strict` tries that posture,
-then records an explicit fallback reason and runs as local non-production
-`open` mode when strict inputs are missing. Fallback, open, and local fixture
-custody modes always report `production_security_claim=false`.
+`--zk-mode auto-strict` uses the bundled local live-wrapper verifier for
+fake-value zUSD/perps write gates when no explicit verifier environment is set.
+`--zk-mode strict` refuses bring-up if the active verifier command or verifier
+plus circuit artifact hashes are incomplete. `--zk-mode open` disables the
+local proof-wrapper gate for non-production development. Local fixture custody
+and the bundled live-wrapper verifier always report
+`production_security_claim=false`.
 
 ## Verify the Full Feature Path
 

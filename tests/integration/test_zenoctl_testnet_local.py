@@ -217,11 +217,15 @@ def test_writer_token_sha256_is_stable() -> None:
     assert a != c
 
 
-def test_zk_auto_strict_falls_back_without_verifier(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_zk_auto_strict_uses_bundled_local_wrapper_when_no_verifier_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from tools.zenoctl_testnet_local import lifecycle as lc
 
     for name in (
         "TAU_DEX_PROOF_VERIFIER_CMD_JSON",
+        "TAU_DEX_PROOF_VERIFIER_TIMEOUT_S",
+        "TAU_DEX_PROOF_VERIFIER_MAX_PROOF_BYTES",
         "TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON",
         "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON",
         "TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE",
@@ -232,20 +236,32 @@ def test_zk_auto_strict_falls_back_without_verifier(monkeypatch: pytest.MonkeyPa
     posture = lc._resolve_zk_posture("auto-strict")
     assert posture["ok"] is True
     assert posture["zk_mode_requested"] == "auto-strict"
-    assert posture["zk_mode_effective"] == "open"
-    assert posture["zk_required"] is False
-    assert posture["zk_fallback_reason"]
+    assert posture["zk_mode_effective"] == "strict"
+    assert posture["zk_required"] is True
+    assert posture["zk_fallback_reason"] is None
+    assert posture["proof_verifier_kind"] == "subprocess"
+    assert posture["proof_artifact_hashes"] == {
+        "verifier": "sha256:" + "33" * 32,
+        "circuit": "sha256:" + "44" * 32,
+    }
     assert posture["production_security_claim"] is False
 
 
-def test_zk_strict_requires_verifier_and_artifacts(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_zk_strict_rejects_explicit_incomplete_verifier_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from tools.zenoctl_testnet_local import lifecycle as lc
 
-    monkeypatch.delenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", raising=False)
+    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", json.dumps([sys.executable, "-c", "print()"]))
+    monkeypatch.delenv("TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON", raising=False)
+    monkeypatch.delenv("TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON", raising=False)
+    monkeypatch.delenv("TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE", raising=False)
+    monkeypatch.delenv("TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE", raising=False)
     posture = lc._resolve_zk_posture("strict")
     assert posture["ok"] is False
     assert posture["zk_required"] is True
-    assert "proof verifier command unavailable" in posture["zk_fallback_reason"]
+    assert "proof verifier artifact hash unavailable" in posture["zk_fallback_reason"]
+    assert "proof circuit artifact hash unavailable" in posture["zk_fallback_reason"]
 
 
 def test_zk_strict_accepts_subprocess_verifier_and_artifacts(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -368,6 +384,45 @@ def test_existing_manifest_rejects_requested_zk_mode_change(tmp_path: Path) -> N
 
     assert gap is not None
     assert "use --force to recreate with --zk-mode strict" in gap
+
+
+def test_strict_browser_smoke_cases_include_local_fixture_zk_proof(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from urllib.parse import parse_qs, urlsplit
+
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    monkeypatch.setattr(
+        lc,
+        "_build_signed_live_swap_payload",
+        lambda **_: {"signature": "sig", "nonce": 7, "deadline": 123},
+    )
+    roles = {
+        "alice": {"public_key": "alice-pub", "privkey_hex": "0x01"},
+        "bob": {"public_key": "bob-pub", "privkey_hex": "0x02"},
+        "oracle_authority": {"public_key": "oracle-pub", "privkey_hex": "0x03"},
+    }
+
+    cases = lc._browser_smoke_cases(
+        ui_base="http://127.0.0.1:18080",
+        roles=roles,
+        seed_report={"market_id": "perp:ch2p:test"},
+        chain_id="chain",
+        zk_required=True,
+    )
+    by_name = {str(item["name"]): item for item in cases}
+
+    for name in ("zusd_monetary_ui", "perps_wallet_ui"):
+        query = parse_qs(urlsplit(str(by_name[name]["url"])).query)
+        proof = json.loads(query["zkProofJson"][0])
+        assert proof == {
+            "system": "local-testnet-live-wrapper-fixture-v1",
+            "production_security_claim": False,
+        }
+
+    spot_query = parse_qs(urlsplit(str(by_name["spot_swap_ui"]["url"])).query)
+    assert "zkProofJson" not in spot_query
 
 
 # ---------------------------------------------------------------------------
@@ -1601,6 +1656,51 @@ def test_seed_api_state_passes_private_fixture_material_on_stdin(monkeypatch) ->
     assert json.loads(str(captured["input_text"]))["roles"]["alice"]["privkey_int"] == 123456789
 
 
+def test_release_native_collateral_materializer_uses_prefunded_refiller(monkeypatch) -> None:
+    from tools.zenoctl_testnet_local import compose as cm
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    captured: dict[str, object] = {}
+
+    def fake_compose_run(**kwargs):
+        captured.update(kwargs)
+        report = {
+            "ok": True,
+            "schema": "zenodex.local_testnet.release_native_collateral_materialize.v0",
+            "status": "accepted",
+            "refiller_role": "carol",
+            "balance_after_e8": 1000,
+        }
+        return subprocess.CompletedProcess(args=["compose"], returncode=0, stdout=json.dumps(report), stderr="")
+
+    monkeypatch.setattr(lc.cm, "compose_run", fake_compose_run)
+    roles = {
+        "alice": {"public_key": "0x" + "11" * 48, "privkey_int": 111},
+        "carol": {"public_key": "0x" + "33" * 48, "privkey_int": 333},
+        "bob": {"public_key": "0x" + "22" * 48, "privkey_int": 222},
+    }
+
+    report = lc._materialize_release_native_collateral(
+        engine=cm.ComposeEngine(binary="docker"),
+        compose_project="zenodex-local-testnet-test",
+        env={},
+        roles=roles,
+        amount_e8=1000,
+    )
+
+    assert report["ok"] is True
+    payload = json.loads(str(captured["input_text"]))
+    assert payload["owner_pubkey"] == roles["alice"]["public_key"]
+    assert "owner_privkey_int" not in payload
+    assert "alice" not in payload["refiller_roles"]
+    assert payload["refiller_roles"]["carol"]["privkey_int"] == 333
+    assert payload["preferred_refiller_names"][0] == "carol"
+    script = captured["command"][1]
+    assert 'operations={"1": [[selected["rpc"], owner_rpc, str(needed_now)]]}' in script
+    assert 'operations={"1": [[owner_rpc, owner_rpc, str(needed)]]}' not in script
+    assert "no_release_native_refiller_with_sufficient_balance" in script
+
+
 def test_compose_overlay_requires_orchestrator_env() -> None:
     """The compose file must use `${VAR:?…}` to refuse running without
     orchestrator-provided env."""
@@ -1723,15 +1823,8 @@ def test_lifecycle_compose_env_sets_local_external_tool_posture_for_strict_zk(
     from tools.zenoctl_testnet_local import lifecycle as lc
     from tools.zenoctl_testnet_local import manifest as mf
 
-    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", json.dumps([sys.executable, "-c", "print()"]))
-    monkeypatch.setenv(
-        "TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON",
-        json.dumps({"artifact_id": "verifier", "artifact_hash": "sha256:" + "11" * 32}),
-    )
-    monkeypatch.setenv(
-        "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON",
-        json.dumps({"artifact_id": "circuit", "artifact_hash": "0x" + "22" * 32, "proof_system": "risc0"}),
-    )
+    for name in lc.GLOBAL_ZK_ENV_NAMES:
+        monkeypatch.delenv(name, raising=False)
 
     paths = mf.ManifestPaths.from_out_dir(tmp_path)
     roles = {
@@ -1754,6 +1847,12 @@ def test_lifecycle_compose_env_sets_local_external_tool_posture_for_strict_zk(
 
     assert env["TAU_DEX_ALLOW_EXTERNAL_TOOLS"] == "1"
     assert env["TAU_DEX_CONSENSUS_MODE"] == "0"
+    assert "local_live_wrapper_echo_v1.py" in env["TAU_DEX_PROOF_VERIFIER_CMD_JSON"]
+    assert env["TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP"] == "true"
+    assert env["TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON"]
+    assert env["TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON"]
+    assert env["ZUSD_MONETARY_WALLET_PROOF_VERIFIER_CMD_JSON"] == env["TAU_DEX_PROOF_VERIFIER_CMD_JSON"]
+    assert env["PERPS_WALLET_PROOF_VERIFIER_CMD_JSON"] == env["TAU_DEX_PROOF_VERIFIER_CMD_JSON"]
 
 
 def test_local_oracle_write_smoke_checks_duplicate_rewards_and_dispute_escrow(
@@ -1974,7 +2073,11 @@ def test_complex_grouped_transaction_smoke_rejects_replay_without_partial_mint(
         assert isinstance(tx, Mapping)
         operations = tx["operations"]
         assert isinstance(operations, Mapping)
-        assert set(operations) == {"5", "7"}
+        assert set(operations) == {"5"}
+        swap_ops = operations["5"]
+        assert isinstance(swap_ops, list)
+        assert len(swap_ops) == 2
+        assert [op["nonce"] for op in swap_ops if isinstance(op, Mapping)] == [9, 10]
         posted.append(dict(tx))
         if len(posted) == 1:
             balance["value"] = 14
