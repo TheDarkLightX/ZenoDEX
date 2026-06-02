@@ -19,12 +19,16 @@ from ..core.oracle import OracleState
 from ..core.perps import (
     PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1,
     PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1,
+    PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
     PERP_MARKET_KIND_ISOLATED_V2,
     PERPS_STATE_VERSION_V5,
     PerpAccountState,
     PerpAnyMarketState,
     PerpClearinghouse2pMarketState,
     PerpClearinghouse3pTransferMarketState,
+    PerpClearinghouseNpAccount,
+    PerpClearinghouseNpMarketState,
+    PerpClearinghouseNpPendingIntent,
     PerpMarketState,
     PerpsState,
     _infer_epoch_phase,
@@ -223,6 +227,42 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
                 markets_entries.append(out_entry)
                 continue
 
+            if isinstance(market, PerpClearinghouseNpMarketState):
+                acct_entries = [
+                    {
+                        "pubkey": str(acct.pubkey),
+                        "position_base": int(acct.position_base),
+                        "entry_price_e8": int(acct.entry_price_e8),
+                        "collateral_e8": int(acct.collateral_e8),
+                        "funding_paid_cum_e8": int(acct.funding_paid_cum_e8),
+                        "nonce": int(acct.nonce),
+                    }
+                    for acct in market.accounts
+                ]
+                acct_entries.sort(key=lambda e: str(e["pubkey"]))
+                pending_entries = [
+                    {
+                        "pubkey": str(intent.pubkey),
+                        "target_base": int(intent.target_base),
+                        "limit_price_e8": int(intent.limit_price_e8),
+                        "min_fill_base": int(intent.min_fill_base),
+                        "expiry_epoch": int(intent.expiry_epoch),
+                        "nonce": int(intent.nonce),
+                    }
+                    for intent in market.pending_intents
+                ]
+                pending_entries.sort(key=lambda e: str(e["pubkey"]))
+                out_entry = {
+                    "market_id": str(market_id),
+                    "kind": str(getattr(market, "kind", PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1)),
+                    "quote_asset": str(market.quote_asset),
+                    "global_state": dict(market.global_state),
+                    "accounts": acct_entries,
+                    "pending_intents": pending_entries,
+                }
+                markets_entries.append(out_entry)
+                continue
+
             raise TypeError(f"unsupported perps market type: {type(market)}")
         markets_entries.sort(key=lambda e: e["market_id"])
         perps_obj = {"version": int(perps.version), "markets": markets_entries}
@@ -242,6 +282,27 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
     if int(version) >= 2:
         data["perps"] = perps_obj
     return DexSnapshot(version=version, data=data)
+
+
+def snapshot_with_legacy_lp_metadata_defaults(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
+    """Backfill optional LP metadata rails for legacy live app-state snapshots.
+
+    ``state_from_snapshot`` remains strict for persisted snapshot artifacts:
+    version 3+ snapshots must contain ``lp_mint_timestamps`` and version 4
+    snapshots must contain ``lp_duration_risk``. Some live Tau app-state views
+    predate those rails but are still used by non-LP surfaces such as perps and
+    zUSD status. Those callers can use this boundary helper before parsing.
+    """
+    if not isinstance(snapshot, Mapping):
+        raise TypeError("snapshot must be a mapping")
+    normalized = dict(snapshot)
+    version = normalized.get("version", DEX_SNAPSHOT_VERSION)
+    if isinstance(version, int) and not isinstance(version, bool):
+        if version >= 3 and "lp_mint_timestamps" not in normalized:
+            normalized["lp_mint_timestamps"] = []
+        if version >= 4 and "lp_duration_risk" not in normalized:
+            normalized["lp_duration_risk"] = []
+    return normalized
 
 
 def state_from_snapshot(
@@ -723,6 +784,116 @@ def state_from_snapshot(
                         account_b_pubkey=account_b,
                         account_c_pubkey=account_c,
                         state=state_dict,
+                    )
+                    continue
+
+                if kind == PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1:
+                    quote_asset = _require_str(
+                        entry.get("quote_asset"),
+                        name="perps.quote_asset",
+                        non_empty=True,
+                        max_len=min(256, max_str_len),
+                    )
+                    global_state = entry.get("global_state")
+                    if not isinstance(global_state, Mapping):
+                        raise TypeError("perps.chnp.global_state must be an object")
+                    global_state_dict = dict(global_state)
+
+                    acct_entries = entry.get("accounts")
+                    if acct_entries is None:
+                        acct_entries = []
+                    if not isinstance(acct_entries, list):
+                        raise TypeError("perps.chnp.accounts must be a list")
+                    if len(acct_entries) > max_perp_accounts:
+                        raise ValueError(
+                            f"too many perps accounts in market {market_id}: {len(acct_entries)} > {max_perp_accounts}"
+                        )
+                    np_accounts: list[PerpClearinghouseNpAccount] = []
+                    for acct in acct_entries:
+                        if not isinstance(acct, Mapping):
+                            raise TypeError("perps.chnp.accounts entries must be objects")
+                        np_accounts.append(
+                            PerpClearinghouseNpAccount(
+                                pubkey=_require_str(
+                                    acct.get("pubkey"),
+                                    name="perps.chnp.account.pubkey",
+                                    non_empty=True,
+                                    max_len=min(512, max_str_len),
+                                ),
+                                position_base=_require_int(
+                                    acct.get("position_base", 0),
+                                    name="perps.chnp.account.position_base",
+                                    non_negative=False,
+                                ),
+                                entry_price_e8=_require_int(
+                                    acct.get("entry_price_e8", 0),
+                                    name="perps.chnp.account.entry_price_e8",
+                                ),
+                                collateral_e8=_require_int(
+                                    acct.get("collateral_e8", 0),
+                                    name="perps.chnp.account.collateral_e8",
+                                ),
+                                funding_paid_cum_e8=_require_int(
+                                    acct.get("funding_paid_cum_e8", 0),
+                                    name="perps.chnp.account.funding_paid_cum_e8",
+                                    non_negative=False,
+                                ),
+                                nonce=_require_int(acct.get("nonce", 0), name="perps.chnp.account.nonce"),
+                            )
+                        )
+
+                    pending_entries = entry.get("pending_intents")
+                    if pending_entries is None:
+                        pending_entries = []
+                    if not isinstance(pending_entries, list):
+                        raise TypeError("perps.chnp.pending_intents must be a list")
+                    if len(pending_entries) > max_perp_accounts:
+                        raise ValueError(
+                            "too many perps pending intents in market "
+                            f"{market_id}: {len(pending_entries)} > {max_perp_accounts}"
+                        )
+                    pending_intents: list[PerpClearinghouseNpPendingIntent] = []
+                    for intent in pending_entries:
+                        if not isinstance(intent, Mapping):
+                            raise TypeError("perps.chnp.pending_intents entries must be objects")
+                        pending_intents.append(
+                            PerpClearinghouseNpPendingIntent(
+                                pubkey=_require_str(
+                                    intent.get("pubkey"),
+                                    name="perps.chnp.pending_intent.pubkey",
+                                    non_empty=True,
+                                    max_len=min(512, max_str_len),
+                                ),
+                                target_base=_require_int(
+                                    intent.get("target_base", 0),
+                                    name="perps.chnp.pending_intent.target_base",
+                                    non_negative=False,
+                                ),
+                                limit_price_e8=_require_int(
+                                    intent.get("limit_price_e8", 0),
+                                    name="perps.chnp.pending_intent.limit_price_e8",
+                                ),
+                                min_fill_base=_require_int(
+                                    intent.get("min_fill_base", 0),
+                                    name="perps.chnp.pending_intent.min_fill_base",
+                                ),
+                                expiry_epoch=_require_int(
+                                    intent.get("expiry_epoch", 1 << 62),
+                                    name="perps.chnp.pending_intent.expiry_epoch",
+                                ),
+                                nonce=_require_int(
+                                    intent.get("nonce"),
+                                    name="perps.chnp.pending_intent.nonce",
+                                ),
+                            )
+                        )
+
+                    markets[market_id] = PerpClearinghouseNpMarketState(
+                        kind=PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
+                        quote_asset=quote_asset,
+                        global_state=global_state_dict,
+                        accounts=tuple(np_accounts),
+                        pending_intents=tuple(pending_intents),
                     )
                     continue
 
