@@ -2223,6 +2223,15 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
                         "position_base": int(account.position_base),
                         "collateral_quote": int(account.collateral_quote),
                         "liquidated_this_step": bool(account.liquidated_this_step),
+                        # Surface the account's funded quote-asset wallet balance,
+                        # like the 2p/NP branches — otherwise _account_perps_view
+                        # defaults it to 0 and a funded isolated-perp account shows a
+                        # zero perps balance (Codex F5, sibling of the F4 2p fix).
+                        "quote_balance": _balance_for_asset(
+                            app_state,
+                            pubkey=account_pubkey,
+                            asset_id=market.quote_asset,
+                        ),
                     }
                 )
             item.update(
