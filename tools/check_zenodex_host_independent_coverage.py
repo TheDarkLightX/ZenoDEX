@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from pathlib import Path
 from typing import Any, Mapping
@@ -259,6 +260,8 @@ def _validate_surface(
     if missing_paths:
         errors.append("evidence_paths missing: " + ",".join(missing_paths))
 
+    _validate_checker_commands(checker_commands, repo_root, errors)
+
     return {
         "id": surface_id,
         "ok": not errors,
@@ -273,6 +276,67 @@ def _validate_surface(
         "proof_gap_count": len(proof_gap_refs),
     }
 
+
+def _validate_checker_commands(
+    checker_commands: list[str], repo_root: Path, errors: list[str]
+) -> None:
+    """DbC: covered command targets must be parseable, in-repo, and present."""
+    for command in checker_commands:
+        tokens = _checker_command_tokens(command, errors)
+        if not tokens:
+            continue
+        for target in _checker_command_repo_targets(tokens):
+            _validate_repo_target(target, repo_root, errors)
+
+
+def _checker_command_tokens(command: str, errors: list[str]) -> list[str]:
+    """DbC: shell command text is an input boundary, never executed here."""
+    try:
+        return shlex.split(command)
+    except ValueError as exc:
+        errors.append(f"checker_commands unparsable: {command}: {exc}")
+        return []
+
+
+def _checker_command_repo_targets(tokens: list[str]) -> list[str]:
+    """Return local path operands that materially identify a claimed gate."""
+    if not tokens:
+        return []
+    if tokens[0] in {"bash", "sh", "python", "python3"}:
+        return _interpreter_targets(tokens)
+    if "/" in tokens[0]:
+        return [tokens[0]]
+    return [token for token in tokens[1:] if _looks_like_repo_path(token)]
+
+
+def _interpreter_targets(tokens: list[str]) -> list[str]:
+    for token in tokens[1:]:
+        if token == "-m":
+            return []
+        if token.startswith("-"):
+            continue
+        return [token]
+    return []
+
+
+def _looks_like_repo_path(token: str) -> bool:
+    if token.startswith("-"):
+        return False
+    return token.startswith(("config/", "docs/", "src/", "tests/", "tools/"))
+
+
+def _validate_repo_target(target: str, repo_root: Path, errors: list[str]) -> None:
+    if Path(target).is_absolute():
+        errors.append(f"checker command target must be repo-relative: {target}")
+        return
+    candidate = (repo_root / target).resolve()
+    try:
+        candidate.relative_to(repo_root.resolve())
+    except ValueError:
+        errors.append(f"checker command target escapes repo: {target}")
+        return
+    if not candidate.exists():
+        errors.append(f"checker command target missing: {target}")
 
 def _load_claim_status_by_id(path: Path, errors: list[str]) -> dict[str, str]:
     try:
