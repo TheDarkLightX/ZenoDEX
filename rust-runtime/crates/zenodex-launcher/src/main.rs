@@ -294,13 +294,12 @@ fn ensure_tau_testnet(
     let selection = resolve_tau_selection(globals, &lock)?;
     let tau_path = tau_testnet_path(repo_root);
     if env.file_exists(&tau_path.join(&selection.server_path)) {
-        if selection.pinned && env.file_exists(&tau_path.join(".git").join("HEAD")) {
-            verify_tau_commit(
-                &tau_path,
-                selection.commit.as_deref().unwrap_or_default(),
-                globals.dry_run,
-                env,
-            )?;
+        if selection.pinned {
+            let commit = selection
+                .commit
+                .as_deref()
+                .ok_or_else(|| "internal error: pinned Tau selection has no commit".to_string())?;
+            verify_tau_commit(&tau_path, commit, globals.dry_run, env)?;
         }
         return Ok(());
     }
@@ -552,12 +551,16 @@ fn verify_tau_commit(
     dry_run: bool,
     env: &impl HostEnv,
 ) -> Result<(), String> {
+    if expected_commit.is_empty() {
+        return Err("internal error: pinned Tau selection has an empty commit".to_string());
+    }
     if dry_run {
         println!(
             "+ git -C {} rev-parse HEAD # expect {}",
             tau_path.display(),
             expected_commit
         );
+        println!("+ git -C {} status --porcelain", tau_path.display());
         return Ok(());
     }
     let actual = env.command_output(vec![
@@ -571,6 +574,19 @@ fn verify_tau_commit(
     if actual != expected_commit {
         return Err(format!(
             "Tau checkout is not pinned to expected commit {expected_commit}; found {actual}. Remove {} to let zenodex fetch the locked commit, or pass --allow-unpinned-tau for local development.",
+            tau_path.display()
+        ));
+    }
+    let status = env.command_output(vec![
+        "git".to_string(),
+        "-C".to_string(),
+        tau_path.display().to_string(),
+        "status".to_string(),
+        "--porcelain".to_string(),
+    ])?;
+    if !status.trim().is_empty() {
+        return Err(format!(
+            "Tau checkout has local modifications. Remove {} to let zenodex fetch the locked commit, or pass --allow-unpinned-tau for local development.",
             tau_path.display()
         ));
     }
@@ -878,6 +894,34 @@ mod tests {
         }
     }
 
+    fn tau_rev_parse_command(root: &str) -> String {
+        shell_join(&[
+            "git".to_string(),
+            "-C".to_string(),
+            PathBuf::from(root)
+                .join("external")
+                .join("tau-testnet")
+                .display()
+                .to_string(),
+            "rev-parse".to_string(),
+            "HEAD".to_string(),
+        ])
+    }
+
+    fn tau_status_command(root: &str) -> String {
+        shell_join(&[
+            "git".to_string(),
+            "-C".to_string(),
+            PathBuf::from(root)
+                .join("external")
+                .join("tau-testnet")
+                .display()
+                .to_string(),
+            "status".to_string(),
+            "--porcelain".to_string(),
+        ])
+    }
+
     impl HostEnv for FakeEnv {
         fn env_var(&self, key: &str) -> Option<String> {
             self.vars.get(key).cloned()
@@ -1021,6 +1065,58 @@ server_path=server.py
         let selected = resolve_tau_selection(&globals, &lock).unwrap();
         assert_eq!(selected.commit, None);
         assert!(!selected.pinned);
+    }
+
+    #[test]
+    fn up_rejects_existing_pinned_tau_when_git_verification_fails() {
+        let env = FakeEnv::with_repo("/repo").with_tau();
+        let err = run(vec!["local-testnet".to_string(), "up".to_string()], &env).unwrap_err();
+        assert!(err.contains("missing fake output"));
+        assert!(err.contains("rev-parse"));
+    }
+
+    #[test]
+    fn up_rejects_existing_pinned_tau_with_local_modifications() {
+        let mut env = FakeEnv::with_repo("/repo").with_tau();
+        env.outputs.insert(
+            tau_rev_parse_command("/repo"),
+            TAU_TESTNET_COMMIT.to_string(),
+        );
+        env.outputs
+            .insert(tau_status_command("/repo"), " M server.py\n".to_string());
+        let err = run(vec!["local-testnet".to_string(), "up".to_string()], &env).unwrap_err();
+        assert!(err.contains("local modifications"));
+    }
+
+    #[test]
+    fn up_accepts_existing_pinned_tau_only_when_clean_and_at_expected_commit() {
+        let mut env = FakeEnv::with_repo("/repo").with_tau();
+        env.outputs.insert(
+            tau_rev_parse_command("/repo"),
+            format!("{TAU_TESTNET_COMMIT}\n"),
+        );
+        env.outputs
+            .insert(tau_status_command("/repo"), String::new());
+        run(vec!["local-testnet".to_string(), "up".to_string()], &env).unwrap();
+        let commands = env.commands.borrow();
+        assert_eq!(commands.len(), 1);
+        assert!(commands[0].iter().any(|part| part.ends_with("zenoctl.py")));
+    }
+
+    #[test]
+    fn allow_unpinned_tau_preserves_existing_manual_checkout_escape_hatch() {
+        let env = FakeEnv::with_repo("/repo").with_tau();
+        run(
+            vec![
+                "--allow-unpinned-tau".to_string(),
+                "local-testnet".to_string(),
+                "up".to_string(),
+            ],
+            &env,
+        )
+        .unwrap();
+        let commands = env.commands.borrow();
+        assert_eq!(commands.len(), 1);
     }
 
     #[test]
