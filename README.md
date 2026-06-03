@@ -40,7 +40,7 @@ and Chrome or Chromium if you want browser smoke checks.
 Download, verify, and extract the current release:
 
 ```bash
-ZENODEX_VERSION=0.1.16
+ZENODEX_VERSION=0.1.22
 
 curl -L -o "zenodex-operator-${ZENODEX_VERSION}.tar.gz" \
   "https://github.com/TheDarkLightX/ZenoDEX/releases/download/v${ZENODEX_VERSION}/zenodex-operator-${ZENODEX_VERSION}.tar.gz"
@@ -111,7 +111,7 @@ pinned Tau local-testnet dependency, and delegates to the existing checked
 [docs/NATIVE_INSTALLER_PLAN.md](docs/NATIVE_INSTALLER_PLAN.md).
 
 Latest release page:
-[github.com/TheDarkLightX/ZenoDEX/releases/tag/v0.1.16](https://github.com/TheDarkLightX/ZenoDEX/releases/tag/v0.1.16).
+[github.com/TheDarkLightX/ZenoDEX/releases/tag/v0.1.22](https://github.com/TheDarkLightX/ZenoDEX/releases/tag/v0.1.22).
 Full local-testnet details:
 [docs/LOCAL_TESTNET_QUICKSTART.md](docs/LOCAL_TESTNET_QUICKSTART.md).
 
@@ -465,7 +465,7 @@ Prerequisites:
 Download, verify, and extract the current operator bundle:
 
 ```bash
-ZENODEX_VERSION=0.1.16
+ZENODEX_VERSION=0.1.22
 
 curl -L -o "zenodex-operator-${ZENODEX_VERSION}.tar.gz" \
   "https://github.com/TheDarkLightX/ZenoDEX/releases/download/v${ZENODEX_VERSION}/zenodex-operator-${ZENODEX_VERSION}.tar.gz"
