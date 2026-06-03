@@ -52,6 +52,8 @@ def test_public_testnet_profile_rejects_unsafe_boundary_switches() -> None:
             settlement_validation="legacy",
             allow_snapshot_bound_quote_bindings=True,
             reject_settlements_with_rejected_intents=False,
+            require_all_nonces=False,
+            allow_legacy_nonce_free_steps=True,
         ),
     )
 
@@ -62,6 +64,8 @@ def test_public_testnet_profile_rejects_unsafe_boundary_switches() -> None:
     assert "dex_config.settlement_validation must be strong_proof_carrying" in reasons
     assert "dex_config.allow_snapshot_bound_quote_bindings must be false" in reasons
     assert "dex_config.reject_settlements_with_rejected_intents must be true" in reasons
+    assert "dex_config.require_all_nonces must be true" in reasons
+    assert "dex_config.allow_legacy_nonce_free_steps must be false" in reasons
     assert "allow_unsigned_intents_if_tx_sender_matches must be false" in reasons
 
 
