@@ -14,12 +14,16 @@ def test_load_confidential_feature_status_from_env_defaults(monkeypatch) -> None
     monkeypatch.delenv("CONFIDENTIAL_FEATURE_STAGE", raising=False)
     monkeypatch.delenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", raising=False)
     monkeypatch.delenv("CONFIDENTIAL_APPROVED_MEASUREMENTS_FILE", raising=False)
+    monkeypatch.delenv("CONFIDENTIAL_SEALED_BID_ENABLED", raising=False)
 
     status = load_confidential_feature_status_from_env()
     public = status.to_public_dict()
     assert status.stage == "beta"
     assert public["beta_ready"] is False
     assert public["default_enabled"] is False
+    # The sealed-bid WRITE surface (commit/reveal/settle) is independently
+    # default-OFF: enabling the parent confidential API must not auto-expose it.
+    assert status.sealed_bid_enabled is False
     assert public["fhe_alpha_enabled"] is False
     assert public["approved_measurements_count"] == 0
     assert "approved measurement allowlist is empty" in public["readiness_gaps"]
