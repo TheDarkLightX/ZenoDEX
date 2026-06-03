@@ -106,8 +106,14 @@ function normalizePoolEntry(entry) {
     if (!(reserve0 > 0) || !(reserve1 > 0)) return null;
     const feeRaw = toFiniteNumber(entry.feeBps ?? entry.fee_bps ?? entry.fee_bps_hint ?? 30);
     const feeBps = Number.isFinite(feeRaw) ? Math.max(0, Math.min(500, Math.round(feeRaw))) : 30;
+    const accountBalance0 = toFiniteNumber(entry.accountBalance0 ?? entry.account_balance0);
+    const accountBalance1 = toFiniteNumber(entry.accountBalance1 ?? entry.account_balance1);
     const [assetA, assetB] = [token0, token1].sort();
     const key = `${assetA}-${assetB}`;
+    // Canonicalize to sorted (token0 <= token1) order. When the source order is
+    // reversed we MUST swap the per-account balances alongside the reserves/assets,
+    // otherwise accountBalance0 ends up labelled with the wrong token and the Swap
+    // feed disagrees with the Pool surface (which reads the node order as-is).
     const aligned = token0 === assetA
         ? {
             reserve0,
@@ -116,6 +122,8 @@ function normalizePoolEntry(entry) {
             asset1: rawAsset1 || token1,
             token0,
             token1,
+            accountBalance0,
+            accountBalance1,
         }
         : {
             reserve0: reserve1,
@@ -124,6 +132,8 @@ function normalizePoolEntry(entry) {
             asset1: rawAsset0 || token0,
             token0: token1,
             token1: token0,
+            accountBalance0: accountBalance1,
+            accountBalance1: accountBalance0,
         };
     return {
         key,
@@ -139,8 +149,8 @@ function normalizePoolEntry(entry) {
         reserve0: aligned.reserve0,
         reserve1: aligned.reserve1,
         feeBps,
-        accountBalance0: toFiniteNumber(entry.accountBalance0 ?? entry.account_balance0),
-        accountBalance1: toFiniteNumber(entry.accountBalance1 ?? entry.account_balance1),
+        accountBalance0: aligned.accountBalance0,
+        accountBalance1: aligned.accountBalance1,
     };
 }
 
