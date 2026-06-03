@@ -59,6 +59,19 @@ pub const REJ_SENDER_NOT_BOUND: &str = "sender_not_bound_to_account";
 pub const REJ_ORACLE_ADAPTER: &str = "oracle_adapter_not_accepted";
 pub const REJ_ORACLE_AUTHORIZATION: &str = "oracle_authorization_not_accepted";
 
+/// Mark-price source enum, mirroring `src/core/perp_apply_funding_auto_gate.py`:
+/// `0` = unspecified (not derivatives-safe), `1` = external median (the only
+/// derivatives-safe source). Funding and clearing-price publication both gate on
+/// a derivatives-safe source so the Rust materializer matches the Python
+/// authority bit-for-bit. The field is a shell-preserved global key: every op
+/// passes it through verbatim except `publish_clearing_price`, which sets it from
+/// the op payload (defaulting to external median) after validating it is safe.
+const MARK_PRICE_SOURCE_EXTERNAL_MEDIAN: i128 = 1;
+
+fn is_derivatives_safe_mark_price_source(source_kind: i128) -> bool {
+    source_kind == MARK_PRICE_SOURCE_EXTERNAL_MEDIAN
+}
+
 /// The authority-grade wire format requires this exact schema + version so the
 /// request boundary cannot silently accept a mis-shaped or future payload.
 const SCHEMA_ID: &str = "zenodex/perp_isolated_op/v1";
@@ -98,6 +111,7 @@ const GLOBAL_KEYS: &[&str] = &[
     "clearing_price_seen",
     "clearing_price_epoch",
     "clearing_price_e8",
+    "mark_price_source_kind",
     "oracle_seen",
     "oracle_last_update_epoch",
     "index_price_e8",
@@ -435,9 +449,11 @@ fn materialize_publish_clearing_price(
     op: &Map<String, Value>,
     facts: &Facts,
 ) -> Value {
-    // Reject unknown op fields: publish takes only `action` and `price_e8`.
+    // Reject unknown op fields: publish takes `action`, `price_e8`, and the
+    // optional `mark_price_source_kind` (mirrors the Python isolated handler
+    // `_apply_isolated_publish_clearing_price`, whose allowed set includes it).
     for k in op.keys() {
-        if k != "action" && k != "price_e8" {
+        if k != "action" && k != "price_e8" && k != "mark_price_source_kind" {
             return reject(REJ_UNKNOWN_OP_FIELD);
         }
     }
@@ -476,6 +492,23 @@ fn materialize_publish_clearing_price(
         Some(Ok(v)) => v,
         _ => return reject(REJ_BAD_REQUEST),
     };
+    // Mirror the Python isolated handler exactly: default to external median when
+    // the op omits the field, require a non-negative int (Python `_require_int`
+    // raises `<name> must be non-negative`), then require a derivatives-safe
+    // source — checked BEFORE the kernel guard, matching Python's order.
+    let mark_price_source_kind = match op.get("mark_price_source_kind") {
+        None => MARK_PRICE_SOURCE_EXTERNAL_MEDIAN,
+        Some(v) => match as_i128(v) {
+            Ok(n) => n,
+            Err(e) => return reject(e),
+        },
+    };
+    if mark_price_source_kind < 0 {
+        return reject("mark_price_source_kind must be non-negative");
+    }
+    if !is_derivatives_safe_mark_price_source(mark_price_source_kind) {
+        return reject("publish_clearing_price requires derivatives-safe mark_price_source_kind");
+    }
     match publish_clearing_price(&PublishClearingPriceInput {
         now_epoch,
         epoch_phase,
@@ -501,6 +534,14 @@ fn materialize_publish_clearing_price(
             global.insert(
                 "clearing_price_e8".into(),
                 Value::String(out.clearing_price_e8.to_string()),
+            );
+            // Mirror the Python publish post-state: `_split_kernel_state` resets
+            // `mark_price_source_kind`, then the handler re-applies the op's
+            // (defaulted, validated derivatives-safe) value
+            // (`new_global["mark_price_source_kind"] = mark_price_source_kind`).
+            global.insert(
+                "mark_price_source_kind".into(),
+                Value::String(mark_price_source_kind.to_string()),
             );
             match global_op_effect(&global, "ClearingPricePublished") {
                 Ok(effects) => accept(quote_asset, &global, &accounts, effects),
@@ -1272,6 +1313,7 @@ fn funding_gate_preconditions(
         .get("clearing_price_seen")
         .ok_or(REJ_BAD_REQUEST)
         .and_then(as_bool)?;
+    let mark_price_source_kind = gget(global, "mark_price_source_kind")?;
     let clearing_epoch = gget(global, "clearing_price_epoch")?;
     let oracle_last = gget(global, "oracle_last_update_epoch")?;
     let oracle_seen = bget(global, "oracle_seen")?;
@@ -1283,6 +1325,12 @@ fn funding_gate_preconditions(
 
     if !clearing_seen {
         return Err("cannot apply funding before clearing price is published");
+    }
+    // Mirrors the Python gate order (clearing_price_seen -> mark_price_source_kind
+    // -> clearing_price_epoch -> ...): funding may only settle against a
+    // derivatives-safe mark-price source.
+    if !is_derivatives_safe_mark_price_source(mark_price_source_kind) {
+        return Err("cannot apply funding: mark_price_source_kind is not derivatives-safe");
     }
     if clearing_epoch != now {
         return Err("cannot apply funding: clearing price is not for current epoch");
@@ -1669,6 +1717,7 @@ mod tests {
             "oracle_last_update_epoch": now.to_string(), "oracle_seen": true,
             "clearing_price_seen": true, "clearing_price_epoch": now.to_string(),
             "clearing_price_e8": "100000000", "index_price_e8": "100000000",
+            "mark_price_source_kind": "1",
             "breaker_active": false, "breaker_last_trigger_epoch": "0",
             "max_oracle_staleness_epochs": "100", "max_oracle_move_bps": "500",
             "initial_margin_bps": "1000", "maintenance_margin_bps": "500",
@@ -1687,6 +1736,7 @@ mod tests {
             "oracle_last_update_epoch": (now - 1).to_string(), "oracle_seen": true,
             "clearing_price_seen": false, "clearing_price_epoch": "0",
             "clearing_price_e8": "0", "index_price_e8": "100000000",
+            "mark_price_source_kind": "1",
             "breaker_active": false, "breaker_last_trigger_epoch": "0",
             "max_oracle_staleness_epochs": "100", "max_oracle_move_bps": "500",
             "initial_margin_bps": "1000", "maintenance_margin_bps": "500",
@@ -1720,6 +1770,7 @@ mod tests {
             "oracle_last_update_epoch": (now - 1).to_string(), "oracle_seen": true,
             "clearing_price_seen": true, "clearing_price_epoch": now.to_string(),
             "clearing_price_e8": "101000000", "index_price_e8": "100000000",
+            "mark_price_source_kind": "1",
             "breaker_active": false, "breaker_last_trigger_epoch": "0",
             "max_oracle_staleness_epochs": "100", "max_oracle_move_bps": "500",
             "initial_margin_bps": "1000", "maintenance_margin_bps": "500",
@@ -3279,7 +3330,8 @@ mod tests {
         let g = json!({
             "now_epoch": "5", "epoch_phase": "0", "oracle_last_update_epoch": "4",
             "oracle_seen": true, "clearing_price_seen": false, "clearing_price_epoch": "0",
-            "clearing_price_e8": "0", "index_price_e8": "100000000", "breaker_active": false,
+            "clearing_price_e8": "0", "index_price_e8": "100000000",
+            "mark_price_source_kind": "1", "breaker_active": false,
             "breaker_last_trigger_epoch": "0", "max_oracle_staleness_epochs": "100",
             "max_oracle_move_bps": "500", "initial_margin_bps": "1000",
             "maintenance_margin_bps": "500", "depeg_buffer_bps": "100",
@@ -3323,6 +3375,144 @@ mod tests {
         assert_eq!(
             materialize_isolated_op(&r)["reject_reason"],
             json!(REJ_BAD_REQUEST)
+        );
+    }
+
+    #[test]
+    fn global_state_without_mark_price_source_kind_rejects() {
+        // The Python authority schema (`PERP_ISOLATED_GLOBAL_KEYS`) includes
+        // `mark_price_source_kind`; a request omitting it is malformed.
+        let mut g = settled_global(5);
+        g.as_object_mut().unwrap().remove("mark_price_source_kind");
+        let r = materialize_isolated_op(&req(
+            g,
+            json!({"action": "advance_epoch", "delta": "1"}),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(r["reject_reason"], json!(REJ_BAD_REQUEST));
+    }
+
+    #[test]
+    fn mark_price_source_kind_passes_through_advance_epoch() {
+        // A shell-preserved global key: every non-publish op carries it verbatim.
+        let r = materialize_isolated_op(&req(
+            settled_global(5),
+            json!({"action": "advance_epoch", "delta": "1"}),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        assert_eq!(
+            r["post"]["global_state"]["mark_price_source_kind"],
+            json!("1")
+        );
+    }
+
+    #[test]
+    fn publish_clearing_price_post_is_external_median_source() {
+        // publish materializes the external-median source into the post state,
+        // mirroring the Python handler's `_split_kernel_state` + op default.
+        let r = materialize_isolated_op(&req(
+            open_global(5),
+            json!({"action": "publish_clearing_price", "price_e8": "100000000"}),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        assert_eq!(
+            r["post"]["global_state"]["mark_price_source_kind"],
+            json!("1")
+        );
+    }
+
+    #[test]
+    fn publish_accepts_explicit_derivatives_safe_source_op_field() {
+        // Codex F1: the Python isolated handler allows `mark_price_source_kind` as
+        // a publish OP field (default external median). A request that forwards the
+        // explicit derivatives-safe value must be ACCEPTED (not rejected as an
+        // unknown op field), with the op's value in the post state.
+        let r = materialize_isolated_op(&req(
+            open_global(5),
+            json!({
+                "action": "publish_clearing_price",
+                "price_e8": "101000000",
+                "mark_price_source_kind": "1"
+            }),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        assert_eq!(
+            r["post"]["global_state"]["mark_price_source_kind"],
+            json!("1")
+        );
+        assert_eq!(
+            r["post"]["global_state"]["clearing_price_seen"],
+            json!(true)
+        );
+    }
+
+    #[test]
+    fn publish_rejects_non_derivatives_safe_source_op_field() {
+        // A non-derivatives-safe source (0 = unspecified) fails closed with the
+        // EXACT Python reject string (perp_engine `_apply_isolated_publish_...`),
+        // checked before the kernel guard.
+        let r = materialize_isolated_op(&req(
+            open_global(5),
+            json!({
+                "action": "publish_clearing_price",
+                "price_e8": "101000000",
+                "mark_price_source_kind": "0"
+            }),
+            true,
+        ));
+        assert_eq!(
+            r["reject_reason"],
+            json!("publish_clearing_price requires derivatives-safe mark_price_source_kind")
+        );
+        assert!(r.get("post").is_none());
+    }
+
+    #[test]
+    fn publish_rejects_negative_source_op_field() {
+        // A negative source is rejected as non-negative FIRST (Python `_require_int`
+        // raises `<name> must be non-negative` before the derivatives-safe check).
+        let r = materialize_isolated_op(&req(
+            open_global(5),
+            json!({
+                "action": "publish_clearing_price",
+                "price_e8": "101000000",
+                "mark_price_source_kind": "-1"
+            }),
+            true,
+        ));
+        assert_eq!(
+            r["reject_reason"],
+            json!("mark_price_source_kind must be non-negative")
+        );
+        assert!(r.get("post").is_none());
+    }
+
+    #[test]
+    fn apply_funding_auto_rejects_non_derivatives_safe_mark_price_source() {
+        // Funding may only settle against a derivatives-safe mark-price source
+        // (external median). An unspecified (0) source fails closed with the exact
+        // Python reject string, ordered right after the clearing_price_seen gate.
+        let mut g = price_published_global(5);
+        g["mark_price_source_kind"] = json!("0");
+        let accounts = json!([acct_json("aa", 300_000, 1_000_000, 100_000_000)]);
+        let r = materialize_isolated_op(&req_accts(
+            g,
+            json!({"action": "apply_funding_auto"}),
+            accounts,
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false), "{r}");
+        assert_eq!(
+            r["reject_reason"],
+            json!("cannot apply funding: mark_price_source_kind is not derivatives-safe")
+        );
+        assert!(
+            r.get("post").is_none(),
+            "reject must not carry a post-state"
         );
     }
 }
