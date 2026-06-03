@@ -82,6 +82,8 @@ def _safe_core_config(base: DexConfig) -> DexConfig:
         settlement_validation="strong_proof_carrying",
         allow_snapshot_bound_quote_bindings=False,
         reject_settlements_with_rejected_intents=True,
+        require_all_nonces=True,
+        allow_legacy_nonce_free_steps=False,
     )
 
 
