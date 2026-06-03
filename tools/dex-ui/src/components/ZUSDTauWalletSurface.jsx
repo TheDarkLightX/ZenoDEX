@@ -97,11 +97,23 @@ function ZUSDTauWalletSurface({ wallet = null }) {
   // between wallet switches are preserved — we only react to identity changes.
   const prevWalletRef = useRef(connectedAccount);
   useEffect(() => {
-    if (connectedAccount && connectedAccount !== prevWalletRef.current) {
+    const previous = prevWalletRef.current;
+    if (connectedAccount && connectedAccount !== previous) {
       prevWalletRef.current = connectedAccount;
-      setForm((curr) => ({ ...curr, sender_pubkey: connectedAccount }));
-    } else if (!connectedAccount) {
+      // Rebind only the auto-bound value (empty, or the prior wallet) — never
+      // clobber a genuine manual edit.
+      setForm((curr) =>
+        !curr.sender_pubkey || curr.sender_pubkey === previous
+          ? { ...curr, sender_pubkey: connectedAccount }
+          : curr,
+      );
+    } else if (!connectedAccount && previous) {
       prevWalletRef.current = '';
+      // On disconnect, clear ONLY if the field still holds the disconnected
+      // wallet (so a manual edit survives).
+      setForm((curr) =>
+        curr.sender_pubkey === previous ? { ...curr, sender_pubkey: '' } : curr,
+      );
     }
   }, [connectedAccount]);
 
