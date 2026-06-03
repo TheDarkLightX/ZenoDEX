@@ -19,7 +19,7 @@ from email.message import EmailMessage
 from email.utils import make_msgid
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple, cast
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from ..core.dex import DexState
 from ..core.perps import PerpClearinghouse2pMarketState, PerpClearinghouseNpMarketState, PerpMarketState
@@ -834,6 +834,19 @@ def _require_production_oracle_authority_for_action(action: str, *, chain_id: st
         return False
     default = not _is_local_chain_id(chain_id or _tau_chain_id())
     return _env_bool("PERPS_WALLET_REQUIRE_PRODUCTION_ORACLE_AUTHORITY", default)
+
+
+def _query_first(query: str, key: str) -> str | None:
+    """Return the first value for ``key`` in a URL query string, or None.
+
+    Blank values are treated as absent so an empty ``?account=`` behaves like an
+    unauthenticated status request rather than a malformed account.
+    """
+    values = parse_qs(query).get(key)
+    if not values:
+        return None
+    first = values[0].strip()
+    return first or None
 
 
 def _canonical_pubkey(value: object, *, name: str) -> str:
@@ -2230,6 +2243,64 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
     return summaries
 
 
+def _account_perps_view(markets: list[dict[str, Any]], account: str) -> dict[str, Any]:
+    """Derive the connected account's positions/collateral/balances across markets.
+
+    Reuses the already-built ``markets`` summaries (no extra Tau reads). The account
+    is matched case-insensitively against the per-market account pubkeys. The returned
+    view is what makes the perps surface account-aware in the same way the pool surface
+    resolves balances for a connected wallet.
+    """
+    target = account.strip().lower()
+    positions: list[dict[str, Any]] = []
+    total_collateral_e8 = 0
+    for market in markets:
+        market_id = market.get("market_id")
+        quote_asset = market.get("quote_asset")
+        # Clearinghouse 2p markets expose account_a / account_b inline.
+        for slot in ("a", "b"):
+            slot_pubkey = market.get(f"account_{slot}_pubkey")
+            if isinstance(slot_pubkey, str) and slot_pubkey.strip().lower() == target:
+                collateral_e8 = int(market.get(f"collateral_e8_{slot}", 0))
+                total_collateral_e8 += collateral_e8
+                positions.append(
+                    {
+                        "market_id": market_id,
+                        "quote_asset": quote_asset,
+                        "kind": market.get("kind"),
+                        "position_base": int(market.get(f"position_base_{slot}", 0)),
+                        "collateral_e8": collateral_e8,
+                        "quote_balance": int(market.get(f"account_{slot}_quote_balance", 0)),
+                    }
+                )
+        # NP / isolated markets expose an accounts list.
+        for account_entry in market.get("accounts", []) or []:
+            if not isinstance(account_entry, Mapping):
+                continue
+            entry_pubkey = account_entry.get("account_pubkey")
+            if isinstance(entry_pubkey, str) and entry_pubkey.strip().lower() == target:
+                collateral_e8 = int(
+                    account_entry.get("collateral_e8", account_entry.get("collateral_quote", 0))
+                )
+                total_collateral_e8 += collateral_e8
+                positions.append(
+                    {
+                        "market_id": market_id,
+                        "quote_asset": quote_asset,
+                        "kind": market.get("kind"),
+                        "position_base": int(account_entry.get("position_base", 0)),
+                        "collateral_e8": collateral_e8,
+                        "quote_balance": int(account_entry.get("quote_balance", 0)),
+                    }
+                )
+    return {
+        "account": account,
+        "position_count": len(positions),
+        "total_collateral_e8": total_collateral_e8,
+        "positions": positions,
+    }
+
+
 def _local_perps_oracle_bridge_fixture(
     *,
     app_state: Mapping[str, Any],
@@ -2953,7 +3024,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     return _redact_response_authority_material(payload)
 
 
-def _status_payload() -> Dict[str, Any]:
+def _status_payload(account: str | None = None) -> Dict[str, Any]:
     chain_id = _tau_chain_id()
     wallet_authority_profile, wallet_authority_error = _wallet_authority_profile_from_env()
     wallet_authority = evaluate_perps_wallet_authority_profile_v1(
@@ -3216,6 +3287,9 @@ def _status_payload() -> Dict[str, Any]:
         status["app_bridge_available"] = bool(app_state or app_hash)
         status["market_count"] = len(markets)
         status["markets"] = markets
+        if account:
+            status["account"] = account
+            status["account_view"] = _account_perps_view(markets, account)
     except Exception as exc:
         status["node_reachable"] = False
         status["error"] = f"{type(exc).__name__}: {exc}"
@@ -3231,7 +3305,14 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
     rest = segments[3:]
     try:
         if method == "GET" and rest == ["status"]:
-            return 200, {"ok": True, "status": _status_payload()}
+            # Account-aware status: the connected wallet's positions/collateral are
+            # resolved for the ?account=<pubkey> query (mirrors the pool surface).
+            # Fail closed on a malformed account rather than silently dropping it.
+            account_param = _query_first(parsed_path.query, "account")
+            account: str | None = None
+            if account_param:
+                account = _canonical_pubkey(account_param, name="account")
+            return 200, {"ok": True, "status": _status_payload(account)}
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
         parsed, err = _parse_json_body(body)

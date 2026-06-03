@@ -1139,6 +1139,73 @@ class _TauRpcGatedSendSuccessHandler(_TauRpcHandler):
         super()._dispatch_line(line)
 
 
+class _AccountStatusFakeClient:
+    """Minimal in-process Tau client serving a fixed wrapped app_state.
+
+    Exercises the account-aware perps wallet status handler end-to-end without a
+    live Tau node or Chrome (the browser tests below need both).
+    """
+
+    app_state_json: str = ""
+
+    def __init__(self, _cfg=None) -> None:
+        self.app_hash = "sha256:" + "ab" * 32
+
+    def rpc(self, cmd: str) -> str:
+        if cmd == "hello version=1":
+            return "HELLO: ok"
+        raise AssertionError(f"unexpected rpc call: {cmd}")
+
+    def getappstate(self, *, full: bool = False) -> str:
+        assert full is True
+        return json.dumps(
+            {"app_hash": self.app_hash, "app_state": json.loads(self.app_state_json)},
+            sort_keys=True,
+        )
+
+
+def test_perps_wallet_status_propagates_account_end_to_end(monkeypatch) -> None:
+    import src.integration.perps_wallet_api as perps_wallet_api
+
+    chain_id = "tau-test-perps-wallet-bridge"
+    account_a_privkey = 83
+    account_b_privkey = 84
+    account_a_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_a_privkey)
+    oracle_pubkey = "0x" + bls_pubkey_hex_from_privkey(85)
+    quote_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
+    market_id = "perp:ch2p:bridge"
+
+    state = _advanced_market_state(
+        chain_id=chain_id,
+        market_id=market_id,
+        quote_asset=quote_asset,
+        account_a_privkey=account_a_privkey,
+        account_b_privkey=account_b_privkey,
+        oracle_pubkey=oracle_pubkey,
+    )
+    state.balances.set(account_a_pubkey, quote_asset, 5_000)
+    _AccountStatusFakeClient.app_state_json = _initial_app_state_json(state)
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", chain_id)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _AccountStatusFakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "GET", f"/api/perps/wallet/status?account={account_a_pubkey}", None
+    )
+    assert status_code == 200
+    view = payload["status"]["account_view"]
+    assert view["account"] == account_a_pubkey
+    funded = [p for p in view["positions"] if int(p["quote_balance"]) == 5_000]
+    assert funded, view["positions"]
+    assert funded[0]["market_id"] == market_id
+
+    # Malformed account fails closed.
+    bad_code, bad_payload = perps_wallet_api.handle_perps_wallet_request(
+        "GET", "/api/perps/wallet/status?account=not-a-pubkey", None
+    )
+    assert bad_code == 400
+    assert bad_payload["ok"] is False
+
+
 def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
     chrome = _chrome_binary()
     if chrome is None:
