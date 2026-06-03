@@ -982,6 +982,8 @@ class _Handler(BaseHTTPRequestHandler):
             return 96_000
         if path.startswith("/api/confidential/attestation/"):
             return 96_000
+        if path.startswith("/api/confidential/sealed-bid/"):
+            return 65_536
         return 65_536
 
     def _perps_state(self) -> Any:
@@ -1158,6 +1160,55 @@ class _Handler(BaseHTTPRequestHandler):
                 path,
                 raw_body,
                 request_table=request_table,
+            )
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
+    def _maybe_handle_confidential_sealed_bid_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/confidential/sealed-bid/"):
+            return False
+        # Gate the whole local sealed-bid surface behind the same env flag as the
+        # attestation API, and additionally require sealed_bid_enabled in the
+        # operator status. Fail-closed: if either is off, the route is invisible.
+        if not getattr(self.server, "confidential_attestation_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+
+        status_doc = getattr(self.server, "confidential_feature_status", None)  # type: ignore[attr-defined]
+        sealed_bid_enabled = bool(isinstance(status_doc, dict) and status_doc.get("sealed_bid_enabled") is True)
+
+        from src.integration.confidential_sealed_bid_api import (
+            handle_confidential_sealed_bid_request,
+        )
+
+        batch_table = getattr(self.server, "confidential_sealed_bid_table", None)  # type: ignore[attr-defined]
+        request_lock = getattr(self.server, "confidential_request_lock", None)  # type: ignore[attr-defined]
+        if batch_table is None:
+            self._write_json(503, {"ok": False, "error": "sealed_bid_table_unavailable"}, cors_origin=cors_origin)
+            return True
+
+        # Hold the mutex across mutating calls so the in-memory batch table is
+        # updated atomically per request (admit/execute pattern from attestation).
+        if method == "POST" and request_lock is not None:
+            with request_lock:
+                status, resp = handle_confidential_sealed_bid_request(
+                    method,
+                    path,
+                    raw_body,
+                    batch_table=batch_table,
+                    sealed_bid_enabled=sealed_bid_enabled,
+                )
+        else:
+            status, resp = handle_confidential_sealed_bid_request(
+                method,
+                path,
+                raw_body,
+                batch_table=batch_table,
+                sealed_bid_enabled=sealed_bid_enabled,
             )
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
@@ -6702,6 +6753,8 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if self._maybe_handle_confidential_attestation_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
             return
+        if self._maybe_handle_confidential_sealed_bid_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
+            return
 
         self._write_json(404, {"ok": False, "error": "not_found"}, cors_origin=cors_origin)
 
@@ -6720,6 +6773,7 @@ class _Handler(BaseHTTPRequestHandler):
             or path.startswith("/api/dex/")
             or path.startswith("/api/strategy/autotrader/")
             or path.startswith("/api/confidential/attestation/")
+            or path.startswith("/api/confidential/sealed-bid/")
         ):
             ctype = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
             if ctype and ctype != "application/json":
@@ -6737,6 +6791,8 @@ class _Handler(BaseHTTPRequestHandler):
         if self._maybe_handle_autotrader_live_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
         if self._maybe_handle_confidential_attestation_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
+            return
+        if self._maybe_handle_confidential_sealed_bid_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
         if self._maybe_handle_dex_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
@@ -7064,6 +7120,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     httpd.confidential_feature_status = confidential_feature_status  # type: ignore[attr-defined]
     httpd.confidential_request_table = ConfidentialRequestTable()  # type: ignore[attr-defined]
     httpd.confidential_request_lock = threading.Lock()  # type: ignore[attr-defined]
+    from src.integration.confidential_sealed_bid_api import SealedBidBatchTable  # pylint: disable=import-outside-toplevel
+
+    httpd.confidential_sealed_bid_table = SealedBidBatchTable()  # type: ignore[attr-defined]
 
     startup_line = (
         f"zenodex-api listening on http://{host}:{port} "
