@@ -350,13 +350,11 @@ function ZUSDMonetarySurface({ wallet = null }) {
     if (connectedAccount && connectedAccount !== previous) {
       prevWalletRef.current = connectedAccount;
       walletEverConnectedRef.current = true;
-      // Rebind only the auto-bound value (empty, or the prior wallet) — never
-      // clobber a genuine manual edit.
-      setForm((curr) =>
-        !curr.actor_pubkey || curr.actor_pubkey === previous
-          ? { ...curr, actor_pubkey: connectedAccount }
-          : curr,
-      );
+      // Connecting/switching a wallet is a deliberate action: the connected
+      // account always takes over the field — overriding empty, the vault-owner
+      // convenience prefill, or any stale prior value. The field stays editable
+      // for inspection while this wallet remains connected.
+      setForm((curr) => ({ ...curr, actor_pubkey: connectedAccount }));
     } else if (!connectedAccount && previous) {
       prevWalletRef.current = '';
       // On disconnect, clear ONLY if the field still holds the disconnected

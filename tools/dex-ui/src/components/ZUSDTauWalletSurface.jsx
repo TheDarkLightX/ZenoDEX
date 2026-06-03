@@ -100,13 +100,10 @@ function ZUSDTauWalletSurface({ wallet = null }) {
     const previous = prevWalletRef.current;
     if (connectedAccount && connectedAccount !== previous) {
       prevWalletRef.current = connectedAccount;
-      // Rebind only the auto-bound value (empty, or the prior wallet) — never
-      // clobber a genuine manual edit.
-      setForm((curr) =>
-        !curr.sender_pubkey || curr.sender_pubkey === previous
-          ? { ...curr, sender_pubkey: connectedAccount }
-          : curr,
-      );
+      // Connecting/switching a wallet is a deliberate action: the connected
+      // account always takes over the field — overriding empty or any stale
+      // prior value. The field stays editable for inspection while connected.
+      setForm((curr) => ({ ...curr, sender_pubkey: connectedAccount }));
     } else if (!connectedAccount && previous) {
       prevWalletRef.current = '';
       // On disconnect, clear ONLY if the field still holds the disconnected
