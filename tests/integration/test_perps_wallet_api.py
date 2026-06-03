@@ -4126,6 +4126,34 @@ def test_status_is_account_aware_for_funded_account(monkeypatch) -> None:
     assert funded[0]["quote_asset"] == quote_asset
 
 
+def test_isolated_market_account_view_surfaces_quote_balance(monkeypatch) -> None:
+    # Codex F5 (sibling of the 2p F4 fix): an isolated PerpMarketState account with a
+    # funded quote-asset wallet balance must surface that balance in
+    # account_view.positions like the 2p/NP branches do, not default to zero.
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    state = _state_with_isolated_liquidatable_account(quote_asset=quote_asset)
+    state.balances.set(ALICE, quote_asset, 5_000)
+    _FakeClient.app_state = _wrapped_app_state(state)
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "1")
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "GET",
+        f"/api/perps/wallet/status?account={ALICE}",
+        None,
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    view = payload["status"]["account_view"]
+    isolated = [p for p in view["positions"] if p["market_id"] == ISOLATED_MARKET_ID]
+    assert isolated, view["positions"]
+    # F5: was 0 before surfacing the funded balance for the isolated branch.
+    assert int(isolated[0]["quote_balance"]) == 5_000
+
+
 def test_status_without_account_omits_account_view(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))
