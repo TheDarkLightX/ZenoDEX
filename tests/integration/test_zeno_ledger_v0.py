@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from src.core.dex import DexState
+from src.integration.dex_engine import DexEngineConfig
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
     BODY_SCHEMA_V0,
@@ -24,6 +26,7 @@ from src.integration.zeno_ledger_v0 import (
     hash_v0,
     merkle_root_v0,
     proof_metadata_hash_v0,
+    apply_body_transactions_v0,
     validate_checkpoint_header_binding_v0,
     validate_body_v0,
     validate_header_body_roots_v0,
@@ -31,6 +34,8 @@ from src.integration.zeno_ledger_v0 import (
     validate_proof_metadata_header_binding_v0,
     validate_proof_metadata_v0,
 )
+from src.state.balances import BalanceTable
+from src.state.lp import LPTable
 
 
 ZERO_ROOT = "0x" + "00" * 32
@@ -235,6 +240,24 @@ def test_body_ingress_evidence_and_header_mutations_change_roots() -> None:
     assert compute_evidence_root_v0(mutated_evidence) != base_evidence_root
 
     assert canonical_header_hash_v0(_header(tx_root=_root("different-tx-root"))) != base_header_hash
+
+
+def test_apply_body_transactions_recomputes_rejection_receipts() -> None:
+    body = _body(txs=[{"tx_id": "bad", "tx_sender_pubkey": "0x" + "aa" * 48}])
+    stale_receipt = {"receipt_root": _root("stale-peer-rejection")}
+    body["evidence"]["rejection_receipts"] = [stale_receipt]  # type: ignore[index]
+    pre_state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+
+    _post_state, executed_body, receipts = apply_body_transactions_v0(
+        state=pre_state,
+        body=body,
+        config=DexEngineConfig(chain_id="zeno-ledger-devnet-0"),
+    )
+
+    rejection_receipts = executed_body["evidence"]["rejection_receipts"]
+    assert len(rejection_receipts) == 1
+    assert rejection_receipts == receipts
+    assert stale_receipt not in rejection_receipts
 
 
 def test_header_body_root_verifier_accepts_matching_body() -> None:

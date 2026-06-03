@@ -7,6 +7,7 @@ from src.core.dex import DexState
 from src.core.zusd import E8, ZUSDCommand, init_state, step
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
+from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
 from src.integration.zusd_monetary_bridge import (
     ZUSDMonetaryState,
     zusd_monetary_sender_nonce_key,
@@ -15,6 +16,7 @@ from src.integration.zusd_monetary_bridge import (
 )
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
+from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 import src.integration.zusd_monetary_wallet_api as monetary_api
 
 
@@ -84,6 +86,43 @@ class _FakeClient:
 
     def createblock(self) -> str:
         return "BLOCK created"
+
+
+def _authorization_for_runtime(
+    runtime: dict[str, object],
+    *,
+    value_e8: int | None = None,
+    evidence_class: str = "O3",
+    expires_at_epoch: int | None = None,
+) -> dict[str, object]:
+    query_id = str(runtime["query_id"])
+    now_epoch = int(runtime["now_epoch"])
+    observed_epoch = max(0, now_epoch - 1)
+    value = int(runtime["runtime_value_e8"] if value_e8 is None else value_e8)
+    auth = {
+        "consumer_module": str(runtime["consumer_module"]),
+        "action_kind": str(runtime["action_kind"]),
+        "action_id": str(runtime["action_id"]),
+        "action_facts_hash": str(runtime["action_facts_hash"]),
+        "pre_state_hash": str(runtime["pre_state_hash"]),
+        "profile_id": str(runtime["profile_id"]),
+        "query_id": query_id,
+        "value_e8": value,
+        "value_hash": oracle_value_hash(query_id=query_id, value_e8=value, observed_epoch=observed_epoch),
+        "confidence_e8": 1,
+        "deviation_bps": 1,
+        "observed_epoch": observed_epoch,
+        "expires_at_epoch": int(now_epoch if expires_at_epoch is None else expires_at_epoch),
+        "feed_id": "feed:zusd-collateral-price:v1",
+        "feed_registry_root": semantic_hash("test.feed-root", {"surface": "zusd-monetary"}),
+        "query_policy_root": semantic_hash("test.query-policy-root", {"surface": "zusd-monetary"}),
+        "source_registry_root": semantic_hash("test.source-root", {"surface": "zusd-monetary"}),
+        "reporter_registry_root": semantic_hash("test.reporter-root", {"surface": "zusd-monetary"}),
+        "evidence_class": evidence_class,
+        "economic_envelope_id": semantic_hash("test.economic-envelope", {"surface": "zusd-monetary"}),
+        "receipt_graph_root": semantic_hash("test.receipt-graph-root", {"surface": "zusd-monetary"}),
+    }
+    return authorization_bundle(auth)
 
 
 def test_status_reports_zusd_monetary_state_from_wrapped_app_state(monkeypatch) -> None:
@@ -283,6 +322,133 @@ def test_prepare_mint_uses_monetary_nonce_and_preflights_stream_11(monkeypatch) 
     assert payload["proof"]["intent_receipt"]["body"]["action"] == "mint_zusd"
     assert payload["proof"]["zk_wrapper"]["required"] is False
     assert payload["proof"]["zk_wrapper"]["zk_proof_verified"] is False
+    oracle_runtime = payload["oracle_runtime"]
+    assert oracle_runtime["required"] is False
+    assert oracle_runtime["consumer_module"] == "zenodex.zusd"
+    assert oracle_runtime["action_kind"] == "mint"
+    assert oracle_runtime["runtime_value_e8"] == 100 * E8
+    assert oracle_runtime["runtime_action"]["query_id"].startswith("sha256:")
+
+
+def test_oracle_runtime_endpoint_returns_mint_binding_without_zk(monkeypatch) -> None:
+    chain_id = "tau-test-zusd-monetary"
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", chain_id)
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_REQUIRE_ZK_PROOF", "1")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+    }
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/oracle-runtime",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert "zk_wrapper" not in payload["proof"]
+    runtime = payload["oracle_runtime"]["runtime_action"]
+    assert runtime["consumer_module"] == "zenodex.zusd"
+    assert runtime["action_kind"] == "mint"
+    assert runtime["profile_id"].startswith("sha256:")
+    assert runtime["query_id"].startswith("sha256:")
+    assert runtime["runtime_value_e8"] == 100 * E8
+
+
+def test_prepare_mint_requires_oracle_authorization_when_enabled(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED", "1")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+    }
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {"ok": False, "error": "oracle_authorization_required"}
+
+
+def test_prepare_mint_accepts_bound_oracle_authorization_when_enabled(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED", "1")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+    }
+    status_code, runtime_payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/oracle-runtime",
+        json.dumps(body).encode("utf-8"),
+    )
+    assert status_code == 200
+    auth = _authorization_for_runtime(runtime_payload["oracle_runtime"]["runtime_action"])
+
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps({**body, "oracle_authorization": auth}).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["oracle_runtime"]["required"] is True
+    assert payload["oracle_runtime"]["authorization_check"]["typed_ok"] is True
+
+
+def test_prepare_mint_rejects_wrong_oracle_authorization_value(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED", "1")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+    }
+    status_code, runtime_payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/oracle-runtime",
+        json.dumps(body).encode("utf-8"),
+    )
+    assert status_code == 200
+    runtime = runtime_payload["oracle_runtime"]["runtime_action"]
+    auth = _authorization_for_runtime(runtime, value_e8=int(runtime["runtime_value_e8"]) + 1)
+
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps({**body, "oracle_authorization": auth}).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert str(payload["error"]).startswith("oracle_authorization_rejected:")
+    assert "runtime_value_e8 mismatch" in str(payload["error"])
 
 
 def test_prepare_mint_requires_zk_proof_when_enabled(monkeypatch) -> None:

@@ -842,13 +842,20 @@ def zusd_op(
     *,
     state: dict[str, Any],
     tx: dict[str, Any],
+    facts: dict[str, Any] | None = None,
+    require_oracle_authorization: bool = False,
     timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
     """Rust zUSD single-vault transition from an explicit state."""
 
+    request: dict[str, Any] = {"version": 1, "state": state, "tx": tx}
+    if facts is not None:
+        request["facts"] = facts
+    if require_oracle_authorization:
+        request["require_oracle_authorization"] = True
     out = invoke(
         "zusd-op",
-        {"version": 1, "state": state, "tx": tx},
+        request,
         timeout_seconds=timeout_seconds,
     )
     if not isinstance(out, dict):

@@ -30,6 +30,7 @@ oracle_policy:
   dex_routing_oracle_adapter_required: true
   zusd_oracle_adapter_required: true
   zusd_oracle_authorization_required: true
+  zusd_monetary_wallet_oracle_authorization_required: true
   perps_clearinghouse_settle_oracle_adapter_required: true
   perps_clearinghouse_settle_oracle_authorization_required: true
   perps_isolated_settle_oracle_adapter_required: true

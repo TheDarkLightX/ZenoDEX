@@ -267,3 +267,42 @@ def test_trusted_core_invokers_reject_extra_nested_fields(monkeypatch):
         monkeypatch.setattr(rust_invoker, "invoke", lambda *args, _mutated=mutated, **kwargs: _mutated)
         with pytest.raises(rust_invoker.RustInvocationError, match="unexpected fields"):
             call()
+
+
+def test_zusd_invoker_forwards_production_oracle_gate_fields(monkeypatch):
+    captured: dict[str, Any] = {}
+
+    def fake_invoke(subcommand, request, **kwargs):
+        captured["subcommand"] = subcommand
+        captured["request"] = request
+        return {
+            "version": 1,
+            "kernel": "zusd",
+            "accept": False,
+            "reject_reason": "oracle_authorization_not_accepted",
+            "receipt_hash": None,
+            "receipt": None,
+            "pre_state_root": ROOT,
+            "post_state_root": ROOT,
+            "post_state": _zusd_state(),
+        }
+
+    facts = {
+        "oracle_authorization_ok": False,
+        "query_id": "sha256:" + "11" * 32,
+        "action_kind": "mint",
+        "runtime_value_e8": 100_000_000,
+    }
+    monkeypatch.setattr(rust_invoker, "invoke", fake_invoke)
+
+    out = rust_invoker.zusd_op(
+        state={},
+        tx={"kind": "mint_zusd", "amount_e8": 20_000_000_000},
+        facts=facts,
+        require_oracle_authorization=True,
+    )
+
+    assert out["accept"] is False
+    assert captured["subcommand"] == "zusd-op"
+    assert captured["request"]["facts"] == facts
+    assert captured["request"]["require_oracle_authorization"] is True

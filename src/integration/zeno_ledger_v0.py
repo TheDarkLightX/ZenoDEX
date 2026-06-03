@@ -507,6 +507,7 @@ def apply_body_transactions_v0(
     working_state = state
     executed_body = deepcopy(body)
     receipts: list[dict[str, Any]] = []
+    executed_body["evidence"]["rejection_receipts"] = []
     rejection_receipts = executed_body["evidence"]["rejection_receipts"]
     height = _require_nonnegative_int(executed_body["height"], name="body.height")
 

@@ -48,6 +48,7 @@ ORACLE_POLICY_KEYS = (
     "dex_routing_oracle_adapter_required",
     "zusd_oracle_adapter_required",
     "zusd_oracle_authorization_required",
+    "zusd_monetary_wallet_oracle_authorization_required",
     "perps_clearinghouse_settle_oracle_adapter_required",
     "perps_isolated_settle_oracle_adapter_required",
     "perps_isolated_partial_liquidate_oracle_adapter_required",

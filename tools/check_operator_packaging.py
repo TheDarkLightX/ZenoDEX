@@ -35,6 +35,14 @@ REQUIRED_FILES = (
     "Dockerfile.hashlocked",
     "tools/build_operator_release_bundle.py",
     "Dockerfile.operator-tools",
+    "config/tau_testnet.lock",
+    ".github/workflows/native-launcher.yml",
+    ".github/workflows/release-publish.yml",
+    "docs/NATIVE_INSTALLER_PLAN.md",
+    "rust-runtime/Cargo.toml",
+    "rust-runtime/Cargo.lock",
+    "rust-runtime/crates/zenodex-launcher/Cargo.toml",
+    "rust-runtime/crates/zenodex-launcher/src/main.rs",
     ".docker/Dockerfile.tau-local",
     ".docker/nginx.local-testnet.conf.template",
     "docker-compose.local-testnet.yml",
@@ -64,6 +72,8 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
     _check_powershell_installer(root, checks, errors)
     _check_zenoctl_light_client(root, checks, errors)
     _check_browser_sdk(root, checks, errors)
+    _check_tau_testnet_lock(root, checks, errors)
+    _check_native_launcher(root, checks, errors)
     _check_release_bundle_builder(root, checks, errors)
     _check_release_integrity_publishes_operator_bundle(root, checks, errors)
     _check_hashlocked_dockerfile(root, "Dockerfile.hashlocked", checks, errors)
@@ -82,6 +92,7 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
             "light-client-checkpoint-verifier",
             "proof-carrying-browser-bundle",
             "browser-wallet-sync-sdk",
+            "native-launcher",
             "single-command-local-testnet",
             "single-click-public-testnet",
             "single-command-public-follower",
@@ -304,6 +315,129 @@ def _check_browser_sdk(root: Path, checks: list[dict[str, Any]], errors: list[st
                 check_id=f"browser_sdk_contains:{token}",
                 ok=token in text,
                 error=f"tools/dex-ui/src/sdk/zenoProofClient.js must contain {token}",
+            )
+
+
+def _check_tau_testnet_lock(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
+    path = root / "config" / "tau_testnet.lock"
+    if not path.is_file():
+        return
+
+    fields: dict[str, str] = {}
+    malformed = False
+    for line in _read(path).splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if "=" not in stripped:
+            malformed = True
+            continue
+        key, value = stripped.split("=", 1)
+        fields[key.strip()] = value.strip()
+
+    _append_check(
+        checks,
+        errors,
+        check_id="tau_testnet_lock_schema",
+        ok=fields.get("schema") == "zenodex.tau_testnet_dependency_lock.v0" and not malformed,
+        error="config/tau_testnet.lock schema must be zenodex.tau_testnet_dependency_lock.v0",
+    )
+    _append_check(
+        checks,
+        errors,
+        check_id="tau_testnet_lock_repo",
+        ok=fields.get("repo") == "https://github.com/IDNI/tau-testnet.git",
+        error="config/tau_testnet.lock repo must be https://github.com/IDNI/tau-testnet.git",
+    )
+    _append_check(
+        checks,
+        errors,
+        check_id="tau_testnet_lock_ref",
+        ok=fields.get("ref") == "refs/heads/main",
+        error="config/tau_testnet.lock ref must be refs/heads/main",
+    )
+    commit = fields.get("commit", "")
+    _append_check(
+        checks,
+        errors,
+        check_id="tau_testnet_lock_commit_sha1",
+        ok=len(commit) == 40 and all(ch in "0123456789abcdefABCDEF" for ch in commit),
+        error="config/tau_testnet.lock commit must be a 40-character hex SHA-1",
+    )
+    _append_check(
+        checks,
+        errors,
+        check_id="tau_testnet_lock_server_path",
+        ok=fields.get("server_path") == "server.py",
+        error="config/tau_testnet.lock server_path must be server.py",
+    )
+
+
+def _check_native_launcher(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
+    workflow = root / ".github" / "workflows" / "native-launcher.yml"
+    if workflow.is_file():
+        text = _read(workflow)
+        for token in (
+            "cargo test -p zenodex-launcher",
+            "cargo build --release -p zenodex-launcher",
+            "actions/upload-artifact@v4",
+            "zenodex-launcher-${{ matrix.os }}",
+            "rust-runtime/target/release/zenodex",
+            "rust-runtime/target/release/zenodex.exe",
+        ):
+            _append_check(
+                checks,
+                errors,
+                check_id=f"native_launcher_workflow_contains:{token}",
+                ok=token in text,
+                error=f".github/workflows/native-launcher.yml must contain {token}",
+            )
+
+    release_workflow = root / ".github" / "workflows" / "release-publish.yml"
+    if release_workflow.is_file():
+        text = _read(release_workflow)
+        for token in (
+            "build-native-launchers:",
+            "cargo build --release -p zenodex-launcher",
+            "linux-x86_64",
+            "macos-x86_64",
+            "windows-x86_64",
+            "zenodex-native-launcher-",
+        ):
+            _append_check(
+                checks,
+                errors,
+                check_id=f"release_publish_native_launcher_contains:{token}",
+                ok=token in text,
+                error=f".github/workflows/release-publish.yml must contain {token}",
+            )
+
+    launcher = root / "rust-runtime" / "crates" / "zenodex-launcher" / "src" / "main.rs"
+    lock = root / "config" / "tau_testnet.lock"
+    if launcher.is_file():
+        text = _read(launcher)
+        for token in ("TAU_TESTNET_COMMIT", "TAU_TESTNET_LOCK_REL", "ensure_tau_testnet", "testnet local"):
+            _append_check(
+                checks,
+                errors,
+                check_id=f"native_launcher_contains:{token}",
+                ok=token in text,
+                error=f"rust-runtime/crates/zenodex-launcher/src/main.rs must contain {token}",
+            )
+        if lock.is_file():
+            lock_fields = {
+                key.strip(): value.strip()
+                for line in _read(lock).splitlines()
+                if line.strip() and not line.strip().startswith("#") and "=" in line
+                for key, value in [line.strip().split("=", 1)]
+            }
+            commit = lock_fields.get("commit", "")
+            _append_check(
+                checks,
+                errors,
+                check_id="native_launcher_tau_commit_matches_lock",
+                ok=bool(commit) and commit in text,
+                error="native launcher Tau commit must match config/tau_testnet.lock",
             )
 
 
