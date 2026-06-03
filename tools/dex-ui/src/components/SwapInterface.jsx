@@ -167,6 +167,7 @@ function SwapInterface({ wallet }) {
         source: 'fallback',
         pools: FALLBACK_SWAP_POOLS,
         tokens: FALLBACK_SWAP_TOKENS,
+        accountBalances: {},
         error: null,
     });
     const [nowMs, setNowMs] = useState(Date.now());
@@ -534,9 +535,23 @@ function SwapInterface({ wallet }) {
         [effectiveProfileConfig],
     );
 
-    // Get user balance for from token
-    const fromBalance = wallet ? resolveWalletTokenBalance(wallet, fromToken.symbol) : null;
-    const toBalance = wallet ? resolveWalletTokenBalance(wallet, toToken.symbol) : null;
+    const liveWallet = useMemo(() => {
+        if (!wallet) return null;
+        const accountBalances = poolFeed.source === 'api' && poolFeed.account === wallet.address
+            ? (poolFeed.accountBalances || {})
+            : {};
+        return {
+            ...wallet,
+            balance: {
+                ...(wallet.balance || {}),
+                ...accountBalances,
+            },
+        };
+    }, [wallet, poolFeed.source, poolFeed.account, poolFeed.accountBalances]);
+
+    // Get user balance for from token from the live account feed when present.
+    const fromBalance = liveWallet ? resolveWalletTokenBalance(liveWallet, fromToken.symbol) : null;
+    const toBalance = liveWallet ? resolveWalletTokenBalance(liveWallet, toToken.symbol) : null;
 
     // Incremental quote DAG (performance-oriented quote path)
     const swapQuote = useMemo(() => {
@@ -1022,6 +1037,8 @@ function SwapInterface({ wallet }) {
                         signature: intentSignature,
                         nonce: intentNonce || undefined,
                         deadline: intentDeadline,
+                        timeMs: submittedAt,
+                        txId,
                     },
                     { timeoutMs: 3500 },
                 );
@@ -2153,7 +2170,7 @@ function SwapInterface({ wallet }) {
                 onClose={() => setTokenModalSide(null)}
                 onSelect={handleSelectToken}
                 excludeToken={tokenModalSide === 'from' ? toToken : fromToken}
-                wallet={wallet}
+                wallet={liveWallet}
                 availableTokens={tokens}
                 customTokens={demoMode ? customTokens : []}
                 onImportToken={handleImportToken}

@@ -85,8 +85,8 @@ TAU_STATE_PROOF_DEBUG=1 bash tools/run_tau_testnet_local_smoke.sh
 Risc0 proof (real ZK receipts; requires the Risc0 toolchain):
 
 ```bash
-rustup toolchain install risc0
-rustup target add riscv32im-risc0-zkvm-elf --toolchain risc0
+rzup install
+rzup show
 
 TAU_STATE_PROOF_RISC0=1 bash tools/run_tau_testnet_local_smoke.sh
 ```

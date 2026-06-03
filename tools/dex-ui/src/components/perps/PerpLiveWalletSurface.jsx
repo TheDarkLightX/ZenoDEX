@@ -25,10 +25,17 @@ const EMPTY_FORM = {
   amount: '1000',
   delta: '1',
   price_e8: '100000000',
+  insurance_seed_e8: '0',
   oracle_adapter_bridge: '',
   signed_tau_tx_payload: '',
   new_position_base_a: '1',
   new_position_base_b: '-1',
+  target_base: '1',
+  limit_price_e8: '100000000',
+  min_fill_base: '0',
+  expiry_epoch: '',
+  funding_rate_bps: '0',
+  params_json: '',
   fraction_bps: '2500',
   tx_fee_limit: '0',
   deadline: '',
@@ -38,12 +45,16 @@ const EMPTY_FORM = {
 
 const ACTIONS = [
   ['init_market_2p', 'Init 2P Market'],
+  ['init_market_np', 'Init NP Market'],
+  ['join_market', 'Join NP Market'],
   ['deposit_collateral', 'Deposit Collateral'],
   ['withdraw_collateral', 'Withdraw Collateral'],
+  ['submit_intent', 'Submit NP Intent'],
   ['set_position_pair', 'Set Position Pair'],
   ['advance_epoch', 'Advance Epoch'],
   ['publish_clearing_price', 'Publish Price'],
-  ['settle_epoch', 'Epoch Settlement'],
+  ['run_epoch', 'Run NP Epoch'],
+  ['settle_epoch', 'Settle Epoch'],
   ['partial_liquidate', 'Partial Liquidate'],
 ];
 
@@ -71,10 +82,17 @@ function readSmokeConfig() {
     amount: params.get('amount') || '1000',
     delta: params.get('delta') || '1',
     price_e8: params.get('priceE8') || params.get('price_e8') || '100000000',
+    insurance_seed_e8: params.get('insuranceSeedE8') || params.get('insurance_seed_e8') || '0',
     oracle_adapter_bridge: params.get('oracleAdapterBridge') || params.get('oracle_adapter_bridge') || '',
     signed_tau_tx_payload: params.get('signedTauTxPayload') || params.get('signed_tau_tx_payload') || '',
     new_position_base_a: params.get('positionA') || params.get('new_position_base_a') || '1',
     new_position_base_b: params.get('positionB') || params.get('new_position_base_b') || '-1',
+    target_base: params.get('targetBase') || params.get('target_base') || '1',
+    limit_price_e8: params.get('limitPriceE8') || params.get('limit_price_e8') || '100000000',
+    min_fill_base: params.get('minFillBase') || params.get('min_fill_base') || '0',
+    expiry_epoch: params.get('expiryEpoch') || params.get('expiry_epoch') || '',
+    funding_rate_bps: params.get('fundingRateBps') || params.get('funding_rate_bps') || '0',
+    params_json: params.get('perpsParamsJson') || params.get('params_json') || '',
     fraction_bps: params.get('fractionBps') || params.get('fraction_bps') || '2500',
     tx_fee_limit: params.get('perpsTxFeeLimit') || params.get('txFeeLimit') || params.get('tx_fee_limit') || '0',
     deadline: params.get('perpsDeadline') || params.get('deadline') || '',
@@ -107,11 +125,11 @@ function parseJsonObject(raw, label) {
 }
 
 function actionSupportsOracleFixture(action) {
-  return action === 'settle_epoch' || action === 'partial_liquidate';
+  return action === 'run_epoch' || action === 'settle_epoch' || action === 'partial_liquidate';
 }
 
 function expectedOracleActionKind(action) {
-  if (action === 'settle_epoch') return 'settle_epoch';
+  if (action === 'run_epoch' || action === 'settle_epoch') return 'settle_epoch';
   if (action === 'partial_liquidate') return 'liquidate_account';
   return '';
 }
@@ -213,13 +231,33 @@ function buildPayload(form) {
     if (form.account_a_privkey.trim()) payload.account_a_privkey = form.account_a_privkey.trim();
     if (form.account_b_privkey.trim()) payload.account_b_privkey = form.account_b_privkey.trim();
   }
-  if (action === 'init_market_2p' && form.quote_asset.trim()) {
+  if ((action === 'init_market_2p' || action === 'init_market_np') && form.quote_asset.trim()) {
     payload.quote_asset = form.quote_asset.trim();
+  }
+  if (action === 'init_market_np') {
+    payload.index_price_e8 = parseIntOrNull(form.price_e8) ?? 0;
+    payload.insurance_seed_e8 = parseIntOrNull(form.insurance_seed_e8) ?? 0;
+    const params = parseJsonObject(form.params_json, 'params_json');
+    if (params) payload.params = params;
+    if (form.operator_privkey.trim()) payload.operator_privkey = form.operator_privkey.trim();
+  }
+  if (action === 'join_market') {
+    if (form.account_pubkey.trim()) payload.account_pubkey = form.account_pubkey.trim();
+    if (form.account_privkey.trim()) payload.account_privkey = form.account_privkey.trim();
   }
   if (action === 'deposit_collateral' || action === 'withdraw_collateral') {
     if (form.account_pubkey.trim()) payload.account_pubkey = form.account_pubkey.trim();
     if (form.account_privkey.trim()) payload.account_privkey = form.account_privkey.trim();
     payload.amount = parseIntOrNull(form.amount) ?? 0;
+  }
+  if (action === 'submit_intent') {
+    if (form.account_pubkey.trim()) payload.account_pubkey = form.account_pubkey.trim();
+    if (form.account_privkey.trim()) payload.account_privkey = form.account_privkey.trim();
+    payload.target_base = parseIntOrNull(form.target_base) ?? 0;
+    payload.limit_price_e8 = parseIntOrNull(form.limit_price_e8) ?? 0;
+    payload.min_fill_base = parseIntOrNull(form.min_fill_base) ?? 0;
+    const expiry = parseIntOrNull(form.expiry_epoch);
+    if (expiry != null) payload.expiry_epoch = expiry;
   }
   if (action === 'partial_liquidate') {
     if (form.account_pubkey.trim()) payload.account_pubkey = form.account_pubkey.trim();
@@ -238,8 +276,11 @@ function buildPayload(form) {
     if (form.oracle_pubkey.trim()) payload.oracle_pubkey = form.oracle_pubkey.trim();
     if (form.oracle_privkey.trim()) payload.oracle_privkey = form.oracle_privkey.trim();
   }
-  if (action === 'settle_epoch') {
+  if (action === 'run_epoch' || action === 'settle_epoch') {
     if (form.operator_privkey.trim()) payload.operator_privkey = form.operator_privkey.trim();
+    if (action === 'run_epoch') {
+      payload.funding_rate_bps = parseIntOrNull(form.funding_rate_bps) ?? 0;
+    }
     if (form.oracle_adapter_bridge.trim()) {
       payload.oracle_adapter_bridge = form.oracle_adapter_bridge.trim();
     }
@@ -273,10 +314,13 @@ function PerpLiveWalletSurface() {
 
   const needsTwoParty = form.action === 'init_market_2p' || form.action === 'set_position_pair';
   const needsCollateral = form.action === 'deposit_collateral' || form.action === 'withdraw_collateral';
-  const needsAccountBound = needsCollateral || form.action === 'partial_liquidate';
+  const needsNpIntent = form.action === 'submit_intent';
+  const needsAccountBound = needsCollateral || form.action === 'join_market' || needsNpIntent || form.action === 'partial_liquidate';
   const needsPosition = form.action === 'set_position_pair';
-  const needsOperator = form.action === 'advance_epoch' || form.action === 'settle_epoch';
+  const needsOperator = form.action === 'init_market_np' || form.action === 'advance_epoch' || form.action === 'run_epoch' || form.action === 'settle_epoch';
   const needsOracle = form.action === 'publish_clearing_price';
+  const needsPrice = needsOracle || form.action === 'init_market_np';
+  const needsSettleBridge = form.action === 'run_epoch' || form.action === 'settle_epoch';
 
   async function loadStatus() {
     try {
@@ -632,7 +676,7 @@ function PerpLiveWalletSurface() {
             placeholder="perp:ch2p:..."
           />
 
-          {form.action === 'init_market_2p' ? (
+          {form.action === 'init_market_2p' || form.action === 'init_market_np' ? (
             <>
               <label className="label" htmlFor="perps-wallet-quote">Quote Asset</label>
               <input
@@ -708,15 +752,38 @@ function PerpLiveWalletSurface() {
             </>
           ) : null}
 
-          {needsOracle ? (
+          {needsPrice ? (
             <>
-              <label className="label" htmlFor="perps-wallet-price">Price E8</label>
+              <label className="label" htmlFor="perps-wallet-price">
+                {form.action === 'init_market_np' ? 'Index Price E8' : 'Price E8'}
+              </label>
               <input
                 id="perps-wallet-price"
                 className="input"
                 inputMode="numeric"
                 value={form.price_e8}
                 onChange={(event) => setForm((current) => ({ ...current, price_e8: event.target.value }))}
+              />
+            </>
+          ) : null}
+
+          {form.action === 'init_market_np' ? (
+            <>
+              <label className="label" htmlFor="perps-wallet-insurance-seed">Insurance Seed E8</label>
+              <input
+                id="perps-wallet-insurance-seed"
+                className="input"
+                inputMode="numeric"
+                value={form.insurance_seed_e8}
+                onChange={(event) => setForm((current) => ({ ...current, insurance_seed_e8: event.target.value }))}
+              />
+              <label className="label" htmlFor="perps-wallet-params-json">Control Params JSON</label>
+              <textarea
+                id="perps-wallet-params-json"
+                className="input perp-live-wallet-textarea"
+                value={form.params_json}
+                onChange={(event) => setForm((current) => ({ ...current, params_json: event.target.value }))}
+                placeholder="optional JSON object"
               />
             </>
           ) : null}
@@ -805,8 +872,20 @@ function PerpLiveWalletSurface() {
             </div>
           </details>
 
-          {form.action === 'settle_epoch' ? (
+          {needsSettleBridge ? (
             <>
+              {form.action === 'run_epoch' ? (
+                <>
+                  <label className="label" htmlFor="perps-wallet-funding-rate">Funding Rate Bps</label>
+                  <input
+                    id="perps-wallet-funding-rate"
+                    className="input"
+                    inputMode="numeric"
+                    value={form.funding_rate_bps}
+                    onChange={(event) => setForm((current) => ({ ...current, funding_rate_bps: event.target.value }))}
+                  />
+                </>
+              ) : null}
               <label className="label" htmlFor="perps-wallet-oracle-bridge">Oracle Adapter Bridge</label>
               <textarea
                 id="perps-wallet-oracle-bridge"
@@ -832,6 +911,44 @@ function PerpLiveWalletSurface() {
                 Inspect Oracle Bridge
               </button>
             </>
+          ) : null}
+
+          {needsNpIntent ? (
+            <div className="perp-live-wallet-two">
+              <label className="label" htmlFor="perps-wallet-target-base">Target Base</label>
+              <input
+                id="perps-wallet-target-base"
+                className="input"
+                inputMode="numeric"
+                value={form.target_base}
+                onChange={(event) => setForm((current) => ({ ...current, target_base: event.target.value }))}
+              />
+              <label className="label" htmlFor="perps-wallet-limit-price">Limit Price E8</label>
+              <input
+                id="perps-wallet-limit-price"
+                className="input"
+                inputMode="numeric"
+                value={form.limit_price_e8}
+                onChange={(event) => setForm((current) => ({ ...current, limit_price_e8: event.target.value }))}
+              />
+              <label className="label" htmlFor="perps-wallet-min-fill">Min Fill Base</label>
+              <input
+                id="perps-wallet-min-fill"
+                className="input"
+                inputMode="numeric"
+                value={form.min_fill_base}
+                onChange={(event) => setForm((current) => ({ ...current, min_fill_base: event.target.value }))}
+              />
+              <label className="label" htmlFor="perps-wallet-expiry">Expiry Epoch</label>
+              <input
+                id="perps-wallet-expiry"
+                className="input"
+                inputMode="numeric"
+                value={form.expiry_epoch}
+                onChange={(event) => setForm((current) => ({ ...current, expiry_epoch: event.target.value }))}
+                placeholder="defaults to next epoch"
+              />
+            </div>
           ) : null}
 
           {needsPosition ? (

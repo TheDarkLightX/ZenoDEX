@@ -34,10 +34,11 @@ function _derivePhase(market) {
     // (advance_epoch required). The wallet status doesn't expose the phase
     // directly, but the epoch numbers do.
     const now = Number(market?.now_epoch ?? 0);
+    const cpSeen = Number(market?.clearing_price_seen ?? 0);
     const cpEpoch = Number(market?.clearing_price_epoch ?? 0);
     const cpE8 = Number(market?.clearing_price_e8 ?? 0);
     // A clearing price set for the CURRENT epoch means it has been published.
-    if (cpEpoch === now && cpE8 > 0) return 'PricePublished';
+    if (cpSeen === 1 && cpEpoch === now && cpE8 > 0) return 'PricePublished';
     // SETTLED is intentionally NOT inferred here. The authoritative kernel rule
     // (src/core/perps.py `_infer_epoch_phase`) distinguishes SETTLED from
     // PRICE_PUBLISHED via a `clearing_price_seen`/settled flag that the wallet
@@ -78,9 +79,17 @@ function mapWalletMarketToProviderShape(walletMarket) {
         // Fields below are not exposed by wallet status — defaulted so the
         // existing components don't NaN. Replace when the wallet API surfaces
         // them or when a separate market-config endpoint is wired.
-        maxPositionAbs: Number.MAX_SAFE_INTEGER,
+        maxPositionAbs: Number(walletMarket.max_position_abs ?? Number.MAX_SAFE_INTEGER),
         maxOracleStalenessEpochs: 4,
         breakerActive: false,
+        accountCount: Number(walletMarket.account_count ?? 0),
+        activeCount: Number(walletMarket.active_count ?? 0),
+        longCount: Number(walletMarket.long_count ?? 0),
+        shortCount: Number(walletMarket.short_count ?? 0),
+        netPositionBase: Number(walletMarket.net_position_base ?? 0),
+        pendingIntentCount: Number(walletMarket.pending_intent_count ?? 0),
+        accounts: Array.isArray(walletMarket.accounts) ? walletMarket.accounts : [],
+        pendingIntents: Array.isArray(walletMarket.pending_intents) ? walletMarket.pending_intents : [],
         // 2p-specific fields (preserved for PerpAccountSummary / debug):
         accountAPubkey: walletMarket.account_a_pubkey || null,
         accountBPubkey: walletMarket.account_b_pubkey || null,
@@ -101,6 +110,20 @@ function derivePositionFromWalletMarket(walletMarket, userPubkey) {
     // account_*_pubkey matches the connected wallet.
     if (!walletMarket || !userPubkey) return null;
     const u = _normalizePubkey(userPubkey);
+    const accounts = Array.isArray(walletMarket.accounts) ? walletMarket.accounts : [];
+    for (const account of accounts) {
+        if (_normalizePubkey(account?.account_pubkey) !== u) continue;
+        return {
+            marketId: walletMarket.market_id,
+            pubkey: userPubkey,
+            positionBase: Number(account.position_base ?? 0),
+            collateralQuote: Math.trunc(Number(account.collateral_e8 ?? 0) / 1e8),
+            quoteBalance: Number(account.quote_balance ?? 0),
+            entryPriceE8: Number(account.entry_price_e8 ?? walletMarket.index_price_e8 ?? 0),
+            fundingPaidCumulative: Number(account.funding_paid_cum_e8 ?? 0),
+            nonce: Number(account.nonce ?? 0),
+        };
+    }
     const a = _normalizePubkey(walletMarket.account_a_pubkey);
     const b = _normalizePubkey(walletMarket.account_b_pubkey);
     let positionBase = 0;
@@ -724,6 +747,24 @@ export function PerpProvider({ children, wallet, onTransaction }) {
     // caller's account_a/b role determines which side the input applies to.
     const setPosition = useCallback((marketId, newPositionBase) => {
         const market = stateRef.current.markets.find((m) => m.id === marketId);
+        if (market?.kind === 'clearinghouse_np_v1') {
+            const targetBase = Number(newPositionBase);
+            const nowEpoch = Number(market.nowEpoch ?? 0);
+            return submitAction({
+                marketId,
+                label: 'submit_intent',
+                walletAction: 'submit_intent',
+                walletExtra: {
+                    target_base: targetBase,
+                    limit_price_e8: Number(market.indexPriceE8 ?? 0),
+                    min_fill_base: 0,
+                    expiry_epoch: nowEpoch + 1,
+                },
+                newPositionBase: targetBase,
+                demoEndpoint: '/api/perps/position',
+                demoBody: { marketId, pubkey, newPositionBase: targetBase },
+            });
+        }
         const u = String(pubkey || '').toLowerCase().replace(/^0x/, '');
         const a = String(market?.accountAPubkey || '').toLowerCase().replace(/^0x/, '');
         const b = String(market?.accountBPubkey || '').toLowerCase().replace(/^0x/, '');

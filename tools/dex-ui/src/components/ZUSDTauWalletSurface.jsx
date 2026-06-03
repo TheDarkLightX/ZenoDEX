@@ -74,7 +74,7 @@ function ZUSDTauWalletSurface() {
       setStatusError('');
     } catch (err) {
       setStatus(null);
-      setStatusError(err?.message || 'status_unavailable');
+      setStatusError(err?.message === 'not_found' ? 'token wallet endpoint disabled' : (err?.message || 'status_unavailable'));
     }
   }
 
@@ -127,8 +127,8 @@ function ZUSDTauWalletSurface() {
     async function runSmoke() {
       const nextSmoke = { ...smoke };
       setForm(nextSmoke);
-      if (!nextSmoke.signer_privkey.trim()) {
-        throw new Error('smoke signer credential required');
+      if (!nextSmoke.signer_privkey.trim() && !String(nextSmoke.signed_tau_tx_payload || '').trim()) {
+        throw new Error('smoke signer credential or signed payload required');
       }
       return apiSubmitZusdWallet(buildPayload(nextSmoke), { timeoutMs: 20000 });
     }
@@ -155,7 +155,7 @@ function ZUSDTauWalletSurface() {
         </div>
         <div className="zusd-hero-meta">
           <span className="zusd-chip">Live posture</span>
-          <span className="zusd-chip zusd-chip-accent">{status?.node_reachable ? 'Network connected' : 'Network unavailable'}</span>
+          <span className="zusd-chip zusd-chip-accent">{status?.node_reachable ? 'Tau node connected' : 'Tau node required'}</span>
         </div>
       </div>
 

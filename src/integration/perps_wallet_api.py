@@ -22,7 +22,7 @@ from typing import Any, Dict, Mapping, Optional, Tuple, cast
 from urllib.parse import urlsplit
 
 from ..core.dex import DexState
-from ..core.perps import PerpClearinghouse2pMarketState, PerpMarketState
+from ..core.perps import PerpClearinghouse2pMarketState, PerpClearinghouseNpMarketState, PerpMarketState
 from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
 from .dex_snapshot import snapshot_with_legacy_lp_metadata_defaults, state_from_snapshot
 from .live_proof_wrapper import (
@@ -93,12 +93,16 @@ _ENGINE_STREAM_KEY = "5"
 _U32_MAX = 0xFFFFFFFF
 _ACTIONS = {
     "init_market_2p",
+    "init_market_np",
+    "join_market",
     "deposit_collateral",
     "withdraw_collateral",
     "deposit_insurance",
+    "submit_intent",
     "set_position_pair",
     "advance_epoch",
     "publish_clearing_price",
+    "run_epoch",
     "settle_epoch",
     "partial_liquidate",
 }
@@ -111,7 +115,7 @@ _PERPS_ZK_PROOF_REQUIRED_ENV = "PERPS_WALLET_REQUIRE_ZK_PROOF"
 _PERPS_TAU_WRITE_LOCK = threading.Lock()
 _ORACLE_AUTHORITY_EXERCISE_SCHEMA = "zenodex/perps_wallet/oracle_authority_exercise/v1"
 _ORACLE_AUTHORITY_EXERCISE_HASH_DOMAIN = "zenodex.perps_wallet.oracle_authority_exercise/v1"
-_ORACLE_AUTHORITY_ACTIONS = {"settle_epoch", "partial_liquidate"}
+_ORACLE_AUTHORITY_ACTIONS = {"run_epoch", "settle_epoch", "partial_liquidate"}
 
 
 def _env_str(name: str, default: str) -> str:
@@ -955,6 +959,8 @@ def _market_quote_asset(app_state: Mapping[str, Any], *, market_id: str) -> str:
         return ""
     if isinstance(market, PerpClearinghouse2pMarketState):
         return str(market.quote_asset)
+    if isinstance(market, PerpClearinghouseNpMarketState):
+        return str(market.quote_asset)
     return ""
 
 
@@ -1014,6 +1020,35 @@ def _request_int(body: Mapping[str, Any], *, name: str, default: Optional[int] =
     if not isinstance(value, int) or isinstance(value, bool):
         raise ValueError(f"bad_{name}")
     return int(value)
+
+
+def _request_int_alias(
+    body: Mapping[str, Any],
+    *,
+    names: tuple[str, ...],
+    default: Optional[int] = None,
+    non_negative: bool = False,
+    positive: bool = False,
+) -> int:
+    for name in names:
+        if name in body:
+            value = body.get(name)
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise ValueError(f"bad_{name}")
+            result = int(value)
+            if positive and result <= 0:
+                raise ValueError(f"bad_{name}")
+            if non_negative and result < 0:
+                raise ValueError(f"bad_{name}")
+            return result
+    if default is None:
+        raise ValueError(f"missing_{names[0]}")
+    result = int(default)
+    if positive and result <= 0:
+        raise ValueError(f"bad_{names[0]}")
+    if non_negative and result < 0:
+        raise ValueError(f"bad_{names[0]}")
+    return result
 
 
 def _request_positive_int(body: Mapping[str, Any], *, name: str) -> int:
@@ -1367,10 +1402,21 @@ def _perps_state_delta_witness(
         "account_b_quote_balance",
         "collateral_e8_a",
         "collateral_e8_b",
+        "account_count",
+        "active_count",
+        "claims_paid_e8",
+        "clearing_price_seen",
         "fee_pool_e8",
+        "funding_rate_bps",
+        "insurance_e8",
+        "insurance_ext_e8",
+        "long_count",
         "net_deposited_e8",
+        "pending_intent_count",
         "position_base_a",
         "position_base_b",
+        "net_position_base",
+        "short_count",
         "index_price_e8",
         "clearing_price_epoch",
         "clearing_price_e8",
@@ -1413,7 +1459,7 @@ def _perps_state_delta_witness(
             before_account = before_accounts.get(account_pubkey, {})
             after_account = after_accounts.get(account_pubkey, {})
             account_delta: dict[str, Any] = {"account_pubkey": account_pubkey}
-            for field in ("position_base", "collateral_quote"):
+            for field in ("position_base", "collateral_quote", "collateral_e8", "entry_price_e8", "funding_paid_cum_e8", "nonce"):
                 before_value = before_account.get(field, 0)
                 after_value = after_account.get(field, 0)
                 if isinstance(before_value, int) and isinstance(after_value, int):
@@ -1600,9 +1646,21 @@ def _market_id(body: Mapping[str, Any], *, action: str | None = None) -> str:
         raise ValueError("missing_market_id")
     if len(raw) > 128:
         raise ValueError("bad_market_id")
+    if action in {"init_market_np", "join_market", "submit_intent", "run_epoch"}:
+        if not raw.startswith("perp:chnp:"):
+            raise ValueError("clearinghouse_np market_id must start with perp:chnp:")
+        return raw
     if action in {"partial_liquidate", "deposit_insurance"}:
-        if not raw.startswith("perp:") or raw.startswith("perp:ch2p:"):
-            raise ValueError("isolated market_id must start with perp: and not perp:ch2p:")
+        if not raw.startswith("perp:") or raw.startswith("perp:ch2p:") or raw.startswith("perp:chnp:"):
+            raise ValueError("isolated market_id must start with perp: and not clearinghouse prefix")
+        return raw
+    if action in {"deposit_collateral", "withdraw_collateral", "advance_epoch", "publish_clearing_price", "settle_epoch"}:
+        if raw.startswith("perp:ch2p:") or raw.startswith("perp:chnp:"):
+            return raw
+        raise ValueError("market_id must start with perp:ch2p: or perp:chnp:")
+    if action in {"init_market_2p", "set_position_pair"}:
+        if not raw.startswith("perp:ch2p:"):
+            raise ValueError("market_id must start with perp:ch2p:")
         return raw
     if not raw.startswith("perp:ch2p:"):
         raise ValueError("market_id must start with perp:ch2p:")
@@ -1630,6 +1688,36 @@ def _nonce_for_signer(body: Mapping[str, Any], *, app_state: Mapping[str, Any], 
     if field in body:
         return _request_u32(body, name=field)
     return _last_used_perp_nonce(app_state, signer_pubkey=signer_pubkey) + 1
+
+
+def _np_market_now_epoch(app_state: Mapping[str, Any], *, market_id: str) -> int:
+    state = _state_from_app_state(app_state)
+    if state.perps is None:
+        return 0
+    try:
+        market = state.perps.get_market(market_id)
+    except Exception:
+        return 0
+    if not isinstance(market, PerpClearinghouseNpMarketState):
+        return 0
+    return int(market.global_state.get("now_epoch", 0))
+
+
+def _optional_request_mapping(body: Mapping[str, Any], *, name: str) -> Mapping[str, Any] | None:
+    raw = body.get(name)
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return None
+        try:
+            raw = json.loads(text)
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise ValueError(f"bad_{name}") from exc
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"bad_{name}")
+    return raw
 
 
 def _sign_or_copy(
@@ -1663,7 +1751,15 @@ def _tx_sender_for_action(body: Mapping[str, Any], *, action: str, account_a_pub
     raw = body.get("sender_pubkey") if "sender_pubkey" in body else body.get("senderPubkey")
     if isinstance(raw, str) and raw.strip():
         return _canonical_pubkey(raw, name="sender_pubkey")
-    if action in {"deposit_collateral", "withdraw_collateral", "deposit_insurance", "publish_clearing_price", "partial_liquidate"} and account_pubkey is not None:
+    if action in {
+        "join_market",
+        "deposit_collateral",
+        "withdraw_collateral",
+        "deposit_insurance",
+        "submit_intent",
+        "publish_clearing_price",
+        "partial_liquidate",
+    } and account_pubkey is not None:
         return account_pubkey
     if account_a_pubkey is not None:
         return account_a_pubkey
@@ -1685,19 +1781,61 @@ def _build_operation_and_sender(
     deadline: int,
 ) -> tuple[dict[str, Any], str, dict[str, int | str]]:
     market_id = _market_id(body, action=action)
+    is_chnp_market = market_id.startswith("perp:chnp:")
     meta: dict[str, int | str] = {}
+
+    if action == "init_market_np":
+        params = _optional_request_mapping(body, name="params")
+        operation = {
+            "module": "TauPerp",
+            "version": "1.2",
+            "market_id": market_id,
+            "action": action,
+            "quote_asset": _quote_asset(body, chain_id=chain_id),
+            "index_price_e8": _request_int_alias(
+                body,
+                names=("index_price_e8", "indexPriceE8", "price_e8", "priceE8"),
+                positive=True,
+            ),
+        }
+        insurance_seed_e8 = _request_int_alias(
+            body,
+            names=("insurance_seed_e8", "insuranceSeedE8"),
+            default=0,
+            non_negative=True,
+        )
+        if insurance_seed_e8:
+            operation["insurance_seed_e8"] = insurance_seed_e8
+        if params is not None:
+            operation["params"] = dict(params)
+        tx_sender = _tx_sender_for_action(body, action=action, account_a_pubkey=None, account_pubkey=None)
+        return operation, tx_sender, meta
+
+    if action == "join_market":
+        account_pubkey = _account_pubkey(body, field="account_pubkey", privkey_field="account_privkey")
+        tx_sender = _tx_sender_for_action(body, action=action, account_a_pubkey=None, account_pubkey=account_pubkey)
+        operation = {
+            "module": "TauPerp",
+            "version": "1.2",
+            "market_id": market_id,
+            "action": action,
+            "account_pubkey": account_pubkey,
+        }
+        meta.update({"account_pubkey": account_pubkey})
+        return operation, tx_sender, meta
 
     if action in {"deposit_collateral", "withdraw_collateral"}:
         account_pubkey = _account_pubkey(body, field="account_pubkey", privkey_field="account_privkey")
         tx_sender = _tx_sender_for_action(body, action=action, account_a_pubkey=None, account_pubkey=account_pubkey)
         operation = {
             "module": "TauPerp",
-            "version": "1.0",
+            "version": "1.2" if is_chnp_market else "1.0",
             "market_id": market_id,
             "action": action,
             "account_pubkey": account_pubkey,
             "amount": _request_positive_int(body, name="amount"),
         }
+        meta.update({"account_pubkey": account_pubkey})
         return operation, tx_sender, meta
 
     if action == "deposit_insurance":
@@ -1716,21 +1854,24 @@ def _build_operation_and_sender(
     if action == "advance_epoch":
         operation = {
             "module": "TauPerp",
-            "version": "1.0",
+            "version": "1.2" if is_chnp_market else "1.0",
             "market_id": market_id,
             "action": action,
-            "delta": _request_u32(body, name="delta", default=1),
         }
+        if not is_chnp_market:
+            operation["delta"] = _request_u32(body, name="delta", default=1)
         tx_sender = _tx_sender_for_action(body, action=action, account_a_pubkey=None, account_pubkey=None)
         return operation, tx_sender, meta
 
-    if action == "settle_epoch":
+    if action in {"run_epoch", "settle_epoch"}:
         operation = {
             "module": "TauPerp",
-            "version": "1.0",
+            "version": "1.2" if is_chnp_market else "1.0",
             "market_id": market_id,
             "action": action,
         }
+        if is_chnp_market:
+            operation["funding_rate_bps"] = _request_int(body, name="funding_rate_bps", default=0)
         bridge = _request_mapping(body, name="oracle_adapter_bridge")
         if bridge is not None:
             operation["oracle_adapter_bridge"] = dict(bridge)
@@ -1771,7 +1912,7 @@ def _build_operation_and_sender(
         oracle_nonce = _nonce_for_signer(body, app_state=app_state, field="oracle_nonce", signer_pubkey=oracle_pubkey)
         operation = {
             "module": "TauPerp",
-            "version": "1.0",
+            "version": "1.2" if is_chnp_market else "1.0",
             "market_id": market_id,
             "action": action,
             "price_e8": _request_positive_int(body, name="price_e8"),
@@ -1789,6 +1930,42 @@ def _build_operation_and_sender(
         )
         tx_sender = _tx_sender_for_action(body, action=action, account_a_pubkey=None, account_pubkey=oracle_pubkey)
         meta.update({"oracle_pubkey": oracle_pubkey, "oracle_nonce": oracle_nonce})
+        return operation, tx_sender, meta
+
+    if action == "submit_intent":
+        account_pubkey = _account_pubkey(body, field="account_pubkey", privkey_field="account_privkey")
+        tx_sender = _tx_sender_for_action(body, action=action, account_a_pubkey=None, account_pubkey=account_pubkey)
+        now_epoch = _np_market_now_epoch(app_state, market_id=market_id)
+        operation = {
+            "module": "TauPerp",
+            "version": "1.2",
+            "market_id": market_id,
+            "action": action,
+            "account_pubkey": account_pubkey,
+            "target_base": _request_int_alias(
+                body,
+                names=("target_base", "targetBase", "new_position_base", "newPositionBase"),
+            ),
+            "limit_price_e8": _request_int_alias(
+                body,
+                names=("limit_price_e8", "limitPriceE8"),
+                default=0,
+                non_negative=True,
+            ),
+            "min_fill_base": _request_int_alias(
+                body,
+                names=("min_fill_base", "minFillBase"),
+                default=0,
+                non_negative=True,
+            ),
+            "expiry_epoch": _request_int_alias(
+                body,
+                names=("expiry_epoch", "expiryEpoch"),
+                default=now_epoch + 1,
+                non_negative=True,
+            ),
+        }
+        meta.update({"account_pubkey": account_pubkey})
         return operation, tx_sender, meta
 
     account_a_pubkey = _account_pubkey(body, field="account_a_pubkey", privkey_field="account_a_privkey")
@@ -1930,6 +2107,7 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
                         asset_id=market.quote_asset,
                     ),
                     "now_epoch": int(market.state.get("now_epoch", 0)),
+                    "clearing_price_seen": int(bool(market.state.get("clearing_price_seen", False))),
                     "oracle_last_update_epoch": int(market.state.get("oracle_last_update_epoch", 0)),
                     "clearing_price_epoch": int(market.state.get("clearing_price_epoch", 0)),
                     "clearing_price_e8": int(market.state.get("clearing_price_e8", 0)),
@@ -1943,6 +2121,84 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
                     "net_deposited_e8": int(market.state.get("net_deposited_e8", 0)),
                     "maintenance_margin_bps": int(market.state.get("maintenance_margin_bps", 0)),
                     "liquidation_penalty_bps": int(market.state.get("liquidation_penalty_bps", 0)),
+                }
+            )
+        elif isinstance(market, PerpClearinghouseNpMarketState):
+            accounts = []
+            long_count = 0
+            short_count = 0
+            active_count = 0
+            net_position_base = 0
+            for account in sorted(
+                market.accounts,
+                key=lambda acct: canonical_hex_fixed_allow_0x(acct.pubkey, nbytes=48, name="np account pubkey"),
+            ):
+                position_base = int(account.position_base)
+                collateral_e8 = int(account.collateral_e8)
+                if position_base > 0:
+                    long_count += 1
+                elif position_base < 0:
+                    short_count += 1
+                if position_base != 0 or collateral_e8 != 0:
+                    active_count += 1
+                net_position_base += position_base
+                accounts.append(
+                    {
+                        "account_pubkey": account.pubkey,
+                        "position_base": position_base,
+                        "entry_price_e8": int(account.entry_price_e8),
+                        "collateral_e8": collateral_e8,
+                        "collateral_quote": collateral_e8 // 100_000_000,
+                        "funding_paid_cum_e8": int(account.funding_paid_cum_e8),
+                        "nonce": int(account.nonce),
+                        "quote_balance": _balance_for_asset(
+                            app_state,
+                            pubkey=account.pubkey,
+                            asset_id=market.quote_asset,
+                        ),
+                    }
+                )
+            pending_intents = [
+                {
+                    "account_pubkey": intent.pubkey,
+                    "target_base": int(intent.target_base),
+                    "limit_price_e8": int(intent.limit_price_e8),
+                    "min_fill_base": int(intent.min_fill_base),
+                    "expiry_epoch": int(intent.expiry_epoch),
+                    "nonce": int(intent.nonce),
+                }
+                for intent in sorted(
+                    market.pending_intents,
+                    key=lambda intent: canonical_hex_fixed_allow_0x(intent.pubkey, nbytes=48, name="np intent pubkey"),
+                )
+            ]
+            item.update(
+                {
+                    "quote_asset": market.quote_asset,
+                    "now_epoch": int(market.global_state.get("now_epoch", 0)),
+                    "clearing_price_seen": int(market.global_state.get("clearing_price_seen", 0)),
+                    "clearing_price_epoch": int(market.global_state.get("clearing_price_epoch", 0)),
+                    "clearing_price_e8": int(market.global_state.get("clearing_price_e8", 0)),
+                    "index_price_e8": int(market.global_state.get("index_price_e8", 0)),
+                    "maintenance_margin_bps": int(market.global_state.get("maintenance_margin_bps", 0)),
+                    "initial_margin_bps": int(market.global_state.get("initial_margin_bps", 0)),
+                    "liquidation_penalty_bps": int(market.global_state.get("liquidation_penalty_bps", 0)),
+                    "max_position_abs": int(market.global_state.get("max_position_abs", 0)),
+                    "fee_pool_e8": int(market.global_state.get("fee_pool_e8", 0)),
+                    "insurance_e8": int(market.global_state.get("insurance_e8", 0)),
+                    "insurance_ext_e8": int(market.global_state.get("insurance_ext_e8", 0)),
+                    "claims_paid_e8": int(market.global_state.get("claims_paid_e8", 0)),
+                    "net_deposited_e8": int(market.global_state.get("net_deposited_e8", 0)),
+                    "funding_rate_bps": int(market.global_state.get("funding_rate_bps", 0)),
+                    "account_count": len(accounts),
+                    "active_count": active_count,
+                    "long_count": long_count,
+                    "short_count": short_count,
+                    "net_position_base": net_position_base,
+                    "pending_intent_count": len(pending_intents),
+                    "accounts": accounts,
+                    "pending_intents": pending_intents,
+                    "liquidated_this_step": False,
                 }
             )
         elif isinstance(market, PerpMarketState):
@@ -2017,9 +2273,25 @@ def _local_perps_oracle_bridge_fixture(
     if state.perps is None:
         raise ValueError("missing_perps_state")
     market = state.perps.get_market(market_id)
-    if wallet_action == "settle_epoch":
-        if not isinstance(market, PerpClearinghouse2pMarketState):
-            raise ValueError("settle_epoch oracle bridge fixture supports clearinghouse_2p markets only")
+    if wallet_action in {"run_epoch", "settle_epoch"}:
+        if isinstance(market, PerpClearinghouse2pMarketState):
+            market_kind = "clearinghouse_2p_v1"
+            quote_asset = market.quote_asset
+            state_for_oracle = market.state
+            participant_pubkeys = (market.account_a_pubkey, market.account_b_pubkey)
+        elif isinstance(market, PerpClearinghouseNpMarketState):
+            market_kind = "clearinghouse_np_v1"
+            quote_asset = market.quote_asset
+            state_for_oracle = market.global_state
+            participant_pubkeys = tuple(
+                account.pubkey
+                for account in sorted(
+                    market.accounts,
+                    key=lambda acct: canonical_hex_fixed_allow_0x(acct.pubkey, nbytes=48, name="np account pubkey"),
+                )
+            )
+        else:
+            raise ValueError("settle oracle bridge fixture supports clearinghouse 2p/np markets only")
         action_kind = "settle_epoch"
         profile_id = _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID
         freshness_window_epochs = 2
@@ -2027,10 +2299,10 @@ def _local_perps_oracle_bridge_fixture(
             config,
             market_id=market_id,
             action_kind=action_kind,
-            market_kind="clearinghouse_2p_v1",
-            quote_asset=market.quote_asset,
-            state=market.state,
-            participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey),
+            market_kind=market_kind,
+            quote_asset=quote_asset,
+            state=state_for_oracle,
+            participant_pubkeys=participant_pubkeys,
         )
     elif wallet_action == "partial_liquidate":
         if not isinstance(market, PerpMarketState):
@@ -2240,11 +2512,18 @@ def _tx_signer_privkey(body: Mapping[str, Any], *, action: str) -> object:
     privkey = body.get("tx_signer_privkey")
     if privkey is not None:
         return privkey
-    if action in {"deposit_collateral", "withdraw_collateral", "deposit_insurance", "partial_liquidate"} and body.get("account_privkey") is not None:
+    if action in {
+        "join_market",
+        "deposit_collateral",
+        "withdraw_collateral",
+        "deposit_insurance",
+        "submit_intent",
+        "partial_liquidate",
+    } and body.get("account_privkey") is not None:
         return body.get("account_privkey")
     if action == "publish_clearing_price" and body.get("oracle_privkey") is not None:
         return body.get("oracle_privkey")
-    if action in {"advance_epoch", "settle_epoch"} and body.get("operator_privkey") is not None:
+    if action in {"init_market_np", "advance_epoch", "run_epoch", "settle_epoch"} and body.get("operator_privkey") is not None:
         return body.get("operator_privkey")
     if body.get("account_a_privkey") is not None:
         return body.get("account_a_privkey")
@@ -2906,6 +3185,8 @@ def _status_payload() -> Dict[str, Any]:
         ),
         "allow_local_signing": _allow_signing(),
         "auto_mine": _auto_mine(),
+        "supported_actions": sorted(_ACTIONS),
+        "supports_clearinghouse_np_v1": True,
         "quote_asset_default": derive_zusd_tau_asset_id(chain_id=chain_id),
         "operator_pubkey": os.environ.get("TAU_DEX_OPERATOR_PUBKEY") or os.environ.get("TAU_DEX_PERP_OPERATOR_PUBKEY") or None,
         "oracle_pubkey": os.environ.get("TAU_DEX_PERP_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY") or None,
@@ -2976,7 +3257,7 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
             return (200 if payload.get("ok") is True else 400), payload
         if rest == ["oracle-bridge-template"]:
             action = str(parsed.get("action", "settle_epoch")).strip().lower()
-            if action not in {"settle_epoch", "partial_liquidate"}:
+            if action not in {"run_epoch", "settle_epoch", "partial_liquidate"}:
                 return 400, {"ok": False, "error": "unsupported_oracle_bridge_action"}
             chain_id = str(parsed.get("chain_id") or _tau_chain_id())
             client = _tau_client()
