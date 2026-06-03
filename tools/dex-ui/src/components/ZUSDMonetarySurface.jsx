@@ -302,7 +302,10 @@ function ZUSDMonetarySurface() {
 
   async function loadStatus() {
     try {
-      const payload = await apiGetZusdMonetaryStatus({ timeoutMs: 8000 });
+      const payload = await apiGetZusdMonetaryStatus({
+        account: form.actor_pubkey.trim() || '',
+        timeoutMs: 8000,
+      });
       setStatus(payload?.status || null);
       setStatusError('');
       // Pre-fill actor pubkey if present in status
@@ -322,7 +325,10 @@ function ZUSDMonetarySurface() {
 
   useEffect(() => {
     loadStatus();
-  }, []);
+    // Refetch account-aware status when the actor (connected account) changes
+    // so balances/positions/collateral reflect THAT account.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.actor_pubkey]);
 
   async function handlePrepare() {
     setBusy(true);

@@ -68,6 +68,71 @@ def test_status_reports_tau_node_bridge(monkeypatch) -> None:
     assert status["holder_count"] == 2
 
 
+def test_status_is_account_aware_for_funded_holder(monkeypatch) -> None:
+    # Community bug: a funded account's balance must surface on the zUSD token
+    # wallet surface (it previously only resolved on the LP Pool surface).
+    monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
+    monkeypatch.setattr(wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "GET",
+        f"/api/zusd/wallet/status?account={SENDER}",
+        None,
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    status = payload["status"]
+    assert status["node_reachable"] is True
+    assert status["account"] == SENDER
+    assert status["account_view"]["account"] == SENDER
+    assert status["account_view"]["balance"] == 400
+
+
+def test_status_account_aware_zero_for_unknown_account(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
+    monkeypatch.setattr(wallet_api, "TauNetTcpClient", _FakeClient)
+
+    unknown = "0x" + "ee" * 48
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "GET",
+        f"/api/zusd/wallet/status?account={unknown}",
+        None,
+    )
+
+    assert status_code == 200
+    assert payload["status"]["account_view"]["balance"] == 0
+
+
+def test_status_without_account_omits_account_view(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
+    monkeypatch.setattr(wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "GET",
+        "/api/zusd/wallet/status",
+        None,
+    )
+
+    assert status_code == 200
+    assert "account" not in payload["status"]
+    assert "account_view" not in payload["status"]
+
+
+def test_status_fails_closed_on_malformed_account(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
+    monkeypatch.setattr(wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "GET",
+        "/api/zusd/wallet/status?account=not-a-pubkey",
+        None,
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+
+
 def test_status_rejects_malformed_tau_port(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
     monkeypatch.setenv("ZUSD_TAU_WALLET_TAU_PORT", "70000")

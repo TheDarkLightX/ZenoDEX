@@ -445,7 +445,7 @@ export function PerpProvider({ children, wallet, onTransaction }) {
                 // takes 2–3 s on local-testnet, so a tighter cap shows the
                 // user spurious "timeout" banners even when the call would
                 // have finished in time.
-                const statusResp = await apiGetPerpsWalletStatus({ timeoutMs: 12000 });
+                const statusResp = await apiGetPerpsWalletStatus({ account: pubkey || '', timeoutMs: 12000 });
                 if (seq !== loadSeqRef.current) return; // stale
                 const status = statusResp?.status || {};
                 const rawMarkets = Array.isArray(status.markets) ? status.markets : [];

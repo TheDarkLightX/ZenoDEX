@@ -69,7 +69,10 @@ function ZUSDTauWalletSurface() {
 
   async function loadStatus() {
     try {
-      const payload = await apiGetZusdWalletStatus({ timeoutMs: 8000 });
+      const payload = await apiGetZusdWalletStatus({
+        account: form.sender_pubkey.trim() || '',
+        timeoutMs: 8000,
+      });
       setStatus(payload?.status || null);
       setStatusError('');
     } catch (err) {
@@ -80,7 +83,10 @@ function ZUSDTauWalletSurface() {
 
   useEffect(() => {
     loadStatus();
-  }, []);
+    // Refetch account-aware status when the sender (connected account) changes
+    // so the holder's token balance reflects THAT account.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.sender_pubkey]);
 
   const liveSummary = useMemo(() => {
     if (!result?.transport) return null;

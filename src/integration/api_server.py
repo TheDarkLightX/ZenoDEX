@@ -1023,7 +1023,8 @@ class _Handler(BaseHTTPRequestHandler):
             return True
         from src.integration.perps_wallet_api import handle_perps_wallet_request
 
-        status, resp = handle_perps_wallet_request(method, path, raw_body)
+        # Pass the query-bearing raw path so the handler can resolve ?account=.
+        status, resp = handle_perps_wallet_request(method, self.path or path, raw_body)
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
@@ -1069,7 +1070,8 @@ class _Handler(BaseHTTPRequestHandler):
             return True
         from src.integration.zusd_tau_wallet_api import handle_zusd_tau_wallet_request
 
-        status, resp = handle_zusd_tau_wallet_request(method, path, raw_body)
+        # Pass the query-bearing raw path so the handler can resolve ?account=.
+        status, resp = handle_zusd_tau_wallet_request(method, self.path or path, raw_body)
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
@@ -1085,7 +1087,8 @@ class _Handler(BaseHTTPRequestHandler):
             return True
         from src.integration.zusd_monetary_wallet_api import handle_zusd_monetary_wallet_request
 
-        status, resp = handle_zusd_monetary_wallet_request(method, path, raw_body)
+        # Pass the query-bearing raw path so the handler can resolve ?account=.
+        status, resp = handle_zusd_monetary_wallet_request(method, self.path or path, raw_body)
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 

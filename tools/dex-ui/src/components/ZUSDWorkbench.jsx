@@ -69,7 +69,7 @@ function MintPanel({ onClose, demoMode = false, showClose = true }) {
       return undefined;
     }
     let active = true;
-    apiGetZusdMonetaryStatus({ timeoutMs: 8000 })
+    apiGetZusdMonetaryStatus({ account: ownerPubkey || '', timeoutMs: 8000 })
       .then((payload) => {
         if (!active) return;
         const nextStatus = payload?.status || null;

@@ -151,6 +151,76 @@ def test_status_reports_zusd_monetary_state_from_wrapped_app_state(monkeypatch) 
     assert status["liquidation_gas_comp_bps"] == 25
 
 
+def test_status_is_account_aware_for_vault_owner(monkeypatch) -> None:
+    # Community bug: the connected account's monetary position (zUSD balance, SP
+    # deposit, vault-owner flag) must surface here, not only on the LP Pool surface.
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "GET",
+        f"/api/zusd/monetary/status?account={ALICE}",
+        None,
+    )
+
+    assert status_code == 200
+    status = payload["status"]
+    assert status["account"] == ALICE
+    view = status["account_view"]
+    assert view["account"] == ALICE
+    assert view["is_vault_owner"] is True
+    assert view["zusd_balance"] == 0
+    assert view["sp_deposit_e8"] == 0
+
+
+def test_status_account_aware_non_owner_flag_false(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    other = "0x" + "cc" * 48
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "GET",
+        f"/api/zusd/monetary/status?account={other}",
+        None,
+    )
+
+    assert status_code == 200
+    assert payload["status"]["account_view"]["is_vault_owner"] is False
+
+
+def test_status_without_account_omits_account_view(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "GET",
+        "/api/zusd/monetary/status",
+        None,
+    )
+
+    assert status_code == 200
+    assert "account" not in payload["status"]
+    assert "account_view" not in payload["status"]
+
+
+def test_status_fails_closed_on_malformed_account(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "GET",
+        "/api/zusd/monetary/status?account=not-a-pubkey",
+        None,
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+
+
 def test_zusd_monetary_state_rejects_unknown_top_level_fields() -> None:
     obj = dict(_wrapped_app_state()["zusd_monetary"])
     obj["future_extension"] = {"drop": "me"}
