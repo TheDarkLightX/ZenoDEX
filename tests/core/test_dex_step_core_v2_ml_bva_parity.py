@@ -50,6 +50,8 @@ FEE_BPS = 30
 _REFERENCE_DEX_CONFIG = DexConfig(
     settlement_validation="strong_replay",
     reject_settlements_with_rejected_intents=False,
+    require_all_nonces=False,
+    allow_legacy_nonce_free_steps=True,
 )
 
 POOL_ID = compute_pool_id(ASSET_A, ASSET_B, FEE_BPS)

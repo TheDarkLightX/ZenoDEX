@@ -394,6 +394,10 @@ def production_config_violations(
         reasons.append("dex_config.allow_snapshot_bound_quote_bindings must be false")
     if not bool(dex_config.reject_settlements_with_rejected_intents):
         reasons.append("dex_config.reject_settlements_with_rejected_intents must be true")
+    if not bool(dex_config.require_all_nonces):
+        reasons.append("dex_config.require_all_nonces must be true")
+    if bool(dex_config.allow_legacy_nonce_free_steps):
+        reasons.append("dex_config.allow_legacy_nonce_free_steps must be false")
 
     if require_strict_upba:
         if not bool(config.allow_uniform_batch_certificate):
