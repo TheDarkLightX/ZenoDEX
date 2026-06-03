@@ -29,7 +29,16 @@ def _normalize_intent_kind(kind: Any) -> Any:
     return kind
 
 
-def _canonicalize_auth_identifier_if_decodable(value: Any, *, key: str) -> Any:
+def canonicalize_dex_intent_identifier_if_decodable(value: Any, *, key: str) -> Any:
+    """Return the canonical representation for decodable DEX auth identifiers.
+
+    Design by Contract:
+    - Precondition: ``key`` names a DEX intent authorization field. Unknown keys
+      and non-string values are outside this helper's normalization domain.
+    - Invariant: Decodable fixed-width hex identifiers are represented as
+      lowercase ``0x``-prefixed strings everywhere they are signed or executed.
+    - Postcondition: Non-decodable symbolic identifiers are preserved byte-for-byte.
+    """
     width = _DEX_INTENT_AUTH_IDENTIFIER_WIDTHS.get(key)
     if width is None or not isinstance(value, str):
         return value
@@ -37,6 +46,10 @@ def _canonicalize_auth_identifier_if_decodable(value: Any, *, key: str) -> Any:
         return canonical_hex_fixed_allow_0x(value, nbytes=width, name=key)
     except (TypeError, ValueError):
         return value
+
+
+def _canonicalize_auth_identifier_if_decodable(value: Any, *, key: str) -> Any:
+    return canonicalize_dex_intent_identifier_if_decodable(value, key=key)
 
 
 def canonicalize_dex_intent_signing_dict_v1(signing_dict: Mapping[str, Any]) -> Dict[str, Any]:
