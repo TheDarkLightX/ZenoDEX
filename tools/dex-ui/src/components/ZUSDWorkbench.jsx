@@ -69,10 +69,16 @@ function MintPanel({ onClose, demoMode = false, showClose = true, wallet = null 
   // CONNECTED wallet on identity change, so the connected account's vault/balance
   // is what the panel inspects. Manual edits between switches are preserved.
   const prevWalletRef = useRef(connectedAccount);
+  // Once a wallet has driven the field this session, the wallet binding is
+  // authoritative: an empty field then means INTENTIONALLY empty, so the
+  // vault-owner convenience prefill below must not rehydrate the disconnected
+  // account (Codex: stale account_view + poisoned re-connect rebind).
+  const walletEverConnectedRef = useRef(Boolean(connectedAccount));
   useEffect(() => {
     const previous = prevWalletRef.current;
     if (connectedAccount && connectedAccount !== previous) {
       prevWalletRef.current = connectedAccount;
+      walletEverConnectedRef.current = true;
       // Rebind only the auto-bound value (empty, or the prior wallet) — never
       // clobber a genuine manual edit.
       setOwnerPubkey((curr) => ((!curr || curr === previous) ? connectedAccount : curr));
@@ -94,7 +100,10 @@ function MintPanel({ onClose, demoMode = false, showClose = true, wallet = null 
         if (!active) return;
         const nextStatus = payload?.status || null;
         setStatus(nextStatus);
-        if (!ownerPubkey && nextStatus?.vault_owner_pubkey) {
+        // Convenience prefill of the global vault owner ONLY when no wallet has
+        // driven the field this session (operator inspecting the vault without a
+        // wallet). Once a wallet connects, empty means intentionally empty.
+        if (!ownerPubkey && nextStatus?.vault_owner_pubkey && !walletEverConnectedRef.current) {
           setOwnerPubkey(nextStatus.vault_owner_pubkey);
         }
       })

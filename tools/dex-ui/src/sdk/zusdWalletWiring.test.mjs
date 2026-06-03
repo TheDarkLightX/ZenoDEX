@@ -60,3 +60,11 @@ test('MintPanel clears the auto-bound owner only on a matching disconnect', () =
   // prevWalletRef + clear-if-equals-previous guard (manual edits preserved).
   assert.match(workbench, /curr === previous \? '' : curr/);
 });
+
+test('vault-owner prefill is suppressed once a wallet has driven the field', () => {
+  // Codex catch: after disconnect, the global vault_owner_pubkey prefill must NOT
+  // rehydrate the disconnected account (which also poisoned the re-connect rebind).
+  // Both monetary paths gate the prefill on !walletEverConnectedRef.current.
+  assert.match(workbench, /vault_owner_pubkey && !walletEverConnectedRef\.current/);
+  assert.match(monetary, /vault_owner_pubkey && !walletEverConnectedRef\.current/);
+});

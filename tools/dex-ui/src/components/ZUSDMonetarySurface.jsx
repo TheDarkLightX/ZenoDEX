@@ -311,8 +311,11 @@ function ZUSDMonetarySurface({ wallet = null }) {
       });
       setStatus(payload?.status || null);
       setStatusError('');
-      // Pre-fill actor pubkey if present in status
-      if (payload?.status?.vault_owner_pubkey) {
+      // Convenience prefill of the global vault owner ONLY when no wallet has
+      // driven the field this session (operator inspecting the vault without a
+      // wallet). Once a wallet connects, empty means intentionally empty — do not
+      // rehydrate the disconnected account.
+      if (payload?.status?.vault_owner_pubkey && !walletEverConnectedRef.current) {
         setForm((curr) => {
           if (!curr.actor_pubkey) {
             return { ...curr, actor_pubkey: payload.status.vault_owner_pubkey };
@@ -338,10 +341,15 @@ function ZUSDMonetarySurface({ wallet = null }) {
   // reflect THAT account (fixes "50k shows in Pool but not zUSD"). Manual edits
   // between wallet switches are preserved — we only react to identity changes.
   const prevWalletRef = useRef(connectedAccount);
+  // Once a wallet has driven the field this session, the wallet binding is
+  // authoritative: an empty field means INTENTIONALLY empty, so the vault-owner
+  // convenience prefill in loadStatus must not rehydrate the disconnected account.
+  const walletEverConnectedRef = useRef(Boolean(connectedAccount));
   useEffect(() => {
     const previous = prevWalletRef.current;
     if (connectedAccount && connectedAccount !== previous) {
       prevWalletRef.current = connectedAccount;
+      walletEverConnectedRef.current = true;
       // Rebind only the auto-bound value (empty, or the prior wallet) — never
       // clobber a genuine manual edit.
       setForm((curr) =>
