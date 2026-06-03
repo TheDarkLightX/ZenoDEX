@@ -52,10 +52,11 @@ function nowDeadline() {
   return Math.floor(Date.now() / 1000) + 3600;
 }
 
-function MintPanel({ onClose, demoMode = false, showClose = true }) {
+function MintPanel({ onClose, demoMode = false, showClose = true, wallet = null }) {
   const smokeConfig = useRef(readQuickMintSmokeConfig());
+  const connectedAccount = (wallet?.address || '').trim();
   const [collateral, setCollateral] = useState('');
-  const [ownerPubkey, setOwnerPubkey] = useState(smokeConfig.current?.ownerPubkey || '');
+  const [ownerPubkey, setOwnerPubkey] = useState(smokeConfig.current?.ownerPubkey || connectedAccount);
   const [signerPrivkey] = useState(smokeConfig.current?.signerPrivkey || '');
   const [deadline, setDeadline] = useState(smokeConfig.current?.deadline || '');
   const [busy, setBusy] = useState(false);
@@ -63,6 +64,19 @@ function MintPanel({ onClose, demoMode = false, showClose = true }) {
   const [error, setError] = useState('');
   const [status, setStatus] = useState(null);
   const smokeRan = useRef(false);
+
+  // Bind the mint owner (and its account-aware status query below) to the
+  // CONNECTED wallet on identity change, so the connected account's vault/balance
+  // is what the panel inspects. Manual edits between switches are preserved.
+  const prevWalletRef = useRef(connectedAccount);
+  useEffect(() => {
+    if (connectedAccount && connectedAccount !== prevWalletRef.current) {
+      prevWalletRef.current = connectedAccount;
+      setOwnerPubkey(connectedAccount);
+    } else if (!connectedAccount) {
+      prevWalletRef.current = '';
+    }
+  }, [connectedAccount]);
 
   useEffect(() => {
     if (demoMode) {
@@ -376,7 +390,7 @@ function StabilityPoolPanel({ onClose }) {
   );
 }
 
-function ZUSDWorkbench() {
+function ZUSDWorkbench({ wallet = null }) {
   const { demoMode } = useDemoMode();
   const [activePanel, setActivePanel] = useState(null);
 
@@ -384,9 +398,9 @@ function ZUSDWorkbench() {
     const isQuickMintSmoke = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('zenodexUiSmokeZusdQuickMint') === '1';
     return (
       <section className="zusd-workbench">
-        {isQuickMintSmoke && <MintPanel demoMode={false} showClose={false} />}
-        <ZUSDMonetarySurface />
-        <ZUSDTauWalletSurface />
+        {isQuickMintSmoke && <MintPanel demoMode={false} showClose={false} wallet={wallet} />}
+        <ZUSDMonetarySurface wallet={wallet} />
+        <ZUSDTauWalletSurface wallet={wallet} />
       </section>
     );
   }
@@ -452,7 +466,7 @@ function ZUSDWorkbench() {
           </div>
         </div>
 
-        {activePanel === 'mint' && <MintPanel demoMode={demoMode} onClose={() => setActivePanel(null)} />}
+        {activePanel === 'mint' && <MintPanel demoMode={demoMode} onClose={() => setActivePanel(null)} wallet={wallet} />}
         {activePanel === 'deposit_sp' && <StabilityPoolPanel onClose={() => setActivePanel(null)} />}
         {(activePanel === 'repay' || activePanel === 'redeem') && (
           <div className="zusd-action-panel panel animate-scale-in">
