@@ -886,6 +886,25 @@ def test_rust_shadow_publish_full_state_and_effects_parity(rust_env):
     assert int(gs["clearing_price_e8"]) == 101_000_000
 
 
+def test_rust_shadow_publish_with_mark_price_source_kind_parity(rust_env):
+    # Codex F1: a publish op may carry the explicit derivatives-safe
+    # mark_price_source_kind field. The Python isolated handler allows it; the Rust
+    # materializer previously rejected it as an unknown op field (Python accept /
+    # Rust reject = parity divergence). Under RUST_SHADOW the two must now AGREE to
+    # accept, and the op's value must land in the post-state.
+    market_id = "perp:shadow-publish-msk"
+    state = _open(market_id)
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "publish_clearing_price", price_e8=101_000_000, mark_price_source_kind=1)],
+    )
+    assert res.ok is True, res.error
+    gs = res.state.perps.markets[market_id].global_state
+    assert int(gs["epoch_phase"]) == 1
+    assert int(gs["mark_price_source_kind"]) == 1
+
+
 def test_rust_shadow_settle_full_state_and_effects_parity(rust_env):
     # settle_epoch is materialized (the first account-mutating op): rust_shadow
     # compares the full settled post-market (global fee/insurance + every account's
