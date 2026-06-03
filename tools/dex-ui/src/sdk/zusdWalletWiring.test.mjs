@@ -43,6 +43,9 @@ test('ZUSDMonetarySurface binds the connected account and renders account_view',
   assert.match(monetary, /actor_pubkey:\s*connectedAccount/);
   // The connected account's balance is actually shown.
   assert.match(monetary, /status\.account_view\.zusd_balance/);
+  // On disconnect, the auto-bound field is cleared only when it still equals the
+  // prior wallet (manual edits survive) — no stale account_view after disconnect.
+  assert.match(monetary, /curr\.actor_pubkey === previous/);
 });
 
 test('ZUSDTauWalletSurface binds the connected account and renders account_view', () => {
@@ -50,4 +53,10 @@ test('ZUSDTauWalletSurface binds the connected account and renders account_view'
   assert.match(tau, /connectedAccount\s*=\s*\(wallet\?\.address/);
   assert.match(tau, /sender_pubkey:\s*connectedAccount/);
   assert.match(tau, /status\.account_view\.balance/);
+  assert.match(tau, /curr\.sender_pubkey === previous/);
+});
+
+test('MintPanel clears the auto-bound owner only on a matching disconnect', () => {
+  // prevWalletRef + clear-if-equals-previous guard (manual edits preserved).
+  assert.match(workbench, /curr === previous \? '' : curr/);
 });

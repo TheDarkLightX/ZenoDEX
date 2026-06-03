@@ -70,11 +70,17 @@ function MintPanel({ onClose, demoMode = false, showClose = true, wallet = null 
   // is what the panel inspects. Manual edits between switches are preserved.
   const prevWalletRef = useRef(connectedAccount);
   useEffect(() => {
-    if (connectedAccount && connectedAccount !== prevWalletRef.current) {
+    const previous = prevWalletRef.current;
+    if (connectedAccount && connectedAccount !== previous) {
       prevWalletRef.current = connectedAccount;
-      setOwnerPubkey(connectedAccount);
-    } else if (!connectedAccount) {
+      // Rebind only the auto-bound value (empty, or the prior wallet) — never
+      // clobber a genuine manual edit.
+      setOwnerPubkey((curr) => ((!curr || curr === previous) ? connectedAccount : curr));
+    } else if (!connectedAccount && previous) {
       prevWalletRef.current = '';
+      // On disconnect, clear ONLY if the field still holds the disconnected
+      // wallet (so a manual edit survives).
+      setOwnerPubkey((curr) => (curr === previous ? '' : curr));
     }
   }, [connectedAccount]);
 
