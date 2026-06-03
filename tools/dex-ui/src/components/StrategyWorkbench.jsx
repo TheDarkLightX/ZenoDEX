@@ -6,6 +6,7 @@ import {
   apiGetAutotraderStatus,
   apiExecuteAutotraderLiveOnce,
   apiExecuteAutotraderSupervisor,
+  apiPreflightAutotraderSupervisor,
   apiPrepareAutotraderLive,
   apiSubmitAutotraderLive,
 } from '../lib/api.js';
@@ -17,6 +18,7 @@ import {
 } from '../lib/strategyData';
 
 const FIXTURE_SIGNER_OWNER = '0xadc3b042bd6a603ea4cd32a99456be0c1da7851138793d786186515acf5a258bd017e89502a441302f2ec110a8c96f5d';
+const SUPERVISOR_EXECUTION_ID = 'strategy-ui-supervisor-1';
 
 function isAutoTraderSmokeEnabled() {
   if (typeof window === 'undefined') {
@@ -245,9 +247,41 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
   const smokeRunRef = useRef(false);
   const [smokeResult, setSmokeResult] = useState(null);
 
+  // Supervisor interactive (non-smoke) wiring. All controls are fail-closed:
+  // they stay disabled/blocked unless the live API reports the supervisor gate
+  // ON and the profile READY, and execute additionally needs a passed preflight
+  // plus an externally signed payload + execution id.
+  const [supervisorPreflight, setSupervisorPreflight] = useState(null);
+  const [supervisorResult, setSupervisorResult] = useState(null);
+
   const report = result?.report || null;
   const isAdmissible = report?.decision?.admissible !== false;
   const preflightPassed = report?.live_admission?.ok && report?.submit_bundle?.ok;
+
+  // Read-only supervisor readiness, derived purely from the status endpoint.
+  // status.supervisor_enabled reflects AUTOTRADER_LIVE_SUPERVISOR_ENABLED;
+  // status.supervisor.{supervisor_ready,status,readiness_gaps} reflect the
+  // hash-verified profile evaluation. Default to "gated off" when absent.
+  const supervisorEnabled = status?.supervisor_enabled === true;
+  const supervisorStatus = status?.supervisor || null;
+  const supervisorReady = supervisorStatus?.supervisor_ready === true;
+  const supervisorGaps = Array.isArray(supervisorStatus?.readiness_gaps)
+    ? supervisorStatus.readiness_gaps
+    : [];
+  const supervisorPreflightOk = supervisorPreflight?.ok === true;
+  const hasSignedPayload = signedTauTxPayload.trim().length > 0;
+  // Execute is fail-closed: gate on + ready + preflight ok + signed payload present.
+  const supervisorExecuteReady =
+    supervisorEnabled && supervisorReady && supervisorPreflightOk && hasSignedPayload;
+  const supervisorExecuteBlockedReason = !supervisorEnabled
+    ? 'Supervisor execution is gated off (AUTOTRADER_LIVE_SUPERVISOR_ENABLED=false).'
+    : !supervisorReady
+      ? 'Supervisor profile is not ready.'
+      : !supervisorPreflightOk
+        ? 'Run a supervisor preflight first.'
+        : !hasSignedPayload
+          ? 'Paste an externally signed Tau-tx envelope (Sign Externally) before executing.'
+          : '';
 
   async function refreshStatus() {
     try {
@@ -373,16 +407,22 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
     ? 'pending'
     : (sSupervisor?.supervisor_ready || sRuntime?.supervisor_ready) ? 'ready' : 'ready';
 
-  function liveRequestBody({ forSubmit = false } = {}) {
-    const preparedReport = forSubmit && preparedReportJson ? JSON.parse(preparedReportJson) : null;
+  function liveRequestBody({ forSubmit = false, forSupervisor = false } = {}) {
+    // Supervisor preflight/execute share the submit body shape (prepared report +
+    // execution id + optional signed payload). The "submit-shaped" branch is taken
+    // for either forSubmit or forSupervisor so the policy/tx-envelope fields stay
+    // on the prepare call only, matching the API contract.
+    const submitShaped = forSubmit || forSupervisor;
+    const preparedReport = submitShaped && preparedReportJson ? JSON.parse(preparedReportJson) : null;
     const body = {
       acknowledge_experimental_live_risk: acknowledged,
       chain_id: chainId,
       signer_privkey: Number.parseInt(signerPrivkey, 10) || 7,
     };
     if (preparedReport) body.prepared_report = preparedReport;
-    if (forSubmit) body.execution_id = 'strategy-ui-exec-1';
-    if (!forSubmit) {
+    if (forSupervisor) body.execution_id = SUPERVISOR_EXECUTION_ID;
+    else if (forSubmit) body.execution_id = 'strategy-ui-exec-1';
+    if (!submitShaped) {
       body.tx_sequence_number = Number.parseInt(sequenceNumber, 10) || 9;
       body.tx_expiration_time = Number.parseInt(expirationTime, 10) || 999;
       body.tx_fee_limit = feeLimit;
@@ -419,7 +459,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
         },
       };
     }
-    if (forSubmit && signedTauTxPayload.trim()) {
+    if (submitShaped && signedTauTxPayload.trim()) {
       body.signed_tau_tx_payload = signedTauTxPayload.trim();
     }
     return body;
@@ -433,6 +473,10 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
     setBusy('prepare');
     setError('');
     setResult(null);
+    // A new prepare invalidates any prior supervisor preflight/result so the
+    // execute button cannot stay enabled against a stale (now-mismatched) report.
+    setSupervisorPreflight(null);
+    setSupervisorResult(null);
     try {
       const payload = await apiPrepareAutotraderLive(liveRequestBody(), { timeoutMs: 15000 });
       setResult(payload);
@@ -456,6 +500,58 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
       setStep(3);
     } catch (err) {
       setError(err?.message || 'submit_failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Read-only supervisor readiness probe. Disabled unless the live status reports
+  // the supervisor gate ON and the profile READY (the button itself enforces this);
+  // a server-side "supervisor_disabled"/"supervisor_profile_not_ready" still lands
+  // here as ok:false and is surfaced verbatim — no state is mutated on the chain.
+  async function handleSupervisorPreflight() {
+    setBusy('supervisor-preflight');
+    setError('');
+    setSupervisorResult(null);
+    try {
+      const payload = await apiPreflightAutotraderSupervisor(
+        liveRequestBody({ forSupervisor: true }),
+        { timeoutMs: 20000 },
+      );
+      setSupervisorPreflight(payload);
+      if (payload?.ok !== true) {
+        setError(payload?.error || 'supervisor_preflight_failed');
+      }
+    } catch (err) {
+      setSupervisorPreflight({ ok: false, error: err?.message || 'supervisor_preflight_failed' });
+      setError(err?.message || 'supervisor_preflight_failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSupervisorExecute() {
+    if (!supervisorExecuteReady) {
+      setError(supervisorExecuteBlockedReason || 'supervisor_execute_blocked');
+      return;
+    }
+    setBusy('supervisor-execute');
+    setError('');
+    try {
+      const payload = await apiExecuteAutotraderSupervisor(
+        liveRequestBody({ forSupervisor: true }),
+        { timeoutMs: 20000 },
+      );
+      // A supervised tick is a single manual run, not the full "deploy" flow,
+      // so we stay on step 2 and render the execution result inline rather than
+      // advancing to the "Strategy Deployed" screen.
+      setSupervisorResult(payload);
+      if (payload?.ok !== true) {
+        setError(payload?.error || 'supervisor_execute_failed');
+      }
+    } catch (err) {
+      setSupervisorResult({ ok: false, error: err?.message || 'supervisor_execute_failed' });
+      setError(err?.message || 'supervisor_execute_failed');
     } finally {
       setBusy(false);
     }
@@ -587,6 +683,98 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
               {busy === 'submit' ? 'Authorizing...' : signedTauTxPayload ? 'Authorize (signed)' : 'Authorize Execution'}
             </button>
           </div>
+
+          {/* Supervisor readiness — read-only, fail-closed. Rendered only in live
+              (non-demo) mode. The panel reflects the live status endpoint and never
+              mutates chain state on its own; the execute button is hard-disabled
+              unless the gate is on, the profile is ready, a preflight has passed, and
+              an externally signed payload is present. This adds NO production claim. */}
+          {!demoMode && (
+            <div className="strat-section-card" style={{ marginTop: 'var(--space-lg)' }} aria-label="Supervisor readiness">
+              <div className="strat-section-header">
+                <h3>Supervised Tick (Experimental)</h3>
+                <span className="strat-section-badge">
+                  {!supervisorEnabled ? 'gated off' : supervisorReady ? 'ready' : 'blocked'}
+                </span>
+              </div>
+
+              {!supervisorEnabled && (
+                <div className="strat-live-error" style={{ marginTop: 'var(--space-sm)' }}>
+                  Supervisor execution is gated off (AUTOTRADER_LIVE_SUPERVISOR_ENABLED=false).
+                  Preflight and execute remain disabled.
+                </div>
+              )}
+
+              {supervisorEnabled && !supervisorReady && (
+                <div className="strat-live-error" style={{ marginTop: 'var(--space-sm)' }}>
+                  <div>Supervisor profile is not ready. Readiness gaps:</div>
+                  {supervisorGaps.length > 0 ? (
+                    <ul style={{ margin: 'var(--space-xs) 0 0', paddingLeft: 'var(--space-lg)' }}>
+                      {supervisorGaps.map((gap, idx) => (
+                        <li key={idx} className="strat-mono">{gap}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="strat-mono">supervisor profile missing or disabled</div>
+                  )}
+                </div>
+              )}
+
+              {supervisorEnabled && supervisorReady && (
+                <div className="strat-live-grid" style={{ marginTop: 'var(--space-sm)' }}>
+                  <div className="strat-live-metric"><span>Supervisor</span><strong>{supervisorStatus?.status || 'ready'}</strong></div>
+                  <div className="strat-live-metric"><span>Stage</span><strong>{supervisorStatus?.stage || 'pending'}</strong></div>
+                  <div className="strat-live-metric"><span>Max actions / tick</span><strong>{supervisorStatus?.max_actions_per_tick ?? 0}</strong></div>
+                  <div className="strat-live-metric"><span>Max runs / process</span><strong>{supervisorStatus?.max_runs_per_process ?? 0}</strong></div>
+                  <div className="strat-live-metric"><span>Preflight</span><strong>{supervisorPreflightOk ? 'ready' : (supervisorPreflight ? 'rejected' : 'not run')}</strong></div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap', marginTop: 'var(--space-md)' }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleSupervisorPreflight}
+                  disabled={busy || !supervisorEnabled || !supervisorReady || !isAdmissible}
+                  title={!supervisorEnabled
+                    ? 'Supervisor gated off'
+                    : !supervisorReady
+                      ? 'Supervisor profile not ready'
+                      : 'Read-only readiness probe (no chain state mutated)'}
+                >
+                  {busy === 'supervisor-preflight' ? 'Checking...' : 'Run Supervisor Preflight'}
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSupervisorExecute}
+                  disabled={busy || !supervisorExecuteReady}
+                  title={supervisorExecuteReady ? 'Execute one supervised tick' : supervisorExecuteBlockedReason}
+                >
+                  {busy === 'supervisor-execute' ? 'Executing...' : 'Supervisor Execute'}
+                </button>
+              </div>
+
+              {!supervisorExecuteReady && supervisorEnabled && supervisorReady && (
+                <div className="strat-field-hint" style={{ marginTop: 'var(--space-sm)' }}>
+                  {supervisorExecuteBlockedReason}
+                </div>
+              )}
+
+              {supervisorResult?.ok === true && (
+                <div className="strat-live-grid" style={{ marginTop: 'var(--space-sm)' }}>
+                  <div className="strat-live-metric"><span>Status</span><strong>{supervisorResult.status || 'supervisor_executed'}</strong></div>
+                  {supervisorResult?.execution?.execution_id && (
+                    <div className="strat-live-metric"><span>Execution ID</span><strong>{supervisorResult.execution.execution_id}</strong></div>
+                  )}
+                  {supervisorResult?.execution?.replay_guard && (
+                    <div className="strat-live-metric"><span>Replay guard</span><strong>{supervisorResult.execution.replay_guard}</strong></div>
+                  )}
+                  {(supervisorResult?.execution?.remaining_runs_in_process != null) && (
+                    <div className="strat-live-metric"><span>Runs remaining</span><strong>{supervisorResult.execution.remaining_runs_in_process}</strong></div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
