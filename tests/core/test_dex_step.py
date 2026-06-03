@@ -50,6 +50,7 @@ def test_dex_step_end_to_end_create_swap_lp() -> None:
                 "fee_bps": 30,
                 "amount0": 2_000_000,
                 "amount1": 2_000_000,
+                "nonce": 1,
             },
         ),
         Intent(
@@ -65,6 +66,7 @@ def test_dex_step_end_to_end_create_swap_lp() -> None:
                 "asset_out": asset1,
                 "amount_in": 1000,
                 "min_amount_out": 1,
+                "nonce": 2,
             },
         ),
         Intent(
@@ -80,6 +82,7 @@ def test_dex_step_end_to_end_create_swap_lp() -> None:
                 "asset_out": asset0,
                 "amount_out": 500,
                 "max_amount_in": 10_000_000,
+                "nonce": 3,
             },
         ),
         Intent(
@@ -95,6 +98,7 @@ def test_dex_step_end_to_end_create_swap_lp() -> None:
                 "amount1_desired": 100_000,
                 "amount0_min": 0,
                 "amount1_min": 0,
+                "nonce": 4,
             },
         ),
         Intent(
@@ -109,6 +113,7 @@ def test_dex_step_end_to_end_create_swap_lp() -> None:
                 "lp_amount": 1000,
                 "amount0_min": 0,
                 "amount1_min": 0,
+                "nonce": 5,
             },
         ),
     ]

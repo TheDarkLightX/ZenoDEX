@@ -45,10 +45,30 @@ class DexConfig:
     # filled. Batch-clearing internals may represent unfillable intents as
     # REJECT fills, but the public execution boundary fails closed on them.
     reject_settlements_with_rejected_intents: bool = True
+    # Replay protection is a core-boundary invariant: every public intent must
+    # carry a valid nonce unless a caller deliberately enables the legacy
+    # nonce-free compatibility mode for closed test harnesses.
+    require_all_nonces: bool = True
+    allow_legacy_nonce_free_steps: bool = False
     # Exact-in CPMM protocol-fee capture. A nonzero share removes that portion
     # of the swap fee from pool reserves and credits `protocol_fee_recipient_pubkey`.
     protocol_fee_share_bps: int = 0
     protocol_fee_recipient_pubkey: Optional[str] = None
+
+    def requires_complete_nonce_coverage(self) -> bool:
+        """Return the fail-closed nonce policy for public core step calls.
+
+        Design by Contract:
+        - Precondition: compatibility callers must set both
+          `require_all_nonces=False` and `allow_legacy_nonce_free_steps=True`.
+        - Invariant: the default policy rejects nonce-free intents at the core
+          boundary, preventing signed-intent replay.
+        - Postcondition: an ambiguous config (`require_all_nonces=False` without
+          legacy opt-in) still fails closed.
+        """
+        if bool(self.require_all_nonces):
+            return True
+        return not bool(self.allow_legacy_nonce_free_steps)
 
 
 @dataclass(frozen=True)
@@ -181,7 +201,7 @@ def step_with_candidate_settlement(
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
             intents=intents,
-            require_all_nonces=False,
+            require_all_nonces=config.requires_complete_nonce_coverage(),
         )
         if not ok:
             return DexStepResult(ok=False, error=err or "nonce policy rejected")
@@ -206,7 +226,7 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
             intents=intents,
-            require_all_nonces=False,
+            require_all_nonces=config.requires_complete_nonce_coverage(),
         )
         if not ok:
             return DexStepResult(ok=False, error=err or "nonce policy rejected")
