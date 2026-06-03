@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import io
 import json
 import tarfile
 from pathlib import Path
@@ -215,3 +217,78 @@ def test_operator_release_bundle_rejects_unsafe_version(tmp_path: Path, capsys) 
 
     assert code != 0
     assert "version must contain only ASCII" in capsys.readouterr().err
+
+
+def _write_manifest(path: Path, *, archive_name: str, archive_sha256: str, version: str, files: list[dict[str, object]]) -> None:
+    manifest = {
+        "schema": "zenodex.operator_release_bundle.v0",
+        "version": version,
+        "archive_name": archive_name,
+        "archive_sha256": archive_sha256,
+        "generated_at": "2026-01-01T00:00:00Z",
+        "generator": "test",
+        "file_count": len(files),
+        "files": files,
+    }
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def test_verify_rejects_non_regular_archive_members(tmp_path: Path) -> None:
+    archive_path = tmp_path / "bundle.tar.gz"
+    payload = b"ok\n"
+    with tarfile.open(archive_path, "w:gz") as tar:
+        regular = tarfile.TarInfo("zenodex-operator-v1/bin/zenoctl")
+        regular.size = len(payload)
+        tar.addfile(regular, fileobj=io.BytesIO(payload))
+        link = tarfile.TarInfo("zenodex-operator-v1/escape")
+        link.type = tarfile.SYMTYPE
+        link.linkname = "../../outside"
+        tar.addfile(link)
+
+    manifest_path = tmp_path / "manifest.json"
+    _write_manifest(
+        manifest_path,
+        archive_name=archive_path.name,
+        archive_sha256=hashlib.sha256(archive_path.read_bytes()).hexdigest(),
+        version="v1",
+        files=[
+            {"path": "bin/zenoctl", "size_bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest()},
+        ],
+    )
+    verify = verify_operator_release_manifest(manifest_path=manifest_path)
+
+    assert verify["ok"] is False
+    assert "archive contains non-regular file: escape" in verify["errors"]
+
+
+def test_verify_rejects_duplicate_and_unsafe_member_paths(tmp_path: Path) -> None:
+    archive_path = tmp_path / "bundle.tar.gz"
+    payload = b"ok\n"
+    with tarfile.open(archive_path, "w:gz") as tar:
+        a = tarfile.TarInfo("zenodex-operator-v1/bin/zenoctl")
+        a.size = len(payload)
+        tar.addfile(a, fileobj=io.BytesIO(payload))
+
+        dup = tarfile.TarInfo("zenodex-operator-v1/bin/zenoctl")
+        dup.size = len(payload)
+        tar.addfile(dup, fileobj=io.BytesIO(payload))
+
+        bad = tarfile.TarInfo("zenodex-operator-v1/../evil.txt")
+        bad.size = len(payload)
+        tar.addfile(bad, fileobj=io.BytesIO(payload))
+
+    manifest_path = tmp_path / "manifest.json"
+    _write_manifest(
+        manifest_path,
+        archive_name=archive_path.name,
+        archive_sha256=hashlib.sha256(archive_path.read_bytes()).hexdigest(),
+        version="v1",
+        files=[
+            {"path": "bin/zenoctl", "size_bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest()},
+        ],
+    )
+    verify = verify_operator_release_manifest(manifest_path=manifest_path)
+
+    assert verify["ok"] is False
+    assert "archive contains duplicate path: bin/zenoctl" in verify["errors"]
+    assert "archive member has unsafe path: ../evil.txt" in verify["errors"]
