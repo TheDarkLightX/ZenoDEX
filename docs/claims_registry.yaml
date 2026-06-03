@@ -3262,3 +3262,102 @@ claims:
         - docs/ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.md
         - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+
+  - id: tla:settlement_attestation_governance:governed_policy_activation
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ settlement-attestation governance model
+      (`SIGNERS = {0,1}`, `SOURCES = {0,1}`), accepted settlements require an
+      active approved, timelocked, multisig-backed, non-revoked policy snapshot
+      with enough observed signers and sources; revoked active policy blocks
+      future settlement acceptance; accepted settlements cannot drift away from
+      the active policy epoch; and under weak fairness, an approved pending
+      policy with an elapsed timelock eventually activates.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local settlement attestation
+        governance model. This is a control-flow claim about bounded signer and
+        source sets, not a proof of real-world signer independence, oracle
+        truth, BLS validity, bribery resistance, or on-chain governance
+        execution.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementAttestationGovernance.tla
+        - formal/tla/SettlementAttestationGovernance.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:settlement_signer_registry_tau_bridge:bound_snapshot_and_anchor
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ Tau-native settlement signer-registry bridge model,
+      accepted requests require a request-bound registry snapshot and chain
+      anchor, drifted snapshots or anchors block acceptance, and under weak
+      fairness ready requests eventually accept while visible binding mismatches
+      and unavailable proof paths eventually resolve by rejection or proof-path
+      checks.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local Tau bridge control model.
+        This models bridge sequencing and binding decisions, not Tau parser
+        soundness, cryptographic proof-path correctness, signer honesty, or
+        production chain finality.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementSignerRegistryTauBridge.tla
+        - formal/tla/SettlementSignerRegistryTauBridge.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:tau_state_app_hash_provenance_bridge:loader_acceptance_binding
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ Tau-state/app-hash provenance bridge model, accepted
+      loader requests require bridge payload checks, baseline provenance checks,
+      state-proof error freedom, and the stronger Tau-state transport plus
+      binding checks whenever strong binding is required; visible bridge,
+      baseline, transport, or Tau-binding failures block acceptance and under
+      weak fairness eventually resolve by rejection or acceptance when the clean
+      ready state is reached.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local Tau-state provenance bridge
+        control model. This is evidence for the bounded accept/reject sequencing
+        and binding flags, not a proof of Tau-state transport availability,
+        external chain data correctness, or host implementation bug freedom.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/TauStateAppHashProvenanceBridge.tla
+        - formal/tla/TauStateAppHashProvenanceBridge.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:tau_state_app_hash_stable_window:bounded_retry_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ Tau-state app-hash stable-window model, returned
+      loader output requires a stable proof/app window and, when strong binding
+      is required, a stable Tau-state observation; finding a stable window
+      implies a returned result; strong binding without Tau stability blocks
+      return; and under weak fairness an unstabilizable window eventually
+      rejects after the bounded retry budget is exhausted.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local stable-window control model
+        with three retry attempts. This does not prove live transport quality,
+        eventual network convergence, or correctness of bytes returned by an
+        external Tau node.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/TauStateAppHashStableWindow.tla
+        - formal/tla/TauStateAppHashStableWindow.cfg
+        - tools/run_tla_models.py

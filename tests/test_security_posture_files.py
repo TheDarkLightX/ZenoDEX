@@ -89,8 +89,12 @@ def test_python_install_surfaces_use_hash_locked_requirements() -> None:
     assert "tools/zeno_ledger_risc0_proof_metadata.py" in release_gate
     assert "tools/zeno_ledger_risc0_real_proof_smoke.py" in release_gate
     assert "tools/check_zeno_ledger_risc0_real_proof_smoke_report.py" in release_gate
+    assert "tools/zeno_ledger_zusd_risc0_real_proof_smoke.py" in release_gate
+    assert "tools/zeno_ledger_perp_np_risc0_real_proof_smoke.py" in release_gate
+    assert "tools/check_zusd_perps_np_risc0_real_proof_smoke_report.py" in release_gate
     assert "tests/integration/test_zeno_ledger_risc0_proof_metadata.py" in release_gate
     assert "tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py" in release_gate
+    assert "tests/test_check_zusd_perps_np_risc0_real_proof_smoke_report.py" in release_gate
     assert "tools/confidential_attestation_verifier_rust/Cargo.toml" in release_gate
     assert "tests/integration/test_zeno_ledger_tee_proof_metadata.py" in release_gate
     assert "tests/tools/test_check_confidential_route_quote_bundle.py" in release_gate
@@ -104,6 +108,17 @@ def test_python_install_surfaces_use_hash_locked_requirements() -> None:
     assert "tests/formal/test_lean_zenocover_payout_cap.py" in release_gate
     assert "tools/check_zenocover_attack_queries.py" in release_gate
     assert "tests/tools/test_check_zenocover_attack_queries.py" in release_gate
+    assert "tools/check_production_key_management_spec.py" in release_gate
+    assert "tools/check_production_key_management_esso_equivalent.py" in release_gate
+    assert "tools/check_production_key_management_bypasses.py" in release_gate
+    assert "tools/check_production_key_material_absence.py" in release_gate
+    assert "src/integration/production_key_management_v0.py" in release_gate
+    assert "src/integration/zeno_ledger_production_key_gates_v0.py" in release_gate
+    assert "tests/test_production_key_management_spec.py" in release_gate
+    assert "tests/test_check_production_key_management_esso_equivalent.py" in release_gate
+    assert "tests/test_check_production_key_material_absence.py" in release_gate
+    assert "tests/integration/test_production_key_management_v0.py" in release_gate
+    assert "tests/integration/test_zeno_ledger_production_key_gates_v0.py" in release_gate
     assert "tests/integration/test_zeno_ledger_v0.py::test_validator_set_rejects_duplicate_ids_and_zero_voting_power" in release_gate
     assert "tests/integration/test_zeno_ledger_v0.py::test_validate_body_rejects_batch_cutoff_chain_id_mismatch" in release_gate
     assert "tests/integration/test_zeno_ledger_v0.py::test_validate_body_rejects_batch_cutoff_height_mismatch" in release_gate

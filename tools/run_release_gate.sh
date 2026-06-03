@@ -146,11 +146,16 @@ echo "== release: Risc0 proof metadata adapter =="
   "$ROOT_DIR/tools/zeno_ledger_risc0_proof_metadata.py" \
   "$ROOT_DIR/tools/zeno_ledger_risc0_real_proof_smoke.py" \
   "$ROOT_DIR/tools/check_zeno_ledger_risc0_real_proof_smoke_report.py" \
+  "$ROOT_DIR/tools/zeno_ledger_zusd_risc0_real_proof_smoke.py" \
+  "$ROOT_DIR/tools/zeno_ledger_perp_np_risc0_real_proof_smoke.py" \
+  "$ROOT_DIR/tools/check_zusd_perps_np_risc0_real_proof_smoke_report.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_risc0_proof_metadata.py" \
-  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py"
+  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py" \
+  "$ROOT_DIR/tests/test_check_zusd_perps_np_risc0_real_proof_smoke_report.py"
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_risc0_proof_metadata.py" \
-  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py"
+  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py" \
+  "$ROOT_DIR/tests/test_check_zusd_perps_np_risc0_real_proof_smoke_report.py"
 
 echo "== release: TEE proof metadata adapter =="
 cargo test --manifest-path "$ROOT_DIR/tools/confidential_attestation_verifier_rust/Cargo.toml"
@@ -184,6 +189,22 @@ echo "== release: ZenoCover attack queries =="
 
 echo "== release: production boundary =="
 "$PY" "$ROOT_DIR/tools/check_production_boundary.py"
+
+echo "== release: production key management =="
+"$PY" -m py_compile \
+  "$ROOT_DIR/src/integration/production_key_management_v0.py" \
+  "$ROOT_DIR/src/integration/zeno_ledger_production_key_gates_v0.py"
+"$PY" "$ROOT_DIR/tools/check_production_key_management_spec.py"
+"$PY" "$ROOT_DIR/tools/check_production_key_management_esso_equivalent.py"
+"$PY" "$ROOT_DIR/tools/check_production_key_management_bypasses.py"
+"$PY" "$ROOT_DIR/tools/check_production_key_material_absence.py"
+"$PY" "$ROOT_DIR/tools/check_production_key_management_completion.py"
+"$PY" -m pytest -q \
+  "$ROOT_DIR/tests/test_production_key_management_spec.py" \
+  "$ROOT_DIR/tests/test_check_production_key_management_esso_equivalent.py" \
+  "$ROOT_DIR/tests/test_check_production_key_material_absence.py" \
+  "$ROOT_DIR/tests/integration/test_production_key_management_v0.py" \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_production_key_gates_v0.py"
 
 echo "== release: candidate supported runtime path =="
 "$PY" "$ROOT_DIR/tools/render_rc1_supported_runtime_path.py" --check

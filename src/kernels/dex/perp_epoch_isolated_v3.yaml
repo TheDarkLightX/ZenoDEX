@@ -1318,6 +1318,39 @@ actions:
                 op: "-"
                 args: [{ const: 0 }, { param: "new_position_base" }]
             - { var: "max_position_abs" }
+        # Redundant safety guard: the initial-margin check below is stronger
+        # under inv_margin_params_ordered, but this makes the post-state
+        # maintenance invariant local to set_position for deterministic SMT.
+        - op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "new_position_base" }, { const: 0 }]
+          then: { bool: true }
+          else:
+            op: ">="
+            args:
+              - { var: "collateral_quote" }
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - op: "ite"
+                                cond:
+                                  op: ">="
+                                  args: [{ param: "new_position_base" }, { const: 0 }]
+                                then: { param: "new_position_base" }
+                                else:
+                                  op: "-"
+                                  args: [{ const: 0 }, { param: "new_position_base" }]
+                              - { var: "index_price_e8" }
+                          - { const: 100000000 }
+                      - op: "+"
+                        args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+                  - { const: 10000 }
         # v1.1 breaker logic: reduce-only when breaker active
         - op: "ite"
           cond: { var: "breaker_active" }

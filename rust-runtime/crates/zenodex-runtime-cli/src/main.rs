@@ -1383,10 +1383,7 @@ fn zusd_oracle_gate(
     if !require_oracle_authorization {
         return None;
     }
-    let tx_obj = match tx.as_object() {
-        Some(obj) => obj,
-        None => return None,
-    };
+    let tx_obj = tx.as_object()?;
     let kind = tx_obj.get("kind").and_then(Value::as_str).unwrap_or("");
     let expected_action_kind = zusd_critical_oracle_action_kind(kind)?;
     let facts_obj = match facts.and_then(Value::as_object) {

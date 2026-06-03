@@ -252,12 +252,12 @@ def test_confidential_route_quote_bundle_rejects_registry_provider_mismatch() ->
     )
 
 
-def test_confidential_route_quote_bundle_cli_outputs_report(tmp_path: Path, capsys) -> None:
+def test_confidential_route_quote_bundle_cli_outputs_report(tmp_path: Path, capfd) -> None:
     bundle_path = tmp_path / "confidential_route_quote_bundle.json"
     bundle_path.write_text(json.dumps(_bundle(), indent=2, sort_keys=True), encoding="utf-8")
 
     code = main([str(bundle_path)])
-    out = capsys.readouterr().out
+    out = capfd.readouterr().out
     report = json.loads(out)
 
     assert code == 0

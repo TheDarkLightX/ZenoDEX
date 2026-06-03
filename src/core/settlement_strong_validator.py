@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Dict, List, Optional, Tuple
 
+from ..kernels.python.settlement_swap_runtime_v1 import quote_cpmm_swap_exact_out
 from ..state.balances import AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
@@ -28,7 +29,6 @@ from .domain_limits import is_strict_int
 from .liquidity import add_liquidity, create_pool, remove_liquidity
 from .quote_receipts import pool_state_fingerprint
 from .settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta, Settlement
-from ..kernels.python.settlement_swap_runtime_v1 import quote_cpmm_swap_exact_out
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 
