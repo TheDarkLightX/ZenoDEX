@@ -46,6 +46,7 @@ from tools.zeno_ledger_node import (
     _existing_tx_and_append_report_for_tx_id_v0,
     _market_buyback_purchase_from_state_v0,
     _node_status_hash,
+    _post_json_url,
     _public_network_config_to_join_config_v0,
     _tokenomics_buyback_source_pubkey_v0,
     _ui_swap_tx_v0,
@@ -250,6 +251,41 @@ def _post_url_json_status(url: str, value: dict[str, object], *, bearer_token: s
 class _QuietStaticHandler(SimpleHTTPRequestHandler):
     def log_message(self, format: str, *args: object) -> None:
         return
+
+
+def _redirecting_peer_handler(location: str) -> type[BaseHTTPRequestHandler]:
+    class _RedirectingPeerHandler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            payload = b'{"ok": false, "error": "redirect_rejected"}\n'
+            self.send_response(int(HTTPStatus.FOUND))
+            self.send_header("Location", location)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    return _RedirectingPeerHandler
+
+
+def _capturing_post_handler(captured: dict[str, object]) -> type[BaseHTTPRequestHandler]:
+    class _CapturingPostHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            captured["method"] = "GET"
+            captured["authorization"] = self.headers.get("Authorization")
+            payload = b'{"ok": true, "accepted_by": "attacker"}\n'
+            self.send_response(int(HTTPStatus.OK))
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    return _CapturingPostHandler
 
 
 class _WriterAuthHandler(BaseHTTPRequestHandler):
@@ -2409,3 +2445,69 @@ def test_zeno_ledger_node_forwarding_sends_submit_peer_auth_token(tmp_path: Path
             follower.server_close()
         writer.shutdown()
         writer.server_close()
+
+
+def test_post_json_url_rejects_authenticated_redirect_without_leaking_token() -> None:
+    captured: dict[str, object] = {}
+    attacker = ThreadingHTTPServer(("127.0.0.1", 0), _capturing_post_handler(captured))
+    attacker_thread = threading.Thread(target=attacker.serve_forever, daemon=True)
+    attacker_thread.start()
+    redirector: ThreadingHTTPServer | None = None
+    try:
+        attacker_host, attacker_port = attacker.server_address
+        redirector = ThreadingHTTPServer(
+            ("127.0.0.1", 0),
+            _redirecting_peer_handler(f"http://{attacker_host}:{attacker_port}/capture"),
+        )
+        redirector_thread = threading.Thread(target=redirector.serve_forever, daemon=True)
+        redirector_thread.start()
+        redirector_host, redirector_port = redirector.server_address
+
+        body, status = _post_json_url(
+            f"http://{redirector_host}:{redirector_port}/tx",
+            {"tx": {"tx_id": "redirect-leak-check"}},
+            bearer_token="SECRET_SUBMIT_PEER_TOKEN",
+        )
+
+        assert status == HTTPStatus.FOUND
+        assert body["error"] == "redirect_rejected"
+        assert "authorization" not in captured
+    finally:
+        if redirector is not None:
+            redirector.shutdown()
+            redirector.server_close()
+        attacker.shutdown()
+        attacker.server_close()
+
+
+def test_post_json_url_preserves_unauthenticated_redirect_behavior() -> None:
+    captured: dict[str, object] = {}
+    target = ThreadingHTTPServer(("127.0.0.1", 0), _capturing_post_handler(captured))
+    target_thread = threading.Thread(target=target.serve_forever, daemon=True)
+    target_thread.start()
+    redirector: ThreadingHTTPServer | None = None
+    try:
+        target_host, target_port = target.server_address
+        redirector = ThreadingHTTPServer(
+            ("127.0.0.1", 0),
+            _redirecting_peer_handler(f"http://{target_host}:{target_port}/capture"),
+        )
+        redirector_thread = threading.Thread(target=redirector.serve_forever, daemon=True)
+        redirector_thread.start()
+        redirector_host, redirector_port = redirector.server_address
+
+        body, status = _post_json_url(
+            f"http://{redirector_host}:{redirector_port}/tx",
+            {"tx": {"tx_id": "unauthenticated-redirect-check"}},
+        )
+
+        assert status == HTTPStatus.OK
+        assert body["accepted_by"] == "attacker"
+        assert captured["method"] == "GET"
+        assert captured["authorization"] is None
+    finally:
+        if redirector is not None:
+            redirector.shutdown()
+            redirector.server_close()
+        target.shutdown()
+        target.server_close()
