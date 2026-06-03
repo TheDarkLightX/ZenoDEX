@@ -61,6 +61,7 @@ RUNTIME_FACT_KEYS = (
     "dex_routing_oracle_adapter_required",
     "zusd_oracle_adapter_required",
     "zusd_oracle_authorization_required",
+    "zusd_monetary_wallet_oracle_authorization_required",
     "perps_clearinghouse_settle_oracle_adapter_required",
     "perps_clearinghouse_settle_oracle_authorization_required",
     "perps_isolated_settle_oracle_adapter_required",
@@ -212,6 +213,10 @@ def evaluate_deploy_profile_consistency(
         "zusd_oracle_authorization_required": (
             "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
             "zusd_oracle_authorization_required",
+        ),
+        "zusd_monetary_wallet_oracle_authorization_required": (
+            "ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED",
+            "zusd_monetary_wallet_oracle_authorization_required",
         ),
         "perps_clearinghouse_settle_oracle_adapter_required": (
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",

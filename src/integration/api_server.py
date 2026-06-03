@@ -6918,6 +6918,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     "zusd_oracle_authorization_required": _env_bool(
                         "ZUSD_ORACLE_AUTHORIZATION_REQUIRED", False
                     ),
+                    "zusd_monetary_wallet_oracle_authorization_required": _env_bool(
+                        "ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED",
+                        _env_bool("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", False),
+                    ),
                     "perps_clearinghouse_settle_oracle_adapter_required": _env_bool(
                         "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", False
                     ),

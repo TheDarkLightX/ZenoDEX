@@ -1140,6 +1140,27 @@ const ZUSD_STATE_FIELDS: [&str; 32] = [
     "liquidation_gas_comp_fixed_collateral_e8",
     "liquidation_gas_comp_bps",
 ];
+const ZUSD_OP_TOP_LEVEL_FIELDS: [&str; 5] = [
+    "version",
+    "state",
+    "tx",
+    "facts",
+    "require_oracle_authorization",
+];
+const ZUSD_ORACLE_FACT_FIELDS: [&str; 10] = [
+    "oracle_authorization_ok",
+    "query_id",
+    "action_kind",
+    "runtime_value_e8",
+    "profile_id",
+    "action_id",
+    "action_facts_hash",
+    "pre_state_hash",
+    "now_epoch",
+    "max_freshness_window_epochs",
+];
+const ZUSD_ORACLE_COLLATERAL_QUERY_ID: &str =
+    "sha256:aab2e1b26ac1a1a5069664959c129fa29a63107b949b777480bf0e3928eeaec1";
 
 fn zusd_u128(obj: &serde_json::Map<String, Value>, key: &str) -> Result<u128, String> {
     obj.get(key)
@@ -1247,13 +1268,18 @@ fn run_zusd_op(request: &Value) -> Result<ZusdOpOutput, String> {
         .as_object()
         .ok_or_else(|| "request must be an object".to_string())?;
     if let Some(reason) =
-        first_unknown_field(obj.keys().map(String::as_str), &["version", "state", "tx"])
+        first_unknown_field(obj.keys().map(String::as_str), &ZUSD_OP_TOP_LEVEL_FIELDS)
     {
         return Err(reason);
     }
     if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
         return Err("unsupported request version".to_string());
     }
+    let require_oracle_authorization = match request.get("require_oracle_authorization") {
+        Some(Value::Bool(v)) => *v,
+        Some(_) => return Err("require_oracle_authorization must be a bool".to_string()),
+        None => false,
+    };
     let state = zusd_state_from_value(
         request
             .get("state")
@@ -1263,6 +1289,14 @@ fn run_zusd_op(request: &Value) -> Result<ZusdOpOutput, String> {
         .get("tx")
         .ok_or_else(|| "tx is required".to_string())?;
     let pre_state_root = state.state_root();
+    if let Some(reason) = zusd_oracle_gate(
+        &state,
+        tx,
+        request.get("facts"),
+        require_oracle_authorization,
+    ) {
+        return Ok(zusd_reject_output(state, pre_state_root, reason));
+    }
     match eval_zusd_tx(&state, tx) {
         Eval::Accept { receipt_hash, next } => Ok(ZusdOpOutput {
             version: 1,
@@ -1281,17 +1315,21 @@ fn run_zusd_op(request: &Value) -> Result<ZusdOpOutput, String> {
             post_state_root: next.state_root(),
             post_state: zusd_state_out(&next),
         }),
-        Eval::Reject(reason) => Ok(ZusdOpOutput {
-            version: 1,
-            kernel: "zusd".to_string(),
-            accept: false,
-            reject_reason: Some(reason),
-            receipt_hash: None,
-            receipt: None,
-            pre_state_root: pre_state_root.clone(),
-            post_state_root: pre_state_root,
-            post_state: zusd_state_out(&state),
-        }),
+        Eval::Reject(reason) => Ok(zusd_reject_output(state, pre_state_root, reason)),
+    }
+}
+
+fn zusd_reject_output(state: ZusdState, pre_state_root: String, reason: String) -> ZusdOpOutput {
+    ZusdOpOutput {
+        version: 1,
+        kernel: "zusd".to_string(),
+        accept: false,
+        reject_reason: Some(reason),
+        receipt_hash: None,
+        receipt: None,
+        pre_state_root: pre_state_root.clone(),
+        post_state_root: pre_state_root,
+        post_state: zusd_state_out(&state),
     }
 }
 
@@ -1303,6 +1341,89 @@ fn num_arg(obj: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
 
 fn flag(obj: &serde_json::Map<String, Value>, key: &str) -> bool {
     obj.get(key).and_then(Value::as_bool).unwrap_or(false)
+}
+
+fn zusd_critical_oracle_action_kind(kind: &str) -> Option<&'static str> {
+    match kind {
+        "bootstrap_oracle" => Some("bootstrap_oracle"),
+        "oracle_report" => Some("oracle_report"),
+        "oracle_commit" => Some("oracle_commit"),
+        "mint_zusd" => Some("mint"),
+        "liquidate" => Some("liquidate_vault"),
+        _ => None,
+    }
+}
+
+fn u128_field(obj: &serde_json::Map<String, Value>, key: &str) -> Option<u128> {
+    obj.get(key)
+        .and_then(classify_integer)
+        .and_then(|s| s.parse::<u128>().ok())
+}
+
+fn zusd_expected_oracle_value(
+    state: &ZusdState,
+    tx: &serde_json::Map<String, Value>,
+    kind: &str,
+) -> Option<u128> {
+    match kind {
+        "bootstrap_oracle" | "oracle_report" => u128_field(tx, "price_e8").filter(|v| *v > 0),
+        "oracle_commit" => (state.price_pending_e8 > 0).then_some(state.price_pending_e8),
+        "mint_zusd" => (state.price_e8 > 0).then_some(state.price_e8),
+        "liquidate" => (state.price_pending_e8 > 0).then_some(state.price_pending_e8),
+        _ => None,
+    }
+}
+
+fn zusd_oracle_gate(
+    state: &ZusdState,
+    tx: &Value,
+    facts: Option<&Value>,
+    require_oracle_authorization: bool,
+) -> Option<String> {
+    if !require_oracle_authorization {
+        return None;
+    }
+    let tx_obj = match tx.as_object() {
+        Some(obj) => obj,
+        None => return None,
+    };
+    let kind = tx_obj.get("kind").and_then(Value::as_str).unwrap_or("");
+    let expected_action_kind = zusd_critical_oracle_action_kind(kind)?;
+    let facts_obj = match facts.and_then(Value::as_object) {
+        Some(obj) => obj,
+        None => return Some("oracle_facts_required".to_string()),
+    };
+    if let Some(reason) = first_unknown_field(
+        facts_obj.keys().map(String::as_str),
+        &ZUSD_ORACLE_FACT_FIELDS,
+    ) {
+        return Some(reason);
+    }
+    if facts_obj
+        .get("oracle_authorization_ok")
+        .and_then(Value::as_bool)
+        != Some(true)
+    {
+        return Some("oracle_authorization_not_accepted".to_string());
+    }
+    if facts_obj.get("query_id").and_then(Value::as_str) != Some(ZUSD_ORACLE_COLLATERAL_QUERY_ID) {
+        return Some("oracle_query_mismatch".to_string());
+    }
+    if facts_obj.get("action_kind").and_then(Value::as_str) != Some(expected_action_kind) {
+        return Some("oracle_action_kind_mismatch".to_string());
+    }
+    let expected_value = match zusd_expected_oracle_value(state, tx_obj, kind) {
+        Some(value) => value,
+        None => return Some("oracle_runtime_unavailable".to_string()),
+    };
+    let actual_value = match u128_field(facts_obj, "runtime_value_e8") {
+        Some(value) => value,
+        None => return Some("oracle_runtime_value_missing".to_string()),
+    };
+    if actual_value != expected_value {
+        return Some("oracle_runtime_value_mismatch".to_string());
+    }
+    None
 }
 
 fn eval_zusd_tx(state: &ZusdState, tx: &Value) -> Eval<ZusdState> {
@@ -3663,6 +3784,70 @@ mod tests {
         }
     }
 
+    fn zusd_ready_state() -> Value {
+        json!({
+            "now_epoch": 0,
+            "oracle_seen": true,
+            "oracle_last_update_epoch": 0,
+            "price_e8": 100_000_000,
+            "price_pending_e8": 100_000_000,
+            "max_oracle_staleness_epochs": 100,
+            "collateral_e8": 100_000_000_000u64,
+            "debt_e8": 0,
+            "free_debt_e8": 0,
+            "sp_debt_e8": 0,
+            "sp_coll_e8": 0,
+            "protocol_collateral_e8": 0,
+            "protocol_revenue_zusd_cum_e8": 0,
+            "liquidator_compensation_collateral_cum_e8": 0,
+            "mcr_bps": 11_000,
+            "ccr_bps": 15_000,
+            "min_debt_open_e8": 10_000_000_000u64,
+            "max_debt_e8": 1_000_000_000_000_000u64,
+            "max_debt_supply_e8": 2_000_000_000_000_000u64,
+            "max_sp_coll_e8": 2_000_000_000_000_000u64,
+            "max_protocol_coll_e8": 2_000_000_000_000_000u64,
+            "base_rate_bps": 0,
+            "base_rate_last_epoch": 0,
+            "base_rate_decay_per_epoch_bps": 0,
+            "base_rate_borrow_bump_bps": 0,
+            "base_rate_redeem_bump_bps": 0,
+            "borrow_fee_floor_bps": 0,
+            "borrow_fee_max_bps": 1_000,
+            "redemption_fee_floor_bps": 0,
+            "redemption_fee_max_bps": 1_000,
+            "liquidation_gas_comp_fixed_collateral_e8": 0,
+            "liquidation_gas_comp_bps": 0
+        })
+    }
+
+    fn zusd_mint_request(require_oracle_authorization: bool, facts: Option<Value>) -> Value {
+        let mut req = json!({
+            "version": 1,
+            "state": zusd_ready_state(),
+            "tx": {
+                "kind": "mint_zusd",
+                "amount_e8": 20_000_000_000u64
+            },
+            "require_oracle_authorization": require_oracle_authorization
+        });
+        if let Some(facts) = facts {
+            req.as_object_mut()
+                .unwrap()
+                .insert("facts".to_string(), facts);
+        }
+        req
+    }
+
+    fn zusd_mint_oracle_facts(runtime_value_e8: u64) -> Value {
+        json!({
+            "oracle_authorization_ok": true,
+            "query_id": ZUSD_ORACLE_COLLATERAL_QUERY_ID,
+            "action_kind": "mint",
+            "runtime_value_e8": runtime_value_e8
+        })
+    }
+
     #[test]
     fn case_based_subcommands_reject_unknown_top_level_fields() {
         let req = request_with_extra_top_level_field();
@@ -3698,5 +3883,48 @@ mod tests {
         assert!(!out.results[0].ok);
         assert_eq!(out.results[0].code.as_deref(), Some("unknown_field:debug"));
         assert!(out.results[0].hash.is_none());
+    }
+
+    #[test]
+    fn zusd_prod_gate_rejects_mint_without_oracle_facts() {
+        let out = run_zusd_op(&zusd_mint_request(true, None)).unwrap();
+        assert!(!out.accept);
+        assert_eq!(out.reject_reason.as_deref(), Some("oracle_facts_required"));
+        assert_eq!(out.pre_state_root, out.post_state_root);
+        assert!(out.receipt_hash.is_none());
+    }
+
+    #[test]
+    fn zusd_prod_gate_accepts_mint_with_matching_oracle_facts() {
+        let out = run_zusd_op(&zusd_mint_request(
+            true,
+            Some(zusd_mint_oracle_facts(100_000_000)),
+        ))
+        .unwrap();
+        assert!(out.accept, "{:?}", out.reject_reason);
+        assert_ne!(out.pre_state_root, out.post_state_root);
+        assert_eq!(out.post_state.debt_e8, "20000000000");
+    }
+
+    #[test]
+    fn zusd_prod_gate_rejects_mint_with_wrong_oracle_value() {
+        let out = run_zusd_op(&zusd_mint_request(
+            true,
+            Some(zusd_mint_oracle_facts(100_000_001)),
+        ))
+        .unwrap();
+        assert!(!out.accept);
+        assert_eq!(
+            out.reject_reason.as_deref(),
+            Some("oracle_runtime_value_mismatch")
+        );
+        assert_eq!(out.pre_state_root, out.post_state_root);
+    }
+
+    #[test]
+    fn zusd_shadow_mode_keeps_accounting_replay_without_oracle_facts() {
+        let out = run_zusd_op(&zusd_mint_request(false, None)).unwrap();
+        assert!(out.accept, "{:?}", out.reject_reason);
+        assert_eq!(out.post_state.debt_e8, "20000000000");
     }
 }

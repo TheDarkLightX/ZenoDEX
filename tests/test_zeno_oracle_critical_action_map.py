@@ -38,11 +38,25 @@ def test_zeno_oracle_critical_action_map_matches_runtime_wiring() -> None:
     assert surfaces_by_key["zenodex.zusd:mint"]["details"]["required_controls"] == [
         "ZUSD_ORACLE_ADAPTER_REQUIRED",
         "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+        "ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED",
     ]
     assert surfaces_by_key["zenodex.zusd:liquidate_vault"]["details"]["required_controls"] == [
         "ZUSD_ORACLE_ADAPTER_REQUIRED",
         "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+        "ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED",
     ]
+    assert (
+        surfaces_by_key["zenodex.zusd:mint"]["details"]["live_runtime_endpoint"]
+        == "/api/zusd/monetary/oracle-runtime"
+    )
+    assert (
+        surfaces_by_key["zenodex.zusd:mint"]["details"]["oracle_authorization_endpoint"]
+        == "/api/oracle/authorization/build-from-runtime"
+    )
+    assert (
+        surfaces_by_key["zenodex.zusd:mint"]["details"]["rust_runtime_request_control"]
+        == "require_oracle_authorization"
+    )
     assert surfaces_by_key["zenodex.trigger:execute_trigger"]["details"]["required_controls"] == [
         "check_trigger_execute_oracle_adapter_bridge(required=True)",
         "check_trigger_execute_oracle_authorization",

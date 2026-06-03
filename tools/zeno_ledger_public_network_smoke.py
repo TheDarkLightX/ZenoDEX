@@ -59,14 +59,23 @@ def _start_static_server(root: Path) -> tuple[ThreadingHTTPServer, str]:
     return server, f"http://{host}:{port}"
 
 
-def _start_node_server(data_dir: Path, *, submit_peer_url: str | None = None) -> tuple[ThreadingHTTPServer, str]:
+def _start_node_server(
+    data_dir: Path,
+    *,
+    submit_peer_url: str | None = None,
+    write_auth_token: str | None = None,
+    submit_peer_auth_token: str | None = None,
+) -> tuple[ThreadingHTTPServer, str]:
     server = make_node_http_server_v0(
         data_dir=data_dir,
         host="127.0.0.1",
         port=0,
         enable_testnet_intake=True,
         enable_testnet_faucet=True,
+        expose_testnet_faucet_http=True,
         submit_peer_url=submit_peer_url,
+        write_auth_token=write_auth_token,
+        submit_peer_auth_token=submit_peer_auth_token,
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -74,12 +83,15 @@ def _start_node_server(data_dir: Path, *, submit_peer_url: str | None = None) ->
     return server, f"http://{host}:{port}"
 
 
-def _post_json(url: str, value: dict[str, object]) -> dict[str, object]:
+def _post_json(url: str, value: dict[str, object], *, bearer_token: str | None = None) -> dict[str, object]:
     payload = json.dumps(value, sort_keys=True).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    if bearer_token is not None:
+        headers["Authorization"] = f"Bearer {bearer_token}"
     request = Request(
         url,
         data=payload,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         method="POST",
     )
     with urlopen(request, timeout=30) as response:  # noqa: S310 - local smoke server
@@ -168,6 +180,8 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
     mirror_server, mirror_url = _start_static_server(source_bundle)
     node_a_server: ThreadingHTTPServer | None = None
     node_b_forward_server: ThreadingHTTPServer | None = None
+    writer_auth_token = "public-network-smoke-writer-token"
+    follower_auth_token = "public-network-smoke-follower-token"
     try:
         sync_a = sync_public_bundle_from_url_v0(base_url=mirror_url, out_dir=node_a_bundle)
         sync_b = sync_public_bundle_from_url_v0(base_url=mirror_url, out_dir=node_b_bundle)
@@ -190,7 +204,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         peer_watcher_attestation_paths=[peer_attestation_b],
     )
 
-    node_a_server, node_a_url = _start_node_server(node_a_dir)
+    node_a_server, node_a_url = _start_node_server(node_a_dir, write_auth_token=writer_auth_token)
     try:
         asset_a = min(DEFAULT_ASSET0, DEFAULT_ASSET1)
         asset_b = max(DEFAULT_ASSET0, DEFAULT_ASSET1)
@@ -328,7 +342,12 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         pre_pull_peer_check = check_peer_status_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
         pull = pull_live_from_peer_v0(data_dir=node_b_dir, peer_url=node_a_url)
         post_pull_peer_check = check_peer_status_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
-        node_b_forward_server, node_b_url = _start_node_server(node_b_dir, submit_peer_url=node_a_url)
+        node_b_forward_server, node_b_url = _start_node_server(
+            node_b_dir,
+            submit_peer_url=node_a_url,
+            write_auth_token=follower_auth_token,
+            submit_peer_auth_token=writer_auth_token,
+        )
         forwarded_faucet = _post_json(
             f"{node_b_url}/faucet",
             {
@@ -337,7 +356,9 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
                 "amount": 55,
                 "time_ms": DEFAULT_TIME_MS + 1_006_000,
                 "tx_id": "smoke-forwarded-faucet-v0",
+                "local_fixture_mode": True,
             },
+            bearer_token=follower_auth_token,
         )
         forwarded_pull = pull_live_from_peer_v0(data_dir=node_b_dir, peer_url=node_a_url)
         final_peer_check = check_peer_status_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
