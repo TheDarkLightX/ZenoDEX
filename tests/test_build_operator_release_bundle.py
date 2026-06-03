@@ -58,6 +58,17 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "rust-runtime/Cargo.toml",
         "rust-runtime/crates/zenodex-launcher/Cargo.toml",
         "rust-runtime/crates/zenodex-launcher/src/main.rs",
+        "zk/state_proof_risc0/Cargo.toml",
+        "zk/state_proof_risc0/Cargo.lock",
+        "zk/state_proof_risc0/cli/Cargo.toml",
+        "zk/state_proof_risc0/cli/src/main.rs",
+        "zk/state_proof_risc0/methods/Cargo.toml",
+        "zk/state_proof_risc0/methods/build.rs",
+        "zk/state_proof_risc0/methods/guest/Cargo.toml",
+        "zk/state_proof_risc0/methods/guest/src/main.rs",
+        "zk/state_proof_risc0/shared/Cargo.toml",
+        "zk/state_proof_risc0/shared/src/lib.rs",
+        "zk/state_proof_risc0/shared/src/surfaces.rs",
         "requirements-core.lock.txt",
         "requirements-dev.lock.txt",
         "requirements-agents.lock.txt",
@@ -68,10 +79,18 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "docs/DOCKER_HASHLOCKED_DEPLOYMENT.md",
         "docs/LOCAL_TESTNET_QUICKSTART.md",
         "docs/NATIVE_INSTALLER_PLAN.md",
+        "docs/PUBLIC_TESTNET_V0_1_16.md",
+        "docs/PUBLIC_TESTNET_V0_1_16_PLAN.md",
+        "docs/RISC0_RELEASE_BINARY_ARTIFACTS_2026_06_02.md",
         "docs/PERMISSIONLESS_HOSTING.md",
+        "docs/LATEST_TESTNET_CHECKPOINT.md",
+        "docs/KEYS_STANDALONE_APP_SPEC.md",
         "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json",
         "docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md",
         "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
+        "docs/ZENODEX_LOCAL_SIGNER_SECURITY_MODEL.md",
+        "docs/zenodex_perps_np_state_proof_risc0_v1.md",
+        "docs/zenodex_zusd_state_proof_risc0_v1.md",
         "docs/assurance/README.md",
         "docs/claims_registry.yaml",
         "docs/tau_supported_runtime_contract.json",
@@ -113,7 +132,13 @@ def test_build_operator_release_bundle_writes_archive_and_manifest(tmp_path: Pat
     assert "config/tau_testnet.lock" in paths
     assert "docs/LOCAL_TESTNET_QUICKSTART.md" in paths
     assert "docs/NATIVE_INSTALLER_PLAN.md" in paths
+    assert "docs/PUBLIC_TESTNET_V0_1_16.md" in paths
+    assert "docs/RISC0_RELEASE_BINARY_ARTIFACTS_2026_06_02.md" in paths
     assert "rust-runtime/crates/zenodex-launcher/src/main.rs" in paths
+    assert "zk/state_proof_risc0/Cargo.toml" in paths
+    assert "zk/state_proof_risc0/cli/src/main.rs" in paths
+    assert "zk/state_proof_risc0/methods/guest/src/main.rs" in paths
+    assert "zk/state_proof_risc0/shared/src/surfaces.rs" in paths
     assert "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json" in paths
     assert "docs/claims_registry.yaml" in paths
     assert "packages/zeno-proof-client/package.json" in paths

@@ -129,6 +129,64 @@ claims:
         - src/integration/dex_snapshot.py
         - generated/perp_python/perp_epoch_clearinghouse_3p_transfer_v0_1_ref.py
 
+  - id: risc0:perps_np_transition_v1:real_proof_smoke
+    status: supported
+    layer: assurance
+    statement: >
+      The scoped RISC0 proof surface `risc0.zenodex_perps_np_transition.v1`
+      proves a dynamic N-party perps epoch transition with at least four
+      participants in the positive smoke cases. The guest recomputes
+      settle-before-match, largest-remainder rationing, zero-sum position
+      conservation, insurance ledger identity, ADL/liquidation handling, and
+      journal bindings for chain, market, operation, state roots, state delta,
+      oracle binding, collateral binding, participant set, receipts root, and
+      nonzero RISC0 image ID. The strict verifier rejects wrong proof type,
+      image ID, chain, app hashes, state roots, operation hash, oracle binding
+      hash, participant-set hash, state-delta hash, and ledger-field tampering.
+      This is scoped transition evidence; it does not certify external oracle
+      truth, custody, production finality, or the full Python runtime.
+    evidence:
+      kind: risc0-smoke
+      check:
+        - cmd: python3 tools/zeno_ledger_perp_np_risc0_real_proof_smoke.py --case all --timeout 1800 --out-dir /tmp/zenodex_perps_np_risc0_smoke_all --target-dir /tmp/zenodex_perps_np_risc0_target
+      files:
+        - docs/zenodex_perps_np_state_proof_risc0_v1.md
+        - tools/zeno_ledger_perp_np_risc0_real_proof_smoke.py
+        - tools/proof_verifiers/risc0_perps_np_live_wrapper_v1.py
+        - zk/state_proof_risc0/cli/src/main.rs
+        - zk/state_proof_risc0/methods/guest/src/main.rs
+        - zk/state_proof_risc0/shared/src/lib.rs
+        - zk/state_proof_risc0/shared/src/surfaces.rs
+
+  - id: risc0:zusd_transition_v1:real_proof_smoke
+    status: supported
+    layer: assurance
+    statement: >
+      The scoped RISC0 proof surface `risc0.zenodex_zusd_transition.v1` proves
+      one zUSD collateral-deposit plus mint transition in the positive smoke
+      case. The guest binds chain, vault, owner, pre/post app hashes, pre/post
+      zUSD state roots, operation hash, oracle binding hash, state-delta hash,
+      vault root, wallet balance root, MCR checks, debt conservation, minted
+      balance, protocol revenue, and nonzero RISC0 image ID. The strict
+      verifier rejects wrong proof type, image ID, chain, app hashes, operation
+      hash, oracle binding hash, state-delta hash, zUSD balance root hash, and
+      zUSD vault root hash. This is scoped transition evidence; it does not
+      certify real oracle truth, custody, redemptions, repayments,
+      liquidations, multi-vault behavior, production finality, or the full
+      Python runtime.
+    evidence:
+      kind: risc0-smoke
+      check:
+        - cmd: python3 tools/zeno_ledger_zusd_risc0_real_proof_smoke.py --case all --timeout 1800 --out-dir /tmp/zenodex_zusd_risc0_smoke_all --target-dir /tmp/zenodex_zusd_risc0_target
+      files:
+        - docs/zenodex_zusd_state_proof_risc0_v1.md
+        - tools/zeno_ledger_zusd_risc0_real_proof_smoke.py
+        - tools/proof_verifiers/risc0_zusd_live_wrapper_v1.py
+        - zk/state_proof_risc0/cli/src/main.rs
+        - zk/state_proof_risc0/methods/guest/src/main.rs
+        - zk/state_proof_risc0/shared/src/lib.rs
+        - zk/state_proof_risc0/shared/src/surfaces.rs
+
   - id: smt:perp_epoch_isolated_v2:inductive_z3_cvc5
     status: supported
     layer: spec
