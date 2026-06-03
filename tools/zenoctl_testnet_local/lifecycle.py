@@ -86,6 +86,8 @@ E8 = 100_000_000
 DEFAULT_ORACLE_PRICE_E8 = 20_000_000 * E8
 DEFAULT_ZUSD_BOOTSTRAP_COLLATERAL_E8 = 1_000
 DEFAULT_ZUSD_BOOTSTRAP_MINT_E8 = 100 * E8
+DEFAULT_RELEASE_SMOKE_ZUSD_MINT_E8 = 10 * E8
+DEFAULT_RELEASE_SMOKE_PERPS_COLLATERAL_UNITS = DEFAULT_RELEASE_SMOKE_ZUSD_MINT_E8 // E8
 DEFAULT_FIXTURE_NATIVE_MATERIALIZE_E8 = DEFAULT_ZUSD_BOOTSTRAP_COLLATERAL_E8
 DEFAULT_FIXTURE_TEST_ASSET_PREFUND = 1_000_000
 DEFAULT_FIXTURE_ZUSD_COUNTERPARTY_PREFUND = 25
@@ -367,6 +369,7 @@ def cmd_up(opts: UpOptions) -> int:
         _write_json(paths.reports_dir / "readiness_report.json", readiness)
     except Exception as exc:
         _log("failure", f"{type(exc).__name__}: {exc}")
+        _write_failure_report(paths=paths, phase="up", exc=exc)
         _tail_service_logs(engine=engine, project=project, env=env)
         cm.compose_down(
             engine=engine,
@@ -432,14 +435,37 @@ def _cmd_up_existing(*, opts: UpOptions, paths: mf.ManifestPaths, manifest: Mapp
         env=env,
         extra_args=["--build"],
     )
+    cm.compose_up(
+        engine=engine,
+        project_name=project,
+        compose_files=[COMPOSE_FILE],
+        env=env,
+        extra_args=["--no-deps", "--force-recreate", "zenodex-nginx"],
+    )
 
     ui_base = str((manifest.get("service_urls") or {}).get("ui") or f"http://127.0.0.1:{manifest_port}")
     try:
         _wait_for_base_services(ui_base=ui_base, timeout_s=opts.health_timeout_s)
+        seed_report_path = paths.reports_dir / "api_seed_report.json"
+        if not seed_report_path.is_file():
+            key_bundle_path = Path(str(manifest["fixture_paths"]["key_bundle"]))
+            if key_bundle_path.is_file():
+                roles = _role_materials(_load_json_file(key_bundle_path, label="key bundle"))
+                _log("seed", "api seed report missing; reseeding zUSD monetary state and perps market")
+                seed_report = _seed_api_state(
+                    engine=engine,
+                    project=project,
+                    env=env,
+                    roles=roles,
+                    chain_id=str(manifest["chain_id"]),
+                    tau_rpc_timeout_s=max(float(opts.health_timeout_s), 900.0),
+                )
+                _write_json(seed_report_path, seed_report)
         readiness = _wait_for_lane_readiness(ui_base=ui_base, timeout_s=opts.health_timeout_s, manifest=manifest)
         _write_json(paths.reports_dir / "readiness_report.json", readiness)
     except Exception as exc:
         _log("failure", f"{type(exc).__name__}: {exc}")
+        _write_failure_report(paths=paths, phase="up_existing", exc=exc)
         _tail_service_logs(engine=engine, project=project, env=env)
         cm.compose_down(
             engine=engine,
@@ -1674,6 +1700,10 @@ def _seed_api_state(
         def perps_market_exists():
             return perps_market_state() is not None
 
+        def seed_core_materialized():
+            app_state = load_state()
+            return isinstance(app_state.get("zusd_monetary"), dict) and perps_market_exists()
+
         def perps_market_field_at_least(field, value):
             state = perps_market_state()
             if not isinstance(state, dict):
@@ -1776,6 +1806,7 @@ def _seed_api_state(
                         ]
                     ]
                 }},
+                accept_block_failure_if=seed_core_materialized,
             )
         spot_asset0 = PAYLOAD["spot_asset0"]
         spot_asset1 = PAYLOAD["spot_asset1"]
@@ -1795,6 +1826,7 @@ def _seed_api_state(
                     ]
                 }}
             }},
+            accept_block_failure_if=seed_core_materialized,
         )
         report["steps"]["bootstrap_oracle_and_deposit"] = send_and_mine(
             "bootstrap_oracle_and_deposit",
@@ -1820,6 +1852,7 @@ def _seed_api_state(
                     }},
                 ]
             }},
+            accept_block_failure_if=seed_core_materialized,
         )
         report["steps"]["mint_zusd"] = send_and_mine(
             "mint_zusd",
@@ -1873,6 +1906,7 @@ def _seed_api_state(
                     "deadline": deadline,
                 }}]
             }},
+            accept_block_failure_if=seed_core_materialized,
         )
 
         init_market = {{
@@ -2077,7 +2111,7 @@ def _seed_api_state(
             "market_count": len(markets),
             "market": market_row,
         }}
-        print(json_dumps_for_log(report, sort_keys=True))
+        print(json.dumps(report, sort_keys=True))
         """
     ).strip()
     result = cm.compose_run(
@@ -2932,7 +2966,7 @@ def _run_release_flow_smoke(
                 {
                     "action": "mint_zusd",
                     "owner_pubkey": alice,
-                    "amount_e8": E8,
+                    "amount_e8": DEFAULT_RELEASE_SMOKE_ZUSD_MINT_E8,
                     "deadline": deadline,
                     "tx_fee_limit": "0",
                     "signer_privkey": _role_privkey_int(roles, "alice"),
@@ -2951,7 +2985,7 @@ def _run_release_flow_smoke(
             "action": "deposit_collateral",
             "account_pubkey": alice,
             "account_privkey": _role_privkey_int(roles, "alice"),
-            "amount": 10,
+            "amount": DEFAULT_RELEASE_SMOKE_PERPS_COLLATERAL_UNITS,
         },
         zk_required=zk_required,
     )
@@ -2962,13 +2996,14 @@ def _run_release_flow_smoke(
             "action": "deposit_collateral",
             "account_pubkey": bob,
             "account_privkey": _role_privkey_int(roles, "bob"),
-            "amount": 10,
+            "amount": DEFAULT_RELEASE_SMOKE_PERPS_COLLATERAL_UNITS,
         },
         zk_required=zk_required,
     )
     checks["perps_collateral_deposit"] = {
         "ok": checks["perps_collateral_deposit_alice"]["ok"] and checks["perps_collateral_deposit_bob"]["ok"],
         "accounts": [alice, bob],
+        "amount_units": DEFAULT_RELEASE_SMOKE_PERPS_COLLATERAL_UNITS,
         "quote_asset": derive_zusd_tau_asset_id(chain_id=chain_id),
     }
     checks["perps_price_bootstrap"] = _run_perps_wallet_cycle_smoke(
@@ -4319,3 +4354,31 @@ def _log(phase: str, msg: str) -> None:
     # Phase logs are bounded operator status strings; JSON reports are redacted separately.
     safe_phase = str(phase)[:80]
     os.write(2, f"[testnet-local phase={safe_phase}] status update\n".encode("utf-8"))
+
+
+_FAILURE_SECRET_RE = re.compile(
+    r"(?i)(privkey|private[_-]?key|secret[_-]?key|mnemonic|seed[_-]?phrase)(['\"]?\s*[:=]\s*)"
+    r"(['\"]?)[^,'\"}\]\s]+"
+)
+
+
+def _redact_failure_message(message: str) -> str:
+    bounded = str(message)[:20_000]
+    return _FAILURE_SECRET_RE.sub(r"\1\2\3[redacted]", bounded)
+
+
+def _write_failure_report(*, paths: mf.ManifestPaths, phase: str, exc: Exception) -> None:
+    report = {
+        "schema": "zenodex.local_testnet.failure_report.v0",
+        "ok": False,
+        "phase": str(phase),
+        "error_type": type(exc).__name__,
+        "error": _redact_failure_message(str(exc)),
+    }
+    try:
+        paths.reports_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(paths.reports_dir / "local_up_failure_report.json", report)
+    except Exception:
+        # The caller is already handling the root failure; never mask it with
+        # a diagnostic write error.
+        return

@@ -2772,13 +2772,13 @@ def test_cmd_up_restarts_existing_manifest_without_force(
     body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
     mf.save_manifest(body, paths.manifest_path)
 
-    calls: list[str] = []
+    calls: list[tuple[str, tuple[str, ...]]] = []
 
     class Engine:
         binary = "docker"
 
     def fake_compose_up(**kwargs):
-        calls.append("compose_up")
+        calls.append(("compose_up", tuple(kwargs.get("extra_args") or ())))
         assert kwargs["project_name"] == body["compose_project"]
         assert kwargs["env"]["ZENO_LEDGER_WRITER_TOKEN"] == "writer-secret-abc"
 
@@ -2811,7 +2811,10 @@ def test_cmd_up_restarts_existing_manifest_without_force(
 
     rc = lc.cmd_up(lc.UpOptions(out_dir=tmp_path))
     assert rc == 0
-    assert calls == ["compose_up"]
+    assert calls == [
+        ("compose_up", ("--build",)),
+        ("compose_up", ("--no-deps", "--force-recreate", "zenodex-nginx")),
+    ]
 
 
 def test_wait_for_lane_readiness_retries_until_ready(monkeypatch: pytest.MonkeyPatch) -> None:

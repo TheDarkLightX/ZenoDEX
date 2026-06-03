@@ -20,8 +20,41 @@ fi
 # shellcheck disable=SC1090
 source "$VENV_DIR/bin/activate"
 
-python -m pip install --require-hashes -r "$ROOT/requirements-dev.lock.txt"
-python -m pip install -r "$ROOT/external/tau-testnet/requirements.txt"
+readonly MARKER_DIR="$VENV_DIR/.zenodex-install-markers"
+mkdir -p "$MARKER_DIR"
+
+requirements_digest() {
+  local requirements_file="$1"
+  sha256sum "$requirements_file" | awk '{print $1}'
+}
+
+install_marker_matches() {
+  local name="$1"
+  local requirements_file="$2"
+  local marker="$MARKER_DIR/$name.sha256"
+  local digest
+  digest="$(requirements_digest "$requirements_file")"
+  if [[ -f "$marker" ]] && [[ "$(cat "$marker")" == "$digest" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+write_install_marker() {
+  local name="$1"
+  local requirements_file="$2"
+  requirements_digest "$requirements_file" > "$MARKER_DIR/$name.sha256"
+}
+
+if ! install_marker_matches root-dev "$ROOT/requirements-dev.lock.txt"; then
+  python -m pip install --require-hashes -r "$ROOT/requirements-dev.lock.txt"
+  write_install_marker root-dev "$ROOT/requirements-dev.lock.txt"
+fi
+
+if ! install_marker_matches tau-testnet "$ROOT/external/tau-testnet/requirements.txt"; then
+  python -m pip install -r "$ROOT/external/tau-testnet/requirements.txt"
+  write_install_marker tau-testnet "$ROOT/external/tau-testnet/requirements.txt"
+fi
 
 ARGS=(
   tools/tau_testnet_local_e2e.py
