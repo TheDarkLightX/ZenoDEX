@@ -55,6 +55,16 @@ server {
     # connect-src 'self' is sufficient.
     add_header Content-Security-Policy "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'" always;
 
+
+    # Local CSRF defense: only accept same-origin mutation requests.
+    set $zenodex_allowed_origin 0;
+    if ($http_origin = "") {
+        set $zenodex_allowed_origin 1;
+    }
+    if ($http_origin ~* '^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$') {
+        set $zenodex_allowed_origin 1;
+    }
+
     location /health {
         access_log off;
         return 200 '{"status":"healthy","service":"zenodex-local-testnet-nginx"}';
@@ -78,6 +88,10 @@ server {
 
     # --- Writer-owned mutation routes (ledger node) -----------------------
     location = /api/pools {
+        if ($request_method = POST) {
+            if ($zenodex_allowed_origin = 0) { return 403; }
+            if ($http_content_type !~* '^application/json(?:[[:space:]]*;.*)?$') { return 415; }
+        }
         limit_req zone=zenodex_api_per_ip burst=30 nodelay;
         limit_conn zenodex_addr 20;
         client_max_body_size 512k;
@@ -94,6 +108,10 @@ server {
         proxy_read_timeout 60s;
     }
     location = /api/swap {
+        if ($request_method = POST) {
+            if ($zenodex_allowed_origin = 0) { return 403; }
+            if ($http_content_type !~* '^application/json(?:[[:space:]]*;.*)?$') { return 415; }
+        }
         limit_req zone=zenodex_api_per_ip burst=30 nodelay;
         limit_conn zenodex_addr 20;
         client_max_body_size 512k;
@@ -111,6 +129,10 @@ server {
 
     # --- Oracle routes -----------------------------------------------------
     location ^~ /api/oracle/ {
+        if ($request_method = POST) {
+            if ($zenodex_allowed_origin = 0) { return 403; }
+            if ($http_content_type !~* '^application/json(?:[[:space:]]*;.*)?$') { return 415; }
+        }
         limit_req zone=zenodex_api_per_ip burst=30 nodelay;
         limit_conn zenodex_addr 20;
         client_max_body_size 512k;
