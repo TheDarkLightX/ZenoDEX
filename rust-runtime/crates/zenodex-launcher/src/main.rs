@@ -960,13 +960,12 @@ mod tests {
             "dry-run prints instead of recording commands"
         );
         let args = ensure_out_dir_arg(Vec::new(), &env);
-        assert_eq!(
-            args,
-            vec![
-                "--out-dir".to_string(),
-                "/home/alice/.zenodex/local-testnet".to_string()
-            ]
-        );
+        let expected_out_dir = PathBuf::from("/home/alice")
+            .join(".zenodex")
+            .join("local-testnet")
+            .display()
+            .to_string();
+        assert_eq!(args, vec!["--out-dir".to_string(), expected_out_dir]);
     }
 
     #[test]
