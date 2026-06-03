@@ -148,3 +148,25 @@ def test_risc0_perps_np_wrapper_rejects_production_claim() -> None:
     out = _run(req)
     assert out["ok"] is False
     assert out["error"] == "RISC0 perps NP verifier cannot make production security claim"
+
+
+def test_risc0_perps_np_wrapper_rejects_echo_local_fixture_proof() -> None:
+    """An echo / local-testnet fixture proof (accepted by
+    local_live_wrapper_echo_v1) must NEVER be accepted by the strict production
+    wrapper. The echo fixture carries no real ``proof_type`` and only a
+    ``system: local-testnet-live-wrapper-fixture-v1`` tag, so the strict wrapper
+    must reject it as an unsupported proof type before ever touching the CLI.
+    Locks the "echo wrappers never count as production" invariant.
+    """
+    req = _request()
+    proof = req["proof"]
+    assert isinstance(proof, dict)
+    # Replace the strict RISC0 proof with the echo fixture shape.
+    proof.pop("proof_type", None)
+    proof.pop("meta", None)
+    proof.pop("actions", None)
+    proof["system"] = "local-testnet-live-wrapper-fixture-v1"
+    proof["production_security_claim"] = False
+    out = _run(req)
+    assert out["ok"] is False
+    assert out["error"] == "unsupported proof_type"
