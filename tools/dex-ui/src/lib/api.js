@@ -500,6 +500,9 @@ export function apiSwap(
     recipient = null,
     deadline = null,
     signature = null,
+    nonce = null,
+    timeMs = null,
+    txId = null,
   },
   options = {},
 ) {
@@ -516,6 +519,9 @@ export function apiSwap(
   if (recipient) body.recipient = recipient;
   if (deadline) body.deadline = deadline;
   if (signature) body.signature = signature;
+  if (nonce != null) body.nonce = nonce;
+  if (timeMs != null) body.time_ms = timeMs;
+  if (txId) body.tx_id = txId;
   return apiFetchJson('/api/swap', {
     method: 'POST',
     body: JSON.stringify(body),

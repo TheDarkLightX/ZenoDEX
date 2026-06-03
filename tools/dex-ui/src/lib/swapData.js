@@ -139,6 +139,8 @@ function normalizePoolEntry(entry) {
         reserve0: aligned.reserve0,
         reserve1: aligned.reserve1,
         feeBps,
+        accountBalance0: toFiniteNumber(entry.accountBalance0 ?? entry.account_balance0),
+        accountBalance1: toFiniteNumber(entry.accountBalance1 ?? entry.account_balance1),
     };
 }
 
@@ -196,6 +198,8 @@ function normalizePoolsPayload(payload) {
                 reserve0: normalized.reserve0,
                 reserve1: normalized.reserve1,
                 feeBps: normalized.feeBps,
+                accountBalance0: normalized.accountBalance0,
+                accountBalance1: normalized.accountBalance1,
             };
         }
         const poolSymbols = Array.from(
@@ -231,6 +235,28 @@ function normalizePoolsPayload(payload) {
     return { pools: out, tokens: normalizeTokens(payload, poolSymbols) };
 }
 
+function addAccountBalance(out, symbol, asset, value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return;
+    const keys = [
+        String(symbol || '').trim(),
+        displaySymbolForAsset(symbol),
+        String(asset || '').trim(),
+    ].filter(Boolean);
+    for (const key of keys) {
+        out[key] = Math.max(Number(out[key] || 0), n);
+    }
+}
+
+function accountBalancesFromPools(pools) {
+    const out = {};
+    for (const pool of Object.values(pools || {})) {
+        addAccountBalance(out, pool.token0, pool.asset0, pool.accountBalance0);
+        addAccountBalance(out, pool.token1, pool.asset1, pool.accountBalance1);
+    }
+    return out;
+}
+
 export async function loadSwapPools({ timeoutMs = 2500, account = '' } = {}) {
     try {
         const query = account ? `?account=${encodeURIComponent(account)}` : '';
@@ -248,6 +274,7 @@ export async function loadSwapPools({ timeoutMs = 2500, account = '' } = {}) {
             tokens,
             account: payload?.account || null,
             accountLastNonce: Number.isSafeInteger(rawLastNonce) ? rawLastNonce : null,
+            accountBalances: accountBalancesFromPools(pools),
             error: null,
         };
     } catch (err) {
@@ -257,6 +284,7 @@ export async function loadSwapPools({ timeoutMs = 2500, account = '' } = {}) {
             tokens: [...FALLBACK_SWAP_TOKENS],
             account: account || null,
             accountLastNonce: null,
+            accountBalances: {},
             error: err?.message || 'pool_feed_unavailable',
         };
     }

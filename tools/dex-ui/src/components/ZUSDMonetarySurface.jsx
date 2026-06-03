@@ -544,8 +544,8 @@ function ZUSDMonetarySurface() {
     async function runSmoke() {
       const nextSmoke = { ...smoke };
       setForm((current) => ({ ...current, ...nextSmoke }));
-      if (!nextSmoke.signer_privkey.trim()) {
-        throw new Error('smoke signer credential required');
+      if (!nextSmoke.signer_privkey.trim() && !nextSmoke.signed_tau_tx_payload.trim()) {
+        throw new Error('smoke signer credential or signed payload required');
       }
       const payloadIn = buildPayload({ ...EMPTY_FORM, ...nextSmoke });
       return apiSubmitZusdMonetary(payloadIn, { timeoutMs: 20000 });
@@ -682,7 +682,7 @@ function ZUSDMonetarySurface() {
           {branchTcrPct != null && (
             <span className="zusd-chip mono">TCR {num(branchTcrPct, 1)}%</span>
           )}
-          <span className="zusd-chip zusd-chip-accent">{status?.node_reachable ? 'Network connected' : 'Network unavailable'}</span>
+          <span className="zusd-chip zusd-chip-accent">{status?.node_reachable ? 'Tau node connected' : 'Tau node required'}</span>
         </div>
       </div>
 

@@ -95,6 +95,7 @@ ORACLE = "0x" + bls_pubkey_hex_from_privkey(ORACLE_PRIVKEY)
 OPERATOR = "0x" + bls_pubkey_hex_from_privkey(OPERATOR_PRIVKEY)
 CAROL = "0x" + bls_pubkey_hex_from_privkey(CAROL_PRIVKEY)
 MARKET_ID = "perp:ch2p:test"
+NP_MARKET_ID = "perp:chnp:test"
 ISOLATED_MARKET_ID = "perp:isolated:test"
 ROOT_A = "0x" + "aa" * 32
 ROOT_B = "0x" + "bb" * 32
@@ -1081,6 +1082,54 @@ def _state_with_posted_collateral(*, quote_asset: str) -> DexState:
     )
 
 
+def _state_with_np_market_and_collateral(*, quote_asset: str) -> DexState:
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    config = PerpEngineConfig(chain_id=CHAIN_ID, oracle_pubkey=ORACLE, operator_pubkey=OPERATOR)
+    res = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={
+            "5": [
+                {
+                    "module": "TauPerp",
+                    "version": "1.2",
+                    "market_id": NP_MARKET_ID,
+                    "action": "init_market_np",
+                    "quote_asset": quote_asset,
+                    "index_price_e8": 100_000_000,
+                }
+            ]
+        },
+        tx_sender_pubkey=OPERATOR,
+        block_timestamp=1,
+    )
+    assert res.ok, res.error
+    assert res.state is not None
+    state = res.state
+    state.balances.set(ALICE, quote_asset, 5_000)
+    res = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={
+            "5": [
+                {
+                    "module": "TauPerp",
+                    "version": "1.2",
+                    "market_id": NP_MARKET_ID,
+                    "action": "deposit_collateral",
+                    "account_pubkey": ALICE,
+                    "amount": 1_000,
+                }
+            ]
+        },
+        tx_sender_pubkey=ALICE,
+        block_timestamp=1,
+    )
+    assert res.ok, res.error
+    assert res.state is not None
+    return res.state
+
+
 def _state_with_isolated_liquidatable_account(*, quote_asset: str) -> DexState:
     global_state = _kernel_initial_global_state()
     global_state.update(
@@ -2063,6 +2112,127 @@ def test_prepare_init_market_2p_builds_signed_stream_8_and_preflights(monkeypatc
     assert payload["proof"]["zk_wrapper"]["required"] is False
     assert payload["proof"]["zk_wrapper"]["proof_provided"] is False
     assert payload["proof"]["zk_wrapper"]["zk_proof_verified"] is False
+
+
+def test_status_exposes_clearinghouse_np_markets_and_supported_actions(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_with_np_market_and_collateral(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 200
+    status = payload["status"]
+    assert status["supports_clearinghouse_np_v1"] is True
+    assert "init_market_np" in status["supported_actions"]
+    assert "submit_intent" in status["supported_actions"]
+    assert "run_epoch" in status["supported_actions"]
+    market = next(item for item in status["markets"] if item["market_id"] == NP_MARKET_ID)
+    assert market["kind"] == "clearinghouse_np_v1"
+    assert market["quote_asset"] == quote_asset
+    assert market["account_count"] == 1
+    assert market["active_count"] == 1
+    assert market["net_position_base"] == 0
+    assert market["accounts"][0]["account_pubkey"] == ALICE
+    assert market["accounts"][0]["collateral_quote"] == 1_000
+    assert market["accounts"][0]["quote_balance"] == 4_000
+
+
+def test_prepare_np_submit_intent_builds_v12_sender_bound_operation(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_with_np_market_and_collateral(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "submit_intent",
+        "market_id": NP_MARKET_ID,
+        "account_pubkey": ALICE,
+        "target_base": 7,
+        "limit_price_e8": 100_000_000,
+        "min_fill_base": 0,
+        "expiry_epoch": 1,
+        "deadline": FUTURE_DEADLINE,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    operation = payload["report"]["operation"]
+    assert operation["version"] == "1.2"
+    assert operation["market_id"] == NP_MARKET_ID
+    assert operation["action"] == "submit_intent"
+    assert operation["account_pubkey"] == ALICE
+    assert operation["target_base"] == 7
+    assert payload["transport"]["tx_sender_pubkey"] == ALICE
+    assert payload["transport"]["quote_balance"] == 4_000
+    assert payload["report"]["preflight"]["ok"] is True
+    assert payload["proof"]["intent_receipt"]["body"]["action"] == "submit_intent"
+
+
+def test_submit_np_deposit_uses_v12_and_binds_state_delta(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    res = apply_perp_ops(
+        config=PerpEngineConfig(chain_id=CHAIN_ID, operator_pubkey=OPERATOR),
+        state=state,
+        operations={
+            "5": [
+                {
+                    "module": "TauPerp",
+                    "version": "1.2",
+                    "market_id": NP_MARKET_ID,
+                    "action": "init_market_np",
+                    "quote_asset": quote_asset,
+                    "index_price_e8": 100_000_000,
+                }
+            ]
+        },
+        tx_sender_pubkey=OPERATOR,
+        block_timestamp=1,
+    )
+    assert res.ok, res.error
+    assert res.state is not None
+    state = res.state
+    state.balances.set(ALICE, quote_asset, 5_000)
+    _FakeClient.app_state = _wrapped_app_state(state)
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "deposit_collateral",
+        "market_id": NP_MARKET_ID,
+        "account_privkey": str(ALICE_PRIVKEY),
+        "amount": 500,
+        "deadline": FUTURE_DEADLINE,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    operation = payload["report"]["operation"]
+    assert operation["version"] == "1.2"
+    assert operation["action"] == "deposit_collateral"
+    witness = payload["post_submit"]["state_delta_witness"]
+    changed = next(item for item in witness["changed_markets"] if item["market_id"] == NP_MARKET_ID)
+    assert changed["deltas"]["account_count"] == 1
+    assert changed["account_deltas"][0]["collateral_e8_delta"] == 500 * 100_000_000
+    receipt_body = payload["proof"]["intent_receipt"]["body"]
+    assert receipt_body["state_delta_witness_hash"].startswith("0x")
+    assert receipt_body["app_hash_after"] != receipt_body["app_hash_before"]
 
 
 def test_prepare_init_market_requires_zk_proof_when_enabled(monkeypatch) -> None:
