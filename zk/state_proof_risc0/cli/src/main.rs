@@ -1968,4 +1968,45 @@ mod tests {
         let err = check_proof_meta_image_id(&bad_image).unwrap_err();
         assert_eq!(err, "risc0_image_id mismatch");
     }
+
+    /// Locks the nonzero-image-id gate: the all-zero placeholder image id
+    /// (`methods/build.rs` writes `[0u32; 8]` when `RISC0_SKIP_BUILD=1` / no
+    /// toolchain) must NEVER pass `check_proof_meta_image_id`. This is what
+    /// keeps a placeholder / echo build from ever being treated as a real
+    /// RISC0 proof surface. The expected real id (`TAU_STATE_PROOF_GUEST_ID`)
+    /// is only all-zero in a placeholder build; in that build the guards in
+    /// `validate_embedded_methods` fail closed before any verify path runs, so
+    /// the placeholder meta id can never coincide with a real expected id.
+    #[test]
+    fn check_proof_meta_image_id_rejects_all_zero_placeholder() {
+        let mut placeholder = strict_proof_meta();
+        // "00".."00" (32 zero bytes) is the placeholder image id written by
+        // methods/build.rs for a non-embedded (echo) build.
+        placeholder["meta"]["risc0_image_id"] = Value::String(hx(0));
+        // Only meaningful to assert rejection when the real embedded id is not
+        // itself all-zero (i.e. a real toolchain build). In a placeholder build
+        // the generate/verify entrypoints already die in validate_embedded_methods.
+        if !TAU_STATE_PROOF_GUEST_ID.iter().all(|w| *w == 0) {
+            let err = check_proof_meta_image_id(&placeholder).unwrap_err();
+            assert_eq!(err, "risc0_image_id mismatch");
+        }
+        // The all-zero placeholder build must always fail closed at the embed gate.
+        if TAU_STATE_PROOF_GUEST_ID.iter().all(|w| *w == 0) {
+            assert!(TAU_STATE_PROOF_GUEST_ELF.is_empty());
+        }
+    }
+
+    /// Locks fail-closed behavior when the proof carries no meta image id: a
+    /// proof without `meta.risc0_image_id` must be rejected, never silently
+    /// accepted as if the binding were satisfied.
+    #[test]
+    fn check_proof_meta_image_id_rejects_missing_meta_image_id() {
+        let mut no_image = strict_proof_meta();
+        no_image["meta"]
+            .as_object_mut()
+            .expect("meta object")
+            .remove("risc0_image_id");
+        let err = check_proof_meta_image_id(&no_image).unwrap_err();
+        assert_eq!(err, "proof.meta.risc0_image_id missing");
+    }
 }
