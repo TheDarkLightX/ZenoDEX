@@ -283,7 +283,7 @@
       ],
       "checker_commands": [
         "pytest -q tests/integration/test_zeno_ledger_v0.py",
-        "pytest -q tests/tools/test_check_zeno_ledger_light_client_checkpoint.py"
+        "pytest -q tests/test_check_zeno_ledger_light_client_checkpoint.py"
       ],
       "limits": [
         "local replay and checkpoint quorum only",
