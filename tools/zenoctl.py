@@ -429,6 +429,12 @@ def _cmd_testnet_demo(args: argparse.Namespace) -> int:
 
 
 def _cmd_testnet_join(args: argparse.Namespace) -> int:
+    if args.serve and not args.write_auth_token_env:
+        print(
+            "error: --serve requires --write-auth-token-env to protect write endpoints",
+            file=sys.stderr,
+        )
+        return 2
     command = [
         sys.executable,
         "tools/zeno_ledger_node.py",

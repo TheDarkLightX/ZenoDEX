@@ -261,6 +261,8 @@ def test_zenoctl_testnet_join_dry_run(capfd) -> None:
             "--data-dir",
             "/tmp/zenodex-node",
             "--serve",
+            "--write-auth-token-env",
+            "ZENO_TESTNET_WRITE_TOKEN",
             "--port",
             "8788",
             "--poll-seconds",
@@ -278,6 +280,26 @@ def test_zenoctl_testnet_join_dry_run(capfd) -> None:
     assert "--data-dir /tmp/zenodex-node" in output
     assert "--host 127.0.0.1" in output
     assert "--serve" in output
+    assert "--write-auth-token-env ZENO_TESTNET_WRITE_TOKEN" in output
+
+
+def test_zenoctl_testnet_join_serve_requires_write_auth_token_env(capfd) -> None:
+    rc = zenoctl.main(
+        [
+            "testnet",
+            "join",
+            "--config-url",
+            "https://example.test/public_network_config.json",
+            "--node-id",
+            "operator-laptop",
+            "--serve",
+            "--dry-run",
+        ]
+    )
+
+    assert rc == 2
+    stderr = capfd.readouterr().err
+    assert "--serve requires --write-auth-token-env" in stderr
 
 
 def test_zenoctl_testnet_publish_config_dry_run(capfd) -> None:
