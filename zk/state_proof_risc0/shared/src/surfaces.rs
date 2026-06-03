@@ -776,11 +776,12 @@ impl PerpsStateV1 {
         self.pending_intents.clear();
         let (funding_residual_e8, settle_receipts) =
             self.apply_settle(clearing_price_e8, funding_rate_bps)?;
-        let match_result = self.apply_match(batch)?;
+        // DbC: matching observes the post-settlement epoch, matching Python run_epoch semantics.
         self.now_epoch = self
             .now_epoch
             .checked_add(1)
             .ok_or(TransitionError::Arithmetic("epoch overflow"))?;
+        let match_result = self.apply_match(batch)?;
         let mut receipts = settle_receipts;
         receipts.extend(match_result.receipts);
         Ok(PerpsMatchResultV1 {
@@ -2545,6 +2546,87 @@ mod tests {
             expected_collateral_binding_hash
         );
         assert_eq!(journal.oracle_binding_hash, expected_oracle_binding_hash);
+    }
+
+    #[test]
+    fn perps_np_rejects_intents_expired_by_settlement_epoch() {
+        let mut state = PerpsStateV1::from_snapshot(PerpsNpSnapshotV1::empty()).unwrap();
+        state
+            .init_market(
+                "BTC-PERP".to_string(),
+                default_zusd_asset(),
+                100 * E8_I128,
+                PerpsMarketParamsV1::default(),
+                1_000_000_000,
+            )
+            .unwrap();
+
+        for (i, wallet) in ["a", "b", "c", "d"].iter().enumerate() {
+            state
+                .deposit_collateral(
+                    wallet.to_string(),
+                    default_zusd_asset(),
+                    2_000 * E8_I128,
+                    1,
+                    Some(collateral_binding((i + 1) as u8)),
+                )
+                .unwrap();
+        }
+
+        let result = state
+            .run_epoch(
+                oracle(100 * E8_I128),
+                100 * E8_I128,
+                0,
+                alloc::vec![
+                    PerpsIntentV1 {
+                        pubkey: "a".to_string(),
+                        target_base: 1,
+                        limit_price_e8: 0,
+                        min_fill_base: 0,
+                        expiry_epoch: 0,
+                        nonce: 2,
+                    },
+                    PerpsIntentV1 {
+                        pubkey: "b".to_string(),
+                        target_base: 1,
+                        limit_price_e8: 0,
+                        min_fill_base: 0,
+                        expiry_epoch: 0,
+                        nonce: 2,
+                    },
+                    PerpsIntentV1 {
+                        pubkey: "c".to_string(),
+                        target_base: -1,
+                        limit_price_e8: 0,
+                        min_fill_base: 0,
+                        expiry_epoch: 0,
+                        nonce: 2,
+                    },
+                    PerpsIntentV1 {
+                        pubkey: "d".to_string(),
+                        target_base: -1,
+                        limit_price_e8: 0,
+                        min_fill_base: 0,
+                        expiry_epoch: 0,
+                        nonce: 2,
+                    },
+                ],
+            )
+            .unwrap();
+
+        assert_eq!(state.now_epoch, 1);
+        assert_eq!(result.matched_base_volume, 0);
+        assert_eq!(result.receipts.len(), 4);
+        assert!(result.receipts.iter().all(|receipt| {
+            receipt.status == "rejected"
+                && receipt.delta == 0
+                && receipt.reject_code.as_deref() == Some("REJ_EXPIRED")
+        }));
+        assert!(state
+            .accounts
+            .values()
+            .all(|account| account.position_base == 0));
     }
 
     #[test]
