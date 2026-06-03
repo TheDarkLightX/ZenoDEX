@@ -3,8 +3,9 @@
 These tests are self-contained (stdlib only, no Chrome, no npm). They boot the
 real :mod:`src.integration.api_server` on a loopback port and drive the full
 commit -> open-reveal -> reveal -> settle lifecycle exactly as the Confidential
-Workbench UI does, asserting fail-closed behavior, account-binding, phase
-gating, and the honest claim boundary (no production claim; no asset movement).
+Workbench UI does, asserting fail-closed behavior, bidder-slot binding (NOT
+identity auth — bidder_id is unauthenticated), phase gating, and the honest
+claim boundary (no production claim; no asset movement; no signature auth).
 """
 
 from __future__ import annotations
@@ -12,6 +13,8 @@ from __future__ import annotations
 import json
 import threading
 from http.client import HTTPConnection
+
+import pytest
 
 from src.core.sealed_bid_auction import sealed_bid_reveal_hash
 
@@ -376,8 +379,71 @@ def test_sealed_bid_status_reports_honest_boundary() -> None:
         assert s["production_security_claim"] is False
         assert s["asset_settlement_available"] is False
         assert s["sealed_bid_enabled"] is True
+        # Honest auth boundary is machine-checkable + spelled out in non_claims.
+        assert s["signature_auth_available"] is False
+        assert s["account_authenticated"] is False
         assert "production" not in s["claim_scope"]
         assert any("no production security claim" in c for c in s["non_claims"])
+        assert any(
+            "unauthenticated label" in c and "signature-bound bidders" in c
+            for c in s["non_claims"]
+        )
         assert "POST /api/confidential/sealed-bid/settle" in s["endpoints"]
     finally:
         _stop_test_server(httpd, t)
+
+
+def test_sealed_bid_reset_refuses_to_clobber_in_progress_batch() -> None:
+    """Anti-griefing: reset must not silently wipe a batch with recorded commits
+    unless force=true. This is defense-in-depth, NOT identity auth."""
+    httpd, t, host, port = _start_test_server()
+    try:
+        batch_id = "ui-sealed-bid-clobber"
+        commit = _commitment(quantity=2, limit_price=101, nonce="n0")
+        status, _ = _post(host, port, "/api/confidential/sealed-bid/reset", {
+            "batch_id": batch_id, "units_for_sale": 5, "bond_amount": 7,
+        })
+        assert status == 200
+        status, _ = _post(host, port, "/api/confidential/sealed-bid/commit", {
+            "batch_id": batch_id, "bidder_id": "alice", "commitment": commit, "bond_amount": 7,
+        })
+        assert status == 200
+
+        # Reset WITHOUT force is refused and leaves the recorded commit intact.
+        status, body = _post(host, port, "/api/confidential/sealed-bid/reset", {
+            "batch_id": batch_id, "units_for_sale": 9, "bond_amount": 7,
+        })
+        assert status == 409
+        assert body["error"] == "batch_in_progress"
+        assert body["commit_count"] == 1
+        # The original batch is unchanged (reject-is-no-op): same commit survives.
+        status, body = _post(host, port, "/api/confidential/sealed-bid/open-reveal", {"batch_id": batch_id})
+        assert status == 200 and body["batch"]["commit_count"] == 1
+
+        # Explicit force=true re-initializes the batch (commits cleared).
+        status, body = _post(host, port, "/api/confidential/sealed-bid/reset", {
+            "batch_id": batch_id, "units_for_sale": 9, "bond_amount": 7, "force": True,
+        })
+        assert status == 200 and body["batch"]["phase"] == "commit"
+        assert body["batch"]["units_for_sale"] == 9
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_sealed_bid_signature_auth_is_a_known_documented_gap() -> None:
+    """The exact missing production piece, marked (not hidden) per repo policy.
+
+    This surface authenticates NOTHING: bidder_id is a free-form label and there
+    is no wallet-signature or canonical-account binding. The commit->reveal check
+    is cryptographic (preimage), not identity. Production sealed-bid requires
+    signature-bound bidders; until that exists this surface stays local-testnet,
+    non-fund, and its status advertises signature_auth_available=False.
+    """
+    pytest.skip(
+        "MISSING for production: signature-bound bidders. sealed-bid commit/reveal "
+        "is unauthenticated (bidder_id is a label, not a verified account/pubkey). "
+        "Status advertises signature_auth_available=False and account_authenticated="
+        "False; production_security_claim stays False. Wire wallet-signature "
+        "verification on commit (and bind reveal to the committing signature) before "
+        "any production claim."
+    )

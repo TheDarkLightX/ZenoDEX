@@ -16,12 +16,23 @@ HONEST CLAIM BOUNDARY (load-bearing — do not soften):
   non-reveal bond outcome but moves **no real funds or assets**.
   ``asset_settlement_available`` is ``False`` and ``asset_settlement_executed`` is
   always ``False`` — the UI correctly renders "external adapter required".
+- **No authentication.** ``bidder_id`` is an *unauthenticated* free-form label.
+  The commit -> reveal binding is purely *cryptographic* — a reveal must hash to
+  the previously-committed digest, so a copier who lacks the preimage cannot
+  reveal — but there is **no wallet-signature or account authentication**. A
+  demo-authed caller can commit under any ``bidder_id``. ``signature_auth_available``
+  and ``account_authenticated`` are both ``False``. The MISSING piece for any
+  production sealed-bid surface is signature-bound bidders; it is marked here, not
+  hidden.
 
-The handler is fail-closed: any malformed input, wrong phase, account-binding
+The handler is fail-closed: any malformed input, wrong phase, bidder-slot
 violation, or unknown batch yields a deterministic reject with a stable code and
-leaves state unchanged (reject-is-no-op). The shell (api_server) gates this whole
-surface behind ``CONFIDENTIAL_ATTESTATION_API_ENABLED`` AND a status check that
-``sealed_bid_enabled`` is true.
+leaves state unchanged (reject-is-no-op). ``reset`` additionally refuses to
+silently clobber an in-progress batch (commits recorded, not yet settled) unless
+``force`` is explicitly ``true``. The shell (api_server) gates this whole surface
+behind ``CONFIDENTIAL_ATTESTATION_API_ENABLED`` AND an explicit per-feature
+``sealed_bid_enabled`` (env ``CONFIDENTIAL_SEALED_BID_ENABLED``, default OFF), so
+enabling attestation alone does NOT expose this write surface.
 """
 
 from __future__ import annotations
@@ -244,6 +255,12 @@ def _claim_envelope() -> dict[str, Any]:
         "claim_scope": CLAIM_SCOPE,
         "production_security_claim": PRODUCTION_SECURITY_CLAIM,
         "asset_settlement_available": False,
+        # Honest auth boundary (machine-checkable): bidder_id is an UNAUTHENTICATED
+        # label. This surface does commit->reveal *cryptographic* binding only; it
+        # performs NO wallet-signature or account authentication. Production
+        # sealed-bid requires signature-bound bidders.
+        "signature_auth_available": False,
+        "account_authenticated": False,
     }
 
 
@@ -263,6 +280,10 @@ def _handle_status(table: SealedBidBatchTable, *, sealed_bid_enabled: bool) -> R
                 "no TEE/FHE confidentiality claim",
                 "in-memory single-node state only; lost on restart",
                 "settlement is accounting-only and moves no funds or assets",
+                "bidder_id is an unauthenticated label: no wallet-signature or "
+                "account auth; commit->reveal binding is cryptographic (preimage), "
+                "NOT identity. A demo-authed caller may commit under any bidder_id. "
+                "MISSING for production: signature-bound bidders.",
             ],
             **_claim_envelope(),
             "endpoints": [
@@ -291,6 +312,24 @@ def _handle_reset(table: SealedBidBatchTable, body: Mapping[str, Any]) -> Respon
     if existing is None and table.count() >= MAX_BATCHES:
         return 429, {"ok": False, "error": "too_many_batches"}
 
+    # Anti-griefing: refuse to silently wipe a batch that already has recorded
+    # commits and is not yet settled, unless the caller explicitly passes
+    # force=true. This is NOT identity auth (bidder_id is unauthenticated — see
+    # the claim envelope); it only stops an accidental or hostile reset from
+    # discarding an in-progress batch's commits.
+    if (
+        existing is not None
+        and existing.phase != PHASE_SETTLED
+        and len(existing.commits) > 0
+        and body.get("force") is not True
+    ):
+        return 409, {
+            "ok": False,
+            "error": "batch_in_progress",
+            "phase": existing.phase,
+            "commit_count": len(existing.commits),
+        }
+
     # reset is idempotent re-initialization: a fresh batch in the commit phase.
     table.reset(_Batch(batch_id=batch_id, units_for_sale=int(units_for_sale)))
     return 200, {
@@ -314,7 +353,8 @@ def _handle_commit(table: SealedBidBatchTable, body: Mapping[str, Any]) -> Respo
         return 404, {"ok": False, "error": "unknown_batch"}
     if batch.phase != PHASE_COMMIT:
         return 409, {"ok": False, "error": "phase_not_commit", "phase": batch.phase}
-    # Account-binding: one commit per bidder per batch (no re-commit / overwrite).
+    # Bidder-slot binding (NOT identity auth — bidder_id is unauthenticated): one
+    # commit per bidder_id per batch (no re-commit / overwrite).
     if bidder_id in batch.commits:
         return 409, {"ok": False, "error": "bidder_already_committed"}
     # Reject a copied commitment from a different bidder. A copier cannot reveal
@@ -398,7 +438,8 @@ def _handle_reveal(table: SealedBidBatchTable, body: Mapping[str, Any]) -> Respo
         return 404, {"ok": False, "error": "unknown_batch"}
     if batch.phase != PHASE_REVEAL:
         return 409, {"ok": False, "error": "phase_not_reveal", "phase": batch.phase}
-    # Account-binding: a reveal must come from a bidder that actually committed.
+    # Bidder-slot binding (NOT identity auth): a reveal must reference a bidder_id
+    # that actually committed in this batch.
     commit = batch.commits.get(bidder_id)
     if commit is None:
         return 404, {"ok": False, "error": "no_commit_for_bidder"}

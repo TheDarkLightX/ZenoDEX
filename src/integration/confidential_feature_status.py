@@ -277,7 +277,11 @@ def load_confidential_feature_status_from_env() -> ConfidentialFeatureStatus:
     return ConfidentialFeatureStatus(
         stage=stage,
         tee_enabled=_env_bool("CONFIDENTIAL_TEE_ENABLED", True),
-        sealed_bid_enabled=_env_bool("CONFIDENTIAL_SEALED_BID_ENABLED", True),
+        # Default OFF: this flag now gates real commit/reveal/settle WRITE
+        # endpoints (confidential_sealed_bid_api), so enabling the parent
+        # confidential attestation API must NOT auto-expose the sealed-bid write
+        # surface. An operator opts in explicitly via CONFIDENTIAL_SEALED_BID_ENABLED.
+        sealed_bid_enabled=_env_bool("CONFIDENTIAL_SEALED_BID_ENABLED", False),
         sealed_bid_default=_env_bool("CONFIDENTIAL_SEALED_BID_DEFAULT", False),
         fhe_alpha_enabled=_env_bool("CONFIDENTIAL_FHE_ALPHA_ENABLED", False),
         attestation_epoch_length_s=_env_int("CONFIDENTIAL_ATTESTATION_EPOCH_LENGTH_S", 60, lo=1, hi=86_400),
