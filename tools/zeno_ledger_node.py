@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any, Mapping, NoReturn
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, unquote, urljoin, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -397,10 +397,39 @@ def _fetch_json_url(url: str) -> dict[str, Any]:
     return obj
 
 
+class _NoRedirectHandler(HTTPRedirectHandler):
+    """Reject redirects so bearer credentials cannot be replayed to another URL."""
+
+    def redirect_request(
+        self,
+        req: Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Mapping[str, str],
+        newurl: str,
+    ) -> None:
+        # DbC invariant: authenticated POSTs must either reach the configured URL
+        # directly or fail closed; urllib must not clone Authorization onto a
+        # redirected request.
+        return None
+
+
+_AUTHENTICATED_POST_OPENER = build_opener(_NoRedirectHandler)
+
+
 def _auth_bearer_header(token: str | None) -> dict[str, str]:
     if token is None:
         return {}
     return {"Authorization": f"Bearer {token}"}
+
+
+def _open_post_request_auth_safe(request: Request, *, bearer_token: str | None, timeout: int):
+    # DbC precondition: callers pass the same bearer token used to build the
+    # request headers, keeping redirect policy coupled to credential presence.
+    if bearer_token is None:
+        return urlopen(request, timeout=timeout)  # noqa: S310 - explicit operator-configured peer URL
+    return _AUTHENTICATED_POST_OPENER.open(request, timeout=timeout)
 
 
 def _auth_token_from_env_name(env_name: object, *, name: str) -> str | None:
@@ -437,7 +466,7 @@ def _post_json_url(url: str, value: Mapping[str, Any], *, bearer_token: str | No
         method="POST",
     )
     try:
-        with urlopen(request, timeout=30) as response:  # noqa: S310 - explicit operator-configured peer URL
+        with _open_post_request_auth_safe(request, bearer_token=bearer_token, timeout=30) as response:
             status = HTTPStatus(response.status)
             data = response.read(MAX_REMOTE_ARTIFACT_BYTES + 1)
     except HTTPError as exc:
