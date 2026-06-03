@@ -15,7 +15,7 @@ import os
 import time
 from dataclasses import asdict, replace
 from typing import Any, Dict, Mapping, Optional, Tuple, cast
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from ..core.dex import DexState
 from ..core.zusd import E8
@@ -581,6 +581,19 @@ def _default_deadline() -> int:
     return int(time.time()) + int(delta)
 
 
+def _query_first(query: str, key: str) -> str | None:
+    """Return the first value for ``key`` in a URL query string, or None.
+
+    Blank values are treated as absent so an empty ``?account=`` behaves like an
+    unauthenticated status request rather than a malformed account.
+    """
+    values = parse_qs(query).get(key)
+    if not values:
+        return None
+    first = values[0].strip()
+    return first or None
+
+
 def _canonical_pubkey(value: object, *, name: str) -> str:
     if not isinstance(value, str):
         raise TypeError(f"{name} must be a string")
@@ -1127,7 +1140,7 @@ def _build_prepare_response(
     return payload
 
 
-def _status_payload() -> Dict[str, Any]:
+def _status_payload(account: str | None = None) -> Dict[str, Any]:
     chain_id = _tau_chain_id()
     asset_id = derive_zusd_tau_asset_id(chain_id=chain_id)
     sp_pubkey = stability_pool_pubkey(chain_id=chain_id)
@@ -1193,6 +1206,27 @@ def _status_payload() -> Dict[str, Any]:
             status["vault_owner_pubkey"] = zusd_state.vault_owner_pubkey
             status["sp_deposits_e8"] = dict(zusd_state.sp_deposits_e8 or {})
             status["sp_collateral_claims_e8"] = dict(zusd_state.sp_collateral_claims_e8 or {})
+        if account:
+            # Account-aware monetary view: the connected wallet's zUSD balance,
+            # stability-pool deposit/claim, and vault-owner flag (mirrors the pool
+            # surface resolving balances for the connected account).
+            account_key = account.strip().lower()
+            status["account"] = account
+            status["account_view"] = {
+                "account": account,
+                "zusd_balance": int(balances.get(account_key, 0)),
+                "sp_deposit_e8": int((zusd_state.sp_deposits_e8 or {}).get(account_key, 0))
+                if zusd_state is not None
+                else 0,
+                "sp_collateral_claim_e8": int((zusd_state.sp_collateral_claims_e8 or {}).get(account_key, 0))
+                if zusd_state is not None
+                else 0,
+                "is_vault_owner": bool(
+                    zusd_state is not None
+                    and isinstance(zusd_state.vault_owner_pubkey, str)
+                    and zusd_state.vault_owner_pubkey.strip().lower() == account_key
+                ),
+            }
     except Exception as exc:
         status["node_reachable"] = False
         status["error"] = f"{type(exc).__name__}: {exc}"
@@ -1208,7 +1242,14 @@ def handle_zusd_monetary_wallet_request(method: str, path: str, body: Optional[b
     rest = segments[3:]
     try:
         if method == "GET" and rest == ["status"]:
-            return 200, {"ok": True, "status": _status_payload()}
+            # Account-aware status: resolve the connected wallet's zUSD balance and
+            # stability-pool position for ?account=<pubkey>. Fail closed on a
+            # malformed account rather than silently dropping it.
+            account_param = _query_first(parsed_path.query, "account")
+            account: str | None = None
+            if account_param:
+                account = _canonical_pubkey(account_param, name="account")
+            return 200, {"ok": True, "status": _status_payload(account)}
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
         parsed, err = _parse_json_body(body)

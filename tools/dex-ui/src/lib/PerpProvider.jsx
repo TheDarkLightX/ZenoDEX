@@ -128,6 +128,7 @@ function derivePositionFromWalletMarket(walletMarket, userPubkey) {
     const b = _normalizePubkey(walletMarket.account_b_pubkey);
     let positionBase = 0;
     let collateralQuote = 0;
+    let quoteBalance = 0;
     // `collateral_e8_*` is e8-scaled quote per the kernel (1e8 = 1 quote unit),
     // but `collateralQuote` is PLAIN integer quote everywhere downstream
     // (perpMath/perpValidation/position panel + demo data). Divide out the 1e8
@@ -137,9 +138,11 @@ function derivePositionFromWalletMarket(walletMarket, userPubkey) {
     if (u && u === a) {
         positionBase = Number(walletMarket.position_base_a ?? 0);
         collateralQuote = Math.trunc(Number(walletMarket.collateral_e8_a ?? 0) / 1e8);
+        quoteBalance = Number(walletMarket.account_a_quote_balance ?? 0);
     } else if (u && u === b) {
         positionBase = Number(walletMarket.position_base_b ?? 0);
         collateralQuote = Math.trunc(Number(walletMarket.collateral_e8_b ?? 0) / 1e8);
+        quoteBalance = Number(walletMarket.account_b_quote_balance ?? 0);
     } else {
         return null;
     }
@@ -148,6 +151,14 @@ function derivePositionFromWalletMarket(walletMarket, userPubkey) {
         pubkey: userPubkey,
         positionBase,
         collateralQuote,
+        // The connected account's wallet quote balance — PLAIN ledger units, the
+        // same source/scale as the accounts-list branch's `quote_balance` and the
+        // always-present `account_{a,b}_quote_balance` market fields. Without this
+        // the 2p branch left quoteBalance undefined, so PerpCollateralModal (which
+        // reads position.quoteBalance before falling back to wallet.balance[asset])
+        // showed a funded connected account a zero/unavailable perps balance — the
+        // perps half of the "50k only in Pool" bug (Codex F4).
+        quoteBalance,
         // Entry price isn't tracked by the 2p market state — index price is the
         // best honest stand-in until a positions endpoint surfaces entry.
         entryPriceE8: Number(walletMarket.index_price_e8 ?? 0),
@@ -445,7 +456,7 @@ export function PerpProvider({ children, wallet, onTransaction }) {
                 // takes 2–3 s on local-testnet, so a tighter cap shows the
                 // user spurious "timeout" banners even when the call would
                 // have finished in time.
-                const statusResp = await apiGetPerpsWalletStatus({ timeoutMs: 12000 });
+                const statusResp = await apiGetPerpsWalletStatus({ account: pubkey || '', timeoutMs: 12000 });
                 if (seq !== loadSeqRef.current) return; // stale
                 const status = statusResp?.status || {};
                 const rawMarkets = Array.isArray(status.markets) ? status.markets : [];

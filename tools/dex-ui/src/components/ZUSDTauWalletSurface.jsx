@@ -54,10 +54,13 @@ function buildPayload(form) {
   return payload;
 }
 
-function ZUSDTauWalletSurface() {
+function ZUSDTauWalletSurface({ wallet = null }) {
+  const connectedAccount = (wallet?.address || '').trim();
   const [status, setStatus] = useState(null);
   const [statusError, setStatusError] = useState('');
-  const [form, setForm] = useState(() => readSmokeConfig() || EMPTY_FORM);
+  const [form, setForm] = useState(
+    () => readSmokeConfig() || { ...EMPTY_FORM, sender_pubkey: connectedAccount },
+  );
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -69,7 +72,10 @@ function ZUSDTauWalletSurface() {
 
   async function loadStatus() {
     try {
-      const payload = await apiGetZusdWalletStatus({ timeoutMs: 8000 });
+      const payload = await apiGetZusdWalletStatus({
+        account: form.sender_pubkey.trim() || '',
+        timeoutMs: 8000,
+      });
       setStatus(payload?.status || null);
       setStatusError('');
     } catch (err) {
@@ -80,7 +86,33 @@ function ZUSDTauWalletSurface() {
 
   useEffect(() => {
     loadStatus();
-  }, []);
+    // Refetch account-aware status when the sender (connected account) changes
+    // so the holder's token balance reflects THAT account.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.sender_pubkey]);
+
+  // Bind the account-aware status query to the CONNECTED wallet: when the wallet
+  // identity changes, set the sender field to it so the holder's token balance
+  // reflects THAT account (fixes "50k shows in Pool but not zUSD"). Manual edits
+  // between wallet switches are preserved — we only react to identity changes.
+  const prevWalletRef = useRef(connectedAccount);
+  useEffect(() => {
+    const previous = prevWalletRef.current;
+    if (connectedAccount && connectedAccount !== previous) {
+      prevWalletRef.current = connectedAccount;
+      // Connecting/switching a wallet is a deliberate action: the connected
+      // account always takes over the field — overriding empty or any stale
+      // prior value. The field stays editable for inspection while connected.
+      setForm((curr) => ({ ...curr, sender_pubkey: connectedAccount }));
+    } else if (!connectedAccount && previous) {
+      prevWalletRef.current = '';
+      // On disconnect, clear ONLY if the field still holds the disconnected
+      // wallet (so a manual edit survives).
+      setForm((curr) =>
+        curr.sender_pubkey === previous ? { ...curr, sender_pubkey: '' } : curr,
+      );
+    }
+  }, [connectedAccount]);
 
   const liveSummary = useMemo(() => {
     if (!result?.transport) return null;
@@ -289,6 +321,18 @@ function ZUSDTauWalletSurface() {
             <h2>Live Context</h2>
             <span className="zusd-section-badge">Auto-derived</span>
           </div>
+          {status?.account_view ? (
+            <div className="zusd-wallet-meta">
+              <div className="zusd-wallet-kv">
+                <span>Connected Account</span>
+                <span className="zusd-mono">{status.account_view.account}</span>
+              </div>
+              <div className="zusd-wallet-kv">
+                <span>Account zUSD Balance</span>
+                <span>{status.account_view.balance}</span>
+              </div>
+            </div>
+          ) : null}
           {liveSummary ? (
             <div className="zusd-wallet-meta">
               <div className="zusd-wallet-kv"><span>App Hash</span><span className="zusd-mono">{liveSummary.app_hash || 'none'}</span></div>

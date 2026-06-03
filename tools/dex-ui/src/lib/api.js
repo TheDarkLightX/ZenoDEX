@@ -261,7 +261,12 @@ export function apiSettleConfidentialSealedBid(body, options = {}) {
 }
 
 export function apiGetZusdWalletStatus(options = {}) {
-  return apiFetchJson('/api/zusd/wallet/status', { method: 'GET', ...(options || {}) });
+  const { account = '', ...fetchOptions } = options || {};
+  const accountText = String(account || '').trim();
+  const path = accountText
+    ? `/api/zusd/wallet/status?account=${encodeURIComponent(accountText)}`
+    : '/api/zusd/wallet/status';
+  return apiFetchJson(path, { method: 'GET', ...fetchOptions });
 }
 
 export function apiPrepareZusdWallet(body, options = {}) {
@@ -281,7 +286,12 @@ export function apiSubmitZusdWallet(body, options = {}) {
 }
 
 export function apiGetZusdMonetaryStatus(options = {}) {
-  return apiFetchJson('/api/zusd/monetary/status', { method: 'GET', ...(options || {}) });
+  const { account = '', ...fetchOptions } = options || {};
+  const accountText = String(account || '').trim();
+  const path = accountText
+    ? `/api/zusd/monetary/status?account=${encodeURIComponent(accountText)}`
+    : '/api/zusd/monetary/status';
+  return apiFetchJson(path, { method: 'GET', ...fetchOptions });
 }
 
 export function apiPrepareZusdMonetary(body, options = {}) {
@@ -301,7 +311,12 @@ export function apiSubmitZusdMonetary(body, options = {}) {
 }
 
 export function apiGetPerpsWalletStatus(options = {}) {
-  return apiFetchJson('/api/perps/wallet/status', { method: 'GET', ...(options || {}) });
+  const { account = '', ...fetchOptions } = options || {};
+  const accountText = String(account || '').trim();
+  const path = accountText
+    ? `/api/perps/wallet/status?account=${encodeURIComponent(accountText)}`
+    : '/api/perps/wallet/status';
+  return apiFetchJson(path, { method: 'GET', ...fetchOptions });
 }
 
 export function apiPreparePerpsWallet(body, options = {}) {
