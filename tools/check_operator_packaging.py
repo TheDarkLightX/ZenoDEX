@@ -253,7 +253,6 @@ def _check_testnet_demo_compose(root: Path, checks: list[dict[str, Any]], errors
     for token in (
         "ZENODEX_TESTNET_DEMO=1",
         "API_HOST=127.0.0.1",
-        "ALLOW_DEMO_TOKEN_AUTH=1",
         "DEX_API_ENABLED=true",
         "PERPS_API_ENABLED=true",
         "ZUSD_API_ENABLED=true",
@@ -321,8 +320,8 @@ def _check_testnet_demo_runtime_config(root: Path, checks: list[dict[str, Any]],
             checks,
             errors,
             check_id="testnet_demo_ui_runtime_api_token",
-            ok="getRuntimeConfig().apiToken" in text,
-            error="tools/dex-ui/src/lib/api.js must read apiToken from runtime config",
+            ok="getRuntimeConfig().apiToken" not in text,
+            error="tools/dex-ui/src/lib/api.js must not read apiToken from runtime config",
         )
 
 
