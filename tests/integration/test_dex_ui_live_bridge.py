@@ -264,6 +264,98 @@ def test_live_node_serves_ui_pools_and_accepts_ui_swap(live_node: tuple[str, Pat
     assert receipt["accepted"] is True
 
 
+def test_pools_balance_consistency_across_swap_and_pool_surfaces(live_node: tuple[str, Path]) -> None:
+    """Regression for the community bug (swap/pool side): a funded account must show the
+    SAME token balance on the Pool surface and the Swap surface.
+
+    Both surfaces read the same ``/api/pools?account=`` row. ``PoolDashboard`` reads
+    ``accountBalance0 ?? account_balance0`` (and ...1); ``swapData.loadSwapPools`` aggregates
+    ``accountBalance0 ?? account_balance0`` into the swap feed's balances. The node derives
+    both from the single ledger source ``account_state.balances[account][asset]`` and emits
+    snake_case + camelCase mirrors. This asserts (a) the funded balances are present and
+    positive after a faucet, and (b) the camelCase mirror exactly equals the snake_case value,
+    so the two surfaces cannot diverge.
+    """
+    pytest.importorskip("py_ecc.bls")
+    from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
+
+    node_base_url, _node_dir = live_node
+    sender_pubkey = "0x" + bls_pubkey_hex_from_privkey(LIVE_BRIDGE_SIGNER_PRIVKEY)
+    faucet_report = _fund_smoke_sender(
+        node_base_url,
+        tx_id="ui-live-bridge-balance-consistency-faucet-v0",
+        to_pubkey=sender_pubkey,
+    )
+    assert faucet_report["ok"] is True
+
+    pools = _read_url_json(f"{node_base_url}/api/pools?{urlencode({'account': sender_pubkey})}")
+    assert pools["ok"] is True
+    assert pools.get("account") == sender_pubkey
+    pool_rows = pools["pools"]
+    assert isinstance(pool_rows, list) and pool_rows
+
+    # The faucet funded asset0 for this account, so at least one pool must report a
+    # positive account_balance0. Locate it deterministically.
+    funded_rows = [
+        row
+        for row in pool_rows
+        if isinstance(row, dict) and int(row.get("account_balance0", 0)) > 0
+    ]
+    assert funded_rows, "faucet should have funded asset0 for at least one pool's account_balance0"
+
+    for row in pool_rows:
+        assert isinstance(row, dict)
+        # The node MUST emit every per-account field when an account is supplied, and the
+        # camelCase mirror (read by PoolDashboard / the swap normalizer's `?? camelCase`
+        # branch) MUST equal the snake_case value the other branch reads. Equal mirrors are
+        # exactly what makes the two surfaces observe an identical balance.
+        for snake, camel in (
+            ("account_balance0", "accountBalance0"),
+            ("account_balance1", "accountBalance1"),
+            ("account_lp_balance", "accountLpBalance"),
+        ):
+            assert snake in row, f"live account row missing {snake}"
+            assert camel in row, f"live account row missing {camel}"
+            assert int(row[snake]) == int(row[camel]), (
+                f"snake/camel balance mirror diverged: {snake}={row[snake]} {camel}={row[camel]}"
+            )
+
+    # Cross-surface balance: emulate the Pool accessor and the Swap accessor over the SAME
+    # row and assert they agree. Pool reads per-token0; Swap aggregates per-symbol balances.
+    funded = funded_rows[0]
+    pool_balance0 = int(funded["accountBalance0"])  # PoolDashboard.normalizeLivePool
+    swap_balance0 = int(funded["account_balance0"])  # swapData.normalizePoolEntry -> accountBalances
+    assert pool_balance0 == swap_balance0 > 0
+
+
+def test_pools_without_account_fabricate_no_balances(live_node: tuple[str, Path]) -> None:
+    """Fail-closed: with NO connected wallet (no ``account`` query param), the pool feed must
+    not expose any per-account balance fields. Neither the Swap nor the Pool surface can then
+    fabricate a funded-looking state. No BLS dependency: this runs even without py_ecc.
+    """
+    node_base_url, _node_dir = live_node
+    pools = _read_url_json(f"{node_base_url}/api/pools")
+    assert pools["ok"] is True
+    pool_rows = pools["pools"]
+    assert isinstance(pool_rows, list) and pool_rows
+    for row in pool_rows:
+        assert isinstance(row, dict)
+        for forbidden in (
+            "account",
+            "account_balance0",
+            "accountBalance0",
+            "account_balance1",
+            "accountBalance1",
+            "account_lp_balance",
+            "accountLpBalance",
+        ):
+            assert forbidden not in row, (
+                f"anonymous /api/pools row must not include {forbidden} (would fabricate a balance)"
+            )
+    # The top-level account echo must also be absent/empty without a connected wallet.
+    assert not pools.get("account")
+
+
 def test_dex_ui_smoke_submits_live_swap_through_browser(
     live_node: tuple[str, Path],
     tmp_path: Path,
