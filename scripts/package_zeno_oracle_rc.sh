@@ -37,6 +37,7 @@ cp -R "${root}/tools/macos_scout" "${stage}/tools/macos_scout"
 cp -R "${root}/tools/confidential_attestation_verifier_rust" "${stage}/tools/confidential_attestation_verifier_rust"
 cp -R "${root}/tools/intent_lattices" "${stage}/tools/intent_lattices"
 cp -R "${root}/tools/batch_auction_ifql_sources" "${stage}/tools/batch_auction_ifql_sources"
+cp -R "${root}/tools/proof_verifiers" "${stage}/tools/proof_verifiers"
 
 find "${root}/tools" -maxdepth 1 -type f -name 'zenodex_oracle*.py' -print0 |
   sort -z |
