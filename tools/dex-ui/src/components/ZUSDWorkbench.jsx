@@ -79,9 +79,11 @@ function MintPanel({ onClose, demoMode = false, showClose = true, wallet = null 
     if (connectedAccount && connectedAccount !== previous) {
       prevWalletRef.current = connectedAccount;
       walletEverConnectedRef.current = true;
-      // Rebind only the auto-bound value (empty, or the prior wallet) — never
-      // clobber a genuine manual edit.
-      setOwnerPubkey((curr) => ((!curr || curr === previous) ? connectedAccount : curr));
+      // Connecting/switching a wallet is a deliberate action: the connected
+      // account always takes over the field — overriding empty, the vault-owner
+      // convenience prefill, or any stale prior value. The field stays editable
+      // for inspection while this wallet remains connected.
+      setOwnerPubkey(connectedAccount);
     } else if (!connectedAccount && previous) {
       prevWalletRef.current = '';
       // On disconnect, clear ONLY if the field still holds the disconnected
