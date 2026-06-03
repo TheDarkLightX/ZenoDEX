@@ -1,0 +1,75 @@
+{
+  "schema": "zenodex/tau/experiment-promotion-candidates/v1",
+  "status": "experiment_only",
+  "generated_trace_report": "generated/tau_lang_optimization_traces/report.json",
+  "required_before_runtime_activation": [
+    "formal_completeness_complete",
+    "semantic_contract",
+    "behavior_atlas",
+    "tau_differential_traces",
+    "host_binding_tests",
+    "operator_documentation",
+    "security_review"
+  ],
+  "candidates": [
+    {
+      "spec_id": "settlement_admission_envelope_v1",
+      "spec_path": "experiments/tau_lang_optimizations/settlement_admission_envelope_v1.tau",
+      "promotion_status": "experiment_only",
+      "kind": "bundle_or_composition",
+      "minimum_trace_timeout_s": 90.0,
+      "formal_completeness_cmd": "python3 tests/tau/check_formal_completeness.py --analyze experiments/tau_lang_optimizations/settlement_admission_envelope_v1.tau",
+      "trace_case_ids": [
+        "settlement_admission_envelope_pass",
+        "settlement_admission_envelope_fail_two_actions",
+        "settlement_admission_envelope_fail_replay",
+        "settlement_admission_envelope_fail_quote_and_risk"
+      ],
+      "host_assumptions": [
+        "The host computes signature, nonce, replay, expiry, pause, oracle freshness, route, quote receipt, pool snapshot, hop-count, slippage, fee-cap, amount, liquidity, risk, proof, binding, balance, and token-admission predicates before invoking Tau.",
+        "Every host predicate passed to Tau is encoded as an sbf bit where 1 means the named predicate passed and 0 means it failed.",
+        "Action decoding is performed before Tau and is supplied as one-hot sbf flags i1..i4."
+      ],
+      "non_claims": [
+        "This experiment does not prove signature verification, receipt verification, balance accounting, or arithmetic correctness.",
+        "This experiment is not runtime-active and is not a production admission policy until promoted through formal Tau contracts and host-binding tests."
+      ],
+      "runtime_activation_blockers": [
+        "Create a formal/tau contract and behavior atlas for the exact intended runtime meaning.",
+        "Bind the host-side predicates to concrete code paths with positive and negative integration tests.",
+        "Run Tau differential traces and record exact generated artifacts for every promoted output vector.",
+        "Document operator-visible failure meanings for all diagnostic outputs."
+      ]
+    },
+    {
+      "spec_id": "settlement_admission_envelope_temporal_v1",
+      "spec_path": "experiments/tau_lang_optimizations/settlement_admission_envelope_temporal_v1.tau",
+      "promotion_status": "experiment_only",
+      "kind": "bundle_or_composition",
+      "minimum_trace_timeout_s": 90.0,
+      "formal_completeness_cmd": "python3 tests/tau/check_formal_completeness.py --analyze experiments/tau_lang_optimizations/settlement_admission_envelope_temporal_v1.tau",
+      "trace_case_ids": [
+        "settlement_admission_temporal_pass",
+        "settlement_admission_temporal_fail_chain_height",
+        "settlement_admission_temporal_fail_oracle_diversity",
+        "settlement_admission_temporal_fail_pause",
+        "settlement_admission_temporal_fail_two_actions"
+      ],
+      "host_assumptions": [
+        "The host computes every base admission predicate used by settlement_admission_envelope_v1.",
+        "The host also computes previous-admission-state, chain-height monotonicity, writer-epoch, batch-capacity, duplicate-pool, oracle-diversity, signer-capability, and emergency-mode predicates before invoking Tau.",
+        "The emergency-mode predicate encodes the complete host policy for whether the selected action is allowed during emergency operation."
+      ],
+      "non_claims": [
+        "This experiment does not prove chain synchronization, writer scheduling, oracle diversity, signer authorization, or emergency governance correctness.",
+        "This experiment is not runtime-active and is not a production temporal admission policy until promoted through formal Tau contracts and host-binding tests."
+      ],
+      "runtime_activation_blockers": [
+        "Create a formal/tau contract and behavior atlas covering all ten outputs.",
+        "Bind node-progress and governance/oracle predicates to concrete runtime code with exact failure traces.",
+        "Run Tau differential traces and record exact generated artifacts for every promoted output vector.",
+        "Define incident-response documentation for pause and emergency-mode diagnostics."
+      ]
+    }
+  ]
+}

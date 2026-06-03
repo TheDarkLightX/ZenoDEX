@@ -1,0 +1,469 @@
+{
+  "schema": "zenodex/rc1-scope-manifest/v1",
+  "historical_release_label": "RC1",
+  "active_candidate_label": "RC2",
+  "required_docs": [
+    "docs/RC1_READINESS.md",
+    "docs/RC1_SCOPE.md",
+    "docs/RC1_SUPPORTED_RUNTIME_PATH.md",
+    "docs/RC1_VERIFIED_SURFACE_MATRIX.md",
+    "docs/PUBLIC_ASSURANCE_REPLAY.md",
+    "docs/TLA_CLAIM_SUMMARY.md",
+    "docs/ZUSD_TAU_WALLET.md",
+    "docs/TAU_WALLET_O5_GUARD.md"
+  ],
+  "required_files": [
+    "src/integration/api_server.py",
+    "tools/check_tau_supported_runtime_subset.py",
+    "tools/permissionless_assurance.py",
+    "tools/render_rc1_supported_runtime_path.py",
+    "tools/render_rc1_verified_surface_matrix.py",
+    "tools/prod_gate.sh",
+    "tools/zusd_tau_wallet.py"
+  ],
+  "supported_runtime_path": {
+    "read_only_http_boundary": {
+      "label": "Read-only HTTP subset",
+      "file": "src/integration/api_server.py",
+      "routes_from_manifest": true,
+      "notes": [
+        "This subset is read-only or certificate-packet oriented.",
+        "It avoids claiming the entire api_server surface as candidate-backed."
+      ]
+    },
+    "spot_submission_path": {
+      "label": "Spot intent admission and settlement path",
+      "entrypoint": "src/integration/dex_engine.py:apply_ops",
+      "signing_doc": "docs/INTENT_SIGNATURES.md",
+      "auth_message_path": "src/core/dex_intent_auth_message.py",
+      "nonce_state_path": "src/state/nonces.py",
+      "tests": [
+        "tests/integration/test_intent_signatures.py",
+        "tests/integration/test_dex_engine.py",
+        "tests/integration/test_replay_protection.py",
+        "tests/integration/test_dex_engine_helpers.py"
+      ],
+      "commands": [
+        [
+          "python3",
+          "tools/permissionless_assurance.py",
+          "replay",
+          "public"
+        ]
+      ],
+      "notes": [
+        "Intent signing payloads are canonical JSON bytes under the dex_intent_sig domain separator.",
+        "Nonce and sequence handling are enforced in the functional core before state transition.",
+        "The supported Tau runtime subset for this path is replayed through the public assurance lane and the dedicated Tau runtime subset checker."
+      ]
+    },
+    "zusd_wallet_transport": {
+      "label": "zUSD Tau wallet transport path",
+      "doc": "docs/ZUSD_TAU_WALLET.md",
+      "cli": "tools/zusd_tau_wallet.py",
+      "tests": [
+        "tests/integration/test_zusd_tau_wallet_cli.py"
+      ],
+      "commands": [
+        [
+          "python3",
+          "tools/permissionless_assurance.py",
+          "replay",
+          "zusd"
+        ]
+      ],
+      "notes": [
+        "This path covers Tau-native token transport for transfer, mint, and burn.",
+        "It is narrower than a generic wallet or broad HTTP product claim."
+      ]
+    }
+  },
+  "verified_surfaces": [
+    {
+      "id": "core_spot_path",
+      "label": "Core spot DEX path",
+      "authority": "consensus/runtime",
+      "claim_class": "bounded spot mechanism surface",
+      "docs": [
+        "docs/RC1_SCOPE.md",
+        "docs/RC1_READINESS.md",
+        "docs/PUBLIC_ASSURANCE_REPLAY.md"
+      ],
+      "paths": [
+        "src/core/amm_dispatch.py",
+        "src/core/batch_clearing.py",
+        "generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py"
+      ],
+      "lanes": [
+        "kernel-assurance",
+        "spot-proof",
+        "spot-evidence",
+        "tau-runtime",
+        "critical",
+        "release"
+      ],
+      "commands": [
+        [
+          "python3",
+          "tools/permissionless_assurance.py",
+          "replay",
+          "public"
+        ],
+        [
+          "python3",
+          "tools/permissionless_assurance.py",
+          "replay",
+          "critical"
+        ],
+        [
+          "python3",
+          "tools/permissionless_assurance.py",
+          "replay",
+          "full"
+        ]
+      ],
+      "notes": [
+        "This is the primary value-moving candidate mechanism surface.",
+        "Only the bounded spot path is included, not every core module in the repo."
+      ]
+    },
+    {
+      "id": "public_assurance_replay",
+      "label": "Public assurance and release replay surface",
+      "authority": "release/replay",
+      "claim_class": "publishable proofboard and replay contract",
+      "docs": [
+        "docs/ASSURANCE_RELEASE_SNAPSHOT.md",
+        "docs/PUBLIC_ASSURANCE_REPLAY.md",
+        "docs/RC1_SCOPE.md"
+      ],
+      "paths": [
+        "docs/tau_supported_runtime_contract.json",
+        "tools/check_tau_supported_runtime_subset.py",
+        "tools/permissionless_assurance.py",
+        "tools/run_critical_quality_gate.sh",
+        "tools/run_release_gate.sh",
+        "tools/run_spot_evidence.sh",
+        "tools/run_spot_proof_assurance_gate.sh",
+        "tools/run_derivatives_evidence.sh",
+        "tools/run_perps_evidence.sh",
+        "tools/run_zusd_evidence.sh"
+      ],
+      "lanes": [
+        "kernel-assurance",
+        "spot-proof",
+        "spot-evidence",
+        "derivatives",
+        "perps",
+        "tau-runtime",
+        "zusd",
+        "critical",
+        "release"
+      ],
+      "commands": [
+        [
+          "python3",
+          "tools/permissionless_assurance.py",
+          "status"
+        ],
+        [
+          "python3",
+          "tools/permissionless_assurance.py",
+          "replay",
+          "public"
+        ],
+        [
+          "python3",
+          "tools/permissionless_assurance.py",
+          "replay",
+          "critical"
+        ],
+        [
+          "python3",
+          "tools/permissionless_assurance.py",
+          "replay",
+          "full"
+        ],
+        [
+          "python3",
+          "tools/check_tau_supported_runtime_subset.py"
+        ]
+      ],
+      "notes": [
+        "This is the repo-visible replay contract for a fresh clone.",
+        "The release claim is only as strong as these tracked replay lanes.",
+        "The supported Tau runtime subset is part of the replay contract for the narrow runtime-facing boundary."
+      ]
+    },
+    {
+      "id": "tla_claim_surface",
+      "label": "Bounded TLA claim surface",
+      "authority": "public formal claim",
+      "claim_class": "bounded model-check summary",
+      "docs": [
+        "docs/TLA_CLAIM_SUMMARY.md",
+        "docs/RC1_SCOPE.md"
+      ],
+      "paths": [
+        "formal/tla/README.md",
+        "tools/run_tla_models.py",
+        "tools/render_tla_claim_summary.py"
+      ],
+      "lanes": [
+        "release"
+      ],
+      "commands": [
+        [
+          "python3",
+          "tools/run_tla_models.py",
+          "--json"
+        ],
+        [
+          "python3",
+          "tools/render_tla_claim_summary.py",
+          "--check"
+        ]
+      ],
+      "notes": [
+        "These are bounded TLC model checks, not unbounded proofs.",
+        "The generated summary must stay synchronized with the claims registry and live TLC configs."
+      ]
+    },
+    {
+      "id": "supported_http_boundary",
+      "label": "Supported HTTP boundary",
+      "authority": "runtime ingress",
+      "claim_class": "narrow supported API subset",
+      "docs": [
+        "docs/RC1_SCOPE.md"
+      ],
+      "paths": [
+        "src/integration/api_server.py"
+      ],
+      "routes_from_manifest": true,
+      "lanes": [
+        "critical",
+        "release"
+      ],
+      "commands": [
+        [
+          "python3",
+          "tools/rc1_readiness.py"
+        ],
+        [
+          "python3",
+          "tools/rc1_readiness.py",
+          "--check"
+        ]
+      ],
+      "notes": [
+        "Only the listed quote and settlement-certificate routes are candidate-backed.",
+        "The broader API server remains out of scope unless separately promoted."
+      ]
+    },
+    {
+      "id": "zusd_wallet_transport",
+      "label": "zUSD Tau wallet and transport replay lane",
+      "authority": "wallet/transport",
+      "claim_class": "narrow wallet-facing transfer and mint/burn contract",
+      "docs": [
+        "docs/ZUSD_TAU_WALLET.md",
+        "docs/RC1_SCOPE.md"
+      ],
+      "paths": [
+        "tools/zusd_tau_wallet.py",
+        "src/integration/zusd_tau_token.py",
+        "src/tau_specs/recommended/protocol_token_v1.tau",
+        "src/tau_specs/recommended/zusd_transfer_guard_v1.tau"
+      ],
+      "lanes": [
+        "zusd",
+        "release"
+      ],
+      "commands": [
+        [
+          "python3",
+          "tools/permissionless_assurance.py",
+          "replay",
+          "zusd"
+        ],
+        [
+          "python3",
+          "tools/zusd_tau_wallet.py",
+          "transfer",
+          "..."
+        ],
+        [
+          "python3",
+          "tools/zusd_tau_wallet.py",
+          "mint",
+          "..."
+        ],
+        [
+          "python3",
+          "tools/zusd_tau_wallet.py",
+          "burn",
+          "..."
+        ]
+      ],
+      "notes": [
+        "This is intentionally narrower than a claim of generic wallet support."
+      ]
+    },
+    {
+      "id": "tau_wallet_o5_guard",
+      "label": "Tau wallet veto / O5 policy guard",
+      "authority": "bounded control-plane guard",
+      "claim_class": "sender-scoped veto and policy guard",
+      "docs": [
+        "docs/TAU_WALLET_O5_GUARD.md",
+        "docs/RC1_SCOPE.md"
+      ],
+      "paths": [
+        "docs/TAU_WALLET_O5_GUARD.md"
+      ],
+      "lanes": [
+        "zusd",
+        "release"
+      ],
+      "commands": [
+        [
+          "python3",
+          "tools/permissionless_assurance.py",
+          "replay",
+          "zusd"
+        ]
+      ],
+      "notes": [
+        "This is in scope only as a bounded operator and control-plane feature.",
+        "It is not a broad end-user wallet product claim."
+      ]
+    }
+  ],
+  "supported_http_boundary": {
+    "file": "src/integration/api_server.py",
+    "routes": [
+      "/health",
+      "/version",
+      "/api/dex/quote",
+      "/api/dex/verify_quote_receipt",
+      "/api/dex/build_settlement_end_to_end_certificate_packet",
+      "/api/dex/verify_settlement_end_to_end_certificate_packet"
+    ]
+  },
+  "supported_commands": [
+    [
+      "python3",
+      "tools/permissionless_assurance.py",
+      "status"
+    ],
+    [
+      "python3",
+      "tools/permissionless_assurance.py",
+      "replay",
+      "public"
+    ],
+    [
+      "python3",
+      "tools/permissionless_assurance.py",
+      "replay",
+      "critical"
+    ],
+    [
+      "python3",
+      "tools/permissionless_assurance.py",
+      "replay",
+      "full"
+    ],
+    [
+      "python3",
+      "tools/permissionless_assurance.py",
+      "replay",
+      "zusd"
+    ],
+    [
+      "python3",
+      "tools/check_tau_supported_runtime_subset.py"
+    ],
+    [
+      "bash",
+      "tools/prod_gate.sh"
+    ],
+    [
+      "python3",
+      "tools/render_rc1_supported_runtime_path.py",
+      "--check"
+    ],
+    [
+      "python3",
+      "tools/render_rc1_verified_surface_matrix.py",
+      "--check"
+    ],
+    [
+      "python3",
+      "tools/render_tla_claim_summary.py",
+      "--check"
+    ],
+    [
+      "python3",
+      "tools/run_tla_models.py",
+      "--json"
+    ]
+  ],
+  "excluded_claims_expected_disputed": [
+    "smt:funding_rate_market_v1:inductive_z3_cvc5",
+    "smt:curve_selection_market_v1:inductive_z3_cvc5"
+  ],
+  "excluded_experimental_surfaces": [
+    "tools/autotrader_shadow.py",
+    "tools/autotrader_live.py",
+    "tools/zenograph_autotrader_ranking_stage.py",
+    "tools/zenograph_autotrader_ranking_review_bundle.py"
+  ],
+  "excluded_surface_matrix": [
+    {
+      "id": "experimental_autotrader_authority",
+      "label": "Experimental autotrader authority",
+      "reason": "Autotrader and KRR remain experimental and non-authoritative for the active candidate.",
+      "paths": [
+        "tools/autotrader_shadow.py",
+        "tools/autotrader_live.py"
+      ]
+    },
+    {
+      "id": "zenograph_runtime_influence",
+      "label": "ZenoGraph runtime influence",
+      "reason": "ZenoGraph ranking and execution influence remain advisory-only.",
+      "paths": [
+        "tools/zenograph_autotrader_ranking_stage.py",
+        "tools/zenograph_autotrader_ranking_review_bundle.py"
+      ]
+    },
+    {
+      "id": "disputed_derivatives_authorization",
+      "label": "Disputed derivatives authorization claims",
+      "reason": "These claims remain disputed and must stay outside the active candidate authorization surface until resolved.",
+      "claim_ids": [
+        "smt:funding_rate_market_v1:inductive_z3_cvc5",
+        "smt:curve_selection_market_v1:inductive_z3_cvc5"
+      ]
+    },
+    {
+      "id": "broad_api_server_surface",
+      "label": "Broad api_server surface",
+      "reason": "Only the narrow supported HTTP subset is candidate-backed.",
+      "paths": [
+        "src/integration/api_server.py"
+      ]
+    },
+    {
+      "id": "confidential_alpha_extensions",
+      "label": "Confidential and alpha-only extensions",
+      "reason": "Confidential, TEE, sealed-bid, and other alpha-only surfaces remain out of scope for the active candidate.",
+      "paths": [
+        "src/core/confidential_extension_receipts.py",
+        "src/core/confidential_extension_live_admission.py"
+      ]
+    }
+  ]
+}

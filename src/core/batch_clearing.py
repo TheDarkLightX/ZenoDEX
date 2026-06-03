@@ -576,16 +576,20 @@ def _apply_filled_intent_to_locals(
         balances.subtract(sender, asset_in, amount_in)
         balances.add(recipient, asset_out, amount_out)
         if protocol_fee:
-            if not protocol_fee_recipient_pubkey:
+            protocol_fee_recipient = protocol_fee_recipient_pubkey
+            if not protocol_fee_recipient:
                 raise ValueError("protocol_fee_recipient_pubkey is required for protocol fee capture")
-            balances.add(protocol_fee_recipient_pubkey, asset_in, protocol_fee)
+            balances.add(protocol_fee_recipient, asset_in, protocol_fee)
 
         balance_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=amount_in))
         balance_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=amount_out, delta_sub=0))
         if protocol_fee:
+            protocol_fee_recipient = protocol_fee_recipient_pubkey
+            if not protocol_fee_recipient:
+                raise ValueError("protocol_fee_recipient_pubkey is required for protocol fee capture")
             balance_deltas.append(
                 BalanceDelta(
-                    pubkey=protocol_fee_recipient_pubkey,
+                    pubkey=protocol_fee_recipient,
                     asset=asset_in,
                     delta_add=protocol_fee,
                     delta_sub=0,
@@ -868,9 +872,10 @@ def clear_batch_single_pool(
             balances_scratch.add(recipient, asset_out, fill.amount_out_filled or 0)
             protocol_fee = int(fill.protocol_fee_paid or 0)
             if protocol_fee:
-                if not protocol_fee_recipient_pubkey:
+                protocol_fee_recipient = protocol_fee_recipient_pubkey
+                if not protocol_fee_recipient:
                     raise ValueError("protocol_fee_recipient_pubkey is required for protocol fee capture")
-                balances_scratch.add(protocol_fee_recipient_pubkey, asset_in, protocol_fee)
+                balances_scratch.add(protocol_fee_recipient, asset_in, protocol_fee)
     
     # Process liquidity intents (in order received)
     for intent in liquidity_intents:

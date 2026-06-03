@@ -1542,6 +1542,8 @@ def apply_ops(
                     balances=state.balances,
                     lp_balances=state.lp_balances,
                     swap_ordering=str(config.swap_ordering),
+                    protocol_fee_share_bps=int(config.dex_config.protocol_fee_share_bps),
+                    protocol_fee_recipient_pubkey=config.dex_config.protocol_fee_recipient_pubkey,
                 )
 
             if settlement is None:
@@ -1707,6 +1709,8 @@ def apply_ops(
             settlement_end_to_end_certificate_inputs=effective_settlement_end_to_end_inputs,
             uniform_batch_certificate=uniform_batch_certificate,
             allow_uniform_batch_partial_fill_certificate=config.allow_uniform_batch_partial_fill_certificate,
+            protocol_fee_share_bps=int(config.dex_config.protocol_fee_share_bps),
+            protocol_fee_recipient_pubkey=config.dex_config.protocol_fee_recipient_pubkey,
         )
         if not ok:
             return DexTxResult(ok=False, error=err or "operations invalid")

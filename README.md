@@ -206,15 +206,6 @@ The pinned release replay for the release tree dated `2026-04-06` was green:
 This is historical release evidence for the pinned release tree. It is not a live statement about the current checkout.
 For live status on the current checkout, run `python3 tools/permissionless_assurance.py status`.
 
-Current Tau runtime contract:
-- `SupportedTauRuntime := SpecModeStable ∨ (REPLStarts ∧ SpecFallbackWorks)`.
-- The public Tau runtime lane replays `6` smoke contracts from `src/tau_specs/recommended/semantic_contracts.json`.
-- Supported execution lanes: `repl_with_spec_fallback`, `spec_mode_stable`.
-- Supported trace posture: `90s`.
-- Replay with `python3 tools/check_tau_supported_runtime_subset.py`.
-- Machine-readable summary: `docs/tau_supported_runtime_contract.json`.
-- This is current-checkout runtime metadata, not historical release evidence.
-
 Important derivatives note:
 
 - The published v1.1 funding-rate formal claim is now the decomposed one:
@@ -222,7 +213,6 @@ Important derivatives note:
   `funding_rate_settlement_witness_v1_1` for settlement arithmetic, both in the release-backed assurance lane.
 - The monolithic `funding_rate_market_v1_1` kernel remains useful as a parity/reference artifact, but it is not part of the published formal release claim.
 - `funding_rate_market_v1` and `curve_selection_market_v1` remain `disputed` in the claims registry for settlement authorization semantics and should not be treated as authorization-complete public settlement guarantees.
-- The derivative authorization coverage matrix records the current covered/open boundary: [docs/derivatives/DERIVATIVES_AUTHORIZATION_COVERAGE_MATRIX.md](docs/derivatives/DERIVATIVES_AUTHORIZATION_COVERAGE_MATRIX.md). Replay it with `python3 tools/check_derivatives_authorization_matrix.py`.
 - The bounded TLC/TLA+ claim surface is summarized in [docs/TLA_CLAIM_SUMMARY.md](docs/TLA_CLAIM_SUMMARY.md) and release-checked via `python3 tools/render_tla_claim_summary.py --check`.
 
 Release vocabulary:

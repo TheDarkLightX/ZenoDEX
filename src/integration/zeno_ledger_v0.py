@@ -671,6 +671,35 @@ def validate_ingress_v0(ingress: dict[str, Any]) -> None:
         _validate_forced_inclusion_decision(decision, index=index)
 
 
+def _validate_ingress_body_context_v0(ingress: object, *, chain_id: str, height: int) -> None:
+    obj = _require_mapping(ingress, name="ingress")
+    batch_cutoff = _require_mapping(obj.get("batch_cutoff"), name="ingress.batch_cutoff")
+    if batch_cutoff.get("chain_id") != chain_id:
+        raise ValueError("batch_cutoff/body chain_id mismatch")
+    if batch_cutoff.get("height") != height:
+        raise ValueError("batch_cutoff/body height mismatch")
+
+    receipts = _require_list(obj.get("ingress_receipts"), name="ingress.ingress_receipts")
+    for index, raw_receipt in enumerate(receipts):
+        receipt = _require_mapping(raw_receipt, name=f"ingress.ingress_receipts[{index}]")
+        if receipt.get("chain_id") != chain_id:
+            raise ValueError(f"ingress_receipts[{index}]/body chain_id mismatch")
+        if receipt.get("height") != height:
+            raise ValueError(f"ingress_receipts[{index}]/body height mismatch")
+
+    requests = _require_list(obj.get("forced_inclusion_requests"), name="ingress.forced_inclusion_requests")
+    for index, raw_request in enumerate(requests):
+        request = _require_mapping(raw_request, name=f"ingress.forced_inclusion_requests[{index}]")
+        if request.get("chain_id") != chain_id:
+            raise ValueError(f"forced_inclusion_requests[{index}]/body chain_id mismatch")
+
+    decisions = _require_list(obj.get("forced_inclusion_decisions"), name="ingress.forced_inclusion_decisions")
+    for index, raw_decision in enumerate(decisions):
+        decision = _require_mapping(raw_decision, name=f"ingress.forced_inclusion_decisions[{index}]")
+        if decision.get("chain_id") != chain_id:
+            raise ValueError(f"forced_inclusion_decisions[{index}]/body chain_id mismatch")
+
+
 def compute_ingress_root_v0(ingress: dict[str, Any]) -> str:
     validate_ingress_v0(ingress)
     leaves: list[str] = [hash_v0("batch_cutoff_v0", ingress["batch_cutoff"])]
@@ -710,9 +739,10 @@ def validate_body_v0(body: dict[str, Any]) -> None:
         raise ValueError("body keys mismatch")
     if obj.get("schema") != BODY_SCHEMA_V0:
         raise ValueError("body schema mismatch")
-    _require_str(obj.get("chain_id"), name="body.chain_id")
-    _require_nonnegative_int(obj.get("height"), name="body.height")
+    chain_id = _require_str(obj.get("chain_id"), name="body.chain_id")
+    height = _require_nonnegative_int(obj.get("height"), name="body.height")
     validate_ingress_v0(obj["ingress"])
+    _validate_ingress_body_context_v0(obj["ingress"], chain_id=chain_id, height=height)
     _require_list(obj.get("transactions"), name="body.transactions")
     _require_list(obj.get("settlement_envelopes"), name="body.settlement_envelopes")
     _validate_evidence(obj.get("evidence"))
@@ -888,6 +918,23 @@ def validate_header_validator_set_hash_v0(
     expected_hash = validator_set_hash_v0(body)
     if header_obj["sequencer_set_hash"] != expected_hash:
         raise ValueError("header sequencer_set_hash mismatch")
+
+
+def validate_body_validator_schedule_v0(
+    body: Mapping[str, Any],
+    validator_set: Mapping[str, Any],
+) -> None:
+    body_obj = dict(_require_mapping(body, name="body"))
+    validate_body_v0(body_obj)
+    validator_body = _normalized_validator_set_body_v0(validator_set)
+    if body_obj["chain_id"] != validator_body["chain_id"]:
+        raise ValueError("body/validator set chain_id mismatch")
+    ingress = _require_mapping(body_obj.get("ingress"), name="body.ingress")
+    batch_cutoff = _require_mapping(ingress.get("batch_cutoff"), name="body.ingress.batch_cutoff")
+    sequencer_id = _require_str(batch_cutoff.get("sequencer_id"), name="body.ingress.batch_cutoff.sequencer_id")
+    expected = scheduled_validator_id_for_height_v0(validator_body, height=int(body_obj["height"]))
+    if sequencer_id != expected:
+        raise ValueError("body sequencer_id does not match validator schedule")
 
 
 def validate_header_chain_linkage_v0(

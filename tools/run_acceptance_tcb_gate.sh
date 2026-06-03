@@ -33,7 +33,11 @@ mkdir -p "$REPORT_DIR"
 ACCEPTANCE_TESTS=(
   tests/integration/test_dex_engine.py
   tests/integration/test_dex_engine_anomaly.py
+  tests/integration/test_dex_engine_critical_settlement_oracle_authorization.py
   tests/integration/test_dex_engine_helpers.py
+  tests/integration/test_dex_engine_protected_swap_oracle_authorization.py
+  tests/integration/test_dex_engine_uniform_batch_certificate.py
+  tests/integration/test_api_server_exact_out_oracle_boundary.py
   tests/integration/test_operations_parsing.py
   tests/integration/test_validation_uses_strong_settlement_gate.py
   tests/integration/test_proof_verifier.py
@@ -48,6 +52,11 @@ ACCEPTANCE_TESTS=(
   tests/state/test_nonces.py
   tests/state/test_canonical_size_bounds.py
   tests/state/test_state_root_determinism.py
+  tests/runtime/test_state_root_vectors.py
+  tests/runtime/test_state_root_curve_config_grid.py
+  tests/runtime/test_state_root_lp_duration_exhaustive_grid.py
+  tests/runtime/test_state_root_section_framing_grid.py
+  tests/runtime/test_state_root_live_path.py
 )
 
 COVERAGE_TARGETS=(
