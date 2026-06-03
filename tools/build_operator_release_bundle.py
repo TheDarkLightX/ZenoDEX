@@ -265,14 +265,23 @@ def _verify_archive_members(*, archive: Path, manifest: dict[str, Any]) -> list[
     expected = {str(item["path"]): item for item in manifest["files"]}
     prefix = f"zenodex-operator-{manifest.get('version')}/"
     with tarfile.open(archive, "r:gz") as tar:
-        members = [member for member in tar.getmembers() if member.isfile()]
+        members = tar.getmembers()
         observed: set[str] = set()
         for member in members:
             if not member.name.startswith(prefix):
                 errors.append(f"archive member outside bundle prefix: {member.name}")
                 continue
             relpath = member.name[len(prefix) :]
+            if not _is_safe_relative_path(relpath):
+                errors.append(f"archive member has unsafe path: {relpath}")
+                continue
+            if relpath in observed:
+                errors.append(f"archive contains duplicate path: {relpath}")
+                continue
             observed.add(relpath)
+            if not member.isfile():
+                errors.append(f"archive contains non-regular file: {relpath}")
+                continue
             expected_item = expected.get(relpath)
             if expected_item is None:
                 errors.append(f"archive contains unexpected file: {relpath}")
