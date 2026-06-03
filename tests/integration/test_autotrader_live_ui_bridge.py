@@ -614,3 +614,156 @@ def test_autotrader_live_supervisor_ui_smoke_through_browser(
             api_proc.wait(timeout=5)
         tau_server.shutdown()
         tau_server.server_close()
+
+
+# ---------------------------------------------------------------------------
+# Handler-level supervisor bridge tests.
+#
+# These exercise ``handle_autotrader_live_request`` directly (no browser / no npm)
+# so the StrategyWorkbench fail-closed wiring has deterministic backing in any
+# environment. The UI buttons are hard-disabled unless the live API would return
+# ``ok: True`` here; these tests pin the exact reject codes the UI surfaces.
+# ---------------------------------------------------------------------------
+
+_SUPERVISOR_BODY = {
+    "acknowledge_experimental_live_risk": True,
+    "signer_privkey": 7,
+    "chain_id": "tau-local",
+    "tx_sequence_number": 9,
+    "tx_expiration_time": 999,
+    "last_used_nonce": 0,
+    "execution_id": "strategy-ui-supervisor-1",
+}
+
+
+def _enable_supervisor(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AUTOTRADER_LIVE_SUPERVISOR_ENABLED", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_CHAIN_ID", "tau-local")
+    monkeypatch.setenv(
+        "AUTOTRADER_LIVE_SUPERVISOR_PROFILE_JSON",
+        json.dumps(_supervisor_profile(), sort_keys=True),
+    )
+
+
+def _signed_payload_for_default_supervisor_body() -> dict[str, object]:
+    prepare_body = {
+        "acknowledge_experimental_live_risk": True,
+        "signer_privkey": 7,
+        "chain_id": "tau-local",
+        "tx_sequence_number": 9,
+        "tx_expiration_time": 999,
+        "last_used_nonce": 0,
+    }
+    status, prepared = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/prepare",
+        json.dumps(prepare_body).encode("utf-8"),
+    )
+    assert status == 200
+    return build_signed_tau_transaction(
+        privkey=7,
+        sequence_number=9,
+        expiration_time=999,
+        operations=prepared["report"]["operations"],
+        fee_limit="0",
+    )
+
+
+def test_supervisor_preflight_fail_closed_when_gate_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Default (gate off): preflight must reject with supervisor_disabled and 400.
+    monkeypatch.delenv("AUTOTRADER_LIVE_SUPERVISOR_ENABLED", raising=False)
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    status, resp = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/supervisor/preflight",
+        json.dumps(_SUPERVISOR_BODY).encode("utf-8"),
+    )
+    assert status == 400
+    assert resp["ok"] is False
+    assert resp["error"] == "supervisor_disabled"
+
+
+def test_supervisor_preflight_ready_when_profile_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_supervisor(monkeypatch)
+    status, resp = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/supervisor/preflight",
+        json.dumps(_SUPERVISOR_BODY).encode("utf-8"),
+        supervisor_runs={},
+    )
+    assert status == 200, resp
+    assert resp["ok"] is True
+    assert resp["surface"] == "autotrader_live_supervisor_preflight"
+    assert resp["status"] == "supervisor_preflight_ready"
+    preflight = resp["preflight"]
+    assert preflight["schema"] == "zenodex/autotrader-supervisor-preflight/v1"
+    assert preflight["external_signed_payload_required"] is True
+    assert preflight["execution_id"] == "strategy-ui-supervisor-1"
+    # Preflight is read-only: it never claims production execution.
+    assert "production_chain_submission" in resp["not_claimed"]
+
+
+def test_supervisor_execute_blocked_without_execution_key_table(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Even with the gate on, a missing replay-guard table fails closed.
+    _enable_supervisor(monkeypatch)
+    status, resp = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/supervisor/execute",
+        json.dumps(_SUPERVISOR_BODY).encode("utf-8"),
+        execution_keys=None,
+        supervisor_runs={},
+    )
+    assert status == 400
+    assert resp["ok"] is False
+    assert resp["error"] == "execution_key_table_unavailable"
+
+
+def test_supervisor_execute_blocked_without_signed_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Gate on, replay-guard table present, but no externally signed payload.
+    _enable_supervisor(monkeypatch)
+    status, resp = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/supervisor/execute",
+        json.dumps(_SUPERVISOR_BODY).encode("utf-8"),
+        execution_keys=set(),
+        supervisor_runs={},
+    )
+    assert status == 400
+    assert resp["ok"] is False
+    assert resp["error"] == "external_signed_tau_tx_payload_required"
+
+
+def test_supervisor_execute_blocked_without_execution_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Gate on, signed payload present, but the execution id is missing.
+    _enable_supervisor(monkeypatch)
+    signed_payload = _signed_payload_for_default_supervisor_body()
+    body = {
+        "acknowledge_experimental_live_risk": True,
+        "signer_privkey": 7,
+        "chain_id": "tau-local",
+        "tx_sequence_number": 9,
+        "tx_expiration_time": 999,
+        "last_used_nonce": 0,
+        "signed_tau_tx_payload": signed_payload,
+    }
+    status, resp = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/supervisor/execute",
+        json.dumps(body).encode("utf-8"),
+        execution_keys=set(),
+        supervisor_runs={},
+    )
+    assert status == 400
+    assert resp["ok"] is False
+    assert "execution_id" in resp["error"]
