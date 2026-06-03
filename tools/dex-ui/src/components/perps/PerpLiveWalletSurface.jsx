@@ -54,7 +54,7 @@ const ACTIONS = [
   ['advance_epoch', 'Advance Epoch'],
   ['publish_clearing_price', 'Publish Price'],
   ['run_epoch', 'Run NP Epoch'],
-  ['settle_epoch', 'Settle Epoch'],
+  ['settle_epoch', 'Finalize Epoch'],
   ['partial_liquidate', 'Partial Liquidate'],
 ];
 
