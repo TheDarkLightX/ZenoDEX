@@ -510,7 +510,7 @@ function ZUSDMonetarySurface() {
       }
       const amount = source === 'stability_pool' ? (Number.parseFloat(spAdjust) || 0) : (Number.parseFloat(borrowAdjust) || 0);
       if (amount <= 0) {
-        throw new Error('Enter the zUSD amount to settle.');
+        throw new Error('Enter the zUSD amount for the shutdown claim.');
       }
       const payload = buildPayload({
         ...form,

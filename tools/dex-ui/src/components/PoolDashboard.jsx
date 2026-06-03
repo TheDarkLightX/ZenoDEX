@@ -1170,7 +1170,7 @@ function PoolDashboard({ wallet }) {
                                                     <span
                                                         className={`pool-verify ${verified ? 'is-verified' : 'is-unverified'}`}
                                                         title={verified
-                                                            ? `Settles through the ${curve} curve on the Tau node — active and well-formed.`
+                                                            ? `Prepared against the ${curve} curve on the Tau node. Active and well-formed.`
                                                             : 'Not spec-verified: missing reserves/fee, an unknown curve, or a non-active status.'}
                                                     >
                                                         <span className="pool-verify-dot" aria-hidden="true" />
