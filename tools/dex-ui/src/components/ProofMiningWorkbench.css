@@ -194,7 +194,8 @@
 }
 
 .pmw-error,
-.pmw-note {
+.pmw-note,
+.pmw-warning {
   margin: 0;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
@@ -213,6 +214,14 @@
   border: 1px solid rgba(var(--accent-signal-rgb), 0.28);
   background: var(--accent-signal-soft);
   color: var(--text-secondary);
+}
+
+/* Preview / live-backend-unavailable notice: honest amber tone so a preview
+   sample is never mistaken for a live one. */
+.pmw-warning {
+  border: 1px solid var(--accent-warn);
+  background: var(--accent-warn-soft);
+  color: var(--accent-warn);
 }
 
 .pmw-result {
