@@ -250,7 +250,7 @@ def render_matrix_text(
         f"{active_label}CandidateOK := CleanTree ∧ ScopeFrozen ∧ ReplayGreen ∧ ExclusionsHonest",
         "```",
         "",
-        f"Standard reading: {active_label} is honest only when the tree is clean, the supported surface is explicit, the replay lanes are green, and excluded or disputed surfaces stay excluded.",
+        f"Plain reading: {active_label} is honest only when the tree is clean, the supported surface is explicit, the replay lanes are green, and excluded or disputed surfaces stay excluded.",
         "",
         "Practical consequence: this matrix is configuration-specific. It is not a claim about every file in the repo.",
         "",

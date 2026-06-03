@@ -16,7 +16,7 @@ This matrix defines the exact conservative RC2 candidate claim boundary for Zeno
 RC2CandidateOK := CleanTree ∧ ScopeFrozen ∧ ReplayGreen ∧ ExclusionsHonest
 ```
 
-Standard reading: RC2 is honest only when the tree is clean, the supported surface is explicit, the replay lanes are green, and excluded or disputed surfaces stay excluded.
+Plain reading: RC2 is honest only when the tree is clean, the supported surface is explicit, the replay lanes are green, and excluded or disputed surfaces stay excluded.
 
 Practical consequence: this matrix is configuration-specific. It is not a claim about every file in the repo.
 
