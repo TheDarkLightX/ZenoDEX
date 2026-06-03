@@ -155,3 +155,38 @@ def test_host_independent_coverage_cli_outputs_report(tmp_path, capsys) -> None:
     assert code == 0
     assert report["ok"] is True
     assert report["schema"] == "zenodex.host_independent_coverage_report.v0"
+
+
+def test_host_independent_coverage_rejects_missing_checker_command_target() -> None:
+    manifest = _manifest()
+    surface = copy.deepcopy(_surface(manifest, "zusd_lifecycle_microgate_surface"))
+    surface["checker_commands"] = ["bash tools/definitely_missing_assurance_gate.sh"]
+    surfaces = list(manifest["critical_surfaces"])  # type: ignore[arg-type]
+    index = next(i for i, item in enumerate(surfaces) if item["id"] == surface["id"])  # type: ignore[index]
+    surfaces[index] = surface
+    manifest["critical_surfaces"] = surfaces
+
+    report = validate_host_independent_coverage_v0(manifest)
+
+    assert report["ok"] is False
+    assert any(
+        "checker command target missing: tools/definitely_missing_assurance_gate.sh" in err
+        for err in report["errors"]
+    )
+
+
+def test_host_independent_coverage_rejects_checker_command_escape() -> None:
+    manifest = _manifest()
+    surface = copy.deepcopy(_surface(manifest, "proof_mining_reward_and_claimability_surface"))
+    surface["checker_commands"] = ["python3 ../escaped_gate.py"]
+    surfaces = list(manifest["critical_surfaces"])  # type: ignore[arg-type]
+    index = next(i for i, item in enumerate(surfaces) if item["id"] == surface["id"])  # type: ignore[index]
+    surfaces[index] = surface
+    manifest["critical_surfaces"] = surfaces
+
+    report = validate_host_independent_coverage_v0(manifest)
+
+    assert report["ok"] is False
+    assert any(
+        "checker command target escapes repo: ../escaped_gate.py" in err for err in report["errors"]
+    )
