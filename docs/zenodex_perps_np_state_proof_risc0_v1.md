@@ -70,9 +70,9 @@ Local real-proof smoke command:
 ```bash
 python3 tools/zeno_ledger_perp_np_risc0_real_proof_smoke.py \
   --case all \
-  --timeout 420 \
-  --out-dir /tmp/zenodex_perps_np_risc0_smoke_all \
-  --target-dir /tmp/zenodex_perps_np_risc0_target
+  --timeout 1800 \
+  --out-dir internal/release_artifacts/risc0_perps_np_smoke \
+  --target-dir zk/state_proof_risc0/target
 ```
 
 Observed on 2026-06-02:
@@ -81,18 +81,18 @@ Observed on 2026-06-02:
   settlement-driven liquidation/ADL epoch, and a reject-path/oracle-clamp epoch
   with `REJ_MARGIN`, `REJ_POS_BOUND`, `REJ_PRICE`, `REJ_SUPERSEDED`, and one
   zero-delta min-fill revocation.
-- 8 negative proof-generation failures: participant floor, duplicate nonce,
-  expired intent, wrong participant set, wrong post-state root, nonzero
-  funding, negative ledger field, and epoch overflow.
+- 7 negative proof-generation failures: participant floor, duplicate nonce,
+  expired intent, wrong post-state root, nonzero funding, negative ledger
+  field, and epoch overflow.
 - Strict verifier tamper rejection for wrong proof type, chain, image ID,
   pre/post app hashes, pre/post roots, operation hash, oracle binding hash,
   participant-set hash, state-delta hash, and fee/insurance/claims ledger
   fields.
 - RISC0 image ID:
-  `5c35664c57a4e17d7b5efc823e42b275de3cd55434782c90e56433f66d826a64`.
+  `59b2fbf4ea477dac19bdeb3ac1f81437c37387a4048360818c8b7c82b03e85d0`.
 
 The smoke report is written to:
-`/tmp/zenodex_perps_np_risc0_smoke_all_after_zusd/perps_np_risc0_real_proof_smoke_report.json`.
+`internal/release_artifacts/risc0_perps_np_smoke/perps_np_risc0_real_proof_smoke_report.json`.
 
 ## Current Non-Claims
 

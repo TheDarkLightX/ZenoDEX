@@ -52,7 +52,21 @@ REQUIRED_FILES = (
     "docs/DEPLOYMENT_QUICKSTART.md",
     "docs/LOCAL_TESTNET_QUICKSTART.md",
     "docs/PUBLIC_TESTNET_V0_1_16.md",
+    "docs/RISC0_RELEASE_BINARY_ARTIFACTS_2026_06_02.md",
+    "docs/zenodex_perps_np_state_proof_risc0_v1.md",
+    "docs/zenodex_zusd_state_proof_risc0_v1.md",
     "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
+    "zk/state_proof_risc0/Cargo.toml",
+    "zk/state_proof_risc0/Cargo.lock",
+    "zk/state_proof_risc0/cli/Cargo.toml",
+    "zk/state_proof_risc0/cli/src/main.rs",
+    "zk/state_proof_risc0/methods/Cargo.toml",
+    "zk/state_proof_risc0/methods/build.rs",
+    "zk/state_proof_risc0/methods/guest/Cargo.toml",
+    "zk/state_proof_risc0/methods/guest/src/main.rs",
+    "zk/state_proof_risc0/shared/Cargo.toml",
+    "zk/state_proof_risc0/shared/src/lib.rs",
+    "zk/state_proof_risc0/shared/src/surfaces.rs",
 )
 
 
@@ -457,7 +471,10 @@ def _check_release_bundle_builder(root: Path, checks: list[dict[str, Any]], erro
     for token in (
         "docker-compose.local-testnet.yml",
         "docs/LOCAL_TESTNET_QUICKSTART.md",
+        "docs/PUBLIC_TESTNET_V0_1_16.md",
+        "docs/zenodex_perps_np_state_proof_risc0_v1.md",
         "packages/zeno-proof-client",
+        "zk/state_proof_risc0",
         "generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py",
     ):
         _append_check(

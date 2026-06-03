@@ -67,25 +67,24 @@ Local real-proof smoke command:
 ```bash
 python3 tools/zeno_ledger_zusd_risc0_real_proof_smoke.py \
   --case all \
-  --timeout 420 \
-  --out-dir /tmp/zenodex_zusd_risc0_smoke_all \
-  --target-dir /tmp/zenodex_zusd_risc0_target
+  --timeout 1800 \
+  --out-dir internal/release_artifacts/risc0_zusd_smoke \
+  --target-dir zk/state_proof_risc0/target
 ```
 
 Observed on 2026-06-02:
 
-- 1 positive real proof: 1000 tAGRS-equivalent collateral units deposited,
-  200 zUSD minted, 0.5 zUSD fee, MCR satisfied, post-state root verified.
-- 7 negative proof-generation failures: MCR breach, stale oracle, no oracle,
-  pending-price mismatch, broken debt conservation, wrong post-state root, and
-  wrong state-delta hash.
+- 1 positive real proof: 2000 zUSD-value collateral deposited,
+  1000 zUSD minted, MCR satisfied, post-state root verified.
+- 5 negative proof-generation failures: MCR breach, stale oracle, nonce
+  replay, total debt mismatch, and wrong post-app hash.
 - Strict verifier tamper rejection for wrong proof type, chain, image ID,
   post-state root, operation hash, and oracle binding hash.
 - RISC0 image ID:
-  `5c35664c57a4e17d7b5efc823e42b275de3cd55434782c90e56433f66d826a64`.
+  `59b2fbf4ea477dac19bdeb3ac1f81437c37387a4048360818c8b7c82b03e85d0`.
 
 The smoke report is written to:
-`/tmp/zenodex_zusd_risc0_smoke_all/zusd_risc0_real_proof_smoke_report.json`.
+`internal/release_artifacts/risc0_zusd_smoke/zusd_risc0_real_proof_smoke_report.json`.
 
 ## Current Non-Claims
 
