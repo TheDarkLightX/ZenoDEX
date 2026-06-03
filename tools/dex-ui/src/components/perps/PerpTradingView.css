@@ -77,7 +77,8 @@
   gap: var(--space-xs);
 }
 
-.perp-title-block .verified-by-spec {
+.perp-title-block .verified-by-spec,
+.perp-title-block .perp-surface-badges {
   align-self: flex-start;
 }
 
@@ -85,6 +86,34 @@
   font-size: var(--font-size-xl);
   font-weight: 600;
   white-space: nowrap;
+}
+
+.perp-surface-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  max-width: min(100%, 820px);
+}
+
+.perp-surface-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.perp-surface-badge-np {
+  border-color: rgba(var(--accent-signal-rgb), 0.38);
+  color: var(--accent-cyan);
+  background: rgba(var(--accent-signal-rgb), 0.08);
 }
 
 .perp-subtitle {

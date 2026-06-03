@@ -13,7 +13,6 @@ import PerpInsuranceFundPanel from './PerpInsuranceFundPanel.jsx';
 import PerpTradeHistory from './PerpTradeHistory.jsx';
 import PerpLiveWalletSurface from './PerpLiveWalletSurface.jsx';
 import { useDemoMode } from '../../lib/DemoModeContext.jsx';
-import VerifiedBySpec from '../VerifiedBySpec.jsx';
 import './PerpTradingView.css';
 
 /**
@@ -99,13 +98,13 @@ function PerpTradingView({ wallet }) {
     const previewLabel = demoMode
         ? 'Demo market replay'
         : writeEnabled
-            ? 'Live · writes enabled'
-            : 'Live · signer required';
+            ? 'Legacy stream-8 · writes enabled'
+            : 'Legacy stream-8 · signer required';
     const previewDetail = demoMode
         ? 'Uses bundled market, position, and history data. Orders stay inside the UI state model.'
         : writeEnabled
-            ? 'Reads from the Tau node. Trader actions submit through the stream-8 wallet API.'
-            : 'Reads from the Tau node. Trader writes need an external signer or local-testnet write mode.';
+            ? 'Reads legacy two-party stream-8 state from the Tau node. Local-testnet wallet submits are enabled.'
+            : 'Reads legacy two-party stream-8 state from the Tau node. Submits require an external signer or local-testnet write mode.';
 
     // While the wallet status round-trip is in flight we used to early-return
     // a full-page spinner, which left the user staring at a blank screen for
@@ -123,11 +122,15 @@ function PerpTradingView({ wallet }) {
                 <div className="perp-market-header">
                     <div className="perp-title-block">
                         <h2 className="perp-title">{demoMode ? 'Perpetuals (demo)' : 'Perpetuals'}</h2>
-                        <VerifiedBySpec
-                            spec="perp_epoch_isolated_v3"
-                            kind="esso"
-                            title="Perpetuals margin and epoch lifecycle are verified by ESSO state machine perp_epoch_isolated_v3 (Z3 + CVC5)."
-                        />
+                        <div className="perp-surface-badges" aria-label="Perpetuals surface scope">
+                            <span className="perp-surface-badge">Surface: legacy stream-8 wallet</span>
+                            <span className="perp-surface-badge">Risk kernel: perp_epoch_isolated_v3</span>
+                            {!demoMode && (
+                                <span className="perp-surface-badge perp-surface-badge-np">
+                                    NP proof evidence: separate release smoke
+                                </span>
+                            )}
+                        </div>
                         <p className="perp-subtitle">{previewDetail}</p>
                     </div>
                     <span className="perp-posture-chip">{previewLabel}</span>
@@ -150,7 +153,7 @@ function PerpTradingView({ wallet }) {
                 <div className="perp-preview-lock perp-preview-lock-open" role="status">
                     <div className="perp-preview-lock-title">Local-testnet writes enabled</div>
                     <p className="perp-preview-lock-text">
-                        Trader actions submit through the local stream-8 wallet API and are mined on the local Tau node.
+                        Local-testnet wallet actions submit through the legacy two-party stream-8 API and are mined on the local Tau node.
                     </p>
                 </div>
             )}
