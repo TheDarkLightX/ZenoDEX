@@ -67,16 +67,22 @@ def _load_registry(path: Path) -> tuple[list[str], dict[str, Any], list[str]]:
                 f"{path}: evidence_only surface {s!r} has attached_to={attached!r}, "
                 f"which is not an authority surface in scope"
             )
-    # If the registry DECLARES its authority scope, the computed scope must match
-    # it exactly — this stops a real authority surface from being silently dropped
-    # from the claim by mismarking it evidence_only.
+    # The registry MUST declare its authority scope, and the computed scope must
+    # match it exactly. Requiring it (rather than inferring) is what stops a real
+    # authority surface from being silently dropped from the claim by mismarking
+    # it evidence_only — with no declaration there would be nothing to mismatch.
     declared = raw.get("claim_scope")
-    if declared is not None:
-        if not isinstance(declared, list) or set(declared) != set(scope):
-            raise ValueError(
-                f"{path}: declared claim_scope {declared!r} != computed authority scope "
-                f"{sorted(scope)} (a real authority surface may have been mismarked evidence_only)"
-            )
+    if not isinstance(declared, list) or not declared:
+        raise ValueError(
+            f"{path}: 'claim_scope' (the declared authority surfaces) is required and must "
+            f"be a non-empty list — refusing to infer it (a missing claim_scope would let a "
+            f"real surface be silently dropped by mismarking it evidence_only)"
+        )
+    if set(declared) != set(scope):
+        raise ValueError(
+            f"{path}: declared claim_scope {sorted(declared)} != computed authority scope "
+            f"{sorted(scope)} (a real authority surface may have been mismarked evidence_only)"
+        )
     return scope, surfaces, evidence_only
 
 
@@ -118,11 +124,19 @@ def run(evidence_path: Path, *, scope_override: Sequence[str] | None, as_json: b
         _log(f"error: {exc}")
         return 2
     if scope_override:
-        scope = list(scope_override)
-        # Keep the registry-declared evidence-only set; only drop any that the
-        # override pulled into scope. (Do NOT relabel every non-overridden
-        # authority surface as evidence-only.)
-        evidence_only = [s for s in evidence_only if s not in scope]
+        override = list(scope_override)
+        # An override may only NARROW the claim to a subset of the authority
+        # scope; it must NEVER pull an evidence_only / unknown surface into the
+        # claim AND (which would fabricate a passing claim). Fail closed otherwise.
+        not_authority = [s for s in override if s not in scope]
+        if not_authority:
+            _log(
+                f"error: --scope {not_authority} not in the authority scope {sorted(scope)} "
+                f"(evidence_only or unknown surfaces cannot be claimed)"
+            )
+            return 2
+        scope = override
+        # evidence_only stays the registry-declared set (display only).
     result = evaluate_scope_security_claim(scope, surfaces)
     result["evidence_only_surfaces"] = sorted(evidence_only)
     if as_json:
