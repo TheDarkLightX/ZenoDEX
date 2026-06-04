@@ -147,7 +147,9 @@ def _manifest_proofs(manifest: Mapping[str, Any]) -> dict[str, Mapping[str, Any]
         srcs = entry.get("source_files")
         if not isinstance(srcs, list) or not srcs or not all(isinstance(s, str) and s for s in srcs):
             raise ReceiptError(f"{pid}.source_files must be a non-empty list of paths")
-        _require_string(entry.get("required_verdict"), name=f"{pid}.required_verdict")
+        verdict = _require_string(entry.get("required_verdict"), name=f"{pid}.required_verdict")
+        if verdict not in VALID_VERDICTS:
+            raise ReceiptError(f"{pid}.required_verdict unsupported: {verdict!r}")
         if pid in out:
             raise ReceiptError(f"duplicate manifest proof id: {pid}")
         out[pid] = entry
@@ -272,7 +274,16 @@ def _receipt_hash_body(receipt: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def build_receipt(manifest: Mapping[str, Any], *, manifest_sha256: str, manifest_relpath: str) -> dict[str, Any]:
-    proofs = [_build_proof_entry(e) for e in (_manifest_proofs(manifest)[pid] for pid in sorted(_manifest_proofs(manifest)))]
+    manifest_by_id = _manifest_proofs(manifest)
+    source_pin_errors = _check_against_source_pin(manifest_by_id)
+    if source_pin_errors:
+        # Review grade: C+ before this fix, B after it.
+        # Why it failed review: build mode could spend private ESSO/Lean time on a
+        # weakened manifest and emit a receipt that only check mode would reject.
+        # The source pin is now enforced before proof runners execute, so build
+        # and check share the same fail-closed boundary.
+        raise ReceiptError("; ".join(source_pin_errors))
+    proofs = [_build_proof_entry(manifest_by_id[pid]) for pid in sorted(manifest_by_id)]
     receipt: dict[str, Any] = {
         "schema": RECEIPT_SCHEMA,
         "ok": True,

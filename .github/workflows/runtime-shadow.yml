@@ -22,6 +22,9 @@ on:
       - "src/kernels/dex/nonce_batch_sequencing_v1.yaml"
       - "lean-mathlib/Proofs/CPMMInvariants.lean"
       - "lean-mathlib/Proofs/ZenoDEXNonces.lean"
+      # Review grade: B after pass-3. The Lean toolchain is part of the public
+      # receipt result envelope; watching only theorem files missed toolchain drift.
+      - "lean-mathlib/lean-toolchain"
       - "docs/assurance/spot_proof_public_receipt.json"
       - "tools/spot_proof_public_manifest.json"
       - "tools/spot_proof_public_receipt.py"
@@ -62,6 +65,9 @@ on:
       - "src/kernels/dex/nonce_batch_sequencing_v1.yaml"
       - "lean-mathlib/Proofs/CPMMInvariants.lean"
       - "lean-mathlib/Proofs/ZenoDEXNonces.lean"
+      # Review grade: B after pass-3. The Lean toolchain is part of the public
+      # receipt result envelope; watching only theorem files missed toolchain drift.
+      - "lean-mathlib/lean-toolchain"
       - "docs/assurance/spot_proof_public_receipt.json"
       - "tools/spot_proof_public_manifest.json"
       - "tools/spot_proof_public_receipt.py"

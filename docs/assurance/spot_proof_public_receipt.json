@@ -1,6 +1,6 @@
 {
   "manifest": "tools/spot_proof_public_manifest.json",
-  "manifest_sha256": "33db6613aee35245b5314cb0b968cbe8a18022a0bbe4207b7133da0e12c95e19",
+  "manifest_sha256": "115df8e3b3e58c93a373be3285bffd824996c9a5200cc0a0863dd55917600e70",
   "ok": true,
   "private_toolchain_source_included": false,
   "proofs": [
@@ -55,6 +55,6 @@
       "tool": "lean-lake-build"
     }
   ],
-  "receipt_sha256": "afad3d56fed15fe51a5380ec8c8d0a2101fdd2cc99b65f4a2f7396b806242d5e",
+  "receipt_sha256": "97ee9f6413b6f4d428d8d53330d25dde86d366f2f4404001da71377dcf828c4b",
   "schema": "zenodex.spot_proof.public_receipt.v1"
 }
