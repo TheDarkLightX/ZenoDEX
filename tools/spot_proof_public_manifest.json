@@ -9,12 +9,6 @@
       "source_files": ["src/kernels/dex/nonce_batch_sequencing_v1.yaml"]
     },
     {
-      "id": "cpmm_output_amount_v2",
-      "tool": "esso-verify-multi",
-      "required_verdict": "VERIFIED",
-      "source_files": ["src/kernels/dex/cpmm_output_amount_v2.yaml"]
-    },
-    {
       "id": "cpmm_invariants_lean",
       "tool": "lean-lake-build",
       "module": "Proofs.CPMMInvariants",

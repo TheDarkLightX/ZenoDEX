@@ -78,3 +78,48 @@ def test_missing_proof_fails() -> None:
 def test_check_fails_closed_on_missing_files(tmp_path) -> None:
     assert spr.check_receipt_file(receipt_path=tmp_path / "nope.json", manifest_path=MANIFEST)["ok"] is False
     assert spr.check_receipt_file(receipt_path=RECEIPT, manifest_path=tmp_path / "nope.json")["ok"] is False
+
+
+# --- Codex pass-2 regressions (forge defenses, each re-seals the receipt hash so
+#     it is the source-pin / dedup / tool check under test, not the hash check) ---
+
+
+def test_forged_lean_module_fails() -> None:
+    """Pass-2 #2: retargeting a Lean receipt's `module` to a different (e.g.
+    weaker) module must be rejected — the module is part of the source pin."""
+    receipt, manifest, msha = _load()
+    target = next(p for p in receipt["proofs"] if p["id"] == "cpmm_invariants_lean")
+    target["result"]["module"] = "Proofs.ForgedOtherModule"
+    receipt["receipt_sha256"] = spr._sha256_bytes(spr._canonical_json_bytes(spr._receipt_hash_body(receipt)))
+    errs = spr.verify_receipt(receipt, manifest=manifest, manifest_sha256=msha)
+    assert any("module" in e for e in errs), errs
+
+
+def test_duplicate_receipt_proof_id_fails() -> None:
+    """Pass-2 #3: a duplicated receipt proof id must be rejected (the checker
+    builds a by-id dict, so a dup could otherwise shadow-replace a real entry)."""
+    receipt, manifest, msha = _load()
+    receipt["proofs"].append(json.loads(json.dumps(receipt["proofs"][0])))
+    receipt["receipt_sha256"] = spr._sha256_bytes(spr._canonical_json_bytes(spr._receipt_hash_body(receipt)))
+    errs = spr.verify_receipt(receipt, manifest=manifest, manifest_sha256=msha)
+    assert any("duplicate" in e for e in errs), errs
+
+
+def test_forged_receipt_tool_fails() -> None:
+    """Pass-2 #3: a receipt `tool` that disagrees with the source pin must be
+    rejected, not silently accepted because the manifest tool still matches."""
+    receipt, manifest, msha = _load()
+    target = next(p for p in receipt["proofs"] if p["id"] == "nonce_batch_sequencing_v1")
+    target["tool"] = "lean-lake-build"
+    receipt["receipt_sha256"] = spr._sha256_bytes(spr._canonical_json_bytes(spr._receipt_hash_body(receipt)))
+    errs = spr.verify_receipt(receipt, manifest=manifest, manifest_sha256=msha)
+    assert any("tool" in e for e in errs), errs
+
+
+def test_placeholder_proof_is_not_pinned() -> None:
+    """Pass-2 #1: cpmm_output_amount_v2.yaml is a placeholder (only invariant is
+    `dummy == 0`, amount_out is a `const: 0` HOLE). It must never appear in the
+    source pin OR the manifest — it is not genuine proof evidence."""
+    assert "cpmm_output_amount_v2" not in spr.EXPECTED_PROOFS
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    assert "cpmm_output_amount_v2" not in {p["id"] for p in manifest["proofs"]}

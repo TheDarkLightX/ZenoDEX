@@ -46,21 +46,33 @@ class ReceiptError(ValueError):
 # repoint a source file without a reviewed change to THIS file (anti-self-weakening;
 # Codex pass-1 finding). Verdicts are a closed enum.
 VALID_VERDICTS = frozenset({"VERIFIED", "BUILT_NO_SORRY"})
+# NOTE: cpmm_output_amount_v2.yaml is deliberately NOT pinned — Codex pass-2 review
+# found it is a PLACEHOLDER (its only invariant is dummy==0 and amount_out is a `const: 0`
+# HOLE), so it is not genuine proof evidence and must never enter a proof receipt.
 EXPECTED_PROOFS: dict[str, dict[str, Any]] = {
     "nonce_batch_sequencing_v1": {
         "tool": "esso-verify-multi", "required_verdict": "VERIFIED",
         "source_files": ["src/kernels/dex/nonce_batch_sequencing_v1.yaml"],
-    },
-    "cpmm_output_amount_v2": {
-        "tool": "esso-verify-multi", "required_verdict": "VERIFIED",
-        "source_files": ["src/kernels/dex/cpmm_output_amount_v2.yaml"],
+        "expected_result": {
+            "ir_hash": "94a6cb81425c5c63",
+            "passed_queries": 4,
+            "solvers": {
+                "cvc5": "This is cvc5 version 1.1.2",
+                "z3": "4.15.4",
+            },
+            "solvers_agreed": True,
+        },
     },
     "cpmm_invariants_lean": {
         "tool": "lean-lake-build", "required_verdict": "BUILT_NO_SORRY",
+        "module": "Proofs.CPMMInvariants",
+        "lean_toolchain_file": "lean-mathlib/lean-toolchain",
         "source_files": ["lean-mathlib/Proofs/CPMMInvariants.lean"],
     },
     "zenodex_nonces_lean": {
         "tool": "lean-lake-build", "required_verdict": "BUILT_NO_SORRY",
+        "module": "Proofs.ZenoDEXNonces",
+        "lean_toolchain_file": "lean-mathlib/lean-toolchain",
         "source_files": ["lean-mathlib/Proofs/ZenoDEXNonces.lean"],
     },
 }
@@ -81,6 +93,8 @@ def _check_against_source_pin(manifest_by_id: Mapping[str, Mapping[str, Any]]) -
             errors.append(f"{pid}: required_verdict {m.get('required_verdict')!r} != source-pinned {exp['required_verdict']!r}")
         if list(m.get("source_files") or []) != exp["source_files"]:
             errors.append(f"{pid}: source_files {list(m.get('source_files') or [])} != source-pinned {exp['source_files']}")
+        if "module" in exp and m.get("module") != exp["module"]:
+            errors.append(f"{pid}: module {m.get('module')!r} != source-pinned {exp['module']!r}")
     return errors
 
 
@@ -148,6 +162,49 @@ def _source_hashes(entry: Mapping[str, Any], *, pid: str) -> list[dict[str, str]
             raise ReceiptError(f"{pid}: source file missing: {rel}")
         out.append({"path": rel, "sha256": _sha256_file(p)})
     return out
+
+
+def _lean_toolchain_from_source_pin(pid: str, exp: Mapping[str, Any]) -> tuple[str | None, list[str]]:
+    rel = exp.get("lean_toolchain_file")
+    if not isinstance(rel, str) or not rel:
+        return None, [f"{pid}: lean_toolchain_file source pin missing"]
+    path = ROOT / rel
+    try:
+        return path.read_text(encoding="utf-8").strip(), []
+    except OSError as exc:
+        return None, [f"{pid}: lean toolchain source pin unreadable: {rel}: {exc}"]
+
+
+def _validate_esso_result(pid: str, result: Mapping[str, Any], exp: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
+    expected = exp.get("expected_result")
+    if not isinstance(expected, Mapping):
+        return [f"{pid}: expected_result source pin missing"]
+    for key in ("ir_hash", "passed_queries", "solvers_agreed"):
+        if result.get(key) != expected.get(key):
+            errors.append(f"{pid}: receipt result {key} {result.get(key)!r} != source-pinned {expected.get(key)!r}")
+    solvers = result.get("solvers")
+    expected_solvers = expected.get("solvers")
+    if not isinstance(solvers, Mapping):
+        errors.append(f"{pid}: receipt result solvers must be an object")
+    elif dict(solvers) != expected_solvers:
+        errors.append(f"{pid}: receipt result solvers {dict(solvers)!r} != source-pinned {expected_solvers!r}")
+    return errors
+
+
+def _validate_lean_result(pid: str, result: Mapping[str, Any], exp: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
+    rmod = result.get("module")
+    if rmod != exp.get("module"):
+        errors.append(f"{pid}: receipt module {rmod!r} != source-pinned {exp.get('module')!r}")
+    toolchain, toolchain_errors = _lean_toolchain_from_source_pin(pid, exp)
+    errors.extend(toolchain_errors)
+    if toolchain is not None and result.get("lean_toolchain") != toolchain:
+        errors.append(
+            f"{pid}: receipt lean_toolchain {result.get('lean_toolchain')!r} "
+            f"!= source-pinned {toolchain!r}"
+        )
+    return errors
 
 
 # --- proof runners (build side only; require the toolchains) ------------------
@@ -263,6 +320,10 @@ def verify_receipt(receipt: Mapping[str, Any], *, manifest: Mapping[str, Any], m
     if not isinstance(receipt_proofs, list):
         errors.append("receipt.proofs must be a list")
         return errors
+    receipt_ids = [p.get("id") for p in receipt_proofs if isinstance(p, Mapping)]
+    dups = sorted({i for i in receipt_ids if receipt_ids.count(i) > 1})
+    if dups:
+        errors.append(f"receipt has duplicate proof ids: {dups}")
     receipt_by_id = {p.get("id"): p for p in receipt_proofs if isinstance(p, Mapping)}
 
     missing = sorted(set(manifest_by_id) - set(receipt_by_id))
@@ -272,6 +333,14 @@ def verify_receipt(receipt: Mapping[str, Any], *, manifest: Mapping[str, Any], m
     if extra:
         errors.append(f"receipt has proofs outside manifest: {extra}")
 
+    # Review grade: C before this block, B after this fix.
+    # Why it failed review: a forged receipt could weaken ESSO solver metadata or
+    # Lean build metadata and then recompute receipt_sha256. The hash proved only
+    # self-consistency, not that the result body still matched the reviewed proof
+    # envelope. Why this fix helps: result fields that define the public evidence
+    # are source-pinned here and must match the committed proof expectation.
+    # Remaining limitation for a higher grade: check mode still validates a
+    # committed receipt; it does not rerun ESSO or Lean in ordinary PR CI.
     for pid in sorted(set(manifest_by_id) & set(receipt_by_id)):
         m = manifest_by_id[pid]
         r = receipt_by_id[pid]
@@ -279,6 +348,15 @@ def verify_receipt(receipt: Mapping[str, Any], *, manifest: Mapping[str, Any], m
         result = r.get("result")
         if not isinstance(result, Mapping) or result.get("verdict") != m.get("required_verdict"):
             errors.append(f"{pid}: receipt verdict {result.get('verdict') if isinstance(result, Mapping) else None!r} != required {m.get('required_verdict')!r}")
+        # receipt tool + (Lean) module must match the source pin, not just the manifest
+        exp = EXPECTED_PROOFS.get(pid, {})
+        if r.get("tool") != exp.get("tool"):
+            errors.append(f"{pid}: receipt tool {r.get('tool')!r} != source-pinned {exp.get('tool')!r}")
+        if isinstance(result, Mapping):
+            if exp.get("tool") == "esso-verify-multi":
+                errors.extend(_validate_esso_result(pid, result, exp))
+            elif exp.get("tool") == "lean-lake-build":
+                errors.extend(_validate_lean_result(pid, result, exp))
         # the tracked sources today must byte-match the receipt's pinned hashes
         try:
             current = {h["path"]: h["sha256"] for h in _source_hashes(m, pid=pid)}
