@@ -41,6 +41,7 @@ from src.integration.surface_security_claim import (  # noqa: E402
     claim_role_of,
     evaluate_scope_security_claim,
     is_evidence_only,
+    validate_surface_columns,
 )
 
 
@@ -74,6 +75,10 @@ def _load_registry(
         if not isinstance(ev, Mapping):
             raise ValueError(f"{path}: surface {sid!r} must be an object, got {type(ev).__name__}")
         claim_role_of(ev)
+        # A present-but-malformed CBC column (e.g. a string instead of an object,
+        # a non-boolean gate column, a non-string ref) is a SCHEMA violation that
+        # must fail closed — not be silently treated as an uncleared gap.
+        validate_surface_columns(sid, ev)
     evidence_only = [s for s, ev in surfaces.items() if is_evidence_only(ev)]
     scope = [s for s in surfaces if s not in evidence_only]
     if not scope:
@@ -187,8 +192,12 @@ def run(
             scope = override
             # evidence_only stays the registry-declared set (display only).
         result = evaluate_scope_security_claim(scope, surfaces)
-    except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
-        _log(f"error: {exc}")
+    except Exception as exc:  # noqa: BLE001 — a release GATE fails closed on ANY
+        # structural/infrastructure error (bad/oversized/deeply-nested registry,
+        # RecursionError from json, malformed row, illegal override, ...). Mapping
+        # everything to exit 2 (not raw exit 1, which the pipeline treats as
+        # advisory) is the correct paranoid posture for consensus-gate tooling.
+        _log(f"error: {type(exc).__name__}: {exc}")
         return 2
     result["evidence_only_surfaces"] = sorted(evidence_only)
     if as_json:

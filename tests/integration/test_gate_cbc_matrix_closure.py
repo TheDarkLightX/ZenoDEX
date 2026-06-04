@@ -165,6 +165,33 @@ def test_non_mapping_surface_row_fails_closed(tmp_path: Path) -> None:
     assert _run(_write(tmp_path, reg)) == 2
 
 
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda s: s.__setitem__("running_impl", "src/x.py"),       # column should be an object
+        lambda s: s.__setitem__("open_gaps_closed", "yes"),         # gate column should be a bool
+        lambda s: s.__setitem__("formal_spec", {"ref": ["x"], "verified": True}),  # ref should be a str
+        lambda s: s.__setitem__("proof_artifact", {"ref": "x", "verified": "true"}),  # verified should be a bool
+    ],
+)
+def test_malformed_column_fails_closed(tmp_path: Path, mutate) -> None:
+    # A present-but-malformed column is a SCHEMA violation -> exit 2, not a silent
+    # uncleared gap (exit 1). (Gemini final review.)
+    surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
+    mutate(surfaces["state_root"])
+    reg = {"schema": "x", "scope_id": "t", "claim_scope": list(SPOT_DEX_SCOPE), "surfaces": surfaces}
+    assert _run(_write(tmp_path, reg)) == 2
+
+
+def test_deeply_nested_registry_fails_closed(tmp_path: Path) -> None:
+    # A pathological registry whose JSON is deeply nested makes json.loads raise
+    # RecursionError; the gate must still fail closed (exit 2), not leak a raw
+    # exit-1 traceback the pipeline treats as advisory. (Codex final review.)
+    p = tmp_path / "ev.json"
+    p.write_text("[" * 200_000 + "]" * 200_000, encoding="utf-8")
+    assert _run(p) == 2
+
+
 # --- --scope override safety -------------------------------------------------
 
 

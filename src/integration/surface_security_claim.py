@@ -63,8 +63,10 @@ KNOWN_SCOPE_AUTHORITY_SETS: dict[str, frozenset[str]] = {
 # Role marker for a registry surface row that is retained for traceability but
 # EXCLUDED from the production claim because it is not on the live authority path
 # — a proof-carrier / CBC-core reference form attached to a real surface. Carried
-# as ``"claim_role": "evidence_only"`` (with an optional ``"attached_to"``) on the
-# surface row. Example: ``replay_guard`` (src/core/replay_guard.py) is the
+# as ``"claim_role": "evidence_only"`` on the surface row, together with a REQUIRED
+# ``"attached_to"`` naming the in-scope authority surface it backs (the gate
+# rejects a dangling/orphaned evidence row). Example: ``replay_guard``
+# (src/core/replay_guard.py) is the
 # single-transition reference whose Kani + differential proofs are EVIDENCE for the
 # live ``nonces`` authority (src/state/nonces.py), bound on the single-transition
 # slice by tests/runtime/test_replay_guard_nonce_refinement_binding.py. Such a row
@@ -122,6 +124,44 @@ def _column_cleared(column: str, value: Any) -> bool:
     if not isinstance(ref, str) or not ref.strip():
         return False
     return value.get("verified") is True
+
+
+def validate_surface_columns(surface_id: str, evidence: Mapping[str, Any]) -> None:
+    """Raise ``ValueError`` if any PRESENT CBC column has a malformed shape.
+
+    This distinguishes a *schema violation* (which must fail closed / exit 2) from
+    a valid-but-unverified column (a normal gap / exit 1). An ABSENT column is a
+    gap, not a malformation. A present column must match the schema:
+
+    - ``open_gaps_closed`` (the gate column) must be a JSON boolean;
+    - every other CBC column must be an object with a string ``ref`` and a boolean
+      ``verified``.
+
+    Without this, ``_column_cleared`` would silently treat e.g. ``"running_impl":
+    "src/x.py"`` or ``"open_gaps_closed": "yes"`` as merely uncleared, masking a
+    malformed registry as an ordinary blocked claim.
+    """
+    if not isinstance(evidence, Mapping):
+        raise ValueError(f"{surface_id}: surface row must be an object")
+    for column in CBC_COLUMNS:
+        if column not in evidence:
+            continue
+        value = evidence[column]
+        if column in _GATE_COLUMNS:
+            if not isinstance(value, bool):
+                raise ValueError(
+                    f"{surface_id}: '{column}' must be a boolean, got {type(value).__name__}"
+                )
+            continue
+        if not isinstance(value, Mapping):
+            raise ValueError(
+                f"{surface_id}: '{column}' must be an object {{ref, verified}}, "
+                f"got {type(value).__name__}"
+            )
+        if not isinstance(value.get("ref"), str):
+            raise ValueError(f"{surface_id}: '{column}.ref' must be a string")
+        if not isinstance(value.get("verified"), bool):
+            raise ValueError(f"{surface_id}: '{column}.verified' must be a boolean")
 
 
 def evaluate_surface_security_claim(
