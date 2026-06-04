@@ -183,3 +183,34 @@ def test_scope_override_subset_of_authority_still_works(tmp_path: Path) -> None:
     assert gate.run(p, scope_override=["cpmm_swap"], as_json=True) == 0
     # ...and an unknown surface in the override fails closed.
     assert gate.run(p, scope_override=["nope"], as_json=True) == 2
+
+
+def test_paired_shrink_of_pinned_scope_fails_closed(tmp_path: Path) -> None:
+    # Codex re-review (round 3): a COORDINATED edit — mark a real authority surface
+    # evidence_only, attach it to another authority surface, AND drop it from
+    # claim_scope — makes declared==computed over a shrunk set. For a known
+    # production scope_id the gate anchors against the source-pinned SPOT_DEX_SCOPE,
+    # so the shrunk scope no longer matches and it fails closed.
+    surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
+    surfaces["state_root"]["claim_role"] = "evidence_only"
+    surfaces["state_root"]["attached_to"] = "balances"
+    reg = {
+        "schema": "x",
+        "scope_id": "spot_dex",  # a KNOWN production scope -> anchored to source
+        "claim_scope": ["cpmm_swap", "balances", "nonces"],  # state_root coordinated-out
+        "surfaces": surfaces,
+    }
+    assert gate.run(_write(tmp_path, reg), scope_override=None, as_json=True) == 2
+
+
+def test_pinned_scope_with_full_authority_set_passes(tmp_path: Path) -> None:
+    # The anchor allows the legitimate case: scope_id spot_dex with exactly the
+    # source-pinned authority set, all clear -> passes.
+    surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
+    reg = {
+        "schema": "x",
+        "scope_id": "spot_dex",
+        "claim_scope": list(SPOT_DEX_SCOPE),
+        "surfaces": surfaces,
+    }
+    assert gate.run(_write(tmp_path, reg), scope_override=None, as_json=True) == 0

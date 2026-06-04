@@ -26,6 +26,7 @@ DEFAULT_EVIDENCE = REPO_ROOT / "config" / "production" / "cbc_surface_evidence_v
 sys.path.insert(0, str(REPO_ROOT))
 from src.integration.surface_security_claim import (  # noqa: E402
     CBC_COLUMNS,
+    KNOWN_SCOPE_AUTHORITY_SETS,
     claim_role_of,
     evaluate_scope_security_claim,
     is_evidence_only,
@@ -82,6 +83,18 @@ def _load_registry(path: Path) -> tuple[list[str], dict[str, Any], list[str]]:
         raise ValueError(
             f"{path}: declared claim_scope {sorted(declared)} != computed authority scope "
             f"{sorted(scope)} (a real authority surface may have been mismarked evidence_only)"
+        )
+    # Anchor a KNOWN production scope_id against the source-controlled expected set.
+    # claim_scope and the claim_role markings both live in this (mutable) registry,
+    # so a coordinated edit could otherwise make declared==computed over a shrunk
+    # scope. Pinning to KNOWN_SCOPE_AUTHORITY_SETS makes scope a source change.
+    scope_id = raw.get("scope_id")
+    expected = KNOWN_SCOPE_AUTHORITY_SETS.get(scope_id) if isinstance(scope_id, str) else None
+    if expected is not None and set(scope) != expected:
+        raise ValueError(
+            f"{path}: scope_id {scope_id!r} authority scope {sorted(scope)} != the "
+            f"source-pinned expected set {sorted(expected)} — a registry edit cannot "
+            f"shrink or alter a known production scope (change SPOT_DEX_SCOPE in source instead)"
         )
     return scope, surfaces, evidence_only
 

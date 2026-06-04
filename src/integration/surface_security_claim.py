@@ -50,6 +50,16 @@ SPOT_DEX_SCOPE: tuple[str, ...] = (
     "nonces",
 )
 
+# Source-pinned expected authority set per known production ``scope_id``. The gate
+# anchors a known scope against THIS (source-controlled) set, so that a registry
+# edit alone — even a coordinated one that marks a real surface ``evidence_only``
+# AND drops it from ``claim_scope`` — cannot shrink or alter a production claim's
+# scope without a reviewed code change here. Adding/removing a production surface
+# is therefore a source change, not a config-only edit.
+KNOWN_SCOPE_AUTHORITY_SETS: dict[str, frozenset[str]] = {
+    "spot_dex": frozenset(SPOT_DEX_SCOPE),
+}
+
 # Role marker for a registry surface row that is retained for traceability but
 # EXCLUDED from the production claim because it is not on the live authority path
 # — a proof-carrier / CBC-core reference form attached to a real surface. Carried
