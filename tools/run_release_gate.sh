@@ -280,4 +280,15 @@ echo "== release: dependency audit =="
 "$PY" -m pip_audit -r "$ROOT_DIR/requirements-agents.lock.txt"
 "$PY" -m pip_audit -r "$ROOT_DIR/requirements-dev.lock.txt"
 
+# Production-claim status (ADVISORY — intentionally NON-BLOCKING). The CBC
+# matrix-closure gate reports the per-surface production_security_claim computed
+# from config/production/cbc_surface_evidence_v1.json. Every surface is unproven
+# today (claim=false by design), so this PRINTS the matrix + remaining gaps
+# without failing the release. It becomes a hard gate only when a scope is
+# genuinely declared production-ready (separate, future enforcement) — never flip
+# it to blocking by assertion.
+echo "== release: CBC production-claim status (advisory, non-blocking) =="
+"$PY" "$ROOT_DIR/tools/gate_cbc_matrix_closure.py" \
+  || echo "  (advisory: production_security_claim not yet cleared — see the matrix above)"
+
 echo "ok"
