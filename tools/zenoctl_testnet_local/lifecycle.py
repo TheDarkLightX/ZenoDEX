@@ -851,8 +851,6 @@ def _compose_env(
     env = {
         "ZENO_LEDGER_WRITER_TOKEN": writer_token,
         "ZENODEX_API_BEARER_TOKEN": stdlib_token,
-        "DEMO_API_TOKEN": stdlib_token,
-        "ALLOW_DEMO_TOKEN_AUTH": "1",
         "RENDERED_NGINX_CONF_PATH": str(paths.rendered_nginx),
         "RENDERED_RUNTIME_CONFIG_PATH": str(paths.rendered_runtime_config),
         "FIXTURES_DIR": str(paths.fixtures_dir),
@@ -1031,8 +1029,6 @@ def _lifecycle_env_for_compose(manifest: dict[str, Any], paths: mf.ManifestPaths
     env = {
         "ZENO_LEDGER_WRITER_TOKEN": _LIFECYCLE_PLACEHOLDER,
         "ZENODEX_API_BEARER_TOKEN": _LIFECYCLE_PLACEHOLDER,
-        "DEMO_API_TOKEN": _LIFECYCLE_PLACEHOLDER,
-        "ALLOW_DEMO_TOKEN_AUTH": "1",
         "RENDERED_NGINX_CONF_PATH": str(
             ((manifest.get("rendered_paths") or {}).get("nginx_conf"))
             or paths.rendered_nginx
