@@ -40,15 +40,35 @@ CBC_COLUMNS: tuple[str, ...] = (
 _GATE_COLUMNS: frozenset[str] = frozenset({"open_gaps_closed"})
 
 # The recommended first production-claim scope: the spot-DEX testnet scope. These
-# are the consensus surfaces with the most existing proof coverage, used to prove
-# the per-surface machinery end-to-end before widening to perps / zUSD / lanes.
+# are the consensus AUTHORITY surfaces with the most existing proof coverage, used
+# to prove the per-surface machinery end-to-end before widening to perps / zUSD /
+# lanes. A surface belongs here only if it is on the live authority path.
 SPOT_DEX_SCOPE: tuple[str, ...] = (
     "cpmm_swap",
     "balances",
     "state_root",
     "nonces",
-    "replay_guard",
 )
+
+# Role marker for a registry surface row that is retained for traceability but
+# EXCLUDED from the production claim because it is not on the live authority path
+# — a proof-carrier / CBC-core reference form attached to a real surface. Carried
+# as ``"claim_role": "evidence_only"`` (with an optional ``"attached_to"``) on the
+# surface row. Example: ``replay_guard`` (src/core/replay_guard.py) is the
+# single-transition reference whose Kani + differential proofs are EVIDENCE for the
+# live ``nonces`` authority (src/state/nonces.py), bound on the single-transition
+# slice by tests/runtime/test_replay_guard_nonce_refinement_binding.py. Such a row
+# never enters the AND — it can neither block nor inflate the scope claim.
+EVIDENCE_ONLY_ROLE: str = "evidence_only"
+
+
+def is_evidence_only(surface_evidence: Any) -> bool:
+    """True iff a registry surface row is retained for evidence/traceability only
+    (``claim_role == "evidence_only"``) and must be excluded from the claim AND."""
+    return (
+        isinstance(surface_evidence, Mapping)
+        and surface_evidence.get("claim_role") == EVIDENCE_ONLY_ROLE
+    )
 
 
 def _column_cleared(column: str, value: Any) -> bool:

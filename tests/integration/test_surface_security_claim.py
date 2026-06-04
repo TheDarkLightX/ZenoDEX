@@ -14,7 +14,18 @@ from src.integration.surface_security_claim import (
     SPOT_DEX_SCOPE,
     evaluate_scope_security_claim,
     evaluate_surface_security_claim,
+    is_evidence_only,
 )
+
+
+def test_is_evidence_only_marker() -> None:
+    assert is_evidence_only({"claim_role": "evidence_only"}) is True
+    assert is_evidence_only({"claim_role": "evidence_only", "attached_to": "nonces"}) is True
+    # Default (absent) is an authority surface — must NOT be excluded from the claim.
+    assert is_evidence_only({}) is False
+    assert is_evidence_only({"claim_role": "authority"}) is False
+    assert is_evidence_only({"claim_role": "EVIDENCE_ONLY"}) is False  # exact match only
+    assert is_evidence_only("not a mapping") is False  # type: ignore[arg-type]
 
 
 def _verified(ref: str) -> dict:

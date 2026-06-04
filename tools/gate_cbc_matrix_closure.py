@@ -27,6 +27,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from src.integration.surface_security_claim import (  # noqa: E402
     CBC_COLUMNS,
     evaluate_scope_security_claim,
+    is_evidence_only,
 )
 
 
@@ -34,13 +35,24 @@ def _log(msg: str) -> None:
     print(msg, file=sys.stderr)
 
 
-def _load_registry(path: Path) -> tuple[list[str], dict[str, Any]]:
+def _load_registry(path: Path) -> tuple[list[str], dict[str, Any], list[str]]:
+    """Return (claim_scope, all_surfaces, evidence_only_ids).
+
+    The claim scope is every surface row EXCEPT those marked
+    ``claim_role: evidence_only`` (proof-carriers not on the authority path).
+    Evidence-only rows are retained and returned for display, but excluded from
+    the production-claim AND so they can neither block nor inflate the claim.
+    """
     raw = json.loads(path.read_text(encoding="utf-8"))
     surfaces = raw.get("surfaces")
     if not isinstance(surfaces, Mapping) or not surfaces:
         raise ValueError(f"{path}: 'surfaces' must be a non-empty object")
-    scope = list(surfaces.keys())
-    return scope, dict(surfaces)
+    surfaces = dict(surfaces)
+    evidence_only = [s for s, ev in surfaces.items() if is_evidence_only(ev)]
+    scope = [s for s in surfaces if s not in evidence_only]
+    if not scope:
+        raise ValueError(f"{path}: no claim-scope surfaces (every row is evidence_only)")
+    return scope, surfaces, evidence_only
 
 
 def _render_matrix(result: Mapping[str, Any]) -> None:
@@ -63,20 +75,34 @@ def _render_matrix(result: Mapping[str, Any]) -> None:
         _log(f"  {len(result['gaps'])} open gap(s):")
         for gap in result["gaps"]:
             _log(f"    - {gap}")
+    evidence_only = result.get("evidence_only_surfaces") or []
+    if evidence_only:
+        surfaces = result.get("_surfaces", {})
+        _log("")
+        _log("  evidence-only surfaces (retained for traceability, NOT part of the production claim):")
+        for sid in evidence_only:
+            attached = (surfaces.get(sid) or {}).get("attached_to")
+            tail = f"  -> evidence for '{attached}'" if attached else ""
+            _log(f"    - {sid}{tail}")
 
 
 def run(evidence_path: Path, *, scope_override: Sequence[str] | None, as_json: bool) -> int:
     try:
-        scope, surfaces = _load_registry(evidence_path)
+        scope, surfaces, evidence_only = _load_registry(evidence_path)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         _log(f"error: {exc}")
         return 2
     if scope_override:
         scope = list(scope_override)
+        evidence_only = [s for s in surfaces if s not in scope]
     result = evaluate_scope_security_claim(scope, surfaces)
+    result["evidence_only_surfaces"] = sorted(evidence_only)
     if as_json:
-        print(json.dumps(result, sort_keys=True))
+        # Surface rows themselves are not part of the claim result; expose only
+        # the evidence-only id list for machine consumers.
+        print(json.dumps({k: v for k, v in result.items() if k != "_surfaces"}, sort_keys=True))
     else:
+        result["_surfaces"] = surfaces
         _render_matrix(result)
     # Fail closed: the gate passes only when the scope claim is genuinely true.
     return 0 if result["production_security_claim"] else 1

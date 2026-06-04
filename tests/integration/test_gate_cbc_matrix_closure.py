@@ -8,7 +8,11 @@ from pathlib import Path
 import pytest
 
 import tools.gate_cbc_matrix_closure as gate
-from src.integration.surface_security_claim import CBC_COLUMNS, SPOT_DEX_SCOPE
+from src.integration.surface_security_claim import (
+    CBC_COLUMNS,
+    SPOT_DEX_SCOPE,
+    is_evidence_only,
+)
 
 DEFAULT_EVIDENCE = gate.DEFAULT_EVIDENCE
 
@@ -28,9 +32,18 @@ def test_default_registry_is_blocked_failclosed() -> None:
 
 def test_default_registry_covers_spot_dex_scope() -> None:
     raw = json.loads(DEFAULT_EVIDENCE.read_text(encoding="utf-8"))
-    assert set(raw["surfaces"].keys()) == set(SPOT_DEX_SCOPE)
+    surfaces = raw["surfaces"]
+    # The claim-scope surfaces (authority path) are exactly SPOT_DEX_SCOPE; any
+    # evidence-only row (a proof-carrier) is retained but excluded from the claim.
+    claim_surfaces = {s for s, ev in surfaces.items() if not is_evidence_only(ev)}
+    evidence_only = {s for s, ev in surfaces.items() if is_evidence_only(ev)}
+    assert claim_surfaces == set(SPOT_DEX_SCOPE)
+    # replay_guard is off the authority path: kept as evidence attached to nonces,
+    # NOT deleted (deleting a row to pass the AND would be dishonest).
+    assert "replay_guard" in evidence_only
+    assert surfaces["replay_guard"].get("attached_to") == "nonces"
     # Honesty guard: nothing in the shipped registry is hand-set to verified:true.
-    for surface in raw["surfaces"].values():
+    for surface in surfaces.values():
         for col, val in surface.items():
             if col == "open_gaps_closed":
                 assert val is False
@@ -63,3 +76,48 @@ def test_missing_registry_fails_closed(tmp_path: Path) -> None:
 
 def test_main_exit_code_matches_run() -> None:
     assert gate.main(["--evidence", str(DEFAULT_EVIDENCE), "--json"]) == 1
+
+
+def test_blocked_evidence_only_surface_does_not_block_the_claim(tmp_path: Path) -> None:
+    # All authority surfaces clear, plus a fully-BLOCKED evidence-only proof-carrier.
+    # The carrier must NOT block the claim — it is excluded from the AND.
+    surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
+    blocked_carrier = {
+        c: {"ref": f"x/{c}.py", "verified": False} for c in CBC_COLUMNS if c != "open_gaps_closed"
+    }
+    blocked_carrier["open_gaps_closed"] = False
+    blocked_carrier["claim_role"] = "evidence_only"
+    blocked_carrier["attached_to"] = "nonces"
+    surfaces["replay_guard"] = blocked_carrier
+    reg = {"schema": "x", "scope_id": "t", "surfaces": surfaces}
+    p = tmp_path / "ev.json"
+    p.write_text(json.dumps(reg), encoding="utf-8")
+    assert gate.run(p, scope_override=None, as_json=True) == 0
+
+
+def test_evidence_only_surface_excluded_from_scope_and_listed(tmp_path: Path, capsys) -> None:
+    # Even a fully-CLEAR evidence-only row stays OUT of the claim scope (it can
+    # neither block nor inflate the claim) and is reported separately.
+    surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
+    carrier = _all_clear_surface()
+    carrier["claim_role"] = "evidence_only"
+    surfaces["replay_guard"] = carrier
+    reg = {"schema": "x", "scope_id": "t", "surfaces": surfaces}
+    p = tmp_path / "ev.json"
+    p.write_text(json.dumps(reg), encoding="utf-8")
+    rc = gate.run(p, scope_override=None, as_json=True)
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert "replay_guard" not in out["scope"]
+    assert out["evidence_only_surfaces"] == ["replay_guard"]
+
+
+def test_all_evidence_only_registry_fails_closed(tmp_path: Path) -> None:
+    # A registry with no authority surfaces (every row evidence_only) is a
+    # structural error — there is nothing to claim. Fail closed (exit 2).
+    carrier = _all_clear_surface()
+    carrier["claim_role"] = "evidence_only"
+    reg = {"schema": "x", "scope_id": "t", "surfaces": {"replay_guard": carrier}}
+    p = tmp_path / "ev.json"
+    p.write_text(json.dumps(reg), encoding="utf-8")
+    assert gate.run(p, scope_override=None, as_json=True) == 2
