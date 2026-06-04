@@ -22,14 +22,19 @@ credit/transfer must produce the IDENTICAL ``(pubkey, asset) -> amount`` mapping
 genuine differential, not a property baked into a definition). Supply conservation
 (the Kani-proven property) is then checked on the resulting live-store balances.
 
-``balance_kernel`` is strictly MORE conservative than the raw ``BalanceTable`` on two
-axes, which this test PINS rather than hides:
+``balance_kernel`` is strictly MORE conservative than the raw ``BalanceTable`` on
+several axes, which this test PINS rather than hides:
 * OVERFLOW: ``balance_kernel`` rejects ``balance_overflow`` above ``MAX_BALANCE``
   (2**112-1, the Rust u128 shadow bound); ``BalanceTable`` is unbounded
   (arbitrary-precision int).
 * FORMAT: ``balance_kernel`` rejects non-canonical pubkey/asset; ``BalanceTable`` does
   no format validation. (The live settlement path validates upstream; ``BalanceTable``
   itself is just the store.)
+* AMOUNT/SELF: ``balance_kernel`` rejects ``invalid_amount`` (amount < 1) and
+  ``self_transfer`` (sender == recipient); ``BalanceTable`` treats a zero op as a
+  sparse no-op and a self move as net-unchanged.
+So the shared equivalence domain is: canonical pubkey/asset, ``1 <= amount <= MAX_BALANCE``,
+``sender != recipient``, and sufficient balance.
 On the shared domain (canonical inputs, within ``MAX_BALANCE``, sufficient balance) the
 two agree exactly. ``balance_kernel`` ``insufficient_balance`` corresponds to
 ``BalanceTable.subtract`` raising ``ValueError`` — both refuse and leave the store
@@ -198,6 +203,27 @@ def test_divergence_overflow_kernel_rejects_live_store_unbounded():
     assert bt.get(A, X) == MAX_BALANCE + 1
     # So on the OVERFLOW edge the two diverge; balance_kernel is the safer one.
     assert bk.balance_of(A, X) == MAX_BALANCE != bt.get(A, X)
+
+
+def test_divergence_zero_amount_and_self_transfer_kernel_more_conservative():
+    # Two more axes where balance_kernel is stricter than the raw BalanceTable, so
+    # the shared equivalence domain excludes them (Codex review completeness).
+    bk = credit(state=BalanceState(), recipient=A, asset=X, amount=100).state
+    # amount=0: kernel rejects invalid_amount; BalanceTable treats 0 as a no-op.
+    z = transfer(state=bk, sender=A, recipient=B, asset=X, amount=0)
+    assert isinstance(z, BalanceRejected) and z.reason == "invalid_amount"
+    # self-transfer (sender==recipient): kernel rejects self_transfer; BalanceTable
+    # would net-zero (subtract then add the same key) and allow it.
+    s = transfer(state=bk, sender=A, recipient=A, asset=X, amount=10)
+    assert isinstance(s, BalanceRejected) and s.reason == "self_transfer"
+    bt = BalanceTable()
+    bt.add(A, X, 100)
+    bt.subtract(A, X, 0)
+    bt.add(B, X, 0)  # zero: no rejection, sparse no-op
+    bt.subtract(A, X, 10)
+    bt.add(A, X, 10)  # self-transfer: net unchanged, allowed
+    assert bt.get(A, X) == 100 and bt.get(B, X) == 0
+    # Shared domain therefore also excludes amount<1 and sender==recipient.
 
 
 def test_divergence_noncanonical_kernel_validates_live_store_does_not():
