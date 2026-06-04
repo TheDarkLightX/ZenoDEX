@@ -66,12 +66,17 @@ EXPECTED_PROOFS: dict[str, dict[str, Any]] = {
     "cpmm_invariants_lean": {
         "tool": "lean-lake-build", "required_verdict": "BUILT_NO_SORRY",
         "module": "Proofs.CPMMInvariants",
+        # The expected toolchain is a SOURCE-PINNED CONSTANT (authoritative anchor),
+        # like the ESSO metadata; lean_toolchain_file is only a defense-in-depth
+        # on-disk consistency check (see _validate_lean_result / Gemini Phase-5 finding).
+        "expected_lean_toolchain": "leanprover/lean4:v4.27.0",
         "lean_toolchain_file": "lean-mathlib/lean-toolchain",
         "source_files": ["lean-mathlib/Proofs/CPMMInvariants.lean"],
     },
     "zenodex_nonces_lean": {
         "tool": "lean-lake-build", "required_verdict": "BUILT_NO_SORRY",
         "module": "Proofs.ZenoDEXNonces",
+        "expected_lean_toolchain": "leanprover/lean4:v4.27.0",
         "lean_toolchain_file": "lean-mathlib/lean-toolchain",
         "source_files": ["lean-mathlib/Proofs/ZenoDEXNonces.lean"],
     },
@@ -199,13 +204,28 @@ def _validate_lean_result(pid: str, result: Mapping[str, Any], exp: Mapping[str,
     rmod = result.get("module")
     if rmod != exp.get("module"):
         errors.append(f"{pid}: receipt module {rmod!r} != source-pinned {exp.get('module')!r}")
-    toolchain, toolchain_errors = _lean_toolchain_from_source_pin(pid, exp)
-    errors.extend(toolchain_errors)
-    if toolchain is not None and result.get("lean_toolchain") != toolchain:
+    # The AUTHORITATIVE toolchain anchor is the source-pinned constant in
+    # EXPECTED_PROOFS (changing it needs a reviewed source edit), NOT a value read
+    # live from disk. Reading it live would let an attacker downgrade the on-disk
+    # lean-toolchain file (which is NOT in source_files, so its hash is not pinned),
+    # rewrite the receipt's lean_toolchain to match, re-seal receipt_sha256, and pass
+    # the check with no source-hash drift (Gemini Phase-5 finding). Both the receipt's
+    # recorded toolchain AND the on-disk file must equal the pinned constant.
+    pinned = exp.get("expected_lean_toolchain")
+    if not isinstance(pinned, str) or not pinned:
+        errors.append(f"{pid}: expected_lean_toolchain source pin missing")
+        return errors
+    if result.get("lean_toolchain") != pinned:
         errors.append(
             f"{pid}: receipt lean_toolchain {result.get('lean_toolchain')!r} "
-            f"!= source-pinned {toolchain!r}"
+            f"!= source-pinned {pinned!r}"
         )
+    # Defense in depth: the on-disk toolchain file must ALSO match the pinned constant,
+    # so an on-disk downgrade is caught even though it is not a hash-pinned source_file.
+    live, live_errors = _lean_toolchain_from_source_pin(pid, exp)
+    errors.extend(live_errors)
+    if live is not None and live != pinned:
+        errors.append(f"{pid}: on-disk lean toolchain {live!r} != source-pinned {pinned!r}")
     return errors
 
 

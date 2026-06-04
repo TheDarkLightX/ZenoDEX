@@ -129,6 +129,38 @@ def test_forged_lean_toolchain_fails() -> None:
     assert any("lean_toolchain" in e for e in errs), errs
 
 
+def test_lean_toolchain_disk_downgrade_fails(monkeypatch) -> None:
+    """Gemini Phase-5: the FULL toolchain-downgrade attack must fail. An attacker
+    downgrades the on-disk lean-toolchain file AND rewrites the receipt's
+    lean_toolchain to match, then re-seals — so there is no source-hash drift and
+    receipt==on-disk. The expected toolchain is a source-pinned CONSTANT, so both
+    the receipt value and the (simulated) on-disk value mismatch the pin and the
+    check fails closed."""
+    receipt, manifest, msha = _load()
+    fake = "leanprover/lean4:v4.1.0"
+    # Simulate the on-disk lean-toolchain file having been downgraded too.
+    monkeypatch.setattr(spr, "_lean_toolchain_from_source_pin", lambda pid, exp: (fake, []))
+    for pid in ("cpmm_invariants_lean", "zenodex_nonces_lean"):
+        _proof(receipt, pid)["result"]["lean_toolchain"] = fake
+    _reseal(receipt)
+    errs = spr.verify_receipt(receipt, manifest=manifest, manifest_sha256=msha)
+    assert any("lean_toolchain" in e or "toolchain" in e for e in errs), errs
+
+
+def test_missing_expected_lean_toolchain_pin_fails(monkeypatch) -> None:
+    """The source pin itself must be present: if EXPECTED_PROOFS lacks
+    expected_lean_toolchain, validation fails closed rather than trusting the receipt."""
+    receipt, manifest, msha = _load()
+    patched = {
+        k: ({kk: vv for kk, vv in v.items() if kk != "expected_lean_toolchain"}
+            if v.get("tool") == "lean-lake-build" else v)
+        for k, v in spr.EXPECTED_PROOFS.items()
+    }
+    monkeypatch.setattr(spr, "EXPECTED_PROOFS", patched)
+    errs = spr.verify_receipt(receipt, manifest=manifest, manifest_sha256=msha)
+    assert any("expected_lean_toolchain source pin missing" in e for e in errs), errs
+
+
 def test_forged_esso_result_metadata_fails() -> None:
     """Pass-3: a re-sealed ESSO receipt cannot weaken solver metadata."""
     receipt, manifest, msha = _load()
