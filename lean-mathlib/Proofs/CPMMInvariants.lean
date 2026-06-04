@@ -67,11 +67,16 @@ This is a fundamental safety property: you can never extract more than exists.
 theorem swap_output_lt_reserve {rin rout net : ℕ}
     (hrin : 0 < rin) (_hrout : 0 < rout) (_hnet : 0 < net) :
     swapOutput rin rout net < rout := by
-  simp [swapOutput]; apply Nat.div_lt_of_lt_mul; ring_nf; nlinarith
+  simp only [swapOutput]
+  apply Nat.div_lt_of_lt_mul
+  -- rout * net < (rin + net) * rout  because  net < rin + net
+  calc rout * net
+      < rout * net + rout * rin := Nat.lt_add_of_pos_right (Nat.mul_pos (by omega) hrin)
+    _ = rout * (rin + net) := by ring
+    _ = (rin + net) * rout := Nat.mul_comm rout (rin + net)
 
 /-- Non-vacuity witness: typical swap parameters satisfy hypotheses -/
-example : 0 < (1000 : ℕ) ∧ 0 < (2000 : ℕ) ∧ 0 < (100 : ℕ) := by
-  decide
+example : 0 < (1000 : ℕ) ∧ 0 < (2000 : ℕ) ∧ 0 < (100 : ℕ) := by norm_num
 
 /-! ## Theorem 2: K-Monotonicity for Zero-Fee Swaps
 
@@ -92,67 +97,42 @@ lemma div_mul_le (a b : ℕ) : (a / b) * b ≤ a := Nat.div_mul_le_self a b
 /-- For zero-fee swaps, K never decreases -/
 theorem k_monotone_zero_fee
     {rin rout amount_in : ℕ}
-    (hrin : 0 < rin)
+    (_hrin : 0 < rin)
     (_hrout : 0 < rout)
-    (hamount : 0 < amount_in) :
+    (_hamount : 0 < amount_in) :
     let amount_out := swapOutputZeroFee rin rout amount_in
     let new_rin := rin + amount_in
     let new_rout := rout - amount_out
     kValue new_rin new_rout ≥ kValue rin rout := by
   simp only [kValue, swapOutputZeroFee]
-  -- Key: (rin + amount_in) * (rout - (rout * amount_in) / (rin + amount_in)) ≥ rin * rout
-  -- Since `(a / b) * b <= a`, the output floor leaves enough reserve
-  -- to keep the post-swap product at least `rin * rout`.
-  -- expanded: rout*rin / (rin + amount_in) ≤ rout - out
+  -- Strategy: show (rin + amount_in) * (rout - out) ≥ rin * rout using the
+  -- floor-division property  out * d ≤ rout * amount_in  where d = rin + amount_in.
   set d := rin + amount_in with hd
   set out := (rout * amount_in) / d with hout
-  have hd_pos : 0 < d := by omega
-  -- Key inequality: d * (rout - out) ≥ rin * rout
-  -- Equivalently: d * rout - d * out ≥ rin * rout
-  -- Since d * out ≤ rout * amount_in (floor division property)
-  -- d * rout - rout * amount_in = (rin + amount_in) * rout - rout * amount_in = rin * rout
-  have hdiv : out * d ≤ rout * amount_in := Nat.div_mul_le_self (rout * amount_in) d
-  have hdiv' : d * out ≤ rout * amount_in := by rw [Nat.mul_comm]; exact hdiv
-  -- out ≤ rout because out = (rout * amount_in) / d ≤ rout * amount_in / amount_in = rout
+  -- out ≤ rout (output bounded by reserve)
   have hout_le_rout : out ≤ rout := by
     apply Nat.div_le_of_le_mul
-    calc rout * amount_in ≤ rout * (rin + amount_in) := by
-           apply Nat.mul_le_mul_left; omega
-       _ = rout * d := by rw [hd]
-       _ = d * rout := by ring
-  -- Main calculation: d * (rout - out) ≥ rin * rout
-  -- = d * rout - d * out ≥ rin * rout
-  -- Since d * out ≤ rout * amount_in and d = rin + amount_in:
-  -- d * rout - rout * amount_in = rin * rout + amount_in * rout - rout * amount_in = rin * rout
-  -- So d * rout - d * out ≥ d * rout - rout * amount_in = rin * rout
-  have hkey : d * rout - d * out ≥ rin * rout := by
-    have h1 : d * rout - d * out ≥ d * rout - rout * amount_in :=
-      Nat.sub_le_sub_left hdiv' (d * rout)
-    have h2 : d * rout - rout * amount_in = rin * rout := by
-      simp only [hd]
-      -- (rin + amount_in) * rout - rout * amount_in
-      -- = rin * rout + amount_in * rout - rout * amount_in
-      -- = rin * rout (since amount_in * rout = rout * amount_in)
-      have heq : (rin + amount_in) * rout = rin * rout + amount_in * rout := by ring
-      have heq2 : amount_in * rout = rout * amount_in := by ring
-      rw [heq, heq2, Nat.add_sub_cancel]
-    calc d * rout - d * out ≥ d * rout - rout * amount_in := h1
-      _ = rin * rout := h2
-  -- Convert to the form we need using Nat.mul_sub
-  have hkey' : d * (rout - out) ≥ rin * rout := by
-    have hsub : d * (rout - out) = d * rout - d * out := Nat.mul_sub d rout out
-    omega
-  exact hkey'
+    calc rout * amount_in
+        ≤ rout * d := Nat.mul_le_mul_left rout (Nat.le_add_left amount_in rin)
+      _ = d * rout := Nat.mul_comm rout d
+  -- Floor-division property: d * out ≤ rout * amount_in
+  have hdiv : d * out ≤ rout * amount_in := by
+    rw [Nat.mul_comm]; exact Nat.div_mul_le_self (rout * amount_in) d
+  -- d * rout - rout * amount_in = rin * rout (additive cancellation)
+  have hcancel : d * rout - rout * amount_in = rin * rout := by
+    simp only [hd]; rw [Nat.add_mul, Nat.mul_comm amount_in, Nat.add_sub_cancel]
+  -- d * (rout - out) = d * rout - d * out ≥ d * rout - rout * amount_in = rin * rout
+  have hsub : d * (rout - out) = d * rout - d * out := Nat.mul_sub d rout out
+  omega
 
 /-- Non-vacuity: witness satisfying all hypotheses -/
-example : (0 < (1000 : ℕ)) ∧ (0 < (1000 : ℕ)) ∧ (0 < (100 : ℕ)) := by
-  decide
+example : (0 < (1000 : ℕ)) ∧ (0 < (1000 : ℕ)) ∧ (0 < (100 : ℕ)) := by norm_num
 
 /-- Computational verification: concrete K values -/
 example : let rin := 1000; let rout := 1000; let amount_in := 100
           let amount_out := swapOutputZeroFee rin rout amount_in
           kValue (rin + amount_in) (rout - amount_out) ≥ kValue rin rout := by
-  native_decide
+  norm_num [swapOutputZeroFee, kValue]
 
 /-! ## Theorem 3: LP Round-Trip Never Profits
 
@@ -177,10 +157,18 @@ lemma lp_mint_le_amount0_ratio {amount0 reserve0 lp_supply : ℕ} (_hr0 : 0 < re
     (amount0 * lp_supply) / reserve0 * reserve0 ≤ amount0 * lp_supply :=
   Nat.div_mul_le_self (amount0 * lp_supply) reserve0
 
+/-- Helper: floor-division-based bound on minted LP tokens times a reserve.
+    If `m ≤ (a * s) / r` then `m * r ≤ a * s`, since floor division
+    satisfies `(a * s) / r * r ≤ a * s`. -/
+private lemma lp_minted_mul_reserve_le {m a s r : ℕ}
+    (hm : m ≤ (a * s) / r) :
+    m * r ≤ a * s :=
+  Nat.le_trans (Nat.mul_le_mul_right r hm) (Nat.div_mul_le_self (a * s) r)
+
 /-- Round-trip LP provision never increases your assets -/
 theorem lp_roundtrip_no_profit
     {amount0 amount1 reserve0 reserve1 lp_supply : ℕ}
-    (_hr0 : 0 < reserve0) (_hr1 : 0 < reserve1) (hlp : 0 < lp_supply)
+    (_hr0 : 0 < reserve0) (_hr1 : 0 < reserve1) (_hlp : 0 < lp_supply)
     (_ha0 : 0 < amount0) (_ha1 : 0 < amount1) :
     let lp_minted := lpMintSubsequent amount0 amount1 reserve0 reserve1 lp_supply
     let new_reserve0 := reserve0 + amount0
@@ -196,44 +184,25 @@ theorem lp_roundtrip_no_profit
   set new_r1 := reserve1 + amount1
   set new_lps := lp_supply + lp_minted
   constructor
-  · -- return0 ≤ amount0
-    -- return0 = lp_minted * new_r0 / new_lps
-    -- lp_minted ≤ lp0 = (amount0 * lp_supply) / reserve0
-    -- So lp_minted * reserve0 ≤ amount0 * lp_supply (floor property)
-    have hlpm_le_lp0 : lp_minted ≤ lp0 := min_le_left lp0 lp1
-    have hlpm_le_lp1 : lp_minted ≤ lp1 := min_le_right lp0 lp1
-    -- Key: lp_minted * new_r0 / new_lps ≤ amount0
-    -- Equivalent to: lp_minted * new_r0 ≤ amount0 * new_lps (when new_lps > 0)
-    have hnew_lps_pos : 0 < new_lps := Nat.add_pos_left hlp lp_minted
+  · -- return0 = lp_minted * new_r0 / new_lps ≤ amount0
+    -- Core: lp_minted ≤ lp0 and floor property give lp_minted * reserve0 ≤ amount0 * lp_supply,
+    -- hence lp_minted * new_r0 ≤ amount0 * new_lps.
     apply Nat.div_le_of_le_mul
-    -- Need: lp_minted * (reserve0 + amount0) ≤ amount0 * (lp_supply + lp_minted)
-    -- = lp_minted * reserve0 + lp_minted * amount0 ≤ amount0 * lp_supply + amount0 * lp_minted
-    -- = lp_minted * reserve0 ≤ amount0 * lp_supply
-    -- Since `lp_minted <= (amount0 * lp_supply) / reserve0`, the floor
-    -- property gives `lp_minted * reserve0 <= amount0 * lp_supply`.
-    have hkey : lp_minted * reserve0 ≤ amount0 * lp_supply := by
-      calc lp_minted * reserve0 ≤ lp0 * reserve0 := Nat.mul_le_mul_right reserve0 hlpm_le_lp0
-        _ ≤ amount0 * lp_supply := Nat.div_mul_le_self (amount0 * lp_supply) reserve0
+    have hkey : lp_minted * reserve0 ≤ amount0 * lp_supply :=
+      lp_minted_mul_reserve_le (min_le_left lp0 lp1)
     calc lp_minted * new_r0
         = lp_minted * reserve0 + lp_minted * amount0 := by ring
-      _ ≤ amount0 * lp_supply + lp_minted * amount0 := Nat.add_le_add_right hkey _
-      _ = amount0 * lp_supply + amount0 * lp_minted := by ring
-      _ = amount0 * (lp_supply + lp_minted) := by ring
-      _ = amount0 * new_lps := by rfl
+      _ ≤ amount0 * lp_supply + amount0 * lp_minted := by
+          linarith [Nat.mul_comm lp_minted amount0]
       _ = new_lps * amount0 := by ring
   · -- return1 ≤ amount1 (symmetric argument)
-    have hlpm_le_lp1 : lp_minted ≤ lp1 := min_le_right lp0 lp1
-    have hnew_lps_pos : 0 < new_lps := Nat.add_pos_left hlp lp_minted
     apply Nat.div_le_of_le_mul
-    have hkey : lp_minted * reserve1 ≤ amount1 * lp_supply := by
-      calc lp_minted * reserve1 ≤ lp1 * reserve1 := Nat.mul_le_mul_right reserve1 hlpm_le_lp1
-        _ ≤ amount1 * lp_supply := Nat.div_mul_le_self (amount1 * lp_supply) reserve1
+    have hkey : lp_minted * reserve1 ≤ amount1 * lp_supply :=
+      lp_minted_mul_reserve_le (min_le_right lp0 lp1)
     calc lp_minted * new_r1
         = lp_minted * reserve1 + lp_minted * amount1 := by ring
-      _ ≤ amount1 * lp_supply + lp_minted * amount1 := Nat.add_le_add_right hkey _
-      _ = amount1 * lp_supply + amount1 * lp_minted := by ring
-      _ = amount1 * (lp_supply + lp_minted) := by ring
-      _ = amount1 * new_lps := by rfl
+      _ ≤ amount1 * lp_supply + amount1 * lp_minted := by
+          linarith [Nat.mul_comm lp_minted amount1]
       _ = new_lps * amount1 := by ring
 
 /-- Non-vacuity witness for LP round-trip theorem -/
@@ -250,7 +219,7 @@ theorem witness_lp_roundtrip :
     let (return0, return1) := lpBurn lp_minted new_reserve0 new_reserve1 new_lp_supply
     0 < reserve0 ∧ 0 < reserve1 ∧ 0 < lp_supply ∧ 0 < amount0 ∧ 0 < amount1 ∧
     return0 ≤ amount0 ∧ return1 ≤ amount1 := by
-  native_decide
+  norm_num [lpMintSubsequent, lpBurn]
 
 /-! ## Theorem 4: K-Monotonicity With Retained Fees
 
@@ -262,23 +231,24 @@ Strict increase would require additional conditions on `net > 0` and `output > 0
 lemma fee_le_gross (gross fee_bps : ℕ) (hfee : fee_bps ≤ 10000) :
     computeFee gross fee_bps ≤ gross := by
   simp only [computeFee, ceilDiv]
-  -- Show: (gross * fee_bps + 9999) / 10000 ≤ gross
-  have h1 : gross * fee_bps + (10000 - 1) ≤ gross * 10000 + (10000 - 1) := by
-    have hmul : gross * fee_bps ≤ gross * 10000 := Nat.mul_le_mul_left gross hfee
-    omega
-  have h2 : (gross * fee_bps + (10000 - 1)) / 10000 ≤ (gross * 10000 + (10000 - 1)) / 10000 :=
-    Nat.div_le_div_right h1
-  have h3 : (gross * 10000 + (10000 - 1)) / 10000 = gross := by
-    rw [Nat.mul_comm]
-    have := Nat.mul_add_div (by omega : 10000 > 0) gross (10000 - 1)
-    simp only [this, Nat.div_eq_of_lt (by omega : 10000 - 1 < 10000), Nat.add_zero]
+  -- (gross * fee_bps + 9999) / 10000 ≤ (gross * 10000 + 9999) / 10000 = gross
+  have h_num_le : gross * fee_bps + (10000 - 1) ≤ gross * 10000 + (10000 - 1) :=
+    Nat.add_le_add_right (Nat.mul_le_mul_left gross hfee) _
+  have h_div_le : (gross * fee_bps + (10000 - 1)) / 10000
+      ≤ (gross * 10000 + (10000 - 1)) / 10000 :=
+    Nat.div_le_div_right h_num_le
+  have h_ceil_eq : (gross * 10000 + (10000 - 1)) / 10000 = gross := by
+    rw [Nat.mul_comm,
+        Nat.mul_add_div (by omega : 10000 > 0) gross (10000 - 1),
+        Nat.div_eq_of_lt (by omega : 10000 - 1 < 10000), Nat.add_zero]
   omega
 
 /-- Net amount is non-negative (always true for Nat) -/
 lemma net_nonneg (gross fee_bps : ℕ) : 0 ≤ netAmount gross fee_bps := Nat.zero_le _
 
 /-- For typical fee ranges, net is positive -/
-lemma net_positive_concrete : 0 < netAmount 100 30 := by native_decide
+lemma net_positive_concrete : 0 < netAmount 100 30 := by
+  norm_num [netAmount, computeFee, ceilDiv]
 
 /-- K is nondecreasing in the retained-fee model.
     Review note: grade A for the abstract invariant, B if cited as a full
@@ -302,36 +272,26 @@ theorem k_monotone_with_fee
   set net := amount_in - fee with hnet_def
   set d := rin + net with hd
   set out := (rout * net) / d with hout_def
-  -- Key insight: `new_rin = rin + amount_in >= rin + net = d`.
-  -- The swap uses the smaller net input while the retained model credits gross input.
+  -- Key insight: new_rin = rin + amount_in ≥ rin + net = d because fee ≤ amount_in.
+  -- The swap uses net (smaller) while the pool credits gross (larger).
   have hfee_le : fee ≤ amount_in := fee_le_gross amount_in fee_bps hfee_bound
-  have hnet_le : net ≤ amount_in := Nat.sub_le amount_in fee
-  have hd_le : d ≤ rin + amount_in := by omega
-  -- out ≤ rout
+  -- out ≤ rout (output bounded by reserve)
   have hout_le : out ≤ rout := by
     apply Nat.div_le_of_le_mul
-    calc rout * net ≤ rout * (rin + net) := Nat.mul_le_mul_left rout (Nat.le_add_left net rin)
-      _ = rout * d := by rfl
-      _ = d * rout := by ring
-  -- Floor division property
-  have hdiv' : d * out ≤ rout * net := by
-    have : out * d ≤ rout * net := Nat.div_mul_le_self (rout * net) d
-    rw [Nat.mul_comm]; exact this
-  -- d * rout - d * out ≥ rin * rout
-  have hkey : d * rout - d * out ≥ rin * rout := by
-    have h1 : d * rout - d * out ≥ d * rout - rout * net :=
-      Nat.sub_le_sub_left hdiv' (d * rout)
-    have h2 : d * rout - rout * net = rin * rout := by
-      simp only [hd]
-      have heq : (rin + net) * rout = rin * rout + net * rout := by ring
-      have heq2 : net * rout = rout * net := by ring
-      rw [heq, heq2, Nat.add_sub_cancel]
-    omega
-  -- Lift to (rin + amount_in) * (rout - out) ≥ d * (rout - out) ≥ rin * rout
-  have hsub_eq : d * (rout - out) = d * rout - d * out := Nat.mul_sub d rout out
-  have hd_bound : d * (rout - out) ≥ rin * rout := by omega
-  have hfinal : (rin + amount_in) * (rout - out) ≥ d * (rout - out) := by
-    apply Nat.mul_le_mul_right; omega
+    calc rout * net
+        ≤ rout * d := Nat.mul_le_mul_left rout (Nat.le_add_left net rin)
+      _ = d * rout := Nat.mul_comm rout d
+  -- Floor-division property: d * out ≤ rout * net
+  have hdiv : d * out ≤ rout * net := by
+    rw [Nat.mul_comm]; exact Nat.div_mul_le_self (rout * net) d
+  -- d * rout - rout * net = rin * rout (additive cancellation)
+  have hcancel : d * rout - rout * net = rin * rout := by
+    simp only [hd]; rw [Nat.add_mul, Nat.mul_comm net, Nat.add_sub_cancel]
+  -- d * (rout - out) = d * rout - d * out ≥ d * rout - rout * net = rin * rout
+  have hsub : d * (rout - out) = d * rout - d * out := Nat.mul_sub d rout out
+  -- Lift: (rin + amount_in) * (rout - out) ≥ d * (rout - out) since d ≤ rin + amount_in
+  have hfinal : (rin + amount_in) * (rout - out) ≥ d * (rout - out) :=
+    Nat.mul_le_mul_right _ (by omega)
   omega
 
 /-- Non-vacuity witness for K-monotonicity with fees -/
@@ -344,7 +304,7 @@ theorem witness_k_monotone_with_fee :
     let amount_out := swapOutput rin rout net
     0 < rin ∧ 0 < rout ∧ 0 < amount_in ∧ 0 < fee_bps ∧ fee_bps < 10000 ∧
     kValue (rin + amount_in) (rout - amount_out) ≥ kValue rin rout := by
-  native_decide
+  norm_num [netAmount, computeFee, ceilDiv, swapOutput, kValue]
 
 /-! ## Theorem 5: First Deposit Safety
 
@@ -358,7 +318,6 @@ theorem first_deposit_safe
     (hprod : (min_lock + 1) * (min_lock + 1) ≤ amount0 * amount1) :
     0 < lpMintFirst amount0 amount1 min_lock := by
   simp only [lpMintFirst]
-  -- min_lock < sqrt(amount0 * amount1) follows from (min_lock + 1)² ≤ amount0 * amount1
   have hsqrt : min_lock + 1 ≤ Nat.sqrt (amount0 * amount1) := Nat.le_sqrt.mpr hprod
   omega
 
@@ -369,7 +328,7 @@ theorem witness_first_deposit :
     let min_lock := 1000
     (min_lock + 1) * (min_lock + 1) ≤ amount0 * amount1 ∧
     0 < lpMintFirst amount0 amount1 min_lock := by
-  native_decide
+  simp only [lpMintFirst]; norm_num
 
 /-! ## Theorem 6: Swap Output Underflow Protection
 
@@ -381,8 +340,9 @@ theorem swap_output_le_reserve {rin rout net : ℕ} :
     swapOutput rin rout net ≤ rout := by
   simp only [swapOutput]
   apply Nat.div_le_of_le_mul
-  calc rout * net ≤ rout * (rin + net) := by nlinarith [Nat.zero_le rin]
-    _ = (rin + net) * rout := by ring
+  calc rout * net
+      ≤ rout * (rin + net) := Nat.mul_le_mul_left rout (Nat.le_add_left net rin)
+    _ = (rin + net) * rout := Nat.mul_comm rout (rin + net)
 
 /-- Non-vacuity: the bound is tight (approaches rout as net → ∞) -/
 theorem witness_swap_approaches_reserve :
@@ -390,7 +350,7 @@ theorem witness_swap_approaches_reserve :
     let rout := 1000
     let net := 1000000
     swapOutput rin rout net ≥ rout - 1 := by
-  native_decide
+  simp only [swapOutput]; norm_num
 
 /-! ## Removed: Sandwich Attack Theorem
 
@@ -436,8 +396,9 @@ theorem swapOutputZeroFee_le (x y a : ℕ) :
     swapOutputZeroFee x y a ≤ y := by
   simp only [swapOutputZeroFee]
   apply Nat.div_le_of_le_mul
-  calc y * a ≤ y * (x + a) := Nat.mul_le_mul_left y (Nat.le_add_left a x)
-    _ = (x + a) * y := by ring
+  calc y * a
+      ≤ y * (x + a) := Nat.mul_le_mul_left y (Nat.le_add_left a x)
+    _ = (x + a) * y := Nat.mul_comm y (x + a)
 
 /-- THE K-GAP CLOSED FORM: K_new - K_old = (y * a) % (x + a).
     The exact amount by which K increases in a single zero-fee swap. -/
@@ -452,38 +413,35 @@ theorem k_gap_exact (x y a : ℕ) :
   -- q ≤ y (output bounded by reserve)
   have hq_le_y : q ≤ y := by
     apply Nat.div_le_of_le_mul
-    calc y * a ≤ y * (x + a) := Nat.mul_le_mul_left y (Nat.le_add_left a x)
-      _ = d * y := by rw [hd_def]; ring
-  -- Main calculation via zify (lift to ℤ to avoid Nat subtraction issues)
-  have hq_mul_le : d * q ≤ d * y := Nat.mul_le_mul_left d hq_le_y
-  have hya_ge_r : r ≤ y * a := Nat.mod_le (y * a) d
-  have hdq_le_dy : d * q ≤ y * a := by omega
-  zify [hq_le_y, hq_mul_le, hya_ge_r, hdq_le_dy]
-  -- Now in ℤ: d * (y - q) = x * y + r, given d * q + r = y * a, d = x + a
-  have heuc_z : (d : ℤ) * q + r = y * a := by exact_mod_cast heuc
-  have hd_z : (d : ℤ) = x + a := by exact_mod_cast hd_def
-  nlinarith
+    calc y * a
+        ≤ y * (x + a) := Nat.mul_le_mul_left y (Nat.le_add_left a x)
+      _ = d * y := by rw [hd_def, Nat.mul_comm]
+  -- d * (y - q) = d * y - d * q  (since q ≤ y)
+  rw [Nat.mul_sub d]
+  -- d * y = x * y + a * y  and  d * q + r = y * a
+  -- so  d * y - d * q = x * y + a * y - (y * a - r) = x * y + r
+  have hdy : d * y = x * y + a * y := by rw [hd_def]; ring
+  have hay : a * y = y * a := Nat.mul_comm a y
+  omega
 
 /-- K-gap is non-negative (immediate from the closed form). -/
 theorem k_gap_nonneg (x y a : ℕ) :
     (x + a) * (y - swapOutputZeroFee x y a) ≥ x * y := by
-  rw [k_gap_exact x y a]
-  omega
+  rw [k_gap_exact]; omega
 
 /-- K-gap is bounded: K_new - K_old < x + a. -/
 theorem k_gap_bounded (x y a : ℕ) (hd : 0 < x + a) :
     (x + a) * (y - swapOutputZeroFee x y a) < x * y + (x + a) := by
-  rw [k_gap_exact x y a]
-  have : (y * a) % (x + a) < x + a := Nat.mod_lt (y * a) hd
-  omega
+  rw [k_gap_exact]
+  exact Nat.add_lt_add_left (Nat.mod_lt (y * a) hd) (x * y)
 
 /-- K-gap is zero iff (x+a) divides (y*a). -/
 theorem k_gap_zero_iff (x y a : ℕ) :
     (x + a) * (y - swapOutputZeroFee x y a) = x * y ↔ (x + a) ∣ (y * a) := by
-  rw [k_gap_exact x y a]
+  rw [k_gap_exact]
   constructor
   · intro h; exact Nat.dvd_of_mod_eq_zero (by omega)
-  · intro h; rw [Nat.dvd_iff_mod_eq_zero.mp h]; omega
+  · intro h; rw [Nat.dvd_iff_mod_eq_zero.mp h, Nat.add_zero]
 
 /-- Non-vacuity: K-gap with concrete values -/
 theorem witness_k_gap :
@@ -491,7 +449,7 @@ theorem witness_k_gap :
     (x + a) * (y - swapOutputZeroFee x y a) = x * y + (y * a) % (x + a) ∧
     (y * a) % (x + a) = 1000 ∧  -- The K-gap is exactly 1000
     (x + a) * (y - swapOutputZeroFee x y a) > x * y := by  -- K strictly increases
-  native_decide
+  norm_num [swapOutputZeroFee]
 
 /-! ## Non-Vacuity Verification Section
 
@@ -505,7 +463,7 @@ theorem witness_swap_output :
     let rout := 2000
     let net := 100
     0 < rin ∧ 0 < rout ∧ 0 < net ∧ swapOutput rin rout net < rout := by
-  native_decide
+  norm_num [swapOutput]
 
 /-- Concrete computation for k_monotone hypotheses -/
 theorem witness_k_monotone :
@@ -513,7 +471,6 @@ theorem witness_k_monotone :
     let rout := 1000
     let amount_in := 100
     let fee_bps := 30
-    0 < rin ∧ 0 < rout ∧ 0 < amount_in ∧ fee_bps ≤ 10000 := by
-  decide
+    0 < rin ∧ 0 < rout ∧ 0 < amount_in ∧ fee_bps ≤ 10000 := by norm_num
 
 end CPMMInvariants
