@@ -240,6 +240,19 @@ def test_divergence_noncanonical_kernel_validates_live_store_does_not():
     # the raw store's — pinned so the binding's shared-domain scoping is explicit.
 
 
+def test_live_balancetable_rejects_bool_amounts_and_deltas():
+    # Phase-3 pass-3 review: bool is an int subclass in Python, but it is not a
+    # valid amount in the proof-carrying kernel. The live store now rejects it too.
+    bt = BalanceTable()
+    with pytest.raises(TypeError):
+        bt.set(A, X, True)
+    with pytest.raises(TypeError):
+        bt.add(A, X, True)
+    with pytest.raises(TypeError):
+        bt.subtract(A, X, False)
+    assert _bt_map(bt) == {}
+
+
 def test_binding_corpus_is_non_vacuous():
     # The equivalence corpus must exercise both accepts and rejects, and a non-empty
     # resulting state — so a degenerate "everything rejects" regression cannot pass.

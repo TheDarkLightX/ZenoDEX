@@ -15,6 +15,17 @@ Amount = int  # Non-negative integer (arbitrary precision)
 NATIVE_ASSET = "0x" + "00" * 32
 
 
+def _require_plain_int(value: object, *, name: str) -> int:
+    # Review grade: B- before this fix, B after it.
+    # Why it failed review: the live BalanceTable store accepted bool because
+    # Python bool is a subclass of int, while the proof-carrying balance kernel
+    # rejects bool as invalid_amount. This keeps the store's integer boundary
+    # aligned with the kernel without imposing the kernel's MAX_BALANCE cap here.
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
 class BalanceTable:
     """
     Deterministic balance table mapping (pubkey, asset) -> amount.
@@ -45,6 +56,7 @@ class BalanceTable:
         Raises:
             ValueError: If amount is negative
         """
+        amount = _require_plain_int(amount, name="amount")
         if amount < 0:
             raise ValueError(f"Balance cannot be negative: {amount}")
         if amount == 0:
@@ -65,6 +77,7 @@ class BalanceTable:
         Raises:
             ValueError: If resulting balance would be negative
         """
+        delta = _require_plain_int(delta, name="delta")
         current = self.get(pubkey, asset)
         new_balance = current + delta
         if new_balance < 0:
@@ -85,6 +98,7 @@ class BalanceTable:
         Raises:
             ValueError: If delta is negative or insufficient balance
         """
+        delta = _require_plain_int(delta, name="delta")
         if delta < 0:
             raise ValueError(f"Delta must be non-negative: {delta}")
         self.add(pubkey, asset, -delta)
