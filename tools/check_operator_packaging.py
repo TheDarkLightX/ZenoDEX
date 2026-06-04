@@ -26,6 +26,8 @@ REQUIRED_FILES = (
     "bin/zenodex-public-follower",
     "scripts/install_zenodex.sh",
     "scripts/install_zenodex.ps1",
+    "scripts/zenodex_testnet_demo.sh",
+    "scripts/zenodex_testnet_demo.ps1",
     "tools/zenoctl.py",
     "tools/zeno_ledger_node.py",
     "tools/zenodex_public_follower.py",
@@ -35,6 +37,9 @@ REQUIRED_FILES = (
     "Dockerfile.hashlocked",
     "tools/build_operator_release_bundle.py",
     "Dockerfile.operator-tools",
+    ".dockerignore",
+    ".docker/entrypoint.sh",
+    ".docker/nginx.conf",
     "config/tau_testnet.lock",
     ".github/workflows/native-launcher.yml",
     ".github/workflows/release-publish.yml",
@@ -48,7 +53,12 @@ REQUIRED_FILES = (
     "docker-compose.local-testnet.yml",
     "docker-compose.two-node.yml",
     "docker-compose.multimachine.yml",
+    "docker-compose.testnet-demo.yml",
     ".github/workflows/release-integrity.yml",
+    "tools/check_release_publication_workflow.py",
+    "tools/build_release_sboms.py",
+    "tools/dex-ui/src/lib/api.js",
+    "tools/dex-ui/public/zenodex-config.json",
     "docs/DEPLOYMENT_QUICKSTART.md",
     "docs/LOCAL_TESTNET_QUICKSTART.md",
     "docs/PUBLIC_TESTNET_V0_1_16.md",
@@ -84,6 +94,10 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
     _check_posix_wrapper(root, checks, errors)
     _check_install_script(root, checks, errors)
     _check_powershell_installer(root, checks, errors)
+    _check_testnet_demo_scripts(root, checks, errors)
+    _check_testnet_demo_compose(root, checks, errors)
+    _check_base_compose_loopback_ui(root, checks, errors)
+    _check_testnet_demo_runtime_config(root, checks, errors)
     _check_zenoctl_light_client(root, checks, errors)
     _check_browser_sdk(root, checks, errors)
     _check_tau_testnet_lock(root, checks, errors)
@@ -103,6 +117,7 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
             "hashlocked-dockerfile",
             "posix-wrapper",
             "windows-cmd-wrapper-installer",
+            "public-testnet-join-wrapper",
             "light-client-checkpoint-verifier",
             "proof-carrying-browser-bundle",
             "browser-wallet-sync-sdk",
@@ -111,6 +126,10 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
             "single-click-public-testnet",
             "single-command-public-follower",
             "github-release-assets",
+            "github-release-publication",
+            "ghcr-container-publication",
+            "manual-npm-publication",
+            "local-testnet-demo",
         ],
     }
 
@@ -270,6 +289,123 @@ def _check_powershell_installer(root: Path, checks: list[dict[str, Any]], errors
             check_id=f"install_ps1_contains:{token}",
             ok=token in text,
             error=f"scripts/install_zenodex.ps1 must contain {token}",
+        )
+
+def _check_testnet_demo_scripts(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
+    shell_path = root / "scripts" / "zenodex_testnet_demo.sh"
+    if shell_path.is_file():
+        text = _read(shell_path)
+        for token in (
+            "docker-compose.testnet-demo.yml",
+            "DEMO_API_TOKEN",
+            "--dry-run",
+            "smoke",
+            "tools/zenoctl.py testnet up --profile docker-two-node",
+        ):
+            _append_check(
+                checks,
+                errors,
+                check_id=f"testnet_demo_sh_contains:{token}",
+                ok=token in text,
+                error=f"scripts/zenodex_testnet_demo.sh must contain {token}",
+            )
+        _append_check(
+            checks,
+            errors,
+            check_id="testnet_demo_sh_executable",
+            ok=bool(shell_path.stat().st_mode & 0o111),
+            error="scripts/zenodex_testnet_demo.sh must be executable",
+        )
+    ps_path = root / "scripts" / "zenodex_testnet_demo.ps1"
+    if ps_path.is_file():
+        text = _read(ps_path)
+        for token in ("docker-compose.testnet-demo.yml", "zenodex-local-demo-token", "smoke", "tools/zenoctl.py"):
+            _append_check(
+                checks,
+                errors,
+                check_id=f"testnet_demo_ps1_contains:{token}",
+                ok=token in text,
+                error=f"scripts/zenodex_testnet_demo.ps1 must contain {token}",
+            )
+
+
+def _check_testnet_demo_compose(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
+    path = root / "docker-compose.testnet-demo.yml"
+    if not path.is_file():
+        return
+    text = _read(path)
+    for token in (
+        "ZENODEX_TESTNET_DEMO=1",
+        "API_HOST=127.0.0.1",
+        "DEX_API_ENABLED=true",
+        "PERPS_API_ENABLED=true",
+        "ZUSD_API_ENABLED=true",
+    ):
+        _append_check(
+            checks,
+            errors,
+            check_id=f"testnet_demo_compose_contains:{token}",
+            ok=token in text,
+            error=f"docker-compose.testnet-demo.yml must contain {token}",
+        )
+
+
+def _check_base_compose_loopback_ui(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
+    path = root / "docker-compose.yml"
+    if not path.is_file():
+        return
+    text = _read(path)
+    _append_check(
+        checks,
+        errors,
+        check_id="base_compose_ui_loopback_default",
+        ok="${UI_HOST:-127.0.0.1}:${UI_PORT:-3000}:8080" in text,
+        error="docker-compose.yml must bind the UI to 127.0.0.1 by default",
+    )
+
+
+def _check_testnet_demo_runtime_config(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
+    entrypoint = root / ".docker" / "entrypoint.sh"
+    if entrypoint.is_file():
+        text = _read(entrypoint)
+        for token in (
+            "ZENODEX_TESTNET_DEMO",
+            "/tmp/zenodex-config.json",
+            '"apiToken"',
+            "DEMO_API_TOKEN",
+        ):
+            _append_check(
+                checks,
+                errors,
+                check_id=f"testnet_demo_entrypoint_contains:{token}",
+                ok=token in text,
+                error=f".docker/entrypoint.sh must contain {token}",
+            )
+    nginx = root / ".docker" / "nginx.conf"
+    if nginx.is_file():
+        text = _read(nginx)
+        for token in (
+            "location = /zenodex-config.json",
+            "alias /tmp/zenodex-config.json",
+            "no-store",
+            "proxy_pass http://127.0.0.1:8000;",
+        ):
+            _append_check(
+                checks,
+                errors,
+                check_id=f"testnet_demo_nginx_contains:{token}",
+                ok=token in text,
+                error=f".docker/nginx.conf must contain {token}",
+            )
+    api_js = root / "tools" / "dex-ui" / "src" / "lib" / "api.js"
+    if api_js.is_file():
+        text = _read(api_js)
+        _append_check(
+            checks,
+            errors,
+            check_id="testnet_demo_ui_runtime_api_token",
+            ok="getRuntimeConfig().apiToken" not in text,
+            error="tools/dex-ui/src/lib/api.js must not read apiToken from runtime config",
         )
 
 

@@ -22,11 +22,40 @@ from ..core.settlement import (
     ReserveDelta,
     LPDelta,
 )
+from ..core.dex_intent_auth_message import canonicalize_dex_intent_identifier_if_decodable
 from ..state.intents import Intent, IntentKind
 from ..state.pools import normalize_curve_config, normalize_pool_asset_pair
 
 POOL_FEE_BPS_MIN = 0
 POOL_FEE_BPS_MAX = 10_000
+
+_CANONICAL_INTENT_FIELD_IDENTIFIERS = (
+    "recipient",
+    "asset0",
+    "asset1",
+    "asset_in",
+    "asset_out",
+    "pool_id",
+)
+
+
+def _canonicalize_decodable_intent_identifiers(intent: Intent) -> None:
+    """Normalize parser-admitted identifiers to match DEX intent auth hashing.
+
+    Design by Contract:
+    - Precondition: ``intent.fields`` is a mutable parser-owned dictionary.
+    - Invariant: State transitions consume the same canonical fixed-width hex
+      spellings that signature verification hashes.
+    - Postcondition: Non-decodable symbolic identifiers remain unchanged.
+    """
+    intent.sender_pubkey = canonicalize_dex_intent_identifier_if_decodable(
+        intent.sender_pubkey,
+        key="sender_pubkey",
+    )
+    fields = intent.fields or {}
+    for key in _CANONICAL_INTENT_FIELD_IDENTIFIERS:
+        if key in fields:
+            fields[key] = canonicalize_dex_intent_identifier_if_decodable(fields[key], key=key)
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
@@ -423,6 +452,7 @@ def _parse_intent(intent_data: Dict[str, Any]) -> ValidatedIntent:
         salt=salt,
         fields=fields,
     )
+    _canonicalize_decodable_intent_identifiers(intent)
     _validate_intent_fields(intent)
     
     return intent

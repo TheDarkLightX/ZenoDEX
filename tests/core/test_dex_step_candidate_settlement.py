@@ -57,6 +57,7 @@ def _make_single_swap_setup() -> tuple[DexState, list[Intent], str, str, str, st
                 "asset_out": asset1,
                 "amount_in": 1000,
                 "min_amount_out": 1,
+                "nonce": 1,
             },
         )
     ]
@@ -150,6 +151,7 @@ def _make_snapshot_bound_quote_setup() -> tuple[DexState, list[Intent]]:
     )
     intent.fields.pop("quote_receipt_hash", None)
     intent.fields.pop("quote_receipt_leg_index", None)
+    intent.set_field("nonce", 1)
 
     balances = BalanceTable()
     balances.set(sender, "A", 10_000)

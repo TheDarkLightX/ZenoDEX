@@ -39,6 +39,10 @@ jobs:
             (cd tools/dex-ui && npm ci)
           fi
 
+      - name: Run production release gate
+        run: |
+          bash tools/prod_gate.sh --image-tag zenodex:release-integrity
+
       - name: Run release packaging gate
         run: |
           python3 tools/check_container_hardening.py

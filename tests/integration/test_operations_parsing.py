@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from src.integration.operations import (
     SignedIntentEnvelope,
     _parse_intent,
@@ -175,7 +176,7 @@ def test_parse_signed_intents_output_rejects_duplicate_nonce_after_sender_canoni
     envs = parse_signed_intents({"2": [first, [second, "0xsig-lower"]]})
 
     assert [env.signature for env in envs] == ["0xsig-upper", "0xsig-lower"]
-    assert [env.intent.sender_pubkey for env in envs] == [sender_upper, sender_lower]
+    assert [env.intent.sender_pubkey for env in envs] == [sender_lower, sender_lower]
     assert [env.intent.fields.get("nonce") for env in envs] == [1, 1]
 
     ok, err, updated = validate_and_apply_intent_nonce_batch(
@@ -605,3 +606,62 @@ def test_create_intent_operation_includes_salt_and_accepts_empty_fields() -> Non
 def test_parse_intent_rejects_non_object_input() -> None:
     with pytest.raises(ValueError, match="intent must be an object"):
         _parse_intent([])  # type: ignore[arg-type]
+
+
+def _hex_no_prefix_upper(raw: bytes) -> str:
+    return raw.hex().upper()
+
+
+@pytest.mark.parametrize(
+    ("sender", "pool_id", "asset_in", "asset_out"),
+    [
+        (bytes([0]) * 48, bytes([1]) * 32, bytes([2]) * 32, bytes([3]) * 32),
+        (bytes([255]) * 48, bytes([254]) * 32, bytes([253]) * 32, bytes([252]) * 32),
+        (bytes(range(48)), bytes(range(32)), bytes(range(1, 33)), bytes(range(2, 34))),
+    ],
+)
+def test_parse_intents_canonicalizes_decodable_swap_identifiers_before_execution(
+    sender: bytes,
+    pool_id: bytes,
+    asset_in: bytes,
+    asset_out: bytes,
+) -> None:
+    intent = {
+        **_min_intent_dict(),
+        "sender_pubkey": _hex_no_prefix_upper(sender),
+        "pool_id": _hex_no_prefix_upper(pool_id),
+        "asset_in": _hex_no_prefix_upper(asset_in),
+        "asset_out": _hex_no_prefix_upper(asset_out),
+    }
+
+    parsed = parse_intents({"2": [intent]})[0]
+
+    assert parsed.sender_pubkey == "0x" + sender.hex()
+    assert parsed.fields["pool_id"] == "0x" + pool_id.hex()
+    assert parsed.fields["asset_in"] == "0x" + asset_in.hex()
+    assert parsed.fields["asset_out"] == "0x" + asset_out.hex()
+
+
+def test_parse_signed_intents_binds_signature_payload_to_executed_identifiers() -> None:
+    canonical = {
+        **_min_intent_dict(),
+        "sender_pubkey": "0x" + "0a" * 48,
+        "pool_id": "0x" + "0b" * 32,
+        "asset_in": "0x" + "0c" * 32,
+        "asset_out": "0x" + "0d" * 32,
+    }
+    mutated = {
+        **canonical,
+        "sender_pubkey": ("0a" * 48).upper(),
+        "pool_id": ("0b" * 32).upper(),
+        "asset_in": ("0c" * 32).upper(),
+        "asset_out": ("0d" * 32).upper(),
+    }
+
+    parsed = parse_signed_intents({"2": [[mutated, "0xsig"]]})[0].intent
+
+    assert build_dex_intent_signing_dict_v1(parsed) == build_dex_intent_signing_dict_v1(canonical)
+    assert parsed.sender_pubkey == canonical["sender_pubkey"]
+    assert parsed.fields["pool_id"] == canonical["pool_id"]
+    assert parsed.fields["asset_in"] == canonical["asset_in"]
+    assert parsed.fields["asset_out"] == canonical["asset_out"]
