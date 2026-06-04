@@ -1,0 +1,76 @@
+{
+  "model_id": "zusd_repay_single_vault_v1",
+  "ir_hash": "5498426ee46b4845",
+  "timestamp": "2026-04-05T06:25:58.690855+00:00",
+  "scope": {
+    "kind": "inductive",
+    "time": "unbounded",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "solver_seed": 0,
+    "fail_closed": true,
+    "badge": "Inductive(k=1)",
+    "domain_caps": {
+      "state_vars": {
+        "debt_e8": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000000000
+        },
+        "free_debt_e8": {
+          "kind": "int",
+          "min": 0,
+          "max": 1000000000000
+        }
+      },
+      "params": {
+        "apply_repay_single_vault": {
+          "amount_e8": {
+            "kind": "int",
+            "min": 1,
+            "max": 1000000000000
+          }
+        }
+      },
+      "log2_state_space_upper_bound": 79.72627427729958
+    }
+  },
+  "environment_model": {
+    "scheduler": "sequential",
+    "adversary": "may choose any declared command each step with any in-domain parameters",
+    "command_space": [
+      "apply_repay_single_vault"
+    ],
+    "notes": [
+      "No concurrency, reordering, or interleaving beyond repeated calls to step(state, command).",
+      "All behavior is defined by the ESSO kernel semantics (guards, simultaneous updates, canonicalizer, invariants)."
+    ]
+  },
+  "tool_versions": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "python": "3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]",
+    "platform": "Linux-6.17.0-19-generic-x86_64-with-glibc2.39",
+    "solvers": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    },
+    "cargo": "cargo 1.87.0 (99624be96 2025-05-06)",
+    "rustfmt": "rustfmt 1.8.0-stable (17067e9ac6 2025-05-09)"
+  },
+  "z3_passed": true,
+  "cvc5_available": true,
+  "cvc5_passed": true,
+  "solvers_agreed": true,
+  "total_queries": 2,
+  "passed_queries": 2,
+  "failed_queries": 0,
+  "inconclusive_queries": 0,
+  "disagreements": [],
+  "lean_path": null,
+  "kani_path": null,
+  "smtlib_path": null,
+  "verdict": "VERIFIED",
+  "notes": [
+    "Cross-verified by Z3 and CVC5"
+  ]
+}
