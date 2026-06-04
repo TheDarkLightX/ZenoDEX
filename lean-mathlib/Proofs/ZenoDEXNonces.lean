@@ -43,6 +43,17 @@ theorem no_replay_in_later_valid_seq (last m i j : Nat) (hi : i < m) :
     Nat.lt_of_lt_of_le hlt0 hle0
   exact Nat.ne_of_lt hlt
 
+/-- Non-vacuity witness: `no_replay_in_later_valid_seq` is not vacuously true.
+    Its `i < m` premise is achievable (here `last=5, m=3, i=2, j=4`, and the
+    `by decide` discharges `2 < 3` — which would fail to typecheck if the premise
+    class were empty), and applying the theorem yields a genuine disequality
+    between an accepted nonce (`5+1+2 = 8`) and a later valid nonce
+    (`lastAfterBatch 5 3 + 1 + 4 = 13`). This rules out a "False → anything" read
+    of the anti-replay theorem. -/
+theorem witness_no_replay_applies :
+    (5 + 1 + 2 : Nat) ≠ (lastAfterBatch 5 3 + 1 + 4) :=
+  no_replay_in_later_valid_seq 5 3 2 4 (by decide)
+
 end ZenoDEX
 
 end Proofs
