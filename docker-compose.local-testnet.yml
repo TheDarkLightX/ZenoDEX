@@ -411,8 +411,6 @@ services:
       CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED: "true"
       CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON: ${CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON:?CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON must be set by the orchestrator}
       ZENODEX_API_BEARER_TOKEN: ${ZENODEX_API_BEARER_TOKEN:?ZENODEX_API_BEARER_TOKEN must be set by the orchestrator}
-      DEMO_API_TOKEN: ${DEMO_API_TOKEN:?DEMO_API_TOKEN must be set by the orchestrator}
-      ALLOW_DEMO_TOKEN_AUTH: ${ALLOW_DEMO_TOKEN_AUTH:-0}
     volumes:
       - zeno-local-testnet-data:/app/data
       - ${FIXTURES_DIR:?FIXTURES_DIR must be set by the orchestrator}:/app/fixtures:ro
