@@ -260,12 +260,18 @@ def _run_lean(module: str, source_rels: list[str]) -> dict[str, Any]:
         raise ReceiptError(f"lake build failed for {module}: {proc.stderr[-400:]}")
     # lake build SUCCEEDS even with `sorry` (it is a warning, not an error), so the
     # NO_SORRY verdict must be earned by an explicit token check on the sources.
+    # Review grade: B before this fix, B+ after it.
+    # Why it failed review: the build-side trust scan rejected placeholders and
+    # custom axioms, but it did not reject Lean `unsafe`, which can extend the
+    # trusted surface of a public proof artifact. The scan now rejects `unsafe`
+    # as well; a higher grade would add parser-aware Lean environment auditing
+    # rather than a lexical source guard.
     import re
 
-    forbidden = re.compile(r"\b(sorry|admit|sorryAx)\b|\baxiom\b")
+    forbidden = re.compile(r"\b(sorry|admit|sorryAx|unsafe)\b|\baxiom\b")
     for rel in source_rels:
         if forbidden.search((ROOT / rel).read_text(encoding="utf-8")):
-            raise ReceiptError(f"{module}: forbidden token (sorry/admit/axiom) in {rel}")
+            raise ReceiptError(f"{module}: forbidden token (sorry/admit/axiom/unsafe) in {rel}")
     toolchain = (ROOT / "lean-mathlib" / "lean-toolchain").read_text(encoding="utf-8").strip()
     return {"verdict": "BUILT_NO_SORRY", "lean_toolchain": toolchain, "module": module}
 

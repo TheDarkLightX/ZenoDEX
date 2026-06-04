@@ -104,6 +104,30 @@ def test_build_rejects_unknown_required_verdict_before_toolchain() -> None:
         spr.build_receipt(manifest, manifest_sha256=msha, manifest_relpath="tools/spot_proof_public_manifest.json")
 
 
+def test_lean_build_rejects_unsafe_source_after_lake_success(monkeypatch, tmp_path) -> None:
+    """Review regression: `unsafe` must not earn a public Lean proof receipt.
+
+    Why this failed review: `lake build` can succeed for source that extends the
+    trusted surface, and the old build-side lexical scan did not reject `unsafe`.
+    The public receipt is now fail-closed for this token before it records
+    `BUILT_NO_SORRY`.
+    """
+    (tmp_path / "lean-mathlib").mkdir()
+    (tmp_path / "lean-mathlib" / "lean-toolchain").write_text(
+        "leanprover/lean4:v4.27.0\n", encoding="utf-8"
+    )
+    (tmp_path / "UnsafeReceipt.lean").write_text("unsafe def bad : Nat := 0\n", encoding="utf-8")
+
+    class FakeLakeProc:
+        returncode = 0
+        stderr = ""
+
+    monkeypatch.setattr(spr, "ROOT", tmp_path)
+    monkeypatch.setattr(spr.subprocess, "run", lambda *args, **kwargs: FakeLakeProc())
+    with pytest.raises(spr.ReceiptError, match="unsafe"):
+        spr._run_lean("Proofs.UnsafeReceipt", ["UnsafeReceipt.lean"])
+
+
 # Codex pass-2/pass-3 regression set. Each forged receipt is re-sealed first, so
 # the test exercises source pins and result-body validation rather than the hash
 # mismatch check.
