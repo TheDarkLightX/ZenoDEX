@@ -79,6 +79,10 @@ echo "== release: ZenoLedger proof coverage matrix =="
 "$PY" "$ROOT_DIR/tools/check_zeno_ledger_proof_coverage_matrix.py"
 "$PY" -m pytest -q "$ROOT_DIR/tests/tools/test_check_zeno_ledger_proof_coverage_matrix.py"
 
+echo "== release: ZenoDEX trust minimization target =="
+"$PY" "$ROOT_DIR/tools/check_zenodex_trust_minimization_target.py"
+"$PY" -m pytest -q "$ROOT_DIR/tests/test_check_zenodex_trust_minimization_target.py"
+
 echo "== release: ZenoLedger two-machine evidence archive tooling =="
 "$PY" -m py_compile \
   "$ROOT_DIR/tools/build_zeno_ledger_two_machine_evidence.py" \

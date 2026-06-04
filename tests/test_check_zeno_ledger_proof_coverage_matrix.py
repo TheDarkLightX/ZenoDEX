@@ -8,10 +8,11 @@ from pathlib import Path
 
 from tools.check_zeno_ledger_proof_coverage_matrix import (
     MATRIX_PATH,
+    REQUIRED_GAP_IDS,
+    REQUIRED_NON_CLAIMS,
+    REQUIRED_SUPPORTED_IDS,
     validate_proof_coverage_matrix_v0,
 )
-from tools.check_zeno_ledger_risc0_real_proof_smoke_report import DEFAULT_REQUIRED_CASES
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,74 +25,90 @@ def test_default_matrix_is_accepted() -> None:
     result = validate_proof_coverage_matrix_v0(_load_matrix())
 
     assert result["ok"] is True
-    assert set(result["declared_required_cases"]) == set(DEFAULT_REQUIRED_CASES)
-    assert set(result["covered_required_cases"]) == set(DEFAULT_REQUIRED_CASES)
-    assert result["open_gap_count"] >= 1
+    assert result["supported_surface_count"] >= len(REQUIRED_SUPPORTED_IDS)
+    assert result["gap_surface_count"] >= len(REQUIRED_GAP_IDS)
+    assert result["non_claim_count"] >= len(REQUIRED_NON_CLAIMS)
+    assert {row["id"] for row in result["supported_surfaces"]} >= REQUIRED_SUPPORTED_IDS
 
 
-def test_rejects_missing_declared_required_case() -> None:
+def test_rejects_missing_required_supported_surface() -> None:
     matrix = _load_matrix()
-    matrix["current_required_real_proof_cases"] = ["empty"]
-
-    result = validate_proof_coverage_matrix_v0(matrix)
-
-    assert result["ok"] is False
-    assert any("current_required_real_proof_cases mismatch" in error for error in result["errors"])
-
-
-def test_rejects_missing_covered_required_case() -> None:
-    matrix = _load_matrix()
-    matrix["coverage"] = [
+    matrix["supported_surfaces"] = [
         entry
-        for entry in matrix["coverage"]
-        if not (isinstance(entry, dict) and entry.get("required_case") == "swap_exact_out")
+        for entry in matrix["supported_surfaces"]  # type: ignore[index]
+        if not (isinstance(entry, dict) and entry.get("id") == "risc0_supported_transition_real_proof_smoke")
     ]
 
     result = validate_proof_coverage_matrix_v0(matrix)
 
     assert result["ok"] is False
-    assert any("covered_required cases mismatch" in error for error in result["errors"])
+    assert any("missing required supported surfaces" in error for error in result["errors"])
 
 
-def test_rejects_unknown_required_case_in_coverage() -> None:
+def test_rejects_missing_required_gap_surface() -> None:
     matrix = _load_matrix()
-    matrix["coverage"] = deepcopy(matrix["coverage"])
-    for entry in matrix["coverage"]:
-        if isinstance(entry, dict) and entry.get("required_case") == "empty":
-            entry["required_case"] = "unsupported_case"
-            break
+    matrix["gap_surfaces"] = [
+        entry
+        for entry in matrix["gap_surfaces"]  # type: ignore[index]
+        if not (isinstance(entry, dict) and entry.get("id") == "perps_settlement_real_proof")
+    ]
 
     result = validate_proof_coverage_matrix_v0(matrix)
 
     assert result["ok"] is False
-    assert any("required_case unsupported:unsupported_case" in error for error in result["errors"])
+    assert any("missing required gap surfaces" in error for error in result["errors"])
 
 
-def test_rejects_open_gap_without_blockers() -> None:
+def test_rejects_missing_required_non_claim() -> None:
     matrix = _load_matrix()
-    matrix["coverage"] = deepcopy(matrix["coverage"])
-    for entry in matrix["coverage"]:
-        if isinstance(entry, dict) and entry.get("status") == "open_gap":
-            entry["blocking_for"] = []
-            break
+    matrix["non_claims"] = [
+        item
+        for item in matrix["non_claims"]  # type: ignore[index]
+        if item != "does_not_claim_upba_zk_execution"
+    ]
 
     result = validate_proof_coverage_matrix_v0(matrix)
 
     assert result["ok"] is False
-    assert any("blocking_for must be a non-empty list" in error for error in result["errors"])
+    assert any("missing required non-claims" in error for error in result["errors"])
 
 
-def test_rejects_missing_evidence_file() -> None:
+def test_rejects_gap_surface_with_claim_id() -> None:
     matrix = _load_matrix()
-    matrix["coverage"] = deepcopy(matrix["coverage"])
-    first_entry = matrix["coverage"][0]
-    assert isinstance(first_entry, dict)
-    first_entry["evidence_files"] = ["missing/nope.txt"]
+    matrix["gap_surfaces"] = deepcopy(matrix["gap_surfaces"])  # type: ignore[index]
+    first_gap = matrix["gap_surfaces"][0]  # type: ignore[index]
+    assert isinstance(first_gap, dict)
+    first_gap["claim_id"] = "py:zeno_ledger:risc0_proof_metadata_adapter_v0"
 
     result = validate_proof_coverage_matrix_v0(matrix)
 
     assert result["ok"] is False
-    assert any("missing_path:missing/nope.txt" in error for error in result["errors"])
+    assert any("gap surface must not carry claim_id" in error for error in result["errors"])
+
+
+def test_rejects_unknown_claim_id_on_supported_surface() -> None:
+    matrix = _load_matrix()
+    matrix["supported_surfaces"] = deepcopy(matrix["supported_surfaces"])  # type: ignore[index]
+    first_supported = matrix["supported_surfaces"][0]  # type: ignore[index]
+    assert isinstance(first_supported, dict)
+    first_supported["claim_id"] = "missing:claim"
+
+    result = validate_proof_coverage_matrix_v0(matrix)
+
+    assert result["ok"] is False
+    assert any("claim_id missing from claims registry" in error for error in result["errors"])
+
+
+def test_rejects_duplicate_supported_surface_id() -> None:
+    matrix = _load_matrix()
+    matrix["supported_surfaces"] = deepcopy(matrix["supported_surfaces"])  # type: ignore[index]
+    assert isinstance(matrix["supported_surfaces"], list)
+    matrix["supported_surfaces"].append(deepcopy(matrix["supported_surfaces"][0]))
+
+    result = validate_proof_coverage_matrix_v0(matrix)
+
+    assert result["ok"] is False
+    assert any("supported surface id must be unique" in error for error in result["errors"])
 
 
 def test_cli_pretty_accepts_default_matrix() -> None:

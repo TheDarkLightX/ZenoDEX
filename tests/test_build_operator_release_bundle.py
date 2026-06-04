@@ -88,6 +88,8 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "docs/LATEST_TESTNET_CHECKPOINT.md",
         "docs/KEYS_STANDALONE_APP_SPEC.md",
         "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json",
+        "docs/ZENODEX_TRUST_MINIMIZATION_TARGET.md",
+        "docs/ZENODEX_TRUST_MINIMIZATION_TARGET_V0.json",
         "docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md",
         "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
         "docs/ZENODEX_LOCAL_SIGNER_SECURITY_MODEL.md",
@@ -142,6 +144,8 @@ def test_build_operator_release_bundle_writes_archive_and_manifest(tmp_path: Pat
     assert "zk/state_proof_risc0/methods/guest/src/main.rs" in paths
     assert "zk/state_proof_risc0/shared/src/surfaces.rs" in paths
     assert "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json" in paths
+    assert "docs/ZENODEX_TRUST_MINIMIZATION_TARGET.md" in paths
+    assert "docs/ZENODEX_TRUST_MINIMIZATION_TARGET_V0.json" in paths
     assert "docs/claims_registry.yaml" in paths
     assert "packages/zeno-proof-client/package.json" in paths
     assert "generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py" in paths
