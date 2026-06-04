@@ -36,6 +36,7 @@ def test_committed_receipt_shape_is_honest() -> None:
         assert p["source_files"] and all(h["sha256"] for h in p["source_files"])
     # the manifest and receipt cover the same proof ids
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    assert manifest["schema"] == spr.MANIFEST_SCHEMA
     assert ids == {p["id"] for p in manifest["proofs"]}
 
 
@@ -83,6 +84,15 @@ def test_missing_proof_fails() -> None:
     assert any("missing proofs" in e for e in errs), errs
 
 
+def test_malformed_receipt_proof_row_fails() -> None:
+    """A re-sealed receipt cannot carry ignored malformed proof rows."""
+    receipt, manifest, msha = _load()
+    receipt["proofs"].append("not-a-proof-object")
+    _reseal(receipt)
+    errs = spr.verify_receipt(receipt, manifest=manifest, manifest_sha256=msha)
+    assert any("receipt.proofs" in e for e in errs), errs
+
+
 def test_check_fails_closed_on_missing_files(tmp_path) -> None:
     assert spr.check_receipt_file(receipt_path=tmp_path / "nope.json", manifest_path=MANIFEST)["ok"] is False
     assert spr.check_receipt_file(receipt_path=RECEIPT, manifest_path=tmp_path / "nope.json")["ok"] is False
@@ -101,6 +111,49 @@ def test_build_rejects_unknown_required_verdict_before_toolchain() -> None:
     _, manifest, msha = _load()
     manifest["proofs"][0]["required_verdict"] = "VERIFIED_WITH_WARNINGS"
     with pytest.raises(spr.ReceiptError, match="unsupported"):
+        spr.build_receipt(manifest, manifest_sha256=msha, manifest_relpath="tools/spot_proof_public_manifest.json")
+
+
+def test_build_rejects_wrong_manifest_schema_before_toolchain() -> None:
+    """Review regression: the proof manifest envelope is part of the contract."""
+    _, manifest, msha = _load()
+    manifest["schema"] = "zenodex.spot_proof.public_manifest.v0"
+    with pytest.raises(spr.ReceiptError, match="manifest.schema"):
+        spr.build_receipt(manifest, manifest_sha256=msha, manifest_relpath="tools/spot_proof_public_manifest.json")
+
+
+def test_build_rejects_stale_lean_toolchain_result(monkeypatch) -> None:
+    """Build mode must reject Lean metadata that check mode would reject."""
+    _, manifest, msha = _load()
+
+    def fake_lean(module: str, source_rels: list[str]) -> dict:
+        return {
+            "verdict": "BUILT_NO_SORRY",
+            "lean_toolchain": "leanprover/lean4:v4.1.0",
+            "module": module,
+        }
+
+    monkeypatch.setattr(spr, "_run_lean", fake_lean)
+    with pytest.raises(spr.ReceiptError, match="lean_toolchain"):
+        spr.build_receipt(manifest, manifest_sha256=msha, manifest_relpath="tools/spot_proof_public_manifest.json")
+
+
+def test_build_rejects_stale_esso_result_metadata(monkeypatch) -> None:
+    """Build mode must source-pin ESSO report metadata before writing a receipt."""
+    _, manifest, msha = _load()
+    lean_toolchain = spr.EXPECTED_PROOFS["cpmm_invariants_lean"]["expected_lean_toolchain"]
+
+    def fake_lean(module: str, source_rels: list[str]) -> dict:
+        return {"verdict": "BUILT_NO_SORRY", "lean_toolchain": lean_toolchain, "module": module}
+
+    def fake_esso(model_rel: str) -> dict:
+        expected = dict(spr.EXPECTED_PROOFS["nonce_batch_sequencing_v1"]["expected_result"])
+        expected["passed_queries"] = 0
+        return {"verdict": "VERIFIED", **expected}
+
+    monkeypatch.setattr(spr, "_run_lean", fake_lean)
+    monkeypatch.setattr(spr, "_run_esso", fake_esso)
+    with pytest.raises(spr.ReceiptError, match="passed_queries"):
         spr.build_receipt(manifest, manifest_sha256=msha, manifest_relpath="tools/spot_proof_public_manifest.json")
 
 

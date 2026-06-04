@@ -28,7 +28,12 @@ def _registry(surfaces: dict, *, scope_id: str = "t", claim_scope: list | None =
     (the gate REQUIRES an explicit claim_scope); pass it to test a mismatch."""
     if claim_scope is None:
         claim_scope = [s for s, ev in surfaces.items() if not is_evidence_only(ev)]
-    return {"schema": "x", "scope_id": scope_id, "claim_scope": claim_scope, "surfaces": surfaces}
+    return {
+        "schema": gate.REGISTRY_SCHEMA,
+        "scope_id": scope_id,
+        "claim_scope": claim_scope,
+        "surfaces": surfaces,
+    }
 
 
 def _write(tmp_path: Path, reg: dict) -> Path:
@@ -97,7 +102,18 @@ def test_missing_registry_fails_closed(tmp_path: Path) -> None:
 
 
 def test_missing_claim_scope_fails_closed(tmp_path: Path) -> None:
-    reg = {"schema": "x", "scope_id": "t", "surfaces": {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}}
+    reg = {
+        "schema": gate.REGISTRY_SCHEMA,
+        "scope_id": "t",
+        "surfaces": {s: _all_clear_surface() for s in SPOT_DEX_SCOPE},
+    }
+    assert _run(_write(tmp_path, reg)) == 2
+
+
+def test_wrong_registry_schema_fails_closed(tmp_path: Path) -> None:
+    surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
+    reg = _registry(surfaces)
+    reg["schema"] = "zenodex/cbc-surface-evidence/v0"
     assert _run(_write(tmp_path, reg)) == 2
 
 
@@ -134,7 +150,12 @@ def test_all_evidence_only_registry_fails_closed(tmp_path: Path) -> None:
     carrier = _all_clear_surface()
     carrier["claim_role"] = "evidence_only"
     carrier["attached_to"] = "nonces"
-    reg = {"schema": "x", "scope_id": "t", "claim_scope": ["nonces"], "surfaces": {"replay_guard": carrier}}
+    reg = {
+        "schema": gate.REGISTRY_SCHEMA,
+        "scope_id": "t",
+        "claim_scope": ["nonces"],
+        "surfaces": {"replay_guard": carrier},
+    }
     assert _run(_write(tmp_path, reg)) == 2
 
 
@@ -167,7 +188,12 @@ def test_non_mapping_surface_row_fails_closed(tmp_path: Path) -> None:
     # as a raw exit 1 that the release pipeline would treat as advisory.
     surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
     surfaces["balances"] = "oops-not-an-object"
-    reg = {"schema": "x", "scope_id": "t", "claim_scope": list(SPOT_DEX_SCOPE), "surfaces": surfaces}
+    reg = {
+        "schema": gate.REGISTRY_SCHEMA,
+        "scope_id": "t",
+        "claim_scope": list(SPOT_DEX_SCOPE),
+        "surfaces": surfaces,
+    }
     assert _run(_write(tmp_path, reg)) == 2
 
 
@@ -185,7 +211,12 @@ def test_malformed_column_fails_closed(tmp_path: Path, mutate) -> None:
     # uncleared gap (exit 1). (Gemini final review.)
     surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
     mutate(surfaces["state_root"])
-    reg = {"schema": "x", "scope_id": "t", "claim_scope": list(SPOT_DEX_SCOPE), "surfaces": surfaces}
+    reg = {
+        "schema": gate.REGISTRY_SCHEMA,
+        "scope_id": "t",
+        "claim_scope": list(SPOT_DEX_SCOPE),
+        "surfaces": surfaces,
+    }
     assert _run(_write(tmp_path, reg)) == 2
 
 
@@ -261,7 +292,11 @@ def test_renamed_scope_id_paired_shrink_fails_closed(tmp_path: Path) -> None:
 
 def test_missing_scope_id_fails_closed_in_production(tmp_path: Path) -> None:
     surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
-    reg = {"schema": "x", "claim_scope": list(SPOT_DEX_SCOPE), "surfaces": surfaces}  # no scope_id
+    reg = {
+        "schema": gate.REGISTRY_SCHEMA,
+        "claim_scope": list(SPOT_DEX_SCOPE),
+        "surfaces": surfaces,
+    }  # no scope_id
     assert _run(_write(tmp_path, reg), dev=False) == 2
 
 

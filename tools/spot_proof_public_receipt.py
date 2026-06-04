@@ -34,6 +34,7 @@ from typing import Any, Mapping
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "tools" / "spot_proof_public_manifest.json"
 DEFAULT_RECEIPT = ROOT / "docs" / "assurance" / "spot_proof_public_receipt.json"
+MANIFEST_SCHEMA = "zenodex.spot_proof.public_manifest.v1"
 RECEIPT_SCHEMA = "zenodex.spot_proof.public_receipt.v1"
 
 
@@ -155,6 +156,10 @@ def _require_string(obj: Any, *, name: str) -> str:
 
 
 def _manifest_proofs(manifest: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    if manifest.get("schema") != MANIFEST_SCHEMA:
+        raise ReceiptError(
+            f"manifest.schema: expected {MANIFEST_SCHEMA}, got {manifest.get('schema')!r}"
+        )
     proofs = manifest.get("proofs")
     if not isinstance(proofs, list) or not proofs:
         raise ReceiptError("manifest.proofs must be a non-empty list")
@@ -246,6 +251,29 @@ def _validate_lean_result(pid: str, result: Mapping[str, Any], exp: Mapping[str,
     return errors
 
 
+def _validate_result_body(
+    pid: str, result: Any, *, required_verdict: Any
+) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(result, Mapping):
+        return [f"{pid}: proof result must be an object"]
+    if result.get("verdict") != required_verdict:
+        errors.append(
+            f"{pid}: result verdict {result.get('verdict')!r} != required {required_verdict!r}"
+        )
+    exp = EXPECTED_PROOFS.get(pid)
+    if not isinstance(exp, Mapping):
+        errors.append(f"{pid}: missing source-pinned expected proof entry")
+        return errors
+    if exp.get("tool") == "esso-verify-multi":
+        errors.extend(_validate_esso_result(pid, result, exp))
+    elif exp.get("tool") == "lean-lake-build":
+        errors.extend(_validate_lean_result(pid, result, exp))
+    else:
+        errors.append(f"{pid}: unsupported source-pinned tool {exp.get('tool')!r}")
+    return errors
+
+
 # --- proof runners (build side only; require the toolchains) ------------------
 
 
@@ -255,10 +283,23 @@ def _run_esso(model_rel: str) -> dict[str, Any]:
         [sys.executable, "-m", "ESSO", "verify-multi", model_rel, "--solvers", "z3,cvc5"],
         capture_output=True, text=True, env=env, cwd=str(ROOT), timeout=600,
     )
-    payload = json.loads(proc.stdout)
+    try:
+        payload = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        raise ReceiptError(
+            f"ESSO verify-multi emitted non-JSON for {model_rel}: "
+            f"returncode={proc.returncode} stderr={proc.stderr[-400:]}"
+        ) from exc
+    if proc.returncode != 0:
+        raise ReceiptError(
+            f"ESSO verify-multi failed for {model_rel}: "
+            f"returncode={proc.returncode} stderr={proc.stderr[-400:]}"
+        )
     if payload.get("ok") is not True:
         raise ReceiptError(f"ESSO verify-multi not ok for {model_rel}")
-    r = payload["report"]
+    r = payload.get("report")
+    if not isinstance(r, Mapping):
+        raise ReceiptError(f"ESSO verify-multi missing report object for {model_rel}")
     return {
         "verdict": r["verdict"],
         "ir_hash": r["ir_hash"],
@@ -303,8 +344,19 @@ def _build_proof_entry(entry: Mapping[str, Any]) -> dict[str, Any]:
         result = _run_lean(_require_string(entry.get("module"), name=f"{pid}.module"), list(entry["source_files"]))
     else:  # pragma: no cover - guarded by _manifest_proofs
         raise ReceiptError(f"{pid}.tool unsupported: {tool!r}")
-    if result["verdict"] != entry["required_verdict"]:
-        raise ReceiptError(f"{pid}: verdict {result['verdict']} != required {entry['required_verdict']}")
+    result_errors = _validate_result_body(
+        pid, result, required_verdict=entry["required_verdict"]
+    )
+    if result_errors:
+        # Review grade: B before this fix, A- after it.
+        # Why it failed review: build mode only checked the verdict before writing
+        # a public receipt, while check mode validated the Lean/ESSO result body
+        # against source-pinned metadata. A stale Lean toolchain or wrong ESSO
+        # metadata could therefore produce a fresh receipt that check mode would
+        # reject later. Build now shares the same source-pin validators as check.
+        # A higher grade would replace committed receipts with per-PR live proof
+        # execution once the private toolchains are available in CI.
+        raise ReceiptError("; ".join(result_errors))
     out["result"] = result
     return out
 
@@ -374,11 +426,22 @@ def verify_receipt(receipt: Mapping[str, Any], *, manifest: Mapping[str, Any], m
     if not isinstance(receipt_proofs, list):
         errors.append("receipt.proofs must be a list")
         return errors
-    receipt_ids = [p.get("id") for p in receipt_proofs if isinstance(p, Mapping)]
+    receipt_by_id: dict[str, Mapping[str, Any]] = {}
+    receipt_ids: list[str] = []
+    for i, proof in enumerate(receipt_proofs):
+        if not isinstance(proof, Mapping):
+            errors.append(f"receipt.proofs[{i}] must be an object")
+            continue
+        pid = proof.get("id")
+        if not isinstance(pid, str) or not pid:
+            errors.append(f"receipt.proofs[{i}].id must be a non-empty string")
+            continue
+        receipt_ids.append(pid)
+        if pid not in receipt_by_id:
+            receipt_by_id[pid] = proof
     dups = sorted({i for i in receipt_ids if receipt_ids.count(i) > 1})
     if dups:
         errors.append(f"receipt has duplicate proof ids: {dups}")
-    receipt_by_id = {p.get("id"): p for p in receipt_proofs if isinstance(p, Mapping)}
 
     missing = sorted(set(manifest_by_id) - set(receipt_by_id))
     extra = sorted(set(receipt_by_id) - set(manifest_by_id))
@@ -398,19 +461,12 @@ def verify_receipt(receipt: Mapping[str, Any], *, manifest: Mapping[str, Any], m
     for pid in sorted(set(manifest_by_id) & set(receipt_by_id)):
         m = manifest_by_id[pid]
         r = receipt_by_id[pid]
-        # verdict matches the manifest requirement
         result = r.get("result")
-        if not isinstance(result, Mapping) or result.get("verdict") != m.get("required_verdict"):
-            errors.append(f"{pid}: receipt verdict {result.get('verdict') if isinstance(result, Mapping) else None!r} != required {m.get('required_verdict')!r}")
         # receipt tool + (Lean) module must match the source pin, not just the manifest
         exp = EXPECTED_PROOFS.get(pid, {})
         if r.get("tool") != exp.get("tool"):
             errors.append(f"{pid}: receipt tool {r.get('tool')!r} != source-pinned {exp.get('tool')!r}")
-        if isinstance(result, Mapping):
-            if exp.get("tool") == "esso-verify-multi":
-                errors.extend(_validate_esso_result(pid, result, exp))
-            elif exp.get("tool") == "lean-lake-build":
-                errors.extend(_validate_lean_result(pid, result, exp))
+        errors.extend(_validate_result_body(pid, result, required_verdict=m.get("required_verdict")))
         # the tracked sources today must byte-match the receipt's pinned hashes
         try:
             current = {h["path"]: h["sha256"] for h in _source_hashes(m, pid=pid)}

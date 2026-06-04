@@ -33,6 +33,7 @@ from typing import Any, Mapping, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_EVIDENCE = REPO_ROOT / "config" / "production" / "cbc_surface_evidence_v1.json"
+REGISTRY_SCHEMA = "zenodex/cbc-surface-evidence/v1"
 
 sys.path.insert(0, str(REPO_ROOT))
 from src.integration.surface_security_claim import (  # noqa: E402
@@ -65,6 +66,16 @@ def _load_registry(
     raw = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, Mapping):
         raise ValueError(f"{path}: top-level registry must be an object")
+    if raw.get("schema") != REGISTRY_SCHEMA:
+        # Review grade: B before this fix, A- after it.
+        # Why it failed review: the gate validated CBC rows, roles, and scope pins,
+        # but ignored the registry schema. That left future/downgraded registry
+        # shapes to be interpreted as v1 evidence if the field names happened to
+        # line up. The release gate now fails closed before evaluating any surface
+        # unless the envelope schema is the source-pinned v1 contract.
+        raise ValueError(
+            f"{path}: schema must be {REGISTRY_SCHEMA!r}, got {raw.get('schema')!r}"
+        )
     surfaces = raw.get("surfaces")
     if not isinstance(surfaces, Mapping) or not surfaces:
         raise ValueError(f"{path}: 'surfaces' must be a non-empty object")

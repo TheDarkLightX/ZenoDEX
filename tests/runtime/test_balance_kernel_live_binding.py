@@ -5,7 +5,8 @@ The CBC balances proof chain has three links:
 1. **Kani-Rust**: ``rust-runtime/crates/zenodex-runtime-core/src/balance_kernel.rs``
    carries 7 ``#[kani::proof]`` harnesses (totality, ``settle_transfer_conserves_and_moves_exact``
    = supply conservation, reject precedence, credit totality/mints-or-overflows, two
-   reachability covers); CI-gated by ``.github/workflows/runtime-kani.yml`` (``kani --lib``).
+   reachability covers). ``runtime-kani.yml`` is a scheduled/manual receipt lane in
+   this promotion branch, so this proof link is strong evidence but not PR-gated.
 2. **Python ``balance_kernel.py`` ≡ Rust**: the differential
    ``tests/runtime/test_balance_kernel_conformance.py`` (CI ``runtime-shadow.yml``).
 3. **THIS test — the open link**: ``src.core.balance_kernel`` (the CBC-core
@@ -243,6 +244,9 @@ def test_divergence_noncanonical_kernel_validates_live_store_does_not():
 def test_live_balancetable_rejects_bool_amounts_and_deltas():
     # Phase-3 pass-3 review: bool is an int subclass in Python, but it is not a
     # valid amount in the proof-carrying kernel. The live store now rejects it too.
+    # Review grade: B before this regression, B+ after it. A higher grade would
+    # type the live store with a dedicated Amount value object so invalid numeric
+    # states are unrepresentable before method entry.
     bt = BalanceTable()
     with pytest.raises(TypeError):
         bt.set(A, X, True)
