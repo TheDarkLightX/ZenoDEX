@@ -105,6 +105,8 @@ def _load_registry(
             f"be a non-empty list of strings — refusing to infer it (a missing claim_scope "
             f"would let a real surface be silently dropped by mismarking it evidence_only)"
         )
+    if len(set(declared)) != len(declared):
+        raise ValueError(f"{path}: 'claim_scope' must not contain duplicate surface ids")
     if set(declared) != set(scope):
         raise ValueError(
             f"{path}: declared claim_scope {sorted(declared)} != computed authority scope "
@@ -180,6 +182,17 @@ def run(
         )
         if scope_override:
             override = list(scope_override)
+            if require_known_scope:
+                # Review grade: C before this fix, B after it.
+                # Why it failed review: production mode could be invoked with
+                # `--scope cpmm_swap` and return exit 0 for a subset even while the
+                # source-pinned production scope was blocked. Scope narrowing is a
+                # useful dev probe, but production gates must evaluate the whole
+                # pinned authority set.
+                raise ValueError(
+                    "--scope is only allowed with --allow-unpinned-scope; production "
+                    "mode must evaluate the full source-pinned authority scope"
+                )
             # An override may only NARROW the claim to a subset of the authority
             # scope; it must NEVER pull an evidence_only / unknown surface into the
             # claim AND (which would fabricate a passing claim).

@@ -101,6 +101,12 @@ def test_missing_claim_scope_fails_closed(tmp_path: Path) -> None:
     assert _run(_write(tmp_path, reg)) == 2
 
 
+def test_duplicate_claim_scope_fails_closed(tmp_path: Path) -> None:
+    surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
+    reg = _registry(surfaces, claim_scope=["cpmm_swap", "cpmm_swap", "balances", "state_root", "nonces"])
+    assert _run(_write(tmp_path, reg)) == 2
+
+
 def test_blocked_evidence_only_surface_does_not_block_the_claim(tmp_path: Path) -> None:
     surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
     blocked = {c: {"ref": f"x/{c}.py", "verified": False} for c in CBC_COLUMNS if c != "open_gaps_closed"}
@@ -208,6 +214,19 @@ def test_scope_override_subset_of_authority_still_works(tmp_path: Path) -> None:
     p = _write(tmp_path, _registry({s: _all_clear_surface() for s in SPOT_DEX_SCOPE}))
     assert _run(p, override=["cpmm_swap"]) == 0
     assert _run(p, override=["nope"]) == 2  # unknown surface in override fails closed
+
+
+def test_scope_override_disallowed_in_production_mode(tmp_path: Path) -> None:
+    p = _write(
+        tmp_path,
+        _registry(
+            {s: _all_clear_surface() for s in SPOT_DEX_SCOPE},
+            scope_id="spot_dex",
+            claim_scope=list(SPOT_DEX_SCOPE),
+        ),
+    )
+    assert _run(p, override=["cpmm_swap"], dev=False) == 2
+    assert gate.main(["--evidence", str(p), "--json", "--scope", "cpmm_swap"]) == 2
 
 
 # --- production-mode scope pinning (the name-binding fix) --------------------

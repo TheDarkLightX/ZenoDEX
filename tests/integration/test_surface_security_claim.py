@@ -176,4 +176,8 @@ def test_invalid_inputs_raise() -> None:
     with pytest.raises(ValueError):
         evaluate_scope_security_claim([], {})
     with pytest.raises(ValueError):
+        evaluate_scope_security_claim(["cpmm_swap", "cpmm_swap"], {"cpmm_swap": _complete_evidence()})
+    with pytest.raises(ValueError):
+        evaluate_scope_security_claim([""], {})
+    with pytest.raises(ValueError):
         evaluate_scope_security_claim(SPOT_DEX_SCOPE, ["nope"])  # type: ignore[arg-type]

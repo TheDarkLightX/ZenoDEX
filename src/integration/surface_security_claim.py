@@ -210,6 +210,10 @@ def evaluate_scope_security_claim(
     """
     if not isinstance(scope, (list, tuple)) or not scope:
         raise ValueError("scope must be a non-empty sequence of surface ids")
+    if any(not isinstance(surface_id, str) or not surface_id.strip() for surface_id in scope):
+        raise ValueError("scope entries must be non-empty surface ids")
+    if len(set(scope)) != len(scope):
+        raise ValueError("scope must not contain duplicate surface ids")
     if not isinstance(evidence_by_surface, Mapping):
         raise ValueError("evidence_by_surface must be a mapping")
 
