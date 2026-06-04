@@ -1,0 +1,35 @@
+{
+  "adapter": {
+    "source": "src.kernels.python.zusd_repay_single_vault_v1_native_adapter",
+    "spec": "src.kernels.python.zusd_repay_single_vault_v1_native_adapter:make_adapter"
+  },
+  "command": "shell-lint",
+  "expected": {
+    "actions": [
+      "apply_repay_single_vault"
+    ],
+    "effects": [
+      "debt_after_e8",
+      "debt_delta_e8",
+      "free_debt_after_e8",
+      "free_debt_delta_e8",
+      "repaid_zusd_e8"
+    ]
+  },
+  "got": {
+    "actions": [
+      "apply_repay_single_vault"
+    ],
+    "effects": [
+      "debt_after_e8",
+      "debt_delta_e8",
+      "free_debt_after_e8",
+      "free_debt_delta_e8",
+      "repaid_zusd_e8"
+    ]
+  },
+  "ir_hash": "sha256:5498426ee46b48456dad32174dfc063da51b0223b100db420c0e0d238994bc89",
+  "issues": [],
+  "model": "/home/trevormoc/Downloads/Autonomous_Tau_DEX/src/kernels/dex/zusd_repay_single_vault_v1.yaml",
+  "ok": true
+}
