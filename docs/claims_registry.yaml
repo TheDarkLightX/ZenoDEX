@@ -1264,6 +1264,32 @@ claims:
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.md
         - docs/claims_registry.yaml
 
+  - id: py:zenodex:trust_minimization_target_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The ZenoDEX trust-minimization target treats the host as adversarial,
+      records Docker as packaging rather than a correctness boundary, and keeps
+      the lower-than-Uniswap trust claim disabled while required proof/replay
+      surfaces remain open. The checker accepts the target only when supported
+      surfaces point at the proof coverage matrix, open gaps point at matrix
+      gaps plus matching non-claims, the acceptance rule includes replay or
+      valid zk receipt verification, and achieved status is rejected while any
+      required surface is still open.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_zenodex_trust_minimization_target.py
+        - cmd: python3 -m py_compile tools/check_zenodex_trust_minimization_target.py tests/test_check_zenodex_trust_minimization_target.py
+        - cmd: pytest -q tests/test_check_zenodex_trust_minimization_target.py
+      files:
+        - tools/check_zenodex_trust_minimization_target.py
+        - tests/test_check_zenodex_trust_minimization_target.py
+        - docs/ZENODEX_TRUST_MINIMIZATION_TARGET_V0.json
+        - docs/ZENODEX_TRUST_MINIMIZATION_TARGET.md
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+        - tools/check_zeno_ledger_proof_coverage_matrix.py
+
   - id: smt:batch_auction_settler_v1:inductive_z3_cvc5
     status: supported
     layer: spec

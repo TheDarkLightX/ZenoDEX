@@ -8,7 +8,6 @@
       "covered": [
         "create_pool",
         "swap_exact_in",
-        "swap_exact_out",
         "add_liquidity",
         "remove_liquidity",
         "liquidity_cycle_block",
@@ -17,12 +16,14 @@
       ],
       "not_covered": [
         "rejected_receipts",
+        "swap_exact_out",
         "upba_batch_clearing",
         "multi_hop",
         "native_assets"
       ],
       "non_claims": [
         "does_not_claim_rejected_receipt_execution",
+        "does_not_claim_spot_v1_exact_out_zk_execution",
         "does_not_claim_upba_zk_execution",
         "does_not_claim_multi_hop_execution",
         "does_not_claim_native_asset_sync"

@@ -1,18 +1,20 @@
 # ZenoLedger + state symbolic disaster-witness mines — bounded negative receipts (2026-05-31)
 
 Property-based (`hypothesis`), stateful, target-guided, and exhaustive bounded
-disaster-witness tests over ten ledger/state surfaces. Several surfaces already
-had example, integration, or chaos tests; this receipt claims only the additional
-symbolic/property coverage added on this branch. Each mine encodes a disaster
-class as a falsifiable safety invariant and includes teeth / non-vacuity tests
-that plant violations and prove the invariant checkers raise.
+disaster-witness tests over ten ledger/state surfaces, plus follow-on bounded
+runtime lattices for fee/burn/replay/admission boundaries. Several surfaces
+already had example, integration, or chaos tests; this receipt claims only the
+additional symbolic/property coverage added on this branch. Each mine encodes a
+disaster class as a falsifiable safety invariant and includes teeth /
+non-vacuity tests that plant violations and prove the invariant checkers raise.
 
 > Discipline: **bounded** search, not proof. A clean run is a negative receipt over
 > the generated domain (small registries / validator sets / states / tx lists), not
 > a universal guarantee. **No `src/` files changed** in this branch increment. The
-> rung-1 suite was re-run locally: **45 tests pass**. The Hypothesis max-example
-> budgets in those tests sum to **~20,500**; that number is a budget, not a count
-> of unique accepted examples.
+> rung-1 suite was re-run locally: **45 tests pass**. The combined focused runtime
+> assurance command now passes **140 tests**. The Hypothesis max-example budgets in
+> the rung-1 tests sum to **~20,500**; that number is a budget, not a count of
+> unique accepted examples.
 
 ## Mines
 
@@ -70,21 +72,44 @@ the receipt does not rely on external verifier logs.
 
 | Technique | Surface | What it reaches that rung-1 cannot | Coverage | Result |
 |---|---|---|---|---|
-| **Exhaustive bounded enumeration** (`itertools.product`, complete over declared bounds) + adversarial structural seeds | `state_root` / `canonical` / `support_root` | LEB128 carry edges (127/128, 2^32±1) deterministically; exact `C(N,2)` assertions over the <=3-entry lattice; field-boundary-shift / split-aliasing / BAL-vs-LPB shapes uniform sampling is unlikely to build | **33,045,733 pair comparisons** implied by exact bound checks | no collision |
+| **Exhaustive bounded enumeration** (`itertools.product`, complete over declared bounds) + adversarial structural seeds | `state_root` / `canonical` / `support_root` / `fee_router` accumulator root | LEB128 carry edges (127/128, 2^32±1) deterministically; exact `C(N,2)` assertions over the <=3-entry lattice; single-pool field lattice; LP duration-risk metadata lattice; fee-accumulator dust/bucket lattice; field-boundary-shift / split-aliasing / BAL-vs-LPB shapes uniform sampling is unlikely to build | **34,137,850 pair comparisons** implied by exact bound checks | no collision |
+| **Exhaustive boundary classification** (`itertools.product`, complete over declared rail/state/admission bounds) | `burn_receipts`, `replay_guard`, `uniform_batch_admission` | burn-rail reject order and conservation, replay duplicate/stale/gap/u32-ceiling behavior, canonical-prefix admission over all subsets/permutations of four intents, and fail-closed certificate mutations | **237,744 burn-rail tuples + 480 replay cells + 260 admission cells** | no mismatch |
 | **Stateful multi-transition machines** (`RuleBasedStateMachine`, registry threaded forward) | `bonded_slashing`, `dynamic_peers` | multi-slash accumulation, evidence replay, cumulative-slash-over-a-run, post-depletion rejection, multi-round peer accumulation, exact admitted-delta provenance | 2 machines x 250 runs x 20 steps | no witness |
 | **Target-guided boundary pushing** (`hypothesis.target()` + distribution shaping) | quorum / slash-split / schedule | search steered toward `accepted_weight == threshold`, `slash == available`, split-rounding residue, and cycle-wrap slots; deterministic reachability tests pin exact threshold and slash-available edges | 8000 Hypothesis max-example budget plus deterministic boundary tests | no witness |
 
 Cross-run invariants (e.g. `cumulative_slashed <= bonded` across the whole
 sequence, `entry_slashed == externally_tracked_cumulative` for ledger-drift) are
 the genuinely new safety statements. The deeper tests also check processed-hash
-provenance, post-depletion rejection, and the exact peer-admission delta across
-successive rounds.
+provenance, post-depletion rejection, the exact peer-admission delta across
+successive rounds, LP duration-risk root sensitivity, accumulator stream/bucket
+framing, burn-rail reject order, replay u32-edge behavior, and UPBA admission
+hash/count binding.
 
-**Honest limits:** "exhaustive" = complete only over the *deliberately tiny*
-declared bounds (2-pubkey/2-asset sub-alphabets, ≤3 entries, single-nonce), not a
-maximal-domain proof; the pool section is seed-covered, not enumerated. Stateful
-and target-guided remain bounded sampling, just steered far better. SHA-256
-preimage resistance is assumed throughout.
+**Honest limits:** "exhaustive" = complete only over the deliberately tiny
+declared bounds (2-pubkey/2-asset sub-alphabets, <=3 balance/LP entries,
+single-nonce, one fixed-pool-id field lattice, one fixed LP duration-risk key,
+single-entry/mixed fee-accumulator cells, the declared burn/replay rail
+alphabets, and all subsets/permutations of four UPBA admission intents), not a
+maximal-domain proof. Multi-pool composition is still seed-covered rather than
+enumerated. Stateful and target-guided remain bounded sampling, just steered far
+better. SHA-256 preimage resistance is assumed throughout.
+
+## Covert-channel assurance addendum
+
+This branch also adds a bounded covert-channel regression gate:
+`tests/runtime/test_covert_channel_assurance.py`. It checks three concrete
+properties: selected authority kernels do not depend on common side-input or I/O
+modules; replay-guard trace capture leaves the accept/reject sequence and final
+state root unchanged; confidential-extension public reason codes and trace
+events do not echo fixture request IDs, measurements, receipt hashes, or strategy
+sentinels, and the public trace schema blocks raw operation/signature-bearing key
+classes.
+
+The claim is narrow. It is a regression layer for deterministic authority,
+redaction, and replay-equivalent observability. It does not prove constant-time
+execution, traffic-shape privacy, microarchitectural isolation, or full
+integration-log coverage. The scope note is
+`docs/runtime/COVERT_CHANNEL_ASSURANCE.md`.
 
 ## Refuted at read time
 
@@ -104,13 +129,34 @@ PYTHONPATH="$PWD" python3 -m pytest tests/runtime/test_*_witness_mine.py -q
 PYTHONPATH="$PWD" python3 -m pytest \
   tests/runtime/test_state_collision_exhaustive_mine.py \
   tests/runtime/test_ledger_stateful_sequence_mine.py \
-  tests/runtime/test_boundary_target_guided_mine.py -q
-# 30 passed  (33M bounded pair comparisons + stateful sequences + boundary-steered tests)
+  tests/runtime/test_boundary_target_guided_mine.py \
+  tests/runtime/test_fee_router_reference.py \
+  tests/runtime/test_burn_receipts_semantic_invariants.py \
+  tests/runtime/test_replay_guard_semantic_invariants.py \
+  tests/runtime/test_uniform_batch_admission_lattice.py -q
+# 95 passed  (34M bounded pair comparisons + rail/replay/admission lattices + stateful/targeted tests)
+
+# covert-channel follow-up:
+PYTHONPATH="$PWD" python3 -m pytest tests/runtime/test_covert_channel_assurance.py -q
+# 3 passed
+
+# combined focused runtime assurance command:
+PYTHONPATH="$PWD" python3 -m pytest \
+  tests/runtime/test_*_witness_mine.py \
+  tests/runtime/test_state_collision_exhaustive_mine.py \
+  tests/runtime/test_ledger_stateful_sequence_mine.py \
+  tests/runtime/test_boundary_target_guided_mine.py \
+  tests/runtime/test_fee_router_reference.py \
+  tests/runtime/test_burn_receipts_semantic_invariants.py \
+  tests/runtime/test_replay_guard_semantic_invariants.py \
+  tests/runtime/test_uniform_batch_admission_lattice.py \
+  tests/runtime/test_covert_channel_assurance.py -q
+# 143 passed in 174.34s
 ```
 
 ## Scope / non-claims
 
 Bounded, mostly single-module property search. Does **not** assert the composed node
 acceptance path, the BLS crypto, multi-transition / cross-block sequencing, or the
-model↔runtime refinement gap. It adds regression guards against the named
+model-runtime refinement gap. It adds regression guards against the named
 disaster classes and records the remaining scope limits explicitly.
