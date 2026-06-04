@@ -13,7 +13,7 @@ import math
 import os
 import time
 from typing import Any, Dict, Mapping, Optional, Tuple, cast
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from ..state.canonical import canonical_hex_fixed_allow_0x
 from .tau_net_client import TauNetTcpClient, TauNetTcpConfig, TauNetRpcError
@@ -117,6 +117,19 @@ def _tau_verify_config() -> ZUSDTauTokenConfig:
 def _default_deadline() -> int:
     delta = _env_int("ZUSD_TAU_WALLET_DEFAULT_DEADLINE_S", 3600, lo=1, hi=86_400)
     return int(time.time()) + int(delta)
+
+
+def _query_first(query: str, key: str) -> str | None:
+    """Return the first value for ``key`` in a URL query string, or None.
+
+    Blank values are treated as absent so an empty ``?account=`` behaves like an
+    unauthenticated status request rather than a malformed account.
+    """
+    values = parse_qs(query).get(key)
+    if not values:
+        return None
+    first = values[0].strip()
+    return first or None
 
 
 def _canonical_pubkey(value: object, *, name: str) -> str:
@@ -405,7 +418,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     return payload
 
 
-def _status_payload() -> Dict[str, Any]:
+def _status_payload(account: str | None = None) -> Dict[str, Any]:
     chain_id = _tau_chain_id()
     asset_id = derive_zusd_tau_asset_id(chain_id=chain_id)
     token_operator_pubkey = os.environ.get("TAU_DEX_TOKEN_OPERATOR_PUBKEY", "").strip() or None
@@ -427,7 +440,16 @@ def _status_payload() -> Dict[str, Any]:
         status["hello"] = hello
         status["app_hash"] = app_hash
         status["app_bridge_available"] = bool(app_state or app_hash)
-        status["holder_count"] = len(_balances_for_asset(app_state, asset_id=asset_id))
+        balances = _balances_for_asset(app_state, asset_id=asset_id)
+        status["holder_count"] = len(balances)
+        if account:
+            # Account-aware status: resolve the connected wallet's token balance for
+            # ?account=<pubkey> (mirrors the pool surface resolving balances).
+            status["account"] = account
+            status["account_view"] = {
+                "account": account,
+                "balance": int(balances.get(account.strip().lower(), 0)),
+            }
     except Exception as exc:
         status["node_reachable"] = False
         status["error"] = f"{type(exc).__name__}: {exc}"
@@ -443,7 +465,13 @@ def handle_zusd_tau_wallet_request(method: str, path: str, body: Optional[bytes]
     rest = segments[3:]
     try:
         if method == "GET" and rest == ["status"]:
-            return 200, {"ok": True, "status": _status_payload()}
+            # Account-aware status: resolve the connected wallet's token balance for
+            # ?account=<pubkey>. Fail closed on a malformed account.
+            account_param = _query_first(parsed_path.query, "account")
+            account: str | None = None
+            if account_param:
+                account = _canonical_pubkey(account_param, name="account")
+            return 200, {"ok": True, "status": _status_payload(account)}
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
         parsed, err = _parse_json_body(body)

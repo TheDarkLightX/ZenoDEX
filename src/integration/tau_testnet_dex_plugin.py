@@ -296,13 +296,14 @@ def _parse_faucet_mint_entry(entry: Any, *, index: int) -> Tuple[Optional[Tuple[
     if not isinstance(amount, int) or isinstance(amount, bool) or amount <= 0:
         return None, f"faucet.mint[{index}] amount must be a positive int"
     try:
+        decoded_pk = _canonical_pubkey(pk, name=f"faucet.mint[{index}].pubkey")
         decoded_asset = canonical_hex_fixed_allow_0x(asset, nbytes=32, name=f"faucet.mint[{index}].asset")
     except Exception as exc:
         return None, str(exc)
     if decoded_asset == NATIVE_ASSET:
         return None, "faucet cannot mint native asset"
 
-    return (pk, asset, int(amount)), None
+    return (decoded_pk, decoded_asset, int(amount)), None
 
 
 def _sync_native_balances(state: DexState, *, chain_balances: Dict[str, int]) -> DexState:
@@ -316,11 +317,12 @@ def _sync_native_balances(state: DexState, *, chain_balances: Dict[str, int]) ->
     for pk, amount in chain_balances.items():
         try:
             amt_i = int(amount)
+            canonical_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
         except Exception:
             continue
         if amt_i <= 0:
             continue
-        balances_copy.set(str(pk), NATIVE_ASSET, amt_i)
+        balances_copy.set(canonical_pk, NATIVE_ASSET, amt_i)
 
     return replace(state, balances=balances_copy)
 
@@ -359,15 +361,27 @@ def _apply_faucet(
 
 def _balances_patch_for_native(*, before: Dict[str, int], after_state: DexState) -> Dict[str, int]:
     out: Dict[str, int] = {}
+    external_key_by_canonical: Dict[str, str] = {}
+    for pk in before.keys():
+        try:
+            canonical_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
+        except Exception:
+            continue
+        external_key_by_canonical.setdefault(canonical_pk, pk)
+
     keys = set(before.keys())
     # Include any addresses that appear in the DEX snapshot (native).
     for (pk, asset), _amount in after_state.balances.get_all_balances().items():
         if asset == NATIVE_ASSET:
-            keys.add(pk)
+            keys.add(external_key_by_canonical.get(pk, pk))
 
     for pk in keys:
         old = int(before.get(pk, 0))
-        new = int(after_state.balances.get(pk, NATIVE_ASSET))
+        try:
+            lookup_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
+        except Exception:
+            lookup_pk = str(pk)
+        new = int(after_state.balances.get(lookup_pk, NATIVE_ASSET))
         if new != old:
             out[pk] = new
     return out

@@ -3844,6 +3844,21 @@ def _build_isolated_op_request(
         op_obj["price_e8"] = str(
             _require_int(op.data.get("price_e8", 0), name="price_e8", non_negative=True)
         )
+        # Forward mark_price_source_kind so the Rust materializer sees what the
+        # Python authority (_apply_isolated_publish_clearing_price) used. Without
+        # this the bridge silently dropped the field, the Rust shadow fell back to
+        # its external-median default, and a forwarded non-default source could
+        # diverge under a future rust-authority inversion (Gemini F1). Forwarded
+        # only when present, matching the op's actual payload; Rust defaults to
+        # external median when absent, exactly as Python does.
+        if "mark_price_source_kind" in op.data:
+            op_obj["mark_price_source_kind"] = str(
+                _require_int(
+                    op.data.get("mark_price_source_kind"),
+                    name="mark_price_source_kind",
+                    non_negative=True,
+                )
+            )
     elif op.action in ("deposit_collateral", "withdraw_collateral"):
         op_obj["account_pubkey"] = _require_str(
             op.data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512

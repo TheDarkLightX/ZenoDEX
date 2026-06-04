@@ -453,6 +453,56 @@ def _run_zusd_browser_submit(
     return dom
 
 
+class _AccountStatusFakeClient:
+    """Minimal in-process Tau client that serves a fixed wrapped app_state.
+
+    Lets the account-aware status handler be exercised end-to-end without a live
+    Tau node, Chrome, or Toxiproxy (the rest of this file's tests need all three).
+    """
+
+    app_state_json: str = ""
+
+    def __init__(self, _cfg=None) -> None:
+        self.app_hash = "sha256:" + "ab" * 32
+
+    def rpc(self, cmd: str) -> str:
+        if cmd == "hello version=1":
+            return "HELLO: ok"
+        raise AssertionError(f"unexpected rpc call: {cmd}")
+
+    def getappstate(self, *, full: bool = False) -> str:
+        assert full is True
+        return json.dumps(
+            {"app_hash": self.app_hash, "app_state": json.loads(self.app_state_json)},
+            sort_keys=True,
+        )
+
+
+def test_zusd_monetary_status_propagates_account_end_to_end(monkeypatch) -> None:
+    import src.integration.zusd_monetary_wallet_api as monetary_api
+
+    chain_id = "tau-test-zusd-monetary-bridge"
+    owner = "0x" + bls_pubkey_hex_from_privkey(82)
+    _AccountStatusFakeClient.app_state_json = _initial_app_state_json(owner_pubkey=owner)
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", chain_id)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _AccountStatusFakeClient)
+
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "GET", f"/api/zusd/monetary/status?account={owner}", None
+    )
+    assert status_code == 200
+    view = payload["status"]["account_view"]
+    assert view["account"] == owner
+    assert view["is_vault_owner"] is True
+
+    # Malformed account fails closed rather than silently dropping the param.
+    bad_code, bad_payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "GET", "/api/zusd/monetary/status?account=not-a-pubkey", None
+    )
+    assert bad_code == 400
+    assert bad_payload["ok"] is False
+
+
 def test_zusd_monetary_wallet_browser_fails_closed_on_partial_tau_send_timeout(tmp_path: Path) -> None:
     chrome = _chrome_binary()
     if chrome is None:

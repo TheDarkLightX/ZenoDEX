@@ -158,6 +158,67 @@ class _TauRpcHandler(socketserver.StreamRequestHandler):
         self.wfile.write(b"ERR unsupported\n")
 
 
+class _AccountStatusFakeClient:
+    """Minimal in-process Tau client serving a balances-only app_state.
+
+    Exercises the account-aware token-wallet status handler end-to-end without a
+    live Tau node or Chrome (the browser tests below need both).
+    """
+
+    asset_id: str = ""
+    holder_pubkey: str = ""
+    holder_balance: int = 0
+
+    def __init__(self, _cfg=None) -> None:
+        self.app_hash = "sha256:" + "ab" * 32
+
+    def rpc(self, cmd: str) -> str:
+        if cmd == "hello version=1":
+            return "HELLO: ok"
+        raise AssertionError(f"unexpected rpc call: {cmd}")
+
+    def getappstate(self, *, full: bool = False) -> str:
+        assert full is True
+        payload = {
+            "app_hash": self.app_hash,
+            "app_state": {
+                "balances": [
+                    {"pubkey": self.holder_pubkey, "asset": self.asset_id, "amount": self.holder_balance},
+                ],
+                "nonces": [],
+            },
+        }
+        return json.dumps(payload, sort_keys=True)
+
+
+def test_zusd_tau_wallet_status_propagates_account_end_to_end(monkeypatch) -> None:
+    import src.integration.zusd_tau_wallet_api as wallet_api
+
+    chain_id = "tau-test-wallet-bridge"
+    holder = "0x" + bls_pubkey_hex_from_privkey(11)
+    asset_id = derive_zusd_tau_asset_id(chain_id=chain_id)
+    _AccountStatusFakeClient.asset_id = asset_id
+    _AccountStatusFakeClient.holder_pubkey = holder
+    _AccountStatusFakeClient.holder_balance = 400
+    monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", chain_id)
+    monkeypatch.setattr(wallet_api, "TauNetTcpClient", _AccountStatusFakeClient)
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "GET", f"/api/zusd/wallet/status?account={holder}", None
+    )
+    assert status_code == 200
+    view = payload["status"]["account_view"]
+    assert view["account"] == holder
+    assert view["balance"] == 400
+
+    # Malformed account fails closed.
+    bad_code, bad_payload = wallet_api.handle_zusd_tau_wallet_request(
+        "GET", "/api/zusd/wallet/status?account=not-a-pubkey", None
+    )
+    assert bad_code == 400
+    assert bad_payload["ok"] is False
+
+
 @pytest.mark.parametrize(
     ("action", "extra_query", "dom_needles"),
     [

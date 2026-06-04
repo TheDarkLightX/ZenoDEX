@@ -280,6 +280,7 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
     from src.integration import tau_testnet_dex_plugin as plugin
 
     sender_pubkey = "00" * 48
+    sender_state_key = "0x" + sender_pubkey
     asset0 = "0x" + "11" * 32
     asset1 = "0x" + "22" * 32
 
@@ -326,8 +327,8 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
         for b in (parsed.get("balances") or [])
         if isinstance(b, dict)
     }
-    before_in = int(balances_before.get((sender_pubkey, asset0), 0))
-    before_out = int(balances_before.get((sender_pubkey, asset1), 0))
+    before_in = int(balances_before.get((sender_state_key, asset0), 0))
+    before_out = int(balances_before.get((sender_state_key, asset1), 0))
 
     swap_intent = {
         "module": "TauSwap",
@@ -360,8 +361,8 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
         for b in (parsed2.get("balances") or [])
         if isinstance(b, dict)
     }
-    after_in = int(balances_after.get((sender_pubkey, asset0), 0))
-    after_out = int(balances_after.get((sender_pubkey, asset1), 0))
+    after_in = int(balances_after.get((sender_state_key, asset0), 0))
+    after_out = int(balances_after.get((sender_state_key, asset1), 0))
 
     assert after_in < before_in
     assert after_out > before_out
@@ -372,6 +373,7 @@ def test_apply_app_tx_create_pool_with_native_asset_updates_chain_balance(monkey
     from src.state.balances import NATIVE_ASSET
 
     sender_pubkey = "00" * 48
+    sender_state_key = "0x" + sender_pubkey
     token = "0x" + "11" * 32
 
     monkeypatch.setenv("TAU_DEX_FAUCET", "1")
@@ -418,7 +420,7 @@ def test_apply_app_tx_create_pool_with_native_asset_updates_chain_balance(monkey
 
     parsed = json.loads(synced_json)
     balances = {(b.get("pubkey"), b.get("asset")): b.get("amount") for b in (parsed.get("balances") or []) if isinstance(b, dict)}
-    assert balances.get((sender_pubkey, NATIVE_ASSET)) == 9000
+    assert balances.get((sender_state_key, NATIVE_ASSET)) == 9000
 
 
 def test_apply_app_tx_routes_upstream_streams_to_internal_engines(monkeypatch):
