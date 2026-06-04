@@ -41,6 +41,49 @@ class ReceiptError(ValueError):
     pass
 
 
+# SOURCE-PINNED expected proof set. The manifest AND receipt must match this exactly,
+# so a config-only edit cannot drop a proof, lower a required_verdict, swap a tool, or
+# repoint a source file without a reviewed change to THIS file (anti-self-weakening;
+# Codex pass-1 finding). Verdicts are a closed enum.
+VALID_VERDICTS = frozenset({"VERIFIED", "BUILT_NO_SORRY"})
+EXPECTED_PROOFS: dict[str, dict[str, Any]] = {
+    "nonce_batch_sequencing_v1": {
+        "tool": "esso-verify-multi", "required_verdict": "VERIFIED",
+        "source_files": ["src/kernels/dex/nonce_batch_sequencing_v1.yaml"],
+    },
+    "cpmm_output_amount_v2": {
+        "tool": "esso-verify-multi", "required_verdict": "VERIFIED",
+        "source_files": ["src/kernels/dex/cpmm_output_amount_v2.yaml"],
+    },
+    "cpmm_invariants_lean": {
+        "tool": "lean-lake-build", "required_verdict": "BUILT_NO_SORRY",
+        "source_files": ["lean-mathlib/Proofs/CPMMInvariants.lean"],
+    },
+    "zenodex_nonces_lean": {
+        "tool": "lean-lake-build", "required_verdict": "BUILT_NO_SORRY",
+        "source_files": ["lean-mathlib/Proofs/ZenoDEXNonces.lean"],
+    },
+}
+
+
+def _check_against_source_pin(manifest_by_id: Mapping[str, Mapping[str, Any]]) -> list[str]:
+    errors: list[str] = []
+    if set(manifest_by_id) != set(EXPECTED_PROOFS):
+        errors.append(
+            f"manifest proof ids {sorted(manifest_by_id)} != source-pinned EXPECTED_PROOFS "
+            f"{sorted(EXPECTED_PROOFS)} (add/drop a proof only by editing EXPECTED_PROOFS)"
+        )
+    for pid in sorted(set(manifest_by_id) & set(EXPECTED_PROOFS)):
+        exp, m = EXPECTED_PROOFS[pid], manifest_by_id[pid]
+        if m.get("tool") != exp["tool"]:
+            errors.append(f"{pid}: tool {m.get('tool')!r} != source-pinned {exp['tool']!r}")
+        if m.get("required_verdict") != exp["required_verdict"]:
+            errors.append(f"{pid}: required_verdict {m.get('required_verdict')!r} != source-pinned {exp['required_verdict']!r}")
+        if list(m.get("source_files") or []) != exp["source_files"]:
+            errors.append(f"{pid}: source_files {list(m.get('source_files') or [])} != source-pinned {exp['source_files']}")
+    return errors
+
+
 def _canonical_json_bytes(obj: Any) -> bytes:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
@@ -211,6 +254,10 @@ def verify_receipt(receipt: Mapping[str, Any], *, manifest: Mapping[str, Any], m
     except ReceiptError as exc:
         errors.append(f"manifest: {exc}")
         return errors
+
+    # Anti-self-weakening: the manifest must match the source-pinned expected set, so a
+    # config-only edit cannot drop a proof / lower a verdict / swap a tool (Codex pass 1).
+    errors.extend(_check_against_source_pin(manifest_by_id))
 
     receipt_proofs = receipt.get("proofs")
     if not isinstance(receipt_proofs, list):
