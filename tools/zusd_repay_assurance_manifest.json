@@ -20,7 +20,7 @@
     },
     {
       "path": "tests/kernels/test_zusd_repay_single_vault_v1_native_adapter.py",
-      "sha256": "97aff54ba19d4ecdf2d7d00341e82585cf3b665f3b3315ca0c0b73190c26efc3"
+      "sha256": "41ce9f0c255b38f605f287d87fb7b47d07808c475c3823fd76e05c366516688a"
     }
   ],
   "validate": {
