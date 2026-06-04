@@ -66,13 +66,13 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     # NOT deleted (deleting a row to pass the AND would be dishonest).
     assert "replay_guard" in evidence_only
     assert surfaces["replay_guard"].get("attached_to") == "nonces"
-    # Honesty guard: nothing in the shipped registry is hand-set to verified:true.
+    # Honesty guard: NO surface has prematurely fully-cleared (open_gaps_closed),
+    # so the scope claim stays blocked. Individual evidence columns MAY be
+    # genuinely verified as surfaces make progress (e.g. nonces.authority_mode in
+    # Phase 2); the gate's own tests assert the scope claim is still False.
     for surface in surfaces.values():
-        for col, val in surface.items():
-            if col == "open_gaps_closed":
-                assert val is False
-            elif isinstance(val, dict) and "verified" in val:
-                assert val["verified"] is False
+        assert surface["open_gaps_closed"] is False
+    assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 1
 
 
 def test_main_exit_code_matches_run() -> None:
