@@ -25,6 +25,9 @@ def exactInOutput (rin rout gross fee_bps : Nat) : Nat :=
 def exactInOutputFloor (rin rout gross fee_bps : Nat) : Nat :=
   swapOutput rin rout (exactInNetFloor gross fee_bps)
 
+def exactInAccepted (rin rout gross fee_bps : Nat) : Prop :=
+  0 < exactInOutput rin rout gross fee_bps
+
 lemma exactInNet_eq_floor (gross fee_bps : Nat) (_hfee : fee_bps ≤ BPS) :
     exactInNet gross fee_bps = exactInNetFloor gross fee_bps := by
   simpa [BPS, exactInNet, exactInNetFloor] using
@@ -104,6 +107,29 @@ theorem exactInPositiveOutput_suffix {rin rout fee_bps a b : Nat}
   have hmono : exactInOutput rin rout a fee_bps ≤ exactInOutput rin rout b fee_bps :=
     exactInOutput_mono hfee hrin hab
   exact lt_of_lt_of_le hpos hmono
+
+/-- Semantic exact-in admission monotonicity for the v8 kernel shape.
+
+    If a gross exact-in trade already produces a positive output, increasing the
+    gross input cannot turn that accepted trade into a zero-output rejection,
+    assuming the same reserves and fee. This wraps the arithmetic theorem in the
+    decision predicate the runtime uses (`amount_out > 0`). It does not prove
+    reserve updates, protocol-fee-share accounting, or state-root binding. -/
+theorem exactInAccepted_suffix {rin rout fee_bps a b : Nat}
+    (hfee : fee_bps ≤ BPS)
+    (hrin : 0 < rin)
+    (hab : a ≤ b)
+    (haccepted : exactInAccepted rin rout a fee_bps) :
+    exactInAccepted rin rout b fee_bps :=
+  exactInPositiveOutput_suffix hfee hrin hab haccepted
+
+theorem witness_exactInAccepted_suffix_applies :
+    exactInAccepted 10 10 3 0 :=
+  exactInAccepted_suffix
+    (rin := 10) (rout := 10) (fee_bps := 0) (a := 2) (b := 3)
+    (by decide) (by decide) (by decide) (by
+      unfold exactInAccepted exactInOutput exactInNet swapOutput BPS
+      norm_num)
 
 end V8
 end CPMM

@@ -29,11 +29,11 @@
       "source_files": [
         {
           "path": "lean-mathlib/Proofs/CpmmSwapV8ExactInAdmissibility.lean",
-          "sha256": "45873a082a7dbe4546961fc7f2faa0d5a34780e3da7e6914e241fcb6a5573fbe"
+          "sha256": "d68aedc27ebdb1d8f8c001e9bf080c86f3feed1242848222cabdc22f4f0cf48b"
         },
         {
           "path": "lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean",
-          "sha256": "79ce3acae231cec77db8ab8278956986e99bed3c7e10288398c5b2419a4ff0a6"
+          "sha256": "3336f90d1ea9b15c172d8a36b0750370e4025be21354d3ff089c3223014b481f"
         }
       ],
       "tool": "lean-lake-build"
@@ -48,7 +48,7 @@
       "source_files": [
         {
           "path": "lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean",
-          "sha256": "79ce3acae231cec77db8ab8278956986e99bed3c7e10288398c5b2419a4ff0a6"
+          "sha256": "3336f90d1ea9b15c172d8a36b0750370e4025be21354d3ff089c3223014b481f"
         }
       ],
       "tool": "lean-lake-build"
@@ -83,12 +83,12 @@
       "source_files": [
         {
           "path": "lean-mathlib/Proofs/ZenoDEXNonces.lean",
-          "sha256": "9307e8dc8443f6dd79bce4f24224aedb1f945ea830a57c17f6e2515b3698e69d"
+          "sha256": "41f518800e2d755c385a7462c4f8cb983614c75e36972f741404e2abd339b240"
         }
       ],
       "tool": "lean-lake-build"
     }
   ],
-  "receipt_sha256": "34053692eca4ce43e50880187ef167f765617db5c2fb8780a9c5186e9cf6aac7",
+  "receipt_sha256": "bd0c53f857ab6e052500d5e8f5dc7783e477c1c47e37f203ffb484a7a60b180d",
   "schema": "zenodex.spot_proof.public_receipt.v1"
 }

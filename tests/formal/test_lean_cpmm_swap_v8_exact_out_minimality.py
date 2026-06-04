@@ -58,6 +58,8 @@ def test_lean_cpmm_swap_v8_exact_out_minimality_exports_theorem() -> None:
         "import Proofs.CpmmSwapV8ExactOutMinimality\n"
         "#check TauSwap.CPMM.V8.net_actual_eq_floor_mul\n"
         "#check TauSwap.CPMM.V8.swap_exact_out_sufficient_and_minimal\n"
+        "#check TauSwap.CPMM.V8.exactOutGross_sufficient_and_minimal\n"
+        "#check TauSwap.CPMM.V8.witness_exactOutGross_sufficient_and_minimal_applies\n"
     )
     smoke_path = lean_dir / ".tmp_cpmm_exact_out_smoke.lean"
     smoke_path.write_text(smoke, encoding="utf-8")

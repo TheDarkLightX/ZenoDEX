@@ -28,6 +28,21 @@ namespace TauSwap
 namespace CPMM
 namespace V8
 
+def exactOutNetReq (rin rout aout : Nat) : Nat :=
+  (rin * aout) ⌈/⌉ (rout - aout)
+
+def exactOutGross (rin rout aout fee_bps : Nat) : Nat :=
+  (exactOutNetReq rin rout aout * 10000) ⌈/⌉ (10000 - fee_bps)
+
+def exactOutNetActual (gross fee_bps : Nat) : Nat :=
+  gross - ((gross * fee_bps) ⌈/⌉ 10000)
+
+def exactOutQuote (rin rout gross fee_bps : Nat) : Nat :=
+  (rout * exactOutNetActual gross fee_bps) / (rin + exactOutNetActual gross fee_bps)
+
+def exactOutAccepts (rin rout aout fee_bps : Nat) : Prop :=
+  aout ≤ exactOutQuote rin rout (exactOutGross rin rout aout fee_bps) fee_bps
+
 -- Helper: strictness property of `ceilDiv`.
 lemma mul_lt_of_lt_ceilDiv {b a m : Nat} (ha : 0 < a) (hm : m < b ⌈/⌉ a) : a * m < b := by
   have hnot : ¬ b ≤ a * m := by
@@ -205,6 +220,38 @@ theorem swap_exact_out_sufficient_and_minimal
     exact lt_of_not_ge hnot_ge
 
   exact ⟨hsuf, hmin⟩
+
+/-- Semantic wrapper for the exact-out v8 quote path.
+
+    The theorem above proves the arithmetic directly over the `let`-bound kernel
+    expressions. This wrapper exposes the same proof through named definitions:
+    the computed gross input is accepted, and every smaller gross input fails to
+    quote the requested output. Protocol-fee-share accounting and state-root
+    binding remain outside this arithmetic proof. -/
+theorem exactOutGross_sufficient_and_minimal
+    {rin rout aout fee_bps : Nat}
+    (hrin : 0 < rin)
+    (haout : aout < rout)
+    (hfee : fee_bps < 10000) :
+    exactOutAccepts rin rout aout fee_bps ∧
+      (∀ g : Nat,
+        g < exactOutGross rin rout aout fee_bps →
+          exactOutQuote rin rout g fee_bps < aout) := by
+  simpa [
+    exactOutAccepts,
+    exactOutQuote,
+    exactOutNetActual,
+    exactOutGross,
+    exactOutNetReq,
+  ] using
+    (swap_exact_out_sufficient_and_minimal
+      (rin := rin) (rout := rout) (aout := aout) (fee_bps := fee_bps)
+      hrin haout hfee)
+
+theorem witness_exactOutGross_sufficient_and_minimal_applies :
+    exactOutAccepts 10 10 1 0 ∧
+      (∀ g : Nat, g < exactOutGross 10 10 1 0 → exactOutQuote 10 10 g 0 < 1) :=
+  exactOutGross_sufficient_and_minimal (by decide) (by decide) (by decide)
 
 end V8
 end CPMM
