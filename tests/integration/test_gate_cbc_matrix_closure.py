@@ -101,6 +101,7 @@ def test_evidence_only_surface_excluded_from_scope_and_listed(tmp_path: Path, ca
     surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
     carrier = _all_clear_surface()
     carrier["claim_role"] = "evidence_only"
+    carrier["attached_to"] = "nonces"
     surfaces["replay_guard"] = carrier
     reg = {"schema": "x", "scope_id": "t", "surfaces": surfaces}
     p = tmp_path / "ev.json"
@@ -118,6 +119,49 @@ def test_all_evidence_only_registry_fails_closed(tmp_path: Path) -> None:
     carrier = _all_clear_surface()
     carrier["claim_role"] = "evidence_only"
     reg = {"schema": "x", "scope_id": "t", "surfaces": {"replay_guard": carrier}}
+    p = tmp_path / "ev.json"
+    p.write_text(json.dumps(reg), encoding="utf-8")
+    assert gate.run(p, scope_override=None, as_json=True) == 2
+
+
+def test_unknown_claim_role_fails_closed(tmp_path: Path) -> None:
+    # An unknown/typo'd claim_role must fail closed, not be silently treated as
+    # authority (or silently dropped).
+    surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
+    surfaces["nonces"]["claim_role"] = "evidenceonly"  # typo
+    reg = {"schema": "x", "scope_id": "t", "surfaces": surfaces}
+    p = tmp_path / "ev.json"
+    p.write_text(json.dumps(reg), encoding="utf-8")
+    assert gate.run(p, scope_override=None, as_json=True) == 2
+
+
+def test_dangling_evidence_only_attachment_fails_closed(tmp_path: Path) -> None:
+    # An evidence_only row attached to a non-authority / missing surface is an
+    # orphan — fail closed (no claim theater).
+    surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
+    carrier = _all_clear_surface()
+    carrier["claim_role"] = "evidence_only"
+    carrier["attached_to"] = "ghost_surface"
+    surfaces["replay_guard"] = carrier
+    reg = {"schema": "x", "scope_id": "t", "surfaces": surfaces}
+    p = tmp_path / "ev.json"
+    p.write_text(json.dumps(reg), encoding="utf-8")
+    assert gate.run(p, scope_override=None, as_json=True) == 2
+
+
+def test_mismarking_authority_surface_evidence_only_fails_closed(tmp_path: Path) -> None:
+    # The declared claim_scope is a backstop: mismarking a real authority surface
+    # as evidence_only shrinks the computed scope, which no longer matches the
+    # declared claim_scope -> fail closed (the surface cannot silently vanish).
+    surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
+    surfaces["state_root"]["claim_role"] = "evidence_only"
+    surfaces["state_root"]["attached_to"] = "balances"  # even with a valid attach
+    reg = {
+        "schema": "x",
+        "scope_id": "t",
+        "claim_scope": list(SPOT_DEX_SCOPE),  # still declares state_root as authority
+        "surfaces": surfaces,
+    }
     p = tmp_path / "ev.json"
     p.write_text(json.dumps(reg), encoding="utf-8")
     assert gate.run(p, scope_override=None, as_json=True) == 2

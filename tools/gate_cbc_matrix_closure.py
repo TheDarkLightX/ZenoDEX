@@ -26,6 +26,7 @@ DEFAULT_EVIDENCE = REPO_ROOT / "config" / "production" / "cbc_surface_evidence_v
 sys.path.insert(0, str(REPO_ROOT))
 from src.integration.surface_security_claim import (  # noqa: E402
     CBC_COLUMNS,
+    claim_role_of,
     evaluate_scope_security_claim,
     is_evidence_only,
 )
@@ -48,10 +49,34 @@ def _load_registry(path: Path) -> tuple[list[str], dict[str, Any], list[str]]:
     if not isinstance(surfaces, Mapping) or not surfaces:
         raise ValueError(f"{path}: 'surfaces' must be a non-empty object")
     surfaces = dict(surfaces)
+    # Validate every claim_role up front — an unknown/typo'd role fails closed
+    # rather than being silently treated as authority.
+    for ev in surfaces.values():
+        claim_role_of(ev)
     evidence_only = [s for s, ev in surfaces.items() if is_evidence_only(ev)]
     scope = [s for s in surfaces if s not in evidence_only]
     if not scope:
         raise ValueError(f"{path}: no claim-scope surfaces (every row is evidence_only)")
+    # An evidence-only row must attach to an authority surface that is itself in
+    # scope — no dangling / orphaned proof-carriers (and no attaching to another
+    # evidence-only row), so a retained row cannot be claim theater.
+    for s in evidence_only:
+        attached = (surfaces.get(s) or {}).get("attached_to")
+        if attached not in scope:
+            raise ValueError(
+                f"{path}: evidence_only surface {s!r} has attached_to={attached!r}, "
+                f"which is not an authority surface in scope"
+            )
+    # If the registry DECLARES its authority scope, the computed scope must match
+    # it exactly — this stops a real authority surface from being silently dropped
+    # from the claim by mismarking it evidence_only.
+    declared = raw.get("claim_scope")
+    if declared is not None:
+        if not isinstance(declared, list) or set(declared) != set(scope):
+            raise ValueError(
+                f"{path}: declared claim_scope {declared!r} != computed authority scope "
+                f"{sorted(scope)} (a real authority surface may have been mismarked evidence_only)"
+            )
     return scope, surfaces, evidence_only
 
 
@@ -94,7 +119,10 @@ def run(evidence_path: Path, *, scope_override: Sequence[str] | None, as_json: b
         return 2
     if scope_override:
         scope = list(scope_override)
-        evidence_only = [s for s in surfaces if s not in scope]
+        # Keep the registry-declared evidence-only set; only drop any that the
+        # override pulled into scope. (Do NOT relabel every non-overridden
+        # authority surface as evidence-only.)
+        evidence_only = [s for s in evidence_only if s not in scope]
     result = evaluate_scope_security_claim(scope, surfaces)
     result["evidence_only_surfaces"] = sorted(evidence_only)
     if as_json:

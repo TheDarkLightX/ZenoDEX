@@ -17,7 +17,9 @@ The CBC replay-guard proof chain has three links:
    (``src/integration/dex_engine.py:132``, ``require_all_nonces=True``).
 
 Without link 3 the proof chain stops at ``replay_guard.py`` and never reaches the
-running code. This test closes it by asserting observational equivalence: thread
+running code. This test closes link 3 **on the single-transition slice only** (it
+does NOT prove the multi-sender batch — see the residual gap below) by asserting
+observational equivalence: thread
 both states through one identical (sender, nonce) event sequence at a time —
 driving the batch validator with a **single-intent batch per step** so the
 single-transition and batch shapes are directly comparable — and assert, at every
@@ -43,8 +45,11 @@ different (but both still rejecting, both still no-op) reasons —
 Residual gap (NOT closed here): the multi-element batch *wrapper* semantics
 (order-independence via sort, cross-sender all-or-nothing atomicity, in-batch
 duplicate detection) are not single-transition properties. The optional
-``TestBatchWrapperLaw`` section pins the precise set-semantics law that relates a
-size-k batch to the in-order ``admit``-fold, extending the binding to the wrapper.
+``TestBatchWrapperLaw`` section pins the set-semantics law that relates a size-k
+batch to the in-order ``admit``-fold **by example** (parametrized cases, NOT a
+proof over all batches), and explicitly pins cross-sender atomicity as a
+batch-only property with no single-transition analogue. Cross-sender batch
+atomicity therefore remains UNPROVEN.
 """
 
 from __future__ import annotations
@@ -350,13 +355,15 @@ def test_double_fault_precedence_divergence():
 
 
 class TestBatchWrapperLaw:
-    """Extends the binding to the multi-element batch wrapper.
+    """Pins the multi-element batch wrapper law BY EXAMPLE (not a proof).
 
     The size-1 binding pins the single-transition. The batch validator is a
     *set*-semantics wrapper: for one sender, a size-k batch accepts iff the
     in-order ``admit``-fold over ``sorted(nonces)`` accepts every element and the
-    final accepted nonce matches. These tests pin that law so the wrapper itself
-    is bound to the single-transition (closing part of the residual gap).
+    final accepted nonce matches. These parametrized cases CONSTRAIN that law by
+    example for a single sender; they do NOT prove it over all batches, and the
+    cross-sender all-or-nothing atomicity (test_cross_sender_atomicity_is_batch_only)
+    is documented as a batch-only property that remains UNPROVEN.
     """
 
     @staticmethod

@@ -62,9 +62,32 @@ SPOT_DEX_SCOPE: tuple[str, ...] = (
 EVIDENCE_ONLY_ROLE: str = "evidence_only"
 
 
+VALID_CLAIM_ROLES: frozenset[str] = frozenset({"authority", EVIDENCE_ONLY_ROLE})
+
+
+def claim_role_of(surface_evidence: Any) -> str:
+    """Return a surface row's claim role (default ``"authority"`` when absent).
+
+    Raises ``ValueError`` on an unrecognized role so release-gate tooling fails
+    closed rather than silently treating a typo'd / unknown role as authority.
+    """
+    if not isinstance(surface_evidence, Mapping):
+        return "authority"
+    role = surface_evidence.get("claim_role", "authority")
+    if role not in VALID_CLAIM_ROLES:
+        raise ValueError(
+            f"unknown claim_role {role!r} (expected one of {sorted(VALID_CLAIM_ROLES)})"
+        )
+    return role
+
+
 def is_evidence_only(surface_evidence: Any) -> bool:
     """True iff a registry surface row is retained for evidence/traceability only
-    (``claim_role == "evidence_only"``) and must be excluded from the claim AND."""
+    (``claim_role == "evidence_only"``) and must be excluded from the claim AND.
+
+    Note: this is an *exact* predicate (a typo'd role is NOT evidence_only, so it
+    stays in the claim AND — the safe direction). Use :func:`claim_role_of` when
+    you need an unknown role to fail closed instead."""
     return (
         isinstance(surface_evidence, Mapping)
         and surface_evidence.get("claim_role") == EVIDENCE_ONLY_ROLE
