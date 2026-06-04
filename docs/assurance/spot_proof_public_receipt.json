@@ -14,7 +14,7 @@
       "source_files": [
         {
           "path": "lean-mathlib/Proofs/CPMMInvariants.lean",
-          "sha256": "bfde93ef753e66726f66baf25d74a4a31e4e57c03c9e11db04cfb1ba19cffa88"
+          "sha256": "5c63a1742f7d0003b2b73dc17d3d70189c83d7bbb79f429a868726312007f622"
         }
       ],
       "tool": "lean-lake-build"
@@ -55,6 +55,6 @@
       "tool": "lean-lake-build"
     }
   ],
-  "receipt_sha256": "a2385c20c8195e8617e185529df55cda4849f97ecfc8650cc0e22378e691e06e",
+  "receipt_sha256": "4bf94a931981c1a4eefa8ead6ec6efe510d250b6e4dc8dc089308b6c09dfbb23",
   "schema": "zenodex.spot_proof.public_receipt.v1"
 }
