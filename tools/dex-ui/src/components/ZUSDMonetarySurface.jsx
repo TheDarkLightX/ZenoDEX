@@ -254,10 +254,13 @@ const ZUSD_LEAN_PROOFS = [
   },
 ];
 
-function ZUSDMonetarySurface() {
+function ZUSDMonetarySurface({ wallet = null }) {
+  const connectedAccount = (wallet?.address || '').trim();
   const [status, setStatus] = useState(null);
   const [statusError, setStatusError] = useState('');
-  const [form, setForm] = useState(() => readSmokeConfig() || EMPTY_FORM);
+  const [form, setForm] = useState(
+    () => readSmokeConfig() || { ...EMPTY_FORM, actor_pubkey: connectedAccount },
+  );
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -302,11 +305,17 @@ function ZUSDMonetarySurface() {
 
   async function loadStatus() {
     try {
-      const payload = await apiGetZusdMonetaryStatus({ timeoutMs: 8000 });
+      const payload = await apiGetZusdMonetaryStatus({
+        account: form.actor_pubkey.trim() || '',
+        timeoutMs: 8000,
+      });
       setStatus(payload?.status || null);
       setStatusError('');
-      // Pre-fill actor pubkey if present in status
-      if (payload?.status?.vault_owner_pubkey) {
+      // Convenience prefill of the global vault owner ONLY when no wallet has
+      // driven the field this session (operator inspecting the vault without a
+      // wallet). Once a wallet connects, empty means intentionally empty — do not
+      // rehydrate the disconnected account.
+      if (payload?.status?.vault_owner_pubkey && !walletEverConnectedRef.current) {
         setForm((curr) => {
           if (!curr.actor_pubkey) {
             return { ...curr, actor_pubkey: payload.status.vault_owner_pubkey };
@@ -322,7 +331,39 @@ function ZUSDMonetarySurface() {
 
   useEffect(() => {
     loadStatus();
-  }, []);
+    // Refetch account-aware status when the actor (connected account) changes
+    // so balances/positions/collateral reflect THAT account.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.actor_pubkey]);
+
+  // Bind the account-aware status query to the CONNECTED wallet: when the wallet
+  // identity changes, set the actor field to it so balances/positions/collateral
+  // reflect THAT account (fixes "50k shows in Pool but not zUSD"). Manual edits
+  // between wallet switches are preserved — we only react to identity changes.
+  const prevWalletRef = useRef(connectedAccount);
+  // Once a wallet has driven the field this session, the wallet binding is
+  // authoritative: an empty field means INTENTIONALLY empty, so the vault-owner
+  // convenience prefill in loadStatus must not rehydrate the disconnected account.
+  const walletEverConnectedRef = useRef(Boolean(connectedAccount));
+  useEffect(() => {
+    const previous = prevWalletRef.current;
+    if (connectedAccount && connectedAccount !== previous) {
+      prevWalletRef.current = connectedAccount;
+      walletEverConnectedRef.current = true;
+      // Connecting/switching a wallet is a deliberate action: the connected
+      // account always takes over the field — overriding empty, the vault-owner
+      // convenience prefill, or any stale prior value. The field stays editable
+      // for inspection while this wallet remains connected.
+      setForm((curr) => ({ ...curr, actor_pubkey: connectedAccount }));
+    } else if (!connectedAccount && previous) {
+      prevWalletRef.current = '';
+      // On disconnect, clear ONLY if the field still holds the disconnected
+      // wallet (so a manual edit survives).
+      setForm((curr) =>
+        curr.actor_pubkey === previous ? { ...curr, actor_pubkey: '' } : curr,
+      );
+    }
+  }, [connectedAccount]);
 
   async function handlePrepare() {
     setBusy(true);
@@ -748,6 +789,25 @@ function ZUSDMonetarySurface() {
 
           <div className="zusd-wallet-meta zusd-vault-details">
             <div className="zusd-wallet-kv"><span>Vault Owner</span><span className="zusd-mono">{status?.vault_owner_pubkey || 'none'}</span></div>
+            {status?.account_view ? (
+              <>
+                <div className="zusd-wallet-kv">
+                  <span>Connected Account</span>
+                  <span className="zusd-mono">{compactId(status.account_view.account)}</span>
+                </div>
+                <div className="zusd-wallet-kv">
+                  <span>Account zUSD Balance</span>
+                  <span>{formatAmount(Number(status.account_view.zusd_balance ?? 0), 4)} zUSD</span>
+                </div>
+                <div className="zusd-wallet-kv">
+                  <span>Account SP Deposit</span>
+                  <span>{formatE8(status.account_view.sp_deposit_e8)} zUSD</span>
+                </div>
+                {status.account_view.is_vault_owner ? (
+                  <div className="zusd-wallet-kv"><span>Vault Ownership</span><span>this account</span></div>
+                ) : null}
+              </>
+            ) : null}
             <div className="zusd-wallet-kv"><span>Network</span><span>{networkLabel}</span></div>
             <div className="zusd-wallet-kv"><span>zUSD Asset</span><span className="zusd-mono">{compactId(status?.asset_id || 'unavailable')}</span></div>
             <div className="zusd-wallet-kv"><span>Fee stake asset</span><span className="zusd-mono">{compactId(status?.fee_stake_asset_id || 'unavailable')}</span></div>

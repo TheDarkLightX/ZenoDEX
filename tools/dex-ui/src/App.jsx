@@ -185,7 +185,7 @@ function App() {
 
           {activeTab === 'zusd' && (
             <div className="animate-fade-in">
-              <ZUSDWorkbench />
+              <ZUSDWorkbench wallet={wallet} />
             </div>
           )}
 

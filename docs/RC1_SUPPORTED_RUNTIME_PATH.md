@@ -14,7 +14,7 @@ Historical release baseline: `RC1` already shipped. This file keeps the `RC1_*` 
 RuntimePathOK := ReadOnlyHTTPBounded ∧ SpotAdmissionPinned ∧ WalletTransportPinned
 ```
 
-Standard reading: the conservative RC2 runtime claim is only about a narrow HTTP subset, one pinned spot admission/signing path, and the narrow zUSD wallet transport path.
+Plain reading: the conservative RC2 runtime claim is only about a narrow HTTP subset, one pinned spot admission/signing path, and the narrow zUSD wallet transport path.
 
 Practical consequence: this document does not promote the entire integration shell into RC2 authority.
 
@@ -43,7 +43,7 @@ Practical consequence: this document does not promote the entire integration she
 IntentAccepted -> CanonicalSigningPayloadVerified ∧ NonceBatchAccepted ∧ PreconditionsHold
 ```
 
-Standard reading: spot admission accepts an intent batch only after canonical signing payload verification, nonce-batch validation, and ordinary precondition checks succeed.
+Plain reading: spot admission accepts an intent batch only after canonical signing payload verification, nonce-batch validation, and ordinary precondition checks succeed.
 
 Practical consequence: RC2 should describe one exact signing and nonce path, not a mix of alternative ingress behaviors.
 

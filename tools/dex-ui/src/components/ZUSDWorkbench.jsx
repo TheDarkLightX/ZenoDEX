@@ -52,10 +52,11 @@ function nowDeadline() {
   return Math.floor(Date.now() / 1000) + 3600;
 }
 
-function MintPanel({ onClose, demoMode = false, showClose = true }) {
+function MintPanel({ onClose, demoMode = false, showClose = true, wallet = null }) {
   const smokeConfig = useRef(readQuickMintSmokeConfig());
+  const connectedAccount = (wallet?.address || '').trim();
   const [collateral, setCollateral] = useState('');
-  const [ownerPubkey, setOwnerPubkey] = useState(smokeConfig.current?.ownerPubkey || '');
+  const [ownerPubkey, setOwnerPubkey] = useState(smokeConfig.current?.ownerPubkey || connectedAccount);
   const [signerPrivkey] = useState(smokeConfig.current?.signerPrivkey || '');
   const [deadline, setDeadline] = useState(smokeConfig.current?.deadline || '');
   const [busy, setBusy] = useState(false);
@@ -64,17 +65,47 @@ function MintPanel({ onClose, demoMode = false, showClose = true }) {
   const [status, setStatus] = useState(null);
   const smokeRan = useRef(false);
 
+  // Bind the mint owner (and its account-aware status query below) to the
+  // CONNECTED wallet on identity change, so the connected account's vault/balance
+  // is what the panel inspects. Manual edits between switches are preserved.
+  const prevWalletRef = useRef(connectedAccount);
+  // Once a wallet has driven the field this session, the wallet binding is
+  // authoritative: an empty field then means INTENTIONALLY empty, so the
+  // vault-owner convenience prefill below must not rehydrate the disconnected
+  // account (Codex: stale account_view + poisoned re-connect rebind).
+  const walletEverConnectedRef = useRef(Boolean(connectedAccount));
+  useEffect(() => {
+    const previous = prevWalletRef.current;
+    if (connectedAccount && connectedAccount !== previous) {
+      prevWalletRef.current = connectedAccount;
+      walletEverConnectedRef.current = true;
+      // Connecting/switching a wallet is a deliberate action: the connected
+      // account always takes over the field — overriding empty, the vault-owner
+      // convenience prefill, or any stale prior value. The field stays editable
+      // for inspection while this wallet remains connected.
+      setOwnerPubkey(connectedAccount);
+    } else if (!connectedAccount && previous) {
+      prevWalletRef.current = '';
+      // On disconnect, clear ONLY if the field still holds the disconnected
+      // wallet (so a manual edit survives).
+      setOwnerPubkey((curr) => (curr === previous ? '' : curr));
+    }
+  }, [connectedAccount]);
+
   useEffect(() => {
     if (demoMode) {
       return undefined;
     }
     let active = true;
-    apiGetZusdMonetaryStatus({ timeoutMs: 8000 })
+    apiGetZusdMonetaryStatus({ account: ownerPubkey || '', timeoutMs: 8000 })
       .then((payload) => {
         if (!active) return;
         const nextStatus = payload?.status || null;
         setStatus(nextStatus);
-        if (!ownerPubkey && nextStatus?.vault_owner_pubkey) {
+        // Convenience prefill of the global vault owner ONLY when no wallet has
+        // driven the field this session (operator inspecting the vault without a
+        // wallet). Once a wallet connects, empty means intentionally empty.
+        if (!ownerPubkey && nextStatus?.vault_owner_pubkey && !walletEverConnectedRef.current) {
           setOwnerPubkey(nextStatus.vault_owner_pubkey);
         }
       })
@@ -376,7 +407,7 @@ function StabilityPoolPanel({ onClose }) {
   );
 }
 
-function ZUSDWorkbench() {
+function ZUSDWorkbench({ wallet = null }) {
   const { demoMode } = useDemoMode();
   const [activePanel, setActivePanel] = useState(null);
 
@@ -384,9 +415,9 @@ function ZUSDWorkbench() {
     const isQuickMintSmoke = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('zenodexUiSmokeZusdQuickMint') === '1';
     return (
       <section className="zusd-workbench">
-        {isQuickMintSmoke && <MintPanel demoMode={false} showClose={false} />}
-        <ZUSDMonetarySurface />
-        <ZUSDTauWalletSurface />
+        {isQuickMintSmoke && <MintPanel demoMode={false} showClose={false} wallet={wallet} />}
+        <ZUSDMonetarySurface wallet={wallet} />
+        <ZUSDTauWalletSurface wallet={wallet} />
       </section>
     );
   }
@@ -452,7 +483,7 @@ function ZUSDWorkbench() {
           </div>
         </div>
 
-        {activePanel === 'mint' && <MintPanel demoMode={demoMode} onClose={() => setActivePanel(null)} />}
+        {activePanel === 'mint' && <MintPanel demoMode={demoMode} onClose={() => setActivePanel(null)} wallet={wallet} />}
         {activePanel === 'deposit_sp' && <StabilityPoolPanel onClose={() => setActivePanel(null)} />}
         {(activePanel === 'repay' || activePanel === 'redeem') && (
           <div className="zusd-action-panel panel animate-scale-in">

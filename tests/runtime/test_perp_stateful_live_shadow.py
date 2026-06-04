@@ -886,6 +886,59 @@ def test_rust_shadow_publish_full_state_and_effects_parity(rust_env):
     assert int(gs["clearing_price_e8"]) == 101_000_000
 
 
+def test_rust_shadow_publish_with_mark_price_source_kind_parity(rust_env):
+    # Codex F1: a publish op may carry the explicit derivatives-safe
+    # mark_price_source_kind field. The Python isolated handler allows it; the Rust
+    # materializer previously rejected it as an unknown op field (Python accept /
+    # Rust reject = parity divergence). Under RUST_SHADOW the two must now AGREE to
+    # accept, and the op's value must land in the post-state.
+    market_id = "perp:shadow-publish-msk"
+    state = _open(market_id)
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "publish_clearing_price", price_e8=101_000_000, mark_price_source_kind=1)],
+    )
+    assert res.ok is True, res.error
+    gs = res.state.perps.markets[market_id].global_state
+    assert int(gs["epoch_phase"]) == 1
+    assert int(gs["mark_price_source_kind"]) == 1
+
+
+def test_build_isolated_op_request_forwards_mark_price_source_kind():
+    # Gemini F1: the Python->Rust materialization bridge (_build_isolated_op_request)
+    # must FORWARD mark_price_source_kind for publish. It previously dropped the
+    # field, so the Rust shadow fell back to its external-median default and never
+    # saw a forwarded value — making the parity test above a false positive (it only
+    # passed because the value 1 equals the default). This pure-Python test asserts
+    # the field actually reaches the Rust request op, independent of its value, so a
+    # regression to silent-strip fails here. (No rust binary needed.)
+    from src.integration.perp_engine import PerpOp, _build_isolated_op_request
+
+    market_id = "perp:bridge-msk"
+    pre_market = _open(market_id).perps.markets[market_id]
+    op = PerpOp(
+        market_id=market_id,
+        action="publish_clearing_price",
+        version="0.1",
+        data={"price_e8": 101_000_000, "mark_price_source_kind": 1},
+    )
+    facts = {
+        "operator_ok": True,
+        "sender_bound_ok": True,
+        "all_positions_flat": False,
+        "balance_available": "0",
+        "oracle_adapter_ok": True,
+        "oracle_authorization_ok": True,
+        "min_collectible_liquidation_penalty_quote": "0",
+    }
+    req = _build_isolated_op_request(pre_market=pre_market, op=op, integration_facts=facts)
+    assert req["op"]["action"] == "publish_clearing_price"
+    assert req["op"]["price_e8"] == "101000000"
+    # The load-bearing assertion: the field is forwarded, not silently dropped.
+    assert req["op"]["mark_price_source_kind"] == "1"
+
+
 def test_rust_shadow_settle_full_state_and_effects_parity(rust_env):
     # settle_epoch is materialized (the first account-mutating op): rust_shadow
     # compares the full settled post-market (global fee/insurance + every account's

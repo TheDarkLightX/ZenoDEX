@@ -23,6 +23,21 @@ const DEFAULT_PRE_STATE = `0x${'01'.repeat(32)}`;
 const DEFAULT_BATCH = `0x${'02'.repeat(32)}`;
 const DEFAULT_DEX_AFTER = `0x${'03'.repeat(32)}`;
 
+// Honest live-vs-preview classification for this surface.
+//
+// - The live payout-template backend route is NOT served by the local DEX API
+//   (`POST /api/dex/proof_mining_payout_template` has no handler). When it 404s
+//   we fall back to an offline sample, which is PREVIEW-only.
+// - `POST /api/dex/proof_mining_status` is a LIVE preflight only: it rejects any
+//   `proof_mining_context` and never accepts a verified DEX proof context, so it
+//   reports claim shape but can never return `claimable: true` over HTTP.
+// - `POST /tx` is served by the zeno-ledger node, not the local DEX API, so the
+//   payout submit is live only when the UI is pointed at a running ledger node.
+const PAYOUT_TEMPLATE_ROUTE = '/api/dex/proof_mining_payout_template';
+const LEDGER_TX_ROUTE = '/tx';
+const PREVIEW_SAMPLE_REASON =
+  `Preview sample: live payout-template backend not available (no handler for POST ${PAYOUT_TEMPLATE_ROUTE}). Loaded an offline sample.`;
+
 function formatJson(value) {
   return JSON.stringify(value, null, 2);
 }
@@ -485,7 +500,7 @@ function ProofMiningWorkbench() {
       setAppStateText(request.app_state_json);
       setSender(request.tx_sender_pubkey);
       setSubmitTxText(formatJson({ tx: request.tx }));
-      setProofStatus({ state: 'sample_loaded', data: null, error: '' });
+      setProofStatus({ state: 'live_sample_loaded', data: null, error: '' });
     } catch (err) {
       try {
         const request = await buildDemoProofMiningRequest();
@@ -495,7 +510,9 @@ function ProofMiningWorkbench() {
         setAppStateText(request.app_state_json);
         setSender(request.tx_sender_pubkey);
         setSubmitTxText(formatJson(buildProofMiningSubmitTemplate(request)));
-        setProofStatus({ state: 'sample_loaded', data: null, error: err?.message || 'live_template_unavailable' });
+        // The live payout-template backend (POST /api/dex/proof_mining_payout_template)
+        // has no handler in the local DEX API and 404s, so this is a PREVIEW sample.
+        setProofStatus({ state: 'preview_sample_loaded', data: null, error: '' });
       } catch (fallbackErr) {
         setProofStatus({ state: 'error', data: null, error: fallbackErr?.message || err?.message || 'sample_build_failed' });
       }
@@ -585,7 +602,8 @@ function ProofMiningWorkbench() {
           <h1>Proof mining and browser verification</h1>
           <p>
             Verify checkpoint bundles in the browser and preflight proof-mining claims
-            against the live local API before submitting a payout transaction.
+            against the live local API. Claimability is a fail-closed preflight only; a
+            payout is finalized by a ledger-node transaction, not by this surface.
           </p>
         </div>
         <div className="pmw-specs">
@@ -598,8 +616,12 @@ function ProofMiningWorkbench() {
         <section className="pmw-panel">
           <div className="pmw-panel-head">
             <div>
-              <h2>Proof-mining claimability</h2>
-              <p>Build a local sample or paste a real claim, context, and balance snapshot.</p>
+              <h2>Proof-mining claimability (preflight)</h2>
+              <p>
+                Build a sample or paste a real claim, context, and balance snapshot. This is a
+                fail-closed preflight: the live endpoint validates claim shape but does not accept
+                a verified DEX proof context, so it never reports <code>claimable</code> directly.
+              </p>
             </div>
             <button type="button" className="btn-secondary" onClick={loadDemoClaim}>
               Load sample
@@ -638,10 +660,13 @@ function ProofMiningWorkbench() {
 
           {proofStatus.error && <p className="pmw-error">{proofStatus.error}</p>}
           {smokeMessage && <p className="pmw-note">{smokeMessage}</p>}
-          {proofStatus.state === 'sample_loaded' && (
+          {proofStatus.state === 'live_sample_loaded' && (
             <p className="pmw-note">
-              Sample loaded from the live tokenomics reward pool when available.
+              Live sample loaded from the ledger node and tokenomics reward pool.
             </p>
+          )}
+          {proofStatus.state === 'preview_sample_loaded' && (
+            <p className="pmw-warning">{PREVIEW_SAMPLE_REASON}</p>
           )}
           {status && (
             <div className="pmw-result">
@@ -663,7 +688,9 @@ function ProofMiningWorkbench() {
               <h3>Submit payout transaction</h3>
               <p>
                 Paste the full ledger transaction that produced the verified DEX proof context and includes
-                stream 10. A standalone claim is expected to be rejected by the runtime.
+                stream 10. A standalone claim is expected to be rejected by the runtime. This posts to the
+                zeno-ledger node route <code>POST {LEDGER_TX_ROUTE}</code>, which is served by a running
+                ledger node (not the local DEX API), so submit is live only when the UI is pointed at one.
               </p>
             </div>
             <label className="pmw-bundle-field">
