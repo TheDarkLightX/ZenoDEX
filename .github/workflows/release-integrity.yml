@@ -50,6 +50,7 @@ jobs:
             --receipt docs/assurance/kernel_assurance_public_receipt.json \
             --manifest tools/kernel_assurance_manifest.json \
             --pretty
+          python3 tools/spot_proof_public_receipt.py check --pretty
           python3 tools/check_python_hash_locks.py --json
           python3 tools/check_docker_hashlocked_install.py --strict-digest
           python3 tools/check_operator_packaging.py --pretty
@@ -61,6 +62,7 @@ jobs:
             tests/test_check_operator_packaging.py \
             tests/test_check_docker_hashlocked_install.py \
             tests/test_check_kernel_assurance_public_receipt.py \
+            tests/integration/test_spot_proof_public_receipt.py \
             tests/test_check_release_publication_workflow.py \
             tests/tools/test_check_zenodex_host_independent_coverage.py \
             tests/tools/test_measure_zenodex_zk_transition_coverage.py

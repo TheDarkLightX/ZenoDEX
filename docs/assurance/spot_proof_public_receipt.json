@@ -1,0 +1,80 @@
+{
+  "manifest": "tools/spot_proof_public_manifest.json",
+  "manifest_sha256": "95e76bc2366e45fefd162b1564a48ca0ffe740017be48b91d0cad144844e3594",
+  "ok": true,
+  "private_toolchain_source_included": false,
+  "proofs": [
+    {
+      "id": "cpmm_invariants_lean",
+      "result": {
+        "lean_toolchain": "leanprover/lean4:v4.27.0",
+        "module": "Proofs.CPMMInvariants",
+        "verdict": "BUILT_NO_SORRY"
+      },
+      "source_files": [
+        {
+          "path": "lean-mathlib/Proofs/CPMMInvariants.lean",
+          "sha256": "bfde93ef753e66726f66baf25d74a4a31e4e57c03c9e11db04cfb1ba19cffa88"
+        }
+      ],
+      "tool": "lean-lake-build"
+    },
+    {
+      "id": "cpmm_output_amount_v2",
+      "result": {
+        "ir_hash": "4d602b8b7298f95a",
+        "passed_queries": 2,
+        "solvers": {
+          "cvc5": "This is cvc5 version 1.1.2",
+          "z3": "4.15.4"
+        },
+        "solvers_agreed": true,
+        "verdict": "VERIFIED"
+      },
+      "source_files": [
+        {
+          "path": "src/kernels/dex/cpmm_output_amount_v2.yaml",
+          "sha256": "8aec21bc9058d56a27e245343491e4c05bbc0e71ba8710d8d94e2aa72a4eab54"
+        }
+      ],
+      "tool": "esso-verify-multi"
+    },
+    {
+      "id": "nonce_batch_sequencing_v1",
+      "result": {
+        "ir_hash": "94a6cb81425c5c63",
+        "passed_queries": 4,
+        "solvers": {
+          "cvc5": "This is cvc5 version 1.1.2",
+          "z3": "4.15.4"
+        },
+        "solvers_agreed": true,
+        "verdict": "VERIFIED"
+      },
+      "source_files": [
+        {
+          "path": "src/kernels/dex/nonce_batch_sequencing_v1.yaml",
+          "sha256": "a9f055d265709de340c4cff36bf241dda51ac6ba4957056ebc09b4a7a9fd7105"
+        }
+      ],
+      "tool": "esso-verify-multi"
+    },
+    {
+      "id": "zenodex_nonces_lean",
+      "result": {
+        "lean_toolchain": "leanprover/lean4:v4.27.0",
+        "module": "Proofs.ZenoDEXNonces",
+        "verdict": "BUILT_NO_SORRY"
+      },
+      "source_files": [
+        {
+          "path": "lean-mathlib/Proofs/ZenoDEXNonces.lean",
+          "sha256": "f3aa1fe5d92d1bc0bd362b2ac74a3122c8970ca55504df7578047d0b92993483"
+        }
+      ],
+      "tool": "lean-lake-build"
+    }
+  ],
+  "receipt_sha256": "0c82a60c73c707384c690e0b4b4671c5f7b29d8408cafa26eaaf794bea54c36c",
+  "schema": "zenodex.spot_proof.public_receipt.v1"
+}

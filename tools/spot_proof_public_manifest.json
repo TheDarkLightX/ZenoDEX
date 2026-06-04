@@ -1,0 +1,32 @@
+{
+  "schema": "zenodex.spot_proof.public_manifest.v1",
+  "note": "Normative expectations for the public spot-proof receipt (docs/assurance/spot_proof_public_receipt.json). `python3 tools/spot_proof_public_receipt.py build` (privileged: needs external/ESSO + external/mathlib4 + z3/cvc5/lake) runs each proof, requires the verdict below, and pins the source sha256. `python3 tools/spot_proof_public_receipt.py check` (CI, no toolchains) re-hashes the same tracked sources and validates the receipt. Update this manifest and regenerate the receipt only via a successful `build`. Covers the PR-gateable evidence for the nonces + cpmm_swap proof_artifact columns; the Rust Kani harnesses are a separate (scheduled) toolchain and are added in a later increment.",
+  "proofs": [
+    {
+      "id": "nonce_batch_sequencing_v1",
+      "tool": "esso-verify-multi",
+      "required_verdict": "VERIFIED",
+      "source_files": ["src/kernels/dex/nonce_batch_sequencing_v1.yaml"]
+    },
+    {
+      "id": "cpmm_output_amount_v2",
+      "tool": "esso-verify-multi",
+      "required_verdict": "VERIFIED",
+      "source_files": ["src/kernels/dex/cpmm_output_amount_v2.yaml"]
+    },
+    {
+      "id": "cpmm_invariants_lean",
+      "tool": "lean-lake-build",
+      "module": "Proofs.CPMMInvariants",
+      "required_verdict": "BUILT_NO_SORRY",
+      "source_files": ["lean-mathlib/Proofs/CPMMInvariants.lean"]
+    },
+    {
+      "id": "zenodex_nonces_lean",
+      "tool": "lean-lake-build",
+      "module": "Proofs.ZenoDEXNonces",
+      "required_verdict": "BUILT_NO_SORRY",
+      "source_files": ["lean-mathlib/Proofs/ZenoDEXNonces.lean"]
+    }
+  ]
+}
