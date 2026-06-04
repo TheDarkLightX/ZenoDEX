@@ -24,6 +24,7 @@ def test_repo_proof_toolchain_lock_check_passes() -> None:
     assert report["lock_hash"] != "0x" + "00" * 32
     assert {"python", "docker", "lean", "rust-risc0", "rust-tee"} <= set(report["groups"])
     assert "zk/state_proof_risc0/Cargo.lock" in report["paths"]
+    assert "zk/state_proof_risc0/patches/ark-relations-0.5.1/Cargo.toml" in report["paths"]
     assert "lean-mathlib/lean-toolchain" in report["paths"]
     assert "lean-mathlib/Proofs.lean" in report["paths"]
     assert "lean-mathlib/Proofs/ZenoLedgerZkTeeProofComposition.lean" in report["paths"]

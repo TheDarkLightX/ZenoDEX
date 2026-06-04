@@ -72,8 +72,22 @@ def toolchain_lock_paths_v0(root: Path) -> tuple[tuple[str, tuple[str, ...]], ..
             if path.is_file()
         )
     )
+    risc0_patch_paths = tuple(
+        sorted(
+            _relative_posix(path, root)
+            for path in (root / "zk/state_proof_risc0/patches/ark-relations-0.5.1").rglob("*")
+            if path.is_file() and (path.suffix == ".rs" or path.name == "Cargo.toml")
+        )
+    )
     return tuple(
-        (group, paths + lean_dynamic_paths if group == "lean" else paths)
+        (
+            group,
+            paths + lean_dynamic_paths
+            if group == "lean"
+            else paths + risc0_patch_paths
+            if group == "rust-risc0"
+            else paths,
+        )
         for group, paths in TOOLCHAIN_LOCK_STATIC_PATHS_V0
     )
 

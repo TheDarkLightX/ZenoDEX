@@ -342,6 +342,7 @@ python3 tools/zenoctl.py testnet join \
   --host 0.0.0.0 \
   --port 8788 \
   --poll-seconds 5 \
+  --write-auth-token-env ZENO_TESTNET_WRITE_TOKEN \
   --serve
 ```
 
