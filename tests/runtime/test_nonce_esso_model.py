@@ -71,12 +71,15 @@ def test_model_declares_expected_state_and_invariants() -> None:
 def test_model_actions_match_the_nonce_policy() -> None:
     m = _load_model()
     actions = {a["id"]: a for a in m["actions"]}
-    assert set(actions) == {"accept_one", "accept_range", "reject_stale", "reject_gap"}
+    # Only the genuinely-guarded single-transition accept (no tautological
+    # accept_range — peer review removed it).
+    assert set(actions) == {"accept_one", "reject_stale", "reject_gap"}
 
-    # accept_one advances last by 1 and count by 1 (strict successor).
+    # accept_one's guard is the strict successor n == last+1 (the whole policy),
+    # and it advances last by 1 and count by 1.
     a1 = actions["accept_one"]
-    updated = {u["var"] for u in a1["updates"]}
-    assert updated == {"prev_last", "last_nonce", "accepted_count"}
+    assert a1["guard"]["op"] == "="
+    assert {u["var"] for u in a1["updates"]} == {"prev_last", "last_nonce", "accepted_count"}
 
     # The reject actions are NO-OPS on last_nonce/accepted_count (only prev_last is
     # touched, for the monotonicity ghost) — reject-is-no-op at the model level.
@@ -90,27 +93,41 @@ def test_model_actions_match_the_nonce_policy() -> None:
 
 def test_independent_z3_non_vacuity_witness() -> None:
     z3 = pytest.importorskip("z3")
-    # A concrete reachable trajectory: accept_one(1) -> accept_range(2) -> reject_stale(2).
-    # The contiguity invariant must hold at each state AND last must reach > 0
-    # (so the invariant is non-vacuous, not trivially true on a frozen state).
+    # (a) NON-VACUITY: a concrete reachable accepting trajectory
+    #     accept_one(1) -> accept_one(2) -> reject_stale(2) (no-op), with the
+    #     contiguity invariant holding at each step and last reaching > 0.
     last = [z3.Int(f"last{i}") for i in range(4)]
     cnt = [z3.Int(f"cnt{i}") for i in range(4)]
     s = z3.Solver()
     s.add(last[0] == 0, cnt[0] == 0)
-    s.add(1 == last[0] + 1, last[1] == 1, cnt[1] == cnt[0] + 1)            # accept_one(1)
-    s.add(last[1] + 2 <= 4294967295, last[2] == last[1] + 2, cnt[2] == cnt[1] + 2)  # accept_range(2)
-    s.add(2 >= 1, 2 <= last[2], last[3] == last[2], cnt[3] == cnt[2])      # reject_stale(2): no-op
+    s.add(1 == last[0] + 1, last[1] == 1, cnt[1] == cnt[0] + 1)        # accept_one(1)
+    s.add(2 == last[1] + 1, last[2] == 2, cnt[2] == cnt[1] + 1)        # accept_one(2)
+    s.add(2 >= 1, 2 <= last[2], last[3] == last[2], cnt[3] == cnt[2])  # reject_stale(2): no-op
     for i in range(4):
         s.add(last[i] == cnt[i])  # inv_contiguous at every reached state
     s.add(last[3] > 0)            # reaches a non-trivial state
     assert s.check() == z3.sat, "accepting trajectory must be reachable (non-vacuity)"
 
-    # Teeth: a buggy accept (count++ without last++) would VIOLATE inv_contiguous.
-    t = z3.Solver()
-    L, C = z3.Int("L"), z3.Int("C")
-    t.add(L == C)            # pre: invariant holds
-    t.add(C == C + 1)        # buggy: count increments, last does not -> contradiction
-    assert t.check() == z3.unsat, "inv_contiguous must have teeth (reject count++ w/o last++)"
+    # (b) TEETH / DISCRIMINATION: inv_contiguous has real content — it is preserved
+    #     ONLY because the accept guard is the strict successor. A HYPOTHETICAL
+    #     gap-accept (accept n > last+1, advancing last:=n, count:=count+1, which is
+    #     what accept_one's guard forbids) must VIOLATE the invariant.
+    g = z3.Solver()
+    last_pre, count_pre, n = z3.Ints("last_pre count_pre n")
+    g.add(last_pre == count_pre)        # pre: invariant holds
+    g.add(n >= last_pre + 2)            # a GAP nonce (forbidden by accept_one's guard)
+    # buggy accept advances to n and counts one acceptance; can the invariant hold?
+    g.add(n == count_pre + 1)           # i.e. last_post == count_post
+    assert g.check() == z3.unsat, "a gap-accept must break inv_contiguous (the invariant has teeth)"
+
+    # (c) ANTI-REPLAY follows from the guard: under last==count, any stale/replayed
+    #     nonce m in [1, last] is NOT the strict successor, so accept_one cannot fire
+    #     (it is rejected). Show no such m can satisfy the accept guard m == last+1.
+    r = z3.Solver()
+    L, m = z3.Ints("L m")
+    r.add(L >= 0, m >= 1, m <= L)       # m is a stale/replayed nonce (<= last)
+    r.add(m == L + 1)                   # ASK: could it satisfy the accept guard?
+    assert r.check() == z3.unsat, "a nonce <= last can never be the strict successor (anti-replay)"
 
 
 # --- 3. live multi-solver proof (skipped when ESSO/solvers absent) ------------
@@ -133,5 +150,6 @@ def test_esso_verify_multi_is_verified() -> None:
     assert report["solvers_agreed"] is True
     assert report["z3_passed"] and report["cvc5_passed"]
     assert report["failed_queries"] == 0 and report["inconclusive_queries"] == 0
-    # the inductive invariant proofs (init + every action preserves the invariants)
-    assert report["passed_queries"] >= 5
+    # the inductive invariant proofs: init + one preservation query per action
+    # (accept_one, reject_stale, reject_gap) = 4 queries.
+    assert report["passed_queries"] >= 4

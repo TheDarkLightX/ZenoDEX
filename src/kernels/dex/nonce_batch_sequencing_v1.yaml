@@ -3,45 +3,46 @@ meta:
   model_id: "nonce_batch_sequencing_v1"
   created_by: "zenodex"
   notes: |
-    Inductive safety model of the per-sender strict-sequential nonce policy
-    enforced by the LIVE spot-DEX replay authority
-    src/state/nonces.py::validate_and_apply_intent_nonce_batch
-    (wired at src/integration/dex_engine.py:132 with require_all_nonces=True, and
+    Inductive safety model of the per-sender SINGLE-TRANSITION strict-sequential
+    nonce policy that the live spot-DEX replay authority
+    src/state/nonces.py::validate_and_apply_intent_nonce_batch applies to each
+    nonce, in sorted order, within a sender's batch (wired at
+    src/integration/dex_engine.py:132, require_all_nonces=True, and
     src/integration/autotrader_live.py:2628).
 
-    SCOPE / ABSTRACTION (read this — it bounds what is proven):
-    The live validator, for each sender, accepts a batch iff the sorted nonces are
-    exactly the contiguous successor range {last+1, .., last+k}, then sets
-    last := last+k; any rejection returns None (a no-op on the table). This model
-    proves the SAFETY of the per-sender nonce STATE MACHINE that the validator
-    drives. It does NOT model the multi-sender batch wrapper (cross-sender
-    atomicity, order-independence, in-batch duplicate detection) or the input
-    range-equality CHECK itself — those are the wrapper's refinement obligation,
-    pinned by tests/runtime/test_nonces_batch_binding.py (incl. the multi-sender
-    wrapper law: batch == per-sender sorted fold of the single-transition core).
-    Here:
-      - accept_one(n):   n == last+1                 -> last += 1,  count += 1
-      - accept_range(k): a pre-validated size-k run  -> last += k,  count += k
-        (models the validator's `set_last(sender, last+k)` advance; the range
-         CONTIGUITY check sorted==[last+1..last+k] is the wrapper's, test-pinned)
-      - reject_stale(n): 1 <= n <= last              -> no-op (duplicate / stale)
-      - reject_gap(n):   n >= last+2                 -> no-op (non-contiguous)
+    SCOPE (read this — it bounds what is proven, and why earlier peer review
+    rejected an over-broad version):
+    This proves the SINGLE-TRANSITION policy only. The live validator, per sender,
+    sorts the batch and accepts iff it is the exact contiguous run
+    {last+1 .. last+k}; that is equivalent to FOLDING the single-transition accept
+    over the sorted nonces. This model proves the safety of that single step:
+      - accept_one(n):   guard n == last+1  -> last := n (= last+1), count += 1
+      - reject_stale(n): guard 1 <= n <= last      -> no-op (duplicate / stale)
+      - reject_gap(n):   guard n >= last+2         -> no-op (non-contiguous)
+    It deliberately does NOT model the batch as a single fat transition: an earlier
+    accept_range(k) that incremented last and count together was a TAUTOLOGY
+    (last==count preserved as L+k==C+k regardless of contiguity) and was removed.
+    The batch == sorted-iterate-of-accept_one equivalence, plus cross-sender
+    atomicity / order-independence / in-batch dedup, are pinned (by test) in
+    tests/runtime/test_nonces_batch_binding.py (incl. the multi-sender wrapper law:
+    batch == per-sender sorted fold of THIS single-transition core). So this ESSO
+    model is the per-element core; the test suite is the batch refinement.
 
     PROVEN inductive invariants (z3 + cvc5, verify-multi):
       inv_contiguous:    last_nonce == accepted_count
-        The accepted nonce stream is a GAPLESS PREFIX 1..count. Combined with the
-        accept guard (n == last+1) this is exactly anti-replay + strict-sequential
-        + no-gap + no-double-apply: any nonce m with 1 <= m <= last has
-        m != last+1, so it is rejected (reject_stale), and an accepted nonce is
-        always exactly last+1, so last advances by precisely the number accepted.
+        NON-TAUTOLOGICAL here: it is preserved ONLY because accept_one's guard is
+        the strict successor n == last+1 (so last advances by exactly 1, matching
+        count's +1). Under a looser accept (e.g. any n > last) it would BREAK — a
+        gap-accept from last=2 to n=5 gives last=5, count=3. Hence last==count is
+        exactly "the accepted nonces are a gapless prefix 1..count" => anti-replay
+        (any m <= last has m != last+1 -> rejected) + strict-sequential + no-gap +
+        no-double-apply. See the discrimination ("teeth") witness in
+        tests/runtime/test_nonce_esso_model.py.
       inv_monotone_step: last_nonce >= prev_last
-        last never rolls back across a step, including on reject (reject-is-no-op
-        leaves last unchanged; accepts only increase it).
+        last never rolls back across a step, including on reject (reject-is-no-op).
 
-    NON-VACUITY: accept_one(n=1) and accept_range are reachable from init
-    (last=0), so last/count grow and the equality invariant is a genuine
-    constraint on the dynamics (not vacuously true). See the companion witness
-    note in the registry entry for nonces.
+    NON-VACUITY: accept_one(n=1) is reachable from init (last=0), so last/count
+    grow and the equality is a genuine constraint on the dynamics.
 observables:
   state_vars: ["last_nonce", "accepted_count", "prev_last"]
   effects: ["event"]
@@ -49,15 +50,17 @@ types:
   - id: "t_event"
     type:
       kind: "enum"
-      symbols: ["AcceptOne", "AcceptRange", "RejectStale", "RejectGap"]
+      symbols: ["AcceptOne", "RejectStale", "RejectGap"]
 state_vars:
   # Last accepted nonce for the sender (0 = none accepted yet). Mirrors
   # NonceTable.get_last(sender) and the validator's per-sender `last`.
   - id: "last_nonce"
     role: "data"
     type: { kind: "int", min: 0, max: 4294967295 }
-  # Ghost: number of nonces accepted so far for the sender. Used to state the
-  # gapless-prefix invariant; the live table does not carry it.
+  # Ghost: number of nonces accepted so far for the sender (not on the live table).
+  # Honest ghost: incremented by exactly 1 ONLY when a strict-successor is accepted,
+  # so it is NOT pre-tied to last_nonce (that is what makes inv_contiguous have
+  # content rather than baking in the conclusion).
   - id: "accepted_count"
     role: "data"
     type: { kind: "int", min: 0, max: 4294967295 }
@@ -84,7 +87,10 @@ invariants:
       op: ">="
       args: [{ var: "last_nonce" }, { var: "prev_last" }]
 actions:
-  # ---- accept a single strict-successor nonce ----
+  # ---- accept a single strict-successor nonce (n == last+1) ----
+  # The guard is the entire policy: only the immediate successor advances the
+  # state. This is what makes inv_contiguous meaningful (a gap/replay cannot fire
+  # this action).
   - id: "accept_one"
     params:
       - id: "n"
@@ -107,35 +113,7 @@ actions:
     effects:
       event: { enum: "AcceptOne" }
 
-  # ---- accept a pre-validated contiguous run of size k (the batch advance) ----
-  # Models `updated.set_last(sender, last+k)` after the wrapper has checked
-  # sorted(nonces) == [last+1 .. last+k]. The advance preserves the gapless-prefix
-  # invariant for any k; the contiguity CHECK is the wrapper's (test-pinned).
-  - id: "accept_range"
-    params:
-      - id: "k"
-        type: { kind: "int", min: 1, max: 1000000 }
-    guard:
-      op: "<="
-      args:
-        - op: "+"
-          args: [{ var: "last_nonce" }, { param: "k" }]
-        - { const: 4294967295 }
-    updates:
-      - var: "prev_last"
-        expr: { var: "last_nonce" }
-      - var: "last_nonce"
-        expr:
-          op: "+"
-          args: [{ var: "last_nonce" }, { param: "k" }]
-      - var: "accepted_count"
-        expr:
-          op: "+"
-          args: [{ var: "accepted_count" }, { param: "k" }]
-    effects:
-      event: { enum: "AcceptRange" }
-
-  # ---- reject a stale / duplicate nonce (<= last): no-op ----
+  # ---- reject a stale / duplicate nonce (1 <= n <= last): no-op ----
   - id: "reject_stale"
     params:
       - id: "n"
@@ -151,7 +129,7 @@ actions:
     effects:
       event: { enum: "RejectStale" }
 
-  # ---- reject a non-contiguous (gap) nonce (>= last+2): no-op ----
+  # ---- reject a non-contiguous (gap) nonce (n >= last+2): no-op ----
   - id: "reject_gap"
     params:
       - id: "n"
