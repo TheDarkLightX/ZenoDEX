@@ -73,6 +73,23 @@ EXPECTED_PROOFS: dict[str, dict[str, Any]] = {
         "lean_toolchain_file": "lean-mathlib/lean-toolchain",
         "source_files": ["lean-mathlib/Proofs/CPMMInvariants.lean"],
     },
+    "cpmm_v8_exact_out_minimality_lean": {
+        "tool": "lean-lake-build", "required_verdict": "BUILT_NO_SORRY",
+        "module": "Proofs.CpmmSwapV8ExactOutMinimality",
+        "expected_lean_toolchain": "leanprover/lean4:v4.27.0",
+        "lean_toolchain_file": "lean-mathlib/lean-toolchain",
+        "source_files": ["lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean"],
+    },
+    "cpmm_v8_exact_in_admissibility_lean": {
+        "tool": "lean-lake-build", "required_verdict": "BUILT_NO_SORRY",
+        "module": "Proofs.CpmmSwapV8ExactInAdmissibility",
+        "expected_lean_toolchain": "leanprover/lean4:v4.27.0",
+        "lean_toolchain_file": "lean-mathlib/lean-toolchain",
+        "source_files": [
+            "lean-mathlib/Proofs/CpmmSwapV8ExactInAdmissibility.lean",
+            "lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean",
+        ],
+    },
     "zenodex_nonces_lean": {
         "tool": "lean-lake-build", "required_verdict": "BUILT_NO_SORRY",
         "module": "Proofs.ZenoDEXNonces",

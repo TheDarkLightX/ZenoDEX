@@ -1,6 +1,6 @@
 {
   "manifest": "tools/spot_proof_public_manifest.json",
-  "manifest_sha256": "115df8e3b3e58c93a373be3285bffd824996c9a5200cc0a0863dd55917600e70",
+  "manifest_sha256": "c3c403a1d963dcdf57af1c7f47afd5188af02cb53cc2ec15d30ba0f2198ff6eb",
   "ok": true,
   "private_toolchain_source_included": false,
   "proofs": [
@@ -15,6 +15,40 @@
         {
           "path": "lean-mathlib/Proofs/CPMMInvariants.lean",
           "sha256": "5c63a1742f7d0003b2b73dc17d3d70189c83d7bbb79f429a868726312007f622"
+        }
+      ],
+      "tool": "lean-lake-build"
+    },
+    {
+      "id": "cpmm_v8_exact_in_admissibility_lean",
+      "result": {
+        "lean_toolchain": "leanprover/lean4:v4.27.0",
+        "module": "Proofs.CpmmSwapV8ExactInAdmissibility",
+        "verdict": "BUILT_NO_SORRY"
+      },
+      "source_files": [
+        {
+          "path": "lean-mathlib/Proofs/CpmmSwapV8ExactInAdmissibility.lean",
+          "sha256": "45873a082a7dbe4546961fc7f2faa0d5a34780e3da7e6914e241fcb6a5573fbe"
+        },
+        {
+          "path": "lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean",
+          "sha256": "79ce3acae231cec77db8ab8278956986e99bed3c7e10288398c5b2419a4ff0a6"
+        }
+      ],
+      "tool": "lean-lake-build"
+    },
+    {
+      "id": "cpmm_v8_exact_out_minimality_lean",
+      "result": {
+        "lean_toolchain": "leanprover/lean4:v4.27.0",
+        "module": "Proofs.CpmmSwapV8ExactOutMinimality",
+        "verdict": "BUILT_NO_SORRY"
+      },
+      "source_files": [
+        {
+          "path": "lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean",
+          "sha256": "79ce3acae231cec77db8ab8278956986e99bed3c7e10288398c5b2419a4ff0a6"
         }
       ],
       "tool": "lean-lake-build"
@@ -55,6 +89,6 @@
       "tool": "lean-lake-build"
     }
   ],
-  "receipt_sha256": "4bf94a931981c1a4eefa8ead6ec6efe510d250b6e4dc8dc089308b6c09dfbb23",
+  "receipt_sha256": "c93d0f678e4d6cdf291cbb5fd425aed8640c4b9246d161f75873a0cf10f5e156",
   "schema": "zenodex.spot_proof.public_receipt.v1"
 }

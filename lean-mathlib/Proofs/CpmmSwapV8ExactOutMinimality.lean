@@ -49,7 +49,8 @@ lemma net_actual_eq_floor_mul (gross fee BPS : Nat) (hBPS : 0 < BPS) :
       exact Nat.mul_div_le (gross * fee + BPS - 1) BPS
     have h1 : gross * fee + BPS - 1 = gross * fee + (BPS - 1) := by
       have hle : 1 ≤ BPS := Nat.succ_le_iff.2 hBPS
-      simpa [Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using (Nat.add_sub_assoc hle (gross * fee))
+      simpa [Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using
+        (Nat.add_sub_assoc hle (gross * fee))
     simpa [fee_total, Nat.ceilDiv_eq_add_pred_div, h1] using this
   have hnet_le : net ≤ (gross * (BPS - fee)) / BPS := by
     have : net * BPS ≤ gross * (BPS - fee) := by
@@ -70,7 +71,8 @@ lemma net_actual_eq_floor_mul (gross fee BPS : Nat) (hBPS : 0 < BPS) :
         simpa [Nat.sub_add_eq, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using hsub
       have hsub'' : gross * BPS - gross * fee ≤ (gross * BPS - BPS * fee_total) + (BPS - 1) := by
         exact (Nat.sub_le_iff_le_add).1 hsub'
-      simpa [net, Nat.mul_sub, Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm, Nat.add_assoc] using hsub''
+      simpa [net, Nat.mul_sub, Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm,
+        Nat.add_assoc] using hsub''
     exact (Nat.div_le_iff_le_mul_add_pred hBPS).2 this
   have : net = (gross * (BPS - fee)) / BPS := by
     exact le_antisymm hnet_le hdiv_le
@@ -158,7 +160,9 @@ theorem swap_exact_out_sufficient_and_minimal
 
   have hsuf : aout ≤ out_quote := by
     have : aout ≤ (rout * net_actual) / (rin + net_actual) :=
-      (out_ge_iff (rin := rin) (rout := rout) (aout := aout) (net := net_actual) hrin haout).2 hsuf_mul
+      (out_ge_iff
+        (rin := rin) (rout := rout) (aout := aout) (net := net_actual)
+        hrin haout).2 hsuf_mul
     simpa [out_quote] using this
 
   have hmin :
@@ -166,8 +170,7 @@ theorem swap_exact_out_sufficient_and_minimal
         g < gross →
           let na : Nat := g - ((g * fee_bps) ⌈/⌉ BPS)
           (rout * na) / (rin + na) < aout := by
-    intro g hg
-    intro na
+    intro g hg na
     have hna : na = (g * fee_den) / BPS := by
       have : g - ((g * fee_bps) ⌈/⌉ BPS) = (g * (BPS - fee_bps)) / BPS :=
         net_actual_eq_floor_mul g fee_bps BPS hBPS
@@ -206,4 +209,3 @@ theorem swap_exact_out_sufficient_and_minimal
 end V8
 end CPMM
 end TauSwap
-

@@ -67,7 +67,9 @@ lemma swapOutput_mono_in_net {rin rout netSmall netLarge : Nat}
     exact Nat.mul_le_mul_right (netLarge - netSmall) houtSmall_le_rout
   have hdecomp : netLarge = netSmall + (netLarge - netSmall) := by
     exact (Nat.add_sub_of_le hnet).symm
-  have hsplit_left : outSmall * (rin + netLarge) = outSmall * (rin + netSmall) + outSmall * (netLarge - netSmall) := by
+  have hsplit_left :
+      outSmall * (rin + netLarge) =
+        outSmall * (rin + netSmall) + outSmall * (netLarge - netSmall) := by
     conv_lhs => rw [hdecomp]
     rw [← Nat.add_assoc, Nat.mul_add]
   have hsplit_right : rout * netLarge = rout * netSmall + rout * (netLarge - netSmall) := by
