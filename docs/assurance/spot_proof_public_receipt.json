@@ -49,12 +49,12 @@
       "source_files": [
         {
           "path": "lean-mathlib/Proofs/ZenoDEXNonces.lean",
-          "sha256": "9c53c55e959fc2ac4d80640a7d71cc83f2aa7536eb0e8aa5fcf4ef4d48751289"
+          "sha256": "e4eab7d56ecf80b7a1116261ab99986fc358528c29abcce598f833dd8f9283e9"
         }
       ],
       "tool": "lean-lake-build"
     }
   ],
-  "receipt_sha256": "a99f5500bc31c036c28a63a611d3c6da1c230e7230554fa3c646d60d31b443b6",
+  "receipt_sha256": "a2385c20c8195e8617e185529df55cda4849f97ecfc8650cc0e22378e691e06e",
   "schema": "zenodex.spot_proof.public_receipt.v1"
 }
