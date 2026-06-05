@@ -234,6 +234,10 @@ def effective_fee_bps(base_fee_bps: int, tier_state: TierState) -> int:
     At tier 3 (halt), returns -1 to signal trading is halted.
     Returns 0 for non-positive base_fee_bps (fail-safe).
     """
+    # REVIEW [B -> A-]: this helper sits outside the step validator, so it must
+    # reject bool/non-int input itself instead of treating True as a 1 bps fee.
+    if not _is_plain_int(base_fee_bps):
+        raise TypeError("base_fee_bps must be an int")
     if base_fee_bps <= 0:
         return 0
     effects = tier_effects(tier_state.tier)
@@ -248,6 +252,10 @@ def max_trade_amount(reserve: int, tier_state: TierState) -> int:
     At tier 3 (halt), returns 0.
     Returns 0 for non-positive reserves (fail-safe).
     """
+    # REVIEW [B -> A-]: match the controller's plain-int boundary here too.
+    # Otherwise bool reserve inputs survive as tiny valid trades.
+    if not _is_plain_int(reserve):
+        raise TypeError("reserve must be an int")
     if reserve <= 0:
         return 0
     effects = tier_effects(tier_state.tier)

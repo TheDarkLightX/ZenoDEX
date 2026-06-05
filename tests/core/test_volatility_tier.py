@@ -408,9 +408,23 @@ def test_effective_fee_negative_base_safe() -> None:
     assert effective_fee_bps(0, s) == 0
 
 
+@pytest.mark.parametrize("base_fee_bps", [True, "30"])
+def test_effective_fee_rejects_non_int_base_fee(base_fee_bps: object) -> None:
+    # REVIEW [B -> A-]: direct helper calls bypass step-param validation, so
+    # this pins the bool-as-int leak separately from action payload tests.
+    with pytest.raises(TypeError, match="base_fee_bps must be an int"):
+        effective_fee_bps(base_fee_bps, TierState())  # type: ignore[arg-type]
+
+
 def test_max_trade_negative_reserve_safe() -> None:
     """Non-positive reserve returns 0."""
     from src.core.volatility_tier import max_trade_amount
     s = TierState()
     assert max_trade_amount(-1000, s) == 0
     assert max_trade_amount(0, s) == 0
+
+
+@pytest.mark.parametrize("reserve", [True, "1000"])
+def test_max_trade_rejects_non_int_reserve(reserve: object) -> None:
+    with pytest.raises(TypeError, match="reserve must be an int"):
+        max_trade_amount(reserve, TierState())  # type: ignore[arg-type]
