@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_SHADOW_YML = ROOT / ".github" / "workflows" / "runtime-shadow.yml"
 
@@ -28,6 +27,23 @@ def test_runtime_shadow_watches_spot_receipt_lean_sources() -> None:
         "src/kernels/dex/nonce_batch_sequencing_v1.yaml",
     ):
         _assert_watched_on_pull_request_and_push(path)
+
+
+def test_runtime_shadow_watches_nonce_formal_spec_contract_boundary() -> None:
+    # REVIEW [B -> A-]: Claude added the nonce formal-spec contract, but the PR
+    # shadow lane only watched the underlying proof artifacts. Pin the contract,
+    # checker, and negative tests too, so a contract-only drift runs the checker
+    # before anyone considers flipping nonces.formal_spec.
+    for path in (
+        "docs/assurance/nonce_batch_formal_spec_contract.json",
+        "tools/check_nonce_batch_formal_spec_contract.py",
+        "tests/test_check_nonce_batch_formal_spec_contract.py",
+    ):
+        _assert_watched_on_pull_request_and_push(path)
+
+    text = _workflow_text()
+    assert "tools/check_nonce_batch_formal_spec_contract.py check --pretty" in text
+    assert "tests/test_check_nonce_batch_formal_spec_contract.py" in text
 
 
 def test_runtime_shadow_watches_cbc_matrix_gate_surface() -> None:

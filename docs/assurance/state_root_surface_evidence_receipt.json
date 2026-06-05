@@ -155,7 +155,7 @@
     }
   },
   "private_toolchain_source_included": false,
-  "receipt_sha256": "6c7e562b605cafa6a74a15fcc7dec64cc954cd3ed3fd0f40873e81d4118e3b4c",
+  "receipt_sha256": "25c6203359838c139b8fae4f3f0c07a47bc50127874bb7a819c5a6eca911d908",
   "required_test_commands": [
     {
       "command": [
@@ -299,11 +299,11 @@
     },
     {
       "path": ".github/workflows/runtime-shadow.yml",
-      "sha256": "66eadf256bf64495f9ed0258ab57ac09298af581d8d79e4721ea9577167f0b9c"
+      "sha256": "22af98cd78d2cd673bfe50cc22f3ec7fdd59e3c8861f1263c85c2db298d9ddf6"
     },
     {
       "path": ".github/workflows/release-integrity.yml",
-      "sha256": "ce913254219b8fd97175134908289cf586fa94f172d5a5c5ec78c4748aa32dd4"
+      "sha256": "21492e3908c2a94456759ce6e28b76d037ae149bdd14fa93419496665648a112"
     }
   ],
   "state_root_version": 5,

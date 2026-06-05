@@ -91,6 +91,18 @@ def test_forbidden_spec_ref_outside_list_fails(tmp_path: Path) -> None:
     )
 
 
+def test_forbidden_spec_ref_guard_has_independent_teeth(tmp_path: Path, monkeypatch) -> None:
+    obj = _load()
+    bad_reason = obj["grade_reason"] + " see src/tau_specs/balance_transition_v1.tau"
+    obj["grade_reason"] = bad_reason
+    monkeypatch.setattr(contract_mod, "EXPECTED_GRADE_REASON", bad_reason)
+
+    report = contract_mod.check_contract(_write_tmp(tmp_path, obj))
+
+    assert report["ok"] is False
+    assert any("forbidden bounded spec ref appears outside" in e for e in report["errors"])
+
+
 def test_tautology_regression_guarded(monkeypatch) -> None:
     # If the Lean spec loses its Σdelta=0 gate hypothesis, the nontautology guard must fire.
     monkeypatch.setattr(contract_mod, "REQUIRED_NONTAUTOLOGY_TOKEN", "this token is absent xyzzy")

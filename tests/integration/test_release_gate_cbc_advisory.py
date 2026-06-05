@@ -61,9 +61,11 @@ def test_release_integrity_workflow_runs_nonce_proof_binding_gates() -> None:
     # REVIEW [B+ -> A-]: runtime-shadow ran these through broad runtime tests,
     # but release-integrity only checked the kernel receipt. The future nonces
     # proof_artifact/formal_spec/running_impl flip depends on the exact-range
-    # proof-to-live binding, ESSO structural gate, and coupled transition
-    # atomicity, so the release lane now runs them explicitly instead of relying
-    # on an indirect receipt-only check.
+    # proof-to-live binding, ESSO structural gate, the formal-spec contract, and
+    # coupled transition atomicity, so the release lane now runs them explicitly
+    # instead of relying on an indirect receipt-only check.
+    assert "tools/check_nonce_batch_formal_spec_contract.py check --pretty" in text
+    assert "tests/test_check_nonce_batch_formal_spec_contract.py" in text
     assert "tests/runtime/test_nonce_esso_model.py" in text
     assert "tests/runtime/test_nonces_batch_wrapper_lean_property_binding.py" in text
     assert "tests/runtime/test_nonces_batch_binding.py" in text

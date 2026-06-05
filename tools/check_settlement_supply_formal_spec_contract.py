@@ -209,6 +209,12 @@ def _check_formal_items(contract: Mapping[str, Any], errors: list[str]) -> None:
                 errors.append(f"{item['id']}: missing Lean declaration token {token!r}")
 
 
+def _contract_body_outside_forbidden_list(contract: Mapping[str, Any]) -> str:
+    body = dict(contract)
+    body.pop("forbidden_spec_refs", None)
+    return json.dumps(body, sort_keys=True)
+
+
 def _check_nontautology(errors: list[str]) -> None:
     """The spec must keep the Σdelta=0 GATE as the `accepted` hypothesis (not a smuggled
     supply-equality). Guards against silently editing the spec into the forbidden tautology."""
@@ -264,9 +270,13 @@ def check_contract(path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:
         _expect_equal(contract, "grade", EXPECTED_GRADE, errors)
         _expect_equal(contract, "grade_reason", EXPECTED_GRADE_REASON, errors)
         _expect_equal(contract, "production_matrix_effect", EXPECTED_PRODUCTION_MATRIX_EFFECT, errors)
-        rendered = json.dumps(contract, sort_keys=True)
+        # REVIEW [B -> A-]: the earlier guard was self-defeating because it
+        # searched the full contract and then exempted refs present in the
+        # allowlist field. Strip `forbidden_spec_refs` before scanning so a
+        # bounded Tau ref cannot be smuggled into a future reviewed field.
+        rendered = _contract_body_outside_forbidden_list(contract)
         for ref in FORBIDDEN_SPEC_REFS:
-            if ref in rendered and ref not in json.dumps(FORBIDDEN_SPEC_REFS):
+            if ref in rendered:
                 errors.append(f"forbidden bounded spec ref appears outside forbidden list: {ref}")
         _check_source_hashes(contract, errors)
         _check_formal_items(contract, errors)

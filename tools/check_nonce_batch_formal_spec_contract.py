@@ -63,6 +63,13 @@ EXPECTED_SOURCE_FILES = [
     "tests/test_check_nonce_batch_formal_spec_contract.py",
     "src/kernels/dex/nonce_batch_sequencing_v1.yaml",
     "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean",
+    ".github/workflows/runtime-shadow.yml",
+    ".github/workflows/release-integrity.yml",
+]
+EXPECTED_WORKFLOW_TOKENS = [
+    "tools/check_nonce_batch_formal_spec_contract.py check --pretty",
+    "tests/test_check_nonce_batch_formal_spec_contract.py",
+    "docs/assurance/nonce_batch_formal_spec_contract.json",
 ]
 # The superseded single-step Tau guard is NOT the batch spec; flag if cited as the formal spec.
 FORBIDDEN_SPEC_REFS = [
@@ -189,6 +196,12 @@ def _check_formal_items(contract: Mapping[str, Any], errors: list[str]) -> None:
                 errors.append(f"{item['id']}: missing spec token {token!r}")
 
 
+def _contract_body_outside_forbidden_list(contract: Mapping[str, Any]) -> str:
+    body = dict(contract)
+    body.pop("forbidden_spec_refs", None)
+    return json.dumps(body, sort_keys=True)
+
+
 def _check_esso_attestation(errors: list[str]) -> None:
     report = spot_receipt.check_receipt_file()
     if report.get("ok") is not True:
@@ -213,6 +226,15 @@ def _check_lean_attestation(errors: list[str]) -> None:
         errors.append(f"kernel assurance receipt missing Lean proof ids: {missing}")
 
 
+def _check_workflows(errors: list[str]) -> None:
+    workflow_text = (ROOT / ".github" / "workflows" / "runtime-shadow.yml").read_text(encoding="utf-8")
+    release_text = (ROOT / ".github" / "workflows" / "release-integrity.yml").read_text(encoding="utf-8")
+    combined = workflow_text + "\n" + release_text
+    for token in EXPECTED_WORKFLOW_TOKENS:
+        if token not in combined:
+            errors.append(f"workflow is missing nonce formal-spec gate token: {token}")
+
+
 def check_contract(path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:
     errors: list[str] = []
     try:
@@ -229,14 +251,20 @@ def check_contract(path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:
         _expect_equal(contract, "grade", EXPECTED_GRADE, errors)
         _expect_equal(contract, "grade_reason", EXPECTED_GRADE_REASON, errors)
         _expect_equal(contract, "production_matrix_effect", EXPECTED_PRODUCTION_MATRIX_EFFECT, errors)
-        rendered = json.dumps(contract, sort_keys=True)
+        # REVIEW [B -> A-]: Claude copied the forbidden-ref guard from the
+        # sibling checkers, but that expression was unreachable because every
+        # forbidden ref necessarily appears in `forbidden_spec_refs`. Remove the
+        # allowlist field before scanning, so a stale Tau/Tau-like single-step
+        # ref cannot ride along in another reviewed field after constants drift.
+        rendered = _contract_body_outside_forbidden_list(contract)
         for ref in FORBIDDEN_SPEC_REFS:
-            if ref in rendered and ref not in json.dumps(FORBIDDEN_SPEC_REFS):
+            if ref in rendered:
                 errors.append(f"forbidden superseded spec ref appears outside forbidden list: {ref}")
         _check_source_hashes(contract, errors)
         _check_formal_items(contract, errors)
         _check_esso_attestation(errors)
         _check_lean_attestation(errors)
+        _check_workflows(errors)
     except Exception as exc:  # noqa: BLE001 - evidence checkers fail closed
         errors.append(f"{type(exc).__name__}: {exc}")
     return {

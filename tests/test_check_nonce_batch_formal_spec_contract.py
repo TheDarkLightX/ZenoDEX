@@ -70,6 +70,18 @@ def test_missing_lean_attestation_id_fails(tmp_path: Path) -> None:
     assert any("required_lean_kernel_assurance_proof_ids mismatch" in e for e in report["errors"])
 
 
+def test_forbidden_spec_ref_outside_list_fails(tmp_path: Path, monkeypatch) -> None:
+    obj = _load()
+    bad_reason = obj["grade_reason"] + " see src/tau_specs/recommended/nonce_replay_guard_v1.tau"
+    obj["grade_reason"] = bad_reason
+    monkeypatch.setattr(contract_mod, "EXPECTED_GRADE_REASON", bad_reason)
+
+    report = contract_mod.check_contract(_write_tmp(tmp_path, obj))
+
+    assert report["ok"] is False
+    assert any("forbidden superseded spec ref appears outside" in e for e in report["errors"])
+
+
 def test_renamed_lean_theorem_token_fails(tmp_path: Path, monkeypatch) -> None:
     obj = _load()
     bad = json.loads(json.dumps(contract_mod.EXPECTED_FORMAL_ITEMS))
@@ -79,3 +91,10 @@ def test_renamed_lean_theorem_token_fails(tmp_path: Path, monkeypatch) -> None:
     report = contract_mod.check_contract(_write_tmp(tmp_path, obj))
     assert report["ok"] is False
     assert any("missing spec token" in e for e in report["errors"])
+
+
+def test_workflow_gate_token_missing_fails(monkeypatch) -> None:
+    monkeypatch.setattr(contract_mod, "EXPECTED_WORKFLOW_TOKENS", ["missing nonce formal-spec workflow token"])
+    errors: list[str] = []
+    contract_mod._check_workflows(errors)
+    assert any("workflow is missing nonce formal-spec gate token" in e for e in errors)

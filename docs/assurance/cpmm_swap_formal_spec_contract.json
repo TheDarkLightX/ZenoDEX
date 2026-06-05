@@ -47,8 +47,8 @@
   ],
   "schema": "zenodex.cpmm_swap.formal_spec_contract.v1",
   "source_hashes": {
-    ".github/workflows/release-integrity.yml": "ce913254219b8fd97175134908289cf586fa94f172d5a5c5ec78c4748aa32dd4",
-    ".github/workflows/runtime-shadow.yml": "66eadf256bf64495f9ed0258ab57ac09298af581d8d79e4721ea9577167f0b9c",
+    ".github/workflows/release-integrity.yml": "21492e3908c2a94456759ce6e28b76d037ae149bdd14fa93419496665648a112",
+    ".github/workflows/runtime-shadow.yml": "22af98cd78d2cd673bfe50cc22f3ec7fdd59e3c8861f1263c85c2db298d9ddf6",
     "docs/assurance/spot_proof_public_receipt.json": "2a2a6a4ac55039179bbae7d47ae267ae4a60d5ac9e38a5331e62a12d869ebc0f",
     "lean-mathlib/Proofs/CPMMInvariants.lean": "98a20c960c7f35d9db7b6589d6477f9e31513ef7b4da228f47a312e2b6b15bb8",
     "lean-mathlib/Proofs/CpmmSwapV8ExactInAdmissibility.lean": "d68aedc27ebdb1d8f8c001e9bf080c86f3feed1242848222cabdc22f4f0cf48b",
@@ -56,8 +56,8 @@
     "tests/runtime/test_cpmm_v8_exact_in_lean_property_binding.py": "5ac61f4fdb6b599e6e6c2886c724ed899f6a98dd720527da1f483a0d75a084fc",
     "tests/runtime/test_cpmm_v8_exact_out_k_conservation_binding.py": "e729e6004a454bd8ac358ce829259db6d109985cc0c4fb70e8a9e296a2856e14",
     "tests/runtime/test_cpmm_v8_exact_out_lean_property_binding.py": "80543da9f4614c2151c33cee38e83b767aaedf95eff321a96b751de02fda27d8",
-    "tests/test_check_cpmm_swap_formal_spec_contract.py": "930e3e90cc1f958d24043561360112f1a9d23b5b61dfb49670b8a6b9e1209aa6",
-    "tools/check_cpmm_swap_formal_spec_contract.py": "2b6a482adc129fd8c0624d2246b1f81c9287b3b34a5aaf3643b7983c5664081e",
+    "tests/test_check_cpmm_swap_formal_spec_contract.py": "2f2cae90ba553b8192b9b7f3012045949ca0cf5f0fced4bf083818fe4fb1eca9",
+    "tools/check_cpmm_swap_formal_spec_contract.py": "4988594d496fb3ee1a80aa987b59e124c103e657a2080e5de0374ad256129b4b",
     "tools/spot_proof_public_manifest.json": "c3c403a1d963dcdf57af1c7f47afd5188af02cb53cc2ec15d30ba0f2198ff6eb",
     "tools/spot_proof_public_receipt.py": "1707d43f31e58d42529f98ab48a9fcf781f49ca5359d35885282bb7d6146a4cd"
   },

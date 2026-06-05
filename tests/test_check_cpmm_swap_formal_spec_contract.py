@@ -94,3 +94,17 @@ def test_cpmm_formal_spec_contract_rejects_placeholder_spec_role(tmp_path: Path)
     result = checker.check_contract(_write(tmp_path, contract))
     assert not result["ok"]
     assert any("formal_items mismatch" in err for err in result["errors"])
+
+
+def test_cpmm_formal_spec_contract_forbidden_ref_outside_list_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    contract = _load_contract()
+    bad_reason = contract["grade_reason"] + " see src/kernels/dex/cpmm_output_amount_v2.yaml"
+    contract["grade_reason"] = bad_reason
+    monkeypatch.setattr(checker, "EXPECTED_GRADE_REASON", bad_reason)
+
+    result = checker.check_contract(_write(tmp_path, contract))
+
+    assert not result["ok"]
+    assert any("forbidden placeholder spec ref appears outside" in err for err in result["errors"])
