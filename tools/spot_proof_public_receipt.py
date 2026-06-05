@@ -368,6 +368,56 @@ def _receipt_hash_body(receipt: Mapping[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in receipt.items() if k != "receipt_sha256"}
 
 
+def _receipt_source_hashes(
+    pid: str,
+    proof: Mapping[str, Any],
+    manifest_entry: Mapping[str, Any],
+) -> tuple[dict[str, str], list[str]]:
+    """Validate and return the source hashes carried by one receipt proof row."""
+    errors: list[str] = []
+    raw = proof.get("source_files")
+    expected_paths = list(manifest_entry.get("source_files") or [])
+    if not isinstance(raw, list) or not raw:
+        return {}, [f"{pid}: receipt.source_files must be a non-empty list"]
+    if len(raw) != len(expected_paths):
+        errors.append(
+            f"{pid}: receipt.source_files length {len(raw)} != manifest length {len(expected_paths)}"
+        )
+
+    pinned: dict[str, str] = {}
+    seen: set[str] = set()
+    ordered_paths: list[Any] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, Mapping):
+            ordered_paths.append(None)
+            errors.append(f"{pid}: receipt.source_files[{index}] must be an object")
+            continue
+        path = item.get("path")
+        ordered_paths.append(path)
+        sha = item.get("sha256")
+        if not isinstance(path, str) or not path:
+            errors.append(f"{pid}: receipt.source_files[{index}].path must be a non-empty string")
+            continue
+        if path in seen:
+            errors.append(f"{pid}: receipt.source_files has duplicate path {path!r}")
+            continue
+        seen.add(path)
+        if not (
+            isinstance(sha, str)
+            and len(sha) == 64
+            and all(c in "0123456789abcdef" for c in sha)
+        ):
+            errors.append(f"{pid}: receipt.source_files[{index}].sha256 must be a lowercase hex sha256")
+            continue
+        pinned[path] = sha
+
+    if ordered_paths != expected_paths:
+        errors.append(
+            f"{pid}: receipt.source_files paths {ordered_paths!r} != manifest paths {expected_paths!r}"
+        )
+    return pinned, errors
+
+
 def build_receipt(manifest: Mapping[str, Any], *, manifest_sha256: str, manifest_relpath: str) -> dict[str, Any]:
     manifest_by_id = _manifest_proofs(manifest)
     source_pin_errors = _check_against_source_pin(manifest_by_id)
@@ -450,12 +500,15 @@ def verify_receipt(receipt: Mapping[str, Any], *, manifest: Mapping[str, Any], m
     if extra:
         errors.append(f"receipt has proofs outside manifest: {extra}")
 
-    # Review grade: C before this block, B after this fix.
+    # Review grade: C before this block, B after the first fix, A- after the
+    # source_files shape hardening below.
     # Why it failed review: a forged receipt could weaken ESSO solver metadata or
     # Lean build metadata and then recompute receipt_sha256. The hash proved only
     # self-consistency, not that the result body still matched the reviewed proof
-    # envelope. Why this fix helps: result fields that define the public evidence
-    # are source-pinned here and must match the committed proof expectation.
+    # envelope. A later review found that malformed or duplicate source_files rows
+    # could be ignored by the dict-comprehension hash check. Why this fix helps:
+    # result fields and the exact source-file envelope are source-pinned here and
+    # must match the committed proof expectation.
     # Remaining limitation for a higher grade: check mode still validates a
     # committed receipt; it does not rerun ESSO or Lean in ordinary PR CI.
     for pid in sorted(set(manifest_by_id) & set(receipt_by_id)):
@@ -473,7 +526,8 @@ def verify_receipt(receipt: Mapping[str, Any], *, manifest: Mapping[str, Any], m
         except ReceiptError as exc:
             errors.append(f"{pid}: {exc}")
             continue
-        pinned = {h.get("path"): h.get("sha256") for h in (r.get("source_files") or []) if isinstance(h, Mapping)}
+        pinned, pinned_errors = _receipt_source_hashes(pid, r, m)
+        errors.extend(pinned_errors)
         if pinned != current:
             errors.append(f"{pid}: source hashes drifted from the receipt (re-run `build`): pinned={pinned} current={current}")
 

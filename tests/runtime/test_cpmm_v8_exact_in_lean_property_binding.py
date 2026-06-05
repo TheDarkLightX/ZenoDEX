@@ -27,16 +27,14 @@ kernel across a protocol-share sweep, closing the protocol-fee-accounting half o
 exact-in safety residual.
 
 This is the exact-IN companion increment of the proof->running-code binding; like its
-exact-out sibling it does NOT by itself clear cpmm_swap proof_artifact (reject
-precedence, state-root binding, and the formal-spec cross-check remain). No column is
-flipped by this file.
+exact-out siblings, it supports the cleared cpmm_swap proof_artifact row without
+clearing the full surface. Reject precedence, state-root binding, and the
+formal-spec cross-check remain separate evidence questions.
 """
 
 from __future__ import annotations
 
 import random
-
-import pytest
 
 from src.kernels.python.cpmm_swap_v8 import swap_exact_in
 

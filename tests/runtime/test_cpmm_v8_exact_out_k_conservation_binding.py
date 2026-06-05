@@ -28,14 +28,13 @@ the inputs and bind them, then assert the proven k-nondecrease.
 
 SCOPE: with this, the exact-out + exact-in swap MATH (output formulas, sufficiency/minimality,
 AND both directions' k-conservation incl. protocol-fee removal) is fully proof-bound to the
-running code. proof_artifact remains gated on dual review; this file flips no column.
+running code. This supports the cleared proof_artifact row for swap math; it does not clear
+the formal_spec or state_root rows.
 """
 
 from __future__ import annotations
 
 import random
-
-import pytest
 
 from src.kernels.python.cpmm_swap_v8 import swap_exact_out
 

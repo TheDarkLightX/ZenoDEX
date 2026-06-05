@@ -37,9 +37,9 @@ binding itself. NB a kernel drift therefore trips the FORMULA-EQUALITY assert
 SCOPE (honest, matches the Lean docstring + the cpmm_swap proof_artifact note):
 this binds the OUTPUT/GROSS arithmetic under protocol_fee_share_bps=0 — the model
 the theorem covers. It does NOT cover protocol-fee-share pool ACCOUNTING, reject-code
-precedence, or state-root binding, which remain the open residual keeping the
-cpmm_swap proof_artifact column verified:false. This test is one increment of that
-binding (formula -> running code), not the whole column.
+precedence, state-root binding, or the separate formal_spec column. This test is
+one increment of the now-cleared proof_artifact binding (formula -> running code),
+not a full cpmm_swap production-surface clearance.
 """
 
 from __future__ import annotations
@@ -254,9 +254,10 @@ def test_high_magnitude_no_float_precision_collapse() -> None:
 
 def test_gross_is_independent_of_protocol_fee_share() -> None:
     """The proven model fixes protocol_fee_share_bps=0. The live gross_in (and the
-    output quote) depend only on net_in/fee_bps, NOT on how the fee is split — so the
-    share=0 proof covers the gross/output for ANY protocol share. (The protocol-fee
-    pool ACCOUNTING that the share DOES affect is the separate, still-open residual.)"""
+    output quote) depend only on net_in/fee_bps and not on how the fee is split, so
+    the share=0 proof covers the gross/output for any protocol share. The protocol-fee
+    pool accounting that the share affects is covered by the companion k-binding
+    tests and remains separate from formal_spec/state-root evidence."""
     cases = [(1000, 1000, 500, 300), (10**7, 5 * 10**6, 1_234_567, 30), (7, 11, 5, 9999)]
     shares = [0, 1, 2500, 5000, 10000]
     for rin, rout, aout, fee in cases:

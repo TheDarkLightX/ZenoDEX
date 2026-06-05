@@ -252,6 +252,62 @@ def test_forged_esso_result_metadata_fails() -> None:
     assert any("passed_queries" in e for e in errs), errs
     assert any("ir_hash" in e for e in errs), errs
     assert any("solvers" in e for e in errs), errs
+    assert len([e for e in errs if "receipt result solvers {" in e]) == 1, errs
+
+
+def test_malformed_receipt_source_files_fail() -> None:
+    """Review regression: re-sealed receipts cannot hide ignored source rows.
+
+    Why this failed review: the checker turned receipt source_files into a dict
+    and silently ignored malformed entries. That still preserved the expected
+    hash map, so a malformed public evidence envelope could pass. The checker
+    now requires the exact manifest-ordered source_files list, with one lowercase
+    sha256 per path. Review grade: B -> A-.
+    """
+    receipt, manifest, msha = _load()
+    target = _proof(receipt, "cpmm_invariants_lean")
+    target["source_files"].append("ignored-malformed-row")
+    _reseal(receipt)
+    errs = spr.verify_receipt(receipt, manifest=manifest, manifest_sha256=msha)
+    assert any("source_files" in e for e in errs), errs
+
+
+def test_duplicate_receipt_source_file_path_fails() -> None:
+    """Review regression: duplicate source paths cannot shadow the receipt envelope."""
+    receipt, manifest, msha = _load()
+    target = _proof(receipt, "cpmm_invariants_lean")
+    target["source_files"].append(json.loads(json.dumps(target["source_files"][0])))
+    _reseal(receipt)
+    errs = spr.verify_receipt(receipt, manifest=manifest, manifest_sha256=msha)
+    assert any("duplicate path" in e for e in errs), errs
+
+
+@pytest.mark.parametrize(
+    ("mutate", "needle"),
+    (
+        (lambda rows: rows.clear(), "non-empty list"),
+        (lambda rows: rows[0].update({"path": ""}), "path must be"),
+        (lambda rows: rows[0].update({"sha256": "abc"}), "lowercase hex sha256"),
+    ),
+)
+def test_bad_receipt_source_file_fields_fail(mutate, needle: str) -> None:
+    """Receipt source rows are schema, not free-form metadata."""
+    receipt, manifest, msha = _load()
+    target = _proof(receipt, "cpmm_invariants_lean")
+    mutate(target["source_files"])
+    _reseal(receipt)
+    errs = spr.verify_receipt(receipt, manifest=manifest, manifest_sha256=msha)
+    assert any(needle in e for e in errs), errs
+
+
+def test_receipt_source_file_order_must_match_manifest() -> None:
+    """Multi-source Lean receipts must pin the manifest-ordered source envelope."""
+    receipt, manifest, msha = _load()
+    target = _proof(receipt, "cpmm_v8_exact_in_admissibility_lean")
+    target["source_files"].reverse()
+    _reseal(receipt)
+    errs = spr.verify_receipt(receipt, manifest=manifest, manifest_sha256=msha)
+    assert any("paths" in e for e in errs), errs
 
 
 def test_duplicate_receipt_proof_id_fails() -> None:
