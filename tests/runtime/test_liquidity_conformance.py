@@ -77,6 +77,22 @@ def _assert_parity(rust_bin: Path, txs: list, tmp_path: Path) -> dict:
     return rust_out
 
 
+def _run_liquidity_op(rust_bin: Path, pool: dict, tx: dict, tmp_path: Path, name: str) -> dict:
+    request = {"version": 1, "pool": pool, "tx": tx}
+    req_path = tmp_path / f"{name}.json"
+    req_path.write_text(json.dumps(request), encoding="utf-8")
+
+    import subprocess
+
+    proc = subprocess.run(
+        [str(rust_bin), "liquidity-op", str(req_path)],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return json.loads(proc.stdout)
+
+
 # --- helpers to build txs -----------------------------------------------------
 
 
@@ -375,6 +391,75 @@ def test_hex_nibble_boundary_order(rust_bin, tmp_path):
     out_rev = _assert_parity(rust_bin, txs_rev, tmp_path)
     assert out_rev["results"][0]["accept"] is False
     assert out_rev["results"][0]["reject_reason"] == "assets_not_canonical"
+
+
+def test_liquidity_op_rejects_malformed_active_pool_snapshots(rust_bin, tmp_path):
+    """Explicit active snapshots are verifier inputs, so their pool header must
+    be canonical before add/remove arithmetic. This is the permanent regression
+    for the review finding where Rust accepted malformed active snapshots that
+    Python PoolState rejected."""
+    base = {
+        "initialized": True,
+        "pool_id": "0xabc",
+        "asset0": A0,
+        "asset1": A1,
+        "reserve0": 1_000_000,
+        "reserve1": 1_000_000,
+        "fee_bps": 30,
+        "lp_supply": 1_000_000,
+        "created_at": 0,
+    }
+    cases = [
+        ({**base, "fee_bps": L.BPS_MAX + 1}, _add(100_000, 100_000), "fee_bps_out_of_domain"),
+        ({**base, "fee_bps": L.BPS_MAX + 1}, _remove(1, 0, 0), "fee_bps_out_of_domain"),
+        ({**base, "asset0": "BBB", "asset1": "AAA"}, _add(100_000, 100_000), "assets_not_canonical"),
+        (
+            {**base, "asset0": _hex32("GG"), "asset1": _hex32("cd")},
+            _remove(1, 0, 0),
+            "invalid_asset_hex",
+        ),
+        (
+            {**base, "asset0": _hex32("AB"), "asset1": _hex32("CD")},
+            _add(100_000, 100_000),
+            "assets_not_canonical",
+        ),
+    ]
+
+    for i, (pool, tx, expected) in enumerate(cases):
+        py = L.apply_tx(L.LiquidityState(**pool), tx)
+        assert isinstance(py, L.LiquidityRejected)
+        assert py.reason == expected
+
+        ru = _run_liquidity_op(rust_bin, pool, tx, tmp_path, f"bad_pool_{i}")
+        assert ru["accept"] is False
+        assert ru["reject_reason"] == expected
+        assert ru["pre_state_root"] == ru["post_state_root"]
+
+
+def test_liquidity_op_inactive_pool_precedes_bad_snapshot_header(rust_bin, tmp_path):
+    """Inactive pools still reject as pool_not_active. This preserves the
+    default empty-pool behavior while active snapshots get the stronger header
+    validation above."""
+    pool = {
+        "initialized": False,
+        "pool_id": "0xabc",
+        "asset0": "BBB",
+        "asset1": "AAA",
+        "reserve0": L.DEX_POOL_RESERVE_MAX + 1,
+        "reserve1": 0,
+        "fee_bps": L.BPS_MAX + 1,
+        "lp_supply": 0,
+        "created_at": 0,
+    }
+    tx = _add(0, 0, 0, 0)
+
+    py = L.apply_tx(L.LiquidityState(**pool), tx)
+    assert isinstance(py, L.LiquidityRejected)
+    assert py.reason == "pool_not_active"
+
+    ru = _run_liquidity_op(rust_bin, pool, tx, tmp_path, "inactive_bad_pool")
+    assert ru["accept"] is False
+    assert ru["reject_reason"] == "pool_not_active"
 
 
 def test_empty_pool_and_min_precedence(rust_bin, tmp_path):

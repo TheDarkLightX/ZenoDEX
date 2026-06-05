@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from src.core.liquidity import add_liquidity, create_pool, remove_liquidity
-from src.state.pools import PoolState, PoolStatus
+from src.state.pools import PoolState, PoolStatus, normalize_pool_asset_pair
 
 SCHEMA_VERSION = 1
 KERNEL = "liquidity"
@@ -243,6 +243,12 @@ def _classify_add_error(exc: BaseException) -> str:
     if isinstance(exc, TypeError):
         # Pool scalar non-int; not reachable with int inputs, but map safely.
         raise AssertionError(f"unexpected TypeError in add_liquidity: {msg!r}")
+    if "hex" in msg:
+        return "invalid_asset_hex"
+    if "canonical order" in msg:
+        return "assets_not_canonical"
+    if msg.startswith("fee_bps ") or "fee_bps must be" in msg:
+        return "fee_bps_out_of_domain"
     if "not active" in msg:
         return "pool_not_active"
     if msg.startswith("pool_state.reserve0 "):
@@ -290,6 +296,12 @@ def _classify_remove_error(exc: BaseException) -> str:
     msg = str(exc)
     if isinstance(exc, TypeError):
         raise AssertionError(f"unexpected TypeError in remove_liquidity: {msg!r}")
+    if "hex" in msg:
+        return "invalid_asset_hex"
+    if "canonical order" in msg:
+        return "assets_not_canonical"
+    if msg.startswith("fee_bps ") or "fee_bps must be" in msg:
+        return "fee_bps_out_of_domain"
     if "not active" in msg:
         return "pool_not_active"
     if msg.startswith("pool_state.reserve0 "):
@@ -359,6 +371,36 @@ def _create_pre_created_at_reject(
         return "amount1_out_of_domain"
     if not (0 <= fee_bps <= BPS_MAX):
         return "fee_bps_out_of_domain"
+    return None
+
+
+def _active_snapshot_reject(state: LiquidityState) -> str | None:
+    """Reject malformed active snapshots before add/remove arithmetic.
+
+    REVIEW [B -> A-]: the first differential shadow delegated this to
+    PoolState construction, which raised AssertionError for bad active snapshots
+    such as asset0 >= asset1 or fee_bps > 10000. The Rust op-path accepts JSON
+    snapshots directly, so the shadow must return stable in-band reject codes
+    for the same boundary.
+    """
+    if not state.initialized:
+        return "pool_not_active"
+    if not isinstance(state.asset0, str) or not isinstance(state.asset1, str):
+        return "invalid_asset_type"
+    try:
+        c0, c1 = normalize_pool_asset_pair(state.asset0, state.asset1)
+    except ValueError as exc:
+        return "invalid_asset_hex" if "hex" in str(exc) else "assets_not_canonical"
+    if (c0, c1) != (state.asset0, state.asset1):
+        return "assets_not_canonical"
+    if not _is_strict_int(state.fee_bps) or not (0 <= state.fee_bps <= BPS_MAX):
+        return "fee_bps_out_of_domain"
+    if not _is_strict_int(state.reserve0) or state.reserve0 < 0:
+        return "reserve0_out_of_domain"
+    if not _is_strict_int(state.reserve1) or state.reserve1 < 0:
+        return "reserve1_out_of_domain"
+    if not _is_strict_int(state.lp_supply) or state.lp_supply < 0:
+        return "lp_supply_out_of_domain"
     return None
 
 
@@ -468,11 +510,9 @@ def _apply_add(state: LiquidityState, tx: dict) -> LiquidityResult:
         if not _is_strict_int(tx[key]):
             return LiquidityRejected(REJ_MALFORMED_TX)
 
-    # Non-active pool: the Rust kernel maps an uninitialized threaded pool to
-    # pool_not_active. The Python PoolState built here is always ACTIVE, so we
-    # honour the `initialized` flag explicitly.
-    if not state.initialized:
-        return LiquidityRejected("pool_not_active")
+    snapshot_reject = _active_snapshot_reject(state)
+    if snapshot_reject is not None:
+        return LiquidityRejected(snapshot_reject)
 
     try:
         used0, used1, lp_minted = add_liquidity(
@@ -522,8 +562,9 @@ def _apply_remove(state: LiquidityState, tx: dict) -> LiquidityResult:
         if not _is_strict_int(tx[key]):
             return LiquidityRejected(REJ_MALFORMED_TX)
 
-    if not state.initialized:
-        return LiquidityRejected("pool_not_active")
+    snapshot_reject = _active_snapshot_reject(state)
+    if snapshot_reject is not None:
+        return LiquidityRejected(snapshot_reject)
 
     try:
         out0, out1 = remove_liquidity(
