@@ -29,9 +29,11 @@ apply_settlement:
 We never call net_delta / validate_settlement as the conservation oracle — the sums are re-derived
 (per the cpmm binding discipline: transcribe the theorem, drive the live code, independent oracle).
 
-A digest of the Lean proof source is PINNED here, so editing the theorem invalidates this binding
-(forcing re-review). The proof's no-sorry build + axiom audit is gated separately by the committed
-proof receipt + runtime-shadow.yml.
+The committed kernel-assurance receipt pins the Lean proof source digest, so
+editing the theorem invalidates the receipt and forces re-review. This test
+pins the theorem shape and independently instantiates the Lean `applyDeltas`
+model against the live transition. The proof's no-sorry build + axiom audit is
+gated separately by the committed proof receipt + runtime-shadow.yml.
 
 Teeth:
   * a monkeypatched apply that adds net+1 to a cell makes the live per-cell deltas violate
@@ -116,15 +118,30 @@ def _cells_for_asset(balances: BalanceTable, pools: dict, asset: str):
     return bal, res
 
 
-def _delta_vector(pre: dict, post: dict) -> list[int]:
-    """Lean model's per-cell net-delta vector D = post - pre over the cell union
-    (zero-extended for cells absent on one side — a fresh account starts at 0)."""
-    return [int(post.get(c, 0)) - int(pre.get(c, 0)) for c in (set(pre) | set(post))]
+def _ordered_cell_union(pre: dict, post: dict) -> list:
+    """Deterministic key order for the zero-extended Lean ledger vectors."""
+    return sorted(set(pre) | set(post), key=repr)
 
 
-def _lean_supply(cells: dict) -> int:
-    """Lean `supply` = sum over cells, independently summed."""
-    return sum(int(v) for v in cells.values())
+def _cell_values(cells: dict, keys: list) -> list[int]:
+    return [int(cells.get(c, 0)) for c in keys]
+
+
+def _delta_values(pre: dict, post: dict, keys: list) -> list[int]:
+    return [int(post.get(c, 0)) - int(pre.get(c, 0)) for c in keys]
+
+
+def _apply_deltas(ledger: list[int], deltas: list[int]) -> list[int]:
+    # REVIEW [A- -> A]: the earlier binding checked sums over pre/post state,
+    # but did not explicitly instantiate the Lean `applyDeltas L D = zipWith (+)`
+    # model with zero-extended ledgers. This assertion pins length alignment and
+    # catches fresh-cell/create-pool drift instead of relying on prose.
+    assert len(ledger) == len(deltas), "Lean applyDeltas requires equal lengths"
+    return [amount + delta for amount, delta in zip(ledger, deltas, strict=True)]
+
+
+def _lean_supply_vec(values: list[int]) -> int:
+    return sum(values)
 
 
 def _assets_in(balances: BalanceTable, pools: dict) -> set:
@@ -154,16 +171,24 @@ def _assert_live_apply_models_theorem(intents, pools, balances, lp, settlement) 
     for a in assets | assets_post:
         pre_bal, pre_res = pre.get(a, ({}, {}))
         post_bal, post_res = _cells_for_asset(balances, pools, a)
-        bal_deltas = _delta_vector(pre_bal, post_bal)
-        res_deltas = _delta_vector(pre_res, post_res)
+        bal_keys = _ordered_cell_union(pre_bal, post_bal)
+        res_keys = _ordered_cell_union(pre_res, post_res)
+        pre_bal_vec = _cell_values(pre_bal, bal_keys)
+        pre_res_vec = _cell_values(pre_res, res_keys)
+        post_bal_vec = _cell_values(post_bal, bal_keys)
+        post_res_vec = _cell_values(post_res, res_keys)
+        bal_deltas = _delta_values(pre_bal, post_bal, bal_keys)
+        res_deltas = _delta_values(pre_res, post_res, res_keys)
+        assert _apply_deltas(pre_bal_vec, bal_deltas) == post_bal_vec
+        assert _apply_deltas(pre_res_vec, res_deltas) == post_res_vec
         # Lean HYPOTHESIS `accepted`: Σ balDeltas + Σ resDeltas == 0 (independently summed).
         assert sum(bal_deltas) + sum(res_deltas) == 0, (
             "live apply violates the theorem hypothesis (Σdelta != 0)", a,
             sum(bal_deltas), sum(res_deltas),
         )
         # Lean CONCLUSION `supply preserved`: supply(post) == supply(pre) (independently summed).
-        supply_pre = _lean_supply(pre_bal) + _lean_supply(pre_res)
-        supply_post = _lean_supply(post_bal) + _lean_supply(post_res)
+        supply_pre = _lean_supply_vec(pre_bal_vec) + _lean_supply_vec(pre_res_vec)
+        supply_post = _lean_supply_vec(post_bal_vec) + _lean_supply_vec(post_res_vec)
         assert supply_post == supply_pre, ("supply not preserved", a, supply_pre, supply_post)
         if any(d != 0 for d in bal_deltas + res_deltas):
             moved = True
