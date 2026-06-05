@@ -84,11 +84,12 @@ def _lean_out_quote(rin: int, rout: int, g: int, fee: int) -> int:
 
 def _out_quote(rin: int, rout: int, g: int, fee: int) -> int:
     """out_quote(g): the live exact-in output for gross input g (Lean's
-    `exactOutQuote`). A ValueError (output 0 / trade too small / net<=0) means the
-    floor formula yields 0, i.e. out_quote(g) == 0 — faithful to the Lean Nat
-    semantics where the floor of a sub-unit quotient is 0."""
-    if g <= 0:
-        return 0
+    `exactOutQuote`). We DELIBERATELY pass g to the LIVE kernel even for g<=0 (no
+    harness short-circuit) so a zero/negative-amount kernel bug cannot hide behind the
+    test (Gemini A- finding: a `g=0` shield would mask a dust exploit). A ValueError
+    (non-positive amount_in / output 0 / trade too small / net<=0) means the floor
+    formula yields 0, i.e. out_quote(g) == 0 — faithful to the Lean Nat semantics
+    where a zero / sub-unit quotient is 0."""
     try:
         return swap_exact_in(
             reserve_in=rin, reserve_out=rout, amount_in=g, fee_bps=fee,
@@ -208,10 +209,47 @@ def test_exact_in_output_formula_binds_across_input_range() -> None:
     for rin in (1, 2, 5, 1000, 10**7):
         for rout in (2, 3, 1000, 10**7):
             for fee in (0, 1, 30, 9999):
-                for g in (1, 2, 3, 5, 7, 100):
+                for g in (0, 1, 2, 3, 5, 7, 100):  # g=0 exercises the kernel's zero-amount reject (== Lean 0)
                     assert _out_quote(rin, rout, g, fee) == _lean_out_quote(rin, rout, g, fee), (rin, rout, g, fee)
                     small += 1
     assert small >= 100, small
+
+
+def test_high_magnitude_no_float_precision_collapse() -> None:
+    """Bind the live kernel to the pure-Nat Lean formula at 18-26 decimal magnitudes
+    (Gemini A- finding). Inputs <= 1e7 are blind to float64 precision collapse at
+    2**53 (~9.0e15): a stray float() cast anywhere in the kernel would silently lose
+    integer precision above ~1e16 and diverge from the Lean formula. AMMs operate on
+    18-24 decimal tokens, so this enforces the live math stays purely integer-bound
+    across (and above) the float-collapse threshold."""
+    F = 2 ** 53  # 9007199254740992 — float64 integer-exact ceiling
+    # explicit boundary cases straddling 2**53 and into 18-26 decimal token ranges
+    boundary = [
+        (F - 1, F + 1, F // 2, 30),
+        (F + 7, 3 * F, F, 9999),
+        (10 ** 18, 10 ** 18, 10 ** 17, 300),
+        (10 ** 24, 5 * 10 ** 23, 7 * 10 ** 17, 1),
+        (10 ** 26, 10 ** 26, 10 ** 25, 0),
+        (10 ** 18, 2 * 10 ** 18, 10 ** 18 - 1, 9999),
+    ]
+    for rin, rout, aout, fee in boundary:
+        assert 1 <= aout < rout
+        _assert_sufficient_and_minimal(rin, rout, aout, fee)
+
+    rng = random.Random(SEED + 2)
+    checked = 0
+    for _ in range(2000):
+        rin = rng.randint(10 ** 15, 10 ** 26)
+        rout = rng.randint(10 ** 15, 10 ** 26)
+        fee = rng.randint(0, 9999)
+        # (i) exact-in output formula at high magnitude
+        g = rng.randint(10 ** 15, 10 ** 26)
+        assert _out_quote(rin, rout, g, fee) == _lean_out_quote(rin, rout, g, fee), ("hi-quote", rin, rout, g, fee)
+        # (ii) exact-out gross formula + sufficiency/minimality at high magnitude
+        aout = rng.randint(1, rout - 1)
+        _assert_sufficient_and_minimal(rin, rout, aout, fee)
+        checked += 1
+    assert checked == 2000
 
 
 def test_gross_is_independent_of_protocol_fee_share() -> None:
