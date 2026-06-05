@@ -1,0 +1,53 @@
+{
+  "claim": "Lean 4 definitions and theorem statements are the normative formal spec for the balances settlement supply-conservation surface, whose unbounded multi-owner batch arity (variable-length balance_deltas/reserve_deltas) exceeds bounded spec-languages (Tau bv32, ESSO finite-state).",
+  "forbidden_spec_refs": [
+    "src/tau_specs/balance_transition_v1.tau",
+    "src/tau_specs/balance_safety_v1.tau",
+    "src/tau_specs/recommended/balance_transition_v1.tau",
+    "src/tau_specs/recommended/balance_safety_v1.tau"
+  ],
+  "formal_items": [
+    {
+      "id": "supply_and_apply_model",
+      "path": "lean-mathlib/Proofs/SettlementSupplyConservation.lean",
+      "tokens": [
+        "def supply",
+        "def applyDeltas",
+        "def accepted"
+      ]
+    },
+    {
+      "id": "supply_conservation_theorems",
+      "path": "lean-mathlib/Proofs/SettlementSupplyConservation.lean",
+      "tokens": [
+        "theorem supply_applyDeltas",
+        "theorem accepted_preserves_supply",
+        "theorem supply_changed_implies_not_accepted"
+      ]
+    },
+    {
+      "id": "nonvacuity_witnesses",
+      "path": "lean-mathlib/Proofs/SettlementSupplyConservation.lean",
+      "tokens": [
+        "theorem witness_accepted_preserves_noncanceling",
+        "theorem witness_unbalanced_creates_supply"
+      ]
+    }
+  ],
+  "grade": "A-",
+  "grade_reason": "Source-pinned Lean definitions (supply, applyDeltas, accepted) and theorems (supply_applyDeltas key lemma, accepted_preserves_supply headline, the contrapositive, two non-vacuity witnesses) specify the per-asset supply-conservation law over an unbounded-arity multi-owner ledger. This clears the formal_spec column because the spec lives in Lean for this unbounded surface; the no-sorry build and live validate+apply binding remain checked by the proof_artifact and runtime/differential columns.",
+  "matrix_column": "formal_spec",
+  "production_matrix_effect": "Clears balances.formal_spec; balances.open_gaps_closed may clear if the other balances columns are already true.",
+  "required_kernel_assurance_proof_ids": [
+    "settlement_supply_conservation_lean"
+  ],
+  "schema": "zenodex.balances.formal_spec_contract.v1",
+  "source_hashes": {
+    "lean-mathlib/Proofs/SettlementSupplyConservation.lean": "4d9b6333b08d2e4d5b8ba6387c0eb2523325cefee71afaad81e63e63b945cd65",
+    "tests/runtime/test_settlement_supply_conservation_lean_binding.py": "790c0dd6f76578d2dac357b65239149a854e82a82f96478f4b3b7c67bce4ed47",
+    "tests/test_check_settlement_supply_formal_spec_contract.py": "761cc1bcfa4c53f4ce726337c504d6eadb3fa40ea1e2e5d4454b5ea040603cd9",
+    "tools/check_settlement_supply_formal_spec_contract.py": "cfa1214b76973e95183420f68b3d838a5eaaa764a80b3b65674692dbc23c6084"
+  },
+  "spec_language": "Lean 4 theorem statements and definitions",
+  "surface_id": "balances"
+}
