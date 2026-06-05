@@ -256,6 +256,22 @@ def test_canonical_precedence_is_nonce_before_sender() -> None:
     assert ok2 is False and reason2.startswith(REJ_SENDER_PREFIX)
 
 
+def test_shape_validation_precedes_group_semantic_rejects() -> None:
+    # REVIEW [B+ -> A-]: prior evidence text said "first-sender reject
+    # precedence", which could be read as duplicate/gap checks winning as soon as
+    # an earlier sender group is doomed. The live consensus order is sharper:
+    # nonce and nonce-bearing sender shape are validated across the input batch
+    # before grouped duplicate/range semantics run.
+    ok, reason, updated = _batch(NonceTable(), [(SENDER_A, 1), (SENDER_A, 1), (BAD_SENDER, 1)])
+    assert ok is False and reason.startswith(REJ_SENDER_PREFIX) and updated is None
+
+    ok2, reason2, updated2 = _batch(NonceTable(), [(SENDER_A, 2), (BAD_SENDER, 1)])
+    assert ok2 is False and reason2.startswith(REJ_SENDER_PREFIX) and updated2 is None
+
+    ok3, reason3, updated3 = _batch(NonceTable(), [(SENDER_A, 1), (SENDER_A, 1), (BAD_SENDER, 0)])
+    assert ok3 is False and reason3 == REJ_BAD_NONCE and updated3 is None
+
+
 # --- 7. reject VOCABULARY coverage (all five reasons reachable) --------------
 
 

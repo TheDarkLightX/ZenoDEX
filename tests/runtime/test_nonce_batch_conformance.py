@@ -194,6 +194,18 @@ BOUNDARY_CASES: list[tuple[str, dict]] = [
         "first_sender_gap_wins_over_later_duplicate",
         _request([(SENDER_B, 9), (SENDER_A, 1), (SENDER_A, 1)]),
     ),
+    (
+        "shape_validation_invalid_sender_beats_earlier_duplicate",
+        _request([(SENDER_A, 1), (SENDER_A, 1), (BAD_SENDER_HEX, 1)]),
+    ),
+    (
+        "shape_validation_invalid_sender_beats_earlier_gap",
+        _request([(SENDER_A, 2), (BAD_SENDER_HEX, 1)]),
+    ),
+    (
+        "shape_validation_bad_nonce_beats_earlier_duplicate",
+        _request([(SENDER_A, 1), (SENDER_A, 1), (BAD_SENDER_HEX, 0)]),
+    ),
 ]
 
 

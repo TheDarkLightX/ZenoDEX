@@ -112,6 +112,13 @@ def validate_and_apply_intent_nonce_batch(
     - `require_all_nonces=True` rejects any batch with a missing/invalid nonce.
     - `require_all_nonces=False` keeps backward compatibility for pure-core tests:
       nonce-free batches are accepted as a no-op, but mixed nonce presence rejects.
+    - Reject precedence is canonicalized in two phases: first validate nonce
+      presence/value and nonce-bearing sender shape for every intent in input
+      order, then validate mixed presence, duplicates, and contiguous ranges.
+      REVIEW [B+ -> A-]: earlier evidence notes called this "first-sender"
+      precedence, which was too imprecise for consensus behavior. Shape errors
+      intentionally outrank later duplicate/range checks because they are found
+      before the grouped semantic pass.
     """
     if not intents:
         return True, None, copy_nonce_table(nonces)
