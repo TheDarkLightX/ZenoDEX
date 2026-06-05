@@ -13,6 +13,7 @@ from collections.abc import Mapping
 U32_MOD = 1 << 32
 U64_MOD = 1 << 64
 U32_MAX = U32_MOD - 1
+U16_MAX = (1 << 16) - 1
 MIN_LP_LOCK = 1000
 
 
@@ -81,6 +82,13 @@ def _i(step: Mapping[str, int], name: str) -> int:
     if name not in step:
         raise ValueError(f"missing Tau input {name}")
     return step[name]
+
+
+def _bv16(step: Mapping[str, int], name: str) -> int:
+    value = _i(step, name)
+    if not 0 <= value <= U16_MAX:
+        raise ValueError(f"{name} must be a bv[16] integer")
+    return value
 
 
 def _swap_exact_in_v4(step: Mapping[str, int]) -> bool:
@@ -449,7 +457,12 @@ def _remove_liquidity_apply_v1(step: Mapping[str, int]) -> bool:
 
 
 def _multi_predicate(step: Mapping[str, int]) -> bool:
-    return 0 <= _i(step, "i1") <= 0x2710 and _i(step, "i2") > 0
+    # REVIEW [B -> A-]: these legacy mirrors replace noisy Tau interpreter
+    # traces for bv[16] specs. The first version compared raw Python integers,
+    # so an out-of-range registry vector could be accepted by the mirror even
+    # though it is not a well-formed bv[16] trace. Guarding the boundary keeps the
+    # native mirror fail-closed and makes future trace expansion safer.
+    return 0 <= _bv16(step, "i1") <= 0x2710 and _bv16(step, "i2") > 0
 
 
 def _u32_pair_nonzero(hi: int, lo: int) -> bool:
@@ -466,20 +479,20 @@ def _u32_pair_ge(lhs_hi: int, lhs_lo: int, rhs_hi: int, rhs_lo: int) -> bool:
 
 def _cpmm_basic(step: Mapping[str, int]) -> bool:
     return (
-        _u32_pair_nonzero(_i(step, "i1"), _i(step, "i2"))
-        and _u32_pair_nonzero(_i(step, "i3"), _i(step, "i4"))
-        and _u32_pair_nonzero(_i(step, "i5"), _i(step, "i6"))
-        and 0 <= _i(step, "i7") <= 0x2710
-        and _u32_pair_nonzero(_i(step, "i8"), _i(step, "i9"))
-        and _u32_pair_ge(_i(step, "i3"), _i(step, "i4"), _i(step, "i8"), _i(step, "i9"))
+        _u32_pair_nonzero(_bv16(step, "i1"), _bv16(step, "i2"))
+        and _u32_pair_nonzero(_bv16(step, "i3"), _bv16(step, "i4"))
+        and _u32_pair_nonzero(_bv16(step, "i5"), _bv16(step, "i6"))
+        and 0 <= _bv16(step, "i7") <= 0x2710
+        and _u32_pair_nonzero(_bv16(step, "i8"), _bv16(step, "i9"))
+        and _u32_pair_ge(_bv16(step, "i3"), _bv16(step, "i4"), _bv16(step, "i8"), _bv16(step, "i9"))
     )
 
 
 def _balance_safety(step: Mapping[str, int]) -> bool:
     return (
-        _u32_pair_nonnegative(_i(step, "i1"), _i(step, "i2"))
-        and _u32_pair_nonnegative(_i(step, "i3"), _i(step, "i4"))
-        and _u32_pair_nonnegative(_i(step, "i5"), _i(step, "i6"))
+        _u32_pair_nonnegative(_bv16(step, "i1"), _bv16(step, "i2"))
+        and _u32_pair_nonnegative(_bv16(step, "i3"), _bv16(step, "i4"))
+        and _u32_pair_nonnegative(_bv16(step, "i5"), _bv16(step, "i6"))
     )
 
 

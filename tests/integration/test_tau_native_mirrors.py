@@ -31,3 +31,9 @@ def test_native_tau_mirrors_match_registry_vectors() -> None:
 def test_native_tau_mirror_rejects_unknown_spec() -> None:
     with pytest.raises(ValueError, match="unsupported native Tau mirror"):
         run_native_tau_mirror(spec_id="unsupported", steps=[{"i1": 1}])
+
+
+@pytest.mark.parametrize("spec_id", ["multi_predicate", "cpmm_basic", "balance_safety", "dex_complete"])
+def test_legacy_bv16_native_mirrors_reject_out_of_range_inputs(spec_id: str) -> None:
+    with pytest.raises(ValueError, match="bv\\[16\\]"):
+        run_native_tau_mirror(spec_id=spec_id, steps=[{"i1": 1 << 16}])
