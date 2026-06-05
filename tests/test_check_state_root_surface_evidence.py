@@ -207,6 +207,7 @@ def test_required_test_command_failure_fails_check(monkeypatch) -> None:
     [
         "1 passed, 1 skipped in 0.01s",
         "1 passed, 1 xfailed in 0.01s",
+        "1 passed, 1 xpassed in 0.01s",
         "1 passed, 1 deselected in 0.01s",
         "no tests ran in 0.01s",
     ],

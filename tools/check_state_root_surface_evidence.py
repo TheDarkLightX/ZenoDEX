@@ -901,10 +901,13 @@ def _run_required_test_commands(profile: TestProfile = "all") -> list[str]:
                 f"required test command {row['id']} reported skipped tests; "
                 "state-root evidence commands must execute their load-bearing tests"
             )
-        if re.search(r"\b\d+\s+(xfailed|deselected)\b", combined) or "no tests ran" in combined.lower():
+        # REVIEW [B -> A-]: the first parser rejected xfailed rows but still
+        # allowed xpassed rows. An XPASS means the command still contains an
+        # expected-failure marker, so it is not a clean all-pass evidence suite.
+        if re.search(r"\b\d+\s+(xfailed|xpassed|deselected)\b", combined) or "no tests ran" in combined.lower():
             errors.append(
                 f"required test command {row['id']} did not execute a clean all-pass suite; "
-                "state-root evidence commands must not xfail, deselect, or run zero tests"
+                "state-root evidence commands must not xfail, xpass, deselect, or run zero tests"
             )
     return errors
 
