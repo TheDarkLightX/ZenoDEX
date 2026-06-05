@@ -15,11 +15,22 @@ from dataclasses import dataclass
 
 
 MIN_LP_LOCK = 1000
+U128_MAX = (1 << 128) - 1
 
 
 def _require_int(name: str, value: int) -> None:
     if not isinstance(value, int) or isinstance(value, bool):
         raise TypeError(f"{name} must be an int")
+
+
+def _require_u128(name: str, value: int) -> None:
+    if value > U128_MAX:
+        raise OverflowError(f"{name} exceeds u128")
+
+
+def _require_u128_outputs(**values: int) -> None:
+    for name, value in values.items():
+        _require_u128(name, value)
 
 
 @dataclass(frozen=True)
@@ -72,6 +83,13 @@ def optimal_liquidity(
         raise ValueError("reserves must be non-negative")
     if amount0_desired <= 0 or amount1_desired <= 0:
         raise ValueError("desired amounts must be positive")
+    for name, v in (
+        ("reserve0", reserve0),
+        ("reserve1", reserve1),
+        ("amount0_desired", amount0_desired),
+        ("amount1_desired", amount1_desired),
+    ):
+        _require_u128(name, v)
 
     if reserve0 == 0 or reserve1 == 0:
         return OptimalLiquidityResult(
@@ -101,11 +119,20 @@ def optimal_liquidity(
     if amount0_used > amount0_desired or amount1_used > amount1_desired:
         raise AssertionError("used amounts exceed desired amounts")
 
+    amount0_refund = amount0_desired - amount0_used
+    amount1_refund = amount1_desired - amount1_used
+    _require_u128_outputs(
+        amount0_used=amount0_used,
+        amount1_used=amount1_used,
+        amount0_refund=amount0_refund,
+        amount1_refund=amount1_refund,
+    )
+
     return OptimalLiquidityResult(
         amount0_used=amount0_used,
         amount1_used=amount1_used,
-        amount0_refund=amount0_desired - amount0_used,
-        amount1_refund=amount1_desired - amount1_used,
+        amount0_refund=amount0_refund,
+        amount1_refund=amount1_refund,
     )
 
 
@@ -122,6 +149,9 @@ def mint_liquidity_initial(*, amount0: int, amount1: int, min_lp_lock: int = MIN
         raise ValueError("initial amounts must be positive")
     if min_lp_lock <= 0:
         raise ValueError("min_lp_lock must be positive")
+    _require_u128("amount0", amount0)
+    _require_u128("amount1", amount1)
+    _require_u128("min_lp_lock", min_lp_lock)
 
     sqrt_product = math.isqrt(amount0 * amount1)
     if sqrt_product <= min_lp_lock:
@@ -129,6 +159,7 @@ def mint_liquidity_initial(*, amount0: int, amount1: int, min_lp_lock: int = MIN
 
     minted = sqrt_product - min_lp_lock
     total_supply = minted + min_lp_lock
+    _require_u128_outputs(liquidity_minted=minted, total_supply=total_supply)
     return minted, total_supply
 
 
@@ -159,6 +190,10 @@ def mint_liquidity_initial_witness(
         raise ValueError("sqrt_product must be positive")
     if min_lp_lock <= 0:
         raise ValueError("min_lp_lock must be positive")
+    _require_u128("amount0", amount0)
+    _require_u128("amount1", amount1)
+    _require_u128("sqrt_product", sqrt_product)
+    _require_u128("min_lp_lock", min_lp_lock)
 
     n = amount0 * amount1
     sp = sqrt_product
@@ -172,6 +207,7 @@ def mint_liquidity_initial_witness(
 
     minted = sp - min_lp_lock
     total_supply = minted + min_lp_lock
+    _require_u128_outputs(liquidity_minted=minted, total_supply=total_supply)
     return minted, total_supply
 
 
@@ -207,6 +243,15 @@ def mint_liquidity(
         raise ValueError("desired amounts must be positive")
     if min_liquidity < 0:
         raise ValueError("min_liquidity must be non-negative")
+    for name, v in (
+        ("reserve0", reserve0),
+        ("reserve1", reserve1),
+        ("total_supply", total_supply),
+        ("amount0_desired", amount0_desired),
+        ("amount1_desired", amount1_desired),
+        ("min_liquidity", min_liquidity),
+    ):
+        _require_u128(name, v)
 
     if total_supply == 0:
         if reserve0 != 0 or reserve1 != 0:
@@ -241,15 +286,29 @@ def mint_liquidity(
     if minted < min_liquidity:
         raise ValueError("liquidity_minted below min_liquidity")
 
+    new_reserve0 = reserve0 + opt.amount0_used
+    new_reserve1 = reserve1 + opt.amount1_used
+    new_total_supply = total_supply + minted
+    _require_u128_outputs(
+        liquidity_minted=minted,
+        amount0_used=opt.amount0_used,
+        amount1_used=opt.amount1_used,
+        amount0_refund=opt.amount0_refund,
+        amount1_refund=opt.amount1_refund,
+        new_reserve0=new_reserve0,
+        new_reserve1=new_reserve1,
+        new_total_supply=new_total_supply,
+    )
+
     return MintLiquidityResult(
         liquidity_minted=minted,
         amount0_used=opt.amount0_used,
         amount1_used=opt.amount1_used,
         amount0_refund=opt.amount0_refund,
         amount1_refund=opt.amount1_refund,
-        new_reserve0=reserve0 + opt.amount0_used,
-        new_reserve1=reserve1 + opt.amount1_used,
-        new_total_supply=total_supply + minted,
+        new_reserve0=new_reserve0,
+        new_reserve1=new_reserve1,
+        new_total_supply=new_total_supply,
     )
 
 
@@ -273,9 +332,17 @@ def burn_liquidity(*, lp_amount: int, reserve0: int, reserve1: int, total_supply
         raise ValueError("total_supply must be positive")
     if lp_amount > total_supply:
         raise ValueError("cannot burn more than total_supply")
+    for name, v in (
+        ("lp_amount", lp_amount),
+        ("reserve0", reserve0),
+        ("reserve1", reserve1),
+        ("total_supply", total_supply),
+    ):
+        _require_u128(name, v)
 
     amount0_out = (lp_amount * reserve0) // total_supply
     amount1_out = (lp_amount * reserve1) // total_supply
     if amount0_out < 0 or amount1_out < 0:
         raise ValueError("computed outputs must be non-negative")
+    _require_u128_outputs(amount0_out=amount0_out, amount1_out=amount1_out)
     return BurnLiquidityResult(amount0_out=amount0_out, amount1_out=amount1_out)
