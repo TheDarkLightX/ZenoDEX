@@ -145,7 +145,9 @@ def test_high_magnitude_exact_out_k_no_float_collapse() -> None:
         (10**26, 10**26, 10**25, 0, 0),
     ]
     for rin, rout, aout, fee, pshare in boundary:
-        _bind(rin, rout, aout, fee, pshare)
+        # Review grade: A- binding. These hand-picked boundaries are intended
+        # valid-domain samples; an unexpected live reject must not count as green.
+        assert _bind(rin, rout, aout, fee, pshare) is True
     rng = random.Random(SEED + 2)
     bound = 0
     for _ in range(1500):

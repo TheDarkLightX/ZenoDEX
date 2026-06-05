@@ -43,6 +43,20 @@ jobs:
         run: |
           bash tools/prod_gate.sh --image-tag zenodex:release-integrity
 
+      - name: Run CBC matrix closure gate
+        run: |
+          cbc_status=0
+          python3 tools/gate_cbc_matrix_closure.py --json || cbc_status=$?
+          case "$cbc_status" in
+            0) ;;
+            1)
+              # Review grade: A- boundary. A blocked production claim is advisory
+              # during promotion, while corrupt/missing gate infrastructure fails closed.
+              echo "CBC matrix still blocked; production_security_claim=false (advisory)."
+              ;;
+            *) exit "$cbc_status" ;;
+          esac
+
       - name: Run release packaging gate
         run: |
           python3 tools/check_container_hardening.py

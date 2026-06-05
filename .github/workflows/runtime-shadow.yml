@@ -22,6 +22,8 @@ on:
       - "src/kernels/dex/nonce_batch_sequencing_v1.yaml"
       - "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean"
       - "lean-mathlib/Proofs/CPMMInvariants.lean"
+      - "lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean"
+      - "lean-mathlib/Proofs/CpmmSwapV8ExactInAdmissibility.lean"
       - "lean-mathlib/Proofs/ZenoDEXNonces.lean"
       # Review grade: B after pass-3. The Lean toolchain is part of the public
       # receipt result envelope; watching only theorem files missed toolchain drift.
@@ -40,6 +42,11 @@ on:
       - "src/state/lp.py"
       - "src/state/nonces.py"
       - "src/state/pools.py"
+      - "config/production/cbc_surface_evidence_v1.json"
+      - "tools/gate_cbc_matrix_closure.py"
+      - "src/integration/surface_security_claim.py"
+      - "tests/integration/test_gate_cbc_matrix_closure.py"
+      - "tests/integration/test_surface_security_claim.py"
       - "config/deploy/**"
       - "src/integration/api_server.py"
       - "src/integration/deploy_profile.py"
@@ -70,6 +77,8 @@ on:
       - "src/kernels/dex/nonce_batch_sequencing_v1.yaml"
       - "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean"
       - "lean-mathlib/Proofs/CPMMInvariants.lean"
+      - "lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean"
+      - "lean-mathlib/Proofs/CpmmSwapV8ExactInAdmissibility.lean"
       - "lean-mathlib/Proofs/ZenoDEXNonces.lean"
       # Review grade: B after pass-3. The Lean toolchain is part of the public
       # receipt result envelope; watching only theorem files missed toolchain drift.
@@ -88,6 +97,11 @@ on:
       - "src/state/lp.py"
       - "src/state/nonces.py"
       - "src/state/pools.py"
+      - "config/production/cbc_surface_evidence_v1.json"
+      - "tools/gate_cbc_matrix_closure.py"
+      - "src/integration/surface_security_claim.py"
+      - "tests/integration/test_gate_cbc_matrix_closure.py"
+      - "tests/integration/test_surface_security_claim.py"
       - "config/deploy/**"
       - "src/integration/api_server.py"
       - "src/integration/deploy_profile.py"

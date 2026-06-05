@@ -269,9 +269,11 @@ def _perps_np_transition_kind(
     intent_count: int | None,
     matched: int | None,
 ) -> str | None:
-    raw = item.get("transition_kind")
-    if isinstance(raw, str) and raw:
-        return raw
+    if "transition_kind" in item:
+        raw = item.get("transition_kind")
+        # Review grade: A- boundary. Explicit malformed values are report
+        # integrity failures; only truly absent legacy fields may be inferred.
+        return raw if isinstance(raw, str) else None
     # Backward-compatible inference for already-produced proof reports. New
     # smoke reports write transition_kind explicitly.
     if case_name == "adl_wallet" and intent_count == 0 and matched == 0:

@@ -17,6 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 GATE_SH = ROOT / "tools" / "run_release_gate.sh"
+RELEASE_INTEGRITY_YML = ROOT / ".github" / "workflows" / "release-integrity.yml"
 
 
 def test_release_gate_distinguishes_advisory_from_infrastructure_failure() -> None:
@@ -34,3 +35,16 @@ def test_release_gate_distinguishes_advisory_from_infrastructure_failure() -> No
     # Exit 2+ (structural/infrastructure) FAILS CLOSED — the script re-exits.
     assert 'exit "$cbc_status"' in block or "exit $cbc_status" in block, \
         "structural/infra failure (exit 2+) must fail closed, not be swallowed"
+
+
+def test_release_integrity_workflow_runs_cbc_gate_with_same_exit_contract() -> None:
+    text = RELEASE_INTEGRITY_YML.read_text(encoding="utf-8")
+    assert "tools/gate_cbc_matrix_closure.py --json" in text
+
+    lines = text.splitlines()
+    idx = next(i for i, line in enumerate(lines) if "gate_cbc_matrix_closure.py" in line)
+    block = "\n".join(lines[idx : idx + 12])
+
+    assert "cbc_status" in block
+    assert "1)" in block and "advisory" in block.lower()
+    assert 'exit "$cbc_status"' in block or "exit $cbc_status" in block

@@ -4,6 +4,8 @@ import copy
 import json
 from pathlib import Path
 
+import pytest
+
 from tools.check_zusd_perps_np_risc0_real_proof_smoke_report import (
     PERPS_NP_SPEC,
     ZUSD_SPEC,
@@ -181,6 +183,33 @@ def test_scoped_risc0_report_accepts_legacy_adl_epoch_shape(tmp_path: Path) -> N
     check = validate_scoped_risc0_real_proof_smoke_report_v1(report)
 
     assert check["ok"] is True
+
+
+def test_scoped_risc0_report_accepts_legacy_match_epoch_shape(tmp_path: Path) -> None:
+    report = _perps_report(tmp_path)
+    case = report["cases"][0]  # type: ignore[index]
+    assert isinstance(case, dict)
+    case.pop("transition_kind")
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report)
+
+    assert check["ok"] is True
+
+
+@pytest.mark.parametrize("bad_value", [123, "", [], {}, True, None])
+def test_scoped_risc0_report_rejects_malformed_explicit_transition_kind(
+    tmp_path: Path,
+    bad_value: object,
+) -> None:
+    report = _perps_report(tmp_path)
+    case = report["cases"][0]  # type: ignore[index]
+    assert isinstance(case, dict)
+    case["transition_kind"] = bad_value
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report)
+
+    assert check["ok"] is False
+    assert "cases[0].transition_kind must be match_epoch or adl_epoch" in check["errors"]
 
 
 def test_scoped_risc0_report_rejects_match_epoch_without_fill(tmp_path: Path) -> None:
