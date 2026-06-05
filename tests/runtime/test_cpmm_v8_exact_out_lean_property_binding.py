@@ -6,11 +6,18 @@ deterministic, PR-gated CI check that needs NO prover toolchain. `tests/runtime/
 is globbed by runtime-shadow.yml and run via `pytest tests/runtime`, so a drift of
 the live exact-out/exact-in math away from the proven formula fails CI here.
 
-It binds the RUNNING code to the proven theorem two complementary ways, so the
-check is not circular through the kernel's own swap_exact_in: (a) the live
-swap_exact_out gross and swap_exact_in output EQUAL an independent transcription of
-the Lean formula definitions, and (b) those proven formulas satisfy sufficiency +
-minimality. Together: the live code computes the proven-safe formulas.
+The LOAD-BEARING binding is FORMULA EQUALITY: the live kernel is pinned to an
+INDEPENDENT transcription of the Lean formula defs (so the check is not circular
+through the kernel's own swap_exact_in), across the input domain —
+  - swap_exact_out(...).gross_in               == _lean_gross(...),  and
+  - swap_exact_in(..., amount_in=g).amount_out == _lean_out_quote(..., g) for g SWEPT
+    over the whole input range (test_exact_in_output_formula_binds_across_input_range),
+    NOT only the exact-out witnesses g in {gross, gross-1}.
+Once the live kernel equals the proven formulas, the Lean theorem gives the safety
+property for free; the sufficiency/minimality asserts below are a numerical
+re-confirmation of that theorem on the bound formulas (defense in depth), not the
+binding itself. NB a kernel drift therefore trips the FORMULA-EQUALITY assert
+(gross-formula / quote-formula), which is the catch — not the property assert.
 
   Lean  lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean
         theorem swap_exact_out_sufficient_and_minimal  (rin>0, aout<rout, fee<10000):
@@ -18,14 +25,14 @@ minimality. Together: the live code computes the proven-safe formulas.
           out_quote(g) = floor( rout*na / (rin+na) ),  na = g - ceil(g*fee/BPS)
           SUFFICIENT:  aout <= out_quote(gross)
           MINIMAL:     for all g < gross,  out_quote(g) < aout
+        Minimality is re-confirmed at the tight witness g=gross-1; the universal
+        `for all g < gross` is covered for the LIVE kernel by the across-g formula
+        binding (which pins out_quote on the whole range, so a small-g divergence
+        cannot hide).
 
   Running  swap_exact_out(...).gross_in  IS that `gross`, and
            swap_exact_in(..., amount_in=g, ...).amount_out  IS `out_quote(g)`
            (same ceil fee chain, same floor output; protocol_fee_share_bps=0).
-
-So we assert the LIVE gross is SUFFICIENT (out_quote(gross) >= aout) and MINIMAL
-(out_quote(gross-1) < aout; gross-1 is the tightest witness since out_quote is
-monotone non-decreasing in g).
 
 SCOPE (honest, matches the Lean docstring + the cpmm_swap proof_artifact note):
 this binds the OUTPUT/GROSS arithmetic under protocol_fee_share_bps=0 — the model
@@ -178,6 +185,33 @@ def test_random_sweep_binds() -> None:
         checked += 1
     assert checked == 3000
     assert nonvacuous >= 1500, nonvacuous  # most cases have gross>1 -> real minimality
+
+
+def test_exact_in_output_formula_binds_across_input_range() -> None:
+    """Bind the LIVE swap_exact_in output to the independent Lean out_quote formula
+    across a SWEEP of input amounts g (Gemini B+ finding). The exact-out property test
+    only pins the formula at g in {gross, gross-1}; a kernel exact-in divergence that
+    only manifests at SMALL g would otherwise slip through. Here out_quote is pinned to
+    the proven formula over the whole input range, so the kernel monotonicity that
+    justifies checking minimality at the single witness g=gross-1 is itself verified."""
+    rng = random.Random(SEED + 1)
+    for _ in range(4000):
+        rin = rng.randint(1, 10**7)
+        rout = rng.randint(2, 10**7)
+        fee = rng.randint(0, 9999)
+        g = rng.randint(1, 10**7)
+        assert _out_quote(rin, rout, g, fee) == _lean_out_quote(rin, rout, g, fee), (rin, rout, g, fee)
+
+    # Explicit SMALL-g coverage (where a divergence is most likely and the random
+    # sweep is sparse): g in 1..7 plus a few more, across reserve/fee corners.
+    small = 0
+    for rin in (1, 2, 5, 1000, 10**7):
+        for rout in (2, 3, 1000, 10**7):
+            for fee in (0, 1, 30, 9999):
+                for g in (1, 2, 3, 5, 7, 100):
+                    assert _out_quote(rin, rout, g, fee) == _lean_out_quote(rin, rout, g, fee), (rin, rout, g, fee)
+                    small += 1
+    assert small >= 100, small
 
 
 def test_gross_is_independent_of_protocol_fee_share() -> None:
