@@ -13,6 +13,8 @@ fail-closed (mismatch -> reject; un-rootable post-state -> reject, never crash).
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from src.core.dex import DexState
@@ -87,6 +89,34 @@ def test_accepts_post_state_root_matching_reexecuted_body():
     header = _header_for(body=body, post_state_root=correct_root, pre_state_root=correct_root)
     # Must not raise.
     validate_block_state_transition_v0(pre_state=pre, header=header, body=body, config=DexEngineConfig())
+
+
+@pytest.mark.parametrize("field_name", ["vault", "oracle", "perps"])
+def test_dex_state_root_v0_rejects_non_spot_lanes(field_name: str):
+    # REVIEW [C -> A-]: D-CANON-002 was a root-collision review failure: the
+    # spot ledger root ignored support-lane fields while accepting a full
+    # DexState. The adapter now rejects any non-None vault/oracle/perps lane
+    # before computing a root, forcing callers onto a dedicated lane root or a
+    # future full-app commitment.
+    state = replace(_canonical_pre_state(), **{field_name: object()})
+    with pytest.raises(ValueError, match=field_name):
+        dex_state_root_v0(state)
+
+
+def test_block_transition_rejects_pre_state_with_uncommitted_perps_lane():
+    clean_pre = _canonical_pre_state()
+    uncommitted_perps_pre = replace(clean_pre, perps=object())
+    body = _body(txs=[])
+    spot_root = dex_state_root_v0(clean_pre)
+    header = _header_for(body=body, post_state_root=spot_root, pre_state_root=spot_root)
+
+    with pytest.raises(ValueError, match="pre_state_root not computable"):
+        validate_block_state_transition_v0(
+            pre_state=uncommitted_perps_pre,
+            header=header,
+            body=body,
+            config=DexEngineConfig(),
+        )
 
 
 def test_rejects_post_state_root_not_matching_reexecuted_body():

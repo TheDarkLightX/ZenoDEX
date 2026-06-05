@@ -252,6 +252,7 @@ def compute_tx_root_v0(transactions: list[object]) -> str:
 def dex_state_root_v0(state: DexState) -> str:
     if not isinstance(state, DexState):
         raise TypeError("state must be a DexState")
+    validate_dex_state_root_v0_spot_scope(state)
     return compute_state_root(
         balances=state.balances,
         pools=state.pools,
@@ -259,6 +260,25 @@ def dex_state_root_v0(state: DexState) -> str:
         nonces=state.nonces,
         fee_accumulator=state.fee_accumulator,
     )
+
+
+def validate_dex_state_root_v0_spot_scope(state: DexState) -> None:
+    """Reject non-spot lanes before using the v5 spot root as a ledger root.
+
+    REVIEW [C -> A-]: D-CANON-002 found that ``dex_state_root_v0`` accepted a full
+    ``DexState`` while hashing only spot fields. Two states that differed only in
+    vault/oracle/perps data could therefore share one ledger root. The v5 root is
+    still intentionally spot-scoped; this adapter now makes that scope explicit and
+    fail-closed, so callers must use the dedicated lane roots or a future full-app
+    root when committing those fields.
+    """
+    if not isinstance(state, DexState):
+        raise TypeError("state must be a DexState")
+    for field_name in ("vault", "oracle", "perps"):
+        if getattr(state, field_name) is not None:
+            raise ValueError(
+                f"dex_state_root_v0 spot scope violation: {field_name} must be None"
+            )
 
 
 def _stable_error_code_v0(error: str | None) -> str:
