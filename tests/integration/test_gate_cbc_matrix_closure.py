@@ -120,6 +120,15 @@ def test_default_registry_covers_spot_dex_scope() -> None:
         "runtime_invariants"
     ]["note"]
     assert "proof_artifact/differential_tests" not in nonces["runtime_invariants"]["note"]
+    # REVIEW [A- -> A]: after the nonce Lean wrapper moved to exact ranges,
+    # the registry still described only the older gap/partial-apply teeth and
+    # said the wrapper still needed formalizing. Pin the evidence map to the
+    # current proof surface so release reviewers see the real remaining gap:
+    # final surface-spec/proof-artifact review, not missing wrapper formalization.
+    assert "duplicate acceptance" in nonces["formal_spec"]["note"]
+    assert "pins the exact-range Lean declaration surface" in nonces["proof_artifact"]["note"]
+    assert "formalize the batch WRAPPER" not in nonces["blocking_gaps"]
+    assert "dual-review/final surface-spec ruling" in nonces["blocking_gaps"]
     for surface_id in set(SPOT_DEX_SCOPE) - {"cpmm_swap", "state_root", "balances"}:
         assert surfaces[surface_id]["open_gaps_closed"] is False
     assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 1
