@@ -16,7 +16,7 @@
     },
     {
       "path": "src/state/confidential_requests.py",
-      "sha256": "b5fd1d03d4f7bb1829d50bb9c408ae33a2404cb188e30205fa41d8eab68e9420"
+      "sha256": "6a6e52c51fc79e9b2f1abbbf9279fee58b31a02aa2170ae66f9d42c94a0a8782"
     },
     {
       "path": "src/core/confidential_extension_live_admission.py",
@@ -28,7 +28,7 @@
     },
     {
       "path": "tests/state/test_confidential_requests.py",
-      "sha256": "a6523abd8335e257a103d3635dd37b06f267df3dbe972f175267783cc25474e6"
+      "sha256": "71529f78c1e930f8d39ce28c5219c9bb0a47a30ad1e3d3efe86acf72a4401936"
     },
     {
       "path": "tests/kernels/test_confidential_request_use_gate_v1_native_adapter.py",

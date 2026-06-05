@@ -5,6 +5,7 @@ import pytest
 from src.state.confidential_requests import (
     ConfidentialRequestKey,
     ConfidentialRequestTable,
+    ConfidentialRequestUseTransition,
     copy_confidential_request_table,
     evaluate_confidential_request_use_transition,
 )
@@ -71,6 +72,31 @@ def test_confidential_request_use_transition_rejects_noncanonical_flag() -> None
         )
 
 
+def test_confidential_request_use_transition_witness_rejects_non_bool_fields() -> None:
+    # REVIEW [B -> A-]: the public evaluator canonicalizes flags, but direct
+    # witness construction is also part of the evidence surface. Truthy strings
+    # or integers must not become accepted transition facts.
+    with pytest.raises(TypeError):
+        ConfidentialRequestUseTransition(
+            request_used_before=1,  # type: ignore[arg-type]
+            consume_request=True,
+            request_unused_ok=True,
+            transition_ok=True,
+            consume_applied=True,
+            request_used_after=True,
+        )
+
+    with pytest.raises(TypeError):
+        ConfidentialRequestUseTransition(
+            request_used_before=False,
+            consume_request="yes",  # type: ignore[arg-type]
+            request_unused_ok=True,
+            transition_ok=True,
+            consume_applied=False,
+            request_used_after=False,
+        )
+
+
 def test_copy_confidential_request_table_preserves_used_entries_without_aliasing() -> None:
     key = _key()
     table = ConfidentialRequestTable()
@@ -87,3 +113,21 @@ def test_copy_confidential_request_table_preserves_used_entries_without_aliasing
     copied.mark_used(other)
     assert copied.is_used(other) is True
     assert table.is_used(other) is False
+
+
+def test_confidential_request_table_rejects_corrupted_used_markers() -> None:
+    # REVIEW [B -> A-]: a copied table previously used bool(value), which turned
+    # corrupted markers like "yes" into durable used-state. The store now grades
+    # as A- because direct internal/deserializer corruption fails closed.
+    key = _key()
+    table = ConfidentialRequestTable()
+    table._used[key] = "yes"  # type: ignore[assignment]
+
+    with pytest.raises(TypeError):
+        table.is_used(key)
+
+    with pytest.raises(TypeError):
+        table.get_all()
+
+    with pytest.raises(TypeError):
+        copy_confidential_request_table(table)

@@ -23,6 +23,16 @@ def _require_flag(value: Any, *, name: str) -> bool:
     return bool(value)
 
 
+def _require_bool(value: object, *, name: str) -> bool:
+    # REVIEW [B -> A-]: direct construction previously accepted truthy scalars,
+    # so downstream evidence could carry invalid bool states. The runtime adapter
+    # may accept 0/1 at its boundary, but the stored transition witness is exact
+    # bool-only state.
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return value
+
+
 @dataclass(frozen=True)
 class ConfidentialRequestKey:
     extension_id: str
@@ -43,6 +53,17 @@ class ConfidentialRequestUseTransition:
     transition_ok: bool
     consume_applied: bool
     request_used_after: bool
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "request_used_before",
+            "consume_request",
+            "request_unused_ok",
+            "transition_ok",
+            "consume_applied",
+            "request_used_after",
+        ):
+            _require_bool(getattr(self, field_name), name=field_name)
 
 
 def evaluate_confidential_request_use_transition(
@@ -73,7 +94,7 @@ class ConfidentialRequestTable:
     def is_used(self, key: ConfidentialRequestKey) -> bool:
         if not isinstance(key, ConfidentialRequestKey):
             raise TypeError("key must be a ConfidentialRequestKey")
-        return bool(self._used.get(key, False))
+        return _require_bool(self._used.get(key, False), name="request_used")
 
     def mark_used(self, key: ConfidentialRequestKey) -> None:
         if not isinstance(key, ConfidentialRequestKey):
@@ -81,6 +102,14 @@ class ConfidentialRequestTable:
         self._used[key] = True
 
     def get_all(self) -> Mapping[ConfidentialRequestKey, bool]:
+        # REVIEW [B -> A-]: copy/get paths previously coerced corrupted internal
+        # state with bool(value). Validate the table before exporting so replay
+        # evidence fails closed if a deserializer or direct mutation injected a
+        # non-bool marker.
+        for key, used in self._used.items():
+            if not isinstance(key, ConfidentialRequestKey):
+                raise TypeError("key must be a ConfidentialRequestKey")
+            _require_bool(used, name="request_used")
         return dict(self._used)
 
 
@@ -89,6 +118,6 @@ def copy_confidential_request_table(request_table: ConfidentialRequestTable) -> 
         raise TypeError("request_table must be a ConfidentialRequestTable")
     copied = ConfidentialRequestTable()
     for key, used in request_table.get_all().items():
-        if bool(used):
+        if used:
             copied.mark_used(key)
     return copied
