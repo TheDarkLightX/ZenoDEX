@@ -188,13 +188,38 @@
       }
     }
   ],
+  "lean_proofs": [
+    {
+      "id": "nonce_batch_wrapper_lean",
+      "module": "Proofs.ZenoDEXNonceBatchWrapper",
+      "result": {
+        "lean_toolchain": "leanprover/lean4:v4.27.0",
+        "module": "Proofs.ZenoDEXNonceBatchWrapper",
+        "required_theorems": [
+          "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_safety",
+          "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_group_nodup",
+          "Proofs.ZenoDEX.NonceBatchWrapper.witness_batch_accepts",
+          "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_gap",
+          "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_is_noop_finals"
+        ],
+        "verdict": "BUILT_NO_SORRY"
+      },
+      "source_files": [
+        {
+          "path": "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean",
+          "sha256": "6b4df52f93fdf9d9eeaaca0abeeaba682982910c6c0acbfe40444aca66fa93cf"
+        }
+      ],
+      "tool": "lean-lake-build"
+    }
+  ],
   "manifest": "tools/kernel_assurance_manifest.json",
-  "manifest_sha256": "99913b8ecaeb337a8b6009024767d8a30fe4bdd457290bad95ae607421f50d40",
+  "manifest_sha256": "041c028c438ff0754437bbd198b89b374b8c1163bb4c75faef0d153cdd3829c1",
   "ok": true,
   "private_toolchain_source_included": false,
-  "receipt_sha256": "e927a4e56db6cf186d5309dec9d0d25974eee015d7989685895954e76be5cbd4",
+  "receipt_sha256": "017ef9f3ec456c565d5f6734ae25a54a3d1bfdf7733ad288d6affc24a110002e",
   "schema": "zenodex.kernel_assurance.public_receipt.v1",
-  "source_report_sha256": "f3d50bf17d1fd8738fe8acc23aa71c9c9c6d95250fe9232e76fdddc64632db77",
+  "source_report_sha256": "7a8b93ed96a2a90f3c11c8a2a377d7541ee9974a0965c1c3f616c79b38f56d70",
   "toolchain": {
     "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
     "esso_dirty": true,

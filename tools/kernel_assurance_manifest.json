@@ -75,8 +75,26 @@
       "working_directory": "rust-runtime"
     }
   ],
+  "lean_proofs": [
+    {
+      "id": "nonce_batch_wrapper_lean",
+      "module": "Proofs.ZenoDEXNonceBatchWrapper",
+      "required_theorems": [
+        "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_safety",
+        "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_group_nodup",
+        "Proofs.ZenoDEX.NonceBatchWrapper.witness_batch_accepts",
+        "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_gap",
+        "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_is_noop_finals"
+      ],
+      "required_verdict": "BUILT_NO_SORRY",
+      "source_files": [
+        "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean"
+      ],
+      "tool": "lean-lake-build"
+    }
+  ],
   "manifest_version": 1,
-  "notes": "Normative, fail-closed kernel assurance manifest for ZenoDEX. toolchain.esso_code_hash is the git commit of external/ESSO used for verification; update it only alongside a successful `python3 tools/dex_kernel_assurance.py` run. kani_proofs uses the committed-receipt pattern: `python3 tools/check_kernel_assurance_public_receipt.py build` runs the source-pinned cargo-kani harness set in privileged mode, and CI `check` validates the committed source hashes and result envelope without running Kani. Any change to kernels/corpora/Kani proof sources requires updating this file alongside regenerated artifacts.",
+  "notes": "Normative, fail-closed kernel assurance manifest for ZenoDEX. toolchain.esso_code_hash is the git commit of external/ESSO used for verification; update it only alongside a successful `python3 tools/dex_kernel_assurance.py` run. kani_proofs and lean_proofs use the committed-receipt pattern: `python3 tools/check_kernel_assurance_public_receipt.py build` runs the source-pinned cargo-kani harness set and Lean modules in privileged mode, and CI `check` validates the committed source hashes and result envelope without running Kani or Lean. Any change to kernels/corpora/Kani/Lean proof sources requires updating this file alongside regenerated artifacts.",
   "seeds": [
     0,
     1,

@@ -20,6 +20,7 @@ on:
       - "src/kernels/python/cpmm_swap_v8.py"
       - "src/core/cpmm.py"
       - "src/kernels/dex/nonce_batch_sequencing_v1.yaml"
+      - "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean"
       - "lean-mathlib/Proofs/CPMMInvariants.lean"
       - "lean-mathlib/Proofs/ZenoDEXNonces.lean"
       # Review grade: B after pass-3. The Lean toolchain is part of the public
@@ -67,6 +68,7 @@ on:
       - "src/kernels/python/cpmm_swap_v8.py"
       - "src/core/cpmm.py"
       - "src/kernels/dex/nonce_batch_sequencing_v1.yaml"
+      - "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean"
       - "lean-mathlib/Proofs/CPMMInvariants.lean"
       - "lean-mathlib/Proofs/ZenoDEXNonces.lean"
       # Review grade: B after pass-3. The Lean toolchain is part of the public

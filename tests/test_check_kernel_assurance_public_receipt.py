@@ -24,6 +24,7 @@ def _write_json(path: Path, obj: dict[str, Any]) -> None:
 
 def _manifest() -> dict[str, Any]:
     kani = kar.EXPECTED_KANI_PROOFS["balance_kernel_kani"]
+    lean = kar.EXPECTED_LEAN_PROOFS["nonce_batch_wrapper_lean"]
     return {
         "manifest_version": 1,
         "solvers": ["cvc5"],
@@ -57,6 +58,16 @@ def _manifest() -> dict[str, Any]:
                 "harnesses": list(kani["harnesses"]),
             }
         ],
+        "lean_proofs": [
+            {
+                "id": "nonce_batch_wrapper_lean",
+                "tool": lean["tool"],
+                "module": lean["module"],
+                "required_verdict": lean["required_verdict"],
+                "source_files": lean["source_files"],
+                "required_theorems": lean["required_theorems"],
+            }
+        ],
     }
 
 
@@ -70,6 +81,7 @@ def _manifest_hash(manifest: dict[str, Any], tmp_path: Path) -> tuple[str, Path]
 
 def _private_report(manifest_sha256: str) -> dict[str, Any]:
     kani = kar.EXPECTED_KANI_PROOFS["balance_kernel_kani"]
+    lean = kar.EXPECTED_LEAN_PROOFS["nonce_batch_wrapper_lean"]
     return {
         "ok": True,
         "manifest_sha256": manifest_sha256,
@@ -135,6 +147,23 @@ def _private_report(manifest_sha256: str) -> dict[str, Any]:
                         "failures": 0,
                         "total": len(kani["harnesses"]),
                     },
+                },
+            }
+        ],
+        "lean_proofs": [
+            {
+                "id": "nonce_batch_wrapper_lean",
+                "tool": lean["tool"],
+                "module": lean["module"],
+                "source_files": [
+                    {"path": rel, "sha256": kar._sha256_file(ROOT / rel)}
+                    for rel in lean["source_files"]
+                ],
+                "result": {
+                    "verdict": "BUILT_NO_SORRY",
+                    "lean_toolchain": lean["expected_lean_toolchain"],
+                    "module": lean["module"],
+                    "required_theorems": lean["required_theorems"],
                 },
             }
         ],
@@ -233,10 +262,50 @@ def test_committed_receipt_covers_balance_kernel_kani() -> None:
     assert proof["result"]["summary"] == {"failures": 0, "successfully_verified": 7, "total": 7}
 
 
+def test_committed_receipt_covers_nonce_batch_wrapper_lean() -> None:
+    report = check_receipt_file(
+        receipt_path=ROOT / "docs/assurance/kernel_assurance_public_receipt.json",
+        manifest_path=ROOT / "tools/kernel_assurance_manifest.json",
+    )
+    assert report["ok"] is True, report["errors"]
+
+    receipt = json.loads(
+        (ROOT / "docs/assurance/kernel_assurance_public_receipt.json").read_text(encoding="utf-8")
+    )
+    proofs = {entry["id"]: entry for entry in receipt["lean_proofs"]}
+    proof = proofs["nonce_batch_wrapper_lean"]
+    assert proof["source_files"] == [
+        {
+            "path": "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean",
+            "sha256": kar._sha256_file(
+                ROOT / "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean"
+            ),
+        }
+    ]
+    assert proof["result"]["verdict"] == "BUILT_NO_SORRY"
+    assert (
+        "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_safety"
+        in proof["result"]["required_theorems"]
+    )
+
+
 def test_build_rejects_kani_manifest_harness_drop_before_toolchain(tmp_path: Path) -> None:
     manifest = _manifest()
     manifest_sha256, _manifest_path = _manifest_hash(manifest, tmp_path)
     manifest["kani_proofs"][0]["harnesses"] = manifest["kani_proofs"][0]["harnesses"][:-1]
+
+    with pytest.raises(kar.ReceiptError, match="source-pinned"):
+        build_public_receipt_from_report(
+            _private_report(manifest_sha256),
+            manifest=manifest,
+            manifest_sha256=manifest_sha256,
+        )
+
+
+def test_build_rejects_lean_manifest_theorem_drop_before_toolchain(tmp_path: Path) -> None:
+    manifest = _manifest()
+    manifest_sha256, _manifest_path = _manifest_hash(manifest, tmp_path)
+    manifest["lean_proofs"][0]["required_theorems"] = manifest["lean_proofs"][0]["required_theorems"][:-1]
 
     with pytest.raises(kar.ReceiptError, match="source-pinned"):
         build_public_receipt_from_report(
@@ -294,3 +363,21 @@ def test_resealed_kani_missing_harness_fails(tmp_path: Path) -> None:
     errors = verify_public_receipt(receipt, manifest=manifest, manifest_sha256=manifest_sha256)
 
     assert any("result harnesses" in error for error in errors), errors
+
+
+def test_resealed_lean_theorem_drop_fails(tmp_path: Path) -> None:
+    manifest = _manifest()
+    manifest_sha256, _manifest_path = _manifest_hash(manifest, tmp_path)
+    receipt = build_public_receipt_from_report(
+        _private_report(manifest_sha256),
+        manifest=manifest,
+        manifest_sha256=manifest_sha256,
+    )
+
+    receipt["lean_proofs"][0]["result"]["required_theorems"] = (
+        receipt["lean_proofs"][0]["result"]["required_theorems"][:-1]
+    )
+    _reseal(receipt)
+    errors = verify_public_receipt(receipt, manifest=manifest, manifest_sha256=manifest_sha256)
+
+    assert any("required_theorems" in error for error in errors), errors

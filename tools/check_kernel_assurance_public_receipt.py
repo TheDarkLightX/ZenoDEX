@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Build and verify public kernel-assurance receipts.
 
-ESSO and Kani are proof toolchains. Public ZenoDEX checkouts should not need the
-ESSO source tree or cargo-kani to verify that a release is bound to specific
-toolchain runs. This checker validates a public receipt emitted from a private
-`tools/dex_kernel_assurance.py` report plus source-pinned Kani harness results
-without importing ESSO or running Kani in ordinary CI.
+ESSO, Kani, and Lean are proof toolchains. Public ZenoDEX checkouts should not
+need the ESSO source tree, cargo-kani, or a Lean/mathlib checkout to verify that
+a release is bound to specific toolchain runs. This checker validates a public
+receipt emitted from a private `tools/dex_kernel_assurance.py` report plus
+source-pinned Kani/Lean proof results without importing ESSO or running proof
+toolchains in ordinary CI.
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ RECEIPT_SCHEMA = "zenodex.kernel_assurance.public_receipt.v1"
 
 
 VALID_KANI_VERDICTS = frozenset({"VERIFIED"})
+VALID_LEAN_VERDICTS = frozenset({"BUILT_NO_SORRY"})
 
 # SOURCE-PINNED Kani proof set. The manifest and receipt must match this exactly,
 # so a config-only edit cannot drop a harness, lower the required verdict, or
@@ -84,6 +86,27 @@ EXPECTED_KANI_PROOFS: dict[str, dict[str, Any]] = {
                 "cover_properties_total": 0,
             },
         },
+    }
+}
+
+# SOURCE-PINNED Lean proof set for kernel-assurance receipt checks. Keep this
+# separate from the SPOT proof receipt so nonce-wrapper work can be gated without
+# touching the forbidden SPOT receipt files.
+EXPECTED_LEAN_PROOFS: dict[str, dict[str, Any]] = {
+    "nonce_batch_wrapper_lean": {
+        "tool": "lean-lake-build",
+        "required_verdict": "BUILT_NO_SORRY",
+        "module": "Proofs.ZenoDEXNonceBatchWrapper",
+        "expected_lean_toolchain": "leanprover/lean4:v4.27.0",
+        "lean_toolchain_file": "lean-mathlib/lean-toolchain",
+        "source_files": ["lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean"],
+        "required_theorems": [
+            "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_safety",
+            "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_group_nodup",
+            "Proofs.ZenoDEX.NonceBatchWrapper.witness_batch_accepts",
+            "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_gap",
+            "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_is_noop_finals",
+        ],
     }
 }
 
@@ -208,6 +231,59 @@ def _report_kani_proofs(report: Mapping[str, Any]) -> dict[str, Mapping[str, Any
     return out
 
 
+def _manifest_lean_proofs(manifest: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    proofs = manifest.get("lean_proofs")
+    if not isinstance(proofs, list) or not proofs:
+        raise ReceiptError("manifest.lean_proofs must be a non-empty list")
+
+    out: dict[str, Mapping[str, Any]] = {}
+    for index, entry in enumerate(proofs):
+        if not isinstance(entry, Mapping):
+            raise ReceiptError(f"manifest.lean_proofs[{index}] must be an object")
+        pid = _require_string(entry.get("id"), name=f"manifest.lean_proofs[{index}].id")
+        tool = _require_string(entry.get("tool"), name=f"{pid}.tool")
+        if tool != "lean-lake-build":
+            raise ReceiptError(f"{pid}.tool unsupported: {tool!r}")
+        verdict = _require_string(entry.get("required_verdict"), name=f"{pid}.required_verdict")
+        if verdict not in VALID_LEAN_VERDICTS:
+            raise ReceiptError(f"{pid}.required_verdict unsupported: {verdict!r}")
+        _require_string(entry.get("module"), name=f"{pid}.module")
+        source_files = entry.get("source_files")
+        if (
+            not isinstance(source_files, list)
+            or not source_files
+            or not all(isinstance(path, str) and path for path in source_files)
+        ):
+            raise ReceiptError(f"{pid}.source_files must be a non-empty list of paths")
+        theorems = entry.get("required_theorems")
+        if (
+            not isinstance(theorems, list)
+            or not theorems
+            or not all(isinstance(name, str) and name for name in theorems)
+        ):
+            raise ReceiptError(f"{pid}.required_theorems must be a non-empty list of theorem names")
+        if pid in out:
+            raise ReceiptError(f"duplicate manifest Lean proof id: {pid}")
+        out[pid] = entry
+    return out
+
+
+def _report_lean_proofs(report: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    proofs = report.get("lean_proofs")
+    if not isinstance(proofs, list) or not proofs:
+        raise ReceiptError("private report lean_proofs must be a non-empty list")
+
+    out: dict[str, Mapping[str, Any]] = {}
+    for index, entry in enumerate(proofs):
+        if not isinstance(entry, Mapping):
+            raise ReceiptError(f"private report lean_proofs[{index}] must be an object")
+        pid = _require_string(entry.get("id"), name=f"private report lean_proofs[{index}].id")
+        if pid in out:
+            raise ReceiptError(f"duplicate private report Lean proof id: {pid}")
+        out[pid] = entry
+    return out
+
+
 def _source_hashes(entry: Mapping[str, Any], *, pid: str) -> list[dict[str, str]]:
     source_files = entry.get("source_files")
     if not isinstance(source_files, list):
@@ -256,6 +332,35 @@ def _check_kani_source_pin(manifest_by_id: Mapping[str, Mapping[str, Any]]) -> l
             errors.append(
                 f"{pid}: harnesses {list(manifest_entry.get('harnesses') or [])} "
                 f"!= source-pinned {expected_harnesses}"
+            )
+    return errors
+
+
+def _check_lean_source_pin(manifest_by_id: Mapping[str, Mapping[str, Any]]) -> list[str]:
+    errors: list[str] = []
+    if set(manifest_by_id) != set(EXPECTED_LEAN_PROOFS):
+        errors.append(
+            f"manifest Lean proof ids {sorted(manifest_by_id)} != source-pinned "
+            f"EXPECTED_LEAN_PROOFS {sorted(EXPECTED_LEAN_PROOFS)} "
+            f"(add/drop a proof only by editing EXPECTED_LEAN_PROOFS)"
+        )
+    for pid in sorted(set(manifest_by_id) & set(EXPECTED_LEAN_PROOFS)):
+        exp = EXPECTED_LEAN_PROOFS[pid]
+        manifest_entry = manifest_by_id[pid]
+        for key in ("tool", "required_verdict", "module"):
+            if manifest_entry.get(key) != exp[key]:
+                errors.append(
+                    f"{pid}: {key} {manifest_entry.get(key)!r} != source-pinned {exp[key]!r}"
+                )
+        if list(manifest_entry.get("source_files") or []) != exp["source_files"]:
+            errors.append(
+                f"{pid}: source_files {list(manifest_entry.get('source_files') or [])} "
+                f"!= source-pinned {exp['source_files']}"
+            )
+        if list(manifest_entry.get("required_theorems") or []) != exp["required_theorems"]:
+            errors.append(
+                f"{pid}: required_theorems {list(manifest_entry.get('required_theorems') or [])} "
+                f"!= source-pinned {exp['required_theorems']}"
             )
     return errors
 
@@ -593,6 +698,141 @@ def _run_kani_proof(manifest_entry: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _lean_toolchain_from_source_pin(pid: str, exp: Mapping[str, Any]) -> tuple[str | None, list[str]]:
+    rel = exp.get("lean_toolchain_file")
+    if not isinstance(rel, str) or not rel:
+        return None, [f"{pid}: lean_toolchain_file source pin missing"]
+    path = ROOT / rel
+    try:
+        return path.read_text(encoding="utf-8").strip(), []
+    except OSError as exc:
+        return None, [f"{pid}: lean toolchain source pin unreadable: {rel}: {exc}"]
+
+
+def _validate_lean_result(
+    pid: str,
+    result: Any,
+    *,
+    required_verdict: Any,
+    exp: Mapping[str, Any],
+) -> list[str]:
+    if not isinstance(result, Mapping):
+        return [f"{pid}: Lean result must be an object"]
+    errors: list[str] = []
+    if result.get("verdict") != required_verdict:
+        errors.append(
+            f"{pid}: result verdict {result.get('verdict')!r} != required {required_verdict!r}"
+        )
+    if result.get("module") != exp["module"]:
+        errors.append(f"{pid}: module {result.get('module')!r} != source-pinned {exp['module']!r}")
+    pinned_toolchain = exp.get("expected_lean_toolchain")
+    if not isinstance(pinned_toolchain, str) or not pinned_toolchain:
+        errors.append(f"{pid}: expected_lean_toolchain source pin missing")
+    elif result.get("lean_toolchain") != pinned_toolchain:
+        errors.append(
+            f"{pid}: lean_toolchain {result.get('lean_toolchain')!r} "
+            f"!= source-pinned {pinned_toolchain!r}"
+        )
+    live_toolchain, live_errors = _lean_toolchain_from_source_pin(pid, exp)
+    errors.extend(live_errors)
+    if pinned_toolchain and live_toolchain is not None and live_toolchain != pinned_toolchain:
+        errors.append(
+            f"{pid}: on-disk lean toolchain {live_toolchain!r} "
+            f"!= source-pinned {pinned_toolchain!r}"
+        )
+    if list(result.get("required_theorems") or []) != exp["required_theorems"]:
+        errors.append(
+            f"{pid}: required_theorems {list(result.get('required_theorems') or [])} "
+            f"!= source-pinned {exp['required_theorems']}"
+        )
+    return errors
+
+
+def _lean_receipt(
+    *,
+    manifest_entry: Mapping[str, Any],
+    report_entry: Mapping[str, Any],
+) -> dict[str, Any]:
+    pid = _require_string(manifest_entry.get("id"), name="manifest Lean proof id")
+    exp = EXPECTED_LEAN_PROOFS.get(pid)
+    if not isinstance(exp, Mapping):
+        raise ReceiptError(f"{pid}: missing source-pinned Lean proof entry")
+
+    out: dict[str, Any] = {"id": pid}
+    for key in ("tool", "module"):
+        expected = _require_string(manifest_entry.get(key), name=f"{pid}.{key}")
+        actual = _require_string(report_entry.get(key), name=f"{pid}.{key}")
+        if actual != expected:
+            raise ReceiptError(f"{pid}.{key} mismatch: expected {expected}, got {actual}")
+        out[key] = actual
+
+    current_sources = _source_hashes(manifest_entry, pid=pid)
+    report_sources = report_entry.get("source_files")
+    if report_sources != current_sources:
+        raise ReceiptError(
+            f"{pid}: source hashes drifted from the Lean report "
+            f"(re-run build): pinned={report_sources} current={current_sources}"
+        )
+    out["source_files"] = current_sources
+
+    result = report_entry.get("result")
+    result_errors = _validate_lean_result(
+        pid,
+        result,
+        required_verdict=manifest_entry.get("required_verdict"),
+        exp=exp,
+    )
+    if result_errors:
+        raise ReceiptError("; ".join(result_errors))
+    out["result"] = result
+    return out
+
+
+def _run_lean_proof(manifest_entry: Mapping[str, Any]) -> dict[str, Any]:
+    pid = _require_string(manifest_entry.get("id"), name="manifest Lean proof id")
+    exp = EXPECTED_LEAN_PROOFS[pid]
+    module = _require_string(exp.get("module"), name=f"{pid}.module")
+    proc = subprocess.run(
+        ["lake", "build", module],
+        cwd=str(ROOT / "lean-mathlib"),
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    if proc.returncode != 0:
+        raise ReceiptError(f"{pid}: lake build failed for {module}: {proc.stderr[-800:]}")
+
+    forbidden = re.compile(r"\b(sorry|admit|sorryAx|unsafe)\b|\baxiom\b")
+    for rel in exp["source_files"]:
+        if forbidden.search((ROOT / rel).read_text(encoding="utf-8")):
+            raise ReceiptError(f"{pid}: forbidden token (sorry/admit/axiom/unsafe) in {rel}")
+
+    lean_toolchain, live_errors = _lean_toolchain_from_source_pin(pid, exp)
+    if live_errors:
+        raise ReceiptError("; ".join(live_errors))
+    result = {
+        "verdict": "BUILT_NO_SORRY",
+        "lean_toolchain": lean_toolchain,
+        "module": module,
+        "required_theorems": exp["required_theorems"],
+    }
+    result_errors = _validate_lean_result(
+        pid,
+        result,
+        required_verdict=manifest_entry.get("required_verdict"),
+        exp=exp,
+    )
+    if result_errors:
+        raise ReceiptError("; ".join(result_errors))
+    return {
+        "id": pid,
+        "tool": exp["tool"],
+        "module": module,
+        "source_files": _source_hashes(manifest_entry, pid=pid),
+        "result": result,
+    }
+
+
 def _receipt_hash_body(receipt: Mapping[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in receipt.items() if k != "receipt_sha256"}
 
@@ -625,6 +865,11 @@ def build_public_receipt_from_report(
     if source_pin_errors:
         raise ReceiptError("; ".join(source_pin_errors))
     report_kani_by_id = _report_kani_proofs(report)
+    manifest_lean_by_id = _manifest_lean_proofs(manifest)
+    lean_source_pin_errors = _check_lean_source_pin(manifest_lean_by_id)
+    if lean_source_pin_errors:
+        raise ReceiptError("; ".join(lean_source_pin_errors))
+    report_lean_by_id = _report_lean_proofs(report)
 
     missing = sorted(set(manifest_by_id) - set(report_by_id))
     extra = sorted(set(report_by_id) - set(manifest_by_id))
@@ -638,6 +883,12 @@ def build_public_receipt_from_report(
         raise ReceiptError(f"private report missing Kani proof receipts: {missing_kani}")
     if extra_kani:
         raise ReceiptError(f"private report has Kani proofs outside manifest: {extra_kani}")
+    missing_lean = sorted(set(manifest_lean_by_id) - set(report_lean_by_id))
+    extra_lean = sorted(set(report_lean_by_id) - set(manifest_lean_by_id))
+    if missing_lean:
+        raise ReceiptError(f"private report missing Lean proof receipts: {missing_lean}")
+    if extra_lean:
+        raise ReceiptError(f"private report has Lean proofs outside manifest: {extra_lean}")
 
     kernels = [
         _kernel_receipt(manifest=manifest, manifest_kernel=manifest_by_id[model_id], report_kernel=report_by_id[model_id])
@@ -646,6 +897,10 @@ def build_public_receipt_from_report(
     kani_proofs = [
         _kani_receipt(manifest_entry=manifest_kani_by_id[pid], report_entry=report_kani_by_id[pid])
         for pid in sorted(manifest_kani_by_id)
+    ]
+    lean_proofs = [
+        _lean_receipt(manifest_entry=manifest_lean_by_id[pid], report_entry=report_lean_by_id[pid])
+        for pid in sorted(manifest_lean_by_id)
     ]
 
     receipt: dict[str, Any] = {
@@ -658,6 +913,7 @@ def build_public_receipt_from_report(
         "private_toolchain_source_included": False,
         "kernels": kernels,
         "kani_proofs": kani_proofs,
+        "lean_proofs": lean_proofs,
     }
     return _add_receipt_hash(receipt)
 
@@ -754,12 +1010,27 @@ def _receipt_to_report_shape(receipt: Mapping[str, Any]) -> dict[str, Any]:
                 "result": entry.get("result"),
             }
         )
+    lean_proofs = []
+    for entry in receipt.get("lean_proofs", []):
+        if not isinstance(entry, Mapping):
+            lean_proofs.append(entry)
+            continue
+        lean_proofs.append(
+            {
+                "id": entry.get("id"),
+                "tool": entry.get("tool"),
+                "module": entry.get("module"),
+                "source_files": entry.get("source_files"),
+                "result": entry.get("result"),
+            }
+        )
     return {
         "ok": receipt.get("ok"),
         "manifest_sha256": receipt.get("manifest_sha256"),
         "toolchain": receipt.get("toolchain"),
         "kernels": kernels,
         "kani_proofs": kani_proofs,
+        "lean_proofs": lean_proofs,
     }
 
 
@@ -806,6 +1077,14 @@ def _cmd_build(args: argparse.Namespace) -> int:
         report["kani_proofs"] = [
             _run_kani_proof(manifest_kani_by_id[pid]) for pid in sorted(manifest_kani_by_id)
         ]
+    if "lean_proofs" not in report:
+        manifest_lean_by_id = _manifest_lean_proofs(manifest)
+        source_pin_errors = _check_lean_source_pin(manifest_lean_by_id)
+        if source_pin_errors:
+            raise ReceiptError("; ".join(source_pin_errors))
+        report["lean_proofs"] = [
+            _run_lean_proof(manifest_lean_by_id[pid]) for pid in sorted(manifest_lean_by_id)
+        ]
 
     receipt = build_public_receipt_from_report(
         report,
@@ -834,12 +1113,15 @@ def main(argv: list[str] | None = None) -> int:
 
     build = sub.add_parser(
         "build",
-        help="Build a public receipt from a private dex_kernel_assurance report plus Kani runs.",
+        help="Build a public receipt from a private dex_kernel_assurance report plus Kani/Lean runs.",
     )
     build.add_argument(
         "--report",
         required=True,
-        help="Private tools/dex_kernel_assurance.py JSON report. Missing Kani results are run from the source pin.",
+        help=(
+            "Private tools/dex_kernel_assurance.py JSON report. "
+            "Missing Kani/Lean results are run from the source pin."
+        ),
     )
     build.add_argument("--manifest", default=str(DEFAULT_MANIFEST), help="Kernel assurance manifest.")
     build.add_argument("--out", default=str(DEFAULT_RECEIPT), help="Receipt output path.")

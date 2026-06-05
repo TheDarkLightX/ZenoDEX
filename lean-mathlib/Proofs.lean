@@ -285,6 +285,7 @@ import Proofs.ZenoDEXExactOutManyPoolSupportTailRecursion
 import Proofs.ZenoDEXExactOutRouteCertificate
 import Proofs.ZenoDEXExactOutTwoPoolCompleteness
 import Proofs.ZenoDEXIntentSenderBoundary
+import Proofs.ZenoDEXNonceBatchWrapper
 import Proofs.ZenoDEXNonces
 import Proofs.ZenoDEXO5DagClosure
 import Proofs.ZenoDEXProofMiningClaimability
