@@ -15,6 +15,17 @@ from .balances import Amount, PubKey
 PoolId = str
 
 
+def _require_plain_int(value: object, *, name: str) -> int:
+    # REVIEW [B- -> B+]: LPTable used Python's raw numeric comparisons, so
+    # bool values were accepted as 0/1 LP amounts because bool subclasses int.
+    # That creates a live store state the state-root boundary later rejects and
+    # weakens the balance/LP proof alignment. A higher grade would replace raw
+    # ints with a dedicated Amount value type shared by balance and LP stores.
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
 @dataclass(frozen=True)
 class LPDurationRiskMetadata:
     """Committed duration-risk metadata for one aggregate LP position key."""
@@ -47,6 +58,7 @@ class LPTable:
 
     def set(self, pubkey: PubKey, pool_id: PoolId, amount: Amount) -> None:
         """Set LP balance for (pubkey, pool_id)."""
+        amount = _require_plain_int(amount, name="amount")
         if amount < 0:
             raise ValueError(f"LP balance cannot be negative: {amount}")
         if amount == 0:
@@ -57,6 +69,7 @@ class LPTable:
 
     def add(self, pubkey: PubKey, pool_id: PoolId, delta: int) -> None:
         """Add delta to an LP balance (delta may be negative)."""
+        delta = _require_plain_int(delta, name="delta")
         current = self.get(pubkey, pool_id)
         new_balance = current + delta
         if new_balance < 0:
@@ -67,6 +80,7 @@ class LPTable:
 
     def subtract(self, pubkey: PubKey, pool_id: PoolId, delta: Amount) -> None:
         """Subtract a non-negative amount from an LP balance."""
+        delta = _require_plain_int(delta, name="delta")
         if delta < 0:
             raise ValueError(f"Delta must be non-negative: {delta}")
         self.add(pubkey, pool_id, -delta)

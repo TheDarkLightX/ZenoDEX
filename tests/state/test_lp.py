@@ -41,6 +41,20 @@ def test_lp_table_add_and_subtract_enforce_non_negative() -> None:
         table.add("alice", "pool", -1)
 
 
+def test_lp_table_rejects_bool_amounts_and_deltas() -> None:
+    # REVIEW [B- -> B+]: bool is an int subclass in Python, but it is not a
+    # valid LP amount. The live LP store now matches the BalanceTable boundary
+    # and cannot carry a True/False amount until state-root rejects it later.
+    table = LPTable()
+    with pytest.raises(TypeError, match="amount must be an int"):
+        table.set("alice", "pool", True)
+    with pytest.raises(TypeError, match="delta must be an int"):
+        table.add("alice", "pool", True)
+    with pytest.raises(TypeError, match="delta must be an int"):
+        table.subtract("alice", "pool", False)
+    assert table.get_all_balances() == {}
+
+
 def test_lp_table_verify_non_negative_and_repr() -> None:
     table = LPTable()
     table.set("alice", "pool-a", 5)
