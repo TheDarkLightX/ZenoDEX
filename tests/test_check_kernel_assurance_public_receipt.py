@@ -287,6 +287,42 @@ def test_committed_receipt_covers_nonce_batch_wrapper_lean() -> None:
         "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_safety"
         in proof["result"]["required_theorems"]
     )
+    assert (
+        "Proofs.ZenoDEX.NonceBatchWrapper.canonical_batch_accept_decision_implies_safety"
+        in proof["result"]["required_theorems"]
+    )
+
+
+def test_lean_theorem_smoke_source_names_every_pinned_theorem() -> None:
+    lean = kar.EXPECTED_LEAN_PROOFS["nonce_batch_wrapper_lean"]
+    source = kar._lean_required_theorem_check_source(
+        lean["module"],
+        list(lean["required_theorems"]),
+    )
+
+    assert source.startswith(f"import {lean['module']}\n")
+    for theorem_name in lean["required_theorems"]:
+        assert f"#check {theorem_name}\n" in source
+
+
+def test_run_lean_proof_invokes_required_theorem_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command: list[str], **_kwargs: Any) -> _Proc:
+        calls.append(command)
+        return _Proc()
+
+    monkeypatch.setattr(kar.subprocess, "run", fake_run)
+
+    proof = kar._run_lean_proof(_manifest()["lean_proofs"][0])
+
+    assert proof["result"]["verdict"] == "BUILT_NO_SORRY"
+    assert any(command[:3] == ["lake", "env", "lean"] for command in calls)
 
 
 def test_build_rejects_kani_manifest_harness_drop_before_toolchain(tmp_path: Path) -> None:

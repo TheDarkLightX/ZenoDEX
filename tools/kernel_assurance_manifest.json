@@ -80,9 +80,12 @@
       "id": "nonce_batch_wrapper_lean",
       "module": "Proofs.ZenoDEXNonceBatchWrapper",
       "required_theorems": [
+        "Proofs.ZenoDEX.NonceBatchWrapper.canonical_batch_accept_decision_implies_safety",
+        "Proofs.ZenoDEX.NonceBatchWrapper.canonical_batch_sender_ids_nodup",
         "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_safety",
         "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_group_nodup",
         "Proofs.ZenoDEX.NonceBatchWrapper.witness_batch_accepts",
+        "Proofs.ZenoDEX.NonceBatchWrapper.witness_canonical_batch_accepts",
         "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_gap",
         "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_is_noop_finals"
       ],

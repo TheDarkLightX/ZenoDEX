@@ -101,9 +101,12 @@ EXPECTED_LEAN_PROOFS: dict[str, dict[str, Any]] = {
         "lean_toolchain_file": "lean-mathlib/lean-toolchain",
         "source_files": ["lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean"],
         "required_theorems": [
+            "Proofs.ZenoDEX.NonceBatchWrapper.canonical_batch_accept_decision_implies_safety",
+            "Proofs.ZenoDEX.NonceBatchWrapper.canonical_batch_sender_ids_nodup",
             "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_safety",
             "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_group_nodup",
             "Proofs.ZenoDEX.NonceBatchWrapper.witness_batch_accepts",
+            "Proofs.ZenoDEX.NonceBatchWrapper.witness_canonical_batch_accepts",
             "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_gap",
             "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_is_noop_finals",
         ],
@@ -748,6 +751,38 @@ def _validate_lean_result(
     return errors
 
 
+def _lean_required_theorem_check_source(module: str, theorem_names: list[str]) -> str:
+    lines = [f"import {module}"]
+    lines.extend(f"#check {name}" for name in theorem_names)
+    return "\n".join(lines) + "\n"
+
+
+def _check_lean_required_theorems(pid: str, exp: Mapping[str, Any]) -> None:
+    module = _require_string(exp.get("module"), name=f"{pid}.module")
+    theorem_names = list(exp.get("required_theorems") or [])
+    if not theorem_names or not all(isinstance(name, str) and name for name in theorem_names):
+        raise ReceiptError(f"{pid}: required_theorems source pin must be a non-empty string list")
+
+    safe_pid = re.sub(r"[^A-Za-z0-9_.-]", "_", pid)
+    smoke_path = ROOT / "lean-mathlib" / f".tmp_{safe_pid}_required_theorems.lean"
+    smoke_path.write_text(_lean_required_theorem_check_source(module, theorem_names), encoding="utf-8")
+    try:
+        proc = subprocess.run(
+            ["lake", "env", "lean", smoke_path.name],
+            cwd=str(ROOT / "lean-mathlib"),
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    finally:
+        smoke_path.unlink(missing_ok=True)
+    if proc.returncode != 0:
+        raise ReceiptError(
+            f"{pid}: required Lean theorem smoke check failed: "
+            f"stdout={proc.stdout[-800:]} stderr={proc.stderr[-800:]}"
+        )
+
+
 def _lean_receipt(
     *,
     manifest_entry: Mapping[str, Any],
@@ -801,6 +836,12 @@ def _run_lean_proof(manifest_entry: Mapping[str, Any]) -> dict[str, Any]:
     )
     if proc.returncode != 0:
         raise ReceiptError(f"{pid}: lake build failed for {module}: {proc.stderr[-800:]}")
+
+    # REVIEW [B -> A-]: `lake build <module>` proves the source compiles, but a
+    # receipt can still overclaim by listing theorem names that no longer exist.
+    # The builder now imports the module and #checks every source-pinned theorem
+    # before it emits `BUILT_NO_SORRY`.
+    _check_lean_required_theorems(pid, exp)
 
     forbidden = re.compile(r"\b(sorry|admit|sorryAx|unsafe)\b|\baxiom\b")
     for rel in exp["source_files"]:

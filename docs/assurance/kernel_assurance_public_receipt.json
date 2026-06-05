@@ -196,9 +196,12 @@
         "lean_toolchain": "leanprover/lean4:v4.27.0",
         "module": "Proofs.ZenoDEXNonceBatchWrapper",
         "required_theorems": [
+          "Proofs.ZenoDEX.NonceBatchWrapper.canonical_batch_accept_decision_implies_safety",
+          "Proofs.ZenoDEX.NonceBatchWrapper.canonical_batch_sender_ids_nodup",
           "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_safety",
           "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_group_nodup",
           "Proofs.ZenoDEX.NonceBatchWrapper.witness_batch_accepts",
+          "Proofs.ZenoDEX.NonceBatchWrapper.witness_canonical_batch_accepts",
           "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_gap",
           "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_is_noop_finals"
         ],
@@ -207,19 +210,19 @@
       "source_files": [
         {
           "path": "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean",
-          "sha256": "6b4df52f93fdf9d9eeaaca0abeeaba682982910c6c0acbfe40444aca66fa93cf"
+          "sha256": "a66afd425f6d7e96d2c740d09b08eb76cfa8916c5c8b3c1294b62d66bb7940c0"
         }
       ],
       "tool": "lean-lake-build"
     }
   ],
   "manifest": "tools/kernel_assurance_manifest.json",
-  "manifest_sha256": "041c028c438ff0754437bbd198b89b374b8c1163bb4c75faef0d153cdd3829c1",
+  "manifest_sha256": "83ec2aaba70229d7f808adcd58a4dae8ea17784a4d6078f1028b57f662907fa0",
   "ok": true,
   "private_toolchain_source_included": false,
-  "receipt_sha256": "017ef9f3ec456c565d5f6734ae25a54a3d1bfdf7733ad288d6affc24a110002e",
+  "receipt_sha256": "148190b90367dc5b2c39e58aeb095cdb377174d5cf82322f6cc8ce526929c98b",
   "schema": "zenodex.kernel_assurance.public_receipt.v1",
-  "source_report_sha256": "7a8b93ed96a2a90f3c11c8a2a377d7541ee9974a0965c1c3f616c79b38f56d70",
+  "source_report_sha256": "bf9758b681c5b4dbd32258302c7cbc47c95670af81d27e0ba6cdd21f4dc9872d",
   "toolchain": {
     "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
     "esso_dirty": true,
