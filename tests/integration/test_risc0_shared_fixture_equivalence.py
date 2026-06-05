@@ -53,6 +53,37 @@ def test_risc0_shared_fixture_pool_id_matches_python_core() -> None:
     assert compute_pool_id(ASSET0, ASSET1, 30, curve_tag="CPMM", curve_params="") == POOL_ID
 
 
+def test_risc0_shared_fixture_pool_id_normalizes_hex_asset_id_case() -> None:
+    lower0 = "0x" + "aa" * 32
+    lower1 = "0x" + "bb" * 32
+    mixed0 = "0x" + "Aa" * 32
+    mixed1 = "0x" + "Bb" * 32
+
+    assert compute_pool_id(mixed0, mixed1, 30, curve_tag="CPMM", curve_params="") == compute_pool_id(
+        lower0,
+        lower1,
+        30,
+        curve_tag="CPMM",
+        curve_params="",
+    )
+
+
+def test_risc0_shared_fixture_create_pool_rejects_canonical_equal_hex_asset_ids() -> None:
+    asset0 = "0x" + "Aa" * 32
+    asset1 = "0x" + "aa" * 32
+    assert asset0 < asset1
+
+    with pytest.raises(ValueError, match="canonical order"):
+        create_pool(
+            asset0=asset0,
+            asset1=asset1,
+            amount0=10_000,
+            amount1=10_000,
+            fee_bps=30,
+            creator_pubkey=SENDER,
+        )
+
+
 def test_risc0_shared_fixture_create_pool_math_matches_python_core() -> None:
     lp_supply_total = math.isqrt(10_000 * 10_000)
     assert MIN_LP_LOCK == 1_000

@@ -259,6 +259,23 @@ class PoolStatus(Enum):
     DISABLED = "DISABLED"
 
 
+def _canonical_pool_asset_id(asset: AssetId) -> AssetId:
+    """
+    Canonicalize hex asset identifiers before hashing pool IDs.
+
+    Symbolic test assets such as "A"/"B" stay byte-for-byte unchanged; only
+    0x-prefixed hex IDs are normalized so Python and Rust cannot fork on case.
+    """
+    if not isinstance(asset, str):
+        return asset
+    if len(asset) < 3 or asset[:2].lower() != "0x":
+        return asset
+    body = asset[2:]
+    if not body or any(ch not in "0123456789abcdefABCDEF" for ch in body):
+        return asset
+    return "0x" + body.lower()
+
+
 def compute_pool_id(
     asset0: AssetId,
     asset1: AssetId,
@@ -272,7 +289,9 @@ def compute_pool_id(
 
     Matches the formula described in `src/core/liquidity.py`.
     """
-    if asset0 >= asset1:
+    asset0_hash = _canonical_pool_asset_id(asset0)
+    asset1_hash = _canonical_pool_asset_id(asset1)
+    if asset0_hash >= asset1_hash:
         raise ValueError(f"Assets must be in canonical order: {asset0} < {asset1}")
     if not (0 <= fee_bps <= 10000):
         raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")
@@ -283,8 +302,8 @@ def compute_pool_id(
 
     pool_id_data = (
         b"TauSwapPool"
-        + asset0.encode("utf-8")
-        + asset1.encode("utf-8")
+        + asset0_hash.encode("utf-8")
+        + asset1_hash.encode("utf-8")
         + str(int(fee_bps)).encode("utf-8")
         + curve_tag.encode("utf-8")
         + curve_params.encode("utf-8")

@@ -669,12 +669,14 @@ impl DexStateV1 {
         if intent.deadline < block_timestamp {
             return Err(TransitionError::InvalidInput("intent expired"));
         }
-        if intent.asset0 >= intent.asset1 {
+        let asset0_canonical = canonical_pool_asset_id(&intent.asset0);
+        let asset1_canonical = canonical_pool_asset_id(&intent.asset1);
+        if asset0_canonical >= asset1_canonical {
             return Err(TransitionError::InvalidInput(
                 "assets must be in canonical order",
             ));
         }
-        if intent.asset0 == NATIVE_ASSET || intent.asset1 == NATIVE_ASSET {
+        if asset0_canonical == NATIVE_ASSET || asset1_canonical == NATIVE_ASSET {
             return Err(TransitionError::Unsupported(
                 "native asset unsupported in proof v1",
             ));
@@ -689,8 +691,8 @@ impl DexStateV1 {
         }
 
         let pool_id = compute_pool_id(
-            &intent.asset0,
-            &intent.asset1,
+            &asset0_canonical,
+            &asset1_canonical,
             intent.fee_bps,
             CURVE_TAG,
             CURVE_PARAMS,
@@ -1108,6 +1110,22 @@ impl RemoveLiquidityIntentV1 {
     }
 }
 
+fn canonical_pool_asset_id(asset: &str) -> String {
+    let bytes = asset.as_bytes();
+    if bytes.len() < 3 || !(bytes[0] == b'0' && (bytes[1] == b'x' || bytes[1] == b'X')) {
+        return asset.to_string();
+    }
+    if !bytes[2..].iter().all(u8::is_ascii_hexdigit) {
+        return asset.to_string();
+    }
+
+    let mut out = String::from("0x");
+    for byte in &bytes[2..] {
+        out.push(char::from(byte.to_ascii_lowercase()));
+    }
+    out
+}
+
 pub fn compute_pool_id(
     asset0: &str,
     asset1: &str,
@@ -1115,10 +1133,12 @@ pub fn compute_pool_id(
     curve_tag: &str,
     curve_params: &str,
 ) -> String {
+    let asset0_hash = canonical_pool_asset_id(asset0);
+    let asset1_hash = canonical_pool_asset_id(asset1);
     let mut hasher = Sha256::new();
     hasher.update(b"TauSwapPool");
-    hasher.update(asset0.as_bytes());
-    hasher.update(asset1.as_bytes());
+    hasher.update(asset0_hash.as_bytes());
+    hasher.update(asset1_hash.as_bytes());
     hasher.update((fee_bps as u64).to_string().as_bytes());
     hasher.update(curve_tag.as_bytes());
     hasher.update(curve_params.as_bytes());
@@ -1578,6 +1598,80 @@ mod tests {
             compute_pool_id(ASSET0, ASSET1, 30, CURVE_TAG, CURVE_PARAMS),
             POOL_ID
         );
+    }
+
+    #[test]
+    fn pool_id_normalizes_hex_asset_id_case() {
+        let lower0 = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let lower1 = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        let mixed0 = "0xAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAa";
+        let mixed1 = "0xBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBb";
+
+        assert_eq!(
+            compute_pool_id(mixed0, mixed1, 30, CURVE_TAG, CURVE_PARAMS),
+            compute_pool_id(lower0, lower1, 30, CURVE_TAG, CURVE_PARAMS)
+        );
+    }
+
+    #[test]
+    fn create_pool_rejects_canonical_equal_hex_asset_ids_without_mutation() {
+        let asset0 = "0xAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAa";
+        let asset1 = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        assert!(asset0 < asset1);
+        assert_eq!(
+            canonical_pool_asset_id(asset0),
+            canonical_pool_asset_id(asset1)
+        );
+
+        let mut snapshot = empty_snapshot();
+        snapshot.balances = alloc::vec![
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: asset0.to_string(),
+                amount: 10_000,
+            },
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: asset1.to_string(),
+                amount: 10_000,
+            },
+        ];
+
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let tx = TauTxV1 {
+            sender_pubkey: SENDER.to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: false,
+                faucet_mint: Vec::new(),
+                has_intents: true,
+                intents: alloc::vec![SignedIntentV1 {
+                    signature: None,
+                    intent: DexIntentV1::CreatePool(CreatePoolIntentV1 {
+                        module: "TauSwap".to_string(),
+                        version: "v1".to_string(),
+                        intent_id: "create-canonical-equal-assets".to_string(),
+                        sender_pubkey: SENDER.to_string(),
+                        deadline: 100,
+                        asset0: asset0.to_string(),
+                        asset1: asset1.to_string(),
+                        fee_bps: 30,
+                        amount0: 10_000,
+                        amount1: 10_000,
+                        salt: None,
+                    }),
+                }],
+            },
+        };
+
+        assert!(matches!(
+            state.apply_tx(&tx, 1),
+            Err(TransitionError::InvalidInput(
+                "assets must be in canonical order"
+            ))
+        ));
+        assert_eq!(state.get_balance(SENDER, asset0), 10_000);
+        assert_eq!(state.get_balance(SENDER, asset1), 10_000);
+        assert!(state.to_snapshot().pools.is_empty());
     }
 
     #[test]
