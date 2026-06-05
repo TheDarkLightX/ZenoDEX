@@ -76,6 +76,7 @@ jobs:
           python3 tools/measure_zenodex_zk_transition_coverage.py --pretty
           python3 -m pytest -q \
             tests/test_build_operator_release_bundle.py \
+            tests/test_check_container_hardening.py \
             tests/test_check_operator_packaging.py \
             tests/test_check_docker_hashlocked_install.py \
             tests/test_check_kernel_assurance_public_receipt.py \

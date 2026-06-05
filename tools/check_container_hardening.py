@@ -91,6 +91,29 @@ def _env_value(svc: dict[str, Any], key: str) -> str | None:
     return None
 
 
+def _command_text(svc: dict[str, Any]) -> str:
+    return " ".join(str(item) for item in _as_list(svc.get("command")))
+
+
+def _env_requires_orchestrator(svc: dict[str, Any], key: str) -> bool:
+    value = _env_value(svc, key)
+    if value is None:
+        return False
+    return value.startswith(f"${{{key}:?")
+
+
+def _host_ports_are_loopback_only(svc: dict[str, Any]) -> bool:
+    ports = _as_list(svc.get("ports"))
+    if not ports:
+        return True
+    for raw in ports:
+        text = str(raw)
+        if text.startswith("127.0.0.1:"):
+            continue
+        return False
+    return True
+
+
 def _check_main_compose(issues: list[str]) -> None:
     path = ROOT / "docker-compose.yml"
     svc = _service(path, "zenodex")
@@ -123,6 +146,58 @@ def _check_aux_compose(path: Path, service: str, issues: list[str]) -> None:
     _require(svc.get("mem_limit") is not None, f"{path.name}: {service} must set mem_limit", issues)
     _require(svc.get("init") is True, f"{path.name}: {service} must set init: true", issues)
     _require(_tmpfs_has_flags(svc, "/tmp"), f"{path.name}: {service} tmpfs /tmp must include noexec,nosuid,nodev", issues)
+
+
+def _check_local_testnet_compose(issues: list[str]) -> None:
+    path = ROOT / "docker-compose.local-testnet.yml"
+    service_names = (
+        "zeno-ledger-bootstrap",
+        "zeno-ledger-writer",
+        "zeno-ledger-forwarder",
+        "zeno-ledger-readonly",
+        "tau-local",
+        "zenodex-oracle",
+        "zenodex-api",
+        "zenodex-nginx",
+    )
+    read_only_services = set(service_names) - {"tau-local"}
+    for service in service_names:
+        _check_aux_compose(path, service, issues)
+        svc = _service(path, service)
+        if service in read_only_services:
+            _require(svc.get("read_only") is True, f"{path.name}: {service} rootfs must be read_only", issues)
+
+    writer = _service(path, "zeno-ledger-writer")
+    forwarder = _service(path, "zeno-ledger-forwarder")
+    api = _service(path, "zenodex-api")
+    nginx = _service(path, "zenodex-nginx")
+
+    # REVIEW [B -> A-]: the checker hardened the generic Docker paths but missed
+    # the community local-testnet stack, which is where CPMM writes are exposed
+    # through API/nginx/ledger containers. Keep this coverage tied to the compose
+    # file that operators actually launch, and require mutation auth on the
+    # write-capable services.
+    for service, svc in (("zeno-ledger-writer", writer), ("zeno-ledger-forwarder", forwarder)):
+        _require(
+            "--write-auth-token-env" in _command_text(svc),
+            f"{path.name}: {service} must bind writes to --write-auth-token-env",
+            issues,
+        )
+        _require(
+            _env_requires_orchestrator(svc, "ZENO_LEDGER_WRITER_TOKEN"),
+            f"{path.name}: {service} must require orchestrator-injected ZENO_LEDGER_WRITER_TOKEN",
+            issues,
+        )
+    _require(
+        _env_requires_orchestrator(api, "ZENODEX_API_BEARER_TOKEN"),
+        f"{path.name}: zenodex-api must require orchestrator-injected ZENODEX_API_BEARER_TOKEN",
+        issues,
+    )
+    _require(
+        _host_ports_are_loopback_only(nginx),
+        f"{path.name}: zenodex-nginx host ports must bind to 127.0.0.1 only",
+        issues,
+    )
 
 
 def _check_apparmor_profile(issues: list[str]) -> None:
@@ -177,6 +252,7 @@ def run_checks() -> list[str]:
         "zeno-ledger-multidocker-controller",
     ):
         _check_aux_compose(ROOT / "docker-compose.multimachine.yml", service, issues)
+    _check_local_testnet_compose(issues)
     _check_apparmor_profile(issues)
     _check_dockerfile(ROOT / "Dockerfile", issues)
     _check_dockerfile(ROOT / "Dockerfile.production-hashlocked", issues)

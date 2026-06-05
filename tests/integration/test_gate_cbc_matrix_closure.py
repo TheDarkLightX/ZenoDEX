@@ -73,21 +73,20 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     assert "replay_guard" in evidence_only
     assert surfaces["replay_guard"].get("attached_to") == "nonces"
     state_root = surfaces["state_root"]
-    # REVIEW [B -> A-]: state_root has remediation evidence ready for review,
-    # but the columns were intentionally not flipped. Keep open_gaps_closed false
-    # so the matrix reports the unresolved running_impl/formal/runtime/authority
-    # reviews instead of hiding them behind the old D-CANON-002 closure note.
-    assert state_root["open_gaps_closed"] is False
-    for column in ("formal_spec", "runtime_invariants", "authority_mode"):
-        assert state_root[column]["verified"] is False
-        assert "READY FOR FLIP-REVIEW" in state_root[column]["note"]
+    # REVIEW [B -> A-]: Claude's state_root flip reached 7/7 after the
+    # adversarial review trail, but one post-flip note still said
+    # ``running_impl remains false``. Pin the narrative to the computed matrix:
+    # state_root is ready, while balances/nonces keep the scope blocked.
+    assert state_root["open_gaps_closed"] is True
+    for column in ("running_impl", "formal_spec", "runtime_invariants", "authority_mode"):
+        assert state_root[column]["verified"] is True
     trail = state_root.get("resolved_by_review", "")
-    assert "PENDING dual flip-review" in trail
-    assert "did not set verified:true" in trail
+    assert "FLIPPED 2026-06-05 to 7/7" in trail
+    assert "running_impl is pinned" in trail
     assert "live Python pool encoder reserve-order mutation fails" in trail
     assert "build_local_block_v0" in trail and "_validate_live_block_report_state_roots_v0" in trail
     assert "python-rust-shadow" in trail and "release-integrity.yml" in trail
-    assert "Double-counting caveat" in trail and "running_impl remains false" in trail
+    assert "Double-counting caveat" in trail and "running_impl remains false" not in trail
     cpmm = surfaces["cpmm_swap"]
     assert cpmm["open_gaps_closed"] is True
     assert cpmm["formal_spec"]["verified"] is True
@@ -108,7 +107,7 @@ def test_default_registry_covers_spot_dex_scope() -> None:
         "runtime_invariants"
     ]["note"]
     assert "proof_artifact/differential_tests" not in nonces["runtime_invariants"]["note"]
-    for surface_id in set(SPOT_DEX_SCOPE) - {"cpmm_swap"}:
+    for surface_id in set(SPOT_DEX_SCOPE) - {"cpmm_swap", "state_root"}:
         assert surfaces[surface_id]["open_gaps_closed"] is False
     assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 1
 
