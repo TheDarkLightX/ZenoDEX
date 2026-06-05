@@ -155,6 +155,11 @@ def _require_string(obj: Any, *, name: str) -> str:
     return obj
 
 
+def _unexpected_keys(obj: Mapping[str, Any], *, allowed: set[str], name: str) -> list[str]:
+    extra = sorted(set(obj) - allowed)
+    return [f"{name} has unexpected public field(s): {extra}"] if extra else []
+
+
 def _manifest_proofs(manifest: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
     if manifest.get("schema") != MANIFEST_SCHEMA:
         raise ReceiptError(
@@ -257,20 +262,44 @@ def _validate_result_body(
     errors: list[str] = []
     if not isinstance(result, Mapping):
         return [f"{pid}: proof result must be an object"]
-    if result.get("verdict") != required_verdict:
-        errors.append(
-            f"{pid}: result verdict {result.get('verdict')!r} != required {required_verdict!r}"
-        )
     exp = EXPECTED_PROOFS.get(pid)
     if not isinstance(exp, Mapping):
         errors.append(f"{pid}: missing source-pinned expected proof entry")
         return errors
     if exp.get("tool") == "esso-verify-multi":
+        # REVIEW [B -> A-]: result metadata was source-pinned, but the result
+        # object itself was open. A resealed receipt could attach raw logs or
+        # extra claims to a valid ESSO result and still verify. The public proof
+        # result is now an exact schema.
+        errors.extend(
+            _unexpected_keys(
+                result,
+                allowed={"verdict", "ir_hash", "passed_queries", "solvers", "solvers_agreed"},
+                name=f"{pid}: result",
+            )
+        )
+    elif exp.get("tool") == "lean-lake-build":
+        # REVIEW [B -> A-]: Lean result bodies have the same issue. Exact-key
+        # validation keeps this receipt as a narrow proof envelope instead of a
+        # carrier for private paths or unsupported evidence labels.
+        errors.extend(
+            _unexpected_keys(
+                result,
+                allowed={"verdict", "lean_toolchain", "module"},
+                name=f"{pid}: result",
+            )
+        )
+    else:
+        errors.append(f"{pid}: unsupported source-pinned tool {exp.get('tool')!r}")
+        return errors
+    if result.get("verdict") != required_verdict:
+        errors.append(
+            f"{pid}: result verdict {result.get('verdict')!r} != required {required_verdict!r}"
+        )
+    if exp.get("tool") == "esso-verify-multi":
         errors.extend(_validate_esso_result(pid, result, exp))
     elif exp.get("tool") == "lean-lake-build":
         errors.extend(_validate_lean_result(pid, result, exp))
-    else:
-        errors.append(f"{pid}: unsupported source-pinned tool {exp.get('tool')!r}")
     return errors
 
 
@@ -444,6 +473,25 @@ def build_receipt(manifest: Mapping[str, Any], *, manifest_sha256: str, manifest
 def verify_receipt(receipt: Mapping[str, Any], *, manifest: Mapping[str, Any], manifest_sha256: str) -> list[str]:
     errors: list[str] = []
 
+    # REVIEW [B -> A-]: receipt_hash protected self-consistency, but the public
+    # receipt language still allowed extra top-level and proof-row fields after
+    # resealing. Exact schema checks prevent hidden private paths or unsupported
+    # claims from becoming part of an accepted proof receipt.
+    errors.extend(
+        _unexpected_keys(
+            receipt,
+            allowed={
+                "schema",
+                "ok",
+                "manifest",
+                "manifest_sha256",
+                "private_toolchain_source_included",
+                "proofs",
+                "receipt_sha256",
+            },
+            name="receipt",
+        )
+    )
     if receipt.get("schema") != RECEIPT_SCHEMA:
         errors.append(f"schema: expected {RECEIPT_SCHEMA}, got {receipt.get('schema')!r}")
     if receipt.get("ok") is not True:
@@ -482,6 +530,13 @@ def verify_receipt(receipt: Mapping[str, Any], *, manifest: Mapping[str, Any], m
         if not isinstance(proof, Mapping):
             errors.append(f"receipt.proofs[{i}] must be an object")
             continue
+        errors.extend(
+            _unexpected_keys(
+                proof,
+                allowed={"id", "tool", "source_files", "result"},
+                name=f"receipt.proofs[{i}]",
+            )
+        )
         pid = proof.get("id")
         if not isinstance(pid, str) or not pid:
             errors.append(f"receipt.proofs[{i}].id must be a non-empty string")

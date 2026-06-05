@@ -319,6 +319,47 @@ def test_duplicate_receipt_proof_id_fails() -> None:
     assert any("duplicate" in e for e in errs), errs
 
 
+@pytest.mark.parametrize(
+    ("mutate", "needle"),
+    (
+        (
+            lambda receipt: receipt.update({"private_path": "/private/workspace/secret"}),
+            "unexpected public field",
+        ),
+        (
+            lambda receipt: _proof(receipt, "cpmm_invariants_lean").update(
+                {"private_path": "/private/workspace/secret"}
+            ),
+            "unexpected public field",
+        ),
+        (
+            lambda receipt: _proof(receipt, "cpmm_invariants_lean")["result"].update(
+                {"raw_stdout": "/private/workspace/secret.log"}
+            ),
+            "unexpected public field",
+        ),
+        (
+            lambda receipt: _proof(receipt, "nonce_batch_sequencing_v1")["result"].update(
+                {"raw_stdout": "/private/workspace/secret.log"}
+            ),
+            "unexpected public field",
+        ),
+    ),
+)
+def test_resealed_extra_receipt_fields_fail(mutate, needle: str) -> None:
+    """Review regression: a resealed receipt cannot carry extra evidence claims.
+
+    The receipt hash proves self-consistency. Exact schema checks are what keep
+    private paths, raw logs, or unsupported labels out of the public proof
+    envelope.
+    """
+    receipt, manifest, msha = _load()
+    mutate(receipt)
+    _reseal(receipt)
+    errs = spr.verify_receipt(receipt, manifest=manifest, manifest_sha256=msha)
+    assert any(needle in e for e in errs), errs
+
+
 def test_forged_receipt_tool_fails() -> None:
     """Pass-2 #3: the receipt tool must match the source pin."""
     receipt, manifest, msha = _load()
