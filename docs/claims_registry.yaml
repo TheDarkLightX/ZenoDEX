@@ -814,26 +814,39 @@ claims:
     status: supported
     layer: assurance
     statement: >
-      The public claim-scope checker scans the README, the claims registry, and
-      public assurance documents for known overclaim patterns. It rejects direct
-      or title-style UPBA v2 optimality claims, Risc0 claims that imply a full
-      Python execution proof, TEE claims that imply a complete confidential
-      network or total privacy, and cover-product insurance/offering/
-      underwriting language before counsel-led review. Required scope anchors are enforced for
-      the README, UPBA v2 evidence docs, Risc0 state-proof docs, confidential
-      feature docs, and ZenoCover replay docs. This is a public-text hygiene
-      gate; it does not prove that every future marketing surface, website,
-      social post, or external distribution channel is scoped.
+      The public claim-scope checker scans the README, the claims registry,
+      release-bundle status docs, and public assurance documents for known
+      overclaim patterns. It rejects direct or title-style UPBA v2 optimality
+      claims, overbroad Risc0 full-runtime wording, TEE complete-confidentiality
+      wording, and
+      cover-product insurance/offering/underwriting language before counsel-led
+      review. Required scope anchors are enforced for the README, local-testnet
+      quickstart, perps NP / zUSD / Risc0 proof-surface docs, UPBA v2 evidence
+      docs, confidential feature docs, and ZenoCover replay docs. The release
+      gate runs both the Python checker and the Rust `zenodex-runtime
+      public-claim-scope` mirror. This is a public-text hygiene gate; it does
+      not prove that every future marketing surface, website, social post, or
+      external distribution channel is scoped.
     evidence:
-      kind: pytest
+      kind: pytest+cargo
       check:
         - cmd: python3 tools/check_public_claim_scope.py --json
+        - cmd: bash -lc "cd rust-runtime && cargo run --quiet --bin zenodex-runtime -- public-claim-scope .."
         - cmd: pytest -q tests/test_check_public_claim_scope.py
       files:
         - tools/check_public_claim_scope.py
+        - rust-runtime/crates/zenodex-runtime-cli/src/public_claim_scope.rs
+        - rust-runtime/crates/zenodex-runtime-cli/src/main.rs
         - tests/test_check_public_claim_scope.py
+        - tools/run_release_gate.sh
         - README.md
         - docs/claims_registry.yaml
+        - docs/LOCAL_TESTNET_QUICKSTART.md
+        - docs/DEX_SURFACE_STATUS_2026_06_03.md
+        - docs/PERPS_NP_TESTNET_STATUS.md
+        - docs/RISC0_RELEASE_BINARY_ARTIFACTS_2026_06_02.md
+        - docs/zenodex_perps_np_state_proof_risc0_v1.md
+        - docs/zenodex_zusd_state_proof_risc0_v1.md
         - docs/UPBA_V2_CERTIFICATE.md
         - docs/UPBA_V2_EVIDENCE_BOUNDARY.md
         - docs/zenodex_spot_state_proof_risc0_v1.md

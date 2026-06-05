@@ -75,6 +75,16 @@ echo "== release: public assurance snapshot docs =="
 echo "== release: public claim scope =="
 "$PY" "$ROOT_DIR/tools/check_public_claim_scope.py"
 
+echo "== release: public claim scope (Rust mirror) =="
+# REVIEW [B -> A-]: public-claim scoping was enforced only by the Python
+# checker. That missed the Rust-runtime parity expectation for release-facing
+# authority guards. The Rust mirror is independent enough to catch stale scope
+# anchors in the shipped docs and is CI-gated by runtime-shadow cargo tests.
+(
+  cd "$ROOT_DIR/rust-runtime"
+  cargo run --quiet --bin zenodex-runtime -- public-claim-scope "$ROOT_DIR"
+)
+
 echo "== release: ZenoLedger proof coverage matrix =="
 "$PY" "$ROOT_DIR/tools/check_zeno_ledger_proof_coverage_matrix.py"
 "$PY" -m pytest -q "$ROOT_DIR/tests/tools/test_check_zeno_ledger_proof_coverage_matrix.py"

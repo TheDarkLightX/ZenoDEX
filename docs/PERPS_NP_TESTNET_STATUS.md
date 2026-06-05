@@ -1,9 +1,12 @@
 # N-Party Perps — Public Testnet Status
 
-> **Status: FAKE-VALUE PUBLIC TESTNET. `production_security_claim = false` on every surface.**
+> **Status: FAKE-VALUE PUBLIC TESTNET. Perps NP / fake-value testnet
+> `production_security_claim = false` on every perps NP testnet surface.**
 > This document is the consolidated status of the many-account ("N-party")
 > perpetuals clearinghouse path: what is built, what is verified, and what is
 > deliberately deferred. It does not authorize any production or custody claim.
+> This perps NP / fake-value testnet posture is separate from the spot-DEX CBC
+> authority-surface matrix.
 
 ## Why this exists
 
@@ -27,7 +30,7 @@ batch with `Σδ = 0`; settlement is at the oracle-signed clearing price.
 | T5 | Bind oracle/index price to settlement | ✅ | oracle-signed `publish_clearing_price` (real BLS) → `run_epoch` settle; operator cannot supply the price; nonzero funding fail-closed |
 | T6 | UI: 3-wallet participation (observer-trap fix) + tests | ✅ (unit) / ⏳ (browser) | `tools/dex-ui/src/lib/perpPosition.js` resolves ANY participant from `accounts[]` (was 2p-only); 5 unit tests (`perpPosition.test.mjs`, `npm run test:lib`). Live browser/e2e test deferred — NP trade surface is intentionally gated off until backend review (§ Deferred) |
 | T7 | Release smoke: 3+ participants long/short/settle | ✅ | `tools/zenodex_perp_np_release_smoke.py` (3/4/5 wallets, two-sided, net-zero, conservation, **deterministic state-header agreement**, snapshot roundtrip) + CI gate `tests/integration/test_perp_np_release_smoke.py` |
-| T8 | Keep `production_security_claim=false` + this report | ✅ | claim is false on every surface; hard validators reject non-false (see § Posture) |
+| T8 | Keep perps NP / testnet `production_security_claim=false` + this report | ✅ | claim is false on every perps NP testnet surface; hard validators reject non-false (see § Posture) |
 
 ## Real ZK (scoped, not a production claim)
 
@@ -54,7 +57,7 @@ state-advance gate.
 
 ## Posture — `production_security_claim = false`
 
-- **No surface sets it true.** Hard validators reject any non-false value
+- **No perps NP testnet surface sets it true.** Hard validators reject any non-false value
   (`src/integration/zeno_ledger_tokenomics.py`,
   `perps_wallet_encrypted_sss_backup.py`); the release gate
   (`tools/check_public_testnet_v0_1_16_release_ready.py`) asserts the verifier

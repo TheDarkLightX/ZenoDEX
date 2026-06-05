@@ -23,6 +23,42 @@ def test_claims_registry_is_scanned_for_public_scope() -> None:
     assert "docs/claims_registry.yaml" in checked_public_claim_paths(root=ROOT)
 
 
+def test_release_bundle_claim_docs_are_scanned_for_public_scope() -> None:
+    checked = set(checked_public_claim_paths(root=ROOT))
+
+    # REVIEW [B -> A-]: these docs ship in the operator/release evidence bundle
+    # but were absent from the public claim scanner. That let stale broad
+    # product/testnet wording survive after the spot-DEX CBC matrix computed
+    # production_security_claim=True.
+    assert {
+        "docs/LOCAL_TESTNET_QUICKSTART.md",
+        "docs/DEX_SURFACE_STATUS_2026_06_03.md",
+        "docs/PERPS_NP_TESTNET_STATUS.md",
+        "docs/RISC0_RELEASE_BINARY_ARTIFACTS_2026_06_02.md",
+        "docs/zenodex_perps_np_state_proof_risc0_v1.md",
+        "docs/zenodex_zusd_state_proof_risc0_v1.md",
+    } <= checked
+
+
+def test_perps_np_status_requires_scoped_false_claim_anchor() -> None:
+    violations = check_required_anchors(
+        "docs/PERPS_NP_TESTNET_STATUS.md",
+        "Status: FAKE-VALUE PUBLIC TESTNET. production_security_claim = false on every surface.",
+    )
+
+    assert {violation.rule_id for violation in violations} == {"missing_scope_anchor"}
+
+
+def test_release_gate_runs_rust_public_claim_scope_mirror() -> None:
+    release_gate = (ROOT / "tools/run_release_gate.sh").read_text(encoding="utf-8")
+
+    # REVIEW [B -> A-]: the public-claim gate was Python-only. The release gate
+    # now requires the Rust mirror, so scoped-claim drift has two implementations
+    # reviewing the shipped docs.
+    assert "public claim scope (Rust mirror)" in release_gate
+    assert "cargo run --quiet --bin zenodex-runtime -- public-claim-scope" in release_gate
+
+
 def test_rejects_direct_upba_v2_optimal_overclaim() -> None:
     violations = scan_forbidden_claims(
         "README.md",

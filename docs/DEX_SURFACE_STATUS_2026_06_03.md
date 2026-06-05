@@ -3,12 +3,15 @@
 Release-audit snapshot of every mounted ZenoDEX product surface, classified by
 honest maturity. This is an evidence note, not a security attestation.
 
-> **production_security_claim = false.** Every "LIVE" classification below means
-> *local / loopback testnet* behaviour proven by a deterministic test. None of
-> these surfaces is claimed to be production-secure. Confidential runtime
-> privacy, production Oracle authority exercise on a public testnet, hardware
-> wallet custody, unattended strategy execution, and production ZK circuit
-> soundness all remain explicit non-claims.
+> **Product/testnet production posture: `production_security_claim = false`.**
+> Every "LIVE" classification below means *local / loopback testnet* behaviour
+> proven by a deterministic test. None of these mounted product surfaces is
+> claimed to be production-secure. This dated product-surface note predates the
+> spot-DEX CBC authority-surface closure and remains scoped to mounted
+> local/testnet product behavior. Confidential runtime privacy, production
+> Oracle authority exercise on a public testnet, hardware wallet custody,
+> unattended strategy execution, and production ZK circuit soundness all remain
+> explicit non-claims.
 
 ## Classification key
 
@@ -89,7 +92,7 @@ Mirrors `RESIDUAL_LIMITS` in `tools/check_dex_live_product_goal.py`:
 The mounted app is the intended ZenoDEX shell. Every surface above is either a
 verified local/testnet LIVE lane, a clearly-labelled DEMO-fixture surface, or a
 bounded PLACEHOLDER with the production capability stated as an explicit
-non-claim. This note makes **no production-security claim**
-(`production_security_claim = false`) and should be read alongside
+non-claim. This note makes **no mounted product-surface production-security
+claim** (`production_security_claim = false`) and should be read alongside
 `docs/ZENODEX_UI_SURFACE_STATUS_2026_05_20.md` and
 `docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`.

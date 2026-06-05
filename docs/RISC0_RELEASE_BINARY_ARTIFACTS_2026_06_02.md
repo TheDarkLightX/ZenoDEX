@@ -7,8 +7,12 @@ legacy spot proof surfaces.
 binary: zk/state_proof_risc0/target/release/tau-state-proof-risc0-cli
 sha256: c66b4cfce445edc7c71c26f36b4581a33eb89728c06a3d4c08584bdea7ffb19d
 risc0_image_id: 450f9b7acefd2e7557c21b7c0396775dfba0f085dac02ba2f021f7b3c7ad3179
+claim_scope: scoped RISC0 transition binary artifacts only
 production_security_claim: false
 ```
+
+This RISC0 binary-artifact claim is separate from the spot-DEX CBC
+authority-surface matrix.
 
 Rebuild command:
 

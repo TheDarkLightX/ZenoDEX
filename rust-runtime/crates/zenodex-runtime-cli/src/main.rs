@@ -26,6 +26,7 @@
 //! zenodex-runtime partial-liquidate    <cases.json|->   # perps E2 partial_liquidate
 //! zenodex-runtime account-op           <cases.json|->   # perps E2 deposit/withdraw/set_position/clear_breaker
 //! zenodex-runtime set-market-params    <cases.json|->   # perps E2 set_market_params
+//! zenodex-runtime public-claim-scope    <repo-root>      # public claim-scope guard
 //! ```
 //!
 //! Each reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
@@ -39,6 +40,7 @@
 //! so the two runtimes reject identical inputs with identical reason strings.
 
 mod perp_isolated_op;
+mod public_claim_scope;
 
 use std::io::Read;
 use std::process::ExitCode;
@@ -3508,6 +3510,7 @@ fn main() -> ExitCode {
                 | "account-op"
                 | "set-market-params"
                 | "perp-isolated-op"
+                | "public-claim-scope"
         )
     {
         eprintln!(
@@ -3517,9 +3520,32 @@ fn main() -> ExitCode {
              replay-zusd-trace|zusd-op|verify-burn-trace|settle-swap-trace|cpmm-op|canonical-hash|\
              verify-state-root|perp-math|advance-epoch|funding-auto|\
              publish-clearing-price|settle-epoch|partial-liquidate|account-op|\
-             set-market-params|perp-isolated-op> <input.json|->"
+             set-market-params|perp-isolated-op|public-claim-scope> <input.json|repo-root|->"
         );
         return ExitCode::from(2);
+    }
+
+    if subcommand == "public-claim-scope" {
+        return match public_claim_scope::check_root(std::path::Path::new(&args[2])) {
+            Ok(report) => match serde_json::to_string_pretty(&report) {
+                Ok(s) => {
+                    println!("{s}");
+                    if report.ok {
+                        ExitCode::SUCCESS
+                    } else {
+                        ExitCode::from(1)
+                    }
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
     }
 
     let input = match read_input(&args[2]) {

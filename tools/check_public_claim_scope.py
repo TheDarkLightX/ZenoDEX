@@ -21,9 +21,20 @@ DEFAULT_PUBLIC_CLAIM_PATHS: tuple[str, ...] = (
     "docs/claims_registry.yaml",
     "docs/ASSURANCE_RELEASE_SNAPSHOT.md",
     "docs/PUBLIC_ASSURANCE_REPLAY.md",
+    "docs/LOCAL_TESTNET_QUICKSTART.md",
     "docs/RC1_READINESS.md",
     "docs/RC1_SCOPE.md",
     "docs/RC1_VERIFIED_SURFACE_MATRIX.md",
+    # REVIEW [B -> A-]: these release-bundle docs were public artifacts but were
+    # outside the public-claim scanner. After the CBC spot-DEX matrix reached a
+    # reviewed True baseline, broad "production_security_claim=false on every
+    # surface" wording became stale and potentially misleading. Scan them so
+    # surface-specific false claims must carry their scope.
+    "docs/DEX_SURFACE_STATUS_2026_06_03.md",
+    "docs/PERPS_NP_TESTNET_STATUS.md",
+    "docs/RISC0_RELEASE_BINARY_ARTIFACTS_2026_06_02.md",
+    "docs/zenodex_perps_np_state_proof_risc0_v1.md",
+    "docs/zenodex_zusd_state_proof_risc0_v1.md",
     "docs/zenodex_spot_state_proof_risc0_v1.md",
     "docs/CONFIDENTIAL_EXTENSIONS_TEE_SMPC.md",
     "docs/CONFIDENTIAL_FEATURES_BETA_RUNBOOK.md",
@@ -61,6 +72,31 @@ REQUIRED_ANCHORS: dict[str, tuple[str, ...]] = {
     "docs/zenodex_spot_state_proof_risc0_v1.md": (
         "Transition semantics (v1 scope)",
         "Planned v2 extensions:",
+    ),
+    "docs/LOCAL_TESTNET_QUICKSTART.md": (
+        "local proof-wrapper gate for non-production development",
+        "local-testnet fixture and sets `production_security_claim=false`",
+    ),
+    "docs/DEX_SURFACE_STATUS_2026_06_03.md": (
+        "Product/testnet production posture: `production_security_claim = false`",
+        "spot-DEX CBC authority-surface closure",
+    ),
+    "docs/PERPS_NP_TESTNET_STATUS.md": (
+        "Perps NP / fake-value testnet",
+        "spot-DEX CBC",
+        "authority-surface matrix",
+    ),
+    "docs/RISC0_RELEASE_BINARY_ARTIFACTS_2026_06_02.md": (
+        "claim_scope: scoped RISC0 transition binary artifacts only",
+        "separate from the spot-DEX CBC authority-surface matrix",
+    ),
+    "docs/zenodex_perps_np_state_proof_risc0_v1.md": (
+        "Transition Semantics (v1 Scope)",
+        "`production_security_claim` for this proof surface remains `false`",
+    ),
+    "docs/zenodex_zusd_state_proof_risc0_v1.md": (
+        "Transition Semantics (v1 Scope)",
+        "`production_security_claim` for this proof surface remains `false`",
     ),
     "docs/CONFIDENTIAL_FEATURES_BETA_RUNBOOK.md": (
         "This beta covers:",

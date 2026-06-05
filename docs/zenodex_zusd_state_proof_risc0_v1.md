@@ -93,5 +93,6 @@ repayments, liquidation, real external oracle truth, custody, production
 finality, or the full Python runtime. It proves the scoped deposit-plus-mint
 transition described above.
 
-`production_security_claim` remains `false` until oracle authority, production
-custody, artifact binding, runtime release wiring, and full release gates pass.
+`production_security_claim` for this proof surface remains `false` until oracle
+authority, production custody, artifact binding, runtime release wiring, and full
+release gates pass.

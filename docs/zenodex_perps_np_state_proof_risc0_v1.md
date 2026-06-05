@@ -100,5 +100,5 @@ This proof does not prove real external oracle truth, custody, production
 finality, every perps wallet action, or the full Python runtime. It proves the
 scoped NP epoch transition described above.
 
-`production_security_claim` remains `false` until oracle authority, production
-custody, artifact binding, and runtime release gates pass.
+`production_security_claim` for this proof surface remains `false` until oracle
+authority, production custody, artifact binding, and runtime release gates pass.
