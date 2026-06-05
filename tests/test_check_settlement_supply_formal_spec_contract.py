@@ -11,8 +11,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 import tools.check_settlement_supply_formal_spec_contract as contract_mod
 
 CONTRACT = contract_mod.DEFAULT_CONTRACT
@@ -99,3 +97,34 @@ def test_tautology_regression_guarded(monkeypatch) -> None:
     errors: list[str] = []
     contract_mod._check_nontautology(errors)
     assert any("Σdelta=0 gate" in e or "gate hypothesis" in e for e in errors)
+
+
+def test_tautology_guard_rejects_comment_only_gate_text(monkeypatch) -> None:
+    lean_path = contract_mod.ROOT / "lean-mathlib" / "Proofs" / "SettlementSupplyConservation.lean"
+    original = lean_path.read_text(encoding="utf-8")
+    weakened = original.replace(
+        "def accepted (balDeltas resDeltas : Ledger) : Prop :=\n    supply balDeltas + supply resDeltas = 0",
+        "def accepted (balDeltas resDeltas : Ledger) : Prop :=\n    True\n"
+        "-- stale comment: supply balDeltas + supply resDeltas = 0",
+    )
+    assert weakened != original
+
+    original_read_text = Path.read_text
+
+    def fake_read_text(self: Path, *, encoding: str | None = None, errors: str | None = None) -> str:
+        if self == lean_path:
+            assert encoding == "utf-8"
+            return weakened
+        return original_read_text(self, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+    errors: list[str] = []
+    contract_mod._check_nontautology(errors)
+    assert any("Σdelta=0 gate" in e or "gate hypothesis" in e for e in errors)
+
+
+def test_workflow_gate_token_missing_fails(monkeypatch) -> None:
+    monkeypatch.setattr(contract_mod, "EXPECTED_WORKFLOW_TOKENS", ["missing settlement supply workflow token"])
+    errors: list[str] = []
+    contract_mod._check_workflows(errors)
+    assert any("workflow is missing settlement-supply formal-spec gate token" in e for e in errors)

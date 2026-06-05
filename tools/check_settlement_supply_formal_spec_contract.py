@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Mapping
@@ -66,6 +67,13 @@ EXPECTED_SOURCE_FILES = [
     "tests/test_check_settlement_supply_formal_spec_contract.py",
     "lean-mathlib/Proofs/SettlementSupplyConservation.lean",
     "tests/runtime/test_settlement_supply_conservation_lean_binding.py",
+    ".github/workflows/runtime-shadow.yml",
+    ".github/workflows/release-integrity.yml",
+]
+EXPECTED_WORKFLOW_TOKENS = [
+    "tools/check_settlement_supply_formal_spec_contract.py check --pretty",
+    "tests/test_check_settlement_supply_formal_spec_contract.py",
+    "docs/assurance/settlement_supply_formal_spec_contract.json",
 ]
 FORBIDDEN_SPEC_REFS = [
     "src/tau_specs/balance_transition_v1.tau",
@@ -100,6 +108,11 @@ EXPECTED_FORMAL_ITEMS = [
 # The `accepted` predicate MUST be the Σdelta=0 gate used as a hypothesis — never a smuggled
 # supply-equality (the forbidden tautology, cf. SettlementConservationLive.lean).
 REQUIRED_NONTAUTOLOGY_TOKEN = "supply balDeltas + supply resDeltas = 0"
+REQUIRED_ACCEPTED_DEFINITION_RE = re.compile(
+    r"def\s+accepted\s+\(balDeltas\s+resDeltas\s+:\s+Ledger\)\s+:\s+Prop\s*:=\s*"
+    r"supply\s+balDeltas\s+\+\s+supply\s+resDeltas\s+=\s+0",
+    re.MULTILINE,
+)
 ALLOWED_KEYS = {
     "schema",
     "surface_id",
@@ -202,7 +215,10 @@ def _check_nontautology(errors: list[str]) -> None:
     lean = (ROOT / "lean-mathlib" / "Proofs" / "SettlementSupplyConservation.lean").read_text(
         encoding="utf-8"
     )
-    if REQUIRED_NONTAUTOLOGY_TOKEN not in lean:
+    # REVIEW [B -> A-]: a bare token search could be satisfied by a comment
+    # after a weakened `accepted` definition. Require the actual Lean definition
+    # to be the validator's Σdelta=0 gate.
+    if REQUIRED_NONTAUTOLOGY_TOKEN not in lean or not REQUIRED_ACCEPTED_DEFINITION_RE.search(lean):
         errors.append(
             "formal spec lost its Σdelta=0 gate hypothesis (accepted := "
             f"{REQUIRED_NONTAUTOLOGY_TOKEN!r}); refusing to certify a possibly-tautological spec"
@@ -222,6 +238,15 @@ def _check_kernel_assurance(errors: list[str]) -> None:
     missing = sorted(set(EXPECTED_KERNEL_PROOF_IDS) - proof_ids)
     if missing:
         errors.append(f"kernel assurance receipt missing required Lean proof ids: {missing}")
+
+
+def _check_workflows(errors: list[str]) -> None:
+    workflow_text = (ROOT / ".github" / "workflows" / "runtime-shadow.yml").read_text(encoding="utf-8")
+    release_text = (ROOT / ".github" / "workflows" / "release-integrity.yml").read_text(encoding="utf-8")
+    combined = workflow_text + "\n" + release_text
+    for token in EXPECTED_WORKFLOW_TOKENS:
+        if token not in combined:
+            errors.append(f"workflow is missing settlement-supply formal-spec gate token: {token}")
 
 
 def check_contract(path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:
@@ -247,6 +272,7 @@ def check_contract(path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:
         _check_formal_items(contract, errors)
         _check_nontautology(errors)
         _check_kernel_assurance(errors)
+        _check_workflows(errors)
     except Exception as exc:  # noqa: BLE001 - evidence checkers fail closed
         errors.append(f"{type(exc).__name__}: {exc}")
     return {
