@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import yaml
+
 import tools.check_settlement_supply_formal_spec_contract as contract_mod
 
 CONTRACT = contract_mod.DEFAULT_CONTRACT
@@ -24,6 +26,34 @@ def _write_tmp(tmp_path: Path, obj: dict) -> Path:
     p = tmp_path / "contract.json"
     p.write_text(json.dumps(obj, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return p
+
+
+def _load_workflow(rel: str) -> dict:
+    workflow = yaml.safe_load((contract_mod.ROOT / rel).read_text(encoding="utf-8"))
+    assert isinstance(workflow, dict)
+    return workflow
+
+
+def _workflow_on(workflow: dict) -> dict:
+    on_section = workflow.get("on", workflow.get(True))
+    assert isinstance(on_section, dict)
+    return on_section
+
+
+def _mutate_run_blocks(workflow: dict, needle: str, replacement: str) -> int:
+    changed = 0
+    jobs = workflow.get("jobs", {})
+    assert isinstance(jobs, dict)
+    for job in jobs.values():
+        assert isinstance(job, dict)
+        for step in job.get("steps", []):
+            if not isinstance(step, dict) or not isinstance(step.get("run"), str):
+                continue
+            run = step["run"]
+            if needle in run:
+                step["run"] = run.replace(needle, replacement)
+                changed += 1
+    return changed
 
 
 def test_committed_contract_verifies() -> None:
@@ -139,4 +169,58 @@ def test_workflow_gate_token_missing_fails(monkeypatch) -> None:
     monkeypatch.setattr(contract_mod, "EXPECTED_WORKFLOW_TOKENS", ["missing settlement supply workflow token"])
     errors: list[str] = []
     contract_mod._check_workflows(errors)
-    assert any("workflow is missing settlement-supply formal-spec gate token" in e for e in errors)
+    assert any("workflow is missing active settlement-supply formal-spec gate token" in e for e in errors)
+
+
+def test_settlement_formal_spec_contract_workflow_rejects_comment_only_command(monkeypatch) -> None:
+    runtime_shadow = _load_workflow(".github/workflows/runtime-shadow.yml")
+    release_integrity = _load_workflow(".github/workflows/release-integrity.yml")
+    workflows = {
+        ".github/workflows/runtime-shadow.yml": runtime_shadow,
+        ".github/workflows/release-integrity.yml": release_integrity,
+    }
+    token = "tools/check_settlement_supply_formal_spec_contract.py check --pretty"
+    changed = sum(
+        _mutate_run_blocks(workflow, token, f"# {token}") for workflow in workflows.values()
+    )
+    assert changed > 0
+    monkeypatch.setattr(contract_mod, "_load_workflow", lambda rel: workflows[rel])
+
+    errors: list[str] = []
+    contract_mod._check_workflows(errors)
+
+    assert any("missing active settlement-supply formal-spec gate token" in e for e in errors)
+
+
+def test_settlement_formal_spec_contract_workflow_rejects_comment_only_path_filter(
+    monkeypatch,
+) -> None:
+    runtime_shadow = _load_workflow(".github/workflows/runtime-shadow.yml")
+    release_integrity = _load_workflow(".github/workflows/release-integrity.yml")
+    contract_path = "docs/assurance/settlement_supply_formal_spec_contract.json"
+    for event in ("pull_request", "push"):
+        event_cfg = _workflow_on(runtime_shadow)[event]
+        assert isinstance(event_cfg, dict)
+        event_cfg["paths"] = [path for path in event_cfg["paths"] if path != contract_path]
+    # REVIEW [B -> A-]: raw YAML search accepted path names in comments. This
+    # regression requires the balances formal-spec CI trigger to be an active
+    # path filter, matching the stricter checker semantics.
+    changed = _mutate_run_blocks(
+        runtime_shadow,
+        "python3 tools/check_settlement_supply_formal_spec_contract.py check --pretty",
+        (
+            "# docs/assurance/settlement_supply_formal_spec_contract.json\n"
+            "          python3 tools/check_settlement_supply_formal_spec_contract.py check --pretty"
+        ),
+    )
+    assert changed > 0
+    workflows = {
+        ".github/workflows/runtime-shadow.yml": runtime_shadow,
+        ".github/workflows/release-integrity.yml": release_integrity,
+    }
+    monkeypatch.setattr(contract_mod, "_load_workflow", lambda rel: workflows[rel])
+
+    errors: list[str] = []
+    contract_mod._check_workflows(errors)
+
+    assert any("paths missing settlement-supply formal-spec filters" in e for e in errors)

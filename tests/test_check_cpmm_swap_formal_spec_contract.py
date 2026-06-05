@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import yaml
+
 import tools.check_cpmm_swap_formal_spec_contract as checker
 
 
@@ -14,6 +16,34 @@ def _write(tmp_path: Path, contract: dict) -> Path:
     path = tmp_path / "cpmm_swap_formal_spec_contract.json"
     path.write_text(json.dumps(contract), encoding="utf-8")
     return path
+
+
+def _load_workflow(rel: str) -> dict:
+    workflow = yaml.safe_load((checker.ROOT / rel).read_text(encoding="utf-8"))
+    assert isinstance(workflow, dict)
+    return workflow
+
+
+def _workflow_on(workflow: dict) -> dict:
+    on_section = workflow.get("on", workflow.get(True))
+    assert isinstance(on_section, dict)
+    return on_section
+
+
+def _mutate_run_blocks(workflow: dict, needle: str, replacement: str) -> int:
+    changed = 0
+    jobs = workflow.get("jobs", {})
+    assert isinstance(jobs, dict)
+    for job in jobs.values():
+        assert isinstance(job, dict)
+        for step in job.get("steps", []):
+            if not isinstance(step, dict) or not isinstance(step.get("run"), str):
+                continue
+            run = step["run"]
+            if needle in run:
+                step["run"] = run.replace(needle, replacement)
+                changed += 1
+    return changed
 
 
 def test_committed_cpmm_formal_spec_contract_checks() -> None:
@@ -108,3 +138,55 @@ def test_cpmm_formal_spec_contract_forbidden_ref_outside_list_fails(
 
     assert not result["ok"]
     assert any("forbidden placeholder spec ref appears outside" in err for err in result["errors"])
+
+
+def test_cpmm_formal_spec_contract_workflow_rejects_comment_only_command(monkeypatch) -> None:
+    runtime_shadow = _load_workflow(".github/workflows/runtime-shadow.yml")
+    release_integrity = _load_workflow(".github/workflows/release-integrity.yml")
+    workflows = {
+        ".github/workflows/runtime-shadow.yml": runtime_shadow,
+        ".github/workflows/release-integrity.yml": release_integrity,
+    }
+    token = "tools/check_cpmm_swap_formal_spec_contract.py check --pretty"
+    changed = sum(
+        _mutate_run_blocks(workflow, token, f"# {token}") for workflow in workflows.values()
+    )
+    assert changed > 0
+    monkeypatch.setattr(checker, "_load_workflow", lambda rel: workflows[rel])
+
+    errors: list[str] = []
+    checker._check_workflows(errors)
+
+    assert any("missing active CPMM formal-spec gate token" in err for err in errors)
+
+
+def test_cpmm_formal_spec_contract_workflow_rejects_comment_only_path_filter(monkeypatch) -> None:
+    runtime_shadow = _load_workflow(".github/workflows/runtime-shadow.yml")
+    release_integrity = _load_workflow(".github/workflows/release-integrity.yml")
+    contract_path = "docs/assurance/cpmm_swap_formal_spec_contract.json"
+    for event in ("pull_request", "push"):
+        event_cfg = _workflow_on(runtime_shadow)[event]
+        assert isinstance(event_cfg, dict)
+        event_cfg["paths"] = [path for path in event_cfg["paths"] if path != contract_path]
+    # REVIEW [B -> A-]: a path filter mentioned only in a shell comment is not
+    # CI coverage. This regression keeps the workflow checker tied to active
+    # `on.*.paths` entries instead of raw YAML text.
+    changed = _mutate_run_blocks(
+        runtime_shadow,
+        "python3 tools/check_cpmm_swap_formal_spec_contract.py check --pretty",
+        (
+            "# docs/assurance/cpmm_swap_formal_spec_contract.json\n"
+            "          python3 tools/check_cpmm_swap_formal_spec_contract.py check --pretty"
+        ),
+    )
+    assert changed > 0
+    workflows = {
+        ".github/workflows/runtime-shadow.yml": runtime_shadow,
+        ".github/workflows/release-integrity.yml": release_integrity,
+    }
+    monkeypatch.setattr(checker, "_load_workflow", lambda rel: workflows[rel])
+
+    errors: list[str] = []
+    checker._check_workflows(errors)
+
+    assert any("paths missing CPMM formal-spec filters" in err for err in errors)

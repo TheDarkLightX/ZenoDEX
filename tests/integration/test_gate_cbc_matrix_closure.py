@@ -52,12 +52,11 @@ def _run(reg_path: Path, *, override=None, dev: bool = True) -> int:
 # --- shipped (production) registry ------------------------------------------
 
 
-def test_default_registry_is_blocked_failclosed() -> None:
-    # The shipped registry is an honest work-tracker: some surfaces now have
-    # cleared columns, but at least one in-scope surface is still blocked, so the
-    # production gate MUST fail closed (exit 1).
-    # Run in PRODUCTION mode (default): scope_id spot_dex is source-pinned.
-    assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 1
+def test_default_registry_is_ready_after_reviewed_surface_closure() -> None:
+    # REVIEW [blocked -> A-]: the shipped registry moved from an honest blocked
+    # work-tracker to a reviewed all-clear spot-DEX matrix. Pin the production
+    # exit code to 0 so stale tests cannot keep claiming a closed nonces gap.
+    assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 0
 
 
 def test_default_registry_covers_spot_dex_scope() -> None:
@@ -76,8 +75,7 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     # REVIEW [B -> A-]: Claude's state_root flip reached 7/7 after the
     # adversarial review trail, but one post-flip note still said
     # ``running_impl remains false``. Pin the narrative to the computed matrix:
-    # state_root is ready; the scope remains blocked by nonces until its row
-    # receives the same review-backed treatment.
+    # state_root is ready and the scope is ready after the nonces flip.
     assert state_root["open_gaps_closed"] is True
     for column in ("running_impl", "formal_spec", "runtime_invariants", "authority_mode"):
         assert state_root[column]["verified"] is True
@@ -102,29 +100,35 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     balances = surfaces["balances"]
     # REVIEW [B -> A-]: this assertion still encoded the pre-flip matrix after
     # balances moved to an owner-authorized 7/7 row. Pin the current computed
-    # contract instead: balances is clear, while the release claim stays false
-    # because nonces is still open.
+    # contract instead: balances is clear, and the scope is ready after nonces.
     assert balances["open_gaps_closed"] is True
     for column in ("running_impl", "formal_spec", "proof_artifact"):
         assert balances[column]["verified"] is True
     balances_trail = balances.get("resolved_by_review", "")
     assert "FLIPPED 2026-06-05 to 7/7" in balances_trail
     assert "SettlementSupplyConservation binding" in balances_trail
-    assert "Gate stays production_security_claim=False: nonces still blocks" in balances_trail
+    assert "production_security_claim=True" in balances_trail
+    assert "Gate stays production_security_claim=False: nonces still blocks" not in balances_trail
     assert "formal_spec remains false" not in balances_trail
     assert "balances 3/7" not in balances_trail
-    assert "release gate remains blocked by nonces" in balances["runtime_invariants"]["note"]
+    assert "production_security_claim=true" in balances["runtime_invariants"]["note"]
     # REVIEW [B -> A-]: evidence notes are part of the release-review contract.
     # A stale note once named differential_tests as a remaining nonces gap after
     # the matrix had cleared it. Pin the narrative to the computed columns so
-    # reviewers do not chase a closed gap or miss the real open ones.
+    # reviewers do not chase a closed gap.
     nonces = surfaces["nonces"]
-    assert nonces["differential_tests"]["verified"] is True
-    assert nonces["running_impl"]["verified"] is False
+    for column in CBC_COLUMNS:
+        if column == "open_gaps_closed":
+            assert nonces[column] is True
+        else:
+            assert nonces[column]["verified"] is True
     assert "test_nonces_coupled_transition_atomicity.py" in nonces["running_impl"]["ref"]
     assert "coupled DEX transition" in nonces["running_impl"]["note"]
     assert "leak next_nonces on a settlement reject" in nonces["running_impl"]["note"]
-    assert "Remaining nonces gaps are running_impl/formal_spec/proof_artifact/open_gaps_closed" in nonces[
+    assert "Later dual review cleared running_impl/formal_spec/proof_artifact/open_gaps_closed" in nonces[
+        "differential_tests"
+    ]["note"]
+    assert "Remaining nonces gaps are running_impl/formal_spec/proof_artifact/open_gaps_closed" not in nonces[
         "runtime_invariants"
     ]["note"]
     assert "proof_artifact/differential_tests" not in nonces["runtime_invariants"]["note"]
@@ -136,15 +140,15 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     assert "duplicate acceptance" in nonces["formal_spec"]["note"]
     assert "pins the exact-range Lean declaration surface" in nonces["proof_artifact"]["note"]
     assert "formalize the batch WRAPPER" not in nonces["blocking_gaps"]
-    assert "dual-review/final surface-spec ruling" in nonces["blocking_gaps"]
-    assert "coupled-transition atomicity is tested" in nonces["blocking_gaps"]
-    for surface_id in set(SPOT_DEX_SCOPE) - {"cpmm_swap", "state_root", "balances"}:
-        assert surfaces[surface_id]["open_gaps_closed"] is False
-    assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 1
+    assert "STILL OPEN" not in nonces["blocking_gaps"]
+    assert "Final review status: nonces is 7/7" in nonces["blocking_gaps"]
+    for surface_id in SPOT_DEX_SCOPE:
+        assert surfaces[surface_id]["open_gaps_closed"] is True
+    assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 0
 
 
 def test_main_exit_code_matches_run() -> None:
-    assert gate.main(["--evidence", str(DEFAULT_EVIDENCE), "--json"]) == 1
+    assert gate.main(["--evidence", str(DEFAULT_EVIDENCE), "--json"]) == 0
 
 
 # --- generic claim logic (dev mode: synthetic scope_id) ----------------------
