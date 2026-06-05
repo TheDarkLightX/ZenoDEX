@@ -186,7 +186,7 @@ def _validate_positive_case(
             errors.append(f"cases[{index}].risc0_image_id must be 64-char hex")
         elif _hex_text(image_id) == "0" * 64:
             errors.append(f"cases[{index}].risc0_image_id must be nonzero")
-    _positive_int(item.get("proof_base64_len"), f"cases[{index}].proof_base64_len", errors)
+    proof_base64_len = _positive_int(item.get("proof_base64_len"), f"cases[{index}].proof_base64_len", errors)
     proof_path = _str(item.get("proof_path"), f"cases[{index}].proof_path", errors)
     if require_proof_files and proof_path is not None:
         path = Path(proof_path)
@@ -194,6 +194,15 @@ def _validate_positive_case(
             errors.append(f"cases[{index}].proof_path does not exist")
         elif path.stat().st_size == 0:
             errors.append(f"cases[{index}].proof_path must be non-empty")
+        else:
+            _validate_proof_artifact_binding(
+                item,
+                index=index,
+                spec=spec,
+                proof_path=path,
+                proof_base64_len=proof_base64_len,
+                errors=errors,
+            )
     tamper = _string_set(item.get("tamper_rejections"), f"cases[{index}].tamper_rejections", errors)
     missing_tamper = sorted(spec.required_tamper_rejections - tamper)
     if missing_tamper:
@@ -291,6 +300,115 @@ def _validate_negative_case(item: Mapping[str, Any], *, index: int, errors: list
             errors.append(f"cases[{index}].exit_code must be nonzero")
 
 
+ZUSD_META_HEX_KEYS = frozenset(
+    {
+        "operation_hash",
+        "oracle_binding_hash",
+        "participant_set_hash",
+        "post_app_hash",
+        "pre_app_hash",
+        "state_delta_hash",
+        "zusd_balance_root_hash",
+        "zusd_vault_root_hash",
+    }
+)
+
+PERPS_NP_META_HEX_KEYS = frozenset(
+    {
+        "collateral_binding_hash",
+        "operation_hash",
+        "oracle_binding_hash",
+        "participant_set_hash",
+        "post_app_hash",
+        "pre_app_hash",
+        "receipt_root",
+        "state_delta_hash",
+    }
+)
+
+
+def _validate_proof_artifact_binding(
+    item: Mapping[str, Any],
+    *,
+    index: int,
+    spec: SurfaceSpec,
+    proof_path: Path,
+    proof_base64_len: int | None,
+    errors: list[str],
+) -> None:
+    prefix = f"cases[{index}].proof"
+    proof = _load_json_mapping(proof_path, prefix, errors)
+    if proof is None:
+        return
+
+    # REVIEW [B -> A-]: `--require-proof-files` used to check only
+    # file-exists/non-empty. Any unrelated local file could satisfy that. The
+    # checker now binds the positive report row to the JSON proof envelope shape
+    # emitted by the real smoke tools: proof_type, proof byte length, image ID,
+    # and the surface-specific journal/meta fields.
+    if proof.get("proof_type") != spec.proof_type:
+        errors.append(f"{prefix}.proof_type mismatch")
+    proof_b64 = proof.get("proof")
+    if not isinstance(proof_b64, str) or not proof_b64:
+        errors.append(f"{prefix}.proof must be a non-empty string")
+    elif proof_base64_len is not None and proof_base64_len != len(proof_b64):
+        errors.append(f"{prefix}.proof_base64_len mismatch")
+    if not _is_hex(proof.get("state_hash"), 64):
+        errors.append(f"{prefix}.state_hash must be 64-char hex")
+
+    meta = proof.get("meta")
+    if not isinstance(meta, Mapping):
+        errors.append(f"{prefix}.meta must be an object")
+        return
+    _expect_equal(
+        item.get("risc0_image_id"),
+        meta.get("risc0_image_id"),
+        f"{prefix}.risc0_image_id",
+        errors,
+    )
+    if not _is_hex(meta.get("risc0_image_id"), 64):
+        errors.append(f"{prefix}.risc0_image_id must be 64-char hex")
+
+    if spec.surface == "zusd":
+        _require_meta_hex_keys(meta, keys=ZUSD_META_HEX_KEYS, prefix=prefix, errors=errors)
+        for key in ("minted_zusd_e8", "collateral_value_e8", "mcr_bps"):
+            _expect_intish_equal(item.get(key), meta.get(key), f"{prefix}.{key}", errors)
+    elif spec.surface == "perps_np":
+        _require_meta_hex_keys(meta, keys=PERPS_NP_META_HEX_KEYS, prefix=prefix, errors=errors)
+        _expect_intish_equal(
+            item.get("participant_count"),
+            meta.get("participant_count"),
+            f"{prefix}.participant_count",
+            errors,
+        )
+        for key in ("funding_residual_e8", "matched_base_volume", "net_position_base"):
+            _expect_intish_equal(item.get(key), meta.get(key), f"{prefix}.{key}", errors)
+
+
+def _require_meta_hex_keys(
+    meta: Mapping[str, Any],
+    *,
+    keys: frozenset[str],
+    prefix: str,
+    errors: list[str],
+) -> None:
+    for key in sorted(keys):
+        if not _is_hex(meta.get(key), 64):
+            errors.append(f"{prefix}.{key} must be 64-char hex")
+
+
+def _expect_equal(actual: Any, expected: Any, name: str, errors: list[str]) -> None:
+    if actual != expected:
+        errors.append(f"{name} mismatch")
+
+
+def _expect_intish_equal(actual: Any, expected: Any, name: str, errors: list[str]) -> None:
+    actual_i = _intish(actual, f"{name}.report", errors)
+    expected_i = _intish(expected, f"{name}.artifact", errors)
+    if actual_i is not None and expected_i is not None and actual_i != expected_i:
+        errors.append(f"{name} mismatch")
+
+
 def _resolve_spec(obj: Mapping[str, Any], *, surface: str | None, errors: list[str]) -> SurfaceSpec | None:
     if surface:
         spec = SPECS_BY_SURFACE.get(surface)
@@ -363,6 +481,18 @@ def _string_set(value: Any, name: str, errors: list[str]) -> set[str]:
             continue
         out.add(item)
     return out
+
+
+def _load_json_mapping(path: Path, name: str, errors: list[str]) -> Mapping[str, Any] | None:
+    try:
+        value = _load_json(path)
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"{name} could not be loaded: {exc}")
+        return None
+    if not isinstance(value, Mapping):
+        errors.append(f"{name} must be an object")
+        return None
+    return value
 
 
 def _is_hex(value: Any, length: int) -> bool:

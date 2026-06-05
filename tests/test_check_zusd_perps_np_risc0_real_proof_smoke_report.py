@@ -18,30 +18,79 @@ def _hex(byte: str) -> str:
     return byte * 64
 
 
-def _proof_file(tmp_path: Path, name: str) -> str:
+def _proof_file(
+    tmp_path: Path,
+    name: str,
+    *,
+    proof_type: str,
+    proof_len: int,
+    image_id: str,
+    meta: dict[str, object],
+) -> str:
     path = tmp_path / f"{name}.json"
-    path.write_text('{"proof":"receipt"}\n', encoding="utf-8")
+    full_meta = {"risc0_image_id": image_id, **meta}
+    path.write_text(
+        json.dumps(
+            {
+                "schema": "tau_state_proof",
+                "schema_version": 1,
+                "proof_type": proof_type,
+                "proof": "A" * proof_len,
+                "state_hash": _hex("d"),
+                "meta": full_meta,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     return str(path)
 
 
 def _positive_zusd_case(tmp_path: Path) -> dict[str, object]:
+    proof_len = 1024
+    image_id = _hex("a")
+    minted = "100000000000"
+    collateral_value = "200000000000"
+    mcr_bps = 11000
     return {
         "case": "mint",
         "kind": "positive",
         "ok": True,
         "proof_type": ZUSD_SPEC.proof_type,
-        "minted_zusd_e8": "100000000000",
-        "collateral_value_e8": "200000000000",
-        "mcr_bps": 11000,
-        "risc0_image_id": _hex("a"),
+        "minted_zusd_e8": minted,
+        "collateral_value_e8": collateral_value,
+        "mcr_bps": mcr_bps,
+        "risc0_image_id": image_id,
         "strict_verify": True,
         "tamper_rejections": sorted(ZUSD_SPEC.required_tamper_rejections),
-        "proof_base64_len": 1024,
-        "proof_path": _proof_file(tmp_path, "zusd-proof"),
+        "proof_base64_len": proof_len,
+        "proof_path": _proof_file(
+            tmp_path,
+            "zusd-proof",
+            proof_type=ZUSD_SPEC.proof_type,
+            proof_len=proof_len,
+            image_id=image_id,
+            meta={
+                "collateral_value_e8": collateral_value,
+                "mcr_bps": mcr_bps,
+                "minted_zusd_e8": minted,
+                "operation_hash": _hex("1"),
+                "oracle_binding_hash": _hex("2"),
+                "participant_set_hash": _hex("3"),
+                "post_app_hash": _hex("4"),
+                "pre_app_hash": _hex("5"),
+                "state_delta_hash": _hex("6"),
+                "zusd_balance_root_hash": _hex("7"),
+                "zusd_vault_root_hash": _hex("8"),
+            },
+        ),
     }
 
 
 def _positive_perps_case(tmp_path: Path) -> dict[str, object]:
+    proof_len = 1024
+    image_id = _hex("b")
     return {
         "case": "four_wallet",
         "kind": "positive",
@@ -57,15 +106,37 @@ def _positive_perps_case(tmp_path: Path) -> dict[str, object]:
         "matched_base_volume": "5",
         "net_position_base": "0",
         "participant_count": 4,
-        "risc0_image_id": _hex("b"),
+        "risc0_image_id": image_id,
         "strict_verify": True,
         "tamper_rejections": sorted(PERPS_NP_SPEC.required_tamper_rejections),
-        "proof_base64_len": 1024,
-        "proof_path": _proof_file(tmp_path, "perps-proof"),
+        "proof_base64_len": proof_len,
+        "proof_path": _proof_file(
+            tmp_path,
+            "perps-proof",
+            proof_type=PERPS_NP_SPEC.proof_type,
+            proof_len=proof_len,
+            image_id=image_id,
+            meta={
+                "collateral_binding_hash": _hex("1"),
+                "funding_residual_e8": "0",
+                "matched_base_volume": "5",
+                "net_position_base": "0",
+                "operation_hash": _hex("2"),
+                "oracle_binding_hash": _hex("3"),
+                "participant_count": 4,
+                "participant_set_hash": _hex("4"),
+                "post_app_hash": _hex("5"),
+                "pre_app_hash": _hex("6"),
+                "receipt_root": _hex("7"),
+                "state_delta_hash": _hex("8"),
+            },
+        ),
     }
 
 
 def _positive_perps_adl_case(tmp_path: Path) -> dict[str, object]:
+    proof_len = 1024
+    image_id = _hex("c")
     return {
         "case": "adl_wallet",
         "kind": "positive",
@@ -81,11 +152,31 @@ def _positive_perps_adl_case(tmp_path: Path) -> dict[str, object]:
         "matched_base_volume": "0",
         "net_position_base": "0",
         "participant_count": 4,
-        "risc0_image_id": _hex("c"),
+        "risc0_image_id": image_id,
         "strict_verify": True,
         "tamper_rejections": sorted(PERPS_NP_SPEC.required_tamper_rejections),
-        "proof_base64_len": 1024,
-        "proof_path": _proof_file(tmp_path, "perps-adl-proof"),
+        "proof_base64_len": proof_len,
+        "proof_path": _proof_file(
+            tmp_path,
+            "perps-adl-proof",
+            proof_type=PERPS_NP_SPEC.proof_type,
+            proof_len=proof_len,
+            image_id=image_id,
+            meta={
+                "collateral_binding_hash": _hex("1"),
+                "funding_residual_e8": "0",
+                "matched_base_volume": "0",
+                "net_position_base": "0",
+                "operation_hash": _hex("2"),
+                "oracle_binding_hash": _hex("3"),
+                "participant_count": 4,
+                "participant_set_hash": _hex("4"),
+                "post_app_hash": _hex("5"),
+                "pre_app_hash": _hex("6"),
+                "receipt_root": _hex("7"),
+                "state_delta_hash": _hex("8"),
+            },
+        ),
     }
 
 
@@ -394,6 +485,44 @@ def test_scoped_risc0_report_rejects_empty_proof_file(tmp_path: Path) -> None:
 
     assert check["ok"] is False
     assert "cases[0].proof_path must be non-empty" in check["errors"]
+
+
+def test_scoped_risc0_report_rejects_malformed_proof_file(tmp_path: Path) -> None:
+    report = _zusd_report(tmp_path)
+    malformed = tmp_path / "malformed-proof.json"
+    malformed.write_text("not-json\n", encoding="utf-8")
+    case = report["cases"][0]  # type: ignore[index]
+    assert isinstance(case, dict)
+    case["proof_path"] = str(malformed)
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report, require_proof_files=True)
+
+    assert check["ok"] is False
+    assert any("cases[0].proof could not be loaded" in err for err in check["errors"])
+
+
+def test_scoped_risc0_report_rejects_proof_artifact_binding_mismatch(tmp_path: Path) -> None:
+    report = _perps_report(tmp_path)
+    case = report["cases"][0]  # type: ignore[index]
+    assert isinstance(case, dict)
+    proof_path = Path(str(case["proof_path"]))
+    proof = json.loads(proof_path.read_text(encoding="utf-8"))
+    proof["proof_type"] = ZUSD_SPEC.proof_type
+    proof["proof"] = "A" * 7
+    proof["meta"]["risc0_image_id"] = _hex("e")
+    proof["meta"]["participant_count"] = 5
+    proof_path.write_text(json.dumps(proof, sort_keys=True) + "\n", encoding="utf-8")
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report, require_proof_files=True)
+
+    assert check["ok"] is False
+    expected = {
+        "cases[0].proof.proof_type mismatch",
+        "cases[0].proof.proof_base64_len mismatch",
+        "cases[0].proof.risc0_image_id mismatch",
+        "cases[0].proof.participant_count mismatch",
+    }
+    assert expected.issubset(set(check["errors"]))
 
 
 def test_scoped_risc0_report_rejects_perps_positive_boundary_fields(tmp_path: Path) -> None:
