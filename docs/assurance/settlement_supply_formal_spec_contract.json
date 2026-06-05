@@ -43,7 +43,7 @@
   ],
   "schema": "zenodex.balances.formal_spec_contract.v1",
   "source_hashes": {
-    ".github/workflows/release-integrity.yml": "21492e3908c2a94456759ce6e28b76d037ae149bdd14fa93419496665648a112",
+    ".github/workflows/release-integrity.yml": "7e08557f5f60dd8079a190a38ec4843e9303a8c932e726e9a123dc179c1d4568",
     ".github/workflows/runtime-shadow.yml": "d212a8e71c63e95ebf8fca9108eefdc324df3299507917b20783332ac1099360",
     "lean-mathlib/Proofs/SettlementSupplyConservation.lean": "4d9b6333b08d2e4d5b8ba6387c0eb2523325cefee71afaad81e63e63b945cd65",
     "tests/runtime/test_settlement_supply_conservation_lean_binding.py": "790c0dd6f76578d2dac357b65239149a854e82a82f96478f4b3b7c67bce4ed47",

@@ -38,7 +38,7 @@
   ],
   "schema": "zenodex.nonces.formal_spec_contract.v1",
   "source_hashes": {
-    ".github/workflows/release-integrity.yml": "21492e3908c2a94456759ce6e28b76d037ae149bdd14fa93419496665648a112",
+    ".github/workflows/release-integrity.yml": "7e08557f5f60dd8079a190a38ec4843e9303a8c932e726e9a123dc179c1d4568",
     ".github/workflows/runtime-shadow.yml": "d212a8e71c63e95ebf8fca9108eefdc324df3299507917b20783332ac1099360",
     "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean": "2a65c470b22620f8da35a7d9fac630f4dca3c96b31bd425fb9498018d43c2673",
     "src/kernels/dex/nonce_batch_sequencing_v1.yaml": "a9f055d265709de340c4cff36bf241dda51ac6ba4957056ebc09b4a7a9fd7105",

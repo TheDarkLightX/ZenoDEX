@@ -50,9 +50,12 @@ jobs:
           case "$cbc_status" in
             0) ;;
             1)
-              # Review grade: A- boundary. A blocked production claim is advisory
-              # during promotion, while corrupt/missing gate infrastructure fails closed.
-              echo "CBC matrix still blocked; production_security_claim=false (advisory)."
+              # REVIEW [A- -> A]: while the matrix was still under promotion,
+              # exit 1 was non-blocking. Now the reviewed registry computes
+              # production_security_claim=true, so a regression to false must
+              # fail the release lane instead of shipping as a warning.
+              echo "CBC matrix regressed: production_security_claim=false." >&2
+              exit 1
               ;;
             *) exit "$cbc_status" ;;
           esac

@@ -283,18 +283,20 @@ echo "== release: dependency audit =="
 # Production-claim status. The CBC matrix-closure gate reports the per-surface
 # production_security_claim computed from config/production/cbc_surface_evidence_v1.json.
 # Exit-code contract (must be distinguished — do NOT swallow all nonzero):
-#   0 = every in-scope surface clear (none today)              -> continue
-#   1 = blocked claim (surfaces unproven, the expected state)  -> ADVISORY, continue
+#   0 = every in-scope surface clear                          -> continue
+#   1 = blocked claim (a regression after reviewed closure)    -> FAIL CLOSED
 #   2+ = structural/infrastructure error (missing/corrupt registry, import, etc.)
 #                                                              -> FAIL CLOSED
-# Treating exit 2 like exit 1 would let the release reach `ok` with a missing or
-# corrupt registry — a fail-open hole. So only exit 1 is advisory here.
+# REVIEW [A- -> A]: exit 1 used to be advisory while the matrix was still under
+# promotion. Now production_security_claim=true is the reviewed baseline, so the
+# release gate must fail if any in-scope surface regresses to an uncleared row.
 echo "== release: CBC production-claim status =="
 cbc_status=0
 "$PY" "$ROOT_DIR/tools/gate_cbc_matrix_closure.py" || cbc_status=$?
 case "$cbc_status" in
   0) ;;
-  1) echo "  (advisory: production_security_claim not yet cleared — see the matrix above)" ;;
+  1) echo "error: CBC production claim regressed to false — see the matrix above" >&2
+     exit 1 ;;
   *) echo "error: CBC gate infrastructure failure (exit $cbc_status) — e.g. missing/corrupt evidence registry; failing closed" >&2
      exit "$cbc_status" ;;
 esac
