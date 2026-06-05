@@ -48,6 +48,28 @@ def test_refinement_receipt_source_hash_tamper_fails(tmp_path: Path) -> None:
     assert any("source hash mismatch" in err for err in result["errors"])
 
 
+def test_refinement_receipt_witness_tamper_fails(tmp_path: Path) -> None:
+    receipt = json.loads(checker.DEFAULT_RECEIPT.read_text(encoding="utf-8"))
+    receipt["cases"][0]["witnesses"][0]["balance_delta"] += 1
+    tampered = tmp_path / "receipt.json"
+    tampered.write_text(json.dumps(receipt), encoding="utf-8")
+
+    result = checker.check_receipt(tampered)
+    assert not result["ok"]
+    assert any("case replay mismatch" in err for err in result["errors"])
+
+
+def test_refinement_receipt_command_tamper_fails(tmp_path: Path) -> None:
+    receipt = json.loads(checker.DEFAULT_RECEIPT.read_text(encoding="utf-8"))
+    receipt["commands"][0]["returncode"] = 1
+    tampered = tmp_path / "receipt.json"
+    tampered.write_text(json.dumps(receipt), encoding="utf-8")
+
+    result = checker.check_receipt(tampered)
+    assert not result["ok"]
+    assert any("command receipt mismatch" in err for err in result["errors"])
+
+
 def test_refinement_rejects_unmodeled_balance_leak() -> None:
     scenario = checker.build_scenarios()[0]
     leaked = dataclasses.replace(

@@ -258,7 +258,7 @@
       "cwd": ".",
       "returncode": 0,
       "stderr_tail": "",
-      "stdout_tail": "..                                                                       [100%]\n2 passed in 7.40s\n"
+      "stdout_tail": "..                                                                       [100%]\n2 passed in 8.15s\n"
     },
     {
       "cmd": [
@@ -271,7 +271,7 @@
       "cwd": ".",
       "returncode": 0,
       "stderr_tail": "",
-      "stdout_tail": "...................                                                      [100%]\n19 passed in 0.27s\n"
+      "stdout_tail": "...................                                                      [100%]\n19 passed in 0.28s\n"
     }
   ],
   "covered_constructors": [
@@ -295,7 +295,7 @@
     "src/core/settlement_strong_validator.py": "0a28f9890afd5d4ccc829541cff3ce9cb404f1fc5ad37c9416b8a40a7159784b",
     "tests/formal/test_lean_settlement_conservation_live.py": "515dbe2b9a63681930ef54240c0f3944af3161f9aa13824739891ebc0e117f01",
     "tests/runtime/test_settlement_conservation_live_binding.py": "9f040f04643ed0c0183e6e13d3d3dac86e4599280d10991a20413d2757be03c6",
-    "tests/test_check_settlement_conservation_live_refinement.py": "7a6e5028497f07078f19b5bc7892b02ed1ccf20f274c3d9820d6323fc414d1a4",
-    "tools/check_settlement_conservation_live_refinement.py": "9b003437dbcd6fccd9bc7dc714518bed350f0977b6eee2713f006f7b00d95ec7"
+    "tests/test_check_settlement_conservation_live_refinement.py": "0d5826d962293ecc9aa1d746221ae393f4a7eb5b2d1f0eb8cc90bfae09790197",
+    "tools/check_settlement_conservation_live_refinement.py": "272fda577732cbfba60775f811decc49ac1c179b5075c7210ec2ca2c927d6ffe"
   }
 }

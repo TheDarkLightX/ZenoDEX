@@ -514,22 +514,37 @@ def check_receipt(path: Path) -> dict[str, Any]:
     errors: list[str] = []
     if receipt.get("schema") != RECEIPT_SCHEMA:
         errors.append("bad schema")
+    if receipt.get("lean_module") != LEAN_MODULE:
+        errors.append("lean_module mismatch")
+    if receipt.get("production_matrix_effect") != "No CBC registry column flips.":
+        errors.append("production_matrix_effect must keep the no-flip boundary explicit")
     for rel, pinned in receipt.get("source_hashes", {}).items():
         actual = _sha256_file(ROOT / rel)
         if actual != pinned:
             errors.append(f"source hash mismatch: {rel}")
+    if sorted(receipt.get("source_hashes", {}).keys()) != sorted(SOURCE_FILES):
+        errors.append("source hash file set mismatch")
     try:
         cases = run_refinement_checks()
     except Exception as exc:  # pragma: no cover - surfaced in result envelope
         errors.append(f"refinement replay failed: {exc}")
         cases = []
-    expected_ids = [case["case_id"] for case in cases]
-    got_ids = [case.get("case_id") for case in receipt.get("cases", [])]
-    if got_ids != expected_ids:
-        errors.append(f"case set mismatch: expected={expected_ids} got={got_ids}")
+    got_cases = receipt.get("cases", [])
+    if got_cases != cases:
+        errors.append("case replay mismatch")
     covered = sorted({ctor for case in cases for ctor in case.get("constructors", [])})
     if receipt.get("covered_constructors") != covered:
         errors.append("covered constructor set mismatch")
+    expected_commands = [
+        ["lake", "--wfail", "build", LEAN_MODULE],
+        ["python3", "-m", "pytest", "-q", "tests/formal/test_lean_settlement_conservation_live.py"],
+        ["python3", "-m", "pytest", "-q", "tests/runtime/test_settlement_conservation_live_binding.py"],
+    ]
+    commands = receipt.get("commands", [])
+    got_commands = [cmd.get("cmd") for cmd in commands if isinstance(cmd, Mapping)]
+    got_returncodes = [cmd.get("returncode") for cmd in commands if isinstance(cmd, Mapping)]
+    if got_commands != expected_commands or got_returncodes != [0, 0, 0]:
+        errors.append("command receipt mismatch")
     return {
         "schema": CHECK_SCHEMA,
         "ok": not errors,
