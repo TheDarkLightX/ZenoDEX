@@ -277,8 +277,10 @@ def test_mismarking_authority_surface_evidence_only_fails_closed(tmp_path: Path)
 
 
 def test_non_mapping_surface_row_fails_closed(tmp_path: Path) -> None:
-    # A malformed (non-object) surface row must fail closed (exit 2), NOT escape
-    # as a raw exit 1 that the release pipeline would treat as advisory.
+    # REVIEW [A- -> A]: the old comment taught the promotion-era advisory
+    # meaning of exit 1. With the reviewed True baseline, exit 1 is also
+    # release-blocking; this test still needs exit 2 because malformed evidence
+    # is gate infrastructure failure, not an uncleared evidence row.
     surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
     surfaces["balances"] = "oops-not-an-object"
     reg = {

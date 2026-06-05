@@ -189,9 +189,11 @@ def run(
     as_json: bool,
     require_known_scope: bool = True,
 ) -> int:
-    # Every structural / fail-closed condition (bad registry, unknown production
-    # scope, malformed row, illegal override, evaluation error) is mapped to exit
-    # 2 — never to exit 1 (which the release pipeline treats as advisory).
+    # REVIEW [A- -> A]: this comment still described the pre-closure release
+    # contract, where exit 1 was advisory. That failed review because the code
+    # now backs a reviewed True baseline: exit 1 is a claim regression and the
+    # release gate fails closed. Structural problems still use exit 2 so callers
+    # can distinguish evidence regression from broken gate infrastructure.
     try:
         scope, surfaces, evidence_only = _load_registry(
             evidence_path, require_known_scope=require_known_scope
