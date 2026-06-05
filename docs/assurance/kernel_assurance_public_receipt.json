@@ -1,4 +1,115 @@
 {
+  "kani_proofs": [
+    {
+      "id": "balance_kernel_kani",
+      "package": "zenodex-runtime-core",
+      "result": {
+        "cargo_kani_version": "cargo-kani 0.60.0",
+        "command": [
+          "cargo",
+          "kani",
+          "-p",
+          "zenodex-runtime-core",
+          "--lib",
+          "--harness",
+          "balance_kernel::kani_contracts::covers_are_reachable",
+          "--harness",
+          "balance_kernel::kani_contracts::credit_covers_are_reachable",
+          "--harness",
+          "balance_kernel::kani_contracts::settle_credit_is_total",
+          "--harness",
+          "balance_kernel::kani_contracts::settle_credit_mints_or_overflows",
+          "--harness",
+          "balance_kernel::kani_contracts::settle_transfer_conserves_and_moves_exact",
+          "--harness",
+          "balance_kernel::kani_contracts::settle_transfer_is_total",
+          "--harness",
+          "balance_kernel::kani_contracts::settle_transfer_reject_precedence",
+          "--exact",
+          "--output-format",
+          "terse",
+          "--harness-timeout",
+          "10m",
+          "-Z",
+          "unstable-options"
+        ],
+        "harnesses": [
+          {
+            "checks_failed": 0,
+            "checks_total": 97,
+            "cover_properties_satisfied": 3,
+            "cover_properties_total": 3,
+            "name": "balance_kernel::kani_contracts::covers_are_reachable",
+            "verdict": "VERIFIED"
+          },
+          {
+            "checks_failed": 0,
+            "checks_total": 94,
+            "cover_properties_satisfied": 2,
+            "cover_properties_total": 2,
+            "name": "balance_kernel::kani_contracts::credit_covers_are_reachable",
+            "verdict": "VERIFIED"
+          },
+          {
+            "checks_failed": 0,
+            "checks_total": 9,
+            "cover_properties_satisfied": 0,
+            "cover_properties_total": 0,
+            "name": "balance_kernel::kani_contracts::settle_credit_is_total",
+            "verdict": "VERIFIED"
+          },
+          {
+            "checks_failed": 0,
+            "checks_total": 17,
+            "cover_properties_satisfied": 0,
+            "cover_properties_total": 0,
+            "name": "balance_kernel::kani_contracts::settle_credit_mints_or_overflows",
+            "verdict": "VERIFIED"
+          },
+          {
+            "checks_failed": 0,
+            "checks_total": 21,
+            "cover_properties_satisfied": 0,
+            "cover_properties_total": 0,
+            "name": "balance_kernel::kani_contracts::settle_transfer_conserves_and_moves_exact",
+            "verdict": "VERIFIED"
+          },
+          {
+            "checks_failed": 0,
+            "checks_total": 12,
+            "cover_properties_satisfied": 0,
+            "cover_properties_total": 0,
+            "name": "balance_kernel::kani_contracts::settle_transfer_is_total",
+            "verdict": "VERIFIED"
+          },
+          {
+            "checks_failed": 0,
+            "checks_total": 21,
+            "cover_properties_satisfied": 0,
+            "cover_properties_total": 0,
+            "name": "balance_kernel::kani_contracts::settle_transfer_reject_precedence",
+            "verdict": "VERIFIED"
+          }
+        ],
+        "package": "zenodex-runtime-core",
+        "summary": {
+          "failures": 0,
+          "successfully_verified": 7,
+          "total": 7
+        },
+        "verdict": "VERIFIED",
+        "working_directory": "rust-runtime"
+      },
+      "source_files": [
+        {
+          "path": "rust-runtime/crates/zenodex-runtime-core/src/balance_kernel.rs",
+          "sha256": "3fdb215f7a4c8031f15bae6da7c44c20fcd6ce22aef4bc07f974d9bebe62d1d2"
+        }
+      ],
+      "tool": "cargo-kani",
+      "working_directory": "rust-runtime"
+    }
+  ],
   "kernels": [
     {
       "ce_corpus_path": "src/kernels/dex/ce_corpus_cpmm_swap.jsonl",
@@ -78,12 +189,12 @@
     }
   ],
   "manifest": "tools/kernel_assurance_manifest.json",
-  "manifest_sha256": "4e6bbb5a05b9209c600709bd9ee82fc24fa4d8a3c653b701e5965316573c7028",
+  "manifest_sha256": "99913b8ecaeb337a8b6009024767d8a30fe4bdd457290bad95ae607421f50d40",
   "ok": true,
   "private_toolchain_source_included": false,
-  "receipt_sha256": "eb58c6f6d2e772f249fa4b79f8a6084678601cb3ff08ae216884be531afc77d3",
+  "receipt_sha256": "e927a4e56db6cf186d5309dec9d0d25974eee015d7989685895954e76be5cbd4",
   "schema": "zenodex.kernel_assurance.public_receipt.v1",
-  "source_report_sha256": "5b70b87406d4876a437e39c5fd78955d0862c6a5e0e31ad20fc7b85a2ec2caea",
+  "source_report_sha256": "f3d50bf17d1fd8738fe8acc23aa71c9c9c6d95250fe9232e76fdddc64632db77",
   "toolchain": {
     "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
     "esso_dirty": true,

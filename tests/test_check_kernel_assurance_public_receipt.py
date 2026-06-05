@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+import tools.check_kernel_assurance_public_receipt as kar
 from tools.check_kernel_assurance_public_receipt import (
     build_public_receipt_from_report,
     check_receipt_file,
@@ -11,6 +14,7 @@ from tools.check_kernel_assurance_public_receipt import (
 )
 
 _PRIVATE_WORKSPACE_PREFIX = "/private/" + "workspace"
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _write_json(path: Path, obj: dict[str, Any]) -> None:
@@ -19,6 +23,7 @@ def _write_json(path: Path, obj: dict[str, Any]) -> None:
 
 
 def _manifest() -> dict[str, Any]:
+    kani = kar.EXPECTED_KANI_PROOFS["balance_kernel_kani"]
     return {
         "manifest_version": 1,
         "solvers": ["cvc5"],
@@ -39,6 +44,19 @@ def _manifest() -> dict[str, Any]:
                 "expected_ce_corpus_sha256": "0a97f7a5ebe6843e2071e9d11227173cee0e4493b37f7a07a453c6b49ab2bd76",
             }
         ],
+        "kani_proofs": [
+            {
+                "id": "balance_kernel_kani",
+                "tool": kani["tool"],
+                "package": kani["package"],
+                "working_directory": kani["working_directory"],
+                "cargo_kani_version": kani["cargo_kani_version"],
+                "harness_timeout": kani["harness_timeout"],
+                "required_verdict": kani["required_verdict"],
+                "source_files": kani["source_files"],
+                "harnesses": list(kani["harnesses"]),
+            }
+        ],
     }
 
 
@@ -51,6 +69,7 @@ def _manifest_hash(manifest: dict[str, Any], tmp_path: Path) -> tuple[str, Path]
 
 
 def _private_report(manifest_sha256: str) -> dict[str, Any]:
+    kani = kar.EXPECTED_KANI_PROOFS["balance_kernel_kani"]
     return {
         "ok": True,
         "manifest_sha256": manifest_sha256,
@@ -87,7 +106,43 @@ def _private_report(manifest_sha256: str) -> dict[str, Any]:
                 },
             }
         ],
+        "kani_proofs": [
+            {
+                "id": "balance_kernel_kani",
+                "tool": kani["tool"],
+                "package": kani["package"],
+                "working_directory": kani["working_directory"],
+                "source_files": [
+                    {"path": rel, "sha256": kar._sha256_file(ROOT / rel)}
+                    for rel in kani["source_files"]
+                ],
+                "result": {
+                    "verdict": "VERIFIED",
+                    "cargo_kani_version": kani["cargo_kani_version"],
+                    "package": kani["package"],
+                    "working_directory": kani["working_directory"],
+                    "command": kar._kani_command(kani),
+                    "harnesses": [
+                        {
+                            "name": name,
+                            "verdict": "VERIFIED",
+                            **expected,
+                        }
+                        for name, expected in kani["harnesses"].items()
+                    ],
+                    "summary": {
+                        "successfully_verified": len(kani["harnesses"]),
+                        "failures": 0,
+                        "total": len(kani["harnesses"]),
+                    },
+                },
+            }
+        ],
     }
+
+
+def _reseal(receipt: dict[str, Any]) -> None:
+    receipt["receipt_sha256"] = kar._sha256_bytes(kar._canonical_json_bytes(kar._receipt_hash_body(receipt)))
 
 
 def test_build_and_verify_public_receipt_without_private_source(tmp_path: Path) -> None:
@@ -152,3 +207,90 @@ def test_receipt_file_checker_accepts_and_rejects_tampering(tmp_path: Path) -> N
     rejected = check_receipt_file(receipt_path=receipt_path, manifest_path=manifest_path)
     assert rejected["ok"] is False
     assert any("receipt_sha256 mismatch" in error for error in rejected["errors"])
+
+
+def test_committed_receipt_covers_balance_kernel_kani() -> None:
+    report = check_receipt_file(
+        receipt_path=ROOT / "docs/assurance/kernel_assurance_public_receipt.json",
+        manifest_path=ROOT / "tools/kernel_assurance_manifest.json",
+    )
+    assert report["ok"] is True, report["errors"]
+
+    receipt = json.loads(
+        (ROOT / "docs/assurance/kernel_assurance_public_receipt.json").read_text(encoding="utf-8")
+    )
+    proofs = {entry["id"]: entry for entry in receipt["kani_proofs"]}
+    proof = proofs["balance_kernel_kani"]
+    assert proof["source_files"] == [
+        {
+            "path": "rust-runtime/crates/zenodex-runtime-core/src/balance_kernel.rs",
+            "sha256": kar._sha256_file(
+                ROOT / "rust-runtime/crates/zenodex-runtime-core/src/balance_kernel.rs"
+            ),
+        }
+    ]
+    assert proof["result"]["verdict"] == "VERIFIED"
+    assert proof["result"]["summary"] == {"failures": 0, "successfully_verified": 7, "total": 7}
+
+
+def test_build_rejects_kani_manifest_harness_drop_before_toolchain(tmp_path: Path) -> None:
+    manifest = _manifest()
+    manifest_sha256, _manifest_path = _manifest_hash(manifest, tmp_path)
+    manifest["kani_proofs"][0]["harnesses"] = manifest["kani_proofs"][0]["harnesses"][:-1]
+
+    with pytest.raises(kar.ReceiptError, match="source-pinned"):
+        build_public_receipt_from_report(
+            _private_report(manifest_sha256),
+            manifest=manifest,
+            manifest_sha256=manifest_sha256,
+        )
+
+
+def test_resealed_kani_verdict_downgrade_fails(tmp_path: Path) -> None:
+    manifest = _manifest()
+    manifest_sha256, _manifest_path = _manifest_hash(manifest, tmp_path)
+    receipt = build_public_receipt_from_report(
+        _private_report(manifest_sha256),
+        manifest=manifest,
+        manifest_sha256=manifest_sha256,
+    )
+
+    receipt["kani_proofs"][0]["result"]["verdict"] = "UNKNOWN"
+    _reseal(receipt)
+    errors = verify_public_receipt(receipt, manifest=manifest, manifest_sha256=manifest_sha256)
+
+    assert any("verdict" in error for error in errors), errors
+
+
+def test_resealed_kani_cover_downgrade_fails(tmp_path: Path) -> None:
+    manifest = _manifest()
+    manifest_sha256, _manifest_path = _manifest_hash(manifest, tmp_path)
+    receipt = build_public_receipt_from_report(
+        _private_report(manifest_sha256),
+        manifest=manifest,
+        manifest_sha256=manifest_sha256,
+    )
+
+    receipt["kani_proofs"][0]["result"]["harnesses"][0]["cover_properties_satisfied"] = 0
+    _reseal(receipt)
+    errors = verify_public_receipt(receipt, manifest=manifest, manifest_sha256=manifest_sha256)
+
+    assert any("cover_properties_satisfied" in error for error in errors), errors
+
+
+def test_resealed_kani_missing_harness_fails(tmp_path: Path) -> None:
+    manifest = _manifest()
+    manifest_sha256, _manifest_path = _manifest_hash(manifest, tmp_path)
+    receipt = build_public_receipt_from_report(
+        _private_report(manifest_sha256),
+        manifest=manifest,
+        manifest_sha256=manifest_sha256,
+    )
+
+    receipt["kani_proofs"][0]["result"]["harnesses"] = receipt["kani_proofs"][0]["result"]["harnesses"][:-1]
+    receipt["kani_proofs"][0]["result"]["summary"]["successfully_verified"] = 6
+    receipt["kani_proofs"][0]["result"]["summary"]["total"] = 6
+    _reseal(receipt)
+    errors = verify_public_receipt(receipt, manifest=manifest, manifest_sha256=manifest_sha256)
+
+    assert any("result harnesses" in error for error in errors), errors

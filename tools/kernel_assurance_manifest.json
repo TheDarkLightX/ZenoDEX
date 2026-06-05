@@ -52,8 +52,31 @@
       ]
     }
   ],
+  "kani_proofs": [
+    {
+      "cargo_kani_version": "cargo-kani 0.60.0",
+      "harness_timeout": "10m",
+      "harnesses": [
+        "balance_kernel::kani_contracts::covers_are_reachable",
+        "balance_kernel::kani_contracts::credit_covers_are_reachable",
+        "balance_kernel::kani_contracts::settle_credit_is_total",
+        "balance_kernel::kani_contracts::settle_credit_mints_or_overflows",
+        "balance_kernel::kani_contracts::settle_transfer_conserves_and_moves_exact",
+        "balance_kernel::kani_contracts::settle_transfer_is_total",
+        "balance_kernel::kani_contracts::settle_transfer_reject_precedence"
+      ],
+      "id": "balance_kernel_kani",
+      "package": "zenodex-runtime-core",
+      "required_verdict": "VERIFIED",
+      "source_files": [
+        "rust-runtime/crates/zenodex-runtime-core/src/balance_kernel.rs"
+      ],
+      "tool": "cargo-kani",
+      "working_directory": "rust-runtime"
+    }
+  ],
   "manifest_version": 1,
-  "notes": "Normative, fail-closed kernel assurance manifest for ZenoDEX. toolchain.esso_code_hash is the git commit of external/ESSO used for verification; update it only alongside a successful `python3 tools/dex_kernel_assurance.py` run. Any change to kernels/corpora requires updating this file alongside regenerated artifacts.",
+  "notes": "Normative, fail-closed kernel assurance manifest for ZenoDEX. toolchain.esso_code_hash is the git commit of external/ESSO used for verification; update it only alongside a successful `python3 tools/dex_kernel_assurance.py` run. kani_proofs uses the committed-receipt pattern: `python3 tools/check_kernel_assurance_public_receipt.py build` runs the source-pinned cargo-kani harness set in privileged mode, and CI `check` validates the committed source hashes and result envelope without running Kani. Any change to kernels/corpora/Kani proof sources requires updating this file alongside regenerated artifacts.",
   "seeds": [
     0,
     1,

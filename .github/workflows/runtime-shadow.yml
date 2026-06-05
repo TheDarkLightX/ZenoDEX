@@ -26,9 +26,13 @@ on:
       # receipt result envelope; watching only theorem files missed toolchain drift.
       - "lean-mathlib/lean-toolchain"
       - "docs/assurance/spot_proof_public_receipt.json"
+      - "docs/assurance/kernel_assurance_public_receipt.json"
       - "tools/spot_proof_public_manifest.json"
       - "tools/spot_proof_public_receipt.py"
+      - "tools/kernel_assurance_manifest.json"
+      - "tools/check_kernel_assurance_public_receipt.py"
       - "tests/integration/test_spot_proof_public_receipt.py"
+      - "tests/test_check_kernel_assurance_public_receipt.py"
       - "src/state/canonical.py"
       - "src/state/state_root.py"
       - "src/state/balances.py"
@@ -69,9 +73,13 @@ on:
       # receipt result envelope; watching only theorem files missed toolchain drift.
       - "lean-mathlib/lean-toolchain"
       - "docs/assurance/spot_proof_public_receipt.json"
+      - "docs/assurance/kernel_assurance_public_receipt.json"
       - "tools/spot_proof_public_manifest.json"
       - "tools/spot_proof_public_receipt.py"
+      - "tools/kernel_assurance_manifest.json"
+      - "tools/check_kernel_assurance_public_receipt.py"
       - "tests/integration/test_spot_proof_public_receipt.py"
+      - "tests/test_check_kernel_assurance_public_receipt.py"
       - "src/state/canonical.py"
       - "src/state/state_root.py"
       - "src/state/balances.py"
@@ -132,6 +140,11 @@ jobs:
         run: |
           python3 tools/spot_proof_public_receipt.py check --pretty
           python -m pytest -q tests/integration/test_spot_proof_public_receipt.py
+
+      - name: Kernel assurance public receipt (per-PR drift + integrity)
+        run: |
+          python3 tools/check_kernel_assurance_public_receipt.py check --pretty
+          python -m pytest -q tests/test_check_kernel_assurance_public_receipt.py
 
       - name: Golden traces export deterministically (byte-stable)
         run: |
