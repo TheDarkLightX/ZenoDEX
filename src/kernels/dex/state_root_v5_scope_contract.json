@@ -1,0 +1,111 @@
+{
+  "schema": "zenodex.state_root.formal_spec.v1",
+  "surface_id": "state_root",
+  "state_root_version": 5,
+  "lane": "spot_dex",
+  "root_formula": {
+    "hash": "sha256",
+    "domain": {
+      "tag": "state_root",
+      "version": 5
+    },
+    "section_framing": "domain_sep(state_root,v5) || for label in section_order: label || encode_bytes(section_body(label))",
+    "section_order": [
+      "BAL",
+      "POL",
+      "LPB",
+      "LPA",
+      "NNC",
+      "FEE"
+    ]
+  },
+  "identifier_widths": {
+    "pubkey_bytes": 48,
+    "asset_bytes": 32,
+    "pool_id_bytes": 32
+  },
+  "ordering": {
+    "balances": "sort by decoded pubkey bytes, then decoded asset bytes",
+    "pools": "sort by decoded pool_id bytes",
+    "lp_balances": "sort by decoded pubkey bytes, then decoded pool_id bytes",
+    "lp_duration_risk": "sort by decoded pubkey bytes, then decoded pool_id bytes",
+    "nonces": "sort by decoded pubkey bytes"
+  },
+  "included_sections": {
+    "BAL": [
+      "pubkey[48]",
+      "asset[32]",
+      "amount:uvarint"
+    ],
+    "POL": [
+      "pool_id[32]",
+      "asset0[32]",
+      "asset1[32]",
+      "reserve0:uvarint",
+      "reserve1:uvarint",
+      "fee_bps:uvarint",
+      "lp_supply:uvarint",
+      "status_code:uvarint",
+      "created_at:uvarint",
+      "curve_tag:utf8_bytes",
+      "curve_params:utf8_bytes"
+    ],
+    "LPB": [
+      "pubkey[48]",
+      "pool_id[32]",
+      "amount:uvarint"
+    ],
+    "LPA": [
+      "pubkey[48]",
+      "pool_id[32]",
+      "last_mint_present:uvarint",
+      "last_mint_timestamp:uvarint_if_present",
+      "last_remove_present:uvarint",
+      "last_remove_timestamp:uvarint_if_present",
+      "churn_tier:uvarint",
+      "last_churn_update_present:uvarint",
+      "last_churn_update_timestamp:uvarint_if_present"
+    ],
+    "NNC": [
+      "pubkey[48]",
+      "last_nonce:uvarint"
+    ],
+    "FEE": [
+      "fee_accumulator.dust:uvarint"
+    ]
+  },
+  "admissibility": {
+    "amounts": "non-negative integers; sparse balance and LP tables omit zero entries",
+    "fee_bps": "0 <= fee_bps <= 10000",
+    "pool_assets": "decoded asset0 bytes < decoded asset1 bytes",
+    "pool_status_codes": {
+      "active": 1,
+      "frozen": 2,
+      "disabled": 3
+    },
+    "nonces": "0 <= last_nonce <= 2^32-1 in the Rust shadow domain",
+    "fee_accumulator": "None is equivalent to dust=0; otherwise dust must be a non-negative integer"
+  },
+  "excluded_lanes": [
+    {
+      "field": "vault",
+      "required_value": "None",
+      "enforced_by": "src.integration.zeno_ledger_v0.validate_dex_state_root_v0_spot_scope"
+    },
+    {
+      "field": "oracle",
+      "required_value": "None",
+      "enforced_by": "src.integration.zeno_ledger_v0.validate_dex_state_root_v0_spot_scope"
+    },
+    {
+      "field": "perps",
+      "required_value": "None",
+      "enforced_by": "src.integration.zeno_ledger_v0.validate_dex_state_root_v0_spot_scope"
+    }
+  ],
+  "runtime_binding": {
+    "ledger_adapter": "src.integration.zeno_ledger_v0.dex_state_root_v0",
+    "transition_checker": "src.integration.zeno_ledger_v0.validate_block_state_transition_v0",
+    "authority_surface": "state_root"
+  }
+}

@@ -1,0 +1,290 @@
+{
+  "evidence_columns": {
+    "authority_mode": {
+      "production_strict": "python_authority",
+      "public_testnet": "rust_authority_with_python_shadow",
+      "verdict": "CHECKED"
+    },
+    "differential_tests": {
+      "command_ids": [
+        "state_root_python_rust_differential"
+      ],
+      "verdict": "PR_GATED"
+    },
+    "formal_spec": {
+      "ref": "src/kernels/dex/state_root_v5_scope_contract.json",
+      "spec_sha256": "10a20f1645386c5dc5fec0b152ca323541208a2a6cce7493fb02a1534c101bff",
+      "verdict": "CROSS_CHECKED"
+    },
+    "proof_artifact": {
+      "kani": {
+        "cargo_kani_version": "cargo-kani 0.60.0",
+        "command": [
+          "cargo",
+          "kani",
+          "-p",
+          "zenodex-runtime-core",
+          "--lib",
+          "--harness",
+          "state_root::kani_contracts::pool_fee_bps_guard_is_exact",
+          "--harness",
+          "state_root::kani_contracts::nonce_guard_is_exact",
+          "--harness",
+          "state_root::kani_contracts::duration_metadata_presence_is_exact",
+          "--harness",
+          "state_root::kani_contracts::pool_asset_order_guard_matches_fixed_width_byte_order",
+          "--harness",
+          "state_root::kani_contracts::pool_asset_order_guard_rejects_equal_assets",
+          "--harness",
+          "state_root::kani_contracts::pool_status_codes_are_in_domain_and_distinct",
+          "--harness",
+          "state_root::kani_contracts::state_root_guard_covers_are_reachable",
+          "--exact",
+          "--output-format",
+          "terse",
+          "--harness-timeout",
+          "10m",
+          "-Z",
+          "unstable-options"
+        ],
+        "harnesses": [
+          {
+            "checks_failed": 0,
+            "checks_total": 118,
+            "cover_properties_satisfied": 0,
+            "cover_properties_total": 0,
+            "name": "state_root::kani_contracts::pool_fee_bps_guard_is_exact",
+            "verdict": "VERIFIED"
+          },
+          {
+            "checks_failed": 0,
+            "checks_total": 118,
+            "cover_properties_satisfied": 0,
+            "cover_properties_total": 0,
+            "name": "state_root::kani_contracts::nonce_guard_is_exact",
+            "verdict": "VERIFIED"
+          },
+          {
+            "checks_failed": 0,
+            "checks_total": 1,
+            "cover_properties_satisfied": 0,
+            "cover_properties_total": 0,
+            "name": "state_root::kani_contracts::duration_metadata_presence_is_exact",
+            "verdict": "VERIFIED"
+          },
+          {
+            "checks_failed": 0,
+            "checks_total": 42,
+            "cover_properties_satisfied": 0,
+            "cover_properties_total": 0,
+            "name": "state_root::kani_contracts::pool_asset_order_guard_matches_fixed_width_byte_order",
+            "verdict": "VERIFIED"
+          },
+          {
+            "checks_failed": 0,
+            "checks_total": 42,
+            "cover_properties_satisfied": 0,
+            "cover_properties_total": 0,
+            "name": "state_root::kani_contracts::pool_asset_order_guard_rejects_equal_assets",
+            "verdict": "VERIFIED"
+          },
+          {
+            "checks_failed": 0,
+            "checks_total": 7,
+            "cover_properties_satisfied": 0,
+            "cover_properties_total": 0,
+            "name": "state_root::kani_contracts::pool_status_codes_are_in_domain_and_distinct",
+            "verdict": "VERIFIED"
+          },
+          {
+            "checks_failed": 0,
+            "checks_total": 44,
+            "cover_properties_satisfied": 3,
+            "cover_properties_total": 3,
+            "name": "state_root::kani_contracts::state_root_guard_covers_are_reachable",
+            "verdict": "VERIFIED"
+          }
+        ],
+        "verdict": "VERIFIED"
+      },
+      "preimage_injectivity": {
+        "artifact": "state_root_preimage injectivity v5",
+        "assumption": "SHA-256 collision resistance",
+        "obligations": [
+          {
+            "detail": "framing decoder is a left inverse over adversarial bodies",
+            "obligation": "framing_injectivity_unconditional",
+            "ok": true
+          },
+          {
+            "detail": "uvarint round-trips over 14 boundary values",
+            "obligation": "uvarint_injectivity",
+            "ok": true
+          },
+          {
+            "detail": "80 structured states have distinct preimages; dust-only delta changes FEE",
+            "obligation": "bounded_no_collision_incl_FEE",
+            "ok": true
+          }
+        ],
+        "ok": true,
+        "section_labels": [
+          "BAL",
+          "POL",
+          "LPB",
+          "LPA",
+          "NNC",
+          "FEE"
+        ],
+        "state_root_version": 5
+      },
+      "verdict": "VERIFIED"
+    },
+    "running_impl": {
+      "refs": [
+        "src/state/state_root.py",
+        "src/integration/zeno_ledger_v0.py::dex_state_root_v0"
+      ],
+      "verdict": "CHECKED"
+    },
+    "runtime_invariants": {
+      "command_ids": [
+        "state_root_runtime_binding"
+      ],
+      "verdict": "ENFORCED_AND_TESTED"
+    }
+  },
+  "private_toolchain_source_included": false,
+  "receipt_sha256": "ff528c31b67451ffe4c6a824276404cc391b995cd9780b27e0f6697b2a7e12c1",
+  "required_test_commands": [
+    {
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/state/test_state_root_determinism.py",
+        "tests/runtime/test_state_root_injectivity_proof.py",
+        "tests/runtime/test_state_root_section_framing_grid.py",
+        "tests/runtime/test_state_root_lp_duration_exhaustive_grid.py"
+      ],
+      "id": "state_root_python_semantics"
+    },
+    {
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/runtime/test_state_root_vectors.py",
+        "tests/runtime/test_state_root_curve_config_grid.py",
+        "tests/runtime/test_state_root_live_path.py"
+      ],
+      "id": "state_root_python_rust_differential"
+    },
+    {
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_zeno_ledger_post_state_root_binding_v0.py",
+        "tests/integration/test_proof_verifier_perps_scope_guard_regression.py"
+      ],
+      "id": "state_root_runtime_binding"
+    }
+  ],
+  "schema": "zenodex.state_root.surface_evidence_receipt.v1",
+  "source_files": [
+    {
+      "path": "src/kernels/dex/state_root_v5_scope_contract.json",
+      "sha256": "10a20f1645386c5dc5fec0b152ca323541208a2a6cce7493fb02a1534c101bff"
+    },
+    {
+      "path": "tools/check_state_root_surface_evidence.py",
+      "sha256": "f6a19e4b50957e50044268d0abbe4edea00e0cb6a6fbd688572dbd91d2358c23"
+    },
+    {
+      "path": "tests/test_check_state_root_surface_evidence.py",
+      "sha256": "221feaae152728a961290424f3900d8fd3e2c997862f16ace08e8effa33f5621"
+    },
+    {
+      "path": "src/state/state_root.py",
+      "sha256": "0083b630797d5f26af32c633ef9bebb9beb4c6a6ea98ccd5c3ae136b6229dd08"
+    },
+    {
+      "path": "src/integration/zeno_ledger_v0.py",
+      "sha256": "28e18287789c15460cbf13ceb6d95d632449f3b63f267ca9933ee1f38538727b"
+    },
+    {
+      "path": "src/runtime/authority.py",
+      "sha256": "39d83a152308007e30d1566959d3debad9dfc53db8020d6ddd2c9b1b7deec26b"
+    },
+    {
+      "path": "src/runtime/rust_invoker.py",
+      "sha256": "8a1b4f6e56a4ecb748a7032997e7cd982250f09ac15aca069140bf3ab0771039"
+    },
+    {
+      "path": "rust-runtime/crates/zenodex-runtime-core/src/state_root.rs",
+      "sha256": "63f849c40716023cfd0130e1eeaecd2c14c8b5582d7e9474d8acb8a7b54992cf"
+    },
+    {
+      "path": "tools/runtime/state_root_lib.py",
+      "sha256": "9642b935579053d962565b32db2dca3c322fe062fce74123cd1a47792f56bb0f"
+    },
+    {
+      "path": "tools/runtime/state_root_injectivity.py",
+      "sha256": "196f3214651bbcd64bff60372a173cda679db4ac17905beb17ecffd6e7944827"
+    },
+    {
+      "path": "tests/state/test_state_root_determinism.py",
+      "sha256": "f68b7b84acd67ff440a6a5d500a2f8e264ece5619fcdd1be0d4a199b5a072ae4"
+    },
+    {
+      "path": "tests/runtime/test_state_root_vectors.py",
+      "sha256": "71c4918c31f840b50405475e484792fd177aeb5a40aacac893eb1626779cfb7c"
+    },
+    {
+      "path": "tests/runtime/test_state_root_live_path.py",
+      "sha256": "f783afb0008cf3cc72b7fa7b4c1fe8dd3aa97eb6ae32fc845c8b05888e06dc89"
+    },
+    {
+      "path": "tests/runtime/test_state_root_injectivity_proof.py",
+      "sha256": "6ad5450db2cb20cab5327c40bd4a9d59945e357e8f9e1d8078df9f3af6b58285"
+    },
+    {
+      "path": "tests/runtime/test_state_root_section_framing_grid.py",
+      "sha256": "eed456e2924d754e973de903e49e126b3ea51f9276dde734f42c150711e410e1"
+    },
+    {
+      "path": "tests/runtime/test_state_root_curve_config_grid.py",
+      "sha256": "6db54de68985bba9d7f71f47038192df7432bb5b2a8710b8499ea33ef3250fe9"
+    },
+    {
+      "path": "tests/runtime/test_state_root_lp_duration_exhaustive_grid.py",
+      "sha256": "e93f4a6ece70786a898df56d859744dd5b9d2d9468f38740244906a76e3554df"
+    },
+    {
+      "path": "tests/integration/test_zeno_ledger_post_state_root_binding_v0.py",
+      "sha256": "4671364132c0bcd917ba3552d56a3a4a18ec8f93d885d33da187c864320de76b"
+    },
+    {
+      "path": "tests/integration/test_proof_verifier_perps_scope_guard_regression.py",
+      "sha256": "8b29c2345c3cf740cbf76ed1a66d792becb208a8ba7ada6ea8bd27782343b8e5"
+    },
+    {
+      "path": "config/deploy/production-strict.yaml",
+      "sha256": "d8439eda9649d1c5786b451acfb16a152d2ba18a7e50307dc766e2f9b03b269a"
+    },
+    {
+      "path": "config/deploy/public-testnet.yaml",
+      "sha256": "d1a1d1b75a6e4299ba53d247ca2d5341c0d04d605ea97d937696367c1d0f4e67"
+    },
+    {
+      "path": ".github/workflows/runtime-shadow.yml",
+      "sha256": "e8da23b00326156e4e624e51b3b780b7b24368b81fab279affd4c2ab355e6051"
+    }
+  ],
+  "state_root_version": 5,
+  "surface_id": "state_root"
+}

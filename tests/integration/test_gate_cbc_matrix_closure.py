@@ -53,8 +53,9 @@ def _run(reg_path: Path, *, override=None, dev: bool = True) -> int:
 
 
 def test_default_registry_is_blocked_failclosed() -> None:
-    # The shipped registry is an honest work-tracker: every column unverified, so
-    # the gate MUST fail closed (exit 1) — no surface is production-ready yet.
+    # The shipped registry is an honest work-tracker: some surfaces now have
+    # cleared columns, but at least one in-scope surface is still blocked, so the
+    # production gate MUST fail closed (exit 1).
     # Run in PRODUCTION mode (default): scope_id spot_dex is source-pinned.
     assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 1
 
@@ -71,12 +72,11 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     # NOT deleted (deleting a row to pass the AND would be dishonest).
     assert "replay_guard" in evidence_only
     assert surfaces["replay_guard"].get("attached_to") == "nonces"
-    # Honesty guard: NO surface has prematurely fully-cleared (open_gaps_closed),
-    # so the scope claim stays blocked. Individual evidence columns MAY be
-    # genuinely verified as surfaces make progress (e.g. nonces.authority_mode in
-    # Phase 2); the gate's own tests assert the scope claim is still False.
-    for surface in surfaces.values():
-        assert surface["open_gaps_closed"] is False
+    # Honesty guard: a surface may clear only with evidence, but the scope claim
+    # stays blocked while any other authority surface is still open.
+    assert surfaces["state_root"]["open_gaps_closed"] is True
+    for surface_id in set(SPOT_DEX_SCOPE) - {"state_root"}:
+        assert surfaces[surface_id]["open_gaps_closed"] is False
     assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 1
 
 
