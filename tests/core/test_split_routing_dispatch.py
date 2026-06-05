@@ -14,8 +14,14 @@ import pytest
 
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.split_routing_dispatch import (
+    ExactOutCapacityGuard,
+    ExactOutRouteCanonicalKey,
     SplitLegExactOutQuote,
+    SplitLegQuote,
     SplitManyPoolsExactOutQuote,
+    SplitManyPoolsQuote,
+    SplitTwoPoolsQuote,
+    best_split_many_pools_exact_in_for_pools,
     best_split_many_pools_exact_out_for_pools,
     best_split_two_pools_exact_in_for_pools,
     best_split_two_pools_exact_out_for_pools,
@@ -29,7 +35,6 @@ from src.state.pools import (
     PoolState,
     PoolStatus,
 )
-
 
 ASSET0 = "0x" + "01" * 32
 ASSET1 = "0x" + "02" * 32
@@ -448,3 +453,218 @@ class TestSplitRoutingDispatch:
         assert key.amount_in_total == 11
         assert key.leg_count == 2
         assert key.legs_lex == (("pool_a", 4), ("pool_c", 6))
+
+    def test_route_quote_objects_reject_coerced_numeric_fields(self) -> None:
+        # REVIEW [B -> A-]: route quotes previously used int(value) as their
+        # constructor check. That accepted True as amount 1 and strings as
+        # amounts, so malformed route evidence could pass until much later.
+        bad_constructors = (
+            lambda: SplitTwoPoolsQuote(
+                pool0_id="pool_a",
+                pool1_id="pool_b",
+                amount_in_total=1,
+                amount_out_total=1,
+                amount_in_0=True,  # type: ignore[arg-type]
+                amount_out_0=1,
+                amount_in_1=0,
+                amount_out_1=0,
+            ),
+            lambda: SplitLegQuote(pool_id="pool_a", amount_in="5", amount_out=1),  # type: ignore[arg-type]
+            lambda: SplitManyPoolsQuote(
+                amount_in_total=True,  # type: ignore[arg-type]
+                amount_out_total=1,
+                legs=(SplitLegQuote(pool_id="pool_a", amount_in=1, amount_out=1),),
+            ),
+            lambda: SplitLegExactOutQuote(pool_id="pool_a", amount_out=True, amount_in=1),  # type: ignore[arg-type]
+            lambda: SplitManyPoolsExactOutQuote(
+                amount_out_total="1",  # type: ignore[arg-type]
+                amount_in_total=1,
+                legs=(SplitLegExactOutQuote(pool_id="pool_a", amount_out=1, amount_in=1),),
+            ),
+            lambda: ExactOutCapacityGuard(
+                amount_out_total=1,
+                max_legs=True,  # type: ignore[arg-type]
+                top_caps=(("pool_a", 1),),
+                capacity_upper_bound=1,
+            ),
+            lambda: ExactOutRouteCanonicalKey(
+                amount_in_total="1",  # type: ignore[arg-type]
+                leg_count=1,
+                legs_lex=(("pool_a", 1),),
+            ),
+            lambda: exact_out_route_canonical_key_for_legs(
+                amount_in_total=1,
+                legs=(("pool_a", True),),  # type: ignore[list-item]
+            ),
+        )
+
+        for make_bad in bad_constructors:
+            with pytest.raises(TypeError):
+                make_bad()
+
+    def test_route_quote_objects_reject_invalid_shapes_and_totals(self) -> None:
+        # REVIEW [B -> A-]: strict primitive types are only one part of the
+        # route-evidence contract. The certificate objects also need to reject
+        # duplicate pools, malformed leg containers, and inconsistent totals at
+        # construction time.
+        with pytest.raises(ValueError, match="pool_id"):
+            SplitLegQuote(pool_id="", amount_in=1, amount_out=1)
+
+        with pytest.raises(ValueError, match="must not repeat"):
+            SplitTwoPoolsQuote(
+                pool0_id="pool_a",
+                pool1_id="pool_a",
+                amount_in_total=1,
+                amount_out_total=1,
+                amount_in_0=1,
+                amount_out_0=1,
+                amount_in_1=0,
+                amount_out_1=0,
+            )
+        with pytest.raises(ValueError, match="sum of leg inputs"):
+            SplitTwoPoolsQuote(
+                pool0_id="pool_a",
+                pool1_id="pool_b",
+                amount_in_total=2,
+                amount_out_total=1,
+                amount_in_0=1,
+                amount_out_0=1,
+                amount_in_1=0,
+                amount_out_1=0,
+            )
+        with pytest.raises(ValueError, match="sum of leg outputs"):
+            SplitTwoPoolsQuote(
+                pool0_id="pool_a",
+                pool1_id="pool_b",
+                amount_in_total=1,
+                amount_out_total=2,
+                amount_in_0=1,
+                amount_out_0=1,
+                amount_in_1=0,
+                amount_out_1=0,
+            )
+
+        good_leg = SplitLegQuote(pool_id="pool_a", amount_in=1, amount_out=1)
+        with pytest.raises(TypeError, match="legs must be a tuple"):
+            SplitManyPoolsQuote(amount_in_total=1, amount_out_total=1, legs=[good_leg])  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="SplitLegQuote"):
+            SplitManyPoolsQuote(amount_in_total=1, amount_out_total=1, legs=("bad",))  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="must not repeat"):
+            SplitManyPoolsQuote(
+                amount_in_total=2,
+                amount_out_total=2,
+                legs=(
+                    good_leg,
+                    SplitLegQuote(pool_id="pool_a", amount_in=1, amount_out=1),
+                ),
+            )
+        with pytest.raises(ValueError, match="sum of leg outputs"):
+            SplitManyPoolsQuote(amount_in_total=1, amount_out_total=2, legs=(good_leg,))
+
+        good_exact_leg = SplitLegExactOutQuote(pool_id="pool_a", amount_out=1, amount_in=1)
+        with pytest.raises(TypeError, match="legs must be a tuple"):
+            SplitManyPoolsExactOutQuote(
+                amount_out_total=1,
+                amount_in_total=1,
+                legs=[good_exact_leg],  # type: ignore[arg-type]
+            )
+        with pytest.raises(TypeError, match="SplitLegExactOutQuote"):
+            SplitManyPoolsExactOutQuote(amount_out_total=1, amount_in_total=1, legs=("bad",))  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="sum of leg inputs"):
+            SplitManyPoolsExactOutQuote(amount_out_total=1, amount_in_total=2, legs=(good_exact_leg,))
+
+        with pytest.raises(TypeError, match="top_caps must be a tuple"):
+            ExactOutCapacityGuard(
+                amount_out_total=1,
+                max_legs=1,
+                top_caps=[("pool_a", 1)],  # type: ignore[arg-type]
+                capacity_upper_bound=1,
+            )
+        with pytest.raises(ValueError, match="must not exceed"):
+            ExactOutCapacityGuard(
+                amount_out_total=1,
+                max_legs=1,
+                top_caps=(("pool_a", 1), ("pool_b", 1)),
+                capacity_upper_bound=2,
+            )
+        with pytest.raises(ValueError, match="must not repeat"):
+            ExactOutCapacityGuard(
+                amount_out_total=1,
+                max_legs=2,
+                top_caps=(("pool_a", 1), ("pool_a", 1)),
+                capacity_upper_bound=2,
+            )
+        with pytest.raises(ValueError, match="capacity_upper_bound"):
+            ExactOutCapacityGuard(
+                amount_out_total=1,
+                max_legs=1,
+                top_caps=(("pool_a", 1),),
+                capacity_upper_bound=2,
+            )
+
+        with pytest.raises(TypeError, match="legs_lex must be a tuple"):
+            ExactOutRouteCanonicalKey(amount_in_total=1, leg_count=1, legs_lex=[("pool_a", 1)])  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="leg_count"):
+            ExactOutRouteCanonicalKey(amount_in_total=1, leg_count=2, legs_lex=(("pool_a", 1),))
+        with pytest.raises(ValueError, match="sorted"):
+            ExactOutRouteCanonicalKey(
+                amount_in_total=1,
+                leg_count=2,
+                legs_lex=(("pool_b", 1), ("pool_a", 1)),
+            )
+        with pytest.raises(ValueError, match="must not repeat"):
+            ExactOutRouteCanonicalKey(
+                amount_in_total=1,
+                leg_count=2,
+                legs_lex=(("pool_a", 1), ("pool_a", 1)),
+            )
+
+    def test_public_route_helpers_reject_bool_numeric_controls(self) -> None:
+        # REVIEW [B -> A-]: the quote constructors are now strict, and the
+        # callable route surface must be strict too. Otherwise callers can still
+        # run a route with True as a one-unit trade or one-leg search bound.
+        p0 = _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=10_000, reserve1=10_000, fee_bps=0)
+        p1 = _mk_pool(pool_id="pool_b", curve_tag=CURVE_TAG_CPMM, reserve0=10_000, reserve1=10_000, fee_bps=0)
+        pools = (p0, p1)
+        bad_calls = (
+            lambda: best_split_two_pools_exact_in_for_pools(
+                p0,
+                p1,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_in_total=True,  # type: ignore[arg-type]
+            ),
+            lambda: best_split_two_pools_exact_out_for_pools(
+                p0,
+                p1,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_out_total=1,
+                brute_force_max=True,  # type: ignore[arg-type]
+            ),
+            lambda: exact_out_capacity_guard_for_pools(
+                pools,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_out_total=1,
+                max_legs=True,  # type: ignore[arg-type]
+            ),
+            lambda: best_split_many_pools_exact_in_for_pools(
+                pools,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_in_total=1,
+                max_iters=True,  # type: ignore[arg-type]
+            ),
+            lambda: best_split_many_pools_exact_out_for_pools(
+                pools,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_out_total=1,
+                max_full_domain_pools=True,  # type: ignore[arg-type]
+            ),
+        )
+
+        for call_bad in bad_calls:
+            with pytest.raises(TypeError):
+                call_bad()

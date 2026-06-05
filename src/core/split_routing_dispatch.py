@@ -20,6 +20,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..kernels.python.exact_out_many_pool_canonical_domain_v1 import (
     DEFAULT_EXACT_OUT_MANY_POOL_MAX_ENUMERATED_CANDIDATES,
+)
+from ..kernels.python.exact_out_many_pool_canonical_domain_v1 import (
     build_exact_out_many_pool_selected_domain as _kernel_build_exact_out_many_pool_selected_domain,
 )
 from ..kernels.python.exact_out_many_pool_repaired_prefilter_v1 import (
@@ -28,7 +30,41 @@ from ..kernels.python.exact_out_many_pool_repaired_prefilter_v1 import (
 from ..state.balances import Amount, AssetId
 from ..state.pools import CURVE_TAG_CPMM, PoolState
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
-from .split_routing import PoolXY, best_split_two_pools_exact_in, exact_out_for_pool_exact_in, resolve_two_pool_split_search_params
+from .split_routing import (
+    PoolXY,
+    best_split_two_pools_exact_in,
+    exact_out_for_pool_exact_in,
+    resolve_two_pool_split_search_params,
+)
+
+
+def _require_pool_id(value: object, *, name: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{name} must be a non-empty string")
+    return value
+
+
+def _require_plain_int(value: object, *, name: str) -> int:
+    # REVIEW [B -> A-]: this module previously used int(value) as validation in
+    # quote/certificate constructors. That accepted True as 1 and numeric strings
+    # as route amounts, weakening the evidence boundary around canonical routes.
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
+def _require_positive_int(value: object, *, name: str) -> int:
+    parsed = _require_plain_int(value, name=name)
+    if parsed <= 0:
+        raise ValueError(f"{name} must be positive")
+    return parsed
+
+
+def _require_nonnegative_int(value: object, *, name: str) -> int:
+    parsed = _require_plain_int(value, name=name)
+    if parsed < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return parsed
 
 
 @dataclass(frozen=True)
@@ -42,6 +78,25 @@ class SplitTwoPoolsQuote:
     amount_in_1: Amount
     amount_out_1: Amount
 
+    def __post_init__(self) -> None:
+        # REVIEW [B -> A-]: returned two-pool quotes are route evidence. Validate
+        # direct construction too so malformed tests or deserializers cannot
+        # manufacture a quote whose totals only work after Python coercion.
+        pool0_id = _require_pool_id(self.pool0_id, name="pool0_id")
+        pool1_id = _require_pool_id(self.pool1_id, name="pool1_id")
+        if pool0_id == pool1_id:
+            raise ValueError("two-pool quote must not repeat pool_id")
+        amount_in_total = _require_positive_int(self.amount_in_total, name="amount_in_total")
+        amount_out_total = _require_positive_int(self.amount_out_total, name="amount_out_total")
+        amount_in_0 = _require_nonnegative_int(self.amount_in_0, name="amount_in_0")
+        amount_out_0 = _require_nonnegative_int(self.amount_out_0, name="amount_out_0")
+        amount_in_1 = _require_nonnegative_int(self.amount_in_1, name="amount_in_1")
+        amount_out_1 = _require_nonnegative_int(self.amount_out_1, name="amount_out_1")
+        if amount_in_0 + amount_in_1 != amount_in_total:
+            raise ValueError("amount_in_total must equal sum of leg inputs")
+        if amount_out_0 + amount_out_1 != amount_out_total:
+            raise ValueError("amount_out_total must equal sum of leg outputs")
+
 
 @dataclass(frozen=True)
 class SplitLegQuote:
@@ -50,12 +105,9 @@ class SplitLegQuote:
     amount_out: Amount
 
     def __post_init__(self) -> None:
-        if not self.pool_id:
-            raise ValueError("pool_id must be non-empty")
-        if int(self.amount_in) <= 0:
-            raise ValueError("amount_in must be positive")
-        if int(self.amount_out) <= 0:
-            raise ValueError("amount_out must be positive")
+        _require_pool_id(self.pool_id, name="pool_id")
+        _require_positive_int(self.amount_in, name="amount_in")
+        _require_positive_int(self.amount_out, name="amount_out")
 
 
 @dataclass(frozen=True)
@@ -65,24 +117,26 @@ class SplitManyPoolsQuote:
     legs: Tuple[SplitLegQuote, ...]
 
     def __post_init__(self) -> None:
-        if int(self.amount_in_total) <= 0:
-            raise ValueError("amount_in_total must be positive")
-        if int(self.amount_out_total) <= 0:
-            raise ValueError("amount_out_total must be positive")
+        amount_in_total = _require_positive_int(self.amount_in_total, name="amount_in_total")
+        amount_out_total = _require_positive_int(self.amount_out_total, name="amount_out_total")
+        if not isinstance(self.legs, tuple):
+            raise TypeError("legs must be a tuple")
         if not self.legs:
             raise ValueError("split quote must contain at least one leg")
         seen: set[str] = set()
         total_in = 0
         total_out = 0
         for leg in self.legs:
+            if not isinstance(leg, SplitLegQuote):
+                raise TypeError("legs must contain SplitLegQuote values")
             if leg.pool_id in seen:
                 raise ValueError("split quote must not repeat pool_id")
             seen.add(leg.pool_id)
-            total_in += int(leg.amount_in)
-            total_out += int(leg.amount_out)
-        if total_in != int(self.amount_in_total):
+            total_in += _require_positive_int(leg.amount_in, name="leg.amount_in")
+            total_out += _require_positive_int(leg.amount_out, name="leg.amount_out")
+        if total_in != amount_in_total:
             raise ValueError("amount_in_total must equal sum of leg inputs")
-        if total_out != int(self.amount_out_total):
+        if total_out != amount_out_total:
             raise ValueError("amount_out_total must equal sum of leg outputs")
 
 
@@ -93,12 +147,9 @@ class SplitLegExactOutQuote:
     amount_in: Amount
 
     def __post_init__(self) -> None:
-        if not self.pool_id:
-            raise ValueError("pool_id must be non-empty")
-        if int(self.amount_out) <= 0:
-            raise ValueError("amount_out must be positive")
-        if int(self.amount_in) <= 0:
-            raise ValueError("amount_in must be positive")
+        _require_pool_id(self.pool_id, name="pool_id")
+        _require_positive_int(self.amount_out, name="amount_out")
+        _require_positive_int(self.amount_in, name="amount_in")
 
 
 @dataclass(frozen=True)
@@ -108,24 +159,26 @@ class SplitManyPoolsExactOutQuote:
     legs: Tuple[SplitLegExactOutQuote, ...]
 
     def __post_init__(self) -> None:
-        if int(self.amount_out_total) <= 0:
-            raise ValueError("amount_out_total must be positive")
-        if int(self.amount_in_total) <= 0:
-            raise ValueError("amount_in_total must be positive")
+        amount_out_total = _require_positive_int(self.amount_out_total, name="amount_out_total")
+        amount_in_total = _require_positive_int(self.amount_in_total, name="amount_in_total")
+        if not isinstance(self.legs, tuple):
+            raise TypeError("legs must be a tuple")
         if not self.legs:
             raise ValueError("split quote must contain at least one leg")
         seen: set[str] = set()
         total_out = 0
         total_in = 0
         for leg in self.legs:
+            if not isinstance(leg, SplitLegExactOutQuote):
+                raise TypeError("legs must contain SplitLegExactOutQuote values")
             if leg.pool_id in seen:
                 raise ValueError("split quote must not repeat pool_id")
             seen.add(leg.pool_id)
-            total_out += int(leg.amount_out)
-            total_in += int(leg.amount_in)
-        if total_out != int(self.amount_out_total):
+            total_out += _require_positive_int(leg.amount_out, name="leg.amount_out")
+            total_in += _require_positive_int(leg.amount_in, name="leg.amount_in")
+        if total_out != amount_out_total:
             raise ValueError("amount_out_total must equal sum of leg outputs")
-        if total_in != int(self.amount_in_total):
+        if total_in != amount_in_total:
             raise ValueError("amount_in_total must equal sum of leg inputs")
 
 
@@ -137,29 +190,31 @@ class ExactOutCapacityGuard:
     capacity_upper_bound: Amount
 
     def __post_init__(self) -> None:
-        if int(self.amount_out_total) <= 0:
-            raise ValueError("amount_out_total must be positive")
-        if int(self.max_legs) <= 0:
-            raise ValueError("max_legs must be positive")
-        if len(self.top_caps) > int(self.max_legs):
+        _require_positive_int(self.amount_out_total, name="amount_out_total")
+        max_legs = _require_positive_int(self.max_legs, name="max_legs")
+        capacity_upper_bound = _require_nonnegative_int(self.capacity_upper_bound, name="capacity_upper_bound")
+        if not isinstance(self.top_caps, tuple):
+            raise TypeError("top_caps must be a tuple")
+        if len(self.top_caps) > max_legs:
             raise ValueError("top_caps must not exceed max_legs")
         seen: set[str] = set()
         total = 0
         for pool_id, cap in self.top_caps:
-            if not pool_id:
-                raise ValueError("top_caps pool_id must be non-empty")
+            _require_pool_id(pool_id, name="top_caps pool_id")
             if pool_id in seen:
                 raise ValueError("top_caps must not repeat pool_id")
-            if int(cap) <= 0:
-                raise ValueError("top_caps capacities must be positive")
+            cap = _require_positive_int(cap, name="top_caps capacity")
             seen.add(pool_id)
-            total += int(cap)
-        if total != int(self.capacity_upper_bound):
+            total += cap
+        if total != capacity_upper_bound:
             raise ValueError("capacity_upper_bound must equal sum of top_caps")
 
     @property
     def feasible(self) -> bool:
-        return int(self.capacity_upper_bound) >= int(self.amount_out_total)
+        return _require_nonnegative_int(
+            self.capacity_upper_bound,
+            name="capacity_upper_bound",
+        ) >= _require_positive_int(self.amount_out_total, name="amount_out_total")
 
 
 @dataclass(frozen=True, order=True)
@@ -169,22 +224,20 @@ class ExactOutRouteCanonicalKey:
     legs_lex: Tuple[Tuple[str, Amount], ...]
 
     def __post_init__(self) -> None:
-        if int(self.amount_in_total) <= 0:
-            raise ValueError("amount_in_total must be positive")
-        if int(self.leg_count) <= 0:
-            raise ValueError("leg_count must be positive")
-        if len(self.legs_lex) != int(self.leg_count):
+        _require_positive_int(self.amount_in_total, name="amount_in_total")
+        leg_count = _require_positive_int(self.leg_count, name="leg_count")
+        if not isinstance(self.legs_lex, tuple):
+            raise TypeError("legs_lex must be a tuple")
+        if len(self.legs_lex) != leg_count:
             raise ValueError("leg_count must equal len(legs_lex)")
         if tuple(sorted(self.legs_lex, key=lambda item: item[0])) != self.legs_lex:
             raise ValueError("legs_lex must be sorted by pool_id")
         seen: set[str] = set()
         for pool_id, amount_out in self.legs_lex:
-            if not pool_id:
-                raise ValueError("legs_lex pool_id must be non-empty")
+            _require_pool_id(pool_id, name="legs_lex pool_id")
             if pool_id in seen:
                 raise ValueError("legs_lex must not repeat pool_id")
-            if int(amount_out) <= 0:
-                raise ValueError("legs_lex amounts must be positive")
+            _require_positive_int(amount_out, name="legs_lex amount")
             seen.add(pool_id)
 
 
@@ -194,9 +247,21 @@ def exact_out_route_canonical_key_for_legs(
     amount_in_total: Amount,
     legs: Sequence[Tuple[str, Amount]],
 ) -> ExactOutRouteCanonicalKey:
-    legs_lex = tuple(sorted(((str(pool_id), int(amount_out)) for pool_id, amount_out in legs), key=lambda item: item[0]))
+    total_in = _require_positive_int(amount_in_total, name="amount_in_total")
+    legs_lex = tuple(
+        sorted(
+            (
+                (
+                    _require_pool_id(pool_id, name="leg pool_id"),
+                    _require_positive_int(amount_out, name="leg amount_out"),
+                )
+                for pool_id, amount_out in legs
+            ),
+            key=lambda item: item[0],
+        )
+    )
     return ExactOutRouteCanonicalKey(
-        amount_in_total=int(amount_in_total),
+        amount_in_total=total_in,
         leg_count=len(legs_lex),
         legs_lex=legs_lex,
     )
@@ -222,29 +287,29 @@ def _reserves_for(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId) -> 
 
 
 def _quote_exact_in(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_in: Amount) -> int:
-    if amount_in <= 0:
-        raise ValueError("amount_in must be positive")
+    amount_in = _require_positive_int(amount_in, name="amount_in")
     reserves = _reserves_for(pool, asset_in=asset_in, asset_out=asset_out)
     if reserves is None:
         raise ValueError("pool does not support this direction (or is inactive)")
     rin, rout = reserves
-    out, _ = swap_exact_in_for_pool(pool, reserve_in=rin, reserve_out=rout, amount_in=int(amount_in))
+    out, _ = swap_exact_in_for_pool(pool, reserve_in=rin, reserve_out=rout, amount_in=amount_in)
     return int(out)
 
 
 def _quote_exact_out(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_out: Amount) -> int:
-    if amount_out <= 0:
-        raise ValueError("amount_out must be positive")
+    amount_out = _require_positive_int(amount_out, name="amount_out")
     reserves = _reserves_for(pool, asset_in=asset_in, asset_out=asset_out)
     if reserves is None:
         raise ValueError("pool does not support this direction (or is inactive)")
     rin, rout = reserves
-    amount_in, _ = swap_exact_out_for_pool(pool, reserve_in=rin, reserve_out=rout, amount_out=int(amount_out))
+    amount_in, _ = swap_exact_out_for_pool(pool, reserve_in=rin, reserve_out=rout, amount_out=amount_out)
     return int(amount_in)
 
 
 def _is_valid_exact_out(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_out: Amount) -> bool:
-    if amount_out <= 0:
+    try:
+        amount_out = _require_positive_int(amount_out, name="amount_out")
+    except (TypeError, ValueError):
         return False
     try:
         _quote_exact_out(pool, asset_in=asset_in, asset_out=asset_out, amount_out=amount_out)
@@ -254,7 +319,9 @@ def _is_valid_exact_out(pool: PoolState, *, asset_in: AssetId, asset_out: AssetI
 
 
 def _is_valid(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_in: Amount) -> bool:
-    if amount_in <= 0:
+    try:
+        amount_in = _require_positive_int(amount_in, name="amount_in")
+    except (TypeError, ValueError):
         return False
     try:
         _quote_exact_in(pool, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in)
@@ -269,15 +336,21 @@ def _build_exact_out_capacity_guard(
     amount_out_total: Amount,
     max_legs: int,
 ) -> ExactOutCapacityGuard:
+    amount_out_total = _require_positive_int(amount_out_total, name="amount_out_total")
+    max_legs = _require_positive_int(max_legs, name="max_legs")
     ranked_caps = sorted(
-        ((str(pool_id), int(cap)) for pool_id, cap in caps_by_pool if int(cap) > 0),
+        (
+            (_require_pool_id(pool_id, name="cap pool_id"), _require_positive_int(cap, name="cap"))
+            for pool_id, cap in caps_by_pool
+            if _require_plain_int(cap, name="cap") > 0
+        ),
         key=lambda item: (-int(item[1]), item[0]),
     )
-    top_caps = tuple(ranked_caps[: min(int(max_legs), len(ranked_caps))])
+    top_caps = tuple(ranked_caps[: min(max_legs, len(ranked_caps))])
     capacity_upper_bound = sum(int(cap) for _pool_id, cap in top_caps)
     return ExactOutCapacityGuard(
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
+        amount_out_total=amount_out_total,
+        max_legs=max_legs,
         top_caps=top_caps,
         capacity_upper_bound=int(capacity_upper_bound),
     )
@@ -291,12 +364,9 @@ def exact_out_capacity_guard_for_pools(
     amount_out_total: Amount,
     max_legs: int,
 ) -> ExactOutCapacityGuard:
-    if amount_out_total <= 0:
-        raise ValueError("amount_out_total must be positive")
-    if max_legs <= 0:
-        raise ValueError("max_legs must be positive")
+    target_out = _require_positive_int(amount_out_total, name="amount_out_total")
+    max_legs = _require_positive_int(max_legs, name="max_legs")
     caps_by_pool: list[tuple[str, int]] = []
-    target_out = int(amount_out_total)
     for pool in pools:
         if pool.status.value != "ACTIVE":
             continue
@@ -319,18 +389,19 @@ def exact_out_capacity_guard_for_pools(
         caps_by_pool.append((pool.pool_id, int(cap)))
     return _build_exact_out_capacity_guard(
         caps_by_pool,
-        amount_out_total=int(target_out),
-        max_legs=int(max_legs),
+        amount_out_total=target_out,
+        max_legs=max_legs,
     )
 
 
 def _min_valid_amount(
     pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_in_total: Amount
 ) -> Optional[int]:
+    amount_in_total = _require_positive_int(amount_in_total, name="amount_in_total")
     if not _is_valid(pool, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in_total):
         return None
     lo = 1
-    hi = int(amount_in_total)
+    hi = amount_in_total
     while lo < hi:
         mid = (lo + hi) // 2
         if _is_valid(pool, asset_in=asset_in, asset_out=asset_out, amount_in=int(mid)):
@@ -348,12 +419,11 @@ def _brute_force_best_split(
     asset_out: AssetId,
     amount_in_total: Amount,
 ) -> Tuple[int, int]:
-    if amount_in_total <= 0:
-        raise ValueError("amount_in_total must be positive")
+    amount_in_total = _require_positive_int(amount_in_total, name="amount_in_total")
     best_out: int | None = None
     best_a = 0
-    for a in range(0, int(amount_in_total) + 1):
-        b = int(amount_in_total) - a
+    for a in range(0, amount_in_total + 1):
+        b = amount_in_total - a
         try:
             out0 = _quote_exact_in(pool0, asset_in=asset_in, asset_out=asset_out, amount_in=a) if a > 0 else 0
             out1 = _quote_exact_in(pool1, asset_in=asset_in, asset_out=asset_out, amount_in=b) if b > 0 else 0
@@ -378,12 +448,11 @@ def _generic_best_split_two_pools_exact_in(
     window: int,
     brute_force_max: int,
 ) -> Tuple[int, int]:
-    if amount_in_total <= 0:
-        raise ValueError("amount_in_total must be positive")
-    if window < 0:
-        raise ValueError("window must be non-negative")
+    amount_in_total = _require_positive_int(amount_in_total, name="amount_in_total")
+    window = _require_nonnegative_int(window, name="window")
+    brute_force_max = _require_nonnegative_int(brute_force_max, name="brute_force_max")
 
-    if int(amount_in_total) <= int(brute_force_max):
+    if amount_in_total <= brute_force_max:
         return _brute_force_best_split(
             pool0,
             pool1,
@@ -393,9 +462,9 @@ def _generic_best_split_two_pools_exact_in(
         )
 
     def total_out(a: int) -> int | None:
-        if not (0 <= a <= int(amount_in_total)):
+        if not (0 <= a <= amount_in_total):
             return None
-        b = int(amount_in_total) - a
+        b = amount_in_total - a
         try:
             out0 = _quote_exact_in(pool0, asset_in=asset_in, asset_out=asset_out, amount_in=a) if a > 0 else 0
             out1 = _quote_exact_in(pool1, asset_in=asset_in, asset_out=asset_out, amount_in=b) if b > 0 else 0
@@ -419,7 +488,7 @@ def _generic_best_split_two_pools_exact_in(
 
     best_out = -1
     best_a = 0
-    for a in (0, int(amount_in_total)):
+    for a in (0, amount_in_total):
         tot = total_out(a)
         if tot is None:
             continue
@@ -431,18 +500,18 @@ def _generic_best_split_two_pools_exact_in(
     min1 = _min_valid_amount(pool1, asset_in=asset_in, asset_out=asset_out, amount_in_total=amount_in_total)
     if min0 is not None and min1 is not None:
         lo_both = int(min0)
-        hi_both = int(amount_in_total) - int(min1)
+        hi_both = amount_in_total - int(min1)
         if lo_both <= hi_both:
             span = int(hi_both - lo_both)
             centers = {lo_both, hi_both, (lo_both + hi_both) // 2}
-            if span > 8 * int(window):
+            if span > 8 * window:
                 for i in range(1, 8):
                     centers.add(lo_both + (span * i) // 8)
 
             best_both: tuple[int, int] | None = None
             for c in sorted(centers):
-                r_lo = max(lo_both, int(c) - int(window))
-                r_hi = min(hi_both, int(c) + int(window))
+                r_lo = max(lo_both, int(c) - window)
+                r_hi = min(hi_both, int(c) + window)
                 cand = scan_range(r_lo, r_hi)
                 if cand is None:
                     continue
@@ -451,7 +520,7 @@ def _generic_best_split_two_pools_exact_in(
 
             if best_both is not None:
                 refine_out, refine_a = best_both
-                half = max(1, int(window))
+                half = max(1, window)
                 while True:
                     r_lo = max(lo_both, refine_a - half)
                     r_hi = min(hi_both, refine_a + half)
@@ -502,8 +571,8 @@ def best_split_two_pools_exact_in_for_pools(
     - Pools are ordered by `pool_id` before split optimization.
     - Ties are broken by smaller `amount_in_0` (send less to the first pool).
     """
-    if amount_in_total <= 0:
-        raise ValueError("amount_in_total must be positive")
+    amount_in_total = _require_positive_int(amount_in_total, name="amount_in_total")
+    window = _require_nonnegative_int(window, name="window")
 
     # Canonicalize pool order.
     p0, p1 = (pool0, pool1) if pool0.pool_id <= pool1.pool_id else (pool1, pool0)
@@ -521,27 +590,27 @@ def best_split_two_pools_exact_in_for_pools(
         win2, prof2 = resolve_two_pool_split_search_params(
             xy0,
             xy1,
-            int(amount_in_total),
+            amount_in_total,
             search_profile=str(search_profile),
-            window=int(window),
+            window=window,
         )
         best_out, best_a = best_split_two_pools_exact_in(
             xy0,
             xy1,
-            int(amount_in_total),
+            amount_in_total,
             window=int(win2),
             search_profile=str(prof2),
         )
         out0 = exact_out_for_pool_exact_in(xy0, best_a) if best_a > 0 else 0
-        out1 = exact_out_for_pool_exact_in(xy1, int(amount_in_total) - best_a) if best_a < int(amount_in_total) else 0
+        out1 = exact_out_for_pool_exact_in(xy1, amount_in_total - best_a) if best_a < amount_in_total else 0
         return SplitTwoPoolsQuote(
             pool0_id=p0.pool_id,
             pool1_id=p1.pool_id,
-            amount_in_total=int(amount_in_total),
+            amount_in_total=amount_in_total,
             amount_out_total=int(best_out),
             amount_in_0=int(best_a),
             amount_out_0=int(out0),
-            amount_in_1=int(amount_in_total) - int(best_a),
+            amount_in_1=amount_in_total - int(best_a),
             amount_out_1=int(out1),
         )
 
@@ -551,10 +620,10 @@ def best_split_two_pools_exact_in_for_pools(
         asset_in=asset_in,
         asset_out=asset_out,
         amount_in_total=amount_in_total,
-        window=int(window),
+        window=window,
         brute_force_max=2048,
     )
-    b = int(amount_in_total) - int(best_a)
+    b = amount_in_total - int(best_a)
     out0 = _quote_exact_in(p0, asset_in=asset_in, asset_out=asset_out, amount_in=int(best_a)) if best_a > 0 else 0
     out1 = _quote_exact_in(p1, asset_in=asset_in, asset_out=asset_out, amount_in=int(b)) if b > 0 else 0
     if int(out0 + out1) != int(best_out):
@@ -563,7 +632,7 @@ def best_split_two_pools_exact_in_for_pools(
     return SplitTwoPoolsQuote(
         pool0_id=p0.pool_id,
         pool1_id=p1.pool_id,
-        amount_in_total=int(amount_in_total),
+        amount_in_total=amount_in_total,
         amount_out_total=int(best_out),
         amount_in_0=int(best_a),
         amount_out_0=int(out0),
@@ -595,12 +664,9 @@ def best_split_two_pools_exact_out_for_pools(
     - Uses brute-force for `amount_out_total <= brute_force_max`.
     - Otherwise uses a deterministic windowed search around a continuous approximation.
     """
-    if amount_out_total <= 0:
-        raise ValueError("amount_out_total must be positive")
-    if window < 0:
-        raise ValueError("window must be non-negative")
-    if brute_force_max < 0:
-        raise ValueError("brute_force_max must be non-negative")
+    amount_out_total = _require_positive_int(amount_out_total, name="amount_out_total")
+    window = _require_nonnegative_int(window, name="window")
+    brute_force_max = _require_nonnegative_int(brute_force_max, name="brute_force_max")
 
     # Canonicalize pool order.
     p0, p1 = (pool0, pool1) if pool0.pool_id <= pool1.pool_id else (pool1, pool0)
@@ -612,7 +678,7 @@ def best_split_two_pools_exact_out_for_pools(
     rin0, rout0 = r0
     rin1, rout1 = r1
 
-    Q = int(amount_out_total)
+    Q = amount_out_total
     # Upper bounds (conservative) for per-leg exact-out under CPMM-like semantics: amount_out < reserve_out.
     max0 = max(0, int(rout0) - 1)
     max1 = max(0, int(rout1) - 1)
@@ -720,7 +786,7 @@ def best_split_two_pools_exact_out_for_pools(
         q0_star = seed_q0()
 
         centers = {int(lo), int(hi), int(q0_star), int((int(lo) + int(hi)) // 2)}
-        if int(span) > 8 * int(window):
+        if int(span) > 8 * window:
             # Reduce the number of additional grid centers to keep quote costs bounded, while still
             # covering near-endpoint pockets where rounding can create small global improvements.
             for i in (1, 3, 5, 7):
@@ -731,8 +797,8 @@ def best_split_two_pools_exact_out_for_pools(
         best_q0 = int(lo)
         best_found = False
         for c in sorted(centers):
-            r_lo = max(int(lo), int(c) - int(window))
-            r_hi = min(int(hi), int(c) + int(window))
+            r_lo = max(int(lo), int(c) - window)
+            r_hi = min(int(hi), int(c) + window)
             cand = scan_range(int(r_lo), int(r_hi))
             if cand is None:
                 continue
@@ -748,7 +814,7 @@ def best_split_two_pools_exact_out_for_pools(
 
         # Canonicalization sweep (bounded): when minimizers are disconnected, local plateau walking is insufficient.
         # Scan a left-biased band near the current best and pick the leftmost minimizer found.
-        canon_left = max(128, 4 * int(window))
+        canon_left = max(128, 4 * window)
         sweep_lo = max(int(lo), int(best_q0) - int(canon_left))
         sweep = scan_range(int(sweep_lo), int(best_q0))
         if sweep is not None:
@@ -760,7 +826,7 @@ def best_split_two_pools_exact_out_for_pools(
         return int(best_in), int(best_q0)
 
     # Small exact-out amounts: brute force for exact optimality + canonical tie-break.
-    if int(Q) <= int(brute_force_max) or span <= int(brute_force_max):
+    if Q <= brute_force_max or span <= brute_force_max:
         brute = scan_range(int(lo), int(hi))
         if brute is None:
             raise ValueError("no feasible split")
@@ -805,14 +871,10 @@ def best_split_many_pools_exact_in_for_pools(
     - Use a bounded multi-stage greedy allocator (marginal-output-per-input), with deterministic tie-breaks.
     - Limit to at most `max_legs` non-zero legs and `max_candidates` candidate pools.
     """
-    if amount_in_total <= 0:
-        raise ValueError("amount_in_total must be positive")
-    if max_legs <= 0:
-        raise ValueError("max_legs must be positive")
-    if max_candidates <= 0:
-        raise ValueError("max_candidates must be positive")
-    if max_iters <= 0:
-        raise ValueError("max_iters must be positive")
+    amount_in_total = _require_positive_int(amount_in_total, name="amount_in_total")
+    max_legs = _require_positive_int(max_legs, name="max_legs")
+    max_candidates = _require_positive_int(max_candidates, name="max_candidates")
+    max_iters = _require_positive_int(max_iters, name="max_iters")
 
     # Filter to feasible direct pools (direction + active + nonzero output at full amount).
     feasible: List[PoolState] = []
@@ -839,7 +901,7 @@ def best_split_many_pools_exact_in_for_pools(
     if not ranked:
         raise ValueError("no feasible pools for split")
     ranked.sort(key=lambda t: (-int(t[0]), t[1].pool_id))
-    candidates: List[PoolState] = [p for _out, p in ranked[: min(int(max_candidates), len(ranked))]]
+    candidates: List[PoolState] = [p for _out, p in ranked[: min(max_candidates, len(ranked))]]
 
     # Canonicalize pool order for deterministic tie-breaks.
     candidates.sort(key=lambda p: p.pool_id)
@@ -888,7 +950,7 @@ def best_split_many_pools_exact_in_for_pools(
         for pid in seed_order:
             if remaining <= 0:
                 break
-            if len(used) >= int(max_legs):
+            if len(used) >= max_legs:
                 break
             mv = int(min_valid[pid])
             if mv <= 0 or mv > remaining:
@@ -918,7 +980,7 @@ def best_split_many_pools_exact_in_for_pools(
 
             for pid in pools_by_id.keys():
                 curr = int(alloc.get(pid, 0))
-                if curr == 0 and pid not in used and len(used) >= int(max_legs):
+                if curr == 0 and pid not in used and len(used) >= max_legs:
                     continue
 
                 inc = int(base)
@@ -977,7 +1039,7 @@ def best_split_many_pools_exact_in_for_pools(
 
     # Multi-stage schedule: start coarse, refine until step yields <= max_iters increments.
     D = int(amount_in_total)
-    step_min = max(1, D // int(max_iters))
+    step_min = max(1, D // max_iters)
     step = max(step_min, max(1, D // 256))
 
     best_alloc: Optional[Dict[str, int]] = None
@@ -1027,10 +1089,10 @@ def best_split_many_pools_exact_in_for_pools(
         out_total += int(out_amt)
 
     # All input must be allocated.
-    if in_total != int(amount_in_total):
+    if in_total != amount_in_total:
         raise ValueError("split allocation did not consume full input (unexpected)")
 
-    return SplitManyPoolsQuote(amount_in_total=int(amount_in_total), amount_out_total=int(out_total), legs=tuple(legs))
+    return SplitManyPoolsQuote(amount_in_total=amount_in_total, amount_out_total=int(out_total), legs=tuple(legs))
 
 
 def best_split_many_pools_exact_out_for_pools(
@@ -1068,22 +1130,15 @@ def best_split_many_pools_exact_out_for_pools(
       preserves the older heuristic prefilter.
     - If the selected domain exceeds the bounded enumeration budget, this path fails closed.
     """
-    if amount_out_total <= 0:
-        raise ValueError("amount_out_total must be positive")
-    if max_legs <= 0:
-        raise ValueError("max_legs must be positive")
-    if max_candidates <= 0:
-        raise ValueError("max_candidates must be positive")
-    if max_iters <= 0:
-        raise ValueError("max_iters must be positive")
-    if window < 0:
-        raise ValueError("window must be non-negative")
-    if brute_force_max < 0:
-        raise ValueError("brute_force_max must be non-negative")
-    if max_full_domain_pools <= 0:
-        raise ValueError("max_full_domain_pools must be positive")
+    amount_out_total = _require_positive_int(amount_out_total, name="amount_out_total")
+    max_legs = _require_positive_int(max_legs, name="max_legs")
+    max_candidates = _require_positive_int(max_candidates, name="max_candidates")
+    max_iters = _require_positive_int(max_iters, name="max_iters")
+    window = _require_nonnegative_int(window, name="window")
+    brute_force_max = _require_nonnegative_int(brute_force_max, name="brute_force_max")
+    max_full_domain_pools = _require_positive_int(max_full_domain_pools, name="max_full_domain_pools")
 
-    Q = int(amount_out_total)
+    Q = amount_out_total
 
     # Filter to feasible direct pools and compute per-pool output caps.
     feasible: list[tuple[PoolState, int, int]] = []
@@ -1110,7 +1165,7 @@ def best_split_many_pools_exact_out_for_pools(
     capacity_guard = _build_exact_out_capacity_guard(
         tuple((pool.pool_id, int(cap)) for pool, cap, _in_i in feasible),
         amount_out_total=int(Q),
-        max_legs=int(max_legs),
+        max_legs=max_legs,
     )
     if not capacity_guard.feasible:
         raise ValueError(
@@ -1120,7 +1175,7 @@ def best_split_many_pools_exact_out_for_pools(
 
     feasible_pools = tuple(pool for pool, _cap, _in_i in feasible)
     candidates: list[PoolState] = []
-    if len(feasible_pools) <= int(max_full_domain_pools):
+    if len(feasible_pools) <= max_full_domain_pools:
         try:
             candidates = list(
                 _kernel_select_many_pool_repaired_prefilter_candidates(
@@ -1128,12 +1183,12 @@ def best_split_many_pools_exact_out_for_pools(
                     asset_in=str(asset_in),
                     asset_out=str(asset_out),
                     amount_out_total=int(Q),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidates),
-                    max_full_domain_pools=int(max_full_domain_pools),
+                    max_legs=max_legs,
+                    max_candidate_pools=max_candidates,
+                    max_full_domain_pools=max_full_domain_pools,
                     max_enumerated_candidates=max(
                         int(DEFAULT_EXACT_OUT_MANY_POOL_MAX_ENUMERATED_CANDIDATES),
-                        int(max_iters) * max(1, int(max_legs)),
+                        max_iters * max(1, max_legs),
                     ),
                 )
             )
@@ -1157,10 +1212,10 @@ def best_split_many_pools_exact_out_for_pools(
                 continue
             candidates.append(p)
             caps[p.pool_id] = int(cap)
-            if len(candidates) >= int(max_candidates):
+            if len(candidates) >= max_candidates:
                 break
             top_caps = sorted(caps.values(), reverse=True)
-            if sum(top_caps[: min(int(max_legs), len(top_caps))]) >= int(Q) and len(candidates) >= min(int(max_legs), len(feasible)):
+            if sum(top_caps[: min(max_legs, len(top_caps))]) >= int(Q) and len(candidates) >= min(max_legs, len(feasible)):
                 # Enough capacity to satisfy Q with <= max_legs pools.
                 break
 
@@ -1171,14 +1226,14 @@ def best_split_many_pools_exact_out_for_pools(
     candidates.sort(key=lambda p: p.pool_id)
     max_enumerated_candidates = max(
         int(DEFAULT_EXACT_OUT_MANY_POOL_MAX_ENUMERATED_CANDIDATES),
-        int(max_iters) * max(1, int(max_legs)),
+        max_iters * max(1, max_legs),
     )
     selected_domain = _kernel_build_exact_out_many_pool_selected_domain(
         tuple(candidates),
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=int(Q),
-        max_legs=int(max_legs),
+        max_legs=max_legs,
         max_enumerated_candidates=int(max_enumerated_candidates),
     )
 
