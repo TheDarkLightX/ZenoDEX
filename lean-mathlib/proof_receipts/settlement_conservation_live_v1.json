@@ -1,0 +1,58 @@
+{
+  "schema": "zenodex/lean-proof-receipt/v1",
+  "receipt_id": "settlement_conservation_live_v1",
+  "checker": "lean",
+  "lean_toolchain": "leanprover/lean4:v4.28.0",
+  "commands": [
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake --wfail build Proofs.SettlementConservationLive"
+    },
+    {
+      "cwd": ".",
+      "cmd": "python3 -m pytest -q tests/formal/test_lean_settlement_conservation_live.py"
+    },
+    {
+      "cwd": ".",
+      "cmd": "python3 -m pytest -q tests/runtime/test_settlement_conservation_live_binding.py"
+    },
+    {
+      "cwd": ".",
+      "cmd": "uvx ruff check tests/formal/test_lean_settlement_conservation_live.py tests/runtime/test_settlement_conservation_live_binding.py"
+    }
+  ],
+  "modules": [
+    {
+      "module": "Proofs.SettlementConservationLive",
+      "path": "lean-mathlib/Proofs/SettlementConservationLive.lean",
+      "sha256": "sha256:c2408b128ec770b9af025a81c596b25b7e21c18de0e8f6931a1df0c63c4e88b7",
+      "theorems": [
+        "Proofs.SettlementConservationLive.assetMove_totalDelta_zero",
+        "Proofs.SettlementConservationLive.applyMove_preserves_total",
+        "Proofs.SettlementConservationLive.applyMoves_preserves_total",
+        "Proofs.SettlementConservationLive.list_totalDelta_sum_zero",
+        "Proofs.SettlementConservationLive.witness_mixed_live_batch"
+      ]
+    }
+  ],
+  "binding_tests": [
+    {
+      "path": "tests/formal/test_lean_settlement_conservation_live.py",
+      "sha256": "sha256:515dbe2b9a63681930ef54240c0f3944af3161f9aa13824739891ebc0e117f01"
+    },
+    {
+      "path": "tests/runtime/test_settlement_conservation_live_binding.py",
+      "sha256": "sha256:9f040f04643ed0c0183e6e13d3d3dac86e4599280d10991a20413d2757be03c6"
+    }
+  ],
+  "root_export_status": {
+    "verified": false,
+    "reason": "The repository root Proofs.lean build is pre-existing blocked by a missing Proofs/AcyclicRouting.lean import. This receipt verifies the direct module import only."
+  },
+  "claim": "For the modeled live spot settlement action classes, exact-in/out swaps, pool creation, add-liquidity, and remove-liquidity preserve each asset's combined user-balance plus pool-reserve total. This is a linear per-asset conservation proof and does not prove CPMM output arithmetic, LP arithmetic, non-negativity, or full Python-to-Lean refinement.",
+  "result": "proved",
+  "grade": "A-",
+  "grade_reason": "Clean warning-free Lean proof for the right action classes, with formal and runtime binding tests. Kept below A/S because it is an abstract model and needs a refinement receipt before balances.proof_artifact can flip.",
+  "production_matrix_effect": "No CBC registry column flips. This is evidence toward balances.proof_artifact and balances.running_impl only.",
+  "created_utc": "2026-06-05T00:00:00Z"
+}
