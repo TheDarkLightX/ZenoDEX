@@ -72,11 +72,22 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     # NOT deleted (deleting a row to pass the AND would be dishonest).
     assert "replay_guard" in evidence_only
     assert surfaces["replay_guard"].get("attached_to") == "nonces"
+    state_root = surfaces["state_root"]
     # REVIEW [B -> A-]: state_root has remediation evidence ready for review,
     # but the columns were intentionally not flipped. Keep open_gaps_closed false
     # so the matrix reports the unresolved running_impl/formal/runtime/authority
     # reviews instead of hiding them behind the old D-CANON-002 closure note.
-    assert surfaces["state_root"]["open_gaps_closed"] is False
+    assert state_root["open_gaps_closed"] is False
+    for column in ("formal_spec", "runtime_invariants", "authority_mode"):
+        assert state_root[column]["verified"] is False
+        assert "READY FOR FLIP-REVIEW" in state_root[column]["note"]
+    trail = state_root.get("resolved_by_review", "")
+    assert "PENDING dual flip-review" in trail
+    assert "did not set verified:true" in trail
+    assert "live Python pool encoder reserve-order mutation fails" in trail
+    assert "build_local_block_v0" in trail and "_validate_live_block_report_state_roots_v0" in trail
+    assert "python-rust-shadow" in trail and "release-integrity.yml" in trail
+    assert "Double-counting caveat" in trail and "running_impl remains false" in trail
     assert surfaces["cpmm_swap"]["open_gaps_closed"] is True
     for surface_id in set(SPOT_DEX_SCOPE) - {"cpmm_swap"}:
         assert surfaces[surface_id]["open_gaps_closed"] is False
