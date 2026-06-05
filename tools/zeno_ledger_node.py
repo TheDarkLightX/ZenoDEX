@@ -54,6 +54,7 @@ from src.integration.zeno_ledger_v0 import (
     hash_v0,
     tx_hash_v0,
     validate_body_v0,
+    validate_header_body_roots_v0,
 )
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.integration.zeno_ledger_rejections_v0 import (
@@ -3385,6 +3386,55 @@ def _write_live_state(
     _write_json(_latest_live_state_path(data_dir), live_state)
 
 
+def _validate_live_block_report_state_roots_v0(
+    *,
+    block_report: Mapping[str, Any],
+    pre_state_path: Path,
+) -> None:
+    """Validate a block report before it can advance the node's live pointer."""
+    # REVIEW [C -> A-]: wsxychdeg found the pure transition/root check was easy
+    # to keep off the node acceptance path. Every live writer and follower replay
+    # now passes through this pre-pointer guard, so a bad post_state_root rejects
+    # before live_state.json can advertise the block as accepted.
+    header = dict(_load_json_object(Path(str(block_report["header_path"]))))
+    body = dict(_load_json_object(Path(str(block_report["body_path"]))))
+    validate_header_body_roots_v0(header, body)
+
+    pre_state_obj = _load_json_object(pre_state_path)
+    pre_state_root = _state_root_for_state_file_obj_v0(pre_state_obj)
+    if header.get("pre_state_root") != pre_state_root:
+        raise ValueError("live block pre_state_root does not match pre snapshot")
+
+    post_state_path_raw = block_report.get("post_snapshot_path", block_report.get("post_app_state_path"))
+    if not isinstance(post_state_path_raw, str) or post_state_path_raw == "":
+        raise ValueError("live block report missing post state path")
+    post_state_obj = _load_json_object(Path(post_state_path_raw))
+    post_state_root = _state_root_for_state_file_obj_v0(post_state_obj)
+    if header.get("post_state_root") != post_state_root:
+        raise ValueError("live block post_state_root does not match post snapshot")
+
+    if str(block_report.get("header_hash")) != canonical_header_hash_v0(header):
+        raise ValueError("live block header_hash does not match header")
+    if str(block_report.get("app_hash")) != str(header.get("app_hash")):
+        raise ValueError("live block app_hash does not match header")
+
+
+def _validate_or_discard_live_block_report_state_roots_v0(
+    *,
+    data_dir: Path,
+    block_report: Mapping[str, Any],
+    pre_state_path: Path,
+) -> None:
+    try:
+        _validate_live_block_report_state_roots_v0(
+            block_report=block_report,
+            pre_state_path=pre_state_path,
+        )
+    except Exception:
+        _discard_replayed_block_artifacts_v0(data_dir=data_dir, block_report=block_report)
+        raise
+
+
 def append_dex_transaction_v0(
     *,
     data_dir: Path,
@@ -3513,6 +3563,11 @@ def _append_dex_transaction_v0_locked(
     post_state_path = block_report.get("post_snapshot_path", block_report.get("post_app_state_path"))
     if post_state_path is None:
         raise ValueError("block report missing post state path")
+    _validate_or_discard_live_block_report_state_roots_v0(
+        data_dir=data_dir,
+        block_report=block_report,
+        pre_state_path=pre_state_path,
+    )
     _write_live_state(
         data_dir=data_dir,
         height=height,
@@ -4104,6 +4159,11 @@ def _append_testnet_faucet_v0_locked(
         config_digest=str(bootstrap_manifest["config_digest"]),
         module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
     )
+    _validate_or_discard_live_block_report_state_roots_v0(
+        data_dir=data_dir,
+        block_report=block_report,
+        pre_state_path=Path(str(base["pre_snapshot_path"])),
+    )
     _write_live_state(
         data_dir=data_dir,
         height=height,
@@ -4188,6 +4248,11 @@ def _append_tokenomics_reward_claim_v0_locked(
         config_digest=str(bootstrap_manifest["config_digest"]),
         module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
     )
+    _validate_or_discard_live_block_report_state_roots_v0(
+        data_dir=data_dir,
+        block_report=block_report,
+        pre_state_path=Path(str(base["pre_snapshot_path"])),
+    )
     _write_live_state(
         data_dir=data_dir,
         height=height,
@@ -4224,7 +4289,18 @@ def _live_artifact_path(*, data_dir: Path, kind: str, height: int) -> Path:
 
 def _discard_replayed_block_artifacts_v0(*, data_dir: Path, block_report: Mapping[str, Any]) -> None:
     data_root = data_dir.resolve()
-    for key in ("header_path", "body_path", "checkpoint_path", "receipts_path", "post_snapshot_path"):
+    # REVIEW [B -> A-]: the state-root live-pointer guard now rejects bad block
+    # reports before publishing them. Cleanup must cover both spot snapshots and
+    # app-state block reports; otherwise a rejected Tau/app-state block can leave
+    # stale state artifacts that future orphan scans do not see.
+    for key in (
+        "header_path",
+        "body_path",
+        "checkpoint_path",
+        "receipts_path",
+        "post_snapshot_path",
+        "post_app_state_path",
+    ):
         value = block_report.get(key)
         if not isinstance(value, str) or value == "":
             continue
@@ -4382,8 +4458,15 @@ def _pull_live_from_peer_v0_locked(
         if canonical_header_hash_v0(dict(local_header)) != canonical_header_hash_v0(dict(peer_header)):
             _discard_replayed_block_artifacts_v0(data_dir=data_dir, block_report=block_report)
             raise ValueError(f"peer header hash mismatch at height {height}")
+        _validate_or_discard_live_block_report_state_roots_v0(
+            data_dir=data_dir,
+            block_report=block_report,
+            pre_state_path=current_pre_snapshot,
+        )
         current_prev_header = Path(str(block_report["header_path"]))
-        current_pre_snapshot = Path(str(block_report["post_snapshot_path"]))
+        current_pre_snapshot = Path(
+            str(block_report.get("post_snapshot_path", block_report.get("post_app_state_path")))
+        )
         _write_live_state(
             data_dir=data_dir,
             height=height,

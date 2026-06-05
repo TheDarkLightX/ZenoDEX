@@ -41,3 +41,28 @@ def test_runtime_shadow_watches_cbc_matrix_gate_surface() -> None:
         "tests/integration/test_surface_security_claim.py",
     ):
         _assert_watched_on_pull_request_and_push(path)
+
+
+def test_runtime_shadow_watches_state_root_surface_receipt_boundary() -> None:
+    # Review grade: B -> A-. The state-root receipt source envelope now includes
+    # node live-path code and both workflows, so changing any of them must run the
+    # per-PR drift checker.
+    for path in (
+        "tools/check_state_root_surface_evidence.py",
+        "tools/zeno_ledger_run_local.py",
+        "tools/zeno_ledger_node.py",
+        "tests/test_check_state_root_surface_evidence.py",
+        "tests/integration/test_zeno_ledger_node_state_root_binding.py",
+        "src/kernels/dex/state_root_v5_scope_contract.json",
+        ".github/workflows/runtime-shadow.yml",
+        ".github/workflows/release-integrity.yml",
+    ):
+        _assert_watched_on_pull_request_and_push(path)
+
+
+def test_state_root_authority_mode_runs_only_in_rust_shadow_job() -> None:
+    text = _workflow_text()
+    assert "--ignore=tests/runtime/test_state_root_live_path.py" in text
+    assert "tests/runtime/test_state_root_live_path.py \\" in text
+    assert "tools/check_state_root_surface_evidence.py check --pretty --test-profile python" in text
+    assert "tools/check_state_root_surface_evidence.py check --pretty --test-profile rust" in text

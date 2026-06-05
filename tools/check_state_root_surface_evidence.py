@@ -11,13 +11,14 @@ without needing Kani.
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SPEC = ROOT / "src" / "kernels" / "dex" / "state_root_v5_scope_contract.json"
@@ -30,6 +31,203 @@ CHECK_SCHEMA = "zenodex.state_root.surface_evidence_receipt_check.v1"
 EXPECTED_VERSION = 5
 EXPECTED_SECTIONS = ["BAL", "POL", "LPB", "LPA", "NNC", "FEE"]
 EXPECTED_EXCLUDED_LANES = ["vault", "oracle", "perps"]
+TestProfile = Literal["none", "python", "rust", "all"]
+EXPECTED_POOL_STATUS_CODES = {"active": 1, "frozen": 2, "disabled": 3}
+EXPECTED_ORDERING = {
+    "balances": "sort by decoded pubkey bytes, then decoded asset bytes",
+    "pools": "sort by decoded pool_id bytes",
+    "lp_balances": "sort by decoded pubkey bytes, then decoded pool_id bytes",
+    "lp_duration_risk": "sort by decoded pubkey bytes, then decoded pool_id bytes",
+    "nonces": "sort by decoded pubkey bytes",
+}
+EXPECTED_INCLUDED_SECTIONS = {
+    "BAL": ["pubkey[48]", "asset[32]", "amount:uvarint"],
+    "POL": [
+        "pool_id[32]",
+        "asset0[32]",
+        "asset1[32]",
+        "reserve0:uvarint",
+        "reserve1:uvarint",
+        "fee_bps:uvarint",
+        "lp_supply:uvarint",
+        "status_code:uvarint",
+        "created_at:uvarint",
+        "curve_tag:utf8_bytes",
+        "curve_params:utf8_bytes",
+    ],
+    "LPB": ["pubkey[48]", "pool_id[32]", "amount:uvarint"],
+    "LPA": [
+        "pubkey[48]",
+        "pool_id[32]",
+        "last_mint_present:uvarint",
+        "last_mint_timestamp:uvarint_if_present",
+        "last_remove_present:uvarint",
+        "last_remove_timestamp:uvarint_if_present",
+        "churn_tier:uvarint",
+        "last_churn_update_present:uvarint",
+        "last_churn_update_timestamp:uvarint_if_present",
+    ],
+    "NNC": ["pubkey[48]", "last_nonce:uvarint"],
+    "FEE": ["fee_accumulator.dust:uvarint"],
+}
+PYTHON_ENCODER_TOKEN_ORDER = {
+    "_encode_balances_section": [
+        "out += encode_uvarint(len(entries))",
+        "out += pk_b",
+        "out += asset_b",
+        "out += encode_uvarint(amount)",
+    ],
+    "_encode_pools_section": [
+        "out += encode_uvarint(len(entries))",
+        "out += pool_b",
+        "out += asset0_b",
+        "out += asset1_b",
+        "out += encode_uvarint(pool.reserve0)",
+        "out += encode_uvarint(pool.reserve1)",
+        "out += encode_uvarint(pool.fee_bps)",
+        "out += encode_uvarint(pool.lp_supply)",
+        "out += encode_uvarint(status_code)",
+        "out += encode_uvarint(pool.created_at)",
+        "out += encode_bytes(pool.curve_tag.encode(\"utf-8\"))",
+        "out += encode_bytes(pool.curve_params.encode(\"utf-8\"))",
+    ],
+    "_encode_lp_section": [
+        "out += encode_uvarint(len(entries))",
+        "out += pk_b",
+        "out += pool_b",
+        "out += encode_uvarint(amount)",
+    ],
+    "_encode_lp_duration_risk_section": [
+        "out += encode_uvarint(len(entries))",
+        "out += pk_b",
+        "out += pool_b",
+        "out += encode_uvarint(1 if timestamp is not None else 0)",
+        "out += encode_uvarint(timestamp)",
+        "out += encode_uvarint(metadata.churn_tier)",
+        "out += encode_uvarint(1 if metadata.last_churn_update_timestamp is not None else 0)",
+        "out += encode_uvarint(metadata.last_churn_update_timestamp)",
+    ],
+    "_encode_nonce_section": [
+        "out += encode_uvarint(len(entries))",
+        "out += pk_b",
+        "out += encode_uvarint(last_nonce)",
+    ],
+    "_encode_fee_section": ["return encode_uvarint(_fee_accumulator_dust(fee_accumulator))"],
+}
+RUST_ENCODER_TOKEN_ORDER = {
+    "encode_balances": [
+        "let mut out = encode_uvarint(decoded.len() as u128);",
+        "out.extend_from_slice(pk);",
+        "out.extend_from_slice(asset);",
+        "out.extend_from_slice(&encode_uvarint(*amount));",
+    ],
+    "encode_pools": [
+        "let mut out = encode_uvarint(decoded.len() as u128);",
+        "out.extend_from_slice(pool);",
+        "out.extend_from_slice(asset0);",
+        "out.extend_from_slice(asset1);",
+        "out.extend_from_slice(&encode_uvarint(e.reserve0));",
+        "out.extend_from_slice(&encode_uvarint(e.reserve1));",
+        "out.extend_from_slice(&encode_uvarint(e.fee_bps));",
+        "out.extend_from_slice(&encode_uvarint(e.lp_supply));",
+        "out.extend_from_slice(&encode_uvarint(e.status.code()));",
+        "out.extend_from_slice(&encode_uvarint(e.created_at));",
+        "out.extend_from_slice(&encode_bytes(e.curve_tag.as_bytes()));",
+        "out.extend_from_slice(&encode_bytes(e.curve_params.as_bytes()));",
+    ],
+    "encode_lp": [
+        "let mut out = encode_uvarint(decoded.len() as u128);",
+        "out.extend_from_slice(pk);",
+        "out.extend_from_slice(pool);",
+        "out.extend_from_slice(&encode_uvarint(*amount));",
+    ],
+    "encode_lp_duration": [
+        "let mut out = encode_uvarint(decoded.len() as u128);",
+        "out.extend_from_slice(pk);",
+        "out.extend_from_slice(pool);",
+        "push_optional_ts(&mut out, e.last_mint_timestamp);",
+        "push_optional_ts(&mut out, e.last_remove_timestamp);",
+        "out.extend_from_slice(&encode_uvarint(e.churn_tier));",
+        "push_optional_ts(&mut out, e.last_churn_update_timestamp);",
+    ],
+    "encode_nonces": [
+        "let mut out = encode_uvarint(decoded.len() as u128);",
+        "out.extend_from_slice(pk);",
+        "out.extend_from_slice(&encode_uvarint(*last_nonce));",
+    ],
+    "encode_fee_accumulator": ["encode_uvarint(dust)"],
+}
+
+SECTION_CONTRACT_WITNESS_STATES = [
+    {},
+    {
+        "balances": [
+            {"pubkey": "0x" + "22" * 48, "asset": "0x" + "20" * 32, "amount": 7},
+            {"pubkey": "0x" + "11" * 48, "asset": "0x" + "10" * 32, "amount": 1000},
+        ]
+    },
+    {
+        "pools": [
+            {
+                "pool_id": "0x" + "44" * 32,
+                "asset0": "0x" + "10" * 32,
+                "asset1": "0x" + "20" * 32,
+                "reserve0": 7,
+                "reserve1": 11,
+                "fee_bps": 30,
+                "lp_supply": 13,
+                "status": "active",
+                "created_at": 5,
+                "curve_tag": "CPMM",
+                "curve_params": "",
+            },
+            {
+                "pool_id": "0x" + "33" * 32,
+                "asset0": "0x" + "01" * 32,
+                "asset1": "0x" + "02" * 32,
+                "reserve0": 17,
+                "reserve1": 19,
+                "fee_bps": 10000,
+                "lp_supply": 23,
+                "status": "disabled",
+                "created_at": 29,
+                "curve_tag": "CUBIC_SUM_V1",
+                "curve_params": '{"p":3,"q":5}',
+            },
+        ]
+    },
+    {
+        "lp_balances": [
+            {"pubkey": "0x" + "22" * 48, "pool_id": "0x" + "44" * 32, "amount": 31},
+            {"pubkey": "0x" + "11" * 48, "pool_id": "0x" + "33" * 32, "amount": 37},
+        ],
+        "lp_duration_risk": [
+            {
+                "pubkey": "0x" + "22" * 48,
+                "pool_id": "0x" + "44" * 32,
+                "last_mint_timestamp": 41,
+                "last_remove_timestamp": None,
+                "churn_tier": 43,
+                "last_churn_update_timestamp": 47,
+            },
+            {
+                "pubkey": "0x" + "11" * 48,
+                "pool_id": "0x" + "33" * 32,
+                "last_mint_timestamp": None,
+                "last_remove_timestamp": 53,
+                "churn_tier": 0,
+                "last_churn_update_timestamp": None,
+            },
+        ],
+    },
+    {
+        "nonces": [
+            {"pubkey": "0x" + "22" * 48, "last_nonce": 0xFFFFFFFF},
+            {"pubkey": "0x" + "11" * 48, "last_nonce": 59},
+        ],
+        "fee_accumulator": {"dust": 61},
+    },
+]
 
 EXPECTED_SOURCE_FILES = [
     "src/kernels/dex/state_root_v5_scope_contract.json",
@@ -39,6 +237,8 @@ EXPECTED_SOURCE_FILES = [
     "src/integration/zeno_ledger_v0.py",
     "src/runtime/authority.py",
     "src/runtime/rust_invoker.py",
+    "tools/zeno_ledger_run_local.py",
+    "tools/zeno_ledger_node.py",
     "rust-runtime/crates/zenodex-runtime-core/src/state_root.rs",
     "tools/runtime/state_root_lib.py",
     "tools/runtime/state_root_injectivity.py",
@@ -50,10 +250,12 @@ EXPECTED_SOURCE_FILES = [
     "tests/runtime/test_state_root_curve_config_grid.py",
     "tests/runtime/test_state_root_lp_duration_exhaustive_grid.py",
     "tests/integration/test_zeno_ledger_post_state_root_binding_v0.py",
+    "tests/integration/test_zeno_ledger_node_state_root_binding.py",
     "tests/integration/test_proof_verifier_perps_scope_guard_regression.py",
     "config/deploy/production-strict.yaml",
     "config/deploy/public-testnet.yaml",
     ".github/workflows/runtime-shadow.yml",
+    ".github/workflows/release-integrity.yml",
 ]
 
 KANI_HARNESSES = [
@@ -97,7 +299,7 @@ KANI_EXPECTED_TOTALS: dict[str, dict[str, int]] = {
     },
 }
 
-REQUIRED_TEST_COMMANDS = [
+PYTHON_REQUIRED_TEST_COMMANDS = [
     {
         "id": "state_root_python_semantics",
         "command": [
@@ -112,6 +314,21 @@ REQUIRED_TEST_COMMANDS = [
         ],
     },
     {
+        "id": "state_root_runtime_binding",
+        "command": [
+            "python3",
+            "-m",
+            "pytest",
+            "-q",
+            "tests/integration/test_zeno_ledger_post_state_root_binding_v0.py",
+            "tests/integration/test_zeno_ledger_node_state_root_binding.py",
+            "tests/integration/test_proof_verifier_perps_scope_guard_regression.py",
+        ],
+    },
+]
+
+RUST_REQUIRED_TEST_COMMANDS = [
+    {
         "id": "state_root_python_rust_differential",
         "command": [
             "python3",
@@ -123,18 +340,9 @@ REQUIRED_TEST_COMMANDS = [
             "tests/runtime/test_state_root_live_path.py",
         ],
     },
-    {
-        "id": "state_root_runtime_binding",
-        "command": [
-            "python3",
-            "-m",
-            "pytest",
-            "-q",
-            "tests/integration/test_zeno_ledger_post_state_root_binding_v0.py",
-            "tests/integration/test_proof_verifier_perps_scope_guard_regression.py",
-        ],
-    },
 ]
+
+REQUIRED_TEST_COMMANDS = PYTHON_REQUIRED_TEST_COMMANDS + RUST_REQUIRED_TEST_COMMANDS
 
 
 class EvidenceError(ValueError):
@@ -167,6 +375,249 @@ def _load_json_object(path: Path, *, name: str) -> dict[str, Any]:
     if not isinstance(obj, dict):
         raise EvidenceError(f"{name} must be a JSON object: {path}")
     return obj
+
+
+def _read_source_file(rel: str) -> str:
+    return (ROOT / rel).read_text(encoding="utf-8")
+
+
+def _python_function_body(source: str, name: str) -> str | None:
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return None
+    lines = source.splitlines()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef) or node.name != name:
+            continue
+        end_lineno = getattr(node, "end_lineno", None)
+        if end_lineno is None:
+            return None
+        return "\n".join(lines[node.lineno - 1 : end_lineno])
+    return None
+
+
+def _rust_function_body(source: str, name: str) -> str | None:
+    match = re.search(rf"(?m)^(?:pub(?:\([^)]*\))?\s+)?fn\s+{re.escape(name)}\b", source)
+    if match is None:
+        return None
+    brace = source.find("{", match.end())
+    if brace < 0:
+        return None
+    depth = 0
+    for index in range(brace, len(source)):
+        char = source[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return source[match.start() : index + 1]
+    return None
+
+
+def _tokens_in_order(body: str, tokens: Sequence[str]) -> bool:
+    cursor = 0
+    for token in tokens:
+        found = body.find(token, cursor)
+        if found < 0:
+            return False
+        cursor = found + len(token)
+    return True
+
+
+def _validate_encoder_source_tokens() -> list[str]:
+    errors: list[str] = []
+    py_source = _read_source_file("src/state/state_root.py")
+    for fn_name, tokens in PYTHON_ENCODER_TOKEN_ORDER.items():
+        body = _python_function_body(py_source, fn_name)
+        if body is None:
+            errors.append(f"src/state/state_root.py missing {fn_name}")
+            continue
+        if not _tokens_in_order(body, tokens):
+            errors.append(f"src/state/state_root.py::{fn_name} encoder token order drifted")
+
+    rust_source = _read_source_file("rust-runtime/crates/zenodex-runtime-core/src/state_root.rs")
+    for fn_name, tokens in RUST_ENCODER_TOKEN_ORDER.items():
+        body = _rust_function_body(rust_source, fn_name)
+        if body is None:
+            errors.append(f"rust state_root.rs missing {fn_name}")
+            continue
+        if not _tokens_in_order(body, tokens):
+            errors.append(f"rust state_root.rs::{fn_name} encoder token order drifted")
+    return errors
+
+
+def _require_nonnegative_int(value: object, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise EvidenceError(f"{name} must be a non-negative integer")
+    return int(value)
+
+
+def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise EvidenceError(f"{name} must be an object")
+    return value
+
+
+def _contract_fixed_hex(row: Mapping[str, Any], field: str, *, nbytes: int) -> bytes:
+    from src.state.canonical import hex_to_bytes_fixed  # noqa: PLC0415
+
+    return hex_to_bytes_fixed(str(row.get(field, "")), nbytes=nbytes, name=field)
+
+
+def _contract_uvarint(value: object, *, name: str) -> bytes:
+    from src.state.canonical import encode_uvarint  # noqa: PLC0415
+
+    return encode_uvarint(_require_nonnegative_int(value, name=name))
+
+
+def _contract_optional_timestamp(row: Mapping[str, Any], field: str) -> tuple[bytes, bytes]:
+    timestamp = row.get(field)
+    present = timestamp is not None
+    return (
+        _contract_uvarint(1 if present else 0, name=f"{field}.present"),
+        b"" if not present else _contract_uvarint(timestamp, name=field),
+    )
+
+
+def _contract_pool_status_code(row: Mapping[str, Any]) -> int:
+    status = row.get("status")
+    if not isinstance(status, str) or status not in EXPECTED_POOL_STATUS_CODES:
+        raise EvidenceError(f"pool.status must be one of {sorted(EXPECTED_POOL_STATUS_CODES)}")
+    return EXPECTED_POOL_STATUS_CODES[status]
+
+
+def _contract_field_bytes(field: str, row: Mapping[str, Any]) -> bytes:
+    from src.state.canonical import encode_bytes  # noqa: PLC0415
+
+    if field == "pubkey[48]":
+        return _contract_fixed_hex(row, "pubkey", nbytes=48)
+    if field in {"asset[32]", "asset0[32]", "asset1[32]"}:
+        return _contract_fixed_hex(row, field.split("[", 1)[0], nbytes=32)
+    if field == "pool_id[32]":
+        return _contract_fixed_hex(row, "pool_id", nbytes=32)
+    if field.endswith("_present:uvarint"):
+        key = field.removesuffix("_present:uvarint") + "_timestamp"
+        return _contract_optional_timestamp(row, key)[0]
+    if field.endswith(":uvarint"):
+        key = field.removesuffix(":uvarint")
+        if key == "status_code":
+            return _contract_uvarint(_contract_pool_status_code(row), name=key)
+        if key == "fee_accumulator.dust":
+            return _contract_uvarint(row.get("dust", 0), name=key)
+        return _contract_uvarint(row.get(key), name=key)
+    if field.endswith(":uvarint_if_present"):
+        key = field.removesuffix(":uvarint_if_present")
+        return _contract_optional_timestamp(row, key)[1]
+    if field.endswith(":utf8_bytes"):
+        key = field.removesuffix(":utf8_bytes")
+        value = row.get(key, "")
+        if not isinstance(value, str):
+            raise EvidenceError(f"{key} must be a string")
+        return encode_bytes(value.encode("utf-8"))
+    raise EvidenceError(f"unknown section field contract: {field}")
+
+
+def _contract_rows(label: str, state: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    from src.state.canonical import hex_to_bytes_fixed  # noqa: PLC0415
+
+    if label == "BAL":
+        rows = list(state.get("balances") or [])
+        rows.sort(key=lambda row: (
+            hex_to_bytes_fixed(str(row.get("pubkey", "")), nbytes=48, name="pubkey"),
+            hex_to_bytes_fixed(str(row.get("asset", "")), nbytes=32, name="asset"),
+        ))
+        return rows
+    if label == "POL":
+        rows = list(state.get("pools") or [])
+        rows.sort(key=lambda row: hex_to_bytes_fixed(str(row.get("pool_id", "")), nbytes=32, name="pool_id"))
+        return rows
+    if label == "LPB":
+        rows = list(state.get("lp_balances") or [])
+        rows.sort(key=lambda row: (
+            hex_to_bytes_fixed(str(row.get("pubkey", "")), nbytes=48, name="pubkey"),
+            hex_to_bytes_fixed(str(row.get("pool_id", "")), nbytes=32, name="pool_id"),
+        ))
+        return rows
+    if label == "LPA":
+        rows = list(state.get("lp_duration_risk") or [])
+        rows.sort(key=lambda row: (
+            hex_to_bytes_fixed(str(row.get("pubkey", "")), nbytes=48, name="pubkey"),
+            hex_to_bytes_fixed(str(row.get("pool_id", "")), nbytes=32, name="pool_id"),
+        ))
+        return rows
+    if label == "NNC":
+        rows = list(state.get("nonces") or [])
+        rows.sort(key=lambda row: hex_to_bytes_fixed(str(row.get("pubkey", "")), nbytes=48, name="pubkey"))
+        return rows
+    if label == "FEE":
+        fee = state.get("fee_accumulator")
+        return [_require_mapping(fee, name="fee_accumulator")] if fee is not None else [{"dust": 0}]
+    raise EvidenceError(f"unknown section label: {label}")
+
+
+def _contract_section_bytes(label: str, fields: Sequence[str], state: Mapping[str, Any]) -> bytes:
+    from src.state.canonical import encode_uvarint  # noqa: PLC0415
+
+    out = bytearray()
+    rows = _contract_rows(label, state)
+    if label != "FEE":
+        out += encode_uvarint(len(rows))
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise EvidenceError(f"{label} witness row must be an object")
+        for field in fields:
+            out += _contract_field_bytes(str(field), row)
+    return bytes(out)
+
+
+def _live_section_bytes(state: Mapping[str, Any]) -> dict[str, bytes]:
+    from src.state import state_root as state_root_mod  # noqa: PLC0415
+    from tools.runtime.state_root_lib import build_tables  # noqa: PLC0415
+
+    balances, pools, lp_balances, nonces, fee_accumulator = build_tables(json.loads(json.dumps(state)))
+    return {
+        "BAL": state_root_mod._encode_balances_section(balances),  # noqa: SLF001
+        "POL": state_root_mod._encode_pools_section(pools),  # noqa: SLF001
+        "LPB": state_root_mod._encode_lp_section(lp_balances),  # noqa: SLF001
+        "LPA": state_root_mod._encode_lp_duration_risk_section(lp_balances),  # noqa: SLF001
+        "NNC": state_root_mod._encode_nonce_section(nonces),  # noqa: SLF001
+        "FEE": state_root_mod._encode_fee_section(fee_accumulator),  # noqa: SLF001
+    }
+
+
+def _validate_section_contract_against_live(spec: Mapping[str, Any]) -> list[str]:
+    # REVIEW [B -> A-]: source-token checks give drift teeth, but the load-bearing
+    # guard is this executable byte contract. It independently derives section
+    # bytes from the formal JSON contract and compares them with the live encoder
+    # on witnesses that exercise ordering, optional fields, status codes, and
+    # unequal reserves.
+    errors: list[str] = []
+    included = spec.get("included_sections")
+    if not isinstance(included, Mapping):
+        return ["spec.included_sections must be an object"]
+    for witness_index, state in enumerate(SECTION_CONTRACT_WITNESS_STATES):
+        try:
+            live = _live_section_bytes(state)
+        except Exception as exc:
+            errors.append(f"live encoder rejected section witness[{witness_index}]: {exc}")
+            continue
+        for label in EXPECTED_SECTIONS:
+            fields = included.get(label)
+            if not isinstance(fields, list) or not all(isinstance(field, str) for field in fields):
+                errors.append(f"spec.included_sections.{label} must be a list of field strings")
+                continue
+            try:
+                expected = _contract_section_bytes(label, fields, state)
+            except EvidenceError as exc:
+                errors.append(f"formal section contract rejected witness[{witness_index}] {label}: {exc}")
+                continue
+            if expected != live[label]:
+                errors.append(
+                    f"formal spec/live encoder byte mismatch for witness[{witness_index}] section {label}"
+                )
+    return errors
 
 
 def _source_hashes() -> list[dict[str, str]]:
@@ -205,9 +656,12 @@ def _validate_spec_against_source(spec: Mapping[str, Any]) -> list[str]:
     widths = spec.get("identifier_widths")
     if widths != {"pubkey_bytes": 48, "asset_bytes": 32, "pool_id_bytes": 32}:
         errors.append("spec.identifier_widths must match fixed-width state-root identifiers")
+    ordering = spec.get("ordering")
+    if ordering != EXPECTED_ORDERING:
+        errors.append("spec.ordering must match the v5 decoded-byte ordering contract")
     included = spec.get("included_sections")
-    if not isinstance(included, Mapping) or sorted(included) != sorted(EXPECTED_SECTIONS):
-        errors.append("spec.included_sections must cover exactly the v5 sections")
+    if included != EXPECTED_INCLUDED_SECTIONS:
+        errors.append("spec.included_sections must match the exact v5 section-body encoding contract")
     excluded = spec.get("excluded_lanes")
     if not isinstance(excluded, list):
         errors.append("spec.excluded_lanes must be a list")
@@ -233,6 +687,8 @@ def _validate_spec_against_source(spec: Mapping[str, Any]) -> list[str]:
     labels = [label.decode("ascii") for label in state_root_mod.STATE_ROOT_SECTION_LABELS]
     if labels != EXPECTED_SECTIONS:
         errors.append(f"src.state.state_root.STATE_ROOT_SECTION_LABELS {labels!r} != spec")
+    errors.extend(_validate_encoder_source_tokens())
+    errors.extend(_validate_section_contract_against_live(spec))
     return errors
 
 
@@ -364,10 +820,25 @@ def _runtime_shadow_paths_are_gated() -> list[str]:
     workflow = (ROOT / ".github" / "workflows" / "runtime-shadow.yml").read_text(encoding="utf-8")
     required_snippets = [
         "src/state/state_root.py",
+        "tools/zeno_ledger_node.py",
         "rust-runtime/**",
         "tools/runtime/**",
         "tests/runtime/**",
         "tests/runtime/test_state_root_vectors.py",
+        "tests/runtime/test_state_root_live_path.py",
+        "--ignore=tests/runtime/test_state_root_live_path.py",
+        "tests/integration/test_zeno_ledger_node_state_root_binding.py",
+        "tools/check_state_root_surface_evidence.py check --pretty --test-profile python",
+        "tools/check_state_root_surface_evidence.py check --pretty --test-profile rust",
+    ]
+    return [snippet for snippet in required_snippets if snippet not in workflow]
+
+
+def _release_integrity_state_root_gate_is_present() -> list[str]:
+    workflow = (ROOT / ".github" / "workflows" / "release-integrity.yml").read_text(encoding="utf-8")
+    required_snippets = [
+        "tools/check_state_root_surface_evidence.py check --pretty",
+        "tests/test_check_state_root_surface_evidence.py",
     ]
     return [snippet for snippet in required_snippets if snippet not in workflow]
 
@@ -395,6 +866,49 @@ def _profile_result() -> dict[str, Any]:
     }
 
 
+def _required_test_commands_for_profile(profile: TestProfile) -> list[dict[str, Any]]:
+    if profile == "none":
+        return []
+    if profile == "python":
+        return PYTHON_REQUIRED_TEST_COMMANDS
+    if profile == "rust":
+        return RUST_REQUIRED_TEST_COMMANDS
+    if profile == "all":
+        return REQUIRED_TEST_COMMANDS
+    raise EvidenceError(f"unknown required-test profile: {profile}")
+
+
+def _run_required_test_commands(profile: TestProfile = "all") -> list[str]:
+    errors: list[str] = []
+    for row in _required_test_commands_for_profile(profile):
+        command = row["command"]
+        proc = subprocess.run(
+            command,
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=900,
+        )
+        if proc.returncode != 0:
+            errors.append(
+                f"required test command {row['id']} failed with returncode={proc.returncode}: "
+                f"stdout={proc.stdout[-1200:]} stderr={proc.stderr[-1200:]}"
+            )
+            continue
+        combined = f"{proc.stdout}\n{proc.stderr}"
+        if re.search(r"\b\d+\s+skipped\b", combined):
+            errors.append(
+                f"required test command {row['id']} reported skipped tests; "
+                "state-root evidence commands must execute their load-bearing tests"
+            )
+        if re.search(r"\b\d+\s+(xfailed|deselected)\b", combined) or "no tests ran" in combined.lower():
+            errors.append(
+                f"required test command {row['id']} did not execute a clean all-pass suite; "
+                "state-root evidence commands must not xfail, deselect, or run zero tests"
+            )
+    return errors
+
+
 def build_receipt(*, spec_path: Path = DEFAULT_SPEC) -> dict[str, Any]:
     spec = _load_json_object(spec_path, name="state-root formal spec")
     spec_errors = _validate_spec_against_source(spec)
@@ -403,6 +917,9 @@ def build_receipt(*, spec_path: Path = DEFAULT_SPEC) -> dict[str, Any]:
     missing_workflow = _runtime_shadow_paths_are_gated()
     if missing_workflow:
         raise EvidenceError(f"runtime-shadow workflow missing state-root gates: {missing_workflow}")
+    missing_release = _release_integrity_state_root_gate_is_present()
+    if missing_release:
+        raise EvidenceError(f"release-integrity workflow missing state-root gates: {missing_release}")
     receipt = {
         "schema": RECEIPT_SCHEMA,
         "surface_id": "state_root",
@@ -518,6 +1035,9 @@ def verify_receipt(receipt: Mapping[str, Any], *, spec_path: Path = DEFAULT_SPEC
     missing_workflow = _runtime_shadow_paths_are_gated()
     if missing_workflow:
         errors.append(f"runtime-shadow workflow missing state-root gates: {missing_workflow}")
+    missing_release = _release_integrity_state_root_gate_is_present()
+    if missing_release:
+        errors.append(f"release-integrity workflow missing state-root gates: {missing_release}")
     return errors
 
 
@@ -525,11 +1045,15 @@ def check_receipt_file(
     *,
     receipt_path: Path = DEFAULT_RECEIPT,
     spec_path: Path = DEFAULT_SPEC,
+    run_required_tests: bool = True,
+    test_profile: TestProfile = "all",
 ) -> dict[str, Any]:
     errors: list[str] = []
     try:
         receipt = _load_json_object(receipt_path, name="state-root surface evidence receipt")
         errors.extend(verify_receipt(receipt, spec_path=spec_path))
+        if run_required_tests and not errors:
+            errors.extend(_run_required_test_commands(profile=test_profile))
     except EvidenceError as exc:
         errors.append(str(exc))
     return {
@@ -554,7 +1078,11 @@ def _cmd_build(args: argparse.Namespace) -> int:
 
 
 def _cmd_check(args: argparse.Namespace) -> int:
-    report = check_receipt_file(receipt_path=Path(args.receipt), spec_path=Path(args.spec))
+    report = check_receipt_file(
+        receipt_path=Path(args.receipt),
+        spec_path=Path(args.spec),
+        test_profile=args.test_profile,
+    )
     print(json.dumps(report, indent=2 if args.pretty else None, sort_keys=True))
     return 0 if report["ok"] else 1
 
@@ -570,6 +1098,7 @@ def main(argv: list[str] | None = None) -> int:
     p_check = sub.add_parser("check")
     p_check.add_argument("--spec", default=str(DEFAULT_SPEC))
     p_check.add_argument("--receipt", default=str(DEFAULT_RECEIPT))
+    p_check.add_argument("--test-profile", choices=("none", "python", "rust", "all"), default="all")
     p_check.add_argument("--pretty", action="store_true")
     p_check.set_defaults(func=_cmd_check)
     args = parser.parse_args(argv)

@@ -48,3 +48,9 @@ def test_release_integrity_workflow_runs_cbc_gate_with_same_exit_contract() -> N
     assert "cbc_status" in block
     assert "1)" in block and "advisory" in block.lower()
     assert 'exit "$cbc_status"' in block or "exit $cbc_status" in block
+
+
+def test_release_integrity_workflow_runs_state_root_surface_gate() -> None:
+    text = RELEASE_INTEGRITY_YML.read_text(encoding="utf-8")
+    assert "tools/check_state_root_surface_evidence.py check --pretty" in text
+    assert "tests/test_check_state_root_surface_evidence.py" in text

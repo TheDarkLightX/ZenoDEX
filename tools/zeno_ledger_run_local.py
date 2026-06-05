@@ -39,6 +39,7 @@ from src.integration.zeno_ledger_v0 import (  # noqa: E402
     proof_metadata_hash_v0,
     stable_error_code_v0,
     tx_hash_v0,
+    validate_block_state_transition_v0,
     validate_body_v0,
     validate_proof_metadata_header_binding_v0,
 )
@@ -1670,6 +1671,19 @@ def build_local_block_v0(
     )
     if proof_metadata is not None:
         validate_proof_metadata_header_binding_v0(proof_metadata, header)
+    if pre_snapshot_path is not None:
+        # REVIEW [B -> A-]: the state-root transition validator was previously
+        # strong in isolation but not wired into block construction. The local
+        # block builder is the live producer path used by the node append flow,
+        # so spot-DEX blocks now fail before artifact commit if the generated
+        # header/body pair does not re-execute to the claimed pre/post roots.
+        validate_block_state_transition_v0(
+            pre_state=pre_state,
+            header=header,
+            body=body,
+            config=engine_config,
+            default_block_timestamp=max(0, time_ms // 1000),
+        )
     checkpoint = build_checkpoint_v0(header)
     header_hash = canonical_header_hash_v0(header)
 

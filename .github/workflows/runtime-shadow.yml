@@ -46,12 +46,15 @@ on:
       - "tools/kernel_assurance_manifest.json"
       - "tools/check_kernel_assurance_public_receipt.py"
       - "tools/check_state_root_surface_evidence.py"
+      - "tools/zeno_ledger_run_local.py"
+      - "tools/zeno_ledger_node.py"
       - "tests/test_check_cpmm_swap_formal_spec_contract.py"
       - "tests/test_check_settlement_conservation_live_refinement.py"
       - "tests/formal/test_lean_settlement_conservation_live.py"
       - "tests/integration/test_spot_proof_public_receipt.py"
       - "tests/test_check_kernel_assurance_public_receipt.py"
       - "tests/test_check_state_root_surface_evidence.py"
+      - "tests/integration/test_zeno_ledger_node_state_root_binding.py"
       - "src/kernels/dex/state_root_v5_scope_contract.json"
       - "src/state/canonical.py"
       - "src/state/state_root.py"
@@ -75,6 +78,7 @@ on:
       - "ocaml-runtime/**"
       - "spark-kernels/**"
       - ".github/workflows/runtime-shadow.yml"
+      - ".github/workflows/release-integrity.yml"
   push:
     branches:
       - main
@@ -118,12 +122,15 @@ on:
       - "tools/kernel_assurance_manifest.json"
       - "tools/check_kernel_assurance_public_receipt.py"
       - "tools/check_state_root_surface_evidence.py"
+      - "tools/zeno_ledger_run_local.py"
+      - "tools/zeno_ledger_node.py"
       - "tests/test_check_cpmm_swap_formal_spec_contract.py"
       - "tests/test_check_settlement_conservation_live_refinement.py"
       - "tests/formal/test_lean_settlement_conservation_live.py"
       - "tests/integration/test_spot_proof_public_receipt.py"
       - "tests/test_check_kernel_assurance_public_receipt.py"
       - "tests/test_check_state_root_surface_evidence.py"
+      - "tests/integration/test_zeno_ledger_node_state_root_binding.py"
       - "src/kernels/dex/state_root_v5_scope_contract.json"
       - "src/state/canonical.py"
       - "src/state/state_root.py"
@@ -147,6 +154,7 @@ on:
       - "ocaml-runtime/**"
       - "spark-kernels/**"
       - ".github/workflows/runtime-shadow.yml"
+      - ".github/workflows/release-integrity.yml"
   workflow_dispatch:
 
 permissions:
@@ -183,6 +191,7 @@ jobs:
             --ignore=tests/runtime/test_cpmm_settlement_conformance.py \
             --ignore=tests/runtime/test_canonical_primitives_vectors.py \
             --ignore=tests/runtime/test_state_root_vectors.py \
+            --ignore=tests/runtime/test_state_root_live_path.py \
             --ignore=tests/runtime/test_tx_receipt_hash_vectors.py \
             --ignore=tests/runtime/test_perp_math_vectors.py
 
@@ -208,7 +217,7 @@ jobs:
 
       - name: State-root surface evidence receipt (per-PR drift + integrity)
         run: |
-          python3 tools/check_state_root_surface_evidence.py check --pretty
+          python3 tools/check_state_root_surface_evidence.py check --pretty --test-profile python
           python -m pytest -q tests/test_check_state_root_surface_evidence.py
 
       - name: Golden traces export deterministically (byte-stable)
@@ -278,8 +287,12 @@ jobs:
             tests/runtime/test_cpmm_settlement_conformance.py \
             tests/runtime/test_canonical_primitives_vectors.py \
             tests/runtime/test_state_root_vectors.py \
+            tests/runtime/test_state_root_live_path.py \
             tests/runtime/test_tx_receipt_hash_vectors.py \
             tests/runtime/test_perp_math_vectors.py
+
+      - name: State-root Rust authority receipt tests
+        run: python3 tools/check_state_root_surface_evidence.py check --pretty --test-profile rust
 
       - name: Shadow replay (Rust must agree with Python)
         run: |

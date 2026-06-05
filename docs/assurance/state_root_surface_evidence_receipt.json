@@ -155,7 +155,7 @@
     }
   },
   "private_toolchain_source_included": false,
-  "receipt_sha256": "76346abf6a6a8cc3541f59c7bd5ea48e5a1698078eaeb02cdaa88e823da19c1f",
+  "receipt_sha256": "e8d4fdb7a211d26a3398a9cd28d89cf9fdf26cf99bb0a96cedfd1d488fdc2973",
   "required_test_commands": [
     {
       "command": [
@@ -176,11 +176,11 @@
         "-m",
         "pytest",
         "-q",
-        "tests/runtime/test_state_root_vectors.py",
-        "tests/runtime/test_state_root_curve_config_grid.py",
-        "tests/runtime/test_state_root_live_path.py"
+        "tests/integration/test_zeno_ledger_post_state_root_binding_v0.py",
+        "tests/integration/test_zeno_ledger_node_state_root_binding.py",
+        "tests/integration/test_proof_verifier_perps_scope_guard_regression.py"
       ],
-      "id": "state_root_python_rust_differential"
+      "id": "state_root_runtime_binding"
     },
     {
       "command": [
@@ -188,10 +188,11 @@
         "-m",
         "pytest",
         "-q",
-        "tests/integration/test_zeno_ledger_post_state_root_binding_v0.py",
-        "tests/integration/test_proof_verifier_perps_scope_guard_regression.py"
+        "tests/runtime/test_state_root_vectors.py",
+        "tests/runtime/test_state_root_curve_config_grid.py",
+        "tests/runtime/test_state_root_live_path.py"
       ],
-      "id": "state_root_runtime_binding"
+      "id": "state_root_python_rust_differential"
     }
   ],
   "schema": "zenodex.state_root.surface_evidence_receipt.v1",
@@ -202,11 +203,11 @@
     },
     {
       "path": "tools/check_state_root_surface_evidence.py",
-      "sha256": "f6a19e4b50957e50044268d0abbe4edea00e0cb6a6fbd688572dbd91d2358c23"
+      "sha256": "f8015db28d23c5057ac8e186bb05d8eac737de77e8cfdacd0f003886a364936e"
     },
     {
       "path": "tests/test_check_state_root_surface_evidence.py",
-      "sha256": "221feaae152728a961290424f3900d8fd3e2c997862f16ace08e8effa33f5621"
+      "sha256": "95ab5520016d3f316d2f0af26b773273bf0c94045c084b97b9c695efad55d9dd"
     },
     {
       "path": "src/state/state_root.py",
@@ -223,6 +224,14 @@
     {
       "path": "src/runtime/rust_invoker.py",
       "sha256": "8a1b4f6e56a4ecb748a7032997e7cd982250f09ac15aca069140bf3ab0771039"
+    },
+    {
+      "path": "tools/zeno_ledger_run_local.py",
+      "sha256": "5a283e67a2e281ff985ebf36d6b4e90f243ccbaa72881879a2b97a188549d470"
+    },
+    {
+      "path": "tools/zeno_ledger_node.py",
+      "sha256": "de1f95a9f1989451d71738fb2a7c7dccc07ce66766110c51c6ea2e8b8c73b326"
     },
     {
       "path": "rust-runtime/crates/zenodex-runtime-core/src/state_root.rs",
@@ -266,7 +275,11 @@
     },
     {
       "path": "tests/integration/test_zeno_ledger_post_state_root_binding_v0.py",
-      "sha256": "4671364132c0bcd917ba3552d56a3a4a18ec8f93d885d33da187c864320de76b"
+      "sha256": "01c8a4348c32863711d591e2db2fd12c6795f0354607243af80f59180b2b547b"
+    },
+    {
+      "path": "tests/integration/test_zeno_ledger_node_state_root_binding.py",
+      "sha256": "e92e2a22f96572300c16ba3f222aea15db2c0d4252b4ef9107012c5618b6ff50"
     },
     {
       "path": "tests/integration/test_proof_verifier_perps_scope_guard_regression.py",
@@ -282,7 +295,11 @@
     },
     {
       "path": ".github/workflows/runtime-shadow.yml",
-      "sha256": "6e568f3f4bd7c76a88fcb2abdb36611c63873cdfd18c962c7812e6e33be59f44"
+      "sha256": "845631a519580cec320428967cf38836634e205daa8bbeddb83b49a19ed69fec"
+    },
+    {
+      "path": ".github/workflows/release-integrity.yml",
+      "sha256": "8a05dcc86ce802af7c0c3a9c548fe4af69f963e420b764e3e5bfde4c73fd5b6b"
     }
   ],
   "state_root_version": 5,

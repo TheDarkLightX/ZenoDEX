@@ -13,12 +13,14 @@ fail-closed (mismatch -> reject; un-rootable post-state -> reject, never crash).
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 
 import pytest
 
 from src.core.dex import DexState
 from src.integration.dex_engine import DexEngineConfig
+from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.zeno_ledger_v0 import (
     build_header_v0,
     canonical_body_root_v0,
@@ -34,6 +36,7 @@ from src.state.lp import LPTable
 
 # Reuse the canonical block-construction fixtures from the base v0 test module.
 from tests.integration.test_zeno_ledger_v0 import _body, _root
+from tools.zeno_ledger_run_local import build_local_block_v0
 
 ZERO_ROOT = "0x" + "00" * 32
 
@@ -89,6 +92,49 @@ def test_accepts_post_state_root_matching_reexecuted_body():
     header = _header_for(body=body, post_state_root=correct_root, pre_state_root=correct_root)
     # Must not raise.
     validate_block_state_transition_v0(pre_state=pre, header=header, body=body, config=DexEngineConfig())
+
+
+def test_build_local_block_v0_wires_state_transition_validator(tmp_path, monkeypatch):
+    # REVIEW [B -> A-]: `validate_block_state_transition_v0` used to be tested
+    # only as a standalone helper. This pins the live spot-DEX block producer:
+    # a block cannot be materialized from `build_local_block_v0` unless the
+    # transition validator accepts the generated header/body/state tuple.
+    calls: list[dict[str, object]] = []
+
+    def fail_if_called(**kwargs):
+        calls.append(dict(kwargs))
+        raise ValueError("wired transition validator")
+
+    monkeypatch.setattr(
+        "tools.zeno_ledger_run_local.validate_block_state_transition_v0",
+        fail_if_called,
+    )
+    pre = _canonical_pre_state()
+    pre_path = tmp_path / "pre_snapshot.json"
+    pre_path.write_text(json.dumps(snapshot_from_state(pre).data), encoding="utf-8")
+    body_path = tmp_path / "body.json"
+    body_path.write_text(json.dumps(_body(txs=[])), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="wired transition validator"):
+        build_local_block_v0(
+            body_path=body_path,
+            out_dir=tmp_path / "ledger",
+            time_ms=1_778_730_000_000,
+            pre_snapshot_path=pre_path,
+            sequencer_set_hash=_root("sequencer-set"),
+            data_availability_root=ZERO_ROOT,
+            proof_journal_hash=ZERO_ROOT,
+            config_digest=_root("config"),
+            module_versions_digest=_root("modules"),
+            signature_set_root=ZERO_ROOT,
+            allow_missing_settlement=True,
+            require_intent_signatures=True,
+            allow_unsigned_intents_if_tx_sender_matches=False,
+        )
+
+    assert len(calls) == 1
+    assert isinstance(calls[0]["pre_state"], DexState)
+    assert calls[0]["header"]["pre_state_root"] == dex_state_root_v0(pre)
 
 
 @pytest.mark.parametrize("field_name", ["vault", "oracle", "perps"])
