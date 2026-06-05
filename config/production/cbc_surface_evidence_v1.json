@@ -34,7 +34,7 @@
       "runtime_invariants": {"ref": "state_root(post_state) == receipt.post_state_root", "verified": false, "note": "needs enforced runtime check"},
       "authority_mode": {"ref": "config/deploy/production-strict.yaml", "verified": false, "note": "default python_authority"},
       "open_gaps_closed": false,
-      "blocking_gap": "D-CANON-002: state root omits fee_accumulator/oracle/vault/perps; must be closed before this surface can clear."
+      "blocking_gap": "D-CANON-002 (status 2026-06-04, primary-source verified, internal/DCANON002_PERPS_FINDING.md): substantially closed. fee_accumulator is now COMMITTED in the root (added v5). vault/oracle are omitted but SCOPE-GUARDED to None on the externally-supplied-pre_state (proof/light-client/state-sync) paths via _projected_snapshot_scope_error. perps was the lone residual (omitted AND unguarded) — proof-path hole now CLOSED (perps reject added to the snapshot scope guard in recompute_batch_v3/v4 + regression, commit cb3bc75b). OPEN ARCHITECTURE DECISION (owner): enforce-perps-empty in spot scope vs commit perps in a versioned root (v6, breaks golden vectors/replay/Rust shadow). Separately, the 6 state_root evidence columns are all still unstarted (TBD), so the surface remains 0/6 regardless."
     },
     "nonces": {
       "running_impl": {"ref": "src/state/nonces.py (validate_and_apply_intent_nonce_batch; LIVE authority via dex_engine.py:132, require_all_nonces=True)", "verified": false, "note": "Identified as the live spot replay authority. Pending: bind the proof chain (below) to the multi-sender BATCH wrapper, not just the single-transition slice."},
