@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from tools.check_release_publication_workflow import (
     DEFAULT_WORKFLOW,
     check_release_publication_workflow,
@@ -71,6 +73,36 @@ def test_release_publication_workflow_rejects_manual_only_container_publish(tmp_
 
     assert report["ok"] is False
     assert "container publish must run on tag pushes or manual opt-in" in report["errors"]
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "python tools/check_container_hardening.py",
+        (
+            "python tools/check_docker_hashlocked_install.py "
+            "--dockerfile Dockerfile.production-hashlocked --strict-digest"
+        ),
+        (
+            "python tools/check_docker_hashlocked_install.py "
+            "--dockerfile Dockerfile.operator-tools --strict-digest"
+        ),
+    ],
+)
+def test_release_publication_workflow_rejects_missing_container_publish_preflight(
+    tmp_path: Path, token: str
+) -> None:
+    workflow = tmp_path / "release-publish.yml"
+    text = DEFAULT_WORKFLOW.read_text(encoding="utf-8").replace(token, "python - <<'PY'\nprint('removed')\nPY")
+    workflow.write_text(text, encoding="utf-8")
+
+    report = check_release_publication_workflow(workflow)
+
+    assert report["ok"] is False
+    assert any(
+        "container publish job must run preflight checks before pushing images" in err
+        for err in report["errors"]
+    )
 
 
 def test_release_publication_workflow_rejects_manual_publish_defaults_true(tmp_path: Path) -> None:

@@ -43,6 +43,9 @@ REQUIRED_TOKENS = (
     "ghcr.io/",
     "Dockerfile.production-hashlocked",
     "Dockerfile.operator-tools",
+    "tools/check_container_hardening.py",
+    "tools/check_docker_hashlocked_install.py --dockerfile Dockerfile.production-hashlocked --strict-digest",
+    "tools/check_docker_hashlocked_install.py --dockerfile Dockerfile.operator-tools --strict-digest",
 )
 
 
@@ -63,8 +66,21 @@ def _top_level_permissions_are_read_only(text: str) -> bool:
 
 
 def _job_block(text: str, job_name: str) -> str:
-    match = re.search(rf"^  {re.escape(job_name)}:\n(?P<body>(?:    .*\n?)*)", text, re.M)
-    return "" if match is None else match.group("body")
+    # REVIEW [B -> A-]: the old regex stopped at the first blank line inside a
+    # job, so job-specific checks only saw the first few keys. Scan until the
+    # next two-space job header instead, preserving blank lines inside the body.
+    lines = text.splitlines()
+    start = f"  {job_name}:"
+    out: list[str] = []
+    in_job = False
+    for line in lines:
+        if not in_job:
+            in_job = line == start
+            continue
+        if re.match(r"^  [A-Za-z0-9_-]+:\s*$", line):
+            break
+        out.append(line)
+    return "\n".join(out)
 
 
 def _job_has_permissions(job: str, required: set[str]) -> bool:
@@ -138,6 +154,22 @@ def check_release_publication_workflow(path: Path = DEFAULT_WORKFLOW) -> dict[st
     checks.append({"id": "container_publish_tag_or_manual", "ok": containers_tag_or_manual})
     if not containers_tag_or_manual:
         errors.append("container publish must run on tag pushes or manual opt-in")
+
+    container_preflight_tokens = (
+        "python -m pip install --require-hashes -r requirements-core.lock.txt",
+        "python tools/check_container_hardening.py",
+        "python tools/check_docker_hashlocked_install.py --dockerfile Dockerfile.production-hashlocked --strict-digest",
+        "python tools/check_docker_hashlocked_install.py --dockerfile Dockerfile.operator-tools --strict-digest",
+    )
+    missing_preflight = [token for token in container_preflight_tokens if token not in containers_job]
+    ok = not missing_preflight
+    # REVIEW [B -> A-]: mentioning hashlocked Dockerfiles in the release workflow
+    # was weaker than gating the GHCR publish job itself. The job-level preflight
+    # check prevents manual/tag container publication from bypassing the same
+    # Docker hardening checks used by release-integrity.
+    checks.append({"id": "container_publish_preflight", "ok": ok, "missing": missing_preflight})
+    if not ok:
+        errors.append(f"container publish job must run preflight checks before pushing images: {missing_preflight}")
 
     manual_defaults = {
         "publish_github_release": "false",

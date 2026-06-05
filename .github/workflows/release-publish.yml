@@ -307,6 +307,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked Python dependencies
+        run: python -m pip install --require-hashes -r requirements-core.lock.txt
+
+      - name: Container publication preflight
+        run: |
+          python tools/check_container_hardening.py
+          python tools/check_docker_hashlocked_install.py --dockerfile Dockerfile.production-hashlocked --strict-digest
+          python tools/check_docker_hashlocked_install.py --dockerfile Dockerfile.operator-tools --strict-digest
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
