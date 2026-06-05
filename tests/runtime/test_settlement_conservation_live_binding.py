@@ -20,6 +20,12 @@ binding it does not require the floor-division arithmetic (that lives in cpmm pr
 
 Teeth: (a) a hand-built Settlement whose deltas don't conserve must be REJECTED by the live
 validator; (b) a monkeypatched apply that leaks value must trip the independent post==pre check.
+
+REVIEW [A- -> A]: Claude's binding shape was correct but branch-narrow. The
+coverage now drives exact-in, exact-out, create-pool, add-liquidity, and
+remove-liquidity through the live settlement path, so this test supports the
+balances.running_impl evidence increment without pretending to be the missing
+formal proof.
 """
 
 from __future__ import annotations
@@ -37,6 +43,7 @@ A0 = "0x" + "01" * 32
 A1 = "0x" + "02" * 32
 PK = "0x" + "11" * 48
 FEE_RECIP = "0x" + "22" * 48
+LP_LOCK = "0x" + "00" * 48
 
 
 def _iid(n: int) -> str:
@@ -80,6 +87,103 @@ def _swap_scenario(amount_in: int):
     return [intent], pools, balances, LPTable(), settlement
 
 
+def _swap_exact_out_scenario(amount_out: int):
+    pool_id, pool, _ = create_pool(
+        asset0=A0, asset1=A1, amount0=2_000_000, amount1=2_000_000, fee_bps=30, creator_pubkey=PK
+    )
+    balances = BalanceTable()
+    balances.set(PK, A0, 10_000_000)
+    balances.set(PK, A1, 10_000_000)
+    pools = {pool_id: pool}
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_OUT,
+        intent_id=_iid(901),
+        sender_pubkey=PK,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": A0,
+            "asset_out": A1,
+            "amount_out": amount_out,
+            "max_amount_in": 10_000_000,
+        },
+    )
+    settlement = compute_settlement([intent], pools, balances, LPTable(), swap_ordering="greedy_ab_refined")
+    return [intent], pools, balances, LPTable(), settlement
+
+
+def _create_pool_scenario(amount0: int, amount1: int):
+    balances = BalanceTable()
+    balances.set(PK, A0, 10_000_000)
+    balances.set(PK, A1, 10_000_000)
+    pools: dict = {}
+    lp = LPTable()
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(902),
+        sender_pubkey=PK,
+        deadline=9999999999,
+        fields={"asset0": A0, "asset1": A1, "fee_bps": 30, "amount0": amount0, "amount1": amount1},
+    )
+    settlement = compute_settlement([intent], pools, balances, lp)
+    return [intent], pools, balances, lp, settlement
+
+
+def _liquidity_context():
+    pool_id, pool, lp_minted = create_pool(
+        asset0=A0, asset1=A1, amount0=2_000_000, amount1=2_000_000, fee_bps=30, creator_pubkey=PK
+    )
+    balances = BalanceTable()
+    balances.set(PK, A0, 10_000_000)
+    balances.set(PK, A1, 10_000_000)
+    lp = LPTable()
+    lp.set(PK, pool_id, lp_minted)
+    lp.set(LP_LOCK, pool_id, pool.lp_supply - lp_minted)
+    return pool_id, pool, balances, lp
+
+
+def _add_liquidity_scenario(amount0_desired: int, amount1_desired: int):
+    pool_id, pool, balances, lp = _liquidity_context()
+    pools = {pool_id: pool}
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(903),
+        sender_pubkey=PK,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "amount0_desired": amount0_desired,
+            "amount1_desired": amount1_desired,
+            "amount0_min": 0,
+            "amount1_min": 0,
+        },
+    )
+    settlement = compute_settlement([intent], pools, balances, lp)
+    return [intent], pools, balances, lp, settlement
+
+
+def _remove_liquidity_scenario(lp_amount: int):
+    pool_id, pool, balances, lp = _liquidity_context()
+    pools = {pool_id: pool}
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.REMOVE_LIQUIDITY,
+        intent_id=_iid(904),
+        sender_pubkey=PK,
+        deadline=9999999999,
+        fields={"pool_id": pool_id, "lp_amount": lp_amount, "amount0_min": 0, "amount1_min": 0},
+    )
+    settlement = compute_settlement([intent], pools, balances, lp)
+    return [intent], pools, balances, lp, settlement
+
+
 def _assert_conserves(intents, pools, balances, lp, settlement) -> None:
     pre = _asset_totals(balances, pools)
     ok, err = validate_settlement_strong(
@@ -95,6 +199,26 @@ def _assert_conserves(intents, pools, balances, lp, settlement) -> None:
 @pytest.mark.parametrize("amount_in", [1, 1000, 50_000, 250_000, 1_000_000])
 def test_swap_conserves_value_per_asset(amount_in: int) -> None:
     _assert_conserves(*_swap_scenario(amount_in))
+
+
+@pytest.mark.parametrize("amount_out", [1, 1000, 50_000, 250_000])
+def test_swap_exact_out_conserves_value_per_asset(amount_out: int) -> None:
+    _assert_conserves(*_swap_exact_out_scenario(amount_out))
+
+
+@pytest.mark.parametrize(("amount0", "amount1"), [(1_000, 2_000), (2_000_000, 2_000_000)])
+def test_create_pool_conserves_value_per_asset(amount0: int, amount1: int) -> None:
+    _assert_conserves(*_create_pool_scenario(amount0, amount1))
+
+
+@pytest.mark.parametrize(("amount0_desired", "amount1_desired"), [(100_000, 100_000), (250_000, 125_000)])
+def test_add_liquidity_conserves_value_per_asset(amount0_desired: int, amount1_desired: int) -> None:
+    _assert_conserves(*_add_liquidity_scenario(amount0_desired, amount1_desired))
+
+
+@pytest.mark.parametrize("lp_amount", [1, 1_000, 250_000])
+def test_remove_liquidity_conserves_value_per_asset(lp_amount: int) -> None:
+    _assert_conserves(*_remove_liquidity_scenario(lp_amount))
 
 
 def test_independent_total_actually_moves(amount_in: int = 250_000) -> None:
