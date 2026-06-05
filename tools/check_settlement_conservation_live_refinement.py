@@ -64,6 +64,23 @@ SOURCE_FILES = [
     "src/core/liquidity.py",
 ]
 
+EXPECTED_CLAIM = (
+    "Bounded refinement: live Python settlement deltas in the checked corpus instantiate "
+    "the Lean AssetMove constructors and preserve each asset's balance+reserve total."
+)
+EXPECTED_GRADE = "A-"
+EXPECTED_GRADE_REASON = (
+    "Strong replay binding with protocol-fee, bidirectional swap, create-pool, add-liquidity, "
+    "remove-liquidity, and mixed-batch composition coverage. Still bounded and not a full "
+    "proof_artifact flip."
+)
+EXPECTED_PRODUCTION_MATRIX_EFFECT = "No CBC registry column flips."
+EXPECTED_COMMANDS = [
+    ["lake", "--wfail", "build", LEAN_MODULE],
+    ["python3", "-m", "pytest", "-q", "tests/formal/test_lean_settlement_conservation_live.py"],
+    ["python3", "-m", "pytest", "-q", "tests/runtime/test_settlement_conservation_live_binding.py"],
+]
+
 
 class RefinementError(ValueError):
     pass
@@ -555,13 +572,13 @@ def _source_hashes() -> dict[str, str]:
 
 
 def build_receipt(path: Path) -> dict[str, Any]:
-    lean = _run(["lake", "--wfail", "build", LEAN_MODULE], cwd=ROOT / "lean-mathlib")
+    lean = _run(EXPECTED_COMMANDS[0], cwd=ROOT / "lean-mathlib")
     if lean["returncode"] != 0:
         raise RefinementError(f"Lean build failed: {lean}")
-    formal = _run(["python3", "-m", "pytest", "-q", "tests/formal/test_lean_settlement_conservation_live.py"])
+    formal = _run(EXPECTED_COMMANDS[1])
     if formal["returncode"] != 0:
         raise RefinementError(f"formal smoke failed: {formal}")
-    runtime = _run(["python3", "-m", "pytest", "-q", "tests/runtime/test_settlement_conservation_live_binding.py"])
+    runtime = _run(EXPECTED_COMMANDS[2])
     if runtime["returncode"] != 0:
         raise RefinementError(f"runtime binding failed: {runtime}")
     cases = run_refinement_checks()
@@ -572,17 +589,10 @@ def build_receipt(path: Path) -> dict[str, Any]:
         "commands": [lean, formal, runtime],
         "cases": cases,
         "covered_constructors": sorted({ctor for case in cases for ctor in case["constructors"]}),
-        "claim": (
-            "Bounded refinement: live Python settlement deltas in the checked corpus instantiate "
-            "the Lean AssetMove constructors and preserve each asset's balance+reserve total."
-        ),
-        "grade": "A-",
-        "grade_reason": (
-            "Strong replay binding with protocol-fee, bidirectional swap, create-pool, add-liquidity, "
-            "remove-liquidity, and mixed-batch composition coverage. Still bounded and not a full "
-            "proof_artifact flip."
-        ),
-        "production_matrix_effect": "No CBC registry column flips.",
+        "claim": EXPECTED_CLAIM,
+        "grade": EXPECTED_GRADE,
+        "grade_reason": EXPECTED_GRADE_REASON,
+        "production_matrix_effect": EXPECTED_PRODUCTION_MATRIX_EFFECT,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -596,7 +606,13 @@ def check_receipt(path: Path) -> dict[str, Any]:
         errors.append("bad schema")
     if receipt.get("lean_module") != LEAN_MODULE:
         errors.append("lean_module mismatch")
-    if receipt.get("production_matrix_effect") != "No CBC registry column flips.":
+    if receipt.get("claim") != EXPECTED_CLAIM:
+        errors.append("claim mismatch")
+    if receipt.get("grade") != EXPECTED_GRADE:
+        errors.append("grade mismatch")
+    if receipt.get("grade_reason") != EXPECTED_GRADE_REASON:
+        errors.append("grade_reason mismatch")
+    if receipt.get("production_matrix_effect") != EXPECTED_PRODUCTION_MATRIX_EFFECT:
         errors.append("production_matrix_effect must keep the no-flip boundary explicit")
     for rel, pinned in receipt.get("source_hashes", {}).items():
         actual = _sha256_file(ROOT / rel)
@@ -615,15 +631,10 @@ def check_receipt(path: Path) -> dict[str, Any]:
     covered = sorted({ctor for case in cases for ctor in case.get("constructors", [])})
     if receipt.get("covered_constructors") != covered:
         errors.append("covered constructor set mismatch")
-    expected_commands = [
-        ["lake", "--wfail", "build", LEAN_MODULE],
-        ["python3", "-m", "pytest", "-q", "tests/formal/test_lean_settlement_conservation_live.py"],
-        ["python3", "-m", "pytest", "-q", "tests/runtime/test_settlement_conservation_live_binding.py"],
-    ]
     commands = receipt.get("commands", [])
     got_commands = [cmd.get("cmd") for cmd in commands if isinstance(cmd, Mapping)]
     got_returncodes = [cmd.get("returncode") for cmd in commands if isinstance(cmd, Mapping)]
-    if got_commands != expected_commands or got_returncodes != [0, 0, 0]:
+    if got_commands != EXPECTED_COMMANDS or got_returncodes != [0, 0, 0]:
         errors.append("command receipt mismatch")
     return {
         "schema": CHECK_SCHEMA,
