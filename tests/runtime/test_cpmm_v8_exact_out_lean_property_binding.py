@@ -6,8 +6,11 @@ deterministic, PR-gated CI check that needs NO prover toolchain. `tests/runtime/
 is globbed by runtime-shadow.yml and run via `pytest tests/runtime`, so a drift of
 the live exact-out/exact-in math away from the proven formula fails CI here.
 
-It binds the RUNNING code to the proven PROPERTY (not to a re-transcription of the
-formula):
+It binds the RUNNING code to the proven theorem two complementary ways, so the
+check is not circular through the kernel's own swap_exact_in: (a) the live
+swap_exact_out gross and swap_exact_in output EQUAL an independent transcription of
+the Lean formula definitions, and (b) those proven formulas satisfy sufficiency +
+minimality. Together: the live code computes the proven-safe formulas.
 
   Lean  lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean
         theorem swap_exact_out_sufficient_and_minimal  (rin>0, aout<rout, fee<10000):
@@ -44,6 +47,34 @@ BPS = 10_000
 SEED = 20260604
 
 
+# --- Independent transcription of the Lean definitions (closes circularity) -----
+# These mirror lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean EXACTLY:
+#   exactOutNetReq   = ceil(rin*aout / (rout-aout))           (line 31-32)
+#   exactOutGross    = ceil(net_req*BPS / (BPS-fee))          (line 34-35)
+#   exactOutNetActual= g - ceil(g*fee / BPS)                  (line 37-38)
+#   exactOutQuote    = floor(rout*na / (rin+na))              (line 40-41)
+# Pinning the LIVE kernel to these (below) means the property check is NOT
+# circular through the kernel's own swap_exact_in: running == proven-formula, and
+# the proven-formula satisfies sufficiency+minimality (the Lean theorem).
+
+
+def _ceil(a: int, b: int) -> int:
+    assert b > 0
+    return (a + b - 1) // b
+
+
+def _lean_gross(rin: int, rout: int, aout: int, fee: int) -> int:
+    net_req = _ceil(rin * aout, rout - aout)
+    return _ceil(net_req * BPS, BPS - fee)
+
+
+def _lean_out_quote(rin: int, rout: int, g: int, fee: int) -> int:
+    if g <= 0:
+        return 0
+    na = g - _ceil(g * fee, BPS)
+    return (rout * na) // (rin + na)
+
+
 def _out_quote(rin: int, rout: int, g: int, fee: int) -> int:
     """out_quote(g): the live exact-in output for gross input g (Lean's
     `exactOutQuote`). A ValueError (output 0 / trade too small / net<=0) means the
@@ -69,12 +100,19 @@ def _assert_sufficient_and_minimal(rin: int, rout: int, aout: int, fee: int) -> 
     )
     gross = res.gross_in
     ctx = (rin, rout, aout, fee, gross)
-    # the result's own quote must equal the independent forward exact-in output
+    # (i) the LIVE gross equals the independently-transcribed Lean gross formula
+    assert gross == _lean_gross(rin, rout, aout, fee), ("gross-formula", ctx)
+    # (ii) the LIVE exact-in output equals the independently-transcribed Lean
+    #      out_quote formula (so the property below is not circular through the
+    #      kernel's own swap_exact_in)
+    assert _out_quote(rin, rout, gross, fee) == _lean_out_quote(rin, rout, gross, fee), ("quote-formula", ctx)
+    # the result's own quote must also equal the forward exact-in output
     assert res.amount_out_quote == _out_quote(rin, rout, gross, fee), ("quote-mismatch", ctx)
     # SUFFICIENCY: out_quote(gross) >= aout
     assert _out_quote(rin, rout, gross, fee) >= aout, ("sufficiency", ctx)
     # MINIMALITY: out_quote(gross-1) < aout  (tightest g < gross)
     if gross - 1 >= 1:
+        assert _out_quote(rin, rout, gross - 1, fee) == _lean_out_quote(rin, rout, gross - 1, fee), ("quote-formula-min", ctx)
         assert _out_quote(rin, rout, gross - 1, fee) < aout, ("minimality", ctx)
         return True
     return False
