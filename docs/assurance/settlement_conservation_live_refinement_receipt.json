@@ -231,6 +231,97 @@
           "reserve_delta": -123456
         }
       ]
+    },
+    {
+      "assets": [
+        "0x0101010101010101010101010101010101010101010101010101010101010101",
+        "0x0202020202020202020202020202020202020202020202020202020202020202"
+      ],
+      "case_id": "mixed_existing_pool_batch",
+      "constructors": [
+        "addLiquidity",
+        "removeLiquidity",
+        "swapInput",
+        "swapOutput"
+      ],
+      "filled_intents": 4,
+      "pre_post_totals_ok": true,
+      "witnesses": [
+        {
+          "asset": "0x0202020202020202020202020202020202020202020202020202020202020202",
+          "balance_delta": -10079,
+          "constructor": "swapInput",
+          "params": {
+            "amount": 10082,
+            "protocol_fee": 3
+          },
+          "reserve_delta": 10079
+        },
+        {
+          "asset": "0x0101010101010101010101010101010101010101010101010101010101010101",
+          "balance_delta": 10000,
+          "constructor": "swapOutput",
+          "params": {
+            "amount_out": 10000
+          },
+          "reserve_delta": -10000
+        },
+        {
+          "asset": "0x0101010101010101010101010101010101010101010101010101010101010101",
+          "balance_delta": -19994,
+          "constructor": "swapInput",
+          "params": {
+            "amount": 20000,
+            "protocol_fee": 6
+          },
+          "reserve_delta": 19994
+        },
+        {
+          "asset": "0x0202020202020202020202020202020202020202020202020202020202020202",
+          "balance_delta": 19941,
+          "constructor": "swapOutput",
+          "params": {
+            "amount_out": 19941
+          },
+          "reserve_delta": -19941
+        },
+        {
+          "asset": "0x0101010101010101010101010101010101010101010101010101010101010101",
+          "balance_delta": -100000,
+          "constructor": "addLiquidity",
+          "params": {
+            "amount_used": 100000
+          },
+          "reserve_delta": 100000
+        },
+        {
+          "asset": "0x0202020202020202020202020202020202020202020202020202020202020202",
+          "balance_delta": -99012,
+          "constructor": "addLiquidity",
+          "params": {
+            "amount_used": 99012
+          },
+          "reserve_delta": 99012
+        },
+        {
+          "asset": "0x0101010101010101010101010101010101010101010101010101010101010101",
+          "balance_delta": 50249,
+          "constructor": "removeLiquidity",
+          "params": {
+            "amount_out": 50249
+          },
+          "reserve_delta": -50249
+        },
+        {
+          "asset": "0x0202020202020202020202020202020202020202020202020202020202020202",
+          "balance_delta": 49753,
+          "constructor": "removeLiquidity",
+          "params": {
+            "amount_out": 49753
+          },
+          "reserve_delta": -49753
+        }
+      ]
     }
   ],
   "claim": "Bounded refinement: live Python settlement deltas in the checked corpus instantiate the Lean AssetMove constructors and preserve each asset's balance+reserve total.",
@@ -258,7 +349,7 @@
       "cwd": ".",
       "returncode": 0,
       "stderr_tail": "",
-      "stdout_tail": "..                                                                       [100%]\n2 passed in 8.15s\n"
+      "stdout_tail": "..                                                                       [100%]\n2 passed in 7.09s\n"
     },
     {
       "cmd": [
@@ -271,7 +362,7 @@
       "cwd": ".",
       "returncode": 0,
       "stderr_tail": "",
-      "stdout_tail": "...................                                                      [100%]\n19 passed in 0.28s\n"
+      "stdout_tail": "...................                                                      [100%]\n19 passed in 0.31s\n"
     }
   ],
   "covered_constructors": [
@@ -282,7 +373,7 @@
     "swapOutput"
   ],
   "grade": "A-",
-  "grade_reason": "Strong replay binding with protocol-fee, bidirectional swap, create-pool, add-liquidity, and remove-liquidity coverage. Still bounded and not a full proof_artifact flip.",
+  "grade_reason": "Strong replay binding with protocol-fee, bidirectional swap, create-pool, add-liquidity, remove-liquidity, and mixed-batch composition coverage. Still bounded and not a full proof_artifact flip.",
   "lean_module": "Proofs.SettlementConservationLive",
   "production_matrix_effect": "No CBC registry column flips.",
   "schema": "zenodex.balances.live_settlement_conservation_refinement.v1",
@@ -295,7 +386,7 @@
     "src/core/settlement_strong_validator.py": "0a28f9890afd5d4ccc829541cff3ce9cb404f1fc5ad37c9416b8a40a7159784b",
     "tests/formal/test_lean_settlement_conservation_live.py": "515dbe2b9a63681930ef54240c0f3944af3161f9aa13824739891ebc0e117f01",
     "tests/runtime/test_settlement_conservation_live_binding.py": "9f040f04643ed0c0183e6e13d3d3dac86e4599280d10991a20413d2757be03c6",
-    "tests/test_check_settlement_conservation_live_refinement.py": "0d5826d962293ecc9aa1d746221ae393f4a7eb5b2d1f0eb8cc90bfae09790197",
-    "tools/check_settlement_conservation_live_refinement.py": "272fda577732cbfba60775f811decc49ac1c179b5075c7210ec2ca2c927d6ffe"
+    "tests/test_check_settlement_conservation_live_refinement.py": "0bd543dc1b6130738f5a5c956abf85e1107642772f3be7265eddf3b144cb3a2d",
+    "tools/check_settlement_conservation_live_refinement.py": "e3311cd779e2c063f96e469e030df88cc4723edc997a3c8d10de8109a47832b5"
   }
 }

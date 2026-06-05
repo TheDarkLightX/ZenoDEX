@@ -429,6 +429,84 @@ def _remove_liquidity_scenario() -> Scenario:
     return Scenario("remove_liquidity", [intent], {pool_id: pool}, balances, lp, settlement)
 
 
+def _mixed_existing_pool_batch_scenario() -> Scenario:
+    pool_id, pool, balances, lp = _base_pool()
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(501),
+            sender_pubkey=PK,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": A0,
+                "asset_out": A1,
+                "amount_in": 20_000,
+                "min_amount_out": 1,
+            },
+        ),
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_OUT,
+            intent_id=_iid(502),
+            sender_pubkey=PK2,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": A1,
+                "asset_out": A0,
+                "amount_out": 10_000,
+                "max_amount_in": 100_000,
+            },
+        ),
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.ADD_LIQUIDITY,
+            intent_id=_iid(503),
+            sender_pubkey=PK,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "amount0_desired": 100_000,
+                "amount1_desired": 100_000,
+                "amount0_min": 0,
+                "amount1_min": 0,
+            },
+        ),
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.REMOVE_LIQUIDITY,
+            intent_id=_iid(504),
+            sender_pubkey=PK,
+            deadline=9999999999,
+            fields={"pool_id": pool_id, "lp_amount": 50_000, "amount0_min": 0, "amount1_min": 0},
+        ),
+    ]
+    settlement = compute_settlement(
+        intents,
+        {pool_id: pool},
+        balances,
+        lp,
+        protocol_fee_share_bps=1_000,
+        protocol_fee_recipient_pubkey=FEE_RECIP,
+    )
+    return Scenario(
+        "mixed_existing_pool_batch",
+        intents,
+        {pool_id: pool},
+        balances,
+        lp,
+        settlement,
+        protocol_fee_share_bps=1_000,
+        protocol_fee_recipient_pubkey=FEE_RECIP,
+    )
+
+
 def build_scenarios() -> list[Scenario]:
     return [
         _swap_scenario(
@@ -464,6 +542,7 @@ def build_scenarios() -> list[Scenario]:
         _create_pool_scenario(),
         _add_liquidity_scenario(),
         _remove_liquidity_scenario(),
+        _mixed_existing_pool_batch_scenario(),
     ]
 
 
@@ -500,7 +579,8 @@ def build_receipt(path: Path) -> dict[str, Any]:
         "grade": "A-",
         "grade_reason": (
             "Strong replay binding with protocol-fee, bidirectional swap, create-pool, add-liquidity, "
-            "and remove-liquidity coverage. Still bounded and not a full proof_artifact flip."
+            "remove-liquidity, and mixed-batch composition coverage. Still bounded and not a full "
+            "proof_artifact flip."
         ),
         "production_matrix_effect": "No CBC registry column flips.",
     }

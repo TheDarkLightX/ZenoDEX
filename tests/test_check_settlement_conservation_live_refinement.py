@@ -37,6 +37,14 @@ def test_refinement_receipt_includes_protocol_fee_witness() -> None:
     assert protocol_fee_witnesses, "refinement corpus must cover protocol-fee balance+reserve split"
 
 
+def test_refinement_receipt_includes_mixed_batch_composition() -> None:
+    cases = checker.run_refinement_checks()
+    mixed = next(case for case in cases if case["case_id"] == "mixed_existing_pool_batch")
+    assert mixed["filled_intents"] >= 4
+    assert set(mixed["constructors"]) == {"addLiquidity", "removeLiquidity", "swapInput", "swapOutput"}
+    assert len(mixed["witnesses"]) >= 8
+
+
 def test_refinement_receipt_source_hash_tamper_fails(tmp_path: Path) -> None:
     receipt = json.loads(checker.DEFAULT_RECEIPT.read_text(encoding="utf-8"))
     receipt["source_hashes"]["tools/check_settlement_conservation_live_refinement.py"] = "0" * 64
