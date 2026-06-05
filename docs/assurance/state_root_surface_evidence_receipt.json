@@ -155,7 +155,7 @@
     }
   },
   "private_toolchain_source_included": false,
-  "receipt_sha256": "9aaff877bae501bf1ccc50a85c2c57b29186fa53e4efc041345f0e575583c7f3",
+  "receipt_sha256": "be39343d4a1e27aed5eea002b33d69b42bb40916ec5aceffd5a3256f32ba77c5",
   "required_test_commands": [
     {
       "command": [
@@ -203,11 +203,11 @@
     },
     {
       "path": "tools/check_state_root_surface_evidence.py",
-      "sha256": "9921b2f43c693d9da73b8e0fcb0b7c722285afbe68a49b3b250ab83ee91f538e"
+      "sha256": "8f78157449f5196c5a7cd1718c0336520f298d862d7d28e986fe139fdb576957"
     },
     {
       "path": "tests/test_check_state_root_surface_evidence.py",
-      "sha256": "1243a16d28ddff19140a56d064dacf781d8a0bbe0c1f295d60f360debe882880"
+      "sha256": "8e482158957249058e17983838904466e6cd283d735152819cf9c0f79d9ce951"
     },
     {
       "path": "src/state/state_root.py",
@@ -299,11 +299,11 @@
     },
     {
       "path": ".github/workflows/runtime-shadow.yml",
-      "sha256": "845631a519580cec320428967cf38836634e205daa8bbeddb83b49a19ed69fec"
+      "sha256": "66eadf256bf64495f9ed0258ab57ac09298af581d8d79e4721ea9577167f0b9c"
     },
     {
       "path": ".github/workflows/release-integrity.yml",
-      "sha256": "f244bf0d5c70df7c74437f1c034d441e1187e7ff18877f00e3f2848be987291a"
+      "sha256": "ccded7345693f34c8ddc29829ce976c33802c85b2a9f717b1234a93ea8a7c598"
     }
   ],
   "state_root_version": 5,

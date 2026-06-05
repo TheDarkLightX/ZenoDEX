@@ -47,8 +47,8 @@
   ],
   "schema": "zenodex.cpmm_swap.formal_spec_contract.v1",
   "source_hashes": {
-    ".github/workflows/release-integrity.yml": "f244bf0d5c70df7c74437f1c034d441e1187e7ff18877f00e3f2848be987291a",
-    ".github/workflows/runtime-shadow.yml": "845631a519580cec320428967cf38836634e205daa8bbeddb83b49a19ed69fec",
+    ".github/workflows/release-integrity.yml": "ccded7345693f34c8ddc29829ce976c33802c85b2a9f717b1234a93ea8a7c598",
+    ".github/workflows/runtime-shadow.yml": "66eadf256bf64495f9ed0258ab57ac09298af581d8d79e4721ea9577167f0b9c",
     "docs/assurance/spot_proof_public_receipt.json": "2a2a6a4ac55039179bbae7d47ae267ae4a60d5ac9e38a5331e62a12d869ebc0f",
     "lean-mathlib/Proofs/CPMMInvariants.lean": "98a20c960c7f35d9db7b6589d6477f9e31513ef7b4da228f47a312e2b6b15bb8",
     "lean-mathlib/Proofs/CpmmSwapV8ExactInAdmissibility.lean": "d68aedc27ebdb1d8f8c001e9bf080c86f3feed1242848222cabdc22f4f0cf48b",

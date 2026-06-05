@@ -66,6 +66,7 @@ jobs:
             --pretty
           python3 tools/spot_proof_public_receipt.py check --pretty
           python3 tools/check_cpmm_swap_formal_spec_contract.py check --pretty
+          python3 tools/check_settlement_supply_formal_spec_contract.py check --pretty
           python3 tools/check_settlement_conservation_live_refinement.py check --pretty
           python3 tools/check_state_root_surface_evidence.py check --pretty
           python3 tools/check_python_hash_locks.py --json
@@ -83,6 +84,7 @@ jobs:
             tests/test_check_kernel_assurance_public_receipt.py \
             tests/integration/test_spot_proof_public_receipt.py \
             tests/test_check_cpmm_swap_formal_spec_contract.py \
+            tests/test_check_settlement_supply_formal_spec_contract.py \
             tests/test_check_settlement_conservation_live_refinement.py \
             tests/test_check_state_root_surface_evidence.py \
             tests/test_check_release_publication_workflow.py \

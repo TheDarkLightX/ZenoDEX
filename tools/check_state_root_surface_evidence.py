@@ -846,9 +846,74 @@ def _run_kani() -> dict[str, Any]:
     return result
 
 
+RUNTIME_SHADOW_REQUIRED_PATH_FILTERS = [
+    "src/state/state_root.py",
+    "tools/zeno_ledger_node.py",
+    "rust-runtime/**",
+    "tools/runtime/**",
+    "tests/runtime/**",
+    "tests/runtime/test_state_root_vectors.py",
+    "tests/runtime/test_state_root_live_path.py",
+    "tests/integration/test_zeno_ledger_node_state_root_binding.py",
+    "src/kernels/dex/state_root_v5_scope_contract.json",
+    "docs/assurance/state_root_surface_evidence_receipt.json",
+    "tools/check_state_root_surface_evidence.py",
+    "tests/test_check_state_root_surface_evidence.py",
+]
+
+
+def _workflow_on_section(workflow: Mapping[str, Any]) -> Mapping[str, Any]:
+    # PyYAML still treats the GitHub Actions key `on` as boolean True under its
+    # YAML 1.1 resolver. Accept both shapes so the checker is parser-stable.
+    section = workflow.get("on", workflow.get(True))
+    if not isinstance(section, Mapping):
+        raise EvidenceError("runtime-shadow workflow must define an on: mapping")
+    return section
+
+
+def _path_filter_covers(required_path: str, active_filter: str) -> bool:
+    if active_filter == required_path:
+        return True
+    if active_filter.endswith("/**"):
+        return required_path.startswith(active_filter.removesuffix("**"))
+    return False
+
+
+def _runtime_shadow_path_filter_errors() -> list[str]:
+    # REVIEW [B -> A-]: the earlier gate used raw substring checks for path
+    # filters. That allowed a future receipt rebuild to pass if a required path
+    # appeared only in a comment. Parse the GitHub Actions YAML and require the
+    # active pull_request + push path filters to contain every load-bearing path.
+    try:
+        workflow = _load_workflow(".github/workflows/runtime-shadow.yml")
+        on_section = _workflow_on_section(workflow)
+    except EvidenceError as exc:
+        return [str(exc)]
+
+    errors: list[str] = []
+    for event in ("pull_request", "push"):
+        event_cfg = on_section.get(event)
+        if not isinstance(event_cfg, Mapping):
+            errors.append(f"runtime-shadow on.{event} must be an object")
+            continue
+        paths = event_cfg.get("paths")
+        if not isinstance(paths, list) or not all(isinstance(item, str) for item in paths):
+            errors.append(f"runtime-shadow on.{event}.paths must be a list of strings")
+            continue
+        missing = [
+            path
+            for path in RUNTIME_SHADOW_REQUIRED_PATH_FILTERS
+            if not any(_path_filter_covers(path, active_filter) for active_filter in paths)
+        ]
+        if missing:
+            errors.append(f"runtime-shadow on.{event}.paths missing state-root filters: {missing}")
+    return errors
+
+
 def _runtime_shadow_paths_are_gated() -> list[str]:
+    errors = _runtime_shadow_path_filter_errors()
     workflow = (ROOT / ".github" / "workflows" / "runtime-shadow.yml").read_text(encoding="utf-8")
-    required_snippets = [
+    required_command_snippets = [
         "src/state/state_root.py",
         "tools/zeno_ledger_node.py",
         "rust-runtime/**",
@@ -861,7 +926,10 @@ def _runtime_shadow_paths_are_gated() -> list[str]:
         "tools/check_state_root_surface_evidence.py check --pretty --test-profile python",
         "tools/check_state_root_surface_evidence.py check --pretty --test-profile rust",
     ]
-    return [snippet for snippet in required_snippets if snippet not in workflow]
+    missing_commands = [snippet for snippet in required_command_snippets if snippet not in workflow]
+    if missing_commands:
+        errors.append(f"runtime-shadow workflow missing state-root snippets: {missing_commands}")
+    return errors
 
 
 def _release_integrity_state_root_gate_is_present() -> list[str]:

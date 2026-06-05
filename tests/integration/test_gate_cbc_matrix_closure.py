@@ -76,7 +76,8 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     # REVIEW [B -> A-]: Claude's state_root flip reached 7/7 after the
     # adversarial review trail, but one post-flip note still said
     # ``running_impl remains false``. Pin the narrative to the computed matrix:
-    # state_root is ready, while balances/nonces keep the scope blocked.
+    # state_root is ready; the scope remains blocked by nonces until its row
+    # receives the same review-backed treatment.
     assert state_root["open_gaps_closed"] is True
     for column in ("running_impl", "formal_spec", "runtime_invariants", "authority_mode"):
         assert state_root[column]["verified"] is True
@@ -97,6 +98,18 @@ def test_default_registry_covers_spot_dex_scope() -> None:
         "proof_artifact"
     ]["note"]
     assert "formal_spec column (still false)" not in cpmm["proof_artifact"]["note"]
+    balances = surfaces["balances"]
+    # REVIEW [B -> A-]: this assertion still encoded the pre-flip matrix after
+    # balances moved to an owner-authorized 7/7 row. Pin the current computed
+    # contract instead: balances is clear, while the release claim stays false
+    # because nonces is still open.
+    assert balances["open_gaps_closed"] is True
+    for column in ("running_impl", "formal_spec", "proof_artifact"):
+        assert balances[column]["verified"] is True
+    balances_trail = balances.get("resolved_by_review", "")
+    assert "FLIPPED 2026-06-05 to 7/7" in balances_trail
+    assert "SettlementSupplyConservation binding" in balances_trail
+    assert "Gate stays production_security_claim=False: nonces still blocks" in balances_trail
     # REVIEW [B -> A-]: evidence notes are part of the release-review contract.
     # A stale note once named differential_tests as a remaining nonces gap after
     # the matrix had cleared it. Pin the narrative to the computed columns so
@@ -107,7 +120,7 @@ def test_default_registry_covers_spot_dex_scope() -> None:
         "runtime_invariants"
     ]["note"]
     assert "proof_artifact/differential_tests" not in nonces["runtime_invariants"]["note"]
-    for surface_id in set(SPOT_DEX_SCOPE) - {"cpmm_swap", "state_root"}:
+    for surface_id in set(SPOT_DEX_SCOPE) - {"cpmm_swap", "state_root", "balances"}:
         assert surfaces[surface_id]["open_gaps_closed"] is False
     assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 1
 

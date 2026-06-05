@@ -329,6 +329,30 @@ def test_runtime_shadow_structural_placement_rejects_comment_only_rust_profile(m
     assert any("python-rust-shadow job missing state-root run snippet" in err for err in errors), errors
 
 
+@pytest.mark.parametrize("event_name", ["pull_request", "push"])
+def test_runtime_shadow_path_filter_rejects_comment_only_required_path(monkeypatch, event_name: str) -> None:
+    workflow = _runtime_shadow_workflow()
+    mutated = copy.deepcopy(workflow)
+    on_section = mutated.get("on", mutated.get(True))
+    assert isinstance(on_section, dict)
+    paths = on_section[event_name]["paths"]
+    paths.remove("src/state/state_root.py")
+    for step in mutated["jobs"]["python-runtime"]["steps"]:
+        if isinstance(step, dict) and isinstance(step.get("run"), str):
+            step["run"] = f"# src/state/state_root.py\n{step['run']}"
+            break
+    else:  # pragma: no cover - workflow fixture always has run steps
+        raise AssertionError("python-runtime job has no shell step to carry the comment-only decoy")
+
+    monkeypatch.setattr(
+        sre,
+        "_load_workflow",
+        lambda rel: mutated if rel == ".github/workflows/runtime-shadow.yml" else workflow,
+    )
+    errors = sre._runtime_shadow_paths_are_gated()
+    assert any(f"runtime-shadow on.{event_name}.paths missing state-root filters" in err for err in errors), errors
+
+
 def test_runtime_shadow_structural_placement_rejects_rust_check_before_build(monkeypatch) -> None:
     workflow = _runtime_shadow_workflow()
     mutated = copy.deepcopy(workflow)
