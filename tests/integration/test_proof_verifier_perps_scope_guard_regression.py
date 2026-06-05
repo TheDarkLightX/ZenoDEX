@@ -11,9 +11,10 @@ but NOT perps — so an unbound perps could ride a projected snapshot undetected
 now rejects non-None perps too. This test pins that fail-closed behavior in both the v3
 and v4 proof verifiers.
 
-Scope note: this closes the perps hole in the SNAPSHOT SCOPE GUARD. The orthogonal
-architecture decision — whether the spot lane should COMMIT perps in a root vs guarantee-
-and-enforce it empty — is left for review (the consensus state root is NOT changed here).
+Scope note: this closes the perps hole in the SNAPSHOT SCOPE GUARD. A later consensus
+review chose the compatible enforce-empty design for the spot lane:
+`dex_state_root_v0` now rejects non-None vault/oracle/perps before committing the v5
+spot root. This test remains the proof-verifier sibling of that consensus guard.
 """
 
 from __future__ import annotations

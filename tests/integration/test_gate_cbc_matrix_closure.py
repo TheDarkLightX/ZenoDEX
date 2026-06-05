@@ -93,7 +93,7 @@ def test_all_clear_registry_passes(tmp_path: Path) -> None:
 
 def test_one_blocked_surface_fails_the_scope(tmp_path: Path) -> None:
     surfaces = {s: _all_clear_surface() for s in SPOT_DEX_SCOPE}
-    surfaces["state_root"]["open_gaps_closed"] = False  # D-CANON-002 still open
+    surfaces["state_root"]["open_gaps_closed"] = False  # state_root evidence row still open
     assert _run(_write(tmp_path, _registry(surfaces))) == 1
 
 

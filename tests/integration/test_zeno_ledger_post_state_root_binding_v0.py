@@ -103,16 +103,21 @@ def test_dex_state_root_v0_rejects_non_spot_lanes(field_name: str):
         dex_state_root_v0(state)
 
 
-def test_block_transition_rejects_pre_state_with_uncommitted_perps_lane():
+@pytest.mark.parametrize("field_name", ["vault", "oracle", "perps"])
+def test_block_transition_rejects_pre_state_with_uncommitted_non_spot_lane(field_name: str):
+    # REVIEW [B -> A]: the first regression test covered only perps, but the
+    # consensus adapter's D-CANON-002 contract is the full excluded-lane set:
+    # vault/oracle/perps must all be rejected before root binding. Parametrizing
+    # the transition path keeps future edits from weakening one sibling lane.
     clean_pre = _canonical_pre_state()
-    uncommitted_perps_pre = replace(clean_pre, perps=object())
+    uncommitted_pre = replace(clean_pre, **{field_name: object()})
     body = _body(txs=[])
     spot_root = dex_state_root_v0(clean_pre)
     header = _header_for(body=body, post_state_root=spot_root, pre_state_root=spot_root)
 
-    with pytest.raises(ValueError, match="pre_state_root not computable"):
+    with pytest.raises(ValueError, match=f"pre_state_root not computable.*{field_name}"):
         validate_block_state_transition_v0(
-            pre_state=uncommitted_perps_pre,
+            pre_state=uncommitted_pre,
             header=header,
             body=body,
             config=DexEngineConfig(),
