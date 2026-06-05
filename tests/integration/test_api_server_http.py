@@ -64,6 +64,54 @@ def test_api_server_rejects_unsafe_cors_origin_values() -> None:
     assert api_server._safe_cors_origin("https://bad.example\r\nX-Injected: value") is None
 
 
+def test_api_server_cors_preflight_returns_allowed_origin_headers() -> None:
+    httpd, t, host, port = _start_test_server(cors_origins={"https://app.example"})
+    try:
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "OPTIONS",
+            "/api/dex/quote",
+            headers={
+                "Origin": "https://app.example",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type, authorization",
+            },
+        )
+        resp = conn.getresponse()
+        resp.read()
+
+        assert resp.status == 204
+        assert resp.getheader("Access-Control-Allow-Origin") == "https://app.example"
+        assert resp.getheader("Access-Control-Allow-Methods") == "GET,POST,OPTIONS"
+        assert resp.getheader("Access-Control-Allow-Headers") == "Content-Type, Authorization"
+        assert resp.getheader("Access-Control-Max-Age") == "600"
+        assert resp.getheader("Vary") == "Origin"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_cors_preflight_does_not_reflect_unconfigured_origin() -> None:
+    httpd, t, host, port = _start_test_server(cors_origins={"https://app.example"})
+    try:
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "OPTIONS",
+            "/api/dex/quote",
+            headers={
+                "Origin": "https://evil.example",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        resp = conn.getresponse()
+        resp.read()
+
+        assert resp.status == 204
+        assert resp.getheader("Access-Control-Allow-Origin") is None
+        assert resp.getheader("Access-Control-Allow-Methods") is None
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def test_api_server_access_log_omits_sensitive_request_target(capsys) -> None:
     secret = "secret-token-should-not-be-logged"
     httpd, t, host, port = _start_test_server()
