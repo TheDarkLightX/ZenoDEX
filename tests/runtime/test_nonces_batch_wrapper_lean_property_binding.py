@@ -3,8 +3,8 @@
 The Lean module `Proofs.ZenoDEXNonceBatchWrapper` proves the non-circular theorem
 shape required by review:
 
-    batchAccepts(groups) = true -> every accepted nonce is in the sender-local
-    strict post-batch range.
+    batchAccepts(groups) = true -> every sender group is exactly the successor
+    range last+1, ..., last+k and the final nonce is last+k.
 
 This test binds the LIVE `validate_and_apply_intent_nonce_batch` authority to an
 independent Python transcription of the same grouped/sorted fold law over a
@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import itertools
 from collections.abc import Callable, Iterable, Sequence
+from pathlib import Path
 
 import pytest
 
@@ -31,6 +32,20 @@ SENDER_B = "0x" + "22" * 48
 SENDER_C = "0x" + "33" * 48
 SENDERS = (SENDER_A, SENDER_B, SENDER_C)
 _INTENT_ID = "0x" + "ab" * 32
+_LEAN_PROOF = (
+    Path(__file__).resolve().parents[2]
+    / "lean-mathlib"
+    / "Proofs"
+    / "ZenoDEXNonceBatchWrapper.lean"
+)
+_REQUIRED_EXACT_RANGE_DECLS = (
+    "structure CanonicalBatch",
+    "def successorRange",
+    "def groupExactRange",
+    "theorem acceptsSortedFold_eq_successorRange",
+    "theorem acceptsSortedFold_final_eq_start_add_length",
+    "theorem canonical_batch_accept_decision_implies_exact_ranges",
+)
 
 Validator = Callable[
     [NonceTable, Sequence[Intent]],
@@ -68,6 +83,25 @@ def _live_validator(table: NonceTable, intents: Sequence[Intent]) -> tuple[bool,
         intents=intents,
         require_all_nonces=True,
     )
+
+
+def test_lean_nonce_batch_wrapper_surface_pins_exact_ranges() -> None:
+    """Review-grade surface pin for the proof side of this binding.
+
+    REVIEW [A- -> A]: the binding test still described the old weaker theorem
+    after the Lean file moved to exact contiguous ranges plus final nonce
+    equality. Pin the declarations and theorem-shape tokens that make the proof
+    relevant to the live batch authority, so a future downgrade is caught before
+    the matrix cites this test as proof-to-runtime evidence.
+    """
+    assert _LEAN_PROOF.is_file(), f"missing Lean proof: {_LEAN_PROOF}"
+    text = _LEAN_PROOF.read_text(encoding="utf-8")
+    for decl in _REQUIRED_EXACT_RANGE_DECLS:
+        assert decl in text, f"Lean nonce wrapper proof missing required declaration: {decl}"
+    assert "senderIds_nodup" in text, "canonical batch proof must keep duplicate sender groups unrepresentable"
+    assert "group.nonces = successorRange group.last group.nonces.length" in text
+    assert "groupFinal group = group.last + group.nonces.length" in text
+    assert "sorry" not in text and "admit" not in text, "Lean nonce wrapper proof must be sorry-free"
 
 
 def _fold_accepts(last: int, sorted_nonces: Sequence[int]) -> tuple[bool, int]:
@@ -203,6 +237,31 @@ def test_teeth_gap_accepting_validator_is_caught() -> None:
             validator=broken_gap_accepting_validator,
             lasts={},
             pairs=[(SENDER_A, 2)],
+        )
+
+
+def test_teeth_duplicate_accepting_validator_is_caught() -> None:
+    """A planted validator that accepts duplicates must fail the exact-range binding."""
+
+    def broken_duplicate_accepting_validator(
+        table: NonceTable,
+        intents: Sequence[Intent],
+    ) -> tuple[bool, str | None, NonceTable | None]:
+        updated = NonceTable()
+        for sender, last in table.get_all().items():
+            updated.set_last(sender, last)
+        grouped: dict[str, list[int]] = {}
+        for intent in intents:
+            grouped.setdefault(intent.sender_pubkey, []).append(int(intent.fields["nonce"]))
+        for sender, nonces in grouped.items():
+            updated.set_last(sender, max(nonces))
+        return True, None, updated
+
+    with pytest.raises(AssertionError, match="True, False|False, True"):
+        _assert_validator_matches_model(
+            validator=broken_duplicate_accepting_validator,
+            lasts={},
+            pairs=[(SENDER_A, 1), (SENDER_A, 1)],
         )
 
 
