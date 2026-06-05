@@ -72,11 +72,13 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     # NOT deleted (deleting a row to pass the AND would be dishonest).
     assert "replay_guard" in evidence_only
     assert surfaces["replay_guard"].get("attached_to") == "nonces"
-    # Honesty guard: a surface may clear only with evidence, but the scope claim
-    # stays blocked while any other authority surface is still open.
-    assert surfaces["state_root"]["open_gaps_closed"] is True
+    # REVIEW [B -> A-]: state_root has remediation evidence ready for review,
+    # but the columns were intentionally not flipped. Keep open_gaps_closed false
+    # so the matrix reports the unresolved running_impl/formal/runtime/authority
+    # reviews instead of hiding them behind the old D-CANON-002 closure note.
+    assert surfaces["state_root"]["open_gaps_closed"] is False
     assert surfaces["cpmm_swap"]["open_gaps_closed"] is True
-    for surface_id in set(SPOT_DEX_SCOPE) - {"state_root", "cpmm_swap"}:
+    for surface_id in set(SPOT_DEX_SCOPE) - {"cpmm_swap"}:
         assert surfaces[surface_id]["open_gaps_closed"] is False
     assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 1
 
