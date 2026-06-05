@@ -214,15 +214,38 @@
         }
       ],
       "tool": "lean-lake-build"
+    },
+    {
+      "id": "settlement_supply_conservation_lean",
+      "module": "Proofs.SettlementSupplyConservation",
+      "result": {
+        "lean_toolchain": "leanprover/lean4:v4.27.0",
+        "module": "Proofs.SettlementSupplyConservation",
+        "required_theorems": [
+          "Proofs.SettlementSupplyConservation.supply_applyDeltas",
+          "Proofs.SettlementSupplyConservation.accepted_preserves_supply",
+          "Proofs.SettlementSupplyConservation.supply_changed_implies_not_accepted",
+          "Proofs.SettlementSupplyConservation.witness_accepted_preserves_noncanceling",
+          "Proofs.SettlementSupplyConservation.witness_unbalanced_creates_supply"
+        ],
+        "verdict": "BUILT_NO_SORRY"
+      },
+      "source_files": [
+        {
+          "path": "lean-mathlib/Proofs/SettlementSupplyConservation.lean",
+          "sha256": "4d9b6333b08d2e4d5b8ba6387c0eb2523325cefee71afaad81e63e63b945cd65"
+        }
+      ],
+      "tool": "lean-lake-build"
     }
   ],
   "manifest": "tools/kernel_assurance_manifest.json",
-  "manifest_sha256": "83ec2aaba70229d7f808adcd58a4dae8ea17784a4d6078f1028b57f662907fa0",
+  "manifest_sha256": "890cb84671df29cf52cabc7091ade0374ed0a2658d3285ca3461385a0fe547e0",
   "ok": true,
   "private_toolchain_source_included": false,
-  "receipt_sha256": "148190b90367dc5b2c39e58aeb095cdb377174d5cf82322f6cc8ce526929c98b",
+  "receipt_sha256": "7f38dbfafa44ebf2d51a21fa5d7089f47c400a9d47c59b7e886c2904b165e8d5",
   "schema": "zenodex.kernel_assurance.public_receipt.v1",
-  "source_report_sha256": "bf9758b681c5b4dbd32258302c7cbc47c95670af81d27e0ba6cdd21f4dc9872d",
+  "source_report_sha256": "ed7737eeb9eaf1eba14330627bb0fd29cc5c75100fb916528815d4bbd4f5f7e0",
   "toolchain": {
     "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
     "esso_dirty": true,

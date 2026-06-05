@@ -109,6 +109,21 @@ EXPECTED_LEAN_PROOFS: dict[str, dict[str, Any]] = {
             "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_gap",
             "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_is_noop_finals",
         ],
+    },
+    "settlement_supply_conservation_lean": {
+        "tool": "lean-lake-build",
+        "required_verdict": "BUILT_NO_SORRY",
+        "module": "Proofs.SettlementSupplyConservation",
+        "expected_lean_toolchain": "leanprover/lean4:v4.27.0",
+        "lean_toolchain_file": "lean-mathlib/lean-toolchain",
+        "source_files": ["lean-mathlib/Proofs/SettlementSupplyConservation.lean"],
+        "required_theorems": [
+            "Proofs.SettlementSupplyConservation.supply_applyDeltas",
+            "Proofs.SettlementSupplyConservation.accepted_preserves_supply",
+            "Proofs.SettlementSupplyConservation.supply_changed_implies_not_accepted",
+            "Proofs.SettlementSupplyConservation.witness_accepted_preserves_noncanceling",
+            "Proofs.SettlementSupplyConservation.witness_unbalanced_creates_supply",
+        ],
     }
 }
 

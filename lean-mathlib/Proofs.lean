@@ -190,6 +190,7 @@ import Proofs.RoundingErrorBound
 import Proofs.RouteIntervalGraph
 import Proofs.SettlementAlgebra
 import Proofs.SettlementCanonicalExecution
+import Proofs.SettlementSupplyConservation
 import Proofs.SettlementMechanism
 import Proofs.SettlementNetting
 import Proofs.SlashingEscapePrevention

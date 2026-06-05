@@ -42,9 +42,9 @@ proof is the abstract certificate, the test is the refinement to live code.
 
 REVIEW [A- -> A]: the theorem core was genuine, but the first draft used
 `native_decide` for the two witness lemmas. That introduced `Lean.trustCompiler`
-into the witness axiom surface, which is too weak for a load-bearing proof
+into the witness dependency surface, which is too weak for a load-bearing proof
 artifact. The witnesses now use ordinary simplification and integer arithmetic,
-so the file stays inside the same axiom profile as the main theorem.
+so the file stays inside the same trusted-dependency profile as the main theorem.
 -/
 
 namespace Proofs

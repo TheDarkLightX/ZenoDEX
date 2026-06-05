@@ -917,13 +917,15 @@ def test_apply_settlement_rejects_reserve_and_lp_failures() -> None:
         batch_ref="",
         included_intents=[],
         fills=[],
-        balance_deltas=[],
+        balance_deltas=[BalanceDelta(pubkey=pk, asset=asset0, delta_add=0, delta_sub=1)],
         reserve_deltas=[ReserveDelta(pool_id="0x" + "aa" * 32, asset=asset0, delta_add=1, delta_sub=0)],
         lp_deltas=[],
         events=None,
     )
+    unknown_balances = BalanceTable()
+    unknown_balances.set(pk, asset0, 1)
     try:
-        apply_settlement(reserve_unknown, BalanceTable(), {pool_id: pool}, LPTable())
+        apply_settlement(reserve_unknown, unknown_balances, {pool_id: pool}, LPTable())
     except ValueError as exc:
         assert str(exc) == f"Pool not found: {'0x' + 'aa' * 32}"
     else:
@@ -935,7 +937,7 @@ def test_apply_settlement_rejects_reserve_and_lp_failures() -> None:
         batch_ref="",
         included_intents=[],
         fills=[],
-        balance_deltas=[],
+        balance_deltas=[BalanceDelta(pubkey=pk, asset=asset0, delta_add=pool.reserve0 + 1, delta_sub=0)],
         reserve_deltas=[ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=0, delta_sub=pool.reserve0 + 1)],
         lp_deltas=[],
         events=None,
@@ -953,13 +955,15 @@ def test_apply_settlement_rejects_reserve_and_lp_failures() -> None:
         batch_ref="",
         included_intents=[],
         fills=[],
-        balance_deltas=[],
+        balance_deltas=[BalanceDelta(pubkey=pk, asset="0x" + "03" * 32, delta_add=0, delta_sub=1)],
         reserve_deltas=[ReserveDelta(pool_id=pool_id, asset="0x" + "03" * 32, delta_add=1, delta_sub=0)],
         lp_deltas=[],
         events=None,
     )
+    wrong_asset_balances = BalanceTable()
+    wrong_asset_balances.set(pk, "0x" + "03" * 32, 1)
     try:
-        apply_settlement(reserve_wrong_asset, BalanceTable(), {pool_id: pool}, LPTable())
+        apply_settlement(reserve_wrong_asset, wrong_asset_balances, {pool_id: pool}, LPTable())
     except ValueError as exc:
         assert str(exc) == f"Asset {'0x' + '03' * 32} not in pool {pool_id}"
     else:
@@ -1009,6 +1013,7 @@ def test_apply_settlement_pure_returns_copies_and_applies_create_pool_event() ->
     pool_id = "0x" + "cc" * 32
     balances = BalanceTable()
     balances.set(pk, asset0, 10)
+    balances.set(pk, asset1, 10)
     pools: dict[str, PoolState] = {}
     lp_balances = LPTable()
 
@@ -1018,8 +1023,14 @@ def test_apply_settlement_pure_returns_copies_and_applies_create_pool_event() ->
         batch_ref="",
         included_intents=[],
         fills=[],
-        balance_deltas=[BalanceDelta(pubkey=pk, asset=asset0, delta_add=3, delta_sub=0)],
-        reserve_deltas=[ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=5, delta_sub=0)],
+        balance_deltas=[
+            BalanceDelta(pubkey=pk, asset=asset0, delta_add=0, delta_sub=5),
+            BalanceDelta(pubkey=pk, asset=asset1, delta_add=0, delta_sub=4),
+        ],
+        reserve_deltas=[
+            ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=5, delta_sub=0),
+            ReserveDelta(pool_id=pool_id, asset=asset1, delta_add=4, delta_sub=0),
+        ],
         lp_deltas=[LPDelta(pubkey=pk, pool_id=pool_id, delta_add=7, delta_sub=0)],
         events=[
             {
@@ -1038,13 +1049,124 @@ def test_apply_settlement_pure_returns_copies_and_applies_create_pool_event() ->
 
     new_balances, new_pools, new_lp = apply_settlement_pure(settlement, balances, pools, lp_balances)
     assert balances.get(pk, asset0) == 10
+    assert balances.get(pk, asset1) == 10
     assert pools == {}
     assert lp_balances.get(pk, pool_id) == 0
-    assert new_balances.get(pk, asset0) == 13
+    assert new_balances.get(pk, asset0) == 5
+    assert new_balances.get(pk, asset1) == 6
     assert pool_id in new_pools
     assert new_pools[pool_id].reserve0 == 5
+    assert new_pools[pool_id].reserve1 == 4
     assert new_pools[pool_id].lp_supply == 7
     assert new_lp.get(pk, pool_id) == 7
+
+
+def test_apply_settlement_postcondition_rejects_internal_balance_leak(monkeypatch: pytest.MonkeyPatch) -> None:
+    # REVIEW [B -> A]: this test mutates the private scratch applier after the
+    # settlement's declared deltas have already conserved. It proves the live
+    # public entrypoint now has teeth against implementation leaks, and that a
+    # failed postcondition leaves the caller's tables uncommitted.
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = "0x" + "dd" * 32
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10)
+    balances.set(pk, asset1, 10)
+    pools: dict[str, PoolState] = {}
+    lp_balances = LPTable()
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[
+            BalanceDelta(pubkey=pk, asset=asset0, delta_add=0, delta_sub=5),
+            BalanceDelta(pubkey=pk, asset=asset1, delta_add=0, delta_sub=4),
+        ],
+        reserve_deltas=[
+            ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=5, delta_sub=0),
+            ReserveDelta(pool_id=pool_id, asset=asset1, delta_add=4, delta_sub=0),
+        ],
+        lp_deltas=[LPDelta(pubkey=pk, pool_id=pool_id, delta_add=7, delta_sub=0)],
+        events=[
+            {
+                "type": "CREATE_POOL",
+                "pool_id": pool_id,
+                "asset0": asset0,
+                "asset1": asset1,
+                "fee_bps": 30,
+                "curve_tag": "CPMM",
+                "curve_params": "",
+                "status": "ACTIVE",
+                "created_at": 0,
+            }
+        ],
+    )
+    real_apply = batch_clearing_module._apply_settlement_unchecked
+
+    def leaky_apply(
+        settlement: Settlement,
+        scratch_balances: BalanceTable,
+        scratch_pools: dict[str, PoolState],
+        scratch_lp: LPTable | None,
+    ) -> None:
+        real_apply(settlement, scratch_balances, scratch_pools, scratch_lp)
+        scratch_balances.add(pk, asset0, 1)
+
+    monkeypatch.setattr(batch_clearing_module, "_apply_settlement_unchecked", leaky_apply)
+    with pytest.raises(ValueError, match="Asset conservation postcondition violation"):
+        apply_settlement(settlement, balances, pools, lp_balances)
+    assert balances.get(pk, asset0) == 10
+    assert balances.get(pk, asset1) == 10
+    assert pools == {}
+    assert lp_balances.get(pk, pool_id) == 0
+
+
+def test_apply_settlement_pure_preserves_lp_duration_metadata() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    lp_balances = LPTable()
+    lp_balances.set(pk, pool_id, 9)
+    lp_balances.set_last_mint_timestamp(pk, pool_id, 11)
+    lp_balances.set_last_remove_timestamp(pk, pool_id, 13)
+    lp_balances.set_churn_tier(pk, pool_id, 2)
+    lp_balances.set_last_churn_update_timestamp(pk, pool_id, 17)
+
+    new_balances, new_pools, new_lp = apply_settlement_pure(
+        Settlement(
+            module="TauSwap",
+            version="0.1",
+            batch_ref="",
+            included_intents=[],
+            fills=[],
+            balance_deltas=[],
+            reserve_deltas=[],
+            lp_deltas=[],
+            events=None,
+        ),
+        BalanceTable(),
+        {pool_id: pool},
+        lp_balances,
+    )
+
+    assert new_balances.get_all_balances() == {}
+    assert new_pools[pool_id].reserve0 == pool.reserve0
+    assert new_lp.get(pk, pool_id) == 9
+    assert new_lp.get_last_mint_timestamp(pk, pool_id) == 11
+    assert new_lp.get_last_remove_timestamp(pk, pool_id) == 13
+    assert new_lp.get_churn_tier(pk, pool_id) == 2
+    assert new_lp.get_last_churn_update_timestamp(pk, pool_id) == 17
 
 
 def test_compute_settlement_rejects_unknown_pool_and_invalid_non_pool_intents() -> None:
@@ -2572,7 +2694,7 @@ def test_apply_settlement_additional_event_balance_and_lp_branches() -> None:
         included_intents=[],
         fills=[],
         balance_deltas=[BalanceDelta(pubkey=pk, asset=asset0, delta_add=0, delta_sub=5)],
-        reserve_deltas=[],
+        reserve_deltas=[ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=5, delta_sub=0)],
         lp_deltas=[],
         events=[{"type": "NOT_CREATE_POOL"}],
     )
@@ -2580,6 +2702,7 @@ def test_apply_settlement_additional_event_balance_and_lp_branches() -> None:
     balances.set(pk, asset0, 10)
     apply_settlement(settlement, balances, {pool_id: pool}, None)
     assert balances.get(pk, asset0) == 5
+    assert pool.reserve0 == 2_000_005
 
     zero_net_balance = Settlement(
         module="TauSwap",
@@ -2636,13 +2759,15 @@ def test_apply_settlement_additional_event_balance_and_lp_branches() -> None:
         batch_ref="",
         included_intents=[],
         fills=[],
-        balance_deltas=[],
+        balance_deltas=[BalanceDelta(pubkey=pk, asset="0x" + "03" * 32, delta_add=0, delta_sub=1)],
         reserve_deltas=[ReserveDelta(pool_id=pool_id, asset="0x" + "03" * 32, delta_add=1, delta_sub=0)],
         lp_deltas=[],
         events=None,
     )
+    wrong_asset_balances = BalanceTable()
+    wrong_asset_balances.set(pk, "0x" + "03" * 32, 1)
     try:
-        apply_settlement(wrong_asset_settlement, BalanceTable(), {pool_id: pool}, LPTable())
+        apply_settlement(wrong_asset_settlement, wrong_asset_balances, {pool_id: pool}, LPTable())
     except ValueError as exc:
         assert str(exc) == f"Asset {'0x' + '03' * 32} not in pool {pool_id}"
     else:
@@ -3127,10 +3252,12 @@ def test_apply_settlement_updates_asset1_reserve_branch() -> None:
         batch_ref="",
         included_intents=[],
         fills=[],
-        balance_deltas=[],
+        balance_deltas=[BalanceDelta(pubkey=pk, asset=asset1, delta_add=0, delta_sub=5)],
         reserve_deltas=[ReserveDelta(pool_id=pool_id, asset=asset1, delta_add=5, delta_sub=0)],
         lp_deltas=[],
         events=None,
     )
-    apply_settlement(settlement, BalanceTable(), {pool_id: pool}, LPTable())
+    balances = BalanceTable()
+    balances.set(pk, asset1, 5)
+    apply_settlement(settlement, balances, {pool_id: pool}, LPTable())
     assert pool.reserve1 == 2_000_005

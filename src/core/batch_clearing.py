@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import itertools
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..kernels.python.settlement_swap_runtime_v1 import (
@@ -267,6 +267,12 @@ def _copy_lp_table(lp_balances: LPTable) -> LPTable:
     for (pubkey, pool_id), timestamp in lp_balances.get_all_last_mint_timestamps().items():
         if copied.get(pubkey, pool_id) > 0:
             copied.set_last_mint_timestamp(pubkey, pool_id, timestamp)
+    for (pubkey, pool_id), timestamp in lp_balances.get_all_last_remove_timestamps().items():
+        copied.set_last_remove_timestamp(pubkey, pool_id, timestamp)
+    for (pubkey, pool_id), tier in lp_balances.get_all_churn_tiers().items():
+        copied.set_churn_tier(pubkey, pool_id, tier)
+    for (pubkey, pool_id), timestamp in lp_balances.get_all_last_churn_update_timestamps().items():
+        copied.set_last_churn_update_timestamp(pubkey, pool_id, timestamp)
     return copied
 
 
@@ -1694,35 +1700,85 @@ def _check_settlement_asset_delta_conservation(settlement: Settlement) -> Tuple[
     return True, None
 
 
-def apply_settlement(
+def _asset_totals_from_state(balances: BalanceTable, pools: Dict[str, PoolState]) -> Dict[AssetId, Amount]:
+    """Actual per-asset supply committed by user balances plus pool reserves."""
+    totals: Dict[AssetId, Amount] = defaultdict(int)
+    for (_pubkey, asset), amount in balances.get_all_balances().items():
+        totals[asset] += amount
+    for pool in pools.values():
+        totals[pool.asset0] += pool.reserve0
+        totals[pool.asset1] += pool.reserve1
+    return {asset: total for asset, total in totals.items() if total != 0}
+
+
+def _format_asset_total_mismatch(
+    before: Dict[AssetId, Amount],
+    after: Dict[AssetId, Amount],
+) -> str:
+    parts = []
+    for asset in sorted(set(before) | set(after)):
+        pre = before.get(asset, 0)
+        post = after.get(asset, 0)
+        if pre != post:
+            parts.append(f"{asset}: pre={pre}, post={post}")
+    return "; ".join(parts) if parts else "no mismatch"
+
+
+def _commit_balance_table_in_place(target: BalanceTable, source: BalanceTable) -> None:
+    for pubkey, asset in sorted(target.get_all_balances()):
+        target.set(pubkey, asset, 0)
+    for (pubkey, asset), amount in sorted(source.get_all_balances().items()):
+        target.set(pubkey, asset, amount)
+
+
+def _commit_lp_table_in_place(target: LPTable, source: LPTable) -> None:
+    for pubkey, pool_id in sorted(target.get_all_balances()):
+        target.set(pubkey, pool_id, 0)
+    for pubkey, pool_id in sorted(target.get_all_last_mint_timestamps()):
+        target.clear_last_mint_timestamp(pubkey, pool_id)
+    for pubkey, pool_id in sorted(target.get_all_last_remove_timestamps()):
+        target.clear_last_remove_timestamp(pubkey, pool_id)
+    for pubkey, pool_id in sorted(target.get_all_churn_tiers()):
+        target.set_churn_tier(pubkey, pool_id, 0)
+    for pubkey, pool_id in sorted(target.get_all_last_churn_update_timestamps()):
+        target.clear_last_churn_update_timestamp(pubkey, pool_id)
+
+    for (pubkey, pool_id), amount in sorted(source.get_all_balances().items()):
+        target.set(pubkey, pool_id, amount)
+    for (pubkey, pool_id), timestamp in sorted(source.get_all_last_mint_timestamps().items()):
+        target.set_last_mint_timestamp(pubkey, pool_id, timestamp)
+    for (pubkey, pool_id), timestamp in sorted(source.get_all_last_remove_timestamps().items()):
+        target.set_last_remove_timestamp(pubkey, pool_id, timestamp)
+    for (pubkey, pool_id), tier in sorted(source.get_all_churn_tiers().items()):
+        target.set_churn_tier(pubkey, pool_id, tier)
+    for (pubkey, pool_id), timestamp in sorted(source.get_all_last_churn_update_timestamps().items()):
+        target.set_last_churn_update_timestamp(pubkey, pool_id, timestamp)
+
+
+def _commit_pools_in_place(target: Dict[str, PoolState], source: Dict[str, PoolState]) -> None:
+    for pool_id in sorted(set(target) - set(source)):
+        del target[pool_id]
+    for pool_id, source_pool in sorted(source.items()):
+        if pool_id not in target:
+            target[pool_id] = replace(source_pool)
+            continue
+        target_pool = target[pool_id]
+        for field in fields(PoolState):
+            setattr(target_pool, field.name, getattr(source_pool, field.name))
+
+
+def _apply_settlement_unchecked(
     settlement: Settlement,
     balances: BalanceTable,
     pools: Dict[str, PoolState],
     lp_balances: Optional[LPTable] = None,
 ) -> None:
     """
-    Apply a validated settlement to state.
-    
-    Modifies balances and pools in place.
-    
-    Args:
-        settlement: Validated settlement
-        balances: Balance table to update
-        pools: Pool states to update
-        
-    Raises:
-        ValueError: If settlement is invalid
-    """
-    ok, err = _check_settlement_asset_delta_conservation(settlement)
-    if not ok:
-        # REVIEW [B -> A-]: this invariant used to be enforced by validators and
-        # tests around the live path, while direct apply_settlement callers could
-        # still pass a non-conservative delta set into the mutator. The apply path
-        # now rejects before creating pools or touching balances/reserves. A higher
-        # grade would make apply_settlement transactional so post-apply invariant
-        # checks could roll back internal implementation bugs automatically.
-        raise ValueError(err)
+    Apply a settlement to already isolated scratch state.
 
+    Callers must run the public pre/post guards in ``apply_settlement`` before
+    this result reaches live state.
+    """
     # Create any pools declared by settlement events.
     if settlement.events:
         for event in settlement.events:
@@ -1797,6 +1853,54 @@ def apply_settlement(
                 lp_balances.add(pubkey, pool_id, net)
             elif net < 0:
                 lp_balances.subtract(pubkey, pool_id, -net)
+
+
+def apply_settlement(
+    settlement: Settlement,
+    balances: BalanceTable,
+    pools: Dict[str, PoolState],
+    lp_balances: Optional[LPTable] = None,
+) -> None:
+    """
+    Apply a validated settlement to state.
+
+    Modifies balances and pools in place.
+
+    Args:
+        settlement: Validated settlement
+        balances: Balance table to update
+        pools: Pool states to update
+
+    Raises:
+        ValueError: If settlement is invalid
+    """
+    ok, err = _check_settlement_asset_delta_conservation(settlement)
+    if not ok:
+        raise ValueError(err)
+
+    pre_totals = _asset_totals_from_state(balances, pools)
+    balances_copy = _copy_balance_table(balances)
+    pools_copy: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pools.items()}
+    lp_copy = _copy_lp_table(lp_balances) if lp_balances is not None else None
+
+    _apply_settlement_unchecked(settlement, balances_copy, pools_copy, lp_copy)
+
+    post_totals = _asset_totals_from_state(balances_copy, pools_copy)
+    if post_totals != pre_totals:
+        # REVIEW [B -> A]: the previous live path checked only the settlement's
+        # declared deltas. A bug inside the mutator could still leak value while
+        # the declared deltas conserved. The authority path now applies on
+        # scratch state, recomputes actual user+pool supply, and commits only
+        # after this postcondition holds. Further improvement: move this
+        # transaction boundary into typed state containers with public replace
+        # APIs so table commits never need helper-level reconstruction.
+        mismatch = _format_asset_total_mismatch(pre_totals, post_totals)
+        raise ValueError(f"Asset conservation postcondition violation: {mismatch}")
+
+    _commit_balance_table_in_place(balances, balances_copy)
+    _commit_pools_in_place(pools, pools_copy)
+    if lp_balances is not None and lp_copy is not None:
+        _commit_lp_table_in_place(lp_balances, lp_copy)
 
 
 def apply_settlement_pure(

@@ -24,7 +24,6 @@ def _write_json(path: Path, obj: dict[str, Any]) -> None:
 
 def _manifest() -> dict[str, Any]:
     kani = kar.EXPECTED_KANI_PROOFS["balance_kernel_kani"]
-    lean = kar.EXPECTED_LEAN_PROOFS["nonce_batch_wrapper_lean"]
     return {
         "manifest_version": 1,
         "solvers": ["cvc5"],
@@ -60,13 +59,14 @@ def _manifest() -> dict[str, Any]:
         ],
         "lean_proofs": [
             {
-                "id": "nonce_batch_wrapper_lean",
+                "id": proof_id,
                 "tool": lean["tool"],
                 "module": lean["module"],
                 "required_verdict": lean["required_verdict"],
                 "source_files": lean["source_files"],
                 "required_theorems": lean["required_theorems"],
             }
+            for proof_id, lean in kar.EXPECTED_LEAN_PROOFS.items()
         ],
     }
 
@@ -81,7 +81,6 @@ def _manifest_hash(manifest: dict[str, Any], tmp_path: Path) -> tuple[str, Path]
 
 def _private_report(manifest_sha256: str) -> dict[str, Any]:
     kani = kar.EXPECTED_KANI_PROOFS["balance_kernel_kani"]
-    lean = kar.EXPECTED_LEAN_PROOFS["nonce_batch_wrapper_lean"]
     return {
         "ok": True,
         "manifest_sha256": manifest_sha256,
@@ -152,7 +151,7 @@ def _private_report(manifest_sha256: str) -> dict[str, Any]:
         ],
         "lean_proofs": [
             {
-                "id": "nonce_batch_wrapper_lean",
+                "id": proof_id,
                 "tool": lean["tool"],
                 "module": lean["module"],
                 "source_files": [
@@ -166,6 +165,7 @@ def _private_report(manifest_sha256: str) -> dict[str, Any]:
                     "required_theorems": lean["required_theorems"],
                 },
             }
+            for proof_id, lean in kar.EXPECTED_LEAN_PROOFS.items()
         ],
     }
 
@@ -293,16 +293,43 @@ def test_committed_receipt_covers_nonce_batch_wrapper_lean() -> None:
     )
 
 
-def test_lean_theorem_smoke_source_names_every_pinned_theorem() -> None:
-    lean = kar.EXPECTED_LEAN_PROOFS["nonce_batch_wrapper_lean"]
-    source = kar._lean_required_theorem_check_source(
-        lean["module"],
-        list(lean["required_theorems"]),
+def test_committed_receipt_covers_settlement_supply_conservation_lean() -> None:
+    report = check_receipt_file(
+        receipt_path=ROOT / "docs/assurance/kernel_assurance_public_receipt.json",
+        manifest_path=ROOT / "tools/kernel_assurance_manifest.json",
+    )
+    assert report["ok"] is True, report["errors"]
+
+    receipt = json.loads(
+        (ROOT / "docs/assurance/kernel_assurance_public_receipt.json").read_text(encoding="utf-8")
+    )
+    proofs = {entry["id"]: entry for entry in receipt["lean_proofs"]}
+    proof = proofs["settlement_supply_conservation_lean"]
+    assert proof["source_files"] == [
+        {
+            "path": "lean-mathlib/Proofs/SettlementSupplyConservation.lean",
+            "sha256": kar._sha256_file(
+                ROOT / "lean-mathlib/Proofs/SettlementSupplyConservation.lean"
+            ),
+        }
+    ]
+    assert proof["result"]["verdict"] == "BUILT_NO_SORRY"
+    assert (
+        "Proofs.SettlementSupplyConservation.accepted_preserves_supply"
+        in proof["result"]["required_theorems"]
     )
 
-    assert source.startswith(f"import {lean['module']}\n")
-    for theorem_name in lean["required_theorems"]:
-        assert f"#check {theorem_name}\n" in source
+
+def test_lean_theorem_smoke_source_names_every_pinned_theorem() -> None:
+    for lean in kar.EXPECTED_LEAN_PROOFS.values():
+        source = kar._lean_required_theorem_check_source(
+            lean["module"],
+            list(lean["required_theorems"]),
+        )
+
+        assert source.startswith(f"import {lean['module']}\n")
+        for theorem_name in lean["required_theorems"]:
+            assert f"#check {theorem_name}\n" in source
 
 
 def test_run_lean_proof_invokes_required_theorem_smoke(monkeypatch: pytest.MonkeyPatch) -> None:

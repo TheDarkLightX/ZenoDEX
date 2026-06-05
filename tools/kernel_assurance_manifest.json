@@ -94,6 +94,22 @@
         "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean"
       ],
       "tool": "lean-lake-build"
+    },
+    {
+      "id": "settlement_supply_conservation_lean",
+      "module": "Proofs.SettlementSupplyConservation",
+      "required_theorems": [
+        "Proofs.SettlementSupplyConservation.supply_applyDeltas",
+        "Proofs.SettlementSupplyConservation.accepted_preserves_supply",
+        "Proofs.SettlementSupplyConservation.supply_changed_implies_not_accepted",
+        "Proofs.SettlementSupplyConservation.witness_accepted_preserves_noncanceling",
+        "Proofs.SettlementSupplyConservation.witness_unbalanced_creates_supply"
+      ],
+      "required_verdict": "BUILT_NO_SORRY",
+      "source_files": [
+        "lean-mathlib/Proofs/SettlementSupplyConservation.lean"
+      ],
+      "tool": "lean-lake-build"
     }
   ],
   "manifest_version": 1,

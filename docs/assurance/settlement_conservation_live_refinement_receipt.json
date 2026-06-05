@@ -349,7 +349,7 @@
       "cwd": ".",
       "returncode": 0,
       "stderr_tail": "",
-      "stdout_tail": "..                                                                       [100%]\n2 passed in 8.43s\n"
+      "stdout_tail": "..                                                                       [100%]\n2 passed in 11.10s\n"
     },
     {
       "cmd": [
@@ -362,7 +362,7 @@
       "cwd": ".",
       "returncode": 0,
       "stderr_tail": "",
-      "stdout_tail": "....................                                                     [100%]\n20 passed in 0.26s\n"
+      "stdout_tail": "....................                                                     [100%]\n20 passed in 0.27s\n"
     }
   ],
   "covered_constructors": [
@@ -380,7 +380,7 @@
   "source_hashes": {
     "lean-mathlib/Proofs/SettlementConservationLive.lean": "c2408b128ec770b9af025a81c596b25b7e21c18de0e8f6931a1df0c63c4e88b7",
     "lean-mathlib/proof_receipts/settlement_conservation_live_v1.json": "0b54a29f90138294a82809cc0e840b26d15b1abdb22a222799dac38ca758a8cb",
-    "src/core/batch_clearing.py": "2421c424fce2aafc4ec4f61eaa66824b65f19eac51ac3aae19a62942915e6db8",
+    "src/core/batch_clearing.py": "7c443e1c68684934664a8b1ac4fe4f73a33f00509536d4dc685e6ab978577f2e",
     "src/core/liquidity.py": "2e5ff5545470df3df5bd643607c4f9c5aff5b1ece0cb5dde27e35f1f32052e0d",
     "src/core/settlement.py": "25f5547bcb36b2bb4ba4dabbeb0186623767047c7eb952173692833d206c742f",
     "src/core/settlement_strong_validator.py": "0a28f9890afd5d4ccc829541cff3ce9cb404f1fc5ad37c9416b8a40a7159784b",
