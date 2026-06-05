@@ -46,7 +46,7 @@ from pathlib import Path
 
 import pytest
 
-from src.core.batch_clearing import apply_settlement
+import src.core.batch_clearing as bc
 from src.core.settlement_strong_validator import validate_settlement_strong
 from src.state import BalanceTable
 
@@ -147,7 +147,7 @@ def _assert_live_apply_models_theorem(intents, pools, balances, lp, settlement) 
         pre_pools=pools, pre_lp_balances=lp,
     )
     assert ok, f"settlement should validate: {err}"
-    apply_settlement(settlement, balances, pools, lp)
+    bc.apply_settlement(settlement, balances, pools, lp)
 
     assets_post = _assets_in(balances, pools)
     moved = False
@@ -207,36 +207,17 @@ def test_teeth_apply_supply_creation_breaks_theorem_relation(monkeypatch) -> Non
     the live per-asset delta vectors violate the theorem hypothesis (Σ != 0) and shifts supply, so
     the transcribed accept->preserve relation FAILS. A binding whose oracle mirrors apply would not
     catch this; ours re-derives Σ from the post-state, so it does."""
-    intents, pools, balances, lp, settlement = _swap_scenario(1000)
-    real_apply = apply_settlement
+    real_apply = bc.apply_settlement
 
     def leaky_apply(s, b, p, lp_table=None):
         real_apply(s, b, p, lp_table)
         b.add(FEE_RECIP, A1, 7)  # supply creation: free A1, no matching reserve decrease
 
-    import src.core.batch_clearing as bc
     monkeypatch.setattr(bc, "apply_settlement", leaky_apply)
 
-    # drive validate + the leaky apply, then run the SAME independent transcription used above
-    assets = _assets_in(balances, pools)
-    pre = {a: _cells_for_asset(balances, pools, a) for a in assets}
-    ok, _err = validate_settlement_strong(
-        settlement=settlement, intents=intents, pre_balances=balances,
-        pre_pools=pools, pre_lp_balances=lp,
-    )
-    assert ok
-    bc.apply_settlement(settlement, balances, pools, lp)
-
-    violated = False
-    for a in assets | _assets_in(balances, pools):
-        pre_bal, pre_res = pre.get(a, ({}, {}))
-        post_bal, post_res = _cells_for_asset(balances, pools, a)
-        bal_deltas = _delta_vector(pre_bal, post_bal)
-        res_deltas = _delta_vector(pre_res, post_res)
-        if sum(bal_deltas) + sum(res_deltas) != 0:
-            violated = True  # theorem hypothesis broken by the leak
-        supply_pre = _lean_supply(pre_bal) + _lean_supply(pre_res)
-        supply_post = _lean_supply(post_bal) + _lean_supply(post_res)
-        if supply_post != supply_pre:
-            violated = True  # theorem conclusion broken by the leak
-    assert violated, "leak must break the transcribed theorem relation (else the binding has no teeth)"
+    # REVIEW [B+ -> A-]: the first teeth test duplicated the helper's
+    # independent transcription after monkeypatching the module function, while
+    # the helper had captured `apply_settlement` by direct import. Calling the
+    # helper here keeps the mutation test on the exact binding path it protects.
+    with pytest.raises(AssertionError, match="theorem hypothesis|supply not preserved"):
+        _assert_live_apply_models_theorem(*_swap_scenario(1000))
