@@ -88,7 +88,26 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     assert "build_local_block_v0" in trail and "_validate_live_block_report_state_roots_v0" in trail
     assert "python-rust-shadow" in trail and "release-integrity.yml" in trail
     assert "Double-counting caveat" in trail and "running_impl remains false" in trail
-    assert surfaces["cpmm_swap"]["open_gaps_closed"] is True
+    cpmm = surfaces["cpmm_swap"]
+    assert cpmm["open_gaps_closed"] is True
+    assert cpmm["formal_spec"]["verified"] is True
+    # REVIEW [B -> A-]: the CPMM proof note kept a pre-flip caveat saying
+    # formal_spec was still false. Pin the text to the current matrix so a ready
+    # surface does not carry contradictory review instructions.
+    assert "formal-spec cross-check is covered by the separate owner-authorized formal_spec column" in cpmm[
+        "proof_artifact"
+    ]["note"]
+    assert "formal_spec column (still false)" not in cpmm["proof_artifact"]["note"]
+    # REVIEW [B -> A-]: evidence notes are part of the release-review contract.
+    # A stale note once named differential_tests as a remaining nonces gap after
+    # the matrix had cleared it. Pin the narrative to the computed columns so
+    # reviewers do not chase a closed gap or miss the real open ones.
+    nonces = surfaces["nonces"]
+    assert nonces["differential_tests"]["verified"] is True
+    assert "Remaining nonces gaps are running_impl/formal_spec/proof_artifact/open_gaps_closed" in nonces[
+        "runtime_invariants"
+    ]["note"]
+    assert "proof_artifact/differential_tests" not in nonces["runtime_invariants"]["note"]
     for surface_id in set(SPOT_DEX_SCOPE) - {"cpmm_swap"}:
         assert surfaces[surface_id]["open_gaps_closed"] is False
     assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 1
