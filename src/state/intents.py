@@ -7,11 +7,39 @@ that are collected and settled in batches.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 from .balances import PubKey
 from .canonical import canonical_hex_fixed_allow_0x
 from .pools import normalize_pool_asset_pair
+
+
+def _require_int_field(
+    name: str,
+    value: Any,
+    *,
+    minimum: int,
+    positive: bool,
+) -> int:
+    # REVIEW [B- -> A-]: intent validators previously used Python comparison
+    # checks, so bool values crossed this user-authored boundary as 0/1. This
+    # guard keeps the intent surface aligned with the stricter core kernels.
+    if not isinstance(value, int) or isinstance(value, bool):
+        qualifier = "positive" if positive else "non-negative"
+        raise ValueError(f"{name} must be {qualifier}")
+    if value < minimum:
+        qualifier = "positive" if positive else "non-negative"
+        raise ValueError(f"{name} must be {qualifier}")
+    return value
+
+
+def _require_fee_bps_field(value: Any) -> int:
+    # REVIEW [B- -> A-]: fee_bps is consensus-significant pool metadata. Reject
+    # bool before range checks so signed intent payloads cannot rely on Python's
+    # bool-is-int behavior.
+    if not isinstance(value, int) or isinstance(value, bool) or not (0 <= value <= 10000):
+        raise ValueError(f"fee_bps must be in [0, 10000]: {value}")
+    return value
 
 
 class IntentKind(Enum):
@@ -102,17 +130,13 @@ class SwapIntent(Intent):
         if self.kind == IntentKind.SWAP_EXACT_IN:
             amount_in = self.get_field("amount_in")
             min_amount_out = self.get_field("min_amount_out")
-            if amount_in is None or amount_in <= 0:
-                raise ValueError("amount_in must be positive")
-            if min_amount_out is None or min_amount_out < 0:
-                raise ValueError("min_amount_out must be non-negative")
+            _require_int_field("amount_in", amount_in, minimum=1, positive=True)
+            _require_int_field("min_amount_out", min_amount_out, minimum=0, positive=False)
         else:  # SWAP_EXACT_OUT
             amount_out = self.get_field("amount_out")
             max_amount_in = self.get_field("max_amount_in")
-            if amount_out is None or amount_out <= 0:
-                raise ValueError("amount_out must be positive")
-            if max_amount_in is None or max_amount_in < 0:
-                raise ValueError("max_amount_in must be non-negative")
+            _require_int_field("amount_out", amount_out, minimum=1, positive=True)
+            _require_int_field("max_amount_in", max_amount_in, minimum=0, positive=False)
 
 
 @dataclass
@@ -139,17 +163,14 @@ class CreatePoolIntent(Intent):
             asset0_norm, asset1_norm = normalize_pool_asset_pair(asset0, asset1)
         except Exception:
             raise ValueError(f"Assets must be in canonical order: {asset0} < {asset1}") from None
-        if self.fields is not None:
-            self.fields["asset0"] = asset0_norm
-            self.fields["asset1"] = asset1_norm
+        fields = cast(Dict[str, Any], self.fields)
+        fields["asset0"] = asset0_norm
+        fields["asset1"] = asset1_norm
         
-        if fee_bps is None or not (0 <= fee_bps <= 10000):
-            raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")
+        _require_fee_bps_field(fee_bps)
         
-        if amount0 is None or amount0 <= 0:
-            raise ValueError("amount0 must be positive")
-        if amount1 is None or amount1 <= 0:
-            raise ValueError("amount1 must be positive")
+        _require_int_field("amount0", amount0, minimum=1, positive=True)
+        _require_int_field("amount1", amount1, minimum=1, positive=True)
 
 
 @dataclass

@@ -192,6 +192,40 @@ def test_swap_intent_rejects_invalid_exact_in_amount(amount_in: object) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("field_name", "bad_value", "message"),
+    [
+        ("amount_in", True, "amount_in must be positive"),
+        ("amount_in", "1", "amount_in must be positive"),
+        ("min_amount_out", False, "min_amount_out must be non-negative"),
+        ("min_amount_out", "0", "min_amount_out must be non-negative"),
+    ],
+)
+def test_swap_exact_in_intent_rejects_non_int_numeric_fields(
+    field_name: str, bad_value: object, message: str
+) -> None:
+    # REVIEW [B- -> A-]: this pins the bool-as-int bug found in review. Signed
+    # exact-in payloads must carry plain integer amounts, not truthy stand-ins.
+    fields: dict[str, object] = {
+        "pool_id": _hex32("b"),
+        "asset_in": _hex32("c"),
+        "asset_out": _hex32("d"),
+        "amount_in": 1,
+        "min_amount_out": 0,
+    }
+    fields[field_name] = bad_value
+    with pytest.raises(ValueError, match=message):
+        SwapIntent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_hex32("1"),
+            sender_pubkey=_pubkey("a"),
+            deadline=123,
+            fields=fields,
+        )
+
+
 @pytest.mark.parametrize("min_amount_out", [None, -1])
 def test_swap_intent_rejects_invalid_exact_in_min_amount_out(min_amount_out: object) -> None:
     with pytest.raises(ValueError, match="min_amount_out must be non-negative"):
@@ -229,6 +263,38 @@ def test_swap_intent_rejects_invalid_exact_out_amount(amount_out: object) -> Non
                 "amount_out": amount_out,
                 "max_amount_in": 1,
             },
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value", "message"),
+    [
+        ("amount_out", True, "amount_out must be positive"),
+        ("amount_out", "1", "amount_out must be positive"),
+        ("max_amount_in", False, "max_amount_in must be non-negative"),
+        ("max_amount_in", "1", "max_amount_in must be non-negative"),
+    ],
+)
+def test_swap_exact_out_intent_rejects_non_int_numeric_fields(
+    field_name: str, bad_value: object, message: str
+) -> None:
+    fields: dict[str, object] = {
+        "pool_id": _hex32("b"),
+        "asset_in": _hex32("c"),
+        "asset_out": _hex32("d"),
+        "amount_out": 1,
+        "max_amount_in": 1,
+    }
+    fields[field_name] = bad_value
+    with pytest.raises(ValueError, match=message):
+        SwapIntent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_OUT,
+            intent_id=_hex32("1"),
+            sender_pubkey=_pubkey("a"),
+            deadline=123,
+            fields=fields,
         )
 
 
@@ -369,9 +435,52 @@ def test_create_pool_intent_rejects_fee_bounds(fee_bps: object) -> None:
         )
 
 
+@pytest.mark.parametrize("fee_bps", [True, "30"])
+def test_create_pool_intent_rejects_non_int_fee_bps(fee_bps: object) -> None:
+    with pytest.raises(ValueError, match="fee_bps must be in \\[0, 10000\\]"):
+        CreatePoolIntent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.CREATE_POOL,
+            intent_id=_hex32("1"),
+            sender_pubkey=_pubkey("a"),
+            deadline=123,
+            fields={
+                "asset0": _hex32("0"),
+                "asset1": _hex32("f"),
+                "fee_bps": fee_bps,
+                "amount0": 10,
+                "amount1": 20,
+            },
+        )
+
+
 @pytest.mark.parametrize("field_name", ["amount0", "amount1"])
 @pytest.mark.parametrize("amount", [None, 0, -1])
 def test_create_pool_intent_rejects_non_positive_amounts(field_name: str, amount: object) -> None:
+    fields: dict[str, object] = {
+        "asset0": _hex32("0"),
+        "asset1": _hex32("f"),
+        "fee_bps": 30,
+        "amount0": 10,
+        "amount1": 20,
+    }
+    fields[field_name] = amount
+    with pytest.raises(ValueError, match=rf"{field_name} must be positive"):
+        CreatePoolIntent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.CREATE_POOL,
+            intent_id=_hex32("1"),
+            sender_pubkey=_pubkey("a"),
+            deadline=123,
+            fields=fields,
+        )
+
+
+@pytest.mark.parametrize("field_name", ["amount0", "amount1"])
+@pytest.mark.parametrize("amount", [True, "1"])
+def test_create_pool_intent_rejects_non_int_amounts(field_name: str, amount: object) -> None:
     fields: dict[str, object] = {
         "asset0": _hex32("0"),
         "asset1": _hex32("f"),
