@@ -68,6 +68,62 @@ def test_resealed_proof_verdict_downgrade_fails() -> None:
     assert any("proof_artifact verdict" in err for err in errors), errors
 
 
+@pytest.mark.parametrize(
+    ("mutate", "needle"),
+    (
+        (
+            lambda receipt: receipt.update({"private_path": "/private/workspace/secret"}),
+            "unexpected public field",
+        ),
+        (
+            lambda receipt: receipt["evidence_columns"]["running_impl"].update(
+                {"private_path": "/private/workspace/secret"}
+            ),
+            "unexpected public field",
+        ),
+        (
+            lambda receipt: receipt["evidence_columns"]["proof_artifact"].update(
+                {"private_path": "/private/workspace/secret"}
+            ),
+            "unexpected public field",
+        ),
+        (
+            lambda receipt: receipt["evidence_columns"]["proof_artifact"]["kani"].update(
+                {"raw_stdout": "/private/workspace/secret.log"}
+            ),
+            "unexpected public field",
+        ),
+        (
+            lambda receipt: receipt["evidence_columns"]["proof_artifact"]["kani"]["harnesses"][0].update(
+                {"raw_stdout": "/private/workspace/secret.log"}
+            ),
+            "unexpected public field",
+        ),
+        (
+            lambda receipt: receipt["source_files"][0].update(
+                {"private_path": "/private/workspace/secret"}
+            ),
+            "unexpected public field",
+        ),
+    ),
+)
+def test_resealed_extra_state_root_receipt_fields_fail(mutate, needle: str) -> None:
+    """Review regression: accepted state-root receipts use an exact public schema."""
+    receipt = _load_receipt()
+    mutate(receipt)
+    _reseal(receipt)
+    errors = sre.verify_receipt(receipt, spec_path=SPEC)
+    assert any(needle in err for err in errors), errors
+
+
+def test_malformed_evidence_column_fails_with_error() -> None:
+    receipt = _load_receipt()
+    receipt["evidence_columns"]["running_impl"] = "not-an-object"
+    _reseal(receipt)
+    errors = sre.verify_receipt(receipt, spec_path=SPEC)
+    assert any("running_impl must be an object" in err for err in errors), errors
+
+
 def test_weakened_formal_spec_fails(tmp_path: Path) -> None:
     weakened = json.loads(SPEC.read_text(encoding="utf-8"))
     weakened["root_formula"]["section_order"] = ["BAL", "POL", "LPB", "LPA", "NNC"]

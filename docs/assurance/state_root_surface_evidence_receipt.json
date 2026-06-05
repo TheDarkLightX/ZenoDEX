@@ -155,7 +155,7 @@
     }
   },
   "private_toolchain_source_included": false,
-  "receipt_sha256": "f7598075e96e95c97069c80f11273189417ff6dba25f6c21001c94d11355c939",
+  "receipt_sha256": "3a6bb4eec00fb68e300d436a5312c672584d34daa17ec2e9df77f58013ee6359",
   "required_test_commands": [
     {
       "command": [
@@ -203,11 +203,11 @@
     },
     {
       "path": "tools/check_state_root_surface_evidence.py",
-      "sha256": "2dd2b3eaab25dbb2346ff1dbffc2c4b99d265f6ab4b372045589c03f7d8d6fc0"
+      "sha256": "acb94bdedd4e16aafe2ae2f81c25e2e792a3205821d4421b519b12992bfed720"
     },
     {
       "path": "tests/test_check_state_root_surface_evidence.py",
-      "sha256": "c5bf6662498f918a0c0a932708bee9ee4b4e3b2dcadd105d734c555befccdc96"
+      "sha256": "038e54127dd7b87f66ad4e0cf87423194be1893bf91a0f9102dafebb4fc242f8"
     },
     {
       "path": "src/state/state_root.py",

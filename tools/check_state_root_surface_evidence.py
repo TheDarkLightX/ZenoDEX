@@ -377,6 +377,11 @@ def _load_json_object(path: Path, *, name: str) -> dict[str, Any]:
     return obj
 
 
+def _unexpected_keys(obj: Mapping[str, Any], *, allowed: set[str], name: str) -> list[str]:
+    extra = sorted(set(obj) - allowed)
+    return [f"{name} has unexpected public field(s): {extra}"] if extra else []
+
+
 def _read_source_file(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
 
@@ -752,6 +757,16 @@ def _validate_kani_result(result: Any) -> list[str]:
     errors: list[str] = []
     if not isinstance(result, Mapping):
         return ["proof_artifact.kani must be an object"]
+    # REVIEW [B -> A-]: the Kani envelope validated the expected verdict and
+    # harness totals but still accepted resealed extra fields such as raw logs or
+    # private paths. The public state-root proof payload is now an exact schema.
+    errors.extend(
+        _unexpected_keys(
+            result,
+            allowed={"verdict", "cargo_kani_version", "command", "harnesses"},
+            name="proof_artifact.kani",
+        )
+    )
     if result.get("verdict") != "VERIFIED":
         errors.append("Kani proof verdict must be VERIFIED")
     if result.get("cargo_kani_version") != "cargo-kani 0.60.0":
@@ -765,6 +780,20 @@ def _validate_kani_result(result: Any) -> list[str]:
         if not isinstance(item, Mapping):
             errors.append("Kani harness row must be an object")
             continue
+        errors.extend(
+            _unexpected_keys(
+                item,
+                allowed={
+                    "name",
+                    "verdict",
+                    "checks_failed",
+                    "checks_total",
+                    "cover_properties_satisfied",
+                    "cover_properties_total",
+                },
+                name="Kani harness row",
+            )
+        )
         name = item.get("name")
         exp = KANI_EXPECTED_TOTALS.get(str(name))
         if exp is None:
@@ -962,6 +991,26 @@ def build_receipt(*, spec_path: Path = DEFAULT_SPEC) -> dict[str, Any]:
 
 def verify_receipt(receipt: Mapping[str, Any], *, spec_path: Path = DEFAULT_SPEC) -> list[str]:
     errors: list[str] = []
+    # REVIEW [B -> A-]: receipt_sha256 proves only self-consistency. The prior
+    # checker accepted resealed extra top-level, evidence-column, and source-row
+    # fields, which could carry unsupported claims or private paths. Exact public
+    # schemas keep the state-root receipt narrow and reviewable.
+    errors.extend(
+        _unexpected_keys(
+            receipt,
+            allowed={
+                "schema",
+                "surface_id",
+                "state_root_version",
+                "evidence_columns",
+                "source_files",
+                "required_test_commands",
+                "private_toolchain_source_included",
+                "receipt_sha256",
+            },
+            name="receipt",
+        )
+    )
     if receipt.get("schema") != RECEIPT_SCHEMA:
         errors.append(f"receipt.schema must be {RECEIPT_SCHEMA!r}")
     if receipt.get("surface_id") != "state_root":
@@ -981,10 +1030,17 @@ def verify_receipt(receipt: Mapping[str, Any], *, spec_path: Path = DEFAULT_SPEC
         if paths != EXPECTED_SOURCE_FILES:
             errors.append("receipt.source_files path list/order drifted")
         current = {row["path"]: row["sha256"] for row in _source_hashes()}
-        for row in source_rows:
+        for index, row in enumerate(source_rows):
             if not isinstance(row, Mapping):
                 errors.append("receipt.source_files entries must be objects")
                 continue
+            errors.extend(
+                _unexpected_keys(
+                    row,
+                    allowed={"path", "sha256"},
+                    name=f"receipt.source_files[{index}]",
+                )
+            )
             path = row.get("path")
             if not isinstance(path, str):
                 errors.append("receipt source path must be a string")
@@ -1007,12 +1063,30 @@ def verify_receipt(receipt: Mapping[str, Any], *, spec_path: Path = DEFAULT_SPEC
     if set(columns) != expected_columns:
         errors.append("receipt.evidence_columns must cover exactly the six evidence columns")
         return errors
-    if columns["running_impl"].get("verdict") != "CHECKED":
+    column_allowed_keys = {
+        "running_impl": {"verdict", "refs"},
+        "formal_spec": {"verdict", "ref", "spec_sha256"},
+        "proof_artifact": {"verdict", "preimage_injectivity", "kani"},
+        "differential_tests": {"verdict", "command_ids"},
+        "runtime_invariants": {"verdict", "command_ids"},
+        "authority_mode": {"verdict", "production_strict", "public_testnet"},
+    }
+    column_maps: dict[str, Mapping[str, Any]] = {}
+    for name, allowed in column_allowed_keys.items():
+        column = columns.get(name)
+        if not isinstance(column, Mapping):
+            errors.append(f"receipt.evidence_columns.{name} must be an object")
+            continue
+        errors.extend(_unexpected_keys(column, allowed=allowed, name=f"receipt.evidence_columns.{name}"))
+        column_maps[name] = column
+    if set(column_maps) != expected_columns:
+        return errors
+    if column_maps["running_impl"].get("verdict") != "CHECKED":
         errors.append("running_impl verdict must be CHECKED")
-    formal = columns["formal_spec"]
+    formal = column_maps["formal_spec"]
     if formal.get("verdict") != "CROSS_CHECKED" or formal.get("spec_sha256") != _sha256_file(spec_path):
         errors.append("formal_spec receipt does not match live spec")
-    proof = columns["proof_artifact"]
+    proof = column_maps["proof_artifact"]
     if proof.get("verdict") != "VERIFIED":
         errors.append("proof_artifact verdict must be VERIFIED")
     try:
@@ -1022,12 +1096,12 @@ def verify_receipt(receipt: Mapping[str, Any], *, spec_path: Path = DEFAULT_SPEC
     except EvidenceError as exc:
         errors.append(str(exc))
     errors.extend(_validate_kani_result(proof.get("kani")))
-    if columns["differential_tests"].get("verdict") != "PR_GATED":
+    if column_maps["differential_tests"].get("verdict") != "PR_GATED":
         errors.append("differential_tests verdict must be PR_GATED")
-    if columns["runtime_invariants"].get("verdict") != "ENFORCED_AND_TESTED":
+    if column_maps["runtime_invariants"].get("verdict") != "ENFORCED_AND_TESTED":
         errors.append("runtime_invariants verdict must be ENFORCED_AND_TESTED")
     try:
-        if columns["authority_mode"] != _profile_result():
+        if column_maps["authority_mode"] != _profile_result():
             errors.append("authority_mode profile result drifted")
     except EvidenceError as exc:
         errors.append(str(exc))
