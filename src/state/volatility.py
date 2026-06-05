@@ -85,6 +85,11 @@ _MAX_TRADE_BPS = {0: 10000, 1: 10000, 2: 1000, 3: 0}
 
 def tier_effects(tier: int) -> TierEffects:
     """Compute effects for a given tier value."""
+    # REVIEW [B -> A-]: TierState rejects bool, but this public helper still
+    # accepted True/False as tiers 1/0 through Python's comparison semantics.
+    # Keep every volatility state entrypoint on the same plain-int boundary.
+    if not isinstance(tier, int) or isinstance(tier, bool):
+        raise TypeError("tier must be an int")
     if not (0 <= tier <= 3):
         raise ValueError(f"tier must be in [0, 3]: {tier}")
     return TierEffects(
