@@ -234,6 +234,7 @@ EXPECTED_SOURCE_FILES = [
     "tools/check_state_root_surface_evidence.py",
     "tests/test_check_state_root_surface_evidence.py",
     "src/state/state_root.py",
+    "src/state/pools.py",
     "src/integration/zeno_ledger_v0.py",
     "src/runtime/authority.py",
     "src/runtime/rust_invoker.py",

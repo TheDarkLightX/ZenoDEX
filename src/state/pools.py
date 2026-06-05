@@ -21,6 +21,18 @@ CURVE_TAG_QUARTIC_BLEND_V1 = "QUARTIC_BLEND_V1"
 CURVE_TAG_QUINTIC_BLEND_V1 = "QUINTIC_BLEND_V1"
 
 
+def _require_plain_int(value: object, *, name: str) -> int:
+    # REVIEW [B- -> B+]: PoolState and compute_pool_id previously relied on
+    # Python comparisons, so bool values could enter consensus-relevant pool
+    # scalars (`True` as fee 1 or reserve 1). State-root would later reject
+    # mutated bools, but the live pool object itself should not represent them.
+    # A higher grade would use a shared Amount/FeeBps value object across pool,
+    # balance, and LP stores.
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
 def _canonical_asset_id_if_hex(asset: AssetId, *, name: str) -> AssetId:
     """Canonicalize real 32-byte asset IDs while preserving symbolic test IDs."""
     if not isinstance(asset, str):
@@ -312,6 +324,7 @@ def compute_pool_id(
     Matches the formula described in `src/core/liquidity.py`.
     """
     asset0, asset1 = normalize_pool_asset_pair(asset0, asset1)
+    fee_bps = _require_plain_int(fee_bps, name="fee_bps")
     if not (0 <= fee_bps <= 10000):
         raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")
     if not isinstance(curve_tag, str) or not curve_tag:
@@ -363,6 +376,12 @@ class PoolState:
     def __post_init__(self):
         """Validate pool state invariants."""
         self.asset0, self.asset1 = normalize_pool_asset_pair(self.asset0, self.asset1)
+
+        self.reserve0 = _require_plain_int(self.reserve0, name="reserve0")
+        self.reserve1 = _require_plain_int(self.reserve1, name="reserve1")
+        self.fee_bps = _require_plain_int(self.fee_bps, name="fee_bps")
+        self.lp_supply = _require_plain_int(self.lp_supply, name="lp_supply")
+        self.created_at = _require_plain_int(self.created_at, name="created_at")
         
         # Validate fee_bps
         if not (0 <= self.fee_bps <= 10000):

@@ -155,7 +155,7 @@
     }
   },
   "private_toolchain_source_included": false,
-  "receipt_sha256": "f83743702b2eba915288014374626191a7b877937020e3ffdcbae3671bc60c9d",
+  "receipt_sha256": "b12b86d1836449384f4231e434713a609742b45690ea5b6bbf65a16a12400cf6",
   "required_test_commands": [
     {
       "command": [
@@ -203,7 +203,7 @@
     },
     {
       "path": "tools/check_state_root_surface_evidence.py",
-      "sha256": "8dbfe7a49f988797e1c5458d52537d20c1be6d8cc313327e258715f37a8b152b"
+      "sha256": "9921b2f43c693d9da73b8e0fcb0b7c722285afbe68a49b3b250ab83ee91f538e"
     },
     {
       "path": "tests/test_check_state_root_surface_evidence.py",
@@ -212,6 +212,10 @@
     {
       "path": "src/state/state_root.py",
       "sha256": "0083b630797d5f26af32c633ef9bebb9beb4c6a6ea98ccd5c3ae136b6229dd08"
+    },
+    {
+      "path": "src/state/pools.py",
+      "sha256": "9ab39d6c71af69fa042e509e063222d4a10955701f4fcb32ec893f668628f7fa"
     },
     {
       "path": "src/integration/zeno_ledger_v0.py",
