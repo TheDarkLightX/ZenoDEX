@@ -155,7 +155,7 @@
     }
   },
   "private_toolchain_source_included": false,
-  "receipt_sha256": "b12b86d1836449384f4231e434713a609742b45690ea5b6bbf65a16a12400cf6",
+  "receipt_sha256": "9aaff877bae501bf1ccc50a85c2c57b29186fa53e4efc041345f0e575583c7f3",
   "required_test_commands": [
     {
       "command": [
@@ -215,7 +215,7 @@
     },
     {
       "path": "src/state/pools.py",
-      "sha256": "9ab39d6c71af69fa042e509e063222d4a10955701f4fcb32ec893f668628f7fa"
+      "sha256": "07f2315bfffd00e79d0a64bb56460c6add83e7fe97b2ae07fd06d3981a8ff1a1"
     },
     {
       "path": "src/integration/zeno_ledger_v0.py",

@@ -53,3 +53,12 @@ def test_pool_state_rejects_non_int_scalars(field: str, value: object) -> None:
 def test_compute_pool_id_rejects_bool_fee_bps() -> None:
     with pytest.raises(TypeError, match="fee_bps must be an int"):
         compute_pool_id(ASSET0, ASSET1, True)
+
+
+@pytest.mark.parametrize("status", ["ACTIVE", True, object()])
+def test_pool_state_rejects_non_enum_status(status: object) -> None:
+    # REVIEW [B+ -> A-]: pool status is consensus-relevant and state-root maps
+    # only PoolStatus enum values to committed codes. Keep strings and other
+    # primitives out of live PoolState; parsers should convert before entry.
+    with pytest.raises(TypeError, match="status must be a PoolStatus"):
+        _pool(status=status)

@@ -377,6 +377,15 @@ class PoolState:
         """Validate pool state invariants."""
         self.asset0, self.asset1 = normalize_pool_asset_pair(self.asset0, self.asset1)
 
+        if not isinstance(self.status, PoolStatus):
+            # REVIEW [B+ -> A-]: after scalar hardening, status was still a raw
+            # primitive escape hatch. Direct PoolState construction could carry
+            # "ACTIVE", True, or an arbitrary object until the state-root encoder
+            # rejected it. The live pool state now keeps the enum boundary
+            # closed; parsers that accept strings must convert to PoolStatus
+            # before construction.
+            raise TypeError("status must be a PoolStatus")
+
         self.reserve0 = _require_plain_int(self.reserve0, name="reserve0")
         self.reserve1 = _require_plain_int(self.reserve1, name="reserve1")
         self.fee_bps = _require_plain_int(self.fee_bps, name="fee_bps")
