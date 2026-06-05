@@ -4349,7 +4349,12 @@ def _emit_status(report: dict[str, Any], *, as_json: bool) -> None:
 def _log(phase: str, msg: str) -> None:
     # Phase logs are bounded operator status strings; JSON reports are redacted separately.
     safe_phase = str(phase)[:80]
-    os.write(2, f"[testnet-local phase={safe_phase}] status update\n".encode("utf-8"))
+    # REVIEW [B -> A-]: fd-level writes hid the actionable error from
+    # `capsys`-backed CLI tests and from some embedded runners. Emit a redacted,
+    # bounded message through sys.stderr so failures like a missing tunnel
+    # runner remain visible without printing secrets.
+    safe_msg = _redact_failure_message(str(msg))
+    sys.stderr.write(f"[testnet-local phase={safe_phase}] {safe_msg}\n")
 
 
 _FAILURE_SECRET_RE = re.compile(

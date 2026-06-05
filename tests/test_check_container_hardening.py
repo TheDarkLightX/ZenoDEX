@@ -21,6 +21,12 @@ def _copy_local_testnet_compose(tmp_path: Path, *, transform=lambda text: text) 
     dst.write_text(transform(src.read_text(encoding="utf-8")), encoding="utf-8")
 
 
+def _copy_compose(tmp_path: Path, filename: str, *, transform=lambda text: text) -> None:
+    src = ROOT / filename
+    dst = tmp_path / filename
+    dst.write_text(transform(src.read_text(encoding="utf-8")), encoding="utf-8")
+
+
 def test_container_hardening_checks_cover_repo_local_testnet_stack() -> None:
     assert check_container_hardening.run_checks() == []
 
@@ -73,3 +79,38 @@ def test_local_testnet_checker_rejects_ledger_writer_without_auth_binding(tmp_pa
     check_container_hardening._check_local_testnet_compose(issues)
 
     assert any("zeno-ledger-writer must bind writes to --write-auth-token-env" in issue for issue in issues)
+
+
+def test_local_compose_checker_rejects_public_host_bind(tmp_path, monkeypatch) -> None:
+    def expose_local(text: str) -> str:
+        loopback = '"127.0.0.1:8000:8000"'
+        public = '"8000:8000"'
+        assert loopback in text
+        return text.replace(loopback, public)
+
+    _copy_compose(tmp_path, "docker-compose.local.yml", transform=expose_local)
+    monkeypatch.setattr(check_container_hardening, "ROOT", tmp_path)
+    issues: list[str] = []
+
+    check_container_hardening._check_local_compose(issues)
+
+    assert any("zenodex-local host ports must bind to 127.0.0.1 only" in issue for issue in issues)
+
+
+def test_multimachine_checker_rejects_default_writer_token(tmp_path, monkeypatch) -> None:
+    def default_writer_token(text: str) -> str:
+        required = (
+            "ZENO_LEDGER_WRITER_TOKEN: "
+            "${ZENO_LEDGER_WRITER_TOKEN:?ZENO_LEDGER_WRITER_TOKEN must be set by the orchestrator}"
+        )
+        weak = "ZENO_LEDGER_WRITER_TOKEN: ${ZENO_LEDGER_WRITER_TOKEN:-local-multidocker-token}"
+        assert required in text
+        return text.replace(required, weak)
+
+    _copy_compose(tmp_path, "docker-compose.multimachine.yml", transform=default_writer_token)
+    monkeypatch.setattr(check_container_hardening, "ROOT", tmp_path)
+    issues: list[str] = []
+
+    check_container_hardening._check_multimachine_compose(issues)
+
+    assert any("must require orchestrator-injected ZENO_LEDGER_WRITER_TOKEN" in issue for issue in issues)

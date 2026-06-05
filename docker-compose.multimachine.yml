@@ -64,7 +64,7 @@ services:
       - ZENO_LEDGER_WRITER_TOKEN
     environment: &node_env
       PYTHONDONTWRITEBYTECODE: "1"
-      ZENO_LEDGER_WRITER_TOKEN: ${ZENO_LEDGER_WRITER_TOKEN:-local-multidocker-token}
+      ZENO_LEDGER_WRITER_TOKEN: ${ZENO_LEDGER_WRITER_TOKEN:?ZENO_LEDGER_WRITER_TOKEN must be set by the orchestrator}
     volumes:
       - zeno-ledger-multidocker-data:/app/data
     security_opt: *security_opts

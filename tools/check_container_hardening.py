@@ -132,6 +132,28 @@ def _check_main_compose(issues: list[str]) -> None:
     )
 
 
+def _check_local_compose(issues: list[str]) -> None:
+    path = ROOT / "docker-compose.local.yml"
+    svc = _service(path, "zenodex-local")
+    # REVIEW [B -> A-]: docker-compose.local.yml is a separate CPMM-carrying
+    # entry point from the default compose file. It should not rely on humans
+    # remembering that the main compose hardening happened to be similar today.
+    _require(_has_no_new_privileges(svc), f"{path.name}: zenodex-local must set no-new-privileges:true", issues)
+    _require(_drops_all_caps(svc), f"{path.name}: zenodex-local must drop ALL capabilities", issues)
+    _require(svc.get("read_only") is True, f"{path.name}: zenodex-local rootfs must be read_only", issues)
+    _require(svc.get("pids_limit") is not None, f"{path.name}: zenodex-local must set pids_limit", issues)
+    _require(svc.get("mem_limit") is not None, f"{path.name}: zenodex-local must set mem_limit", issues)
+    _require(svc.get("init") is True, f"{path.name}: zenodex-local must set init: true", issues)
+    for mount in ("/tmp", "/var/run", "/var/cache/nginx", "/var/log/nginx"):
+        _require(_tmpfs_has_flags(svc, mount), f"{path.name}: zenodex-local tmpfs {mount} must include noexec,nosuid,nodev", issues)
+    _require(_host_ports_are_loopback_only(svc), f"{path.name}: zenodex-local host ports must bind to 127.0.0.1 only", issues)
+    _require(
+        _env_value(svc, "API_HOST") == "127.0.0.1",
+        f"{path.name}: zenodex-local API_HOST must stay 127.0.0.1",
+        issues,
+    )
+
+
 def _check_apparmor_overlay(issues: list[str]) -> None:
     path = ROOT / "docker-compose.apparmor.yml"
     svc = _service(path, "zenodex")
@@ -200,6 +222,50 @@ def _check_local_testnet_compose(issues: list[str]) -> None:
     )
 
 
+def _check_multimachine_compose(issues: list[str]) -> None:
+    path = ROOT / "docker-compose.multimachine.yml"
+    for service in (
+        "zeno-ledger-bootstrap",
+        "zeno-ledger-writer",
+        "zeno-ledger-forwarder",
+        "zeno-ledger-readonly",
+        "zeno-ledger-multidocker-controller",
+    ):
+        _check_aux_compose(path, service, issues)
+        svc = _service(path, service)
+        _require(svc.get("read_only") is True, f"{path.name}: {service} rootfs must be read_only", issues)
+
+    writer = _service(path, "zeno-ledger-writer")
+    forwarder = _service(path, "zeno-ledger-forwarder")
+    controller = _service(path, "zeno-ledger-multidocker-controller")
+
+    # REVIEW [C -> A-]: this stack previously defaulted the mutation bearer
+    # token to a known string (`local-multidocker-token`). That made the
+    # multi-node smoke convenient, but it was a bad production habit for a
+    # write-capable container path. Require the operator/orchestrator to inject
+    # the token just like the local-testnet stack does.
+    for service, svc in (
+        ("zeno-ledger-writer", writer),
+        ("zeno-ledger-forwarder", forwarder),
+        ("zeno-ledger-multidocker-controller", controller),
+    ):
+        _require(
+            "--write-auth-token-env" in _command_text(svc),
+            f"{path.name}: {service} must bind writes to --write-auth-token-env",
+            issues,
+        )
+        _require(
+            _env_requires_orchestrator(svc, "ZENO_LEDGER_WRITER_TOKEN"),
+            f"{path.name}: {service} must require orchestrator-injected ZENO_LEDGER_WRITER_TOKEN",
+            issues,
+        )
+    _require(
+        "--submit-peer-auth-token-env" in _command_text(forwarder),
+        f"{path.name}: zeno-ledger-forwarder must bind peer submits to --submit-peer-auth-token-env",
+        issues,
+    )
+
+
 def _check_apparmor_profile(issues: list[str]) -> None:
     path = ROOT / ".docker" / "apparmor" / "zenodex"
     text = path.read_text(encoding="utf-8")
@@ -240,18 +306,12 @@ def _check_operator_dockerfile(issues: list[str]) -> None:
 def run_checks() -> list[str]:
     issues: list[str] = []
     _check_main_compose(issues)
+    _check_local_compose(issues)
     _check_apparmor_overlay(issues)
     _check_aux_compose(ROOT / "docker-compose.permissionless.yml", "tau-local", issues)
     _check_aux_compose(ROOT / "docker-compose.chaos.yml", "toxiproxy", issues)
     _check_aux_compose(ROOT / "docker-compose.two-node.yml", "zeno-ledger-two-node-smoke", issues)
-    for service in (
-        "zeno-ledger-bootstrap",
-        "zeno-ledger-writer",
-        "zeno-ledger-forwarder",
-        "zeno-ledger-readonly",
-        "zeno-ledger-multidocker-controller",
-    ):
-        _check_aux_compose(ROOT / "docker-compose.multimachine.yml", service, issues)
+    _check_multimachine_compose(issues)
     _check_local_testnet_compose(issues)
     _check_apparmor_profile(issues)
     _check_dockerfile(ROOT / "Dockerfile", issues)

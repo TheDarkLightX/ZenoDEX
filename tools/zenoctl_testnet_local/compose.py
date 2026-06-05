@@ -3,6 +3,7 @@ health polling, Tau hello check."""
 
 from __future__ import annotations
 
+import errno
 import json
 import shutil
 import socket
@@ -69,9 +70,18 @@ def check_host_port_free(port: int, *, host: str = "127.0.0.1") -> None:
         raise ValueError(f"port {port} out of range [1, 65535]")
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
         sock.settimeout(0.25)
+        # REVIEW [B -> A-]: a recently closed listener can leave loopback in
+        # TIME_WAIT and make a free port look occupied on Linux. This is a
+        # probe socket, so reuse is the correct availability test.
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             sock.bind((host, port))
         except OSError as exc:
+            if exc.errno == errno.EADDRINUSE:
+                with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as probe:
+                    probe.settimeout(0.25)
+                    if probe.connect_ex((host, port)) != 0:
+                        return
             raise ValueError(
                 f"host port {host}:{port} is in use ({exc}). "
                 "Pick a different --ui-port or stop the conflicting process."
