@@ -32,6 +32,7 @@ def _copy_packaging_fixture(tmp_path: Path) -> None:
         "tools/build_zeno_sdk_browser_bundle.py",
         "tools/dex-ui/src/sdk/zenoProofClient.js",
         "Dockerfile.hashlocked",
+        "Dockerfile.production-hashlocked",
         "tools/build_operator_release_bundle.py",
         "Dockerfile.operator-tools",
         ".dockerignore",

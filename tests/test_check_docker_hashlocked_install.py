@@ -171,3 +171,21 @@ def test_cli_accepts_existing_strict_digest_flags() -> None:
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_cli_accepts_production_hashlocked_dockerfile_strict_digest_flags() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "check_docker_hashlocked_install.py"),
+            "--dockerfile",
+            "Dockerfile.production-hashlocked",
+            "--strict-digest",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr

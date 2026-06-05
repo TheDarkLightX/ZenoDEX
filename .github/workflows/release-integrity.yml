@@ -70,6 +70,7 @@ jobs:
           python3 tools/check_state_root_surface_evidence.py check --pretty
           python3 tools/check_python_hash_locks.py --json
           python3 tools/check_docker_hashlocked_install.py --strict-digest
+          python3 tools/check_docker_hashlocked_install.py --dockerfile Dockerfile.production-hashlocked --strict-digest
           python3 tools/check_operator_packaging.py --pretty
           python3 tools/check_release_publication_workflow.py --pretty
           python3 tools/check_zenodex_host_independent_coverage.py --pretty

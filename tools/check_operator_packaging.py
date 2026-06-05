@@ -35,6 +35,7 @@ REQUIRED_FILES = (
     "tools/build_zeno_sdk_browser_bundle.py",
     "tools/dex-ui/src/sdk/zenoProofClient.js",
     "Dockerfile.hashlocked",
+    "Dockerfile.production-hashlocked",
     "tools/build_operator_release_bundle.py",
     "Dockerfile.operator-tools",
     ".dockerignore",
@@ -105,6 +106,7 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
     _check_release_bundle_builder(root, checks, errors)
     _check_release_integrity_publishes_operator_bundle(root, checks, errors)
     _check_hashlocked_dockerfile(root, "Dockerfile.hashlocked", checks, errors)
+    _check_hashlocked_dockerfile(root, "Dockerfile.production-hashlocked", checks, errors)
     _check_hashlocked_dockerfile(root, "Dockerfile.operator-tools", checks, errors)
 
     return {
