@@ -1,0 +1,48 @@
+{
+  "claim": "The inductive ESSO model nonce_batch_sequencing_v1.yaml (verify-multi z3+cvc5 VERIFIED, Inductive(k=1), full u32) and the Lean batch-wrapper decision-implies-safety proof ZenoDEXNonceBatchWrapper.lean are the normative formal spec for the per-sender strict-sequential nonce batch-sequencing surface.",
+  "forbidden_spec_refs": [
+    "src/tau_specs/recommended/nonce_replay_guard_v1.tau",
+    "src/tau_specs/nonce_replay_guard_v1.tau"
+  ],
+  "formal_items": [
+    {
+      "id": "esso_inductive_model",
+      "path": "src/kernels/dex/nonce_batch_sequencing_v1.yaml",
+      "tokens": [
+        "model_id: \"nonce_batch_sequencing_v1\"",
+        "inv_contiguous",
+        "inv_monotone_step"
+      ]
+    },
+    {
+      "id": "lean_decision_implies_safety",
+      "path": "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean",
+      "tokens": [
+        "def acceptsSortedFold",
+        "def successorRange",
+        "def batchAccepts",
+        "theorem batch_accept_decision_implies_safety",
+        "theorem canonical_batch_accept_decision_implies_exact_ranges"
+      ]
+    }
+  ],
+  "grade": "A-",
+  "grade_reason": "The ESSO model is a genuine machine-checked inductive safety spec (load-bearing inv_contiguous; non-tautological accept guard n==last+1; both solvers agree over full u32), and the Lean wrapper derives the exact successor range from the computed accept predicate. Bounded spec-languages express this surface (linear over u32), so unlike cpmm/balances this is a direct spec, not Option A. no-sorry build and live binding stay under proof_artifact; reject/domain coverage under differential/runtime.",
+  "matrix_column": "formal_spec",
+  "production_matrix_effect": "Clears nonces.formal_spec; nonces.open_gaps_closed may clear if the other nonces columns are already true.",
+  "required_esso_spot_proof_ids": [
+    "nonce_batch_sequencing_v1"
+  ],
+  "required_lean_kernel_assurance_proof_ids": [
+    "nonce_batch_wrapper_lean"
+  ],
+  "schema": "zenodex.nonces.formal_spec_contract.v1",
+  "source_hashes": {
+    "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean": "2a65c470b22620f8da35a7d9fac630f4dca3c96b31bd425fb9498018d43c2673",
+    "src/kernels/dex/nonce_batch_sequencing_v1.yaml": "a9f055d265709de340c4cff36bf241dda51ac6ba4957056ebc09b4a7a9fd7105",
+    "tests/test_check_nonce_batch_formal_spec_contract.py": "4904c13736ca40990baea96a28a032b982c7abeecdf9947e12b195bf2dee8f43",
+    "tools/check_nonce_batch_formal_spec_contract.py": "da7a8c849ea750c5c4b57931a9c9ac2a6e8f7a7c452ab65de2a83b754d8260c2"
+  },
+  "spec_language": "ESSO inductive state machine (z3+cvc5) + Lean 4 theorem statements",
+  "surface_id": "nonces"
+}
