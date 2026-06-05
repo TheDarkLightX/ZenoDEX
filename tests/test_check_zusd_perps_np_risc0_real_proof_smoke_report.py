@@ -196,12 +196,29 @@ def test_scoped_risc0_report_accepts_legacy_match_epoch_shape(tmp_path: Path) ->
     assert check["ok"] is True
 
 
-@pytest.mark.parametrize("bad_value", [123, "", [], {}, True, None])
+@pytest.mark.parametrize("bad_value", [123, "", "settlement_epoch", [], {}, True, None])
 def test_scoped_risc0_report_rejects_malformed_explicit_transition_kind(
     tmp_path: Path,
     bad_value: object,
 ) -> None:
     report = _perps_report(tmp_path)
+    case = report["cases"][0]  # type: ignore[index]
+    assert isinstance(case, dict)
+    case["transition_kind"] = bad_value
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report)
+
+    assert check["ok"] is False
+    assert "cases[0].transition_kind must be match_epoch or adl_epoch" in check["errors"]
+
+
+@pytest.mark.parametrize("bad_value", [123, "", "settlement_epoch", [], {}, True, None])
+def test_scoped_risc0_report_rejects_malformed_explicit_transition_kind_on_adl_shape(
+    tmp_path: Path,
+    bad_value: object,
+) -> None:
+    report = _perps_report(tmp_path)
+    report["cases"][0] = _positive_perps_adl_case(tmp_path)  # type: ignore[index]
     case = report["cases"][0]  # type: ignore[index]
     assert isinstance(case, dict)
     case["transition_kind"] = bad_value
@@ -264,6 +281,147 @@ def test_scoped_risc0_report_rejects_production_claim(tmp_path: Path) -> None:
 
     assert check["ok"] is False
     assert "production_security_claim must be false" in check["errors"]
+
+
+def test_scoped_risc0_report_rejects_top_level_shape_and_unknown_schema() -> None:
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(
+        {
+            "schema": "zenodex.unknown/v0",
+            "ok": False,
+            "production_security_claim": None,
+            "cases": "not-a-list",
+            "case_count": -1,
+            "positive": True,
+            "negative": -1,
+        },
+        min_positive=1,
+        min_negative=1,
+    )
+
+    assert check["ok"] is False
+    assert "unknown report schema" in check["errors"]
+    assert "ok must be true" in check["errors"]
+    assert "cases must be a list" in check["errors"]
+    assert "positive count below minimum:1" in check["errors"]
+    assert "negative count below minimum:1" in check["errors"]
+
+
+def test_scoped_risc0_report_rejects_unknown_surface_override(tmp_path: Path) -> None:
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(
+        _perps_report(tmp_path),
+        surface="not_registered",
+    )
+
+    assert check["ok"] is False
+    assert "unknown surface: not_registered" in check["errors"]
+
+
+def test_scoped_risc0_report_rejects_schema_and_top_level_proof_type_mismatch(tmp_path: Path) -> None:
+    report = _perps_report(tmp_path)
+    report["schema"] = ZUSD_SPEC.report_schema
+    report["proof_surface"] = "wrong-proof"
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report, surface="perps_np")
+
+    assert check["ok"] is False
+    assert "schema mismatch" in check["errors"]
+    assert "proof_surface mismatch" in check["errors"]
+
+
+def test_scoped_risc0_report_rejects_case_shape_identity_and_count_errors(tmp_path: Path) -> None:
+    report = _perps_report(tmp_path)
+    duplicate = copy.deepcopy(report["cases"][0])  # type: ignore[index]
+    assert isinstance(duplicate, dict)
+    duplicate["ok"] = False
+    duplicate["kind"] = "unknown"
+    report["cases"] = [report["cases"][0], duplicate, "not-an-object"]  # type: ignore[index]
+    report["case_count"] = 2
+    report["negative"] = 1
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report)
+
+    assert check["ok"] is False
+    assert "case_count must match cases length" in check["errors"]
+    assert "cases[1].case must be unique" in check["errors"]
+    assert "cases[1].ok must be true" in check["errors"]
+    assert "cases[1].kind must be positive or negative" in check["errors"]
+    assert "cases[2] must be an object" in check["errors"]
+    assert "negative count mismatch" in check["errors"]
+
+
+def test_scoped_risc0_report_rejects_zusd_positive_boundary_fields(tmp_path: Path) -> None:
+    report = _zusd_report(tmp_path)
+    case = report["cases"][0]  # type: ignore[index]
+    assert isinstance(case, dict)
+    case.update(
+        {
+            "proof_type": "wrong-proof",
+            "strict_verify": False,
+            "risc0_image_id": "not-hex",
+            "proof_base64_len": 0,
+            "tamper_rejections": ["", 123],
+            "minted_zusd_e8": "0",
+            "collateral_value_e8": "0",
+            "mcr_bps": 9999,
+        }
+    )
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report)
+
+    assert check["ok"] is False
+    expected = {
+        "cases[0].proof_type mismatch",
+        "cases[0].strict_verify must be true",
+        "cases[0].risc0_image_id must be 64-char hex",
+        "cases[0].proof_base64_len must be a positive int",
+        "cases[0].tamper_rejections entries must be non-empty strings",
+        "cases[0].minted_zusd_e8 must be positive",
+        "cases[0].collateral_value_e8 must be positive",
+        "cases[0].mcr_bps must be at least 10000",
+    }
+    assert expected.issubset(set(check["errors"]))
+
+
+def test_scoped_risc0_report_rejects_empty_proof_file(tmp_path: Path) -> None:
+    report = _zusd_report(tmp_path)
+    empty = tmp_path / "empty-proof.json"
+    empty.write_text("", encoding="utf-8")
+    case = report["cases"][0]  # type: ignore[index]
+    assert isinstance(case, dict)
+    case["proof_path"] = str(empty)
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report, require_proof_files=True)
+
+    assert check["ok"] is False
+    assert "cases[0].proof_path must be non-empty" in check["errors"]
+
+
+def test_scoped_risc0_report_rejects_perps_positive_boundary_fields(tmp_path: Path) -> None:
+    report = _perps_report(tmp_path)
+    case = report["cases"][0]  # type: ignore[index]
+    assert isinstance(case, dict)
+    case.update(
+        {
+            "current_surface_binding_check": False,
+            "participant_count": 5,
+            "intent_count": 4,
+            "net_position_base": "1",
+            "funding_residual_e8": "1",
+            "matched_base_volume": "not-int",
+        }
+    )
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report)
+
+    assert check["ok"] is False
+    expected = {
+        "cases[0].current_surface_binding_check must be true",
+        "cases[0].intent_count must cover participant_count",
+        "cases[0].net_position_base must be zero",
+        "cases[0].funding_residual_e8 must be zero",
+        "cases[0].matched_base_volume must be an integer or decimal integer string",
+    }
+    assert expected.issubset(set(check["errors"]))
 
 
 def test_scoped_risc0_report_rejects_missing_tamper_case(tmp_path: Path) -> None:
@@ -334,6 +492,18 @@ def test_scoped_risc0_report_rejects_negative_acceptance(tmp_path: Path) -> None
 
     assert check["ok"] is False
     assert "cases[1].rejected_as_expected must be true" in check["errors"]
+
+
+def test_scoped_risc0_report_rejects_negative_zero_exit_code(tmp_path: Path) -> None:
+    report = _perps_report(tmp_path)
+    case = report["cases"][1]  # type: ignore[index]
+    assert isinstance(case, dict)
+    case["exit_code"] = 0
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report)
+
+    assert check["ok"] is False
+    assert "cases[1].exit_code must be nonzero" in check["errors"]
 
 
 def test_scoped_risc0_report_cli_outputs_check(tmp_path: Path, capsys) -> None:
