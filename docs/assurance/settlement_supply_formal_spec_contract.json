@@ -44,11 +44,11 @@
   "schema": "zenodex.balances.formal_spec_contract.v1",
   "source_hashes": {
     ".github/workflows/release-integrity.yml": "21492e3908c2a94456759ce6e28b76d037ae149bdd14fa93419496665648a112",
-    ".github/workflows/runtime-shadow.yml": "22af98cd78d2cd673bfe50cc22f3ec7fdd59e3c8861f1263c85c2db298d9ddf6",
+    ".github/workflows/runtime-shadow.yml": "d212a8e71c63e95ebf8fca9108eefdc324df3299507917b20783332ac1099360",
     "lean-mathlib/Proofs/SettlementSupplyConservation.lean": "4d9b6333b08d2e4d5b8ba6387c0eb2523325cefee71afaad81e63e63b945cd65",
     "tests/runtime/test_settlement_supply_conservation_lean_binding.py": "790c0dd6f76578d2dac357b65239149a854e82a82f96478f4b3b7c67bce4ed47",
-    "tests/test_check_settlement_supply_formal_spec_contract.py": "ceff6742d91600644ddc125d7f0d86c0d1130fc23d6782dc64100b48db07f1b4",
-    "tools/check_settlement_supply_formal_spec_contract.py": "8460c7241bed1c6dc91d935353f71067ba4bf75050ac15139979b87ba529ea54"
+    "tests/test_check_settlement_supply_formal_spec_contract.py": "7018b87be97a01eb8ad91724e4f79335c668d3d47dd72d6ac326e91a019d35cf",
+    "tools/check_settlement_supply_formal_spec_contract.py": "2d44df251ec690943b21927f0b784f118e3ee421bcf86ea93b02abf056354c86"
   },
   "spec_language": "Lean 4 theorem statements and definitions",
   "surface_id": "balances"

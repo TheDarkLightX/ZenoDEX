@@ -303,6 +303,7 @@ jobs:
           python -m pytest -q \
             tests/runtime/test_fee_router_conformance.py \
             tests/runtime/test_replay_guard_conformance.py \
+            tests/runtime/test_nonce_batch_conformance.py \
             tests/runtime/test_balance_kernel_conformance.py \
             tests/runtime/test_zusd_conformance.py \
             tests/runtime/test_burn_receipts_conformance.py \
