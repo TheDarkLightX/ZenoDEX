@@ -1028,6 +1028,41 @@ def _expected_from_meta(meta: dict[str, Any]) -> dict[str, Any]:
     return {key: meta[key] for key in keys}
 
 
+def _positive_transition_kind(name: str, actions: list[dict[str, Any]], meta: dict[str, Any]) -> str:
+    intents = actions[0]["intents"] if actions else []
+    matched = int(meta.get("matched_base_volume", 0))
+    if name == "adl_wallet" and not intents and matched == 0:
+        return "adl_epoch"
+    return "match_epoch"
+
+
+def _position_abs_sum(snapshot: dict[str, Any]) -> int:
+    accounts = snapshot.get("accounts")
+    if not isinstance(accounts, list):
+        return 0
+    return sum(abs(int(account.get("position_base", 0))) for account in accounts if isinstance(account, dict))
+
+
+def _positive_transition_metrics(case_input: dict[str, Any]) -> dict[str, str]:
+    pre = case_input.get("_current_pre_state")
+    post = case_input.get("_current_post_state")
+    if not isinstance(pre, dict):
+        pre = {}
+    if not isinstance(post, dict):
+        post = {}
+    pre_claims = int(pre.get("claims_paid_e8", case_input.get("claims_paid_e8", 0)))
+    post_claims = int(post.get("claims_paid_e8", case_input.get("post_claims_paid_e8", pre_claims)))
+    pre_insurance = int(pre.get("insurance_e8", case_input.get("insurance_e8", 0)))
+    post_insurance = int(post.get("insurance_e8", case_input.get("post_insurance_e8", pre_insurance)))
+    pre_position_abs = _position_abs_sum(pre)
+    post_position_abs = _position_abs_sum(post)
+    return {
+        "claims_paid_delta_e8": str(post_claims - pre_claims),
+        "insurance_delta_e8": str(post_insurance - pre_insurance),
+        "position_abs_reduction_base": str(pre_position_abs - post_position_abs),
+    }
+
+
 def _verify(
     *,
     repo: Path,
@@ -1177,11 +1212,14 @@ def _run_case(
 
     proof_path = out_dir / f"{name}_perps_np_risc0_proof.json"
     proof_path.write_text(json.dumps(proof, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    metrics = _positive_transition_metrics(case_input)
 
     return {
         "case": name,
         "kind": "positive",
         "ok": True,
+        "transition_kind": _positive_transition_kind(name, actions, meta),
+        **metrics,
         "proof_type": proof.get("proof_type"),
         "participant_count": meta.get("participant_count"),
         "intent_count": len(actions[0]["intents"]) if actions else 0,

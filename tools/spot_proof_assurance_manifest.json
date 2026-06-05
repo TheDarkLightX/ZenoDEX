@@ -12,7 +12,7 @@
   "source_files": [
     {
       "path": "lean-mathlib/Proofs/ZenoDEXNonces.lean",
-      "sha256": "f3aa1fe5d92d1bc0bd362b2ac74a3122c8970ca55504df7578047d0b92993483"
+      "sha256": "41f518800e2d755c385a7462c4f8cb983614c75e36972f741404e2abd339b240"
     },
     {
       "path": "lean-mathlib/Proofs/FeeCeilDecomposition.lean",
@@ -20,7 +20,7 @@
     },
     {
       "path": "lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean",
-      "sha256": "d1e5a9a5f9d849f9573702718fc3e2dd9bb4d1583615307fe045af193b254b2f"
+      "sha256": "3336f90d1ea9b15c172d8a36b0750370e4025be21354d3ff089c3223014b481f"
     },
     {
       "path": "lean-mathlib/Proofs/CPMMSettlement.lean",
@@ -32,7 +32,7 @@
     },
     {
       "path": "lean-mathlib/Proofs/CPMMInvariants.lean",
-      "sha256": "bfde93ef753e66726f66baf25d74a4a31e4e57c03c9e11db04cfb1ba19cffa88"
+      "sha256": "98a20c960c7f35d9db7b6589d6477f9e31513ef7b4da228f47a312e2b6b15bb8"
     },
     {
       "path": "lean-mathlib/Proofs/SettlementAlgebra.lean",

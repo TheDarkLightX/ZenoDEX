@@ -44,6 +44,10 @@ def _positive_perps_case(tmp_path: Path) -> dict[str, object]:
         "case": "four_wallet",
         "kind": "positive",
         "ok": True,
+        "transition_kind": "match_epoch",
+        "claims_paid_delta_e8": "0",
+        "insurance_delta_e8": "0",
+        "position_abs_reduction_base": "0",
         "proof_type": PERPS_NP_SPEC.proof_type,
         "current_surface_binding_check": True,
         "funding_residual_e8": "0",
@@ -56,6 +60,30 @@ def _positive_perps_case(tmp_path: Path) -> dict[str, object]:
         "tamper_rejections": sorted(PERPS_NP_SPEC.required_tamper_rejections),
         "proof_base64_len": 1024,
         "proof_path": _proof_file(tmp_path, "perps-proof"),
+    }
+
+
+def _positive_perps_adl_case(tmp_path: Path) -> dict[str, object]:
+    return {
+        "case": "adl_wallet",
+        "kind": "positive",
+        "ok": True,
+        "transition_kind": "adl_epoch",
+        "claims_paid_delta_e8": "30",
+        "insurance_delta_e8": "-30",
+        "position_abs_reduction_base": "20",
+        "proof_type": PERPS_NP_SPEC.proof_type,
+        "current_surface_binding_check": True,
+        "funding_residual_e8": "0",
+        "intent_count": 0,
+        "matched_base_volume": "0",
+        "net_position_base": "0",
+        "participant_count": 4,
+        "risc0_image_id": _hex("c"),
+        "strict_verify": True,
+        "tamper_rejections": sorted(PERPS_NP_SPEC.required_tamper_rejections),
+        "proof_base64_len": 1024,
+        "proof_path": _proof_file(tmp_path, "perps-adl-proof"),
     }
 
 
@@ -123,6 +151,80 @@ def test_scoped_risc0_report_accepts_perps_np(tmp_path: Path) -> None:
     assert check["ok"] is True
     assert check["surface"] == "perps_np"
     assert check["proof_type"] == PERPS_NP_SPEC.proof_type
+
+
+def test_scoped_risc0_report_accepts_perps_np_adl_epoch(tmp_path: Path) -> None:
+    report = _perps_report(tmp_path)
+    report["cases"].append(_positive_perps_adl_case(tmp_path))  # type: ignore[index,union-attr]
+    report["case_count"] = 3
+    report["positive"] = 2
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(
+        report,
+        require_proof_files=True,
+        min_positive=2,
+        min_negative=1,
+        required_cases={"four_wallet", "adl_wallet"},
+    )
+
+    assert check["ok"] is True
+
+
+def test_scoped_risc0_report_accepts_legacy_adl_epoch_shape(tmp_path: Path) -> None:
+    report = _perps_report(tmp_path)
+    adl = _positive_perps_adl_case(tmp_path)
+    adl.pop("transition_kind")
+    report["cases"].append(adl)  # type: ignore[index,union-attr]
+    report["case_count"] = 3
+    report["positive"] = 2
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report)
+
+    assert check["ok"] is True
+
+
+def test_scoped_risc0_report_rejects_match_epoch_without_fill(tmp_path: Path) -> None:
+    report = _perps_report(tmp_path)
+    case = report["cases"][0]  # type: ignore[index]
+    assert isinstance(case, dict)
+    case["intent_count"] = 0
+    case["matched_base_volume"] = "0"
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report)
+
+    assert check["ok"] is False
+    assert "cases[0].intent_count must be positive for match_epoch" in check["errors"]
+    assert "cases[0].matched_base_volume must be positive for match_epoch" in check["errors"]
+
+
+def test_scoped_risc0_report_rejects_adl_epoch_with_fill(tmp_path: Path) -> None:
+    report = _perps_report(tmp_path)
+    report["cases"][0] = _positive_perps_adl_case(tmp_path)  # type: ignore[index]
+    case = report["cases"][0]  # type: ignore[index]
+    assert isinstance(case, dict)
+    case["intent_count"] = 1
+    case["matched_base_volume"] = "1"
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report)
+
+    assert check["ok"] is False
+    assert "cases[0].intent_count must be zero for adl_epoch" in check["errors"]
+    assert "cases[0].matched_base_volume must be zero for adl_epoch" in check["errors"]
+
+
+def test_scoped_risc0_report_rejects_adl_epoch_without_adl_evidence(tmp_path: Path) -> None:
+    report = _perps_report(tmp_path)
+    report["cases"][0] = _positive_perps_adl_case(tmp_path)  # type: ignore[index]
+    case = report["cases"][0]  # type: ignore[index]
+    assert isinstance(case, dict)
+    case["claims_paid_delta_e8"] = "0"
+    case["position_abs_reduction_base"] = "0"
+
+    check = validate_scoped_risc0_real_proof_smoke_report_v1(report)
+
+    assert check["ok"] is False
+    assert "cases[0].claims_paid_delta_e8 must be positive for adl_epoch" in check["errors"]
+    assert "cases[0].position_abs_reduction_base must be positive for adl_epoch" in check["errors"]
 
 
 def test_scoped_risc0_report_rejects_production_claim(tmp_path: Path) -> None:

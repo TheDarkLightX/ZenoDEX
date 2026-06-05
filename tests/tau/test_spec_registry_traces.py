@@ -58,6 +58,12 @@ def test_tau_spec_registry_traces() -> None:
             continue
 
         mode = entry.get("mode", "repl")
+        max_stdout_bytes = entry.get("max_stdout_bytes")
+        if max_stdout_bytes is not None and (
+            not isinstance(max_stdout_bytes, int) or isinstance(max_stdout_bytes, bool) or max_stdout_bytes <= 0
+        ):
+            failures.append(f"{spec_id}: max_stdout_bytes must be a positive int")
+            continue
         try:
             if mode == "spec":
                 outputs = run_tau_spec_steps_spec_mode(
@@ -65,6 +71,7 @@ def test_tau_spec_registry_traces() -> None:
                     spec_path=spec_path,
                     steps=[dict(step) for step in inputs],
                     timeout_s=float(entry.get("spec_timeout", 60.0)),
+                    max_stdout_bytes=max_stdout_bytes,
                 )
             elif mode == "native_mirror":
                 mirror_id = entry.get("native_mirror")

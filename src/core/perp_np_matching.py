@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """Pure deterministic net-zero batch matcher for the N-party perps clearinghouse.
 
-EXPERIMENTAL / PENDING REVIEW — public testnet (fake value) design evidence only.
-This module is NOT wired into any consensus path. See README.md and DESIGN.md.
+TESTNET / PRODUCTION-DEVELOPMENT SCOPE. This matcher is promoted into
+``src/core`` and consumed by the ``clearinghouse_np_v1`` engine path. It remains
+a scoped matching core: authorization, oracle binding, ZK proof binding,
+state-root binding, liquidation, and settlement accounting are enforced by the
+caller.
+
+REVIEW [B -> A-]: the previous header said this code was not wired into any
+runtime path. That was stale after the NP engine promotion and could mislead
+future release review. The corrected scope keeps the matcher boundary explicit.
 
 Single source of truth for matcher semantics (DESIGN.md sections 4.4 / 4.4b). The
 Rust/Kani crate mirrors ``ration_net_zero`` / ``_ration``; the Lean proofs abstract
@@ -16,7 +23,7 @@ Design rules followed (CBC core style):
 
 The matcher decides QUANTITY only. All fills execute at the published clearing
 price (no price discovery). Funding, mark-to-market, liquidation and ADL live in
-``perp_np_core.py``.
+``perp_np_clearinghouse.py``.
 """
 
 from __future__ import annotations

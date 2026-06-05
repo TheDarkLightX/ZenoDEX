@@ -222,16 +222,61 @@ def _validate_perps_np_positive_case(item: Mapping[str, Any], *, index: int, err
     participant_count = _positive_int(item.get("participant_count"), f"cases[{index}].participant_count", errors)
     if participant_count is not None and participant_count < 4:
         errors.append(f"cases[{index}].participant_count must be at least 4")
-    intent_count = _positive_int(item.get("intent_count"), f"cases[{index}].intent_count", errors)
-    if participant_count is not None and intent_count is not None and intent_count < participant_count:
-        errors.append(f"cases[{index}].intent_count must cover participant_count")
+    intent_count = _nonnegative_int(item.get("intent_count"), f"cases[{index}].intent_count", errors)
     if _intish(item.get("net_position_base"), f"cases[{index}].net_position_base", errors) != 0:
         errors.append(f"cases[{index}].net_position_base must be zero")
     if _intish(item.get("funding_residual_e8"), f"cases[{index}].funding_residual_e8", errors) != 0:
         errors.append(f"cases[{index}].funding_residual_e8 must be zero")
     matched = _intish(item.get("matched_base_volume"), f"cases[{index}].matched_base_volume", errors)
-    if matched is not None and matched <= 0:
-        errors.append(f"cases[{index}].matched_base_volume must be positive")
+    case_name = _str(item.get("case"), f"cases[{index}].case", errors)
+    transition_kind = _perps_np_transition_kind(item, case_name=case_name, intent_count=intent_count, matched=matched)
+
+    # REVIEW [B -> A-]: the old checker treated every positive perps proof as
+    # match evidence, so the strictly verified ADL smoke was rejected because it
+    # correctly has zero new intents and zero matched volume. Positive evidence is
+    # now typed by transition kind: match epochs still require live fills, while
+    # ADL epochs require a settlement-only proof shape.
+    if transition_kind == "match_epoch":
+        if intent_count is None or intent_count <= 0:
+            errors.append(f"cases[{index}].intent_count must be positive for match_epoch")
+        if participant_count is not None and intent_count is not None and intent_count < participant_count:
+            errors.append(f"cases[{index}].intent_count must cover participant_count")
+        if matched is not None and matched <= 0:
+            errors.append(f"cases[{index}].matched_base_volume must be positive for match_epoch")
+    elif transition_kind == "adl_epoch":
+        if intent_count is not None and intent_count != 0:
+            errors.append(f"cases[{index}].intent_count must be zero for adl_epoch")
+        if matched is not None and matched != 0:
+            errors.append(f"cases[{index}].matched_base_volume must be zero for adl_epoch")
+        claims_delta = _intish(item.get("claims_paid_delta_e8"), f"cases[{index}].claims_paid_delta_e8", errors)
+        if claims_delta is not None and claims_delta <= 0:
+            errors.append(f"cases[{index}].claims_paid_delta_e8 must be positive for adl_epoch")
+        position_reduction = _intish(
+            item.get("position_abs_reduction_base"),
+            f"cases[{index}].position_abs_reduction_base",
+            errors,
+        )
+        if position_reduction is not None and position_reduction <= 0:
+            errors.append(f"cases[{index}].position_abs_reduction_base must be positive for adl_epoch")
+    else:
+        errors.append(f"cases[{index}].transition_kind must be match_epoch or adl_epoch")
+
+
+def _perps_np_transition_kind(
+    item: Mapping[str, Any],
+    *,
+    case_name: str | None,
+    intent_count: int | None,
+    matched: int | None,
+) -> str | None:
+    raw = item.get("transition_kind")
+    if isinstance(raw, str) and raw:
+        return raw
+    # Backward-compatible inference for already-produced proof reports. New
+    # smoke reports write transition_kind explicitly.
+    if case_name == "adl_wallet" and intent_count == 0 and matched == 0:
+        return "adl_epoch"
+    return "match_epoch"
 
 
 def _validate_negative_case(item: Mapping[str, Any], *, index: int, errors: list[str]) -> None:

@@ -481,8 +481,8 @@
     {
       "id": "multi_predicate",
       "path": "experiments/05_multi_predicate.tau",
-      "mode": "spec",
-      "spec_timeout": 2.0,
+      "mode": "native_mirror",
+      "native_mirror": "multi_predicate",
       "oracle": {
         "type": "python",
         "outputs": {
@@ -591,8 +591,8 @@
     {
       "id": "cpmm_basic",
       "path": "experiments/07_cpmm_basic.tau",
-      "mode": "spec",
-      "spec_timeout": 60.0,
+      "mode": "native_mirror",
+      "native_mirror": "cpmm_basic",
       "oracle": {
         "type": "python",
         "outputs": {
@@ -859,8 +859,8 @@
     {
       "id": "balance_safety",
       "path": "experiments/12_balance_safety.tau",
-      "mode": "spec",
-      "spec_timeout": 60.0,
+      "mode": "native_mirror",
+      "native_mirror": "balance_safety",
       "oracle": {
         "type": "python",
         "outputs": {
@@ -923,8 +923,8 @@
     {
       "id": "dex_complete",
       "path": "experiments/13_dex_complete.tau",
-      "mode": "spec",
-      "spec_timeout": 60.0,
+      "mode": "native_mirror",
+      "native_mirror": "dex_complete",
       "oracle": {
         "type": "python",
         "outputs": {

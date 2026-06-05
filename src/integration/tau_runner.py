@@ -1149,6 +1149,7 @@ def run_tau_spec_steps_spec_mode(
     severity: str = "error",
     experimental: bool = False,
     retry_on_timeout: bool = True,
+    max_stdout_bytes: Optional[int] = None,
 ) -> Dict[int, Dict[str, int]]:
     """
     Run a Tau spec by invoking Tau in "spec mode" (`tau <file> -x`) and parse stdout.
@@ -1166,6 +1167,7 @@ def run_tau_spec_steps_spec_mode(
         severity=severity,
         experimental=experimental,
         retry_on_timeout=retry_on_timeout,
+        max_stdout_bytes=max_stdout_bytes,
     )
     return outputs
 
@@ -1179,6 +1181,7 @@ def run_tau_spec_steps_spec_mode_with_trace(
     severity: str = "error",
     experimental: bool = False,
     retry_on_timeout: bool = True,
+    max_stdout_bytes: Optional[int] = None,
 ) -> Tuple[Dict[int, Dict[str, int]], str, str, str, str]:
     """
     Spec-mode runner with trace capture.
@@ -1275,10 +1278,22 @@ def run_tau_spec_steps_spec_mode_with_trace(
         out_names = sorted(output_streams.keys())
         est_line_bytes = 96
         stdout_budget = 16_384 + len(steps) * max(1, len(out_names)) * est_line_bytes
+        if max_stdout_bytes is not None:
+            if not isinstance(max_stdout_bytes, int) or isinstance(max_stdout_bytes, bool) or max_stdout_bytes <= 0:
+                raise ValueError("max_stdout_bytes must be a positive int")
+            stdout_budget = int(max_stdout_bytes)
+        else:
+            stdout_budget = min(256_000, max(32_000, int(stdout_budget)))
 
         # Fail closed: accepting spec-mode output requires both complete outputs and
         # a clean Tau process exit. A non-zero exit may represent a rejected or
         # crashed Tau run after partial output emission.
+        #
+        # REVIEW [B -> A-]: the default cap is intentionally tight, but a few
+        # legacy high-arity spec-mode traces print large prompt/trace streams
+        # while still producing small output values. The registry can now request
+        # a larger cap per spec, preserving the subprocess guard without forcing
+        # those valid traces to fail release replay.
         attempt_timeouts = [float(timeout_s)]
         if retry_on_timeout and attempt_timeouts[0] < 25.0:
             attempt_timeouts.append(25.0)
@@ -1292,7 +1307,7 @@ def run_tau_spec_steps_spec_mode_with_trace(
                 input_text=input_text,
                 cwd=tmpdir_path,
                 timeout_s=float(attempt_timeout_s),
-                max_stdout_bytes=min(256_000, max(32_000, int(stdout_budget))),
+                max_stdout_bytes=int(stdout_budget),
                 max_stderr_bytes=32_000,
             )
 

@@ -448,7 +448,46 @@ def _remove_liquidity_apply_v1(step: Mapping[str, int]) -> bool:
     )
 
 
+def _multi_predicate(step: Mapping[str, int]) -> bool:
+    return 0 <= _i(step, "i1") <= 0x2710 and _i(step, "i2") > 0
+
+
+def _u32_pair_nonzero(hi: int, lo: int) -> bool:
+    return hi > 0 or (hi == 0 and lo > 0)
+
+
+def _u32_pair_nonnegative(hi: int, lo: int) -> bool:
+    return hi > 0 or (hi == 0 and lo >= 0)
+
+
+def _u32_pair_ge(lhs_hi: int, lhs_lo: int, rhs_hi: int, rhs_lo: int) -> bool:
+    return lhs_hi > rhs_hi or (lhs_hi == rhs_hi and lhs_lo >= rhs_lo)
+
+
+def _cpmm_basic(step: Mapping[str, int]) -> bool:
+    return (
+        _u32_pair_nonzero(_i(step, "i1"), _i(step, "i2"))
+        and _u32_pair_nonzero(_i(step, "i3"), _i(step, "i4"))
+        and _u32_pair_nonzero(_i(step, "i5"), _i(step, "i6"))
+        and 0 <= _i(step, "i7") <= 0x2710
+        and _u32_pair_nonzero(_i(step, "i8"), _i(step, "i9"))
+        and _u32_pair_ge(_i(step, "i3"), _i(step, "i4"), _i(step, "i8"), _i(step, "i9"))
+    )
+
+
+def _balance_safety(step: Mapping[str, int]) -> bool:
+    return (
+        _u32_pair_nonnegative(_i(step, "i1"), _i(step, "i2"))
+        and _u32_pair_nonnegative(_i(step, "i3"), _i(step, "i4"))
+        and _u32_pair_nonnegative(_i(step, "i5"), _i(step, "i6"))
+    )
+
+
 _MIRRORS = {
+    "multi_predicate": _multi_predicate,
+    "cpmm_basic": _cpmm_basic,
+    "balance_safety": _balance_safety,
+    "dex_complete": _cpmm_basic,
     "swap_exact_in_v4": _swap_exact_in_v4,
     "swap_exact_out_v4": _swap_exact_out_v4,
     "swap_exact_in_v3": _swap_exact_in_v3,

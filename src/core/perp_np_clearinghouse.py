@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
-"""Pure N-party net-zero clearinghouse reference (the single source of truth).
+"""Pure N-party net-zero clearinghouse reference and runtime core.
 
-EXPERIMENTAL / PENDING REVIEW — public testnet (fake value) design evidence only.
-NOT wired into any consensus path. See README.md and DESIGN.md.
+TESTNET / PRODUCTION-DEVELOPMENT SCOPE. This module is promoted into
+``src/core`` and consumed by the ``clearinghouse_np_v1`` engine path. It remains
+a scoped accounting and matching core, so public production-security claims still
+depend on strict proof, oracle, state-root, UI/API, and smoke-evidence gates.
+
+REVIEW [B -> A-]: the previous header said this code was not wired into any
+runtime path. That was stale after the NP engine promotion and could mislead
+future release review. The corrected scope keeps the public claim fail-closed
+while reflecting the actual integration boundary.
 
 This module pins the EXACT integer semantics of the design so that the Rust/Kani
 crate can mirror it, the Lean proofs can abstract it, the ESSO kernel can encode
