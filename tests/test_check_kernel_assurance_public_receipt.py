@@ -291,6 +291,10 @@ def test_committed_receipt_covers_nonce_batch_wrapper_lean() -> None:
         "Proofs.ZenoDEX.NonceBatchWrapper.canonical_batch_accept_decision_implies_safety"
         in proof["result"]["required_theorems"]
     )
+    assert (
+        "Proofs.ZenoDEX.NonceBatchWrapper.canonical_batch_accept_decision_implies_exact_ranges"
+        in proof["result"]["required_theorems"]
+    )
 
 
 def test_committed_receipt_covers_settlement_supply_conservation_lean() -> None:

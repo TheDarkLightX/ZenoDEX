@@ -197,9 +197,14 @@
         "module": "Proofs.ZenoDEXNonceBatchWrapper",
         "required_theorems": [
           "Proofs.ZenoDEX.NonceBatchWrapper.canonical_batch_accept_decision_implies_safety",
+          "Proofs.ZenoDEX.NonceBatchWrapper.canonical_batch_accept_decision_implies_exact_ranges",
           "Proofs.ZenoDEX.NonceBatchWrapper.canonical_batch_sender_ids_nodup",
+          "Proofs.ZenoDEX.NonceBatchWrapper.acceptsSortedFold_eq_successorRange",
+          "Proofs.ZenoDEX.NonceBatchWrapper.acceptsSortedFold_final_eq_start_add_length",
           "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_safety",
+          "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_exact_ranges",
           "Proofs.ZenoDEX.NonceBatchWrapper.batch_accept_decision_implies_group_nodup",
+          "Proofs.ZenoDEX.NonceBatchWrapper.group_accept_decision_implies_exact_range",
           "Proofs.ZenoDEX.NonceBatchWrapper.witness_batch_accepts",
           "Proofs.ZenoDEX.NonceBatchWrapper.witness_canonical_batch_accepts",
           "Proofs.ZenoDEX.NonceBatchWrapper.witness_reject_gap",
@@ -210,7 +215,7 @@
       "source_files": [
         {
           "path": "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean",
-          "sha256": "a66afd425f6d7e96d2c740d09b08eb76cfa8916c5c8b3c1294b62d66bb7940c0"
+          "sha256": "2a65c470b22620f8da35a7d9fac630f4dca3c96b31bd425fb9498018d43c2673"
         }
       ],
       "tool": "lean-lake-build"
@@ -240,12 +245,12 @@
     }
   ],
   "manifest": "tools/kernel_assurance_manifest.json",
-  "manifest_sha256": "890cb84671df29cf52cabc7091ade0374ed0a2658d3285ca3461385a0fe547e0",
+  "manifest_sha256": "04c64e963d5e5675b99d01b26ec0c3989b80049a77634acfabb28079dc0c1015",
   "ok": true,
   "private_toolchain_source_included": false,
-  "receipt_sha256": "7f38dbfafa44ebf2d51a21fa5d7089f47c400a9d47c59b7e886c2904b165e8d5",
+  "receipt_sha256": "eba64429ee5543b7785da312301b422fc9d972d301e70a26f7ccecfce4d7c0c0",
   "schema": "zenodex.kernel_assurance.public_receipt.v1",
-  "source_report_sha256": "ed7737eeb9eaf1eba14330627bb0fd29cc5c75100fb916528815d4bbd4f5f7e0",
+  "source_report_sha256": "d1ae4e15d6c7cb6483ff93e5af76a80aa68e2bb43c4ed59f628045d90e635d65",
   "toolchain": {
     "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
     "esso_dirty": true,

@@ -8,11 +8,11 @@ review rule:
   validator accept decision -> safety property
 
 The accept decision is `batchAccepts groups = true`. The conclusion states that
-every nonce in every accepted sender group is strictly above that sender's prior
-`last` and no greater than the group's post-batch final nonce. The definitions
-model the live wrapper after grouping by sender and sorting each sender's nonce
-list; the PR-gated runtime binding test checks that `src.state.nonces` matches
-this model over a finite domain sweep.
+every nonce group is the exact successor range `{last+1, ..., last+k}` and that
+the post-batch final nonce is `last+k`. The definitions model the live wrapper
+after grouping by sender and sorting each sender's nonce list; the PR-gated
+runtime binding test checks that `src.state.nonces` matches this model over a
+finite domain sweep.
 
 Review note [B+ -> A-]: the first proof surface accepted a raw `List
 SenderGroup`, which made duplicate sender groups representable even though the
@@ -21,6 +21,12 @@ sender-ID `Nodup` proof in the type, and the receipt now pins the canonical
 decision-to-safety theorem. The remaining gap is refinement breadth: the Python
 binding sweeps the grouped/sorted construction, but the grouping algorithm itself
 is still tested rather than formally proven in Lean.
+
+REVIEW [A- -> A]: the earlier theorem surface proved a useful but weak property:
+accepted nonces were above the prior `last`, below the final nonce, and nodup.
+That did not explicitly state the live authority's exact contiguous-range
+contract. The strengthened surface below proves accepted groups are exactly the
+recursive successor range and that the final nonce is `last + length`.
 -/
 
 namespace Proofs
@@ -41,6 +47,10 @@ def finalAfterSortedFold : Nat -> List Nat -> Nat
   | last, [] => last
   | _, n :: rest => finalAfterSortedFold n rest
 
+def successorRange : Nat -> Nat -> List Nat
+  | _, 0 => []
+  | last, k + 1 => (last + 1) :: successorRange (last + 1) k
+
 def groupAccepts (group : SenderGroup) : Bool :=
   acceptsSortedFold group.last group.nonces
 
@@ -49,6 +59,10 @@ def groupFinal (group : SenderGroup) : Nat :=
 
 def groupSafe (group : SenderGroup) : Prop :=
   ∀ n, n ∈ group.nonces -> group.last < n ∧ n ≤ groupFinal group
+
+def groupExactRange (group : SenderGroup) : Prop :=
+  group.nonces = successorRange group.last group.nonces.length ∧
+    groupFinal group = group.last + group.nonces.length
 
 def batchAccepts : List SenderGroup -> Bool
   | [] => true
@@ -94,6 +108,44 @@ theorem finalAfterSortedFold_ge_start {last : Nat} {nonces : List Nat}
         rw [hc.left]
         exact Nat.le_succ last
       exact Nat.le_trans hlastn htail
+
+theorem successorRange_length (last k : Nat) :
+    (successorRange last k).length = k := by
+  induction k generalizing last with
+  | zero =>
+      simp [successorRange]
+  | succ k ih =>
+      simp [successorRange, ih]
+
+theorem acceptsSortedFold_final_eq_start_add_length {last : Nat} {nonces : List Nat}
+    (h : acceptsSortedFold last nonces = true) :
+    finalAfterSortedFold last nonces = last + nonces.length := by
+  induction nonces generalizing last with
+  | nil =>
+      simp [finalAfterSortedFold]
+  | cons head tail ih =>
+      have hc := acceptsSortedFold_cons_eq_true h
+      have htail : acceptsSortedFold (last + 1) tail = true := by
+        simpa [hc.left] using hc.right
+      rw [hc.left]
+      simp [finalAfterSortedFold]
+      rw [ih htail]
+      omega
+
+theorem acceptsSortedFold_eq_successorRange {last : Nat} {nonces : List Nat}
+    (h : acceptsSortedFold last nonces = true) :
+    nonces = successorRange last nonces.length := by
+  induction nonces generalizing last with
+  | nil =>
+      simp [successorRange]
+  | cons head tail ih =>
+      have hc := acceptsSortedFold_cons_eq_true h
+      have htail : acceptsSortedFold (last + 1) tail = true := by
+        simpa [hc.left] using hc.right
+      have htail_eq : tail = successorRange (last + 1) tail.length := ih htail
+      rw [hc.left]
+      rw [htail_eq]
+      simp [successorRange, successorRange_length]
 
 theorem acceptsSortedFold_member_safe {last n : Nat} {nonces : List Nat}
     (h : acceptsSortedFold last nonces = true)
@@ -181,6 +233,29 @@ theorem batch_accept_decision_implies_group_nodup {groups : List SenderGroup}
       | tail _ htail =>
           exact ih hc.right htail
 
+theorem group_accept_decision_implies_exact_range {group : SenderGroup}
+    (haccept : groupAccepts group = true) :
+    groupExactRange group := by
+  constructor
+  · exact acceptsSortedFold_eq_successorRange haccept
+  · exact acceptsSortedFold_final_eq_start_add_length haccept
+
+theorem batch_accept_decision_implies_exact_ranges {groups : List SenderGroup}
+    (haccept : batchAccepts groups = true) :
+    ∀ group, group ∈ groups -> groupExactRange group := by
+  induction groups with
+  | nil =>
+      intro group hin
+      cases hin
+  | cons head tail ih =>
+      have hc := batchAccepts_cons_eq_true haccept
+      intro group hin
+      cases hin with
+      | head =>
+          exact group_accept_decision_implies_exact_range hc.left
+      | tail _ htail =>
+          exact ih hc.right group htail
+
 /-- Canonical decision-to-safety theorem for the runtime-shaped batch type.
 
 This is the stronger receipt-pinned surface: duplicate sender groups are not
@@ -190,6 +265,18 @@ theorem canonical_batch_accept_decision_implies_safety {batch : CanonicalBatch}
     (haccept : canonicalBatchAccepts batch = true) :
     ∀ group, group ∈ batch.groups -> groupSafe group :=
   batch_accept_decision_implies_safety haccept
+
+/-- Canonical exact-range theorem for the runtime-shaped batch type.
+
+If the live-shaped wrapper accepts, then each sender group is exactly the
+successor range `{last+1, ..., last+k}` and its final nonce is `last+k`. This is
+the stronger proof surface needed for the batch wrapper binding: no gaps, no
+duplicates, and the post-state last nonce is determined by the accepted range.
+-/
+theorem canonical_batch_accept_decision_implies_exact_ranges {batch : CanonicalBatch}
+    (haccept : canonicalBatchAccepts batch = true) :
+    ∀ group, group ∈ batch.groups -> groupExactRange group :=
+  batch_accept_decision_implies_exact_ranges haccept
 
 def witnessAcceptedGroups : List SenderGroup :=
   [
