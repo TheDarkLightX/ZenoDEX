@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import yaml
+
 import tools.check_nonce_batch_formal_spec_contract as contract_mod
 
 CONTRACT = contract_mod.DEFAULT_CONTRACT
@@ -97,4 +99,60 @@ def test_workflow_gate_token_missing_fails(monkeypatch) -> None:
     monkeypatch.setattr(contract_mod, "EXPECTED_WORKFLOW_TOKENS", ["missing nonce formal-spec workflow token"])
     errors: list[str] = []
     contract_mod._check_workflows(errors)
-    assert any("workflow is missing nonce formal-spec gate token" in e for e in errors)
+    assert any("workflow is missing active nonce formal-spec gate token" in e for e in errors)
+
+
+def _load_workflow(rel: str) -> dict:
+    workflow = yaml.safe_load((contract_mod.ROOT / rel).read_text(encoding="utf-8"))
+    assert isinstance(workflow, dict)
+    return workflow
+
+
+def _mutate_run_blocks(workflow: dict, needle: str, replacement: str) -> None:
+    jobs = workflow["jobs"]
+    for job in jobs.values():
+        for step in job.get("steps", []):
+            run = step.get("run")
+            if isinstance(run, str):
+                step["run"] = run.replace(needle, replacement)
+
+
+def test_workflow_gate_rejects_comment_only_command(monkeypatch) -> None:
+    runtime_shadow = _load_workflow(".github/workflows/runtime-shadow.yml")
+    release_integrity = _load_workflow(".github/workflows/release-integrity.yml")
+    needle = "tools/check_nonce_batch_formal_spec_contract.py check --pretty"
+    comment_only = "# tools/check_nonce_batch_formal_spec_contract.py check --pretty"
+    _mutate_run_blocks(runtime_shadow, needle, comment_only)
+    _mutate_run_blocks(release_integrity, needle, comment_only)
+
+    def fake_load_workflow(rel: str):
+        return runtime_shadow if rel.endswith("runtime-shadow.yml") else release_integrity
+
+    monkeypatch.setattr(contract_mod, "_load_workflow", fake_load_workflow)
+    errors: list[str] = []
+    contract_mod._check_workflows(errors)
+    assert any("missing active nonce formal-spec gate token" in e for e in errors)
+
+
+def test_workflow_gate_rejects_comment_only_path_filter(monkeypatch) -> None:
+    runtime_shadow = _load_workflow(".github/workflows/runtime-shadow.yml")
+    release_integrity = _load_workflow(".github/workflows/release-integrity.yml")
+    on_section = runtime_shadow.get("on", runtime_shadow.get(True))
+    for event in ("pull_request", "push"):
+        paths = on_section[event]["paths"]
+        on_section[event]["paths"] = [
+            path for path in paths if path != "docs/assurance/nonce_batch_formal_spec_contract.json"
+        ]
+    # Comment text in a run block must not satisfy the active path-filter check.
+    first_run = runtime_shadow["jobs"]["python-runtime"]["steps"][2]["run"]
+    runtime_shadow["jobs"]["python-runtime"]["steps"][2]["run"] = (
+        first_run + "\n# docs/assurance/nonce_batch_formal_spec_contract.json"
+    )
+
+    def fake_load_workflow(rel: str):
+        return runtime_shadow if rel.endswith("runtime-shadow.yml") else release_integrity
+
+    monkeypatch.setattr(contract_mod, "_load_workflow", fake_load_workflow)
+    errors: list[str] = []
+    contract_mod._check_workflows(errors)
+    assert any("paths missing nonce formal-spec filters" in e for e in errors)

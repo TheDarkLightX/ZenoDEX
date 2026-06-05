@@ -26,6 +26,8 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -70,6 +72,13 @@ EXPECTED_WORKFLOW_TOKENS = [
     "tools/check_nonce_batch_formal_spec_contract.py check --pretty",
     "tests/test_check_nonce_batch_formal_spec_contract.py",
     "docs/assurance/nonce_batch_formal_spec_contract.json",
+]
+RUNTIME_SHADOW_REQUIRED_PATH_FILTERS = [
+    "docs/assurance/nonce_batch_formal_spec_contract.json",
+    "tools/check_nonce_batch_formal_spec_contract.py",
+    "tests/test_check_nonce_batch_formal_spec_contract.py",
+    ".github/workflows/runtime-shadow.yml",
+    ".github/workflows/release-integrity.yml",
 ]
 # The superseded single-step Tau guard is NOT the batch spec; flag if cited as the formal spec.
 FORBIDDEN_SPEC_REFS = [
@@ -132,6 +141,60 @@ def _load_json_object(path: Path) -> dict[str, Any]:
     if not isinstance(obj, dict):
         raise ValueError(f"{path}: top-level JSON value must be an object")
     return obj
+
+
+def _load_workflow(rel: str) -> Mapping[str, Any]:
+    workflow = yaml.safe_load((ROOT / rel).read_text(encoding="utf-8"))
+    if not isinstance(workflow, Mapping):
+        raise ValueError(f"{rel}: workflow must be a mapping")
+    return workflow
+
+
+def _workflow_on_section(workflow: Mapping[str, Any]) -> Mapping[str, Any]:
+    # PyYAML's YAML 1.1 resolver can parse GitHub's `on` key as boolean True.
+    section = workflow.get("on", workflow.get(True))
+    if not isinstance(section, Mapping):
+        raise ValueError("workflow must define an on: mapping")
+    return section
+
+
+def _path_filter_covers(required_path: str, active_filter: str) -> bool:
+    if active_filter == required_path:
+        return True
+    if active_filter.endswith("/**"):
+        return required_path.startswith(active_filter.removesuffix("**"))
+    return False
+
+
+def _job_run_blocks(workflow: Mapping[str, Any], job_id: str) -> list[str]:
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, Mapping):
+        return []
+    job = jobs.get(job_id)
+    if not isinstance(job, Mapping):
+        return []
+    steps = job.get("steps")
+    if not isinstance(steps, list):
+        return []
+    return [
+        str(step["run"])
+        for step in steps
+        if isinstance(step, Mapping) and isinstance(step.get("run"), str)
+    ]
+
+
+def _active_run_text(block: str) -> str:
+    active_lines: list[str] = []
+    for line in block.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("#"):
+            continue
+        active_lines.append(line.split("#", 1)[0])
+    return "\n".join(active_lines)
+
+
+def _job_has_run_snippet(workflow: Mapping[str, Any], job_id: str, snippet: str) -> bool:
+    return any(snippet in _active_run_text(block) for block in _job_run_blocks(workflow, job_id))
 
 
 def _unexpected_keys(obj: Mapping[str, Any]) -> list[str]:
@@ -227,12 +290,50 @@ def _check_lean_attestation(errors: list[str]) -> None:
 
 
 def _check_workflows(errors: list[str]) -> None:
-    workflow_text = (ROOT / ".github" / "workflows" / "runtime-shadow.yml").read_text(encoding="utf-8")
-    release_text = (ROOT / ".github" / "workflows" / "release-integrity.yml").read_text(encoding="utf-8")
-    combined = workflow_text + "\n" + release_text
-    for token in EXPECTED_WORKFLOW_TOKENS:
-        if token not in combined:
-            errors.append(f"workflow is missing nonce formal-spec gate token: {token}")
+    # REVIEW [B -> A-]: a raw text search could pass if a required command or
+    # path appeared only in a comment. Parse the active workflow structure
+    # instead: path filters must be real `on.*.paths` entries and run snippets
+    # must appear in executable `run:` blocks, ignoring comment lines.
+    try:
+        runtime_shadow = _load_workflow(".github/workflows/runtime-shadow.yml")
+        release_integrity = _load_workflow(".github/workflows/release-integrity.yml")
+        on_section = _workflow_on_section(runtime_shadow)
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        errors.append(f"workflow parse failed: {exc}")
+        return
+
+    for event in ("pull_request", "push"):
+        event_cfg = on_section.get(event)
+        if not isinstance(event_cfg, Mapping):
+            errors.append(f"runtime-shadow on.{event} must be an object")
+            continue
+        paths = event_cfg.get("paths")
+        if not isinstance(paths, list) or not all(isinstance(item, str) for item in paths):
+            errors.append(f"runtime-shadow on.{event}.paths must be a list of strings")
+            continue
+        missing = [
+            path
+            for path in RUNTIME_SHADOW_REQUIRED_PATH_FILTERS
+            if not any(_path_filter_covers(path, active_filter) for active_filter in paths)
+        ]
+        if missing:
+            errors.append(f"runtime-shadow on.{event}.paths missing nonce formal-spec filters: {missing}")
+
+    for snippet in EXPECTED_WORKFLOW_TOKENS:
+        if snippet == "docs/assurance/nonce_batch_formal_spec_contract.json":
+            if not any(
+                _path_filter_covers(snippet, active_filter)
+                for event in ("pull_request", "push")
+                for active_filter in on_section.get(event, {}).get("paths", [])
+                if isinstance(active_filter, str)
+            ):
+                errors.append(f"runtime-shadow path filters missing nonce contract: {snippet}")
+            continue
+        if not (
+            _job_has_run_snippet(runtime_shadow, "python-runtime", snippet)
+            or _job_has_run_snippet(release_integrity, "release-integrity", snippet)
+        ):
+            errors.append(f"workflow is missing active nonce formal-spec gate token: {snippet}")
 
 
 def check_contract(path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:

@@ -42,8 +42,8 @@
     ".github/workflows/runtime-shadow.yml": "22af98cd78d2cd673bfe50cc22f3ec7fdd59e3c8861f1263c85c2db298d9ddf6",
     "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean": "2a65c470b22620f8da35a7d9fac630f4dca3c96b31bd425fb9498018d43c2673",
     "src/kernels/dex/nonce_batch_sequencing_v1.yaml": "a9f055d265709de340c4cff36bf241dda51ac6ba4957056ebc09b4a7a9fd7105",
-    "tests/test_check_nonce_batch_formal_spec_contract.py": "32603cdcf2a7c4861f22e740b45d27aaf7c94e76c518a57ff683ffe5b1dc4fd0",
-    "tools/check_nonce_batch_formal_spec_contract.py": "4abbb4162813c6e5ca623c6d9ca136b60c7bc5768f2289950a9414dd7b20eab2"
+    "tests/test_check_nonce_batch_formal_spec_contract.py": "e4735dc88fbce1953434c19a965f422d870c84f2cbe5e4bd70f419c1b9945b80",
+    "tools/check_nonce_batch_formal_spec_contract.py": "8d4fa69278eb7eed1e5618d83f7ec54199a8b94488dcc73e1c46efe24c9b4d53"
   },
   "spec_language": "ESSO inductive state machine (z3+cvc5) + Lean 4 theorem statements",
   "surface_id": "nonces"
