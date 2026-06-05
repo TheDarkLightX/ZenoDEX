@@ -1,0 +1,301 @@
+{
+  "cases": [
+    {
+      "assets": [
+        "0x0101010101010101010101010101010101010101010101010101010101010101",
+        "0x0202020202020202020202020202020202020202020202020202020202020202"
+      ],
+      "case_id": "swap_exact_in_a0_to_a1",
+      "constructors": [
+        "swapInput",
+        "swapOutput"
+      ],
+      "filled_intents": 1,
+      "pre_post_totals_ok": true,
+      "witnesses": [
+        {
+          "asset": "0x0101010101010101010101010101010101010101010101010101010101010101",
+          "balance_delta": -1000,
+          "constructor": "swapInput",
+          "params": {
+            "amount": 1000,
+            "protocol_fee": 0
+          },
+          "reserve_delta": 1000
+        },
+        {
+          "asset": "0x0202020202020202020202020202020202020202020202020202020202020202",
+          "balance_delta": 996,
+          "constructor": "swapOutput",
+          "params": {
+            "amount_out": 996
+          },
+          "reserve_delta": -996
+        }
+      ]
+    },
+    {
+      "assets": [
+        "0x0101010101010101010101010101010101010101010101010101010101010101",
+        "0x0202020202020202020202020202020202020202020202020202020202020202"
+      ],
+      "case_id": "swap_exact_in_a1_to_a0_with_protocol_fee",
+      "constructors": [
+        "swapInput",
+        "swapOutput"
+      ],
+      "filled_intents": 1,
+      "pre_post_totals_ok": true,
+      "witnesses": [
+        {
+          "asset": "0x0202020202020202020202020202020202020202020202020202020202020202",
+          "balance_delta": -249813,
+          "constructor": "swapInput",
+          "params": {
+            "amount": 250000,
+            "protocol_fee": 187
+          },
+          "reserve_delta": 249813
+        },
+        {
+          "asset": "0x0101010101010101010101010101010101010101010101010101010101010101",
+          "balance_delta": 221629,
+          "constructor": "swapOutput",
+          "params": {
+            "amount_out": 221629
+          },
+          "reserve_delta": -221629
+        }
+      ]
+    },
+    {
+      "assets": [
+        "0x0101010101010101010101010101010101010101010101010101010101010101",
+        "0x0202020202020202020202020202020202020202020202020202020202020202"
+      ],
+      "case_id": "swap_exact_out_a0_to_a1",
+      "constructors": [
+        "swapInput",
+        "swapOutput"
+      ],
+      "filled_intents": 1,
+      "pre_post_totals_ok": true,
+      "witnesses": [
+        {
+          "asset": "0x0101010101010101010101010101010101010101010101010101010101010101",
+          "balance_delta": -51438,
+          "constructor": "swapInput",
+          "params": {
+            "amount": 51438,
+            "protocol_fee": 0
+          },
+          "reserve_delta": 51438
+        },
+        {
+          "asset": "0x0202020202020202020202020202020202020202020202020202020202020202",
+          "balance_delta": 50000,
+          "constructor": "swapOutput",
+          "params": {
+            "amount_out": 50000
+          },
+          "reserve_delta": -50000
+        }
+      ]
+    },
+    {
+      "assets": [
+        "0x0101010101010101010101010101010101010101010101010101010101010101",
+        "0x0202020202020202020202020202020202020202020202020202020202020202"
+      ],
+      "case_id": "swap_exact_out_a1_to_a0_with_protocol_fee",
+      "constructors": [
+        "swapInput",
+        "swapOutput"
+      ],
+      "filled_intents": 1,
+      "pre_post_totals_ok": true,
+      "witnesses": [
+        {
+          "asset": "0x0202020202020202020202020202020202020202020202020202020202020202",
+          "balance_delta": -51400,
+          "constructor": "swapInput",
+          "params": {
+            "amount": 51438,
+            "protocol_fee": 38
+          },
+          "reserve_delta": 51400
+        },
+        {
+          "asset": "0x0101010101010101010101010101010101010101010101010101010101010101",
+          "balance_delta": 50000,
+          "constructor": "swapOutput",
+          "params": {
+            "amount_out": 50000
+          },
+          "reserve_delta": -50000
+        }
+      ]
+    },
+    {
+      "assets": [
+        "0x0101010101010101010101010101010101010101010101010101010101010101",
+        "0x0202020202020202020202020202020202020202020202020202020202020202"
+      ],
+      "case_id": "create_pool",
+      "constructors": [
+        "createPool"
+      ],
+      "filled_intents": 1,
+      "pre_post_totals_ok": true,
+      "witnesses": [
+        {
+          "asset": "0x0101010101010101010101010101010101010101010101010101010101010101",
+          "balance_delta": -2000000,
+          "constructor": "createPool",
+          "params": {
+            "amount": 2000000
+          },
+          "reserve_delta": 2000000
+        },
+        {
+          "asset": "0x0202020202020202020202020202020202020202020202020202020202020202",
+          "balance_delta": -3000000,
+          "constructor": "createPool",
+          "params": {
+            "amount": 3000000
+          },
+          "reserve_delta": 3000000
+        }
+      ]
+    },
+    {
+      "assets": [
+        "0x0101010101010101010101010101010101010101010101010101010101010101",
+        "0x0202020202020202020202020202020202020202020202020202020202020202"
+      ],
+      "case_id": "add_liquidity",
+      "constructors": [
+        "addLiquidity"
+      ],
+      "filled_intents": 1,
+      "pre_post_totals_ok": true,
+      "witnesses": [
+        {
+          "asset": "0x0101010101010101010101010101010101010101010101010101010101010101",
+          "balance_delta": -125000,
+          "constructor": "addLiquidity",
+          "params": {
+            "amount_used": 125000
+          },
+          "reserve_delta": 125000
+        },
+        {
+          "asset": "0x0202020202020202020202020202020202020202020202020202020202020202",
+          "balance_delta": -125000,
+          "constructor": "addLiquidity",
+          "params": {
+            "amount_used": 125000
+          },
+          "reserve_delta": 125000
+        }
+      ]
+    },
+    {
+      "assets": [
+        "0x0101010101010101010101010101010101010101010101010101010101010101",
+        "0x0202020202020202020202020202020202020202020202020202020202020202"
+      ],
+      "case_id": "remove_liquidity",
+      "constructors": [
+        "removeLiquidity"
+      ],
+      "filled_intents": 1,
+      "pre_post_totals_ok": true,
+      "witnesses": [
+        {
+          "asset": "0x0101010101010101010101010101010101010101010101010101010101010101",
+          "balance_delta": 123456,
+          "constructor": "removeLiquidity",
+          "params": {
+            "amount_out": 123456
+          },
+          "reserve_delta": -123456
+        },
+        {
+          "asset": "0x0202020202020202020202020202020202020202020202020202020202020202",
+          "balance_delta": 123456,
+          "constructor": "removeLiquidity",
+          "params": {
+            "amount_out": 123456
+          },
+          "reserve_delta": -123456
+        }
+      ]
+    }
+  ],
+  "claim": "Bounded refinement: live Python settlement deltas in the checked corpus instantiate the Lean AssetMove constructors and preserve each asset's balance+reserve total.",
+  "commands": [
+    {
+      "cmd": [
+        "lake",
+        "--wfail",
+        "build",
+        "Proofs.SettlementConservationLive"
+      ],
+      "cwd": "lean-mathlib",
+      "returncode": 0,
+      "stderr_tail": "",
+      "stdout_tail": "Build completed successfully (3066 jobs).\n"
+    },
+    {
+      "cmd": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/formal/test_lean_settlement_conservation_live.py"
+      ],
+      "cwd": ".",
+      "returncode": 0,
+      "stderr_tail": "",
+      "stdout_tail": "..                                                                       [100%]\n2 passed in 7.40s\n"
+    },
+    {
+      "cmd": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/runtime/test_settlement_conservation_live_binding.py"
+      ],
+      "cwd": ".",
+      "returncode": 0,
+      "stderr_tail": "",
+      "stdout_tail": "...................                                                      [100%]\n19 passed in 0.27s\n"
+    }
+  ],
+  "covered_constructors": [
+    "addLiquidity",
+    "createPool",
+    "removeLiquidity",
+    "swapInput",
+    "swapOutput"
+  ],
+  "grade": "A-",
+  "grade_reason": "Strong replay binding with protocol-fee, bidirectional swap, create-pool, add-liquidity, and remove-liquidity coverage. Still bounded and not a full proof_artifact flip.",
+  "lean_module": "Proofs.SettlementConservationLive",
+  "production_matrix_effect": "No CBC registry column flips.",
+  "schema": "zenodex.balances.live_settlement_conservation_refinement.v1",
+  "source_hashes": {
+    "lean-mathlib/Proofs/SettlementConservationLive.lean": "c2408b128ec770b9af025a81c596b25b7e21c18de0e8f6931a1df0c63c4e88b7",
+    "lean-mathlib/proof_receipts/settlement_conservation_live_v1.json": "0b54a29f90138294a82809cc0e840b26d15b1abdb22a222799dac38ca758a8cb",
+    "src/core/batch_clearing.py": "0b5a91d6142620ba1bc25affcdc9a5216fa636e0fd9b7eb159d6c8de2303a1ea",
+    "src/core/liquidity.py": "2e5ff5545470df3df5bd643607c4f9c5aff5b1ece0cb5dde27e35f1f32052e0d",
+    "src/core/settlement.py": "25f5547bcb36b2bb4ba4dabbeb0186623767047c7eb952173692833d206c742f",
+    "src/core/settlement_strong_validator.py": "0a28f9890afd5d4ccc829541cff3ce9cb404f1fc5ad37c9416b8a40a7159784b",
+    "tests/formal/test_lean_settlement_conservation_live.py": "515dbe2b9a63681930ef54240c0f3944af3161f9aa13824739891ebc0e117f01",
+    "tests/runtime/test_settlement_conservation_live_binding.py": "9f040f04643ed0c0183e6e13d3d3dac86e4599280d10991a20413d2757be03c6",
+    "tests/test_check_settlement_conservation_live_refinement.py": "7a6e5028497f07078f19b5bc7892b02ed1ccf20f274c3d9820d6323fc414d1a4",
+    "tools/check_settlement_conservation_live_refinement.py": "9b003437dbcd6fccd9bc7dc714518bed350f0977b6eee2713f006f7b00d95ec7"
+  }
+}
