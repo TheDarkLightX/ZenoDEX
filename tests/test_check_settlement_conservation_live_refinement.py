@@ -78,6 +78,17 @@ def test_refinement_receipt_command_tamper_fails(tmp_path: Path) -> None:
     assert any("command receipt mismatch" in err for err in result["errors"])
 
 
+def test_refinement_receipt_command_cwd_tamper_fails(tmp_path: Path) -> None:
+    receipt = json.loads(checker.DEFAULT_RECEIPT.read_text(encoding="utf-8"))
+    receipt["commands"][0]["cwd"] = "."
+    tampered = tmp_path / "receipt.json"
+    tampered.write_text(json.dumps(receipt), encoding="utf-8")
+
+    result = checker.check_receipt(tampered)
+    assert not result["ok"]
+    assert any("command receipt mismatch" in err for err in result["errors"])
+
+
 def test_refinement_receipt_claim_overreach_tamper_fails(tmp_path: Path) -> None:
     receipt = json.loads(checker.DEFAULT_RECEIPT.read_text(encoding="utf-8"))
     receipt["claim"] = "Production balances proof_artifact is fully cleared."
@@ -89,6 +100,54 @@ def test_refinement_receipt_claim_overreach_tamper_fails(tmp_path: Path) -> None
     assert not result["ok"]
     assert any("claim mismatch" in err for err in result["errors"])
     assert any("grade mismatch" in err for err in result["errors"])
+
+
+def test_refinement_receipt_bad_top_level_shape_fails(tmp_path: Path) -> None:
+    tampered = tmp_path / "receipt.json"
+    tampered.write_text(json.dumps(["not", "an", "object"]), encoding="utf-8")
+
+    # REVIEW [A- -> A-]: this receipt is still bounded refinement evidence, but
+    # its checker must be defensive at the JSON boundary. Malformed receipts now
+    # return ok=false instead of escaping through direct Python API calls, which
+    # keeps future gates from depending on the CLI wrapper for fail-closed shape
+    # handling.
+    result = checker.check_receipt(tampered)
+    assert not result["ok"]
+    assert result["errors"] == ["receipt must be an object"]
+
+
+def test_refinement_receipt_bad_source_hash_shape_fails(tmp_path: Path) -> None:
+    receipt = json.loads(checker.DEFAULT_RECEIPT.read_text(encoding="utf-8"))
+    receipt["source_hashes"] = []
+    tampered = tmp_path / "receipt.json"
+    tampered.write_text(json.dumps(receipt), encoding="utf-8")
+
+    result = checker.check_receipt(tampered)
+    assert not result["ok"]
+    assert any("source_hashes must be an object" in err for err in result["errors"])
+
+
+def test_refinement_receipt_bad_cases_shape_fails(tmp_path: Path) -> None:
+    receipt = json.loads(checker.DEFAULT_RECEIPT.read_text(encoding="utf-8"))
+    receipt["cases"] = {"case_id": "bad"}
+    tampered = tmp_path / "receipt.json"
+    tampered.write_text(json.dumps(receipt), encoding="utf-8")
+
+    result = checker.check_receipt(tampered)
+    assert not result["ok"]
+    assert any("cases must be a list" in err for err in result["errors"])
+
+
+def test_refinement_receipt_bad_command_entry_shape_fails(tmp_path: Path) -> None:
+    receipt = json.loads(checker.DEFAULT_RECEIPT.read_text(encoding="utf-8"))
+    receipt["commands"][0] = "lake build"
+    tampered = tmp_path / "receipt.json"
+    tampered.write_text(json.dumps(receipt), encoding="utf-8")
+
+    result = checker.check_receipt(tampered)
+    assert not result["ok"]
+    assert any("commands[0] must be an object" in err for err in result["errors"])
+    assert any("command receipt mismatch" in err for err in result["errors"])
 
 
 def test_refinement_rejects_unmodeled_balance_leak() -> None:

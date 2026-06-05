@@ -1681,6 +1681,19 @@ def validate_settlement(
     return True, None
 
 
+def _check_settlement_asset_delta_conservation(settlement: Settlement) -> Tuple[bool, Optional[str]]:
+    """Check the per-asset account+pool delta conservation carried by a settlement."""
+    asset_net: Dict[AssetId, Amount] = defaultdict(int)
+    for balance_delta in settlement.balance_deltas:
+        asset_net[balance_delta.asset] += balance_delta.net_delta()
+    for reserve_delta in settlement.reserve_deltas:
+        asset_net[reserve_delta.asset] += reserve_delta.net_delta()
+    for asset, net in asset_net.items():
+        if net != 0:
+            return False, f"Asset conservation violation: {asset}, net_delta = {net}"
+    return True, None
+
+
 def apply_settlement(
     settlement: Settlement,
     balances: BalanceTable,
@@ -1700,6 +1713,16 @@ def apply_settlement(
     Raises:
         ValueError: If settlement is invalid
     """
+    ok, err = _check_settlement_asset_delta_conservation(settlement)
+    if not ok:
+        # REVIEW [B -> A-]: this invariant used to be enforced by validators and
+        # tests around the live path, while direct apply_settlement callers could
+        # still pass a non-conservative delta set into the mutator. The apply path
+        # now rejects before creating pools or touching balances/reserves. A higher
+        # grade would make apply_settlement transactional so post-apply invariant
+        # checks could roll back internal implementation bugs automatically.
+        raise ValueError(err)
+
     # Create any pools declared by settlement events.
     if settlement.events:
         for event in settlement.events:

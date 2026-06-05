@@ -75,7 +75,8 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     # Honesty guard: a surface may clear only with evidence, but the scope claim
     # stays blocked while any other authority surface is still open.
     assert surfaces["state_root"]["open_gaps_closed"] is True
-    for surface_id in set(SPOT_DEX_SCOPE) - {"state_root"}:
+    assert surfaces["cpmm_swap"]["open_gaps_closed"] is True
+    for surface_id in set(SPOT_DEX_SCOPE) - {"state_root", "cpmm_swap"}:
         assert surfaces[surface_id]["open_gaps_closed"] is False
     assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 1
 

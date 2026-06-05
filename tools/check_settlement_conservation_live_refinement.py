@@ -80,6 +80,14 @@ EXPECTED_COMMANDS = [
     ["python3", "-m", "pytest", "-q", "tests/formal/test_lean_settlement_conservation_live.py"],
     ["python3", "-m", "pytest", "-q", "tests/runtime/test_settlement_conservation_live_binding.py"],
 ]
+EXPECTED_COMMAND_CWDS = ["lean-mathlib", ".", "."]
+EXPECTED_COVERED_CONSTRUCTORS = [
+    "addLiquidity",
+    "createPool",
+    "removeLiquidity",
+    "swapInput",
+    "swapOutput",
+]
 
 
 class RefinementError(ValueError):
@@ -599,9 +607,31 @@ def build_receipt(path: Path) -> dict[str, Any]:
     return receipt
 
 
+def _receipt_object(value: Any, field: str, errors: list[str]) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        errors.append(f"{field} must be an object")
+        return {}
+    return value
+
+
+def _receipt_list(value: Any, field: str, errors: list[str]) -> list[Any]:
+    if not isinstance(value, list):
+        errors.append(f"{field} must be a list")
+        return []
+    return value
+
+
 def check_receipt(path: Path) -> dict[str, Any]:
     receipt = json.loads(path.read_text(encoding="utf-8"))
     errors: list[str] = []
+    if not isinstance(receipt, Mapping):
+        return {
+            "schema": CHECK_SCHEMA,
+            "ok": False,
+            "errors": ["receipt must be an object"],
+            "receipt": str(path),
+            "covered_constructors": [],
+        }
     if receipt.get("schema") != RECEIPT_SCHEMA:
         errors.append("bad schema")
     if receipt.get("lean_module") != LEAN_MODULE:
@@ -614,27 +644,45 @@ def check_receipt(path: Path) -> dict[str, Any]:
         errors.append("grade_reason mismatch")
     if receipt.get("production_matrix_effect") != EXPECTED_PRODUCTION_MATRIX_EFFECT:
         errors.append("production_matrix_effect must keep the no-flip boundary explicit")
-    for rel, pinned in receipt.get("source_hashes", {}).items():
-        actual = _sha256_file(ROOT / rel)
+    source_hashes = _receipt_object(receipt.get("source_hashes"), "source_hashes", errors)
+    for rel, pinned in source_hashes.items():
+        if not isinstance(rel, str) or not isinstance(pinned, str):
+            errors.append("source_hashes entries must map string paths to string sha256 values")
+            continue
+        try:
+            actual = _sha256_file(ROOT / rel)
+        except OSError as exc:
+            errors.append(f"source file unreadable: {rel}: {exc}")
+            continue
         if actual != pinned:
             errors.append(f"source hash mismatch: {rel}")
-    if sorted(receipt.get("source_hashes", {}).keys()) != sorted(SOURCE_FILES):
+    if sorted(source_hashes.keys()) != sorted(SOURCE_FILES):
         errors.append("source hash file set mismatch")
     try:
         cases = run_refinement_checks()
     except Exception as exc:  # pragma: no cover - surfaced in result envelope
         errors.append(f"refinement replay failed: {exc}")
         cases = []
-    got_cases = receipt.get("cases", [])
+    got_cases = _receipt_list(receipt.get("cases"), "cases", errors)
     if got_cases != cases:
         errors.append("case replay mismatch")
     covered = sorted({ctor for case in cases for ctor in case.get("constructors", [])})
-    if receipt.get("covered_constructors") != covered:
+    if covered != EXPECTED_COVERED_CONSTRUCTORS:
+        errors.append("internal constructor coverage mismatch")
+    got_covered = _receipt_list(receipt.get("covered_constructors"), "covered_constructors", errors)
+    if got_covered != covered:
         errors.append("covered constructor set mismatch")
-    commands = receipt.get("commands", [])
-    got_commands = [cmd.get("cmd") for cmd in commands if isinstance(cmd, Mapping)]
-    got_returncodes = [cmd.get("returncode") for cmd in commands if isinstance(cmd, Mapping)]
-    if got_commands != EXPECTED_COMMANDS or got_returncodes != [0, 0, 0]:
+    commands = _receipt_list(receipt.get("commands"), "commands", errors)
+    command_entries: list[Mapping[str, Any]] = []
+    for index, command in enumerate(commands):
+        if not isinstance(command, Mapping):
+            errors.append(f"commands[{index}] must be an object")
+            continue
+        command_entries.append(command)
+    got_commands = [cmd.get("cmd") for cmd in command_entries]
+    got_returncodes = [cmd.get("returncode") for cmd in command_entries]
+    got_cwds = [cmd.get("cwd") for cmd in command_entries]
+    if got_commands != EXPECTED_COMMANDS or got_returncodes != [0, 0, 0] or got_cwds != EXPECTED_COMMAND_CWDS:
         errors.append("command receipt mismatch")
     return {
         "schema": CHECK_SCHEMA,

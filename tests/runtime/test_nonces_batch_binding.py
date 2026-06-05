@@ -32,7 +32,6 @@ import pytest
 
 from src.core.replay_guard import (
     REPLAY_GUARD_SURFACE,
-    AdmitAccepted,
     AdmitRejected,
     ReplayGuardState,
     _canonical_sender,
@@ -40,7 +39,11 @@ from src.core.replay_guard import (
 )
 from src.runtime.authority import AuthorityMode, active_mode
 from src.state.intents import Intent, IntentKind
-from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
+from src.state.nonces import (
+    NonceTable,
+    _check_nonce_batch_runtime_invariants,
+    validate_and_apply_intent_nonce_batch,
+)
 
 # --- senders (48-byte / 96-hex pubkeys) + a non-hex one both impls reject ----
 SENDER_A = "0x" + "11" * 48
@@ -181,6 +184,47 @@ def test_accept_returns_fresh_table_without_mutating_input() -> None:
     assert ok is True and updated is not None
     assert updated.get_last(_canon(SENDER_A)) == 2
     assert dict(table.get_all()) == before  # input untouched; advance is on the copy
+
+
+def test_runtime_invariant_helper_accepts_exact_staged_advance() -> None:
+    table = NonceTable()
+    table.set_last(SENDER_A, 1)
+    updated = NonceTable()
+    updated.set_last(SENDER_A, 3)
+    updated.set_last(SENDER_B, 1)
+
+    ok, err = _check_nonce_batch_runtime_invariants(
+        before=table,
+        after=updated,
+        per_sender={_canon(SENDER_A): [3, 2], _canon(SENDER_B): [1]},
+    )
+    assert ok is True and err is None
+
+
+def test_runtime_invariant_helper_rejects_partial_staged_advance() -> None:
+    table = NonceTable()
+    table.set_last(SENDER_A, 1)
+    updated = NonceTable()
+    updated.set_last(SENDER_A, 3)
+    # B's accepted nonce is missing from the staged table.
+
+    ok, err = _check_nonce_batch_runtime_invariants(
+        before=table,
+        after=updated,
+        per_sender={_canon(SENDER_A): [2, 3], _canon(SENDER_B): [1]},
+    )
+    assert ok is False
+    assert err == "nonce runtime invariant violation: staged table mismatch"
+
+
+def test_runtime_invariant_helper_rejects_empty_sender_group() -> None:
+    ok, err = _check_nonce_batch_runtime_invariants(
+        before=NonceTable(),
+        after=NonceTable(),
+        per_sender={_canon(SENDER_A): []},
+    )
+    assert ok is False
+    assert err == "nonce runtime invariant violation: empty sender group"
 
 
 # --- 5. per-sender ISOLATION at the batch level ------------------------------

@@ -155,7 +155,7 @@
     }
   },
   "private_toolchain_source_included": false,
-  "receipt_sha256": "ff528c31b67451ffe4c6a824276404cc391b995cd9780b27e0f6697b2a7e12c1",
+  "receipt_sha256": "76346abf6a6a8cc3541f59c7bd5ea48e5a1698078eaeb02cdaa88e823da19c1f",
   "required_test_commands": [
     {
       "command": [
@@ -282,7 +282,7 @@
     },
     {
       "path": ".github/workflows/runtime-shadow.yml",
-      "sha256": "e8da23b00326156e4e624e51b3b780b7b24368b81fab279affd4c2ab355e6051"
+      "sha256": "6e568f3f4bd7c76a88fcb2abdb36611c63873cdfd18c962c7812e6e33be59f44"
     }
   ],
   "state_root_version": 5,

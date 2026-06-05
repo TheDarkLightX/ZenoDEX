@@ -1,0 +1,66 @@
+{
+  "claim": "Lean 4 definitions and theorem statements are the normative formal spec for the cpmm_swap nonlinear u256 arithmetic surface.",
+  "forbidden_spec_refs": [
+    "src/kernels/dex/cpmm_output_amount_v2.yaml",
+    "src/kernels/dex/cpmm_output_amount_ref.yaml"
+  ],
+  "formal_items": [
+    {
+      "id": "exact_in_output_formula",
+      "path": "lean-mathlib/Proofs/CpmmSwapV8ExactInAdmissibility.lean",
+      "tokens": [
+        "def exactInNet",
+        "def exactInOutput",
+        "theorem exactInAccepted_suffix"
+      ]
+    },
+    {
+      "id": "exact_out_gross_minimality",
+      "path": "lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean",
+      "tokens": [
+        "def exactOutNetReq",
+        "def exactOutGross",
+        "def exactOutQuote",
+        "theorem exactOutGross_sufficient_and_minimal"
+      ]
+    },
+    {
+      "id": "fee_and_k_monotonicity",
+      "path": "lean-mathlib/Proofs/CPMMInvariants.lean",
+      "tokens": [
+        "def computeFee",
+        "def netAmount",
+        "def swapOutput",
+        "theorem k_monotone_zero_fee",
+        "theorem k_monotone_with_fee"
+      ]
+    }
+  ],
+  "grade": "A",
+  "grade_reason": "Source-pinned Lean definitions specify exact-in output, exact-out gross input, fee rounding, and k monotonicity. This clears the formal_spec column because the spec lives in Lean for this nonlinear surface; proof/build and runtime bindings remain checked by the proof_artifact and differential/runtime columns.",
+  "matrix_column": "formal_spec",
+  "production_matrix_effect": "Clears cpmm_swap.formal_spec; cpmm_swap.open_gaps_closed may clear if the other cpmm columns are already true.",
+  "required_spot_proof_ids": [
+    "cpmm_invariants_lean",
+    "cpmm_v8_exact_in_admissibility_lean",
+    "cpmm_v8_exact_out_minimality_lean"
+  ],
+  "schema": "zenodex.cpmm_swap.formal_spec_contract.v1",
+  "source_hashes": {
+    ".github/workflows/release-integrity.yml": "0b743c7b69510b0b768846516ba1dec986539dcaa93146b21f8c1778640346d7",
+    ".github/workflows/runtime-shadow.yml": "6e568f3f4bd7c76a88fcb2abdb36611c63873cdfd18c962c7812e6e33be59f44",
+    "docs/assurance/spot_proof_public_receipt.json": "2a2a6a4ac55039179bbae7d47ae267ae4a60d5ac9e38a5331e62a12d869ebc0f",
+    "lean-mathlib/Proofs/CPMMInvariants.lean": "98a20c960c7f35d9db7b6589d6477f9e31513ef7b4da228f47a312e2b6b15bb8",
+    "lean-mathlib/Proofs/CpmmSwapV8ExactInAdmissibility.lean": "d68aedc27ebdb1d8f8c001e9bf080c86f3feed1242848222cabdc22f4f0cf48b",
+    "lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean": "3336f90d1ea9b15c172d8a36b0750370e4025be21354d3ff089c3223014b481f",
+    "tests/runtime/test_cpmm_v8_exact_in_lean_property_binding.py": "5ac61f4fdb6b599e6e6c2886c724ed899f6a98dd720527da1f483a0d75a084fc",
+    "tests/runtime/test_cpmm_v8_exact_out_k_conservation_binding.py": "e729e6004a454bd8ac358ce829259db6d109985cc0c4fb70e8a9e296a2856e14",
+    "tests/runtime/test_cpmm_v8_exact_out_lean_property_binding.py": "80543da9f4614c2151c33cee38e83b767aaedf95eff321a96b751de02fda27d8",
+    "tests/test_check_cpmm_swap_formal_spec_contract.py": "72a157da98b8d2af7a02d78ef648fb39ba0b179e5bce3ab1b689a5edff795a4f",
+    "tools/check_cpmm_swap_formal_spec_contract.py": "2e8f08a16ac4f3397935a85572b2baccc1ba6561d241e74f7d298eaae55f4b8e",
+    "tools/spot_proof_public_manifest.json": "c3c403a1d963dcdf57af1c7f47afd5188af02cb53cc2ec15d30ba0f2198ff6eb",
+    "tools/spot_proof_public_receipt.py": "25671b061c229f00c59fa324aabfb45e1798126e1d4a81be120a6356ddf698a8"
+  },
+  "spec_language": "Lean 4 theorem statements and definitions",
+  "surface_id": "cpmm_swap"
+}

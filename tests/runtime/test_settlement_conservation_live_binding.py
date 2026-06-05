@@ -19,7 +19,8 @@ Conservation is STRUCTURAL/LINEAR — it holds regardless of the nonlinear swap-
 binding it does not require the floor-division arithmetic (that lives in cpmm proof_artifact).
 
 Teeth: (a) a hand-built Settlement whose deltas don't conserve must be REJECTED by the live
-validator; (b) a monkeypatched apply that leaks value must trip the independent post==pre check.
+validator; (b) apply_settlement must reject the same non-conservative deltas before mutation;
+(c) a monkeypatched apply that leaks value must trip the independent post==pre check.
 
 REVIEW [A- -> A]: Claude's binding shape was correct but branch-narrow. The
 coverage now drives exact-in, exact-out, create-pool, add-liquidity, and
@@ -249,6 +250,26 @@ def test_live_validator_rejects_nonconserving_settlement() -> None:
     )
     assert not ok, "non-conserving settlement must be rejected"
     assert err and ("conservation" in err.lower() or "replay" in err.lower()), err
+
+
+def test_apply_rejects_nonconserving_settlement_before_mutation() -> None:
+    intents, pools, balances, lp, settlement = _swap_scenario(1000)
+    del intents  # apply_settlement deliberately checks the carried deltas, not intent replay.
+    import dataclasses
+
+    tampered = dataclasses.replace(
+        settlement,
+        balance_deltas=tuple(settlement.balance_deltas)
+        + (BalanceDelta(pubkey=FEE_RECIP, asset=A1, delta_add=1_000_000, delta_sub=0),),
+    )
+    before_balances = dict(balances.get_all_balances())
+    before_totals = _asset_totals(balances, pools)
+
+    with pytest.raises(ValueError, match="Asset conservation violation"):
+        apply_settlement(tampered, balances, pools, lp)
+
+    assert dict(balances.get_all_balances()) == before_balances
+    assert _asset_totals(balances, pools) == before_totals
 
 
 def test_leak_in_apply_is_caught_by_independent_check(monkeypatch) -> None:

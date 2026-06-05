@@ -349,7 +349,7 @@
       "cwd": ".",
       "returncode": 0,
       "stderr_tail": "",
-      "stdout_tail": "..                                                                       [100%]\n2 passed in 7.23s\n"
+      "stdout_tail": "..                                                                       [100%]\n2 passed in 7.95s\n"
     },
     {
       "cmd": [
@@ -362,7 +362,7 @@
       "cwd": ".",
       "returncode": 0,
       "stderr_tail": "",
-      "stdout_tail": "...................                                                      [100%]\n19 passed in 0.28s\n"
+      "stdout_tail": "....................                                                     [100%]\n20 passed in 0.30s\n"
     }
   ],
   "covered_constructors": [
@@ -380,13 +380,13 @@
   "source_hashes": {
     "lean-mathlib/Proofs/SettlementConservationLive.lean": "c2408b128ec770b9af025a81c596b25b7e21c18de0e8f6931a1df0c63c4e88b7",
     "lean-mathlib/proof_receipts/settlement_conservation_live_v1.json": "0b54a29f90138294a82809cc0e840b26d15b1abdb22a222799dac38ca758a8cb",
-    "src/core/batch_clearing.py": "0b5a91d6142620ba1bc25affcdc9a5216fa636e0fd9b7eb159d6c8de2303a1ea",
+    "src/core/batch_clearing.py": "2421c424fce2aafc4ec4f61eaa66824b65f19eac51ac3aae19a62942915e6db8",
     "src/core/liquidity.py": "2e5ff5545470df3df5bd643607c4f9c5aff5b1ece0cb5dde27e35f1f32052e0d",
     "src/core/settlement.py": "25f5547bcb36b2bb4ba4dabbeb0186623767047c7eb952173692833d206c742f",
     "src/core/settlement_strong_validator.py": "0a28f9890afd5d4ccc829541cff3ce9cb404f1fc5ad37c9416b8a40a7159784b",
     "tests/formal/test_lean_settlement_conservation_live.py": "515dbe2b9a63681930ef54240c0f3944af3161f9aa13824739891ebc0e117f01",
-    "tests/runtime/test_settlement_conservation_live_binding.py": "9f040f04643ed0c0183e6e13d3d3dac86e4599280d10991a20413d2757be03c6",
-    "tests/test_check_settlement_conservation_live_refinement.py": "ddadff0004bb39763a57b642a48706a180332dd4672a321c92b1b40ad2f6ca4c",
-    "tools/check_settlement_conservation_live_refinement.py": "0fb78df2dbce8d8caa083081123caec3f407c8be48dbac209e1312a229ad3b33"
+    "tests/runtime/test_settlement_conservation_live_binding.py": "8cfa05024eca4fd91082e640c6a420c7fcdb58d4d4ca95afc70c97bdb9f95d11",
+    "tests/test_check_settlement_conservation_live_refinement.py": "994986790bc2c118625148e64b8e7cad324a55dae4f480301efde42a8eb9d96a",
+    "tools/check_settlement_conservation_live_refinement.py": "68788a8fbe9fc8f29bb29193bb1c7bfeb7dd5ed3beb24eca6ca263cb2c18e66f"
   }
 }

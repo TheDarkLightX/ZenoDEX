@@ -65,6 +65,8 @@ jobs:
             --manifest tools/kernel_assurance_manifest.json \
             --pretty
           python3 tools/spot_proof_public_receipt.py check --pretty
+          python3 tools/check_cpmm_swap_formal_spec_contract.py check --pretty
+          python3 tools/check_settlement_conservation_live_refinement.py check --pretty
           python3 tools/check_python_hash_locks.py --json
           python3 tools/check_docker_hashlocked_install.py --strict-digest
           python3 tools/check_operator_packaging.py --pretty
@@ -77,6 +79,8 @@ jobs:
             tests/test_check_docker_hashlocked_install.py \
             tests/test_check_kernel_assurance_public_receipt.py \
             tests/integration/test_spot_proof_public_receipt.py \
+            tests/test_check_cpmm_swap_formal_spec_contract.py \
+            tests/test_check_settlement_conservation_live_refinement.py \
             tests/test_check_release_publication_workflow.py \
             tests/tools/test_check_zenodex_host_independent_coverage.py \
             tests/tools/test_measure_zenodex_zk_transition_coverage.py

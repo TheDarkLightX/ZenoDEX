@@ -9,12 +9,11 @@ integration shell and the functional core.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Mapping, Sequence
+from typing import Mapping, Sequence
 
 from .balances import PubKey
 from .canonical import canonical_hex_fixed_allow_0x
 from .intents import Intent
-
 
 _U32_MAX = 0xFFFFFFFF
 
@@ -28,7 +27,7 @@ class NonceTable:
     state table with deterministic iteration helpers.
     """
 
-    _last: Dict[PubKey, int] = field(default_factory=dict)
+    _last: dict[PubKey, int] = field(default_factory=dict)
 
     def get_last(self, pubkey: PubKey) -> int:
         pk = canonical_hex_fixed_allow_0x(pubkey, nbytes=48, name="pubkey")
@@ -73,6 +72,29 @@ def _require_int_u32_pos(value: object, *, name: str) -> int:
     if value > _U32_MAX:
         raise ValueError(f"{name} must fit in u32")
     return int(value)
+
+
+def _check_nonce_batch_runtime_invariants(
+    *,
+    before: NonceTable,
+    after: NonceTable,
+    per_sender: Mapping[str, Sequence[int]],
+) -> tuple[bool, str | None]:
+    """Verify the staged accept state is exactly the canonical per-sender advance."""
+    expected_after = dict(before.get_all())
+    for sender, nonce_list in per_sender.items():
+        nonce_list_sorted = sorted(int(n) for n in nonce_list)
+        if not nonce_list_sorted:
+            return False, "nonce runtime invariant violation: empty sender group"
+        last_before = int(before.get_last(sender))
+        expected = list(range(last_before + 1, last_before + 1 + len(nonce_list_sorted)))
+        if nonce_list_sorted != expected:
+            return False, "nonce runtime invariant violation: non-contiguous accepted range"
+        expected_after[sender] = expected[-1]
+
+    if after.get_all() != expected_after:
+        return False, "nonce runtime invariant violation: staged table mismatch"
+    return True, None
 
 
 def validate_and_apply_intent_nonce_batch(
@@ -132,4 +154,18 @@ def validate_and_apply_intent_nonce_batch(
         if nonce_list_sorted != expected:
             return False, "nonce sequence invalid", None
         updated.set_last(sender, expected[-1])
+    invariants_ok, invariant_error = _check_nonce_batch_runtime_invariants(
+        before=nonces,
+        after=updated,
+        per_sender=per_sender,
+    )
+    if not invariants_ok:
+        # REVIEW [B+ -> A-]: the batch code already enforced strict ranges and
+        # staged updates on a copy, but the accept path had no explicit
+        # postcondition tying the staged table to the canonical per-sender
+        # advance. This check makes the runtime invariant fail-closed before the
+        # caller can commit a malformed staged nonce table. A higher grade needs
+        # the still-open machine-checked refinement from the Lean/ESSO batch model
+        # to this runtime helper.
+        return False, invariant_error, None
     return True, None, updated

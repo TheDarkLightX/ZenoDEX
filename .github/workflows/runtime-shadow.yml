@@ -20,9 +20,13 @@ on:
       - "src/kernels/python/cpmm_swap_v8.py"
       - "src/core/cpmm.py"
       - "src/core/batch_clearing.py"
+      - "src/core/liquidity.py"
+      - "src/core/settlement.py"
       - "src/core/settlement_strong_validator.py"
       - "src/kernels/dex/nonce_batch_sequencing_v1.yaml"
       - "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean"
+      - "lean-mathlib/Proofs/SettlementConservationLive.lean"
+      - "lean-mathlib/proof_receipts/settlement_conservation_live_v1.json"
       - "lean-mathlib/Proofs/CPMMInvariants.lean"
       - "lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean"
       - "lean-mathlib/Proofs/CpmmSwapV8ExactInAdmissibility.lean"
@@ -30,14 +34,21 @@ on:
       # Review grade: B after pass-3. The Lean toolchain is part of the public
       # receipt result envelope; watching only theorem files missed toolchain drift.
       - "lean-mathlib/lean-toolchain"
+      - "docs/assurance/cpmm_swap_formal_spec_contract.json"
+      - "docs/assurance/settlement_conservation_live_refinement_receipt.json"
       - "docs/assurance/spot_proof_public_receipt.json"
       - "docs/assurance/kernel_assurance_public_receipt.json"
       - "docs/assurance/state_root_surface_evidence_receipt.json"
+      - "tools/check_cpmm_swap_formal_spec_contract.py"
+      - "tools/check_settlement_conservation_live_refinement.py"
       - "tools/spot_proof_public_manifest.json"
       - "tools/spot_proof_public_receipt.py"
       - "tools/kernel_assurance_manifest.json"
       - "tools/check_kernel_assurance_public_receipt.py"
       - "tools/check_state_root_surface_evidence.py"
+      - "tests/test_check_cpmm_swap_formal_spec_contract.py"
+      - "tests/test_check_settlement_conservation_live_refinement.py"
+      - "tests/formal/test_lean_settlement_conservation_live.py"
       - "tests/integration/test_spot_proof_public_receipt.py"
       - "tests/test_check_kernel_assurance_public_receipt.py"
       - "tests/test_check_state_root_surface_evidence.py"
@@ -81,9 +92,13 @@ on:
       - "src/kernels/python/cpmm_swap_v8.py"
       - "src/core/cpmm.py"
       - "src/core/batch_clearing.py"
+      - "src/core/liquidity.py"
+      - "src/core/settlement.py"
       - "src/core/settlement_strong_validator.py"
       - "src/kernels/dex/nonce_batch_sequencing_v1.yaml"
       - "lean-mathlib/Proofs/ZenoDEXNonceBatchWrapper.lean"
+      - "lean-mathlib/Proofs/SettlementConservationLive.lean"
+      - "lean-mathlib/proof_receipts/settlement_conservation_live_v1.json"
       - "lean-mathlib/Proofs/CPMMInvariants.lean"
       - "lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean"
       - "lean-mathlib/Proofs/CpmmSwapV8ExactInAdmissibility.lean"
@@ -91,14 +106,21 @@ on:
       # Review grade: B after pass-3. The Lean toolchain is part of the public
       # receipt result envelope; watching only theorem files missed toolchain drift.
       - "lean-mathlib/lean-toolchain"
+      - "docs/assurance/cpmm_swap_formal_spec_contract.json"
+      - "docs/assurance/settlement_conservation_live_refinement_receipt.json"
       - "docs/assurance/spot_proof_public_receipt.json"
       - "docs/assurance/kernel_assurance_public_receipt.json"
       - "docs/assurance/state_root_surface_evidence_receipt.json"
+      - "tools/check_cpmm_swap_formal_spec_contract.py"
+      - "tools/check_settlement_conservation_live_refinement.py"
       - "tools/spot_proof_public_manifest.json"
       - "tools/spot_proof_public_receipt.py"
       - "tools/kernel_assurance_manifest.json"
       - "tools/check_kernel_assurance_public_receipt.py"
       - "tools/check_state_root_surface_evidence.py"
+      - "tests/test_check_cpmm_swap_formal_spec_contract.py"
+      - "tests/test_check_settlement_conservation_live_refinement.py"
+      - "tests/formal/test_lean_settlement_conservation_live.py"
       - "tests/integration/test_spot_proof_public_receipt.py"
       - "tests/test_check_kernel_assurance_public_receipt.py"
       - "tests/test_check_state_root_surface_evidence.py"
@@ -168,6 +190,16 @@ jobs:
         run: |
           python3 tools/spot_proof_public_receipt.py check --pretty
           python -m pytest -q tests/integration/test_spot_proof_public_receipt.py
+
+      - name: CPMM formal-spec contract (per-PR drift + integrity)
+        run: |
+          python3 tools/check_cpmm_swap_formal_spec_contract.py check --pretty
+          python -m pytest -q tests/test_check_cpmm_swap_formal_spec_contract.py
+
+      - name: Settlement conservation refinement receipt (per-PR drift + integrity)
+        run: |
+          python3 tools/check_settlement_conservation_live_refinement.py check --pretty
+          python -m pytest -q tests/test_check_settlement_conservation_live_refinement.py
 
       - name: Kernel assurance public receipt (per-PR drift + integrity)
         run: |
