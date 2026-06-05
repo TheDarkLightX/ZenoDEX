@@ -175,6 +175,191 @@ pub struct AdmitAccepted {
     pub state: ReplayGuardState,
 }
 
+/// One live batch-intent projection for `src.state.nonces`.
+///
+/// `nonce == None` means the nonce field was absent from the intent. Malformed
+/// nonce values are rejected by the CLI/parser before reaching this typed core,
+/// matching the Python authority's nonce-before-sender precedence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NonceBatchIntent {
+    pub sender: Option<String>,
+    pub nonce: Option<u64>,
+}
+
+/// Successful batch validation: a fully staged all-or-nothing next state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NonceBatchAccepted {
+    pub state: ReplayGuardState,
+}
+
+/// Live batch reject reasons, with strings pinned to `src.state.nonces`.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum NonceBatchRejectedReason {
+    #[error("Missing/invalid nonce")]
+    MissingInvalidNonce,
+    #[error("invalid sender_pubkey for nonce accounting: {0}")]
+    InvalidSenderPubkey(String),
+    #[error("nonce presence must be consistent across batch")]
+    MixedNoncePresence,
+    #[error("duplicate nonce in batch")]
+    DuplicateNonceInBatch,
+    #[error("nonce sequence invalid")]
+    NonceSequenceInvalid,
+    #[error("nonce runtime invariant violation: {0}")]
+    RuntimeInvariantViolation(&'static str),
+}
+
+impl NonceBatchRejectedReason {
+    pub fn reason_str(&self) -> String {
+        self.to_string()
+    }
+}
+
+fn invalid_sender_pubkey_detail(sender: Option<&str>) -> String {
+    let Some(sender) = sender else {
+        return "sender_pubkey must be a str".to_string();
+    };
+    let trimmed = python_strip(sender);
+    let body = trimmed
+        .strip_prefix("0x")
+        .or_else(|| trimmed.strip_prefix("0X"))
+        .unwrap_or(trimmed);
+    if body.len() != SENDER_NBYTES * 2 {
+        return "sender_pubkey must be 48 bytes (hex length 96)".to_string();
+    }
+    if !body.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return "sender_pubkey must be valid hex".to_string();
+    }
+    "sender_pubkey must be valid hex".to_string()
+}
+
+/// Exact live batch invalid-sender reason used by `src.state.nonces`.
+pub fn nonce_batch_invalid_sender_reason(sender: Option<&str>) -> String {
+    format!(
+        "invalid sender_pubkey for nonce accounting: {}",
+        invalid_sender_pubkey_detail(sender)
+    )
+}
+
+fn check_nonce_batch_runtime_invariants(
+    before: &ReplayGuardState,
+    after: &ReplayGuardState,
+    per_sender: &[(String, Vec<u64>)],
+) -> Result<(), NonceBatchRejectedReason> {
+    let mut expected_after = before.last.clone();
+    for (sender, nonce_list) in per_sender {
+        if nonce_list.is_empty() {
+            return Err(NonceBatchRejectedReason::RuntimeInvariantViolation(
+                "empty sender group",
+            ));
+        }
+        let mut sorted = nonce_list.clone();
+        sorted.sort_unstable();
+        let last_before = *before.last.get(sender).unwrap_or(&0);
+        for (index, nonce) in sorted.iter().enumerate() {
+            let expected = last_before.checked_add(index as u64 + 1).ok_or(
+                NonceBatchRejectedReason::RuntimeInvariantViolation(
+                    "non-contiguous accepted range",
+                ),
+            )?;
+            if *nonce != expected {
+                return Err(NonceBatchRejectedReason::RuntimeInvariantViolation(
+                    "non-contiguous accepted range",
+                ));
+            }
+        }
+        expected_after.insert(
+            sender.clone(),
+            *sorted.last().expect("non-empty sorted group"),
+        );
+    }
+    if after.last != expected_after {
+        return Err(NonceBatchRejectedReason::RuntimeInvariantViolation(
+            "staged table mismatch",
+        ));
+    }
+    Ok(())
+}
+
+/// Validate and stage the live multi-intent nonce batch policy.
+///
+/// This is the Rust shadow for `src.state.nonces.validate_and_apply_intent_nonce_batch`.
+/// REVIEW [C -> A-]: the previous Rust surface only proved and differentially
+/// tested a single `(sender, nonce)` admission. That was useful evidence, but it
+/// did not cover the live batch wrapper's all-or-nothing staging, per-sender
+/// sorted ranges, mixed nonce-presence rejection, or nonce-before-sender reject
+/// precedence. This helper gives those live semantics a typed Rust core and a
+/// Python/Rust differential target. A higher grade still needs the formal
+/// batch-wrapper proof to be mechanically refined to this implementation.
+pub fn validate_nonce_batch(
+    state: &ReplayGuardState,
+    intents: &[NonceBatchIntent],
+    require_all_nonces: bool,
+) -> Result<NonceBatchAccepted, NonceBatchRejectedReason> {
+    if intents.is_empty() {
+        return Ok(NonceBatchAccepted {
+            state: state.clone(),
+        });
+    }
+
+    let mut per_sender: Vec<(String, Vec<u64>)> = Vec::new();
+    let mut saw_nonce = false;
+    let mut saw_missing = false;
+
+    for intent in intents {
+        let Some(nonce) = intent.nonce else {
+            saw_missing = true;
+            if require_all_nonces {
+                return Err(NonceBatchRejectedReason::MissingInvalidNonce);
+            }
+            continue;
+        };
+        if !(1..=U32_MAX).contains(&nonce) {
+            return Err(NonceBatchRejectedReason::MissingInvalidNonce);
+        }
+        let sender_raw = intent.sender.as_deref();
+        let sender = canonical_sender(sender_raw.unwrap_or("")).ok_or_else(|| {
+            NonceBatchRejectedReason::InvalidSenderPubkey(invalid_sender_pubkey_detail(sender_raw))
+        })?;
+        if let Some((_, nonces)) = per_sender.iter_mut().find(|(s, _)| s == &sender) {
+            nonces.push(nonce);
+        } else {
+            per_sender.push((sender, vec![nonce]));
+        }
+        saw_nonce = true;
+    }
+
+    if saw_nonce && saw_missing {
+        return Err(NonceBatchRejectedReason::MixedNoncePresence);
+    }
+    if !saw_nonce {
+        return Ok(NonceBatchAccepted {
+            state: state.clone(),
+        });
+    }
+
+    let mut updated = state.clone();
+    for (sender, nonce_list) in &per_sender {
+        let mut sorted = nonce_list.clone();
+        sorted.sort_unstable();
+        if sorted.windows(2).any(|w| w[0] == w[1]) {
+            return Err(NonceBatchRejectedReason::DuplicateNonceInBatch);
+        }
+        let last = *state.last.get(sender).unwrap_or(&0);
+        for (index, nonce) in sorted.iter().enumerate() {
+            let expected = last
+                .checked_add(index as u64 + 1)
+                .ok_or(NonceBatchRejectedReason::NonceSequenceInvalid)?;
+            if *nonce != expected {
+                return Err(NonceBatchRejectedReason::NonceSequenceInvalid);
+            }
+        }
+        updated = updated.with_last(sender, *sorted.last().expect("non-empty sorted group"));
+    }
+    check_nonce_batch_runtime_invariants(state, &updated, &per_sender)?;
+    Ok(NonceBatchAccepted { state: updated })
+}
+
 /// Pure decision core of [`admit`]: classify a `sequence` against the sender's
 /// `last` accepted nonce, after the caller has canonicalized the sender and
 /// validated `sequence` in `[1, U32_MAX]`. `Ok(())` means `sequence` is the
@@ -363,6 +548,109 @@ mod tests {
         assert_eq!(
             ReplayGuardState::from_entries([(a, U32_MAX + 1)]),
             Err(ReplayRejectedReason::InvalidNonce)
+        );
+    }
+
+    #[test]
+    fn batch_accepts_sorted_per_sender_ranges_atomically() {
+        let a = sender(0x11);
+        let b = sender(0x22);
+        let state = ReplayGuardState::from_entries([(a.clone(), 1)]).unwrap();
+        let accepted = validate_nonce_batch(
+            &state,
+            &[
+                NonceBatchIntent {
+                    sender: Some(a.clone()),
+                    nonce: Some(3),
+                },
+                NonceBatchIntent {
+                    sender: Some(b.clone()),
+                    nonce: Some(1),
+                },
+                NonceBatchIntent {
+                    sender: Some(a.clone()),
+                    nonce: Some(2),
+                },
+            ],
+            true,
+        )
+        .unwrap();
+        assert_eq!(accepted.state.last_for(&a), 3);
+        assert_eq!(accepted.state.last_for(&b), 1);
+        assert_eq!(state.last_for(&a), 1);
+        assert_eq!(state.last_for(&b), 0);
+    }
+
+    #[test]
+    fn batch_rejects_without_partial_state_on_gap() {
+        let a = sender(0x11);
+        let b = sender(0x22);
+        let state = ReplayGuardState::default();
+        let rejected = validate_nonce_batch(
+            &state,
+            &[
+                NonceBatchIntent {
+                    sender: Some(a.clone()),
+                    nonce: Some(1),
+                },
+                NonceBatchIntent {
+                    sender: Some(b),
+                    nonce: Some(5),
+                },
+            ],
+            true,
+        );
+        assert_eq!(
+            rejected,
+            Err(NonceBatchRejectedReason::NonceSequenceInvalid)
+        );
+        assert_eq!(state.last_for(&a), 0);
+    }
+
+    #[test]
+    fn batch_pins_presence_and_precedence_rules() {
+        let bad_sender = "0xzz".to_string() + &"11".repeat(47);
+        let a = sender(0x11);
+        assert_eq!(
+            validate_nonce_batch(
+                &ReplayGuardState::default(),
+                &[NonceBatchIntent {
+                    sender: Some(bad_sender.clone()),
+                    nonce: None,
+                }],
+                true,
+            ),
+            Err(NonceBatchRejectedReason::MissingInvalidNonce)
+        );
+        assert_eq!(
+            validate_nonce_batch(
+                &ReplayGuardState::default(),
+                &[NonceBatchIntent {
+                    sender: Some(bad_sender),
+                    nonce: Some(1),
+                }],
+                true,
+            ),
+            Err(NonceBatchRejectedReason::InvalidSenderPubkey(
+                "sender_pubkey must be valid hex".to_string()
+            ))
+        );
+        assert_eq!(
+            validate_nonce_batch(
+                &ReplayGuardState::default(),
+                &[
+                    NonceBatchIntent {
+                        sender: Some(a),
+                        nonce: Some(1),
+                    },
+                    NonceBatchIntent {
+                        sender: None,
+                        nonce: None,
+                    },
+                ],
+                false,
+            ),
+            Err(NonceBatchRejectedReason::MixedNoncePresence)
         );
     }
 

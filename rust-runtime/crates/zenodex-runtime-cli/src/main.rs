@@ -8,6 +8,7 @@
 //! zenodex-runtime fee-route            <request.json|-> # one fee_router transition
 //! zenodex-runtime replay-guard-trace   <trace.json|->   # kernel = replay_guard
 //! zenodex-runtime replay-guard-admit   <request.json|-> # one replay_guard transition
+//! zenodex-runtime nonce-batch-op       <request.json|-> # live nonce batch transition
 //! zenodex-runtime replay-balance-trace <trace.json|->   # kernel = balances
 //! zenodex-runtime balance-op           <request.json|-> # one balances transition
 //! zenodex-runtime replay-zusd-trace    <trace.json|->   # kernel = zusd
@@ -73,7 +74,10 @@ use zenodex_runtime_core::perp_set_market_params::{
     set_market_params, MarketParamsAccount, SetMarketParamsInput,
 };
 use zenodex_runtime_core::perp_settle_epoch::{settle_epoch, SettleAccount, SettleEpochInput};
-use zenodex_runtime_core::replay_guard::{admit, canonical_sender, ReplayGuardState, U32_MAX};
+use zenodex_runtime_core::replay_guard::{
+    admit, canonical_sender, nonce_batch_invalid_sender_reason, validate_nonce_batch,
+    NonceBatchIntent, ReplayGuardState, U32_MAX,
+};
 use zenodex_runtime_core::state_root::{
     compute_state_root, BalanceEntry, LpDurationEntry, LpEntry, NonceEntry, PoolEntry, PoolStatus,
     StateInput,
@@ -84,6 +88,7 @@ use zenodex_runtime_core::{route_fee, FeeAccumulator, FeeSplitTable};
 const TX_FIELDS: [&str; 5] = ["kind", "source", "asset", "amount", "split_table"];
 const SPLIT_FIELDS: [&str; 4] = ["buyburn_bps", "stakers_bps", "reserve_bps", "hosts_bps"];
 const ADMIT_FIELDS: [&str; 3] = ["kind", "sender", "nonce"];
+const NONCE_BATCH_INTENT_FIELDS: [&str; 2] = ["sender", "nonce"];
 const CREDIT_FIELDS: [&str; 4] = ["kind", "recipient", "asset", "amount"];
 const TRANSFER_FIELDS: [&str; 5] = ["kind", "sender", "recipient", "asset", "amount"];
 
@@ -184,6 +189,17 @@ struct ReplayGuardAdmitOutput {
     reject_reason: Option<String>,
     receipt_hash: Option<String>,
     receipt: Option<ReplayGuardReceiptOut>,
+    pre_state_root: String,
+    post_state_root: String,
+    post_state_entries: Vec<ReplayGuardStateEntryOut>,
+}
+
+#[derive(Serialize)]
+struct NonceBatchOutput {
+    version: u32,
+    kernel: String,
+    accept: bool,
+    reject_reason: Option<String>,
     pre_state_root: String,
     post_state_root: String,
     post_state_entries: Vec<ReplayGuardStateEntryOut>,
@@ -860,6 +876,119 @@ fn run_replay_guard_admit(request: &Value) -> Result<ReplayGuardAdmitOutput, Str
             reject_reason: Some(reason),
             receipt_hash: None,
             receipt: None,
+            pre_state_root: pre_state_root.clone(),
+            post_state_root: pre_state_root,
+            post_state_entries: replay_guard_entries_out(&state),
+        }),
+    }
+}
+
+fn nonce_batch_reject_output(state: &ReplayGuardState, reason: String) -> NonceBatchOutput {
+    let root = state.state_root();
+    NonceBatchOutput {
+        version: 1,
+        kernel: "nonce_batch".to_string(),
+        accept: false,
+        reject_reason: Some(reason),
+        pre_state_root: root.clone(),
+        post_state_root: root,
+        post_state_entries: replay_guard_entries_out(state),
+    }
+}
+
+fn run_nonce_batch_op(request: &Value) -> Result<NonceBatchOutput, String> {
+    let obj = request
+        .as_object()
+        .ok_or_else(|| "request must be an object".to_string())?;
+    if let Some(reason) = first_unknown_field(
+        obj.keys().map(String::as_str),
+        &["version", "state_entries", "intents", "require_all_nonces"],
+    ) {
+        return Err(reason);
+    }
+    if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
+        return Err("unsupported request version".to_string());
+    }
+    let require_all_nonces = match request.get("require_all_nonces") {
+        Some(Value::Bool(v)) => *v,
+        Some(_) => return Err("require_all_nonces must be a bool".to_string()),
+        None => true,
+    };
+    let state = replay_guard_state_from_request(request)?;
+    let intents_raw = request
+        .get("intents")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "intents must be an array".to_string())?;
+    let mut intents = Vec::with_capacity(intents_raw.len());
+    for (index, raw) in intents_raw.iter().enumerate() {
+        let intent = raw
+            .as_object()
+            .ok_or_else(|| format!("intents[{index}] must be an object"))?;
+        if let Some(reason) = first_unknown_field(
+            intent.keys().map(String::as_str),
+            &NONCE_BATCH_INTENT_FIELDS,
+        ) {
+            return Err(format!("intents[{index}]:{reason}"));
+        }
+        let nonce = if intent.contains_key("nonce") {
+            match intent.get("nonce").and_then(classify_integer) {
+                Some(s) => match s.parse::<u64>() {
+                    Ok(v) if (1..=U32_MAX).contains(&v) => Some(v),
+                    _ => {
+                        return Ok(nonce_batch_reject_output(
+                            &state,
+                            "Missing/invalid nonce".to_string(),
+                        ));
+                    }
+                },
+                None => {
+                    return Ok(nonce_batch_reject_output(
+                        &state,
+                        "Missing/invalid nonce".to_string(),
+                    ));
+                }
+            }
+        } else {
+            if require_all_nonces {
+                return Ok(nonce_batch_reject_output(
+                    &state,
+                    "Missing/invalid nonce".to_string(),
+                ));
+            }
+            None
+        };
+        let sender = match intent.get("sender") {
+            Some(Value::String(s)) => Some(s.clone()),
+            Some(_) | None => None,
+        };
+        if nonce.is_some() {
+            let sender_str = sender.as_deref();
+            if sender_str.and_then(canonical_sender).is_none() {
+                return Ok(nonce_batch_reject_output(
+                    &state,
+                    nonce_batch_invalid_sender_reason(sender_str),
+                ));
+            }
+        }
+        intents.push(NonceBatchIntent { sender, nonce });
+    }
+
+    let pre_state_root = state.state_root();
+    match validate_nonce_batch(&state, &intents, require_all_nonces) {
+        Ok(accepted) => Ok(NonceBatchOutput {
+            version: 1,
+            kernel: "nonce_batch".to_string(),
+            accept: true,
+            reject_reason: None,
+            pre_state_root,
+            post_state_root: accepted.state.state_root(),
+            post_state_entries: replay_guard_entries_out(&accepted.state),
+        }),
+        Err(reason) => Ok(NonceBatchOutput {
+            version: 1,
+            kernel: "nonce_batch".to_string(),
+            accept: false,
+            reject_reason: Some(reason.reason_str()),
             pre_state_root: pre_state_root.clone(),
             post_state_root: pre_state_root,
             post_state_entries: replay_guard_entries_out(&state),
@@ -3360,6 +3489,7 @@ fn main() -> ExitCode {
                 | "fee-route"
                 | "replay-guard-trace"
                 | "replay-guard-admit"
+                | "nonce-batch-op"
                 | "replay-balance-trace"
                 | "balance-op"
                 | "replay-zusd-trace"
@@ -3382,6 +3512,7 @@ fn main() -> ExitCode {
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-guard-admit|\
+             nonce-batch-op|\
              fee-route|replay-balance-trace|balance-op|\
              replay-zusd-trace|zusd-op|verify-burn-trace|settle-swap-trace|cpmm-op|canonical-hash|\
              verify-state-root|perp-math|advance-epoch|funding-auto|\
@@ -3448,6 +3579,25 @@ fn main() -> ExitCode {
 
     if subcommand == "replay-guard-admit" {
         return match run_replay_guard_admit(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "nonce-batch-op" {
+        return match run_nonce_batch_op(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");
