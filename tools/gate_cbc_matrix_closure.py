@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CBC matrix-closure gate — Phase 0 of the production promotion plan.
+"""CBC matrix-closure gate for the computed spot-DEX production claim.
 
 Computes the per-surface and scope-level production-security claim from a CBC
 surface-evidence registry (see ``config/production/cbc_surface_evidence_v1.json``)
@@ -10,9 +10,14 @@ claim is computed from evidence, never asserted.
 
 Exit contract (the release pipeline depends on it):
   0  = every in-scope surface's CBC row is cleared (claim true)
-  1  = a clean BLOCKED claim (some column unverified) — advisory
+  1  = a clean BLOCKED claim (some column unverified)
   2  = a STRUCTURAL / fail-closed error (bad registry, unknown production scope,
-       malformed row, illegal --scope) — never a silent pass and never advisory
+       malformed row, illegal --scope) — never a silent pass
+
+Exit 1 was non-blocking during promotion. Now that the reviewed registry
+computes ``production_security_claim=true``, release callers treat exit 1 as a
+claim regression while still distinguishing it from exit 2 infrastructure
+failures.
 
 Production safety: by default the gate REQUIRES the registry's ``scope_id`` to be
 a known, source-pinned production scope (``KNOWN_SCOPE_AUTHORITY_SETS``). Renaming

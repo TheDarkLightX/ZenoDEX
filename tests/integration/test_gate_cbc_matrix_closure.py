@@ -59,6 +59,23 @@ def test_default_registry_is_ready_after_reviewed_surface_closure() -> None:
     assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 0
 
 
+def test_gate_docs_match_reviewed_release_contract() -> None:
+    import src.integration.surface_security_claim as surface_claim
+
+    gate_doc = gate.__doc__ or ""
+    surface_doc = surface_claim.__doc__ or ""
+    # REVIEW [B -> A-]: the code comments still pointed at a missing promotion
+    # plan and described release wiring as future/advisory after the matrix had
+    # become reviewed-green. Keep the docs aligned with the current release
+    # contract so future agents do not revive the old blocked-claim posture.
+    assert "docs/PRODUCTION_PROMOTION_PLAN.md" not in surface_doc
+    assert "Wiring it into the release gate" not in surface_doc
+    assert "config/production/cbc_surface_evidence_v1.json" in surface_doc
+    assert "production_security_claim=true" in surface_doc
+    assert "advisory" not in gate_doc.lower()
+    assert "claim regression" in gate_doc
+
+
 def test_default_registry_covers_spot_dex_scope() -> None:
     raw = json.loads(DEFAULT_EVIDENCE.read_text(encoding="utf-8"))
     surfaces = raw["surfaces"]

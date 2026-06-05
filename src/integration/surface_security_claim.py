@@ -1,18 +1,17 @@
-"""Per-surface, *computed* production-security claim — Phase 0 of the production
-promotion plan (see ``docs/PRODUCTION_PROMOTION_PLAN.md``).
+"""Per-surface, *computed* production-security claim.
 
 The production-security claim is COMPUTED from a structured CBC evidence object,
 never asserted. A surface's claim is true only when all seven CBC columns are
 cleared; the scope-level ``production_security_claim`` is the AND over a declared
-set of surfaces. This mirrors the gap-list pattern of
-:mod:`src.integration.production_promotion_evidence` (``claim = not gaps``):
-missing or unverified evidence becomes a gap, and any gap fails the claim closed.
+set of surfaces. The live registry is
+``config/production/cbc_surface_evidence_v1.json`` and the release/CI gate is
+``tools/gate_cbc_matrix_closure.py``. Missing or unverified evidence becomes a
+gap, and any gap fails the claim closed.
 
-This module is intentionally *additive*: it establishes the mechanism and is pure
-(no I/O, no global state). Wiring it into the release gate and converting the
-existing ``production_security_claim``-rejecting validators to consult it are
-later, separately-reviewed Phase 0/5 steps — this module does NOT change any
-existing authority-path behavior on its own.
+This module is intentionally pure (no I/O, no global state). It computes the
+claim; consumers decide how to enforce the result. The production release gate
+now treats a clean blocked claim as a regression because the reviewed spot-DEX
+registry computes ``production_security_claim=true``.
 
 Design (CBC core style):
 - pure function, explicit inputs/outputs, fail-closed;
