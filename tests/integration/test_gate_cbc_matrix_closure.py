@@ -64,6 +64,15 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     surfaces = raw["surfaces"]
     claim_surfaces = {s for s, ev in surfaces.items() if not is_evidence_only(ev)}
     evidence_only = {s for s, ev in surfaces.items() if is_evidence_only(ev)}
+    note = raw["note"]
+    # REVIEW [B -> A-]: after the final nonces flip, the registry header still
+    # described every ref as candidate evidence with every column false. That
+    # stale envelope text contradicted the computed claim, so the top-level note
+    # now records the reviewed 7/7 state and keeps the future-flip discipline.
+    assert "reviewed 7/7 evidence" in note
+    assert "fails closed if any authority column becomes unverified" in note
+    assert "Every column is verified:false" not in note
+    assert "CANDIDATE artifacts" not in note
     assert claim_surfaces == set(SPOT_DEX_SCOPE)
     assert set(raw["claim_scope"]) == set(SPOT_DEX_SCOPE)
     assert raw["scope_id"] == "spot_dex"  # the source-pinned production scope
