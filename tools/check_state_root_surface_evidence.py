@@ -872,6 +872,112 @@ def _release_integrity_state_root_gate_is_present() -> list[str]:
     return [snippet for snippet in required_snippets if snippet not in workflow]
 
 
+def _load_workflow(rel: str) -> Mapping[str, Any]:
+    try:
+        import yaml  # type: ignore[import-untyped]
+    except Exception as exc:  # pragma: no cover - dependency is in dev requirements
+        raise EvidenceError(f"PyYAML unavailable for workflow placement check: {exc}") from exc
+    workflow = yaml.safe_load((ROOT / rel).read_text(encoding="utf-8"))
+    if not isinstance(workflow, Mapping):
+        raise EvidenceError(f"{rel} must be a YAML object")
+    return workflow
+
+
+def _job_run_blocks(workflow: Mapping[str, Any], job_id: str) -> list[str]:
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, Mapping):
+        return []
+    job = jobs.get(job_id)
+    if not isinstance(job, Mapping):
+        return []
+    steps = job.get("steps")
+    if not isinstance(steps, list):
+        return []
+    return [
+        str(step["run"])
+        for step in steps
+        if isinstance(step, Mapping) and isinstance(step.get("run"), str)
+    ]
+
+
+def _active_run_text(block: str) -> str:
+    return "\n".join(line for line in block.splitlines() if not line.lstrip().startswith("#"))
+
+
+def _job_has_run_snippet(workflow: Mapping[str, Any], job_id: str, snippet: str) -> bool:
+    return any(snippet in _active_run_text(block) for block in _job_run_blocks(workflow, job_id))
+
+
+def _job_snippet_order(workflow: Mapping[str, Any], job_id: str, before: str, after: str) -> bool:
+    active_script = "\n".join(
+        _active_run_text(block) for block in _job_run_blocks(workflow, job_id)
+    )
+    before_index = active_script.find(before)
+    after_index = active_script.find(after)
+    return 0 <= before_index < after_index
+
+
+def _runtime_shadow_state_root_placement_errors() -> list[str]:
+    # REVIEW [B -> A-]: substring checks proved that command text existed
+    # somewhere in runtime-shadow.yml, but not that it ran in the intended job.
+    # The state-root authority claim depends on the Python evidence lane staying
+    # in python-runtime and the Rust authority lane running after the Rust shadow
+    # binary is built. These structural checks make comment/placement drift fail.
+    try:
+        workflow = _load_workflow(".github/workflows/runtime-shadow.yml")
+    except EvidenceError as exc:
+        return [str(exc)]
+    errors: list[str] = []
+    python_job = "python-runtime"
+    rust_job = "python-rust-shadow"
+    python_requirements = [
+        "--ignore=tests/runtime/test_state_root_live_path.py",
+        "tools/check_state_root_surface_evidence.py check --pretty --test-profile python",
+        "tests/test_check_state_root_surface_evidence.py",
+    ]
+    for snippet in python_requirements:
+        if not _job_has_run_snippet(workflow, python_job, snippet):
+            errors.append(
+                f"runtime-shadow {python_job} job missing state-root run snippet: {snippet}"
+            )
+    rust_requirements = [
+        "tests/runtime/test_state_root_live_path.py",
+        "tools/check_state_root_surface_evidence.py check --pretty --test-profile rust",
+    ]
+    for snippet in rust_requirements:
+        if not _job_has_run_snippet(workflow, rust_job, snippet):
+            errors.append(
+                f"runtime-shadow {rust_job} job missing state-root run snippet: {snippet}"
+            )
+    if not _job_snippet_order(
+        workflow,
+        rust_job,
+        "cargo build --bin zenodex-runtime",
+        "tools/check_state_root_surface_evidence.py check --pretty --test-profile rust",
+    ):
+        errors.append(
+            "runtime-shadow rust state-root receipt check must run after cargo builds zenodex-runtime"
+        )
+    return errors
+
+
+def _release_integrity_state_root_placement_errors() -> list[str]:
+    try:
+        workflow = _load_workflow(".github/workflows/release-integrity.yml")
+    except EvidenceError as exc:
+        return [str(exc)]
+    job_id = "release-integrity"
+    required = [
+        "tools/check_state_root_surface_evidence.py check --pretty",
+        "tests/test_check_state_root_surface_evidence.py",
+    ]
+    return [
+        f"release-integrity {job_id} job missing state-root run snippet: {snippet}"
+        for snippet in required
+        if not _job_has_run_snippet(workflow, job_id, snippet)
+    ]
+
+
 def _profile_result() -> dict[str, Any]:
     try:
         import yaml  # type: ignore[import-untyped]
@@ -949,9 +1055,21 @@ def build_receipt(*, spec_path: Path = DEFAULT_SPEC) -> dict[str, Any]:
     missing_workflow = _runtime_shadow_paths_are_gated()
     if missing_workflow:
         raise EvidenceError(f"runtime-shadow workflow missing state-root gates: {missing_workflow}")
+    workflow_placement = _runtime_shadow_state_root_placement_errors()
+    if workflow_placement:
+        raise EvidenceError(
+            f"runtime-shadow workflow misplaced state-root gates: {workflow_placement}"
+        )
     missing_release = _release_integrity_state_root_gate_is_present()
     if missing_release:
-        raise EvidenceError(f"release-integrity workflow missing state-root gates: {missing_release}")
+        raise EvidenceError(
+            f"release-integrity workflow missing state-root gates: {missing_release}"
+        )
+    release_placement = _release_integrity_state_root_placement_errors()
+    if release_placement:
+        raise EvidenceError(
+            f"release-integrity workflow misplaced state-root gates: {release_placement}"
+        )
     receipt = {
         "schema": RECEIPT_SCHEMA,
         "surface_id": "state_root",
@@ -1112,9 +1230,15 @@ def verify_receipt(receipt: Mapping[str, Any], *, spec_path: Path = DEFAULT_SPEC
     missing_workflow = _runtime_shadow_paths_are_gated()
     if missing_workflow:
         errors.append(f"runtime-shadow workflow missing state-root gates: {missing_workflow}")
+    workflow_placement = _runtime_shadow_state_root_placement_errors()
+    if workflow_placement:
+        errors.append(f"runtime-shadow workflow misplaced state-root gates: {workflow_placement}")
     missing_release = _release_integrity_state_root_gate_is_present()
     if missing_release:
         errors.append(f"release-integrity workflow missing state-root gates: {missing_release}")
+    release_placement = _release_integrity_state_root_placement_errors()
+    if release_placement:
+        errors.append(f"release-integrity workflow misplaced state-root gates: {release_placement}")
     return errors
 
 

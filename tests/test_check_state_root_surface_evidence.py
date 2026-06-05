@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 import tools.check_state_root_surface_evidence as sre
 
@@ -18,6 +20,22 @@ def _load_receipt() -> dict:
 
 def _reseal(receipt: dict) -> None:
     receipt["receipt_sha256"] = sre._sha256_bytes(sre._canonical_json_bytes(sre._receipt_hash_body(receipt)))
+
+
+def _runtime_shadow_workflow() -> dict:
+    workflow = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "runtime-shadow.yml").read_text(encoding="utf-8")
+    )
+    assert isinstance(workflow, dict)
+    return workflow
+
+
+def _release_integrity_workflow() -> dict:
+    workflow = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "release-integrity.yml").read_text(encoding="utf-8")
+    )
+    assert isinstance(workflow, dict)
+    return workflow
 
 
 def test_committed_state_root_surface_receipt_verifies() -> None:
@@ -288,3 +306,69 @@ def test_required_test_profiles_split_rust_required_command() -> None:
         "state_root_python_rust_differential"
     ]
     assert sre._required_test_commands_for_profile("all") == sre.REQUIRED_TEST_COMMANDS
+
+
+def test_runtime_shadow_structural_placement_rejects_comment_only_rust_profile(monkeypatch) -> None:
+    """Review regression: the Rust authority receipt check must run in python-rust-shadow."""
+    workflow = _runtime_shadow_workflow()
+    mutated = copy.deepcopy(workflow)
+    for step in mutated["jobs"]["python-rust-shadow"]["steps"]:
+        if isinstance(step, dict) and isinstance(step.get("run"), str):
+            rust_check = "python3 tools/check_state_root_surface_evidence.py check --pretty --test-profile rust"
+            step["run"] = step["run"].replace(
+                rust_check,
+                f"# {rust_check}",
+            )
+
+    monkeypatch.setattr(
+        sre,
+        "_load_workflow",
+        lambda rel: mutated if rel == ".github/workflows/runtime-shadow.yml" else workflow,
+    )
+    errors = sre._runtime_shadow_state_root_placement_errors()
+    assert any("python-rust-shadow job missing state-root run snippet" in err for err in errors), errors
+
+
+def test_runtime_shadow_structural_placement_rejects_rust_check_before_build(monkeypatch) -> None:
+    workflow = _runtime_shadow_workflow()
+    mutated = copy.deepcopy(workflow)
+    steps = mutated["jobs"]["python-rust-shadow"]["steps"]
+    build_index = next(
+        index
+        for index, step in enumerate(steps)
+        if "cargo build --bin zenodex-runtime" in step.get("run", "")
+    )
+    receipt_index = next(
+        index
+        for index, step in enumerate(steps)
+        if "tools/check_state_root_surface_evidence.py check --pretty --test-profile rust" in step.get("run", "")
+    )
+    steps[build_index], steps[receipt_index] = steps[receipt_index], steps[build_index]
+
+    monkeypatch.setattr(
+        sre,
+        "_load_workflow",
+        lambda rel: mutated if rel == ".github/workflows/runtime-shadow.yml" else workflow,
+    )
+    errors = sre._runtime_shadow_state_root_placement_errors()
+    assert any("must run after cargo builds zenodex-runtime" in err for err in errors), errors
+
+
+def test_release_integrity_structural_placement_rejects_comment_only_checker(monkeypatch) -> None:
+    """Review regression: release gating must execute the checker in the release job."""
+    workflow = _release_integrity_workflow()
+    mutated = copy.deepcopy(workflow)
+    for step in mutated["jobs"]["release-integrity"]["steps"]:
+        if isinstance(step, dict) and isinstance(step.get("run"), str):
+            step["run"] = step["run"].replace(
+                "python3 tools/check_state_root_surface_evidence.py check --pretty",
+                "# python3 tools/check_state_root_surface_evidence.py check --pretty",
+            )
+
+    monkeypatch.setattr(
+        sre,
+        "_load_workflow",
+        lambda rel: mutated if rel == ".github/workflows/release-integrity.yml" else workflow,
+    )
+    errors = sre._release_integrity_state_root_placement_errors()
+    assert any("release-integrity job missing state-root run snippet" in err for err in errors), errors
