@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
-
 MODEL = Path("src/kernels/dex/zusd_multi_oracle_commit_mcr_v1.yaml")
 ADAPTER = "src.kernels.python.zusd_multi_oracle_commit_mcr_v1_native_adapter:make_adapter"
 E8 = 100_000_000
@@ -181,3 +180,23 @@ def test_zusd_multi_oracle_commit_mcr_zero_debt_zero_pending_is_allowed(monkeypa
         "vault_b_mcr_ok": True,
         "mcr_ok_at_pending": True,
     }
+
+
+def test_zusd_multi_oracle_commit_mcr_adapter_rejects_coerced_state_values(monkeypatch) -> None:
+    # REVIEW [B -> A-]: the adapter used int(state[field]) before calling the
+    # strict checker. That let True and numeric strings pass through the shell
+    # lane. Malformed state now fails closed at the action guard.
+    interp_mod = _install_fake_interpreter(monkeypatch)
+    from src.kernels.python import zusd_multi_oracle_commit_mcr_v1_native_adapter as module
+
+    for field, value in (("price_pending_e8", True), ("mcr_bps", "11000")):
+        adapter = module.make_adapter(ir={"schema": "fake"})
+        state = _base_state()
+        state[field] = value  # type: ignore[assignment]
+        adapter.reset(state=state)
+
+        result = adapter.apply(SimpleNamespace(tag="evaluate_multi_oracle_commit_mcr", args={}))
+
+        assert isinstance(result, interp_mod.StepError)
+        assert result.code == "GuardFalse"
+        assert dict(adapter.drain_effects()) == {}

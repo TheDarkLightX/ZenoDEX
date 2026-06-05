@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 BPS_SCALE = 10_000
 E8 = 100_000_000
 
@@ -15,6 +14,19 @@ class ZUSDMultiOracleCommitMCROutcome:
     vault_b_mcr_ok: bool
     mcr_ok_at_pending: bool
 
+    def __post_init__(self) -> None:
+        # REVIEW [B -> A-]: the helper validated inputs, but direct outcome
+        # construction still accepted `True` as price 1 and truthy strings as
+        # safety flags. This object is an oracle/MCR witness, so it must be an
+        # exact typed fact and its aggregate flag must be derived from vaults.
+        _require_non_negative_int(self.price_pending_e8, name="price_pending_e8")
+        _require_pos_int(self.mcr_bps, name="mcr_bps")
+        vault_a = _require_bool(self.vault_a_mcr_ok, name="vault_a_mcr_ok")
+        vault_b = _require_bool(self.vault_b_mcr_ok, name="vault_b_mcr_ok")
+        aggregate = _require_bool(self.mcr_ok_at_pending, name="mcr_ok_at_pending")
+        if aggregate != (vault_a and vault_b):
+            raise ValueError("mcr_ok_at_pending must equal vault_a_mcr_ok and vault_b_mcr_ok")
+
 
 def _require_pos_int(value: int, *, name: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
@@ -26,6 +38,12 @@ def _require_non_negative_int(value: int, *, name: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise ValueError(f"{name} must be a non-negative int")
     return int(value)
+
+
+def _require_bool(value: bool, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return value
 
 
 def _mcr_ok(*, collateral_e8: int, debt_e8: int, price_e8: int, mcr_bps: int) -> bool:

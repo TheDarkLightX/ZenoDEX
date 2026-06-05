@@ -12,7 +12,6 @@ from typing import Any, Callable, Mapping
 
 from ...core.zusd_multi_oracle_commit_mcr import check_multi_oracle_commit_mcr
 
-
 # Derived from:
 # `python3 -m ESSO validate src/kernels/dex/zusd_multi_oracle_commit_mcr_v1.yaml`.
 IR_HASH = "sha256:0327770ad890782df3d346a9ad138e3018befe7892993a5090a6c9c818c86e5c"
@@ -70,13 +69,17 @@ def _handle_evaluate_multi_oracle_commit_mcr(adapter: ZUSDMultiOracleCommitMCRV1
     s = adapter._state
     action_id = "evaluate_multi_oracle_commit_mcr"
     try:
+        # REVIEW [B -> A-]: this adapter previously coerced shell state with
+        # int(...), which reopened bool/string acceptance after the core MCR
+        # checker had been made strict. Pass raw values so the authoritative
+        # checker owns all numeric-domain validation.
         outcome = check_multi_oracle_commit_mcr(
-            price_pending_e8=int(s["price_pending_e8"]),
-            mcr_bps=int(s["mcr_bps"]),
-            vault_a_collateral_e8=int(s["vault_a_collateral_e8"]),
-            vault_a_debt_e8=int(s["vault_a_debt_e8"]),
-            vault_b_collateral_e8=int(s["vault_b_collateral_e8"]),
-            vault_b_debt_e8=int(s["vault_b_debt_e8"]),
+            price_pending_e8=s["price_pending_e8"],
+            mcr_bps=s["mcr_bps"],
+            vault_a_collateral_e8=s["vault_a_collateral_e8"],
+            vault_a_debt_e8=s["vault_a_debt_e8"],
+            vault_b_collateral_e8=s["vault_b_collateral_e8"],
+            vault_b_debt_e8=s["vault_b_debt_e8"],
         )
     except (KeyError, TypeError, ValueError):
         return _guard_false(action_id)
