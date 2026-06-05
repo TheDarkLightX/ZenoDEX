@@ -20,6 +20,7 @@ import argparse
 import dataclasses
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from collections import defaultdict
@@ -88,6 +89,7 @@ EXPECTED_COVERED_CONSTRUCTORS = [
     "swapInput",
     "swapOutput",
 ]
+_DIRTY_PYTEST_SUMMARY_RE = re.compile(r"\b\d+\s+(skipped|xfailed|xpassed|deselected)\b", re.IGNORECASE)
 
 
 class RefinementError(ValueError):
@@ -136,6 +138,34 @@ def _run(command: list[str], *, cwd: Path = ROOT) -> dict[str, Any]:
         "stdout_tail": proc.stdout[-2000:],
         "stderr_tail": proc.stderr[-2000:],
     }
+
+
+def _command_output_errors(command: Mapping[str, Any], *, field: str) -> list[str]:
+    """Return fail-closed errors for dirty pytest summaries in receipt commands."""
+    cmd = command.get("cmd")
+    if not isinstance(cmd, list) or "pytest" not in {str(part) for part in cmd}:
+        return []
+    stdout_tail = str(command.get("stdout_tail", ""))
+    stderr_tail = str(command.get("stderr_tail", ""))
+    combined = f"{stdout_tail}\n{stderr_tail}"
+    errors: list[str] = []
+    # REVIEW [B -> A-]: command returncode alone is too weak for a load-bearing
+    # evidence receipt. Pytest can return zero while reporting skipped or
+    # expected-failure marked cases. Those are useful development signals; they
+    # do not constitute a clean replay of the receipt's required tests.
+    if _DIRTY_PYTEST_SUMMARY_RE.search(combined):
+        errors.append(f"{field} reported skipped/xfail/xpass/deselected pytest output")
+    if "no tests ran" in combined.lower():
+        errors.append(f"{field} reported no pytest tests ran")
+    return errors
+
+
+def _require_clean_command_outputs(commands: Iterable[Mapping[str, Any]]) -> None:
+    errors: list[str] = []
+    for index, command in enumerate(commands):
+        errors.extend(_command_output_errors(command, field=f"commands[{index}]"))
+    if errors:
+        raise RefinementError("; ".join(errors))
 
 
 def _net_balance_by_asset(deltas: Iterable[BalanceDelta]) -> dict[str, int]:
@@ -589,6 +619,7 @@ def build_receipt(path: Path) -> dict[str, Any]:
     runtime = _run(EXPECTED_COMMANDS[2])
     if runtime["returncode"] != 0:
         raise RefinementError(f"runtime binding failed: {runtime}")
+    _require_clean_command_outputs([lean, formal, runtime])
     cases = run_refinement_checks()
     receipt = {
         "schema": RECEIPT_SCHEMA,
@@ -684,6 +715,8 @@ def check_receipt(path: Path) -> dict[str, Any]:
     got_cwds = [cmd.get("cwd") for cmd in command_entries]
     if got_commands != EXPECTED_COMMANDS or got_returncodes != [0, 0, 0] or got_cwds != EXPECTED_COMMAND_CWDS:
         errors.append("command receipt mismatch")
+    for index, command in enumerate(command_entries):
+        errors.extend(_command_output_errors(command, field=f"commands[{index}]"))
     return {
         "schema": CHECK_SCHEMA,
         "ok": not errors,

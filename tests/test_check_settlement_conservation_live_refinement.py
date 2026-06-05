@@ -89,6 +89,27 @@ def test_refinement_receipt_command_cwd_tamper_fails(tmp_path: Path) -> None:
     assert any("command receipt mismatch" in err for err in result["errors"])
 
 
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "1 passed, 1 skipped in 0.01s",
+        "1 passed, 1 xfailed in 0.01s",
+        "1 passed, 1 xpassed in 0.01s",
+        "1 passed, 1 deselected in 0.01s",
+        "no tests ran in 0.01s",
+    ],
+)
+def test_refinement_receipt_dirty_pytest_summary_fails(tmp_path: Path, summary: str) -> None:
+    receipt = json.loads(checker.DEFAULT_RECEIPT.read_text(encoding="utf-8"))
+    receipt["commands"][1]["stdout_tail"] = summary
+    tampered = tmp_path / "receipt.json"
+    tampered.write_text(json.dumps(receipt), encoding="utf-8")
+
+    result = checker.check_receipt(tampered)
+    assert not result["ok"]
+    assert any("pytest" in err for err in result["errors"])
+
+
 def test_refinement_receipt_claim_overreach_tamper_fails(tmp_path: Path) -> None:
     receipt = json.loads(checker.DEFAULT_RECEIPT.read_text(encoding="utf-8"))
     receipt["claim"] = "Production balances proof_artifact is fully cleared."
