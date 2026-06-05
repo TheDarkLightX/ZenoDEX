@@ -2299,6 +2299,31 @@ def test_public_up_fails_fast_when_cloudflared_missing(tmp_path: Path, capsys: p
     assert not (tmp_path / "local_testnet_manifest.json").exists()
 
 
+def test_public_log_redacts_local_testnet_tokens_and_seed(capsys: pytest.CaptureFixture[str]) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    msg = (
+        "writer_token=writer-secret-abc "
+        "ZENO_LEDGER_WRITER_TOKEN=ledger-secret "
+        "ZENODEX_API_BEARER_TOKEN=stdlib-secret-xyz "
+        "seed_override_hex=" + "ab" * 32 + " "
+        "tokenomics_authority_ready=True"
+    )
+
+    lc._log("failure", msg)
+    captured = capsys.readouterr()
+
+    assert "writer-secret-abc" not in captured.err
+    assert "ledger-secret" not in captured.err
+    assert "stdlib-secret-xyz" not in captured.err
+    assert "ab" * 32 not in captured.err
+    assert "writer_token=[redacted]" in captured.err
+    assert "WRITER_TOKEN=[redacted]" in captured.err
+    assert "BEARER_TOKEN=[redacted]" in captured.err
+    assert "seed_override_hex=[redacted]" in captured.err
+    assert "tokenomics_authority_ready=True" in captured.err
+
+
 def test_default_cloudflared_uses_container_runtime_when_binary_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     from tools.zenoctl_testnet_local import lifecycle as lc
 

@@ -4358,7 +4358,12 @@ def _log(phase: str, msg: str) -> None:
 
 
 _FAILURE_SECRET_RE = re.compile(
-    r"(?i)(privkey|private[_-]?key|secret[_-]?key|mnemonic|seed[_-]?phrase)(['\"]?\s*[:=]\s*)"
+    r"(?i)("
+    r"privkey|private[_-]?key|privatekey|secret(?:[_-]?key)?|secretkey|"
+    r"mnemonic|seed[_-]?(?:phrase|override[_-]?hex)|seedphrase|"
+    r"writer[_-]?token|stdlib[_-]?token|bearer[_-]?token|auth[_-]?token|"
+    r"access[_-]?token|refresh[_-]?token|api[_-]?key"
+    r")(['\"]?\s*[:=]\s*)"
     r"(['\"]?)[^,'\"}\]\s]+"
 )
 
