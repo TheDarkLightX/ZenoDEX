@@ -28,7 +28,7 @@ import pytest
 
 from src.core.batch_clearing import apply_settlement, compute_settlement
 from src.core.liquidity import create_pool
-from src.core.settlement import BalanceDelta, Settlement
+from src.core.settlement import BalanceDelta
 from src.core.settlement_strong_validator import validate_settlement_strong
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
@@ -54,6 +54,12 @@ def _asset_totals(balances: BalanceTable, pools: dict) -> dict:
         for asset in (pool.asset0, pool.asset1):
             tot[asset] = tot.get(asset, 0) + int(pool.get_reserve(asset))
     return tot
+
+
+def _assert_asset_totals_equal(pre: dict, post: dict) -> None:
+    for asset in set(pre) | set(post):
+        assert post.get(asset, 0) == pre.get(asset, 0), (
+            "conservation", asset, "pre", pre.get(asset, 0), "post", post.get(asset, 0))
 
 
 def _swap_scenario(amount_in: int):
@@ -83,9 +89,7 @@ def _assert_conserves(intents, pools, balances, lp, settlement) -> None:
     assert ok, f"settlement should validate: {err}"
     apply_settlement(settlement, balances, pools, lp)
     post = _asset_totals(balances, pools)
-    for asset in set(pre) | set(post):
-        assert post.get(asset, 0) == pre.get(asset, 0), (
-            "conservation", asset, "pre", pre.get(asset, 0), "post", post.get(asset, 0))
+    _assert_asset_totals_equal(pre, post)
 
 
 @pytest.mark.parametrize("amount_in", [1, 1000, 50_000, 250_000, 1_000_000])
@@ -130,13 +134,17 @@ def test_leak_in_apply_is_caught_by_independent_check(monkeypatch) -> None:
     pre = _asset_totals(balances, pools)
     real_apply = apply_settlement
 
-    def leaky_apply(s, b, p, l=None):
-        real_apply(s, b, p, l)
+    # REVIEW [B -> A-]: Claude's first increment passed behavior tests but failed
+    # lint (unused import + ambiguous `l`) and the leak teeth only computed a
+    # boolean. This uses the same conservation assertion as the positive helper,
+    # proving the checker itself rejects a leaked post-state.
+    def leaky_apply(s, b, p, lp_table=None):
+        real_apply(s, b, p, lp_table)
         b.add(FEE_RECIP, A1, 12345)  # leak: free A1, no matching reserve decrease
 
     import src.core.batch_clearing as bc
     monkeypatch.setattr(bc, "apply_settlement", leaky_apply)
     bc.apply_settlement(settlement, balances, pools, lp)
     post = _asset_totals(balances, pools)
-    leaked = any(post.get(a, 0) != pre.get(a, 0) for a in set(pre) | set(post))
-    assert leaked, "a value leak in apply must be visible to the independent per-asset total check"
+    with pytest.raises(AssertionError, match="conservation"):
+        _assert_asset_totals_equal(pre, post)
