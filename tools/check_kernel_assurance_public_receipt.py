@@ -16,7 +16,6 @@ import hashlib
 import json
 import re
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -162,6 +161,11 @@ def _require_bool(obj: Any, *, name: str) -> bool:
     if not isinstance(obj, bool):
         raise ReceiptError(f"{name} must be a boolean")
     return obj
+
+
+def _unexpected_keys(obj: Mapping[str, Any], *, allowed: set[str], name: str) -> list[str]:
+    extra = sorted(set(obj) - allowed)
+    return [f"{name} has unexpected public field(s): {extra}"] if extra else []
 
 
 def _manifest_kernels(manifest: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
@@ -500,6 +504,25 @@ def _validate_kani_result(
     if not isinstance(result, Mapping):
         return [f"{pid}: Kani result must be an object"]
     errors: list[str] = []
+    # REVIEW [B -> A-]: the prior checker validated required Kani result fields
+    # but copied the full result object into the public receipt. A resealed
+    # receipt could carry private logs or unsupported evidence claims under this
+    # nested object and still verify. The public proof payload is now exact.
+    errors.extend(
+        _unexpected_keys(
+            result,
+            allowed={
+                "verdict",
+                "cargo_kani_version",
+                "package",
+                "working_directory",
+                "command",
+                "harnesses",
+                "summary",
+            },
+            name=f"{pid}: result",
+        )
+    )
     if result.get("verdict") != required_verdict:
         errors.append(
             f"{pid}: result verdict {result.get('verdict')!r} != required {required_verdict!r}"
@@ -531,6 +554,20 @@ def _validate_kani_result(
         if not isinstance(harness, Mapping):
             errors.append(f"{pid}: result.harnesses[{index}] must be an object")
             continue
+        errors.extend(
+            _unexpected_keys(
+                harness,
+                allowed={
+                    "name",
+                    "verdict",
+                    "checks_failed",
+                    "checks_total",
+                    "cover_properties_satisfied",
+                    "cover_properties_total",
+                },
+                name=f"{pid}: result.harnesses[{index}]",
+            )
+        )
         name = harness.get("name")
         if not isinstance(name, str) or not name:
             errors.append(f"{pid}: result.harnesses[{index}].name must be a non-empty string")
@@ -568,6 +605,13 @@ def _validate_kani_result(
     if not isinstance(summary, Mapping):
         errors.append(f"{pid}: result.summary must be an object")
     else:
+        errors.extend(
+            _unexpected_keys(
+                summary,
+                allowed={"successfully_verified", "failures", "total"},
+                name=f"{pid}: result.summary",
+            )
+        )
         expected_total = len(expected_harnesses)
         if summary.get("successfully_verified") != expected_total:
             errors.append(
@@ -722,6 +766,17 @@ def _validate_lean_result(
     if not isinstance(result, Mapping):
         return [f"{pid}: Lean result must be an object"]
     errors: list[str] = []
+    # REVIEW [A-]: Lean proof receipts already check the source-pinned theorem
+    # names and toolchain. The nested result schema still must be closed so a
+    # resealed receipt cannot attach private logs or extra claims to a valid
+    # `BUILT_NO_SORRY` result.
+    errors.extend(
+        _unexpected_keys(
+            result,
+            allowed={"verdict", "lean_toolchain", "module", "required_theorems"},
+            name=f"{pid}: result",
+        )
+    )
     if result.get("verdict") != required_verdict:
         errors.append(
             f"{pid}: result verdict {result.get('verdict')!r} != required {required_verdict!r}"

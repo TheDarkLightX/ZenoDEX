@@ -401,6 +401,49 @@ def test_resealed_kani_missing_harness_fails(tmp_path: Path) -> None:
     assert any("result harnesses" in error for error in errors), errors
 
 
+@pytest.mark.parametrize(
+    ("mutator", "expected"),
+    [
+        (
+            lambda receipt: receipt["kani_proofs"][0]["result"].update(
+                {"raw_stdout": f"{_PRIVATE_WORKSPACE_PREFIX}/secret.log"}
+            ),
+            "unexpected public field",
+        ),
+        (
+            lambda receipt: receipt["kani_proofs"][0]["result"]["harnesses"][0].update(
+                {"raw_stdout": f"{_PRIVATE_WORKSPACE_PREFIX}/secret.log"}
+            ),
+            "unexpected public field",
+        ),
+        (
+            lambda receipt: receipt["kani_proofs"][0]["result"]["summary"].update(
+                {"xfailed": 1}
+            ),
+            "unexpected public field",
+        ),
+    ],
+)
+def test_resealed_kani_extra_result_fields_fail(
+    tmp_path: Path,
+    mutator: Any,
+    expected: str,
+) -> None:
+    manifest = _manifest()
+    manifest_sha256, _manifest_path = _manifest_hash(manifest, tmp_path)
+    receipt = build_public_receipt_from_report(
+        _private_report(manifest_sha256),
+        manifest=manifest,
+        manifest_sha256=manifest_sha256,
+    )
+
+    mutator(receipt)
+    _reseal(receipt)
+    errors = verify_public_receipt(receipt, manifest=manifest, manifest_sha256=manifest_sha256)
+
+    assert any(expected in error for error in errors), errors
+
+
 def test_resealed_lean_theorem_drop_fails(tmp_path: Path) -> None:
     manifest = _manifest()
     manifest_sha256, _manifest_path = _manifest_hash(manifest, tmp_path)
@@ -417,3 +460,19 @@ def test_resealed_lean_theorem_drop_fails(tmp_path: Path) -> None:
     errors = verify_public_receipt(receipt, manifest=manifest, manifest_sha256=manifest_sha256)
 
     assert any("required_theorems" in error for error in errors), errors
+
+
+def test_resealed_lean_extra_result_field_fails(tmp_path: Path) -> None:
+    manifest = _manifest()
+    manifest_sha256, _manifest_path = _manifest_hash(manifest, tmp_path)
+    receipt = build_public_receipt_from_report(
+        _private_report(manifest_sha256),
+        manifest=manifest,
+        manifest_sha256=manifest_sha256,
+    )
+
+    receipt["lean_proofs"][0]["result"]["raw_stdout"] = f"{_PRIVATE_WORKSPACE_PREFIX}/secret.log"
+    _reseal(receipt)
+    errors = verify_public_receipt(receipt, manifest=manifest, manifest_sha256=manifest_sha256)
+
+    assert any("unexpected public field" in error for error in errors), errors
