@@ -168,6 +168,13 @@ pub struct ClaimScopeReport {
     pub violations: Vec<ClaimViolation>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RuleHit {
+    rule_id: &'static str,
+    message: &'static str,
+    match_start: usize,
+}
+
 pub fn check_root(root: &Path) -> Result<ClaimScopeReport, String> {
     let mut checked_files = Vec::new();
     let mut violations = Vec::new();
@@ -245,15 +252,20 @@ fn scan_forbidden_claims(path: &str, text: &str) -> Vec<ClaimViolation> {
             continue;
         }
         let lower = normalize_text(&line.to_ascii_lowercase());
-        if has_scope_negation(&lower) {
-            continue;
-        }
-        for (rule_id, message) in forbidden_rule_hits(&lower) {
+        for hit in forbidden_rule_hits(&lower) {
+            // REVIEW [B -> A-]: the first Rust mirror accepted any negation
+            // marker anywhere on the line. That let an overclaim pass when a
+            // later clause said "this does not ...". Match-position tracking
+            // keeps the intended rule: only a scope negation before the matched
+            // overclaim suppresses the violation.
+            if has_scope_negation_before_match(&lower, hit.match_start) {
+                continue;
+            }
             violations.push(ClaimViolation {
                 path: path.to_string(),
                 line: (idx + 1) as u32,
-                rule_id: rule_id.to_string(),
-                message: message.to_string(),
+                rule_id: hit.rule_id.to_string(),
+                message: hit.message.to_string(),
                 text: line.trim().to_string(),
             });
         }
@@ -265,7 +277,8 @@ fn normalize_text(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn has_scope_negation(line: &str) -> bool {
+fn has_scope_negation_before_match(line: &str, match_start: usize) -> bool {
+    let prefix = &line[..match_start.min(line.len())];
     [
         "does not ",
         "do not ",
@@ -277,14 +290,14 @@ fn has_scope_negation(line: &str) -> bool {
         "not provide ",
     ]
     .iter()
-    .any(|marker| line.contains(marker))
+    .any(|marker| prefix.contains(marker))
 }
 
-fn forbidden_rule_hits(line: &str) -> Vec<(&'static str, &'static str)> {
+fn forbidden_rule_hits(line: &str) -> Vec<RuleHit> {
     let mut hits = Vec::new();
 
-    if line.contains("upba v2")
-        && contains_any(
+    if let Some(match_start) = line.find("upba v2") {
+        if contains_any(
             line,
             &[
                 " is ",
@@ -294,8 +307,7 @@ fn forbidden_rule_hits(line: &str) -> Vec<(&'static str, &'static str)> {
                 " guarantees ",
                 " proves ",
             ],
-        )
-        && contains_any(
+        ) && contains_any(
             line,
             &[
                 "optimal",
@@ -303,50 +315,56 @@ fn forbidden_rule_hits(line: &str) -> Vec<(&'static str, &'static str)> {
                 "volume-maximizing",
                 "surplus-maximizing",
             ],
-        )
-    {
-        hits.push((
-            "upba_v2_direct_optimal_overclaim",
-            "UPBA v2 public claims must stay conditional and bounded.",
-        ));
+        ) {
+            hits.push(RuleHit {
+                rule_id: "upba_v2_direct_optimal_overclaim",
+                message: "UPBA v2 public claims must stay conditional and bounded.",
+                match_start,
+            });
+        }
     }
-    if contains_any(line, &["optimal upba v2", "optimality upba v2"]) {
-        hits.push((
-            "upba_v2_optimal_title_overclaim",
-            "Do not title or summarize UPBA v2 as simply optimal.",
-        ));
+    if let Some(match_start) = find_any(line, &["optimal upba v2", "optimality upba v2"]) {
+        hits.push(RuleHit {
+            rule_id: "upba_v2_optimal_title_overclaim",
+            message: "Do not title or summarize UPBA v2 as simply optimal.",
+            match_start,
+        });
     }
-    if line.contains("risc0")
-        && contains_any(line, &["proves", "proved", "proven", "guarantees"])
-        && contains_any(line, &["full python", "python runtime", "full runtime"])
-    {
-        hits.push((
-            "risc0_full_python_overclaim",
-            "Risc0 claims must stay scoped to the current guest subset.",
-        ));
+    if let Some(match_start) = line.find("risc0") {
+        if contains_any(line, &["proves", "proved", "proven", "guarantees"])
+            && contains_any(line, &["full python", "python runtime", "full runtime"])
+        {
+            hits.push(RuleHit {
+                rule_id: "risc0_full_python_overclaim",
+                message: "Risc0 claims must stay scoped to the current guest subset.",
+                match_start,
+            });
+        }
+        if contains_any(line, &["full python", "python runtime", "full runtime"])
+            && contains_any(line, &["execution proof", "proof of execution", " proof"])
+        {
+            hits.push(RuleHit {
+                rule_id: "risc0_full_python_execution_proof_overclaim",
+                message: "Risc0 claims must not imply a full Python execution proof.",
+                match_start,
+            });
+        }
     }
-    if line.contains("risc0")
-        && contains_any(line, &["full python", "python runtime", "full runtime"])
-        && contains_any(line, &["execution proof", "proof of execution", " proof"])
-    {
-        hits.push((
-            "risc0_full_python_execution_proof_overclaim",
-            "Risc0 claims must not imply a full Python execution proof.",
-        ));
+    if let Some(match_start) = line.find("tee") {
+        if contains_any(line, &["complete", "full", "fully"])
+            && contains_any(
+                line,
+                &["confidential network", "private network", "privacy"],
+            )
+        {
+            hits.push(RuleHit {
+                rule_id: "tee_complete_confidential_network_overclaim",
+                message: "TEE claims must not imply a complete confidential network.",
+                match_start,
+            });
+        }
     }
-    if line.contains("tee")
-        && contains_any(line, &["complete", "full", "fully"])
-        && contains_any(
-            line,
-            &["confidential network", "private network", "privacy"],
-        )
-    {
-        hits.push((
-            "tee_complete_confidential_network_overclaim",
-            "TEE claims must not imply a complete confidential network.",
-        ));
-    }
-    if contains_any(
+    if let Some(match_start) = find_any(
         line,
         &[
             "verifiably confidential",
@@ -355,17 +373,18 @@ fn forbidden_rule_hits(line: &str) -> Vec<(&'static str, &'static str)> {
             "cryptographically confidential",
         ],
     ) {
-        hits.push((
-            "confidential_verifiable_overclaim",
-            "Confidentiality claims must stay scoped to attested admission and redaction evidence.",
-        ));
+        hits.push(RuleHit {
+            rule_id: "confidential_verifiable_overclaim",
+            message:
+                "Confidentiality claims must stay scoped to attested admission and redaction evidence.",
+            match_start,
+        });
     }
-    if contains_any(line, &["tee", "attestation", "attested", "receipt"])
-        && contains_any(
+    if let Some(match_start) = find_any(line, &["tee", "attestation", "attested", "receipt"]) {
+        if contains_any(
             line,
             &["proves", "proved", "proven", "guarantees", "guaranteed"],
-        )
-        && contains_any(
+        ) && contains_any(
             line,
             &[
                 "hardware confidentiality",
@@ -373,30 +392,30 @@ fn forbidden_rule_hits(line: &str) -> Vec<(&'static str, &'static str)> {
                 "confidentiality",
                 "privacy",
             ],
-        )
-    {
-        hits.push((
-            "tee_hardware_confidentiality_proof_overclaim",
-            "TEE evidence must not be described as a proof of hardware confidentiality.",
-        ));
+        ) {
+            hits.push(RuleHit {
+                rule_id: "tee_hardware_confidentiality_proof_overclaim",
+                message:
+                    "TEE evidence must not be described as a proof of hardware confidentiality.",
+                match_start,
+            });
+        }
     }
-    if line.contains("zenocover")
-        && contains_any(
+    if let Some(match_start) = line.find("zenocover") {
+        if contains_any(
             line,
             &[" offers ", " provides ", " sells ", " underwrites "],
-        )
-        && contains_any(
+        ) && contains_any(
             line,
             &["insurance", "insurance product", "policy", "policies"],
-        )
-    {
-        hits.push((
-            "zenocover_insurance_product_overclaim",
-            "ZenoCover public claims must stay research/replay scoped until counsel-led review clears a product path.",
-        ));
-    }
-    if line.contains("zenocover")
-        && contains_any(
+        ) {
+            hits.push(RuleHit {
+                rule_id: "zenocover_insurance_product_overclaim",
+                message: "ZenoCover public claims must stay research/replay scoped until counsel-led review clears a product path.",
+                match_start,
+            });
+        }
+        if contains_any(
             line,
             &[
                 "launched",
@@ -405,14 +424,23 @@ fn forbidden_rule_hits(line: &str) -> Vec<(&'static str, &'static str)> {
                 "open for purchase",
                 "buy coverage",
             ],
-        )
-    {
-        hits.push((
-            "zenocover_regulated_launch_overclaim",
-            "ZenoCover must not be described as a live public offering from replay artifacts.",
-        ));
+        ) {
+            hits.push(RuleHit {
+                rule_id: "zenocover_regulated_launch_overclaim",
+                message:
+                    "ZenoCover must not be described as a live public offering from replay artifacts.",
+                match_start,
+            });
+        }
     }
     hits
+}
+
+fn find_any(haystack: &str, needles: &[&str]) -> Option<usize> {
+    needles
+        .iter()
+        .filter_map(|needle| haystack.find(needle))
+        .min()
 }
 
 fn contains_any(haystack: &str, needles: &[&str]) -> bool {
@@ -454,6 +482,26 @@ mod tests {
         assert!(violations
             .iter()
             .any(|v| v.rule_id == "risc0_full_python_overclaim"));
+    }
+
+    #[test]
+    fn rejects_overclaim_when_negation_appears_after_match() {
+        let violations = scan_forbidden_claims(
+            "README.md",
+            "Risc0 proves the full Python ZenoDEX runtime; this does not make it broader.",
+        );
+        assert!(violations
+            .iter()
+            .any(|v| v.rule_id == "risc0_full_python_overclaim"));
+    }
+
+    #[test]
+    fn allows_negation_before_overclaim_pattern() {
+        let violations = scan_forbidden_claims(
+            "README.md",
+            "This does not claim Risc0 proves the full Python ZenoDEX runtime.",
+        );
+        assert!(violations.is_empty());
     }
 
     #[test]
