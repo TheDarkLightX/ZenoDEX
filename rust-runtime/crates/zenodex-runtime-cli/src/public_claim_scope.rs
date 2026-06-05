@@ -296,6 +296,11 @@ fn has_scope_negation_before_match(line: &str, match_start: usize) -> bool {
 fn forbidden_rule_hits(line: &str) -> Vec<RuleHit> {
     let mut hits = Vec::new();
 
+    // REVIEW [B+ -> A-]: the first Rust checker was a useful independent
+    // release guard, but it mirrored only the common Python claim patterns.
+    // Reverse-order overclaims and ZenoCover underwriting wording still relied
+    // on the Python scanner alone. Keep the Rust mirror explicit so public
+    // release text has two independently maintained fail-closed checks.
     if let Some(match_start) = line.find("upba v2") {
         if contains_any(
             line,
@@ -319,6 +324,22 @@ fn forbidden_rule_hits(line: &str) -> Vec<RuleHit> {
             hits.push(RuleHit {
                 rule_id: "upba_v2_direct_optimal_overclaim",
                 message: "UPBA v2 public claims must stay conditional and bounded.",
+                match_start,
+            });
+        }
+        if contains_any(
+            line,
+            &[
+                "optimal",
+                "optimality",
+                "volume-maximizing",
+                "surplus-maximizing",
+            ],
+        ) && contains_any(line, &["proved", "proven", "guaranteed", "guarantees"])
+        {
+            hits.push(RuleHit {
+                rule_id: "upba_v2_optimality_proven_overclaim",
+                message: "UPBA v2 optimality claims must stay tied to bounded candidate-completeness evidence.",
                 match_start,
             });
         }
@@ -350,6 +371,15 @@ fn forbidden_rule_hits(line: &str) -> Vec<RuleHit> {
             });
         }
     }
+    if let Some(match_start) = find_any(line, &["full python", "python runtime", "full runtime"]) {
+        if contains_any(line, &["proved", "proven", "guaranteed"]) && line.contains("risc0") {
+            hits.push(RuleHit {
+                rule_id: "risc0_full_python_reverse_overclaim",
+                message: "Risc0 claims must not imply a full Python runtime proof.",
+                match_start,
+            });
+        }
+    }
     if let Some(match_start) = line.find("tee") {
         if contains_any(line, &["complete", "full", "fully"])
             && contains_any(
@@ -359,6 +389,23 @@ fn forbidden_rule_hits(line: &str) -> Vec<RuleHit> {
         {
             hits.push(RuleHit {
                 rule_id: "tee_complete_confidential_network_overclaim",
+                message: "TEE claims must not imply a complete confidential network.",
+                match_start,
+            });
+        }
+        if contains_any(line, &["eliminates all trust", "guarantees privacy"]) {
+            hits.push(RuleHit {
+                rule_id: "tee_trust_privacy_overclaim",
+                message: "TEE claims must describe advisory/attestation boundaries.",
+                match_start,
+            });
+        }
+    }
+    if let Some(match_start) = find_any(line, &["complete", "full", "fully"]) {
+        if contains_any(line, &["confidential network", "private network"]) && line.contains("tee")
+        {
+            hits.push(RuleHit {
+                rule_id: "tee_complete_confidential_network_reverse_overclaim",
                 message: "TEE claims must not imply a complete confidential network.",
                 match_start,
             });
@@ -401,10 +448,19 @@ fn forbidden_rule_hits(line: &str) -> Vec<RuleHit> {
             });
         }
     }
+    if let Some(match_start) = find_any(line, &["hardware confidentiality", "hardware privacy"]) {
+        if contains_any(line, &["proved", "proven", "guaranteed"]) {
+            hits.push(RuleHit {
+                rule_id: "hardware_confidentiality_proven_overclaim",
+                message: "Hardware confidentiality remains an external assumption unless a real hardware proof is supplied.",
+                match_start,
+            });
+        }
+    }
     if let Some(match_start) = line.find("zenocover") {
         if contains_any(
             line,
-            &[" offers ", " provides ", " sells ", " underwrites "],
+            &[" is ", " offers ", " provides ", " sells ", " underwrites "],
         ) && contains_any(
             line,
             &["insurance", "insurance product", "policy", "policies"],
@@ -429,6 +485,24 @@ fn forbidden_rule_hits(line: &str) -> Vec<RuleHit> {
                 rule_id: "zenocover_regulated_launch_overclaim",
                 message:
                     "ZenoCover must not be described as a live public offering from replay artifacts.",
+                match_start,
+            });
+        }
+        if contains_any(
+            line,
+            &[
+                "underwrite",
+                "underwrites",
+                "underwriting",
+                "premium",
+                "policyholder",
+                "claim adjust",
+                "claims adjust",
+            ],
+        ) {
+            hits.push(RuleHit {
+                rule_id: "zenocover_underwriting_overclaim",
+                message: "ZenoCover underwriting, premium, policyholder, and claims-processing language needs legal clearance.",
                 match_start,
             });
         }
@@ -511,5 +585,45 @@ mod tests {
             "It does not prove TEE hardware confidentiality or hide on-chain execution.",
         );
         assert!(violations.is_empty());
+    }
+
+    #[test]
+    fn rejects_python_parity_patterns_missing_from_first_rust_mirror() {
+        for (line, rule_id) in [
+            (
+                "UPBA v2 optimality is proven for all solver outputs.",
+                "upba_v2_optimality_proven_overclaim",
+            ),
+            (
+                "The full Python runtime is proven by Risc0.",
+                "risc0_full_python_reverse_overclaim",
+            ),
+            (
+                "A complete confidential network is provided by TEE.",
+                "tee_complete_confidential_network_reverse_overclaim",
+            ),
+            (
+                "TEE guarantees privacy for private routing.",
+                "tee_trust_privacy_overclaim",
+            ),
+            (
+                "Hardware confidentiality is proven for the enclave.",
+                "hardware_confidentiality_proven_overclaim",
+            ),
+            (
+                "ZenoCover uses premium pricing for policyholders.",
+                "zenocover_underwriting_overclaim",
+            ),
+            (
+                "ZenoCover is insurance for protocol users.",
+                "zenocover_insurance_product_overclaim",
+            ),
+        ] {
+            let violations = scan_forbidden_claims("README.md", line);
+            assert!(
+                violations.iter().any(|v| v.rule_id == rule_id),
+                "expected {rule_id} for {line:?}, got {violations:?}"
+            );
+        }
     }
 }

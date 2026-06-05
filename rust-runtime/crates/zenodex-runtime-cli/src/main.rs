@@ -16,6 +16,8 @@
 //! zenodex-runtime verify-burn-trace    <trace.json|->   # kernel = burn_receipts
 //! zenodex-runtime settle-swap-trace    <trace.json|->   # kernel = cpmm_settlement
 //! zenodex-runtime cpmm-op              <request.json|-> # one cpmm_settlement transition
+//! zenodex-runtime replay-liquidity-trace <trace.json|-> # kernel = liquidity
+//! zenodex-runtime liquidity-op         <request.json|-> # one liquidity transition
 //! zenodex-runtime canonical-hash       <cases.json|->   # canonical primitive vectors
 //! zenodex-runtime verify-state-root    <cases.json|->   # network state-root parity
 //! zenodex-runtime perp-math            <cases.json|->   # perp stateless math
@@ -62,6 +64,10 @@ use zenodex_runtime_core::cpmm_swap::{
     CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT, DEX_POOL_RESERVE_MAX,
 };
 use zenodex_runtime_core::fee_router::{AssetAmount, DustEntry};
+use zenodex_runtime_core::liquidity::{
+    add_liquidity, create_pool, remove_liquidity, CreatePoolInput, LiquidityAccepted,
+    LiquidityKind, LiquidityReceipt, Pool as LiquidityPool,
+};
 use zenodex_runtime_core::perp_account_ops::{account_op, AccountOpInput};
 use zenodex_runtime_core::perp_advance_epoch::{advance_epoch, AdvanceEpochInput};
 use zenodex_runtime_core::perp_funding_auto::{
@@ -323,6 +329,44 @@ struct CpmmOpOutput {
     pre_state_root: String,
     post_state_root: String,
     post_pool: CpmmPoolOut,
+}
+
+#[derive(Serialize)]
+struct LiquidityPoolOut {
+    initialized: bool,
+    pool_id: String,
+    asset0: String,
+    asset1: String,
+    reserve0: String,
+    reserve1: String,
+    fee_bps: String,
+    lp_supply: String,
+    created_at: String,
+}
+
+#[derive(Serialize)]
+struct LiquidityReceiptOut {
+    kind: String,
+    pool_id: String,
+    amount0: String,
+    amount1: String,
+    lp_delta: String,
+    new_reserve0: String,
+    new_reserve1: String,
+    new_lp_supply: String,
+}
+
+#[derive(Serialize)]
+struct LiquidityOpOutput {
+    version: u32,
+    kernel: String,
+    accept: bool,
+    reject_reason: Option<String>,
+    receipt_hash: Option<String>,
+    receipt: Option<LiquidityReceiptOut>,
+    pre_state_root: String,
+    post_state_root: String,
+    post_pool: LiquidityPoolOut,
 }
 
 // --- Shared JSON helpers ------------------------------------------------------
@@ -2211,6 +2255,291 @@ fn run_cpmm_op(request: &Value) -> Result<CpmmOpOutput, String> {
     }
 }
 
+// --- liquidity kernel ---------------------------------------------------------
+
+const LIQUIDITY_POOL_FIELDS: [&str; 9] = [
+    "initialized",
+    "pool_id",
+    "asset0",
+    "asset1",
+    "reserve0",
+    "reserve1",
+    "fee_bps",
+    "lp_supply",
+    "created_at",
+];
+const LIQUIDITY_CREATE_FIELDS: [&str; 9] = [
+    "kind",
+    "asset0",
+    "asset1",
+    "amount0",
+    "amount1",
+    "fee_bps",
+    "created_at",
+    "curve_tag",
+    "curve_params",
+];
+const LIQUIDITY_ADD_FIELDS: [&str; 5] = [
+    "kind",
+    "amount0_desired",
+    "amount1_desired",
+    "amount0_min",
+    "amount1_min",
+];
+const LIQUIDITY_REMOVE_FIELDS: [&str; 4] = ["kind", "lp_amount", "amount0_min", "amount1_min"];
+
+/// Bounded amount/fee/lp field: integer-shaped, non-negative, saturating to
+/// `u128::MAX` so an oversized value rejects at the same domain boundary as
+/// Python. Safe ONLY for fields that carry a maximum (the kernel's range check
+/// catches the saturated value). `created_at` (no max) must NOT use this.
+fn lq_u128_sat(obj: &serde_json::Map<String, Value>, key: &str) -> Result<u128, String> {
+    match int_field(obj, key) {
+        Some(s) if !s.starts_with('-') => Ok(u128_sat(&s)),
+        Some(_) => Ok(u128::MAX), // negative -> saturate; the [1,..] range check rejects it
+        None => Err("malformed_tx".to_string()),
+    }
+}
+
+/// `created_at`: integer-shaped and representable as `u128`. Returns
+/// `(value, created_at_ok)`: a negative or too-large value sets `ok = false` so
+/// the kernel emits the reject at its ordered position after fee validation.
+///
+/// REVIEW [B -> A-]: the first CLI port saturated this no-max Python field.
+/// Saturation is acceptable only for max-bounded amount fields because the
+/// kernel range check rejects the sentinel. For `created_at`, saturation would
+/// silently commit the wrong state root.
+fn lq_created_at(obj: &serde_json::Map<String, Value>, key: &str) -> Result<(u128, bool), String> {
+    match int_field(obj, key) {
+        Some(s) if !s.starts_with('-') => Ok(match s.parse::<u128>() {
+            Ok(v) => (v, true),
+            Err(_) => (0, false),
+        }),
+        Some(_) => Ok((0, false)),
+        None => Err("malformed_tx".to_string()),
+    }
+}
+
+fn liquidity_pool_from_request(v: &Value) -> Result<LiquidityPool, String> {
+    let obj = v
+        .get("pool")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "pool must be an object".to_string())?;
+    if let Some(reason) =
+        first_unknown_field(obj.keys().map(String::as_str), &LIQUIDITY_POOL_FIELDS)
+    {
+        return Err(reason);
+    }
+    let initialized = obj
+        .get("initialized")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| "pool.initialized must be a bool".to_string())?;
+    let pool_id = obj
+        .get("pool_id")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let asset0 = obj
+        .get("asset0")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let asset1 = obj
+        .get("asset1")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let reserve0 = lq_pool_u128(obj, "reserve0")?;
+    let reserve1 = lq_pool_u128(obj, "reserve1")?;
+    let fee_bps = lq_pool_u128(obj, "fee_bps")?;
+    let lp_supply = lq_pool_u128(obj, "lp_supply")?;
+    let created_at = match int_field(obj, "created_at") {
+        Some(s) if !s.starts_with('-') => s
+            .parse::<u128>()
+            .map_err(|_| "pool.created_at out_of_domain".to_string())?,
+        _ => return Err("pool.created_at out_of_domain".to_string()),
+    };
+    Ok(LiquidityPool {
+        initialized,
+        pool_id,
+        asset0,
+        asset1,
+        reserve0,
+        reserve1,
+        fee_bps,
+        lp_supply,
+        created_at,
+    })
+}
+
+/// Pool-state scalar: non-negative integer, saturating out-of-`u128` to MAX so
+/// the kernel's domain checks reject identically to Python.
+fn lq_pool_u128(obj: &serde_json::Map<String, Value>, key: &str) -> Result<u128, String> {
+    match int_field(obj, key) {
+        Some(s) if !s.starts_with('-') => Ok(u128_sat(&s)),
+        _ => Err(format!("pool.{key} out_of_domain")),
+    }
+}
+
+fn apply_liquidity_tx(pool: &LiquidityPool, tx: &Value) -> Result<LiquidityAccepted, String> {
+    let obj = match tx.as_object() {
+        Some(o) => o,
+        None => return Err("malformed_tx".to_string()),
+    };
+    let kind = obj.get("kind").and_then(Value::as_str).unwrap_or("");
+    let allowed: &[&str] = match kind {
+        "create_pool" => &LIQUIDITY_CREATE_FIELDS,
+        "add_liquidity" => &LIQUIDITY_ADD_FIELDS,
+        "remove_liquidity" => &LIQUIDITY_REMOVE_FIELDS,
+        _ => return Err("unknown_tx_kind".to_string()),
+    };
+    if let Some(reason) = first_unknown_field(obj.keys().map(String::as_str), allowed) {
+        return Err(reason);
+    }
+
+    let result = match kind {
+        "create_pool" => {
+            // asset ids must be JSON strings (the Python isinstance/TypeError
+            // boundary). The kernel takes the type-ok flag explicitly.
+            let asset0 = obj.get("asset0").and_then(Value::as_str);
+            let asset1 = obj.get("asset1").and_then(Value::as_str);
+            let asset_type_ok = asset0.is_some() && asset1.is_some();
+            let asset0 = asset0.unwrap_or("");
+            let asset1 = asset1.unwrap_or("");
+            let amount0 = lq_u128_sat(obj, "amount0")?;
+            let amount1 = lq_u128_sat(obj, "amount1")?;
+            let fee_bps = lq_u128_sat(obj, "fee_bps")?;
+            let (created_at, created_at_ok) = match obj.get("created_at") {
+                Some(_) => lq_created_at(obj, "created_at")?,
+                None => (0, true), // Python default created_at=0.
+            };
+            let curve_tag = obj
+                .get("curve_tag")
+                .and_then(Value::as_str)
+                .unwrap_or("CPMM");
+            let curve_params = obj
+                .get("curve_params")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            create_pool(CreatePoolInput {
+                asset_type_ok,
+                asset0,
+                asset1,
+                amount0,
+                amount1,
+                fee_bps,
+                created_at_ok,
+                created_at,
+                curve_tag,
+                curve_params,
+            })
+        }
+        "add_liquidity" => {
+            let d0 = lq_u128_sat(obj, "amount0_desired")?;
+            let d1 = lq_u128_sat(obj, "amount1_desired")?;
+            let m0 = lq_u128_sat(obj, "amount0_min")?;
+            let m1 = lq_u128_sat(obj, "amount1_min")?;
+            add_liquidity(pool, d0, d1, m0, m1)
+        }
+        "remove_liquidity" => {
+            let lp = lq_u128_sat(obj, "lp_amount")?;
+            let m0 = lq_u128_sat(obj, "amount0_min")?;
+            let m1 = lq_u128_sat(obj, "amount1_min")?;
+            remove_liquidity(pool, lp, m0, m1)
+        }
+        _ => unreachable!(),
+    };
+
+    result.map_err(str::to_string)
+}
+
+fn eval_liquidity_tx(pool: &LiquidityPool, tx: &Value) -> Eval<LiquidityPool> {
+    match apply_liquidity_tx(pool, tx) {
+        Ok(accepted) => Eval::Accept {
+            receipt_hash: accepted.receipt.receipt_hash(),
+            next: accepted.pool,
+        },
+        Err(code) => Eval::Reject(code),
+    }
+}
+
+fn liquidity_pool_out(pool: &LiquidityPool) -> LiquidityPoolOut {
+    LiquidityPoolOut {
+        initialized: pool.initialized,
+        pool_id: pool.pool_id.clone(),
+        asset0: pool.asset0.clone(),
+        asset1: pool.asset1.clone(),
+        reserve0: pool.reserve0.to_string(),
+        reserve1: pool.reserve1.to_string(),
+        fee_bps: pool.fee_bps.to_string(),
+        lp_supply: pool.lp_supply.to_string(),
+        created_at: pool.created_at.to_string(),
+    }
+}
+
+fn liquidity_receipt_out(r: &LiquidityReceipt) -> LiquidityReceiptOut {
+    let kind = match r.kind {
+        LiquidityKind::CreatePool => "create_pool",
+        LiquidityKind::AddLiquidity => "add_liquidity",
+        LiquidityKind::RemoveLiquidity => "remove_liquidity",
+    };
+    LiquidityReceiptOut {
+        kind: kind.to_string(),
+        pool_id: r.pool_id.clone(),
+        amount0: r.amount0.to_string(),
+        amount1: r.amount1.to_string(),
+        lp_delta: r.lp_delta.to_string(),
+        new_reserve0: r.new_reserve0.to_string(),
+        new_reserve1: r.new_reserve1.to_string(),
+        new_lp_supply: r.new_lp_supply.to_string(),
+    }
+}
+
+fn run_liquidity_op(request: &Value) -> Result<LiquidityOpOutput, String> {
+    let obj = request
+        .as_object()
+        .ok_or_else(|| "request must be an object".to_string())?;
+    if let Some(reason) =
+        first_unknown_field(obj.keys().map(String::as_str), &["version", "pool", "tx"])
+    {
+        return Err(reason);
+    }
+    if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
+        return Err("unsupported request version".to_string());
+    }
+    let pool = liquidity_pool_from_request(request)?;
+    let pre_state_root = pool.state_root();
+    let tx = request
+        .get("tx")
+        .ok_or_else(|| "tx is required".to_string())?;
+    match apply_liquidity_tx(&pool, tx) {
+        Ok(accepted) => {
+            let receipt_hash = accepted.receipt.receipt_hash();
+            Ok(LiquidityOpOutput {
+                version: 1,
+                kernel: "liquidity".to_string(),
+                accept: true,
+                reject_reason: None,
+                receipt_hash: Some(receipt_hash),
+                receipt: Some(liquidity_receipt_out(&accepted.receipt)),
+                pre_state_root,
+                post_state_root: accepted.pool.state_root(),
+                post_pool: liquidity_pool_out(&accepted.pool),
+            })
+        }
+        Err(reason) => Ok(LiquidityOpOutput {
+            version: 1,
+            kernel: "liquidity".to_string(),
+            accept: false,
+            reject_reason: Some(reason),
+            receipt_hash: None,
+            receipt: None,
+            pre_state_root: pre_state_root.clone(),
+            post_state_root: pre_state_root,
+            post_pool: liquidity_pool_out(&pool),
+        }),
+    }
+}
+
 // --- state-root (cross-language differential) ---------------------------------
 
 fn req_str(obj: &serde_json::Map<String, Value>, key: &str) -> Result<String, String> {
@@ -3499,6 +3828,8 @@ fn main() -> ExitCode {
                 | "verify-burn-trace"
                 | "settle-swap-trace"
                 | "cpmm-op"
+                | "replay-liquidity-trace"
+                | "liquidity-op"
                 | "canonical-hash"
                 | "verify-state-root"
                 | "perp-math"
@@ -3517,7 +3848,8 @@ fn main() -> ExitCode {
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-guard-admit|\
              nonce-batch-op|\
              fee-route|replay-balance-trace|balance-op|\
-             replay-zusd-trace|zusd-op|verify-burn-trace|settle-swap-trace|cpmm-op|canonical-hash|\
+             replay-zusd-trace|zusd-op|verify-burn-trace|settle-swap-trace|cpmm-op|\
+             replay-liquidity-trace|liquidity-op|canonical-hash|\
              verify-state-root|perp-math|advance-epoch|funding-auto|\
              publish-clearing-price|settle-epoch|partial-liquidate|account-op|\
              set-market-params|perp-isolated-op|public-claim-scope> <input.json|repo-root|->"
@@ -3681,6 +4013,25 @@ fn main() -> ExitCode {
 
     if subcommand == "cpmm-op" {
         return match run_cpmm_op(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "liquidity-op" {
+        return match run_liquidity_op(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");
@@ -3919,6 +4270,13 @@ fn main() -> ExitCode {
             Pool::default(),
             Pool::state_root,
             eval_cpmm_tx,
+        ),
+        "replay-liquidity-trace" => drive(
+            &trace,
+            "liquidity",
+            LiquidityPool::default(),
+            LiquidityPool::state_root,
+            eval_liquidity_tx,
         ),
         _ => unreachable!(),
     };

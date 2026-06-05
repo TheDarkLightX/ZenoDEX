@@ -28,6 +28,7 @@ import balance_kernel_lib  # noqa: E402
 import burn_receipts_lib  # noqa: E402
 import cpmm_settlement_lib  # noqa: E402
 import golden_trace_lib  # noqa: E402
+import liquidity_kernel_lib  # noqa: E402
 import replay_guard_lib  # noqa: E402
 import zusd_kernel_lib  # noqa: E402
 
@@ -47,6 +48,10 @@ _REPLAYERS = {
     cpmm_settlement_lib.KERNEL: (
         cpmm_settlement_lib.replay_trace,
         cpmm_settlement_lib.ReplayMismatch,
+    ),
+    liquidity_kernel_lib.KERNEL: (
+        liquidity_kernel_lib.replay_trace,
+        liquidity_kernel_lib.ReplayMismatch,
     ),
 }
 

@@ -37,6 +37,7 @@ SUPPORTED_TRACE_NAMES = (
     "zusd_smoke.json",
     "burn_smoke.json",
     "cpmm_smoke.json",
+    "liquidity_smoke.json",
 )
 
 

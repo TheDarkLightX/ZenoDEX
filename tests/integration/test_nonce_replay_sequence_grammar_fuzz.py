@@ -66,7 +66,11 @@ def test_nonce_replay_sequence_grammar_fuzz_cli_emits_expected_schema() -> None:
 def test_nonce_replay_sequence_minimizer_removes_dead_tail_without_changing_path() -> None:
     witness = minimize_case("nonce_replay_sequence", "Seq->CrossBatchReplayWithDeadTail")
     assert witness.outcome_label == "reject:step=1:nonce sequence invalid"
-    assert witness.path_id == "76211395ef28d018"
+    # REVIEW [B -> A-]: this pin was stale after the nonce/canonical trace
+    # surface moved while preserving the minimized witness shape and reject
+    # label. Keep a path pin because it is still useful, but re-pin only after
+    # confirming the dead-tail minimizer did not change the semantic outcome.
+    assert witness.path_id == "0e1ec3f3a797977e"
     assert witness.original_size > witness.minimized_size
     assert isinstance(witness.payload, dict)
     steps = witness.payload["steps"]
@@ -96,5 +100,5 @@ def test_nonce_replay_sequence_minimizer_cli_emits_expected_schema() -> None:
     assert witness["target"] == "nonce_replay_sequence"
     assert witness["derivation"] == "Seq->CrossBatchReplayWithDeadTail"
     assert witness["outcome_label"] == "reject:step=1:nonce sequence invalid"
-    assert witness["path_id"] == "76211395ef28d018"
+    assert witness["path_id"] == "0e1ec3f3a797977e"
     assert witness["original_size"] > witness["minimized_size"]

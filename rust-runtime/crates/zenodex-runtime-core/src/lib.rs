@@ -28,6 +28,7 @@ pub mod canonical;
 pub mod cpmm_swap;
 pub mod error;
 pub mod fee_router;
+pub mod liquidity;
 pub mod perp_account_ops;
 pub mod perp_advance_epoch;
 pub mod perp_funding_auto;
@@ -50,6 +51,10 @@ pub use error::{DomainConstraint, RejectedReason};
 pub use fee_router::{
     canonical_split_table, route_fee, Accepted, Domain, FeeAccumulator, FeeReceipt, FeeSplitTable,
     BPS_DENOM, MAX_FEE_AMOUNT,
+};
+pub use liquidity::{
+    add_liquidity, create_pool, remove_liquidity, CreatePoolInput, LiquidityAccepted,
+    LiquidityKind, LiquidityReceipt, Pool as LiquidityPool,
 };
 pub use replay_guard::{
     admit, AdmissionReceipt, AdmitAccepted, ReplayGuardState, ReplayRejectedReason,

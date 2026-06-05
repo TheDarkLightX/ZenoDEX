@@ -1,0 +1,135 @@
+{
+  "final_state_root": "0x7bfc896c70a99266e0cb3bd0d711dfd7c1533b4f4a86e1ea2249fddf702fb6aa",
+  "initial_state_root": "0xd0cfe56761eb65a2621ae3ac9033d4b11cc6cc210f96d7ee11092f2e2b99d748",
+  "kernel": "liquidity",
+  "steps": [
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x9c125e6aa5fc096eb3be73db90859f6b2b2a506fa9613f38a96cc5e038997751",
+      "receipt_hash": "0xbbe1e93091263c3a8bd2871f9b347819fa4ee1209beb08b3958938e290b803d8",
+      "tx": {
+        "amount0": 1000000,
+        "amount1": 1000000,
+        "asset0": "AAA",
+        "asset1": "BBB",
+        "created_at": 0,
+        "curve_params": "",
+        "curve_tag": "CPMM",
+        "fee_bps": 30,
+        "kind": "create_pool"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x96dd698e859c04db6e88b41b75c2453ed81c54e48ba879057ffb567d844a43b7",
+      "receipt_hash": "0x9952008a57940082c3ac70d03f14749d56ba7484dc4f02684b33e79ec76a8516",
+      "tx": {
+        "amount0_desired": 100000,
+        "amount0_min": 0,
+        "amount1_desired": 100000,
+        "amount1_min": 0,
+        "kind": "add_liquidity"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xd69bad57388c93321e8192a84e8dedb13f093a1b60702b18be8c11236bda75cb",
+      "receipt_hash": "0xdf8cfb754ba76cf3494069d8647d9f6af7d2320adb52d490ef2d7c68d8280c2c",
+      "tx": {
+        "amount0_min": 0,
+        "amount1_min": 0,
+        "kind": "remove_liquidity",
+        "lp_amount": 50000
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x7bfc896c70a99266e0cb3bd0d711dfd7c1533b4f4a86e1ea2249fddf702fb6aa",
+      "receipt_hash": "0x0c6b8db7aca1c69d39523d90f5b07814a7a37d48eec24d1c41e333b713ff17a2",
+      "tx": {
+        "amount0_desired": 100000,
+        "amount0_min": 0,
+        "amount1_desired": 200000,
+        "amount1_min": 0,
+        "kind": "add_liquidity"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "amount0_used_below_min",
+      "post_state_root": "0x7bfc896c70a99266e0cb3bd0d711dfd7c1533b4f4a86e1ea2249fddf702fb6aa",
+      "receipt_hash": null,
+      "tx": {
+        "amount0_desired": 1000,
+        "amount0_min": 5000,
+        "amount1_desired": 1000,
+        "amount1_min": 0,
+        "kind": "add_liquidity"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "amount0_out_below_min",
+      "post_state_root": "0x7bfc896c70a99266e0cb3bd0d711dfd7c1533b4f4a86e1ea2249fddf702fb6aa",
+      "receipt_hash": null,
+      "tx": {
+        "amount0_min": 100,
+        "amount1_min": 0,
+        "kind": "remove_liquidity",
+        "lp_amount": 1
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "burn_exceeds_supply",
+      "post_state_root": "0x7bfc896c70a99266e0cb3bd0d711dfd7c1533b4f4a86e1ea2249fddf702fb6aa",
+      "receipt_hash": null,
+      "tx": {
+        "amount0_min": 0,
+        "amount1_min": 0,
+        "kind": "remove_liquidity",
+        "lp_amount": 5000000
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "unknown_field:memo",
+      "post_state_root": "0x7bfc896c70a99266e0cb3bd0d711dfd7c1533b4f4a86e1ea2249fddf702fb6aa",
+      "receipt_hash": null,
+      "tx": {
+        "amount0_desired": 1,
+        "amount0_min": 0,
+        "amount1_desired": 1,
+        "amount1_min": 0,
+        "kind": "add_liquidity",
+        "memo": "x"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "unknown_tx_kind",
+      "post_state_root": "0x7bfc896c70a99266e0cb3bd0d711dfd7c1533b4f4a86e1ea2249fddf702fb6aa",
+      "receipt_hash": null,
+      "tx": {
+        "amount0_desired": 1,
+        "kind": "swap"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "malformed_tx",
+      "post_state_root": "0x7bfc896c70a99266e0cb3bd0d711dfd7c1533b4f4a86e1ea2249fddf702fb6aa",
+      "receipt_hash": null,
+      "tx": {
+        "amount0_min": 0,
+        "kind": "remove_liquidity",
+        "lp_amount": 1
+      }
+    }
+  ],
+  "version": 1
+}
