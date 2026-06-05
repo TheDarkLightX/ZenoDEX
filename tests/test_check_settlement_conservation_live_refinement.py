@@ -90,6 +90,26 @@ def test_refinement_receipt_command_cwd_tamper_fails(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda receipt: receipt.update({"private_path": "/private/workspace/secret"}),
+        lambda receipt: receipt["commands"][0].update(
+            {"private_path": "/private/workspace/secret"}
+        ),
+    ],
+)
+def test_refinement_receipt_extra_public_fields_fail(tmp_path: Path, mutate) -> None:
+    receipt = json.loads(checker.DEFAULT_RECEIPT.read_text(encoding="utf-8"))
+    mutate(receipt)
+    tampered = tmp_path / "receipt.json"
+    tampered.write_text(json.dumps(receipt), encoding="utf-8")
+
+    result = checker.check_receipt(tampered)
+    assert not result["ok"]
+    assert any("unexpected public field" in err for err in result["errors"])
+
+
+@pytest.mark.parametrize(
     "summary",
     [
         "1 passed, 1 skipped in 0.01s",

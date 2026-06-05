@@ -129,6 +129,11 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _unexpected_keys(obj: Mapping[str, Any], *, allowed: set[str], name: str) -> list[str]:
+    extra = sorted(set(obj) - allowed)
+    return [f"{name} has unexpected public field(s): {extra}"] if extra else []
+
+
 def _run(command: list[str], *, cwd: Path = ROOT) -> dict[str, Any]:
     proc = subprocess.run(command, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=240)
     return {
@@ -663,6 +668,28 @@ def check_receipt(path: Path) -> dict[str, Any]:
             "receipt": str(path),
             "covered_constructors": [],
         }
+    # REVIEW [B -> A-]: this receipt intentionally uses replay and source pins
+    # rather than a self-hash. That makes the accepted JSON language load-bearing:
+    # extra top-level or command fields could carry private paths or unsupported
+    # evidence labels while all required checks still passed.
+    errors.extend(
+        _unexpected_keys(
+            receipt,
+            allowed={
+                "schema",
+                "source_hashes",
+                "lean_module",
+                "commands",
+                "cases",
+                "covered_constructors",
+                "claim",
+                "grade",
+                "grade_reason",
+                "production_matrix_effect",
+            },
+            name="receipt",
+        )
+    )
     if receipt.get("schema") != RECEIPT_SCHEMA:
         errors.append("bad schema")
     if receipt.get("lean_module") != LEAN_MODULE:
@@ -709,6 +736,13 @@ def check_receipt(path: Path) -> dict[str, Any]:
         if not isinstance(command, Mapping):
             errors.append(f"commands[{index}] must be an object")
             continue
+        errors.extend(
+            _unexpected_keys(
+                command,
+                allowed={"cmd", "cwd", "returncode", "stdout_tail", "stderr_tail"},
+                name=f"commands[{index}]",
+            )
+        )
         command_entries.append(command)
     got_commands = [cmd.get("cmd") for cmd in command_entries]
     got_returncodes = [cmd.get("returncode") for cmd in command_entries]
