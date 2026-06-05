@@ -155,7 +155,7 @@
     }
   },
   "private_toolchain_source_included": false,
-  "receipt_sha256": "be39343d4a1e27aed5eea002b33d69b42bb40916ec5aceffd5a3256f32ba77c5",
+  "receipt_sha256": "6c7e562b605cafa6a74a15fcc7dec64cc954cd3ed3fd0f40873e81d4118e3b4c",
   "required_test_commands": [
     {
       "command": [
@@ -303,7 +303,7 @@
     },
     {
       "path": ".github/workflows/release-integrity.yml",
-      "sha256": "ccded7345693f34c8ddc29829ce976c33802c85b2a9f717b1234a93ea8a7c598"
+      "sha256": "ce913254219b8fd97175134908289cf586fa94f172d5a5c5ec78c4748aa32dd4"
     }
   ],
   "state_root_version": 5,

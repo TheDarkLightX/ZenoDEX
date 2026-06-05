@@ -87,6 +87,10 @@ jobs:
             tests/test_check_settlement_supply_formal_spec_contract.py \
             tests/test_check_settlement_conservation_live_refinement.py \
             tests/test_check_state_root_surface_evidence.py \
+            tests/runtime/test_nonce_esso_model.py \
+            tests/runtime/test_nonces_batch_wrapper_lean_property_binding.py \
+            tests/runtime/test_nonces_batch_binding.py \
+            tests/runtime/test_nonces_coupled_transition_atomicity.py \
             tests/test_check_release_publication_workflow.py \
             tests/tools/test_check_zenodex_host_independent_coverage.py \
             tests/tools/test_measure_zenodex_zk_transition_coverage.py

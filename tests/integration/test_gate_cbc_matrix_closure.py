@@ -88,6 +88,7 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     assert "build_local_block_v0" in trail and "_validate_live_block_report_state_roots_v0" in trail
     assert "python-rust-shadow" in trail and "release-integrity.yml" in trail
     assert "Double-counting caveat" in trail and "running_impl remains false" not in trail
+    assert "balances + nonces still open" not in trail
     cpmm = surfaces["cpmm_swap"]
     assert cpmm["open_gaps_closed"] is True
     assert cpmm["formal_spec"]["verified"] is True
@@ -110,12 +111,19 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     assert "FLIPPED 2026-06-05 to 7/7" in balances_trail
     assert "SettlementSupplyConservation binding" in balances_trail
     assert "Gate stays production_security_claim=False: nonces still blocks" in balances_trail
+    assert "formal_spec remains false" not in balances_trail
+    assert "balances 3/7" not in balances_trail
+    assert "release gate remains blocked by nonces" in balances["runtime_invariants"]["note"]
     # REVIEW [B -> A-]: evidence notes are part of the release-review contract.
     # A stale note once named differential_tests as a remaining nonces gap after
     # the matrix had cleared it. Pin the narrative to the computed columns so
     # reviewers do not chase a closed gap or miss the real open ones.
     nonces = surfaces["nonces"]
     assert nonces["differential_tests"]["verified"] is True
+    assert nonces["running_impl"]["verified"] is False
+    assert "test_nonces_coupled_transition_atomicity.py" in nonces["running_impl"]["ref"]
+    assert "coupled DEX transition" in nonces["running_impl"]["note"]
+    assert "leak next_nonces on a settlement reject" in nonces["running_impl"]["note"]
     assert "Remaining nonces gaps are running_impl/formal_spec/proof_artifact/open_gaps_closed" in nonces[
         "runtime_invariants"
     ]["note"]
@@ -129,6 +137,7 @@ def test_default_registry_covers_spot_dex_scope() -> None:
     assert "pins the exact-range Lean declaration surface" in nonces["proof_artifact"]["note"]
     assert "formalize the batch WRAPPER" not in nonces["blocking_gaps"]
     assert "dual-review/final surface-spec ruling" in nonces["blocking_gaps"]
+    assert "coupled-transition atomicity is tested" in nonces["blocking_gaps"]
     for surface_id in set(SPOT_DEX_SCOPE) - {"cpmm_swap", "state_root", "balances"}:
         assert surfaces[surface_id]["open_gaps_closed"] is False
     assert gate.run(DEFAULT_EVIDENCE, scope_override=None, as_json=True) == 1
