@@ -118,6 +118,11 @@ def _load_json_object(path: Path) -> dict[str, Any]:
     return obj
 
 
+def _unexpected_keys(obj: Mapping[str, Any], *, allowed: set[str], name: str) -> list[str]:
+    extra = sorted(set(obj) - allowed)
+    return [f"{name} has unexpected public field(s): {extra}"] if extra else []
+
+
 def build_contract(path: Path) -> dict[str, Any]:
     contract = {
         "schema": CONTRACT_SCHEMA,
@@ -199,6 +204,31 @@ def check_contract(path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:
     errors: list[str] = []
     try:
         contract = _load_json_object(path)
+        # REVIEW [B -> A-]: the contract pinned every load-bearing field, but
+        # still accepted extra top-level keys. That is too wide for a green CBC
+        # formal_spec artifact because a local path or unsupported claim label
+        # could ride alongside the reviewed contract. The public envelope is now
+        # exact.
+        errors.extend(
+            _unexpected_keys(
+                contract,
+                allowed={
+                    "schema",
+                    "surface_id",
+                    "matrix_column",
+                    "claim",
+                    "spec_language",
+                    "formal_items",
+                    "required_spot_proof_ids",
+                    "forbidden_spec_refs",
+                    "source_hashes",
+                    "grade",
+                    "grade_reason",
+                    "production_matrix_effect",
+                },
+                name="contract",
+            )
+        )
         _expect_equal(contract, "schema", CONTRACT_SCHEMA, errors)
         _expect_equal(contract, "surface_id", "cpmm_swap", errors)
         _expect_equal(contract, "matrix_column", "formal_spec", errors)

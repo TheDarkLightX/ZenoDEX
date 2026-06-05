@@ -44,6 +44,16 @@ def test_cpmm_formal_spec_contract_source_hash_tamper_fails(tmp_path: Path) -> N
     assert any("source hash mismatch" in err for err in result["errors"])
 
 
+def test_cpmm_formal_spec_contract_extra_top_level_field_fails(tmp_path: Path) -> None:
+    contract = _load_contract()
+    contract["private_path"] = "/private/workspace/secret"
+
+    result = checker.check_contract(_write(tmp_path, contract))
+
+    assert not result["ok"]
+    assert any("unexpected public field" in err for err in result["errors"])
+
+
 def test_cpmm_formal_spec_contract_spot_receipt_dependency_fails(monkeypatch, tmp_path: Path) -> None:
     contract = _load_contract()
     monkeypatch.setattr(
