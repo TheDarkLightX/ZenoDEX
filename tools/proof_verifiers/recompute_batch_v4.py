@@ -177,6 +177,14 @@ def _projected_snapshot_scope_error(state: Any, intents: Sequence[Any]) -> Optio
         return "projected pre_state_snapshot carries unbound vault state"
     if getattr(state, "oracle", None) is not None:
         return "projected pre_state_snapshot carries unbound oracle state"
+    # perps mirrors its support-lane siblings vault/oracle: the spot scope must not
+    # carry unbound perps state. The spot state root (compute_state_root) omits perps,
+    # so a projected snapshot with non-None perps would not be bound by pre_state_root —
+    # exactly the externally-supplied-pre_state edge this guard fails closed on. (This
+    # closes the perps hole in the snapshot scope guard; the broader question of whether
+    # the spot lane should COMMIT perps in a root vs guarantee-it-empty is left to review.)
+    if getattr(state, "perps", None) is not None:
+        return "projected pre_state_snapshot carries unbound perps state"
     support = derive_batch_state_support(intents, pools=state.pools)
     balance_keys = set(support.balance_keys)
     for key, amount in state.balances.get_all_balances().items():

@@ -191,6 +191,10 @@ def _projected_snapshot_scope_error(state: Any, intents: Sequence[Any]) -> Optio
         return "projected pre_state_snapshot carries unbound vault state"
     if getattr(state, "oracle", None) is not None:
         return "projected pre_state_snapshot carries unbound oracle state"
+    # perps mirrors vault/oracle: the spot state root omits perps, so an unbound
+    # projected perps would not be pinned by pre_state_root — fail closed.
+    if getattr(state, "perps", None) is not None:
+        return "projected pre_state_snapshot carries unbound perps state"
     support = derive_batch_state_support(intents, pools=state.pools)
     balance_keys = set(support.balance_keys)
     for key, amount in state.balances.get_all_balances().items():
