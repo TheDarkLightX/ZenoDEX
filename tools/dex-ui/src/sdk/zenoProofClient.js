@@ -106,6 +106,16 @@ function requireRoot(value, name) {
   return value;
 }
 
+function normalizeOptionalRootPinset(value, name) {
+  if (value === undefined) {
+    return null;
+  }
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${name} must be a non-empty array when configured`);
+  }
+  return value.map((item, index) => requireRoot(item, `${name}[${index}]`));
+}
+
 function requireNonnegativeInt(value, name) {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(`${name} must be a non-negative safe integer`);
@@ -401,21 +411,28 @@ function requireRangeSummary(summary) {
 // the client REFUSES any header whose identity is not in it. No pinset configured
 // => unpinned (backward compatible), reported as verifier_identity_pinned=false.
 function enforceVerifierIdentityPin(header, options) {
+  // REVIEW [B -> A-]: a malformed configured pinset used to silently behave as
+  // "no pinset" (for example a string or []), which is a dangerous fail-open
+  // mode for verifier-identity pinning. Undefined remains backward-compatible
+  // unpinned mode; any present pinset must be a non-empty canonical-root list.
   // Reports the two identity dimensions SEPARATELY so the caller-visible boolean
   // cannot overstate: verifier_identity_pinned is true ONLY when BOTH
   // module_versions AND config are pinned-and-passed (full identity); a
   // single-dimension pin is reported via its own granular flag, not the full one.
   let moduleVersionsPinned = false;
   let configPinned = false;
-  const mvPins = options.pinnedModuleVersionsDigests;
-  if (Array.isArray(mvPins) && mvPins.length > 0) {
+  const mvPins = normalizeOptionalRootPinset(
+    options.pinnedModuleVersionsDigests,
+    'pinnedModuleVersionsDigests',
+  );
+  if (mvPins !== null) {
     if (!mvPins.includes(header.module_versions_digest)) {
       throw new Error('header module_versions_digest is not in the client pinset (untrusted verifier identity)');
     }
     moduleVersionsPinned = true;
   }
-  const cfgPins = options.pinnedConfigDigests;
-  if (Array.isArray(cfgPins) && cfgPins.length > 0) {
+  const cfgPins = normalizeOptionalRootPinset(options.pinnedConfigDigests, 'pinnedConfigDigests');
+  if (cfgPins !== null) {
     if (!cfgPins.includes(header.config_digest)) {
       throw new Error('header config_digest is not in the client pinset (untrusted verifier identity)');
     }
@@ -652,7 +669,10 @@ export async function advanceWalletSyncStateV0({
     return { ok: false, status: 'rejected', gaps: verification.gaps };
   }
   const checkpoint = bundle.target_checkpoint;
-  if (currentState) {
+  // REVIEW [B -> A-]: falsy malformed currentState values (`0`, "", false)
+  // used to bypass validation and advance from "no prior state". Treat only
+  // null/undefined as absent; every present value must validate as a sync state.
+  if (currentState !== null && currentState !== undefined) {
     try {
       await validateWalletSyncStateInternal(currentState);
     } catch (err) {
@@ -678,16 +698,28 @@ export async function advanceWalletSyncStateV0({
       return { ok: false, status: 'rejected', gaps: ['wallet sync same-height drift rejected'] };
     }
   }
-  const body = {
-    schema: BROWSER_WALLET_SYNC_STATE_SCHEMA_V0,
-    surface: requireNonEmptyString(surface, 'surface'),
-    chain_id: checkpoint.chain_id,
-    height: checkpoint.height,
-    app_hash: checkpoint.app_hash,
-    checkpoint_hash: verification.checkpoint_hash,
-    bundle_hash: bundle.bundle_hash,
-    updated_at_ms: requireNonnegativeInt(Math.trunc(updatedAtMs), 'updated_at_ms'),
-  };
+  let body;
+  try {
+    body = {
+      schema: BROWSER_WALLET_SYNC_STATE_SCHEMA_V0,
+      surface: requireNonEmptyString(surface, 'surface'),
+      chain_id: checkpoint.chain_id,
+      height: checkpoint.height,
+      app_hash: checkpoint.app_hash,
+      checkpoint_hash: verification.checkpoint_hash,
+      bundle_hash: bundle.bundle_hash,
+      // REVIEW [B -> A-]: Math.trunc coerced strings, booleans, and fractional
+      // timestamps into accepted integers. The wallet state hash should bind the
+      // caller's exact typed timestamp, so reject non-integer input instead.
+      updated_at_ms: requireNonnegativeInt(updatedAtMs, 'updated_at_ms'),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 'rejected',
+      gaps: [err?.message || 'wallet sync output state rejected'],
+    };
+  }
   return {
     ok: true,
     status: 'accepted',

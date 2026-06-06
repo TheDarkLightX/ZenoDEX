@@ -189,6 +189,31 @@ test('WS5-A: a config_digest not in the pinset is REFUSED', async () => {
   assert.ok(report.gaps.some((g) => g.includes('config_digest is not in the client pinset')));
 });
 
+test('WS5-A: malformed configured pinsets reject instead of becoming unpinned', async () => {
+  // REVIEW [B -> A-]: a present-but-malformed pinset used to silently mean
+  // "no pinset", so callers could believe they pinned verifier identity while
+  // the SDK reported/accepted unpinned mode. Configured pinsets now fail closed.
+  const bundle = await makeBundle();
+
+  const stringPinset = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedModuleVersionsDigests: root('d'),
+  });
+  assert.equal(stringPinset.ok, false);
+  assert.match(stringPinset.gaps.join('\n'), /pinnedModuleVersionsDigests must be a non-empty array/);
+
+  const emptyPinset = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedConfigDigests: [],
+  });
+  assert.equal(emptyPinset.ok, false);
+  assert.match(emptyPinset.gaps.join('\n'), /pinnedConfigDigests must be a non-empty array/);
+
+  const badRoot = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedModuleVersionsDigests: ['0xBAD'],
+  });
+  assert.equal(badRoot.ok, false);
+  assert.match(badRoot.gaps.join('\n'), /pinnedModuleVersionsDigests\[0\] must be a canonical 32-byte root/);
+});
+
 test('WS5-A: an allowlist of multiple trusted versions accepts a validly-upgraded identity', async () => {
   const bundle = await makeBundle();
   // pinned-OR-validly-upgraded: the client allowlists the prior + the new reviewed version.
@@ -318,6 +343,39 @@ test('wallet sync rejects tampered current state hash before using height', asyn
 
   assert.equal(advanced.ok, false);
   assert.deepEqual(advanced.gaps, ['wallet sync state hash mismatch']);
+});
+
+test('wallet sync validates present currentState even when falsy', async () => {
+  // REVIEW [B -> A-]: `if (currentState)` let 0/false/"" bypass persisted-state
+  // validation and advance as if there were no prior wallet state. Only
+  // null/undefined are absent now.
+  const bundle = await makeBundle({ height: 2 });
+  for (const malformed of [0, false, '']) {
+    const advanced = await advanceWalletSyncStateV0({
+      currentState: malformed,
+      bundle,
+      surface: 'zusd',
+      updatedAtMs: 1_778_730_001_000,
+    });
+    assert.equal(advanced.ok, false);
+    assert.deepEqual(advanced.gaps, ['wallet sync state must be an object']);
+  }
+});
+
+test('wallet sync rejects coerced updatedAtMs values', async () => {
+  // REVIEW [B -> A-]: Math.trunc accepted strings, booleans, and fractions,
+  // changing caller input before hashing it into wallet state. The SDK now binds
+  // only an already-valid safe integer timestamp.
+  const bundle = await makeBundle({ height: 2 });
+  for (const updatedAtMs of ['1778730001000', true, 1_778_730_001_000.5]) {
+    const advanced = await advanceWalletSyncStateV0({
+      bundle,
+      surface: 'zusd',
+      updatedAtMs,
+    });
+    assert.equal(advanced.ok, false);
+    assert.deepEqual(advanced.gaps, ['updated_at_ms must be a non-negative safe integer']);
+  }
 });
 
 test('wallet sync advances monotonically and rejects rollback', async () => {
