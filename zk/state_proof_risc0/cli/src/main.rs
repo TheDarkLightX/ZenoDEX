@@ -72,7 +72,7 @@ fn handle_execute_perps_np(req: &Value) {
     if req.get("schema_version").and_then(Value::as_i64) != Some(1) {
         die("unexpected schema_version (expected v1)");
     }
-    reject_execute_post_hash_claims(req);
+    reject_execute_verifier_claims(req);
     let state_hash_hex = require_str(req.get("state_hash"), "state_hash");
     let state_hash = parse_hex32(&state_hash_hex).unwrap_or_else(|e| die(&e));
     let context = req.get("context").cloned().unwrap_or(Value::Null);
@@ -135,13 +135,14 @@ fn handle_execute_perps_np(req: &Value) {
     }
 }
 
-fn reject_execute_post_hash_claims(req: &Value) {
-    // REVIEW [A- -> A]: the first hardening rejected the common post-hash
-    // fields but still ignored a whole `tau_state` object, request proof fields,
-    // and context-level post-hash claims. Host-execute has no receipt and no
-    // enforced post hash, so all verifier-shaped post/finality inputs are
-    // rejected at the schema boundary instead of being silently ignored.
+fn reject_execute_verifier_claims(req: &Value) {
+    // REVIEW [A- -> A]: repeated review passes found this no-receipt helper
+    // accepting verifier-shaped fields it never enforced (`post_app_hash`,
+    // `proof`, `receipt`, and nested context variants). Host-execute is only a
+    // differential oracle, so finality/proof claims are rejected wherever this
+    // command would otherwise ignore them.
     if req.get("expected_post_app_hash").is_some()
+        || req.get("post_app_hash").is_some()
         || req.get("tau_state").is_some()
         || req.get("proof").is_some()
         || req.get("receipt").is_some()
@@ -157,6 +158,8 @@ fn reject_execute_post_hash_claims(req: &Value) {
             .get("context")
             .and_then(|v| v.get("tau_state"))
             .is_some()
+        || req.get("context").and_then(|v| v.get("proof")).is_some()
+        || req.get("context").and_then(|v| v.get("receipt")).is_some()
     {
         die("tau_state_transition_execute does not enforce expected_post_app_hash; compare meta.post_app_hash externally");
     }

@@ -104,11 +104,14 @@ def test_execute_schema_rejects_caller_post_hash_claim(risc0_cli: Path) -> None:
     ("field", "patch"),
     [
         ("tau_state", {"tau_state": {}}),
+        ("post_app_hash", {"post_app_hash": "22" * 32}),
         ("proof", {"proof": {"receipt": "ignored"}}),
         ("receipt", {"receipt": {"seal": "ignored"}}),
         ("context.expected_post_app_hash", {"context": {"expected_post_app_hash": "22" * 32}}),
         ("context.post_app_hash", {"context": {"post_app_hash": "22" * 32}}),
         ("context.tau_state", {"context": {"tau_state": {"app_hash": "22" * 32}}}),
+        ("context.proof", {"context": {"proof": {"receipt": "ignored"}}}),
+        ("context.receipt", {"context": {"receipt": {"seal": "ignored"}}}),
     ],
 )
 def test_execute_schema_rejects_ignored_verifier_shaped_fields(
