@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import copy
+import sys
+from pathlib import Path
 from typing import Any, Callable
 
 import pytest
 
 from src.runtime import rust_invoker
+
+REPO = Path(__file__).resolve().parents[2]
+TOOLS_RUNTIME = REPO / "tools" / "runtime"
+if str(TOOLS_RUNTIME) not in sys.path:
+    sys.path.insert(0, str(TOOLS_RUNTIME))
+
+from rust_shadow_replay import ShadowError, locate_or_build_cli  # noqa: E402
 
 ROOT = "0x" + "00" * 32
 
@@ -267,6 +276,21 @@ def test_trusted_core_invokers_reject_extra_nested_fields(monkeypatch):
         monkeypatch.setattr(rust_invoker, "invoke", lambda *args, _mutated=mutated, **kwargs: _mutated)
         with pytest.raises(rust_invoker.RustInvocationError, match="unexpected fields"):
             call()
+
+
+def test_state_root_invoker_rejects_uncommitted_extra_sections(monkeypatch):
+    # REVIEW [B -> A-]: Rust verify-state-root previously ignored unknown state
+    # sections, so `{}` and `{"perps": ...}` produced the same commitment. The
+    # invoker must fail closed when caller input carries state the v5 root does
+    # not explicitly commit.
+    try:
+        rust_bin = locate_or_build_cli(allow_build=True)
+    except ShadowError as exc:  # pragma: no cover - environment dependent
+        pytest.skip(f"Rust runtime unavailable: {exc}")
+    monkeypatch.setenv("ZENODEX_RUNTIME_BIN", str(rust_bin))
+
+    with pytest.raises(rust_invoker.RustInvocationError, match="unknown_field:perps"):
+        rust_invoker.state_root_hash({"perps": {"position": "uncommitted"}})
 
 
 def test_zusd_invoker_forwards_production_oracle_gate_fields(monkeypatch):

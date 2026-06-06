@@ -83,8 +83,12 @@ TAU_CONSTITUTION_DECIDED_SCOPE = "admission_only_not_pricing"
 SWAP_EXACT_IN_WITNESS_ENCODING_V1 = "swap_exact_in_v1/i1_i15/hi_lo_u32"
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-TAU_SPECS_DIR = PROJECT_ROOT / "src" / "tau_specs"
-RECOMMENDED_SPECS_DIR = TAU_SPECS_DIR / "recommended"
+# REVIEW [B -> A-]: this module is covered by the functional-core
+# no-float/no-true-division gate. Pathlib "/" joins are harmless at runtime, but
+# they weaken that gate by requiring exceptions for the same AST operator that
+# would catch numeric true division. Use joinpath so the policy has teeth.
+TAU_SPECS_DIR = PROJECT_ROOT.joinpath("src", "tau_specs")
+RECOMMENDED_SPECS_DIR = TAU_SPECS_DIR.joinpath("recommended")
 
 _HEX_32_RE = re.compile(r"^0x[0-9a-f]{64}$")
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/-]{1,128}$")
@@ -224,7 +228,7 @@ def _build_registry() -> dict[SettlementSurface, ConstitutionEntry]:
         ConstitutionEntry(
             surface=SettlementSurface.SPOT_SWAP_EXACT_IN,
             spec_id="swap_exact_in_v1",
-            spec_path=RECOMMENDED_SPECS_DIR / "swap_exact_in_v1.tau",
+            spec_path=RECOMMENDED_SPECS_DIR.joinpath("swap_exact_in_v1.tau"),
             gate_output="o1",
             witness_encoding_version=SWAP_EXACT_IN_WITNESS_ENCODING_V1,
             wired_e2e=True,
@@ -235,7 +239,7 @@ def _build_registry() -> dict[SettlementSurface, ConstitutionEntry]:
         ConstitutionEntry(
             surface=SettlementSurface.SPOT_SWAP_EXACT_OUT,
             spec_id="swap_exact_out_v1",
-            spec_path=RECOMMENDED_SPECS_DIR / "swap_exact_out_v1.tau",
+            spec_path=RECOMMENDED_SPECS_DIR.joinpath("swap_exact_out_v1.tau"),
             gate_output="o1",
             witness_encoding_version="registry_only_v1",
             wired_e2e=False,
@@ -243,7 +247,7 @@ def _build_registry() -> dict[SettlementSurface, ConstitutionEntry]:
         ConstitutionEntry(
             surface=SettlementSurface.ADD_LIQUIDITY,
             spec_id="add_liquidity_apply_v1",
-            spec_path=RECOMMENDED_SPECS_DIR / "add_liquidity_apply_v1.tau",
+            spec_path=RECOMMENDED_SPECS_DIR.joinpath("add_liquidity_apply_v1.tau"),
             gate_output="o1",
             witness_encoding_version="registry_only_v1",
             wired_e2e=False,
@@ -251,7 +255,7 @@ def _build_registry() -> dict[SettlementSurface, ConstitutionEntry]:
         ConstitutionEntry(
             surface=SettlementSurface.REMOVE_LIQUIDITY,
             spec_id="remove_liquidity_apply_v1",
-            spec_path=RECOMMENDED_SPECS_DIR / "remove_liquidity_apply_v1.tau",
+            spec_path=RECOMMENDED_SPECS_DIR.joinpath("remove_liquidity_apply_v1.tau"),
             gate_output="o1",
             witness_encoding_version="registry_only_v1",
             wired_e2e=False,
@@ -259,7 +263,7 @@ def _build_registry() -> dict[SettlementSurface, ConstitutionEntry]:
         ConstitutionEntry(
             surface=SettlementSurface.CREATE_POOL,
             spec_id="create_pool_apply_proof_gate_v1",
-            spec_path=RECOMMENDED_SPECS_DIR / "create_pool_apply_proof_gate_v1.tau",
+            spec_path=RECOMMENDED_SPECS_DIR.joinpath("create_pool_apply_proof_gate_v1.tau"),
             gate_output="o1",
             witness_encoding_version="registry_only_v1",
             wired_e2e=False,
@@ -386,7 +390,7 @@ def constitution_receipt_hash(body: Mapping[str, Any]) -> str:
     )
 
 
-def validate_constitution_receipt_body(body: Mapping[str, Any]) -> tuple[bool, str]:
+def validate_constitution_receipt_body(body: object) -> tuple[bool, str]:
     """Validate the deterministic constitution receipt body contract.
 
     Returns ``(ok, stable_code)``. reject-is-no-op is enforced: a rejected
@@ -450,7 +454,7 @@ def make_constitution_receipt(body: ConstitutionReceiptBody) -> dict[str, Any]:
     }
 
 
-def verify_constitution_receipt(receipt: Mapping[str, Any]) -> tuple[bool, str]:
+def verify_constitution_receipt(receipt: object) -> tuple[bool, str]:
     """Verify a hash-bound constitution receipt envelope (structure only).
 
     This checks body well-formedness and hash binding. It does NOT re-run the

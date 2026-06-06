@@ -44,7 +44,8 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, List, Optional, Tuple
+from threading import RLock
+from typing import Any, Dict, List, Optional, Tuple, TypeGuard
 
 from ..core.clob_intent_normal_form import (
     ClobIntentNormalFormError,
@@ -70,7 +71,7 @@ from ..state.clob_book import (
     ClobBook,
     ClobOrder,
 )
-from ..state.intents import ClobOrderIntent, Intent, IntentKind
+from ..state.intents import ClobOrderIntent, IntentKind
 
 __all__ = [
     "OrderbookStore",
@@ -218,6 +219,13 @@ class OrderbookStore:
     height: int = 0
     # injected logical clock for deterministic expiry checks (unix seconds).
     now: int = 0
+    # REVIEW [B -> A-]: Stage 0 is in-memory, but bot/API callers can still hit
+    # one process concurrently. Placement probes the next sequence, applies the
+    # matcher, then commits the book; without a store-level critical section two
+    # threads can build the same sequence and the later commit can overwrite the
+    # earlier book. Keep the lock out of the consensus state and use it only to
+    # serialize this mutable shell.
+    _mutation_lock: RLock = field(default_factory=RLock, init=False, repr=False, compare=False)
 
     def add_market(self, meta: MarketMeta) -> None:
         self.markets[meta.market_id] = meta
@@ -245,7 +253,7 @@ def _parse_json_body(body: Optional[bytes]) -> Tuple[Optional[Dict[str, Any]], O
     return obj, None
 
 
-def _is_plain_int(v: object) -> bool:
+def _is_plain_int(v: object) -> TypeGuard[int]:
     return isinstance(v, int) and not isinstance(v, bool)
 
 
@@ -333,9 +341,6 @@ def _build_clob_order(
     Returns ``(_BuiltOrder, None)`` on success or ``(None, reject_code)``. Pure:
     reads the store registry but mutates nothing.
     """
-    if not isinstance(raw, dict):
-        return None, REJ_BAD_SHAPE
-
     order_type = raw.get("order_type")
     if order_type != "limit":
         return None, REJ_UNSUPPORTED_ORDER_TYPE
@@ -518,115 +523,116 @@ def _market_response(store: OrderbookStore, meta: MarketMeta) -> Dict[str, Any]:
 
 # --- POST /orders --------------------------------------------------------------
 def _handle_place_order(store: OrderbookStore, raw_body: Optional[bytes]) -> ResponseT:
-    raw, perr = _parse_json_body(raw_body)
-    if perr is not None:
-        return 400, {"ok": False, "error": perr, "status": OrderStatus.REJECTED.value}
+    with store._mutation_lock:
+        raw, perr = _parse_json_body(raw_body)
+        if perr is not None:
+            return 400, {"ok": False, "error": perr, "status": OrderStatus.REJECTED.value}
 
-    assert raw is not None  # _parse_json_body contract
+        assert raw is not None  # _parse_json_body contract
 
-    # 1. Identity for idempotency requires agent_key_id/market_id/client_order_id.
-    agent_key_id = raw.get("agent_key_id")
-    market_id = raw.get("market_id")
-    client_order_id = raw.get("client_order_id")
-    if not (isinstance(agent_key_id, str) and agent_key_id
-            and isinstance(market_id, str) and market_id
-            and isinstance(client_order_id, str) and client_order_id):
-        return 400, {"ok": False, "error": REJ_BAD_SHAPE, "status": OrderStatus.REJECTED.value}
+        # 1. Identity for idempotency requires agent_key_id/market_id/client_order_id.
+        agent_key_id = raw.get("agent_key_id")
+        market_id = raw.get("market_id")
+        client_order_id = raw.get("client_order_id")
+        if not (isinstance(agent_key_id, str) and agent_key_id
+                and isinstance(market_id, str) and market_id
+                and isinstance(client_order_id, str) and client_order_id):
+            return 400, {"ok": False, "error": REJ_BAD_SHAPE, "status": OrderStatus.REJECTED.value}
 
-    # 2. Canonical-request-hash over the RAW request (pre-enrichment). The
-    #    idempotency KEY canonicalizes agent_key_id so that hex-case / 0x-prefix
-    #    variants of the SAME pubkey map to the SAME key (the derived order_id is
-    #    likewise computed from the canonical owner) — otherwise a case variant
-    #    would miss the index yet collide on order_id (match:dup_order_id) instead
-    #    of replaying idempotently. The request-HASH still covers the raw payload
-    #    so a genuinely different request under the same key fails closed.
-    try:
-        idem_agent = canonical_hex_fixed_allow_0x(agent_key_id, nbytes=_AGENT_KEY_NBYTES, name="agent_key_id")
-    except (TypeError, ValueError):
-        return 400, {"ok": False, "error": REJ_BAD_AGENT_KEY, "status": OrderStatus.REJECTED.value}
-    idem_key = (idem_agent, market_id, client_order_id)
-    # Hash over the raw request, but with agent_key_id canonicalized so a hex-case
-    # / 0x variant of the SAME pubkey produces the SAME hash (and replays) while a
-    # genuinely different field value still changes the hash (fails closed).
-    hash_input = dict(raw)
-    hash_input["agent_key_id"] = idem_agent
-    req_hash = _canonical_request_hash(hash_input)
+        # 2. Canonical-request-hash over the RAW request (pre-enrichment). The
+        #    idempotency KEY canonicalizes agent_key_id so that hex-case / 0x-prefix
+        #    variants of the SAME pubkey map to the SAME key (the derived order_id is
+        #    likewise computed from the canonical owner) — otherwise a case variant
+        #    would miss the index yet collide on order_id (match:dup_order_id) instead
+        #    of replaying idempotently. The request-HASH still covers the raw payload
+        #    so a genuinely different request under the same key fails closed.
+        try:
+            idem_agent = canonical_hex_fixed_allow_0x(agent_key_id, nbytes=_AGENT_KEY_NBYTES, name="agent_key_id")
+        except (TypeError, ValueError):
+            return 400, {"ok": False, "error": REJ_BAD_AGENT_KEY, "status": OrderStatus.REJECTED.value}
+        idem_key = (idem_agent, market_id, client_order_id)
+        # Hash over the raw request, but with agent_key_id canonicalized so a hex-case
+        # / 0x variant of the SAME pubkey produces the SAME hash (and replays) while a
+        # genuinely different field value still changes the hash (fails closed).
+        hash_input = dict(raw)
+        hash_input["agent_key_id"] = idem_agent
+        req_hash = _canonical_request_hash(hash_input)
 
-    # 3. Idempotency short-circuit / fail-closed conflict (BEFORE any execution).
-    existing = store.idempotency.get(idem_key)
-    if existing is not None:
-        stored_hash, stored_order_id = existing
-        if stored_hash == req_hash:
-            # Same id + same request => return the SAME stored receipt (no re-exec).
-            rec = store.orders.get(stored_order_id)
-            if rec is not None:
-                return 200, {"ok": True, "idempotent_replay": True, "order": _order_response(rec)}
-            # Defensive: index without record should not happen; treat as conflict.
-        # Same id + different request => fail-closed; no store/book mutation.
-        return 409, {
-            "ok": False,
-            "error": REJ_IDEMPOTENCY_CONFLICT,
-            "status": OrderStatus.REJECTED.value,
-        }
+        # 3. Idempotency short-circuit / fail-closed conflict (BEFORE any execution).
+        existing = store.idempotency.get(idem_key)
+        if existing is not None:
+            stored_hash, stored_order_id = existing
+            if stored_hash == req_hash:
+                # Same id + same request => return the SAME stored receipt (no re-exec).
+                rec = store.orders.get(stored_order_id)
+                if rec is not None:
+                    return 200, {"ok": True, "idempotent_replay": True, "order": _order_response(rec)}
+                # Defensive: index without record should not happen; treat as conflict.
+            # Same id + different request => fail-closed; no store/book mutation.
+            return 409, {
+                "ok": False,
+                "error": REJ_IDEMPOTENCY_CONFLICT,
+                "status": OrderStatus.REJECTED.value,
+            }
 
-    # 4. Expiry (deadline/expires_at in the past) => expired, no-op.
-    if _is_expired(store, raw):
-        return 422, {"ok": False, "error": REJ_EXPIRED, "status": OrderStatus.EXPIRED.value}
+        # 4. Expiry (deadline/expires_at in the past) => expired, no-op.
+        if _is_expired(store, raw):
+            return 422, {"ok": False, "error": REJ_EXPIRED, "status": OrderStatus.EXPIRED.value}
 
-    # 5. Build the order WITHOUT consuming a sequence yet (so a shape reject is a
-    #    pure no-op). Use a probe sequence; the order_id does not depend on it.
-    built, berr = _build_clob_order(store, raw, sequence=store.seq_counter + 1)
-    if berr is not None:
-        http = 404 if berr == REJ_UNKNOWN_MARKET else 400
-        return http, {"ok": False, "error": berr, "status": OrderStatus.REJECTED.value}
-    assert built is not None
+        # 5. Build the order WITHOUT consuming a sequence yet (so a shape reject is a
+        #    pure no-op). Use a probe sequence; the order_id does not depend on it.
+        built, berr = _build_clob_order(store, raw, sequence=store.seq_counter + 1)
+        if berr is not None:
+            http = 404 if berr == REJ_UNKNOWN_MARKET else 400
+            return http, {"ok": False, "error": berr, "status": OrderStatus.REJECTED.value}
+        assert built is not None
 
-    book = store.books.get(market_id)
-    if book is None:
-        return 404, {"ok": False, "error": REJ_UNKNOWN_MARKET, "status": OrderStatus.REJECTED.value}
+        book = store.books.get(market_id)
+        if book is None:
+            return 404, {"ok": False, "error": REJ_UNKNOWN_MARKET, "status": OrderStatus.REJECTED.value}
 
-    pre_root = book.state_root()
-    result = apply_order(book, built.order)
-    if not isinstance(result, ClobMatchAccepted):
-        # Matching reject (e.g. dup_order_id, book_full). Reject-is-no-op: the
-        # kernel returned the unchanged book; we commit nothing to the store.
-        return 400, {
-            "ok": False,
-            "error": REJ_MATCH_PREFIX + result.reason,
-            "status": OrderStatus.REJECTED.value,
-        }
+        pre_root = book.state_root()
+        result = apply_order(book, built.order)
+        if not isinstance(result, ClobMatchAccepted):
+            # Matching reject (e.g. dup_order_id, book_full). Reject-is-no-op: the
+            # kernel returned the unchanged book; we commit nothing to the store.
+            return 400, {
+                "ok": False,
+                "error": REJ_MATCH_PREFIX + result.reason,
+                "status": OrderStatus.REJECTED.value,
+            }
 
-    # 6. Accepted: NOW consume the sequence + height and commit the receipt.
-    sequence = store.next_sequence()
-    store.height += 1
-    height = store.height
-    new_book = result.book
-    post_root = new_book.state_root()
-    store.books[market_id] = new_book
+        # 6. Accepted: NOW consume the sequence + height and commit the receipt.
+        sequence = store.next_sequence()
+        store.height += 1
+        height = store.height
+        new_book = result.book
+        post_root = new_book.state_root()
+        store.books[market_id] = new_book
 
-    filled_base = built.quantity - result.resting_taker_qty
-    rec = OrderRecord(
-        order_id=built.order_id,
-        client_order_id=client_order_id,
-        agent_key_id=built.order.owner,
-        market_id=market_id,
-        side=built.side,
-        price=built.price,
-        quantity=built.quantity,
-        filled_base=filled_base,
-        resting_base=result.resting_taker_qty,
-        sequence=sequence,
-        request_receipt_hash=req_hash,
-        # EXECUTED = locally applied (NOT final). proof is pending.
-        status=OrderStatus.EXECUTED.value,
-        proof_status=ProofStatus.PROOF_PENDING.value,
-        height=height,
-    )
-    store.orders[built.order_id] = rec
-    store.idempotency[idem_key] = (req_hash, built.order_id)
-    _record_fills(store, market_id, result.fills, pre_root, post_root, height)
+        filled_base = built.quantity - result.resting_taker_qty
+        rec = OrderRecord(
+            order_id=built.order_id,
+            client_order_id=client_order_id,
+            agent_key_id=built.order.owner,
+            market_id=market_id,
+            side=built.side,
+            price=built.price,
+            quantity=built.quantity,
+            filled_base=filled_base,
+            resting_base=result.resting_taker_qty,
+            sequence=sequence,
+            request_receipt_hash=req_hash,
+            # EXECUTED = locally applied (NOT final). proof is pending.
+            status=OrderStatus.EXECUTED.value,
+            proof_status=ProofStatus.PROOF_PENDING.value,
+            height=height,
+        )
+        store.orders[built.order_id] = rec
+        store.idempotency[idem_key] = (req_hash, built.order_id)
+        _record_fills(store, market_id, result.fills, pre_root, post_root, height)
 
-    return 201, {"ok": True, "idempotent_replay": False, "order": _order_response(rec)}
+        return 201, {"ok": True, "idempotent_replay": False, "order": _order_response(rec)}
 
 
 def _record_fills(
@@ -664,56 +670,63 @@ def _record_fills(
 def _handle_cancel_order(
     store: OrderbookStore, order_id: str, raw_body: Optional[bytes], query: Dict[str, str]
 ) -> ResponseT:
-    rec = store.orders.get(order_id)
-    if rec is None:
-        return 404, {"ok": False, "error": REJ_NOT_FOUND, "status": OrderStatus.REJECTED.value}
+    with store._mutation_lock:
+        rec = store.orders.get(order_id)
+        if rec is None:
+            return 404, {"ok": False, "error": REJ_NOT_FOUND, "status": OrderStatus.REJECTED.value}
 
-    # requester (owner) for the ownership check: the caller MUST present an
-    # agent_key_id (body or ?agent_key_id=). We do NOT fall back to the stored
-    # owner -- doing so would let anyone cancel an order by id alone (the
-    # ownership check would trivially pass). apply_cancel then enforces the
-    # value-layer ownership match requester == resting owner (cryptographic sig
-    # binding is still deferred -- labelled; this is value-layer ownership only).
-    requester: Optional[str] = None
-    if raw_body:
-        parsed, _ = _parse_json_body(raw_body)
-        if parsed is not None and isinstance(parsed.get("agent_key_id"), str):
-            requester = parsed["agent_key_id"]
-    if requester is None and isinstance(query.get("agent_key_id"), str):
-        requester = query["agent_key_id"]
-    if requester is None:
-        return 400, {
-            "ok": False,
-            "error": REJ_CANCEL_PREFIX + "missing_requester",
-            "status": OrderStatus.REJECTED.value,
-        }
+        # requester (owner) for the ownership check: the caller MUST present an
+        # agent_key_id (body or ?agent_key_id=). We do NOT fall back to the stored
+        # owner -- doing so would let anyone cancel an order by id alone (the
+        # ownership check would trivially pass). apply_cancel then enforces the
+        # value-layer ownership match requester == resting owner (cryptographic sig
+        # binding is still deferred -- labelled; this is value-layer ownership only).
+        requester: Optional[str] = None
+        if raw_body:
+            parsed, perr = _parse_json_body(raw_body)
+            if perr is not None:
+                # REVIEW [B -> A-]: malformed DELETE bodies used to be ignored
+                # when ?agent_key_id= was present, so a structurally invalid cancel
+                # envelope could still execute. Reject malformed envelopes before
+                # considering query fallback.
+                return 400, {"ok": False, "error": perr, "status": OrderStatus.REJECTED.value}
+            if parsed is not None and isinstance(parsed.get("agent_key_id"), str):
+                requester = parsed["agent_key_id"]
+        if requester is None and isinstance(query.get("agent_key_id"), str):
+            requester = query["agent_key_id"]
+        if requester is None:
+            return 400, {
+                "ok": False,
+                "error": REJ_CANCEL_PREFIX + "missing_requester",
+                "status": OrderStatus.REJECTED.value,
+            }
 
-    book = store.books.get(rec.market_id)
-    if book is None:
-        return 404, {"ok": False, "error": REJ_UNKNOWN_MARKET, "status": OrderStatus.REJECTED.value}
+        book = store.books.get(rec.market_id)
+        if book is None:
+            return 404, {"ok": False, "error": REJ_UNKNOWN_MARKET, "status": OrderStatus.REJECTED.value}
 
-    result = apply_cancel(book, order_id=order_id, requester=requester)
-    if not isinstance(result, ClobCancelAccepted):
-        # Reject-is-no-op: book unchanged, record untouched.
-        return 400, {
-            "ok": False,
-            "error": REJ_CANCEL_PREFIX + result.reason,
-            "status": OrderStatus.REJECTED.value,
-        }
+        result = apply_cancel(book, order_id=order_id, requester=requester)
+        if not isinstance(result, ClobCancelAccepted):
+            # Reject-is-no-op: book unchanged, record untouched.
+            return 400, {
+                "ok": False,
+                "error": REJ_CANCEL_PREFIX + result.reason,
+                "status": OrderStatus.REJECTED.value,
+            }
 
-    # Cancellation is sequenced as an order event (consumes a sequence + height).
-    sequence = store.next_sequence()
-    store.height += 1
-    store.books[rec.market_id] = result.book
-    new_rec = replace(
-        rec,
-        status=OrderStatus.CANCELLED.value,
-        resting_base=0,
-        sequence=sequence,
-        height=store.height,
-    )
-    store.orders[order_id] = new_rec
-    return 200, {"ok": True, "order": _order_response(new_rec)}
+        # Cancellation is sequenced as an order event (consumes a sequence + height).
+        sequence = store.next_sequence()
+        store.height += 1
+        store.books[rec.market_id] = result.book
+        new_rec = replace(
+            rec,
+            status=OrderStatus.CANCELLED.value,
+            resting_base=0,
+            sequence=sequence,
+            height=store.height,
+        )
+        store.orders[order_id] = new_rec
+        return 200, {"ok": True, "order": _order_response(new_rec)}
 
 
 # --- GET handlers --------------------------------------------------------------

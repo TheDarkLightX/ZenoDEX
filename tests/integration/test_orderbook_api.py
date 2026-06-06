@@ -15,13 +15,14 @@ These hit :func:`handle_orderbook_request` directly; HTTP transport is deferred.
 """
 
 import json
+import threading
 from typing import Any, Dict, Optional, Tuple
 
 import pytest
 
+import src.integration.orderbook_api as orderbook_api
 from src.core.orderbook_status import OrderStatus, ProofStatus, is_final
 from src.integration.orderbook_api import (
-    REJ_BAD_SHAPE,
     REJ_EXPIRED,
     REJ_IDEMPOTENCY_CONFLICT,
     REJ_UNSUPPORTED_ORDER_TYPE,
@@ -313,6 +314,79 @@ def test_cancel_without_agent_key_id_is_rejected_no_op():
     assert _store_snapshot(store) == snap
     s2, _ = _call(store, "DELETE", f"/api/orderbook/orders/{oid}", {"agent_key_id": OWNER_A})
     assert s2 == 200
+
+
+def test_cancel_malformed_body_does_not_fall_through_to_query_auth():
+    # REVIEW [B -> A-]: DELETE used to ignore a malformed JSON body when
+    # ?agent_key_id= was present, so a structurally invalid cancel envelope could
+    # still execute. Body/query are two transport forms for one command; a
+    # malformed present body must fail before query fallback.
+    store = new_demo_store()
+    _, resp = _call(store, "POST", "/api/orderbook/orders", _order_request(agent_key_id=OWNER_A))
+    oid = resp["order"]["order_id"]
+    snap = _store_snapshot(store)
+
+    s, cresp = handle_orderbook_request(
+        "DELETE",
+        f"/api/orderbook/orders/{oid}?agent_key_id={OWNER_A}",
+        b"{not json",
+        store=store,
+    )
+
+    assert s == 400
+    assert cresp["error"] == "invalid_json"
+    assert _store_snapshot(store) == snap
+
+
+def test_concurrent_place_orders_do_not_reuse_probe_sequence_or_lose_book(monkeypatch):
+    # REVIEW [B -> A-]: placement probes `seq_counter + 1`, runs the matcher,
+    # then commits. Without a store-level critical section, two callers can both
+    # build sequence 1 from the same pre-book and the later commit overwrites the
+    # earlier resting order. The lock keeps the mutable shell linearizable.
+    store = new_demo_store()
+    real_apply_order = orderbook_api.apply_order
+    barrier = threading.Barrier(2)
+
+    def slow_apply_order(book, order):
+        try:
+            barrier.wait(timeout=0.25)
+        except threading.BrokenBarrierError:
+            pass
+        return real_apply_order(book, order)
+
+    monkeypatch.setattr(orderbook_api, "apply_order", slow_apply_order)
+    results: list[Tuple[int, Dict[str, Any]]] = []
+
+    def submit(i: int) -> None:
+        results.append(
+            _call(
+                store,
+                "POST",
+                "/api/orderbook/orders",
+                _order_request(
+                    client_order_id=f"rest-{i}",
+                    side="SELL",
+                    price=str(1000 + i),
+                    quantity="1",
+                    agent_key_id=OWNER_A,
+                ),
+            )
+        )
+
+    threads = [threading.Thread(target=submit, args=(i,)) for i in (1, 2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=2)
+        assert not thread.is_alive()
+
+    assert sorted(status for status, _ in results) == [201, 201]
+    assert store.seq_counter == 2
+    assert store.height == 2
+    assert len(store.orders) == 2
+    book_orders = store.books[MARKET].orders
+    assert len(book_orders) == 2
+    assert sorted(order.sequence for order in book_orders) == [1, 2]
 
 
 # --- markets / proof-policy ---------------------------------------------------

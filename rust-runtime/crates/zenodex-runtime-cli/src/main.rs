@@ -2574,6 +2574,40 @@ fn run_liquidity_op(request: &Value) -> Result<LiquidityOpOutput, String> {
 
 // --- state-root (cross-language differential) ---------------------------------
 
+const STATE_ROOT_TOP_LEVEL_FIELDS: [&str; 6] = [
+    "balances",
+    "pools",
+    "lp_balances",
+    "lp_duration_risk",
+    "nonces",
+    "fee_accumulator",
+];
+const STATE_ROOT_BALANCE_FIELDS: [&str; 3] = ["pubkey", "asset", "amount"];
+const STATE_ROOT_POOL_FIELDS: [&str; 11] = [
+    "pool_id",
+    "asset0",
+    "asset1",
+    "reserve0",
+    "reserve1",
+    "fee_bps",
+    "lp_supply",
+    "status",
+    "created_at",
+    "curve_tag",
+    "curve_params",
+];
+const STATE_ROOT_LP_BALANCE_FIELDS: [&str; 3] = ["pubkey", "pool_id", "amount"];
+const STATE_ROOT_LP_DURATION_FIELDS: [&str; 6] = [
+    "pubkey",
+    "pool_id",
+    "last_mint_timestamp",
+    "last_remove_timestamp",
+    "churn_tier",
+    "last_churn_update_timestamp",
+];
+const STATE_ROOT_NONCE_FIELDS: [&str; 2] = ["pubkey", "last_nonce"];
+const STATE_ROOT_FEE_ACCUMULATOR_FIELDS: [&str; 1] = ["dust"];
+
 fn req_str(obj: &serde_json::Map<String, Value>, key: &str) -> Result<String, String> {
     obj.get(key)
         .and_then(Value::as_str)
@@ -2610,14 +2644,25 @@ fn arr<'a>(state: &'a Value, key: &str) -> Result<&'a Vec<Value>, String> {
     }
 }
 
-fn each_obj(state: &Value, key: &str) -> Result<Vec<serde_json::Map<String, Value>>, String> {
+fn each_obj(
+    state: &Value,
+    key: &str,
+    allowed_fields: &[&str],
+) -> Result<Vec<serde_json::Map<String, Value>>, String> {
     match arr(state, key) {
         Ok(items) => items
             .iter()
             .map(|v| {
-                v.as_object()
+                let obj = v
+                    .as_object()
                     .cloned()
-                    .ok_or_else(|| "malformed_state".to_string())
+                    .ok_or_else(|| "malformed_state".to_string())?;
+                if let Some(reason) =
+                    first_unknown_field(obj.keys().map(String::as_str), allowed_fields)
+                {
+                    return Err(reason);
+                }
+                Ok(obj)
             })
             .collect(),
         Err(s) if s == "__empty__" => Ok(Vec::new()),
@@ -2628,30 +2673,49 @@ fn each_obj(state: &Value, key: &str) -> Result<Vec<serde_json::Map<String, Valu
 fn fee_accumulator_dust(state: &Value) -> Result<u128, String> {
     match state.get("fee_accumulator") {
         None | Some(Value::Null) => Ok(0),
-        Some(Value::Object(o)) => match o.get("dust") {
-            None | Some(Value::Null) => Ok(0),
-            Some(_) => req_u128(o, "dust"),
-        },
+        Some(Value::Object(o)) => {
+            if let Some(reason) = first_unknown_field(
+                o.keys().map(String::as_str),
+                &STATE_ROOT_FEE_ACCUMULATOR_FIELDS,
+            ) {
+                return Err(reason);
+            }
+            match o.get("dust") {
+                None | Some(Value::Null) => Ok(0),
+                Some(_) => req_u128(o, "dust"),
+            }
+        }
         Some(_) => Err("malformed_state".to_string()),
     }
 }
 
 fn parse_state(state: &Value) -> Result<StateInput, String> {
-    if !state.is_object() {
-        return Err("malformed_state".to_string());
+    let state_obj = state
+        .as_object()
+        .ok_or_else(|| "malformed_state".to_string())?;
+    // REVIEW [B -> A-]: the state-root verifier previously ignored unknown
+    // top-level and nested fields. That made `{}` and `{"perps": ...}` hash to
+    // the same root, which is exactly the D-CANON class of uncommitted state this
+    // surface is meant to prevent. The Rust boundary now accepts only the v5
+    // normalized JSON sections and fields it actually commits.
+    if let Some(reason) = first_unknown_field(
+        state_obj.keys().map(String::as_str),
+        &STATE_ROOT_TOP_LEVEL_FIELDS,
+    ) {
+        return Err(reason);
     }
     let mut input = StateInput {
         fee_accumulator_dust: fee_accumulator_dust(state)?,
         ..Default::default()
     };
-    for o in each_obj(state, "balances")? {
+    for o in each_obj(state, "balances", &STATE_ROOT_BALANCE_FIELDS)? {
         input.balances.push(BalanceEntry {
             pubkey: req_str(&o, "pubkey")?,
             asset: req_str(&o, "asset")?,
             amount: req_u128(&o, "amount")?,
         });
     }
-    for o in each_obj(state, "pools")? {
+    for o in each_obj(state, "pools", &STATE_ROOT_POOL_FIELDS)? {
         let status = PoolStatus::from_label(&req_str(&o, "status")?)
             .ok_or_else(|| "unknown_pool_status".to_string())?;
         input.pools.push(PoolEntry {
@@ -2668,14 +2732,14 @@ fn parse_state(state: &Value) -> Result<StateInput, String> {
             curve_params: req_str(&o, "curve_params")?,
         });
     }
-    for o in each_obj(state, "lp_balances")? {
+    for o in each_obj(state, "lp_balances", &STATE_ROOT_LP_BALANCE_FIELDS)? {
         input.lp_balances.push(LpEntry {
             pubkey: req_str(&o, "pubkey")?,
             pool_id: req_str(&o, "pool_id")?,
             amount: req_u128(&o, "amount")?,
         });
     }
-    for o in each_obj(state, "lp_duration_risk")? {
+    for o in each_obj(state, "lp_duration_risk", &STATE_ROOT_LP_DURATION_FIELDS)? {
         input.lp_duration_risk.push(LpDurationEntry {
             pubkey: req_str(&o, "pubkey")?,
             pool_id: req_str(&o, "pool_id")?,
@@ -2685,7 +2749,7 @@ fn parse_state(state: &Value) -> Result<StateInput, String> {
             last_churn_update_timestamp: opt_u128(&o, "last_churn_update_timestamp")?,
         });
     }
-    for o in each_obj(state, "nonces")? {
+    for o in each_obj(state, "nonces", &STATE_ROOT_NONCE_FIELDS)? {
         input.nonces.push(NonceEntry {
             pubkey: req_str(&o, "pubkey")?,
             last_nonce: req_u128(&o, "last_nonce")?,
@@ -4498,6 +4562,31 @@ mod tests {
         assert_unknown_debug(run_account_op_cases(&req));
         assert_unknown_debug(run_set_market_params_cases(&req));
         assert_unknown_debug(run_funding_auto_cases(&req));
+    }
+
+    #[test]
+    fn state_root_cases_reject_uncommitted_extra_sections_and_nested_fields() {
+        // REVIEW [B -> A-]: `verify-state-root` used to ignore state fields it
+        // did not encode, so adding `perps`, a fee debug field, or an entry debug
+        // field produced the same root as if the field were absent. Unknown input
+        // is now a stable reject at every consumed state-root level.
+        let pk = format!("0x{}", "aa".repeat(48));
+        let asset = format!("0x{}", "11".repeat(32));
+        let cases = json!({
+            "cases": [
+                {"perps": {"position": "uncommitted"}},
+                {"fee_accumulator": {"dust": 0, "debug": true}},
+                {"balances": [{"pubkey": pk, "asset": asset, "amount": 1, "debug": true}]}
+            ]
+        });
+
+        let out = run_state_root_cases(&cases).unwrap();
+        assert_eq!(out.version, 1);
+        assert_eq!(out.results.len(), 3);
+        assert_eq!(out.results[0].code.as_deref(), Some("unknown_field:perps"));
+        assert_eq!(out.results[1].code.as_deref(), Some("unknown_field:debug"));
+        assert_eq!(out.results[2].code.as_deref(), Some("unknown_field:debug"));
+        assert!(out.results.iter().all(|r| !r.ok && r.state_root.is_none()));
     }
 
     #[test]
