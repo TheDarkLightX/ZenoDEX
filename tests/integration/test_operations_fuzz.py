@@ -118,9 +118,22 @@ def _kind_specific_intent_fields(kind: str) -> dict[str, Any]:
     raise AssertionError(f"unhandled intent kind: {kind}")
 
 
+# AMM-settlement ingress kinds only. zk-CLOB v1 kinds (LIMIT_ORDER/CANCEL_ORDER)
+# have a SEPARATE ingress (clob_matching.py) and are rejected by the AMM parser
+# by design; they are not generated for the AMM-ingress roundtrip fuzz. The
+# rejection is asserted directly in tests/core/test_clob_intent_validation.py.
+_AMM_INGRESS_INTENT_KINDS = (
+    IntentKind.CREATE_POOL.value,
+    IntentKind.ADD_LIQUIDITY.value,
+    IntentKind.REMOVE_LIQUIDITY.value,
+    IntentKind.SWAP_EXACT_IN.value,
+    IntentKind.SWAP_EXACT_OUT.value,
+)
+
+
 @st.composite
 def _valid_intent_dict(draw: st.DrawFn) -> dict[str, Any]:
-    kind = draw(st.sampled_from([kind.value for kind in IntentKind]))
+    kind = draw(st.sampled_from(list(_AMM_INGRESS_INTENT_KINDS)))
     intent = {
         "module": "TauSwap",
         "version": "0.1",

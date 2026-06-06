@@ -741,6 +741,13 @@ def _validate_intent_fields(intent: Intent) -> None:
     if intent.kind == IntentKind.REMOVE_LIQUIDITY:
         _validate_remove_liquidity_intent_fields(intent, fields)
         return
+    if intent.kind in (IntentKind.LIMIT_ORDER, IntentKind.CANCEL_ORDER):
+        # zk-CLOB v1: LIMIT_ORDER / CANCEL_ORDER are recognized kinds but are
+        # carried on a SEPARATE ingress (src/core/clob_matching.py + the
+        # ClobOrderIntent validator), NOT the AMM batch-settlement engine. The
+        # AMM settlement ingress rejects them by design (fail-closed firewall);
+        # CLOB engine wiring is deferred to a later pass.
+        raise ValueError(f"intent kind not accepted on AMM settlement ingress: {intent.kind.value}")
     raise ValueError(f"unsupported intent kind: {intent.kind}")
 
 

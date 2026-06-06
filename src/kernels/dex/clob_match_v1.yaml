@@ -1,0 +1,267 @@
+# zk-CLOB v1 — bounded continuous matching state machine.
+#
+# STATUS: ESSO-IR model, cross-solver VERIFIED for the BOUNDED single-maker /
+# single-taker case (z3 + cvc5 agree, Inductive(k=1), verdict VERIFIED):
+#
+#   PYTHONPATH=external/ESSO python3 -m ESSO verify-multi \
+#     src/kernels/dex/clob_match_v1.yaml --solvers z3,cvc5
+#   -> ok: true, verdict: VERIFIED, 4/4 queries unsat, solvers_agreed: true
+#   ir_hash sha256:96ee42dc94068060c1173ed8a0099c257d00c63b94294a43662a9f4afc38aa92
+#
+# SCOPE HONESTY: this verifies the maker-price / no-overfill / maker-remainder /
+# no-phantom-fill invariants ONLY for ONE resting maker and ONE taker per step.
+# The FULL multi-order price-time-priority book (walking many makers, leftover
+# re-rest, self-trade/dup atomicity) is NOT modeled here and remains a phase-2
+# target; those properties ship in v1 as Python-validated obligations
+# (tests/core/test_clob_matching.py). Do not cite this YAML as a proof of the
+# full book.
+#
+# Scope of the bounded model:
+#   * one resting SELL maker (price P_m, qty M) and one incoming BUY taker
+#     (price P_t, qty T), maker-price fills, single match step;
+#   * captures the crux conventions: fill price == maker price; a fill happens
+#     iff the taker crosses (P_t >= P_m); the matched base is min(T, M); the
+#     quote is floor(base * P_m / SCALE) with SCALE folded out (prices are in
+#     whole quote-per-base units here to keep the bounded model integer-linear).
+#
+# Mirrors the Python kernel src/core/clob_matching.py (apply_order, BUY taker vs
+# SELL maker). The SELL-taker / BUY-maker case is symmetric and elided.
+#
+# Units: prices are whole quote-per-base units in this bounded model (the Python
+# kernel scales by PRICE_SCALE=1e8); quantities are base units.
+
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "clob_match_v1"
+  created_by: "zenodex-clob"
+  notes: |
+    Bounded single-maker/single-taker continuous CLOB match. Design draft for the
+    phase-2 cross-solver verification of the maker-price / crossing-limit /
+    conservation / reject-is-no-op obligations.
+
+observables:
+  state_vars:
+    [
+      "maker_resting",
+      "maker_price",
+      "maker_qty",
+      "filled",
+      "fill_price",
+      "fill_base",
+      "fill_quote",
+      "maker_qty_after",
+    ]
+  effects:
+    [
+      "event",
+      "crossed",
+      "matched_base",
+    ]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "MakerRested",
+          "TakerFilled",
+          "TakerRestedNoCross",
+        ]
+
+state_vars:
+  - id: "maker_resting"
+    role: "control"
+    type: { kind: "bool" }
+  - id: "maker_price"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "maker_qty"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  # Result of the most recent match step (0 when no fill happened).
+  - id: "filled"
+    role: "control"
+    type: { kind: "bool" }
+  - id: "fill_price"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "fill_base"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "fill_quote"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "maker_qty_after"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+invariants:
+  # CROSSING-LIMIT / maker-price: any executed fill is AT the maker price.
+  - id: "inv_fill_at_maker_price"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { var: "filled" }
+        - { op: "=", args: [{ var: "fill_price" }, { var: "maker_price" }] }
+
+  # NO-OVERFILL: a fill never consumes more than the maker was resting.
+  - id: "inv_fill_base_within_maker"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { var: "filled" }
+        - { op: "<=", args: [{ var: "fill_base" }, { var: "maker_qty" }] }
+
+  # CONSERVATION skeleton: the maker remainder is exactly maker_qty - fill_base.
+  - id: "inv_maker_remainder_conserved"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "maker_qty_after" }
+        - op: "-"
+          args: [{ var: "maker_qty" }, { var: "fill_base" }]
+
+  # NO fill is recorded unless a maker was resting (no phantom fills).
+  - id: "inv_no_fill_without_maker"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { var: "filled" }
+        - { var: "maker_resting" }
+
+init:
+  - var: "maker_resting"
+    expr: { bool: false }
+  - var: "maker_price"
+    expr: { const: 0 }
+  - var: "maker_qty"
+    expr: { const: 0 }
+  - var: "filled"
+    expr: { bool: false }
+  - var: "fill_price"
+    expr: { const: 0 }
+  - var: "fill_base"
+    expr: { const: 0 }
+  - var: "fill_quote"
+    expr: { const: 0 }
+  - var: "maker_qty_after"
+    expr: { const: 0 }
+
+actions:
+  # Rest a SELL maker (no maker currently resting).
+  - id: "rest_maker"
+    params:
+      - id: "price"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "qty"
+        type: { kind: "int", min: 1, max: 1000000 }
+    guard:
+      op: "not"
+      args: [{ var: "maker_resting" }]
+    updates:
+      - var: "maker_resting"
+        expr: { bool: true }
+      - var: "maker_price"
+        expr: { param: "price" }
+      - var: "maker_qty"
+        expr: { param: "qty" }
+      - var: "maker_qty_after"
+        expr: { param: "qty" }
+      - var: "filled"
+        expr: { bool: false }
+      - var: "fill_price"
+        expr: { const: 0 }
+      - var: "fill_base"
+        expr: { const: 0 }
+      - var: "fill_quote"
+        expr: { const: 0 }
+    effects:
+      event: { enum: "MakerRested" }
+      crossed: { bool: false }
+      matched_base: { const: 0 }
+
+  # A BUY taker that CROSSES (taker_price >= maker_price): fill at maker price.
+  - id: "match_crossing_buy_taker"
+    params:
+      - id: "taker_price"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "taker_qty"
+        type: { kind: "int", min: 1, max: 1000000 }
+    guard:
+      op: "and"
+      args:
+        - { var: "maker_resting" }
+        # crosses: taker_price >= maker_price
+        - { op: ">=", args: [{ param: "taker_price" }, { var: "maker_price" }] }
+    updates:
+      - var: "filled"
+        expr: { bool: true }
+      - var: "fill_price"
+        expr: { var: "maker_price" } # fill AT maker price (the crux)
+      - var: "fill_base"
+        expr:
+          op: "ite"
+          cond: { op: "<=", args: [{ param: "taker_qty" }, { var: "maker_qty" }] }
+          then: { param: "taker_qty" }
+          else: { var: "maker_qty" }
+      - var: "maker_qty_after"
+        expr:
+          op: "-"
+          args:
+            - { var: "maker_qty" }
+            - op: "ite"
+              cond: { op: "<=", args: [{ param: "taker_qty" }, { var: "maker_qty" }] }
+              then: { param: "taker_qty" }
+              else: { var: "maker_qty" }
+      # quote = fill_base * maker_price  (SCALE folded out in this bounded model)
+      - var: "fill_quote"
+        expr:
+          op: "*"
+          args:
+            - op: "ite"
+              cond: { op: "<=", args: [{ param: "taker_qty" }, { var: "maker_qty" }] }
+              then: { param: "taker_qty" }
+              else: { var: "maker_qty" }
+            - { var: "maker_price" }
+    effects:
+      event: { enum: "TakerFilled" }
+      crossed: { bool: true }
+      matched_base:
+        op: "ite"
+        cond: { op: "<=", args: [{ param: "taker_qty" }, { var: "maker_qty" }] }
+        then: { param: "taker_qty" }
+        else: { var: "maker_qty" }
+
+  # A BUY taker that does NOT cross (taker_price < maker_price): no fill (rests).
+  # Reject-is-no-op skeleton: maker state is untouched, filled stays false.
+  - id: "no_cross_buy_taker"
+    params:
+      - id: "taker_price"
+        type: { kind: "int", min: 1, max: 1000000 }
+    guard:
+      op: "and"
+      args:
+        - { var: "maker_resting" }
+        - { op: "<", args: [{ param: "taker_price" }, { var: "maker_price" }] }
+    updates:
+      - var: "filled"
+        expr: { bool: false }
+      - var: "fill_price"
+        expr: { const: 0 }
+      - var: "fill_base"
+        expr: { const: 0 }
+      - var: "fill_quote"
+        expr: { const: 0 }
+      # maker_qty_after stays equal to maker_qty (no-op on the maker).
+      - var: "maker_qty_after"
+        expr: { var: "maker_qty" }
+    effects:
+      event: { enum: "TakerRestedNoCross" }
+      crossed: { bool: false }
+      matched_base: { const: 0 }

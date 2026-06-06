@@ -49,6 +49,11 @@ class IntentKind(Enum):
     REMOVE_LIQUIDITY = "REMOVE_LIQUIDITY"
     SWAP_EXACT_IN = "SWAP_EXACT_IN"
     SWAP_EXACT_OUT = "SWAP_EXACT_OUT"
+    # zk-CLOB v1 (additive): peer-to-peer continuous limit-order book intents.
+    # These are carried on their OWN normal-form / matching path
+    # (src/core/clob_matching.py); they do NOT alter existing swap/AMM buckets.
+    LIMIT_ORDER = "LIMIT_ORDER"
+    CANCEL_ORDER = "CANCEL_ORDER"
 
 
 @dataclass
@@ -171,6 +176,79 @@ class CreatePoolIntent(Intent):
         
         _require_int_field("amount0", amount0, minimum=1, positive=True)
         _require_int_field("amount1", amount1, minimum=1, positive=True)
+
+
+@dataclass
+class ClobOrderIntent(Intent):
+    """
+    zk-CLOB v1 limit-order intent (carries one resting/taker order).
+
+    Required fields (validated with the same bool-is-not-int discipline as the
+    AMM intents): ``side`` ("BUY"/"SELL"), ``price_q_per_base`` (scaled integer
+    quote-per-base, >= 1), ``base_qty`` (>= 1), ``sequence`` (u64, >= 0),
+    ``order_id`` (32-byte hex; uniqueness/replay guard), ``base_asset`` and
+    ``quote_asset`` (32-byte hex, distinct), and ``owner`` (48-byte pubkey).
+
+    This validator only checks intent *shape*. Crossing/matching is decided by
+    ``src/core/clob_matching.py``; the fill price is the resting maker's limit,
+    never an oracle.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        if self.kind != IntentKind.LIMIT_ORDER:
+            raise ValueError(f"Invalid kind for ClobOrderIntent: {self.kind}")
+
+        side = self.get_field("side")
+        if side not in ("BUY", "SELL"):
+            raise ValueError("side must be 'BUY' or 'SELL'")
+
+        _require_int_field("price_q_per_base", self.get_field("price_q_per_base"), minimum=1, positive=True)
+        _require_int_field("base_qty", self.get_field("base_qty"), minimum=1, positive=True)
+        _require_int_field("sequence", self.get_field("sequence"), minimum=0, positive=False)
+
+        order_id = self.get_field("order_id")
+        try:
+            canonical_hex_fixed_allow_0x(order_id, nbytes=32, name="order_id")
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid order_id: {order_id}") from exc
+
+        base_asset = self.get_field("base_asset")
+        quote_asset = self.get_field("quote_asset")
+        try:
+            base_norm = canonical_hex_fixed_allow_0x(base_asset, nbytes=32, name="base_asset")
+            quote_norm = canonical_hex_fixed_allow_0x(quote_asset, nbytes=32, name="quote_asset")
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid CLOB asset: {base_asset!r}/{quote_asset!r}") from exc
+        if base_norm == quote_norm:
+            raise ValueError("base_asset must differ from quote_asset")
+        fields = cast(Dict[str, Any], self.fields)
+        fields["base_asset"] = base_norm
+        fields["quote_asset"] = quote_norm
+
+        owner = self.get_field("owner", self.sender_pubkey)
+        try:
+            canonical_hex_fixed_allow_0x(owner, nbytes=48, name="owner")
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid owner pubkey: {owner!r}") from exc
+
+
+@dataclass
+class CancelOrderIntent(Intent):
+    """zk-CLOB v1 cancel intent: removes a resting order by ``order_id``."""
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        if self.kind != IntentKind.CANCEL_ORDER:
+            raise ValueError(f"Invalid kind for CancelOrderIntent: {self.kind}")
+
+        order_id = self.get_field("order_id")
+        try:
+            canonical_hex_fixed_allow_0x(order_id, nbytes=32, name="order_id")
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid order_id: {order_id}") from exc
 
 
 @dataclass
