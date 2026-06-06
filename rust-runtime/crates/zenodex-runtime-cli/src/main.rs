@@ -409,6 +409,25 @@ fn first_unknown_field<'a>(
     Some(format!("unknown_field:{}", extras[0]))
 }
 
+fn require_request_version_1(request: &Value) -> Result<(), String> {
+    // REVIEW [B -> A-]: the early single-op parsers used
+    // `and_then(as_u64).unwrap_or(1)`, which accepted present-but-malformed
+    // versions such as `"1"` or `true` as v1. A verifier boundary may default
+    // an absent version, but a present version must be a JSON integer exactly
+    // equal to the supported protocol version.
+    let version = match request.get("version") {
+        None => 1,
+        Some(v) => v
+            .as_u64()
+            .ok_or_else(|| "unsupported request version".to_string())?,
+    };
+    if version == 1 {
+        Ok(())
+    } else {
+        Err("unsupported request version".to_string())
+    }
+}
+
 fn cases_array(req: &Value) -> Result<&Vec<Value>, String> {
     let obj = req
         .as_object()
@@ -727,9 +746,7 @@ fn run_fee_route(request: &Value) -> Result<FeeRouteOutput, String> {
     ) {
         return Err(reason);
     }
-    if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
-        return Err("unsupported request version".to_string());
-    }
+    require_request_version_1(request)?;
     let acc = fee_accumulator_from_request(request)?;
     let pre_state_root = acc.state_root();
     let tx = request
@@ -878,9 +895,7 @@ fn run_replay_guard_admit(request: &Value) -> Result<ReplayGuardAdmitOutput, Str
     ) {
         return Err(reason);
     }
-    if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
-        return Err("unsupported request version".to_string());
-    }
+    require_request_version_1(request)?;
     let state = replay_guard_state_from_request(request)?;
     let pre_state_root = state.state_root();
     let tx = request
@@ -952,9 +967,7 @@ fn run_nonce_batch_op(request: &Value) -> Result<NonceBatchOutput, String> {
     ) {
         return Err(reason);
     }
-    if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
-        return Err("unsupported request version".to_string());
-    }
+    require_request_version_1(request)?;
     let require_all_nonces = match request.get("require_all_nonces") {
         Some(Value::Bool(v)) => *v,
         Some(_) => return Err("require_all_nonces must be a bool".to_string()),
@@ -1245,9 +1258,7 @@ fn run_balance_op(request: &Value) -> Result<BalanceOpOutput, String> {
     ) {
         return Err(reason);
     }
-    if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
-        return Err("unsupported request version".to_string());
-    }
+    require_request_version_1(request)?;
     let state = balance_state_from_request(request)?;
     let pre_state_root = state.state_root();
     let tx = request
@@ -1447,9 +1458,7 @@ fn run_zusd_op(request: &Value) -> Result<ZusdOpOutput, String> {
     {
         return Err(reason);
     }
-    if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
-        return Err("unsupported request version".to_string());
-    }
+    require_request_version_1(request)?;
     let require_oracle_authorization = match request.get("require_oracle_authorization") {
         Some(Value::Bool(v)) => *v,
         Some(_) => return Err("require_oracle_authorization must be a bool".to_string()),
@@ -2228,9 +2237,7 @@ fn run_cpmm_op(request: &Value) -> Result<CpmmOpOutput, String> {
     {
         return Err(reason);
     }
-    if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
-        return Err("unsupported request version".to_string());
-    }
+    require_request_version_1(request)?;
     let pool = cpmm_pool_from_request(request)?;
     let pre_state_root = pool.state_root();
     let tx = request
@@ -2505,19 +2512,7 @@ fn run_liquidity_op(request: &Value) -> Result<LiquidityOpOutput, String> {
     {
         return Err(reason);
     }
-    // REVIEW [B -> A-]: `and_then(as_u64).unwrap_or(1)` accepted malformed
-    // versions such as `"1"` or `true` as version 1. This command is a
-    // verifier-facing transition boundary, so a present version must be a JSON
-    // integer exactly equal to 1; only an absent version defaults to v1.
-    let version = match request.get("version") {
-        None => 1,
-        Some(v) => v
-            .as_u64()
-            .ok_or_else(|| "unsupported request version".to_string())?,
-    };
-    if version != 1 {
-        return Err("unsupported request version".to_string());
-    }
+    require_request_version_1(request)?;
     let pool = liquidity_pool_from_request(request)?;
     let pre_state_root = pool.state_root();
     let tx = request
@@ -4325,6 +4320,31 @@ mod tests {
             Ok(_) => panic!("request with unknown field unexpectedly accepted"),
             Err(err) => assert_eq!(err, "unknown_field:debug"),
         }
+    }
+
+    fn assert_bad_single_op_versions<T>(run: impl Fn(&Value) -> Result<T, String>) {
+        for bad_version in [json!("1"), json!(true), json!(2)] {
+            let req = json!({"version": bad_version});
+            match run(&req) {
+                Ok(_) => panic!("bad version unexpectedly accepted"),
+                Err(err) => assert_eq!(err, "unsupported request version"),
+            }
+        }
+    }
+
+    #[test]
+    fn single_op_subcommands_reject_malformed_versions() {
+        // REVIEW [B -> A-]: a prior parser idiom treated wrong-typed present
+        // versions as absent. These are verifier-facing one-step commands, so
+        // every command must reject malformed or unsupported versions before it
+        // parses command-specific state.
+        assert_bad_single_op_versions(run_fee_route);
+        assert_bad_single_op_versions(run_replay_guard_admit);
+        assert_bad_single_op_versions(run_nonce_batch_op);
+        assert_bad_single_op_versions(run_balance_op);
+        assert_bad_single_op_versions(run_zusd_op);
+        assert_bad_single_op_versions(run_cpmm_op);
+        assert_bad_single_op_versions(run_liquidity_op);
     }
 
     fn zusd_ready_state() -> Value {
