@@ -49,6 +49,16 @@ def test_python_install_surfaces_use_hash_locked_requirements() -> None:
     assert "tests/test_check_python_hash_locks.py" in release_gate
     assert "tests/test_security_posture_files.py" in release_gate
     assert "tools/check_proof_toolchain_lock.py" in release_gate
+    assert "packages/zeno-proof-client" in release_gate
+    assert "node_modules/@noble/curves/package.json" in release_gate
+    assert "npm test" in release_gate
+    assert "npm pack --dry-run" in release_gate
+    assert "tests/integration/test_zeno_proof_client_package.py" in release_gate
+    assert "npx eslint src/sdk/zenoProofClient.js src/sdk/zenoProofClient.test.mjs" in release_gate
+    assert "npm run test:sdk" in release_gate
+    assert "npm run test:config" in release_gate
+    assert "tests/test_zeno_sdk_browser_bundle.py" in release_gate
+    assert "tests/formal/test_tla_zeno_sdk_wallet_sync_checkpoint.py" in release_gate
     assert "tools/check_zeno_ledger_proof_coverage_matrix.py" in release_gate
     assert "tests/tools/test_check_zeno_ledger_proof_coverage_matrix.py" in release_gate
     assert "tools/build_zeno_ledger_two_machine_evidence.py" in release_gate

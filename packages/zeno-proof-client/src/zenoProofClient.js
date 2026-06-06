@@ -106,6 +106,16 @@ function requireRoot(value, name) {
   return value;
 }
 
+function normalizeOptionalRootPinset(value, name) {
+  if (value === undefined) {
+    return null;
+  }
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${name} must be a non-empty array when configured`);
+  }
+  return value.map((item, index) => requireRoot(item, `${name}[${index}]`));
+}
+
 function requireNonnegativeInt(value, name) {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(`${name} must be a non-negative safe integer`);
@@ -389,9 +399,52 @@ function requireRangeSummary(summary) {
   return rangeSummary;
 }
 
+// WS5-A (governance/upgrade-authority pinning): the SECOND standing trust
+// assumption, alongside the oracle. `module_versions_digest` and `config_digest`
+// are the governance-controlled "what valid means" -- a t-of-n committee can
+// re-sign a header with a NEW running kernel / config, and a client that only
+// recomputes `app_hash` would accept it (the app_hash recomputes consistently
+// over whatever the committee declared). NO ZK proof can ever discharge this: a
+// proof establishes "execution under image/version X is valid", never "X is the
+// RIGHT program". So the client must PIN the verifier identity out-of-band. When
+// the caller supplies a pinset (an allowlist supporting pinned-OR-validly-upgraded),
+// the client REFUSES any header whose identity is not in it. No pinset configured
+// => unpinned (backward compatible), reported as verifier_identity_pinned=false.
+function enforceVerifierIdentityPin(header, options) {
+  // REVIEW [B -> A-]: a malformed configured pinset used to silently behave as
+  // "no pinset" (for example a string or []), which is a dangerous fail-open
+  // mode for verifier-identity pinning. Undefined remains backward-compatible
+  // unpinned mode; any present pinset must be a non-empty canonical-root list.
+  // Reports the two identity dimensions SEPARATELY so the caller-visible boolean
+  // cannot overstate: verifier_identity_pinned is true ONLY when BOTH
+  // module_versions AND config are pinned-and-passed (full identity); a
+  // single-dimension pin is reported via its own granular flag, not the full one.
+  let moduleVersionsPinned = false;
+  let configPinned = false;
+  const mvPins = normalizeOptionalRootPinset(
+    options.pinnedModuleVersionsDigests,
+    'pinnedModuleVersionsDigests',
+  );
+  if (mvPins !== null) {
+    if (!mvPins.includes(header.module_versions_digest)) {
+      throw new Error('header module_versions_digest is not in the client pinset (untrusted verifier identity)');
+    }
+    moduleVersionsPinned = true;
+  }
+  const cfgPins = normalizeOptionalRootPinset(options.pinnedConfigDigests, 'pinnedConfigDigests');
+  if (cfgPins !== null) {
+    if (!cfgPins.includes(header.config_digest)) {
+      throw new Error('header config_digest is not in the client pinset (untrusted verifier identity)');
+    }
+    configPinned = true;
+  }
+  return { moduleVersionsPinned, configPinned };
+}
+
 export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
   const gaps = [];
   const requireIndependentBls = Boolean(options.requireIndependentBls);
+  let verifierIdentityPin = { moduleVersionsPinned: false, configPinned: false };
   try {
     requireRecord(bundle, 'bundle');
     exactKeys(bundle, BUNDLE_KEYS_V0, 'bundle');
@@ -412,6 +465,8 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
     exactKeys(summary, VERIFICATION_SUMMARY_KEYS_V0, 'verification summary');
     exactKeys(capabilities, CAPABILITY_KEYS_V0, 'capabilities');
     const targetHeaderHash = await validateCheckpointHeaderBinding(checkpoint, targetHeader);
+    // WS5-A: refuse a committee-swapped verifier identity the client has not pinned.
+    verifierIdentityPin = enforceVerifierIdentityPin(targetHeader, options);
     if (
       !Array.isArray(bundle.signature_envelopes)
       || bundle.signature_envelopes.length === 0
@@ -552,6 +607,9 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
       browser_bls_quorum_verified: browserBlsVerified,
       browser_bls_accepted_weight: browserBlsAcceptedWeight,
       builder_bls_quorum_verified: true,
+      verifier_module_versions_pinned: verifierIdentityPin.moduleVersionsPinned,
+      verifier_config_pinned: verifierIdentityPin.configPinned,
+      verifier_identity_pinned: verifierIdentityPin.moduleVersionsPinned && verifierIdentityPin.configPinned,
       gaps,
     };
   } catch (err) {
@@ -562,6 +620,9 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
       gaps,
       browser_bls_quorum_verified: false,
       builder_bls_quorum_verified: false,
+      verifier_module_versions_pinned: verifierIdentityPin.moduleVersionsPinned,
+      verifier_config_pinned: verifierIdentityPin.configPinned,
+      verifier_identity_pinned: verifierIdentityPin.moduleVersionsPinned && verifierIdentityPin.configPinned,
     };
   }
 }
@@ -593,13 +654,25 @@ export async function advanceWalletSyncStateV0({
   surface = 'wallet',
   updatedAtMs = Date.now(),
   requireIndependentBls = false,
+  // WS5-A: forward the verifier-identity pinset so this entry point does NOT
+  // silently bypass the pin (a wallet that advances state must refuse a
+  // committee-swapped verifier identity exactly as the raw verify does).
+  pinnedModuleVersionsDigests = undefined,
+  pinnedConfigDigests = undefined,
 } = {}) {
-  const verification = await verifyBrowserCheckpointBundleV0(bundle, { requireIndependentBls });
+  const verification = await verifyBrowserCheckpointBundleV0(bundle, {
+    requireIndependentBls,
+    pinnedModuleVersionsDigests,
+    pinnedConfigDigests,
+  });
   if (!verification.ok) {
     return { ok: false, status: 'rejected', gaps: verification.gaps };
   }
   const checkpoint = bundle.target_checkpoint;
-  if (currentState) {
+  // REVIEW [B -> A-]: falsy malformed currentState values (`0`, "", false)
+  // used to bypass validation and advance from "no prior state". Treat only
+  // null/undefined as absent; every present value must validate as a sync state.
+  if (currentState !== null && currentState !== undefined) {
     try {
       await validateWalletSyncStateInternal(currentState);
     } catch (err) {
@@ -625,16 +698,28 @@ export async function advanceWalletSyncStateV0({
       return { ok: false, status: 'rejected', gaps: ['wallet sync same-height drift rejected'] };
     }
   }
-  const body = {
-    schema: BROWSER_WALLET_SYNC_STATE_SCHEMA_V0,
-    surface: requireNonEmptyString(surface, 'surface'),
-    chain_id: checkpoint.chain_id,
-    height: checkpoint.height,
-    app_hash: checkpoint.app_hash,
-    checkpoint_hash: verification.checkpoint_hash,
-    bundle_hash: bundle.bundle_hash,
-    updated_at_ms: requireNonnegativeInt(Math.trunc(updatedAtMs), 'updated_at_ms'),
-  };
+  let body;
+  try {
+    body = {
+      schema: BROWSER_WALLET_SYNC_STATE_SCHEMA_V0,
+      surface: requireNonEmptyString(surface, 'surface'),
+      chain_id: checkpoint.chain_id,
+      height: checkpoint.height,
+      app_hash: checkpoint.app_hash,
+      checkpoint_hash: verification.checkpoint_hash,
+      bundle_hash: bundle.bundle_hash,
+      // REVIEW [B -> A-]: Math.trunc coerced strings, booleans, and fractional
+      // timestamps into accepted integers. The wallet state hash should bind the
+      // caller's exact typed timestamp, so reject non-integer input instead.
+      updated_at_ms: requireNonnegativeInt(updatedAtMs, 'updated_at_ms'),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 'rejected',
+      gaps: [err?.message || 'wallet sync output state rejected'],
+    };
+  }
   return {
     ok: true,
     status: 'accepted',

@@ -75,6 +75,31 @@ echo "== release: security posture wiring =="
 # critical scripts contain their expected evidence lanes.
 "$PY" -m pytest -q "$ROOT_DIR/tests/test_security_posture_files.py"
 
+echo "== release: browser proof-client package =="
+# REVIEW [B+ -> A]: WS5-A verifier-identity pinning caught real security bugs
+# in post-hoc review, but those Node/browser/package checks only lived in a
+# separate GitHub workflow. The local release gate now runs the same proof-client
+# lane so a release cannot go green while client-side pinning or package drift is
+# broken.
+(
+  cd "$ROOT_DIR/packages/zeno-proof-client"
+  npm ci || npm install --no-audit --no-fund
+  node -e "const p=require('./node_modules/@noble/curves/package.json'); if (p.version !== '1.2.0') { console.error('expected @noble/curves@1.2.0 got', p.version); process.exit(1); }"
+  npm test
+  npm pack --dry-run
+)
+"$PY" -m pytest -q "$ROOT_DIR/tests/integration/test_zeno_proof_client_package.py"
+(
+  cd "$ROOT_DIR/tools/dex-ui"
+  npm ci || npm install --no-audit --no-fund
+  npx eslint src/sdk/zenoProofClient.js src/sdk/zenoProofClient.test.mjs src/sdk/zenoBlsVerifier.js src/sdk/zenoBlsVerifier.test.mjs
+  npm run test:sdk
+  npm run test:config
+)
+"$PY" -m pytest -q \
+  "$ROOT_DIR/tests/test_zeno_sdk_browser_bundle.py" \
+  "$ROOT_DIR/tests/formal/test_tla_zeno_sdk_wallet_sync_checkpoint.py"
+
 echo "== release: public assurance snapshot docs =="
 "$PY" "$ROOT_DIR/tools/render_assurance_release_snapshot.py" --check
 

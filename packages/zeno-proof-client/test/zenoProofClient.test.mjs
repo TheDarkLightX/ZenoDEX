@@ -150,6 +150,112 @@ test('browser checkpoint bundle verifies shape and hash binding', async () => {
   assert.equal(report.browser_bls_quorum_verified, false);
 });
 
+test('WS5-A: no pinset => verifier_identity_pinned=false (backward compatible)', async () => {
+  const bundle = await makeBundle();
+  const report = await verifyBrowserCheckpointBundleV0(bundle);
+  assert.equal(report.ok, true);
+  assert.equal(report.verifier_identity_pinned, false);
+});
+
+test('WS5-A: matching verifier-identity pin verifies and reports pinned', async () => {
+  const bundle = await makeBundle();
+  // The fixture header declares module_versions_digest=root('d'), config_digest=root('7').
+  const report = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedModuleVersionsDigests: [root('d')],
+    pinnedConfigDigests: [root('7')],
+  });
+  assert.equal(report.ok, true);
+  assert.equal(report.verifier_identity_pinned, true);
+});
+
+test('WS5-A: a committee-swapped module_versions_digest not in the pinset is REFUSED', async () => {
+  const bundle = await makeBundle();
+  // A t-of-n committee re-signed a header with a different running kernel; the
+  // client pins only the version it trusts -> refuse (no proof can discharge this).
+  const report = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedModuleVersionsDigests: [root('c')], // NOT the header's root('d')
+  });
+  assert.equal(report.ok, false);
+  assert.equal(report.verifier_identity_pinned, false);
+  assert.ok(report.gaps.some((g) => g.includes('module_versions_digest is not in the client pinset')));
+});
+
+test('WS5-A: a config_digest not in the pinset is REFUSED', async () => {
+  const bundle = await makeBundle();
+  const report = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedConfigDigests: [root('1')], // NOT the header's root('7')
+  });
+  assert.equal(report.ok, false);
+  assert.ok(report.gaps.some((g) => g.includes('config_digest is not in the client pinset')));
+});
+
+test('WS5-A: malformed configured pinsets reject instead of becoming unpinned', async () => {
+  // REVIEW [B -> A-]: a present-but-malformed pinset used to silently mean
+  // "no pinset", so callers could believe they pinned verifier identity while
+  // the SDK reported/accepted unpinned mode. Configured pinsets now fail closed.
+  const bundle = await makeBundle();
+
+  const stringPinset = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedModuleVersionsDigests: root('d'),
+  });
+  assert.equal(stringPinset.ok, false);
+  assert.match(stringPinset.gaps.join('\n'), /pinnedModuleVersionsDigests must be a non-empty array/);
+
+  const emptyPinset = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedConfigDigests: [],
+  });
+  assert.equal(emptyPinset.ok, false);
+  assert.match(emptyPinset.gaps.join('\n'), /pinnedConfigDigests must be a non-empty array/);
+
+  const badRoot = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedModuleVersionsDigests: ['0xBAD'],
+  });
+  assert.equal(badRoot.ok, false);
+  assert.match(badRoot.gaps.join('\n'), /pinnedModuleVersionsDigests\[0\] must be a canonical 32-byte root/);
+});
+
+test('WS5-A: an allowlist of multiple trusted versions accepts a validly-upgraded identity', async () => {
+  const bundle = await makeBundle();
+  // pinned-OR-validly-upgraded: the client allowlists the prior + the new reviewed version.
+  const report = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedModuleVersionsDigests: [root('9'), root('d')], // includes the header's root('d')
+  });
+  assert.equal(report.ok, true);
+  assert.equal(report.verifier_module_versions_pinned, true);
+  // config_digest was NOT pinned here, so the FULL-identity boolean is honestly
+  // false -- a partial pin must not masquerade as full identity pinning.
+  assert.equal(report.verifier_identity_pinned, false);
+});
+
+test('WS5-A: full-identity boolean is true only when BOTH module + config pinned', async () => {
+  const bundle = await makeBundle();
+  const report = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedModuleVersionsDigests: [root('d')],
+    pinnedConfigDigests: [root('7')],
+  });
+  assert.equal(report.verifier_module_versions_pinned, true);
+  assert.equal(report.verifier_config_pinned, true);
+  assert.equal(report.verifier_identity_pinned, true);
+});
+
+test('WS5-A: advanceWalletSyncStateV0 forwards the pinset (no silent bypass)', async () => {
+  const bundle = await makeBundle();
+  // A mismatched pin must cause advance to REJECT, exactly as raw verify does.
+  const rejected = await advanceWalletSyncStateV0({
+    bundle,
+    pinnedModuleVersionsDigests: [root('c')], // NOT the header's root('d')
+  });
+  assert.equal(rejected.ok, false);
+  assert.ok(rejected.gaps.some((g) => g.includes('module_versions_digest is not in the client pinset')));
+  // A matching pin advances normally.
+  const ok = await advanceWalletSyncStateV0({
+    bundle,
+    pinnedModuleVersionsDigests: [root('d')],
+    pinnedConfigDigests: [root('7')],
+  });
+  assert.equal(ok.ok, true);
+});
+
 test('browser checkpoint bundle rejects tampering', async () => {
   const bundle = await makeBundle();
   bundle.target_checkpoint.height = 3;
@@ -237,6 +343,39 @@ test('wallet sync rejects tampered current state hash before using height', asyn
 
   assert.equal(advanced.ok, false);
   assert.deepEqual(advanced.gaps, ['wallet sync state hash mismatch']);
+});
+
+test('wallet sync validates present currentState even when falsy', async () => {
+  // REVIEW [B -> A-]: `if (currentState)` let 0/false/"" bypass persisted-state
+  // validation and advance as if there were no prior wallet state. Only
+  // null/undefined are absent now.
+  const bundle = await makeBundle({ height: 2 });
+  for (const malformed of [0, false, '']) {
+    const advanced = await advanceWalletSyncStateV0({
+      currentState: malformed,
+      bundle,
+      surface: 'zusd',
+      updatedAtMs: 1_778_730_001_000,
+    });
+    assert.equal(advanced.ok, false);
+    assert.deepEqual(advanced.gaps, ['wallet sync state must be an object']);
+  }
+});
+
+test('wallet sync rejects coerced updatedAtMs values', async () => {
+  // REVIEW [B -> A-]: Math.trunc accepted strings, booleans, and fractions,
+  // changing caller input before hashing it into wallet state. The SDK now binds
+  // only an already-valid safe integer timestamp.
+  const bundle = await makeBundle({ height: 2 });
+  for (const updatedAtMs of ['1778730001000', true, 1_778_730_001_000.5]) {
+    const advanced = await advanceWalletSyncStateV0({
+      bundle,
+      surface: 'zusd',
+      updatedAtMs,
+    });
+    assert.equal(advanced.ok, false);
+    assert.deepEqual(advanced.gaps, ['updated_at_ms must be a non-negative safe integer']);
+  }
 });
 
 test('wallet sync advances monotonically and rejects rollback', async () => {
