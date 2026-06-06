@@ -668,9 +668,12 @@ def _handle_cancel_order(
     if rec is None:
         return 404, {"ok": False, "error": REJ_NOT_FOUND, "status": OrderStatus.REJECTED.value}
 
-    # requester (owner) for the ownership check: prefer body agent_key_id, else
-    # ?agent_key_id=, else the stored owner. apply_cancel still enforces the
-    # value-layer ownership match (sig binding deferred — labelled).
+    # requester (owner) for the ownership check: the caller MUST present an
+    # agent_key_id (body or ?agent_key_id=). We do NOT fall back to the stored
+    # owner -- doing so would let anyone cancel an order by id alone (the
+    # ownership check would trivially pass). apply_cancel then enforces the
+    # value-layer ownership match requester == resting owner (cryptographic sig
+    # binding is still deferred -- labelled; this is value-layer ownership only).
     requester: Optional[str] = None
     if raw_body:
         parsed, _ = _parse_json_body(raw_body)
@@ -679,7 +682,11 @@ def _handle_cancel_order(
     if requester is None and isinstance(query.get("agent_key_id"), str):
         requester = query["agent_key_id"]
     if requester is None:
-        requester = rec.agent_key_id
+        return 400, {
+            "ok": False,
+            "error": REJ_CANCEL_PREFIX + "missing_requester",
+            "status": OrderStatus.REJECTED.value,
+        }
 
     book = store.books.get(rec.market_id)
     if book is None:

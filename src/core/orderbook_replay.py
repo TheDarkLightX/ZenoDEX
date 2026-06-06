@@ -91,6 +91,7 @@ __all__ = [
     "fill_receipt_hash",
     # Stable verifier reject codes.
     "REJ_DUP_SEQUENCE",
+    "REJ_GLOBAL_DUP_ORDER_ID",
     "REJ_EMPTY_EVENTS",
     "REJ_BAD_EVENT",
     "REJ_EVENT_COUNT_MISMATCH",
@@ -120,6 +121,7 @@ FILL_VERSION = 1
 
 # --- Stable verifier reject codes (consensus behavior; fixed compare order) -----
 REJ_DUP_SEQUENCE = "dup_sequence"
+REJ_GLOBAL_DUP_ORDER_ID = "global_dup_order_id"
 REJ_EMPTY_EVENTS = "empty_events"
 REJ_BAD_EVENT = "bad_event"
 REJ_EVENT_COUNT_MISMATCH = "event_count_mismatch"
@@ -530,7 +532,29 @@ def replay_events(
     base_asset = book.base_asset  # canonicalized form
     quote_asset = book.quote_asset
     per_event: List[PerEventResult] = []
+    seen_place_order_ids: set = set()
     for e in ordered:
+        if isinstance(e, PlaceEvent):
+            oid = e.order.order_id  # canonical (validated at ClobOrder construction)
+            if oid in seen_place_order_ids:
+                # Global order-id dedup across the WHOLE event log: a reused
+                # order_id is a replay even AFTER the original fully filled or was
+                # cancelled (broader than the matcher's resting-only dup_order_id,
+                # which only catches a collision while the order is still resting).
+                # Satisfies the spec's "duplicate order-event replay fails".
+                # reject-is-no-op: the event does not apply, post_root == pre_root.
+                pre_root = book.state_root()
+                per_event.append(
+                    PerEventResult(
+                        pre_book_root=pre_root,
+                        post_book_root=pre_root,
+                        accepted=False,
+                        reject_code=REJ_GLOBAL_DUP_ORDER_ID,
+                        fills=(),
+                    )
+                )
+                continue
+            seen_place_order_ids.add(oid)
         book, record = _apply_event(book, e)
         per_event.append(record)
 

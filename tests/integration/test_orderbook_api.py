@@ -298,6 +298,23 @@ def test_cancel_wrong_owner_reject_no_op():
     assert _store_snapshot(store) == snap
 
 
+def test_cancel_without_agent_key_id_is_rejected_no_op():
+    # SECURITY: a DELETE with no agent_key_id must NOT fall back to the stored
+    # owner (that fallback would let ANYONE cancel an order by id alone). It is
+    # rejected fail-closed and leaves the store untouched; the real owner can
+    # still cancel (the guard is authorization, not a lock).
+    store = new_demo_store()
+    _, resp = _call(store, "POST", "/api/orderbook/orders", _order_request(agent_key_id=OWNER_A))
+    oid = resp["order"]["order_id"]
+    snap = _store_snapshot(store)
+    s, cresp = _call(store, "DELETE", f"/api/orderbook/orders/{oid}", {})  # no agent_key_id
+    assert s == 400
+    assert cresp["error"] == "cancel:missing_requester"
+    assert _store_snapshot(store) == snap
+    s2, _ = _call(store, "DELETE", f"/api/orderbook/orders/{oid}", {"agent_key_id": OWNER_A})
+    assert s2 == 200
+
+
 # --- markets / proof-policy ---------------------------------------------------
 def test_markets_expose_precision_and_rule_hashes():
     store = new_demo_store()

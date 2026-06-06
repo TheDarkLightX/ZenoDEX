@@ -331,10 +331,11 @@ def test_duplicate_order_id_event_fails():
     e2 = PlaceEvent(sequence=2, order=dup_order)
     receipt = _replay((e1, e2))
 
-    # Honest replay: e2 rejected with dup_order_id, book unchanged on that step.
+    # Honest replay: e2 rejected with the GLOBAL order-id dedup (fires BEFORE the
+    # matcher's resting-only dup_order_id), book unchanged on that step.
     dup_pe = receipt.per_event[1]
     assert dup_pe.accepted is False
-    assert dup_pe.reject_code == "dup_order_id"
+    assert dup_pe.reject_code == "global_dup_order_id"
     assert dup_pe.pre_book_root == dup_pe.post_book_root  # reject-is-no-op
     assert dup_pe.fills == ()
 
@@ -343,8 +344,41 @@ def test_duplicate_order_id_event_fails():
     tampered = dataclasses.replace(
         receipt, per_event=(receipt.per_event[0], lying_pe)
     )
-
     ok, code = verify_replay(tampered)
+    assert ok is False
+    assert code == REJ_ACCEPT_STATUS_MISMATCH
+
+
+def test_reused_order_id_after_full_fill_is_globally_rejected():
+    # The case the matcher's resting-only dup_order_id MISSES: order_id is reused
+    # AFTER the original fully filled (so it is no longer resting). Without the
+    # global dedup this second place would be ACCEPTED (a replay). With it, the
+    # reused id is rejected at the replay level -> "duplicate order-event replay
+    # fails" holds even across fill/cancel.
+    maker = place(ClobSide.SELL, 100 * PRICE_SCALE, 10, 1, 1, "aa")
+    taker = place(ClobSide.BUY, 100 * PRICE_SCALE, 10, 2, 2, "bb")  # fully fills the maker
+    # Reuse the maker's order_id (1) for a NEW place after it fully filled.
+    reuse = ClobOrder(
+        side=ClobSide.SELL,
+        price_q_per_base=100 * PRICE_SCALE,
+        base_qty=5,
+        sequence=3,
+        order_id=_oid(1),  # REUSED id from the fully-filled maker
+        owner=_owner("aa"),
+    )
+    e3 = PlaceEvent(sequence=3, order=reuse)
+    receipt = _replay((maker, taker, e3))
+    reuse_pe = receipt.per_event[2]
+    assert reuse_pe.accepted is False
+    assert reuse_pe.reject_code == "global_dup_order_id"
+    assert reuse_pe.pre_book_root == reuse_pe.post_book_root  # reject-is-no-op
+    # A claim that the reused-id place was ACCEPTED fails verification.
+    forged_pe = dataclasses.replace(reuse_pe, accepted=True, reject_code=None)
+    forged = dataclasses.replace(
+        receipt,
+        per_event=(receipt.per_event[0], receipt.per_event[1], forged_pe),
+    )
+    ok, code = verify_replay(forged)
     assert ok is False
     assert code == REJ_ACCEPT_STATUS_MISMATCH
 

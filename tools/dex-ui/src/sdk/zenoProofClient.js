@@ -401,28 +401,33 @@ function requireRangeSummary(summary) {
 // the client REFUSES any header whose identity is not in it. No pinset configured
 // => unpinned (backward compatible), reported as verifier_identity_pinned=false.
 function enforceVerifierIdentityPin(header, options) {
-  let pinned = false;
+  // Reports the two identity dimensions SEPARATELY so the caller-visible boolean
+  // cannot overstate: verifier_identity_pinned is true ONLY when BOTH
+  // module_versions AND config are pinned-and-passed (full identity); a
+  // single-dimension pin is reported via its own granular flag, not the full one.
+  let moduleVersionsPinned = false;
+  let configPinned = false;
   const mvPins = options.pinnedModuleVersionsDigests;
   if (Array.isArray(mvPins) && mvPins.length > 0) {
     if (!mvPins.includes(header.module_versions_digest)) {
       throw new Error('header module_versions_digest is not in the client pinset (untrusted verifier identity)');
     }
-    pinned = true;
+    moduleVersionsPinned = true;
   }
   const cfgPins = options.pinnedConfigDigests;
   if (Array.isArray(cfgPins) && cfgPins.length > 0) {
     if (!cfgPins.includes(header.config_digest)) {
       throw new Error('header config_digest is not in the client pinset (untrusted verifier identity)');
     }
-    pinned = true;
+    configPinned = true;
   }
-  return pinned;
+  return { moduleVersionsPinned, configPinned };
 }
 
 export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
   const gaps = [];
   const requireIndependentBls = Boolean(options.requireIndependentBls);
-  let verifierIdentityPinned = false;
+  let verifierIdentityPin = { moduleVersionsPinned: false, configPinned: false };
   try {
     requireRecord(bundle, 'bundle');
     exactKeys(bundle, BUNDLE_KEYS_V0, 'bundle');
@@ -444,7 +449,7 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
     exactKeys(capabilities, CAPABILITY_KEYS_V0, 'capabilities');
     const targetHeaderHash = await validateCheckpointHeaderBinding(checkpoint, targetHeader);
     // WS5-A: refuse a committee-swapped verifier identity the client has not pinned.
-    verifierIdentityPinned = enforceVerifierIdentityPin(targetHeader, options);
+    verifierIdentityPin = enforceVerifierIdentityPin(targetHeader, options);
     if (
       !Array.isArray(bundle.signature_envelopes)
       || bundle.signature_envelopes.length === 0
@@ -585,7 +590,9 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
       browser_bls_quorum_verified: browserBlsVerified,
       browser_bls_accepted_weight: browserBlsAcceptedWeight,
       builder_bls_quorum_verified: true,
-      verifier_identity_pinned: verifierIdentityPinned,
+      verifier_module_versions_pinned: verifierIdentityPin.moduleVersionsPinned,
+      verifier_config_pinned: verifierIdentityPin.configPinned,
+      verifier_identity_pinned: verifierIdentityPin.moduleVersionsPinned && verifierIdentityPin.configPinned,
       gaps,
     };
   } catch (err) {
@@ -596,7 +603,9 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
       gaps,
       browser_bls_quorum_verified: false,
       builder_bls_quorum_verified: false,
-      verifier_identity_pinned: verifierIdentityPinned,
+      verifier_module_versions_pinned: verifierIdentityPin.moduleVersionsPinned,
+      verifier_config_pinned: verifierIdentityPin.configPinned,
+      verifier_identity_pinned: verifierIdentityPin.moduleVersionsPinned && verifierIdentityPin.configPinned,
     };
   }
 }
@@ -628,8 +637,17 @@ export async function advanceWalletSyncStateV0({
   surface = 'wallet',
   updatedAtMs = Date.now(),
   requireIndependentBls = false,
+  // WS5-A: forward the verifier-identity pinset so this entry point does NOT
+  // silently bypass the pin (a wallet that advances state must refuse a
+  // committee-swapped verifier identity exactly as the raw verify does).
+  pinnedModuleVersionsDigests = undefined,
+  pinnedConfigDigests = undefined,
 } = {}) {
-  const verification = await verifyBrowserCheckpointBundleV0(bundle, { requireIndependentBls });
+  const verification = await verifyBrowserCheckpointBundleV0(bundle, {
+    requireIndependentBls,
+    pinnedModuleVersionsDigests,
+    pinnedConfigDigests,
+  });
   if (!verification.ok) {
     return { ok: false, status: 'rejected', gaps: verification.gaps };
   }

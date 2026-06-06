@@ -196,7 +196,39 @@ test('WS5-A: an allowlist of multiple trusted versions accepts a validly-upgrade
     pinnedModuleVersionsDigests: [root('9'), root('d')], // includes the header's root('d')
   });
   assert.equal(report.ok, true);
+  assert.equal(report.verifier_module_versions_pinned, true);
+  // config_digest was NOT pinned here, so the FULL-identity boolean is honestly
+  // false -- a partial pin must not masquerade as full identity pinning.
+  assert.equal(report.verifier_identity_pinned, false);
+});
+
+test('WS5-A: full-identity boolean is true only when BOTH module + config pinned', async () => {
+  const bundle = await makeBundle();
+  const report = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedModuleVersionsDigests: [root('d')],
+    pinnedConfigDigests: [root('7')],
+  });
+  assert.equal(report.verifier_module_versions_pinned, true);
+  assert.equal(report.verifier_config_pinned, true);
   assert.equal(report.verifier_identity_pinned, true);
+});
+
+test('WS5-A: advanceWalletSyncStateV0 forwards the pinset (no silent bypass)', async () => {
+  const bundle = await makeBundle();
+  // A mismatched pin must cause advance to REJECT, exactly as raw verify does.
+  const rejected = await advanceWalletSyncStateV0({
+    bundle,
+    pinnedModuleVersionsDigests: [root('c')], // NOT the header's root('d')
+  });
+  assert.equal(rejected.ok, false);
+  assert.ok(rejected.gaps.some((g) => g.includes('module_versions_digest is not in the client pinset')));
+  // A matching pin advances normally.
+  const ok = await advanceWalletSyncStateV0({
+    bundle,
+    pinnedModuleVersionsDigests: [root('d')],
+    pinnedConfigDigests: [root('7')],
+  });
+  assert.equal(ok.ok, true);
 });
 
 test('browser checkpoint bundle rejects tampering', async () => {
