@@ -270,11 +270,22 @@ def test_created_at_u128_domain_and_precedence(rust_bin, tmp_path):
 def test_exotic_curve_rejects(rust_bin, tmp_path):
     txs = [
         _create(amount0=1_002_001, amount1=1, curve_tag="CUBIC_SUM_V1"),
+        _create(amount0=1_002_001, amount1=1, curve_tag=True),
+        _create(amount0=1_002_001, amount1=1, curve_tag=None),
+        _create(amount0=1_002_001, amount1=1, curve_params=123),
+        _create(amount0=1_002_001, amount1=1, curve_params=[]),
+        _create(amount0=1_002_001, amount1=1, curve_params={}),  # empty object accepted as empty
         _create(amount0=1_002_001, amount1=1, curve_tag="cpmm"),  # lowercase CPMM accepted
         _create(amount0=1_002_001, amount1=1, curve_tag="CPMM", curve_params="{}"),  # params reject
     ]
     out = _assert_parity(rust_bin, txs, tmp_path)
-    assert out["results"][0]["reject_reason"] == "unsupported_curve_tag"
+    # REVIEW [B -> A-]: Rust used to coerce present wrong-typed optional curve
+    # fields to the CPMM defaults (`as_str().unwrap_or(...)`). That made
+    # malformed verifier input accept while the Python authority rejected it.
+    for i in [0, 1, 2, 3, 4, 7]:
+        assert out["results"][i]["reject_reason"] == "unsupported_curve_tag"
+    assert out["results"][5]["accept"] is True
+    assert out["results"][6]["accept"] is True
 
 
 def test_reject_precedence_pairs(rust_bin, tmp_path):

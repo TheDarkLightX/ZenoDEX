@@ -2326,6 +2326,33 @@ fn lq_created_at(obj: &serde_json::Map<String, Value>, key: &str) -> Result<(u12
     }
 }
 
+fn lq_curve_tag(obj: &serde_json::Map<String, Value>) -> String {
+    match obj.get("curve_tag") {
+        None => "CPMM".to_string(),
+        Some(Value::String(s)) => s.clone(),
+        // REVIEW [B -> A-]: the first parser used `as_str().unwrap_or("CPMM")`,
+        // so a present malformed tag such as `true` became the supported CPMM
+        // default and could accept. Keep missing-as-default, but convert a
+        // present wrong type into an unsupported tag so the kernel rejects at the
+        // ordered curve-config gate, after amount/fee/created_at precedence.
+        Some(_) => "__unsupported_curve_tag_type__".to_string(),
+    }
+}
+
+fn lq_curve_params(obj: &serde_json::Map<String, Value>) -> String {
+    match obj.get("curve_params") {
+        None | Some(Value::Null) => String::new(),
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Object(map)) if map.is_empty() => String::new(),
+        // REVIEW [B -> A-]: CPMM accepts absent, null, empty-string, and empty
+        // object params on the Python shadow. Other present JSON types are not
+        // empty params; mapping them to a non-empty sentinel preserves the
+        // in-band `unsupported_curve_tag` rejection instead of silently accepting
+        // malformed config as the default CPMM curve.
+        Some(_) => "__unsupported_curve_params_type__".to_string(),
+    }
+}
+
 /// Explicit pool-state identity fields are verifier inputs, so missing or
 /// wrong-typed strings must be rejected at the schema boundary.
 ///
@@ -2421,14 +2448,8 @@ fn apply_liquidity_tx(pool: &LiquidityPool, tx: &Value) -> Result<LiquidityAccep
                 Some(_) => lq_created_at(obj, "created_at")?,
                 None => (0, true), // Python default created_at=0.
             };
-            let curve_tag = obj
-                .get("curve_tag")
-                .and_then(Value::as_str)
-                .unwrap_or("CPMM");
-            let curve_params = obj
-                .get("curve_params")
-                .and_then(Value::as_str)
-                .unwrap_or("");
+            let curve_tag = lq_curve_tag(obj);
+            let curve_params = lq_curve_params(obj);
             create_pool(CreatePoolInput {
                 asset_type_ok,
                 asset0,
@@ -2438,8 +2459,8 @@ fn apply_liquidity_tx(pool: &LiquidityPool, tx: &Value) -> Result<LiquidityAccep
                 fee_bps,
                 created_at_ok,
                 created_at,
-                curve_tag,
-                curve_params,
+                curve_tag: &curve_tag,
+                curve_params: &curve_params,
             })
         }
         "add_liquidity" => {
@@ -4345,6 +4366,33 @@ mod tests {
         assert_bad_single_op_versions(run_zusd_op);
         assert_bad_single_op_versions(run_cpmm_op);
         assert_bad_single_op_versions(run_liquidity_op);
+    }
+
+    #[test]
+    fn liquidity_curve_defaults_do_not_coerce_malformed_present_fields() {
+        // REVIEW [B -> A-]: missing optional curve config defaults to CPMM, but
+        // a present wrong-typed field must remain a real unsupported-curve
+        // condition. This prevents verifier input like `curve_tag: true` or
+        // `curve_params: 7` from being silently accepted as the CPMM default.
+        let empty = json!({});
+        let empty_obj = empty.as_object().unwrap();
+        assert_eq!(lq_curve_tag(empty_obj), "CPMM");
+        assert_eq!(lq_curve_params(empty_obj), "");
+
+        let bad_tag = json!({"curve_tag": true});
+        assert_eq!(
+            lq_curve_tag(bad_tag.as_object().unwrap()),
+            "__unsupported_curve_tag_type__"
+        );
+
+        let bad_params = json!({"curve_params": 7});
+        assert_eq!(
+            lq_curve_params(bad_params.as_object().unwrap()),
+            "__unsupported_curve_params_type__"
+        );
+
+        let empty_params = json!({"curve_params": {}});
+        assert_eq!(lq_curve_params(empty_params.as_object().unwrap()), "");
     }
 
     fn zusd_ready_state() -> Value {
