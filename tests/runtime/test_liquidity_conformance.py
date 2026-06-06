@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import random
+import subprocess
 import sys
 from pathlib import Path
 
@@ -80,18 +81,21 @@ def _assert_parity(rust_bin: Path, txs: list, tmp_path: Path) -> dict:
 
 def _run_liquidity_op(rust_bin: Path, pool: dict, tx: dict, tmp_path: Path, name: str) -> dict:
     request = {"version": 1, "pool": pool, "tx": tx}
+    proc = _run_liquidity_op_request(rust_bin, request, tmp_path, name)
+    assert proc.returncode == 0, proc.stderr
+    return json.loads(proc.stdout)
+
+
+def _run_liquidity_op_request(
+    rust_bin: Path, request: dict, tmp_path: Path, name: str
+) -> subprocess.CompletedProcess[str]:
     req_path = tmp_path / f"{name}.json"
     req_path.write_text(json.dumps(request), encoding="utf-8")
-
-    import subprocess
-
-    proc = subprocess.run(
+    return subprocess.run(
         [str(rust_bin), "liquidity-op", str(req_path)],
         capture_output=True,
         text=True,
     )
-    assert proc.returncode == 0, proc.stderr
-    return json.loads(proc.stdout)
 
 
 # --- helpers to build txs -----------------------------------------------------
@@ -446,6 +450,68 @@ def test_liquidity_op_rejects_malformed_active_pool_snapshots(rust_bin, tmp_path
         assert ru["pre_state_root"] == ru["post_state_root"]
 
 
+def test_liquidity_op_requires_pool_identity_strings(rust_bin, tmp_path):
+    """Explicit active pool snapshots cross the CLI verifier boundary, so
+    identity fields must remain typed instead of being coerced into empty
+    strings before the kernel runs. REVIEW [B -> A-]: this catches the parser
+    coercion that previously hid malformed JSON behind misleading reject codes."""
+    base = {
+        "initialized": True,
+        "pool_id": _pool_id(),
+        "asset0": A0,
+        "asset1": A1,
+        "reserve0": 1_000_000,
+        "reserve1": 1_000_000,
+        "fee_bps": 30,
+        "lp_supply": 1_000_000,
+        "created_at": 0,
+    }
+    cases = [
+        ({k: v for k, v in base.items() if k != "pool_id"}, "pool.pool_id must be a string"),
+        ({**base, "pool_id": 12}, "pool.pool_id must be a string"),
+        ({k: v for k, v in base.items() if k != "asset0"}, "pool.asset0 must be a string"),
+        ({**base, "asset0": 12}, "pool.asset0 must be a string"),
+        ({k: v for k, v in base.items() if k != "asset1"}, "pool.asset1 must be a string"),
+        ({**base, "asset1": ["BBB"]}, "pool.asset1 must be a string"),
+    ]
+
+    for i, (pool, expected) in enumerate(cases):
+        proc = _run_liquidity_op_request(
+            rust_bin,
+            {"version": 1, "pool": pool, "tx": _add(100_000, 100_000)},
+            tmp_path,
+            f"bad_pool_identity_{i}",
+        )
+        assert proc.returncode == 2
+        assert expected in proc.stderr
+
+
+def test_liquidity_op_rejects_malformed_version_field(rust_bin, tmp_path):
+    """A present version must be the integer protocol version. REVIEW [B -> A-]:
+    `unwrap_or(1)` treated wrong-typed versions as absent and executed a valid
+    transition, which weakens the parser boundary around future versions."""
+    pool = {
+        "initialized": True,
+        "pool_id": _pool_id(),
+        "asset0": A0,
+        "asset1": A1,
+        "reserve0": 1_000_000,
+        "reserve1": 1_000_000,
+        "fee_bps": 30,
+        "lp_supply": 1_000_000,
+        "created_at": 0,
+    }
+    for i, bad_version in enumerate(("1", True, 2)):
+        proc = _run_liquidity_op_request(
+            rust_bin,
+            {"version": bad_version, "pool": pool, "tx": _add(100_000, 100_000)},
+            tmp_path,
+            f"bad_version_{i}",
+        )
+        assert proc.returncode == 2
+        assert "unsupported request version" in proc.stderr
+
+
 def test_liquidity_op_inactive_pool_precedes_bad_snapshot_header(rust_bin, tmp_path):
     """Inactive pools still reject as pool_not_active. This preserves the
     default empty-pool behavior while active snapshots get the stronger header
@@ -551,8 +617,6 @@ def test_lp_supply_zero_single_op(rust_bin, tmp_path):
     request = {"version": 1, "pool": pool, "tx": tx}
     req_path = tmp_path / "lq_op.json"
     req_path.write_text(json.dumps(request), encoding="utf-8")
-    import subprocess
-
     proc = subprocess.run(
         [str(rust_bin), "liquidity-op", str(req_path)],
         capture_output=True,
@@ -592,8 +656,6 @@ def test_lp_supply_zero_insufficient_initial_from_add(rust_bin, tmp_path):
     request = {"version": 1, "pool": pool, "tx": tx}
     req_path = tmp_path / "lq_op_insuf.json"
     req_path.write_text(json.dumps(request), encoding="utf-8")
-    import subprocess
-
     proc = subprocess.run(
         [str(rust_bin), "liquidity-op", str(req_path)],
         capture_output=True,
@@ -624,8 +686,6 @@ def test_liquidity_op_rejects_unrepresentable_pool_created_at(rust_bin, tmp_path
     request = {"version": 1, "pool": pool, "tx": _add(1, 1, 0, 0)}
     req_path = tmp_path / "lq_bad_pool.json"
     req_path.write_text(json.dumps(request), encoding="utf-8")
-
-    import subprocess
 
     proc = subprocess.run(
         [str(rust_bin), "liquidity-op", str(req_path)],

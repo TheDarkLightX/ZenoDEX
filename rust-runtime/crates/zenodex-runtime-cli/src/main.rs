@@ -2319,6 +2319,20 @@ fn lq_created_at(obj: &serde_json::Map<String, Value>, key: &str) -> Result<(u12
     }
 }
 
+/// Explicit pool-state identity fields are verifier inputs, so missing or
+/// wrong-typed strings must be rejected at the schema boundary.
+///
+/// REVIEW [B -> A-]: the first Rust CLI port used `unwrap_or("")` for these
+/// fields. That kept the arithmetic fail-closed, but it erased malformed JSON
+/// into a plausible empty asset/id and returned misleading kernel reasons.
+/// Rejecting the schema directly keeps the shadow receipt boundary typed.
+fn lq_pool_string(obj: &serde_json::Map<String, Value>, key: &str) -> Result<String, String> {
+    obj.get(key)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| format!("pool.{key} must be a string"))
+}
+
 fn liquidity_pool_from_request(v: &Value) -> Result<LiquidityPool, String> {
     let obj = v
         .get("pool")
@@ -2333,21 +2347,9 @@ fn liquidity_pool_from_request(v: &Value) -> Result<LiquidityPool, String> {
         .get("initialized")
         .and_then(Value::as_bool)
         .ok_or_else(|| "pool.initialized must be a bool".to_string())?;
-    let pool_id = obj
-        .get("pool_id")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string();
-    let asset0 = obj
-        .get("asset0")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string();
-    let asset1 = obj
-        .get("asset1")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string();
+    let pool_id = lq_pool_string(obj, "pool_id")?;
+    let asset0 = lq_pool_string(obj, "asset0")?;
+    let asset1 = lq_pool_string(obj, "asset1")?;
     let reserve0 = lq_pool_u128(obj, "reserve0")?;
     let reserve1 = lq_pool_u128(obj, "reserve1")?;
     let fee_bps = lq_pool_u128(obj, "fee_bps")?;
@@ -2503,7 +2505,17 @@ fn run_liquidity_op(request: &Value) -> Result<LiquidityOpOutput, String> {
     {
         return Err(reason);
     }
-    if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
+    // REVIEW [B -> A-]: `and_then(as_u64).unwrap_or(1)` accepted malformed
+    // versions such as `"1"` or `true` as version 1. This command is a
+    // verifier-facing transition boundary, so a present version must be a JSON
+    // integer exactly equal to 1; only an absent version defaults to v1.
+    let version = match request.get("version") {
+        None => 1,
+        Some(v) => v
+            .as_u64()
+            .ok_or_else(|| "unsupported request version".to_string())?,
+    };
+    if version != 1 {
         return Err("unsupported request version".to_string());
     }
     let pool = liquidity_pool_from_request(request)?;
