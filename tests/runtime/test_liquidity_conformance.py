@@ -27,6 +27,7 @@ for _p in (str(REPO), str(TOOLS_RUNTIME)):
         sys.path.insert(0, _p)
 
 import liquidity_kernel_lib as L  # noqa: E402
+from src.state.pools import compute_pool_id  # noqa: E402
 from rust_shadow_replay import (  # noqa: E402
     ShadowError,
     diff_trace_against_rust,
@@ -123,6 +124,10 @@ def _add(d0, d1, m0=0, m1=0):
 
 def _remove(lp, m0=0, m1=0):
     return {"kind": "remove_liquidity", "lp_amount": lp, "amount0_min": m0, "amount1_min": m1}
+
+
+def _pool_id(asset0=A0, asset1=A1, fee_bps=30):
+    return compute_pool_id(asset0, asset1, fee_bps)
 
 
 # --- tests --------------------------------------------------------------------
@@ -423,6 +428,11 @@ def test_liquidity_op_rejects_malformed_active_pool_snapshots(rust_bin, tmp_path
             _add(100_000, 100_000),
             "assets_not_canonical",
         ),
+        (
+            {**base, "pool_id": "forged-pool-id"},
+            _add(100_000, 100_000),
+            "pool_id_mismatch",
+        ),
     ]
 
     for i, (pool, tx, expected) in enumerate(cases):
@@ -522,7 +532,7 @@ def test_lp_supply_zero_single_op(rust_bin, tmp_path):
     trace path (state from the empty default) cannot construct directly."""
     pool = {
         "initialized": True,
-        "pool_id": "0xabc",
+        "pool_id": _pool_id(),
         "asset0": A0,
         "asset1": A1,
         "reserve0": 2_500_000_000,
@@ -564,7 +574,7 @@ def test_lp_supply_zero_insufficient_initial_from_add(rust_bin, tmp_path):
     NOT `lp_non_positive`. Drives the single-op path (explicit pool state)."""
     pool = {
         "initialized": True,
-        "pool_id": "0xabc",
+        "pool_id": _pool_id(),
         "asset0": A0,
         "asset1": A1,
         "reserve0": 1,

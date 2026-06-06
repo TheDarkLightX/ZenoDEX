@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from src.core.liquidity import add_liquidity, create_pool, remove_liquidity
-from src.state.pools import PoolState, PoolStatus, normalize_pool_asset_pair
+from src.state.pools import PoolState, PoolStatus, compute_pool_id, normalize_pool_asset_pair
 
 SCHEMA_VERSION = 1
 KERNEL = "liquidity"
@@ -46,6 +46,7 @@ U128_MAX = 2**128 - 1
 REJ_MALFORMED_TX = "malformed_tx"
 REJ_UNKNOWN_TX_KIND = "unknown_tx_kind"
 REJ_UNKNOWN_FIELD = "unknown_field"
+REJ_POOL_ID_MISMATCH = "pool_id_mismatch"
 
 _CREATE_FIELDS = frozenset(
     {
@@ -395,6 +396,14 @@ def _active_snapshot_reject(state: LiquidityState) -> str | None:
         return "assets_not_canonical"
     if not _is_strict_int(state.fee_bps) or not (0 <= state.fee_bps <= BPS_MAX):
         return "fee_bps_out_of_domain"
+    # REVIEW [B+ -> A]: a snapshot with canonical assets/fee but a forged pool_id
+    # used to pass both this Python shadow and the Rust CLI. The pool id is part
+    # of the committed state root and liquidity receipt, so explicit verifier
+    # snapshots must bind it to the same CPMM derivation as create_pool.
+    if not isinstance(state.pool_id, str):
+        return REJ_POOL_ID_MISMATCH
+    if state.pool_id != compute_pool_id(state.asset0, state.asset1, state.fee_bps):
+        return REJ_POOL_ID_MISMATCH
     if not _is_strict_int(state.reserve0) or state.reserve0 < 0:
         return "reserve0_out_of_domain"
     if not _is_strict_int(state.reserve1) or state.reserve1 < 0:

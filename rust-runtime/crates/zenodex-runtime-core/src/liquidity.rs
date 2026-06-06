@@ -62,6 +62,7 @@ pub const REJ_INSUFFICIENT_INITIAL_LIQUIDITY: &str = "insufficient_initial_liqui
 
 // add_liquidity / remove_liquidity shared pool-state checks (S2/S3)
 pub const REJ_POOL_NOT_ACTIVE: &str = "pool_not_active";
+pub const REJ_POOL_ID_MISMATCH: &str = "pool_id_mismatch";
 pub const REJ_RESERVE0_OUT_OF_DOMAIN: &str = "reserve0_out_of_domain";
 pub const REJ_RESERVE1_OUT_OF_DOMAIN: &str = "reserve1_out_of_domain";
 pub const REJ_LP_SUPPLY_OUT_OF_DOMAIN: &str = "lp_supply_out_of_domain";
@@ -360,6 +361,15 @@ fn validate_active_pool_header(pool: &Pool) -> Result<(), &'static str> {
     }
     if pool.fee_bps > BPS_MAX {
         return Err(REJ_FEE_BPS_OUT_OF_DOMAIN);
+    }
+    // REVIEW [B+ -> A]: the active-header gate previously trusted the
+    // caller-supplied `pool_id`. That let a single-op verifier input with
+    // canonical assets/fee commit an arbitrary pool id into the receipt and
+    // state root. Active snapshots must carry the same id that `create_pool`
+    // would derive for this CPMM header, or the replay surface can prove
+    // liquidity math for a different object than the one named by the root.
+    if pool.pool_id != compute_pool_id_cpmm(&pool.asset0, &pool.asset1, pool.fee_bps) {
+        return Err(REJ_POOL_ID_MISMATCH);
     }
     Ok(())
 }
@@ -728,7 +738,7 @@ mod tests {
     fn active_pool(reserve0: u128, reserve1: u128, lp_supply: u128) -> Pool {
         Pool {
             initialized: true,
-            pool_id: "pool".to_string(),
+            pool_id: compute_pool_id_cpmm("AAA", "BBB", 30),
             asset0: "AAA".to_string(),
             asset1: "BBB".to_string(),
             reserve0,
@@ -1007,6 +1017,13 @@ mod tests {
             add_liquidity(&bad_fee, 1, 1, 0, 0),
             Err(REJ_FEE_BPS_OUT_OF_DOMAIN)
         );
+
+        let mut bad_pool_id = active_pool(DEX_POOL_RESERVE_MAX + 1, 1, 1);
+        bad_pool_id.pool_id = "forged-pool-id".to_string();
+        assert_eq!(
+            add_liquidity(&bad_pool_id, 1, 1, 0, 0),
+            Err(REJ_POOL_ID_MISMATCH)
+        );
     }
 }
 
@@ -1150,7 +1167,7 @@ mod kani_contracts {
         // gates pass and this is the firing reject.
         let pool = Pool {
             initialized: true,
-            pool_id: "pool".to_string(),
+            pool_id: compute_pool_id_cpmm("AAA", "BBB", 30),
             asset0: "AAA".to_string(),
             asset1: "BBB".to_string(),
             reserve0: 1_000_000,
