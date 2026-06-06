@@ -837,23 +837,24 @@ def test_verify_can_require_proof_verification_report_replay(tmp_path: Path) -> 
     payload = json.loads(proc.stdout)
     header = json.loads(Path(str(payload["header_path"])).read_text(encoding="utf-8"))
     metadata = json.loads(Path(str(payload["proof_metadata_path"])).read_text(encoding="utf-8"))
-    _write_json(
-        report_dir / "1.json",
-        {
-            "schema": "zenodex.zeno_ledger.risc0_proof_metadata_report.v0",
-            "ok": True,
-            "metadata_path": str(payload["proof_metadata_path"]),
-            "proof_journal_hash": header["proof_journal_hash"],
-            "proof_kind": metadata["proof_kind"],
-            "program_id": metadata["program_id"],
-            "verifier_id": metadata["verifier_id"],
-            "toolchain_lock_hash": metadata["toolchain_lock_hash"],
-            "header_bound": True,
-            "body_checked": True,
-            "post_app_hash_checked": True,
-            "risc0_verified": True,
-        },
-    )
+    good_report = {
+        "schema": "zenodex.zeno_ledger.risc0_proof_metadata_report.v0",
+        "ok": True,
+        "metadata_path": str(payload["proof_metadata_path"]),
+        "proof_journal_hash": header["proof_journal_hash"],
+        "proof_kind": metadata["proof_kind"],
+        "program_id": metadata["program_id"],
+        "verifier_id": metadata["verifier_id"],
+        "toolchain_lock_hash": metadata["toolchain_lock_hash"],
+        "header_bound": True,
+        "body_checked": True,
+        "body_sent_to_verifier": True,
+        "post_state_root_checked": True,
+        "pre_state_root_checked": True,
+        "pre_state_root_genesis_exempt": False,
+        "risc0_verified": True,
+    }
+    _write_json(report_dir / "1.json", good_report)
 
     missing_report_dir = _run_verify(
         "--headers-dir",
@@ -892,7 +893,73 @@ def test_verify_can_require_proof_verification_report_replay(tmp_path: Path) -> 
     assert with_report_payload["proof_metadata_checked_heights"] == [1]
     assert with_report_payload["proof_verification_checked_heights"] == [1]
 
-    bad = json.loads((report_dir / "1.json").read_text(encoding="utf-8"))
+    stale = dict(good_report)
+    stale.pop("post_state_root_checked")
+    _write_json(report_dir / "1.json", stale)
+    stale_rejected = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--proof-verification-report-dir",
+        str(report_dir),
+        "--require-proof-verification-report",
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert stale_rejected.returncode == 1
+    stale_payload = json.loads(stale_rejected.stdout)
+    assert "proof_verification_report.post_state_root_checked must be a bool" in stale_payload["errors"][0]
+
+    bad_post = dict(good_report)
+    bad_post["post_state_root_checked"] = False
+    _write_json(report_dir / "1.json", bad_post)
+    post_rejected = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--proof-verification-report-dir",
+        str(report_dir),
+        "--require-proof-verification-report",
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert post_rejected.returncode == 1
+    post_payload = json.loads(post_rejected.stdout)
+    assert "risc0 proof verification report must bind post_state_root" in post_payload["errors"][0]
+
+    bad_body = dict(good_report)
+    bad_body["body_sent_to_verifier"] = False
+    _write_json(report_dir / "1.json", bad_body)
+    body_rejected = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--proof-verification-report-dir",
+        str(report_dir),
+        "--require-proof-verification-report",
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert body_rejected.returncode == 1
+    body_payload = json.loads(body_rejected.stdout)
+    assert "risc0 proof verification report must send the body to the verifier" in body_payload["errors"][0]
+
+    bad = dict(good_report)
     bad["risc0_verified"] = False
     _write_json(report_dir / "1.json", bad)
     rejected = _run_verify(

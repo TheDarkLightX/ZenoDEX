@@ -117,12 +117,22 @@ def validate_risc0_real_proof_smoke_report_v0(
             if case_name in seen_cases:
                 item_errors.append(f"cases[{index}].case must be unique")
             seen_cases.add(case_name)
+            post_app_hash = item.get("post_app_hash")
+            if _is_hex(post_app_hash, 64) and binding:
+                post_root = binding.get("post_state_root")
+                if isinstance(post_root, str):
+                    normalized_post_root = post_root[2:] if post_root.startswith("0x") else post_root
+                    if normalized_post_root != post_app_hash:
+                        item_errors.append(f"cases[{index}].post_app_hash/post_state_root mismatch")
             pre_app_hash = item.get("pre_app_hash")
-            if case_name == "empty":
-                if pre_app_hash != "":
-                    item_errors.append("empty case pre_app_hash must be empty")
-            elif not _is_hex(pre_app_hash, 64):
+            if not _is_hex(pre_app_hash, 64):
                 item_errors.append(f"cases[{index}].pre_app_hash must be 64-char hex")
+            elif binding:
+                pre_root = binding.get("pre_state_root")
+                if isinstance(pre_root, str):
+                    normalized_pre_root = pre_root[2:] if pre_root.startswith("0x") else pre_root
+                    if normalized_pre_root != pre_app_hash:
+                        item_errors.append(f"cases[{index}].pre_app_hash/pre_state_root mismatch")
         if require_proof_files and proof_path is not None:
             path = Path(proof_path)
             if not path.is_file():
@@ -330,8 +340,7 @@ def _validate_artifact_binding(
     _expect_hex_equal(binding.get("evidence_root"), header.get("evidence_root"), f"{prefix}.evidence_root", errors)
     _expect_hex_equal(binding.get("ledger_app_hash"), header.get("app_hash"), f"{prefix}.ledger_app_hash", errors)
     _expect_hex_equal(meta.get("post_app_hash"), header.get("post_state_root"), f"{prefix}.post_state_root_checked", errors)
-    if meta.get("pre_app_hash") != "":
-        _expect_hex_equal(meta.get("pre_app_hash"), header.get("pre_state_root"), f"{prefix}.pre_state_root_checked", errors)
+    _expect_hex_equal(meta.get("pre_app_hash"), header.get("pre_state_root"), f"{prefix}.pre_state_root_checked", errors)
 
 
 def _load_json(path: Path) -> Any:

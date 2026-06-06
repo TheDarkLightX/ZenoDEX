@@ -200,7 +200,13 @@ def build_risc0_proof_metadata_v0(
     )
 
 
-def _run_risc0_verifier_cmd(*, command: Path, proof: Mapping[str, Any]) -> None:
+def _run_risc0_verifier_cmd(
+    *,
+    command: Path,
+    proof: Mapping[str, Any],
+    header: Mapping[str, Any],
+    body: Mapping[str, Any] | None,
+) -> None:
     if not command.is_file():
         raise ValueError("risc0 verifier command missing")
     request = {
@@ -211,6 +217,11 @@ def _run_risc0_verifier_cmd(*, command: Path, proof: Mapping[str, Any]) -> None:
         "tau_state": {"app_hash": proof["meta"]["post_app_hash"]},
         "context": {"app_hash_pre": proof["meta"]["pre_app_hash"]},
     }
+    if body is not None:
+        request["block"] = {
+            "header": {"timestamp": int(header["time_ms"])},
+            "transactions": list(body.get("transactions", [])),
+        }
     proc = subprocess.run(
         [str(command)],
         input=json.dumps(request, sort_keys=True, separators=(",", ":")),
@@ -240,9 +251,10 @@ def _report(
     metadata_path: Path | None,
     header_bound: bool,
     body_checked: bool,
-    post_app_hash_checked: bool,
+    body_sent_to_verifier: bool,
     post_state_root_checked: bool,
     pre_state_root_checked: bool,
+    pre_state_root_genesis_exempt: bool,
     risc0_verified: bool,
 ) -> dict[str, Any]:
     return {
@@ -256,9 +268,10 @@ def _report(
         "toolchain_lock_hash": metadata["toolchain_lock_hash"],
         "header_bound": header_bound,
         "body_checked": body_checked,
-        "post_app_hash_checked": post_app_hash_checked,
+        "body_sent_to_verifier": body_sent_to_verifier,
         "post_state_root_checked": post_state_root_checked,
         "pre_state_root_checked": pre_state_root_checked,
+        "pre_state_root_genesis_exempt": pre_state_root_genesis_exempt,
         "risc0_verified": risc0_verified,
     }
 
@@ -281,20 +294,20 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Require header.proof_journal_hash to equal the generated metadata hash",
     )
-    parser.add_argument(
-        "--require-post-app-hash-header-app-hash",
-        action="store_true",
-        help="Require the Risc0 post_app_hash journal field to equal header.app_hash",
-    )
+    # DEPRECATED, retained as accepted no-ops for backward compatibility. The post_state_root and
+    # pre_state_root bindings are now enforced BY CONSTRUCTION (always, never skipped) — see the
+    # binding block in main(). The vestigial --require-post-app-hash-header-app-hash flag has been
+    # removed: a real spot guest commits post_app_hash == post_state_root, and app_hash composes
+    # post_state_root with evidence/config/module_versions, so post_app_hash can never equal app_hash.
     parser.add_argument(
         "--require-post-app-hash-header-post-state-root",
         action="store_true",
-        help="Require the Risc0 post_app_hash journal field to equal header.post_state_root",
+        help="DEPRECATED no-op: the post_app_hash/header post_state_root binding is now mandatory",
     )
     parser.add_argument(
         "--require-pre-app-hash-header-pre-state-root",
         action="store_true",
-        help="Require the Risc0 pre_app_hash journal field to equal header.pre_state_root when pre_app_hash is present",
+        help="DEPRECATED no-op: the pre_app_hash/header pre_state_root binding is now mandatory",
     )
     parser.add_argument(
         "--risc0-verify-cmd",
@@ -312,33 +325,50 @@ def main(argv: list[str] | None = None) -> int:
         proof = _load_json_object(args.proof)
         header = _load_json_object(args.header)
         body_checked = False
+        body_obj: dict[str, Any] | None = None
         if args.body is not None:
-            validate_header_body_roots_v0(header, _load_json_object(args.body))
+            body_obj = _load_json_object(args.body)
+            validate_header_body_roots_v0(header, body_obj)
             body_checked = True
 
         normalized_proof = _validate_risc0_tau_state_proof(proof)
         risc0_verified = False
+        body_sent_to_verifier = False
         if args.require_risc0_verifier and args.risc0_verify_cmd is None:
             raise ValueError("--require-risc0-verifier requires --risc0-verify-cmd")
         if args.risc0_verify_cmd is not None:
-            _run_risc0_verifier_cmd(command=args.risc0_verify_cmd, proof=normalized_proof)
+            _run_risc0_verifier_cmd(
+                command=args.risc0_verify_cmd,
+                proof=normalized_proof,
+                header=header,
+                body=body_obj,
+            )
             risc0_verified = True
-        if args.require_post_app_hash_header_app_hash:
-            post_app_hash = normalized_proof["meta"]["post_app_hash"]
-            header_app_hash = str(header["app_hash"]).lower()
-            if header_app_hash.startswith("0x"):
-                header_app_hash = header_app_hash[2:]
-            if post_app_hash != header_app_hash:
-                raise ValueError("risc0 post_app_hash/header app_hash mismatch")
-        if args.require_post_app_hash_header_post_state_root:
-            post_app_hash = normalized_proof["meta"]["post_app_hash"]
-            if post_app_hash != _header_root_hex(header, "post_state_root"):
-                raise ValueError("risc0 post_app_hash/header post_state_root mismatch")
-        if args.require_pre_app_hash_header_pre_state_root:
-            pre_app_hash = normalized_proof["meta"]["pre_app_hash"]
-            header_pre_state_root = _header_root_hex(header, "pre_state_root")
-            if pre_app_hash != "" and pre_app_hash != header_pre_state_root:
-                raise ValueError("risc0 pre_app_hash/header pre_state_root mismatch")
+            body_sent_to_verifier = body_obj is not None
+        # Spot proofs are root-bound BY CONSTRUCTION, not by opt-in flag. This builder is
+        # spot-only (it rejects any non-spot proof_type above), and for spot the guest's
+        # post_app_hash IS the canonical ledger post_state_root: the guest computes
+        # sha256_canonical_dex_snapshot_v1, which is byte-identical to dex_state_root_v0 /
+        # compute_state_root (Design A — confirmed by the 2026-05-18 real-proof smoke, where
+        # post_state_root_checked held across all seven spot transitions). A spot proof's
+        # metadata that is NOT bound to the header's canonical post_state_root is therefore
+        # rejected here; the equality is mandatory, never skipped.
+        post_app_hash = normalized_proof["meta"]["post_app_hash"]
+        if post_app_hash != _header_root_hex(header, "post_state_root"):
+            raise ValueError("risc0 post_app_hash/header post_state_root mismatch")
+        # Pre-state binding is likewise mandatory. Empty pre_app_hash is valid for
+        # standalone proof generation, but this ledger-metadata adapter binds to a
+        # non-zero header.pre_state_root, so an empty value is rejected here.
+        pre_app_hash = normalized_proof["meta"]["pre_app_hash"]
+        header_pre_state_root = _header_root_hex(header, "pre_state_root")
+        pre_state_root_checked = False
+        pre_state_root_genesis_exempt = False
+        if pre_app_hash == "":
+            raise ValueError("risc0 pre_app_hash missing for ledger-bound metadata")
+        elif pre_app_hash != header_pre_state_root:
+            raise ValueError("risc0 pre_app_hash/header pre_state_root mismatch")
+        else:
+            pre_state_root_checked = True
 
         metadata = build_risc0_proof_metadata_v0(
             proof_envelope=normalized_proof,
@@ -364,9 +394,10 @@ def main(argv: list[str] | None = None) -> int:
                     metadata_path=args.out,
                     header_bound=header_bound,
                     body_checked=body_checked,
-                    post_app_hash_checked=args.require_post_app_hash_header_app_hash,
-                    post_state_root_checked=args.require_post_app_hash_header_post_state_root,
-                    pre_state_root_checked=args.require_pre_app_hash_header_pre_state_root,
+                    body_sent_to_verifier=body_sent_to_verifier,
+                    post_state_root_checked=True,
+                    pre_state_root_checked=pre_state_root_checked,
+                    pre_state_root_genesis_exempt=pre_state_root_genesis_exempt,
                     risc0_verified=risc0_verified,
                 ),
                 indent=2,

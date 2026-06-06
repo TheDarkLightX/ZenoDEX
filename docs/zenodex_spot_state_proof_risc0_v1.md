@@ -27,10 +27,11 @@ metadata hash committed by `header.proof_journal_hash`.
 Operators may pass `--toolchain-lock-hash` to the Risc0 or TEE metadata adapters
 when replaying against an externally approved lock manifest.
 
-The Risc0 metadata adapter can also require the spot proof's `post_app_hash` to
-match `header.post_state_root`. When `pre_app_hash` is present, it can require
-that value to match `header.pre_state_root`. Empty pre-state proofs bind the
-absence bit into the public-input hash and journal hash.
+The Risc0 metadata adapter requires the spot proof's `post_app_hash` to match
+`header.post_state_root` and requires `pre_app_hash` to match
+`header.pre_state_root`. Empty `pre_app_hash` values may exist in standalone
+proof-generation contexts, but they are rejected by the ledger-bound metadata
+adapter because `proof_metadata.pre_state_root` is a non-zero committed root.
 
 ## Statement (what is proven)
 
@@ -151,7 +152,7 @@ checker loads those artifacts and requires:
 - the generated metadata hash equals `header.proof_journal_hash`;
 - the header/body roots validate;
 - `post_app_hash` equals `header.post_state_root`;
-- present `pre_app_hash` values equal `header.pre_state_root`;
+- `pre_app_hash` equals `header.pre_state_root`;
 - Risc0 metadata rebuild binds `ingress_commitment`, `pre_nonce_root`,
   `post_nonce_root`, and `accepted_receipts_root`;
 - the proof, body, header, and metadata artifact files exist when
@@ -177,7 +178,8 @@ The Risc0 generator requires:
 The verifier additionally accepts (recommended):
 - `block`: used to recompute `txs_commitment`
 - `tau_state.app_hash`: used to check `post_app_hash`
-- `context.app_hash_pre`: used to check `pre_app_hash`
+- `context.app_hash_pre`: used to check `pre_app_hash`; ledger-bound metadata
+  requires this to be concrete, not empty
 
 ## Upgrade path
 

@@ -33,13 +33,15 @@ def _hex(label: str) -> str:
 
 
 def _case(name: str) -> dict[str, object]:
+    pre_state_root = _hex(f"pre-root-{name}")
+    post_state_root = _hex(f"post-root-{name}")
     return {
         "case": name,
         "ok": True,
         "proof_type": PROOF_TYPE,
         "state_hash": _hex("state"),
-        "post_app_hash": _hex(f"post-{name}"),
-        "pre_app_hash": "" if name == "empty" else _hex(f"pre-{name}"),
+        "post_app_hash": post_state_root,
+        "pre_app_hash": pre_state_root,
         "txs_commitment": _hex(f"txs-{name}"),
         "risc0_image_id": _hex("image"),
         "proof_base64_len": 128,
@@ -56,8 +58,8 @@ def _case(name: str) -> dict[str, object]:
             "header_path": f"/tmp/{name}_zeno_ledger_header.json",
             "metadata_path": f"/tmp/{name}_risc0_proof_metadata.json",
             "proof_journal_hash": _hex(f"journal-{name}"),
-            "pre_state_root": _hex(f"pre-root-{name}"),
-            "post_state_root": _hex(f"post-root-{name}"),
+            "pre_state_root": pre_state_root,
+            "post_state_root": post_state_root,
             "tx_root": _hex(f"tx-root-{name}"),
             "body_root": _hex(f"body-root-{name}"),
             "evidence_root": _hex(f"evidence-root-{name}"),
@@ -96,6 +98,7 @@ def _write_json(path: Path, value: object) -> None:
 
 
 def _artifact_report(tmp_path: Path) -> dict[str, object]:
+    pre_state_root = _root("pre-state")
     post_state_root = _root("post-state")
     proof = {
         "schema": "tau_state_proof",
@@ -110,7 +113,7 @@ def _artifact_report(tmp_path: Path) -> dict[str, object]:
             "pre_nonce_root": _hex("pre-nonce-empty"),
             "post_nonce_root": _hex("post-nonce-empty"),
             "accepted_receipts_root": _hex("accepted-receipts-empty"),
-            "pre_app_hash": "",
+            "pre_app_hash": pre_state_root[2:],
             "post_app_hash": post_state_root[2:],
         },
     }
@@ -158,7 +161,7 @@ def _artifact_report(tmp_path: Path) -> dict[str, object]:
         sequencer_set_hash=_root("sequencer-set"),
         ingress_root=compute_ingress_root_v0(body["ingress"]),  # type: ignore[arg-type]
         tx_root=compute_tx_root_v0(body["transactions"]),  # type: ignore[arg-type]
-        pre_state_root=_root("pre-state-absent"),
+        pre_state_root=pre_state_root,
         post_state_root=post_state_root,
         app_hash=app_hash,
         evidence_root=evidence_root,
@@ -200,7 +203,7 @@ def _artifact_report(tmp_path: Path) -> dict[str, object]:
                 "proof_type": PROOF_TYPE,
                 "state_hash": proof["state_hash"],
                 "post_app_hash": proof["meta"]["post_app_hash"],
-                "pre_app_hash": "",
+                "pre_app_hash": proof["meta"]["pre_app_hash"],
                 "txs_commitment": proof["meta"]["txs_commitment"],
                 "risc0_image_id": proof["meta"]["risc0_image_id"],
                 "proof_base64_len": len(str(proof["proof"])),

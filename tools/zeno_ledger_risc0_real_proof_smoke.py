@@ -179,7 +179,9 @@ def _ledger_header_for_case(
     if not isinstance(pre_hash, str) or not isinstance(post_hash, str):
         raise ValueError("proof app hashes must be strings")
 
-    pre_state_root = _root("pre-state-absent", name) if pre_hash == "" else _with_0x(pre_hash)
+    if pre_hash == "":
+        raise ValueError(f"{name}: proof pre_app_hash missing for ledger-bound smoke")
+    pre_state_root = _with_0x(pre_hash)
     post_state_root = _with_0x(post_hash)
     evidence_root = compute_evidence_root_v0(body["evidence"])
     config_digest = _root("config", name)
@@ -252,10 +254,7 @@ def _ledger_binding_for_case(
     meta = proof["meta"]
     assert isinstance(meta, dict)
     post_state_root_checked = _strip_0x(str(header["post_state_root"])) == meta["post_app_hash"]
-    pre_state_root_checked = (
-        meta["pre_app_hash"] == ""
-        or _strip_0x(str(header["pre_state_root"])) == meta["pre_app_hash"]
-    )
+    pre_state_root_checked = _strip_0x(str(header["pre_state_root"])) == meta["pre_app_hash"]
     if not post_state_root_checked:
         raise ValueError(f"{name}: proof post_app_hash/header post_state_root mismatch")
     if not pre_state_root_checked:
@@ -479,8 +478,8 @@ def _smoke_cases() -> dict[str, dict[str, Any]]:
 
     return {
         "empty": {
-            "pre_snapshot": None,
-            "pre_hash": "",
+            "pre_snapshot": _empty_snapshot_copy(),
+            "pre_hash": empty_hash,
             "transactions": [],
             "post_hash": empty_hash,
         },

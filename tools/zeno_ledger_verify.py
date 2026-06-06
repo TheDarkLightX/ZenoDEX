@@ -235,6 +235,22 @@ def validate_proof_verification_report_v0(
     if proof_kind == "risc0_zkvm_v0":
         if schema != RISC0_PROOF_METADATA_REPORT_SCHEMA:
             raise ValueError("risc0 proof metadata requires risc0 verification report")
+        if _require_bool(obj.get("body_checked"), name="proof_verification_report.body_checked") is not True:
+            raise ValueError("risc0 proof verification report must check header/body roots")
+        if _require_bool(obj.get("body_sent_to_verifier"), name="proof_verification_report.body_sent_to_verifier") is not True:
+            raise ValueError("risc0 proof verification report must send the body to the verifier")
+        if _require_bool(obj.get("post_state_root_checked"), name="proof_verification_report.post_state_root_checked") is not True:
+            raise ValueError("risc0 proof verification report must bind post_state_root")
+        pre_checked = _require_bool(
+            obj.get("pre_state_root_checked"),
+            name="proof_verification_report.pre_state_root_checked",
+        )
+        pre_genesis_exempt = _require_bool(
+            obj.get("pre_state_root_genesis_exempt"),
+            name="proof_verification_report.pre_state_root_genesis_exempt",
+        )
+        if not pre_checked and not pre_genesis_exempt:
+            raise ValueError("risc0 proof verification report must bind pre_state_root")
         if _require_bool(obj.get("risc0_verified"), name="proof_verification_report.risc0_verified") is not True:
             raise ValueError("risc0 proof verification report must be verifier-backed")
     elif proof_kind == "tee_attestation_v0":
