@@ -61,13 +61,17 @@ Feature: Clearinghouse core collateral and epoch transitions
     And the market state is unchanged
     And wallet A has collateral 5000
 
-  @pending
-  Scenario: A balanced two-wallet epoch conserves value and nets to zero
-    # PENDING red-line: confirm the intended run_epoch inputs (clearing price,
-    # funding rate, and the matched intents that produce a net-zero book) for
-    # the canonical "balanced book" scenario before promoting this to green.
+  Scenario: A balanced two-wallet epoch nets to zero and conserves value
+    # The canonical balanced book made EXPLICIT (no magic): A goes long 10, B goes
+    # short 10 at the index price with zero funding -> the book matches net-zero,
+    # positions cancel, and the authority's own invariants (incl. value
+    # conservation D + I_ext == Sigma coll + F + I) hold. Promoted from @pending
+    # using the same verified net-zero book as the perps-NP differential corpus.
     Given wallet A has deposited 5000 collateral
     And wallet B has deposited 5000 collateral
-    When a balanced epoch runs at clearing price 1.00 with funding rate 0
+    When wallet A submits a long intent for 10 base at nonce 1
+    And wallet B submits a short intent for 10 base at nonce 1
+    And the epoch runs at clearing price 1.00 with funding rate 0
     Then net position across all wallets is 0
+    And wallet A has a long position of 10 base
     And collateral conservation holds

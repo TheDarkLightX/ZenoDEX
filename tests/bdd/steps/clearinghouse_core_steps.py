@@ -11,6 +11,7 @@ from copy import deepcopy
 from decimal import Decimal, InvalidOperation
 
 from src.core import perp_np_clearinghouse as ch
+from src.core.perp_np_matching import Intent
 from tests.bdd.runner import StepRegistry
 
 registry = StepRegistry()
@@ -20,7 +21,7 @@ E8 = 100_000_000
 
 
 def make_context() -> dict:
-    return {"state": None, "pre_state": None, "pre_snapshot": None, "error": None}
+    return {"state": None, "pre_state": None, "pre_snapshot": None, "error": None, "intents": []}
 
 
 def _amount(s: str) -> int:
@@ -124,3 +125,33 @@ def _then_unchanged(ctx):
     # check and add a structural snapshot comparison for the actual no-op claim.
     assert ctx["state"] is ctx["pre_state"], "reject must be a no-op (state identity preserved)"
     assert ctx["state"] == ctx["pre_snapshot"], "reject mutated the market state before raising"
+
+
+# --- run_epoch / matching (the balanced-book layer) ----------------------------
+@step("wallet {w} submits a {side} intent for {n} base at nonce {nonce}")
+def _when_intent(ctx, w, side, n, nonce):
+    if side not in ("long", "short"):
+        raise AssertionError(f"intent side must be long|short, got {side!r}")
+    base = int(n) if side == "long" else -int(n)
+    ctx["intents"].append(
+        Intent(pubkey=w, target_base=base, limit_price_e8=0, min_fill_base=0,
+               expiry_epoch=1 << 62, nonce=int(nonce))
+    )
+
+
+@step("the epoch runs at clearing price {price} with funding rate {rate}")
+def _when_run_epoch(ctx, price, rate):
+    state, _result = ch.run_epoch(ctx["state"], _amount(price), int(rate), ctx["intents"])
+    ctx["state"] = state
+    ctx["intents"] = []
+
+
+@step("net position across all wallets is {n}")
+def _then_net_position(ctx, n):
+    actual = ch.net_position(ctx["state"])
+    assert actual == int(n), actual
+
+
+@step("wallet {w} has a long position of {n} base")
+def _then_long_position(ctx, w, n):
+    assert ctx["state"].by_pubkey()[w].position_base == int(n)
