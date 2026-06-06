@@ -10,14 +10,15 @@ use tau_state_proof_risc0_methods::{
     TAU_STATE_PROOF_RISC0_GUEST_ID as TAU_STATE_PROOF_GUEST_ID,
 };
 use tau_state_proof_risc0_shared::{
-    accepted_receipts_root_v1, ingress_commitment_v1, perps_np_collateral_bindings_hash_v1,
-    perps_np_operation_hash_v1, perps_np_oracle_bindings_hash_v1, txs_commitment_v1,
-    zusd_operation_hash_v1, zusd_operation_oracle_binding_hash_v1, ChainBalanceV1,
-    CollateralBindingV1, DexSnapshotV1, DexStateV1, NonceEntryV1, NonceStateV1, OracleBindingV1,
-    PerpsAccountV1, PerpsIntentV1, PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpSnapshotV1,
-    PerpsNpTransitionInputV1, PerpsNpTransitionJournalV1, StateProofInputV1, StateProofJournalV1,
-    TauTxAppOpsV1, TauTxV1, TxIngressFactV1, ZenoProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1,
-    ZusdSnapshotV1, ZusdTransitionInputV1, ZusdTransitionJournalV1, ZusdVaultEntryV1, PROOF_TYPE,
+    accepted_receipts_root_v1, execute_perps_np_transition_v1_unchecked_with_snapshot,
+    ingress_commitment_v1, perps_np_collateral_bindings_hash_v1, perps_np_operation_hash_v1,
+    perps_np_oracle_bindings_hash_v1, txs_commitment_v1, zusd_operation_hash_v1,
+    zusd_operation_oracle_binding_hash_v1, ChainBalanceV1, CollateralBindingV1, DexSnapshotV1,
+    DexStateV1, NonceEntryV1, NonceStateV1, OracleBindingV1, PerpsAccountV1, PerpsIntentV1,
+    PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpSnapshotV1, PerpsNpTransitionInputV1,
+    PerpsNpTransitionJournalV1, StateProofInputV1, StateProofJournalV1, TauTxAppOpsV1, TauTxV1,
+    TxIngressFactV1, ZenoProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1, ZusdSnapshotV1,
+    ZusdTransitionInputV1, ZusdTransitionJournalV1, ZusdVaultEntryV1, PROOF_TYPE,
     PROOF_TYPE_PERPS_NP, PROOF_TYPE_ZUSD,
 };
 
@@ -40,9 +41,103 @@ fn main() {
     match schema {
         "tau_state_proof_request" => handle_generate(&req),
         "tau_state_proof_verify" => handle_verify(&req),
+        "tau_state_transition_execute" => handle_execute(&req),
         _ => {
             eprintln!("unexpected schema");
             std::process::exit(2);
+        }
+    }
+}
+
+// P0-3 differential oracle: host-execute a guest transition WITHOUT proving and
+// WITHOUT enforcing expected_post_app_hash, emitting the guest's ACTUAL
+// post-snapshot (structured) + journal hashes so a caller can diff them against
+// the Python authority. NOT a proof path; produces no receipt.
+fn handle_execute(req: &Value) {
+    // REVIEW [B -> A-]: the first WIP defaulted a missing proof_type to perps-NP
+    // and accepted expected_post_app_hash fields it did not enforce. This command
+    // is a no-receipt differential oracle, so proof_type must be explicit and any
+    // caller-supplied post-hash claim is rejected before execution.
+    let proof_type = req
+        .get("proof_type")
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| die("proof_type missing for tau_state_transition_execute"));
+    match proof_type {
+        PROOF_TYPE_PERPS_NP => handle_execute_perps_np(req),
+        _ => die("tau_state_transition_execute supports proof_type perps_np only"),
+    }
+}
+
+fn handle_execute_perps_np(req: &Value) {
+    if req.get("schema_version").and_then(Value::as_i64) != Some(1) {
+        die("unexpected schema_version (expected v1)");
+    }
+    if req.get("expected_post_app_hash").is_some()
+        || req
+            .get("tau_state")
+            .and_then(|v| v.get("app_hash"))
+            .is_some()
+    {
+        die("tau_state_transition_execute does not enforce expected_post_app_hash; compare meta.post_app_hash externally");
+    }
+    let state_hash_hex = require_str(req.get("state_hash"), "state_hash");
+    let state_hash = parse_hex32(&state_hash_hex).unwrap_or_else(|e| die(&e));
+    let context = req.get("context").cloned().unwrap_or(Value::Null);
+    if !context.is_object() {
+        die("context must be an object (required for perps np execute)");
+    }
+    let context = context.as_object().expect("checked object");
+    let chain_id = chain_id_from_request(req, &Value::Object(context.clone()));
+    let (pre_app_hash_present, pre_app_hash) = parse_pre_app_hash_context(context);
+    let pre_state = parse_perps_pre_state(req, &Value::Object(context.clone()));
+    let actions_value = req
+        .get("actions")
+        .cloned()
+        .unwrap_or_else(|| die("actions missing for perps np execute"));
+    let actions: Vec<PerpsNpActionV1> = parse_perps_actions_value(&actions_value)
+        .unwrap_or_else(|e| die(&format!("actions schema mismatch: {e}")));
+    if actions.is_empty() {
+        die("actions must be non-empty for perps np execute");
+    }
+    let input = PerpsNpTransitionInputV1 {
+        state_hash,
+        chain_id,
+        pre_app_hash_present,
+        pre_app_hash,
+        pre_state,
+        actions,
+        expected_post_app_hash: [0u8; 32], // ignored by the unchecked snapshot helper
+        risc0_image_id: TAU_STATE_PROOF_GUEST_ID,
+    };
+    match execute_perps_np_transition_v1_unchecked_with_snapshot(input) {
+        Ok((journal, snapshot)) => {
+            let snap_value = serde_json::to_value(&snapshot)
+                .unwrap_or_else(|e| die(&format!("post_snapshot serialize failed: {e}")));
+            let out = json!({
+                "schema": "tau_state_transition_result",
+                "schema_version": 1,
+                "proof_type": PROOF_TYPE_PERPS_NP,
+                "proof_mode": "host_execute_no_receipt",
+                "production_security_claim": false,
+                "expected_post_app_hash_enforced": false,
+                "accepted": true,
+                "meta": perps_np_meta(&journal),
+                "post_snapshot": snap_value,
+            });
+            write_json_stdout(&out);
+        }
+        Err(e) => {
+            let out = json!({
+                "schema": "tau_state_transition_result",
+                "schema_version": 1,
+                "proof_type": PROOF_TYPE_PERPS_NP,
+                "proof_mode": "host_execute_no_receipt",
+                "production_security_claim": false,
+                "expected_post_app_hash_enforced": false,
+                "accepted": false,
+                "reject": format!("{e:?}"),
+            });
+            write_json_stdout(&out);
         }
     }
 }

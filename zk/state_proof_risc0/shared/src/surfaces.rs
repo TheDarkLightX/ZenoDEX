@@ -301,9 +301,19 @@ pub struct ZusdTransitionJournalV1 {
     pub mcr_bps: u32,
 }
 
-pub fn execute_perps_np_transition_v1(
+/// Apply the N-party perps transition and return BOTH the journal and the
+/// post-state snapshot, WITHOUT enforcing `expected_post_app_hash` (the journal
+/// carries the guest's ACTUAL post).
+///
+/// REVIEW [B -> A-]: the first WIP name ended in `_with_snapshot`, which hid the
+/// load-bearing fact that the post-hash equality gate is absent. Keep this helper
+/// explicit: it is an unchecked host-execute oracle for the P0-3 guest<->Python
+/// differential. Callers must compare the returned structured snapshot and
+/// `journal.post_app_hash` externally. `execute_perps_np_transition_v1` is the
+/// thin proof-path wrapper that re-adds the equality check.
+pub fn execute_perps_np_transition_v1_unchecked_with_snapshot(
     input: PerpsNpTransitionInputV1,
-) -> Result<PerpsNpTransitionJournalV1, TransitionError> {
+) -> Result<(PerpsNpTransitionJournalV1, PerpsNpSnapshotV1), TransitionError> {
     if input.chain_id.is_empty() {
         return Err(TransitionError::InvalidInput("chain_id empty"));
     }
@@ -394,11 +404,11 @@ pub fn execute_perps_np_transition_v1(
     }
 
     let post = state.canonical_app_hash_sha256();
-    if post != input.expected_post_app_hash {
-        return Err(TransitionError::InvalidInput("post_app_hash mismatch"));
-    }
+    // The expected_post_app_hash equality check is enforced by the thin wrapper
+    // `execute_perps_np_transition_v1`; this variant returns the ACTUAL post so
+    // the differential can compare it to the authority's post independently.
     let participant_set_hash = state.participant_set_hash();
-    Ok(PerpsNpTransitionJournalV1 {
+    let journal = PerpsNpTransitionJournalV1 {
         journal_version: JOURNAL_VERSION,
         proof_type: PROOF_TYPE_PERPS_NP.to_string(),
         state_hash: input.state_hash,
@@ -418,7 +428,23 @@ pub fn execute_perps_np_transition_v1(
         total_collateral_e8: state.total_collateral(),
         funding_residual_e8: funding_residual,
         matched_base_volume: matched_volume,
-    })
+    };
+    let snapshot = state.to_snapshot();
+    Ok((journal, snapshot))
+}
+
+/// Thin wrapper: apply the transition and enforce `expected_post_app_hash`
+/// equality (the original `execute_perps_np_transition_v1` contract, identical
+/// behavior). Discards the snapshot.
+pub fn execute_perps_np_transition_v1(
+    input: PerpsNpTransitionInputV1,
+) -> Result<PerpsNpTransitionJournalV1, TransitionError> {
+    let expected = input.expected_post_app_hash;
+    let (journal, _snapshot) = execute_perps_np_transition_v1_unchecked_with_snapshot(input)?;
+    if journal.post_app_hash != expected {
+        return Err(TransitionError::InvalidInput("post_app_hash mismatch"));
+    }
+    Ok(journal)
 }
 
 pub fn execute_zusd_transition_v1(
@@ -2546,6 +2572,46 @@ mod tests {
             expected_collateral_binding_hash
         );
         assert_eq!(journal.oracle_binding_hash, expected_oracle_binding_hash);
+    }
+
+    #[test]
+    fn perps_np_unchecked_snapshot_helper_keeps_post_hash_gate_external() {
+        // REVIEW [B -> A-]: the P0-3 host-execute helper intentionally returns
+        // the guest's actual post snapshot without enforcing expected_post_app_hash.
+        // Pin both sides: the proof-path wrapper still rejects the wrong post,
+        // while the unchecked differential helper returns the snapshot for an
+        // external Python-vs-guest comparison.
+        let actions = alloc::vec![
+            init_action(),
+            PerpsNpActionV1::DepositCollateral {
+                pubkey: "wallet-a".to_string(),
+                asset: default_zusd_asset(),
+                amount_e8: 2_000 * E8_I128,
+                nonce: 1,
+                collateral_binding: Some(collateral_binding(10)),
+            },
+        ];
+        let input = PerpsNpTransitionInputV1 {
+            state_hash: H,
+            chain_id: "devnet".to_string(),
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            pre_state: PerpsNpSnapshotV1::empty(),
+            actions,
+            expected_post_app_hash: [0u8; 32],
+            risc0_image_id: IMAGE_ID,
+        };
+
+        assert!(matches!(
+            execute_perps_np_transition_v1(input.clone()),
+            Err(TransitionError::InvalidInput("post_app_hash mismatch"))
+        ));
+        let (journal, snapshot) =
+            execute_perps_np_transition_v1_unchecked_with_snapshot(input).unwrap();
+        assert_ne!(journal.post_app_hash, [0u8; 32]);
+        assert_eq!(snapshot.accounts.len(), 1);
+        assert_eq!(snapshot.accounts[0].pubkey, "wallet-a");
+        assert_eq!(snapshot.accounts[0].nonce, 1);
     }
 
     #[test]
