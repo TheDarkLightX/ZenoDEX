@@ -1524,6 +1524,10 @@ fn num_arg(obj: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
 }
 
 fn flag(obj: &serde_json::Map<String, Value>, key: &str) -> bool {
+    // REVIEW [B -> A-]: zUSD oracle authorization used to be vulnerable on the
+    // Python authority side because `bool(auth_ok)` accepted integers, strings,
+    // and containers. Keep the Rust shadow strict as well: only JSON true means
+    // true; missing or wrong-typed values are unauthorized.
     obj.get(key).and_then(Value::as_bool).unwrap_or(false)
 }
 
@@ -4393,6 +4397,28 @@ mod tests {
 
         let empty_params = json!({"curve_params": {}});
         assert_eq!(lq_curve_params(empty_params.as_object().unwrap()), "");
+    }
+
+    #[test]
+    fn zusd_auth_flags_do_not_coerce_malformed_truthy_values() {
+        // REVIEW [B -> A-]: the Python authority previously used `bool(...)`,
+        // so `auth_ok: 1` or `"true"` authorized oracle actions. The Rust shadow
+        // must make the same critical bit unambiguous: only JSON true authorizes.
+        let missing = json!({});
+        assert!(!flag(missing.as_object().unwrap(), "auth_ok"));
+
+        let yes = json!({"auth_ok": true});
+        assert!(flag(yes.as_object().unwrap(), "auth_ok"));
+
+        for bad in [
+            json!({"auth_ok": false}),
+            json!({"auth_ok": 1}),
+            json!({"auth_ok": "true"}),
+            json!({"auth_ok": ["true"]}),
+            json!({"auth_ok": {"ok": true}}),
+        ] {
+            assert!(!flag(bad.as_object().unwrap(), "auth_ok"));
+        }
     }
 
     fn zusd_ready_state() -> Value {

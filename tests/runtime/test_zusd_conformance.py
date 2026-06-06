@@ -139,3 +139,42 @@ def test_randomized_differential(rust_bin, tmp_path):
     assert accepts > 0
     assert len(reject_reasons) >= 5
     assert not any(r and r.startswith("unmapped:") for r in reject_reasons)
+
+
+def test_oracle_auth_ok_is_strict_bool_in_python_and_rust(rust_bin, tmp_path):
+    # REVIEW [B -> A-]: the Python authority previously used `bool(auth_ok)`,
+    # so JSON values like `1`, `"true"`, and `["true"]` authorized oracle
+    # actions. The Rust shadow treated them as false, leaving a consensus
+    # split. Pin the production rule: only JSON true authorizes.
+    txs: list = [
+        {"kind": "bootstrap_oracle", "auth_ok": 1, "price_e8": E8},
+        {"kind": "bootstrap_oracle", "auth_ok": "true", "price_e8": E8},
+        {"kind": "bootstrap_oracle", "auth_ok": ["true"], "price_e8": E8},
+        {"kind": "bootstrap_oracle", "auth_ok": True, "price_e8": E8},
+        {"kind": "oracle_report", "auth_ok": 1, "price_e8": E8 // 2},
+        {"kind": "oracle_report", "auth_ok": "true", "price_e8": E8 // 2},
+        {"kind": "oracle_report", "auth_ok": True, "price_e8": E8 // 2},
+        {"kind": "oracle_commit", "auth_ok": 1},
+        {"kind": "oracle_commit", "auth_ok": "true"},
+        {"kind": "oracle_commit", "auth_ok": True},
+    ]
+
+    python_out = zusd_kernel_lib.replay_txs([json.loads(json.dumps(tx)) for tx in txs])
+    rust_out = _run_rust_on_txs(rust_bin, txs, tmp_path)
+    assert python_out == rust_out
+    assert [r["reject_reason"] for r in rust_out["results"][:3]] == [
+        "bootstrap_requires_auth",
+        "bootstrap_requires_auth",
+        "bootstrap_requires_auth",
+    ]
+    assert rust_out["results"][3]["accept"] is True
+    assert [r["reject_reason"] for r in rust_out["results"][4:6]] == [
+        "report_requires_auth",
+        "report_requires_auth",
+    ]
+    assert rust_out["results"][6]["accept"] is True
+    assert [r["reject_reason"] for r in rust_out["results"][7:9]] == [
+        "commit_requires_auth",
+        "commit_requires_auth",
+    ]
+    assert rust_out["results"][9]["accept"] is True
