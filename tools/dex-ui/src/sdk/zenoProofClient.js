@@ -389,9 +389,40 @@ function requireRangeSummary(summary) {
   return rangeSummary;
 }
 
+// WS5-A (governance/upgrade-authority pinning): the SECOND standing trust
+// assumption, alongside the oracle. `module_versions_digest` and `config_digest`
+// are the governance-controlled "what valid means" -- a t-of-n committee can
+// re-sign a header with a NEW running kernel / config, and a client that only
+// recomputes `app_hash` would accept it (the app_hash recomputes consistently
+// over whatever the committee declared). NO ZK proof can ever discharge this: a
+// proof establishes "execution under image/version X is valid", never "X is the
+// RIGHT program". So the client must PIN the verifier identity out-of-band. When
+// the caller supplies a pinset (an allowlist supporting pinned-OR-validly-upgraded),
+// the client REFUSES any header whose identity is not in it. No pinset configured
+// => unpinned (backward compatible), reported as verifier_identity_pinned=false.
+function enforceVerifierIdentityPin(header, options) {
+  let pinned = false;
+  const mvPins = options.pinnedModuleVersionsDigests;
+  if (Array.isArray(mvPins) && mvPins.length > 0) {
+    if (!mvPins.includes(header.module_versions_digest)) {
+      throw new Error('header module_versions_digest is not in the client pinset (untrusted verifier identity)');
+    }
+    pinned = true;
+  }
+  const cfgPins = options.pinnedConfigDigests;
+  if (Array.isArray(cfgPins) && cfgPins.length > 0) {
+    if (!cfgPins.includes(header.config_digest)) {
+      throw new Error('header config_digest is not in the client pinset (untrusted verifier identity)');
+    }
+    pinned = true;
+  }
+  return pinned;
+}
+
 export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
   const gaps = [];
   const requireIndependentBls = Boolean(options.requireIndependentBls);
+  let verifierIdentityPinned = false;
   try {
     requireRecord(bundle, 'bundle');
     exactKeys(bundle, BUNDLE_KEYS_V0, 'bundle');
@@ -412,6 +443,8 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
     exactKeys(summary, VERIFICATION_SUMMARY_KEYS_V0, 'verification summary');
     exactKeys(capabilities, CAPABILITY_KEYS_V0, 'capabilities');
     const targetHeaderHash = await validateCheckpointHeaderBinding(checkpoint, targetHeader);
+    // WS5-A: refuse a committee-swapped verifier identity the client has not pinned.
+    verifierIdentityPinned = enforceVerifierIdentityPin(targetHeader, options);
     if (
       !Array.isArray(bundle.signature_envelopes)
       || bundle.signature_envelopes.length === 0
@@ -552,6 +585,7 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
       browser_bls_quorum_verified: browserBlsVerified,
       browser_bls_accepted_weight: browserBlsAcceptedWeight,
       builder_bls_quorum_verified: true,
+      verifier_identity_pinned: verifierIdentityPinned,
       gaps,
     };
   } catch (err) {
@@ -562,6 +596,7 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
       gaps,
       browser_bls_quorum_verified: false,
       builder_bls_quorum_verified: false,
+      verifier_identity_pinned: verifierIdentityPinned,
     };
   }
 }

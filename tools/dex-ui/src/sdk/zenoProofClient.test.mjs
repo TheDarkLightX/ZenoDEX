@@ -150,6 +150,55 @@ test('browser checkpoint bundle verifies shape and hash binding', async () => {
   assert.equal(report.browser_bls_quorum_verified, false);
 });
 
+test('WS5-A: no pinset => verifier_identity_pinned=false (backward compatible)', async () => {
+  const bundle = await makeBundle();
+  const report = await verifyBrowserCheckpointBundleV0(bundle);
+  assert.equal(report.ok, true);
+  assert.equal(report.verifier_identity_pinned, false);
+});
+
+test('WS5-A: matching verifier-identity pin verifies and reports pinned', async () => {
+  const bundle = await makeBundle();
+  // The fixture header declares module_versions_digest=root('d'), config_digest=root('7').
+  const report = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedModuleVersionsDigests: [root('d')],
+    pinnedConfigDigests: [root('7')],
+  });
+  assert.equal(report.ok, true);
+  assert.equal(report.verifier_identity_pinned, true);
+});
+
+test('WS5-A: a committee-swapped module_versions_digest not in the pinset is REFUSED', async () => {
+  const bundle = await makeBundle();
+  // A t-of-n committee re-signed a header with a different running kernel; the
+  // client pins only the version it trusts -> refuse (no proof can discharge this).
+  const report = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedModuleVersionsDigests: [root('c')], // NOT the header's root('d')
+  });
+  assert.equal(report.ok, false);
+  assert.equal(report.verifier_identity_pinned, false);
+  assert.ok(report.gaps.some((g) => g.includes('module_versions_digest is not in the client pinset')));
+});
+
+test('WS5-A: a config_digest not in the pinset is REFUSED', async () => {
+  const bundle = await makeBundle();
+  const report = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedConfigDigests: [root('1')], // NOT the header's root('7')
+  });
+  assert.equal(report.ok, false);
+  assert.ok(report.gaps.some((g) => g.includes('config_digest is not in the client pinset')));
+});
+
+test('WS5-A: an allowlist of multiple trusted versions accepts a validly-upgraded identity', async () => {
+  const bundle = await makeBundle();
+  // pinned-OR-validly-upgraded: the client allowlists the prior + the new reviewed version.
+  const report = await verifyBrowserCheckpointBundleV0(bundle, {
+    pinnedModuleVersionsDigests: [root('9'), root('d')], // includes the header's root('d')
+  });
+  assert.equal(report.ok, true);
+  assert.equal(report.verifier_identity_pinned, true);
+});
+
 test('browser checkpoint bundle rejects tampering', async () => {
   const bundle = await makeBundle();
   bundle.target_checkpoint.height = 3;
