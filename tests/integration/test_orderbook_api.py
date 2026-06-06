@@ -256,6 +256,35 @@ def test_bad_shape_rejects_no_op(overrides):
     assert _store_snapshot(store) == snap
 
 
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"quote_quantity": "999999"},
+        {"time_in_force": "IOC"},
+        {"time_in_force": ""},
+        {"expires_at": "tomorrow"},
+        {"expires_at": True},
+        {"expires_at": -1},
+        {"deadline": "0"},
+        {"deadline": True},
+        {"deadline": -1},
+        {"attacker_extra": True},
+    ],
+)
+def test_order_request_contract_rejects_ignored_or_unsupported_fields_no_op(overrides):
+    # REVIEW [B -> A-]: Stage 0 previously accepted these payloads and executed
+    # while ignoring unsupported or malformed request-surface fields. A
+    # proof-carrying order request must be closed over the fields it actually
+    # honors; this pins reject-is-no-op for the closed-schema boundary.
+    store = new_demo_store()
+    snap = _store_snapshot(store)
+    s, resp = _call(store, "POST", "/api/orderbook/orders", _order_request(**overrides))
+    assert s == 400
+    assert resp["ok"] is False
+    assert resp["error"] == "bad_shape"
+    assert _store_snapshot(store) == snap
+
+
 def test_empty_and_malformed_body_reject_no_op():
     store = new_demo_store()
     snap = _store_snapshot(store)

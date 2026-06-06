@@ -141,6 +141,23 @@ FEE_RULE_HASH = sha256_hex(
 
 _AGENT_KEY_NBYTES = 48  # agent_key_id IS the owner BLS pubkey (48-byte) in Stage 0
 
+_ORDER_REQUEST_KEYS = frozenset(
+    {
+        "market_id",
+        "client_order_id",
+        "side",
+        "order_type",
+        "price",
+        "quantity",
+        "time_in_force",
+        "expires_at",
+        "nonce",
+        "deadline",
+        "agent_key_id",
+        "signature",
+    }
+)
+
 
 # --- store domain types --------------------------------------------------------
 @dataclass(frozen=True)
@@ -305,6 +322,31 @@ def _canonical_request_hash(raw: Dict[str, Any]) -> str:
     return sha256_hex(domain_sep_bytes("clob_request", version=1) + canonical_json_bytes(raw))
 
 
+def _validate_order_request_contract(raw: Dict[str, Any]) -> Optional[str]:
+    """
+    Stage-0 closed-schema gate for fields the implementation actually honors.
+
+    REVIEW [B -> A-]: the first Stage-0 parser validated required fields but
+    accepted and ignored unsupported request-surface fields such as
+    ``quote_quantity``, malformed ``expires_at``, and non-GTC
+    ``time_in_force``. That failed review because proof-carrying order requests
+    must be canonical at the API boundary: no caller-controlled field may be
+    present while being omitted from execution semantics. Keep this schema
+    closed until the next order scope explicitly supports those fields.
+    """
+    if set(raw) != _ORDER_REQUEST_KEYS:
+        return REJ_BAD_SHAPE
+    if raw.get("time_in_force") != "GTC":
+        return REJ_BAD_SHAPE
+    expires_at = raw.get("expires_at")
+    if not _is_plain_int(expires_at) or expires_at < 0:
+        return REJ_BAD_SHAPE
+    deadline = raw.get("deadline")
+    if not _is_plain_int(deadline) or deadline < 0:
+        return REJ_BAD_SHAPE
+    return None
+
+
 # --- the enrichment layer: API request -> ClobOrder ----------------------------
 @dataclass(frozen=True)
 class _BuiltOrder:
@@ -390,8 +432,9 @@ def _build_clob_order(
     if not (1 <= price <= MAX_PRICE_Q_PER_BASE) or not (1 <= quantity <= MAX_BASE_QTY):
         return None, REJ_BAD_SHAPE
 
-    # nonce / deadline / time_in_force / expires_at are shape-checked elsewhere;
-    # nonce just needs to be a plain int here (carried, not trusted as sequence).
+    # The closed request contract already checked deadline/time_in_force/expires_at;
+    # nonce still needs the same bool-is-not-int discipline here because it is
+    # carried in the signed request scope.
     nonce = raw.get("nonce")
     if not _is_plain_int(nonce) or nonce < 0:
         return None, REJ_BAD_SHAPE
@@ -399,9 +442,7 @@ def _build_clob_order(
     order_id = _derive_id(domain="clob_order_id", parts=[owner, market_id, client_order_id])
     intent_id = _derive_id(domain="clob_intent_id", parts=[owner, market_id, client_order_id, str(sequence)])
 
-    deadline = raw.get("deadline")
-    if not _is_plain_int(deadline):
-        return None, REJ_BAD_SHAPE
+    deadline = raw["deadline"]
 
     # Build the full LIMIT_ORDER intent, then bridge through the committed
     # clob_order_from_intent path (which re-validates + canonicalizes).
@@ -529,6 +570,10 @@ def _handle_place_order(store: OrderbookStore, raw_body: Optional[bytes]) -> Res
             return 400, {"ok": False, "error": perr, "status": OrderStatus.REJECTED.value}
 
         assert raw is not None  # _parse_json_body contract
+
+        cerr = _validate_order_request_contract(raw)
+        if cerr is not None:
+            return 400, {"ok": False, "error": cerr, "status": OrderStatus.REJECTED.value}
 
         # 1. Identity for idempotency requires agent_key_id/market_id/client_order_id.
         agent_key_id = raw.get("agent_key_id")
