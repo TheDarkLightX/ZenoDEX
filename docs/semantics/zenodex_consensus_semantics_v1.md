@@ -57,10 +57,16 @@ Guest and proof obligations:
 - `collateral_binding` is witness or envelope data unless a live-path binding
   proves otherwise.
 - Guest post-snapshot equality against Python core is a `core_equivalent` claim.
-- Guest equality under a hand-modeled nonce/replay wrapper is a
+- Guest equality under a hand-modeled nonce/replay wrapper would be only a
   `modeled_envelope_equivalent` claim.
-- P0-3b remains open until the modeled envelope is bound to the live
-  transaction/admission path.
+- P0-3b CLOSED (2026-06-06): the differential delegates the nonce decision to the
+  live replay authority `src/core/replay_guard.py`::admit (strict-sequential), and
+  the guest (`zk/state_proof_risc0/shared/src/surfaces.rs`) was fixed from a weaker
+  MONOTONE nonce (which accepted gap nonces the chain rejects) to the same
+  strict-sequential rule. The claim is therefore `live_equivalent`, scoped to that
+  replay authority. Production replay is enforced at the tau-node `tx_sequence`
+  layer (`src/integration/perps_wallet_api.py`:2764 / 2885-2889), modeled in Python
+  by replay_guard.admit; see the contract `envelope.chain_replay_layer`.
 
 The executable BDD front door for this entry is:
 

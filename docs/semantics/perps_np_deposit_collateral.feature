@@ -31,17 +31,16 @@ Feature: Perps-NP DepositCollateral consensus semantics
     Then the deposit is rejected
     And the account snapshot is unchanged
 
-  @scenario:perps_np.deposit_collateral.guest.modeled_envelope_claim_is_scoped @layer:guest_differential @status:executable
-  Scenario: guest differential with modeled envelope cannot claim live equivalence
-    Given a guest differential uses a modeled nonce or replay envelope
+  @scenario:perps_np.deposit_collateral.guest.claim_scoped_to_live_replay_authority @layer:guest_differential @status:executable
+  Scenario: guest differential binds the replay envelope to the live replay authority
+    Given the guest differential delegates the nonce decision to replay_guard.admit
     When it compares guest execution to Python authority execution
-    Then the strongest allowed claim is modeled_envelope_equivalent
-    And P0-3b remains open until the live transaction envelope is driven
+    Then the strongest allowed claim is live_equivalent
+    And the claim is scoped to the strict-sequential replay authority, not the deployed node
 
-  @scenario:perps_np.deposit_collateral.envelope.duplicate_tx_rejects_before_core @layer:tx_envelope @status:open_obligation
+  @scenario:perps_np.deposit_collateral.envelope.duplicate_tx_rejects_before_core @layer:tx_envelope @status:executable
   Scenario: duplicate transaction envelope is rejected before core execution
-    Given sender A has already submitted transaction envelope E
-    When sender A submits envelope E again
-    Then the transaction is rejected as replay
-    And the core deposit transition is not executed
-    And the account snapshot is unchanged
+    Given the live replay authority replay_guard.admit has accepted nonce N for sender A
+    When sender A submits nonce N again (or a gap nonce)
+    Then the live replay authority rejects it before the core deposit runs
+    And the strict-sequential policy matches the guest and the chain tx_sequence layer

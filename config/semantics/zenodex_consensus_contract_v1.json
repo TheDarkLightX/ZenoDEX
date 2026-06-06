@@ -26,17 +26,27 @@
         "net_deposited_effect": "net_deposited_e8 += amount_e8"
       },
       "envelope": {
-        "live_binding_status": "open_obligation",
+        "live_binding_status": "bound_to_replay_guard",
         "sender_authorization_layer": "tx_envelope",
         "replay_protection_layer": "tx_envelope",
         "duplicate_envelope_behavior": "reject_before_core_mutation",
-        "open_obligation_id": "P0-3b"
+        "closed_obligation_id": "P0-3b",
+        "chain_replay_layer": {
+          "enforced_at": "tau_node_tx_sequence",
+          "evidence": [
+            "src/integration/perps_wallet_api.py:2764",
+            "src/integration/perps_wallet_api.py:2885-2889"
+          ],
+          "python_authority_model": "src/core/replay_guard.py::admit",
+          "policy": "strict_sequential_per_sender_no_gaps",
+          "note": "Live deposit/withdraw replay is enforced at the tau-node tx_sequence layer (fail-closed, generic over ops), modeled in Python by replay_guard.admit. The guest (zk/state_proof_risc0/shared/src/surfaces.rs) and the differential are bound to that strict-sequential policy. live_equivalent is scoped to this replay authority, not to literally driving the deployed node."
+        }
       },
       "guest": {
         "differential_ref": "tools/runtime/perps_np_guest_differential.py",
         "collateral_binding_layer": "witness_or_input_envelope",
-        "modeled_envelope_claim_level": "modeled_envelope_equivalent",
-        "live_equivalence_claim_level": "open_obligation"
+        "envelope_binding": "live_replay_guard_admit_strict_sequential",
+        "live_equivalence_claim_level": "live_equivalent"
       }
     }
   },
@@ -57,13 +67,13 @@
         "layer": "core",
         "status": "executable"
       },
-      "perps_np.deposit_collateral.guest.modeled_envelope_claim_is_scoped": {
+      "perps_np.deposit_collateral.guest.claim_scoped_to_live_replay_authority": {
         "layer": "guest_differential",
         "status": "executable"
       },
       "perps_np.deposit_collateral.envelope.duplicate_tx_rejects_before_core": {
         "layer": "tx_envelope",
-        "status": "open_obligation"
+        "status": "executable"
       }
     }
   },
@@ -72,13 +82,12 @@
       "path": "tools/runtime/perps_np_guest_differential.py",
       "forbidden_tokens": [
         "verified 1:1",
-        "production 1:1",
-        "live_equivalent"
+        "production 1:1"
       ],
       "required_tokens": [
-        "MODELS that envelope",
-        "does NOT prove",
-        "live TX replay path"
+        "replay_guard",
+        "strict-sequential",
+        "chain tx_sequence"
       ]
     }
   ]

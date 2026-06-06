@@ -703,8 +703,15 @@ impl PerpsStateV1 {
                 funding_paid_cum_e8: 0,
                 nonce: 0,
             });
-        if nonce <= account.nonce {
-            return Err(TransitionError::InvalidInput("deposit nonce mismatch"));
+        // Strict-sequential per-account nonce: must be exactly prev + 1 (no gaps,
+        // no replay). This matches the live chain admission authority
+        // (src/core/replay_guard.py / src/state/nonces.py: nonces 1,2,3,.. with no
+        // gaps) so the guest can never attest to a deposit the chain would reject.
+        // checked_add keeps it fail-closed at the u64 boundary. (P0-3b, 2026-06-06.)
+        if account.nonce.checked_add(1) != Some(nonce) {
+            return Err(TransitionError::InvalidInput(
+                "deposit nonce not strictly sequential",
+            ));
         }
         account.collateral_e8 =
             checked_add_i128(account.collateral_e8, amount_e8, "collateral overflow")?;
@@ -736,8 +743,11 @@ impl PerpsStateV1 {
             .get(&pubkey)
             .cloned()
             .ok_or(TransitionError::InvalidInput("withdraw account missing"))?;
-        if nonce <= account.nonce {
-            return Err(TransitionError::InvalidInput("withdraw nonce mismatch"));
+        // Strict-sequential per-account nonce (see deposit_collateral). (P0-3b.)
+        if account.nonce.checked_add(1) != Some(nonce) {
+            return Err(TransitionError::InvalidInput(
+                "withdraw nonce not strictly sequential",
+            ));
         }
         if amount_e8 > account.collateral_e8 {
             return Err(TransitionError::InvalidInput("withdraw exceeds collateral"));

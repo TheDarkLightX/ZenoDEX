@@ -101,6 +101,63 @@ def test_execute_schema_rejects_caller_post_hash_claim(risc0_cli: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    ("field", "mutate"),
+    [
+        ("actions[0].client_order_id", lambda req: req["actions"][0].update({"client_order_id": "ignored"})),
+        ("actions[1].signature", lambda req: req["actions"][1].update({"signature": "0x" + "aa" * 64})),
+        (
+            "actions[1].collateral_binding.post_app_hash",
+            lambda req: req["actions"][1]["collateral_binding"].update({"post_app_hash": "22" * 32}),
+        ),
+        (
+            "actions[2].oracle.post_app_hash",
+            lambda req: req["actions"][2]["oracle"].update({"post_app_hash": "33" * 32}),
+        ),
+        (
+            "actions[2].intents[0].signature",
+            lambda req: req["actions"][2]["intents"][0].update({"signature": "0x" + "bb" * 64}),
+        ),
+    ],
+)
+def test_execute_schema_rejects_nested_ignored_action_fields_no_op(
+    risc0_cli: Path, field: str, mutate
+) -> None:
+    # REVIEW [B -> A-]: the first nested hardening rejected verifier-shaped
+    # fields only at the request/context boundary. These nested mutations used
+    # to return rc=0, and several produced the exact same operation_hash as the
+    # clean request because the parser silently dropped the extra field.
+    request: dict[str, object] = {
+        "schema": "tau_state_transition_execute",
+        "schema_version": 1,
+        "proof_type": diff.PERPS_NP_PROOF_TYPE,
+        "state_hash": "11" * 32,
+        "context": {"chain_id": "zenodex-perps-np-differential"},
+        "actions": [
+            corpus.init(),
+            corpus.deposit(corpus.OWNER_A, 5_000 * corpus.E8, 1),
+            corpus.run_epoch(
+                1 * corpus.E8,
+                0,
+                [corpus.intent(corpus.OWNER_A, 0, 2)],
+            ),
+        ],
+    }
+    mutate(request)
+
+    proc = subprocess.run(
+        [str(risc0_cli)],
+        input=json.dumps(request),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 2, field
+    assert "actions schema mismatch" in proc.stderr
+    assert "unknown_field" in proc.stderr
+
+
+@pytest.mark.parametrize(
     ("field", "patch"),
     [
         ("tau_state", {"tau_state": {}}),

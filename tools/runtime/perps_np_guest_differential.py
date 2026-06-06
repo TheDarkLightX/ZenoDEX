@@ -23,25 +23,28 @@ schema (``execute_perps_np_transition_v1_unchecked_with_snapshot``). ``collatera
 authority transition does not consume them, and changing a *valid* binding must not
 change the post-state (proven by a dedicated test).
 
-Operation correspondence (the clearing CORE maps 1:1; deposit/withdraw add an envelope):
+Operation correspondence (the clearing CORE maps 1:1; deposit/withdraw add a replay envelope):
   guest InitMarket          <-> perp_np_clearinghouse.init_market(index_price, params, seed)   [CORE 1:1]
   guest RunEpoch            <-> perp_np_clearinghouse.run_epoch(state, clearing, funding, intents) [CORE 1:1]
-  guest DepositCollateral   <-> perp_np_clearinghouse.deposit(state, pubkey, amount_e8)  + ENVELOPE
-  guest WithdrawCollateral  <-> perp_np_clearinghouse.withdraw(state, pubkey, amount_e8) + ENVELOPE
+  guest DepositCollateral   <-> perp_np_clearinghouse.deposit(state, pubkey, amount_e8)  + replay envelope
+  guest WithdrawCollateral  <-> perp_np_clearinghouse.withdraw(state, pubkey, amount_e8) + replay envelope
 
-InitMarket / RunEpoch are faithful CORE 1:1 -- run_epoch / match / funding are byte-equivalent across
-the corpus. Deposit / Withdraw are 1:1 ONLY at the pure clearing CORE: the guest ALSO folds a TX-layer
-ENVELOPE into its transition (deposit/withdraw nonce monotonicity + advance, reject amount<=0) that the
-live core deposit()/withdraw() do NOT have -- the live ``deposit_collateral`` action carries no nonce,
-``deposit(0)`` is the account-join, and deposit replay is enforced at the chain/TX layer. ``apply_authority``
-MODELS that envelope so the corpus can compare like-for-like.
+InitMarket / RunEpoch are faithful CORE 1:1 -- run_epoch / match / funding are byte-equivalent across the
+corpus. For Deposit / Withdraw the clearing CORE stays pure (no nonce; deposit(0) is the account-join), and
+the per-sender replay envelope is NO LONGER a hand model (P0-3b, closed 2026-06-06): ``apply_authority``
+delegates the nonce decision to the LIVE replay authority ``src/core/replay_guard.py``::admit --
+strict-sequential (nonces 1,2,3,.. with no gaps), the same policy the chain enforces at the chain tx_sequence
+layer (``src/integration/perps_wallet_api.py``:2764 / 2885-2889). The guest
+(``zk/state_proof_risc0/shared/src/surfaces.rs``) was fixed to the SAME strict-sequential rule -- it formerly
+used a weaker MONOTONE nonce that accepted gap nonces the chain rejects -- so a green differential corroborates,
+over this corpus, that the guest's deposit/withdraw envelope matches that replay authority. ``_with_account_nonce`` only
+mirrors the guest's post-state ``account.nonce`` so the snapshots compare field-for-field.
 
-(D) ENVELOPE-FAITHFULNESS OBLIGATION (open, like the (B) encoder obligation): this harness asserts -- but
-does NOT prove -- that the modeled deposit/withdraw envelope (nonce + reject-zero) is faithful to the LIVE
-chain/TX-layer replay semantics. So for deposit/withdraw it establishes guest == (pure core + a *modeled*
-envelope), NOT a clean 1:1 with the live authority. Proving that correspondence (binding the model to the
-live TX replay path) is deferred. (Codex 2026-06-06: this was the load-bearing caveat.) zUSD's atomic
-DepositMint does NOT map 1:1 (it is 2 authority commands) -> deferred.
+SCOPE (honest): live_equivalent here is scoped to the strict-sequential REPLAY authority replay_guard.admit
+(the policy the chain enforces via chain tx_sequence); the harness binds to that Python authority, it does
+NOT literally drive the deployed tau node. This remains refutation-complete corpus corroboration over a
+strict-sequential policy match, not an all-inputs proof. zUSD's atomic DepositMint does NOT map 1:1 (it is 2
+authority commands) -> deferred.
 """
 
 from __future__ import annotations
@@ -69,6 +72,11 @@ from src.core.perp_np_clearinghouse import (  # noqa: E402
     withdraw,
 )
 from src.core.perp_np_matching import Intent  # noqa: E402
+from src.core.replay_guard import (  # noqa: E402
+    AdmitRejected,
+    ReplayGuardState,
+    admit as replay_guard_admit,
+)
 
 # The guest-compatible canonical snapshot hash (Python mirror of the guest's
 # canonical_app_hash_sha256). Imported from the real-proof smoke (its __main__
@@ -165,6 +173,22 @@ def _with_account_nonce(state: MarketState, pubkey: str, nonce: int) -> MarketSt
         raise DifferentialError(f"cannot set nonce for missing account {pubkey!r}")
     accts[pubkey] = replace(account, nonce=nonce)
     return state.with_accounts(accts)
+
+
+def _replay_admits(state: MarketState, pubkey: str, nonce: int) -> bool:
+    """Decide accept/reject of (pubkey, nonce) via the LIVE replay authority
+    src/core/replay_guard.py::admit -- strict-sequential per sender (1,2,3,.. with
+    no gaps), the Python authority that models the chain tx_sequence admission
+    (tau node, src/integration/perps_wallet_api.py:2764/2885-2889). The per-sender
+    'last' is read from the account's current nonce, so a seeded pre-state is
+    honored. This REPLACES the prior hand-modeled monotone check: the guest
+    (zk/state_proof_risc0/shared/src/surfaces.rs) was fixed to the same
+    strict-sequential rule, so the differential compares guest execution against
+    the replay authority directly instead of a bespoke monotone model. (P0-3b,
+    2026-06-06.)"""
+    last = _account_nonce(state, pubkey)
+    rg = ReplayGuardState().with_last(pubkey, last) if last > 0 else ReplayGuardState()
+    return not isinstance(replay_guard_admit(state=rg, sender=pubkey, nonce=nonce), AdmitRejected)
 
 
 # --------------------------------------------------------------------------- #
@@ -305,13 +329,16 @@ def apply_authority(
                 pubkey = str(action["pubkey"])
                 amount = int(action["amount_e8"])
                 nonce = int(action["nonce"])
-                # REVIEW [B -> A-]: the first differential compared the Python
-                # clearing math core directly against the guest envelope state,
-                # so every deposit/withdraw diverged on nonce. Model the wrapper
-                # nonce effect here while keeping the Python clearing core pure.
+                # P0-3b (2026-06-06): the envelope nonce decision is delegated to
+                # the LIVE replay authority (replay_guard.admit, strict-sequential),
+                # NOT a hand-modeled monotone check. The guest was fixed to the same
+                # strict-sequential rule, so this corpus compares the guest against
+                # that authority. The clearing core stays pure; _with_account_nonce
+                # only mirrors the guest's post-state account.nonce so the snapshots
+                # compare field-for-field.
                 if amount <= 0:
                     return None, False, REJ_NEGATIVE, market_id
-                if nonce <= _account_nonce(state, pubkey):
+                if not _replay_admits(state, pubkey, nonce):
                     return None, False, REJ_NONCE, market_id
                 state = deposit(state, pubkey, amount)
                 state = _with_account_nonce(state, pubkey, nonce)
@@ -322,7 +349,7 @@ def apply_authority(
                 nonce = int(action["nonce"])
                 if amount <= 0:
                     return None, False, REJ_NEGATIVE, market_id
-                if nonce <= _account_nonce(state, pubkey):
+                if not _replay_admits(state, pubkey, nonce):
                     return None, False, REJ_NONCE, market_id
                 state = withdraw(state, pubkey, amount)
                 state = _with_account_nonce(state, pubkey, nonce)

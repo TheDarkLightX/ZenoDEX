@@ -184,4 +184,30 @@ REJECT_CORPUS: list[dict[str, Any]] = [
         "actions": [init(), deposit(OWNER_A, 5_000 * E8, 1), withdraw(OWNER_A, 9_000 * E8, 2)],
         "expect_class": "insufficient_collateral_or_balance",
     },
+    # --- P0-3b strict-sequential regression cases (2026-06-06) ----------------
+    # Before the guest was fixed (surfaces.rs: was `nonce <= account.nonce`,
+    # MONOTONE), it ACCEPTED a GAP nonce that the live chain replay authority
+    # (replay_guard.admit, strict-sequential) REJECTS -- the guest was more
+    # permissive than the chain. These cases pin the fix: a gap and a duplicate
+    # nonce now fail closed on BOTH sides for the same class, so the differential
+    # would re-fail if the guest ever regressed to monotone.
+    {
+        "name": "deposit_gap_nonce_rejected_strict_sequential",
+        "actions": [init(), deposit(OWNER_A, 5_000 * E8, 1), deposit(OWNER_A, 1_000 * E8, 3)],
+        "expect_class": "nonce_or_replay",
+    },
+    {
+        "name": "deposit_duplicate_nonce_rejected",
+        "actions": [init(), deposit(OWNER_A, 5_000 * E8, 1), deposit(OWNER_A, 1_000 * E8, 1)],
+        "expect_class": "nonce_or_replay",
+    },
+    {
+        "name": "withdraw_gap_nonce_rejected_strict_sequential",
+        "actions": [
+            init(),
+            deposit(OWNER_A, 5_000 * E8, 1),
+            withdraw(OWNER_A, 1_000 * E8, 4),
+        ],
+        "expect_class": "nonce_or_replay",
+    },
 ]

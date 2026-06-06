@@ -32,7 +32,7 @@ V1_REQUIRED_SCENARIO_IDS = frozenset(
         "perps_np.deposit_collateral.core.zero_deposit_joins_account",
         "perps_np.deposit_collateral.core.deposit_does_not_consume_nonce",
         "perps_np.deposit_collateral.core.negative_rejects_without_mutation",
-        "perps_np.deposit_collateral.guest.modeled_envelope_claim_is_scoped",
+        "perps_np.deposit_collateral.guest.claim_scoped_to_live_replay_authority",
         "perps_np.deposit_collateral.envelope.duplicate_tx_rejects_before_core",
     }
 )
@@ -209,17 +209,31 @@ def _validate_deposit_contract(contract: Mapping[str, Any]) -> list[str]:
     if not isinstance(envelope, Mapping):
         errors.append("perps_np.deposit_collateral.envelope must be an object")
     else:
-        if envelope.get("live_binding_status") != "open_obligation":
-            errors.append("deposit envelope live_binding_status must remain open_obligation")
-        if envelope.get("open_obligation_id") != "P0-3b":
-            errors.append("deposit envelope open_obligation_id must be P0-3b")
+        # P0-3b CLOSED (2026-06-06): the envelope is bound to the live replay
+        # authority replay_guard.admit (strict-sequential). The chain_replay_layer
+        # note must record where production replay actually lives (tau tx_sequence)
+        # so the live_equivalent claim stays honestly scoped.
+        if envelope.get("live_binding_status") != "bound_to_replay_guard":
+            errors.append("deposit envelope live_binding_status must be bound_to_replay_guard")
+        if envelope.get("closed_obligation_id") != "P0-3b":
+            errors.append("deposit envelope closed_obligation_id must be P0-3b")
+        chain = envelope.get("chain_replay_layer")
+        if not isinstance(chain, Mapping):
+            errors.append("deposit envelope must record chain_replay_layer provenance")
+        else:
+            if chain.get("enforced_at") != "tau_node_tx_sequence":
+                errors.append("chain_replay_layer.enforced_at must be tau_node_tx_sequence")
+            if chain.get("python_authority_model") != "src/core/replay_guard.py::admit":
+                errors.append("chain_replay_layer.python_authority_model must be replay_guard.admit")
+            if not chain.get("evidence"):
+                errors.append("chain_replay_layer must cite evidence (file:line)")
     if not isinstance(guest, Mapping):
         errors.append("perps_np.deposit_collateral.guest must be an object")
     else:
-        if guest.get("modeled_envelope_claim_level") != "modeled_envelope_equivalent":
-            errors.append("guest modeled envelope claim must be modeled_envelope_equivalent")
-        if guest.get("live_equivalence_claim_level") != "open_obligation":
-            errors.append("guest live equivalence claim must remain open_obligation")
+        if guest.get("envelope_binding") != "live_replay_guard_admit_strict_sequential":
+            errors.append("guest envelope_binding must be live_replay_guard_admit_strict_sequential")
+        if guest.get("live_equivalence_claim_level") != "live_equivalent":
+            errors.append("guest live_equivalence_claim_level must be live_equivalent")
     return errors
 
 

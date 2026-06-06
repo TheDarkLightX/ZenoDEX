@@ -935,6 +935,23 @@ fn value_array<'a>(v: &'a Value, name: &str) -> Result<&'a Vec<Value>, String> {
     v.as_array().ok_or_else(|| format!("{name} must be a list"))
 }
 
+fn reject_unknown_fields(
+    obj: &serde_json::Map<String, Value>,
+    allowed: &[&str],
+    name: &str,
+) -> Result<(), String> {
+    let mut extras: Vec<&str> = obj
+        .keys()
+        .map(String::as_str)
+        .filter(|key| !allowed.contains(key))
+        .collect();
+    if extras.is_empty() {
+        return Ok(());
+    }
+    extras.sort_unstable();
+    Err(format!("{name}.unknown_field:{}", extras[0]))
+}
+
 fn obj_str(
     obj: &serde_json::Map<String, Value>,
     key: &str,
@@ -1056,6 +1073,23 @@ fn obj_i32(
 
 fn parse_oracle_binding_value(v: &Value) -> Result<OracleBindingV1, String> {
     let obj = value_obj(v, "oracle")?;
+    // REVIEW [B -> A-]: this CLI parses proof witnesses by manual projection.
+    // Before this guard, nested caller fields such as post_app_hash were
+    // accepted, ignored, and left out of operation_hash. Proof-bound inputs
+    // need closed object shapes at every nested boundary.
+    reject_unknown_fields(
+        obj,
+        &[
+            "oracle_bridge_id",
+            "oracle_bridge_hash",
+            "price_e8",
+            "price_timestamp",
+            "max_staleness_seconds",
+            "observed_at",
+            "pre_price_batch_commitment",
+        ],
+        "oracle",
+    )?;
     Ok(OracleBindingV1 {
         oracle_bridge_id: obj_str(obj, "oracle_bridge_id", None)?,
         oracle_bridge_hash: obj_str(obj, "oracle_bridge_hash", None)?,
@@ -1069,6 +1103,16 @@ fn parse_oracle_binding_value(v: &Value) -> Result<OracleBindingV1, String> {
 
 fn parse_collateral_binding_value(v: &Value) -> Result<CollateralBindingV1, String> {
     let obj = value_obj(v, "collateral_binding")?;
+    reject_unknown_fields(
+        obj,
+        &[
+            "source_proof_type",
+            "source_state_hash",
+            "balance_root_hash",
+            "balance_delta_hash",
+        ],
+        "collateral_binding",
+    )?;
     Ok(CollateralBindingV1 {
         source_proof_type: obj_str(obj, "source_proof_type", None)?,
         source_state_hash: obj_str(obj, "source_state_hash", None)?,
@@ -1081,6 +1125,20 @@ fn parse_perps_params_value(v: Option<&Value>) -> Result<PerpsMarketParamsV1, St
     let default = PerpsMarketParamsV1::default();
     let Some(v) = v else { return Ok(default) };
     let obj = value_obj(v, "params")?;
+    reject_unknown_fields(
+        obj,
+        &[
+            "initial_margin_bps",
+            "maintenance_margin_bps",
+            "depeg_buffer_bps",
+            "liquidation_penalty_bps",
+            "max_oracle_move_bps",
+            "funding_cap_bps",
+            "max_position_abs",
+            "min_notional_for_bounty_e8",
+        ],
+        "params",
+    )?;
     Ok(PerpsMarketParamsV1 {
         initial_margin_bps: obj_u32(obj, "initial_margin_bps", Some(default.initial_margin_bps))?,
         maintenance_margin_bps: obj_u32(
@@ -1111,6 +1169,18 @@ fn parse_perps_params_value(v: Option<&Value>) -> Result<PerpsMarketParamsV1, St
 
 fn parse_perps_account_value(v: &Value) -> Result<PerpsAccountV1, String> {
     let obj = value_obj(v, "perps account")?;
+    reject_unknown_fields(
+        obj,
+        &[
+            "pubkey",
+            "position_base",
+            "entry_price_e8",
+            "collateral_e8",
+            "funding_paid_cum_e8",
+            "nonce",
+        ],
+        "perps account",
+    )?;
     Ok(PerpsAccountV1 {
         pubkey: obj_str(obj, "pubkey", None)?,
         position_base: obj_i128(obj, "position_base", Some(0))?,
@@ -1123,6 +1193,18 @@ fn parse_perps_account_value(v: &Value) -> Result<PerpsAccountV1, String> {
 
 fn parse_perps_intent_value(v: &Value) -> Result<PerpsIntentV1, String> {
     let obj = value_obj(v, "perps intent")?;
+    reject_unknown_fields(
+        obj,
+        &[
+            "pubkey",
+            "target_base",
+            "limit_price_e8",
+            "min_fill_base",
+            "expiry_epoch",
+            "nonce",
+        ],
+        "perps intent",
+    )?;
     Ok(PerpsIntentV1 {
         pubkey: obj_str(obj, "pubkey", None)?,
         target_base: obj_i128(obj, "target_base", None)?,
@@ -1157,6 +1239,25 @@ fn parse_optional_perps_intents_value(
 
 fn parse_perps_snapshot_value(v: &Value) -> Result<PerpsNpSnapshotV1, String> {
     let obj = value_obj(v, "perps snapshot")?;
+    reject_unknown_fields(
+        obj,
+        &[
+            "version",
+            "market_id",
+            "collateral_asset",
+            "index_price_e8",
+            "params",
+            "accounts",
+            "pending_intents",
+            "now_epoch",
+            "fee_pool_e8",
+            "insurance_e8",
+            "insurance_ext_e8",
+            "claims_paid_e8",
+            "net_deposited_e8",
+        ],
+        "perps snapshot",
+    )?;
     let accounts = match obj.get("accounts") {
         None => Vec::new(),
         Some(value) => value_array(value, "accounts")?
@@ -1186,27 +1287,63 @@ fn parse_perps_action_value(v: &Value) -> Result<PerpsNpActionV1, String> {
     let obj = value_obj(v, "perps action")?;
     let kind = obj_str(obj, "kind", None)?;
     match kind.as_str() {
-        "init_market" => Ok(PerpsNpActionV1::InitMarket {
-            market_id: obj_str(obj, "market_id", None)?,
-            collateral_asset: obj_str(obj, "collateral_asset", Some("zUSD"))?,
-            index_price_e8: obj_i128(obj, "index_price_e8", None)?,
-            params: parse_perps_params_value(obj.get("params"))?,
-            insurance_seed_e8: obj_i128(obj, "insurance_seed_e8", Some(0))?,
-        }),
-        "deposit_collateral" => Ok(PerpsNpActionV1::DepositCollateral {
-            pubkey: obj_str(obj, "pubkey", None)?,
-            asset: obj_str(obj, "asset", Some("zUSD"))?,
-            amount_e8: obj_i128(obj, "amount_e8", None)?,
-            nonce: obj_u64(obj, "nonce", None)?,
-            collateral_binding: parse_optional_collateral_binding_value(obj)?,
-        }),
-        "withdraw_collateral" => Ok(PerpsNpActionV1::WithdrawCollateral {
-            pubkey: obj_str(obj, "pubkey", None)?,
-            asset: obj_str(obj, "asset", Some("zUSD"))?,
-            amount_e8: obj_i128(obj, "amount_e8", None)?,
-            nonce: obj_u64(obj, "nonce", None)?,
-        }),
+        "init_market" => {
+            reject_unknown_fields(
+                obj,
+                &[
+                    "kind",
+                    "market_id",
+                    "collateral_asset",
+                    "index_price_e8",
+                    "params",
+                    "insurance_seed_e8",
+                ],
+                "perps action init_market",
+            )?;
+            Ok(PerpsNpActionV1::InitMarket {
+                market_id: obj_str(obj, "market_id", None)?,
+                collateral_asset: obj_str(obj, "collateral_asset", Some("zUSD"))?,
+                index_price_e8: obj_i128(obj, "index_price_e8", None)?,
+                params: parse_perps_params_value(obj.get("params"))?,
+                insurance_seed_e8: obj_i128(obj, "insurance_seed_e8", Some(0))?,
+            })
+        }
+        "deposit_collateral" => {
+            reject_unknown_fields(
+                obj,
+                &[
+                    "kind",
+                    "pubkey",
+                    "asset",
+                    "amount_e8",
+                    "nonce",
+                    "collateral_binding",
+                ],
+                "perps action deposit_collateral",
+            )?;
+            Ok(PerpsNpActionV1::DepositCollateral {
+                pubkey: obj_str(obj, "pubkey", None)?,
+                asset: obj_str(obj, "asset", Some("zUSD"))?,
+                amount_e8: obj_i128(obj, "amount_e8", None)?,
+                nonce: obj_u64(obj, "nonce", None)?,
+                collateral_binding: parse_optional_collateral_binding_value(obj)?,
+            })
+        }
+        "withdraw_collateral" => {
+            reject_unknown_fields(
+                obj,
+                &["kind", "pubkey", "asset", "amount_e8", "nonce"],
+                "perps action withdraw_collateral",
+            )?;
+            Ok(PerpsNpActionV1::WithdrawCollateral {
+                pubkey: obj_str(obj, "pubkey", None)?,
+                asset: obj_str(obj, "asset", Some("zUSD"))?,
+                amount_e8: obj_i128(obj, "amount_e8", None)?,
+                nonce: obj_u64(obj, "nonce", None)?,
+            })
+        }
         "submit_intent" => {
+            reject_unknown_fields(obj, &["kind", "intent"], "perps action submit_intent")?;
             let intent = obj
                 .get("intent")
                 .ok_or_else(|| "intent missing".to_string())
@@ -1214,6 +1351,17 @@ fn parse_perps_action_value(v: &Value) -> Result<PerpsNpActionV1, String> {
             Ok(PerpsNpActionV1::SubmitIntent { intent })
         }
         "run_epoch" => {
+            reject_unknown_fields(
+                obj,
+                &[
+                    "kind",
+                    "oracle",
+                    "clearing_price_e8",
+                    "funding_rate_bps",
+                    "intents",
+                ],
+                "perps action run_epoch",
+            )?;
             let oracle = obj
                 .get("oracle")
                 .ok_or_else(|| "oracle missing".to_string())
@@ -1238,6 +1386,17 @@ fn parse_perps_actions_value(v: &Value) -> Result<Vec<PerpsNpActionV1>, String> 
 
 fn parse_zusd_vault_value(v: &Value) -> Result<ZusdVaultEntryV1, String> {
     let obj = value_obj(v, "zUSD vault")?;
+    reject_unknown_fields(
+        obj,
+        &[
+            "pubkey",
+            "collateral_asset",
+            "collateral_amount_e8",
+            "debt_zusd_e8",
+            "nonce",
+        ],
+        "zUSD vault",
+    )?;
     Ok(ZusdVaultEntryV1 {
         pubkey: obj_str(obj, "pubkey", None)?,
         collateral_asset: obj_str(obj, "collateral_asset", None)?,
@@ -1249,6 +1408,7 @@ fn parse_zusd_vault_value(v: &Value) -> Result<ZusdVaultEntryV1, String> {
 
 fn parse_zusd_balance_value(v: &Value) -> Result<ZusdBalanceEntryV1, String> {
     let obj = value_obj(v, "zUSD balance")?;
+    reject_unknown_fields(obj, &["pubkey", "amount_e8"], "zUSD balance")?;
     Ok(ZusdBalanceEntryV1 {
         pubkey: obj_str(obj, "pubkey", None)?,
         amount_e8: obj_u128(obj, "amount_e8", Some(0))?,
@@ -1257,6 +1417,11 @@ fn parse_zusd_balance_value(v: &Value) -> Result<ZusdBalanceEntryV1, String> {
 
 fn parse_zusd_snapshot_value(v: &Value) -> Result<ZusdSnapshotV1, String> {
     let obj = value_obj(v, "zUSD snapshot")?;
+    reject_unknown_fields(
+        obj,
+        &["version", "vaults", "balances", "total_debt_zusd_e8"],
+        "zUSD snapshot",
+    )?;
     let vaults = match obj.get("vaults") {
         None => Vec::new(),
         Some(value) => value_array(value, "vaults")?
@@ -1284,6 +1449,20 @@ fn parse_zusd_operation_value(v: &Value) -> Result<ZusdOperationV1, String> {
     let kind = obj_str(obj, "kind", None)?;
     match kind.as_str() {
         "deposit_mint" => {
+            reject_unknown_fields(
+                obj,
+                &[
+                    "kind",
+                    "pubkey",
+                    "collateral_asset",
+                    "deposit_amount_e8",
+                    "mint_amount_e8",
+                    "oracle",
+                    "mcr_bps",
+                    "nonce",
+                ],
+                "zUSD operation deposit_mint",
+            )?;
             let oracle = obj
                 .get("oracle")
                 .ok_or_else(|| "oracle missing".to_string())
@@ -2143,5 +2322,169 @@ mod tests {
             .remove("risc0_image_id");
         let err = check_proof_meta_image_id(&no_image).unwrap_err();
         assert_eq!(err, "proof.meta.risc0_image_id missing");
+    }
+
+    fn oracle_json() -> Value {
+        json!({
+            "oracle_bridge_id": "oracle-1",
+            "oracle_bridge_hash": hx(10),
+            "price_e8": 100_000_000,
+            "price_timestamp": 1,
+            "max_staleness_seconds": 3600,
+            "observed_at": 1,
+            "pre_price_batch_commitment": hx(11)
+        })
+    }
+
+    fn collateral_binding_json() -> Value {
+        json!({
+            "source_proof_type": PROOF_TYPE_ZUSD,
+            "source_state_hash": hx(12),
+            "balance_root_hash": hx(13),
+            "balance_delta_hash": hx(14)
+        })
+    }
+
+    #[test]
+    fn perps_parser_rejects_unknown_nested_action_fields() {
+        let mut action = json!({
+            "kind": "deposit_collateral",
+            "pubkey": "0xaaaaaaaa",
+            "amount_e8": 100,
+            "nonce": 1,
+            "collateral_binding": collateral_binding_json()
+        });
+        action["signature"] = Value::String("ignored-signature".to_string());
+        let err = parse_perps_action_value(&action).unwrap_err();
+        assert_eq!(
+            err,
+            "perps action deposit_collateral.unknown_field:signature"
+        );
+
+        let mut action = json!({
+            "kind": "deposit_collateral",
+            "pubkey": "0xaaaaaaaa",
+            "amount_e8": 100,
+            "nonce": 1,
+            "collateral_binding": collateral_binding_json()
+        });
+        action["collateral_binding"]["post_app_hash"] = Value::String(hx(15));
+        let err = parse_perps_action_value(&action).unwrap_err();
+        assert_eq!(err, "collateral_binding.unknown_field:post_app_hash");
+
+        let mut run_epoch = json!({
+            "kind": "run_epoch",
+            "oracle": oracle_json(),
+            "clearing_price_e8": 100_000_000,
+            "funding_rate_bps": 0,
+            "intents": [{
+                "pubkey": "0xbbbbbbbb",
+                "target_base": 5,
+                "nonce": 2
+            }]
+        });
+        run_epoch["oracle"]["post_app_hash"] = Value::String(hx(16));
+        let err = parse_perps_action_value(&run_epoch).unwrap_err();
+        assert_eq!(err, "oracle.unknown_field:post_app_hash");
+
+        let run_epoch = json!({
+            "kind": "run_epoch",
+            "oracle": oracle_json(),
+            "clearing_price_e8": 100_000_000,
+            "funding_rate_bps": 0,
+            "intents": [{
+                "pubkey": "0xbbbbbbbb",
+                "target_base": 5,
+                "nonce": 2,
+                "signature": "ignored-signature"
+            }]
+        });
+        let err = parse_perps_action_value(&run_epoch).unwrap_err();
+        assert_eq!(err, "perps intent.unknown_field:signature");
+    }
+
+    #[test]
+    fn perps_parser_rejects_unknown_pre_snapshot_fields() {
+        let mut snapshot = json!({
+            "version": 1,
+            "market_id": "ZENO-PERP",
+            "collateral_asset": "zUSD",
+            "index_price_e8": 100_000_000,
+            "params": {},
+            "accounts": [{
+                "pubkey": "0xaaaaaaaa",
+                "collateral_e8": 100,
+                "nonce": 1
+            }],
+            "pending_intents": [],
+            "now_epoch": 0
+        });
+        snapshot["accounts"][0]["signature"] = Value::String("ignored-signature".to_string());
+        let err = parse_perps_snapshot_value(&snapshot).unwrap_err();
+        assert_eq!(err, "perps account.unknown_field:signature");
+
+        snapshot["accounts"][0]
+            .as_object_mut()
+            .expect("account object")
+            .remove("signature");
+        snapshot["params"]["post_app_hash"] = Value::String(hx(17));
+        let err = parse_perps_snapshot_value(&snapshot).unwrap_err();
+        assert_eq!(err, "params.unknown_field:post_app_hash");
+    }
+
+    #[test]
+    fn zusd_parser_rejects_unknown_nested_operation_and_snapshot_fields() {
+        // REVIEW [B -> A-]: zUSD shared the same manual projection style as
+        // perps-NP. The fix closes the parser object shapes, so a future
+        // request cannot smuggle ignored proof claims into nested operation,
+        // oracle, vault, or balance objects.
+        let mut operation = json!({
+            "kind": "deposit_mint",
+            "pubkey": "0xaaaaaaaa",
+            "collateral_asset": "tAGRS",
+            "deposit_amount_e8": 200_000_000_000u64,
+            "mint_amount_e8": 100_000_000_000u64,
+            "oracle": oracle_json(),
+            "mcr_bps": 11_000,
+            "nonce": 1
+        });
+        operation["signature"] = Value::String("ignored-signature".to_string());
+        let err = parse_zusd_operation_value(&operation).unwrap_err();
+        assert_eq!(err, "zUSD operation deposit_mint.unknown_field:signature");
+
+        operation
+            .as_object_mut()
+            .expect("operation object")
+            .remove("signature");
+        operation["oracle"]["post_app_hash"] = Value::String(hx(18));
+        let err = parse_zusd_operation_value(&operation).unwrap_err();
+        assert_eq!(err, "oracle.unknown_field:post_app_hash");
+
+        let mut snapshot = json!({
+            "version": 1,
+            "vaults": [{
+                "pubkey": "0xaaaaaaaa",
+                "collateral_asset": "tAGRS",
+                "collateral_amount_e8": 200_000_000_000u64,
+                "debt_zusd_e8": 100_000_000_000u64,
+                "nonce": 1
+            }],
+            "balances": [{
+                "pubkey": "0xaaaaaaaa",
+                "amount_e8": 100_000_000_000u64
+            }],
+            "total_debt_zusd_e8": 100_000_000_000u64
+        });
+        snapshot["vaults"][0]["post_app_hash"] = Value::String(hx(19));
+        let err = parse_zusd_snapshot_value(&snapshot).unwrap_err();
+        assert_eq!(err, "zUSD vault.unknown_field:post_app_hash");
+
+        snapshot["vaults"][0]
+            .as_object_mut()
+            .expect("vault object")
+            .remove("post_app_hash");
+        snapshot["balances"][0]["signature"] = Value::String("ignored-signature".to_string());
+        let err = parse_zusd_snapshot_value(&snapshot).unwrap_err();
+        assert_eq!(err, "zUSD balance.unknown_field:signature");
     }
 }
