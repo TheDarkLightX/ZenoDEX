@@ -1,0 +1,85 @@
+{
+  "schema": "zenodex.consensus_semantic_contract.v1",
+  "contract_id": "zenodex_consensus_semantics_v1",
+  "claim_levels": {
+    "core_equivalent": "Guest or port matches the Python core transition under already-admitted inputs.",
+    "modeled_envelope_equivalent": "Guest or port matches Python under a harness-modeled envelope; this is not a live admission claim.",
+    "live_equivalent": "Guest or port matches actual live transaction admission plus the core transition."
+  },
+  "authority_order": [
+    "live_consensus_authority_path",
+    "operation_semantic_contract",
+    "proof_guest_or_port",
+    "differential_harness",
+    "docs_or_evidence_notes"
+  ],
+  "operations": {
+    "perps_np.deposit_collateral": {
+      "core": {
+        "live_authority_ref": "src/core/perp_np_clearinghouse.py::deposit",
+        "amount_domain": "amount_e8 >= 0",
+        "zero_amount_behavior": "account_join_no_collateral_delta",
+        "negative_amount_behavior": "reject_no_mutation",
+        "nonce_layer": "tx_envelope",
+        "core_nonce_effect": "unchanged",
+        "collateral_effect": "collateral_e8 += amount_e8",
+        "net_deposited_effect": "net_deposited_e8 += amount_e8"
+      },
+      "envelope": {
+        "live_binding_status": "open_obligation",
+        "sender_authorization_layer": "tx_envelope",
+        "replay_protection_layer": "tx_envelope",
+        "duplicate_envelope_behavior": "reject_before_core_mutation",
+        "open_obligation_id": "P0-3b"
+      },
+      "guest": {
+        "differential_ref": "tools/runtime/perps_np_guest_differential.py",
+        "collateral_binding_layer": "witness_or_input_envelope",
+        "modeled_envelope_claim_level": "modeled_envelope_equivalent",
+        "live_equivalence_claim_level": "open_obligation"
+      }
+    }
+  },
+  "bdd": {
+    "feature_files": [
+      "docs/semantics/perps_np_deposit_collateral.feature"
+    ],
+    "required_scenarios": {
+      "perps_np.deposit_collateral.core.zero_deposit_joins_account": {
+        "layer": "core",
+        "status": "executable"
+      },
+      "perps_np.deposit_collateral.core.deposit_does_not_consume_nonce": {
+        "layer": "core",
+        "status": "executable"
+      },
+      "perps_np.deposit_collateral.core.negative_rejects_without_mutation": {
+        "layer": "core",
+        "status": "executable"
+      },
+      "perps_np.deposit_collateral.guest.modeled_envelope_claim_is_scoped": {
+        "layer": "guest_differential",
+        "status": "executable"
+      },
+      "perps_np.deposit_collateral.envelope.duplicate_tx_rejects_before_core": {
+        "layer": "tx_envelope",
+        "status": "open_obligation"
+      }
+    }
+  },
+  "overclaim_guards": [
+    {
+      "path": "tools/runtime/perps_np_guest_differential.py",
+      "forbidden_tokens": [
+        "verified 1:1",
+        "production 1:1",
+        "live_equivalent"
+      ],
+      "required_tokens": [
+        "MODELS that envelope",
+        "does NOT prove",
+        "live TX replay path"
+      ]
+    }
+  ]
+}
