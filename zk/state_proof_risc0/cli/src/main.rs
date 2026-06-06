@@ -136,32 +136,49 @@ fn handle_execute_perps_np(req: &Value) {
 }
 
 fn reject_execute_verifier_claims(req: &Value) {
-    // REVIEW [A- -> A]: repeated review passes found this no-receipt helper
-    // accepting verifier-shaped fields it never enforced (`post_app_hash`,
-    // `proof`, `receipt`, and nested context variants). Host-execute is only a
-    // differential oracle, so finality/proof claims are rejected wherever this
-    // command would otherwise ignore them.
-    if req.get("expected_post_app_hash").is_some()
-        || req.get("post_app_hash").is_some()
-        || req.get("tau_state").is_some()
-        || req.get("proof").is_some()
-        || req.get("receipt").is_some()
+    // REVIEW [A- -> A]: the first hardening pass rejected post-hash/proof
+    // fields, but a boundary-concolic follow-up found the same no-receipt
+    // flaw for proof-meta and output-status claims (`operation_hash`,
+    // `receipt_root`, `production_security_claim`, `post_snapshot`). Host
+    // execute is only a differential oracle, so any verifier/finality claim it
+    // would ignore is rejected at the boundary.
+    const FORBIDDEN_CLAIM_KEYS: &[&str] = &[
+        "accepted",
+        "collateral_binding_hash",
+        "expected_post_app_hash",
+        "expected_post_app_hash_enforced",
+        "funding_residual_e8",
+        "image_id",
+        "journal",
+        "matched_base_volume",
+        "meta",
+        "net_position_base",
+        "operation_hash",
+        "oracle_binding_hash",
+        "participant_count",
+        "participant_set_hash",
+        "post_app_hash",
+        "post_snapshot",
+        "post_state_hash",
+        "post_state_root",
+        "production_security_claim",
+        "proof",
+        "proof_mode",
+        "receipt",
+        "receipt_root",
+        "reject",
+        "risc0_image_id",
+        "state_delta_hash",
+        "tau_state",
+        "total_collateral_e8",
+    ];
+    let has_forbidden = |v: &Value| FORBIDDEN_CLAIM_KEYS.iter().any(|key| v.get(*key).is_some());
+    if has_forbidden(req)
         || req
             .get("context")
-            .and_then(|v| v.get("expected_post_app_hash"))
-            .is_some()
-        || req
-            .get("context")
-            .and_then(|v| v.get("post_app_hash"))
-            .is_some()
-        || req
-            .get("context")
-            .and_then(|v| v.get("tau_state"))
-            .is_some()
-        || req.get("context").and_then(|v| v.get("proof")).is_some()
-        || req.get("context").and_then(|v| v.get("receipt")).is_some()
+            .is_some_and(|context| has_forbidden(context))
     {
-        die("tau_state_transition_execute does not enforce expected_post_app_hash; compare meta.post_app_hash externally");
+        die("tau_state_transition_execute does not enforce expected_post_app_hash or verifier/finality claims; compare meta externally");
     }
 }
 
