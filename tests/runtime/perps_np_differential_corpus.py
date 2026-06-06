@@ -175,6 +175,32 @@ CORPUS: list[dict[str, Any]] = [
             ),
         ],
     },
+    {
+        # P0-3b INTERACTION: deposit and intent share account.nonce. A matched intent
+        # advances A's nonce 1 -> 2 (verified on both sides), so a subsequent deposit
+        # must be strict-sequential from the advanced nonce (== 3). Locks that the
+        # guest's post-match nonce advance composes with the strict-sequential deposit
+        # check exactly like the live authority.
+        "name": "deposit_after_matched_intent_strict_sequential_ok",
+        "actions": [
+            init(insurance_e8=1_000 * E8),
+            deposit(OWNER_A, 5_000 * E8, 1),
+            deposit(OWNER_B, 5_000 * E8, 1),
+            deposit(OWNER_C, 5_000 * E8, 1),
+            deposit(OWNER_D, 5_000 * E8, 1),
+            run_epoch(
+                1 * E8,
+                0,
+                [
+                    intent(OWNER_A, 10, 2),
+                    intent(OWNER_B, 6, 2),
+                    intent(OWNER_C, -8, 2),
+                    intent(OWNER_D, -8, 2),
+                ],
+            ),
+            deposit(OWNER_A, 1_000 * E8, 3),
+        ],
+    },
 ]
 
 # Cases that BOTH sides must REJECT, for the same semantic reason CLASS.
@@ -207,6 +233,32 @@ REJECT_CORPUS: list[dict[str, Any]] = [
             init(),
             deposit(OWNER_A, 5_000 * E8, 1),
             withdraw(OWNER_A, 1_000 * E8, 4),
+        ],
+        "expect_class": "nonce_or_replay",
+    },
+    {
+        # Companion to deposit_after_matched_intent_strict_sequential_ok: after the
+        # intent advances A to nonce 2, a deposit at nonce 4 is a GAP (next must be 3)
+        # -> both reject. Proves the strict-sequential deposit check keys off the
+        # INTENT-advanced nonce, not just prior deposits.
+        "name": "deposit_after_matched_intent_gap_rejected",
+        "actions": [
+            init(insurance_e8=1_000 * E8),
+            deposit(OWNER_A, 5_000 * E8, 1),
+            deposit(OWNER_B, 5_000 * E8, 1),
+            deposit(OWNER_C, 5_000 * E8, 1),
+            deposit(OWNER_D, 5_000 * E8, 1),
+            run_epoch(
+                1 * E8,
+                0,
+                [
+                    intent(OWNER_A, 10, 2),
+                    intent(OWNER_B, 6, 2),
+                    intent(OWNER_C, -8, 2),
+                    intent(OWNER_D, -8, 2),
+                ],
+            ),
+            deposit(OWNER_A, 1_000 * E8, 4),
         ],
         "expect_class": "nonce_or_replay",
     },
