@@ -71,7 +71,7 @@ def scenario_claim_scoped_to_live_replay_authority() -> None:
     contract = semantic_check._load_json(semantic_check.DEFAULT_CONTRACT)
     deposit = contract["operations"]["perps_np.deposit_collateral"]
     assert deposit["guest"]["envelope_binding"] == "live_replay_guard_admit_strict_sequential"
-    assert deposit["guest"]["live_equivalence_claim_level"] == "live_equivalent"
+    assert deposit["guest"]["live_equivalence_claim_level"] == "live_replay_authority_equivalent"
     assert deposit["envelope"]["live_binding_status"] == "bound_to_replay_guard"
     assert deposit["envelope"]["chain_replay_layer"]["enforced_at"] == "tau_node_tx_sequence"
 
@@ -80,9 +80,10 @@ def scenario_claim_scoped_to_live_replay_authority() -> None:
     assert "replay_guard" in docstring
     assert "strict-sequential" in docstring
     assert "chain tx_sequence" in docstring
-    # must not overclaim
+    # must not overclaim: bound to the replay authority/model, not the deployed node
     assert "verified 1:1" not in docstring
     assert "production 1:1" not in docstring
+    assert "live_equivalent" not in docstring
 
 
 def scenario_duplicate_tx_rejects_before_core() -> None:

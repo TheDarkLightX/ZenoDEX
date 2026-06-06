@@ -35,7 +35,7 @@ Feature: Perps-NP DepositCollateral consensus semantics
   Scenario: guest differential binds the replay envelope to the live replay authority
     Given the guest differential delegates the nonce decision to replay_guard.admit
     When it compares guest execution to Python authority execution
-    Then the strongest allowed claim is live_equivalent
+    Then the strongest allowed claim is live_replay_authority_equivalent
     And the claim is scoped to the strict-sequential replay authority, not the deployed node
 
   @scenario:perps_np.deposit_collateral.envelope.duplicate_tx_rejects_before_core @layer:tx_envelope @status:executable

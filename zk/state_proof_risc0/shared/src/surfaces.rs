@@ -703,12 +703,15 @@ impl PerpsStateV1 {
                 funding_paid_cum_e8: 0,
                 nonce: 0,
             });
-        // Strict-sequential per-account nonce: must be exactly prev + 1 (no gaps,
-        // no replay). This matches the live chain admission authority
-        // (src/core/replay_guard.py / src/state/nonces.py: nonces 1,2,3,.. with no
-        // gaps) so the guest can never attest to a deposit the chain would reject.
-        // checked_add keeps it fail-closed at the u64 boundary. (P0-3b, 2026-06-06.)
-        if account.nonce.checked_add(1) != Some(nonce) {
+        // Strict-sequential per-account nonce: exactly prev + 1 (no gaps, no
+        // replay) AND within the replay authority's domain (1..=U32_MAX). This
+        // matches src/core/replay_guard.py / src/state/nonces.py EXACTLY (nonces
+        // 1,2,3,.. no gaps, capped at U32_MAX) so the guest can never attest to a
+        // deposit the chain would reject -- including a u64 nonce above the chain's
+        // u32 nonce domain. checked_add keeps it fail-closed at the u64 boundary.
+        // (P0-3b, 2026-06-06; U32_MAX cap added per Codex review.)
+        const REPLAY_MAX_NONCE: u64 = 0xFFFF_FFFF; // == replay_guard.py U32_MAX
+        if nonce > REPLAY_MAX_NONCE || account.nonce.checked_add(1) != Some(nonce) {
             return Err(TransitionError::InvalidInput(
                 "deposit nonce not strictly sequential",
             ));
@@ -743,8 +746,10 @@ impl PerpsStateV1 {
             .get(&pubkey)
             .cloned()
             .ok_or(TransitionError::InvalidInput("withdraw account missing"))?;
-        // Strict-sequential per-account nonce (see deposit_collateral). (P0-3b.)
-        if account.nonce.checked_add(1) != Some(nonce) {
+        // Strict-sequential per-account nonce, capped at U32_MAX (see
+        // deposit_collateral). (P0-3b; U32_MAX cap per Codex review.)
+        const REPLAY_MAX_NONCE: u64 = 0xFFFF_FFFF; // == replay_guard.py U32_MAX
+        if nonce > REPLAY_MAX_NONCE || account.nonce.checked_add(1) != Some(nonce) {
             return Err(TransitionError::InvalidInput(
                 "withdraw nonce not strictly sequential",
             ));
@@ -2622,6 +2627,64 @@ mod tests {
         assert_eq!(snapshot.accounts.len(), 1);
         assert_eq!(snapshot.accounts[0].pubkey, "wallet-a");
         assert_eq!(snapshot.accounts[0].nonce, 1);
+    }
+
+    #[test]
+    fn perps_np_deposit_nonce_is_strict_sequential_and_u32_capped() {
+        // P0-3b: the guest deposit nonce must match src/core/replay_guard.py
+        // EXACTLY -- strict-sequential (no gaps, no replay) AND capped at U32_MAX.
+        // It was MONOTONE (nonce <= account.nonce), which accepted gap nonces and
+        // u64 nonces above the chain's u32 domain that the chain rejects.
+        // Non-zUSD collateral avoids the binding requirement for this nonce test.
+        let asset = "USDC".to_string();
+        let mut state = PerpsStateV1::from_snapshot(PerpsNpSnapshotV1::empty()).unwrap();
+        state
+            .init_market(
+                "BTC-PERP".to_string(),
+                asset.clone(),
+                100 * E8_I128,
+                PerpsMarketParamsV1::default(),
+                1_000_000_000,
+            )
+            .unwrap();
+
+        // New account nonce defaults to 0, so the first deposit must be nonce == 1.
+        state
+            .deposit_collateral("a".to_string(), asset.clone(), 1_000 * E8_I128, 1, None)
+            .unwrap();
+        // GAP (expected 2, got 3) -> reject.
+        assert!(state
+            .deposit_collateral("a".to_string(), asset.clone(), E8_I128, 3, None)
+            .is_err());
+        // DUPLICATE (1 again) -> reject.
+        assert!(state
+            .deposit_collateral("a".to_string(), asset.clone(), E8_I128, 1, None)
+            .is_err());
+        // Correct next nonce (2) -> ok.
+        state
+            .deposit_collateral("a".to_string(), asset.clone(), E8_I128, 2, None)
+            .unwrap();
+
+        // U32_MAX cap: seed an account already at nonce == U32_MAX. Its
+        // strict-sequential successor is U32_MAX + 1, which is OUTSIDE the chain's
+        // u32 nonce domain, so replay_guard.py rejects it and the guest must too.
+        let mut snap = PerpsNpSnapshotV1::empty();
+        snap.market_id = "BTC-PERP".to_string();
+        snap.collateral_asset = asset.clone();
+        snap.index_price_e8 = 100 * E8_I128;
+        snap.accounts = alloc::vec![PerpsAccountV1 {
+            pubkey: "z".to_string(),
+            position_base: 0,
+            entry_price_e8: 0,
+            collateral_e8: 1_000 * E8_I128,
+            funding_paid_cum_e8: 0,
+            nonce: 0xFFFF_FFFF,
+        }];
+        snap.net_deposited_e8 = 1_000 * E8_I128;
+        let mut capped = PerpsStateV1::from_snapshot(snap).unwrap();
+        assert!(capped
+            .deposit_collateral("z".to_string(), asset.clone(), E8_I128, 0x1_0000_0000, None)
+            .is_err());
     }
 
     #[test]

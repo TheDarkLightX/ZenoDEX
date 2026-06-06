@@ -232,8 +232,11 @@ def _validate_deposit_contract(contract: Mapping[str, Any]) -> list[str]:
     else:
         if guest.get("envelope_binding") != "live_replay_guard_admit_strict_sequential":
             errors.append("guest envelope_binding must be live_replay_guard_admit_strict_sequential")
-        if guest.get("live_equivalence_claim_level") != "live_equivalent":
-            errors.append("guest live_equivalence_claim_level must be live_equivalent")
+        if guest.get("live_equivalence_claim_level") != "live_replay_authority_equivalent":
+            errors.append(
+                "guest live_equivalence_claim_level must be live_replay_authority_equivalent "
+                "(scoped to the replay authority/model; NOT bare live_equivalent)"
+            )
     return errors
 
 

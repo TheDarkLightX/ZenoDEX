@@ -40,7 +40,7 @@ used a weaker MONOTONE nonce that accepted gap nonces the chain rejects -- so a 
 over this corpus, that the guest's deposit/withdraw envelope matches that replay authority. ``_with_account_nonce`` only
 mirrors the guest's post-state ``account.nonce`` so the snapshots compare field-for-field.
 
-SCOPE (honest): live_equivalent here is scoped to the strict-sequential REPLAY authority replay_guard.admit
+SCOPE (honest): the claim is live_replay_authority_equivalent -- scoped to the strict-sequential REPLAY authority replay_guard.admit
 (the policy the chain enforces via chain tx_sequence); the harness binds to that Python authority, it does
 NOT literally drive the deployed tau node. This remains refutation-complete corpus corroboration over a
 strict-sequential policy match, not an all-inputs proof. zUSD's atomic DepositMint does NOT map 1:1 (it is 2

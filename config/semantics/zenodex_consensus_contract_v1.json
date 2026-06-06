@@ -4,7 +4,8 @@
   "claim_levels": {
     "core_equivalent": "Guest or port matches the Python core transition under already-admitted inputs.",
     "modeled_envelope_equivalent": "Guest or port matches Python under a harness-modeled envelope; this is not a live admission claim.",
-    "live_equivalent": "Guest or port matches actual live transaction admission plus the core transition."
+    "live_replay_authority_equivalent": "Guest or port matches the live Python REPLAY authority (replay_guard.admit -- the strict-sequential policy the chain enforces via tx_sequence) plus the core transition. Bound to that authority/model, NOT to driving the deployed node; strictly weaker than live_equivalent.",
+    "live_equivalent": "Guest or port matches actual live transaction admission (the deployed node) plus the core transition."
   },
   "authority_order": [
     "live_consensus_authority_path",
@@ -39,14 +40,14 @@
           ],
           "python_authority_model": "src/core/replay_guard.py::admit",
           "policy": "strict_sequential_per_sender_no_gaps",
-          "note": "Live deposit/withdraw replay is enforced at the tau-node tx_sequence layer (fail-closed, generic over ops), modeled in Python by replay_guard.admit. The guest (zk/state_proof_risc0/shared/src/surfaces.rs) and the differential are bound to that strict-sequential policy. live_equivalent is scoped to this replay authority, not to literally driving the deployed node."
+          "note": "Live deposit/withdraw replay is enforced at the tau-node tx_sequence layer (fail-closed, generic over ops), modeled in Python by replay_guard.admit. The guest (zk/state_proof_risc0/shared/src/surfaces.rs) and the differential are bound to that strict-sequential policy (1..=U32_MAX, no gaps). The claim is therefore live_replay_authority_equivalent -- scoped to this replay authority/model, NOT to literally driving the deployed node."
         }
       },
       "guest": {
         "differential_ref": "tools/runtime/perps_np_guest_differential.py",
         "collateral_binding_layer": "witness_or_input_envelope",
         "envelope_binding": "live_replay_guard_admit_strict_sequential",
-        "live_equivalence_claim_level": "live_equivalent"
+        "live_equivalence_claim_level": "live_replay_authority_equivalent"
       }
     }
   },
@@ -82,7 +83,8 @@
       "path": "tools/runtime/perps_np_guest_differential.py",
       "forbidden_tokens": [
         "verified 1:1",
-        "production 1:1"
+        "production 1:1",
+        "live_equivalent"
       ],
       "required_tokens": [
         "replay_guard",
