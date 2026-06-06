@@ -10,6 +10,7 @@ overclaim phrases out of scoped differentials.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import sys
@@ -19,6 +20,29 @@ from typing import Any, Mapping, Sequence
 
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_CONTRACT = REPO / "config" / "semantics" / "zenodex_consensus_contract_v1.json"
+
+# --- v1 independent floor ------------------------------------------------------
+# The contract JSON (required_scenarios) is mutable, so the self-consistency
+# checks below would all still pass if a scenario were dropped from BOTH the JSON
+# and the feature file. This hardcoded floor is the independent backstop: the v1
+# contract MUST carry at least these scenario ids in its feature files. (Codex
+# review 2026-06-06, finding #2.)
+V1_REQUIRED_SCENARIO_IDS = frozenset(
+    {
+        "perps_np.deposit_collateral.core.zero_deposit_joins_account",
+        "perps_np.deposit_collateral.core.deposit_does_not_consume_nonce",
+        "perps_np.deposit_collateral.core.negative_rejects_without_mutation",
+        "perps_np.deposit_collateral.guest.modeled_envelope_claim_is_scoped",
+        "perps_np.deposit_collateral.envelope.duplicate_tx_rejects_before_core",
+    }
+)
+
+# The single tx-envelope replay obligation (P0-3b). Its scenario status, the
+# envelope live_binding_status, and the guest live_equivalence_claim_level are
+# ONE coupled obligation -- see _validate_obligation_coupling.
+TX_ENVELOPE_REPLAY_SCENARIO_ID = (
+    "perps_np.deposit_collateral.envelope.duplicate_tx_rejects_before_core"
+)
 
 
 @dataclass(frozen=True)
@@ -199,6 +223,66 @@ def _validate_deposit_contract(contract: Mapping[str, Any]) -> list[str]:
     return errors
 
 
+def _validate_v1_floor(scenarios: Sequence[Scenario]) -> list[str]:
+    """Independent backstop: every v1-required scenario id must be present in the
+    parsed feature files. Unlike _validate_bdd (which compares the contract's own
+    required_scenarios to the features), this reads NOTHING mutable -- a scenario
+    silently dropped from both the JSON and the feature still fails here."""
+    present = {scenario.scenario_id for scenario in scenarios}
+    return [
+        f"v1 floor: required scenario absent from feature files: {scenario_id}"
+        for scenario_id in sorted(V1_REQUIRED_SCENARIO_IDS - present)
+    ]
+
+
+def _validate_obligation_coupling(
+    contract: Mapping[str, Any], scenarios: Sequence[Scenario]
+) -> list[str]:
+    """P0-3b is ONE obligation expressed in three places. It cannot be silently
+    'closed' by editing a single field. The tx-envelope replay scenario's status,
+    the envelope live_binding_status, and the guest live_equivalence_claim_level
+    must all be 'open_obligation' together, or all be closed (non-open) together.
+    A desync -- e.g. the scenario flipped to 'executable' while the envelope still
+    says 'open_obligation' -- is a contract-integrity failure, NOT a valid
+    promotion: closing P0-3b means binding the envelope to the live replay path,
+    which must move all three at once. (Codex review 2026-06-06, finding #3.)"""
+    op = contract.get("operations")
+    if not isinstance(op, Mapping):
+        return []  # shape error reported by _validate_deposit_contract
+    deposit = op.get("perps_np.deposit_collateral")
+    if not isinstance(deposit, Mapping):
+        return []
+    envelope = deposit.get("envelope")
+    guest = deposit.get("guest")
+    binding = envelope.get("live_binding_status") if isinstance(envelope, Mapping) else None
+    claim = guest.get("live_equivalence_claim_level") if isinstance(guest, Mapping) else None
+    scenario = next(
+        (s for s in scenarios if s.scenario_id == TX_ENVELOPE_REPLAY_SCENARIO_ID), None
+    )
+    scn_status = scenario.status if scenario is not None else None
+
+    poles = {
+        "tx-envelope scenario status": (scn_status, scn_status == "open_obligation"),
+        "envelope.live_binding_status": (binding, binding == "open_obligation"),
+        "guest.live_equivalence_claim_level": (claim, claim == "open_obligation"),
+    }
+    open_flags = {is_open for _, is_open in poles.values()}
+    if len(open_flags) != 1:
+        detail = ", ".join(f"{name}={value!r}" for name, (value, _) in poles.items())
+        return [
+            "P0-3b obligation desynchronized (all three must be 'open_obligation' "
+            f"together or all closed together): {detail}"
+        ]
+    return []
+
+
+def _module_docstring(text: str) -> str:
+    try:
+        return ast.get_docstring(ast.parse(text)) or ""
+    except SyntaxError:
+        return ""
+
+
 def _validate_overclaim_guards(contract: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
     guards = contract.get("overclaim_guards", [])
@@ -229,6 +313,17 @@ def _validate_overclaim_guards(contract: Mapping[str, Any]) -> list[str]:
                 continue
             if token not in text:
                 errors.append(f"{raw_path}: required scoping token missing: {token!r}")
+        # File-level presence is not enough: the honesty caveat must live in the
+        # MODULE DOCSTRING, not be buried in a comment elsewhere in the file.
+        # (Codex review 2026-06-06, finding #6.)
+        if raw_path.endswith(".py"):
+            module_doc = _module_docstring(text)
+            for token in guard.get("required_tokens", []):
+                if isinstance(token, str) and token not in module_doc:
+                    errors.append(
+                        f"{raw_path}: required scoping token missing from module "
+                        f"docstring: {token!r}"
+                    )
     return errors
 
 
@@ -245,7 +340,9 @@ def validate(contract_path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:
     errors.extend(_validate_contract_shape(contract))
     bdd_errors, scenarios = _validate_bdd(contract)
     errors.extend(bdd_errors)
+    errors.extend(_validate_v1_floor(scenarios))
     errors.extend(_validate_deposit_contract(contract))
+    errors.extend(_validate_obligation_coupling(contract, scenarios))
     errors.extend(_validate_overclaim_guards(contract))
     return {
         "ok": not errors,

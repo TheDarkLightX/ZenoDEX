@@ -48,7 +48,13 @@ def _attempt(ctx: dict, fn) -> None:
     ctx["error"] = None
     try:
         ctx["state"] = fn(ctx["state"])
-    except Exception as exc:  # noqa: BLE001 -- asserted on in a Then step
+    except ValueError as exc:
+        # Only the live core's DOMAIN rejection (ValueError) counts as "rejected".
+        # A parse/harness error (e.g. the AssertionError that _amount raises on a
+        # malformed amount, or a step bug) must propagate loudly here, NOT be
+        # recorded as a transition rejection -- otherwise a broken harness could
+        # masquerade as live-core fail-closed behavior. (Codex review 2026-06-06,
+        # finding #4.)
         ctx["error"] = exc
 
 

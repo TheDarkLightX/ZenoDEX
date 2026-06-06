@@ -49,6 +49,10 @@ def _collect():
 
 @pytest.mark.parametrize("feature_path,scenario", _collect())
 def test_front_door_scenario(feature_path: Path, scenario: Scenario) -> None:
+    # A scenario with no steps would vacuously "pass" (assert nothing). Reject it
+    # so an empty/placeholder scenario can never read as covered behavior.
+    # (Codex review 2026-06-06, finding #5.)
+    assert scenario.steps, f"scenario {scenario.name!r} has no steps"
     feature = parse_feature(feature_path.read_text())
     steps = _steps_module(feature_path)
     ctx = steps.make_context()

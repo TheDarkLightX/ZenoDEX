@@ -80,6 +80,8 @@ CRITICAL_TESTS=(
   tests/state/test_intents.py
   tests/state/test_lp.py
   tests/state/test_volatility.py
+  tests/semantics/test_zenodex_consensus_bdd.py
+  tests/bdd
 )
 
 COVERAGE_TARGETS=(
@@ -175,6 +177,9 @@ echo "== critical: mypy =="
 
 echo "== critical: acceptance TCB gate =="
 bash "$ROOT_DIR/tools/run_acceptance_tcb_gate.sh"
+
+echo "== critical: consensus semantic contract =="
+"$PY" "$ROOT_DIR/tools/semantics/check_consensus_semantic_contract.py"
 
 echo "== critical: pytest + coverage =="
 PYTEST_COVERAGE_CMD=(
