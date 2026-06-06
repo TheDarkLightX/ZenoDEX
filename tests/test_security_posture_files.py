@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -82,6 +81,9 @@ def test_python_install_surfaces_use_hash_locked_requirements() -> None:
     assert "Proofs/UniformBatchOptimality.lean" in release_gate
     assert "tests/core/test_uniform_batch_optimality.py" in release_gate
     assert "tests/integration/test_dex_engine_uniform_batch_certificate.py" in release_gate
+    assert "tools/semantics/check_consensus_semantic_contract.py" in release_gate
+    assert "tests/semantics/test_zenodex_consensus_bdd.py" in release_gate
+    assert "tests/bdd/test_front_door.py" in release_gate
     assert "tools/check_production_boundary.py" in release_gate
     assert "require_uniform_batch_v3_exact_out_grid_optimality" in (
         ROOT / "src/integration/dex_engine.py"

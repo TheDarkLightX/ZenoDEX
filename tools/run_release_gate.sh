@@ -228,6 +228,16 @@ echo "== release: tau experiment promotion candidates =="
 echo "== release: candidate verified surface matrix =="
 "$PY" "$ROOT_DIR/tools/render_rc1_verified_surface_matrix.py" --check
 
+echo "== release: consensus semantic front door =="
+# REVIEW [B+ -> A]: the BDD/semantic contract front door was added and
+# focused-tested, but the release gate did not run it. Consensus-facing
+# behavior contracts must be release-gated, otherwise they can drift while the
+# production claim remains green.
+"$PY" "$ROOT_DIR/tools/semantics/check_consensus_semantic_contract.py"
+"$PY" -m pytest -q \
+  "$ROOT_DIR/tests/semantics/test_zenodex_consensus_bdd.py" \
+  "$ROOT_DIR/tests/bdd/test_front_door.py"
+
 echo "== release: acceptance mutation gate =="
 bash "$ROOT_DIR/tools/run_acceptance_tcb_mutation_gate.sh"
 

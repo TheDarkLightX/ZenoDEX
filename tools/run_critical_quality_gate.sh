@@ -107,6 +107,7 @@ echo "== critical: ruff =="
 "$PY" -m ruff check \
   tools/acceptance_tcb_mutation_harness.py \
   tools/check_acceptance_tcb_coverage.py \
+  tools/semantics/check_consensus_semantic_contract.py \
   src/core/domain_limits.py \
   src/core/cpmm.py \
   src/core/liquidity.py \
@@ -141,6 +142,8 @@ echo "== critical: ruff =="
   tests/core/test_support_root.py \
   tests/core/test_volatility_tier.py \
   tests/core/test_volatility_tier_ref_parity.py \
+  tests/semantics/test_zenodex_consensus_bdd.py \
+  tests/bdd \
   tests/core/test_dex_step.py \
   tests/core/test_dex_step_candidate_settlement.py \
   tests/integration/test_dex_engine_helpers.py \
