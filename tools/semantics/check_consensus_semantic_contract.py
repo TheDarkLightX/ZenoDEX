@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_CONTRACT = REPO / "config" / "semantics" / "zenodex_consensus_contract_v1.json"
 

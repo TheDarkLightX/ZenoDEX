@@ -15,7 +15,6 @@ from src.core.perp_np_matching import E8
 from tools.runtime import perps_np_guest_differential as perps_np_diff
 from tools.semantics import check_consensus_semantic_contract as semantic_check
 
-
 ALICE = "0x" + "11" * 48
 
 
