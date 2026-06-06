@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import subprocess
 from pathlib import Path
@@ -41,6 +42,22 @@ def test_guest_execute_result_is_labelled_non_proof(risc0_cli: Path) -> None:
     assert "proof" not in result
 
 
+def test_witness_collateral_binding_changes_journal_not_post_state(risc0_cli: Path) -> None:
+    actions_a = [corpus.init(), corpus.deposit(corpus.OWNER_A, 5_000 * corpus.E8, 1)]
+    actions_b = copy.deepcopy(actions_a)
+    actions_b[1]["collateral_binding"] = diff.valid_collateral_binding("alt-binding")
+
+    result_a = diff.run_guest(actions_a, binp=risc0_cli)
+    result_b = diff.run_guest(actions_b, binp=risc0_cli)
+
+    assert result_a["accepted"] is True
+    assert result_b["accepted"] is True
+    assert result_a["post_snapshot"] == result_b["post_snapshot"]
+    assert result_a["meta"]["post_app_hash"] == result_b["meta"]["post_app_hash"]
+    assert result_a["meta"]["operation_hash"] != result_b["meta"]["operation_hash"]
+    assert result_a["meta"]["collateral_binding_hash"] != result_b["meta"]["collateral_binding_hash"]
+
+
 def test_seeded_pre_snapshot_is_hash_bound_and_equivalent(risc0_cli: Path) -> None:
     pre_state = authority_init_market(corpus.E8, insurance_seed_e8=1_000 * corpus.E8)
     pre_state = authority_deposit(pre_state, corpus.OWNER_A, 5_000 * corpus.E8)
@@ -61,7 +78,7 @@ def test_seeded_pre_snapshot_is_hash_bound_and_equivalent(risc0_cli: Path) -> No
 
 
 def test_execute_schema_rejects_caller_post_hash_claim(risc0_cli: Path) -> None:
-    request = {
+    request: dict[str, object] = {
         "schema": "tau_state_transition_execute",
         "schema_version": 1,
         "proof_type": diff.PERPS_NP_PROOF_TYPE,
@@ -80,4 +97,42 @@ def test_execute_schema_rejects_caller_post_hash_claim(risc0_cli: Path) -> None:
     )
 
     assert proc.returncode == 2
+    assert "does not enforce expected_post_app_hash" in proc.stderr
+
+
+@pytest.mark.parametrize(
+    ("field", "patch"),
+    [
+        ("tau_state", {"tau_state": {}}),
+        ("proof", {"proof": {"receipt": "ignored"}}),
+        ("receipt", {"receipt": {"seal": "ignored"}}),
+        ("context.expected_post_app_hash", {"context": {"expected_post_app_hash": "22" * 32}}),
+        ("context.post_app_hash", {"context": {"post_app_hash": "22" * 32}}),
+    ],
+)
+def test_execute_schema_rejects_ignored_verifier_shaped_fields(
+    risc0_cli: Path, field: str, patch: dict[str, object]
+) -> None:
+    request: dict[str, object] = {
+        "schema": "tau_state_transition_execute",
+        "schema_version": 1,
+        "proof_type": diff.PERPS_NP_PROOF_TYPE,
+        "state_hash": "11" * 32,
+        "context": {"chain_id": "zenodex-perps-np-differential"},
+        "actions": [corpus.init(), corpus.deposit(corpus.OWNER_A, 5_000 * corpus.E8, 1)],
+    }
+    if "context" in patch and isinstance(patch["context"], dict):
+        request["context"] = {"chain_id": "zenodex-perps-np-differential", **patch["context"]}
+    else:
+        request.update(patch)
+
+    proc = subprocess.run(
+        [str(risc0_cli)],
+        input=json.dumps(request),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 2, field
     assert "does not enforce expected_post_app_hash" in proc.stderr
