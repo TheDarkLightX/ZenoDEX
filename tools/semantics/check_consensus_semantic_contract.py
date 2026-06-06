@@ -212,7 +212,7 @@ def _validate_deposit_contract(contract: Mapping[str, Any]) -> list[str]:
         # P0-3b CLOSED (2026-06-06): the envelope is bound to the live replay
         # authority replay_guard.admit (strict-sequential). The chain_replay_layer
         # note must record where production replay actually lives (tau tx_sequence)
-        # so the live_equivalent claim stays honestly scoped.
+        # so the live_replay_authority_equivalent claim stays honestly scoped.
         if envelope.get("live_binding_status") != "bound_to_replay_guard":
             errors.append("deposit envelope live_binding_status must be bound_to_replay_guard")
         if envelope.get("closed_obligation_id") != "P0-3b":

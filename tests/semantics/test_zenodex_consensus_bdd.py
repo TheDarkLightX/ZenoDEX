@@ -63,8 +63,8 @@ def scenario_negative_rejects_without_mutation() -> None:
 
 def scenario_claim_scoped_to_live_replay_authority() -> None:
     # P0-3b CLOSED: the guest envelope is bound to the live replay authority
-    # (replay_guard.admit), and the claim is live_equivalent -- scoped honestly to
-    # that strict-sequential replay authority, not to the deployed node.
+    # (replay_guard.admit), and the claim is live_replay_authority_equivalent --
+    # scoped to that strict-sequential replay authority/model, NOT the deployed node.
     report = semantic_check.validate()
     assert report["ok"], report["errors"]
 

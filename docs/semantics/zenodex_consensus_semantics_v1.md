@@ -63,8 +63,9 @@ Guest and proof obligations:
   live replay authority `src/core/replay_guard.py`::admit (strict-sequential), and
   the guest (`zk/state_proof_risc0/shared/src/surfaces.rs`) was fixed from a weaker
   MONOTONE nonce (which accepted gap nonces the chain rejects) to the same
-  strict-sequential rule. The claim is therefore `live_equivalent`, scoped to that
-  replay authority. Production replay is enforced at the tau-node `tx_sequence`
+  strict-sequential rule. The claim is therefore `live_replay_authority_equivalent`
+  -- scoped to that replay authority/model, NOT bare `live_equivalent` (which would
+  require driving the deployed node). Production replay is enforced at the tau-node `tx_sequence`
   layer (`src/integration/perps_wallet_api.py`:2764 / 2885-2889), modeled in Python
   by replay_guard.admit; see the contract `envelope.chain_replay_layer`.
 
