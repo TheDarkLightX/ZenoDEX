@@ -23,12 +23,25 @@ schema (``execute_perps_np_transition_v1_unchecked_with_snapshot``). ``collatera
 authority transition does not consume them, and changing a *valid* binding must not
 change the post-state (proven by a dedicated test).
 
-Operation correspondence (verified 1:1 before building this; see the P0-3 finding):
-  guest DepositCollateral   <-> perp_np_clearinghouse.deposit(state, pubkey, amount_e8)
-  guest WithdrawCollateral  <-> perp_np_clearinghouse.withdraw(state, pubkey, amount_e8)
-  guest RunEpoch            <-> perp_np_clearinghouse.run_epoch(state, clearing, funding, intents)
-  guest InitMarket          <-> perp_np_clearinghouse.init_market(index_price, params, seed)
-  (zUSD's atomic DepositMint does NOT map 1:1 to the authority -> deferred.)
+Operation correspondence (the clearing CORE maps 1:1; deposit/withdraw add an envelope):
+  guest InitMarket          <-> perp_np_clearinghouse.init_market(index_price, params, seed)   [CORE 1:1]
+  guest RunEpoch            <-> perp_np_clearinghouse.run_epoch(state, clearing, funding, intents) [CORE 1:1]
+  guest DepositCollateral   <-> perp_np_clearinghouse.deposit(state, pubkey, amount_e8)  + ENVELOPE
+  guest WithdrawCollateral  <-> perp_np_clearinghouse.withdraw(state, pubkey, amount_e8) + ENVELOPE
+
+InitMarket / RunEpoch are faithful CORE 1:1 -- run_epoch / match / funding are byte-equivalent across
+the corpus. Deposit / Withdraw are 1:1 ONLY at the pure clearing CORE: the guest ALSO folds a TX-layer
+ENVELOPE into its transition (deposit/withdraw nonce monotonicity + advance, reject amount<=0) that the
+live core deposit()/withdraw() do NOT have -- the live ``deposit_collateral`` action carries no nonce,
+``deposit(0)`` is the account-join, and deposit replay is enforced at the chain/TX layer. ``apply_authority``
+MODELS that envelope so the corpus can compare like-for-like.
+
+(D) ENVELOPE-FAITHFULNESS OBLIGATION (open, like the (B) encoder obligation): this harness asserts -- but
+does NOT prove -- that the modeled deposit/withdraw envelope (nonce + reject-zero) is faithful to the LIVE
+chain/TX-layer replay semantics. So for deposit/withdraw it establishes guest == (pure core + a *modeled*
+envelope), NOT a clean 1:1 with the live authority. Proving that correspondence (binding the model to the
+live TX replay path) is deferred. (Codex 2026-06-06: this was the load-bearing caveat.) zUSD's atomic
+DepositMint does NOT map 1:1 (it is 2 authority commands) -> deferred.
 """
 
 from __future__ import annotations
