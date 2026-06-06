@@ -36,6 +36,10 @@ echo "== perps: claims registry format check =="
 "$PY" "$ROOT_DIR/tools/check_claims_registry.py"
 
 echo "== perps: pytest =="
+# REVIEW [B+ -> A]: the P0-3 guest/Python differential and its teeth existed
+# as focused tests, but the perps evidence gate did not run them. A RISC0 guest
+# differential claim must be release-gated, including non-vacuity teeth, before
+# the memory trail or release report can cite it as live evidence.
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/core/test_perp_market_version_prefix_guard.py" \
   "$ROOT_DIR/tests/core/test_perp_tau_ingress_stream.py" \
@@ -73,6 +77,8 @@ echo "== perps: pytest =="
   "$ROOT_DIR/tests/runtime/test_perp_partial_liquidate_conformance.py" \
   "$ROOT_DIR/tests/runtime/test_perp_account_ops_conformance.py" \
   "$ROOT_DIR/tests/runtime/test_perp_set_market_params_conformance.py" \
+  "$ROOT_DIR/tests/runtime/test_perps_np_guest_differential.py" \
+  "$ROOT_DIR/tests/runtime/test_perps_np_guest_differential_teeth.py" \
   "$ROOT_DIR/tests/runtime/test_perp_disaster_state.py"
 
 echo "== perps: live cross-stream stateful replay =="

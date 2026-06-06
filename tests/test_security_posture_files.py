@@ -40,12 +40,14 @@ def test_python_install_surfaces_use_hash_locked_requirements() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     prod_gate = (ROOT / "tools/prod_gate.sh").read_text(encoding="utf-8")
     release_gate = (ROOT / "tools/run_release_gate.sh").read_text(encoding="utf-8")
+    perps_gate = (ROOT / "tools/run_perps_evidence.sh").read_text(encoding="utf-8")
 
     assert "--require-hashes -r requirements-core.lock.txt" in dockerfile
     assert "--require-hashes -r requirements-dev.lock.txt" in readme
     assert "--require-hashes -r \"$DEV_LOCK\"" in prod_gate
     assert "tools/check_python_hash_locks.py" in release_gate
     assert "tests/test_check_python_hash_locks.py" in release_gate
+    assert "tests/test_security_posture_files.py" in release_gate
     assert "tools/check_proof_toolchain_lock.py" in release_gate
     assert "tools/check_zeno_ledger_proof_coverage_matrix.py" in release_gate
     assert "tests/tools/test_check_zeno_ledger_proof_coverage_matrix.py" in release_gate
@@ -94,6 +96,8 @@ def test_python_install_surfaces_use_hash_locked_requirements() -> None:
     assert "tools/zeno_ledger_zusd_risc0_real_proof_smoke.py" in release_gate
     assert "tools/zeno_ledger_perp_np_risc0_real_proof_smoke.py" in release_gate
     assert "tools/check_zusd_perps_np_risc0_real_proof_smoke_report.py" in release_gate
+    assert "tests/runtime/test_perps_np_guest_differential.py" in perps_gate
+    assert "tests/runtime/test_perps_np_guest_differential_teeth.py" in perps_gate
     assert "tests/integration/test_zeno_ledger_risc0_proof_metadata.py" in release_gate
     assert "tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py" in release_gate
     assert "tests/test_check_zusd_perps_np_risc0_real_proof_smoke_report.py" in release_gate

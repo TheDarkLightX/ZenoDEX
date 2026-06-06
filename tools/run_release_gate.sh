@@ -69,6 +69,12 @@ echo "== release: proof toolchain lock =="
 echo "== release: critical quality gate =="
 bash "$ROOT_DIR/tools/run_critical_quality_gate.sh"
 
+echo "== release: security posture wiring =="
+# REVIEW [B+ -> A]: release-gate wiring regressions have repeatedly been the
+# issue, so the local release gate should execute the posture file that checks
+# critical scripts contain their expected evidence lanes.
+"$PY" -m pytest -q "$ROOT_DIR/tests/test_security_posture_files.py"
+
 echo "== release: public assurance snapshot docs =="
 "$PY" "$ROOT_DIR/tools/render_assurance_release_snapshot.py" --check
 
