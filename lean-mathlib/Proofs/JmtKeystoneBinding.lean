@@ -1,4 +1,4 @@
-import Mathlib
+import Mathlib.Data.List.Perm.Basic
 
 /-!
 # JMT keystone — model-level root determinism
@@ -9,12 +9,11 @@ reordering the same leaf multiset. This is the order-independence obligation
 that a future implementation must bind to live code; the current repo has no
 `src/state/jmt.py` artifact.
 
-Model-level boundary: `rootAux` is an abstract tree model for the
-Jellyfish-style root described in `docs/product_discipline/technical_reference_patterns.md`.
-The child combiner `combine` and bit-selector `bit` are abstract, so determinism
-holds for any deterministic instantiation. A production claim still needs a
-live implementation binding, key/hash canonicalization, and concrete hash
-collision assumptions.
+Model-level boundary: `rootAux` is an abstract tree model for the planned
+Jellyfish-style root. The child combiner `combine` and bit-selector `bit` are
+abstract, so determinism holds for any deterministic instantiation. A production
+claim still needs a live implementation binding, key/hash canonicalization, and
+concrete hash collision assumptions.
 -/
 
 namespace ZenoDex.JmtKeystone.Binding
@@ -25,9 +24,9 @@ abbrev Hash := List Byte
 /-- Empty-subtree sentinel (`PLACEHOLDER = b"\x00" * 32`). -/
 def PLACEHOLDER : Hash := List.replicate 32 0
 
-/-- Compact-tree root over `(key, leafHash)` leaves: empty → `PLACEHOLDER`, singleton →
-its hash, else split by `bit key depth` into the two child subtrees and `combine`. `fuel`
-bounds the depth. Mirrors `_subtree_root`. -/
+/-- Compact-tree root over `(key, leafHash)` leaves: empty → `PLACEHOLDER`,
+singleton → its hash, else split by `bit key depth` into the two child subtrees
+and `combine`. `fuel` bounds the depth of this abstract recurrence. -/
 def rootAux (combine : Hash → Hash → Hash) (bit : List Byte → Nat → Bool) :
     Nat → Nat → List (List Byte × Hash) → Hash
   | _, _, [] => PLACEHOLDER
@@ -155,13 +154,28 @@ theorem rootAux_single_eq_single_hash_eq
   simpa [rootAux] using h
 
 /-- Negative witness: the abstract singleton case does not bind the key unless
-the leaf hash itself already commits to it. -/
-theorem rootAux_single_same_hash_different_key_eq
+the leaf hash itself already commits to it. This generic statement holds for any
+two keys; `rootAux_single_concrete_distinct_keys_same_hash` pins the genuinely
+distinct-key instance. -/
+theorem rootAux_single_same_hash_any_key_eq
     (combine : Hash → Hash → Hash) (bit : List Byte → Nat → Bool)
     (depth fuel : Nat) (key1 key2 : List Byte) (leaf : Hash) :
     rootAux combine bit depth fuel [(key1, leaf)] =
       rootAux combine bit depth fuel [(key2, leaf)] := by
   simp [rootAux]
+
+/-- Concrete distinct-key witness for the singleton frontier: two different keys
+with the same already-computed leaf hash have the same singleton root in this
+abstract model. This is why the live leaf hash must bind the key/value encoding. -/
+theorem rootAux_single_concrete_distinct_keys_same_hash
+    (combine : Hash → Hash → Hash) (bit : List Byte → Nat → Bool)
+    (depth fuel : Nat) (leaf : Hash) :
+    ([0] : List Byte) ≠ ([1] : List Byte) ∧
+      rootAux combine bit depth fuel [(([0] : List Byte), leaf)] =
+        rootAux combine bit depth fuel [(([1] : List Byte), leaf)] := by
+  constructor
+  · decide
+  · simp [rootAux]
 
 /-- Negative witness for the depth/fuel side condition: a ≥2-leaf tree at zero
 fuel collapses to the empty-tree placeholder in this abstract model. A live sparse
@@ -202,5 +216,25 @@ theorem perm_of_filter_perms {α : Type} (q : α → Bool) {l1 l2 : List α}
     (hyes : (l1.filter q).Perm (l2.filter q)) : l1.Perm l2 :=
   (filter_not_append_filter_perm q l1).trans
     ((hnot.append hyes).trans (filter_not_append_filter_perm q l2).symm)
+
+/-- **≥2 inductive case of root-uniqueness.** Given an injective combiner and the inductive
+hypothesis (child-root equality ⇒ child-list permutation), equal parent roots of two
+≥2-leaf trees force the parent lists to be permutations — `rootAux_children_eq_of_injective2`
+(down) composed with `perm_of_filter_perms` (up). This is the load-bearing step; the closed
+root-uniqueness theorem then discharges `ih` by induction on `fuel` and handles the
+base/cross cases, each of whose obligations is pinned by a negative witness above
+(`rootAux_single_placeholder_eq_empty`, `rootAux_single_concrete_distinct_keys_same_hash`,
+`rootAux_multi_fuel_zero_eq_empty`). A live proof must discharge those obligations with
+concrete domain-separated encodings and collision-resistance assumptions. -/
+theorem rootAux_perm_of_eq_step
+    (combine : Hash → Hash → Hash) (bit : List Byte → Nat → Bool)
+    (hc : Function.Injective2 combine) (depth fuel : Nat)
+    (ih : ∀ {a b : List (List Byte × Hash)},
+      rootAux combine bit (depth + 1) fuel a = rootAux combine bit (depth + 1) fuel b → a.Perm b)
+    {l1 l2 : List (List Byte × Hash)} (h1 : 2 ≤ l1.length) (h2 : 2 ≤ l2.length)
+    (h : rootAux combine bit depth (fuel + 1) l1 = rootAux combine bit depth (fuel + 1) l2) :
+    l1.Perm l2 := by
+  obtain ⟨hnot, hyes⟩ := rootAux_children_eq_of_injective2 combine bit hc depth fuel h1 h2 h
+  exact perm_of_filter_perms (fun p => bit p.1 depth) (ih hnot) (ih hyes)
 
 end ZenoDex.JmtKeystone.Binding

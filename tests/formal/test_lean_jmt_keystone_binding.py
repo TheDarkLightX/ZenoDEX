@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -10,7 +11,7 @@ import pytest
 def test_lean_jmt_keystone_binding_typechecks_without_placeholders() -> None:
     lake = shutil.which("lake")
     if not lake:
-        return
+        pytest.skip("lake executable missing")
 
     root = Path(__file__).resolve().parents[2]
     lean_dir = root / "lean-mathlib"
@@ -24,14 +25,19 @@ def test_lean_jmt_keystone_binding_typechecks_without_placeholders() -> None:
     assert "theorem rootAux_single_placeholder_eq_empty" in source
     assert "theorem rootAux_empty_ne_single_of_leaf_ne_placeholder" in source
     assert "theorem rootAux_single_eq_single_hash_eq" in source
-    assert "theorem rootAux_single_same_hash_different_key_eq" in source
+    assert "theorem rootAux_single_same_hash_any_key_eq" in source
+    assert "theorem rootAux_single_concrete_distinct_keys_same_hash" in source
+    assert "([0] : List Byte) ≠ ([1] : List Byte) ∧" in source
     assert "theorem rootAux_multi_fuel_zero_eq_empty" in source
     assert "theorem filter_not_append_filter_perm" in source
     assert "theorem perm_of_filter_perms" in source
+    assert "theorem rootAux_perm_of_eq_step" in source
     assert "current repo has no\n`src/state/jmt.py` artifact" in source
     assert "Model-level boundary" in source
+    assert "docs/product_discipline/" not in source
+    assert "Mirrors `_subtree_root`" not in source
     for forbidden in ("sorry", "admit", "axiom", "unsafe"):
-        assert forbidden not in source
+        assert not re.search(rf"\b{forbidden}\b", source)
 
     try:
         proc = subprocess.run(
@@ -46,3 +52,17 @@ def test_lean_jmt_keystone_binding_typechecks_without_placeholders() -> None:
         pytest.skip(f"lake env lean timed out after {exc.timeout}s for {target}")
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    try:
+        build = subprocess.run(
+            [lake, "build", "Proofs.JmtKeystoneBinding"],
+            cwd=lean_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=180,
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.skip(f"lake build timed out after {exc.timeout}s for Proofs.JmtKeystoneBinding")
+
+    assert build.returncode == 0, build.stdout + build.stderr
