@@ -22,6 +22,10 @@ def test_lean_jmt_keystone_binding_typechecks_without_placeholders() -> None:
     assert "theorem rootAux_perm" in source
     assert "theorem rootAux_children_eq_of_injective2" in source
     assert "theorem rootAux_single_placeholder_eq_empty" in source
+    assert "theorem rootAux_empty_ne_single_of_leaf_ne_placeholder" in source
+    assert "theorem rootAux_single_eq_single_hash_eq" in source
+    assert "theorem rootAux_single_same_hash_different_key_eq" in source
+    assert "theorem rootAux_multi_fuel_zero_eq_empty" in source
     assert "theorem filter_not_append_filter_perm" in source
     assert "theorem perm_of_filter_perms" in source
     assert "current repo has no\n`src/state/jmt.py` artifact" in source

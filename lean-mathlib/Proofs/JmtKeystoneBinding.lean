@@ -133,6 +133,47 @@ theorem rootAux_single_placeholder_eq_empty
       rootAux combine bit depth fuel [] := by
   simp [rootAux]
 
+/-- Positive base-case obligation: an empty tree and a singleton tree are distinct
+when the singleton's leaf hash is distinct from `PLACEHOLDER`. A live JMT binding
+proof must discharge this with the concrete leaf-hash domain. -/
+theorem rootAux_empty_ne_single_of_leaf_ne_placeholder
+    (combine : Hash → Hash → Hash) (bit : List Byte → Nat → Bool)
+    (depth fuel : Nat) {key : List Byte} {leaf : Hash}
+    (hleaf : leaf ≠ PLACEHOLDER) :
+    rootAux combine bit depth fuel [] ≠
+      rootAux combine bit depth fuel [(key, leaf)] := by
+  simpa [rootAux] using hleaf.symm
+
+/-- Singleton roots expose exactly the leaf hash. Key binding is therefore a
+separate leaf-encoding obligation, usually proved by injectivity of the concrete
+`hash(key || value)` framing. -/
+theorem rootAux_single_eq_single_hash_eq
+    (combine : Hash → Hash → Hash) (bit : List Byte → Nat → Bool)
+    (depth fuel : Nat) {key1 key2 : List Byte} {leaf1 leaf2 : Hash}
+    (h : rootAux combine bit depth fuel [(key1, leaf1)] =
+      rootAux combine bit depth fuel [(key2, leaf2)]) : leaf1 = leaf2 := by
+  simpa [rootAux] using h
+
+/-- Negative witness: the abstract singleton case does not bind the key unless
+the leaf hash itself already commits to it. -/
+theorem rootAux_single_same_hash_different_key_eq
+    (combine : Hash → Hash → Hash) (bit : List Byte → Nat → Bool)
+    (depth fuel : Nat) (key1 key2 : List Byte) (leaf : Hash) :
+    rootAux combine bit depth fuel [(key1, leaf)] =
+      rootAux combine bit depth fuel [(key2, leaf)] := by
+  simp [rootAux]
+
+/-- Negative witness for the depth/fuel side condition: a ≥2-leaf tree at zero
+fuel collapses to the empty-tree placeholder in this abstract model. A live sparse
+tree proof needs enough depth, key separation, or an explicit overflow rejection
+to rule this out. -/
+theorem rootAux_multi_fuel_zero_eq_empty
+    (combine : Hash → Hash → Hash) (bit : List Byte → Nat → Bool)
+    (depth : Nat) (a b : List Byte × Hash) (rest : List (List Byte × Hash)) :
+    rootAux combine bit depth 0 (a :: b :: rest) =
+      rootAux combine bit depth 0 [] := by
+  simp [rootAux]
+
 /-- Partition reconstruction: a list is a permutation of its `!q`-filter followed by its
 `q`-filter (the bit-partition decomposition the root-uniqueness lift recombines). -/
 theorem filter_not_append_filter_perm {α : Type} (q : α → Bool) :
