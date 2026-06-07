@@ -1237,6 +1237,68 @@ def _claim_dag_errors(claim_index: Mapping[str, Mapping[str, Any]]) -> list[str]
     return errors
 
 
+# --- Strict expected-binding + error-class partitioning (DRY of knowledge) ---
+#
+# verify_zenoproof_artifact partitions its accumulated error codes into four
+# classes (proof / binding / policy / freshness). These frozensets state each
+# class ONCE; proof_errors is "everything not otherwise classified", i.e. the
+# complement of their union, rather than a fourth hand-maintained literal that
+# had to be kept in sync. Adding a new code means adding it to exactly one set.
+_BINDING_ERROR_CODES = frozenset(
+    {
+        "expected_claim_id_mismatch",
+        "expected_input_commitment_root_mismatch",
+        "expected_output_commitment_root_mismatch",
+        "claim_statement_hash_mismatch",
+        "claim_assumptions_hash_mismatch",
+        "claim_not_registered",
+    }
+)
+_POLICY_ERROR_CODES = frozenset(
+    {
+        "verifier_not_registered",
+        "verifier_revoked",
+        "verifier_policy_root_stale",
+        "proof_kind_not_allowed",
+        "toolchain_not_allowed",
+    }
+)
+_FRESHNESS_ERROR_CODES = frozenset(
+    {
+        "artifact_from_future",
+        "artifact_expired",
+        "artifact_expires_before_issued",
+    }
+)
+# Any non-registry error outside these classes is a proof error.
+_NON_PROOF_ERROR_CODES = _BINDING_ERROR_CODES | _POLICY_ERROR_CODES | _FRESHNESS_ERROR_CODES
+
+
+def _check_expected_binding(
+    actual: object | None,
+    expected: object | None,
+    code: str,
+    errors: list[str],
+    *,
+    skip_when_actual_none: bool = False,
+) -> None:
+    """Record ``code`` when a provided expected binding does not match ``actual``.
+
+    The strict expected-binding rule, stated once for every ``verify_*`` family: a
+    ``None`` ``expected`` imposes no constraint (the caller did not pin it); a
+    provided ``expected`` must equal ``actual`` or the binding fails. With
+    ``skip_when_actual_none=True`` a missing ``actual`` is left to its own
+    required-field error instead of also failing the binding (the o5-witness root
+    sites, which guard both operands).
+    """
+    if expected is None:
+        return
+    if skip_when_actual_none and actual is None:
+        return
+    if actual != expected:
+        errors.append(code)
+
+
 def verify_zenoproof_artifact(
     artifact: Mapping[str, Any],
     registry: Mapping[str, Any],
@@ -1280,8 +1342,9 @@ def verify_zenoproof_artifact(
         except (TypeError, ValueError):
             expected_proof_id = None
             errors.append(f"proof_id_content_hash_unencodable:{proof_id}")
-        if expected_proof_id is not None and proof_id != expected_proof_id:
-            errors.append("proof_id_content_hash_mismatch")
+        _check_expected_binding(
+            proof_id, expected_proof_id, "proof_id_content_hash_mismatch", errors
+        )
 
     if issued_at is not None and expires_at is not None and expires_at < issued_at:
         errors.append("artifact_expires_before_issued")
@@ -1317,66 +1380,32 @@ def verify_zenoproof_artifact(
             errors.append("toolchain_not_allowed")
         _run_external_verifier_if_needed(artifact, verifier, errors)
 
-    if expected_claim_id is not None and claim_id != expected_claim_id:
-        errors.append("expected_claim_id_mismatch")
-    if expected_input_commitment_root is not None and input_root != expected_input_commitment_root:
-        errors.append("expected_input_commitment_root_mismatch")
-    if expected_output_commitment_root is not None and output_root != expected_output_commitment_root:
-        errors.append("expected_output_commitment_root_mismatch")
+    _check_expected_binding(claim_id, expected_claim_id, "expected_claim_id_mismatch", errors)
+    _check_expected_binding(
+        input_root,
+        expected_input_commitment_root,
+        "expected_input_commitment_root_mismatch",
+        errors,
+    )
+    _check_expected_binding(
+        output_root,
+        expected_output_commitment_root,
+        "expected_output_commitment_root_mismatch",
+        errors,
+    )
 
     proof_errors = [
         error
         for error in errors
-        if not error.startswith("registry:")
-        and error
-        not in {
-            "expected_claim_id_mismatch",
-            "expected_input_commitment_root_mismatch",
-            "expected_output_commitment_root_mismatch",
-            "claim_statement_hash_mismatch",
-            "claim_assumptions_hash_mismatch",
-            "claim_not_registered",
-            "verifier_not_registered",
-            "verifier_revoked",
-            "verifier_policy_root_stale",
-            "proof_kind_not_allowed",
-            "toolchain_not_allowed",
-            "artifact_from_future",
-            "artifact_expired",
-            "artifact_expires_before_issued",
-        }
+        if not error.startswith("registry:") and error not in _NON_PROOF_ERROR_CODES
     ]
-    binding_errors = [
-        error
-        for error in errors
-        if error
-        in {
-            "expected_claim_id_mismatch",
-            "expected_input_commitment_root_mismatch",
-            "expected_output_commitment_root_mismatch",
-            "claim_statement_hash_mismatch",
-            "claim_assumptions_hash_mismatch",
-            "claim_not_registered",
-        }
-    ]
+    binding_errors = [error for error in errors if error in _BINDING_ERROR_CODES]
     policy_errors = [
         error
         for error in errors
-        if error.startswith("registry:")
-        or error
-        in {
-            "verifier_not_registered",
-            "verifier_revoked",
-            "verifier_policy_root_stale",
-            "proof_kind_not_allowed",
-            "toolchain_not_allowed",
-        }
+        if error.startswith("registry:") or error in _POLICY_ERROR_CODES
     ]
-    freshness_errors = [
-        error
-        for error in errors
-        if error in {"artifact_from_future", "artifact_expired", "artifact_expires_before_issued"}
-    ]
+    freshness_errors = [error for error in errors if error in _FRESHNESS_ERROR_CODES]
     return ZenoProofVerifyResult(
         status="rejected" if errors else "accepted",
         errors=errors,
@@ -1458,8 +1487,9 @@ def verify_o5_independence_witness(
         except (TypeError, ValueError):
             expected_witness_id = None
             errors.append(f"o5_witness_hash_unencodable:{witness_id}")
-        if expected_witness_id is not None and witness_id != expected_witness_id:
-            errors.append("o5_witness_hash_mismatch")
+        _check_expected_binding(
+            witness_id, expected_witness_id, "o5_witness_hash_mismatch", errors
+        )
 
     primary_proof_id = _require_hash(witness, "primary_proof_id", errors)
     primary_claim_id = _require_hash(witness, "primary_claim_id", errors)
@@ -1473,18 +1503,20 @@ def verify_o5_independence_witness(
         errors.append("required_distinct_verifier_count_must_be_at_least_2")
     if required_kinds is not None and required_kinds < 2:
         errors.append("required_distinct_proof_kind_count_must_be_at_least_2")
-    if (
-        expected_input_commitment_root is not None
-        and witness_input_root is not None
-        and witness_input_root != expected_input_commitment_root
-    ):
-        errors.append("o5_witness_expected_input_root_mismatch")
-    if (
-        expected_output_commitment_root is not None
-        and witness_output_root is not None
-        and witness_output_root != expected_output_commitment_root
-    ):
-        errors.append("o5_witness_expected_output_root_mismatch")
+    _check_expected_binding(
+        witness_input_root,
+        expected_input_commitment_root,
+        "o5_witness_expected_input_root_mismatch",
+        errors,
+        skip_when_actual_none=True,
+    )
+    _check_expected_binding(
+        witness_output_root,
+        expected_output_commitment_root,
+        "o5_witness_expected_output_root_mismatch",
+        errors,
+        skip_when_actual_none=True,
+    )
 
     primary_result = verify_zenoproof_artifact(
         primary_artifact,
@@ -1603,8 +1635,9 @@ def verify_oracle_o4_bridge(
         except (TypeError, ValueError):
             expected_bridge_id = None
             errors.append(f"oracle_o4_bridge_hash_unencodable:{bridge_id}")
-        if expected_bridge_id is not None and bridge_id != expected_bridge_id:
-            errors.append("oracle_o4_bridge_hash_mismatch")
+        _check_expected_binding(
+            bridge_id, expected_bridge_id, "oracle_o4_bridge_hash_mismatch", errors
+        )
 
     bundle = bridge.get("receipt_bundle")
     if not isinstance(bundle, Mapping):
