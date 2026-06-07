@@ -41,6 +41,89 @@ def test_status_json_shape() -> None:
     assert isinstance(payload["public_scope_paths"], list)
 
 
+def test_doctor_json_shape() -> None:
+    proc = _run("doctor", "--format", "json")
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert isinstance(payload["ok"], bool)
+    assert isinstance(payload["actions"], list)
+    assert isinstance(payload["blocker_count"], int)
+    assert isinstance(payload["warning_count"], int)
+    assert payload["action_count"] == len(payload["actions"])
+    assert payload["summary"]["lanes_total"] >= payload["summary"]["lanes_ready"]
+    for action in payload["actions"]:
+        assert isinstance(action["id"], str)
+        assert action["severity"] in {"blocker", "warning"}
+        assert isinstance(action["commands"], list)
+        assert isinstance(action["hints"], list)
+
+
+def test_doctor_require_ok_fails_when_blockers_remain(monkeypatch) -> None:
+    status = assurance_cli._status_payload()
+    lane = dict(status["lanes"][0])
+    lane["missing_environment"] = ["external/ESSO"]
+    lane["environment_hints"] = {"external/ESSO": "clone or update external/ESSO"}
+    lane["ready"] = False
+    status["lanes"] = [lane]
+    monkeypatch.setattr(assurance_cli, "_status_payload", lambda: status)
+
+    args = type("Args", (), {"format": "json", "require_ok": True})()
+    assert assurance_cli.cmd_doctor(args) == 1
+
+
+def test_doctor_payload_reports_actionable_remediation() -> None:
+    status = {
+        "branch": "test",
+        "assurance_snapshot": {
+            "ok": False,
+            "error": None,
+            "stale_paths": ["README.md"],
+        },
+        "tla_claim_summary": {
+            "ok": False,
+            "error": None,
+            "path": "docs/TLA_CLAIM_SUMMARY.md",
+        },
+        "dirty_count": 2,
+        "public_scope_count": 1,
+        "public_scope_leaks": [
+            {"path": "internal/example.json", "kind": "path", "detail": "blocked"}
+        ],
+        "lanes_ready": 0,
+        "lanes_total": 1,
+        "lanes": [
+            {
+                "name": "kernel-assurance",
+                "missing_files": ["tools/missing.py"],
+                "missing_environment": ["external/ESSO"],
+                "environment_hints": {"external/ESSO": "clone or update external/ESSO"},
+            }
+        ],
+        "public_refs_ready": 0,
+        "public_refs_total": 1,
+        "public_refs": [
+            {
+                "path": "generated/example.py",
+                "ready": False,
+            }
+        ],
+    }
+
+    payload = assurance_cli._doctor_payload(status)
+    action_ids = {action["id"] for action in payload["actions"]}
+    assert payload["ok"] is False
+    assert "assurance_snapshot.stale" in action_ids
+    assert "tla_claim_summary.stale" in action_ids
+    assert "public_scope.leaks" in action_ids
+    assert "worktree.dirty" in action_ids
+    assert "lane.kernel-assurance.prerequisites" in action_ids
+    assert "public_refs.not_ready" in action_ids
+    lane_action = next(
+        action for action in payload["actions"] if action["id"] == "lane.kernel-assurance.prerequisites"
+    )
+    assert "clone or update external/ESSO" in lane_action["hints"]
+
+
 def test_stage_scope_includes_cli_when_modified() -> None:
     proc = _run("stage-scope", "--format", "json")
     assert proc.returncode == 0, proc.stderr

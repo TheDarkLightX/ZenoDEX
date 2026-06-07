@@ -25,17 +25,22 @@ mainnet-grade trust minimization.
 2. **Gate it in production readiness.** `tools/prod_gate.sh` now runs the
    complexity ratchet before proof and test lanes, so new production candidates
    cannot silently increase complexity debt.
-3. **Make optional PBT dependencies fail cleanly.** Property-test modules that
+3. **Make assurance status actionable.** `tools/permissionless_assurance.py doctor`
+   now turns missing proof/toolchain, stale generated-doc, leak-scope, dirty-tree,
+   and exported-reference findings into explicit remediation commands.
+4. **Make optional PBT dependencies fail cleanly.** Property-test modules that
    require Hypothesis should skip at collection when Hypothesis is absent, while
    full gates continue to install locked dev requirements.
-4. **Publish a top-20 hotspot refactor queue.** Use the ratchet JSON output to
-   assign owners and convert each large handler into small pure functions,
-   validators, and command objects.
+5. **Publish a top-20 hotspot refactor queue.**
+   `docs/CODEBASE_COMPLEXITY_REFACTOR_QUEUE_2026-06-07.md` ranks the
+   repository-wide hotspots by audit risk, assigns maintainability grades, and
+   records the first extraction slice plus tests for each high-risk surface.
 
 ## Phase 1: Code Quality Burn-Down
 
 - Refactor `src/integration/api_server.py::_maybe_handle_dex_api` into one route
-  table plus one command handler per API family.
+  table plus one command handler per API family. Start with read-only handlers
+  (`impact_preview`, `slippage_advice`) before value-moving routes.
 - Refactor settlement validators into composable rule objects:
   `IntentSetRule`, `FillCompletenessRule`, `WitnessBindingRule`,
   `DeltaReplayRule`, and `ConservationRule`.

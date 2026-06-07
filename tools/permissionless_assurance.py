@@ -423,6 +423,214 @@ def _status_payload() -> dict[str, object]:
     return payload
 
 
+def _command(*parts: str) -> list[str]:
+    return list(parts)
+
+
+def _doctor_action(
+    *,
+    action_id: str,
+    severity: str,
+    title: str,
+    detail: str,
+    commands: Sequence[Sequence[str]] = (),
+    hints: Sequence[str] = (),
+) -> dict[str, object]:
+    return {
+        "id": action_id,
+        "severity": severity,
+        "title": title,
+        "detail": detail,
+        "commands": [list(command) for command in commands],
+        "hints": list(hints),
+    }
+
+
+def _doctor_snapshot_actions(status: dict[str, object]) -> list[dict[str, object]]:
+    actions: list[dict[str, object]] = []
+    snapshot = status["assurance_snapshot"]
+    if snapshot["error"]:
+        actions.append(
+            _doctor_action(
+                action_id="assurance_snapshot.error",
+                severity="blocker",
+                title="Fix assurance snapshot rendering",
+                detail=str(snapshot["error"]),
+                commands=(_command(PY, "tools/render_assurance_release_snapshot.py", "--check"),),
+            )
+        )
+    elif snapshot["stale_paths"]:
+        stale_paths = ", ".join(str(path) for path in snapshot["stale_paths"])
+        actions.append(
+            _doctor_action(
+                action_id="assurance_snapshot.stale",
+                severity="blocker",
+                title="Refresh generated assurance snapshot docs",
+                detail=f"stale generated paths: {stale_paths}",
+                commands=(
+                    _command(PY, "tools/render_assurance_release_snapshot.py", "--check"),
+                    _command(PY, "tools/render_assurance_release_snapshot.py", "--write"),
+                ),
+            )
+        )
+    return actions
+
+
+def _doctor_tla_actions(status: dict[str, object]) -> list[dict[str, object]]:
+    actions: list[dict[str, object]] = []
+    tla_summary = status["tla_claim_summary"]
+    if tla_summary["error"]:
+        actions.append(
+            _doctor_action(
+                action_id="tla_claim_summary.error",
+                severity="blocker",
+                title="Fix TLA claim summary rendering",
+                detail=str(tla_summary["error"]),
+                commands=(_command(PY, "tools/render_tla_claim_summary.py", "--check"),),
+            )
+        )
+    elif not tla_summary["ok"]:
+        actions.append(
+            _doctor_action(
+                action_id="tla_claim_summary.stale",
+                severity="blocker",
+                title="Refresh generated TLA claim summary",
+                detail=f"stale generated path: {tla_summary['path']}",
+                commands=(
+                    _command(PY, "tools/render_tla_claim_summary.py", "--check"),
+                    _command(PY, "tools/render_tla_claim_summary.py"),
+                ),
+            )
+        )
+    return actions
+
+
+def _doctor_scope_actions(status: dict[str, object]) -> list[dict[str, object]]:
+    actions: list[dict[str, object]] = []
+    if status["public_scope_leaks"]:
+        actions.append(
+            _doctor_action(
+                action_id="public_scope.leaks",
+                severity="blocker",
+                title="Remove private/internal paths from public merge scope",
+                detail=f"{len(status['public_scope_leaks'])} leak finding(s) in public scope",
+                commands=(_command(PY, "tools/permissionless_assurance.py", "leak-check"),),
+            )
+        )
+    if int(status["dirty_count"]) > 0:
+        actions.append(
+            _doctor_action(
+                action_id="worktree.dirty",
+                severity="warning",
+                title="Review dirty worktree before publishing assurance claims",
+                detail=(
+                    f"{status['dirty_count']} dirty path(s); "
+                    f"{status['public_scope_count']} in public assurance scope"
+                ),
+                commands=(
+                    _command("git", "status", "--short"),
+                    _command(PY, "tools/permissionless_assurance.py", "stage-scope"),
+                ),
+                hints=(
+                    "commit or intentionally exclude unrelated changes before treating status as clean evidence",
+                ),
+            )
+        )
+    return actions
+
+
+def _doctor_lane_actions(status: dict[str, object]) -> list[dict[str, object]]:
+    actions: list[dict[str, object]] = []
+    for lane in status["lanes"]:
+        missing_files = list(lane["missing_files"])
+        missing_environment = list(lane["missing_environment"])
+        if not missing_files and not missing_environment:
+            continue
+        commands = [
+            _command(
+                PY,
+                "tools/permissionless_assurance.py",
+                "replay",
+                str(lane["name"]),
+                "--plan",
+            )
+        ]
+        hints = [
+            str(lane["environment_hints"][name])
+            for name in missing_environment
+            if name in lane["environment_hints"]
+        ]
+        detail_parts = []
+        if missing_files:
+            detail_parts.append("missing files: " + ", ".join(missing_files))
+        if missing_environment:
+            detail_parts.append("missing environment: " + ", ".join(missing_environment))
+        actions.append(
+            _doctor_action(
+                action_id=f"lane.{lane['name']}.prerequisites",
+                severity="blocker",
+                title=f"Make assurance lane ready: {lane['name']}",
+                detail="; ".join(detail_parts),
+                commands=commands,
+                hints=hints,
+            )
+        )
+    return actions
+
+
+def _doctor_public_ref_actions(status: dict[str, object]) -> list[dict[str, object]]:
+    bad_refs = [
+        ref
+        for ref in status["public_refs"]
+        if not bool(ref["ready"])
+    ]
+    if not bad_refs:
+        return []
+    paths = ", ".join(str(ref["path"]) for ref in bad_refs)
+    return [
+        _doctor_action(
+            action_id="public_refs.not_ready",
+            severity="blocker",
+            title="Restore tracked exported reference files",
+            detail=f"not ready: {paths}",
+            commands=(
+                _command(
+                    "git",
+                    "ls-files",
+                    "--error-unmatch",
+                    *[str(ref["path"]) for ref in bad_refs],
+                ),
+            ),
+        )
+    ]
+
+
+def _doctor_payload(status: dict[str, object]) -> dict[str, object]:
+    actions: list[dict[str, object]] = []
+    actions.extend(_doctor_snapshot_actions(status))
+    actions.extend(_doctor_tla_actions(status))
+    actions.extend(_doctor_scope_actions(status))
+    actions.extend(_doctor_lane_actions(status))
+    actions.extend(_doctor_public_ref_actions(status))
+
+    return {
+        "ok": not any(action["severity"] == "blocker" for action in actions),
+        "branch": status["branch"],
+        "actions": actions,
+        "action_count": len(actions),
+        "blocker_count": sum(1 for action in actions if action["severity"] == "blocker"),
+        "warning_count": sum(1 for action in actions if action["severity"] == "warning"),
+        "summary": {
+            "lanes_ready": status["lanes_ready"],
+            "lanes_total": status["lanes_total"],
+            "public_refs_ready": status["public_refs_ready"],
+            "public_refs_total": status["public_refs_total"],
+            "dirty_count": status["dirty_count"],
+            "public_scope_count": status["public_scope_count"],
+        },
+    }
+
+
 def _print_status(payload: dict[str, object]) -> None:
     lanes_ready = int(payload["lanes_ready"])
     lanes_total = int(payload["lanes_total"])
@@ -479,6 +687,28 @@ def _print_status(payload: dict[str, object]) -> None:
         print("Snapshot drift")
         for rel in snapshot["stale_paths"]:
             print(f"  [STALE] {rel}")
+
+
+def _print_doctor(payload: dict[str, object]) -> None:
+    state = "OK" if payload["ok"] else "ACTION REQUIRED"
+    print(f"ZenoDex Permissionless Assurance Doctor: {state}")
+    print(f"branch: {payload['branch']}")
+    print(
+        "actions: "
+        f"{payload['action_count']} "
+        f"({payload['blocker_count']} blocker, {payload['warning_count']} warning)"
+    )
+    if not payload["actions"]:
+        print("[OK] no remediation actions")
+        return
+    for action in payload["actions"]:
+        print()
+        print(f"[{str(action['severity']).upper()}] {action['id']}: {action['title']}")
+        print(f"  {action['detail']}")
+        for hint in action["hints"]:
+            print(f"  hint: {hint}")
+        for command in action["commands"]:
+            print("  run: " + " ".join(command))
 
 
 def _expand_lane_names(items: Sequence[str]) -> list[str]:
@@ -555,6 +785,17 @@ def cmd_status(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
         _print_status(payload)
+    return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    payload = _doctor_payload(_status_payload())
+    if args.format == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        _print_doctor(payload)
+    if args.require_ok:
+        return 0 if payload["ok"] else 1
     return 0
 
 
@@ -664,6 +905,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_status = sub.add_parser("status", help="Show the public replay surface, tracked refs, and scoped merge readiness.")
     p_status.add_argument("--format", choices=("text", "json"), default="text")
     p_status.set_defaults(func=cmd_status)
+
+    p_doctor = sub.add_parser("doctor", help="Show actionable remediation steps for missing assurance readiness.")
+    p_doctor.add_argument("--format", choices=("text", "json"), default="text")
+    p_doctor.add_argument("--require-ok", action="store_true", help="Exit nonzero when blocker actions remain.")
+    p_doctor.set_defaults(func=cmd_doctor)
 
     p_scope = sub.add_parser("stage-scope", help="List the narrow public-assurance file set worth staging from the dirty tree.")
     p_scope.add_argument("--format", choices=("text", "json"), default="text")
