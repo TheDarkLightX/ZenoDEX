@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
+from src.state.canonical import domain_sep_bytes, encode_bytes, encode_uvarint
 from src.state.jmt import (
     EMPTY_ROOT_BYTES,
     EMPTY_ROOT_HEX,
@@ -28,8 +30,112 @@ from src.state.jmt import (
 )
 
 
+_REF_EMPTY_PREFIX = domain_sep_bytes("jmt_empty", version=1)
+_REF_LEAF_PREFIX = domain_sep_bytes("jmt_leaf", version=1)
+_REF_INTERNAL_PREFIX = domain_sep_bytes("jmt_internal", version=1)
+
+
 def _key(n: int) -> bytes:
     return n.to_bytes(JMT_KEY_BYTES, "big")
+
+
+def _ref_sha256(data: bytes) -> bytes:
+    return hashlib.sha256(data).digest()
+
+
+def _ref_empty(depth: int) -> bytes:
+    return _ref_sha256(_REF_EMPTY_PREFIX + encode_uvarint(depth))
+
+
+def _ref_leaf(key: bytes, value: bytes) -> bytes:
+    return _ref_sha256(_REF_LEAF_PREFIX + key + encode_bytes(value))
+
+
+def _ref_internal(left: bytes, right: bytes) -> bytes:
+    return _ref_sha256(_REF_INTERNAL_PREFIX + left + right)
+
+
+def _ref_bit(key: bytes, depth: int) -> int:
+    byte_index, bit_index = divmod(depth, 8)
+    return (key[byte_index] >> (7 - bit_index)) & 1
+
+
+def _ref_normalize(entries: list[tuple[bytes, bytes]]) -> tuple[tuple[bytes, bytes], ...]:
+    if len({key for key, _ in entries}) != len(entries):
+        raise ValueError("duplicate reference key")
+    return tuple(sorted(entries, key=lambda item: item[0]))
+
+
+def _ref_root(entries: tuple[tuple[bytes, bytes], ...], depth: int = 0) -> bytes:
+    if not entries:
+        return _ref_empty(depth)
+    if len(entries) == 1:
+        key, value = entries[0]
+        return _ref_leaf(key, value)
+    left = tuple(item for item in entries if _ref_bit(item[0], depth) == 0)
+    right = tuple(item for item in entries if _ref_bit(item[0], depth) == 1)
+    return _ref_internal(_ref_root(left, depth + 1), _ref_root(right, depth + 1))
+
+
+def _ref_membership_siblings(
+    entries: tuple[tuple[bytes, bytes], ...],
+    key: bytes,
+    depth: int = 0,
+) -> tuple[JmtSibling, ...]:
+    if not entries:
+        raise KeyError("absent")
+    if len(entries) == 1:
+        if entries[0][0] != key:
+            raise KeyError("absent")
+        return ()
+    left = tuple(item for item in entries if _ref_bit(item[0], depth) == 0)
+    right = tuple(item for item in entries if _ref_bit(item[0], depth) == 1)
+    if _ref_bit(key, depth) == 0:
+        return (
+            JmtSibling(sibling_hash=_ref_root(right, depth + 1), sibling_on_left=False),
+            *_ref_membership_siblings(left, key, depth + 1),
+        )
+    return (
+        JmtSibling(sibling_hash=_ref_root(left, depth + 1), sibling_on_left=True),
+        *_ref_membership_siblings(right, key, depth + 1),
+    )
+
+
+def _ref_absence_proof(
+    entries: tuple[tuple[bytes, bytes], ...],
+    query: bytes,
+    depth: int = 0,
+) -> JmtAbsenceProof:
+    if not entries:
+        return JmtAbsenceProof(query_key=query, witness_key=None, witness_value=None, siblings=())
+    if len(entries) == 1:
+        key, value = entries[0]
+        if key == query:
+            raise KeyError("present")
+        return JmtAbsenceProof(query_key=query, witness_key=key, witness_value=value, siblings=())
+    left = tuple(item for item in entries if _ref_bit(item[0], depth) == 0)
+    right = tuple(item for item in entries if _ref_bit(item[0], depth) == 1)
+    if _ref_bit(query, depth) == 0:
+        child = _ref_absence_proof(left, query, depth + 1)
+        return JmtAbsenceProof(
+            query_key=child.query_key,
+            witness_key=child.witness_key,
+            witness_value=child.witness_value,
+            siblings=(
+                JmtSibling(sibling_hash=_ref_root(right, depth + 1), sibling_on_left=False),
+                *child.siblings,
+            ),
+        )
+    child = _ref_absence_proof(right, query, depth + 1)
+    return JmtAbsenceProof(
+        query_key=child.query_key,
+        witness_key=child.witness_key,
+        witness_value=child.witness_value,
+        siblings=(
+            JmtSibling(sibling_hash=_ref_root(left, depth + 1), sibling_on_left=True),
+            *child.siblings,
+        ),
+    )
 
 
 class _HostileBytes(bytes):
@@ -73,6 +179,35 @@ def test_jmt_root_is_order_independent_and_binds_values() -> None:
     assert root_a == root_b
     assert root_a != root_changed
     assert root_a != root_key_changed
+
+
+def test_jmt_root_and_proofs_match_independent_reference_model() -> None:
+    corpora = [
+        [(_key(0), b"zero")],
+        [(_key(0), b"zero"), (_key(1 << 255), b"high")],
+        [(_key(1), b"one"), (_key(2), b"two"), (_key(255), b"max")],
+        [(b"\x00" * JMT_KEY_BYTES, b"left"), (b"\x00" * (JMT_KEY_BYTES - 1) + b"\x01", b"right")],
+        [(_key(7), b""), (_key(11), b"\x00"), (_key(19), b"longer-value")],
+    ]
+
+    for entries in corpora:
+        normalized = _ref_normalize(entries)
+        expected_root = "0x" + _ref_root(normalized).hex()
+        assert compute_jmt_root(reversed(entries)) == expected_root
+
+        for key, value in entries:
+            live_proof = prove_jmt_membership(entries, key)
+            expected_siblings = _ref_membership_siblings(normalized, key)
+            assert live_proof == JmtMembershipProof(key=key, value=value, siblings=expected_siblings)
+            assert verify_jmt_membership(expected_root, key, value, live_proof)
+
+        absent_key = _key(123456789)
+        if absent_key in {key for key, _ in entries}:
+            absent_key = _key(123456790)
+        live_absence = prove_jmt_absence(entries, absent_key)
+        expected_absence = _ref_absence_proof(normalized, absent_key)
+        assert live_absence == expected_absence
+        assert verify_jmt_absence(expected_root, absent_key, live_absence)
 
 
 def test_jmt_rejects_duplicate_canonical_keys() -> None:
