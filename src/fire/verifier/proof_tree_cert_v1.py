@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, NamedTuple, Sequence
 
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker
@@ -1183,6 +1183,240 @@ class FireProofTreeCertificateVerification:
         return payload
 
 
+class _ProofTreeNodes(NamedTuple):
+    """Validated proof-tree node table shared across the staged checks."""
+
+    claims: Mapping[str, object]
+    proof_tree: list[object]
+    node_ids: set[str]
+    node_by_id: dict[str, Mapping[str, object]]
+
+
+# Summary-bound claim name -> reject code. BoundOK is NOT here: it has a bespoke
+# bound-operator-tree verification (the `if` branch in _verify_proof_tree_claim_roots),
+# not a flat summary match. This table replaces a 12-branch if/elif ladder; the
+# fall-through is identical (claim_name match AND expected summary present -> check).
+_CLAIM_SUMMARY_REJECT_CODES: dict[str, str] = {
+    "IntegerEvalOK": "proof_tree_cert_integer_eval_summary_mismatch",
+    "UnitOK": "proof_tree_cert_unit_summary_mismatch",
+    "ReplayOK": "proof_tree_cert_replay_summary_mismatch",
+    "ObjectHashBindOK": "proof_tree_cert_object_bind_summary_mismatch",
+    "InstanceHashBindOK": "proof_tree_cert_instance_bind_summary_mismatch",
+    "DependencyClosed": "proof_tree_cert_dependency_summary_mismatch",
+    "WitnessOK": "proof_tree_cert_witness_policy_summary_mismatch",
+    "ParamOK": "proof_tree_cert_param_summary_mismatch",
+    "AuthorizationOK": "proof_tree_cert_authorization_summary_mismatch",
+    "NonceOK": "proof_tree_cert_nonce_summary_mismatch",
+    "MaturityOK": "proof_tree_cert_maturity_summary_mismatch",
+    "WindowOK": "proof_tree_cert_window_summary_mismatch",
+}
+
+
+def _verify_proof_tree_header_bindings(
+    payload: Mapping[str, object],
+    expected_object_hash: str | None,
+    expected_instance_hash: str | None,
+    expected_certificate_sha256: str | None,
+) -> tuple[str | None, tuple[str, str | None, str] | None]:
+    """Validate + bind the certificate header hashes (fail-closed).
+
+    Returns ``(error_code, None)`` on rejection, else ``(None, (object_hash,
+    instance_hash, certificate_sha256))``.
+    """
+    object_hash = payload["object_hash"]
+    if not isinstance(object_hash, str):
+        return "proof_tree_cert_object_hash_invalid", None
+    if expected_object_hash is not None and object_hash != expected_object_hash:
+        return "proof_tree_cert_object_hash_mismatch", None
+
+    raw_instance_hash = payload.get("instance_hash")
+    instance_hash: str | None
+    if raw_instance_hash is None:
+        instance_hash = None
+    elif isinstance(raw_instance_hash, str):
+        instance_hash = raw_instance_hash
+    else:
+        return "proof_tree_cert_instance_hash_invalid", None
+    if expected_instance_hash is not None and instance_hash != expected_instance_hash:
+        return "proof_tree_cert_instance_hash_mismatch", None
+
+    raw_certificate_sha256 = payload.get("certificate_sha256")
+    try:
+        certificate_sha256 = _require_sha256_prefixed("certificate_sha256", raw_certificate_sha256)
+    except (TypeError, ValueError):
+        return "proof_tree_cert_certificate_sha256_invalid", None
+    if expected_certificate_sha256 is not None and certificate_sha256 != expected_certificate_sha256:
+        return "proof_tree_cert_certificate_sha256_mismatch", None
+
+    return None, (object_hash, instance_hash, certificate_sha256)
+
+
+def _verify_proof_tree_runtime_summary(
+    payload: Mapping[str, object],
+    expected_runtime_certificate_summary: Mapping[str, object] | None,
+) -> tuple[str | None, dict[str, object] | None]:
+    """Normalize + bind the runtime certificate summary (fail-closed)."""
+    try:
+        runtime_certificate_summary = _normalize_runtime_certificate_summary(
+            payload.get("runtime_certificate_summary")
+        )
+    except (TypeError, ValueError):
+        return "proof_tree_cert_runtime_certificate_summary_invalid", None
+    if expected_runtime_certificate_summary is not None:
+        expected_summary = _normalize_runtime_certificate_summary(dict(expected_runtime_certificate_summary))
+        if runtime_certificate_summary != expected_summary:
+            return "proof_tree_cert_runtime_certificate_summary_mismatch", None
+    return None, runtime_certificate_summary
+
+
+def _verify_proof_tree_dependency_hashes(
+    payload: Mapping[str, object],
+    expected_dependency_hashes: Sequence[Mapping[str, object]] | None,
+) -> str | None:
+    """Normalize + bind the dependency hashes (fail-closed)."""
+    try:
+        dependency_hashes = _normalize_dependency_hashes(payload.get("dependency_hashes"))
+    except (TypeError, ValueError):
+        return "proof_tree_cert_dependency_hashes_invalid"
+    if expected_dependency_hashes is not None:
+        try:
+            expected_dependencies = _normalize_dependency_hashes(list(expected_dependency_hashes))
+        except (TypeError, ValueError):
+            raise
+        if dependency_hashes != expected_dependencies:
+            return "proof_tree_cert_dependency_hashes_mismatch"
+    return None
+
+
+def _verify_proof_tree_node_table(payload: Mapping[str, object]) -> tuple[str | None, _ProofTreeNodes | None]:
+    """Build the node table; reject duplicate ids and unknown rules (fail-closed)."""
+    claims = _require_mapping("claims", payload["claims"])
+    proof_tree = payload["proof_tree"]
+    if not isinstance(proof_tree, list):
+        return "proof_tree_cert_nodes_invalid", None
+
+    node_ids: set[str] = set()
+    node_by_id: dict[str, Mapping[str, object]] = {}
+    for idx, node in enumerate(proof_tree):
+        node_map = _require_mapping(f"proof_tree[{idx}]", node)
+        node_id = node_map.get("id")
+        if not isinstance(node_id, str):
+            return f"proof_tree_cert_node_id_invalid:{idx}", None
+        if node_id in node_ids:
+            return f"proof_tree_cert_duplicate_node_id:{node_id}", None
+        node_ids.add(node_id)
+        node_by_id[node_id] = node_map
+        rule_id = node_map.get("rule")
+        if not isinstance(rule_id, str):
+            return f"proof_tree_cert_rule_invalid:{idx}", None
+        if rule_id not in _CANONICAL_FIRE_VERIFIER_RULE_IDS:
+            return f"proof_tree_cert_unknown_rule:{rule_id}", None
+    return None, _ProofTreeNodes(claims, proof_tree, node_ids, node_by_id)
+
+
+def _verify_proof_tree_node_shapes(nodes: _ProofTreeNodes) -> str | None:
+    """Validate node inputs reference known nodes and match rule predicate shapes."""
+    node_ids = nodes.node_ids
+    node_by_id = nodes.node_by_id
+    for idx, node in enumerate(nodes.proof_tree):
+        node_map = _require_mapping(f"proof_tree[{idx}]", node)
+        raw_inputs = node_map.get("inputs", [])
+        if not isinstance(raw_inputs, list):
+            return f"proof_tree_cert_inputs_invalid:{idx}"
+        for input_id in raw_inputs:
+            if not isinstance(input_id, str):
+                return f"proof_tree_cert_input_id_invalid:{idx}"
+            if input_id not in node_ids:
+                return f"proof_tree_cert_missing_input_node:{input_id}"
+        node_id = node_map["id"]
+        assert isinstance(node_id, str)
+        ok, claim_err, predicate = _proof_tree_node_predicate(node_id, node_map)
+        if not ok:
+            assert claim_err is not None
+            return claim_err
+        assert predicate is not None
+        rule_id = node_map["rule"]
+        assert isinstance(rule_id, str)
+        rule_shapes = _CANONICAL_FIRE_VERIFIER_RULE_SHAPES.get(rule_id, ())
+        if not rule_shapes:
+            return f"proof_tree_cert_rule_shape_missing:{rule_id}"
+        matching_shape = next((shape for shape in rule_shapes if shape.predicate == predicate), None)
+        if matching_shape is None:
+            return f"proof_tree_cert_rule_predicate_mismatch:{node_id}"
+        if matching_shape.input_predicates is not None:
+            actual_input_predicates: list[str] = []
+            for input_id in raw_inputs:
+                assert isinstance(input_id, str)
+                child_ok, child_err, child_predicate = _proof_tree_node_predicate(
+                    input_id, node_by_id[input_id]
+                )
+                if not child_ok:
+                    assert child_err is not None
+                    return child_err
+                assert child_predicate is not None
+                actual_input_predicates.append(child_predicate)
+            if tuple(actual_input_predicates) != matching_shape.input_predicates:
+                return f"proof_tree_cert_rule_input_predicates_mismatch:{node_id}"
+    return None
+
+
+def _verify_proof_tree_claim_roots(
+    nodes: _ProofTreeNodes,
+    runtime_certificate_summary: Mapping[str, object],
+    expected_summaries: Mapping[str, Mapping[str, object] | None],
+) -> str | None:
+    """Validate each claim's root node + bind per-claim summaries (fail-closed).
+
+    BoundOK is bespoke (verifies the bound operator tree against the runtime
+    summary). The remaining summary-bound claims are table-driven via
+    _CLAIM_SUMMARY_REJECT_CODES.
+    """
+    node_ids = nodes.node_ids
+    node_by_id = nodes.node_by_id
+    for claim_name, claim_payload in nodes.claims.items():
+        claim_map = _require_mapping(f"claims[{claim_name}]", claim_payload)
+        root_node = claim_map.get("root_node")
+        if root_node is None:
+            continue
+        if not isinstance(root_node, str):
+            return f"proof_tree_cert_claim_root_invalid:{claim_name}"
+        if root_node not in node_ids:
+            return f"proof_tree_cert_missing_root_node:{claim_name}:{root_node}"
+        root_node_map = node_by_id[root_node]
+        root_claim = _require_mapping(f"proof_tree[{root_node}].claim", root_node_map.get("claim"))
+        predicate = root_claim.get("predicate")
+        if not isinstance(predicate, str) or predicate != claim_name:
+            return f"proof_tree_cert_claim_root_predicate_mismatch:{claim_name}"
+        root_evidence = root_node_map.get("evidence")
+        claim_evidence = claim_map.get("evidence")
+        if root_evidence is not None and root_evidence != claim_evidence:
+            return f"proof_tree_cert_claim_evidence_mismatch:{claim_name}"
+        if claim_name == "BoundOK":
+            if root_claim.get("lower") != str(runtime_certificate_summary["root_interval"]["lower"]):
+                return "proof_tree_cert_bound_lower_mismatch"
+            if root_claim.get("upper") != str(runtime_certificate_summary["root_interval"]["upper"]):
+                return "proof_tree_cert_bound_upper_mismatch"
+            raw_inputs = root_node_map.get("inputs", [])
+            if raw_inputs != [_bound_expr_node_id(())]:
+                return "proof_tree_cert_bound_root_input_mismatch"
+            ok, bound_err = _verify_bound_proof_tree_node(
+                _require_mapping(
+                    "runtime_certificate_summary.operator_tree",
+                    runtime_certificate_summary["operator_tree"],
+                ),
+                path=(),
+                node_by_id=node_by_id,
+            )
+            if not ok:
+                assert bound_err is not None
+                return bound_err
+        else:
+            expected_summary = expected_summaries.get(claim_name)
+            if expected_summary is not None and not _claim_summary_matches(root_claim, expected_summary):
+                return _CLAIM_SUMMARY_REJECT_CODES[claim_name]
+    return None
+
+
 def verify_fire_proof_tree_certificate(
     payload: Mapping[str, object],
     *,
@@ -1211,179 +1445,53 @@ def verify_fire_proof_tree_certificate(
     if not valid:
         return False, err, None
 
-    object_hash = payload["object_hash"]
-    if not isinstance(object_hash, str):
-        return False, "proof_tree_cert_object_hash_invalid", None
-    if expected_object_hash is not None and object_hash != expected_object_hash:
-        return False, "proof_tree_cert_object_hash_mismatch", None
+    header_err, header = _verify_proof_tree_header_bindings(
+        payload, expected_object_hash, expected_instance_hash, expected_certificate_sha256
+    )
+    if header_err is not None:
+        return False, header_err, None
+    assert header is not None
+    object_hash, raw_instance_hash, certificate_sha256 = header
 
-    raw_instance_hash = payload.get("instance_hash")
-    if raw_instance_hash is not None and not isinstance(raw_instance_hash, str):
-        return False, "proof_tree_cert_instance_hash_invalid", None
-    if expected_instance_hash is not None and raw_instance_hash != expected_instance_hash:
-        return False, "proof_tree_cert_instance_hash_mismatch", None
+    summary_err, runtime_certificate_summary = _verify_proof_tree_runtime_summary(
+        payload, expected_runtime_certificate_summary
+    )
+    if summary_err is not None:
+        return False, summary_err, None
+    assert runtime_certificate_summary is not None
 
-    raw_certificate_sha256 = payload.get("certificate_sha256")
-    try:
-        certificate_sha256 = _require_sha256_prefixed("certificate_sha256", raw_certificate_sha256)
-    except (TypeError, ValueError):
-        return False, "proof_tree_cert_certificate_sha256_invalid", None
-    if expected_certificate_sha256 is not None and certificate_sha256 != expected_certificate_sha256:
-        return False, "proof_tree_cert_certificate_sha256_mismatch", None
+    dependency_err = _verify_proof_tree_dependency_hashes(payload, expected_dependency_hashes)
+    if dependency_err is not None:
+        return False, dependency_err, None
 
-    try:
-        runtime_certificate_summary = _normalize_runtime_certificate_summary(payload.get("runtime_certificate_summary"))
-    except (TypeError, ValueError):
-        return False, "proof_tree_cert_runtime_certificate_summary_invalid", None
-    if expected_runtime_certificate_summary is not None:
-        expected_summary = _normalize_runtime_certificate_summary(dict(expected_runtime_certificate_summary))
-        if runtime_certificate_summary != expected_summary:
-            return False, "proof_tree_cert_runtime_certificate_summary_mismatch", None
+    table_err, nodes = _verify_proof_tree_node_table(payload)
+    if table_err is not None:
+        return False, table_err, None
+    assert nodes is not None
+    claims = nodes.claims
+    proof_tree = nodes.proof_tree
 
-    try:
-        dependency_hashes = _normalize_dependency_hashes(payload.get("dependency_hashes"))
-    except (TypeError, ValueError):
-        return False, "proof_tree_cert_dependency_hashes_invalid", None
-    if expected_dependency_hashes is not None:
-        try:
-            expected_dependencies = _normalize_dependency_hashes(list(expected_dependency_hashes))
-        except (TypeError, ValueError):
-            raise
-        if dependency_hashes != expected_dependencies:
-            return False, "proof_tree_cert_dependency_hashes_mismatch", None
+    shape_err = _verify_proof_tree_node_shapes(nodes)
+    if shape_err is not None:
+        return False, shape_err, None
 
-    claims = _require_mapping("claims", payload["claims"])
-    proof_tree = payload["proof_tree"]
-    if not isinstance(proof_tree, list):
-        return False, "proof_tree_cert_nodes_invalid", None
-
-    node_ids: set[str] = set()
-    node_by_id: dict[str, Mapping[str, object]] = {}
-    for idx, node in enumerate(proof_tree):
-        node_map = _require_mapping(f"proof_tree[{idx}]", node)
-        node_id = node_map.get("id")
-        if not isinstance(node_id, str):
-            return False, f"proof_tree_cert_node_id_invalid:{idx}", None
-        if node_id in node_ids:
-            return False, f"proof_tree_cert_duplicate_node_id:{node_id}", None
-        node_ids.add(node_id)
-        node_by_id[node_id] = node_map
-        rule_id = node_map.get("rule")
-        if not isinstance(rule_id, str):
-            return False, f"proof_tree_cert_rule_invalid:{idx}", None
-        if rule_id not in _CANONICAL_FIRE_VERIFIER_RULE_IDS:
-            return False, f"proof_tree_cert_unknown_rule:{rule_id}", None
-
-    for idx, node in enumerate(proof_tree):
-        node_map = _require_mapping(f"proof_tree[{idx}]", node)
-        raw_inputs = node_map.get("inputs", [])
-        if not isinstance(raw_inputs, list):
-            return False, f"proof_tree_cert_inputs_invalid:{idx}", None
-        for input_id in raw_inputs:
-            if not isinstance(input_id, str):
-                return False, f"proof_tree_cert_input_id_invalid:{idx}", None
-            if input_id not in node_ids:
-                return False, f"proof_tree_cert_missing_input_node:{input_id}", None
-        node_id = node_map["id"]
-        assert isinstance(node_id, str)
-        ok, claim_err, predicate = _proof_tree_node_predicate(node_id, node_map)
-        if not ok:
-            assert claim_err is not None
-            return False, claim_err, None
-        assert predicate is not None
-        rule_id = node_map["rule"]
-        assert isinstance(rule_id, str)
-        rule_shapes = _CANONICAL_FIRE_VERIFIER_RULE_SHAPES.get(rule_id, ())
-        if not rule_shapes:
-            return False, f"proof_tree_cert_rule_shape_missing:{rule_id}", None
-        matching_shape = next((shape for shape in rule_shapes if shape.predicate == predicate), None)
-        if matching_shape is None:
-            return False, f"proof_tree_cert_rule_predicate_mismatch:{node_id}", None
-        if matching_shape.input_predicates is not None:
-            actual_input_predicates: list[str] = []
-            for input_id in raw_inputs:
-                assert isinstance(input_id, str)
-                child_ok, child_err, child_predicate = _proof_tree_node_predicate(input_id, node_by_id[input_id])
-                if not child_ok:
-                    assert child_err is not None
-                    return False, child_err, None
-                assert child_predicate is not None
-                actual_input_predicates.append(child_predicate)
-            if tuple(actual_input_predicates) != matching_shape.input_predicates:
-                return False, f"proof_tree_cert_rule_input_predicates_mismatch:{node_id}", None
-
-    for claim_name, claim_payload in claims.items():
-        claim_map = _require_mapping(f"claims[{claim_name}]", claim_payload)
-        root_node = claim_map.get("root_node")
-        if root_node is not None:
-            if not isinstance(root_node, str):
-                return False, f"proof_tree_cert_claim_root_invalid:{claim_name}", None
-            if root_node not in node_ids:
-                return False, f"proof_tree_cert_missing_root_node:{claim_name}:{root_node}", None
-            root_node_map = node_by_id[root_node]
-            root_claim = _require_mapping(f"proof_tree[{root_node}].claim", root_node_map.get("claim"))
-            predicate = root_claim.get("predicate")
-            if not isinstance(predicate, str) or predicate != claim_name:
-                return False, f"proof_tree_cert_claim_root_predicate_mismatch:{claim_name}", None
-            root_evidence = root_node_map.get("evidence")
-            claim_evidence = claim_map.get("evidence")
-            if root_evidence is not None and root_evidence != claim_evidence:
-                return False, f"proof_tree_cert_claim_evidence_mismatch:{claim_name}", None
-            if claim_name == "BoundOK":
-                if root_claim.get("lower") != str(runtime_certificate_summary["root_interval"]["lower"]):
-                    return False, "proof_tree_cert_bound_lower_mismatch", None
-                if root_claim.get("upper") != str(runtime_certificate_summary["root_interval"]["upper"]):
-                    return False, "proof_tree_cert_bound_upper_mismatch", None
-                raw_inputs = root_node_map.get("inputs", [])
-                if raw_inputs != [_bound_expr_node_id(())]:
-                    return False, "proof_tree_cert_bound_root_input_mismatch", None
-                ok, bound_err = _verify_bound_proof_tree_node(
-                    _require_mapping(
-                        "runtime_certificate_summary.operator_tree",
-                        runtime_certificate_summary["operator_tree"],
-                    ),
-                    path=(),
-                    node_by_id=node_by_id,
-                )
-                if not ok:
-                    assert bound_err is not None
-                    return False, bound_err, None
-            elif claim_name == "IntegerEvalOK" and expected_integer_eval_summary is not None:
-                if not _claim_summary_matches(root_claim, expected_integer_eval_summary):
-                    return False, "proof_tree_cert_integer_eval_summary_mismatch", None
-            elif claim_name == "UnitOK" and expected_unit_summary is not None:
-                if not _claim_summary_matches(root_claim, expected_unit_summary):
-                    return False, "proof_tree_cert_unit_summary_mismatch", None
-            elif claim_name == "ReplayOK" and expected_replay_summary is not None:
-                if not _claim_summary_matches(root_claim, expected_replay_summary):
-                    return False, "proof_tree_cert_replay_summary_mismatch", None
-            elif claim_name == "ObjectHashBindOK" and expected_object_bind_summary is not None:
-                if not _claim_summary_matches(root_claim, expected_object_bind_summary):
-                    return False, "proof_tree_cert_object_bind_summary_mismatch", None
-            elif claim_name == "InstanceHashBindOK" and expected_instance_bind_summary is not None:
-                if not _claim_summary_matches(root_claim, expected_instance_bind_summary):
-                    return False, "proof_tree_cert_instance_bind_summary_mismatch", None
-            elif claim_name == "DependencyClosed" and expected_dependency_summary is not None:
-                if not _claim_summary_matches(root_claim, expected_dependency_summary):
-                    return False, "proof_tree_cert_dependency_summary_mismatch", None
-            elif claim_name == "WitnessOK" and expected_witness_policy_summary is not None:
-                if not _claim_summary_matches(root_claim, expected_witness_policy_summary):
-                    return False, "proof_tree_cert_witness_policy_summary_mismatch", None
-            elif claim_name == "ParamOK" and expected_param_summary is not None:
-                if not _claim_summary_matches(root_claim, expected_param_summary):
-                    return False, "proof_tree_cert_param_summary_mismatch", None
-            elif claim_name == "AuthorizationOK" and expected_authorization_summary is not None:
-                if not _claim_summary_matches(root_claim, expected_authorization_summary):
-                    return False, "proof_tree_cert_authorization_summary_mismatch", None
-            elif claim_name == "NonceOK" and expected_nonce_summary is not None:
-                if not _claim_summary_matches(root_claim, expected_nonce_summary):
-                    return False, "proof_tree_cert_nonce_summary_mismatch", None
-            elif claim_name == "MaturityOK" and expected_maturity_summary is not None:
-                if not _claim_summary_matches(root_claim, expected_maturity_summary):
-                    return False, "proof_tree_cert_maturity_summary_mismatch", None
-            elif claim_name == "WindowOK" and expected_window_summary is not None:
-                if not _claim_summary_matches(root_claim, expected_window_summary):
-                    return False, "proof_tree_cert_window_summary_mismatch", None
+    expected_summaries: dict[str, Mapping[str, object] | None] = {
+        "IntegerEvalOK": expected_integer_eval_summary,
+        "UnitOK": expected_unit_summary,
+        "ReplayOK": expected_replay_summary,
+        "ObjectHashBindOK": expected_object_bind_summary,
+        "InstanceHashBindOK": expected_instance_bind_summary,
+        "DependencyClosed": expected_dependency_summary,
+        "WitnessOK": expected_witness_policy_summary,
+        "ParamOK": expected_param_summary,
+        "AuthorizationOK": expected_authorization_summary,
+        "NonceOK": expected_nonce_summary,
+        "MaturityOK": expected_maturity_summary,
+        "WindowOK": expected_window_summary,
+    }
+    claim_err = _verify_proof_tree_claim_roots(nodes, runtime_certificate_summary, expected_summaries)
+    if claim_err is not None:
+        return False, claim_err, None
 
     if expected_claim_evidence is not None:
         for claim_name, expected_evidence in expected_claim_evidence.items():

@@ -235,6 +235,30 @@ def test_corpus_is_non_vacuous() -> None:
     assert len(rejects) >= 15, f"corpus exercises too few distinct reject codes: {len(rejects)}"
 
 
+def test_claim_summary_reject_code_table_is_complete() -> None:
+    # Locks the elif->table collapse (the 12 summary-bound claim names -> reject
+    # codes). The corpus fixture has no IntegerEvalOK-style claims, so this is the
+    # explicit guard that the table matches the original 12-branch ladder. BoundOK
+    # is intentionally absent (it has a bespoke bound-operator-tree verification).
+    from src.fire.verifier.proof_tree_cert_v1 import _CLAIM_SUMMARY_REJECT_CODES
+
+    assert _CLAIM_SUMMARY_REJECT_CODES == {
+        "IntegerEvalOK": "proof_tree_cert_integer_eval_summary_mismatch",
+        "UnitOK": "proof_tree_cert_unit_summary_mismatch",
+        "ReplayOK": "proof_tree_cert_replay_summary_mismatch",
+        "ObjectHashBindOK": "proof_tree_cert_object_bind_summary_mismatch",
+        "InstanceHashBindOK": "proof_tree_cert_instance_bind_summary_mismatch",
+        "DependencyClosed": "proof_tree_cert_dependency_summary_mismatch",
+        "WitnessOK": "proof_tree_cert_witness_policy_summary_mismatch",
+        "ParamOK": "proof_tree_cert_param_summary_mismatch",
+        "AuthorizationOK": "proof_tree_cert_authorization_summary_mismatch",
+        "NonceOK": "proof_tree_cert_nonce_summary_mismatch",
+        "MaturityOK": "proof_tree_cert_maturity_summary_mismatch",
+        "WindowOK": "proof_tree_cert_window_summary_mismatch",
+    }
+    assert "BoundOK" not in _CLAIM_SUMMARY_REJECT_CODES
+
+
 if __name__ == "__main__":
     if "--regen" in sys.argv:
         _FIXTURE.parent.mkdir(parents=True, exist_ok=True)

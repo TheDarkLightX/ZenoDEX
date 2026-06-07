@@ -1,5 +1,14 @@
 # Refactor Hotspots (complexity roadmap)
 
+> **Canonical source:** the repo-wide complexity refactor queue is
+> `docs/CODEBASE_COMPLEXITY_REFACTOR_QUEUE_2026-06-07.md` (driven by the project's
+> own `tools/check_complexity_ratchet.py` + `config/quality/complexity_ratchet_baseline.json`
+> ratchet, with maintainability grades). That is the source of truth and the
+> coordination point across agents — defer to it for prioritization. This file is a
+> convergent, design-metrics-scanner view (it agrees with the canonical queue on the
+> top targets) plus the per-item safety/owner notes; treat it as a companion, not a
+> competing list.
+
 Cyclomatic + cognitive complexity has been climbing. This is the objective,
 prioritized roadmap — produced by the `zenodex-refactoring` design-metrics scanner
 (`churn × complexity`, stdlib + git) — so refactors target where the effort pays off
@@ -66,3 +75,19 @@ low-risk demonstration of the pattern:
 - `verify_zenoproof_artifact`: 152 → 119 lines; behavior **test-verified identical**
   (18/18 relevant tests; the one pre-existing failure is an unrelated environmental
   sub-pytest replay, fails identically on clean main).
+
+Canonical-queue **#7** `src/fire/verifier/proof_tree_cert_v1.py::verify_fire_proof_tree_certificate`
+— a fail-closed FIRE proof-tree certificate verifier — done as the staged-checks
+demonstration:
+- Extracted 6 staged fail-closed helpers (header / runtime-summary / dependency /
+  node-table / node-shapes / claim-roots) + a `_ProofTreeNodes` struct; collapsed a
+  12-branch summary `if/elif` ladder into a `_CLAIM_SUMMARY_REJECT_CODES` table
+  (BoundOK stays bespoke). Public signature unchanged → zero caller blast radius.
+- `verify_fire_proof_tree_certificate`: **239 → 113 lines**; mypy 9 → 8 (one
+  introduced error fixed; rest pre-existing).
+- **Safety net first** (per advisor): a characterization corpus captured from the
+  ORIGINAL code (`tests/kernels/fixtures/fire_proof_tree_cert_characterization_v1.json`,
+  37 cases / 31 distinct reject codes) locks every `(ok, err)` incl. first-failure
+  ordering; the refactor reproduces it exactly. This pattern — capture-old-first, then
+  refactor — is the reusable way to safely refactor any fail-closed verifier with
+  incomplete golden coverage.
