@@ -24,6 +24,12 @@ pub enum ZenoProofInputV1 {
     Spot(StateProofInputV1),
     PerpsNp(PerpsNpTransitionInputV1),
     Zusd(ZusdTransitionInputV1),
+    // REVIEW(Codex 2026-06-07, grade B -> A-): exposing CLOB through the guest
+    // enum made it a proof lane, not only a parity helper. The CLOB journal now
+    // carries proof_type, chain_id, state_hash, image_id, operation_hash, and
+    // state_delta_hash, the CLI verifies those bindings strictly, and the public
+    // CLOB prove-and-tamper smoke exercises the real binary boundary.
+    Clob(crate::clob::ClobTransitionInputV1),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

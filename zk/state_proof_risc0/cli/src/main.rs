@@ -9,16 +9,21 @@ use tau_state_proof_risc0_methods::{
     TAU_STATE_PROOF_RISC0_GUEST_ELF as TAU_STATE_PROOF_GUEST_ELF,
     TAU_STATE_PROOF_RISC0_GUEST_ID as TAU_STATE_PROOF_GUEST_ID,
 };
+use tau_state_proof_risc0_shared::clob::{
+    clob_event_log_root, clob_fee_rule_hash, clob_matching_rule_hash,
+    execute_clob_transition_v1_unchecked_with_journal, ClobBookV1, ClobOrderV1,
+    ClobTransitionInputV1, ClobTransitionJournalV1, PROOF_TYPE_CLOB,
+};
 use tau_state_proof_risc0_shared::{
     accepted_receipts_root_v1, execute_perps_np_transition_v1_unchecked_with_snapshot,
-    ingress_commitment_v1, perps_np_collateral_bindings_hash_v1, perps_np_operation_hash_v1,
-    perps_np_oracle_bindings_hash_v1, txs_commitment_v1, zusd_operation_hash_v1,
-    zusd_operation_oracle_binding_hash_v1, ChainBalanceV1, CollateralBindingV1, DexSnapshotV1,
-    DexStateV1, NonceEntryV1, NonceStateV1, OracleBindingV1, PerpsAccountV1, PerpsIntentV1,
-    PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpSnapshotV1, PerpsNpTransitionInputV1,
-    PerpsNpTransitionJournalV1, StateProofInputV1, StateProofJournalV1, TauTxAppOpsV1, TauTxV1,
-    TxIngressFactV1, ZenoProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1, ZusdSnapshotV1,
-    ZusdTransitionInputV1, ZusdTransitionJournalV1, ZusdVaultEntryV1, PROOF_TYPE,
+    execute_zusd_transition_v1, ingress_commitment_v1, perps_np_collateral_bindings_hash_v1,
+    perps_np_operation_hash_v1, perps_np_oracle_bindings_hash_v1, txs_commitment_v1,
+    zusd_operation_hash_v1, zusd_operation_oracle_binding_hash_v1, ChainBalanceV1,
+    CollateralBindingV1, DexSnapshotV1, DexStateV1, NonceEntryV1, NonceStateV1, OracleBindingV1,
+    PerpsAccountV1, PerpsIntentV1, PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpSnapshotV1,
+    PerpsNpTransitionInputV1, PerpsNpTransitionJournalV1, StateProofInputV1, StateProofJournalV1,
+    TauTxAppOpsV1, TauTxV1, TxIngressFactV1, ZenoProofInputV1, ZusdBalanceEntryV1, ZusdOperationV1,
+    ZusdSnapshotV1, ZusdTransitionInputV1, ZusdTransitionJournalV1, ZusdVaultEntryV1, PROOF_TYPE,
     PROOF_TYPE_PERPS_NP, PROOF_TYPE_ZUSD,
 };
 
@@ -191,6 +196,7 @@ fn handle_generate(req: &Value) {
         PROOF_TYPE => handle_generate_spot(req),
         PROOF_TYPE_PERPS_NP => handle_generate_perps_np(req),
         PROOF_TYPE_ZUSD => handle_generate_zusd(req),
+        PROOF_TYPE_CLOB => handle_generate_clob(req),
         _ => die("unsupported proof_type"),
     }
 }
@@ -385,6 +391,14 @@ fn handle_generate_perps_np(req: &Value) {
         expected_post_app_hash,
         risc0_image_id: TAU_STATE_PROOF_GUEST_ID,
     };
+    let (expected_journal, _) =
+        execute_perps_np_transition_v1_unchecked_with_snapshot(input.clone())
+            .unwrap_or_else(|e| die(&format!("perps np transition rejected before proof: {e:?}")));
+    if expected_journal.post_app_hash != expected_post_app_hash {
+        die("expected_post_app_hash mismatch");
+    }
+    verify_perps_np_generate_context(context, &expected_journal)
+        .unwrap_or_else(|e| die(&format!("context schema mismatch: {e}")));
     let guest_input = ZenoProofInputV1::PerpsNp(input);
     let (receipt, journal): (Receipt, PerpsNpTransitionJournalV1) = prove_guest_input(&guest_input);
     if journal.proof_type != PROOF_TYPE_PERPS_NP {
@@ -446,6 +460,10 @@ fn handle_generate_zusd(req: &Value) {
         expected_post_app_hash,
         risc0_image_id: TAU_STATE_PROOF_GUEST_ID,
     };
+    let expected_journal = execute_zusd_transition_v1(input.clone())
+        .unwrap_or_else(|e| die(&format!("zUSD transition rejected before proof: {e:?}")));
+    verify_zusd_generate_context(context, &expected_journal)
+        .unwrap_or_else(|e| die(&format!("context schema mismatch: {e}")));
     let guest_input = ZenoProofInputV1::Zusd(input);
     let (receipt, journal): (Receipt, ZusdTransitionJournalV1) = prove_guest_input(&guest_input);
     if journal.proof_type != PROOF_TYPE_ZUSD {
@@ -468,6 +486,74 @@ fn handle_generate_zusd(req: &Value) {
         "proof_type": PROOF_TYPE_ZUSD,
         "proof": proof_b64,
         "meta": zusd_meta(&journal),
+    });
+    write_json_stdout(&out);
+}
+
+fn handle_generate_clob(req: &Value) {
+    if req.get("schema_version").and_then(Value::as_i64) != Some(1) {
+        die("unexpected schema_version (expected tau_state_proof_request v1)");
+    }
+    validate_embedded_methods();
+
+    let state_hash_hex = require_str(req.get("state_hash"), "state_hash");
+    let state_hash = parse_hex32(&state_hash_hex).unwrap_or_else(|e| die(&e));
+    let expected_post_app_hash =
+        parse_hex32(&expected_post_app_hash_hex(req)).unwrap_or_else(|e| die(&e));
+    let context = req.get("context").cloned().unwrap_or(Value::Null);
+    if !context.is_object() {
+        die("context must be an object (required for CLOB risc0 proof)");
+    }
+    let context = context.as_object().expect("checked object");
+    let chain_id = chain_id_from_request(req, &Value::Object(context.clone()));
+    let (pre_app_hash_present, pre_app_hash) = parse_pre_app_hash_context(context);
+    let pre_book =
+        parse_clob_pre_book(req).unwrap_or_else(|e| die(&format!("pre_book schema mismatch: {e}")));
+    let taker = req
+        .get("taker")
+        .ok_or_else(|| "taker missing for CLOB proof".to_string())
+        .and_then(|v| parse_clob_order_value(v, "taker"))
+        .unwrap_or_else(|e| die(&format!("taker schema mismatch: {e}")));
+
+    let input = ClobTransitionInputV1 {
+        state_hash,
+        chain_id,
+        pre_book,
+        taker,
+        pre_app_hash_present,
+        pre_app_hash,
+        expected_post_app_hash,
+        risc0_image_id: TAU_STATE_PROOF_GUEST_ID,
+    };
+    let (expected_journal, _) = execute_clob_transition_v1_unchecked_with_journal(input.clone())
+        .unwrap_or_else(|e| die(&format!("CLOB transition rejected before proof: {e}")));
+    if expected_journal.post_app_hash != expected_post_app_hash {
+        die("expected_post_app_hash mismatch");
+    }
+    verify_clob_generate_context(context, &expected_journal)
+        .unwrap_or_else(|e| die(&format!("context schema mismatch: {e}")));
+    let guest_input = ZenoProofInputV1::Clob(input);
+    let (receipt, journal): (Receipt, ClobTransitionJournalV1) = prove_guest_input(&guest_input);
+    if journal.proof_type != PROOF_TYPE_CLOB {
+        die("journal proof_type mismatch");
+    }
+    if journal.state_hash != state_hash {
+        die("journal.state_hash mismatch");
+    }
+    if journal.post_app_hash != expected_post_app_hash {
+        die("journal.post_app_hash mismatch");
+    }
+    if journal.risc0_image_id != TAU_STATE_PROOF_GUEST_ID {
+        die("journal.risc0_image_id mismatch");
+    }
+    let proof_b64 = encode_receipt(&receipt);
+    let out = json!({
+        "schema": "tau_state_proof",
+        "schema_version": 1,
+        "state_hash": normalize_hex64(&state_hash_hex),
+        "proof_type": PROOF_TYPE_CLOB,
+        "proof": proof_b64,
+        "meta": clob_meta(&journal),
     });
     write_json_stdout(&out);
 }
@@ -506,6 +592,9 @@ fn try_verify(req: &Value) -> Result<(), String> {
     }
     if proof_type == PROOF_TYPE_ZUSD {
         return try_verify_zusd(req, proof, expected_state_hash);
+    }
+    if proof_type == PROOF_TYPE_CLOB {
+        return try_verify_clob(req, proof, expected_state_hash);
     }
     if proof_type != PROOF_TYPE {
         return Err("unsupported proof_type".into());
@@ -664,6 +753,7 @@ fn try_verify_perps_np(
     if expected_collateral != journal.collateral_binding_hash {
         return Err("collateral_binding_hash mismatch".into());
     }
+    let surface_context_keys = ["collateral_binding_hash", "receipt_root"];
     verify_surface_request_bindings(
         req,
         proof,
@@ -675,6 +765,7 @@ fn try_verify_perps_np(
         journal.state_delta_hash,
         journal.oracle_binding_hash,
         journal.participant_set_hash,
+        &surface_context_keys,
     )?;
     let context = strict_context_obj(req)?;
     expect_meta_hash(
@@ -722,6 +813,7 @@ fn try_verify_zusd(
     if expected_oracle != journal.oracle_binding_hash {
         return Err("oracle_binding_hash mismatch".into());
     }
+    let surface_context_keys = ["zusd_balance_root_hash", "zusd_vault_root_hash"];
     verify_surface_request_bindings(
         req,
         proof,
@@ -733,6 +825,7 @@ fn try_verify_zusd(
         journal.state_delta_hash,
         journal.oracle_binding_hash,
         journal.participant_set_hash,
+        &surface_context_keys,
     )?;
     let context = strict_context_obj(req)?;
     expect_meta_hash(
@@ -754,6 +847,48 @@ fn try_verify_zusd(
     Ok(())
 }
 
+fn try_verify_clob(
+    req: &Value,
+    proof: &Value,
+    expected_state_hash: [u8; 32],
+) -> Result<(), String> {
+    check_proof_meta_image_id(proof)?;
+    let receipt = decode_verified_receipt_from_proof(proof)?;
+    let journal: ClobTransitionJournalV1 = decode_postcard_journal(&receipt, "CLOB journal")?;
+    if journal.proof_type != PROOF_TYPE_CLOB {
+        return Err("journal proof_type mismatch".into());
+    }
+    if journal.state_hash != expected_state_hash {
+        return Err("journal.state_hash mismatch".into());
+    }
+    if journal.risc0_image_id != TAU_STATE_PROOF_GUEST_ID {
+        return Err("journal.risc0_image_id mismatch".into());
+    }
+    if journal.post_app_hash != journal.post_book_root {
+        return Err("journal post_app_hash/post_book_root mismatch".into());
+    }
+    if journal.operation_hash != journal.event_log_root {
+        return Err("journal operation_hash/event_log_root mismatch".into());
+    }
+    if journal.matching_rule_hash != clob_matching_rule_hash() {
+        return Err("matching_rule_hash mismatch".into());
+    }
+    if journal.fee_rule_hash != clob_fee_rule_hash() {
+        return Err("fee_rule_hash mismatch".into());
+    }
+    if journal.fee_total != 0 {
+        return Err("journal fee_total must be zero for CLOB v1".into());
+    }
+    let taker = parse_verify_clob_taker(req)?;
+    let expected_event =
+        clob_event_log_root(&[&taker]).map_err(|e| format!("event_log_root input: {e}"))?;
+    if expected_event != journal.event_log_root {
+        return Err("event_log_root mismatch".into());
+    }
+    verify_clob_request_bindings(req, proof, &journal)?;
+    Ok(())
+}
+
 fn verify_surface_request_bindings(
     req: &Value,
     proof: &Value,
@@ -765,11 +900,13 @@ fn verify_surface_request_bindings(
     state_delta_hash: [u8; 32],
     oracle_binding_hash: [u8; 32],
     participant_set_hash: [u8; 32],
+    surface_context_keys: &[&str],
 ) -> Result<(), String> {
     let context = req
         .get("context")
         .and_then(Value::as_object)
         .ok_or_else(|| "context must be an object for strict surface verification".to_string())?;
+    validate_surface_context_shape(context, surface_context_keys)?;
     let expected_chain = req
         .get("chain_id")
         .and_then(Value::as_str)
@@ -778,6 +915,7 @@ fn verify_surface_request_bindings(
     if expected_chain != journal_chain_id {
         return Err("chain_id mismatch".into());
     }
+    expect_optional_context_chain(context, journal_chain_id)?;
     let tau_state = req
         .get("tau_state")
         .and_then(Value::as_object)
@@ -817,6 +955,82 @@ fn verify_surface_request_bindings(
     expect_context_hash(context, "state_delta_hash", state_delta_hash)?;
     expect_context_hash(context, "oracle_binding_hash", oracle_binding_hash)?;
     expect_context_hash(context, "participant_set_hash", participant_set_hash)?;
+    Ok(())
+}
+
+fn verify_clob_request_bindings(
+    req: &Value,
+    proof: &Value,
+    journal: &ClobTransitionJournalV1,
+) -> Result<(), String> {
+    // REVIEW(Codex 2026-06-07, grade B -> A-): the CLOB guest lane was added
+    // before the CLI knew how to verify CLOB-specific commitments. This helper
+    // binds the receipt to the caller's chain, pre/post book roots, event root,
+    // rule hashes, state delta, and image metadata. Grade after the public CLI
+    // prove-and-tamper smoke: A; release evidence should run that ignored smoke
+    // explicitly before using this as a published proof surface.
+    let context = strict_context_obj(req)?;
+    // REVIEW(Codex 2026-06-07, grade A after fix): the first strict CLOB
+    // verifier bound the required hashes but still accepted extra context fields.
+    // That lets a wrapper submit ignored claims such as context.post_book_root
+    // and still receive ok=true. CLOB context is now closed-shape.
+    validate_clob_context_shape(context)?;
+    let expected_chain = req
+        .get("chain_id")
+        .and_then(Value::as_str)
+        .or_else(|| context.get("chain_id").and_then(Value::as_str))
+        .ok_or_else(|| "chain_id missing for strict CLOB verification".to_string())?;
+    if expected_chain != journal.chain_id {
+        return Err("chain_id mismatch".into());
+    }
+    expect_optional_context_chain(context, &journal.chain_id)?;
+    let tau_state = req
+        .get("tau_state")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "tau_state must be an object for strict CLOB verification".to_string())?;
+    let expected_post = tau_state
+        .get("app_hash")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "tau_state.app_hash missing".to_string())
+        .and_then(parse_hex32_err)?;
+    if expected_post != journal.post_app_hash {
+        return Err("post_app_hash mismatch".into());
+    }
+    let expected_pre_raw = context
+        .get("app_hash_pre")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "context.app_hash_pre missing".to_string())?;
+    if expected_pre_raw.trim().is_empty() {
+        if journal.pre_app_hash_present {
+            return Err("pre_app_hash present but expected empty".into());
+        }
+    } else {
+        let expected_pre = parse_hex32(expected_pre_raw)?;
+        if !journal.pre_app_hash_present {
+            return Err("pre_app_hash missing but expected present".into());
+        }
+        if expected_pre != journal.pre_app_hash {
+            return Err("pre_app_hash mismatch".into());
+        }
+    }
+    if journal.pre_app_hash_present && journal.pre_app_hash != journal.pre_book_root {
+        return Err("journal pre_app_hash/pre_book_root mismatch".into());
+    }
+    expect_meta_pre_hash(proof, journal.pre_app_hash_present, journal.pre_app_hash)?;
+    expect_meta_hash(proof, "post_app_hash", journal.post_app_hash)?;
+    expect_meta_hash(proof, "pre_book_root", journal.pre_book_root)?;
+    expect_meta_hash(proof, "post_book_root", journal.post_book_root)?;
+    expect_meta_hash(proof, "operation_hash", journal.operation_hash)?;
+    expect_meta_hash(proof, "state_delta_hash", journal.state_delta_hash)?;
+    expect_meta_hash(proof, "event_log_root", journal.event_log_root)?;
+    expect_meta_hash(proof, "matching_rule_hash", journal.matching_rule_hash)?;
+    expect_meta_hash(proof, "fee_rule_hash", journal.fee_rule_hash)?;
+    expect_context_hash(context, "pre_book_root", journal.pre_book_root)?;
+    expect_context_hash(context, "operation_hash", journal.operation_hash)?;
+    expect_context_hash(context, "state_delta_hash", journal.state_delta_hash)?;
+    expect_context_hash(context, "event_log_root", journal.event_log_root)?;
+    expect_context_hash(context, "matching_rule_hash", journal.matching_rule_hash)?;
+    expect_context_hash(context, "fee_rule_hash", journal.fee_rule_hash)?;
     Ok(())
 }
 
@@ -1057,6 +1271,18 @@ fn obj_u32(
         return Err(format!("{key} must be a u32"));
     }
     Ok(n as u32)
+}
+
+fn obj_u8(
+    obj: &serde_json::Map<String, Value>,
+    key: &str,
+    default: Option<u8>,
+) -> Result<u8, String> {
+    let n = obj_u64(obj, key, default.map(|v| v as u64))?;
+    if n > u8::MAX as u64 {
+        return Err(format!("{key} must be a u8"));
+    }
+    Ok(n as u8)
 }
 
 fn obj_i32(
@@ -1523,6 +1749,64 @@ fn parse_zusd_pre_state(req: &Value, context: &Value) -> ZusdSnapshotV1 {
         .unwrap_or_else(|e| die(&format!("zUSD pre_state schema mismatch: {e}")))
 }
 
+fn parse_clob_order_value(v: &Value, name: &str) -> Result<ClobOrderV1, String> {
+    let obj = value_obj(v, name)?;
+    // REVIEW(Codex 2026-06-07, grade B -> A-): CLOB proof witnesses cross a
+    // JSON boundary before postcard encoding. Unknown fields and wide side codes
+    // were easy to ignore accidentally; the parser now rejects closed-shape
+    // violations and preserves the ledger's invalid-state boundary before the
+    // guest receives the order.
+    reject_unknown_fields(
+        obj,
+        &[
+            "side_code",
+            "price_q_per_base",
+            "base_qty",
+            "sequence",
+            "order_id",
+            "owner",
+        ],
+        name,
+    )?;
+    Ok(ClobOrderV1 {
+        side_code: obj_u8(obj, "side_code", None)?,
+        price_q_per_base: obj_u64(obj, "price_q_per_base", None)?,
+        base_qty: obj_u64(obj, "base_qty", None)?,
+        sequence: obj_u64(obj, "sequence", None)?,
+        order_id: obj_str(obj, "order_id", None)?,
+        owner: obj_str(obj, "owner", None)?,
+    })
+}
+
+fn parse_clob_book_value(v: &Value) -> Result<ClobBookV1, String> {
+    let obj = value_obj(v, "pre_book")?;
+    reject_unknown_fields(obj, &["base_asset", "quote_asset", "orders"], "pre_book")?;
+    let orders = value_array(
+        obj.get("orders")
+            .ok_or_else(|| "pre_book.orders missing".to_string())?,
+        "pre_book.orders",
+    )?
+    .iter()
+    .map(|order| parse_clob_order_value(order, "pre_book.orders[]"))
+    .collect::<Result<Vec<_>, _>>()?;
+    Ok(ClobBookV1::new(
+        obj_str(obj, "base_asset", None)?,
+        obj_str(obj, "quote_asset", None)?,
+        orders,
+    ))
+}
+
+fn parse_clob_pre_book(req: &Value) -> Result<ClobBookV1, String> {
+    // REVIEW(Codex 2026-06-07, grade A- -> A): the first CLOB CLI parser
+    // allowed `context.pre_book` as a witness location, while strict context
+    // validation rejected that same key. Keep the witness at top level so
+    // `context` stays a closed set of public binding claims.
+    if let Some(v) = req.get("pre_book") {
+        return parse_clob_book_value(v);
+    }
+    Err("pre_book missing for CLOB proof".into())
+}
+
 fn parse_verify_perps_actions(req: &Value) -> Result<Vec<PerpsNpActionV1>, String> {
     let value = req
         .get("actions")
@@ -1540,6 +1824,13 @@ fn parse_verify_zusd_operation(req: &Value) -> Result<ZusdOperationV1, String> {
         .get("operation")
         .ok_or_else(|| "operation missing for strict zUSD verification".to_string())?;
     parse_zusd_operation_value(value).map_err(|e| format!("operation schema mismatch: {e}"))
+}
+
+fn parse_verify_clob_taker(req: &Value) -> Result<ClobOrderV1, String> {
+    let value = req
+        .get("taker")
+        .ok_or_else(|| "taker missing for strict CLOB verification".to_string())?;
+    parse_clob_order_value(value, "taker").map_err(|e| format!("taker schema mismatch: {e}"))
 }
 
 fn perps_np_meta(journal: &PerpsNpTransitionJournalV1) -> Value {
@@ -1580,6 +1871,25 @@ fn zusd_meta(journal: &ZusdTransitionJournalV1) -> Value {
     })
 }
 
+fn clob_meta(journal: &ClobTransitionJournalV1) -> Value {
+    json!({
+        "risc0_image_id": hex_u32_words(journal.risc0_image_id),
+        "chain_id": journal.chain_id,
+        "pre_app_hash": if journal.pre_app_hash_present { hex_lower(&journal.pre_app_hash) } else { String::new() },
+        "post_app_hash": hex_lower(&journal.post_app_hash),
+        "pre_book_root": hex_lower(&journal.pre_book_root),
+        "post_book_root": hex_lower(&journal.post_book_root),
+        "operation_hash": hex_lower(&journal.operation_hash),
+        "state_delta_hash": hex_lower(&journal.state_delta_hash),
+        "event_log_root": hex_lower(&journal.event_log_root),
+        "matching_rule_hash": hex_lower(&journal.matching_rule_hash),
+        "fee_rule_hash": hex_lower(&journal.fee_rule_hash),
+        "fee_total": journal.fee_total.to_string(),
+        "resting_taker_qty": journal.resting_taker_qty,
+        "fill_count": journal.fills.len(),
+    })
+}
+
 fn check_proof_meta_image_id(proof: &Value) -> Result<(), String> {
     let meta = proof_meta_obj(proof)?;
     let image_id = meta
@@ -1604,6 +1914,62 @@ fn strict_context_obj(req: &Value) -> Result<&serde_json::Map<String, Value>, St
     req.get("context")
         .and_then(Value::as_object)
         .ok_or_else(|| "context must be an object for strict surface verification".to_string())
+}
+
+fn validate_surface_context_shape(
+    context: &serde_json::Map<String, Value>,
+    surface_context_keys: &[&str],
+) -> Result<(), String> {
+    // REVIEW(Codex 2026-06-07, grade A- -> A): perps-NP and zUSD strict
+    // verification bound the required hashes but accepted unrelated context
+    // claims. That repeats the CLOB ignored-claim class at the shared helper.
+    // Keep context closed, while letting each surface declare its own extra
+    // journal roots.
+    let mut allowed = vec![
+        "chain_id",
+        "app_hash_pre",
+        "operation_hash",
+        "state_delta_hash",
+        "oracle_binding_hash",
+        "participant_set_hash",
+    ];
+    allowed.extend_from_slice(surface_context_keys);
+    reject_unknown_fields(context, &allowed, "context")
+}
+
+fn validate_generate_context_shape(
+    context: &serde_json::Map<String, Value>,
+    witness_keys: &[&str],
+    surface_context_keys: &[&str],
+) -> Result<(), String> {
+    let mut allowed = vec![
+        "chain_id",
+        "app_hash_pre",
+        "operation_hash",
+        "state_delta_hash",
+        "oracle_binding_hash",
+        "participant_set_hash",
+    ];
+    allowed.extend_from_slice(witness_keys);
+    allowed.extend_from_slice(surface_context_keys);
+    reject_unknown_fields(context, &allowed, "context")
+}
+
+fn validate_clob_context_shape(context: &serde_json::Map<String, Value>) -> Result<(), String> {
+    reject_unknown_fields(
+        context,
+        &[
+            "chain_id",
+            "app_hash_pre",
+            "pre_book_root",
+            "operation_hash",
+            "state_delta_hash",
+            "event_log_root",
+            "matching_rule_hash",
+            "fee_rule_hash",
+        ],
+        "context",
+    )
 }
 
 fn expect_meta_hash(proof: &Value, key: &str, expected: [u8; 32]) -> Result<(), String> {
@@ -1648,6 +2014,124 @@ fn expect_context_hash(
     if normalize_hex64(actual) != hex_lower(&expected) {
         return Err(format!("context.{key} mismatch"));
     }
+    Ok(())
+}
+
+fn expect_optional_context_chain(
+    context: &serde_json::Map<String, Value>,
+    expected: &str,
+) -> Result<(), String> {
+    // REVIEW(Codex 2026-06-07, grade A- -> A): strict verification and proof
+    // generation previously preferred the top-level chain_id and silently
+    // ignored a contradictory context.chain_id. Since context is public proof
+    // metadata, a supplied chain claim must agree with the journal.
+    let Some(actual) = context.get("chain_id").and_then(Value::as_str) else {
+        return Ok(());
+    };
+    if actual.trim() != expected {
+        return Err("context.chain_id mismatch".into());
+    }
+    Ok(())
+}
+
+fn expect_optional_context_hash(
+    context: &serde_json::Map<String, Value>,
+    key: &str,
+    expected: [u8; 32],
+) -> Result<(), String> {
+    let Some(actual) = context.get(key).and_then(Value::as_str) else {
+        return Ok(());
+    };
+    if normalize_hex64(actual) != hex_lower(&expected) {
+        return Err(format!("context.{key} mismatch"));
+    }
+    Ok(())
+}
+
+fn verify_clob_generate_context(
+    context: &serde_json::Map<String, Value>,
+    journal: &ClobTransitionJournalV1,
+) -> Result<(), String> {
+    // REVIEW(Codex 2026-06-07, grade B+ -> A): proof generation accepted
+    // caller-supplied context hashes but did not check them before proving. That
+    // made bad request metadata fail only in a later verify call. The generator
+    // now rejects stale supplied CLOB bindings and contradictory chain claims
+    // before spending prover time.
+    validate_clob_context_shape(context)?;
+    expect_optional_context_chain(context, &journal.chain_id)?;
+    expect_optional_context_hash(context, "pre_book_root", journal.pre_book_root)?;
+    expect_optional_context_hash(context, "operation_hash", journal.operation_hash)?;
+    expect_optional_context_hash(context, "state_delta_hash", journal.state_delta_hash)?;
+    expect_optional_context_hash(context, "event_log_root", journal.event_log_root)?;
+    expect_optional_context_hash(context, "matching_rule_hash", journal.matching_rule_hash)?;
+    expect_optional_context_hash(context, "fee_rule_hash", journal.fee_rule_hash)?;
+    Ok(())
+}
+
+fn verify_perps_np_generate_context(
+    context: &serde_json::Map<String, Value>,
+    journal: &PerpsNpTransitionJournalV1,
+) -> Result<(), String> {
+    // REVIEW(Codex 2026-06-07, grade B+ -> A): perps-NP generation accepted
+    // optional public hash claims in context without checking them until after a
+    // caller spent prover time. Generation context now allows only witness
+    // pre-state fields plus public bindings, and any supplied binding must match
+    // the host-computed journal before proving.
+    validate_generate_context_shape(
+        context,
+        &["perps_state_pre", "app_state_pre"],
+        &["collateral_binding_hash", "receipt_root"],
+    )?;
+    expect_optional_context_chain(context, &journal.chain_id)?;
+    expect_optional_context_hash(context, "operation_hash", journal.operation_hash)?;
+    expect_optional_context_hash(context, "state_delta_hash", journal.state_delta_hash)?;
+    expect_optional_context_hash(context, "oracle_binding_hash", journal.oracle_binding_hash)?;
+    expect_optional_context_hash(
+        context,
+        "participant_set_hash",
+        journal.participant_set_hash,
+    )?;
+    expect_optional_context_hash(
+        context,
+        "collateral_binding_hash",
+        journal.collateral_binding_hash,
+    )?;
+    expect_optional_context_hash(context, "receipt_root", journal.receipt_root)?;
+    Ok(())
+}
+
+fn verify_zusd_generate_context(
+    context: &serde_json::Map<String, Value>,
+    journal: &ZusdTransitionJournalV1,
+) -> Result<(), String> {
+    // REVIEW(Codex 2026-06-07, grade B+ -> A): zUSD generation had the same
+    // stale-context class as perps-NP. Allow the generation-only pre-state
+    // witness keys, then bind any supplied public roots to the host transition
+    // before invoking the prover.
+    validate_generate_context_shape(
+        context,
+        &["zusd_state_pre", "app_state_pre"],
+        &["zusd_balance_root_hash", "zusd_vault_root_hash"],
+    )?;
+    expect_optional_context_chain(context, &journal.chain_id)?;
+    expect_optional_context_hash(context, "operation_hash", journal.operation_hash)?;
+    expect_optional_context_hash(context, "state_delta_hash", journal.state_delta_hash)?;
+    expect_optional_context_hash(context, "oracle_binding_hash", journal.oracle_binding_hash)?;
+    expect_optional_context_hash(
+        context,
+        "participant_set_hash",
+        journal.participant_set_hash,
+    )?;
+    expect_optional_context_hash(
+        context,
+        "zusd_balance_root_hash",
+        journal.zusd_balance_root_hash,
+    )?;
+    expect_optional_context_hash(
+        context,
+        "zusd_vault_root_hash",
+        journal.zusd_vault_root_hash,
+    )?;
     Ok(())
 }
 
@@ -2201,6 +2685,304 @@ mod tests {
         })
     }
 
+    fn clob_order_json(
+        side_code: u64,
+        price: u64,
+        qty: u64,
+        seq: u64,
+        id: u64,
+        owner: &str,
+    ) -> Value {
+        json!({
+            "side_code": side_code,
+            "price_q_per_base": price,
+            "base_qty": qty,
+            "sequence": seq,
+            "order_id": format!("0x{id:064x}"),
+            "owner": format!("0x{}", owner.repeat(48)),
+        })
+    }
+
+    fn clob_journal() -> ClobTransitionJournalV1 {
+        ClobTransitionJournalV1 {
+            journal_version: tau_state_proof_risc0_shared::JOURNAL_VERSION,
+            proof_type: PROOF_TYPE_CLOB.to_string(),
+            state_hash: h(1),
+            chain_id: "devnet".to_string(),
+            pre_app_hash_present: false,
+            pre_book_root: h(10),
+            post_book_root: h(2),
+            pre_app_hash: [0u8; 32],
+            post_app_hash: h(2),
+            operation_hash: h(3),
+            state_delta_hash: h(4),
+            event_log_root: h(3),
+            matching_rule_hash: clob_matching_rule_hash(),
+            fee_rule_hash: clob_fee_rule_hash(),
+            risc0_image_id: TAU_STATE_PROOF_GUEST_ID,
+            fee_total: 0,
+            fills: Vec::new(),
+            resting_taker_qty: 0,
+        }
+    }
+
+    fn perps_journal() -> PerpsNpTransitionJournalV1 {
+        PerpsNpTransitionJournalV1 {
+            journal_version: tau_state_proof_risc0_shared::JOURNAL_VERSION,
+            proof_type: PROOF_TYPE_PERPS_NP.to_string(),
+            state_hash: h(1),
+            chain_id: "devnet".to_string(),
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            post_app_hash: h(2),
+            operation_hash: h(3),
+            state_delta_hash: h(4),
+            oracle_binding_hash: h(5),
+            collateral_binding_hash: h(6),
+            participant_set_hash: h(7),
+            receipt_root: h(8),
+            risc0_image_id: TAU_STATE_PROOF_GUEST_ID,
+            participant_count: 4,
+            net_position_base: 0,
+            total_collateral_e8: 100,
+            funding_residual_e8: 0,
+            matched_base_volume: 10,
+        }
+    }
+
+    fn zusd_journal() -> ZusdTransitionJournalV1 {
+        ZusdTransitionJournalV1 {
+            journal_version: tau_state_proof_risc0_shared::JOURNAL_VERSION,
+            proof_type: PROOF_TYPE_ZUSD.to_string(),
+            state_hash: h(1),
+            chain_id: "devnet".to_string(),
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            post_app_hash: h(2),
+            operation_hash: h(3),
+            state_delta_hash: h(4),
+            oracle_binding_hash: h(5),
+            zusd_balance_root_hash: h(6),
+            zusd_vault_root_hash: h(7),
+            participant_set_hash: h(8),
+            risc0_image_id: TAU_STATE_PROOF_GUEST_ID,
+            minted_zusd_e8: 100,
+            collateral_value_e8: 1_000,
+            mcr_bps: 11_000,
+        }
+    }
+
+    fn strict_clob_req(journal: &ClobTransitionJournalV1) -> Value {
+        json!({
+            "schema": "tau_state_proof_verify",
+            "schema_version": 1,
+            "chain_id": "devnet",
+            "state_hash": hx(1),
+            "tau_state": {"app_hash": hex_lower(&journal.post_app_hash)},
+            "taker": clob_order_json(0, 100_000_000, 5, 10, 99, "aa"),
+            "context": {
+                "app_hash_pre": "",
+                "pre_book_root": hex_lower(&journal.pre_book_root),
+                "operation_hash": hex_lower(&journal.operation_hash),
+                "state_delta_hash": hex_lower(&journal.state_delta_hash),
+                "event_log_root": hex_lower(&journal.event_log_root),
+                "matching_rule_hash": hex_lower(&journal.matching_rule_hash),
+                "fee_rule_hash": hex_lower(&journal.fee_rule_hash)
+            }
+        })
+    }
+
+    fn strict_clob_proof_meta(journal: &ClobTransitionJournalV1) -> Value {
+        json!({
+            "proof_type": PROOF_TYPE_CLOB,
+            "proof": "unused",
+            "meta": clob_meta(journal),
+        })
+    }
+
+    fn clob_book_json() -> Value {
+        json!({
+            "base_asset": "0x".to_string() + &"11".repeat(32),
+            "quote_asset": "0x".to_string() + &"22".repeat(32),
+            "orders": [
+                clob_order_json(1, 100_000_000, 5, 1, 1, "bb")
+            ]
+        })
+    }
+
+    #[test]
+    fn clob_json_parser_rejects_unknown_fields_and_wide_side_code() {
+        let mut with_extra = clob_order_json(0, 100_000_000, 5, 10, 99, "aa");
+        with_extra["ignored"] = Value::String("would-be-unbound".to_string());
+        let err = parse_clob_order_value(&with_extra, "taker").unwrap_err();
+        assert_eq!(err, "taker.unknown_field:ignored");
+
+        let wide_side = clob_order_json(300, 100_000_000, 5, 10, 99, "aa");
+        let err = parse_clob_order_value(&wide_side, "taker").unwrap_err();
+        assert_eq!(err, "side_code must be a u8");
+    }
+
+    #[test]
+    fn clob_book_parser_canonicalizes_order_before_rooting() {
+        let mut book = clob_book_json();
+        book["orders"] = json!([
+            clob_order_json(0, 100_000_000, 5, 2, 1, "aa"),
+            clob_order_json(0, 200_000_000, 5, 1, 2, "bb")
+        ]);
+        let parsed = parse_clob_book_value(&book).unwrap();
+        assert_eq!(parsed.orders[0].price_q_per_base, 200_000_000);
+        assert!(parsed.state_root().is_ok());
+    }
+
+    #[test]
+    fn clob_pre_book_must_be_top_level_not_context() {
+        let req = json!({
+            "context": {
+                "pre_book": clob_book_json()
+            }
+        });
+        let err = parse_clob_pre_book(&req).unwrap_err();
+        assert_eq!(err, "pre_book missing for CLOB proof");
+
+        let req = json!({"pre_book": clob_book_json()});
+        assert!(parse_clob_pre_book(&req).is_ok());
+    }
+
+    #[test]
+    fn strict_clob_bindings_accept_and_reject_tampered_context() {
+        let journal = clob_journal();
+        let req = strict_clob_req(&journal);
+        let proof = strict_clob_proof_meta(&journal);
+        verify_clob_request_bindings(&req, &proof, &journal).unwrap();
+
+        let mut bad_event = strict_clob_req(&journal);
+        bad_event["context"]["event_log_root"] = Value::String(hx(99));
+        let err = verify_clob_request_bindings(&bad_event, &proof, &journal).unwrap_err();
+        assert_eq!(err, "context.event_log_root mismatch");
+
+        let mut bad_chain = strict_clob_req(&journal);
+        bad_chain["context"]["chain_id"] = Value::String("other-chain".to_string());
+        let err = verify_clob_request_bindings(&bad_chain, &proof, &journal).unwrap_err();
+        assert_eq!(err, "context.chain_id mismatch");
+
+        let mut extra_claim = strict_clob_req(&journal);
+        extra_claim["context"]["post_book_root"] = Value::String(hx(97));
+        let err = verify_clob_request_bindings(&extra_claim, &proof, &journal).unwrap_err();
+        assert_eq!(err, "context.unknown_field:post_book_root");
+
+        let mut bad_meta = strict_clob_proof_meta(&journal);
+        bad_meta["meta"]["matching_rule_hash"] = Value::String(hx(98));
+        let err = verify_clob_request_bindings(&req, &bad_meta, &journal).unwrap_err();
+        assert_eq!(err, "proof.meta.matching_rule_hash mismatch");
+    }
+
+    #[test]
+    fn clob_generate_context_rejects_stale_supplied_hashes_before_proving() {
+        let journal = clob_journal();
+        let req = strict_clob_req(&journal);
+        let context = req["context"].as_object().expect("context object");
+        verify_clob_generate_context(context, &journal).unwrap();
+
+        let mut stale = strict_clob_req(&journal);
+        stale["context"]["operation_hash"] = Value::String(hx(96));
+        let err = verify_clob_generate_context(
+            stale["context"].as_object().expect("context object"),
+            &journal,
+        )
+        .unwrap_err();
+        assert_eq!(err, "context.operation_hash mismatch");
+
+        let mut stale_chain = strict_clob_req(&journal);
+        stale_chain["context"]["chain_id"] = Value::String("other-chain".to_string());
+        let err = verify_clob_generate_context(
+            stale_chain["context"].as_object().expect("context object"),
+            &journal,
+        )
+        .unwrap_err();
+        assert_eq!(err, "context.chain_id mismatch");
+
+        let mut extra_claim = strict_clob_req(&journal);
+        extra_claim["context"]["post_book_root"] = Value::String(hx(95));
+        let err = verify_clob_generate_context(
+            extra_claim["context"].as_object().expect("context object"),
+            &journal,
+        )
+        .unwrap_err();
+        assert_eq!(err, "context.unknown_field:post_book_root");
+    }
+
+    #[test]
+    fn perps_generate_context_rejects_stale_supplied_hashes_before_proving() {
+        let journal = perps_journal();
+        let context = json!({
+            "chain_id": "devnet",
+            "app_hash_pre": "",
+            "perps_state_pre": {"version": 1},
+            "operation_hash": hx(3),
+            "state_delta_hash": hx(4),
+            "oracle_binding_hash": hx(5),
+            "collateral_binding_hash": hx(6),
+            "participant_set_hash": hx(7),
+            "receipt_root": hx(8)
+        });
+        verify_perps_np_generate_context(context.as_object().expect("context"), &journal).unwrap();
+
+        let mut stale = context.clone();
+        stale["collateral_binding_hash"] = Value::String(hx(96));
+        let err = verify_perps_np_generate_context(stale.as_object().expect("context"), &journal)
+            .unwrap_err();
+        assert_eq!(err, "context.collateral_binding_hash mismatch");
+
+        let mut stale_chain = context.clone();
+        stale_chain["chain_id"] = Value::String("other-chain".to_string());
+        let err =
+            verify_perps_np_generate_context(stale_chain.as_object().expect("context"), &journal)
+                .unwrap_err();
+        assert_eq!(err, "context.chain_id mismatch");
+
+        let mut extra_claim = context;
+        extra_claim["post_app_hash"] = Value::String(hx(95));
+        let err =
+            verify_perps_np_generate_context(extra_claim.as_object().expect("context"), &journal)
+                .unwrap_err();
+        assert_eq!(err, "context.unknown_field:post_app_hash");
+    }
+
+    #[test]
+    fn zusd_generate_context_rejects_stale_supplied_hashes_before_proving() {
+        let journal = zusd_journal();
+        let context = json!({
+            "chain_id": "devnet",
+            "app_hash_pre": "",
+            "zusd_state_pre": {"version": 1},
+            "operation_hash": hx(3),
+            "state_delta_hash": hx(4),
+            "oracle_binding_hash": hx(5),
+            "zusd_balance_root_hash": hx(6),
+            "zusd_vault_root_hash": hx(7),
+            "participant_set_hash": hx(8)
+        });
+        verify_zusd_generate_context(context.as_object().expect("context"), &journal).unwrap();
+
+        let mut stale = context.clone();
+        stale["zusd_vault_root_hash"] = Value::String(hx(94));
+        let err = verify_zusd_generate_context(stale.as_object().expect("context"), &journal)
+            .unwrap_err();
+        assert_eq!(err, "context.zusd_vault_root_hash mismatch");
+
+        let mut stale_chain = context.clone();
+        stale_chain["chain_id"] = Value::String("other-chain".to_string());
+        let err = verify_zusd_generate_context(stale_chain.as_object().expect("context"), &journal)
+            .unwrap_err();
+        assert_eq!(err, "context.chain_id mismatch");
+
+        let mut extra_claim = context;
+        extra_claim["proof"] = json!({"receipt": "ignored"});
+        let err = verify_zusd_generate_context(extra_claim.as_object().expect("context"), &journal)
+            .unwrap_err();
+        assert_eq!(err, "context.unknown_field:proof");
+    }
+
     #[test]
     fn strict_surface_bindings_accept_matching_context() {
         let req = strict_req();
@@ -2216,6 +2998,7 @@ mod tests {
             h(4),
             h(5),
             h(6),
+            &[],
         )
         .unwrap();
     }
@@ -2235,6 +3018,7 @@ mod tests {
             h(4),
             h(5),
             h(6),
+            &[],
         )
         .unwrap_err();
         assert_eq!(err, "chain_id mismatch");
@@ -2252,9 +3036,46 @@ mod tests {
             h(4),
             h(5),
             h(6),
+            &[],
         )
         .unwrap_err();
         assert_eq!(err, "context.operation_hash mismatch");
+
+        let mut bad_context_chain = strict_req();
+        bad_context_chain["context"]["chain_id"] = Value::String("other-chain".to_string());
+        let err = verify_surface_request_bindings(
+            &bad_context_chain,
+            &proof,
+            "devnet",
+            false,
+            [0u8; 32],
+            h(2),
+            h(3),
+            h(4),
+            h(5),
+            h(6),
+            &[],
+        )
+        .unwrap_err();
+        assert_eq!(err, "context.chain_id mismatch");
+
+        let mut extra_claim = strict_req();
+        extra_claim["context"]["post_app_hash"] = Value::String(hx(10));
+        let err = verify_surface_request_bindings(
+            &extra_claim,
+            &proof,
+            "devnet",
+            false,
+            [0u8; 32],
+            h(2),
+            h(3),
+            h(4),
+            h(5),
+            h(6),
+            &[],
+        )
+        .unwrap_err();
+        assert_eq!(err, "context.unknown_field:post_app_hash");
     }
 
     #[test]
@@ -2273,6 +3094,7 @@ mod tests {
             h(4),
             h(5),
             h(6),
+            &[],
         )
         .unwrap_err();
         assert_eq!(err, "post_app_hash mismatch");

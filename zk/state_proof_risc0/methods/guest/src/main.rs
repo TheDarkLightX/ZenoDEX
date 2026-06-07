@@ -5,6 +5,7 @@ extern crate alloc;
 
 use alloc::vec;
 use risc0_zkvm::guest::env;
+use tau_state_proof_risc0_shared::clob::execute_clob_transition_v1;
 use tau_state_proof_risc0_shared::{
     execute_perps_np_transition_v1, execute_state_proof_input_v1, execute_zusd_transition_v1,
     ZenoProofInputV1,
@@ -33,6 +34,11 @@ pub fn main() {
         ZenoProofInputV1::Zusd(input) => {
             let journal =
                 execute_zusd_transition_v1(input).expect("zusd proof transition rejected");
+            commit_journal(&journal);
+        }
+        ZenoProofInputV1::Clob(input) => {
+            let journal =
+                execute_clob_transition_v1(input).expect("clob proof transition rejected");
             commit_journal(&journal);
         }
     }

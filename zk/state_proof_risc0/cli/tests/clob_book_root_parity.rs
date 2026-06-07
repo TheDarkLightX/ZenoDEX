@@ -38,7 +38,10 @@ fn clob_book_root_matches_python_byte_for_byte() {
         }
         let book = ClobBookV1::new(
             case["base_asset"].as_str().expect("base_asset").to_string(),
-            case["quote_asset"].as_str().expect("quote_asset").to_string(),
+            case["quote_asset"]
+                .as_str()
+                .expect("quote_asset")
+                .to_string(),
             orders,
         );
         let root = book.state_root().expect("state_root");
