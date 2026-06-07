@@ -1614,9 +1614,18 @@ fn match_intents_v1(
 
     let mut survivors: Vec<(PerpsIntentV1, i128)> = Vec::new();
     for (pk, account_intents) in by_pubkey {
-        let current = accounts.get(&pk).map(|a| a.position_base).unwrap_or(0);
-        let collateral = accounts.get(&pk).map(|a| a.collateral_e8).unwrap_or(0);
-        let last_nonce = accounts.get(&pk).map(|a| a.nonce);
+        let Some(account) = accounts.get(&pk) else {
+            for intent in account_intents {
+                receipts.insert(
+                    (intent.pubkey.clone(), intent.nonce),
+                    rejected_receipt(&intent, "REJ_ACCOUNT"),
+                );
+            }
+            continue;
+        };
+        let current = account.position_base;
+        let collateral = account.collateral_e8;
+        let last_nonce = account.nonce;
         let mut nonce_counts: BTreeMap<u64, u32> = BTreeMap::new();
         for intent in &account_intents {
             *nonce_counts.entry(intent.nonce).or_insert(0) += 1;
@@ -1762,7 +1771,7 @@ fn validate_perps_intent(
     intent: &PerpsIntentV1,
     current: i128,
     collateral: i128,
-    last_nonce: Option<u64>,
+    last_nonce: u64,
     price_e8: i128,
     now_epoch: u64,
     params: &PerpsMarketParamsV1,
@@ -1773,10 +1782,10 @@ fn validate_perps_intent(
     if intent.expiry_epoch < now_epoch {
         return Ok(Some("REJ_EXPIRED"));
     }
-    if let Some(last) = last_nonce {
-        if intent.nonce <= last {
-            return Ok(Some("REJ_BAD_NONCE"));
-        }
+    // Live submit emits exactly account.nonce + 1; the proof surface must not
+    // certify gap intents that the live admission path would reject upstream.
+    if !is_next_nonce(last_nonce, intent.nonce) {
+        return Ok(Some("REJ_BAD_NONCE"));
     }
     if abs_i128(intent.target_base)? > params.max_position_abs {
         return Ok(Some("REJ_POS_BOUND"));
@@ -2451,6 +2460,45 @@ mod tests {
         }
     }
 
+    fn intent(pubkey: &str, target_base: i128, nonce: u64) -> PerpsIntentV1 {
+        PerpsIntentV1 {
+            pubkey: pubkey.to_string(),
+            target_base,
+            limit_price_e8: 0,
+            min_fill_base: 0,
+            expiry_epoch: 10,
+            nonce,
+        }
+    }
+
+    fn initialized_four_wallet_state() -> PerpsStateV1 {
+        let mut state = PerpsStateV1::from_snapshot(PerpsNpSnapshotV1::empty()).unwrap();
+        state
+            .init_market(
+                "BTC-PERP".to_string(),
+                default_zusd_asset(),
+                100 * E8_I128,
+                PerpsMarketParamsV1::default(),
+                1_000_000_000,
+            )
+            .unwrap();
+        for (idx, wallet) in ["wallet-a", "wallet-b", "wallet-c", "wallet-d"]
+            .iter()
+            .enumerate()
+        {
+            state
+                .deposit_collateral(
+                    (*wallet).to_string(),
+                    default_zusd_asset(),
+                    2_000 * E8_I128,
+                    1,
+                    Some(collateral_binding((idx + 1) as u8)),
+                )
+                .unwrap();
+        }
+        state
+    }
+
     #[test]
     fn perps_np_transition_runs_settle_before_match_for_five_wallets() {
         let wallets = ["w1", "w2", "w3", "w4", "w5"];
@@ -2744,6 +2792,51 @@ mod tests {
             Err(TransitionError::InvalidInput("withdraw nonce mismatch"))
         ));
         assert_eq!(state.canonical_app_hash_sha256(), before_hash);
+    }
+
+    #[test]
+    fn perps_np_run_epoch_rejects_gap_intent_nonce() {
+        let mut state = initialized_four_wallet_state();
+        let result = state
+            .run_epoch(
+                oracle(100 * E8_I128),
+                100 * E8_I128,
+                0,
+                alloc::vec![intent("wallet-a", 1, 3)],
+            )
+            .unwrap();
+
+        let receipt = result
+            .receipts
+            .iter()
+            .find(|receipt| receipt.pubkey == "wallet-a")
+            .expect("gap nonce receipt");
+        assert_eq!(receipt.status, "rejected");
+        assert_eq!(receipt.reject_code.as_deref(), Some("REJ_BAD_NONCE"));
+        assert_eq!(state.accounts.get("wallet-a").unwrap().nonce, 1);
+        assert_eq!(state.accounts.get("wallet-a").unwrap().position_base, 0);
+    }
+
+    #[test]
+    fn perps_np_run_epoch_rejects_unknown_account_intent() {
+        let mut state = initialized_four_wallet_state();
+        let result = state
+            .run_epoch(
+                oracle(100 * E8_I128),
+                100 * E8_I128,
+                0,
+                alloc::vec![intent("wallet-missing", 0, 1)],
+            )
+            .unwrap();
+
+        let receipt = result
+            .receipts
+            .iter()
+            .find(|receipt| receipt.pubkey == "wallet-missing")
+            .expect("unknown account receipt");
+        assert_eq!(receipt.status, "rejected");
+        assert_eq!(receipt.reject_code.as_deref(), Some("REJ_ACCOUNT"));
+        assert!(!state.accounts.contains_key("wallet-missing"));
     }
 
     #[test]

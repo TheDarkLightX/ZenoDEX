@@ -4,9 +4,9 @@
 The smoke builds the unified `tau-state-proof-risc0-cli` method with
 `RISC0_FORCE_BUILD=1`, proves dynamic 4+ wallet perps epochs, verifies the
 receipt through the strict verifier command, and runs fail-closed negative
-cases. Python independently re-derives participant-set, state-root, scoped
-app-hash, receipt, and state-delta hashes so the report is not only echoing
-guest metadata.
+cases. Python independently re-derives the snapshot app hashes fed into the
+request and cross-checks verifier-bound guest metadata; the report remains
+scoped evidence, not a production security claim.
 
 This remains evidence for a scoped circuit surface:
 `risc0.zenodex_perps_np_transition.v1`. It does not flip
@@ -33,8 +33,6 @@ MARKET_ID = "perp:chnp:ETH-PERP"
 
 PRE_ROOT_DOMAIN = b"zenodex.perps_np.pre_state_root.v1:"
 POST_ROOT_DOMAIN = b"zenodex.perps_np.post_state_root.v1:"
-PRE_APP_HASH_DOMAIN = b"zenodex.perps_np.pre_app_hash.v1:"
-POST_APP_HASH_DOMAIN = b"zenodex.perps_np.post_app_hash.v1:"
 
 
 def _hex(label: str) -> str:
@@ -132,13 +130,13 @@ def _current_snapshot_hash(snapshot: dict[str, Any]) -> str:
 
 
 def _participant_set_hash(chain_id: str, market_id: str, accounts: list[dict[str, Any]]) -> str:
+    del chain_id, market_id
     h = hashlib.sha256()
-    h.update(b"zenodex.perps_np.participant_set.v1:")
-    _write_str(h, chain_id)
-    _write_str(h, market_id)
-    h.update(_u32(len(accounts)))
-    for account in accounts:
-        _write_str(h, str(account["pubkey"]))
+    h.update(b"zenodex.participant_set.v1:")
+    participants = sorted({str(account["pubkey"]) for account in accounts})
+    h.update(_u32(len(participants)))
+    for pubkey in participants:
+        _write_str(h, pubkey)
     return h.hexdigest()
 
 
@@ -185,9 +183,13 @@ def _receipts_root(receipts: list[dict[str, Any]]) -> str:
     for receipt in receipts:
         _write_str(h, str(receipt["pubkey"]))
         h.update(_u64(int(receipt["nonce"])))
-        h.update(_i64(int(receipt["delta"])))
-        h.update(bytes([1 if receipt["rejected"] else 0]))
-        _write_str(h, str(receipt["reject_code"]))
+        _write_str(h, "rejected" if receipt["rejected"] else "filled")
+        h.update(_i128(int(receipt["delta"])))
+        if receipt["rejected"]:
+            h.update(bytes([1]))
+            _write_str(h, str(receipt["reject_code"]))
+        else:
+            h.update(bytes([0]))
     return h.hexdigest()
 
 
@@ -200,23 +202,11 @@ def _state_delta_hash(
     operation_hash: str,
     receipts_root: str,
 ) -> str:
+    del chain_id, market_id, operation_hash, receipts_root
     h = hashlib.sha256()
-    h.update(b"zenodex.perps_np.state_delta.v1:")
-    _write_str(h, chain_id)
-    _write_str(h, market_id)
+    h.update(b"zenodex.state_delta.v1:")
     h.update(bytes.fromhex(pre_state_root))
     h.update(bytes.fromhex(post_state_root))
-    h.update(bytes.fromhex(operation_hash))
-    h.update(bytes.fromhex(receipts_root))
-    return h.hexdigest()
-
-
-def _scoped_app_hash(domain: bytes, *, chain_id: str, market_id: str, state_root: str) -> str:
-    h = hashlib.sha256()
-    h.update(domain)
-    _write_str(h, chain_id)
-    _write_str(h, market_id)
-    h.update(bytes.fromhex(state_root))
     return h.hexdigest()
 
 
@@ -602,26 +592,6 @@ def _complete_input(
     )
     receipts_root = _receipts_root(receipts)
     operation_hash = _hex("perps-np-smoke-operation")
-    delta_hash = _state_delta_hash(
-        chain_id=CHAIN_ID,
-        market_id=MARKET_ID,
-        pre_state_root=pre_root,
-        post_state_root=post_root,
-        operation_hash=operation_hash,
-        receipts_root=receipts_root,
-    )
-    pre_app_hash = _scoped_app_hash(
-        PRE_APP_HASH_DOMAIN,
-        chain_id=CHAIN_ID,
-        market_id=MARKET_ID,
-        state_root=pre_root,
-    )
-    post_app_hash = _scoped_app_hash(
-        POST_APP_HASH_DOMAIN,
-        chain_id=CHAIN_ID,
-        market_id=MARKET_ID,
-        state_root=post_root,
-    )
     current_pre_snapshot = {
         "version": 1,
         "market_id": MARKET_ID,
@@ -654,12 +624,20 @@ def _complete_input(
     }
     current_pre_app_hash = _current_snapshot_hash(current_pre_snapshot)
     current_post_app_hash = _current_snapshot_hash(current_post_snapshot)
+    delta_hash = _state_delta_hash(
+        chain_id=CHAIN_ID,
+        market_id=MARKET_ID,
+        pre_state_root=current_pre_app_hash,
+        post_state_root=current_post_app_hash,
+        operation_hash=operation_hash,
+        receipts_root=receipts_root,
+    )
 
     return {
         "chain_id": CHAIN_ID,
         "market_id": MARKET_ID,
-        "pre_app_hash": pre_app_hash,
-        "expected_post_app_hash": post_app_hash,
+        "pre_app_hash": current_pre_app_hash,
+        "expected_post_app_hash": current_post_app_hash,
         "operation_hash": operation_hash,
         "expected_state_delta_hash": delta_hash,
         "oracle_binding_hash": _hex("perps-np-oracle-binding"),
@@ -688,8 +666,8 @@ def _complete_input(
         "_python_expected": {
             "pre_state_root": pre_root,
             "post_state_root": post_root,
-            "pre_app_hash": pre_app_hash,
-            "post_app_hash": post_app_hash,
+            "pre_app_hash": current_pre_app_hash,
+            "post_app_hash": current_post_app_hash,
             "participant_set_hash": participant_hash,
             "state_delta_hash": delta_hash,
             "receipts_root": receipts_root,
@@ -728,12 +706,7 @@ def _rebind_pre_state(input_obj: dict[str, Any]) -> None:
     )
     input_obj["expected_participant_set_hash"] = participant_hash
     input_obj["expected_pre_state_root"] = pre_root
-    input_obj["pre_app_hash"] = _scoped_app_hash(
-        PRE_APP_HASH_DOMAIN,
-        chain_id=chain_id,
-        market_id=market_id,
-        state_root=pre_root,
-    )
+    input_obj["pre_app_hash"] = _current_snapshot_hash(_current_pre_state_from_input(input_obj))
 
 
 def _base_four_wallet() -> dict[str, Any]:
