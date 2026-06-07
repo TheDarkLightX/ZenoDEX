@@ -87,6 +87,9 @@ python -m pip install --quiet --require-hashes -r "$DEV_LOCK"
 echo "[gate] checking container hardening artifacts"
 python tools/check_container_hardening.py
 
+echo "[gate] checking complexity ratchet"
+python tools/check_complexity_ratchet.py
+
 KERNEL_JSON="$(mktemp)"
 if [[ "$PRIVATE_ESSO" == "1" || ( "$PRIVATE_ESSO" == "auto" && -d "$ROOT/external/ESSO" ) ]]; then
   echo "[gate] running kernel assurance with private ESSO toolchain"

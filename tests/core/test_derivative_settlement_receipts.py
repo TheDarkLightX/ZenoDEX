@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
-from hypothesis import given, settings
+import importlib.util
+
+import pytest
+
+if importlib.util.find_spec("hypothesis") is None:  # pragma: no cover
+    pytest.skip("hypothesis not installed", allow_module_level=True)
+
 import hypothesis.strategies as st
+from hypothesis import given, settings
 
 from src.core.derivative_settlement_receipts import (
     DERIVATIVE_SETTLEMENT_RECEIPT_MAX_COLLATERAL,

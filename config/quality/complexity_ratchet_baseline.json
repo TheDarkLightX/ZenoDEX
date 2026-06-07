@@ -1,0 +1,335 @@
+{
+  "complexity_budget": 5,
+  "file_count": 427,
+  "function_count": 5629,
+  "line_budget": 60,
+  "max_complexity": 996,
+  "max_function_lines": 5478,
+  "over_complexity_budget_count": 1612,
+  "over_line_budget_count": 435,
+  "schema": "zenodex/complexity-ratchet/v1",
+  "top_complexity": [
+    {
+      "complexity": 996,
+      "line_end": 6645,
+      "line_start": 1168,
+      "lines": 5478,
+      "name": "_maybe_handle_dex_api",
+      "path": "src/integration/api_server.py"
+    },
+    {
+      "complexity": 190,
+      "line_end": 808,
+      "line_start": 197,
+      "lines": 612,
+      "name": "_validate_settlement_strong_impl",
+      "path": "src/core/settlement_strong_validator.py"
+    },
+    {
+      "complexity": 126,
+      "line_end": 947,
+      "line_start": 326,
+      "lines": 622,
+      "name": "state_from_snapshot",
+      "path": "src/integration/dex_snapshot.py"
+    },
+    {
+      "complexity": 118,
+      "line_end": 1795,
+      "line_start": 1247,
+      "lines": 549,
+      "name": "apply_ops",
+      "path": "src/integration/dex_engine.py"
+    },
+    {
+      "complexity": 100,
+      "line_end": 3324,
+      "line_start": 1400,
+      "lines": 1925,
+      "name": "prepare_autotrader_live_quote_receipt",
+      "path": "src/integration/autotrader_live.py"
+    },
+    {
+      "complexity": 99,
+      "line_end": 1007,
+      "line_start": 647,
+      "lines": 361,
+      "name": "quote_exact_out_2hop_fast_v1",
+      "path": "src/integration/fast_quote_router_v1.py"
+    },
+    {
+      "complexity": 96,
+      "line_end": 1424,
+      "line_start": 1186,
+      "lines": 239,
+      "name": "verify_fire_proof_tree_certificate",
+      "path": "src/fire/verifier/proof_tree_cert_v1.py"
+    },
+    {
+      "complexity": 91,
+      "line_end": 545,
+      "line_start": 116,
+      "lines": 430,
+      "name": "validate_settlement_swaps",
+      "path": "src/integration/tau_gate.py"
+    },
+    {
+      "complexity": 80,
+      "line_end": 958,
+      "line_start": 736,
+      "lines": 223,
+      "name": "verify_route_quote_receipt",
+      "path": "src/core/quote_receipts.py"
+    },
+    {
+      "complexity": 78,
+      "line_end": 482,
+      "line_start": 184,
+      "lines": 299,
+      "name": "verify_fire_object_package",
+      "path": "src/fire/verifier/object_package_v1.py"
+    },
+    {
+      "complexity": 78,
+      "line_end": 647,
+      "line_start": 485,
+      "lines": 163,
+      "name": "_verify_fire_math_object_spec_file",
+      "path": "src/fire/compiler/fmos_file_v1.py"
+    },
+    {
+      "complexity": 78,
+      "line_end": 505,
+      "line_start": 359,
+      "lines": 147,
+      "name": "resolve_two_pool_split_search_params",
+      "path": "src/core/split_routing.py"
+    },
+    {
+      "complexity": 78,
+      "line_end": 422,
+      "line_start": 246,
+      "lines": 177,
+      "name": "verify_fhe_sealed_bid_alpha_plan",
+      "path": "src/core/fhe_sealed_bid_alpha.py"
+    },
+    {
+      "complexity": 77,
+      "line_end": 448,
+      "line_start": 248,
+      "lines": 201,
+      "name": "_apply_one",
+      "path": "src/integration/zusd_monetary_bridge.py"
+    },
+    {
+      "complexity": 76,
+      "line_end": 727,
+      "line_start": 459,
+      "lines": 269,
+      "name": "evaluate_perps_wallet_encrypted_sss_backup_v1",
+      "path": "src/integration/perps_wallet_encrypted_sss_backup.py"
+    },
+    {
+      "complexity": 76,
+      "line_end": 1033,
+      "line_start": 786,
+      "lines": 248,
+      "name": "best_split_many_pools_exact_in_for_pools",
+      "path": "src/core/split_routing_dispatch.py"
+    },
+    {
+      "complexity": 74,
+      "line_end": 1655,
+      "line_start": 1499,
+      "lines": 157,
+      "name": "validate_protocol_token_distribution_v0",
+      "path": "src/integration/zeno_ledger_tokenomics.py"
+    },
+    {
+      "complexity": 74,
+      "line_end": 645,
+      "line_start": 357,
+      "lines": 289,
+      "name": "quote_exact_in_2hop_fast_v1",
+      "path": "src/integration/fast_quote_router_v1.py"
+    },
+    {
+      "complexity": 71,
+      "line_end": 5278,
+      "line_start": 4817,
+      "lines": 462,
+      "name": "apply_perp_ops",
+      "path": "src/integration/perp_engine.py"
+    },
+    {
+      "complexity": 70,
+      "line_end": 3580,
+      "line_start": 3308,
+      "lines": 273,
+      "name": "handle_perps_wallet_request",
+      "path": "src/integration/perps_wallet_api.py"
+    }
+  ],
+  "top_lines": [
+    {
+      "complexity": 996,
+      "line_end": 6645,
+      "line_start": 1168,
+      "lines": 5478,
+      "name": "_maybe_handle_dex_api",
+      "path": "src/integration/api_server.py"
+    },
+    {
+      "complexity": 100,
+      "line_end": 3324,
+      "line_start": 1400,
+      "lines": 1925,
+      "name": "prepare_autotrader_live_quote_receipt",
+      "path": "src/integration/autotrader_live.py"
+    },
+    {
+      "complexity": 1,
+      "line_end": 1149,
+      "line_start": 99,
+      "lines": 1051,
+      "name": "production_tau_trace_cases",
+      "path": "src/integration/tau_trace_cases.py"
+    },
+    {
+      "complexity": 126,
+      "line_end": 947,
+      "line_start": 326,
+      "lines": 622,
+      "name": "state_from_snapshot",
+      "path": "src/integration/dex_snapshot.py"
+    },
+    {
+      "complexity": 190,
+      "line_end": 808,
+      "line_start": 197,
+      "lines": 612,
+      "name": "_validate_settlement_strong_impl",
+      "path": "src/core/settlement_strong_validator.py"
+    },
+    {
+      "complexity": 14,
+      "line_end": 621,
+      "line_start": 12,
+      "lines": 610,
+      "name": "render_zenograph_ranking_review_campaign_html",
+      "path": "src/integration/zenograph_ranking_review_campaign_report.py"
+    },
+    {
+      "complexity": 118,
+      "line_end": 1795,
+      "line_start": 1247,
+      "lines": 549,
+      "name": "apply_ops",
+      "path": "src/integration/dex_engine.py"
+    },
+    {
+      "complexity": 66,
+      "line_end": 837,
+      "line_start": 316,
+      "lines": 522,
+      "name": "evaluate_autotrader_quote_receipt",
+      "path": "src/integration/autotrader_controller.py"
+    },
+    {
+      "complexity": 71,
+      "line_end": 5278,
+      "line_start": 4817,
+      "lines": 462,
+      "name": "apply_perp_ops",
+      "path": "src/integration/perp_engine.py"
+    },
+    {
+      "complexity": 91,
+      "line_end": 545,
+      "line_start": 116,
+      "lines": 430,
+      "name": "validate_settlement_swaps",
+      "path": "src/integration/tau_gate.py"
+    },
+    {
+      "complexity": 60,
+      "line_end": 2342,
+      "line_start": 1941,
+      "lines": 402,
+      "name": "_apply_ch3p_op",
+      "path": "src/integration/perp_engine.py"
+    },
+    {
+      "complexity": 58,
+      "line_end": 1044,
+      "line_start": 661,
+      "lines": 384,
+      "name": "_handle_post",
+      "path": "src/integration/zusd_api.py"
+    },
+    {
+      "complexity": 99,
+      "line_end": 1007,
+      "line_start": 647,
+      "lines": 361,
+      "name": "quote_exact_out_2hop_fast_v1",
+      "path": "src/integration/fast_quote_router_v1.py"
+    },
+    {
+      "complexity": 52,
+      "line_end": 1938,
+      "line_start": 1579,
+      "lines": 360,
+      "name": "_apply_ch2p_op",
+      "path": "src/integration/perp_engine.py"
+    },
+    {
+      "complexity": 68,
+      "line_end": 1425,
+      "line_start": 1081,
+      "lines": 345,
+      "name": "step_multi",
+      "path": "src/core/zusd.py"
+    },
+    {
+      "complexity": 60,
+      "line_end": 814,
+      "line_start": 503,
+      "lines": 312,
+      "name": "_step_python",
+      "path": "src/core/zusd.py"
+    },
+    {
+      "complexity": 78,
+      "line_end": 482,
+      "line_start": 184,
+      "lines": 299,
+      "name": "verify_fire_object_package",
+      "path": "src/fire/verifier/object_package_v1.py"
+    },
+    {
+      "complexity": 74,
+      "line_end": 645,
+      "line_start": 357,
+      "lines": 289,
+      "name": "quote_exact_in_2hop_fast_v1",
+      "path": "src/integration/fast_quote_router_v1.py"
+    },
+    {
+      "complexity": 48,
+      "line_end": 3033,
+      "line_start": 2746,
+      "lines": 288,
+      "name": "_build_prepare_response",
+      "path": "src/integration/perps_wallet_api.py"
+    },
+    {
+      "complexity": 46,
+      "line_end": 4814,
+      "line_start": 4537,
+      "lines": 278,
+      "name": "_apply_chnp_op",
+      "path": "src/integration/perp_engine.py"
+    }
+  ]
+}
