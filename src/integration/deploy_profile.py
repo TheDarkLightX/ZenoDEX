@@ -8,6 +8,7 @@ binding a socket.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -17,6 +18,8 @@ from src.runtime.authority import AuthorityError, load_authority_policy, validat
 
 DEPLOY_PROFILE_SCHEMA = "zenodex/deployment_profile/v1"
 _DEPLOY_DIR = Path(__file__).resolve().parents[2] / "config" / "deploy"
+_DEPLOY_PROFILE_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$")
+_DEPLOY_PROFILE_IDS = frozenset(("local-dev", "production-strict", "public-testnet"))
 
 RUNTIME_FACT_KEYS = (
     "sensitive_api_enabled",
@@ -36,23 +39,54 @@ RUNTIME_FACT_KEYS = (
 )
 
 
-def load_deploy_profile(profile: str) -> dict[str, Any]:
-    """Load a deploy profile by id (`config/deploy/<id>.yaml`) or path."""
+def _validate_deploy_profile_id(profile: str) -> str:
+    """Return a safe deploy profile id.
 
-    if not isinstance(profile, str) or not profile.strip():
+    Contract:
+    - Precondition: ``profile`` is a non-empty string supplied at the process boundary.
+    - Invariant: profile ids are opaque ids, never filesystem paths.
+    - Postcondition: the returned id maps only to ``config/deploy/<id>.yaml``.
+    """
+
+    if not isinstance(profile, str):
         raise ValueError("profile must be a non-empty string")
-    candidate = Path(profile)
-    if candidate.suffix in (".yaml", ".yml") and candidate.is_file():
-        path = candidate
-    else:
-        path = _DEPLOY_DIR / f"{profile}.yaml"
+    profile_id = profile.strip()
+    if not profile_id:
+        raise ValueError("profile must be a non-empty string")
+    if not _DEPLOY_PROFILE_ID_PATTERN.fullmatch(profile_id):
+        raise ValueError(f"invalid deploy profile id: {profile!r}")
+    if profile_id not in _DEPLOY_PROFILE_IDS:
+        raise ValueError(f"unknown deploy profile id: {profile_id!r}")
+    return profile_id
+
+
+def _deploy_profile_path(profile_id: str) -> Path:
+    """Resolve a validated profile id to the immutable deploy-profile directory."""
+
+    path = (_DEPLOY_DIR / f"{profile_id}.yaml").resolve(strict=False)
+    deploy_dir = _DEPLOY_DIR.resolve(strict=True)
+    if path.parent != deploy_dir:
+        raise ValueError(f"invalid deploy profile path for id: {profile_id!r}")
+    return path
+
+
+def load_deploy_profile(profile: str) -> dict[str, Any]:
+    """Load a deploy profile by id from ``config/deploy/<id>.yaml`` only."""
+
+    profile_id = _validate_deploy_profile_id(profile)
+    path = _deploy_profile_path(profile_id)
     if not path.is_file():
-        raise FileNotFoundError(f"deploy profile not found: {profile!r} (looked at {path})")
+        raise FileNotFoundError(f"deploy profile not found: {profile_id!r} (looked at {path})")
     obj = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(obj, Mapping):
         raise ValueError("deploy profile must be a mapping")
     if obj.get("schema") != DEPLOY_PROFILE_SCHEMA:
         raise ValueError(f"unexpected deploy profile schema: {obj.get('schema')!r}")
+    if obj.get("profile_id") != profile_id:
+        raise ValueError(
+            f"deploy profile id mismatch: requested {profile_id!r}, "
+            f"loaded {obj.get('profile_id')!r}"
+        )
     return dict(obj)
 
 
