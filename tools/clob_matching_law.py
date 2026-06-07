@@ -8,13 +8,18 @@ This module is an INDEPENDENT re-derivation of that law over the OUTPUT of the
 live matcher ``src/core/clob_matching.apply_order``. It does NOT call the matcher;
 it checks the matcher's result against the law using only the canonical priority
 key (``src/state/clob_book.order_priority_key``) and the crossing predicate
-(``src/core/clob_matching.crosses``). So a green check is an independent,
-bounded corroboration that the live matcher honors price-time priority -- the
-dual-checker discipline (production matcher vs. this re-derivation). The eventual
-RISC0 guest must prove the SAME law against the same priority key.
+(``src/core/clob_matching.crosses``). So a green check is an independent, bounded
+corroboration that the live matcher honors price-time priority in BOTH fill
+SELECTION (no higher-priority eligible maker skipped) and fill ORDER (fills
+emitted best-priority-first) -- the dual-checker discipline (production matcher
+vs. this re-derivation). The eventual RISC0 guest must prove the SAME law against
+the same priority key.
 
 Scope (Stage 2 initial): one market, limit orders, price-time priority, bounded
-event batches, no hidden order types.
+event batches, no hidden order types. This checker covers ONLY the priority law
+(selection + order); it does NOT check post-book root, quote rounding/fees, or
+per-asset conservation -- those are separate obligations (clob_matching's own
+conservation path + the orderbook replay root).
 """
 from __future__ import annotations
 
@@ -50,6 +55,20 @@ def verify_no_priority_skip(
     for oid, total in filled_base.items():
         if total > by_id[oid].base_qty:
             return f"maker {oid} over-filled: {total} > pre-match base_qty {by_id[oid].base_qty}"
+
+    # Receipt-ORDER price-time priority: fills must be emitted best-priority-first.
+    # A higher-priority maker filled AFTER a lower-priority one is a chronological
+    # priority violation even when both end fully consumed -- an aggregate/set-only
+    # check would miss it (Codex review 2026-06-06, finding #1).
+    prev_key = None
+    for f in accepted.fills:
+        k = order_priority_key(by_id[f.maker_order_id])
+        if prev_key is not None and k < prev_key:
+            return (
+                f"fill-order priority violation: maker {f.maker_order_id} key={k} was filled "
+                f"after a strictly-lower-priority maker key={prev_key}"
+            )
+        prev_key = k
 
     # Eligible makers = opposite side AND crossing the taker, from the PRE-match book.
     crossing = [o for o in book_before.orders if o.side is not taker.side and crosses(taker, o)]

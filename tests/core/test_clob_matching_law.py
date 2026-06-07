@@ -113,8 +113,9 @@ def test_law_holds_over_seeded_random_books():
         if isinstance(res, ClobMatchAccepted):
             violation = verify_no_priority_skip(book, taker, res)
             assert violation is None, violation
-            checked += 1
-    assert checked > 50  # the sweep genuinely exercised accepted matches
+            if res.fills:  # count matches that actually FILLED, not zero-fill rests
+                checked += 1
+    assert checked > 50  # the sweep genuinely exercised accepted matches WITH fills
 
 
 # --- Non-vacuity teeth: a wrong accepted match MUST be caught ------------------
@@ -133,6 +134,27 @@ def test_teeth_priority_skip_is_caught():
     forged = ClobMatchAccepted(book=real.book, fills=(forged_fill,), resting_taker_qty=real.resting_taker_qty)
     violation = verify_no_priority_skip(book, taker, forged)
     assert violation is not None and "priority skip" in violation, violation
+
+
+def test_teeth_out_of_priority_order_fill_is_caught():
+    # Both makers cross and the real match fills both fully (in priority order).
+    # Forge a result that fills the SAME set but in the WRONG order (lower-priority
+    # oid 2 first) -- an aggregate/set-only check would pass it; the fill-ORDER
+    # check must catch it. (Codex review 2026-06-06, finding #1.)
+    book = ClobBook(base_asset=BASE, quote_asset=QUOTE, orders=(
+        mk(ClobSide.SELL, 100, 5, seq=1, oid_n=1, owner_tag="aa"),   # higher priority
+        mk(ClobSide.SELL, 101, 5, seq=2, oid_n=2, owner_tag="bb"),
+    ))
+    taker = mk(ClobSide.BUY, 101, 10, seq=10, oid_n=99, owner_tag="cc")
+    real = _accepted(book, taker)
+    assert verify_no_priority_skip(book, taker, real) is None
+    assert len(real.fills) == 2  # both makers filled in priority order
+
+    forged = ClobMatchAccepted(
+        book=real.book, fills=tuple(reversed(real.fills)), resting_taker_qty=real.resting_taker_qty
+    )
+    violation = verify_no_priority_skip(book, taker, forged)
+    assert violation is not None and "fill-order" in violation, violation
 
 
 def test_teeth_overfill_is_caught():
