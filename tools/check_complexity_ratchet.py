@@ -2,9 +2,10 @@
 """Ratchet Python cyclomatic complexity and function-size metrics.
 
 This checker intentionally supports a non-blocking migration path from the
-legacy baseline to a strict high-assurance budget. It fails when current metrics
-exceed the committed baseline, so complexity cannot silently grow while teams
-burn down existing hotspots.
+legacy baseline to a strict high-assurance budget. It fails when existing
+function metrics exceed the committed baseline or when new functions exceed the
+strict budget, so complexity cannot silently grow while teams burn down existing
+hotspots.
 """
 
 from __future__ import annotations
@@ -25,8 +26,6 @@ DEFAULT_LINE_BUDGET = 60
 @dataclass(frozen=True)
 class FunctionMetric:
     path: str
-    qualname: str
-    metric_id: str
     name: str
     line_start: int
     line_end: int
@@ -46,6 +45,7 @@ class ComplexitySummary:
     max_function_lines: int
     top_complexity: list[FunctionMetric]
     top_lines: list[FunctionMetric]
+    functions: dict[str, FunctionMetric]
 
 
 class ComplexityVisitor(ast.NodeVisitor):
@@ -58,23 +58,20 @@ class ComplexityVisitor(ast.NodeVisitor):
     - Postcondition: a straight-line function has complexity 1.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, root: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        self.root = root
         self.complexity = 1
-        self._inside_nested_function = False
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
-        if self._inside_nested_function:
-            return
-        self._inside_nested_function = True
-        self.generic_visit(node)
-        self._inside_nested_function = False
+        if node is self.root:
+            self.generic_visit(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:  # noqa: N802
-        if self._inside_nested_function:
-            return
-        self._inside_nested_function = True
-        self.generic_visit(node)
-        self._inside_nested_function = False
+        if node is self.root:
+            self.generic_visit(node)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:  # noqa: N802
+        return
 
     def visit_If(self, node: ast.If) -> None:  # noqa: N802
         self.complexity += 1
@@ -106,49 +103,16 @@ class ComplexityVisitor(ast.NodeVisitor):
         self.complexity += 1
         self.generic_visit(node)
 
+    def visit_Match(self, node: ast.Match) -> None:  # noqa: N802
+        self.complexity += len(node.cases)
+        self.generic_visit(node)
+
     def visit_comprehension(self, node: ast.comprehension) -> None:
         self.complexity += 1 + len(node.ifs)
         self.generic_visit(node)
 
 
-def _python_files(paths: Sequence[Path]) -> list[Path]:
-    files: list[Path] = []
-    for path in paths:
-        if path.is_file() and path.suffix == ".py":
-            files.append(path)
-            continue
-        if path.is_dir():
-            files.extend(sorted(path.rglob("*.py")))
-    return sorted(set(files))
-
-
-def _function_metric(
-    path: Path, node: ast.FunctionDef | ast.AsyncFunctionDef, *, qualname: str
-) -> FunctionMetric:
-    visitor = ComplexityVisitor()
-    visitor.visit(node)
-    end_line = getattr(node, "end_lineno", node.lineno)
-    path_text = path.as_posix()
-    return FunctionMetric(
-        path=path_text,
-        qualname=qualname,
-        metric_id=f"{path_text}::{qualname}@{node.lineno}",
-        name=node.name,
-        line_start=node.lineno,
-        line_end=end_line,
-        complexity=visitor.complexity,
-        lines=end_line - node.lineno + 1,
-    )
-
-
-class FunctionMetricCollector(ast.NodeVisitor):
-    """Collect function metrics with qualified names.
-
-    REVIEW [B -> A-]: the first ratchet compared only aggregate maxima/counts.
-    That missed regressions inside existing hotspots. Qualified per-function
-    identities make those hotspots independently ratcheted.
-    """
-
+class FunctionCollector(ast.NodeVisitor):
     def __init__(self, path: Path) -> None:
         self.path = path
         self.scope: list[str] = []
@@ -167,10 +131,35 @@ class FunctionMetricCollector(ast.NodeVisitor):
 
     def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         qualname = ".".join([*self.scope, node.name])
-        self.metrics.append(_function_metric(self.path, node, qualname=qualname))
+        self.metrics.append(_function_metric(self.path, node, qualname))
         self.scope.append(node.name)
         self.generic_visit(node)
         self.scope.pop()
+
+
+def _python_files(paths: Sequence[Path]) -> list[Path]:
+    files: list[Path] = []
+    for path in paths:
+        if path.is_file() and path.suffix == ".py":
+            files.append(path)
+            continue
+        if path.is_dir():
+            files.extend(sorted(path.rglob("*.py")))
+    return sorted(set(files))
+
+
+def _function_metric(path: Path, node: ast.FunctionDef | ast.AsyncFunctionDef, name: str) -> FunctionMetric:
+    visitor = ComplexityVisitor(node)
+    visitor.visit(node)
+    end_line = getattr(node, "end_lineno", node.lineno)
+    return FunctionMetric(
+        path=path.as_posix(),
+        name=name,
+        line_start=node.lineno,
+        line_end=end_line,
+        complexity=visitor.complexity,
+        lines=end_line - node.lineno + 1,
+    )
 
 
 def collect_function_metrics(paths: Sequence[Path]) -> tuple[int, list[FunctionMetric]]:
@@ -178,7 +167,7 @@ def collect_function_metrics(paths: Sequence[Path]) -> tuple[int, list[FunctionM
     files = _python_files(paths)
     for path in files:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=path.as_posix())
-        collector = FunctionMetricCollector(path)
+        collector = FunctionCollector(path)
         collector.visit(tree)
         metrics.extend(collector.metrics)
     return len(files), metrics
@@ -186,6 +175,21 @@ def collect_function_metrics(paths: Sequence[Path]) -> tuple[int, list[FunctionM
 
 def _top(metrics: Iterable[FunctionMetric], *, key: str, count: int) -> list[FunctionMetric]:
     return sorted(metrics, key=lambda metric: (getattr(metric, key), metric.path), reverse=True)[:count]
+
+
+def _metric_base_key(metric: FunctionMetric) -> str:
+    return f"{metric.path}::{metric.name}"
+
+
+def _function_map(metrics: Iterable[FunctionMetric]) -> dict[str, FunctionMetric]:
+    functions: dict[str, FunctionMetric] = {}
+    seen: dict[str, int] = {}
+    for metric in metrics:
+        base_key = _metric_base_key(metric)
+        seen[base_key] = seen.get(base_key, 0) + 1
+        key = base_key if seen[base_key] == 1 else f"{base_key}#{seen[base_key]}"
+        functions[key] = metric
+    return functions
 
 
 def summarize(
@@ -209,34 +213,17 @@ def summarize(
         max_function_lines=max((metric.lines for metric in metrics), default=0),
         top_complexity=_top(metrics, key="complexity", count=top_count),
         top_lines=_top(metrics, key="lines", count=top_count),
+        functions=_function_map(metrics),
     )
 
 
 def _summary_to_json(summary: ComplexitySummary) -> dict[str, object]:
     data = asdict(summary)
-    data["schema"] = "zenodex/complexity-ratchet/v1"
-    return data
-
-
-def _protected_metrics(metrics: Iterable[FunctionMetric], *, summary: ComplexitySummary) -> list[FunctionMetric]:
-    """Return functions that must never worsen under the legacy ratchet.
-
-    A function is protected once it already exceeds either budget. New functions
-    are still allowed only when they stay within both budgets.
-    """
-    return sorted(
-        (
-            metric
-            for metric in metrics
-            if metric.complexity > summary.complexity_budget or metric.lines > summary.line_budget
-        ),
-        key=lambda metric: metric.metric_id,
-    )
-
-
-def _report_to_json(summary: ComplexitySummary, metrics: list[FunctionMetric]) -> dict[str, object]:
-    data = _summary_to_json(summary)
-    data["protected_functions"] = [asdict(metric) for metric in _protected_metrics(metrics, summary=summary)]
+    data["functions"] = {
+        key: {"complexity": metric.complexity, "lines": metric.lines}
+        for key, metric in summary.functions.items()
+    }
+    data["schema"] = "zenodex/complexity-ratchet/v2"
     return data
 
 
@@ -244,69 +231,16 @@ def _load_baseline(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _baseline_protected_functions(baseline: dict[str, object]) -> dict[str, dict[str, object]]:
-    raw = baseline.get("protected_functions")
-    if not isinstance(raw, list):
-        return {}
-    out: dict[str, dict[str, object]] = {}
-    for entry in raw:
-        if not isinstance(entry, dict):
-            continue
-        metric_id = entry.get("metric_id")
-        if isinstance(metric_id, str):
-            out[metric_id] = entry
-    return out
+def _metric_budget_from_baseline(key: str, raw: object) -> tuple[int, int] | None:
+    if not isinstance(raw, dict):
+        return None
+    try:
+        return int(raw["complexity"]), int(raw["lines"])
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
-def _int_field(mapping: dict[str, object], key: str, default: int) -> int:
-    value = mapping.get(key)
-    if isinstance(value, int) and not isinstance(value, bool):
-        return value
-    return default
-
-
-def _assert_function_metrics_not_worse(
-    metrics: list[FunctionMetric], summary: ComplexitySummary, baseline: dict[str, object]
-) -> list[str]:
-    errors: list[str] = []
-    baseline_by_id = _baseline_protected_functions(baseline)
-    current_by_id = {metric.metric_id: metric for metric in metrics}
-
-    for metric_id, baseline_metric in sorted(baseline_by_id.items()):
-        current = current_by_id.get(metric_id)
-        if current is None:
-            continue
-        allowed_complexity = _int_field(baseline_metric, "complexity", current.complexity)
-        allowed_lines = _int_field(baseline_metric, "lines", current.lines)
-        if current.complexity > allowed_complexity:
-            errors.append(
-                f"{metric_id} complexity worsened: "
-                f"current={current.complexity} baseline={allowed_complexity}"
-            )
-        if current.lines > allowed_lines:
-            errors.append(
-                f"{metric_id} lines worsened: current={current.lines} baseline={allowed_lines}"
-            )
-
-    for metric in metrics:
-        if metric.metric_id in baseline_by_id:
-            continue
-        if metric.complexity > summary.complexity_budget:
-            errors.append(
-                f"{metric.metric_id} is a new over-complexity function: "
-                f"current={metric.complexity} budget={summary.complexity_budget}"
-            )
-        if metric.lines > summary.line_budget:
-            errors.append(
-                f"{metric.metric_id} is a new oversized function: "
-                f"current={metric.lines} budget={summary.line_budget}"
-            )
-    return errors
-
-
-def _assert_not_worse(
-    summary: ComplexitySummary, metrics: list[FunctionMetric], baseline: dict[str, object]
-) -> list[str]:
+def _assert_not_worse(summary: ComplexitySummary, baseline: dict[str, object]) -> list[str]:
     checks = {
         "max_complexity": summary.max_complexity,
         "over_complexity_budget_count": summary.over_complexity_budget_count,
@@ -315,13 +249,47 @@ def _assert_not_worse(
     }
     errors: list[str] = []
     for key, current in checks.items():
-        allowed = _int_field(baseline, key, current)
+        allowed = int(baseline.get(key, current))
         if current > allowed:
             errors.append(f"{key} worsened: current={current} baseline={allowed}")
-    if "protected_functions" not in baseline:
-        errors.append("baseline missing protected_functions per-function ratchet")
-    else:
-        errors.extend(_assert_function_metrics_not_worse(metrics, summary, baseline))
+
+    baseline_functions_raw = baseline.get("functions")
+    if not isinstance(baseline_functions_raw, dict):
+        errors.append("baseline is missing per-function metrics; regenerate the complexity baseline")
+        return errors
+
+    baseline_functions: dict[str, tuple[int, int]] = {}
+    for key, value in baseline_functions_raw.items():
+        budget = _metric_budget_from_baseline(key, value)
+        if budget is None:
+            errors.append(f"baseline function metric is malformed: {key}")
+            continue
+        baseline_functions[str(key)] = budget
+
+    for key, current in summary.functions.items():
+        previous = baseline_functions.get(key)
+        if previous is None:
+            if current.complexity > summary.complexity_budget:
+                errors.append(
+                    "new function exceeds complexity budget: "
+                    f"{key} current={current.complexity} budget={summary.complexity_budget}"
+                )
+            if current.lines > summary.line_budget:
+                errors.append(
+                    "new function exceeds line budget: "
+                    f"{key} current={current.lines} budget={summary.line_budget}"
+                )
+            continue
+        previous_complexity, previous_lines = previous
+        if current.complexity > previous_complexity:
+            errors.append(
+                f"{key} complexity worsened: current={current.complexity} "
+                f"baseline={previous_complexity}"
+            )
+        if current.lines > previous_lines:
+            errors.append(
+                f"{key} length worsened: current={current.lines} baseline={previous_lines}"
+            )
     return errors
 
 
@@ -350,6 +318,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--write-baseline", action="store_true")
     parser.add_argument("--strict", action="store_true")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--allow-empty", action="store_true")
     return parser.parse_args()
 
 
@@ -363,9 +332,16 @@ def main() -> int:
         line_budget=args.line_budget,
         top_count=args.top,
     )
-    data = _report_to_json(summary, metrics)
+    data = _summary_to_json(summary)
+    empty_errors: list[str] = []
+    if not args.allow_empty and (file_count == 0 or not metrics):
+        empty_errors.append("scan found no Python functions; pass --allow-empty to permit this")
 
     if args.write_baseline:
+        if empty_errors:
+            for error in empty_errors:
+                print(f"ERROR: {error}")
+            return 2
         args.baseline.parent.mkdir(parents=True, exist_ok=True)
         args.baseline.write_text(
             json.dumps(data, indent=2, sort_keys=True) + "\n",
@@ -377,8 +353,9 @@ def main() -> int:
     errors = (
         _assert_strict(summary)
         if args.strict
-        else _assert_not_worse(summary, metrics, _load_baseline(args.baseline))
+        else _assert_not_worse(summary, _load_baseline(args.baseline))
     )
+    errors = [*empty_errors, *errors]
     if args.json:
         print(json.dumps({**data, "ok": not errors, "errors": errors}, indent=2, sort_keys=True))
     else:

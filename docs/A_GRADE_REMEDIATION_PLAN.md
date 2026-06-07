@@ -19,8 +19,9 @@ mainnet-grade trust minimization.
 ## Phase 0: Easy, High-Impact Wins
 
 1. **Install a complexity ratchet.** The new `tools/check_complexity_ratchet.py`
-   blocks complexity regressions against the committed baseline while allowing a
-   controlled burn-down of legacy hotspots.
+   blocks per-function complexity and length regressions against the committed
+   baseline while allowing a controlled burn-down of legacy hotspots. New
+   functions must meet the strict A-grade budgets immediately.
 2. **Gate it in production readiness.** `tools/prod_gate.sh` now runs the
    complexity ratchet before proof and test lanes, so new production candidates
    cannot silently increase complexity debt.
