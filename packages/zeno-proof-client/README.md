@@ -23,6 +23,12 @@ trusting the builder. This SDK is what the wallet runs:
 - **Wallet sync state transitions**: monotonic height, no chain-id drift,
   same-height drift rejection, rollback rejection. Modeled in TLA+ at
   `formal/tla/ZenoSdkWalletSyncCheckpoint.tla`.
+- **ZK posture parsing**: normalizes authenticated local-testnet or
+  checkpoint-adjacent proof status into `strict`, `fixture`, `fallback`,
+  `open`, or `rejected` so clients can display proof state without treating
+  fallback or fixture modes as production security claims. This parser checks
+  field shape and cross-field consistency; it does not authenticate the status
+  source by itself.
 
 ## Install
 
@@ -36,32 +42,37 @@ policy.
 
 ## Usage
 
-### Default (trust builder BLS verification)
+### Default (independent BLS plus caller-pinned anchors)
 
-The default mode verifies bundle shape, hash binding, header-chain replay, and
-range-summary binding, then trusts the Python builder's BLS quorum
-verification. Suitable when the bundle source is already trusted for quorum
-checking.
+The default mode verifies bundle shape, hash binding, header-chain replay,
+range-summary binding, the caller-pinned previous-header root, the caller-pinned
+signer-registry hash, and the BLS quorum. The previous-header and registry
+anchors must come from local trust state or a separately verified pinset.
 
 ```js
 import { verifyBrowserCheckpointBundleV0 } from '@zenodex/proof-client';
 
-const report = await verifyBrowserCheckpointBundleV0(bundle);
+const report = await verifyBrowserCheckpointBundleV0(bundle, {
+  expectedTrustedPrevHeaderHash: trustedPrevHeaderHash,
+  expectedSignerRegistryHash: signerRegistryHash,
+});
 if (!report.ok) throw new Error(report.gaps.join('; '));
 console.log(`Verified bundle for ${report.chain_id} at height ${report.height}`);
 ```
 
-### Independent BLS verification (no builder trust)
+### Explicit builder-BLS trust mode
 
-Opt in to in-browser cryptographic verification of every envelope:
+Use this only for fixtures or deployments that already trust the bundle builder
+for quorum checking. The trust anchors are still caller-pinned.
 
 ```js
 const report = await verifyBrowserCheckpointBundleV0(bundle, {
-  requireIndependentBls: true,
+  trustBuilderBls: true,
+  expectedTrustedPrevHeaderHash: trustedPrevHeaderHash,
+  expectedSignerRegistryHash: signerRegistryHash,
 });
 if (!report.ok) throw new Error(report.gaps.join('; '));
-// report.browser_bls_quorum_verified === true
-// report.browser_bls_accepted_weight  === <accepted weight>
+// report.status === 'accepted_with_builder_bls_trust'
 ```
 
 ### Wallet sync
@@ -73,11 +84,29 @@ const advance = await advanceWalletSyncStateV0({
   currentState,
   bundle: newBundle,
   surface: 'zusd',
-  requireIndependentBls: true,
+  expectedTrustedPrevHeaderHash: trustedPrevHeaderHash,
+  expectedSignerRegistryHash: signerRegistryHash,
 });
 if (!advance.ok) throw new Error(advance.gaps.join('; '));
 const next = advance.state; // ready to persist
 ```
+
+### ZK posture parsing
+
+```js
+import { parseZkProofStatusV0 } from '@zenodex/proof-client';
+
+const posture = parseZkProofStatusV0(localTestnetStatus.zk_posture);
+if (!posture.ok) throw new Error(posture.gaps.join('; '));
+if (posture.proof_mode !== 'strict' || !posture.can_make_production_security_claim) {
+  // Block governance/tokenomics approval and show the resolved mode.
+}
+```
+
+Only call this on status carried by a trusted local endpoint or a separately
+verified checkpoint bundle. A server-provided posture object is not proof by
+itself. The parser never promotes a self-reported `production_security_claim`
+into a production security claim by itself.
 
 ### Direct envelope verification (advanced)
 

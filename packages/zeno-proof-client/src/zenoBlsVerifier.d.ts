@@ -12,21 +12,31 @@ export function stableStringify(value: unknown): string;
 export function hashV0(domain: string, value: unknown | Uint8Array): Promise<string>;
 
 export interface VerifyBundleOptions {
+  /** Header hash/root the first bundle header must extend. This must come from caller trust state, not the bundle. */
+  expectedTrustedPrevHeaderHash: string;
+  /** Pinned signer-registry hash expected by the caller. This must not be learned from the same bundle. */
+  expectedSignerRegistryHash: string;
   /**
    * When true, every BLS envelope is cryptographically verified in-browser
    * using `@noble/curves`. The browser no longer needs to trust the builder's
    * `python_bls_quorum_verified` flag.
    */
   requireIndependentBls?: boolean;
+  /** Explicit weaker mode for fixtures or already trusted builders. */
+  trustBuilderBls?: boolean;
 }
 
 export interface VerifyBundleSuccess {
   ok: true;
-  status: 'accepted';
+  status: 'accepted' | 'accepted_with_builder_bls_trust';
+  trust_model: 'independent_bls' | 'builder_bls_claim';
   bundle_hash: string;
   chain_id: string;
   height: number;
   checkpoint_hash: string;
+  target_header_hash: string;
+  trusted_prev_header_hash: string;
+  signer_registry_hash: string;
   browser_range_replay_verified: true;
   browser_range_last_header_hash: string;
   browser_bls_quorum_verified: boolean;
@@ -56,7 +66,9 @@ export interface WalletSyncState {
   chain_id: string;
   height: number;
   app_hash: string;
+  target_header_hash: string;
   checkpoint_hash: string;
+  signer_registry_hash: string;
   bundle_hash: string;
   updated_at_ms: number;
   state_hash: string;
@@ -68,6 +80,9 @@ export interface AdvanceWalletSyncStateOptions {
   surface?: string;
   updatedAtMs?: number;
   requireIndependentBls?: boolean;
+  trustBuilderBls?: boolean;
+  expectedTrustedPrevHeaderHash?: string | null;
+  expectedSignerRegistryHash?: string | null;
 }
 
 export interface AdvanceWalletSyncStateSuccess {
