@@ -29,6 +29,10 @@ def _minimal_request(**overrides: object) -> dict[str, object]:
     return request
 
 
+def _project_quote_path(payload: object) -> list[list[object]] | None:
+    return None
+
+
 def test_unknown_many_pool_contract_route_is_not_handled() -> None:
     writes, write_json = _capture()
 
@@ -36,6 +40,7 @@ def test_unknown_many_pool_contract_route_is_not_handled() -> None:
         path="/api/dex/quote_exact_out_many_pool",
         obj=_minimal_request(),
         parse_pools=lambda: {},
+        project_quote_path=_project_quote_path,
         write_json=write_json,
     )
 
@@ -56,6 +61,7 @@ def test_many_pool_contract_route_rejects_bool_integer_field_after_pool_parse() 
         path="/api/dex/build_exact_out_many_pool_candidate_domain_contract",
         obj=_minimal_request(max_legs=True),
         parse_pools=parse_pools,
+        project_quote_path=_project_quote_path,
         write_json=write_json,
     )
 
@@ -74,6 +80,7 @@ def test_many_pool_contract_route_preserves_pool_parse_error_precedence() -> Non
         path="/api/dex/build_exact_out_many_pool_candidate_domain_contract",
         obj=_minimal_request(max_legs=True),
         parse_pools=parse_pools,
+        project_quote_path=_project_quote_path,
         write_json=write_json,
     )
 
@@ -97,8 +104,24 @@ def test_many_pool_quote_route_rejects_bool_integer_field_after_pool_parse() -> 
         path="/api/dex/quote_exact_out_many_pool_repaired_selected_domain",
         obj=_minimal_request(max_iters=False),
         parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
         write_json=write_json,
     )
 
     assert handled is True
     assert writes == [(400, {"ok": False, "error": "bad_max_iters"})]
+
+
+def test_many_pool_advisory_quote_route_rejects_bool_integer_field_after_pool_parse() -> None:
+    writes, write_json = _capture()
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/quote_exact_out_many_pool_repaired_advisory",
+        obj=_minimal_request(max_candidates=True),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_candidates"})]

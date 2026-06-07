@@ -3559,6 +3559,7 @@ class _Handler(BaseHTTPRequestHandler):
             path=path,
             obj=obj,
             parse_pools=_parse_pools,
+            project_quote_path=_projected_path_from_exact_out_quote_payload,
             write_json=lambda status, payload: self._write_json(
                 status,
                 payload,
@@ -3566,113 +3567,6 @@ class _Handler(BaseHTTPRequestHandler):
             ),
         ):
             return True
-
-        if path == "/api/dex/quote_exact_out_many_pool_repaired_advisory":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_REPAIRED_ADVISORY_QUOTE_PACKET_SCHEMA,
-                    quote_exact_out_many_pool_repaired_advisory,
-                )
-
-                quote, err, packet = quote_exact_out_many_pool_repaired_advisory(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                runtime_quote_payload = packet.to_dict()["runtime_quote"]
-                advisory_quote_payload = packet.to_dict()["advisory_quote"]
-                repaired_projection_cover = packet.to_dict()["projection_cover_audit"]
-                runtime_projected_path = _projected_path_from_exact_out_quote_payload(runtime_quote_payload)
-                advisory_projected_path = _projected_path_from_exact_out_quote_payload(advisory_quote_payload)
-                repaired_canonical_projected_path = (
-                    None
-                    if repaired_projection_cover is None
-                    else repaired_projection_cover["canonical_quote_projected_path"]
-                )
-                payload = {
-                    "ok": bool(quote is not None),
-                    "packet": packet.to_dict(),
-                    "packet_schema": EXACT_OUT_MANY_POOL_REPAIRED_ADVISORY_QUOTE_PACKET_SCHEMA,
-                    "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_repaired_advisory_quote_packet",
-                    "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_repaired_advisory_quote_packet",
-                    "runtime_quote": runtime_quote_payload,
-                    "runtime_matches_advisory": bool(packet.runtime_matches_advisory),
-                    "runtime_projected_path": runtime_projected_path,
-                    "advisory_projected_path": advisory_projected_path,
-                    "repaired_projection_cover_available": bool(repaired_projection_cover is not None),
-                    "repaired_projection_cover_holds": (
-                        None if repaired_projection_cover is None else bool(repaired_projection_cover["projection_cover_holds"])
-                    ),
-                    "repaired_canonical_projected_path": repaired_canonical_projected_path,
-                    "effective_projection_cover_side": "repaired" if quote is not None else None,
-                    "effective_projection_cover_holds": (
-                        None if repaired_projection_cover is None else bool(repaired_projection_cover["projection_cover_holds"])
-                    ),
-                    "effective_canonical_projected_path": repaired_canonical_projected_path,
-                    "effective_quote_projected_path": advisory_projected_path,
-                    "effective_quote_matches_canonical_projected_path": (
-                        None
-                        if advisory_projected_path is None or repaired_canonical_projected_path is None
-                        else bool(advisory_projected_path == repaired_canonical_projected_path)
-                    ),
-                }
-                if quote is not None:
-                    payload["quote"] = advisory_quote_payload
-                else:
-                    payload["error"] = str(err or "many_pool_repaired_prefilter_contract_not_ok")
-                self._write_json(200, payload, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "quote_exact_out_many_pool_repaired_advisory_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
 
         if path == "/api/dex/quote_exact_out_many_pool_repaired_full_domain_certified":
             try:

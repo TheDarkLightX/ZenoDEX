@@ -6,7 +6,9 @@ from typing import Any, Callable
 
 WriteJson = Callable[[int, object], None]
 ParsePools = Callable[[], dict[str, Any]]
-RouteHandler = Callable[[dict[str, object], ParsePools, WriteJson], None]
+ProjectQuotePath = Callable[[object], list[list[object]] | None]
+RouteHandler = Callable[[dict[str, object], ParsePools, ProjectQuotePath, WriteJson], None]
+SimpleRouteHandler = Callable[[dict[str, object], ParsePools, WriteJson], None]
 
 _CANDIDATE_DOMAIN_ENDPOINT = "/api/dex/build_exact_out_many_pool_candidate_domain_contract"
 _PREFILTER_ENDPOINT = "/api/dex/build_exact_out_many_pool_prefilter_contract"
@@ -15,6 +17,7 @@ _REPAIRED_SELECTED_DOMAIN_ENDPOINT = (
     "/api/dex/build_exact_out_many_pool_repaired_selected_domain_oracle_contract"
 )
 _REPAIRED_SELECTED_DOMAIN_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_repaired_selected_domain"
+_REPAIRED_ADVISORY_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_repaired_advisory"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -341,24 +344,132 @@ def _handle_repaired_selected_domain_quote(
         )
 
 
-def maybe_handle_exact_out_many_pool_route(
+def _repaired_advisory_quote_payload(
     *,
-    path: str,
+    quote: object,
+    err: object,
+    packet_payload: dict[str, object],
+    runtime_projected_path: list[list[object]] | None,
+    advisory_projected_path: list[list[object]] | None,
+) -> dict[str, object]:
+    projection_cover = packet_payload["projection_cover_audit"]
+    payload = {
+        "ok": bool(quote is not None),
+        "packet": packet_payload,
+        "packet_schema": packet_payload["schema"],
+        "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_repaired_advisory_quote_packet",
+        "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_repaired_advisory_quote_packet",
+        "runtime_quote": packet_payload["runtime_quote"],
+        "runtime_matches_advisory": bool(packet_payload["runtime_matches_advisory"]),
+        "runtime_projected_path": runtime_projected_path,
+        "advisory_projected_path": advisory_projected_path,
+    }
+    payload.update(
+        _repaired_advisory_projection_payload(
+            projection_cover=projection_cover,
+            advisory_projected_path=advisory_projected_path,
+            quote_available=quote is not None,
+        )
+    )
+    if quote is not None:
+        payload["quote"] = packet_payload["advisory_quote"]
+    else:
+        payload["error"] = str(err or "many_pool_repaired_prefilter_contract_not_ok")
+    return payload
+
+
+def _repaired_advisory_projection_payload(
+    *,
+    projection_cover: object,
+    advisory_projected_path: list[list[object]] | None,
+    quote_available: bool,
+) -> dict[str, object]:
+    canonical_projected_path = (
+        None if projection_cover is None else projection_cover["canonical_quote_projected_path"]
+    )
+    projection_cover_holds = (
+        None if projection_cover is None else bool(projection_cover["projection_cover_holds"])
+    )
+    return {
+        "repaired_projection_cover_available": bool(projection_cover is not None),
+        "repaired_projection_cover_holds": projection_cover_holds,
+        "repaired_canonical_projected_path": canonical_projected_path,
+        "effective_projection_cover_side": "repaired" if quote_available else None,
+        "effective_projection_cover_holds": projection_cover_holds,
+        "effective_canonical_projected_path": canonical_projected_path,
+        "effective_quote_projected_path": advisory_projected_path,
+        "effective_quote_matches_canonical_projected_path": _projected_path_matches(
+            advisory_projected_path,
+            canonical_projected_path,
+        ),
+    }
+
+
+def _projected_path_matches(
+    actual: list[list[object]] | None,
+    expected: object,
+) -> bool | None:
+    if actual is None or expected is None:
+        return None
+    return bool(actual == expected)
+
+
+def _handle_repaired_advisory_quote(
     obj: dict[str, object],
     parse_pools: ParsePools,
+    project_quote_path: ProjectQuotePath,
     write_json: WriteJson,
+) -> None:
+    try:
+        req = _parse_request(obj, parse_pools, tuple(_MIN_VALUES))
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            quote_exact_out_many_pool_repaired_advisory,
+        )
+
+        quote, err, packet = quote_exact_out_many_pool_repaired_advisory(
+            req.pools,
+            asset_in=req.asset_in,
+            asset_out=req.asset_out,
+            **req.values,
+        )
+        packet_payload = packet.to_dict()
+        payload = _repaired_advisory_quote_payload(
+            quote=quote,
+            err=err,
+            packet_payload=packet_payload,
+            runtime_projected_path=project_quote_path(packet_payload["runtime_quote"]),
+            advisory_projected_path=project_quote_path(packet_payload["advisory_quote"]),
+        )
+        write_json(200, payload)
+    except _BadRequest as exc:
+        _write_bad_request(write_json, exc)
+    except Exception:
+        write_json(
+            400,
+            {"ok": False, "error": "quote_exact_out_many_pool_repaired_advisory_error", "details": "request failed"},
+        )
+
+
+def maybe_handle_exact_out_many_pool_route(
+    *, path: str, obj: dict[str, object], parse_pools: ParsePools,
+    project_quote_path: ProjectQuotePath, write_json: WriteJson
 ) -> bool:
     handler = _ROUTE_HANDLERS.get(path)
     if handler is None:
         return False
-    handler(obj, parse_pools, write_json)
+    handler(obj, parse_pools, project_quote_path, write_json)
     return True
 
 
+def _simple_route(handler: SimpleRouteHandler) -> RouteHandler:
+    return lambda obj, parse_pools, _project_quote_path, write_json: handler(obj, parse_pools, write_json)
+
+
 _ROUTE_HANDLERS: dict[str, RouteHandler] = {
-    _CANDIDATE_DOMAIN_ENDPOINT: _handle_candidate_domain_contract,
-    _PREFILTER_ENDPOINT: _handle_prefilter_contract,
-    _REPAIRED_PREFILTER_ENDPOINT: _handle_repaired_prefilter_contract,
-    _REPAIRED_SELECTED_DOMAIN_ENDPOINT: _handle_repaired_selected_domain_contract,
-    _REPAIRED_SELECTED_DOMAIN_QUOTE_ENDPOINT: _handle_repaired_selected_domain_quote,
+    _CANDIDATE_DOMAIN_ENDPOINT: _simple_route(_handle_candidate_domain_contract),
+    _PREFILTER_ENDPOINT: _simple_route(_handle_prefilter_contract),
+    _REPAIRED_PREFILTER_ENDPOINT: _simple_route(_handle_repaired_prefilter_contract),
+    _REPAIRED_SELECTED_DOMAIN_ENDPOINT: _simple_route(_handle_repaired_selected_domain_contract),
+    _REPAIRED_SELECTED_DOMAIN_QUOTE_ENDPOINT: _simple_route(_handle_repaired_selected_domain_quote),
+    _REPAIRED_ADVISORY_QUOTE_ENDPOINT: _handle_repaired_advisory_quote,
 }
