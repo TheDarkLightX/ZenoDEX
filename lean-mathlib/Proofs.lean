@@ -210,6 +210,7 @@ import Proofs.TwoVenueGovernanceComposition
 import Proofs.UniformBatchClearingV1
 import Proofs.UniformBatchExactOutMinimality
 import Proofs.UniformBatchOptimality
+import Proofs.UnivariateRealAnalysisBridge
 import Proofs.UPBAV2ScoreOrder
 import Proofs.UXAlgorithms
 import Proofs.VaultDustClosure

@@ -176,6 +176,31 @@ Policy note:
 
 ---
 
+## 8) Mathematical proof references (Julia -> Mathlib theorem ladders)
+
+### Univariate Real Analysis
+- Link: https://arxiv.org/abs/2508.19405
+- Why it matters:
+  - Current sourcebook for one-variable limits, derivatives, Taylor polynomials, analytic functions, and integrals.
+  - Useful for shaping restricted theorem statements before proving them in local Mathlib.
+- ZenoDex hooks:
+  - AMM local-jet and original-HODL frontier proofs already use punctured-neighborhood limits and leading coefficients.
+  - Use as a reference lane for Julia discovery -> exact survivor -> Lean theorem -> executable binding when runtime claims are involved.
+- Boundary:
+  - This is not runtime evidence and should not be listed as production assurance without a checked theorem and a live-code binding.
+
+### Complex Analysis and Riemann Surfaces
+- Link: https://arxiv.org/abs/2601.06868
+- Why it matters:
+  - Compute-first complex-analysis path through local models, residues, branch cuts, branched coverings, divisors, Jacobians, theta functions, and algebraic curves.
+- ZenoDex hooks:
+  - Future research lane for algebraic-curve or theta-function mechanism ideas if a concrete ZenoDex surface needs that structure.
+  - Useful now as a discipline reference: explicit examples first, abstraction second.
+- Boundary:
+  - No current consensus or proof-market claim depends on this paper.
+
+---
+
 ## Implementation-derived research questions for ZenoDex (seed list)
 
 1) **Deterministic routing with split execution**:
