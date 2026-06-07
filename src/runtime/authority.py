@@ -78,11 +78,14 @@ TRUSTED_CORE_AUTHORITY_SURFACES = frozenset(
     }
 )
 
-# Public testnet is the shadow-checked Rust-authority soak lane for the trusted
-# core. Every current TCB surface must be present, promoted, and configured as
-# Rust authority with Python shadow. Production-strict intentionally remains
-# all-Python until a later release decision.
-PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES = TRUSTED_CORE_AUTHORITY_SURFACES
+# Public testnet is the shadow-checked Rust-authority soak lane for promoted
+# trusted-core surfaces. Stateful isolated perps remains Python-authoritative
+# rust_shadow until Rust materialization is bounded by the touched accounts
+# instead of the full market account table. Production-strict intentionally
+# remains all-Python until a later release decision.
+PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES = (
+    TRUSTED_CORE_AUTHORITY_SURFACES - frozenset({"perp_stateful"})
+)
 
 
 class AuthorityError(RuntimeError):
@@ -255,7 +258,7 @@ def validate_authority_policy(policy: AuthorityPolicy, *, profile_id: str) -> No
     Under a strict profile (``public-testnet`` or ``production-strict``):
 
     * only trusted-core consensus surfaces may appear in the authority policy;
-    * `public-testnet` must cover every current trusted-core surface with
+    * `public-testnet` must cover every promoted trusted-core surface with
       ``rust_authority_with_python_shadow``;
     * the blanket ``default`` may not be a Rust-authoritative mode (that would
       promote every surface at once, including unshadowed ones);

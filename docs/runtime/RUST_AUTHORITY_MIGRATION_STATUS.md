@@ -229,12 +229,13 @@ golden traces, a real-authority differential (driving `apply_perp_ops`), and Rus
 unit/proptests. `tests/runtime/test_perp_disaster_state.py` adds the **fuzz**
 evidence (≈1.7k randomized cases/run) and the **input-disaster** rows
 (malformed/out-of-domain, overflow/underflow at every parameter bound,
-reject-path parity). The live integration path now enables `perp_stateful:
-rust_authority_with_python_shadow` in `public-testnet`: Rust decides
-accept/reject from the pre-state, the Python shell commits the parsed Rust
-post-market and effect, and the Python handler reruns as the shadow check.
-Any Python/Rust disagreement fails closed before the copied transaction state is
-committed. Unavailable Rust is fatal under this promoted public-testnet lane.
+reject-path parity). The live integration path now keeps `perp_stateful:
+rust_shadow` in `public-testnet`: Python decides accept/reject from the pre-state
+while Rust checks bounded full-market materializations opportunistically.
+Oversized materializations are skipped in shadow mode instead of rejecting live
+transactions. Rust-authoritative perps remains blocked until bounded
+touched-account/page materialization removes the full-account-table availability
+risk.
 Kani now covers the global-only `advance_epoch` and `publish_clearing_price`
 transition cores for totality, phase classifier exactness, accept shapes, and
 reject/accept reachability. It also covers the account-op domain predicate,
@@ -286,21 +287,23 @@ accounts). A live-shadow regression round-trips the actual Rust post-state for a
 deposit and compares it with the Python-committed market. This parser is the
 commit boundary used by the manual authority slices.
 
-The authority-inversion slices are live for all ten isolated ops. The
-public-testnet profile now uses the shadow-checked Rust-authority lane:
-`rust_authority_with_python_shadow` fails closed on Python/Rust post-state
-disagreement. The deposit/withdraw slices also commit the Python wallet-balance
-debit/credit after Rust accepts.
+The authority-inversion slices are implemented for all ten isolated ops, but
+public-testnet keeps stateful perps in Python-authoritative `rust_shadow`. The
+full-market materialized Rust request is still bounded by account-count and byte
+limits, so it is not safe to make Rust authoritative until a touched-account or
+paged materialization removes account-table bloat as an availability risk. The
+deposit/withdraw slices in manual Rust-authority policies commit the Python
+wallet-balance debit/credit after Rust accepts.
 
 Under `rust_shadow`, this is consumed as a check only: the bridge
 (`rust_invoker.perp_isolated_op`) and `perp_engine` compare the **full** Rust
 post-market **and the effect payload** vs Python (`_full_post_markets_agree` +
 `_effects_agree`), failing closed on any state OR effect divergence. Manual
 `rust_authority*` policies use the same materializer as the decision source.
-Accordingly **`perp_stateful` is promoted to
-`rust_authority_with_python_shadow` in `public-testnet` only**. Production-strict
-remains all-Python, and pure `rust_authority` remains blocked by the strict
-profile schema until soak evidence and a future sign-off update.
+Accordingly **`perp_stateful` is not promoted in `public-testnet`** and remains
+`rust_shadow` there. Production-strict remains all-Python, and pure
+`rust_authority` remains blocked by the strict-profile schema until bounded
+materialization, soak evidence, and a future sign-off update.
 Kani 0.60.0 is available.
 The bounded-sink
 funding arithmetic now has exact Kani receipts on heap-free
@@ -370,8 +373,8 @@ Delivered:
 - **Deployment-facts wiring** — `runtime_authority_policy` section added to
   `config/deploy/{local-dev,public-testnet,production-strict}.yaml`. Public
   testnet now promotes `canonical`, `state_root`, `replay_guard`, `balances`,
-  `fee_router`, `zusd`, `burn_receipts`, `cpmm_settlement`, `perp_math`, and
-  `perp_stateful`; production remains all-Python.
+  `fee_router`, `zusd`, `burn_receipts`, `cpmm_settlement`, and `perp_math`;
+  `perp_stateful` remains `rust_shadow`; production remains all-Python.
   `validate_authority_policy` rejects non-trusted-core authority surfaces,
   missing or downgraded public-testnet trusted-core surfaces, half-configured
   Rust authority, pure `rust_authority` under the current strict schema, and a

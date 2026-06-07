@@ -250,11 +250,11 @@ codes). The same test also exercises the generic authority selector over the per
 shadow surface in `rust_authority_with_python_shadow` mode, including fail-closed
 rows for injected disagreement, malformed Rust output, and unavailable Rust.
 `public-testnet` now configures
-`perp_stateful: rust_authority_with_python_shadow`: Rust decides accept/reject
-and emits the full post-market state/effect document, while Python reruns as the
-shadow checker. Any disagreement fails closed before copied transaction state is
-committed. Pure `rust_authority` remains blocked by the strict-profile schema
-until soak evidence and a future sign-off update.
+`perp_stateful: rust_shadow`: Python decides while Rust checks bounded
+full-market materializations opportunistically. Oversized materializations are
+skipped in shadow mode instead of rejecting live account operations. Pure
+`rust_authority` remains blocked by the strict-profile schema until bounded
+materialization, soak evidence, and a future sign-off update.
 
 ## Promotion order (lowest risk first)
 
