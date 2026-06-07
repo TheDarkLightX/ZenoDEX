@@ -8,8 +8,8 @@
 //! `tests/core/test_clob_match_fixture.py`). Does NOT touch `main.rs`.
 
 use tau_state_proof_risc0_shared::clob::{
-    apply_clob_order, clob_fee_rule_hash, clob_matching_rule_hash, ClobBookV1, ClobMatchResultV1,
-    ClobOrderV1,
+    apply_clob_order, clob_event_log_root, clob_fee_rule_hash, clob_matching_rule_hash, ClobBookV1,
+    ClobMatchResultV1, ClobOrderV1,
 };
 
 fn order_from(o: &serde_json::Value) -> ClobOrderV1 {
@@ -65,6 +65,16 @@ fn clob_matcher_matches_python_byte_for_byte() {
             orders,
         );
         let taker = order_from(&case["taker"]);
+
+        // event-log root (a NEW guest-defined encoding) must match the Python
+        // mirror (src/core/clob_journal.clob_event_log_root) -- same drift-bug
+        // class as the rule hashes.
+        assert_eq!(
+            hexstr(&clob_event_log_root(&[&taker]).unwrap()),
+            case["event_log_root"].as_str().unwrap(),
+            "event_log_root for {name}"
+        );
+
         let result = apply_clob_order(&book, &taker).expect("matcher returns ok");
         let expect = &case["result"];
 

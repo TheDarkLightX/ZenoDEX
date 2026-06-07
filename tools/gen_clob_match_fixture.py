@@ -28,6 +28,7 @@ from src.core.clob_matching import (  # noqa: E402
     ClobMatchRejected,
     apply_order,
 )
+from src.core.clob_journal import clob_event_log_root  # noqa: E402
 # The LEDGER's rule-hash constants (the client's accepted_rulebook_hash). The Rust
 # guest's clob_matching_rule_hash()/clob_fee_rule_hash() must reproduce these, or
 # the client rejects every proof (adversarial review 2026-06-07, finding #5).
@@ -74,12 +75,16 @@ def _fill_json(f) -> dict:
 def _case(name: str, makers: list[ClobOrder], taker: ClobOrder) -> dict:
     book = ClobBook(base_asset=BASE, quote_asset=QUOTE, orders=tuple(makers))
     res = apply_order(book, taker)
+    event_root = clob_event_log_root([taker])
     out = {
         "name": name,
         "base_asset": BASE,
         "quote_asset": QUOTE,
         "orders": [_order_json(o) for o in makers],
         "taker": _order_json(taker),
+        # event-log root over the incoming batch (v1: the single taker); the guest
+        # must reproduce this byte-for-byte.
+        "event_log_root": event_root[2:] if event_root.startswith("0x") else event_root,
     }
     if isinstance(res, ClobMatchAccepted):
         root = res.book.state_root()

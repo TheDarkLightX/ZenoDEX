@@ -2,6 +2,7 @@
   "cases": [
     {
       "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "event_log_root": "aa10ca6b81637ba93c3650a6c4ab839027e3491b81afc5f46a90842e14989d20",
       "name": "single_full_fill",
       "orders": [
         {
@@ -42,6 +43,7 @@
     },
     {
       "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "event_log_root": "5475a75df06a8b80d55d04ac4f084bbc10d58c1c0fd0df9f13351c25bd6a16ad",
       "name": "partial_maker_taker_full",
       "orders": [
         {
@@ -82,6 +84,7 @@
     },
     {
       "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "event_log_root": "9b59b33e968eec83f11646b103da910a7d7de9e1b42ffc0ce1ab14717775e462",
       "name": "taker_bigger_leftover_rerests",
       "orders": [
         {
@@ -122,6 +125,7 @@
     },
     {
       "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "event_log_root": "376fe063c1154b72f209096d50a21033d55f54cac323efccbc8beb90f8775e9c",
       "name": "price_priority_multi_fill",
       "orders": [
         {
@@ -198,6 +202,7 @@
     },
     {
       "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "event_log_root": "5475a75df06a8b80d55d04ac4f084bbc10d58c1c0fd0df9f13351c25bd6a16ad",
       "name": "time_priority_same_price",
       "orders": [
         {
@@ -246,6 +251,7 @@
     },
     {
       "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "event_log_root": "aa10ca6b81637ba93c3650a6c4ab839027e3491b81afc5f46a90842e14989d20",
       "name": "no_cross_taker_rests",
       "orders": [
         {
@@ -275,6 +281,7 @@
     },
     {
       "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "event_log_root": "aa10ca6b81637ba93c3650a6c4ab839027e3491b81afc5f46a90842e14989d20",
       "name": "self_trade_reject",
       "orders": [
         {
@@ -302,6 +309,7 @@
     },
     {
       "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "event_log_root": "ed87521cd8bd5e57fc362798427a8aa7c1cc8f5bf0320388aea6684bae3824ab",
       "name": "dup_order_id_reject",
       "orders": [
         {
@@ -329,6 +337,7 @@
     },
     {
       "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "event_log_root": "589df6f3462198c448b3f1d7fe3888390ca4c80aa0fe77b0b79361ab5b97ccc5",
       "name": "partial_cross_stop",
       "orders": [
         {
