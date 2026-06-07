@@ -21,6 +21,11 @@ def test_lean_jmt_keystone_binding_typechecks_without_placeholders() -> None:
     source = (lean_dir / target).read_text(encoding="utf-8")
     assert "theorem rootAux_perm" in source
     assert "theorem rootAux_children_eq_of_injective2" in source
+    assert "theorem rootAux_single_placeholder_eq_empty" in source
+    assert "theorem filter_not_append_filter_perm" in source
+    assert "theorem perm_of_filter_perms" in source
+    assert "current repo has no\n`src/state/jmt.py` artifact" in source
+    assert "Model-level boundary" in source
     for forbidden in ("sorry", "admit", "axiom", "unsafe"):
         assert forbidden not in source
 

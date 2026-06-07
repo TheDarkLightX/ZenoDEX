@@ -1,19 +1,20 @@
 import Mathlib
 
 /-!
-# JMT keystone — root determinism (Mathlib-backed companion to JmtKeystoneSafety)
+# JMT keystone — model-level root determinism
 
-Mechanizes the determinism property of the compact sparse-Merkle root: the root is
-invariant under reordering the same leaf multiset
-(`src/state/jmt.py::_subtree_root` is a pure recursive fold over the supplied leaves;
-`build_leaves` additionally sorts). This is the order-independence the Python
-insertion-order-shuffle tests check, proven here as a `List.Perm` invariance — the
-deferred-from-Init-only result that Mathlib's permutation lemmas make tractable.
+Mechanizes the determinism property expected from the planned canonical
+multi-lane root: the modeled compact sparse-Merkle root is invariant under
+reordering the same leaf multiset. This is the order-independence obligation
+that a future implementation must bind to live code; the current repo has no
+`src/state/jmt.py` artifact.
 
-Model-level (same caveat as `JmtKeystoneSafety`): `rootAux` is hand-transcribed from the
-Python recursion; binding model⇔artifact is J4 (Rust parity). The child combiner
-`combine` (think `internal_hash`) and bit-selector `bit` (think `_bit`) are abstract, so
-determinism holds for *any* deterministic instantiation.
+Model-level boundary: `rootAux` is an abstract tree model for the
+Jellyfish-style root described in `docs/product_discipline/technical_reference_patterns.md`.
+The child combiner `combine` and bit-selector `bit` are abstract, so determinism
+holds for any deterministic instantiation. A production claim still needs a
+live implementation binding, key/hash canonicalization, and concrete hash
+collision assumptions.
 -/
 
 namespace ZenoDex.JmtKeystone.Binding
@@ -121,5 +122,44 @@ theorem rootAux_children_eq_of_injective2
     · exact ⟨c, d, rest2, rfl⟩
   simp only [rootAux] at h
   exact hc h
+
+/-- Negative witness for the remaining `PLACEHOLDER` distinctness obligation:
+if a leaf hash equals the empty-subtree sentinel, a singleton tree is
+indistinguishable from the empty tree in this abstract model. -/
+theorem rootAux_single_placeholder_eq_empty
+    (combine : Hash → Hash → Hash) (bit : List Byte → Nat → Bool)
+    (depth fuel : Nat) (key : List Byte) :
+    rootAux combine bit depth fuel [(key, PLACEHOLDER)] =
+      rootAux combine bit depth fuel [] := by
+  simp [rootAux]
+
+/-- Partition reconstruction: a list is a permutation of its `!q`-filter followed by its
+`q`-filter (the bit-partition decomposition the root-uniqueness lift recombines). -/
+theorem filter_not_append_filter_perm {α : Type} (q : α → Bool) :
+    ∀ l : List α, l.Perm (l.filter (fun x => !q x) ++ l.filter q)
+  | [] => by simp
+  | x :: xs => by
+    have ih := filter_not_append_filter_perm q xs
+    cases hq : q x with
+    | false =>
+      simp only [List.filter_cons, hq, Bool.not_false, if_true, if_false, List.cons_append,
+        Bool.false_eq_true]
+      exact ih.cons x
+    | true =>
+      simp only [List.filter_cons, hq, Bool.not_true, if_true]
+      exact (ih.cons x).trans List.perm_middle.symm
+
+/-- **Recombination step of the root-uniqueness lift.** If the two bit-partition halves of
+`l1` and `l2` are pairwise permutations, then `l1` and `l2` are permutations. Combined with
+`rootAux_children_eq_of_injective2` (which extracts equal child roots) and an induction on
+`fuel`, this is the parent half of full root-uniqueness; the remaining J5b pieces are the
+base-case sentinel/leaf/internal distinctness (cf. `rootAux_single_placeholder_eq_empty`,
+which shows it is genuinely needed) and the leaf-hash↔key binding
+(a future `encode_injective` obligation for the live key/value encoding). -/
+theorem perm_of_filter_perms {α : Type} (q : α → Bool) {l1 l2 : List α}
+    (hnot : (l1.filter (fun x => !q x)).Perm (l2.filter (fun x => !q x)))
+    (hyes : (l1.filter q).Perm (l2.filter q)) : l1.Perm l2 :=
+  (filter_not_append_filter_perm q l1).trans
+    ((hnot.append hyes).trans (filter_not_append_filter_perm q l2).symm)
 
 end ZenoDex.JmtKeystone.Binding
