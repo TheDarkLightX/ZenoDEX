@@ -145,6 +145,14 @@ class _FakeCertifiedAdvisoryPacket:
         }
 
 
+class _FakeBuildPacket:
+    packet_ok = False
+    error = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {"schema": "fake-build-packet", "packet_ok": False}
+
+
 def test_unknown_many_pool_contract_route_is_not_handled() -> None:
     writes, write_json = _capture()
 
@@ -455,3 +463,47 @@ def test_many_pool_certified_advisory_route_failure_payload_contract(monkeypatch
     assert payload["repaired_key_cover_witness_count"] == 7
     assert payload["error"] == "certified_unavailable"
     assert "quote" not in payload
+
+
+def test_many_pool_repaired_advisory_packet_route_rejects_bool_integer_field_after_pool_parse() -> None:
+    writes, write_json = _capture()
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_repaired_advisory_quote_packet",
+        obj=_minimal_request(max_iters=True),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_iters"})]
+
+
+def test_many_pool_repaired_advisory_packet_route_failure_payload_contract(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+
+    def build_rejects(*_args: object, **_kwargs: object) -> _FakeBuildPacket:
+        return _FakeBuildPacket()
+
+    monkeypatch.setattr(
+        "src.integration.exact_out_route_certificate.build_exact_out_many_pool_repaired_advisory_quote_packet",
+        build_rejects,
+    )
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_repaired_advisory_quote_packet",
+        obj=_minimal_request(),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert len(writes) == 1
+    status, payload = writes[0]
+    assert status == 200
+    assert isinstance(payload, dict)
+    assert payload["ok"] is False
+    assert payload["packet"] == {"schema": "fake-build-packet", "packet_ok": False}
+    assert payload["error"] == "many_pool_repaired_prefilter_contract_not_ok"
