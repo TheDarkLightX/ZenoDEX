@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
-  "file_count": 428,
-  "function_count": 5639,
+  "file_count": 429,
+  "function_count": 5649,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 930,
-      "lines": 5317
+      "complexity": 895,
+      "lines": 5077
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
       "complexity": 4,
@@ -9890,6 +9890,46 @@
     "src/integration/api_server_dex_readonly_routes.py::maybe_handle_dex_readonly_route": {
       "complexity": 3,
       "lines": 13
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_BadRequest.__init__": {
+      "complexity": 1,
+      "lines": 3
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_handle_candidate_domain_contract": {
+      "complexity": 3,
+      "lines": 43
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_handle_prefilter_contract": {
+      "complexity": 3,
+      "lines": 33
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_handle_repaired_prefilter_contract": {
+      "complexity": 3,
+      "lines": 52
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_handle_repaired_selected_domain_contract": {
+      "complexity": 3,
+      "lines": 39
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_parse_request": {
+      "complexity": 2,
+      "lines": 14
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_require_asset_pair": {
+      "complexity": 4,
+      "lines": 6
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_require_int": {
+      "complexity": 4,
+      "lines": 5
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_write_bad_request": {
+      "complexity": 1,
+      "lines": 2
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::maybe_handle_exact_out_many_pool_contract_route": {
+      "complexity": 5,
+      "lines": 20
     },
     "src/integration/api_server_settlement_parsers.py::_parse_balance_table_payload": {
       "complexity": 10,
@@ -22561,17 +22601,17 @@
     }
   },
   "line_budget": 60,
-  "max_complexity": 930,
-  "max_function_lines": 5317,
+  "max_complexity": 895,
+  "max_function_lines": 5077,
   "over_complexity_budget_count": 1605,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
     {
-      "complexity": 930,
-      "line_end": 6484,
+      "complexity": 895,
+      "line_end": 6244,
       "line_start": 1168,
-      "lines": 5317,
+      "lines": 5077,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
@@ -22730,10 +22770,10 @@
   ],
   "top_lines": [
     {
-      "complexity": 930,
-      "line_end": 6484,
+      "complexity": 895,
+      "line_end": 6244,
       "line_start": 1168,
-      "lines": 5317,
+      "lines": 5077,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
