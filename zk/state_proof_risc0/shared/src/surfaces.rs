@@ -677,7 +677,7 @@ impl PerpsStateV1 {
                 funding_paid_cum_e8: 0,
                 nonce: 0,
             });
-        if nonce <= account.nonce {
+        if !is_next_nonce(account.nonce, nonce) {
             return Err(TransitionError::InvalidInput("deposit nonce mismatch"));
         }
         account.collateral_e8 =
@@ -710,7 +710,7 @@ impl PerpsStateV1 {
             .get(&pubkey)
             .cloned()
             .ok_or(TransitionError::InvalidInput("withdraw account missing"))?;
-        if nonce <= account.nonce {
+        if !is_next_nonce(account.nonce, nonce) {
             return Err(TransitionError::InvalidInput("withdraw nonce mismatch"));
         }
         if amount_e8 > account.collateral_e8 {
@@ -1582,6 +1582,13 @@ fn is_funding_payer(position_base: i128, rate_bps: i32) -> bool {
         return false;
     }
     (position_base > 0) == (rate_bps > 0)
+}
+
+fn is_next_nonce(last_nonce: u64, nonce: u64) -> bool {
+    // Mirror the live tx-sequence replay layer: gaps are invalid, not merely stale.
+    last_nonce
+        .checked_add(1)
+        .is_some_and(|expected| nonce == expected)
 }
 
 fn match_intents_v1(
@@ -2650,6 +2657,93 @@ mod tests {
                 "zUSD collateral binding missing"
             ))
         ));
+    }
+
+    #[test]
+    fn perps_np_deposit_and_withdraw_require_strict_next_nonce() {
+        let mut state = PerpsStateV1::from_snapshot(PerpsNpSnapshotV1::empty()).unwrap();
+        state
+            .init_market(
+                "BTC-PERP".to_string(),
+                default_zusd_asset(),
+                100 * E8_I128,
+                PerpsMarketParamsV1::default(),
+                1_000_000_000,
+            )
+            .unwrap();
+
+        state
+            .deposit_collateral(
+                "wallet-a".to_string(),
+                default_zusd_asset(),
+                2_000 * E8_I128,
+                1,
+                Some(collateral_binding(10)),
+            )
+            .unwrap();
+
+        let before_gap_deposit_hash = state.canonical_app_hash_sha256();
+        assert!(matches!(
+            state.deposit_collateral(
+                "wallet-a".to_string(),
+                default_zusd_asset(),
+                1,
+                3,
+                Some(collateral_binding(11)),
+            ),
+            Err(TransitionError::InvalidInput("deposit nonce mismatch"))
+        ));
+        assert_eq!(state.canonical_app_hash_sha256(), before_gap_deposit_hash);
+
+        assert!(matches!(
+            state.withdraw_collateral("wallet-a".to_string(), default_zusd_asset(), 1, 3),
+            Err(TransitionError::InvalidInput("withdraw nonce mismatch"))
+        ));
+        assert_eq!(state.canonical_app_hash_sha256(), before_gap_deposit_hash);
+
+        state
+            .withdraw_collateral("wallet-a".to_string(), default_zusd_asset(), 1, 2)
+            .unwrap();
+        let account = state.accounts.get("wallet-a").unwrap();
+        assert_eq!(account.nonce, 2);
+        assert_eq!(account.collateral_e8, 2_000 * E8_I128 - 1);
+    }
+
+    #[test]
+    fn perps_np_rejects_nonce_after_u64_max_without_mutation() {
+        let mut accounts = BTreeMap::new();
+        accounts.insert(
+            "wallet-a".to_string(),
+            PerpsAccountV1 {
+                pubkey: "wallet-a".to_string(),
+                position_base: 0,
+                entry_price_e8: 0,
+                collateral_e8: 2_000 * E8_I128,
+                funding_paid_cum_e8: 0,
+                nonce: u64::MAX,
+            },
+        );
+        let mut state = PerpsStateV1 {
+            market_id: "BTC-PERP".to_string(),
+            collateral_asset: default_zusd_asset(),
+            index_price_e8: 100 * E8_I128,
+            params: PerpsMarketParamsV1::default(),
+            accounts,
+            pending_intents: Vec::new(),
+            now_epoch: 0,
+            fee_pool_e8: 0,
+            insurance_e8: 1_000_000_000,
+            insurance_ext_e8: 1_000_000_000,
+            claims_paid_e8: 0,
+            net_deposited_e8: 2_000 * E8_I128,
+        };
+
+        let before_hash = state.canonical_app_hash_sha256();
+        assert!(matches!(
+            state.withdraw_collateral("wallet-a".to_string(), default_zusd_asset(), 1, u64::MAX),
+            Err(TransitionError::InvalidInput("withdraw nonce mismatch"))
+        ));
+        assert_eq!(state.canonical_app_hash_sha256(), before_hash);
     }
 
     #[test]

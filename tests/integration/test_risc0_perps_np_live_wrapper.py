@@ -6,10 +6,28 @@ import subprocess
 import sys
 from pathlib import Path
 
+from src.state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+
 
 ROOT = Path(__file__).resolve().parents[2]
 WRAPPER = ROOT / "tools" / "proof_verifiers" / "risc0_perps_np_live_wrapper_v1.py"
 SURFACE = "risc0.zenodex_perps_np_transition.v1"
+LIVE_WALLET_SURFACE = "perps_stream8"
+RECEIPT_HASH_DOMAIN = "zenodex.perps_wallet.proof_intent_receipt/v1"
+
+
+def _receipt_hash(body: dict[str, object]) -> str:
+    return sha256_hex(domain_sep_bytes(RECEIPT_HASH_DOMAIN) + canonical_json_bytes(dict(body)))
+
+
+def _refresh_receipt_hash(req: dict[str, object]) -> None:
+    receipt = req["proof_intent_receipt"]
+    assert isinstance(receipt, dict)
+    body = receipt["body"]
+    assert isinstance(body, dict)
+    receipt_hash = _receipt_hash(body)
+    receipt["receipt_hash"] = receipt_hash
+    req["proof_intent_receipt_hash"] = receipt_hash
 
 
 def _request(*, surface: str = SURFACE, action: str = "run_epoch", proof_type: str = SURFACE) -> dict[str, object]:
@@ -24,15 +42,16 @@ def _request(*, surface: str = SURFACE, action: str = "run_epoch", proof_type: s
         "operation_hash": "33" * 32,
         "state_delta_witness_hash": None,
     }
+    receipt_hash = _receipt_hash(body)
     return {
         "schema": "zenodex/live-proof-wrapper-request/v1",
         "surface": surface,
-        "proof_intent_receipt_hash": "receipt-hash",
+        "proof_intent_receipt_hash": receipt_hash,
         "proof_intent_receipt": {
             "schema": "zenodex/perps_wallet/proof_intent_receipt/v1",
             "profile_id": "perps-stream8-risc0-or-equivalent-v1",
             "body": body,
-            "receipt_hash": "receipt-hash",
+            "receipt_hash": receipt_hash,
         },
         "proof": {
             "proof_type": proof_type,
@@ -118,12 +137,21 @@ print('{"ok": true}')
     out = _run(_request(), fake_cli=fake_cli)
     assert out["ok"] is True
     assert out["surface"] == SURFACE
+    assert out["verified_surface"] == SURFACE
     assert out["proof_type"] == SURFACE
     assert out["production_security_claim"] is False
 
 
+def test_risc0_perps_np_wrapper_accepts_live_wallet_surface_alias() -> None:
+    fake_cli = "import json, sys\njson.load(sys.stdin)\nprint('{\"ok\": true}')\n"
+    out = _run(_request(surface=LIVE_WALLET_SURFACE), fake_cli=fake_cli)
+    assert out["ok"] is True
+    assert out["surface"] == LIVE_WALLET_SURFACE
+    assert out["verified_surface"] == SURFACE
+
+
 def test_risc0_perps_np_wrapper_rejects_wrong_surface() -> None:
-    out = _run(_request(surface="perps_stream8"))
+    out = _run(_request(surface="perps_stream9"))
     assert out["ok"] is False
     assert out["error"] == "unsupported live proof-wrapper surface"
 
@@ -138,6 +166,38 @@ def test_risc0_perps_np_wrapper_rejects_non_epoch_action_before_cli_verify() -> 
     out = _run(_request(action="deposit_collateral"))
     assert out["ok"] is False
     assert out["error"] == "RISC0 perps NP proof only covers run_epoch/settle_epoch transitions"
+
+
+def test_risc0_perps_np_wrapper_rejects_missing_receipt_app_hash_bindings() -> None:
+    for field in ("app_hash_before", "app_hash_after"):
+        req = _request()
+        receipt = req["proof_intent_receipt"]
+        assert isinstance(receipt, dict)
+        body = receipt["body"]
+        assert isinstance(body, dict)
+        body[field] = None
+        _refresh_receipt_hash(req)
+
+        out = _run(req, fake_cli="import sys\nraise SystemExit('cli should not run')\n")
+
+        assert out["ok"] is False
+        assert out["error"] == f"proof_intent_receipt.body.{field} must be a non-empty string"
+
+
+def test_risc0_perps_np_wrapper_recomputes_runtime_receipt_hash() -> None:
+    req = _request()
+    receipt = req["proof_intent_receipt"]
+    assert isinstance(receipt, dict)
+    body = receipt["body"]
+    assert isinstance(body, dict)
+    body["operation_hash"] = "44" * 32
+    receipt["receipt_hash"] = "same-bogus-hash"
+    req["proof_intent_receipt_hash"] = "same-bogus-hash"
+
+    out = _run(req, fake_cli="import sys\nraise SystemExit('cli should not run')\n")
+
+    assert out["ok"] is False
+    assert out["error"] == "proof_intent_receipt.receipt_hash mismatch"
 
 
 def test_risc0_perps_np_wrapper_rejects_production_claim() -> None:

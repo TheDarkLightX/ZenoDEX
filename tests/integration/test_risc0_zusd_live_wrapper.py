@@ -6,12 +6,29 @@ import subprocess
 import sys
 from pathlib import Path
 
+from src.state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+
 
 ROOT = Path(__file__).resolve().parents[2]
 WRAPPER = ROOT / "tools" / "proof_verifiers" / "risc0_zusd_live_wrapper_v1.py"
 PROOF_TYPE = "risc0.zenodex_zusd_transition.v1"
 SURFACE = "zusd_stream11"
 OWNER = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+RECEIPT_HASH_DOMAIN = "zenodex.zusd_monetary_wallet.proof_intent_receipt/v1"
+
+
+def _receipt_hash(body: dict[str, object]) -> str:
+    return sha256_hex(domain_sep_bytes(RECEIPT_HASH_DOMAIN) + canonical_json_bytes(dict(body)))
+
+
+def _refresh_receipt_hash(req: dict[str, object]) -> None:
+    receipt = req["proof_intent_receipt"]
+    assert isinstance(receipt, dict)
+    body = receipt["body"]
+    assert isinstance(body, dict)
+    receipt_hash = _receipt_hash(body)
+    receipt["receipt_hash"] = receipt_hash
+    req["proof_intent_receipt_hash"] = receipt_hash
 
 
 def _request(*, surface: str = SURFACE, action: str = "mint_zusd", proof_type: str = PROOF_TYPE) -> dict[str, object]:
@@ -29,15 +46,16 @@ def _request(*, surface: str = SURFACE, action: str = "mint_zusd", proof_type: s
         "nonce_before": 0,
         "nonce_after": 1,
     }
+    receipt_hash = _receipt_hash(body)
     return {
         "schema": "zenodex/live-proof-wrapper-request/v1",
         "surface": surface,
-        "proof_intent_receipt_hash": "receipt-hash",
+        "proof_intent_receipt_hash": receipt_hash,
         "proof_intent_receipt": {
             "schema": "zenodex/zusd_monetary_wallet/proof_intent_receipt/v1",
             "profile_id": "zusd_stream11_live_monetary_v0",
             "body": body,
-            "receipt_hash": "receipt-hash",
+            "receipt_hash": receipt_hash,
         },
         "proof": {
             "proof_type": proof_type,
@@ -145,6 +163,38 @@ def test_risc0_zusd_wrapper_rejects_non_mint_action_before_cli_verify() -> None:
     out = _run(_request(action="repay_zusd"))
     assert out["ok"] is False
     assert out["error"] == "RISC0 zUSD proof only covers mint_zusd"
+
+
+def test_risc0_zusd_wrapper_rejects_missing_receipt_app_hash_bindings() -> None:
+    for field in ("app_hash_before", "app_hash_after"):
+        req = _request()
+        receipt = req["proof_intent_receipt"]
+        assert isinstance(receipt, dict)
+        body = receipt["body"]
+        assert isinstance(body, dict)
+        body[field] = None
+        _refresh_receipt_hash(req)
+
+        out = _run(req, fake_cli="import sys\nraise SystemExit('cli should not run')\n")
+
+        assert out["ok"] is False
+        assert out["error"] == f"proof_intent_receipt.body.{field} must be a non-empty string"
+
+
+def test_risc0_zusd_wrapper_recomputes_runtime_receipt_hash() -> None:
+    req = _request()
+    receipt = req["proof_intent_receipt"]
+    assert isinstance(receipt, dict)
+    body = receipt["body"]
+    assert isinstance(body, dict)
+    body["operation_hash"] = "44" * 32
+    receipt["receipt_hash"] = "same-bogus-hash"
+    req["proof_intent_receipt_hash"] = "same-bogus-hash"
+
+    out = _run(req, fake_cli="import sys\nraise SystemExit('cli should not run')\n")
+
+    assert out["ok"] is False
+    assert out["error"] == "proof_intent_receipt.receipt_hash mismatch"
 
 
 def test_risc0_zusd_wrapper_rejects_production_claim() -> None:

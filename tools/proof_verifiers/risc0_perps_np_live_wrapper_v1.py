@@ -18,9 +18,15 @@ from pathlib import Path
 from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+from src.state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex  # noqa: E402
+
 PROOF_TYPE = "risc0.zenodex_perps_np_transition.v1"
+RECEIPT_HASH_DOMAIN = "zenodex.perps_wallet.proof_intent_receipt/v1"
 WRAPPER_SCHEMA = "zenodex/live-proof-wrapper-request/v1"
 SURFACE = PROOF_TYPE
+LIVE_SURFACE_ALIASES = {SURFACE, "perps_stream8"}
 
 
 def _fail(error: str) -> None:
@@ -90,6 +96,10 @@ def _cli_cmd() -> list[str]:
 
 def _required_hash(expected: Mapping[str, Any], key: str) -> str:
     return _normalize_hex(_str(expected.get(key), name=f"proof.expected.{key}"))
+
+
+def _hash_payload(domain: str, payload: Mapping[str, Any]) -> str:
+    return sha256_hex(domain_sep_bytes(domain) + canonical_json_bytes(dict(payload)))
 
 
 def _actions_from_proof(proof: Mapping[str, Any], expected: Mapping[str, Any]) -> list[Any]:
@@ -172,18 +182,30 @@ def _bind_runtime_receipt(expected: dict[str, Any], receipt: Mapping[str, Any]) 
     expected["market_id"] = _str(body.get("market_id"), name="proof_intent_receipt.body.market_id")
     expected["operation_hash"] = _normalize_hex(_str(body.get("operation_hash"), name="proof_intent_receipt.body.operation_hash"))
 
-    before = _str(body.get("app_hash_before"), name="proof_intent_receipt.body.app_hash_before", required=False)
-    if before:
-        expected["pre_app_hash"] = _normalize_hex(before)
-    after = _str(body.get("app_hash_after"), name="proof_intent_receipt.body.app_hash_after", required=False)
-    if after:
-        expected["post_app_hash"] = _normalize_hex(after)
+    # The verifier boundary must be anchored to the runtime receipt, not to
+    # proof metadata supplied by the same untrusted request.
+    expected["pre_app_hash"] = _normalize_hex(
+        _str(body.get("app_hash_before"), name="proof_intent_receipt.body.app_hash_before")
+    )
+    expected["post_app_hash"] = _normalize_hex(
+        _str(body.get("app_hash_after"), name="proof_intent_receipt.body.app_hash_after")
+    )
 
     proof_state_delta_witness_hash = expected.get("state_delta_witness_hash")
     receipt_state_delta_witness_hash = body.get("state_delta_witness_hash")
     if proof_state_delta_witness_hash is not None or receipt_state_delta_witness_hash is not None:
         if proof_state_delta_witness_hash != receipt_state_delta_witness_hash:
             _fail("state_delta_witness_hash mismatch")
+
+
+def _verify_runtime_receipt_hash(req: Mapping[str, Any], receipt: Mapping[str, Any]) -> None:
+    body = _mapping(receipt.get("body"), name="proof_intent_receipt.body")
+    computed_hash = _hash_payload(RECEIPT_HASH_DOMAIN, body)
+    receipt_hash = _str(receipt.get("receipt_hash"), name="proof_intent_receipt.receipt_hash")
+    if receipt_hash != computed_hash:
+        _fail("proof_intent_receipt.receipt_hash mismatch")
+    if req.get("proof_intent_receipt_hash") != computed_hash:
+        _fail("proof_intent_receipt_hash mismatch")
 
 
 def main() -> None:
@@ -194,13 +216,12 @@ def main() -> None:
     req = _mapping(request, name="request")
     if req.get("schema") != WRAPPER_SCHEMA:
         _fail("unsupported live proof-wrapper schema")
-    if req.get("surface") != SURFACE:
+    request_surface = req.get("surface")
+    if request_surface not in LIVE_SURFACE_ALIASES:
         _fail("unsupported live proof-wrapper surface")
     verifier_request_hash = _str(req.get("verifier_request_hash"), name="verifier_request_hash")
     receipt = _mapping(req.get("proof_intent_receipt"), name="proof_intent_receipt")
-    receipt_hash = _str(receipt.get("receipt_hash"), name="proof_intent_receipt.receipt_hash")
-    if req.get("proof_intent_receipt_hash") != receipt_hash:
-        _fail("proof_intent_receipt_hash mismatch")
+    _verify_runtime_receipt_hash(req, receipt)
 
     proof = _mapping(req.get("proof"), name="proof")
     if proof.get("production_security_claim") is True:
@@ -219,7 +240,8 @@ def main() -> None:
     out: dict[str, Any] = {
         "ok": True,
         "verifier_request_hash": verifier_request_hash,
-        "surface": SURFACE,
+        "surface": request_surface,
+        "verified_surface": SURFACE,
         "proof_type": PROOF_TYPE,
         "production_security_claim": False,
     }
