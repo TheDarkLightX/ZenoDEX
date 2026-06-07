@@ -353,10 +353,20 @@ pub fn apply_clob_order(
 // commits the pre-book root, the event-log root, the post-book root, the fills,
 // the fee total, and the matching-rule + fee-rule hashes. The pre/post BOOK roots
 // are the ledger-exact clob_book roots (no encoder obligation). The event-log /
-// rule-hash encodings are NEW canonical forms defined here; their Python mirror +
-// cross-language parity is the next increment (the differential). Fees are bound
-// HONESTLY: the v1 matcher takes no fee, so fee_total=0 and fee_rule_hash commits
-// "none_v1" -- we bind the ABSENCE rather than invent a fee mechanism.
+// rule-hash encodings are NEW canonical forms defined here; the rule-hash LABELS
+// byte-match the Python ledger (orderbook_api.py) so the client accepts.
+//
+// Binding model (adversarial review 2026-06-07):
+//  * the pre-book root binds the FULL book (makers included), so the pair
+//    (pre_book_root, event_log_root) deterministically fixes the fills -- the
+//    event-log root need not re-bind makers.
+//  * matching_rule_hash binds the rule's VERSION; the algorithm bytes are bound
+//    by the RISC0 image id (client-pinned), NOT by this hash.
+//  * pre_book_root is exposed in the journal; when pre_app_hash_present=false the
+//    CLIENT binds it by checking it against the ledger header (proof metadata).
+//  * fees are bound HONESTLY: the v1 matcher takes no fee -> fee_total=0,
+//    fee_rule_hash commits "stage0_zero_fee_stub". The quote floor is
+//    conservation-EXACT (symmetric quote), not a hidden fee.
 
 fn sha256_of(payload: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
@@ -376,17 +386,27 @@ fn encode_clob_order(o: &ClobOrderV1, out: &mut Vec<u8>) -> Result<(), &'static 
 
 /// Stable identity hash of the matching rule the guest applied. The client pins
 /// this (the Stage 2 "rulebook hash") and rejects a proof under a different rule.
+///
+/// The label MUST byte-match the Python ledger (src/integration/orderbook_api.py
+/// MATCHING_RULE_HASH) so the guest's hash equals the ledger's accepted_rulebook
+/// _hash -- else the client rejects every proof (Codex/adversarial review
+/// 2026-06-07, finding #5). NOTE: this hash binds the rule's IDENTITY/version, not
+/// the algorithm bytes -- the actual matching code is bound by the RISC0 image id,
+/// which the client also pins.
 pub fn clob_matching_rule_hash() -> [u8; 32] {
     let mut p = domain_sep_bytes("clob_matching_rule", 1);
-    p.extend_from_slice(b"price_time_priority_continuous_v1");
+    p.extend_from_slice(b"price_time_priority_resting_maker_limit_floor_quote");
     sha256_of(&p)
 }
 
-/// Stable identity hash of the fee rule. v1 takes NO fee -- this binds that
-/// absence honestly (fee_total is always 0 under this rule).
+/// Stable identity hash of the fee rule. v1 takes NO fee, so fee_total is always 0
+/// under this rule -- this binds that absence honestly. The floor in compute_quote
+/// is conservation-EXACT (buyer and maker book the SAME floored quote; see
+/// clob_matching's CROSSING-LIMIT note), so it is NOT a hidden fee. The label MUST
+/// byte-match the Python ledger (orderbook_api.py FEE_RULE_HASH).
 pub fn clob_fee_rule_hash() -> [u8; 32] {
     let mut p = domain_sep_bytes("clob_fee_rule", 1);
-    p.extend_from_slice(b"none_v1");
+    p.extend_from_slice(b"stage0_zero_fee_stub");
     sha256_of(&p)
 }
 

@@ -8,7 +8,8 @@
 //! `tests/core/test_clob_match_fixture.py`). Does NOT touch `main.rs`.
 
 use tau_state_proof_risc0_shared::clob::{
-    apply_clob_order, ClobBookV1, ClobMatchResultV1, ClobOrderV1,
+    apply_clob_order, clob_fee_rule_hash, clob_matching_rule_hash, ClobBookV1, ClobMatchResultV1,
+    ClobOrderV1,
 };
 
 fn order_from(o: &serde_json::Value) -> ClobOrderV1 {
@@ -24,6 +25,27 @@ fn order_from(o: &serde_json::Value) -> ClobOrderV1 {
 
 fn hexstr(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
+/// The guest's rule-hash identities MUST equal the Python ledger's
+/// (orderbook_api.MATCHING_RULE_HASH / FEE_RULE_HASH, emitted into the fixture) --
+/// else the guest's journal carries a rulebook hash the client never accepts.
+/// (Adversarial review 2026-06-07, finding #5: the Rust labels had drifted.)
+#[test]
+fn clob_rule_hashes_match_python_ledger() {
+    let fixture = include_str!("../../shared/src/clob_match_cases_v1.json");
+    let v: serde_json::Value = serde_json::from_str(fixture).expect("valid JSON");
+    let rh = &v["rule_hashes"];
+    assert_eq!(
+        hexstr(&clob_matching_rule_hash()),
+        rh["matching"].as_str().expect("matching rule hash"),
+        "matching_rule_hash must byte-match the Python ledger"
+    );
+    assert_eq!(
+        hexstr(&clob_fee_rule_hash()),
+        rh["fee"].as_str().expect("fee rule hash"),
+        "fee_rule_hash must byte-match the Python ledger"
+    );
 }
 
 #[test]

@@ -376,5 +376,9 @@
       }
     }
   ],
+  "rule_hashes": {
+    "fee": "fb2649edcc9350d7fbadab287cf28750af6c0984c8d37e24e30a416968fadff1",
+    "matching": "2a544cc0984eed8253fc9b82fc2340ef490346cbc20cd00ca164407849e3e913"
+  },
   "version": 1
 }

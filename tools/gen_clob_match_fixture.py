@@ -28,6 +28,10 @@ from src.core.clob_matching import (  # noqa: E402
     ClobMatchRejected,
     apply_order,
 )
+# The LEDGER's rule-hash constants (the client's accepted_rulebook_hash). The Rust
+# guest's clob_matching_rule_hash()/clob_fee_rule_hash() must reproduce these, or
+# the client rejects every proof (adversarial review 2026-06-07, finding #5).
+from src.integration.orderbook_api import FEE_RULE_HASH, MATCHING_RULE_HASH  # noqa: E402
 from src.state.clob_book import ClobBook, ClobOrder, ClobSide  # noqa: E402
 
 FIXTURE_PATH = _REPO / "zk" / "state_proof_risc0" / "shared" / "src" / "clob_match_cases_v1.json"
@@ -127,8 +131,21 @@ def build_corpus() -> list[dict]:
     ]
 
 
+def _strip0x(h: str) -> str:
+    return h[2:] if h.startswith("0x") else h
+
+
 def render() -> str:
-    return json.dumps({"version": 1, "cases": build_corpus()}, indent=2, sort_keys=True) + "\n"
+    payload = {
+        "version": 1,
+        # Ledger rule-hash constants the Rust guest must reproduce byte-for-byte.
+        "rule_hashes": {
+            "matching": _strip0x(MATCHING_RULE_HASH),
+            "fee": _strip0x(FEE_RULE_HASH),
+        },
+        "cases": build_corpus(),
+    }
+    return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:
