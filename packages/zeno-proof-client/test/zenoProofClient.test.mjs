@@ -5,6 +5,7 @@ import {
   BROWSER_CHECKPOINT_BUNDLE_SCHEMA_V0,
   advanceWalletSyncStateV0,
   hashV0,
+  parseZkProofStatusV0,
   verifyBrowserCheckpointBundleV0,
 } from '../src/zenoProofClient.js';
 
@@ -12,7 +13,21 @@ function root(byte) {
   return `0x${byte.repeat(64)}`;
 }
 
-async function makeBundle({ height = 2, chainId = 'zeno-ledger-sdk-testnet-0' } = {}) {
+function builderTrustOptions(overrides = {}) {
+  return {
+    trustBuilderBls: true,
+    expectedTrustedPrevHeaderHash: root('0'),
+    expectedSignerRegistryHash: root('a'),
+    ...overrides,
+  };
+}
+
+async function makeBundle({
+  height = 2,
+  fromHeight = 1,
+  trustedPrevHeaderHash = root('0'),
+  chainId = 'zeno-ledger-sdk-testnet-0',
+} = {}) {
   const registry = {
     schema: 'zenodex/zeno_ledger/signer_registry/v0',
     registry_id: 'sdk-test-registry',
@@ -27,8 +42,8 @@ async function makeBundle({ height = 2, chainId = 'zeno-ledger-sdk-testnet-0' } 
     threshold: registry.threshold,
   });
   const headerChain = [];
-  let prevHeaderHash = root('0');
-  for (let currentHeight = 1; currentHeight <= height; currentHeight += 1) {
+  let prevHeaderHash = trustedPrevHeaderHash;
+  for (let currentHeight = fromHeight; currentHeight <= height; currentHeight += 1) {
     const headerRoots = {
       post_state_root: root('3'),
       evidence_root: root('5'),
@@ -84,16 +99,16 @@ async function makeBundle({ height = 2, chainId = 'zeno-ledger-sdk-testnet-0' } 
     ok: true,
     checked_heights: headerChain.map((header) => header.height),
     last_header_hash: checkpoint.header_hash,
-    from_height: 1,
+    from_height: fromHeight,
     to_height: height,
-    trusted_prev_header_hash: root('0'),
+    trusted_prev_header_hash: trustedPrevHeaderHash,
   };
   const body = {
     schema: BROWSER_CHECKPOINT_BUNDLE_SCHEMA_V0,
     chain_id: chainId,
-    from_height: 1,
+    from_height: fromHeight,
     to_height: height,
-    trusted_prev_header_hash: root('0'),
+    trusted_prev_header_hash: trustedPrevHeaderHash,
     header_chain: headerChain,
     target_header: targetHeader,
     target_checkpoint: checkpoint,
@@ -141,20 +156,48 @@ async function makeBundle({ height = 2, chainId = 'zeno-ledger-sdk-testnet-0' } 
 
 test('browser checkpoint bundle verifies shape and hash binding', async () => {
   const bundle = await makeBundle();
-  const report = await verifyBrowserCheckpointBundleV0(bundle);
+  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions());
 
   assert.equal(report.ok, true);
+  assert.equal(report.status, 'accepted_with_builder_bls_trust');
+  assert.equal(report.trust_model, 'builder_bls_claim');
   assert.equal(report.height, 2);
   assert.equal(report.builder_bls_quorum_verified, true);
   assert.equal(report.browser_range_replay_verified, true);
   assert.equal(report.browser_bls_quorum_verified, false);
 });
 
+test('browser checkpoint bundle requires caller-pinned trust anchors by default', async () => {
+  const bundle = await makeBundle();
+  const report = await verifyBrowserCheckpointBundleV0(bundle);
+
+  assert.equal(report.ok, false);
+  assert.match(report.gaps.join('\n'), /expectedTrustedPrevHeaderHash/);
+});
+
+test('browser checkpoint bundle rejects mismatched trust anchors', async () => {
+  const bundle = await makeBundle();
+
+  const wrongPrev = await verifyBrowserCheckpointBundleV0(
+    bundle,
+    builderTrustOptions({ expectedTrustedPrevHeaderHash: root('1') }),
+  );
+  assert.equal(wrongPrev.ok, false);
+  assert.match(wrongPrev.gaps.join('\n'), /trusted_prev_header_hash trust anchor mismatch/);
+
+  const wrongRegistry = await verifyBrowserCheckpointBundleV0(
+    bundle,
+    builderTrustOptions({ expectedSignerRegistryHash: root('1') }),
+  );
+  assert.equal(wrongRegistry.ok, false);
+  assert.match(wrongRegistry.gaps.join('\n'), /signer registry trust anchor mismatch/);
+});
+
 test('browser checkpoint bundle rejects tampering', async () => {
   const bundle = await makeBundle();
   bundle.target_checkpoint.height = 3;
 
-  const report = await verifyBrowserCheckpointBundleV0(bundle);
+  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions());
 
   assert.equal(report.ok, false);
   assert.match(report.gaps.join('\n'), /bundle_hash mismatch/);
@@ -169,7 +212,7 @@ test('browser checkpoint bundle rejects unknown top-level fields with recomputed
     bundle_hash: await hashV0('browser_checkpoint_bundle_v0', body),
   };
 
-  const report = await verifyBrowserCheckpointBundleV0(tampered);
+  const report = await verifyBrowserCheckpointBundleV0(tampered, builderTrustOptions());
 
   assert.equal(report.ok, false);
   assert.match(report.gaps.join('\n'), /bundle keys mismatch/);
@@ -182,7 +225,7 @@ test('browser checkpoint bundle rejects unknown verification summary fields', as
   void _drop;
   bundle.bundle_hash = await hashV0('browser_checkpoint_bundle_v0', body);
 
-  const report = await verifyBrowserCheckpointBundleV0(bundle);
+  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions());
 
   assert.equal(report.ok, false);
   assert.match(report.gaps.join('\n'), /verification summary keys mismatch/);
@@ -195,7 +238,7 @@ test('browser checkpoint bundle replays header chain', async () => {
   void _drop;
   bundle.bundle_hash = await hashV0('browser_checkpoint_bundle_v0', rest);
 
-  const report = await verifyBrowserCheckpointBundleV0(bundle);
+  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions());
 
   assert.equal(report.ok, false);
   assert.match(report.gaps.join('\n'), /prev_header_hash/);
@@ -208,7 +251,7 @@ test('browser checkpoint bundle rejects inconsistent header app hash', async () 
   void _drop;
   bundle.bundle_hash = await hashV0('browser_checkpoint_bundle_v0', rest);
 
-  const report = await verifyBrowserCheckpointBundleV0(bundle);
+  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions());
 
   assert.equal(report.ok, false);
   assert.match(report.gaps.join('\n'), /app_hash mismatch/);
@@ -221,6 +264,7 @@ test('wallet sync rejects tampered current state hash before using height', asyn
     bundle: first,
     surface: 'zusd',
     updatedAtMs: 1_778_730_000_000,
+    ...builderTrustOptions(),
   });
   assert.equal(current.ok, true);
   const tampered = {
@@ -241,19 +285,25 @@ test('wallet sync rejects tampered current state hash before using height', asyn
 
 test('wallet sync advances monotonically and rejects rollback', async () => {
   const first = await makeBundle({ height: 2 });
-  const second = await makeBundle({ height: 3 });
   const initial = await advanceWalletSyncStateV0({
     bundle: first,
     surface: 'zusd',
     updatedAtMs: 1_778_730_000_000,
+    ...builderTrustOptions(),
   });
   assert.equal(initial.ok, true);
 
+  const second = await makeBundle({
+    fromHeight: 3,
+    height: 3,
+    trustedPrevHeaderHash: initial.state.target_header_hash,
+  });
   const advanced = await advanceWalletSyncStateV0({
     currentState: initial.state,
     bundle: second,
     surface: 'zusd',
     updatedAtMs: 1_778_730_001_000,
+    trustBuilderBls: true,
   });
   assert.equal(advanced.ok, true);
   assert.equal(advanced.state.height, 3);
@@ -268,11 +318,41 @@ test('wallet sync advances monotonically and rejects rollback', async () => {
   assert.deepEqual(rollback.gaps, ['wallet sync rollback rejected']);
 });
 
+test('wallet sync rejects alternate history that does not extend current target header', async () => {
+  const first = await makeBundle({ height: 2 });
+  const initial = await advanceWalletSyncStateV0({
+    bundle: first,
+    surface: 'zusd',
+    updatedAtMs: 1_778_730_000_000,
+    ...builderTrustOptions(),
+  });
+  assert.equal(initial.ok, true);
+
+  const alternate = await makeBundle({ height: 3 });
+  const advanced = await advanceWalletSyncStateV0({
+    currentState: initial.state,
+    bundle: alternate,
+    surface: 'zusd',
+    updatedAtMs: 1_778_730_001_000,
+    trustBuilderBls: true,
+  });
+
+  assert.equal(advanced.ok, false);
+  assert.match(advanced.gaps.join('\n'), /trusted_prev_header_hash trust anchor mismatch/);
+});
+
 test('independent BLS verification rejects empty signer registry', async () => {
   // The synthetic bundle has an empty signers list — independent verification
   // requires at least one active signer, so it must fail.
   const bundle = await makeBundle();
-  const report = await verifyBrowserCheckpointBundleV0(bundle, { requireIndependentBls: true });
+  const report = await verifyBrowserCheckpointBundleV0(
+    bundle,
+    {
+      requireIndependentBls: true,
+      expectedTrustedPrevHeaderHash: root('0'),
+      expectedSignerRegistryHash: root('a'),
+    },
+  );
 
   assert.equal(report.ok, false);
   assert.match(
@@ -288,8 +368,114 @@ test('independent BLS verification rejects bundle with no envelopes', async () =
   void _drop;
   bundle.bundle_hash = await hashV0('browser_checkpoint_bundle_v0', rest);
 
-  const report = await verifyBrowserCheckpointBundleV0(bundle);
+  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions());
   // Empty envelope list is rejected by the structural check too.
   assert.equal(report.ok, false);
   assert.match(report.gaps.join('\n'), /signature_envelopes length rejected/);
+});
+
+test('zk proof status parser distinguishes fallback and open modes', () => {
+  const fallback = parseZkProofStatusV0({
+    zk_mode_requested: 'auto-strict',
+    zk_mode_effective: 'open',
+    zk_required: false,
+    zk_fallback_reason: 'proof verifier command unavailable',
+    proof_verifier_kind: 'disabled',
+    proof_artifact_hashes: {},
+    production_security_claim: false,
+  });
+  assert.equal(fallback.ok, false);
+  assert.equal(fallback.status, 'blocked');
+  assert.equal(fallback.proof_mode, 'fallback');
+  assert.equal(fallback.fallback, true);
+  assert.equal(fallback.can_make_production_security_claim, false);
+
+  const open = parseZkProofStatusV0({
+    zk_mode_requested: 'open',
+    zk_mode_effective: 'open',
+    zk_required: false,
+    proof_verifier_kind: 'disabled',
+    production_security_claim: false,
+  });
+  assert.equal(open.ok, true);
+  assert.equal(open.proof_mode, 'open');
+  assert.equal(open.fallback, false);
+});
+
+test('zk proof status parser distinguishes strict and fixture modes', () => {
+  const artifactHashes = {
+    verifier: `sha256:${'1'.repeat(64)}`,
+    circuit: `0x${'2'.repeat(64)}`,
+  };
+  const strict = parseZkProofStatusV0({
+    zk_mode_requested: 'strict',
+    zk_mode_effective: 'strict',
+    zk_required: true,
+    proof_verifier_kind: 'subprocess',
+    proof_artifact_hashes: artifactHashes,
+    production_security_claim: false,
+  });
+  assert.equal(strict.ok, true);
+  assert.equal(strict.proof_mode, 'strict');
+  assert.equal(strict.can_make_production_security_claim, false);
+
+  const fixture = parseZkProofStatusV0({
+    zk_mode_requested: 'auto-strict',
+    zk_mode_effective: 'strict',
+    zk_required: true,
+    proof_verifier_kind: 'subprocess',
+    proof_artifact_hashes: artifactHashes,
+    fixture_backed: true,
+    production_security_claim: false,
+  });
+  assert.equal(fixture.ok, true);
+  assert.equal(fixture.proof_mode, 'fixture');
+  assert.equal(fixture.fixture_backed, true);
+  assert.equal(fixture.can_make_production_security_claim, false);
+
+  const localStrict = parseZkProofStatusV0({
+    zk_mode_requested: 'auto-strict',
+    zk_mode_effective: 'strict',
+    zk_required: true,
+    proof_verifier_kind: 'subprocess',
+    proof_artifact_hashes: artifactHashes,
+    production_security_claim: false,
+  });
+  assert.equal(localStrict.ok, true);
+  assert.equal(localStrict.proof_mode, 'strict');
+  assert.equal(localStrict.fixture_backed, false);
+  assert.equal(localStrict.can_make_production_security_claim, false);
+});
+
+test('zk proof status parser blocks strict mode without verifier artifacts', () => {
+  const report = parseZkProofStatusV0({
+    zk_mode_requested: 'strict',
+    zk_mode_effective: 'strict',
+    zk_required: true,
+    proof_verifier_kind: 'disabled',
+    proof_artifact_hashes: { verifier: `sha256:${'1'.repeat(64)}` },
+    production_security_claim: true,
+  });
+  assert.equal(report.ok, false);
+  assert.equal(report.status, 'blocked');
+  assert.match(report.gaps.join('\n'), /configured subprocess verifier/);
+  assert.match(report.gaps.join('\n'), /proof circuit artifact hash/);
+});
+
+test('zk proof status parser blocks production claim without required strict posture', () => {
+  const report = parseZkProofStatusV0({
+    zk_mode_requested: 'strict',
+    zk_mode_effective: 'strict',
+    zk_required: false,
+    proof_verifier_kind: 'disabled',
+    proof_artifact_hashes: {},
+    production_security_claim: true,
+  });
+
+  assert.equal(report.ok, false);
+  assert.equal(report.can_make_production_security_claim, false);
+  assert.match(report.gaps.join('\n'), /zk_required=true/);
+  assert.match(report.gaps.join('\n'), /configured subprocess verifier/);
+  assert.match(report.gaps.join('\n'), /proof verifier artifact hash/);
+  assert.match(report.gaps.join('\n'), /self-reported/);
 });
