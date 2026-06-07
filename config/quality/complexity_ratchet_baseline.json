@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
   "file_count": 429,
-  "function_count": 5665,
+  "function_count": 5669,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 830,
-      "lines": 4643
+      "complexity": 819,
+      "lines": 4494
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
       "complexity": 4,
@@ -9895,6 +9895,10 @@
       "complexity": 1,
       "lines": 3
     },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_bool_packet_keys": {
+      "complexity": 2,
+      "lines": 2
+    },
     "src/integration/api_server_exact_out_many_pool_routes.py::_bounded_advisory_quote_payload": {
       "complexity": 3,
       "lines": 27
@@ -9907,6 +9911,14 @@
       "complexity": 1,
       "lines": 46
     },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_copy_packet_keys": {
+      "complexity": 2,
+      "lines": 2
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_default_quote_payload": {
+      "complexity": 3,
+      "lines": 28
+    },
     "src/integration/api_server_exact_out_many_pool_routes.py::_handle_bounded_advisory_quote": {
       "complexity": 3,
       "lines": 36
@@ -9914,6 +9926,10 @@
     "src/integration/api_server_exact_out_many_pool_routes.py::_handle_candidate_domain_contract": {
       "complexity": 3,
       "lines": 43
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_handle_default_quote": {
+      "complexity": 3,
+      "lines": 22
     },
     "src/integration/api_server_exact_out_many_pool_routes.py::_handle_prefilter_contract": {
       "complexity": 3,
@@ -22665,17 +22681,17 @@
     }
   },
   "line_budget": 60,
-  "max_complexity": 830,
-  "max_function_lines": 4643,
+  "max_complexity": 819,
+  "max_function_lines": 4494,
   "over_complexity_budget_count": 1605,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
     {
-      "complexity": 830,
-      "line_end": 5810,
+      "complexity": 819,
+      "line_end": 5661,
       "line_start": 1168,
-      "lines": 4643,
+      "lines": 4494,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
@@ -22834,10 +22850,10 @@
   ],
   "top_lines": [
     {
-      "complexity": 830,
-      "line_end": 5810,
+      "complexity": 819,
+      "line_end": 5661,
       "line_start": 1168,
-      "lines": 4643,
+      "lines": 4494,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },

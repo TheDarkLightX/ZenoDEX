@@ -24,6 +24,7 @@ _REPAIRED_FULL_DOMAIN_CERTIFIED_QUOTE_ENDPOINT = (
     "/api/dex/quote_exact_out_many_pool_repaired_full_domain_certified"
 )
 _BOUNDED_ADVISORY_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_bounded_advisory"
+_DEFAULT_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -59,6 +60,59 @@ _MAX_VALUES = {
     "max_full_domain_pools": 16,
     "max_enumerated_candidates": 50_000,
 }
+
+_FULL_REQUEST_FIELDS = (
+    "amount_out_total",
+    "max_legs",
+    "max_candidate_pools",
+    "max_candidates",
+    "max_iters",
+    "window",
+    "brute_force_max",
+    "max_full_domain_pools",
+    "max_enumerated_candidates",
+)
+
+_DEFAULT_PACKET_BOOL_KEYS = (
+    "repaired_full_domain_packet_ok",
+    "repaired_quote_matches_full_domain_canonical",
+    "repaired_key_cover_packet_ok",
+    "repaired_selected_keys_subset_full_keys",
+    "repaired_key_cover_holds",
+    "repaired_selected_domain_canonical_matches_full_domain_canonical",
+    "repaired_key_cover_interpretation_packet_ok",
+    "repaired_key_cover_selected_winner_index_in_range",
+    "repaired_key_cover_selected_winner_matches_certificate",
+    "repaired_key_cover_selected_winner_key_minimal",
+    "repaired_key_cover_witness_indices_in_range",
+    "repaired_key_cover_witness_coverage_complete",
+    "repaired_key_cover_witness_keys_match_candidates",
+    "repaired_key_cover_witness_domination_holds",
+    "selected_runtime_quotes_agree",
+)
+
+_DEFAULT_PACKET_COPY_KEYS = (
+    "repaired_full_domain_feasible_pool_ids",
+    "repaired_full_domain_candidate_count",
+    "repaired_full_domain_canonical_quote",
+    "effective_quote_matches_full_domain_canonical",
+    "effective_quote",
+    "selected_domain_runtime_projected_path",
+    "advisory_projected_path",
+    "selected_domain_projection_cover_available",
+    "selected_domain_projection_cover_holds",
+    "selected_domain_canonical_projected_path",
+    "selected_runtime_matches_selected_canonical_projected_path",
+    "repaired_projection_cover_available",
+    "repaired_projection_cover_holds",
+    "repaired_canonical_projected_path",
+    "advisory_matches_repaired_canonical_projected_path",
+    "effective_projection_cover_side",
+    "effective_projection_cover_holds",
+    "effective_canonical_projected_path",
+    "effective_quote_projected_path",
+    "effective_quote_matches_canonical_projected_path",
+)
 
 
 class _BadRequest(ValueError):
@@ -112,6 +166,14 @@ def _parse_request(
 
 def _write_bad_request(write_json: WriteJson, exc: _BadRequest) -> None:
     write_json(400, {"ok": False, "error": exc.error})
+
+
+def _copy_packet_keys(packet_payload: dict[str, object], keys: tuple[str, ...]) -> dict[str, object]:
+    return {key: packet_payload[key] for key in keys}
+
+
+def _bool_packet_keys(packet_payload: dict[str, object], keys: tuple[str, ...]) -> dict[str, object]:
+    return {key: bool(packet_payload[key]) for key in keys}
 
 
 def _handle_candidate_domain_contract(
@@ -254,7 +316,7 @@ def _handle_repaired_selected_domain_contract(
     write_json: WriteJson,
 ) -> None:
     try:
-        req = _parse_request(obj, parse_pools, tuple(_MIN_VALUES))
+        req = _parse_request(obj, parse_pools, _FULL_REQUEST_FIELDS)
         from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
             EXACT_OUT_MANY_POOL_REPAIRED_SELECTED_DOMAIN_ORACLE_CONTRACT_SCHEMA,
             build_exact_out_many_pool_repaired_selected_domain_oracle_contract,
@@ -336,7 +398,7 @@ def _handle_repaired_selected_domain_quote(
     write_json: WriteJson,
 ) -> None:
     try:
-        req = _parse_request(obj, parse_pools, tuple(_MIN_VALUES))
+        req = _parse_request(obj, parse_pools, _FULL_REQUEST_FIELDS)
         from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
             quote_exact_out_many_pool_repaired_selected_domain,
         )
@@ -451,7 +513,7 @@ def _handle_repaired_advisory_quote(
     write_json: WriteJson,
 ) -> None:
     try:
-        req = _parse_request(obj, parse_pools, tuple(_MIN_VALUES))
+        req = _parse_request(obj, parse_pools, _FULL_REQUEST_FIELDS)
         from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
             quote_exact_out_many_pool_repaired_advisory,
         )
@@ -596,7 +658,7 @@ def _handle_bounded_advisory_quote(
     write_json: WriteJson,
 ) -> None:
     try:
-        req = _parse_request(obj, parse_pools, tuple(_MIN_VALUES))
+        req = _parse_request(obj, parse_pools, _FULL_REQUEST_FIELDS)
         from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
             EXACT_OUT_MANY_POOL_BOUNDED_ADVISORY_QUOTE_PACKET_SCHEMA,
             quote_exact_out_many_pool_bounded_advisory,
@@ -625,6 +687,60 @@ def _handle_bounded_advisory_quote(
             400,
             {"ok": False, "error": "quote_exact_out_many_pool_bounded_advisory_error", "details": "request failed"},
         )
+
+
+def _default_quote_payload(
+    *,
+    quote: object,
+    err: object,
+    packet_payload: dict[str, object],
+) -> dict[str, object]:
+    advisory_packet = packet_payload["advisory_packet"]
+    payload = {
+        "ok": bool(quote is not None),
+        "quote_policy": "certified_advisory_v1",
+        "packet": packet_payload,
+        "packet_schema": packet_payload["schema"],
+        "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_default_packet",
+        "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_default_packet",
+        "runtime_quote": packet_payload["selected_domain_runtime_quote"],
+        "quote_source": packet_payload["effective_quote_source"],
+        "repaired_advisory_available": bool(advisory_packet["repaired_advisory_available"]),
+        "quote_matches_runtime": bool(packet_payload["effective_quote_matches_selected_runtime_quote"]),
+        "quote_matches_repaired_advisory": bool(packet_payload["effective_quote_matches_repaired_advisory_quote"]),
+        "repaired_key_cover_witness_count": int(packet_payload["repaired_key_cover_witness_count"]),
+    }
+    payload.update(_bool_packet_keys(packet_payload, _DEFAULT_PACKET_BOOL_KEYS))
+    payload.update(_copy_packet_keys(packet_payload, _DEFAULT_PACKET_COPY_KEYS))
+    if quote is not None:
+        payload["quote"] = packet_payload["effective_quote"]
+    else:
+        payload["error"] = str(err or "many_pool_certified_advisory_unavailable")
+    return payload
+
+
+def _handle_default_quote(
+    obj: dict[str, object],
+    parse_pools: ParsePools,
+    write_json: WriteJson,
+) -> None:
+    try:
+        req = _parse_request(obj, parse_pools, _FULL_REQUEST_FIELDS)
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            quote_exact_out_many_pool_default,
+        )
+
+        quote, err, packet = quote_exact_out_many_pool_default(
+            req.pools,
+            asset_in=req.asset_in,
+            asset_out=req.asset_out,
+            **req.values,
+        )
+        write_json(200, _default_quote_payload(quote=quote, err=err, packet_payload=packet.to_dict()))
+    except _BadRequest as exc:
+        _write_bad_request(write_json, exc)
+    except Exception:
+        write_json(400, {"ok": False, "error": "quote_exact_out_many_pool_error", "details": "request failed"})
 
 
 def _repaired_full_domain_certified_payload(
@@ -661,7 +777,7 @@ def _handle_repaired_full_domain_certified_quote(
     write_json: WriteJson,
 ) -> None:
     try:
-        req = _parse_request(obj, parse_pools, tuple(_MIN_VALUES))
+        req = _parse_request(obj, parse_pools, _FULL_REQUEST_FIELDS)
         from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
             EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_PACKET_SCHEMA,
             quote_exact_out_many_pool_repaired_full_domain_certified,
@@ -719,4 +835,5 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _REPAIRED_ADVISORY_QUOTE_ENDPOINT: _handle_repaired_advisory_quote,
     _REPAIRED_FULL_DOMAIN_CERTIFIED_QUOTE_ENDPOINT: _simple_route(_handle_repaired_full_domain_certified_quote),
     _BOUNDED_ADVISORY_QUOTE_ENDPOINT: _handle_bounded_advisory_quote,
+    _DEFAULT_QUOTE_ENDPOINT: _simple_route(_handle_default_quote),
 }

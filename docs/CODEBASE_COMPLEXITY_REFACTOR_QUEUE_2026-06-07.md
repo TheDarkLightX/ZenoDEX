@@ -18,11 +18,11 @@ behaviorally incorrect.
 | Metric | Value |
 | --- | ---: |
 | Python source files scanned | 429 |
-| Functions scanned | 5,665 |
+| Functions scanned | 5,669 |
 | Functions over complexity 5 | 1,605 |
 | Functions over 60 lines | 435 |
-| Maximum complexity | 830 |
-| Maximum function length | 4,643 lines |
+| Maximum complexity | 819 |
+| Maximum function length | 4,494 lines |
 
 ## Refactor Principles
 
@@ -40,7 +40,7 @@ behaviorally incorrect.
 
 | Rank | Location | Size | Grade | Why It Is Risky | First Extraction |
 | ---: | --- | ---: | --- | --- | --- |
-| 1 | `src/integration/api_server.py::_Handler._maybe_handle_dex_api` | 830 complexity, 4,643 lines | D | One method mixes routing, auth, JSON parsing, DTO coercion, service calls, and response shaping for many unrelated API families. It is the highest injection and regression surface in the repo. | Continue the route-table extraction. The read-only routes live in `api_server_dex_readonly_routes.py`; exact-out many-pool contract builders, repaired-selected-domain quotes, repaired-advisory quotes, repaired-full-domain certified quotes, and bounded-advisory quotes live in `api_server_exact_out_many_pool_routes.py`; the next slice is exact-out many-pool default/adaptive quote and packet routes. |
+| 1 | `src/integration/api_server.py::_Handler._maybe_handle_dex_api` | 819 complexity, 4,494 lines | D | One method mixes routing, auth, JSON parsing, DTO coercion, service calls, and response shaping for many unrelated API families. It is the highest injection and regression surface in the repo. | Continue the route-table extraction. The read-only routes live in `api_server_dex_readonly_routes.py`; exact-out many-pool contract builders, repaired-selected-domain quotes, repaired-advisory quotes, repaired-full-domain certified quotes, bounded-advisory quotes, and the default certified-advisory quote live in `api_server_exact_out_many_pool_routes.py`; the next slice is exact-out many-pool adaptive quote and packet routes. |
 | 2 | `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl` | 190 complexity, 612 lines | C- | This is a fail-closed value-moving acceptance gate. The logic is conceptually right, but duplicate-ID checks, fill coverage, replay, deltas, events, LP effects, and conservation live in one control flow. | Extract pure rule functions returning `(ok, error)`: `IntentIdRule`, `IncludedIntentRule`, `FillCoverageRule`, `CowPairRule`, `ReplayDeltaRule`, `EventRule`, `ConservationRule`. |
 | 3 | `src/integration/dex_snapshot.py::state_from_snapshot` | 126 complexity, 622 lines | C- | Snapshot hydration is consensus-adjacent because bad defaults or weak parsing can create forked local state. Many schema branches share one broad parser. | Split into typed parsers per section: balances, pools, LP, fees, nonces, confidential requests, oracle metadata. Add round-trip tests section by section. |
 | 4 | `src/integration/dex_engine.py::apply_ops` | 118 complexity, 549 lines | C- | Operation application is an orchestration choke point. Mixed dispatch and mutation increases the chance that an operation bypasses a guard. | Replace the branch ladder with an `op_type -> apply_*` dispatch table. Each handler should receive validated DTOs and return data-only effects. |
@@ -73,12 +73,13 @@ in small route-family PRs. The first safe slice has landed:
    `quote_exact_out_many_pool_repaired_selected_domain` plus
    `quote_exact_out_many_pool_repaired_advisory` and
    `quote_exact_out_many_pool_repaired_full_domain_certified` and
-   `quote_exact_out_many_pool_bounded_advisory`.
+   `quote_exact_out_many_pool_bounded_advisory` and
+   `quote_exact_out_many_pool`.
 3. `_maybe_handle_dex_api` remains the dispatcher and response writer.
 4. Focused route tests cover success, error mapping, unhandled-path behavior,
    bad integer fields, and pool-parse error precedence.
 5. The baseline records the reduced handler complexity and line count.
 
-Next, move exact-out many-pool default, adaptive, and packet
+Next, move exact-out many-pool adaptive and packet
 endpoints one family at a time with mutation tests for auth bypass, malformed
 integer fields, oversized search budgets, and bad quote/proof packet receipts.

@@ -75,7 +75,7 @@ def test_unknown_many_pool_contract_route_is_not_handled() -> None:
     writes, write_json = _capture()
 
     handled = maybe_handle_exact_out_many_pool_route(
-        path="/api/dex/quote_exact_out_many_pool",
+        path="/api/dex/quote_exact_out_many_pool_unknown",
         obj=_minimal_request(),
         parse_pools=lambda: {},
         project_quote_path=_project_quote_path,
@@ -273,3 +273,18 @@ def test_many_pool_bounded_advisory_route_failure_payload_contract(monkeypatch: 
     assert payload["effective_projection_cover_side"] is None
     assert payload["error"] == "bounded_unavailable"
     assert "quote" not in payload
+
+
+def test_many_pool_default_quote_route_rejects_bool_integer_field_after_pool_parse() -> None:
+    writes, write_json = _capture()
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/quote_exact_out_many_pool",
+        obj=_minimal_request(max_legs=True),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_legs"})]
