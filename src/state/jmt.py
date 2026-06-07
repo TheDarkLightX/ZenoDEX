@@ -7,18 +7,20 @@ deterministic, domain-separated compact sparse tree with membership and
 non-membership proofs. A production root claim still needs integration tests
 that bind this module to the actual ledger/state-root path.
 
-The proof dataclasses below are in-process transcripts, not a public wire ABI.
-Any network/client use still needs canonical proof serialization with unknown
-field rejection and versioning.
+The proof dataclasses below are in-process transcripts. The
+``encode_jmt_*_proof`` / ``decode_jmt_*_proof`` functions define the versioned
+canonical JSON proof payload for this candidate module; any network/client use
+still needs integration-level replay tests against its transport boundary.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
-from typing import Iterable, Mapping
+from typing import Any, Iterable, Mapping
 
-from .canonical import domain_sep_bytes, encode_bytes, encode_uvarint
+from .canonical import canonical_json_bytes, domain_sep_bytes, encode_bytes, encode_uvarint
 
 JMT_VERSION = 1
 JMT_KEY_BYTES = 32
@@ -77,6 +79,31 @@ def _root_bytes(root: str | bytes) -> bytes:
         except ValueError as exc:
             raise ValueError("JMT root must be valid hex") from exc
     return _validate_hash(root, name="JMT root")
+
+
+def _to_hex(value: bytes) -> str:
+    return "0x" + bytes(value).hex()
+
+
+def _from_hex(value: object, *, nbytes: int | None, name: str) -> bytes:
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a canonical hex string")
+    if not value.startswith("0x"):
+        raise ValueError(f"{name} must be a canonical hex string")
+    body = value[2:]
+    if body != body.lower():
+        raise ValueError(f"{name} must be canonical lowercase hex")
+    if len(body) % 2 != 0:
+        raise ValueError(f"{name} must have an even number of hex digits")
+    if nbytes is not None and len(body) != nbytes * 2:
+        raise ValueError(f"{name} must be canonical {nbytes}-byte hex")
+    try:
+        out = bytes.fromhex(body)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be valid hex") from exc
+    if value != _to_hex(out):
+        raise ValueError(f"{name} must be canonical lowercase hex")
+    return out
 
 
 def leaf_hash(key: bytes, value: bytes) -> bytes:
@@ -237,6 +264,145 @@ def _same_prefix(left: bytes, right: bytes, depth: int) -> bool:
     if depth < 0 or depth > JMT_KEY_BITS:
         return False
     return all(_bit(left, i) == _bit(right, i) for i in range(depth))
+
+
+def _require_object(value: object, *, name: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise TypeError(f"{name} must be an object")
+    if any(not isinstance(key, str) for key in value):
+        raise TypeError(f"{name} keys must be strings")
+    return value
+
+
+def _require_fields(value: Mapping[str, Any], expected: set[str], *, name: str) -> None:
+    found = set(value)
+    if found != expected:
+        raise ValueError(f"unexpected {name} fields")
+
+
+def _require_version(value: object) -> None:
+    if not isinstance(value, int) or isinstance(value, bool) or value != JMT_VERSION:
+        raise ValueError("JMT proof version mismatch")
+
+
+def _sibling_to_wire(sibling: JmtSibling) -> dict[str, object]:
+    return {
+        "sibling_hash": _to_hex(sibling.sibling_hash),
+        "sibling_on_left": sibling.sibling_on_left,
+    }
+
+
+def _sibling_from_wire(value: object) -> JmtSibling:
+    obj = _require_object(value, name="JMT sibling")
+    _require_fields(obj, {"sibling_hash", "sibling_on_left"}, name="JMT sibling")
+    if not isinstance(obj["sibling_on_left"], bool):
+        raise TypeError("JMT sibling_on_left must be bool")
+    return JmtSibling(
+        sibling_hash=_from_hex(obj["sibling_hash"], nbytes=JMT_HASH_BYTES, name="JMT sibling_hash"),
+        sibling_on_left=obj["sibling_on_left"],
+    )
+
+
+def _siblings_to_wire(siblings: tuple[JmtSibling, ...]) -> list[dict[str, object]]:
+    return [_sibling_to_wire(sibling) for sibling in siblings]
+
+
+def _siblings_from_wire(value: object) -> tuple[JmtSibling, ...]:
+    if not isinstance(value, list):
+        raise TypeError("JMT siblings must be a list")
+    return _validate_siblings(_sibling_from_wire(item) for item in value)
+
+
+def _reject_duplicate_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError("JMT proof payload has duplicate fields")
+        out[key] = value
+    return out
+
+
+def _load_proof_payload(payload: bytes) -> tuple[bytes, dict[str, Any]]:
+    if not isinstance(payload, bytes):
+        raise TypeError("JMT proof payload must be bytes")
+    payload_bytes = bytes(payload)
+    try:
+        decoded = json.loads(payload_bytes.decode("utf-8"), object_pairs_hook=_reject_duplicate_json_object)
+    except UnicodeDecodeError as exc:
+        raise ValueError("JMT proof payload must be UTF-8") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError("JMT proof payload must be JSON") from exc
+    return payload_bytes, _require_object(decoded, name="JMT proof payload")
+
+
+def encode_jmt_membership_proof(proof: JmtMembershipProof) -> bytes:
+    if not isinstance(proof, JmtMembershipProof):
+        raise TypeError("proof must be a JmtMembershipProof")
+    return canonical_json_bytes(
+        {
+            "kind": "membership",
+            "version": JMT_VERSION,
+            "key": _to_hex(proof.key),
+            "value": _to_hex(proof.value),
+            "siblings": _siblings_to_wire(proof.siblings),
+        }
+    )
+
+
+def decode_jmt_membership_proof(payload: bytes) -> JmtMembershipProof:
+    payload_bytes, obj = _load_proof_payload(payload)
+    _require_fields(obj, {"kind", "version", "key", "value", "siblings"}, name="JMT membership proof")
+    if obj["kind"] != "membership":
+        raise ValueError("JMT membership proof kind mismatch")
+    _require_version(obj["version"])
+    proof = JmtMembershipProof(
+        key=_from_hex(obj["key"], nbytes=JMT_KEY_BYTES, name="JMT key"),
+        value=_from_hex(obj["value"], nbytes=None, name="JMT value"),
+        siblings=_siblings_from_wire(obj["siblings"]),
+    )
+    if payload_bytes != encode_jmt_membership_proof(proof):
+        raise ValueError("JMT membership proof payload must be canonical JSON")
+    return proof
+
+
+def encode_jmt_absence_proof(proof: JmtAbsenceProof) -> bytes:
+    if not isinstance(proof, JmtAbsenceProof):
+        raise TypeError("proof must be a JmtAbsenceProof")
+    return canonical_json_bytes(
+        {
+            "kind": "absence",
+            "version": JMT_VERSION,
+            "query_key": _to_hex(proof.query_key),
+            "witness_key": None if proof.witness_key is None else _to_hex(proof.witness_key),
+            "witness_value": None if proof.witness_value is None else _to_hex(proof.witness_value),
+            "siblings": _siblings_to_wire(proof.siblings),
+        }
+    )
+
+
+def decode_jmt_absence_proof(payload: bytes) -> JmtAbsenceProof:
+    payload_bytes, obj = _load_proof_payload(payload)
+    _require_fields(
+        obj,
+        {"kind", "version", "query_key", "witness_key", "witness_value", "siblings"},
+        name="JMT absence proof",
+    )
+    if obj["kind"] != "absence":
+        raise ValueError("JMT absence proof kind mismatch")
+    _require_version(obj["version"])
+    witness_key = obj["witness_key"]
+    witness_value = obj["witness_value"]
+    proof = JmtAbsenceProof(
+        query_key=_from_hex(obj["query_key"], nbytes=JMT_KEY_BYTES, name="JMT query_key"),
+        witness_key=None
+        if witness_key is None
+        else _from_hex(witness_key, nbytes=JMT_KEY_BYTES, name="JMT witness_key"),
+        witness_value=None if witness_value is None else _from_hex(witness_value, nbytes=None, name="JMT witness_value"),
+        siblings=_siblings_from_wire(obj["siblings"]),
+    )
+    if payload_bytes != encode_jmt_absence_proof(proof):
+        raise ValueError("JMT absence proof payload must be canonical JSON")
+    return proof
 
 
 def compute_jmt_root(

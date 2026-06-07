@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,11 @@ from src.state.jmt import (
     JmtMembershipProof,
     JmtSibling,
     compute_jmt_root,
+    decode_jmt_absence_proof,
+    decode_jmt_membership_proof,
     empty_hash,
+    encode_jmt_absence_proof,
+    encode_jmt_membership_proof,
     internal_hash,
     leaf_hash,
     prove_jmt_absence,
@@ -41,6 +46,20 @@ class _HostileBytes(bytes):
 
     def __ne__(self, other):  # type: ignore[no-untyped-def]
         return False
+
+
+class _HostilePayload(bytes):
+    def __new__(cls, raw: bytes, spoofed_text: str) -> "_HostilePayload":
+        obj = bytes.__new__(cls, raw)
+        obj._spoofed_text = spoofed_text
+        return obj
+
+    def decode(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        return self._spoofed_text
+
+
+def _wire(value: object) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
 def test_jmt_root_is_order_independent_and_binds_values() -> None:
@@ -203,6 +222,196 @@ def test_jmt_canonicalizes_bytes_subclasses_before_verification() -> None:
     assert type(forged_absence.witness_key) is bytes
     assert type(forged_absence.witness_value) is bytes
     assert not verify_jmt_absence(root, _key(0), forged_absence)
+
+
+def test_jmt_membership_proof_serialization_is_canonical_and_verifies() -> None:
+    entries = [(_key(1), b"one"), (_key(2), b"two"), (_key(255), b"max")]
+    root = compute_jmt_root(entries)
+    proof = prove_jmt_membership(entries, _key(2))
+
+    encoded = encode_jmt_membership_proof(proof)
+    decoded = decode_jmt_membership_proof(encoded)
+
+    assert encoded == encode_jmt_membership_proof(decoded)
+    assert decoded == proof
+    assert verify_jmt_membership(root, _key(2), b"two", decoded)
+    assert b" " not in encoded
+    assert json.loads(encoded)["kind"] == "membership"
+
+
+def test_jmt_absence_proof_serialization_is_canonical_and_verifies() -> None:
+    entries = [(_key(42), b"answer")]
+    root = compute_jmt_root(entries)
+    proof = prove_jmt_absence(entries, _key(43))
+
+    encoded = encode_jmt_absence_proof(proof)
+    decoded = decode_jmt_absence_proof(encoded)
+
+    assert encoded == encode_jmt_absence_proof(decoded)
+    assert decoded == proof
+    assert verify_jmt_absence(root, _key(43), decoded)
+    assert json.loads(encoded)["kind"] == "absence"
+
+
+def test_jmt_proof_serialization_rejects_unknown_fields_and_ambiguous_hex() -> None:
+    proof = prove_jmt_membership([(_key(1), b"one"), (_key(2), b"two")], _key(1))
+    payload = json.loads(encode_jmt_membership_proof(proof))
+
+    with_unknown = dict(payload)
+    with_unknown["extra"] = "ignored?"
+    with pytest.raises(ValueError, match="unexpected JMT membership proof fields"):
+        decode_jmt_membership_proof(_wire(with_unknown))
+
+    uppercase_key = dict(payload)
+    uppercase_key["key"] = "0x" + "AA" * JMT_KEY_BYTES
+    with pytest.raises(ValueError, match="canonical lowercase hex"):
+        decode_jmt_membership_proof(_wire(uppercase_key))
+
+    wrong_kind = dict(payload)
+    wrong_kind["kind"] = "absence"
+    with pytest.raises(ValueError, match="JMT membership proof kind mismatch"):
+        decode_jmt_membership_proof(_wire(wrong_kind))
+
+    bad_version = dict(payload)
+    bad_version["version"] = True
+    with pytest.raises(ValueError, match="JMT proof version mismatch"):
+        decode_jmt_membership_proof(_wire(bad_version))
+
+    bad_sibling = dict(payload)
+    bad_sibling["siblings"] = [{"sibling_hash": "0x" + "00" * 32, "sibling_on_left": False, "extra": 1}]
+    with pytest.raises(ValueError, match="unexpected JMT sibling fields"):
+        decode_jmt_membership_proof(_wire(bad_sibling))
+
+    with pytest.raises(TypeError, match="JMT proof payload must be bytes"):
+        decode_jmt_membership_proof(bytearray(encode_jmt_membership_proof(proof)))  # type: ignore[arg-type]
+
+
+def test_jmt_proof_serialization_rejects_spoofed_payload_subclasses_and_noncanonical_json() -> None:
+    proof = prove_jmt_membership([(_key(1), b"one"), (_key(2), b"two")], _key(1))
+    encoded = encode_jmt_membership_proof(proof)
+    payload = json.loads(encoded)
+
+    spoofed = _HostilePayload(b"not-json", encoded.decode("utf-8"))
+    with pytest.raises(ValueError, match="JMT proof payload must be JSON"):
+        decode_jmt_membership_proof(spoofed)
+
+    pretty = json.dumps(payload, sort_keys=True, indent=2).encode("utf-8")
+    with pytest.raises(ValueError, match="JMT membership proof payload must be canonical JSON"):
+        decode_jmt_membership_proof(pretty)
+
+    reordered = json.dumps(payload, sort_keys=False, separators=(",", ":")).encode("utf-8")
+    if reordered != encoded:
+        with pytest.raises(ValueError, match="JMT membership proof payload must be canonical JSON"):
+            decode_jmt_membership_proof(reordered)
+
+    escaped = encoded.replace(b"membership", b"member\\u0073hip")
+    assert escaped != encoded
+    with pytest.raises(ValueError, match="JMT membership proof payload must be canonical JSON"):
+        decode_jmt_membership_proof(escaped)
+
+    with pytest.raises(ValueError, match="duplicate fields"):
+        decode_jmt_membership_proof(
+            b'{"key":"0x' + b"00" * 32 + b'","kind":"membership","siblings":[{"sibling_hash":"0x'
+            + b"00" * 32
+            + b'","sibling_hash":"0x'
+            + b"11" * 32
+            + b'","sibling_on_left":false}],"value":"0x","version":1}'
+        )
+
+
+def test_jmt_proof_serialization_rejects_malformed_payloads() -> None:
+    proof = prove_jmt_membership([(_key(1), b"one"), (_key(2), b"two")], _key(1))
+    payload = json.loads(encode_jmt_membership_proof(proof))
+
+    with pytest.raises(ValueError, match="duplicate fields"):
+        decode_jmt_membership_proof(b'{"kind":"membership","kind":"membership"}')
+    with pytest.raises(ValueError, match="must be UTF-8"):
+        decode_jmt_membership_proof(b"\xff")
+    with pytest.raises(ValueError, match="must be JSON"):
+        decode_jmt_membership_proof(b"{")
+    with pytest.raises(TypeError, match="must be an object"):
+        decode_jmt_membership_proof(b"[]")
+
+    not_string_key = dict(payload)
+    not_string_key["key"] = 7
+    with pytest.raises(TypeError, match="JMT key must be a canonical hex string"):
+        decode_jmt_membership_proof(_wire(not_string_key))
+
+    no_prefix = dict(payload)
+    no_prefix["key"] = "00" * JMT_KEY_BYTES
+    with pytest.raises(ValueError, match="canonical hex string"):
+        decode_jmt_membership_proof(_wire(no_prefix))
+
+    odd_value = dict(payload)
+    odd_value["value"] = "0x0"
+    with pytest.raises(ValueError, match="even number"):
+        decode_jmt_membership_proof(_wire(odd_value))
+
+    short_key = dict(payload)
+    short_key["key"] = "0x00"
+    with pytest.raises(ValueError, match="canonical 32-byte hex"):
+        decode_jmt_membership_proof(_wire(short_key))
+
+    invalid_hex = dict(payload)
+    invalid_hex["value"] = "0xgg"
+    with pytest.raises(ValueError, match="valid hex"):
+        decode_jmt_membership_proof(_wire(invalid_hex))
+
+    whitespace_hex = dict(payload)
+    whitespace_hex["value"] = "0x00 0a "
+    with pytest.raises(ValueError, match="canonical lowercase hex"):
+        decode_jmt_membership_proof(_wire(whitespace_hex))
+
+    siblings_not_list = dict(payload)
+    siblings_not_list["siblings"] = {}
+    with pytest.raises(TypeError, match="JMT siblings must be a list"):
+        decode_jmt_membership_proof(_wire(siblings_not_list))
+
+    sibling_not_object = dict(payload)
+    sibling_not_object["siblings"] = [7]
+    with pytest.raises(TypeError, match="JMT sibling must be an object"):
+        decode_jmt_membership_proof(_wire(sibling_not_object))
+
+    sibling_bad_side = dict(payload)
+    sibling_bad_side["siblings"] = [{"sibling_hash": "0x" + "00" * 32, "sibling_on_left": 0}]
+    with pytest.raises(TypeError, match="JMT sibling_on_left must be bool"):
+        decode_jmt_membership_proof(_wire(sibling_bad_side))
+
+    with pytest.raises(TypeError, match="proof must be a JmtMembershipProof"):
+        encode_jmt_membership_proof(object())  # type: ignore[arg-type]
+
+
+def test_jmt_absence_proof_serialization_rejects_bad_payloads() -> None:
+    proof = prove_jmt_absence([(_key(42), b"answer")], _key(43))
+    payload = json.loads(encode_jmt_absence_proof(proof))
+
+    with_unknown = dict(payload)
+    with_unknown["extra"] = "ignored?"
+    with pytest.raises(ValueError, match="unexpected JMT absence proof fields"):
+        decode_jmt_absence_proof(_wire(with_unknown))
+
+    wrong_kind = dict(payload)
+    wrong_kind["kind"] = "membership"
+    with pytest.raises(ValueError, match="JMT absence proof kind mismatch"):
+        decode_jmt_absence_proof(_wire(wrong_kind))
+
+    bad_version = dict(payload)
+    bad_version["version"] = 999
+    with pytest.raises(ValueError, match="JMT proof version mismatch"):
+        decode_jmt_absence_proof(_wire(bad_version))
+
+    bad_witness = dict(payload)
+    bad_witness["witness_key"] = None
+    bad_witness["witness_value"] = "0x00"
+    with pytest.raises(ValueError, match="witness_value must be None"):
+        decode_jmt_absence_proof(_wire(bad_witness))
+
+    with pytest.raises(TypeError, match="proof must be a JmtAbsenceProof"):
+        encode_jmt_absence_proof(object())  # type: ignore[arg-type]
+
+    pretty = json.dumps(payload, sort_keys=True, indent=2).encode("utf-8")
+    with pytest.raises(ValueError, match="JMT absence proof payload must be canonical JSON"):
+        decode_jmt_absence_proof(pretty)
 
 
 def test_jmt_handles_keys_that_diverge_only_at_final_bit() -> None:
