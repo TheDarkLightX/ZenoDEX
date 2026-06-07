@@ -139,6 +139,153 @@ impl ClobBookV1 {
     }
 }
 
+// --- continuous matcher: byte/semantics-exact port of clob_matching.apply_order
+
+use alloc::collections::{BTreeMap, BTreeSet};
+
+/// quote-per-base scale (mirrors clob_book.PRICE_SCALE = 1e8).
+const PRICE_SCALE: i128 = 100_000_000;
+/// base*price overflow envelope (mirrors clob_matching._MAX_FILL_PRODUCT).
+const MAX_FILL_PRODUCT: i128 = ((1i128 << 56) - 1) * ((1i128 << 56) - 1);
+/// capacity guard (mirrors clob_book.MAX_BOOK_ORDERS).
+const MAX_BOOK_ORDERS: usize = 1 << 20;
+
+pub const REJ_DUP_ORDER_ID: &str = "dup_order_id";
+pub const REJ_SELF_TRADE: &str = "self_trade";
+pub const REJ_BOOK_FULL: &str = "book_full";
+
+/// floor(base*maker_price/PRICE_SCALE), checked. The product fits i128 within the
+/// (2^56-1) field domain; checked_mul keeps it fail-closed if a caller ever
+/// exceeds the domain (mirrors compute_quote's OverflowError, never wraps).
+pub fn compute_quote(base: u64, maker_price: u64) -> Result<i128, &'static str> {
+    let product = (base as i128)
+        .checked_mul(maker_price as i128)
+        .ok_or("clob fill product overflow")?;
+    if product > MAX_FILL_PRODUCT {
+        return Err("clob fill product exceeds documented bound");
+    }
+    Ok(product / PRICE_SCALE)
+}
+
+/// True iff `taker` crosses resting `maker` (mirrors clob_matching.crosses).
+fn crosses(taker: &ClobOrderV1, maker: &ClobOrderV1) -> bool {
+    if taker.side_code == maker.side_code {
+        return false;
+    }
+    if taker.side_code == 0 {
+        taker.price_q_per_base >= maker.price_q_per_base // BUY crosses SELL
+    } else {
+        taker.price_q_per_base <= maker.price_q_per_base // SELL crosses BUY
+    }
+}
+
+fn buyer_seller(taker: &ClobOrderV1, maker: &ClobOrderV1) -> (String, String) {
+    if taker.side_code == 0 {
+        (taker.owner.clone(), maker.owner.clone()) // taker buys base
+    } else {
+        (maker.owner.clone(), taker.owner.clone()) // taker sells base
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClobFillV1 {
+    pub base: u64,
+    pub quote: i128,
+    pub maker_price: u64,
+    pub buyer: String,
+    pub seller: String,
+    pub taker_order_id: String,
+    pub maker_order_id: String,
+    pub maker_side_code: u8,
+}
+
+#[derive(Clone, Debug)]
+pub enum ClobMatchResultV1 {
+    Accepted { post_book: ClobBookV1, fills: Vec<ClobFillV1>, resting_taker_qty: u64 },
+    Rejected { reason: &'static str },
+}
+
+/// Apply a single incoming `taker` to `book` (continuous match) -- byte/semantics
+/// identical to clob_matching.apply_order. Reject-is-no-op (the caller keeps the
+/// original book). Field validity is assumed enforced at the input boundary
+/// (mirrors the ClobOrder type contract); this function covers dup-id, the
+/// price-time-priority walk, self-trade, partials, re-rest, and book-full.
+pub fn apply_clob_order(
+    book: &ClobBookV1,
+    taker: &ClobOrderV1,
+) -> Result<ClobMatchResultV1, &'static str> {
+    if book.orders.iter().any(|o| o.order_id == taker.order_id) {
+        return Ok(ClobMatchResultV1::Rejected { reason: REJ_DUP_ORDER_ID });
+    }
+    let opposite: u8 = if taker.side_code == 0 { 1 } else { 0 };
+
+    let mut remaining: u64 = taker.base_qty;
+    let mut fills: Vec<ClobFillV1> = Vec::new();
+    let mut consumed: BTreeSet<String> = BTreeSet::new();
+    let mut reduced: BTreeMap<String, u64> = BTreeMap::new();
+
+    // book.orders is canonical (order_priority_key) order; the opposite-side
+    // filter preserves it, so this walk is best-first (price-time priority).
+    for maker in book.orders.iter().filter(|o| o.side_code == opposite) {
+        if remaining == 0 {
+            break;
+        }
+        if !crosses(taker, maker) {
+            break; // best opposite no longer crosses -> stop (price priority)
+        }
+        if maker.owner == taker.owner {
+            return Ok(ClobMatchResultV1::Rejected { reason: REJ_SELF_TRADE });
+        }
+        let match_base = if remaining < maker.base_qty { remaining } else { maker.base_qty };
+        let quote = compute_quote(match_base, maker.price_q_per_base)?;
+        let (buyer, seller) = buyer_seller(taker, maker);
+        fills.push(ClobFillV1 {
+            base: match_base,
+            quote,
+            maker_price: maker.price_q_per_base,
+            buyer,
+            seller,
+            taker_order_id: taker.order_id.clone(),
+            maker_order_id: maker.order_id.clone(),
+            maker_side_code: maker.side_code,
+        });
+        remaining -= match_base;
+        if match_base == maker.base_qty {
+            consumed.insert(maker.order_id.clone());
+        } else {
+            reduced.insert(maker.order_id.clone(), maker.base_qty - match_base);
+        }
+    }
+
+    let mut new_orders: Vec<ClobOrderV1> = Vec::new();
+    for o in &book.orders {
+        if consumed.contains(&o.order_id) {
+            continue;
+        }
+        if let Some(q) = reduced.get(&o.order_id) {
+            let mut reduced_o = o.clone();
+            reduced_o.base_qty = *q;
+            new_orders.push(reduced_o);
+        } else {
+            new_orders.push(o.clone());
+        }
+    }
+
+    let mut resting_taker_qty: u64 = 0;
+    if remaining > 0 {
+        if new_orders.len() >= MAX_BOOK_ORDERS {
+            return Ok(ClobMatchResultV1::Rejected { reason: REJ_BOOK_FULL });
+        }
+        let mut rested = taker.clone();
+        rested.base_qty = remaining;
+        new_orders.push(rested);
+        resting_taker_qty = remaining;
+    }
+
+    let post_book = ClobBookV1::new(book.base_asset.clone(), book.quote_asset.clone(), new_orders);
+    Ok(ClobMatchResultV1::Accepted { post_book, fills, resting_taker_qty })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

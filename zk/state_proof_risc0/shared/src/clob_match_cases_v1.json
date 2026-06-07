@@ -1,0 +1,380 @@
+{
+  "cases": [
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "single_full_fill",
+      "orders": [
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "owner": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "price_q_per_base": 100000000,
+          "sequence": 1,
+          "side_code": 1
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "result": {
+        "accepted": true,
+        "fills": [
+          {
+            "base": 5,
+            "buyer": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "maker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+            "maker_price": 100000000,
+            "maker_side_code": 1,
+            "quote": 5,
+            "seller": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "taker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000063"
+          }
+        ],
+        "post_book_root": "da10d1ce72280504bd3c79a3296b6100c121a9d176f03581011e705acded0a4b",
+        "resting_taker_qty": 0
+      },
+      "taker": {
+        "base_qty": 5,
+        "order_id": "0x0000000000000000000000000000000000000000000000000000000000000063",
+        "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "price_q_per_base": 100000000,
+        "sequence": 10,
+        "side_code": 0
+      }
+    },
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "partial_maker_taker_full",
+      "orders": [
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "owner": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "price_q_per_base": 100000000,
+          "sequence": 1,
+          "side_code": 1
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "result": {
+        "accepted": true,
+        "fills": [
+          {
+            "base": 3,
+            "buyer": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "maker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+            "maker_price": 100000000,
+            "maker_side_code": 1,
+            "quote": 3,
+            "seller": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "taker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000063"
+          }
+        ],
+        "post_book_root": "4ac405317f3ceae4a836531a9aec093f1f646a71df0520e563665f775022c3f5",
+        "resting_taker_qty": 0
+      },
+      "taker": {
+        "base_qty": 3,
+        "order_id": "0x0000000000000000000000000000000000000000000000000000000000000063",
+        "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "price_q_per_base": 100000000,
+        "sequence": 10,
+        "side_code": 0
+      }
+    },
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "taker_bigger_leftover_rerests",
+      "orders": [
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "owner": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "price_q_per_base": 100000000,
+          "sequence": 1,
+          "side_code": 1
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "result": {
+        "accepted": true,
+        "fills": [
+          {
+            "base": 5,
+            "buyer": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "maker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+            "maker_price": 100000000,
+            "maker_side_code": 1,
+            "quote": 5,
+            "seller": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "taker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000063"
+          }
+        ],
+        "post_book_root": "4361bcf2c831e8fbdabd71131d3e20e1f67110a82669c4003a1f88c51d4e8733",
+        "resting_taker_qty": 3
+      },
+      "taker": {
+        "base_qty": 8,
+        "order_id": "0x0000000000000000000000000000000000000000000000000000000000000063",
+        "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "price_q_per_base": 100000000,
+        "sequence": 10,
+        "side_code": 0
+      }
+    },
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "price_priority_multi_fill",
+      "orders": [
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "owner": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "price_q_per_base": 102000000,
+          "sequence": 1,
+          "side_code": 1
+        },
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "owner": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "price_q_per_base": 100000000,
+          "sequence": 2,
+          "side_code": 1
+        },
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "owner": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "price_q_per_base": 101000000,
+          "sequence": 3,
+          "side_code": 1
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "result": {
+        "accepted": true,
+        "fills": [
+          {
+            "base": 5,
+            "buyer": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "maker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000002",
+            "maker_price": 100000000,
+            "maker_side_code": 1,
+            "quote": 5,
+            "seller": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "taker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000063"
+          },
+          {
+            "base": 5,
+            "buyer": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "maker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+            "maker_price": 101000000,
+            "maker_side_code": 1,
+            "quote": 5,
+            "seller": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "taker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000063"
+          },
+          {
+            "base": 2,
+            "buyer": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "maker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+            "maker_price": 102000000,
+            "maker_side_code": 1,
+            "quote": 2,
+            "seller": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "taker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000063"
+          }
+        ],
+        "post_book_root": "83fdf0243c80d66caec79c5d6635b807e09583933699feaa73712facc86571e3",
+        "resting_taker_qty": 0
+      },
+      "taker": {
+        "base_qty": 12,
+        "order_id": "0x0000000000000000000000000000000000000000000000000000000000000063",
+        "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "price_q_per_base": 102000000,
+        "sequence": 10,
+        "side_code": 0
+      }
+    },
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "time_priority_same_price",
+      "orders": [
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "owner": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "price_q_per_base": 100000000,
+          "sequence": 2,
+          "side_code": 1
+        },
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "owner": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "price_q_per_base": 100000000,
+          "sequence": 1,
+          "side_code": 1
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "result": {
+        "accepted": true,
+        "fills": [
+          {
+            "base": 3,
+            "buyer": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "maker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000002",
+            "maker_price": 100000000,
+            "maker_side_code": 1,
+            "quote": 3,
+            "seller": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "taker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000063"
+          }
+        ],
+        "post_book_root": "bf85aaa682ad4ab1fb8fddac268c588f823e2a07f17b296276037d9621b80e5e",
+        "resting_taker_qty": 0
+      },
+      "taker": {
+        "base_qty": 3,
+        "order_id": "0x0000000000000000000000000000000000000000000000000000000000000063",
+        "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "price_q_per_base": 100000000,
+        "sequence": 10,
+        "side_code": 0
+      }
+    },
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "no_cross_taker_rests",
+      "orders": [
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "owner": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "price_q_per_base": 105000000,
+          "sequence": 1,
+          "side_code": 1
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "result": {
+        "accepted": true,
+        "fills": [],
+        "post_book_root": "f032b2d9c08e7bdf56f0206c002105adc7b2b01d673553dd071a1b752c38ea07",
+        "resting_taker_qty": 5
+      },
+      "taker": {
+        "base_qty": 5,
+        "order_id": "0x0000000000000000000000000000000000000000000000000000000000000063",
+        "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "price_q_per_base": 100000000,
+        "sequence": 10,
+        "side_code": 0
+      }
+    },
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "self_trade_reject",
+      "orders": [
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "price_q_per_base": 100000000,
+          "sequence": 1,
+          "side_code": 1
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "result": {
+        "accepted": false,
+        "reason": "self_trade"
+      },
+      "taker": {
+        "base_qty": 5,
+        "order_id": "0x0000000000000000000000000000000000000000000000000000000000000063",
+        "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "price_q_per_base": 100000000,
+        "sequence": 10,
+        "side_code": 0
+      }
+    },
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "dup_order_id_reject",
+      "orders": [
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000007",
+          "owner": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "price_q_per_base": 100000000,
+          "sequence": 1,
+          "side_code": 1
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "result": {
+        "accepted": false,
+        "reason": "dup_order_id"
+      },
+      "taker": {
+        "base_qty": 5,
+        "order_id": "0x0000000000000000000000000000000000000000000000000000000000000007",
+        "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "price_q_per_base": 100000000,
+        "sequence": 10,
+        "side_code": 0
+      }
+    },
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "partial_cross_stop",
+      "orders": [
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "owner": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "price_q_per_base": 100000000,
+          "sequence": 1,
+          "side_code": 1
+        },
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "owner": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "price_q_per_base": 110000000,
+          "sequence": 2,
+          "side_code": 1
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "result": {
+        "accepted": true,
+        "fills": [
+          {
+            "base": 5,
+            "buyer": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "maker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+            "maker_price": 100000000,
+            "maker_side_code": 1,
+            "quote": 5,
+            "seller": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "taker_order_id": "0x0000000000000000000000000000000000000000000000000000000000000063"
+          }
+        ],
+        "post_book_root": "9694fb8f68a82af32a0277f48b0afd7717493c4968a654e0e3d13e196b6c0b33",
+        "resting_taker_qty": 5
+      },
+      "taker": {
+        "base_qty": 10,
+        "order_id": "0x0000000000000000000000000000000000000000000000000000000000000063",
+        "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "price_q_per_base": 105000000,
+        "sequence": 10,
+        "side_code": 0
+      }
+    }
+  ],
+  "version": 1
+}
