@@ -31,7 +31,7 @@ def _hash_refs() -> st.SearchStrategy[str]:
     return st.builds(
         lambda prefix, body: prefix + body,
         st.sampled_from(("0x", "sha256:")),
-        st.text(alphabet="0123456789abcdef", min_size=64, max_size=64),
+        st.binary(min_size=32, max_size=32).map(bytes.hex),
     )
 
 

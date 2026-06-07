@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
-  "file_count": 427,
-  "function_count": 5629,
+  "file_count": 428,
+  "function_count": 5639,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 945,
-      "lines": 5478
+      "complexity": 930,
+      "lines": 5317
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
       "complexity": 4,
@@ -9850,6 +9850,46 @@
     "src/integration/api_server.py::main": {
       "complexity": 37,
       "lines": 274
+    },
+    "src/integration/api_server_dex_readonly_routes.py::_build_pokayoke_payload": {
+      "complexity": 2,
+      "lines": 23
+    },
+    "src/integration/api_server_dex_readonly_routes.py::_handle_impact_preview": {
+      "complexity": 2,
+      "lines": 41
+    },
+    "src/integration/api_server_dex_readonly_routes.py::_handle_slippage_advice": {
+      "complexity": 2,
+      "lines": 13
+    },
+    "src/integration/api_server_dex_readonly_routes.py::_optional_int": {
+      "complexity": 2,
+      "lines": 2
+    },
+    "src/integration/api_server_dex_readonly_routes.py::_parse_optional_slippage_bps": {
+      "complexity": 2,
+      "lines": 3
+    },
+    "src/integration/api_server_dex_readonly_routes.py::_parse_slippage_options": {
+      "complexity": 4,
+      "lines": 11
+    },
+    "src/integration/api_server_dex_readonly_routes.py::_slippage_advice_from_payload": {
+      "complexity": 1,
+      "lines": 15
+    },
+    "src/integration/api_server_dex_readonly_routes.py::_slippage_advice_payload": {
+      "complexity": 2,
+      "lines": 15
+    },
+    "src/integration/api_server_dex_readonly_routes.py::_slippage_option_payload": {
+      "complexity": 1,
+      "lines": 11
+    },
+    "src/integration/api_server_dex_readonly_routes.py::maybe_handle_dex_readonly_route": {
+      "complexity": 3,
+      "lines": 13
     },
     "src/integration/api_server_settlement_parsers.py::_parse_balance_table_payload": {
       "complexity": 10,
@@ -22521,17 +22561,17 @@
     }
   },
   "line_budget": 60,
-  "max_complexity": 945,
-  "max_function_lines": 5478,
+  "max_complexity": 930,
+  "max_function_lines": 5317,
   "over_complexity_budget_count": 1605,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
     {
-      "complexity": 945,
-      "line_end": 6645,
+      "complexity": 930,
+      "line_end": 6484,
       "line_start": 1168,
-      "lines": 5478,
+      "lines": 5317,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
@@ -22690,10 +22730,10 @@
   ],
   "top_lines": [
     {
-      "complexity": 945,
-      "line_end": 6645,
+      "complexity": 930,
+      "line_end": 6484,
       "line_start": 1168,
-      "lines": 5478,
+      "lines": 5317,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },

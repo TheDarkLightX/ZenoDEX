@@ -1195,181 +1195,20 @@ class _Handler(BaseHTTPRequestHandler):
             self._write_json(400, {"ok": False, "error": search_limit_error}, cors_origin=cors_origin)
             return True
 
-        if path == "/api/dex/impact_preview":
-            try:
-                from src.core.price_impact_preview import price_impact_preview  # pylint: disable=import-outside-toplevel
+        from src.integration.api_server_dex_readonly_routes import (  # pylint: disable=import-outside-toplevel
+            maybe_handle_dex_readonly_route,
+        )
 
-                reserve_in = int(obj.get("reserve_in", 0))
-                reserve_out = int(obj.get("reserve_out", 0))
-                amount_in = int(obj.get("amount_in", 0))
-                fee_bps = int(obj.get("fee_bps", 0))
-                pending_same_dir = int(obj.get("pending_volume_same_direction", 0))
-                confidence_bps = int(obj.get("confidence_bps", 9500))
-
-                preview = price_impact_preview(
-                    reserve_in=reserve_in,
-                    reserve_out=reserve_out,
-                    amount_in=amount_in,
-                    fee_bps=fee_bps,
-                    pending_volume_same_direction=pending_same_dir,
-                    confidence_bps=confidence_bps,
-                )
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "preview": {
-                            "amount_out_isolated": int(preview.amount_out_isolated),
-                            "fee_amount": int(preview.fee_amount),
-                            "price_impact_bps": int(preview.price_impact_bps),
-                            "effective_price_e8": int(preview.effective_price_e8),
-                            "spot_price_e8": int(preview.spot_price_e8),
-                            "amount_out_best_case": int(preview.amount_out_best_case),
-                            "amount_out_worst_case": int(preview.amount_out_worst_case),
-                            "recommended_min_out": int(preview.recommended_min_out),
-                            "pending_volume_same_direction": int(preview.pending_volume_same_direction),
-                            "confidence_bps": int(preview.confidence_bps),
-                            "pending_volume_at_confidence": int(preview.pending_volume_at_confidence),
-                            "amount_out_at_confidence": int(preview.amount_out_at_confidence),
-                        },
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "impact_preview_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/slippage_advice":
-            try:
-                from src.core.slippage_advisor import (  # pylint: disable=import-outside-toplevel
-                    slippage_advice_exact_in_cpmm,
-                )
-                from src.core.pokayoke_swap_guardrails import (  # pylint: disable=import-outside-toplevel
-                    SwapGuardrailContext,
-                    decide_swap_guardrails,
-                )
-
-                reserve_in = int(obj.get("reserve_in", 0))
-                reserve_out = int(obj.get("reserve_out", 0))
-                amount_in = int(obj.get("amount_in", 0))
-                fee_bps = int(obj.get("fee_bps", 0))
-                pending_same_dir = int(obj.get("pending_volume_same_direction", 0))
-                confidence_bps = int(obj.get("confidence_bps", 9500))
-                max_attacker_amount_in = int(obj.get("max_attacker_amount_in", 5000))
-                user_slippage_bps_raw = obj.get("user_slippage_bps", None)
-                user_slippage_bps: int | None
-                if user_slippage_bps_raw is None:
-                    user_slippage_bps = None
-                else:
-                    user_slippage_bps = int(user_slippage_bps_raw)
-
-                raw_opts = obj.get("slippage_options_bps")
-                if isinstance(raw_opts, list):
-                    slippage_options_bps = []
-                    for x in raw_opts:
-                        try:
-                            slippage_options_bps.append(int(x))
-                        except Exception:
-                            continue
-                else:
-                    slippage_options_bps = None
-
-                advice = slippage_advice_exact_in_cpmm(
-                    reserve_in=reserve_in,
-                    reserve_out=reserve_out,
-                    fee_bps=fee_bps,
-                    amount_in=amount_in,
-                    pending_volume_same_direction=pending_same_dir,
-                    confidence_bps=confidence_bps,
-                    slippage_options_bps=slippage_options_bps,
-                    max_attacker_amount_in=max_attacker_amount_in,
-                )
-
-                pokayoke = None
-                if user_slippage_bps is not None:
-                    ctx = SwapGuardrailContext(
-                        price_impact_bps=int(advice.price_impact_bps),
-                        slippage_advice_status=str(advice.status),
-                        required_slippage_bps=int(advice.required_slippage_bps),
-                        recommended_slippage_bps_revert_safe=(
-                            int(advice.recommended_slippage_bps_revert_safe)
-                            if advice.recommended_slippage_bps_revert_safe is not None
-                            else None
-                        ),
-                        recommended_slippage_bps_mev_safe=(
-                            int(advice.recommended_slippage_bps_mev_safe)
-                            if advice.recommended_slippage_bps_mev_safe is not None
-                            else None
-                        ),
-                        recommended_slippage_bps=(
-                            int(advice.recommended_slippage_bps) if advice.recommended_slippage_bps is not None else None
-                        ),
-                    )
-                    decision = decide_swap_guardrails(ctx=ctx, user_slippage_bps=int(user_slippage_bps))
-                    pokayoke = {
-                        "action": str(decision.action),
-                        "reasons": list(decision.reasons),
-                        "messages": list(decision.messages),
-                        "typed_confirm_phrase": decision.typed_confirm_phrase,
-                    }
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "advice": {
-                            "best_amount_out": int(advice.best_amount_out),
-                            "price_impact_bps": int(advice.price_impact_bps),
-                            "amount_out_at_confidence": int(advice.amount_out_at_confidence),
-                            "pending_volume_at_confidence": int(advice.pending_volume_at_confidence),
-                            "confidence_bps": int(advice.confidence_bps),
-                            "required_slippage_bps": int(advice.required_slippage_bps),
-                            "recommended_slippage_bps_revert_safe": (
-                                int(advice.recommended_slippage_bps_revert_safe)
-                                if advice.recommended_slippage_bps_revert_safe is not None
-                                else None
-                            ),
-                            "recommended_slippage_bps_mev_safe": (
-                                int(advice.recommended_slippage_bps_mev_safe)
-                                if advice.recommended_slippage_bps_mev_safe is not None
-                                else None
-                            ),
-                            "recommended_slippage_bps": (
-                                int(advice.recommended_slippage_bps)
-                                if advice.recommended_slippage_bps is not None
-                                else None
-                            ),
-                            "status": str(advice.status),
-                            "pokayoke": pokayoke,
-                            "options": [
-                                {
-                                    "slippage_bps": int(o.slippage_bps),
-                                    "min_amount_out": int(o.min_amount_out),
-                                    "is_revert_safe_at_confidence": bool(o.is_revert_safe_at_confidence),
-                                    "sandwich_status": str(o.sandwich_status),
-                                    "sandwich_max_profit": int(o.sandwich_max_profit),
-                                    "sandwich_attacker_amount_in": int(o.sandwich_attacker_amount_in),
-                                    "sandwich_victim_amount_out": int(o.sandwich_victim_amount_out),
-                                    "sandwich_scanned_max_attacker_amount_in": int(o.sandwich_scanned_max_attacker_amount_in),
-                                }
-                                for o in advice.options
-                            ],
-                        },
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "slippage_advice_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
+        if maybe_handle_dex_readonly_route(
+            path=path,
+            obj=obj,
+            write_json=lambda status, payload: self._write_json(
+                status,
+                payload,
+                cors_origin=cors_origin,
+            ),
+        ):
+            return True
 
         if path == "/api/dex/pokayoke_swap_suggest":
             try:

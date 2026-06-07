@@ -124,11 +124,18 @@ def test_doctor_payload_reports_actionable_remediation() -> None:
     assert "clone or update external/ESSO" in lane_action["hints"]
 
 
-def test_stage_scope_includes_cli_when_modified() -> None:
-    proc = _run("stage-scope", "--format", "json")
-    assert proc.returncode == 0, proc.stderr
-    payload = json.loads(proc.stdout)
+def test_stage_scope_includes_cli_when_modified(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        assurance_cli,
+        "_git_status_paths",
+        lambda: ["tools/permissionless_assurance.py", "internal/private_note.md"],
+    )
+
+    args = type("Args", (), {"format": "json"})()
+    assert assurance_cli.cmd_stage_scope(args) == 0
+    payload = json.loads(capsys.readouterr().out)
     assert "tools/permissionless_assurance.py" in payload["paths"]
+    assert "internal/private_note.md" not in payload["paths"]
 
 
 def test_leak_check_blocks_internal_markers() -> None:
