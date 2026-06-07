@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from src.integration.api_server_exact_out_limits import DEX_API_EXACT_OUT_SEARCH_CAPS
+
 
 WriteJson = Callable[[int, object], None]
 ParsePools = Callable[[], dict[str, Any]]
@@ -25,6 +27,7 @@ _REPAIRED_FULL_DOMAIN_CERTIFIED_QUOTE_ENDPOINT = (
 )
 _BOUNDED_ADVISORY_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_bounded_advisory"
 _DEFAULT_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool"
+_ADAPTIVE_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_adaptive"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -37,29 +40,8 @@ _DEFAULTS = {
     "max_enumerated_candidates": 20_000,
 }
 
-_MIN_VALUES = {
-    "amount_out_total": 1,
-    "max_legs": 1,
-    "max_candidate_pools": 1,
-    "max_candidates": 1,
-    "max_iters": 1,
-    "window": 0,
-    "brute_force_max": 0,
-    "max_full_domain_pools": 1,
-    "max_enumerated_candidates": 1,
-}
-
-_MAX_VALUES = {
-    "amount_out_total": 50_000,
-    "max_legs": 3,
-    "max_candidate_pools": 5,
-    "max_candidates": 12,
-    "max_iters": 4_096,
-    "window": 64,
-    "brute_force_max": 512,
-    "max_full_domain_pools": 16,
-    "max_enumerated_candidates": 50_000,
-}
+_MIN_VALUES = {field: int(bounds[0]) for field, bounds in DEX_API_EXACT_OUT_SEARCH_CAPS.items()}
+_MAX_VALUES = {field: int(bounds[1]) for field, bounds in DEX_API_EXACT_OUT_SEARCH_CAPS.items()}
 
 _FULL_REQUEST_FIELDS = (
     "amount_out_total",
@@ -112,6 +94,31 @@ _DEFAULT_PACKET_COPY_KEYS = (
     "effective_canonical_projected_path",
     "effective_quote_projected_path",
     "effective_quote_matches_canonical_projected_path",
+)
+
+_ADAPTIVE_PACKET_BOOL_KEYS = (
+    "audited_bounds_contract_ok",
+    "default_packet_ok",
+    "repaired_full_domain_packet_ok",
+    "repaired_quote_matches_full_domain_canonical",
+    "cheap_path_attempted",
+    "cheap_path_success",
+    "fallback_required",
+    "fallback_attempted",
+    "fallback_available",
+    "fallback_success",
+    "returned_success",
+    "explicit_failure",
+    "no_spurious_failure",
+    "packet_ok",
+    "liveness_ok",
+)
+
+_ADAPTIVE_PACKET_COPY_KEYS = (
+    "default_effective_quote_source",
+    "effective_quote",
+    "failure_reason",
+    "nested_error",
 )
 
 
@@ -743,6 +750,54 @@ def _handle_default_quote(
         write_json(400, {"ok": False, "error": "quote_exact_out_many_pool_error", "details": "request failed"})
 
 
+def _adaptive_quote_payload(
+    *,
+    quote: object,
+    err: object,
+    packet_payload: dict[str, object],
+) -> dict[str, object]:
+    payload = {
+        "ok": bool(quote is not None),
+        "quote_policy": "adaptive_liveness_v1",
+        "packet": packet_payload,
+        "packet_schema": packet_payload["schema"],
+        "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_adaptive_liveness_packet",
+        "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet",
+        "quote_source": packet_payload["effective_quote_source"],
+    }
+    payload.update(_bool_packet_keys(packet_payload, _ADAPTIVE_PACKET_BOOL_KEYS))
+    payload.update(_copy_packet_keys(packet_payload, _ADAPTIVE_PACKET_COPY_KEYS))
+    if quote is not None:
+        payload["quote"] = packet_payload["effective_quote"]
+    else:
+        payload["error"] = str(err or packet_payload["failure_reason"] or "many_pool_adaptive_unavailable")
+    return payload
+
+
+def _handle_adaptive_quote(
+    obj: dict[str, object],
+    parse_pools: ParsePools,
+    write_json: WriteJson,
+) -> None:
+    try:
+        req = _parse_request(obj, parse_pools, _FULL_REQUEST_FIELDS)
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            quote_exact_out_many_pool_adaptive,
+        )
+
+        quote, err, packet = quote_exact_out_many_pool_adaptive(
+            req.pools,
+            asset_in=req.asset_in,
+            asset_out=req.asset_out,
+            **req.values,
+        )
+        write_json(200, _adaptive_quote_payload(quote=quote, err=err, packet_payload=packet.to_dict()))
+    except _BadRequest as exc:
+        _write_bad_request(write_json, exc)
+    except Exception:
+        write_json(400, {"ok": False, "error": "quote_exact_out_many_pool_adaptive_error", "details": "request failed"})
+
+
 def _repaired_full_domain_certified_payload(
     *,
     quote: object,
@@ -836,4 +891,5 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _REPAIRED_FULL_DOMAIN_CERTIFIED_QUOTE_ENDPOINT: _simple_route(_handle_repaired_full_domain_certified_quote),
     _BOUNDED_ADVISORY_QUOTE_ENDPOINT: _handle_bounded_advisory_quote,
     _DEFAULT_QUOTE_ENDPOINT: _simple_route(_handle_default_quote),
+    _ADAPTIVE_QUOTE_ENDPOINT: _simple_route(_handle_adaptive_quote),
 }

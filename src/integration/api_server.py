@@ -144,28 +144,20 @@ from src.integration.api_server_settlement_parsers import (
     _parse_settlement_feature_extension_inputs_payload,
     _parse_settlement_proof_flags_payload,
 )
+from src.integration.api_server_exact_out_limits import (
+    DEX_API_EXACT_OUT_CANDIDATE_EVAL_BUDGET,
+    DEX_API_EXACT_OUT_SEARCH_CAPS,
+    DEX_API_MAX_ROUTE_AMOUNT_IN,
+)
 from src.state.canonical import canonical_json_bytes
 
 
-DEX_API_MAX_ROUTE_AMOUNT_IN = 50_000
 DEX_API_MAX_TWO_POOL_AUDIT_AMOUNT_OUT_TOTAL = 512
 DEX_API_MAX_SANDWICH_ATTACKER_AMOUNT_IN = 50_000
 DEX_API_MAX_SLIPPAGE_OPTIONS = 64
 DEX_API_MAX_POOLS = 64
 DEX_API_MAX_MIXED_DIRECT_TWOHOP_SPLIT_AMOUNT_IN = 5_000
 DEX_API_MAX_FAST_TOPK = 4_096
-DEX_API_EXACT_OUT_CANDIDATE_EVAL_BUDGET = 4_096
-DEX_API_EXACT_OUT_SEARCH_CAPS = {
-    "amount_out_total": (1, DEX_API_MAX_ROUTE_AMOUNT_IN),
-    "max_legs": (1, 3),
-    "max_candidate_pools": (1, 5),
-    "max_candidates": (1, 12),
-    "max_iters": (1, 4_096),
-    "window": (0, 64),
-    "brute_force_max": (0, 512),
-    "max_full_domain_pools": (1, 16),
-    "max_enumerated_candidates": (1, 50_000),
-}
 DEX_API_EXACT_IN_ROUTE_SEARCH_PATHS = {
     "/api/dex/build_exact_in_route_oracle_contract",
     "/api/dex/guard_exact_in_route_canonicality",
@@ -3567,106 +3559,6 @@ class _Handler(BaseHTTPRequestHandler):
             ),
         ):
             return True
-
-        if path == "/api/dex/quote_exact_out_many_pool_adaptive":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    quote_exact_out_many_pool_adaptive,
-                )
-
-                quote, err, packet = quote_exact_out_many_pool_adaptive(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                packet_payload = packet.to_dict()
-                payload = {
-                    "ok": bool(quote is not None),
-                    "quote_policy": "adaptive_liveness_v1",
-                    "packet": packet_payload,
-                    "packet_schema": packet_payload["schema"],
-                    "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_adaptive_liveness_packet",
-                    "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet",
-                    "audited_bounds_contract_ok": bool(packet_payload["audited_bounds_contract_ok"]),
-                    "default_packet_ok": bool(packet_payload["default_packet_ok"]),
-                    "default_effective_quote_source": packet_payload["default_effective_quote_source"],
-                    "repaired_full_domain_packet_ok": bool(packet_payload["repaired_full_domain_packet_ok"]),
-                    "repaired_quote_matches_full_domain_canonical": bool(
-                        packet_payload["repaired_quote_matches_full_domain_canonical"]
-                    ),
-                    "cheap_path_attempted": bool(packet_payload["cheap_path_attempted"]),
-                    "cheap_path_success": bool(packet_payload["cheap_path_success"]),
-                    "fallback_required": bool(packet_payload["fallback_required"]),
-                    "fallback_attempted": bool(packet_payload["fallback_attempted"]),
-                    "fallback_available": bool(packet_payload["fallback_available"]),
-                    "fallback_success": bool(packet_payload["fallback_success"]),
-                    "returned_success": bool(packet_payload["returned_success"]),
-                    "explicit_failure": bool(packet_payload["explicit_failure"]),
-                    "no_spurious_failure": bool(packet_payload["no_spurious_failure"]),
-                    "packet_ok": bool(packet_payload["packet_ok"]),
-                    "liveness_ok": bool(packet_payload["liveness_ok"]),
-                    "quote_source": packet_payload["effective_quote_source"],
-                    "effective_quote": packet_payload["effective_quote"],
-                    "failure_reason": packet_payload["failure_reason"],
-                    "nested_error": packet_payload["nested_error"],
-                }
-                if quote is not None:
-                    payload["quote"] = packet_payload["effective_quote"]
-                else:
-                    payload["error"] = str(err or packet_payload["failure_reason"] or "many_pool_adaptive_unavailable")
-                self._write_json(200, payload, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "quote_exact_out_many_pool_adaptive_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
 
         if path == "/api/dex/quote_exact_out_many_pool_certified_advisory":
             try:

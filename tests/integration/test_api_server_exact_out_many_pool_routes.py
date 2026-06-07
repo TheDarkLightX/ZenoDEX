@@ -71,6 +71,33 @@ class _FakeBoundedPacket:
         }
 
 
+class _FakeAdaptivePacket:
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema": "adaptive-schema",
+            "audited_bounds_contract_ok": True,
+            "default_packet_ok": False,
+            "default_effective_quote_source": None,
+            "repaired_full_domain_packet_ok": False,
+            "repaired_quote_matches_full_domain_canonical": False,
+            "cheap_path_attempted": True,
+            "cheap_path_success": False,
+            "fallback_required": True,
+            "fallback_attempted": True,
+            "fallback_available": False,
+            "fallback_success": False,
+            "returned_success": False,
+            "explicit_failure": True,
+            "no_spurious_failure": True,
+            "packet_ok": False,
+            "liveness_ok": False,
+            "effective_quote_source": None,
+            "effective_quote": None,
+            "failure_reason": "adaptive_failure",
+            "nested_error": "nested",
+        }
+
+
 def test_unknown_many_pool_contract_route_is_not_handled() -> None:
     writes, write_json = _capture()
 
@@ -288,3 +315,50 @@ def test_many_pool_default_quote_route_rejects_bool_integer_field_after_pool_par
 
     assert handled is True
     assert writes == [(400, {"ok": False, "error": "bad_max_legs"})]
+
+
+def test_many_pool_adaptive_quote_route_rejects_bool_integer_field_after_pool_parse() -> None:
+    writes, write_json = _capture()
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/quote_exact_out_many_pool_adaptive",
+        obj=_minimal_request(window=True),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_window"})]
+
+
+def test_many_pool_adaptive_quote_route_failure_payload_contract(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+
+    def quote_rejects(*_args: object, **_kwargs: object) -> tuple[None, str | None, _FakeAdaptivePacket]:
+        return None, None, _FakeAdaptivePacket()
+
+    monkeypatch.setattr(
+        "src.integration.exact_out_route_certificate.quote_exact_out_many_pool_adaptive",
+        quote_rejects,
+    )
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/quote_exact_out_many_pool_adaptive",
+        obj=_minimal_request(),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert len(writes) == 1
+    status, payload = writes[0]
+    assert status == 200
+    assert isinstance(payload, dict)
+    assert payload["ok"] is False
+    assert payload["packet_schema"] == "adaptive-schema"
+    assert payload["quote_source"] is None
+    assert payload["explicit_failure"] is True
+    assert payload["error"] == "adaptive_failure"
+    assert "quote" not in payload
