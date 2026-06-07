@@ -507,3 +507,63 @@ def test_many_pool_repaired_advisory_packet_route_failure_payload_contract(monke
     assert payload["ok"] is False
     assert payload["packet"] == {"schema": "fake-build-packet", "packet_ok": False}
     assert payload["error"] == "many_pool_repaired_prefilter_contract_not_ok"
+
+
+def test_many_pool_repaired_full_domain_packet_route_rejects_bool_integer_field_after_pool_parse() -> None:
+    writes, write_json = _capture()
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_repaired_full_domain_certified_packet",
+        obj=_minimal_request(max_full_domain_pools=True),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_full_domain_pools"})]
+
+
+def test_many_pool_repaired_full_domain_packet_route_rejects_oversized_search_budget() -> None:
+    writes, write_json = _capture()
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_repaired_full_domain_certified_packet",
+        obj=_minimal_request(max_enumerated_candidates=50_001),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_enumerated_candidates"})]
+
+
+def test_many_pool_repaired_full_domain_packet_route_failure_payload_contract(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+
+    def build_rejects(*_args: object, **_kwargs: object) -> _FakeBuildPacket:
+        return _FakeBuildPacket()
+
+    monkeypatch.setattr(
+        "src.integration.exact_out_route_certificate.build_exact_out_many_pool_repaired_full_domain_certified_packet",
+        build_rejects,
+    )
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_repaired_full_domain_certified_packet",
+        obj=_minimal_request(),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert len(writes) == 1
+    status, payload = writes[0]
+    assert status == 200
+    assert isinstance(payload, dict)
+    assert payload["ok"] is False
+    assert payload["quote_policy"] == "repaired_full_domain_certified_v1"
+    assert payload["packet"] == {"schema": "fake-build-packet", "packet_ok": False}
+    assert payload["error"] == "many_pool_repaired_advisory_not_full_domain_canonical"

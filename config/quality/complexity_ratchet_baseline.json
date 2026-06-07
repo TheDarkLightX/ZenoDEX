@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
   "file_count": 430,
-  "function_count": 5675,
+  "function_count": 5676,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 785,
-      "lines": 4171
+      "complexity": 774,
+      "lines": 4096
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
       "complexity": 4,
@@ -9962,6 +9962,10 @@
     "src/integration/api_server_exact_out_many_pool_routes.py::_handle_repaired_full_domain_certified_quote": {
       "complexity": 3,
       "lines": 38
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_handle_repaired_full_domain_packet": {
+      "complexity": 3,
+      "lines": 37
     },
     "src/integration/api_server_exact_out_many_pool_routes.py::_handle_repaired_prefilter_contract": {
       "complexity": 3,
@@ -22705,17 +22709,17 @@
     }
   },
   "line_budget": 60,
-  "max_complexity": 785,
-  "max_function_lines": 4171,
+  "max_complexity": 774,
+  "max_function_lines": 4096,
   "over_complexity_budget_count": 1605,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
     {
-      "complexity": 785,
-      "line_end": 5330,
+      "complexity": 774,
+      "line_end": 5255,
       "line_start": 1160,
-      "lines": 4171,
+      "lines": 4096,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
@@ -22874,10 +22878,10 @@
   ],
   "top_lines": [
     {
-      "complexity": 785,
-      "line_end": 5330,
+      "complexity": 774,
+      "line_end": 5255,
       "line_start": 1160,
-      "lines": 4171,
+      "lines": 4096,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
