@@ -80,6 +80,8 @@ const ORDER_ID_NBYTES: usize = 32;
 const OWNER_NBYTES: usize = 48;
 const BOOK_DOMAIN_SEP_LABEL: &str = "clob_book";
 const BOOK_VERSION: u32 = 1;
+const MAX_PRICE_Q_PER_BASE: u64 = (1u64 << 56) - 1;
+const MAX_BASE_QTY: u64 = (1u64 << 56) - 1;
 
 #[derive(Clone, Debug)]
 pub struct ClobOrderV1 {
@@ -118,9 +120,31 @@ impl ClobBookV1 {
         Self { base_asset, quote_asset, orders }
     }
 
+    fn validate(&self) -> Result<(), &'static str> {
+        hex_to_bytes_fixed(&self.base_asset, ASSET_NBYTES)?;
+        hex_to_bytes_fixed(&self.quote_asset, ASSET_NBYTES)?;
+        if self.base_asset == self.quote_asset {
+            return Err("base_asset must differ from quote_asset");
+        }
+        if self.orders.len() > MAX_BOOK_ORDERS {
+            return Err(REJ_BOOK_FULL);
+        }
+        let mut seen = BTreeSet::new();
+        for o in &self.orders {
+            if let Some(reason) = validate_order_fields(o) {
+                return Err(reason);
+            }
+            if !seen.insert(o.order_id.as_str()) {
+                return Err(REJ_DUP_ORDER_ID);
+            }
+        }
+        Ok(())
+    }
+
     /// Domain-separated SHA-256 commitment to the resting book -- byte-for-byte
     /// identical to `ClobBook.state_root`.
     pub fn state_root(&self) -> Result<[u8; 32], &'static str> {
+        self.validate()?;
         let mut payload = domain_sep_bytes(BOOK_DOMAIN_SEP_LABEL, BOOK_VERSION);
         payload.extend_from_slice(&hex_to_bytes_fixed(&self.base_asset, ASSET_NBYTES)?);
         payload.extend_from_slice(&hex_to_bytes_fixed(&self.quote_asset, ASSET_NBYTES)?);
@@ -153,6 +177,37 @@ const MAX_BOOK_ORDERS: usize = 1 << 20;
 pub const REJ_DUP_ORDER_ID: &str = "dup_order_id";
 pub const REJ_SELF_TRADE: &str = "self_trade";
 pub const REJ_BOOK_FULL: &str = "book_full";
+pub const REJ_BAD_PRICE: &str = "bad_price";
+pub const REJ_BAD_QTY: &str = "bad_qty";
+pub const REJ_BAD_SIDE: &str = "bad_side";
+pub const REJ_BAD_ORDER_ID: &str = "bad_order_id";
+pub const REJ_BAD_OWNER: &str = "bad_owner";
+
+// REVIEW(Codex 2026-06-06, grade A- after fix): Claude's parity port had the
+// right encoder and matcher algorithms, but it trusted raw Rust structs more
+// than Python's ClobOrder/ClobBook constructors. That would let a future guest
+// hash or match invalid states that the ledger type boundary makes
+// unrepresentable. These checks make the Rust surface fail closed; the remaining
+// gap for S-tier is wiring this kernel into an actual journal-bound RISC0
+// transition rather than a parity-only library.
+fn validate_order_fields(o: &ClobOrderV1) -> Option<&'static str> {
+    if o.side_code != 0 && o.side_code != 1 {
+        return Some(REJ_BAD_SIDE);
+    }
+    if o.price_q_per_base == 0 || o.price_q_per_base > MAX_PRICE_Q_PER_BASE {
+        return Some(REJ_BAD_PRICE);
+    }
+    if o.base_qty == 0 || o.base_qty > MAX_BASE_QTY {
+        return Some(REJ_BAD_QTY);
+    }
+    if hex_to_bytes_fixed(&o.order_id, ORDER_ID_NBYTES).is_err() {
+        return Some(REJ_BAD_ORDER_ID);
+    }
+    if hex_to_bytes_fixed(&o.owner, OWNER_NBYTES).is_err() {
+        return Some(REJ_BAD_OWNER);
+    }
+    None
+}
 
 /// floor(base*maker_price/PRICE_SCALE), checked. The product fits i128 within the
 /// (2^56-1) field domain; checked_mul keeps it fail-closed if a caller ever
@@ -214,6 +269,10 @@ pub fn apply_clob_order(
     book: &ClobBookV1,
     taker: &ClobOrderV1,
 ) -> Result<ClobMatchResultV1, &'static str> {
+    book.validate()?;
+    if let Some(reason) = validate_order_fields(taker) {
+        return Ok(ClobMatchResultV1::Rejected { reason });
+    }
     if book.orders.iter().any(|o| o.order_id == taker.order_id) {
         return Ok(ClobMatchResultV1::Rejected { reason: REJ_DUP_ORDER_ID });
     }
@@ -283,7 +342,132 @@ pub fn apply_clob_order(
     }
 
     let post_book = ClobBookV1::new(book.base_asset.clone(), book.quote_asset.clone(), new_orders);
+    post_book.validate()?;
     Ok(ClobMatchResultV1::Accepted { post_book, fills, resting_taker_qty })
+}
+
+// --- I2b: journal-bound transition (Stage 2 proof statement) ------------------
+//
+// execute_clob_transition_v1 turns the parity-only matcher into the actual
+// statement a RISC0 guest proves: given a pre-book and an incoming event, it
+// commits the pre-book root, the event-log root, the post-book root, the fills,
+// the fee total, and the matching-rule + fee-rule hashes. The pre/post BOOK roots
+// are the ledger-exact clob_book roots (no encoder obligation). The event-log /
+// rule-hash encodings are NEW canonical forms defined here; their Python mirror +
+// cross-language parity is the next increment (the differential). Fees are bound
+// HONESTLY: the v1 matcher takes no fee, so fee_total=0 and fee_rule_hash commits
+// "none_v1" -- we bind the ABSENCE rather than invent a fee mechanism.
+
+fn sha256_of(payload: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(payload);
+    hasher.finalize().into()
+}
+
+fn encode_clob_order(o: &ClobOrderV1, out: &mut Vec<u8>) -> Result<(), &'static str> {
+    encode_uvarint(o.side_code as u64, out);
+    encode_uvarint(o.price_q_per_base, out);
+    encode_uvarint(o.base_qty, out);
+    encode_uvarint(o.sequence, out);
+    out.extend_from_slice(&hex_to_bytes_fixed(&o.order_id, ORDER_ID_NBYTES)?);
+    out.extend_from_slice(&hex_to_bytes_fixed(&o.owner, OWNER_NBYTES)?);
+    Ok(())
+}
+
+/// Stable identity hash of the matching rule the guest applied. The client pins
+/// this (the Stage 2 "rulebook hash") and rejects a proof under a different rule.
+pub fn clob_matching_rule_hash() -> [u8; 32] {
+    let mut p = domain_sep_bytes("clob_matching_rule", 1);
+    p.extend_from_slice(b"price_time_priority_continuous_v1");
+    sha256_of(&p)
+}
+
+/// Stable identity hash of the fee rule. v1 takes NO fee -- this binds that
+/// absence honestly (fee_total is always 0 under this rule).
+pub fn clob_fee_rule_hash() -> [u8; 32] {
+    let mut p = domain_sep_bytes("clob_fee_rule", 1);
+    p.extend_from_slice(b"none_v1");
+    sha256_of(&p)
+}
+
+/// Domain-separated commitment to the incoming event batch (v1: a single taker).
+pub fn clob_event_log_root(events: &[&ClobOrderV1]) -> Result<[u8; 32], &'static str> {
+    let mut p = domain_sep_bytes("clob_event_log", 1);
+    encode_uvarint(events.len() as u64, &mut p);
+    for e in events {
+        encode_clob_order(e, &mut p)?;
+    }
+    Ok(sha256_of(&p))
+}
+
+#[derive(Clone, Debug)]
+pub struct ClobTransitionInputV1 {
+    pub pre_book: ClobBookV1,
+    pub taker: ClobOrderV1,
+    pub pre_app_hash_present: bool,
+    pub pre_app_hash: [u8; 32],
+    pub expected_post_app_hash: [u8; 32],
+}
+
+#[derive(Clone, Debug)]
+pub struct ClobTransitionJournalV1 {
+    pub pre_app_hash_present: bool,
+    pub pre_book_root: [u8; 32],
+    pub post_book_root: [u8; 32],
+    pub event_log_root: [u8; 32],
+    pub matching_rule_hash: [u8; 32],
+    pub fee_rule_hash: [u8; 32],
+    pub fee_total: i128,
+    pub fills: Vec<ClobFillV1>,
+    pub resting_taker_qty: u64,
+}
+
+/// Apply the transition and emit the journal + post-book, WITHOUT enforcing
+/// `expected_post_app_hash` (mirrors the perps `_unchecked_with_snapshot`). A
+/// rejected match is NOT a provable state transition -> returns the reject reason
+/// as an Err (the guest only proves admitted transitions; reject-is-no-op is the
+/// matcher's contract). `pre_app_hash` (if present) must equal the pre-book root.
+pub fn execute_clob_transition_v1_unchecked_with_journal(
+    input: ClobTransitionInputV1,
+) -> Result<(ClobTransitionJournalV1, ClobBookV1), &'static str> {
+    let pre_book_root = input.pre_book.state_root()?;
+    if input.pre_app_hash_present && pre_book_root != input.pre_app_hash {
+        return Err("pre_app_hash mismatch");
+    }
+    let (post_book, fills, resting_taker_qty) =
+        match apply_clob_order(&input.pre_book, &input.taker)? {
+            ClobMatchResultV1::Accepted { post_book, fills, resting_taker_qty } => {
+                (post_book, fills, resting_taker_qty)
+            }
+            ClobMatchResultV1::Rejected { reason } => return Err(reason),
+        };
+    let post_book_root = post_book.state_root()?;
+    let event_log_root = clob_event_log_root(&[&input.taker])?;
+    let journal = ClobTransitionJournalV1 {
+        pre_app_hash_present: input.pre_app_hash_present,
+        pre_book_root,
+        post_book_root,
+        event_log_root,
+        matching_rule_hash: clob_matching_rule_hash(),
+        fee_rule_hash: clob_fee_rule_hash(),
+        fee_total: 0, // v1 matcher takes no fee
+        fills,
+        resting_taker_qty,
+    };
+    Ok((journal, post_book))
+}
+
+/// Thin wrapper: apply the transition and enforce `expected_post_app_hash` against
+/// the actual post-book root (mirrors `execute_perps_np_transition_v1`).
+pub fn execute_clob_transition_v1(
+    input: ClobTransitionInputV1,
+) -> Result<ClobTransitionJournalV1, &'static str> {
+    let expected = input.expected_post_app_hash;
+    let (journal, _post) = execute_clob_transition_v1_unchecked_with_journal(input)?;
+    if journal.post_book_root != expected {
+        return Err("post_app_hash mismatch");
+    }
+    Ok(journal)
 }
 
 #[cfg(test)]
@@ -298,6 +482,29 @@ mod tests {
             s.push_str(&format!("{:02x}", b));
         }
         s
+    }
+
+    fn asset(byte: &str) -> String {
+        "0x".to_string() + &byte.repeat(ASSET_NBYTES)
+    }
+
+    fn owner(byte: &str) -> String {
+        "0x".to_string() + &byte.repeat(OWNER_NBYTES)
+    }
+
+    fn oid(n: u64) -> String {
+        format!("0x{:064x}", n)
+    }
+
+    fn order(side_code: u8, price: u64, qty: u64, seq: u64, id: u64, owner_byte: &str) -> ClobOrderV1 {
+        ClobOrderV1 {
+            side_code,
+            price_q_per_base: price,
+            base_qty: qty,
+            sequence: seq,
+            order_id: oid(id),
+            owner: owner(owner_byte),
+        }
     }
 
     #[test]
@@ -328,20 +535,130 @@ mod tests {
         // crate's tests/clob_book_root_parity.rs, which has serde_json). If this
         // hardcoded hex drifts, regenerate via tools/gen_clob_book_root_fixture.py.
         let book = ClobBookV1::new(
-            "0x".to_string() + &"11".repeat(ASSET_NBYTES),
-            "0x".to_string() + &"22".repeat(ASSET_NBYTES),
-            vec![ClobOrderV1 {
-                side_code: 0, // BUY
-                price_q_per_base: 100,
-                base_qty: 5,
-                sequence: 1,
-                order_id: format!("0x{:064x}", 1u64),
-                owner: "0x".to_string() + &"aa".repeat(OWNER_NBYTES),
-            }],
+            asset("11"),
+            asset("22"),
+            vec![order(0, 100, 5, 1, 1, "aa")],
         );
         assert_eq!(
             hexstr(&book.state_root().unwrap()),
             "6e13539ee5e3de14f9a3c92f0bee97f85434eacce426b229b371e68bc66463ce",
         );
+    }
+
+    #[test]
+    fn invalid_book_states_fail_closed_before_root_or_match() {
+        let taker = order(0, PRICE_SCALE as u64, 5, 10, 99, "aa");
+
+        let invalid_side = ClobBookV1::new(asset("11"), asset("22"), vec![order(2, 100, 5, 1, 1, "bb")]);
+        assert_eq!(invalid_side.state_root().unwrap_err(), REJ_BAD_SIDE);
+        assert!(apply_clob_order(&invalid_side, &taker).is_err());
+
+        let duplicate = ClobBookV1::new(
+            asset("11"),
+            asset("22"),
+            vec![order(1, 100, 5, 1, 7, "bb"), order(1, 101, 5, 2, 7, "cc")],
+        );
+        assert_eq!(duplicate.state_root().unwrap_err(), REJ_DUP_ORDER_ID);
+
+        let same_assets = ClobBookV1::new(asset("11"), asset("11"), Vec::new());
+        assert!(same_assets.state_root().is_err());
+    }
+
+    #[test]
+    fn invalid_taker_rejects_with_stable_python_reason() {
+        let book = ClobBookV1::new(asset("11"), asset("22"), vec![order(1, PRICE_SCALE as u64, 5, 1, 1, "bb")]);
+
+        match apply_clob_order(&book, &order(0, 0, 5, 10, 99, "aa")).unwrap() {
+            ClobMatchResultV1::Rejected { reason } => assert_eq!(reason, REJ_BAD_PRICE),
+            ClobMatchResultV1::Accepted { .. } => panic!("zero-price taker must reject"),
+        }
+
+        match apply_clob_order(&book, &order(0, PRICE_SCALE as u64, 0, 10, 100, "aa")).unwrap() {
+            ClobMatchResultV1::Rejected { reason } => assert_eq!(reason, REJ_BAD_QTY),
+            ClobMatchResultV1::Accepted { .. } => panic!("zero-qty taker must reject"),
+        }
+    }
+
+    // --- I2b: journal-bound transition --------------------------------------
+    fn sample_maker() -> ClobOrderV1 {
+        order(1, PRICE_SCALE as u64, 5, 1, 1, "bb") // SELL @1.0 qty5
+    }
+    fn sample_taker() -> ClobOrderV1 {
+        order(0, PRICE_SCALE as u64, 5, 10, 99, "aa") // BUY @1.0 qty5 -> full fill
+    }
+    fn sample_input(expected: [u8; 32], pre_present: bool, pre: [u8; 32]) -> ClobTransitionInputV1 {
+        ClobTransitionInputV1 {
+            pre_book: ClobBookV1::new(asset("11"), asset("22"), vec![sample_maker()]),
+            taker: sample_taker(),
+            pre_app_hash_present: pre_present,
+            pre_app_hash: pre,
+            expected_post_app_hash: expected,
+        }
+    }
+
+    #[test]
+    fn transition_journal_binds_roots_rules_and_fees() {
+        let (journal, post_book) =
+            execute_clob_transition_v1_unchecked_with_journal(sample_input([0u8; 32], false, [0u8; 32]))
+                .unwrap();
+        let pre_book = ClobBookV1::new(asset("11"), asset("22"), vec![sample_maker()]);
+        assert_eq!(journal.pre_book_root, pre_book.state_root().unwrap());
+        assert_eq!(journal.post_book_root, post_book.state_root().unwrap());
+        assert_eq!(journal.event_log_root, clob_event_log_root(&[&sample_taker()]).unwrap());
+        assert_eq!(journal.matching_rule_hash, clob_matching_rule_hash());
+        assert_eq!(journal.fee_rule_hash, clob_fee_rule_hash());
+        assert_eq!(journal.fee_total, 0);
+        assert_eq!(journal.fills.len(), 1);
+        assert_eq!(journal.resting_taker_qty, 0); // taker fully filled
+    }
+
+    #[test]
+    fn transition_enforces_expected_post_hash() {
+        let (journal, _) =
+            execute_clob_transition_v1_unchecked_with_journal(sample_input([0u8; 32], false, [0u8; 32]))
+                .unwrap();
+        // correct expected post-hash -> accepted
+        assert!(execute_clob_transition_v1(sample_input(journal.post_book_root, false, [0u8; 32])).is_ok());
+        // wrong expected post-hash -> fail closed
+        assert_eq!(
+            execute_clob_transition_v1(sample_input([7u8; 32], false, [0u8; 32])).unwrap_err(),
+            "post_app_hash mismatch"
+        );
+    }
+
+    #[test]
+    fn transition_pre_app_hash_check() {
+        let pre_root = ClobBookV1::new(asset("11"), asset("22"), vec![sample_maker()])
+            .state_root()
+            .unwrap();
+        assert!(execute_clob_transition_v1_unchecked_with_journal(sample_input([0u8; 32], true, pre_root)).is_ok());
+        assert_eq!(
+            execute_clob_transition_v1_unchecked_with_journal(sample_input([0u8; 32], true, [9u8; 32]))
+                .unwrap_err(),
+            "pre_app_hash mismatch"
+        );
+    }
+
+    #[test]
+    fn transition_rejected_match_is_not_provable() {
+        // self-trade (taker owner == maker owner) -> reject -> Err, not a journal.
+        let input = ClobTransitionInputV1 {
+            pre_book: ClobBookV1::new(asset("11"), asset("22"), vec![order(1, PRICE_SCALE as u64, 5, 1, 1, "aa")]),
+            taker: sample_taker(),
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            expected_post_app_hash: [0u8; 32],
+        };
+        assert_eq!(
+            execute_clob_transition_v1_unchecked_with_journal(input).unwrap_err(),
+            REJ_SELF_TRADE
+        );
+    }
+
+    #[test]
+    fn rule_hashes_stable_and_distinct() {
+        assert_eq!(clob_matching_rule_hash(), clob_matching_rule_hash());
+        assert_eq!(clob_fee_rule_hash(), clob_fee_rule_hash());
+        assert_ne!(clob_matching_rule_hash(), clob_fee_rule_hash());
     }
 }
