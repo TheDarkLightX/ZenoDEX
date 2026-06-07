@@ -6937,6 +6937,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     "perps_isolated_settle_oracle_authorization_required": _env_bool(
                         "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH", False
                     ),
+                    # DbC invariant: route labels must match the broadest HTTP surface enabled by each flag.
                     "enabled_routes": tuple(
                         route
                         for route, enabled in (
@@ -6947,7 +6948,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                             ),
                             ("local_demo", bool(autotrader_live_enabled)),
                             ("local_demo", bool(confidential_attestation_enabled)),
-                            ("signed_intents", bool(dex_enabled)),
+                            ("local_demo", bool(dex_enabled)),
                         )
                         if enabled
                     ),

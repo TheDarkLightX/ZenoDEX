@@ -140,6 +140,34 @@ def test_public_testnet_deploy_profile_allows_signed_intents_route():
     assert conflicts == ()
 
 
+def test_production_strict_startup_rejects_dex_api_even_with_external_auth(clean_env, monkeypatch):
+    class FakeServer:
+        def __init__(self, address, handler_cls):
+            self.address = address
+            self.handler_cls = handler_cls
+
+        def serve_forever(self, poll_interval=0.25):  # noqa: ANN001
+            return None
+
+    monkeypatch.setattr(api_server, "ThreadingHTTPServer", FakeServer)
+    clean_env.setenv("ZENODEX_DEPLOY_PROFILE", "production-strict")
+    clean_env.setenv("DEX_API_ENABLED", "1")
+    clean_env.setenv("ZENODEX_EXTERNAL_AUTH_ENFORCED", "1")
+    for env_name in (
+        "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED",
+        "ZUSD_ORACLE_ADAPTER_REQUIRED",
+        "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+        "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
+        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+        "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH",
+    ):
+        clean_env.setenv(env_name, "1")
+
+    assert api_server.main([]) == 2
+
+
 @pytest.mark.parametrize(
     ("fact_name", "env_name"),
     (
