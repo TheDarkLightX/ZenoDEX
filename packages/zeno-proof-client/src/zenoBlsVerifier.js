@@ -236,7 +236,7 @@ export async function verifyBlsEnvelopeV0(envelope, { expectedPayloadKind, expec
   return { ok: true, envelopeHash: expectedEnvelopeHash };
 }
 
-async function validateSignerRegistryV0(registry) {
+export async function validateSignerRegistryV0(registry) {
   if (registry === null || typeof registry !== 'object') {
     throw new Error('signer registry must be an object');
   }

@@ -8,12 +8,14 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 - `verifyBrowserCheckpointBundleV0(bundle, options)`: verifies bundle shape,
-  hash binding, checkpoint binding, signer-registry hash binding,
+  hash binding, checkpoint binding, caller-pinned previous-header and
+  signer-registry anchors, signer-registry content binding,
   signature-set root binding, browser header-chain replay, header app-hash
   consistency, range-summary binding, and quorum summary thresholds.
 - `advanceWalletSyncStateV0({ currentState, bundle, surface, updatedAtMs,
-  requireIndependentBls })`: monotonic-height wallet sync with rollback,
-  same-height drift, and chain-id-drift rejection.
+  requireIndependentBls, trustBuilderBls })`: monotonic-height wallet sync with
+  rollback, same-height drift, chain-id-drift rejection, persisted target-header
+  root, signer-registry hash, and trust model.
 - `verifyBlsEnvelopeV0(envelope, options)`: independent BLS12-381 G2-Basic
   signature verification via `@noble/curves`.
 - `verifyBlsQuorumV0(bundle, options)`: full registry binding re-derivation
@@ -30,6 +32,10 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Pure JS, no native deps, no runtime fetch, no DOM access.
 - All public functions return `{ ok, ... }` discriminated unions; no
   unhandled exceptions escape the public surface.
+- Independent BLS is the default. `trustBuilderBls: true` is an explicit weaker
+  mode and returns `accepted_with_builder_bls_trust`.
+- `auto-strict -> open` ZK fallback status is blocked by the proof-status
+  parser and cannot promote a production security claim.
 
 ### Known non-claims
 - The SDK does not execute full ledger state transitions or recompute every

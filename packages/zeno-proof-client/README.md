@@ -16,10 +16,12 @@ trusting the builder. This SDK is what the wallet runs:
   `trusted_prev_header_hash` through the target checkpoint, including
   consecutive heights, parent hashes, chain id, checkpoint/header binding, and
   header `app_hash` consistency.
-- **Independent BLS quorum verification** (optional, opt-in): re-verifies
+- **Independent BLS quorum verification** (default): re-verifies
   every BLS12-381 G2-Basic signature against the registry using
   [`@noble/curves`](https://github.com/paulmillr/noble-curves). The browser
-  reaches its own quorum verdict, not the builder's.
+  reaches its own quorum verdict, not the builder's. A caller may explicitly
+  choose `trustBuilderBls: true` for fixtures or already trusted builders; that
+  mode still recomputes signer-registry binding but skips signature checks.
 - **Wallet sync state transitions**: monotonic height, no chain-id drift,
   same-height drift rejection, rollback rejection. Modeled in TLA+ at
   `formal/tla/ZenoSdkWalletSyncCheckpoint.tla`.
@@ -88,7 +90,8 @@ const advance = await advanceWalletSyncStateV0({
   expectedSignerRegistryHash: signerRegistryHash,
 });
 if (!advance.ok) throw new Error(advance.gaps.join('; '));
-const next = advance.state; // ready to persist
+// Builder-trust advances return status "accepted_with_builder_bls_trust".
+const next = advance.state; // ready to persist with next.trust_model
 ```
 
 ### ZK posture parsing

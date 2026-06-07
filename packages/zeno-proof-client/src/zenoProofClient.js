@@ -74,6 +74,7 @@ const WALLET_SYNC_STATE_KEYS_V0 = [
   'target_header_hash',
   'checkpoint_hash',
   'signer_registry_hash',
+  'trust_model',
   'bundle_hash',
   'updated_at_ms',
   'state_hash',
@@ -636,15 +637,19 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
     ) {
       throw new Error('verification summary range_summary mismatch');
     }
-    requireRoot(registry.registry_hash, 'signer registry hash');
-    if (registry.registry_hash !== expectedSignerRegistryHash) {
+    // Builder-trust mode skips cryptographic signature verification only. It
+    // still must bind the registry contents to the caller-pinned registry hash.
+    const { validateSignerRegistryV0 } = await import('./zenoBlsVerifier.js');
+    const signerRegistry = await validateSignerRegistryV0(registry);
+    requireRoot(signerRegistry.registry_hash, 'signer registry hash');
+    if (signerRegistry.registry_hash !== expectedSignerRegistryHash) {
       throw new Error('signer registry trust anchor mismatch');
     }
-    requireNonnegativeInt(registry.threshold, 'signer registry threshold');
+    requireNonnegativeInt(signerRegistry.threshold, 'signer registry threshold');
     const signatureSetRoot = await hashV0('light_client_signature_set_root_v0', {
-      registry_hash: registry.registry_hash,
+      registry_hash: signerRegistry.registry_hash,
       payload_kind: 'checkpoint',
-      threshold: registry.threshold,
+      threshold: signerRegistry.threshold,
     });
     if (checkpoint.signature_set_root !== signatureSetRoot) {
       throw new Error('checkpoint signature_set_root mismatch');
@@ -652,13 +657,13 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
     if (summary.expected_signature_set_root !== signatureSetRoot) {
       throw new Error('verification summary signature_set_root mismatch');
     }
-    if (summary.registry_hash !== registry.registry_hash) {
+    if (summary.registry_hash !== signerRegistry.registry_hash) {
       throw new Error('verification summary registry_hash mismatch');
     }
     requireRoot(summary.quorum_report_hash, 'verification summary quorum_report_hash');
     const acceptedWeight = requireNonnegativeInt(summary.accepted_weight, 'verification summary accepted_weight');
     const threshold = requireNonnegativeInt(summary.threshold, 'verification summary threshold');
-    if (threshold <= 0 || acceptedWeight <= 0 || threshold !== registry.threshold || acceptedWeight < threshold) {
+    if (threshold <= 0 || acceptedWeight <= 0 || threshold !== signerRegistry.threshold || acceptedWeight < threshold) {
       throw new Error('verification summary threshold mismatch');
     }
     if (summary.python_bls_quorum_verified !== true || capabilities.python_bls_quorum_verified !== true) {
@@ -697,7 +702,7 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
       checkpoint_hash: checkpointHash,
       target_header_hash: targetHeaderHash,
       trusted_prev_header_hash: trustedPrevHeaderHash,
-      signer_registry_hash: registry.registry_hash,
+      signer_registry_hash: signerRegistry.registry_hash,
       browser_range_replay_verified: true,
       browser_range_last_header_hash: rangeReplay.lastHeaderHash,
       browser_bls_quorum_verified: browserBlsVerified,
@@ -730,6 +735,9 @@ async function validateWalletSyncStateInternal(state) {
   requireRoot(obj.target_header_hash, 'wallet sync state target_header_hash');
   requireRoot(obj.checkpoint_hash, 'wallet sync state checkpoint_hash');
   requireRoot(obj.signer_registry_hash, 'wallet sync state signer_registry_hash');
+  if (!['independent_bls', 'builder_bls_claim'].includes(obj.trust_model)) {
+    throw new Error('wallet sync state trust_model mismatch');
+  }
   requireRoot(obj.bundle_hash, 'wallet sync state bundle_hash');
   requireNonnegativeInt(obj.updated_at_ms, 'wallet sync state updated_at_ms');
   requireRoot(obj.state_hash, 'wallet sync state state_hash');
@@ -832,12 +840,13 @@ export async function advanceWalletSyncStateV0({
     target_header_hash: verification.target_header_hash,
     checkpoint_hash: verification.checkpoint_hash,
     signer_registry_hash: verification.signer_registry_hash,
+    trust_model: verification.trust_model,
     bundle_hash: bundle.bundle_hash,
     updated_at_ms: requireNonnegativeInt(Math.trunc(updatedAtMs), 'updated_at_ms'),
   };
   return {
     ok: true,
-    status: 'accepted',
+    status: verification.status,
     state: {
       ...body,
       state_hash: await hashV0('wallet_sync_state_v0', body),

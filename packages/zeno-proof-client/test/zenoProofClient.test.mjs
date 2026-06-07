@@ -8,19 +8,32 @@ import {
   parseZkProofStatusV0,
   verifyBrowserCheckpointBundleV0,
 } from '../src/zenoProofClient.js';
+import * as publicApi from '../src/index.js';
 
 function root(byte) {
   return `0x${byte.repeat(64)}`;
 }
 
-function builderTrustOptions(overrides = {}) {
+function publicKey(byte) {
+  return `0x${byte.repeat(96)}`;
+}
+
+function builderTrustOptions(bundle, overrides = {}) {
   return {
     trustBuilderBls: true,
     expectedTrustedPrevHeaderHash: root('0'),
-    expectedSignerRegistryHash: root('a'),
+    expectedSignerRegistryHash: bundle.signer_registry.registry_hash,
     ...overrides,
   };
 }
+
+test('public entry point exports proof-status parser surface', () => {
+  assert.equal(publicApi.parseZkProofStatusV0, parseZkProofStatusV0);
+  assert.equal(
+    publicApi.ZK_PROOF_STATUS_SUMMARY_SCHEMA_V0,
+    'zenodex.zeno_sdk.zk_proof_status_summary.v0',
+  );
+});
 
 async function makeBundle({
   height = 2,
@@ -28,13 +41,42 @@ async function makeBundle({
   trustedPrevHeaderHash = root('0'),
   chainId = 'zeno-ledger-sdk-testnet-0',
 } = {}) {
-  const registry = {
+  const signerA = {
+    signer_id: 'a',
+    key_id: 'a',
+    algorithm: 'bls12-381-g2-basic-release-v0',
+    public_key: publicKey('1'),
+    weight: 1,
+    status: 'active',
+  };
+  const signerB = {
+    signer_id: 'b',
+    key_id: 'b',
+    algorithm: 'bls12-381-g2-basic-release-v0',
+    public_key: publicKey('2'),
+    weight: 1,
+    status: 'active',
+  };
+  const signers = [
+    {
+      ...signerA,
+      signer_hash: await hashV0('signer_registry_entry_v0', signerA),
+    },
+    {
+      ...signerB,
+      signer_hash: await hashV0('signer_registry_entry_v0', signerB),
+    },
+  ];
+  const registryBody = {
     schema: 'zenodex/zeno_ledger/signer_registry/v0',
     registry_id: 'sdk-test-registry',
     payload_kind: 'checkpoint',
     threshold: 2,
-    signers: [],
-    registry_hash: root('a'),
+    signers,
+  };
+  const registry = {
+    ...registryBody,
+    registry_hash: await hashV0('signer_registry_v0', registryBody),
   };
   const signatureSetRoot = await hashV0('light_client_signature_set_root_v0', {
     registry_hash: registry.registry_hash,
@@ -156,7 +198,7 @@ async function makeBundle({
 
 test('browser checkpoint bundle verifies shape and hash binding', async () => {
   const bundle = await makeBundle();
-  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions());
+  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions(bundle));
 
   assert.equal(report.ok, true);
   assert.equal(report.status, 'accepted_with_builder_bls_trust');
@@ -180,24 +222,37 @@ test('browser checkpoint bundle rejects mismatched trust anchors', async () => {
 
   const wrongPrev = await verifyBrowserCheckpointBundleV0(
     bundle,
-    builderTrustOptions({ expectedTrustedPrevHeaderHash: root('1') }),
+    builderTrustOptions(bundle, { expectedTrustedPrevHeaderHash: root('1') }),
   );
   assert.equal(wrongPrev.ok, false);
   assert.match(wrongPrev.gaps.join('\n'), /trusted_prev_header_hash trust anchor mismatch/);
 
   const wrongRegistry = await verifyBrowserCheckpointBundleV0(
     bundle,
-    builderTrustOptions({ expectedSignerRegistryHash: root('1') }),
+    builderTrustOptions(bundle, { expectedSignerRegistryHash: root('1') }),
   );
   assert.equal(wrongRegistry.ok, false);
   assert.match(wrongRegistry.gaps.join('\n'), /signer registry trust anchor mismatch/);
+});
+
+test('browser checkpoint bundle recomputes signer registry binding in builder-trust mode', async () => {
+  const bundle = await makeBundle();
+  bundle.signer_registry.signers[0].weight = 2;
+  const { bundle_hash: _drop, ...body } = bundle;
+  void _drop;
+  bundle.bundle_hash = await hashV0('browser_checkpoint_bundle_v0', body);
+
+  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions(bundle));
+
+  assert.equal(report.ok, false);
+  assert.match(report.gaps.join('\n'), /signers\[0\] binding mismatch/);
 });
 
 test('browser checkpoint bundle rejects tampering', async () => {
   const bundle = await makeBundle();
   bundle.target_checkpoint.height = 3;
 
-  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions());
+  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions(bundle));
 
   assert.equal(report.ok, false);
   assert.match(report.gaps.join('\n'), /bundle_hash mismatch/);
@@ -212,7 +267,7 @@ test('browser checkpoint bundle rejects unknown top-level fields with recomputed
     bundle_hash: await hashV0('browser_checkpoint_bundle_v0', body),
   };
 
-  const report = await verifyBrowserCheckpointBundleV0(tampered, builderTrustOptions());
+  const report = await verifyBrowserCheckpointBundleV0(tampered, builderTrustOptions(bundle));
 
   assert.equal(report.ok, false);
   assert.match(report.gaps.join('\n'), /bundle keys mismatch/);
@@ -225,7 +280,7 @@ test('browser checkpoint bundle rejects unknown verification summary fields', as
   void _drop;
   bundle.bundle_hash = await hashV0('browser_checkpoint_bundle_v0', body);
 
-  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions());
+  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions(bundle));
 
   assert.equal(report.ok, false);
   assert.match(report.gaps.join('\n'), /verification summary keys mismatch/);
@@ -238,7 +293,7 @@ test('browser checkpoint bundle replays header chain', async () => {
   void _drop;
   bundle.bundle_hash = await hashV0('browser_checkpoint_bundle_v0', rest);
 
-  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions());
+  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions(bundle));
 
   assert.equal(report.ok, false);
   assert.match(report.gaps.join('\n'), /prev_header_hash/);
@@ -251,7 +306,7 @@ test('browser checkpoint bundle rejects inconsistent header app hash', async () 
   void _drop;
   bundle.bundle_hash = await hashV0('browser_checkpoint_bundle_v0', rest);
 
-  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions());
+  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions(bundle));
 
   assert.equal(report.ok, false);
   assert.match(report.gaps.join('\n'), /app_hash mismatch/);
@@ -264,7 +319,7 @@ test('wallet sync rejects tampered current state hash before using height', asyn
     bundle: first,
     surface: 'zusd',
     updatedAtMs: 1_778_730_000_000,
-    ...builderTrustOptions(),
+    ...builderTrustOptions(first),
   });
   assert.equal(current.ok, true);
   const tampered = {
@@ -289,9 +344,11 @@ test('wallet sync advances monotonically and rejects rollback', async () => {
     bundle: first,
     surface: 'zusd',
     updatedAtMs: 1_778_730_000_000,
-    ...builderTrustOptions(),
+    ...builderTrustOptions(first),
   });
   assert.equal(initial.ok, true);
+  assert.equal(initial.status, 'accepted_with_builder_bls_trust');
+  assert.equal(initial.state.trust_model, 'builder_bls_claim');
 
   const second = await makeBundle({
     fromHeight: 3,
@@ -324,7 +381,7 @@ test('wallet sync rejects alternate history that does not extend current target 
     bundle: first,
     surface: 'zusd',
     updatedAtMs: 1_778_730_000_000,
-    ...builderTrustOptions(),
+    ...builderTrustOptions(first),
   });
   assert.equal(initial.ok, true);
 
@@ -341,23 +398,21 @@ test('wallet sync rejects alternate history that does not extend current target 
   assert.match(advanced.gaps.join('\n'), /trusted_prev_header_hash trust anchor mismatch/);
 });
 
-test('independent BLS verification rejects empty signer registry', async () => {
-  // The synthetic bundle has an empty signers list — independent verification
-  // requires at least one active signer, so it must fail.
+test('independent BLS verification rejects fake signature envelopes', async () => {
   const bundle = await makeBundle();
   const report = await verifyBrowserCheckpointBundleV0(
     bundle,
     {
       requireIndependentBls: true,
       expectedTrustedPrevHeaderHash: root('0'),
-      expectedSignerRegistryHash: root('a'),
+      expectedSignerRegistryHash: bundle.signer_registry.registry_hash,
     },
   );
 
   assert.equal(report.ok, false);
   assert.match(
     report.gaps.join('\n'),
-    /independent BLS verification failed: signer registry must contain at least one signer/,
+    /independent BLS verification failed:/,
   );
 });
 
@@ -368,7 +423,7 @@ test('independent BLS verification rejects bundle with no envelopes', async () =
   void _drop;
   bundle.bundle_hash = await hashV0('browser_checkpoint_bundle_v0', rest);
 
-  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions());
+  const report = await verifyBrowserCheckpointBundleV0(bundle, builderTrustOptions(bundle));
   // Empty envelope list is rejected by the structural check too.
   assert.equal(report.ok, false);
   assert.match(report.gaps.join('\n'), /signature_envelopes length rejected/);

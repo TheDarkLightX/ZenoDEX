@@ -92,6 +92,7 @@ export interface WalletSyncState {
   target_header_hash: string;
   checkpoint_hash: string;
   signer_registry_hash: string;
+  trust_model: 'independent_bls' | 'builder_bls_claim';
   bundle_hash: string;
   updated_at_ms: number;
   state_hash: string;
@@ -110,7 +111,7 @@ export interface AdvanceWalletSyncStateOptions {
 
 export interface AdvanceWalletSyncStateSuccess {
   ok: true;
-  status: 'accepted';
+  status: 'accepted' | 'accepted_with_builder_bls_trust';
   state: WalletSyncState;
   verification: VerifyBundleSuccess;
 }
