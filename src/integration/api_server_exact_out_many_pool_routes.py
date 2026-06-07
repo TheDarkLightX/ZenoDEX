@@ -28,6 +28,7 @@ _REPAIRED_FULL_DOMAIN_CERTIFIED_QUOTE_ENDPOINT = (
 _BOUNDED_ADVISORY_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_bounded_advisory"
 _DEFAULT_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool"
 _ADAPTIVE_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_adaptive"
+_CERTIFIED_ADVISORY_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_certified_advisory"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -798,6 +799,62 @@ def _handle_adaptive_quote(
         write_json(400, {"ok": False, "error": "quote_exact_out_many_pool_adaptive_error", "details": "request failed"})
 
 
+def _certified_advisory_quote_payload(
+    *,
+    quote: object,
+    err: object,
+    packet_payload: dict[str, object],
+) -> dict[str, object]:
+    advisory_packet = packet_payload["advisory_packet"]
+    payload = {
+        "ok": bool(quote is not None),
+        "quote_policy": "certified_advisory_v1",
+        "packet": packet_payload,
+        "packet_schema": packet_payload["schema"],
+        "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_certified_advisory_packet",
+        "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_certified_advisory_packet",
+        "quote_source": packet_payload["effective_quote_source"],
+        "repaired_advisory_available": bool(advisory_packet["repaired_advisory_available"]),
+        "quote_matches_runtime": bool(packet_payload["effective_quote_matches_selected_runtime_quote"]),
+        "quote_matches_repaired_advisory": bool(packet_payload["effective_quote_matches_repaired_advisory_quote"]),
+        "repaired_key_cover_witness_count": int(packet_payload["repaired_key_cover_witness_count"]),
+    }
+    payload.update(_bool_packet_keys(packet_payload, _DEFAULT_PACKET_BOOL_KEYS))
+    payload.update(_copy_packet_keys(packet_payload, _DEFAULT_PACKET_COPY_KEYS))
+    if quote is not None:
+        payload["quote"] = packet_payload["effective_quote"]
+    else:
+        payload["error"] = str(err or "many_pool_certified_advisory_unavailable")
+    return payload
+
+
+def _handle_certified_advisory_quote(
+    obj: dict[str, object],
+    parse_pools: ParsePools,
+    write_json: WriteJson,
+) -> None:
+    try:
+        req = _parse_request(obj, parse_pools, _FULL_REQUEST_FIELDS)
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            quote_exact_out_many_pool_certified_advisory,
+        )
+
+        quote, err, packet = quote_exact_out_many_pool_certified_advisory(
+            req.pools,
+            asset_in=req.asset_in,
+            asset_out=req.asset_out,
+            **req.values,
+        )
+        write_json(200, _certified_advisory_quote_payload(quote=quote, err=err, packet_payload=packet.to_dict()))
+    except _BadRequest as exc:
+        _write_bad_request(write_json, exc)
+    except Exception:
+        write_json(
+            400,
+            {"ok": False, "error": "quote_exact_out_many_pool_certified_advisory_error", "details": "request failed"},
+        )
+
+
 def _repaired_full_domain_certified_payload(
     *,
     quote: object,
@@ -892,4 +949,5 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _BOUNDED_ADVISORY_QUOTE_ENDPOINT: _handle_bounded_advisory_quote,
     _DEFAULT_QUOTE_ENDPOINT: _simple_route(_handle_default_quote),
     _ADAPTIVE_QUOTE_ENDPOINT: _simple_route(_handle_adaptive_quote),
+    _CERTIFIED_ADVISORY_QUOTE_ENDPOINT: _simple_route(_handle_certified_advisory_quote),
 }
