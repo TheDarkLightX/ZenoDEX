@@ -6,6 +6,7 @@ from typing import Any, Callable
 
 WriteJson = Callable[[int, object], None]
 ParsePools = Callable[[], dict[str, Any]]
+RouteHandler = Callable[[dict[str, object], ParsePools, WriteJson], None]
 
 _CANDIDATE_DOMAIN_ENDPOINT = "/api/dex/build_exact_out_many_pool_candidate_domain_contract"
 _PREFILTER_ENDPOINT = "/api/dex/build_exact_out_many_pool_prefilter_contract"
@@ -13,6 +14,7 @@ _REPAIRED_PREFILTER_ENDPOINT = "/api/dex/build_exact_out_many_pool_repaired_pref
 _REPAIRED_SELECTED_DOMAIN_ENDPOINT = (
     "/api/dex/build_exact_out_many_pool_repaired_selected_domain_oracle_contract"
 )
+_REPAIRED_SELECTED_DOMAIN_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_repaired_selected_domain"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -262,23 +264,101 @@ def _handle_repaired_selected_domain_contract(
         )
 
 
-def maybe_handle_exact_out_many_pool_contract_route(
+def _repaired_selected_domain_quote_payload(
+    *,
+    quote: object,
+    err: object,
+    contract_payload: dict[str, object],
+) -> dict[str, object]:
+    payload = {
+        "ok": bool(quote is not None),
+        "quote_policy": "repaired_selected_domain_v1",
+        "contract": contract_payload,
+        "contract_schema": contract_payload["schema"],
+        "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_repaired_selected_domain_oracle_contract",
+        "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_repaired_selected_domain_oracle_contract",
+        "repaired_selected_pool_ids": contract_payload["repaired_selected_pool_ids"],
+        "repaired_selected_domain_matches_full_canonical": contract_payload[
+            "repaired_selected_domain_matches_full_canonical"
+        ],
+        "audit_pool_ids_match_repaired_selected_pool_ids": contract_payload[
+            "audit_pool_ids_match_repaired_selected_pool_ids"
+        ],
+        "repaired_selected_domain_runtime_quote": contract_payload["repaired_selected_domain_runtime_quote"],
+        "repaired_selected_domain_runtime_projected_path": contract_payload[
+            "repaired_selected_domain_runtime_projected_path"
+        ],
+        "repaired_selected_domain_canonical_projected_path": contract_payload[
+            "repaired_selected_domain_canonical_projected_path"
+        ],
+        "repaired_selected_domain_runtime_matches_canonical": contract_payload[
+            "repaired_selected_domain_runtime_matches_canonical"
+        ],
+        "repaired_projection_cover_available": contract_payload["repaired_projection_cover_available"],
+        "repaired_projection_cover_holds": contract_payload["repaired_projection_cover_holds"],
+        "replacement_quote_matches_full_canonical": contract_payload["replacement_quote_matches_full_canonical"],
+    }
+    if quote is not None:
+        payload["quote"] = contract_payload["repaired_selected_domain_runtime_quote"]
+    else:
+        payload["error"] = str(err or "many_pool_repaired_selected_domain_unavailable")
+    return payload
+
+
+def _handle_repaired_selected_domain_quote(
+    obj: dict[str, object],
+    parse_pools: ParsePools,
+    write_json: WriteJson,
+) -> None:
+    try:
+        req = _parse_request(obj, parse_pools, tuple(_MIN_VALUES))
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            quote_exact_out_many_pool_repaired_selected_domain,
+        )
+
+        quote, err, contract = quote_exact_out_many_pool_repaired_selected_domain(
+            req.pools,
+            asset_in=req.asset_in,
+            asset_out=req.asset_out,
+            **req.values,
+        )
+        payload = _repaired_selected_domain_quote_payload(
+            quote=quote,
+            err=err,
+            contract_payload=contract.to_dict(),
+        )
+        write_json(200, payload)
+    except _BadRequest as exc:
+        _write_bad_request(write_json, exc)
+    except Exception:
+        write_json(
+            400,
+            {
+                "ok": False,
+                "error": "quote_exact_out_many_pool_repaired_selected_domain_error",
+                "details": "request failed",
+            },
+        )
+
+
+def maybe_handle_exact_out_many_pool_route(
     *,
     path: str,
     obj: dict[str, object],
     parse_pools: ParsePools,
     write_json: WriteJson,
 ) -> bool:
-    if path == _CANDIDATE_DOMAIN_ENDPOINT:
-        _handle_candidate_domain_contract(obj, parse_pools, write_json)
-        return True
-    if path == _PREFILTER_ENDPOINT:
-        _handle_prefilter_contract(obj, parse_pools, write_json)
-        return True
-    if path == _REPAIRED_PREFILTER_ENDPOINT:
-        _handle_repaired_prefilter_contract(obj, parse_pools, write_json)
-        return True
-    if path == _REPAIRED_SELECTED_DOMAIN_ENDPOINT:
-        _handle_repaired_selected_domain_contract(obj, parse_pools, write_json)
-        return True
-    return False
+    handler = _ROUTE_HANDLERS.get(path)
+    if handler is None:
+        return False
+    handler(obj, parse_pools, write_json)
+    return True
+
+
+_ROUTE_HANDLERS: dict[str, RouteHandler] = {
+    _CANDIDATE_DOMAIN_ENDPOINT: _handle_candidate_domain_contract,
+    _PREFILTER_ENDPOINT: _handle_prefilter_contract,
+    _REPAIRED_PREFILTER_ENDPOINT: _handle_repaired_prefilter_contract,
+    _REPAIRED_SELECTED_DOMAIN_ENDPOINT: _handle_repaired_selected_domain_contract,
+    _REPAIRED_SELECTED_DOMAIN_QUOTE_ENDPOINT: _handle_repaired_selected_domain_quote,
+}

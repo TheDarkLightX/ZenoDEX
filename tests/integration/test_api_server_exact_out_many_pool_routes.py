@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.integration.api_server_exact_out_many_pool_routes import (
-    maybe_handle_exact_out_many_pool_contract_route,
+    maybe_handle_exact_out_many_pool_route,
 )
 
 
@@ -32,7 +32,7 @@ def _minimal_request(**overrides: object) -> dict[str, object]:
 def test_unknown_many_pool_contract_route_is_not_handled() -> None:
     writes, write_json = _capture()
 
-    handled = maybe_handle_exact_out_many_pool_contract_route(
+    handled = maybe_handle_exact_out_many_pool_route(
         path="/api/dex/quote_exact_out_many_pool",
         obj=_minimal_request(),
         parse_pools=lambda: {},
@@ -52,7 +52,7 @@ def test_many_pool_contract_route_rejects_bool_integer_field_after_pool_parse() 
         parse_called = True
         return {"pool_a": object()}
 
-    handled = maybe_handle_exact_out_many_pool_contract_route(
+    handled = maybe_handle_exact_out_many_pool_route(
         path="/api/dex/build_exact_out_many_pool_candidate_domain_contract",
         obj=_minimal_request(max_legs=True),
         parse_pools=parse_pools,
@@ -70,7 +70,7 @@ def test_many_pool_contract_route_preserves_pool_parse_error_precedence() -> Non
     def parse_pools() -> dict[str, object]:
         raise ValueError("bad pools")
 
-    handled = maybe_handle_exact_out_many_pool_contract_route(
+    handled = maybe_handle_exact_out_many_pool_route(
         path="/api/dex/build_exact_out_many_pool_candidate_domain_contract",
         obj=_minimal_request(max_legs=True),
         parse_pools=parse_pools,
@@ -88,3 +88,17 @@ def test_many_pool_contract_route_preserves_pool_parse_error_precedence() -> Non
             },
         )
     ]
+
+
+def test_many_pool_quote_route_rejects_bool_integer_field_after_pool_parse() -> None:
+    writes, write_json = _capture()
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/quote_exact_out_many_pool_repaired_selected_domain",
+        obj=_minimal_request(max_iters=False),
+        parse_pools=lambda: {"pool_a": object()},
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_iters"})]

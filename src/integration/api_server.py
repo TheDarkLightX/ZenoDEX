@@ -3552,10 +3552,10 @@ class _Handler(BaseHTTPRequestHandler):
                 return True
 
         from src.integration.api_server_exact_out_many_pool_routes import (  # pylint: disable=import-outside-toplevel
-            maybe_handle_exact_out_many_pool_contract_route,
+            maybe_handle_exact_out_many_pool_route,
         )
 
-        if maybe_handle_exact_out_many_pool_contract_route(
+        if maybe_handle_exact_out_many_pool_route(
             path=path,
             obj=obj,
             parse_pools=_parse_pools,
@@ -3566,106 +3566,6 @@ class _Handler(BaseHTTPRequestHandler):
             ),
         ):
             return True
-
-        if path == "/api/dex/quote_exact_out_many_pool_repaired_selected_domain":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    quote_exact_out_many_pool_repaired_selected_domain,
-                )
-
-                quote, err, contract = quote_exact_out_many_pool_repaired_selected_domain(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                contract_payload = contract.to_dict()
-                payload = {
-                    "ok": bool(quote is not None),
-                    "quote_policy": "repaired_selected_domain_v1",
-                    "contract": contract_payload,
-                    "contract_schema": contract_payload["schema"],
-                    "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_repaired_selected_domain_oracle_contract",
-                    "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_repaired_selected_domain_oracle_contract",
-                    "repaired_selected_pool_ids": contract_payload["repaired_selected_pool_ids"],
-                    "repaired_selected_domain_matches_full_canonical": contract_payload[
-                        "repaired_selected_domain_matches_full_canonical"
-                    ],
-                    "audit_pool_ids_match_repaired_selected_pool_ids": contract_payload[
-                        "audit_pool_ids_match_repaired_selected_pool_ids"
-                    ],
-                    "repaired_selected_domain_runtime_quote": contract_payload["repaired_selected_domain_runtime_quote"],
-                    "repaired_selected_domain_runtime_projected_path": contract_payload[
-                        "repaired_selected_domain_runtime_projected_path"
-                    ],
-                    "repaired_selected_domain_canonical_projected_path": contract_payload[
-                        "repaired_selected_domain_canonical_projected_path"
-                    ],
-                    "repaired_selected_domain_runtime_matches_canonical": contract_payload[
-                        "repaired_selected_domain_runtime_matches_canonical"
-                    ],
-                    "repaired_projection_cover_available": contract_payload["repaired_projection_cover_available"],
-                    "repaired_projection_cover_holds": contract_payload["repaired_projection_cover_holds"],
-                    "replacement_quote_matches_full_canonical": contract_payload[
-                        "replacement_quote_matches_full_canonical"
-                    ],
-                }
-                if quote is not None:
-                    payload["quote"] = contract_payload["repaired_selected_domain_runtime_quote"]
-                else:
-                    payload["error"] = str(err or "many_pool_repaired_selected_domain_unavailable")
-                self._write_json(200, payload, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "quote_exact_out_many_pool_repaired_selected_domain_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
 
         if path == "/api/dex/quote_exact_out_many_pool_repaired_advisory":
             try:
