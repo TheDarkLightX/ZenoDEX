@@ -1,0 +1,172 @@
+{
+  "cases": [
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "empty_book",
+      "orders": [],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "state_root": "da10d1ce72280504bd3c79a3296b6100c121a9d176f03581011e705acded0a4b"
+    },
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "single_buy",
+      "orders": [
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "price_q_per_base": 100,
+          "sequence": 1,
+          "side_code": 0
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "state_root": "6e13539ee5e3de14f9a3c92f0bee97f85434eacce426b229b371e68bc66463ce"
+    },
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "single_sell",
+      "orders": [
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "owner": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "price_q_per_base": 100,
+          "sequence": 1,
+          "side_code": 1
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "state_root": "54389a16db610cccb8d3b1a4d0a44d0062100617521e106075ef8e07f8257b31"
+    },
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "buy_heavy_price_priority",
+      "orders": [
+        {
+          "base_qty": 3,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "price_q_per_base": 98,
+          "sequence": 5,
+          "side_code": 0
+        },
+        {
+          "base_qty": 4,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "owner": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "price_q_per_base": 102,
+          "sequence": 6,
+          "side_code": 0
+        },
+        {
+          "base_qty": 7,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "owner": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "price_q_per_base": 100,
+          "sequence": 7,
+          "side_code": 0
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "state_root": "f2e4d6d43ab94b56f01cfbb73ecfcf2728724ac5de33fddaf78d5973762f960e"
+    },
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "mixed_book_shuffled",
+      "orders": [
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000004",
+          "owner": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "price_q_per_base": 101,
+          "sequence": 3,
+          "side_code": 1
+        },
+        {
+          "base_qty": 2,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "price_q_per_base": 99,
+          "sequence": 1,
+          "side_code": 0
+        },
+        {
+          "base_qty": 6,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000006",
+          "owner": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "price_q_per_base": 100,
+          "sequence": 2,
+          "side_code": 1
+        },
+        {
+          "base_qty": 1,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000007",
+          "owner": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "price_q_per_base": 100,
+          "sequence": 4,
+          "side_code": 0
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "state_root": "5ae84ef52823dc3d6e2d064d7ea88eb70a66727efce696eb926bff6377efcc92"
+    },
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "ties_broken_by_order_id",
+      "orders": [
+        {
+          "base_qty": 5,
+          "order_id": "0x000000000000000000000000000000000000000000000000000000000000001e",
+          "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "price_q_per_base": 100,
+          "sequence": 9,
+          "side_code": 1
+        },
+        {
+          "base_qty": 5,
+          "order_id": "0x000000000000000000000000000000000000000000000000000000000000000a",
+          "owner": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "price_q_per_base": 100,
+          "sequence": 9,
+          "side_code": 1
+        },
+        {
+          "base_qty": 5,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000014",
+          "owner": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "price_q_per_base": 100,
+          "sequence": 9,
+          "side_code": 1
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "state_root": "8bfb93dd870cc7e550cd62ed838633e2429afcf9ca23b65338325ff90d0cc4e6"
+    },
+    {
+      "base_asset": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "max_width_values",
+      "orders": [
+        {
+          "base_qty": 72057594037927935,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000028",
+          "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "price_q_per_base": 72057594037927935,
+          "sequence": 18446744073709551615,
+          "side_code": 0
+        },
+        {
+          "base_qty": 72057594037927935,
+          "order_id": "0x0000000000000000000000000000000000000000000000000000000000000029",
+          "owner": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "price_q_per_base": 72057594037927935,
+          "sequence": 18446744073709551615,
+          "side_code": 1
+        }
+      ],
+      "quote_asset": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "state_root": "9bfd5354582c83f73c920fc04da145f58b44aa77028f6c1023ad72f5e2fde418"
+    }
+  ],
+  "version": 1
+}

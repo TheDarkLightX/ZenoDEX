@@ -14,6 +14,7 @@ use sha2::{Digest, Sha256};
 
 mod surfaces;
 pub use surfaces::*;
+pub mod clob;
 
 pub const PROOF_TYPE: &str = "risc0.zenodex_spot_transition.v1";
 pub const JOURNAL_VERSION: u32 = 1;
