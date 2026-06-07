@@ -23,6 +23,7 @@ _REPAIRED_ADVISORY_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_repaired
 _REPAIRED_FULL_DOMAIN_CERTIFIED_QUOTE_ENDPOINT = (
     "/api/dex/quote_exact_out_many_pool_repaired_full_domain_certified"
 )
+_BOUNDED_ADVISORY_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_bounded_advisory"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -45,6 +46,18 @@ _MIN_VALUES = {
     "brute_force_max": 0,
     "max_full_domain_pools": 1,
     "max_enumerated_candidates": 1,
+}
+
+_MAX_VALUES = {
+    "amount_out_total": 50_000,
+    "max_legs": 3,
+    "max_candidate_pools": 5,
+    "max_candidates": 12,
+    "max_iters": 4_096,
+    "window": 64,
+    "brute_force_max": 512,
+    "max_full_domain_pools": 16,
+    "max_enumerated_candidates": 50_000,
 }
 
 
@@ -70,9 +83,13 @@ def _require_asset_pair(obj: dict[str, object]) -> tuple[str, str]:
     return asset_in, asset_out
 
 
+def _int_in_range(value: int, name: str) -> bool:
+    return _MIN_VALUES[name] <= value <= _MAX_VALUES[name]
+
+
 def _require_int(obj: dict[str, object], name: str) -> int:
     value = obj.get(name, _DEFAULTS.get(name))
-    if not isinstance(value, int) or isinstance(value, bool) or value < _MIN_VALUES[name]:
+    if not isinstance(value, int) or isinstance(value, bool) or not _int_in_range(value, name):
         raise _BadRequest(f"bad_{name}")
     return int(value)
 
@@ -419,6 +436,14 @@ def _projected_path_matches(
     return bool(actual == expected)
 
 
+def _projection_cover_path(projection_cover: object) -> object:
+    return None if projection_cover is None else projection_cover["canonical_quote_projected_path"]
+
+
+def _projection_cover_holds(projection_cover: object) -> bool | None:
+    return None if projection_cover is None else bool(projection_cover["projection_cover_holds"])
+
+
 def _handle_repaired_advisory_quote(
     obj: dict[str, object],
     parse_pools: ParsePools,
@@ -452,6 +477,153 @@ def _handle_repaired_advisory_quote(
         write_json(
             400,
             {"ok": False, "error": "quote_exact_out_many_pool_repaired_advisory_error", "details": "request failed"},
+        )
+
+
+def _bounded_effective_projection_payload(
+    *,
+    quote_source: object,
+    runtime_projected_path: list[list[object]] | None,
+    advisory_projected_path: list[list[object]] | None,
+    selected_canonical_projected_path: object,
+    repaired_canonical_projected_path: object,
+    selected_projection_cover: object,
+    repaired_projection_cover: object,
+) -> dict[str, object]:
+    if quote_source == "selected_domain_runtime":
+        return {
+            "effective_projection_cover_side": "selected_domain",
+            "effective_projection_cover_holds": _projection_cover_holds(selected_projection_cover),
+            "effective_canonical_projected_path": selected_canonical_projected_path,
+            "effective_quote_projected_path": runtime_projected_path,
+        }
+    if quote_source == "repaired_bounded_advisory":
+        return {
+            "effective_projection_cover_side": "repaired",
+            "effective_projection_cover_holds": _projection_cover_holds(repaired_projection_cover),
+            "effective_canonical_projected_path": repaired_canonical_projected_path,
+            "effective_quote_projected_path": advisory_projected_path,
+        }
+    return {
+        "effective_projection_cover_side": None,
+        "effective_projection_cover_holds": None,
+        "effective_canonical_projected_path": None,
+        "effective_quote_projected_path": None,
+    }
+
+
+def _bounded_projection_payload(
+    packet_payload: dict[str, object],
+    project_quote_path: ProjectQuotePath,
+) -> dict[str, object]:
+    workaround_packet = packet_payload["workaround_packet"]
+    oracle_audit = workaround_packet["oracle_contract"]["audit"]
+    selected_cover = oracle_audit["projection_cover_audit"]
+    repaired_cover = workaround_packet["repaired_packet"]["projection_cover_audit"]
+    runtime_projected_path = project_quote_path(oracle_audit["runtime_quote"])
+    advisory_projected_path = project_quote_path(packet_payload["advisory_quote"])
+    selected_path = _projection_cover_path(selected_cover)
+    repaired_path = _projection_cover_path(repaired_cover)
+    payload = {
+        "runtime_projected_path": runtime_projected_path,
+        "advisory_projected_path": advisory_projected_path,
+        "selected_domain_projection_cover_available": bool(selected_cover is not None),
+        "selected_domain_projection_cover_holds": _projection_cover_holds(selected_cover),
+        "selected_domain_canonical_projected_path": selected_path,
+        "selected_runtime_matches_selected_canonical_projected_path": _projected_path_matches(
+            runtime_projected_path,
+            selected_path,
+        ),
+        "repaired_projection_cover_available": bool(repaired_cover is not None),
+        "repaired_projection_cover_holds": _projection_cover_holds(repaired_cover),
+        "repaired_canonical_projected_path": repaired_path,
+        "advisory_matches_repaired_canonical_projected_path": _projected_path_matches(
+            advisory_projected_path,
+            repaired_path,
+        ),
+    }
+    payload.update(
+        _bounded_effective_projection_payload(
+            quote_source=packet_payload["quote_source"],
+            runtime_projected_path=runtime_projected_path,
+            advisory_projected_path=advisory_projected_path,
+            selected_canonical_projected_path=selected_path,
+            repaired_canonical_projected_path=repaired_path,
+            selected_projection_cover=selected_cover,
+            repaired_projection_cover=repaired_cover,
+        )
+    )
+    payload["effective_quote_matches_canonical_projected_path"] = _projected_path_matches(
+        payload["effective_quote_projected_path"],
+        payload["effective_canonical_projected_path"],
+    )
+    return payload
+
+
+def _bounded_advisory_quote_payload(
+    *,
+    quote: object,
+    err: object,
+    packet_payload: dict[str, object],
+    packet_schema: str,
+    project_quote_path: ProjectQuotePath,
+) -> dict[str, object]:
+    oracle_audit = packet_payload["workaround_packet"]["oracle_contract"]["audit"]
+    payload = {
+        "ok": bool(quote is not None),
+        "packet": packet_payload,
+        "packet_schema": packet_schema,
+        "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_bounded_advisory_quote_packet",
+        "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_bounded_advisory_quote_packet",
+        "runtime_quote": oracle_audit["runtime_quote"],
+        "quote_source": packet_payload["quote_source"],
+        "repaired_advisory_available": bool(packet_payload["repaired_advisory_available"]),
+        "quote_matches_runtime": bool(packet_payload["quote_matches_runtime"]),
+        "quote_matches_repaired_advisory": bool(packet_payload["quote_matches_repaired_advisory"]),
+    }
+    payload.update(_bounded_projection_payload(packet_payload, project_quote_path))
+    if quote is not None:
+        payload["quote"] = packet_payload["advisory_quote"]
+    else:
+        payload["error"] = str(err or "many_pool_bounded_advisory_unavailable")
+    return payload
+
+
+def _handle_bounded_advisory_quote(
+    obj: dict[str, object],
+    parse_pools: ParsePools,
+    project_quote_path: ProjectQuotePath,
+    write_json: WriteJson,
+) -> None:
+    try:
+        req = _parse_request(obj, parse_pools, tuple(_MIN_VALUES))
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            EXACT_OUT_MANY_POOL_BOUNDED_ADVISORY_QUOTE_PACKET_SCHEMA,
+            quote_exact_out_many_pool_bounded_advisory,
+        )
+
+        quote, err, packet = quote_exact_out_many_pool_bounded_advisory(
+            req.pools,
+            asset_in=req.asset_in,
+            asset_out=req.asset_out,
+            **req.values,
+        )
+        write_json(
+            200,
+            _bounded_advisory_quote_payload(
+                quote=quote,
+                err=err,
+                packet_payload=packet.to_dict(),
+                packet_schema=EXACT_OUT_MANY_POOL_BOUNDED_ADVISORY_QUOTE_PACKET_SCHEMA,
+                project_quote_path=project_quote_path,
+            ),
+        )
+    except _BadRequest as exc:
+        _write_bad_request(write_json, exc)
+    except Exception:
+        write_json(
+            400,
+            {"ok": False, "error": "quote_exact_out_many_pool_bounded_advisory_error", "details": "request failed"},
         )
 
 
@@ -546,4 +718,5 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _REPAIRED_SELECTED_DOMAIN_QUOTE_ENDPOINT: _simple_route(_handle_repaired_selected_domain_quote),
     _REPAIRED_ADVISORY_QUOTE_ENDPOINT: _handle_repaired_advisory_quote,
     _REPAIRED_FULL_DOMAIN_CERTIFIED_QUOTE_ENDPOINT: _simple_route(_handle_repaired_full_domain_certified_quote),
+    _BOUNDED_ADVISORY_QUOTE_ENDPOINT: _handle_bounded_advisory_quote,
 }

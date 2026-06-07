@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.integration.exact_out_route_certificate import (
+    EXACT_OUT_MANY_POOL_BOUNDED_ADVISORY_QUOTE_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_PACKET_SCHEMA,
 )
 from src.integration.api_server_exact_out_many_pool_routes import (
@@ -46,6 +47,27 @@ class _FakePacket:
             "full_domain_feasible_pool_ids": ["pool_a"],
             "full_domain_canonical_quote": {"legs": [], "amount_in_total": 0},
             "repaired_packet": {"runtime_quote": {"legs": [], "amount_in_total": 0}},
+        }
+
+
+class _FakeBoundedPacket:
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema": "packet-controlled-bounded-schema",
+            "advisory_quote": None,
+            "quote_source": None,
+            "repaired_advisory_available": False,
+            "quote_matches_runtime": False,
+            "quote_matches_repaired_advisory": False,
+            "workaround_packet": {
+                "oracle_contract": {
+                    "audit": {
+                        "runtime_quote": {"legs": [], "amount_in_total": 0},
+                        "projection_cover_audit": None,
+                    }
+                },
+                "repaired_packet": {"projection_cover_audit": None},
+            },
         }
 
 
@@ -187,4 +209,67 @@ def test_many_pool_full_domain_certified_route_failure_payload_contract(monkeypa
     assert payload["packet"]["schema"] == "packet-controlled-schema"
     assert payload["runtime_quote"] == {"legs": [], "amount_in_total": 0}
     assert payload["error"] == "full_domain_mismatch"
+    assert "quote" not in payload
+
+
+def test_many_pool_bounded_advisory_route_rejects_bool_integer_field_after_pool_parse() -> None:
+    writes, write_json = _capture()
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/quote_exact_out_many_pool_bounded_advisory",
+        obj=_minimal_request(brute_force_max=False),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_brute_force_max"})]
+
+
+def test_many_pool_bounded_advisory_route_rejects_oversized_search_cap_after_pool_parse() -> None:
+    writes, write_json = _capture()
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/quote_exact_out_many_pool_bounded_advisory",
+        obj=_minimal_request(max_enumerated_candidates=50_001),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_enumerated_candidates"})]
+
+
+def test_many_pool_bounded_advisory_route_failure_payload_contract(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+
+    def quote_rejects(*_args: object, **_kwargs: object) -> tuple[None, str, _FakeBoundedPacket]:
+        return None, "bounded_unavailable", _FakeBoundedPacket()
+
+    monkeypatch.setattr(
+        "src.integration.exact_out_route_certificate.quote_exact_out_many_pool_bounded_advisory",
+        quote_rejects,
+    )
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/quote_exact_out_many_pool_bounded_advisory",
+        obj=_minimal_request(),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert len(writes) == 1
+    status, payload = writes[0]
+    assert status == 200
+    assert isinstance(payload, dict)
+    assert payload["ok"] is False
+    assert payload["packet_schema"] == EXACT_OUT_MANY_POOL_BOUNDED_ADVISORY_QUOTE_PACKET_SCHEMA
+    assert payload["packet"]["schema"] == "packet-controlled-bounded-schema"
+    assert payload["runtime_quote"] == {"legs": [], "amount_in_total": 0}
+    assert payload["effective_projection_cover_side"] is None
+    assert payload["error"] == "bounded_unavailable"
     assert "quote" not in payload
