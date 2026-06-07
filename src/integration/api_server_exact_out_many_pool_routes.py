@@ -10,6 +10,8 @@ ProjectQuotePath = Callable[[object], list[list[object]] | None]
 RouteHandler = Callable[[dict[str, object], ParsePools, ProjectQuotePath, WriteJson], None]
 SimpleRouteHandler = Callable[[dict[str, object], ParsePools, WriteJson], None]
 
+# The parent HTTP handler applies exact-out upper caps before dispatching here.
+# These handlers preserve the old per-route parse order and lower-bound errors.
 _CANDIDATE_DOMAIN_ENDPOINT = "/api/dex/build_exact_out_many_pool_candidate_domain_contract"
 _PREFILTER_ENDPOINT = "/api/dex/build_exact_out_many_pool_prefilter_contract"
 _REPAIRED_PREFILTER_ENDPOINT = "/api/dex/build_exact_out_many_pool_repaired_prefilter_contract"
@@ -18,6 +20,9 @@ _REPAIRED_SELECTED_DOMAIN_ENDPOINT = (
 )
 _REPAIRED_SELECTED_DOMAIN_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_repaired_selected_domain"
 _REPAIRED_ADVISORY_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_repaired_advisory"
+_REPAIRED_FULL_DOMAIN_CERTIFIED_QUOTE_ENDPOINT = (
+    "/api/dex/quote_exact_out_many_pool_repaired_full_domain_certified"
+)
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -450,6 +455,74 @@ def _handle_repaired_advisory_quote(
         )
 
 
+def _repaired_full_domain_certified_payload(
+    *,
+    quote: object,
+    err: object,
+    packet_payload: dict[str, object],
+    packet_schema: str,
+) -> dict[str, object]:
+    repaired_packet = packet_payload["repaired_packet"]
+    payload = {
+        "ok": bool(quote is not None),
+        "packet": packet_payload,
+        "packet_schema": packet_schema,
+        "quote_policy": "repaired_full_domain_certified_v1",
+        "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_repaired_full_domain_certified_packet",
+        "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_repaired_full_domain_certified_packet",
+        "runtime_quote": repaired_packet["runtime_quote"],
+        "full_domain_canonical_quote": packet_payload["full_domain_canonical_quote"],
+        "repaired_matches_full_canonical": bool(packet_payload["repaired_matches_full_canonical"]),
+        "full_domain_candidate_count": int(packet_payload["full_domain_candidate_count"]),
+        "full_domain_feasible_pool_ids": [str(pool_id) for pool_id in packet_payload["full_domain_feasible_pool_ids"]],
+    }
+    if quote is not None:
+        payload["quote"] = packet_payload["repaired_quote"]
+    else:
+        payload["error"] = str(err or "many_pool_repaired_advisory_not_full_domain_canonical")
+    return payload
+
+
+def _handle_repaired_full_domain_certified_quote(
+    obj: dict[str, object],
+    parse_pools: ParsePools,
+    write_json: WriteJson,
+) -> None:
+    try:
+        req = _parse_request(obj, parse_pools, tuple(_MIN_VALUES))
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_PACKET_SCHEMA,
+            quote_exact_out_many_pool_repaired_full_domain_certified,
+        )
+
+        quote, err, packet = quote_exact_out_many_pool_repaired_full_domain_certified(
+            req.pools,
+            asset_in=req.asset_in,
+            asset_out=req.asset_out,
+            **req.values,
+        )
+        write_json(
+            200,
+            _repaired_full_domain_certified_payload(
+                quote=quote,
+                err=err,
+                packet_payload=packet.to_dict(),
+                packet_schema=EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_PACKET_SCHEMA,
+            ),
+        )
+    except _BadRequest as exc:
+        _write_bad_request(write_json, exc)
+    except Exception:
+        write_json(
+            400,
+            {
+                "ok": False,
+                "error": "quote_exact_out_many_pool_repaired_full_domain_certified_error",
+                "details": "request failed",
+            },
+        )
+
+
 def maybe_handle_exact_out_many_pool_route(
     *, path: str, obj: dict[str, object], parse_pools: ParsePools,
     project_quote_path: ProjectQuotePath, write_json: WriteJson
@@ -472,4 +545,5 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _REPAIRED_SELECTED_DOMAIN_ENDPOINT: _simple_route(_handle_repaired_selected_domain_contract),
     _REPAIRED_SELECTED_DOMAIN_QUOTE_ENDPOINT: _simple_route(_handle_repaired_selected_domain_quote),
     _REPAIRED_ADVISORY_QUOTE_ENDPOINT: _handle_repaired_advisory_quote,
+    _REPAIRED_FULL_DOMAIN_CERTIFIED_QUOTE_ENDPOINT: _simple_route(_handle_repaired_full_domain_certified_quote),
 }

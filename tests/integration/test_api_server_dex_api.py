@@ -2974,6 +2974,33 @@ def test_api_server_quote_exact_out_many_pool_repaired_full_domain_certified() -
         _stop_test_server(httpd, t)
 
 
+def test_api_server_quote_exact_out_many_pool_repaired_full_domain_certified_rejects_search_cap() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/quote_exact_out_many_pool_repaired_full_domain_certified",
+            body=json.dumps(
+                {
+                    "asset_in": "A",
+                    "asset_out": "B",
+                    "amount_out_total": 4,
+                    "max_full_domain_pools": 17,
+                    "pools": [],
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+
+        assert resp.status == 400
+        assert body == {"ok": False, "error": "bad_max_full_domain_pools"}
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def test_api_server_build_and_verify_exact_out_many_pool_repaired_advisory_quote_packet() -> None:
     httpd, t, host, port = _start_test_server()
     try:
