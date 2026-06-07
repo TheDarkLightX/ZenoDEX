@@ -39,6 +39,9 @@ pub struct OracleBindingV1 {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CollateralBindingV1 {
+    // Hash-bound external reference only. The perps guest validates shape and
+    // commits these fields; a caller must separately verify the source zUSD
+    // receipt before treating the collateral movement as proved.
     pub source_proof_type: String,
     pub source_state_hash: String,
     pub balance_root_hash: String,
@@ -2705,6 +2708,56 @@ mod tests {
                 "zUSD collateral binding missing"
             ))
         ));
+    }
+
+    #[test]
+    fn perps_np_zusd_collateral_binding_is_hash_bound_external_reference() {
+        let binding = CollateralBindingV1 {
+            source_proof_type: PROOF_TYPE_ZUSD.to_string(),
+            source_state_hash: "aa".repeat(32),
+            balance_root_hash: "bb".repeat(32),
+            balance_delta_hash: "cc".repeat(32),
+        };
+        let mut state = PerpsStateV1::from_snapshot(PerpsNpSnapshotV1::empty()).unwrap();
+        state
+            .init_market(
+                "BTC-PERP".to_string(),
+                default_zusd_asset(),
+                100 * E8_I128,
+                PerpsMarketParamsV1::default(),
+                1_000_000_000,
+            )
+            .unwrap();
+        state
+            .deposit_collateral(
+                "wallet-a".to_string(),
+                default_zusd_asset(),
+                2_000 * E8_I128,
+                1,
+                Some(binding.clone()),
+            )
+            .unwrap();
+
+        let mut changed_binding = binding.clone();
+        changed_binding.balance_delta_hash = "dd".repeat(32);
+        let base = alloc::vec![PerpsNpActionV1::DepositCollateral {
+            pubkey: "wallet-a".to_string(),
+            asset: default_zusd_asset(),
+            amount_e8: 2_000 * E8_I128,
+            nonce: 1,
+            collateral_binding: Some(binding),
+        }];
+        let changed = alloc::vec![PerpsNpActionV1::DepositCollateral {
+            pubkey: "wallet-a".to_string(),
+            asset: default_zusd_asset(),
+            amount_e8: 2_000 * E8_I128,
+            nonce: 1,
+            collateral_binding: Some(changed_binding),
+        }];
+        assert_ne!(
+            perps_np_collateral_bindings_hash_v1(&base).unwrap(),
+            perps_np_collateral_bindings_hash_v1(&changed).unwrap()
+        );
     }
 
     #[test]
