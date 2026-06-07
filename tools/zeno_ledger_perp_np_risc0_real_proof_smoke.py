@@ -419,7 +419,12 @@ def _simulate_match(
     account_by_pk = {str(account["pubkey"]): idx for idx, account in enumerate(next_accounts)}
     sorted_intents = sorted((copy.deepcopy(i) for i in intents), key=lambda i: (str(i["pubkey"]), int(i["nonce"])))
     survivors: list[tuple[dict[str, Any], int, int]] = []
-    receipts: list[dict[str, Any]] = []
+    receipts: dict[tuple[str, int], dict[str, Any]] = {}
+
+    def emit(intent: dict[str, Any], delta: int, rejected: bool, code: str) -> None:
+        # Rust uses BTreeMap<(pubkey, nonce), receipt>; duplicate nonce
+        # rejects collapse to one deterministic receipt for that key.
+        receipts[(str(intent["pubkey"]), int(intent["nonce"]))] = _receipt(intent, delta, rejected, code)
 
     cursor = 0
     while cursor < len(sorted_intents):
@@ -428,40 +433,48 @@ def _simulate_match(
         while cursor < len(sorted_intents) and str(sorted_intents[cursor]["pubkey"]) == pubkey:
             cursor += 1
         if pubkey not in account_by_pk:
-            raise ValueError("intent account not joined")
+            for intent in sorted_intents[start:cursor]:
+                emit(intent, 0, True, "REJ_ACCOUNT")
+            continue
         account_index = account_by_pk[pubkey]
         account = next_accounts[account_index]
         chosen: dict[str, Any] | None = None
-        seen_nonces: set[int] = set()
+        nonce_counts: dict[int, int] = {}
+        for intent in sorted_intents[start:cursor]:
+            nonce_counts[int(intent["nonce"])] = nonce_counts.get(int(intent["nonce"]), 0) + 1
+        nonce_cursor = int(account["nonce"])
         for intent in sorted_intents[start:cursor]:
             nonce = int(intent["nonce"])
-            if nonce in seen_nonces:
-                raise ValueError("duplicate np intent nonce")
-            seen_nonces.add(nonce)
+            if nonce_counts[nonce] > 1:
+                emit(intent, 0, True, "REJ_DUP_NONCE")
+                continue
+            if nonce != nonce_cursor + 1:
+                emit(intent, 0, True, "REJ_BAD_NONCE")
+                continue
+            nonce_cursor = nonce
             if int(intent["expiry_epoch"]) < now_epoch:
-                raise ValueError("np intent expired")
-            if nonce <= int(account["nonce"]):
-                raise ValueError("np intent nonce not advancing")
+                emit(intent, 0, True, "REJ_EXPIRED")
+                continue
             target = int(intent["target_base"])
             if abs(target) > int(params["max_position_abs"]):
-                receipts.append(_receipt(intent, 0, True, "REJ_POS_BOUND"))
+                emit(intent, 0, True, "REJ_POS_BOUND")
                 continue
             desired = target - int(account["position_base"])
             if int(intent["limit_price_e8"]) and desired:
                 limit = int(intent["limit_price_e8"])
                 if desired > 0 and price > limit:
-                    receipts.append(_receipt(intent, 0, True, "REJ_PRICE"))
+                    emit(intent, 0, True, "REJ_PRICE")
                     continue
                 if desired < 0 and price < limit:
-                    receipts.append(_receipt(intent, 0, True, "REJ_PRICE"))
+                    emit(intent, 0, True, "REJ_PRICE")
                     continue
             if _increases_risk(int(account["position_base"]), target):
                 req = _margin_req(target, price, int(params["initial_margin_bps"]))
                 if int(account["collateral_e8"]) < req:
-                    receipts.append(_receipt(intent, 0, True, "REJ_MARGIN"))
+                    emit(intent, 0, True, "REJ_MARGIN")
                     continue
             if chosen is not None:
-                receipts.append(_receipt(chosen, 0, True, "REJ_SUPERSEDED"))
+                emit(chosen, 0, True, "REJ_SUPERSEDED")
             chosen = intent
         if chosen is not None:
             desired = int(chosen["target_base"]) - int(account["position_base"])
@@ -488,16 +501,16 @@ def _simulate_match(
         if _increases_risk(int(account["position_base"]), new_position):
             req = _margin_req(new_position, price, int(params["initial_margin_bps"]))
             if int(account["collateral_e8"]) < req:
-                receipts.append(_receipt(intent, 0, True, "REJ_INVARIANT"))
+                emit(intent, 0, True, "REJ_INVARIANT")
                 continue
         account["position_base"] = new_position
         account["entry_price_e8"] = 0 if new_position == 0 else price
         account["nonce"] = max(int(account["nonce"]), int(intent["nonce"]))
-        receipts.append(_receipt(intent, delta, False, ""))
+        emit(intent, delta, False, "")
 
     next_accounts.sort(key=lambda a: str(a["pubkey"]))
-    receipts.sort(key=lambda r: (str(r["pubkey"]), int(r["nonce"])))
-    return next_accounts, receipts
+    ordered_receipts = sorted(receipts.values(), key=lambda r: (str(r["pubkey"]), int(r["nonce"])))
+    return next_accounts, ordered_receipts
 
 
 def _receipt(intent: dict[str, Any], delta: int, rejected: bool, code: str) -> dict[str, Any]:

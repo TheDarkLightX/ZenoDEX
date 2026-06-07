@@ -95,3 +95,78 @@ def test_smoke_case_builder_expected_hashes_follow_current_snapshot_path() -> No
         operation_hash=case["operation_hash"],
         receipts_root=expected["receipts_root"],
     )
+
+
+def test_smoke_simulate_match_records_reject_receipts_without_mutation() -> None:
+    accounts = [
+        smoke._account("wallet-a", 0, 0, 10_000),
+        smoke._account("wallet-b", 0, 0, 10_000),
+    ]
+    next_accounts, receipts = smoke._simulate_match(
+        accounts,
+        [
+            smoke._intent("wallet-a", 1, nonce=2),
+            smoke._intent("wallet-b", 1, nonce=1, expiry=0),
+            smoke._intent("wallet-missing", 0, nonce=1),
+        ],
+        price=100,
+        now_epoch=1,
+        params=smoke._params(),
+    )
+
+    by_key = {(r["pubkey"], r["nonce"]): r for r in receipts}
+    assert by_key[("wallet-a", 2)]["reject_code"] == "REJ_BAD_NONCE"
+    assert by_key[("wallet-b", 1)]["reject_code"] == "REJ_EXPIRED"
+    assert by_key[("wallet-missing", 1)]["reject_code"] == "REJ_ACCOUNT"
+    assert next_accounts == sorted(accounts, key=lambda a: str(a["pubkey"]))
+
+
+def test_smoke_simulate_match_collapses_duplicate_nonce_like_guest_btreemap() -> None:
+    accounts = [smoke._account("wallet-a", 0, 0, 10_000)]
+    _, receipts = smoke._simulate_match(
+        accounts,
+        [
+            smoke._intent("wallet-a", 1, nonce=1),
+            smoke._intent("wallet-a", 2, nonce=1),
+        ],
+        price=100,
+        now_epoch=1,
+        params=smoke._params(),
+    )
+
+    assert receipts == [
+        {
+            "pubkey": "wallet-a",
+            "nonce": 1,
+            "delta": 0,
+            "rejected": True,
+            "reject_code": "REJ_DUP_NONCE",
+        }
+    ]
+
+
+def test_smoke_simulate_match_accepts_contiguous_replacement_nonce() -> None:
+    accounts = [
+        smoke._account("wallet-a", 0, 0, 10_000),
+        smoke._account("wallet-b", 0, 0, 10_000),
+        smoke._account("wallet-c", 0, 0, 10_000),
+    ]
+    next_accounts, receipts = smoke._simulate_match(
+        accounts,
+        [
+            smoke._intent("wallet-a", 1, nonce=1),
+            smoke._intent("wallet-a", 2, nonce=2),
+            smoke._intent("wallet-b", -1, nonce=1),
+            smoke._intent("wallet-c", -1, nonce=1),
+        ],
+        price=100,
+        now_epoch=1,
+        params=smoke._params(),
+    )
+
+    by_key = {(r["pubkey"], r["nonce"]): r for r in receipts}
+    assert by_key[("wallet-a", 1)]["reject_code"] == "REJ_SUPERSEDED"
+    assert by_key[("wallet-a", 2)]["delta"] == 2
+    by_account = {account["pubkey"]: account for account in next_accounts}
+    assert by_account["wallet-a"]["nonce"] == 2
+    assert by_account["wallet-a"]["position_base"] == 2

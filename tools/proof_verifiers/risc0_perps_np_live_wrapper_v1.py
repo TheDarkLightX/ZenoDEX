@@ -61,17 +61,6 @@ def _normalize_hex(value: str) -> str:
     return raw
 
 
-def _bool_env(name: str, default: bool) -> bool:
-    raw = os.environ.get(name, "").strip().lower()
-    if not raw:
-        return bool(default)
-    if raw in {"1", "true", "yes", "on"}:
-        return True
-    if raw in {"0", "false", "no", "off"}:
-        return False
-    _fail(f"{name} must be boolean")
-
-
 def _cli_cmd() -> list[str]:
     raw_json = os.environ.get("RISC0_PERPS_NP_CLI_CMD_JSON", "").strip()
     if raw_json:
@@ -175,7 +164,7 @@ def _bind_runtime_receipt(expected: dict[str, Any], receipt: Mapping[str, Any]) 
     if body.get("schema") != "zenodex/perps_wallet/proof_intent_receipt/v1":
         _fail("unsupported proof intent receipt schema")
     action = _str(body.get("action"), name="proof_intent_receipt.body.action")
-    if action not in {"run_epoch", "settle_epoch"} and not _bool_env("RISC0_PERPS_NP_ALLOW_NON_EPOCH_ACTIONS", False):
+    if action not in {"run_epoch", "settle_epoch"}:
         _fail("RISC0 perps NP proof only covers run_epoch/settle_epoch transitions")
     expected["proof_type"] = PROOF_TYPE
     expected["chain_id"] = _str(body.get("chain_id"), name="proof_intent_receipt.body.chain_id")
@@ -193,9 +182,18 @@ def _bind_runtime_receipt(expected: dict[str, Any], receipt: Mapping[str, Any]) 
 
     proof_state_delta_witness_hash = expected.get("state_delta_witness_hash")
     receipt_state_delta_witness_hash = body.get("state_delta_witness_hash")
-    if proof_state_delta_witness_hash is not None or receipt_state_delta_witness_hash is not None:
-        if proof_state_delta_witness_hash != receipt_state_delta_witness_hash:
+    if receipt_state_delta_witness_hash is not None:
+        receipt_witness_hash = _normalize_hex(
+            _str(receipt_state_delta_witness_hash, name="proof_intent_receipt.body.state_delta_witness_hash")
+        )
+        proof_witness_hash = _normalize_hex(
+            _str(proof_state_delta_witness_hash, name="proof.expected.state_delta_witness_hash")
+        )
+        if proof_witness_hash != receipt_witness_hash:
             _fail("state_delta_witness_hash mismatch")
+        expected["state_delta_witness_hash"] = receipt_witness_hash
+    elif proof_state_delta_witness_hash is not None:
+        _fail("state_delta_witness_hash mismatch")
 
 
 def _verify_runtime_receipt_hash(req: Mapping[str, Any], receipt: Mapping[str, Any]) -> None:

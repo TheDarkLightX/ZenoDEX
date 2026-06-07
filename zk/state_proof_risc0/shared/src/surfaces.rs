@@ -1359,7 +1359,7 @@ impl ZusdStateV1 {
                     debt_zusd_e8: 0,
                     nonce: 0,
                 });
-                if nonce <= vault.nonce {
+                if !is_next_nonce(vault.nonce, nonce) {
                     return Err(TransitionError::InvalidInput("zusd nonce mismatch"));
                 }
                 vault.collateral_amount_e8 = checked_add_u128(
@@ -1629,6 +1629,7 @@ fn match_intents_v1(
         let current = account.position_base;
         let collateral = account.collateral_e8;
         let last_nonce = account.nonce;
+        let mut nonce_cursor = last_nonce;
         let mut nonce_counts: BTreeMap<u64, u32> = BTreeMap::new();
         for intent in &account_intents {
             *nonce_counts.entry(intent.nonce).or_insert(0) += 1;
@@ -1642,11 +1643,22 @@ fn match_intents_v1(
                 );
                 continue;
             }
+            // Live admission accepts only contiguous per-account nonce ranges.
+            // The matcher then applies orderbook semantics over that range:
+            // the highest valid replacement wins, while a missing nonce stays
+            // fail-closed instead of being certified as a gap intent.
+            if !is_next_nonce(nonce_cursor, intent.nonce) {
+                receipts.insert(
+                    (intent.pubkey.clone(), intent.nonce),
+                    rejected_receipt(&intent, "REJ_BAD_NONCE"),
+                );
+                continue;
+            }
+            nonce_cursor = intent.nonce;
             if let Some(code) = validate_perps_intent(
                 &intent,
                 current,
                 collateral,
-                last_nonce,
                 clearing_price_e8,
                 now_epoch,
                 params,
@@ -1774,7 +1786,6 @@ fn validate_perps_intent(
     intent: &PerpsIntentV1,
     current: i128,
     collateral: i128,
-    last_nonce: u64,
     price_e8: i128,
     now_epoch: u64,
     params: &PerpsMarketParamsV1,
@@ -1784,11 +1795,6 @@ fn validate_perps_intent(
     }
     if intent.expiry_epoch < now_epoch {
         return Ok(Some("REJ_EXPIRED"));
-    }
-    // Live submit emits exactly account.nonce + 1; the proof surface must not
-    // certify gap intents that the live admission path would reject upstream.
-    if !is_next_nonce(last_nonce, intent.nonce) {
-        return Ok(Some("REJ_BAD_NONCE"));
     }
     if abs_i128(intent.target_base)? > params.max_position_abs {
         return Ok(Some("REJ_POS_BOUND"));
@@ -2871,6 +2877,45 @@ mod tests {
     }
 
     #[test]
+    fn perps_np_run_epoch_accepts_contiguous_replacement_intent_nonce() {
+        let mut state = initialized_four_wallet_state();
+        let result = state
+            .run_epoch(
+                oracle(100 * E8_I128),
+                100 * E8_I128,
+                0,
+                alloc::vec![
+                    intent("wallet-a", 1, 2),
+                    intent("wallet-a", 2, 3),
+                    intent("wallet-b", -1, 2),
+                    intent("wallet-c", -1, 2),
+                    intent("wallet-d", 0, 2),
+                ],
+            )
+            .unwrap();
+
+        let superseded = result
+            .receipts
+            .iter()
+            .find(|receipt| receipt.pubkey == "wallet-a" && receipt.nonce == 2)
+            .expect("superseded wallet-a receipt");
+        assert_eq!(superseded.status, "rejected");
+        assert_eq!(superseded.reject_code.as_deref(), Some("REJ_SUPERSEDED"));
+
+        let filled = result
+            .receipts
+            .iter()
+            .find(|receipt| receipt.pubkey == "wallet-a" && receipt.nonce == 3)
+            .expect("filled wallet-a receipt");
+        assert_eq!(filled.status, "filled");
+        assert_eq!(filled.delta, 2);
+
+        let account = state.accounts.get("wallet-a").unwrap();
+        assert_eq!(account.nonce, 3);
+        assert_eq!(account.position_base, 2);
+    }
+
+    #[test]
     fn perps_np_run_epoch_rejects_unknown_account_intent() {
         let mut state = initialized_four_wallet_state();
         let result = state
@@ -2978,5 +3023,39 @@ mod tests {
             execute_zusd_transition_v1(input),
             Err(TransitionError::InvalidInput("zusd mint violates MCR"))
         ));
+    }
+
+    #[test]
+    fn zusd_rejects_gap_nonce_without_mutation() {
+        let snapshot = ZusdSnapshotV1 {
+            version: 1,
+            vaults: alloc::vec![ZusdVaultEntryV1 {
+                pubkey: "wallet-a".to_string(),
+                collateral_asset: "tAGRS".to_string(),
+                collateral_amount_e8: 2_000 * E8_U128,
+                debt_zusd_e8: 1_000 * E8_U128,
+                nonce: 1,
+            }],
+            balances: alloc::vec![ZusdBalanceEntryV1 {
+                pubkey: "wallet-a".to_string(),
+                amount_e8: 1_000 * E8_U128,
+            }],
+            total_debt_zusd_e8: 1_000 * E8_U128,
+        };
+        let mut state = ZusdStateV1::from_snapshot(snapshot).unwrap();
+        let before_hash = state.canonical_app_hash_sha256();
+        assert!(matches!(
+            state.apply_operation(ZusdOperationV1::DepositMint {
+                pubkey: "wallet-a".to_string(),
+                collateral_asset: "tAGRS".to_string(),
+                deposit_amount_e8: 100 * E8_U128,
+                mint_amount_e8: 10 * E8_U128,
+                oracle: oracle(E8_I128),
+                mcr_bps: 11_000,
+                nonce: 3,
+            }),
+            Err(TransitionError::InvalidInput("zusd nonce mismatch"))
+        ));
+        assert_eq!(state.canonical_app_hash_sha256(), before_hash);
     }
 }

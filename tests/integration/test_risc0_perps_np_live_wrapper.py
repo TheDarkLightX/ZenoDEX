@@ -92,10 +92,17 @@ def _request(*, surface: str = SURFACE, action: str = "run_epoch", proof_type: s
     }
 
 
-def _run(req: dict[str, object], *, fake_cli: str | None = None) -> dict[str, object]:
+def _run(
+    req: dict[str, object],
+    *,
+    fake_cli: str | None = None,
+    extra_env: dict[str, str] | None = None,
+) -> dict[str, object]:
     env = os.environ.copy()
     if fake_cli is not None:
         env["RISC0_PERPS_NP_CLI_CMD_JSON"] = json.dumps([sys.executable, "-c", fake_cli])
+    if extra_env:
+        env.update(extra_env)
     proc = subprocess.run(
         [sys.executable, str(WRAPPER)],
         input=json.dumps(req),
@@ -168,6 +175,15 @@ def test_risc0_perps_np_wrapper_rejects_non_epoch_action_before_cli_verify() -> 
     assert out["error"] == "RISC0 perps NP proof only covers run_epoch/settle_epoch transitions"
 
 
+def test_risc0_perps_np_wrapper_rejects_non_epoch_action_even_with_legacy_env_bypass() -> None:
+    out = _run(
+        _request(action="deposit_collateral"),
+        extra_env={"RISC0_PERPS_NP_ALLOW_NON_EPOCH_ACTIONS": "1"},
+    )
+    assert out["ok"] is False
+    assert out["error"] == "RISC0 perps NP proof only covers run_epoch/settle_epoch transitions"
+
+
 def test_risc0_perps_np_wrapper_rejects_missing_receipt_app_hash_bindings() -> None:
     for field in ("app_hash_before", "app_hash_after"):
         req = _request()
@@ -182,6 +198,46 @@ def test_risc0_perps_np_wrapper_rejects_missing_receipt_app_hash_bindings() -> N
 
         assert out["ok"] is False
         assert out["error"] == f"proof_intent_receipt.body.{field} must be a non-empty string"
+
+
+def test_risc0_perps_np_wrapper_rejects_bad_state_delta_witness_hash_shape() -> None:
+    req = _request()
+    receipt = req["proof_intent_receipt"]
+    assert isinstance(receipt, dict)
+    body = receipt["body"]
+    assert isinstance(body, dict)
+    body["state_delta_witness_hash"] = "not-hex"
+    proof = req["proof"]
+    assert isinstance(proof, dict)
+    meta = proof["meta"]
+    assert isinstance(meta, dict)
+    meta["state_delta_witness_hash"] = "not-hex"
+    _refresh_receipt_hash(req)
+
+    out = _run(req, fake_cli="import sys\nraise SystemExit('cli should not run')\n")
+
+    assert out["ok"] is False
+    assert out["error"] == "hex binding must be 64 chars"
+
+
+def test_risc0_perps_np_wrapper_rejects_state_delta_witness_hash_mismatch() -> None:
+    req = _request()
+    receipt = req["proof_intent_receipt"]
+    assert isinstance(receipt, dict)
+    body = receipt["body"]
+    assert isinstance(body, dict)
+    body["state_delta_witness_hash"] = "44" * 32
+    proof = req["proof"]
+    assert isinstance(proof, dict)
+    meta = proof["meta"]
+    assert isinstance(meta, dict)
+    meta["state_delta_witness_hash"] = "55" * 32
+    _refresh_receipt_hash(req)
+
+    out = _run(req, fake_cli="import sys\nraise SystemExit('cli should not run')\n")
+
+    assert out["ok"] is False
+    assert out["error"] == "state_delta_witness_hash mismatch"
 
 
 def test_risc0_perps_np_wrapper_recomputes_runtime_receipt_hash() -> None:

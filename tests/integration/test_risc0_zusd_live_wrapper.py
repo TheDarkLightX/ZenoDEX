@@ -181,6 +181,49 @@ def test_risc0_zusd_wrapper_rejects_missing_receipt_app_hash_bindings() -> None:
         assert out["error"] == f"proof_intent_receipt.body.{field} must be a non-empty string"
 
 
+def test_risc0_zusd_wrapper_rejects_receipt_nonce_gap_before_cli_verify() -> None:
+    req = _request()
+    receipt = req["proof_intent_receipt"]
+    assert isinstance(receipt, dict)
+    body = receipt["body"]
+    assert isinstance(body, dict)
+    body["nonce_after"] = 2
+    _refresh_receipt_hash(req)
+
+    out = _run(req, fake_cli="import sys\nraise SystemExit('cli should not run')\n")
+
+    assert out["ok"] is False
+    assert out["error"] == "proof_intent_receipt nonce transition must be strict-sequential"
+
+
+def test_risc0_zusd_wrapper_rejects_operation_nonce_mismatch_before_cli_verify() -> None:
+    req = _request()
+    proof = req["proof"]
+    assert isinstance(proof, dict)
+    operation = proof["operation"]
+    assert isinstance(operation, dict)
+    operation["nonce"] = 2
+
+    out = _run(req, fake_cli="import sys\nraise SystemExit('cli should not run')\n")
+
+    assert out["ok"] is False
+    assert out["error"] == "proof.operation.nonce mismatch"
+
+
+def test_risc0_zusd_wrapper_rejects_operation_pubkey_mismatch_before_cli_verify() -> None:
+    req = _request()
+    proof = req["proof"]
+    assert isinstance(proof, dict)
+    operation = proof["operation"]
+    assert isinstance(operation, dict)
+    operation["pubkey"] = "0x" + "bb" * 48
+
+    out = _run(req, fake_cli="import sys\nraise SystemExit('cli should not run')\n")
+
+    assert out["ok"] is False
+    assert out["error"] == "proof.operation.pubkey mismatch"
+
+
 def test_risc0_zusd_wrapper_recomputes_runtime_receipt_hash() -> None:
     req = _request()
     receipt = req["proof_intent_receipt"]

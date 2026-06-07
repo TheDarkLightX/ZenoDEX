@@ -49,6 +49,12 @@ def _str(value: Any, *, name: str, required: bool = True) -> str | None:
     return value.strip()
 
 
+def _nonnegative_int(value: Any, *, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        _fail(f"{name} must be a non-negative integer")
+    return int(value)
+
+
 def _normalize_hex(value: str) -> str:
     raw = value.strip().lower()
     if raw.startswith("0x"):
@@ -167,10 +173,16 @@ def _bind_runtime_receipt(expected: dict[str, Any], receipt: Mapping[str, Any]) 
         _fail("RISC0 zUSD proof only covers mint_zusd")
 
     actor = _str(body.get("actor_pubkey"), name="proof_intent_receipt.body.actor_pubkey")
+    nonce_before = _nonnegative_int(body.get("nonce_before"), name="proof_intent_receipt.body.nonce_before")
+    nonce_after = _nonnegative_int(body.get("nonce_after"), name="proof_intent_receipt.body.nonce_after")
+    if nonce_after != nonce_before + 1:
+        _fail("proof_intent_receipt nonce transition must be strict-sequential")
     expected["proof_type"] = PROOF_TYPE
     expected["chain_id"] = _str(body.get("chain_id"), name="proof_intent_receipt.body.chain_id")
     expected["owner_pubkey"] = actor
     expected["vault_id"] = f"zusd:vault:{actor}"
+    expected["nonce_before"] = nonce_before
+    expected["nonce_after"] = nonce_after
     expected["operation_hash"] = _normalize_hex(
         _str(body.get("operation_hash"), name="proof_intent_receipt.body.operation_hash")
     )
@@ -183,6 +195,13 @@ def _bind_runtime_receipt(expected: dict[str, Any], receipt: Mapping[str, Any]) 
     expected["post_app_hash"] = _normalize_hex(
         _str(body.get("app_hash_after"), name="proof_intent_receipt.body.app_hash_after")
     )
+
+
+def _bind_operation_to_runtime_receipt(expected: Mapping[str, Any], operation: Mapping[str, Any]) -> None:
+    if operation.get("pubkey") != expected.get("owner_pubkey"):
+        _fail("proof.operation.pubkey mismatch")
+    if _nonnegative_int(operation.get("nonce"), name="proof.operation.nonce") != expected.get("nonce_after"):
+        _fail("proof.operation.nonce mismatch")
 
 
 def _verify_runtime_receipt_hash(req: Mapping[str, Any], receipt: Mapping[str, Any]) -> None:
@@ -219,6 +238,7 @@ def main() -> None:
     expected = _expected_from_proof(proof)
     _bind_runtime_receipt(expected, receipt)
     operation = _operation_from_proof(proof, expected)
+    _bind_operation_to_runtime_receipt(expected, operation)
     verify_out = _run_cli_verify(proof, expected, operation)
     if verify_out.get("ok") is not True:
         _fail(f"RISC0 zUSD proof rejected: {verify_out.get('error') or 'unknown error'}")
