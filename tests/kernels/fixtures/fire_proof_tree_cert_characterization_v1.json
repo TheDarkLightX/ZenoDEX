@@ -1,0 +1,187 @@
+[
+  {
+    "case": "valid",
+    "ok": true,
+    "err": null
+  },
+  {
+    "case": "valid_no_expectations",
+    "ok": true,
+    "err": null
+  },
+  {
+    "case": "schema_wrong_version",
+    "ok": false,
+    "err": "proof_tree_cert_schema_invalid:/version:'FIRE_CERT_RULES_v0.1' was expected"
+  },
+  {
+    "case": "schema_missing_object_hash",
+    "ok": false,
+    "err": "proof_tree_cert_schema_invalid:/:'object_hash' is a required property"
+  },
+  {
+    "case": "schema_missing_claims",
+    "ok": false,
+    "err": "proof_tree_cert_schema_invalid:/:'claims' is a required property"
+  },
+  {
+    "case": "schema_missing_proof_tree",
+    "ok": false,
+    "err": "proof_tree_cert_schema_invalid:/:'proof_tree' is a required property"
+  },
+  {
+    "case": "header_object_hash_nonstring",
+    "ok": false,
+    "err": "proof_tree_cert_schema_invalid:/object_hash:123 is not of type 'string'"
+  },
+  {
+    "case": "header_object_hash_mismatch",
+    "ok": false,
+    "err": "proof_tree_cert_object_hash_mismatch"
+  },
+  {
+    "case": "header_instance_hash_mismatch",
+    "ok": false,
+    "err": "proof_tree_cert_instance_hash_mismatch"
+  },
+  {
+    "case": "header_certificate_sha256_mismatch",
+    "ok": false,
+    "err": "proof_tree_cert_certificate_sha256_mismatch"
+  },
+  {
+    "case": "header_certificate_sha256_invalid",
+    "ok": false,
+    "err": "proof_tree_cert_schema_invalid:/certificate_sha256:'notahash' does not match '^sha256:[0-9a-f]{64}$'"
+  },
+  {
+    "case": "runtime_summary_mismatch",
+    "ok": false,
+    "err": "proof_tree_cert_runtime_certificate_summary_mismatch"
+  },
+  {
+    "case": "dependency_hashes_mismatch",
+    "ok": false,
+    "err": "proof_tree_cert_dependency_hashes_mismatch"
+  },
+  {
+    "case": "drop_node_0",
+    "ok": false,
+    "err": "proof_tree_cert_missing_input_node:n_bound_expr_0"
+  },
+  {
+    "case": "drop_node_1",
+    "ok": false,
+    "err": "proof_tree_cert_missing_input_node:n_bound_expr_1"
+  },
+  {
+    "case": "drop_node_2",
+    "ok": false,
+    "err": "proof_tree_cert_missing_input_node:n_bound_expr"
+  },
+  {
+    "case": "drop_node_3",
+    "ok": false,
+    "err": "proof_tree_cert_missing_input_node:n_bound"
+  },
+  {
+    "case": "drop_node_4",
+    "ok": false,
+    "err": "proof_tree_cert_missing_root_node:CollateralOK:n_collateral"
+  },
+  {
+    "case": "duplicate_node_id",
+    "ok": false,
+    "err": "proof_tree_cert_duplicate_node_id:n_bound_expr_0"
+  },
+  {
+    "case": "unknown_rule_node_0",
+    "ok": false,
+    "err": "proof_tree_cert_unknown_rule:nonexistent_rule"
+  },
+  {
+    "case": "unknown_rule_node_1",
+    "ok": false,
+    "err": "proof_tree_cert_unknown_rule:nonexistent_rule"
+  },
+  {
+    "case": "unknown_rule_node_2",
+    "ok": false,
+    "err": "proof_tree_cert_unknown_rule:nonexistent_rule"
+  },
+  {
+    "case": "unknown_rule_node_3",
+    "ok": false,
+    "err": "proof_tree_cert_unknown_rule:nonexistent_rule"
+  },
+  {
+    "case": "unknown_rule_node_4",
+    "ok": false,
+    "err": "proof_tree_cert_unknown_rule:nonexistent_rule"
+  },
+  {
+    "case": "node_id_nonstring",
+    "ok": false,
+    "err": "proof_tree_cert_schema_invalid:/proof_tree/0/id:7 is not of type 'string'"
+  },
+  {
+    "case": "break_input_ref",
+    "ok": false,
+    "err": "proof_tree_cert_missing_input_node:does_not_exist"
+  },
+  {
+    "case": "input_id_nonstring",
+    "ok": false,
+    "err": "proof_tree_cert_schema_invalid:/proof_tree/2/inputs/0:7 is not of type 'string'"
+  },
+  {
+    "case": "predicate_mismatch",
+    "ok": false,
+    "err": "proof_tree_cert_rule_predicate_mismatch:n_collateral"
+  },
+  {
+    "case": "missing_root_node",
+    "ok": false,
+    "err": "proof_tree_cert_missing_root_node:BoundOK:missing_node"
+  },
+  {
+    "case": "claim_root_nonstring",
+    "ok": false,
+    "err": "proof_tree_cert_schema_invalid:/claims/BoundOK/root_node:7 is not of type 'string'"
+  },
+  {
+    "case": "bound_lower_mismatch",
+    "ok": false,
+    "err": "proof_tree_cert_bound_lower_mismatch"
+  },
+  {
+    "case": "bound_upper_mismatch",
+    "ok": false,
+    "err": "proof_tree_cert_bound_upper_mismatch"
+  },
+  {
+    "case": "claim_evidence_mismatch",
+    "ok": false,
+    "err": "proof_tree_cert_claim_evidence_mismatch:CollateralOK"
+  },
+  {
+    "case": "expected_claim_evidence_wrong",
+    "ok": false,
+    "err": "proof_tree_cert_claim_evidence_mismatch:BoundOK"
+  },
+  {
+    "case": "expected_claim_evidence_missing_claim",
+    "ok": false,
+    "err": "proof_tree_cert_missing_claim:NotAClaim"
+  },
+  {
+    "case": "evidence_floor_mismatch",
+    "ok": false,
+    "err": "proof_tree_cert_evidence_floor_mismatch"
+  },
+  {
+    "case": "evidence_floor_nonstring",
+    "ok": false,
+    "err": "proof_tree_cert_schema_invalid:/evidence_floor:7 is not of type 'string'"
+  }
+]
