@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
-  "file_count": 447,
-  "function_count": 5876,
+  "file_count": 448,
+  "function_count": 5888,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 99,
-      "lines": 870
+      "complexity": 68,
+      "lines": 744
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
       "complexity": 4,
@@ -10690,6 +10690,54 @@
     "src/integration/api_server_settlement_parsers.py::_parse_settlement_proof_flags_payload": {
       "complexity": 6,
       "lines": 25
+    },
+    "src/integration/api_server_settlement_spot_price_routes.py::BadRequest.__init__": {
+      "complexity": 1,
+      "lines": 3
+    },
+    "src/integration/api_server_settlement_spot_price_routes.py::_bad_request": {
+      "complexity": 1,
+      "lines": 2
+    },
+    "src/integration/api_server_settlement_spot_price_routes.py::_bool": {
+      "complexity": 2,
+      "lines": 4
+    },
+    "src/integration/api_server_settlement_spot_price_routes.py::_handle_build_spot_price_attestation": {
+      "complexity": 4,
+      "lines": 29
+    },
+    "src/integration/api_server_settlement_spot_price_routes.py::_handle_build_spot_price_packet": {
+      "complexity": 4,
+      "lines": 37
+    },
+    "src/integration/api_server_settlement_spot_price_routes.py::_handle_verify_spot_price_attestation": {
+      "complexity": 3,
+      "lines": 27
+    },
+    "src/integration/api_server_settlement_spot_price_routes.py::_handle_verify_spot_price_packet": {
+      "complexity": 3,
+      "lines": 19
+    },
+    "src/integration/api_server_settlement_spot_price_routes.py::_non_empty_list": {
+      "complexity": 3,
+      "lines": 4
+    },
+    "src/integration/api_server_settlement_spot_price_routes.py::_non_negative_int": {
+      "complexity": 4,
+      "lines": 8
+    },
+    "src/integration/api_server_settlement_spot_price_routes.py::_optional_dict": {
+      "complexity": 3,
+      "lines": 6
+    },
+    "src/integration/api_server_settlement_spot_price_routes.py::_required_dict": {
+      "complexity": 2,
+      "lines": 4
+    },
+    "src/integration/api_server_settlement_spot_price_routes.py::maybe_handle_settlement_spot_price_route": {
+      "complexity": 5,
+      "lines": 19
     },
     "src/integration/api_server_settlement_spot_value_routes.py::BadRequest.__init__": {
       "complexity": 1,
@@ -23548,14 +23596,6 @@
       "path": "src/integration/autotrader_live.py"
     },
     {
-      "complexity": 99,
-      "line_end": 2029,
-      "line_start": 1160,
-      "lines": 870,
-      "name": "_Handler._maybe_handle_dex_api",
-      "path": "src/integration/api_server.py"
-    },
-    {
       "complexity": 98,
       "line_end": 1007,
       "line_start": 647,
@@ -23669,6 +23709,14 @@
     },
     {
       "complexity": 68,
+      "line_end": 1903,
+      "line_start": 1160,
+      "lines": 744,
+      "name": "_Handler._maybe_handle_dex_api",
+      "path": "src/integration/api_server.py"
+    },
+    {
+      "complexity": 68,
       "line_end": 1425,
       "line_start": 1081,
       "lines": 345,
@@ -23694,10 +23742,10 @@
       "path": "src/integration/tau_trace_cases.py"
     },
     {
-      "complexity": 99,
-      "line_end": 2029,
+      "complexity": 68,
+      "line_end": 1903,
       "line_start": 1160,
-      "lines": 870,
+      "lines": 744,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },

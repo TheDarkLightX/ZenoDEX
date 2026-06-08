@@ -1834,145 +1834,20 @@ class _Handler(BaseHTTPRequestHandler):
         ):
             return True
 
-        if path == "/api/dex/build_settlement_spot_price_packet":
-            entries_obj = obj.get("entries")
-            now_epoch = obj.get("now_epoch")
-            max_staleness_epochs = obj.get("max_staleness_epochs")
-            cross_module_sync_required = obj.get("cross_module_sync_required", False)
-            cross_module_sync_contract = obj.get("cross_module_sync_contract")
-            if not isinstance(entries_obj, list) or not entries_obj:
-                self._write_json(400, {"ok": False, "error": "bad_entries"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(now_epoch, int) or isinstance(now_epoch, bool) or now_epoch < 0:
-                self._write_json(400, {"ok": False, "error": "bad_now_epoch"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(max_staleness_epochs, int) or isinstance(max_staleness_epochs, bool) or max_staleness_epochs < 0:
-                self._write_json(400, {"ok": False, "error": "bad_max_staleness_epochs"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(cross_module_sync_required, bool):
-                self._write_json(400, {"ok": False, "error": "bad_cross_module_sync_required"}, cors_origin=cors_origin)
-                return True
-            if cross_module_sync_contract is not None and not isinstance(cross_module_sync_contract, dict):
-                self._write_json(400, {"ok": False, "error": "bad_cross_module_sync_contract"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
-                    SettlementSpotPriceEntry,
-                    build_settlement_spot_price_packet,
-                )
+        from src.integration.api_server_settlement_spot_price_routes import (  # pylint: disable=import-outside-toplevel
+            maybe_handle_settlement_spot_price_route,
+        )
 
-                entries = tuple(SettlementSpotPriceEntry.from_dict(entry) for entry in entries_obj)
-                packet = build_settlement_spot_price_packet(
-                    entries=entries,
-                    now_epoch=int(now_epoch),
-                    max_staleness_epochs=int(max_staleness_epochs),
-                    cross_module_sync_required=bool(cross_module_sync_required),
-                    cross_module_sync_contract=cross_module_sync_contract,
-                )
-                self._write_json(200, {"ok": True, "packet": packet.to_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_settlement_spot_price_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_settlement_spot_price_packet":
-            packet_obj = obj.get("packet")
-            if not isinstance(packet_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
-                    verify_settlement_spot_price_packet_payload,
-                )
-
-                ok, err = verify_settlement_spot_price_packet_payload(packet_obj)
-                self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_settlement_spot_price_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_settlement_spot_price_attestation":
-            packet_obj = obj.get("packet")
-            signer_privkey = obj.get("signer_privkey")
-            if not isinstance(packet_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(signer_privkey, (str, int)):
-                self._write_json(400, {"ok": False, "error": "bad_signer_privkey"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
-                    build_settlement_spot_price_attestation,
-                )
-                from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
-                    SettlementSpotPricePacket,
-                )
-
-                packet = SettlementSpotPricePacket.from_dict(packet_obj)
-                attestation = build_settlement_spot_price_attestation(
-                    packet=packet,
-                    signer_privkey=signer_privkey,
-                )
-                self._write_json(200, {"ok": True, "attestation": attestation.to_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_settlement_spot_price_attestation_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_settlement_spot_price_attestation":
-            attestation_obj = obj.get("attestation")
-            consumer_now_epoch = obj.get("consumer_now_epoch")
-            max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            allowed_signers_obj = obj.get("allowed_signers")
-            if not isinstance(attestation_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_attestation"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
-                self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
-                return True
-            if (
-                not isinstance(max_attestation_age_epochs, int)
-                or isinstance(max_attestation_age_epochs, bool)
-                or max_attestation_age_epochs < 0
-            ):
-                self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
-                return True
-            if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
-                    verify_settlement_spot_price_attestation_payload,
-                )
-
-                ok, err = verify_settlement_spot_price_attestation_payload(
-                    payload=attestation_obj,
-                    consumer_now_epoch=int(consumer_now_epoch),
-                    max_attestation_age_epochs=int(max_attestation_age_epochs),
-                    allowed_signers=allowed_signers_obj,
-                )
-                self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_settlement_spot_price_attestation_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
+        if maybe_handle_settlement_spot_price_route(
+            path=path,
+            obj=obj,
+            write_json=lambda status, payload: self._write_json(
+                status,
+                payload,
+                cors_origin=cors_origin,
+            ),
+        ):
+            return True
 
         from src.integration.api_server_exact_out_certificate_routes import (  # pylint: disable=import-outside-toplevel
             maybe_handle_exact_out_certificate_route,
