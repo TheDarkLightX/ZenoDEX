@@ -44,6 +44,7 @@ _DEFAULT_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_default_packet"
 _BOUNDED_WORKAROUND_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_bounded_workaround_packet"
 _ORACLE_CONTRACT_ENDPOINT = "/api/dex/build_exact_out_many_pool_oracle_contract"
 _AUDITED_BOUNDS_CONTRACT_ENDPOINT = "/api/dex/build_exact_out_many_pool_audited_bounds_contract"
+_ADAPTIVE_LIVENESS_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_adaptive_liveness_packet"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -1353,6 +1354,48 @@ def _handle_audited_bounds_contract(
         )
 
 
+def _handle_adaptive_liveness_packet(
+    obj: dict[str, object],
+    parse_pools: ParsePools,
+    write_json: WriteJson,
+) -> None:
+    try:
+        req = _parse_request(obj, parse_pools, _FULL_REQUEST_FIELDS)
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA,
+            build_exact_out_many_pool_adaptive_liveness_packet,
+        )
+
+        packet = build_exact_out_many_pool_adaptive_liveness_packet(
+            req.pools,
+            asset_in=req.asset_in,
+            asset_out=req.asset_out,
+            **req.values,
+        )
+        write_json(
+            200,
+            {
+                "ok": bool(packet.packet_ok),
+                "packet": packet.to_dict(),
+                "packet_schema": EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA,
+                "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet",
+                "quote_policy": "adaptive_liveness_v1",
+                "liveness_ok": bool(packet.liveness_ok),
+            },
+        )
+    except _BadRequest as exc:
+        _write_bad_request(write_json, exc)
+    except Exception:
+        write_json(
+            400,
+            {
+                "ok": False,
+                "error": "build_exact_out_many_pool_adaptive_liveness_packet_error",
+                "details": "request failed",
+            },
+        )
+
+
 def _repaired_full_domain_certified_payload(
     *,
     quote: object,
@@ -1461,4 +1504,5 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _BOUNDED_WORKAROUND_PACKET_ENDPOINT: _simple_route(_handle_bounded_workaround_packet),
     _ORACLE_CONTRACT_ENDPOINT: _simple_route(_handle_oracle_contract),
     _AUDITED_BOUNDS_CONTRACT_ENDPOINT: _simple_route(_handle_audited_bounds_contract),
+    _ADAPTIVE_LIVENESS_PACKET_ENDPOINT: _simple_route(_handle_adaptive_liveness_packet),
 }
