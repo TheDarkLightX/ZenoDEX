@@ -18,6 +18,7 @@ from src.integration.exact_out_route_certificate import (
     EXACT_OUT_MANY_POOL_REPAIRED_KEY_COVER_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_REPAIRED_REPLACEMENT_SHADOW_PACKET_SCHEMA,
 )
+import src.integration.api_server_exact_out_many_pool_routes as many_pool_routes
 from src.integration.api_server_exact_out_many_pool_routes import (
     maybe_handle_exact_out_many_pool_route,
 )
@@ -133,6 +134,51 @@ _VERIFY_ROUTE_CASES = (
         "adaptive liveness packet verification failed",
         "verify_exact_out_many_pool_adaptive_liveness_packet_error",
         "adaptive_liveness_v1",
+    ),
+)
+
+_CONTRACT_VERIFY_ROUTE_CASES = (
+    (
+        "/api/dex/verify_exact_out_many_pool_repaired_selected_domain_oracle_contract",
+        "verify_exact_out_many_pool_repaired_selected_domain_oracle_contract_payload",
+        "repaired selected-domain oracle contract verification failed",
+        "verify_exact_out_many_pool_repaired_selected_domain_oracle_contract_error",
+        "repaired_selected_domain_v1",
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_candidate_domain_contract",
+        "verify_exact_out_many_pool_candidate_domain_contract_payload",
+        "candidate domain contract verification failed",
+        "verify_exact_out_many_pool_candidate_domain_contract_error",
+        None,
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_prefilter_contract",
+        "verify_exact_out_many_pool_prefilter_contract_payload",
+        "prefilter contract verification failed",
+        "verify_exact_out_many_pool_prefilter_contract_error",
+        None,
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_repaired_prefilter_contract",
+        "verify_exact_out_many_pool_repaired_prefilter_contract_payload",
+        "repaired prefilter contract verification failed",
+        "verify_exact_out_many_pool_repaired_prefilter_contract_error",
+        None,
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_oracle_contract",
+        "verify_exact_out_many_pool_oracle_contract_payload",
+        "oracle contract verification failed",
+        "verify_exact_out_many_pool_oracle_contract_error",
+        None,
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_audited_bounds_contract",
+        "verify_exact_out_many_pool_audited_bounds_contract_payload",
+        "audited bounds contract verification failed",
+        "verify_exact_out_many_pool_audited_bounds_contract_error",
+        None,
     ),
 )
 
@@ -392,6 +438,26 @@ def test_many_pool_packet_verify_routes_reject_bad_packet_without_pool_parse(
     assert writes == [(400, {"ok": False, "error": "bad_packet"})]
 
 
+def test_many_pool_packet_verify_routes_reject_bad_packet_before_verifier_load(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+
+    def load_should_not_run(_spec: object) -> object:
+        raise AssertionError("verifier must not load for malformed packet payloads")
+
+    monkeypatch.setattr(many_pool_routes, "_load_proof_object_verifier", load_should_not_run)
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/verify_exact_out_many_pool_bounded_workaround_packet",
+        obj={"packet": []},
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_packet"})]
+
+
 @pytest.mark.parametrize(
     ("endpoint", "verifier_name", "_fallback_error", "_exception_error", "quote_policy"),
     _VERIFY_ROUTE_CASES,
@@ -507,6 +573,182 @@ def test_many_pool_packet_verify_routes_exception_payload(
     handled = maybe_handle_exact_out_many_pool_route(
         path=endpoint,
         obj={"packet": {"schema": "fake"}},
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": exception_error, "details": "request failed"})]
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "_verifier_name", "_fallback_error", "_exception_error", "_quote_policy"),
+    _CONTRACT_VERIFY_ROUTE_CASES,
+)
+def test_many_pool_contract_verify_routes_reject_bad_contract_without_pool_parse(
+    endpoint: str,
+    _verifier_name: str,
+    _fallback_error: str,
+    _exception_error: str,
+    _quote_policy: str | None,
+) -> None:
+    writes, write_json = _capture()
+    parse_called = False
+
+    def parse_pools() -> dict[str, object]:
+        nonlocal parse_called
+        parse_called = True
+        return {"pool_a": object()}
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path=endpoint,
+        obj={"contract": []},
+        parse_pools=parse_pools,
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert parse_called is False
+    assert writes == [(400, {"ok": False, "error": "bad_contract"})]
+
+
+def test_many_pool_contract_verify_routes_reject_bad_contract_before_verifier_load(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+
+    def load_should_not_run(_spec: object) -> object:
+        raise AssertionError("verifier must not load for malformed contract payloads")
+
+    monkeypatch.setattr(many_pool_routes, "_load_proof_object_verifier", load_should_not_run)
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/verify_exact_out_many_pool_audited_bounds_contract",
+        obj={"contract": []},
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_contract"})]
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "verifier_name", "_fallback_error", "_exception_error", "quote_policy"),
+    _CONTRACT_VERIFY_ROUTE_CASES,
+)
+def test_many_pool_contract_verify_routes_success_payload(
+    monkeypatch: Any,
+    endpoint: str,
+    verifier_name: str,
+    _fallback_error: str,
+    _exception_error: str,
+    quote_policy: str | None,
+) -> None:
+    writes, write_json = _capture()
+
+    def verify(_contract: object) -> tuple[bool, str | None]:
+        return True, None
+
+    monkeypatch.setattr(f"src.integration.exact_out_route_certificate.{verifier_name}", verify)
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path=endpoint,
+        obj={"contract": {"schema": "fake"}},
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(200, _verify_payload(ok=True, quote_policy=quote_policy))]
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "verifier_name", "fallback_error", "_exception_error", "quote_policy"),
+    _CONTRACT_VERIFY_ROUTE_CASES,
+)
+def test_many_pool_contract_verify_routes_fallback_error(
+    monkeypatch: Any,
+    endpoint: str,
+    verifier_name: str,
+    fallback_error: str,
+    _exception_error: str,
+    quote_policy: str | None,
+) -> None:
+    writes, write_json = _capture()
+
+    def verify(_contract: object) -> tuple[bool, str | None]:
+        return False, None
+
+    monkeypatch.setattr(f"src.integration.exact_out_route_certificate.{verifier_name}", verify)
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path=endpoint,
+        obj={"contract": {"schema": "fake"}},
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(200, _verify_payload(ok=False, error=fallback_error, quote_policy=quote_policy))]
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "verifier_name", "_fallback_error", "_exception_error", "quote_policy"),
+    _CONTRACT_VERIFY_ROUTE_CASES,
+)
+def test_many_pool_contract_verify_routes_preserve_verifier_error(
+    monkeypatch: Any,
+    endpoint: str,
+    verifier_name: str,
+    _fallback_error: str,
+    _exception_error: str,
+    quote_policy: str | None,
+) -> None:
+    writes, write_json = _capture()
+
+    def verify(_contract: object) -> tuple[bool, str | None]:
+        return False, "contract digest mismatch"
+
+    monkeypatch.setattr(f"src.integration.exact_out_route_certificate.{verifier_name}", verify)
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path=endpoint,
+        obj={"contract": {"schema": "fake"}},
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(200, _verify_payload(ok=False, error="contract digest mismatch", quote_policy=quote_policy))]
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "verifier_name", "_fallback_error", "exception_error", "_quote_policy"),
+    _CONTRACT_VERIFY_ROUTE_CASES,
+)
+def test_many_pool_contract_verify_routes_exception_payload(
+    monkeypatch: Any,
+    endpoint: str,
+    verifier_name: str,
+    _fallback_error: str,
+    exception_error: str,
+    _quote_policy: str | None,
+) -> None:
+    writes, write_json = _capture()
+
+    def verify_raises(_contract: object) -> tuple[bool, str | None]:
+        raise RuntimeError("internal detail must not leak")
+
+    monkeypatch.setattr(f"src.integration.exact_out_route_certificate.{verifier_name}", verify_raises)
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path=endpoint,
+        obj={"contract": {"schema": "fake"}},
         parse_pools=lambda: {"pool_a": object()},
         project_quote_path=_project_quote_path,
         write_json=write_json,

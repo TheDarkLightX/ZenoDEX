@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 573,
-      "lines": 2615
+      "complexity": 543,
+      "lines": 2427
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
       "complexity": 4,
@@ -10011,13 +10011,13 @@
       "complexity": 3,
       "lines": 40
     },
-    "src/integration/api_server_exact_out_many_pool_routes.py::_handle_packet_verification": {
-      "complexity": 3,
-      "lines": 15
-    },
     "src/integration/api_server_exact_out_many_pool_routes.py::_handle_prefilter_contract": {
       "complexity": 3,
       "lines": 33
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_handle_proof_object_verification": {
+      "complexity": 3,
+      "lines": 15
     },
     "src/integration/api_server_exact_out_many_pool_routes.py::_handle_repaired_advisory_packet": {
       "complexity": 3,
@@ -10063,21 +10063,13 @@
       "complexity": 1,
       "lines": 2
     },
-    "src/integration/api_server_exact_out_many_pool_routes.py::_load_packet_verifier": {
+    "src/integration/api_server_exact_out_many_pool_routes.py::_load_proof_object_verifier": {
       "complexity": 1,
       "lines": 4
     },
     "src/integration/api_server_exact_out_many_pool_routes.py::_packet_build_response": {
       "complexity": 3,
       "lines": 16
-    },
-    "src/integration/api_server_exact_out_many_pool_routes.py::_packet_verify_response": {
-      "complexity": 4,
-      "lines": 8
-    },
-    "src/integration/api_server_exact_out_many_pool_routes.py::_packet_verify_route": {
-      "complexity": 1,
-      "lines": 4
     },
     "src/integration/api_server_exact_out_many_pool_routes.py::_parse_request": {
       "complexity": 2,
@@ -10098,6 +10090,14 @@
     "src/integration/api_server_exact_out_many_pool_routes.py::_projection_cover_path": {
       "complexity": 2,
       "lines": 2
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_proof_object_verify_response": {
+      "complexity": 4,
+      "lines": 8
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_proof_object_verify_route": {
+      "complexity": 1,
+      "lines": 4
     },
     "src/integration/api_server_exact_out_many_pool_routes.py::_repaired_advisory_projection_payload": {
       "complexity": 4,
@@ -22805,17 +22805,17 @@
     }
   },
   "line_budget": 60,
-  "max_complexity": 573,
-  "max_function_lines": 2615,
+  "max_complexity": 543,
+  "max_function_lines": 2427,
   "over_complexity_budget_count": 1605,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
     {
-      "complexity": 573,
-      "line_end": 3774,
+      "complexity": 543,
+      "line_end": 3586,
       "line_start": 1160,
-      "lines": 2615,
+      "lines": 2427,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
@@ -22974,10 +22974,10 @@
   ],
   "top_lines": [
     {
-      "complexity": 573,
-      "line_end": 3774,
+      "complexity": 543,
+      "line_end": 3586,
       "line_start": 1160,
-      "lines": 2615,
+      "lines": 2427,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },

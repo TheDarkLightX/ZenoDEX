@@ -70,6 +70,14 @@ _VERIFY_DEFAULT_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_default_p
 _VERIFY_BOUNDED_ADVISORY_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_bounded_advisory_quote_packet"
 _VERIFY_BOUNDED_WORKAROUND_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_bounded_workaround_packet"
 _VERIFY_ADAPTIVE_LIVENESS_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet"
+_VERIFY_REPAIRED_SELECTED_DOMAIN_CONTRACT_ENDPOINT = (
+    "/api/dex/verify_exact_out_many_pool_repaired_selected_domain_oracle_contract"
+)
+_VERIFY_CANDIDATE_DOMAIN_CONTRACT_ENDPOINT = "/api/dex/verify_exact_out_many_pool_candidate_domain_contract"
+_VERIFY_PREFILTER_CONTRACT_ENDPOINT = "/api/dex/verify_exact_out_many_pool_prefilter_contract"
+_VERIFY_REPAIRED_PREFILTER_CONTRACT_ENDPOINT = "/api/dex/verify_exact_out_many_pool_repaired_prefilter_contract"
+_VERIFY_ORACLE_CONTRACT_ENDPOINT = "/api/dex/verify_exact_out_many_pool_oracle_contract"
+_VERIFY_AUDITED_BOUNDS_CONTRACT_ENDPOINT = "/api/dex/verify_exact_out_many_pool_audited_bounds_contract"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -190,10 +198,12 @@ class _ExactOutManyPoolRequest:
 
 
 @dataclass(frozen=True)
-class _PacketVerifySpec:
+class _ProofObjectVerifySpec:
     verifier_name: str
     fallback_error: str
     exception_error: str
+    payload_key: str
+    bad_payload_error: str
     quote_policy: str | None = None
 
 
@@ -268,7 +278,7 @@ def _certified_advisory_packet_response(*, packet: object, packet_schema: str) -
     return response
 
 
-def _packet_verify_response(*, ok: bool, err: str | None, spec: _PacketVerifySpec) -> dict[str, object]:
+def _proof_object_verify_response(*, ok: bool, err: str | None, spec: _ProofObjectVerifySpec) -> dict[str, object]:
     if ok:
         response: dict[str, object] = {"ok": True}
     else:
@@ -278,25 +288,25 @@ def _packet_verify_response(*, ok: bool, err: str | None, spec: _PacketVerifySpe
     return response
 
 
-def _load_packet_verifier(spec: _PacketVerifySpec) -> PacketVerifier:
+def _load_proof_object_verifier(spec: _ProofObjectVerifySpec) -> PacketVerifier:
     from src.integration import exact_out_route_certificate  # pylint: disable=import-outside-toplevel
 
     return getattr(exact_out_route_certificate, spec.verifier_name)
 
 
-def _handle_packet_verification(
+def _handle_proof_object_verification(
     obj: dict[str, object],
-    spec: _PacketVerifySpec,
+    spec: _ProofObjectVerifySpec,
     write_json: WriteJson,
 ) -> None:
-    packet = obj.get("packet")
-    if not isinstance(packet, dict):
-        write_json(400, {"ok": False, "error": "bad_packet"})
+    proof_object = obj.get(spec.payload_key)
+    if not isinstance(proof_object, dict):
+        write_json(400, {"ok": False, "error": spec.bad_payload_error})
         return
     try:
-        verifier = _load_packet_verifier(spec)
-        ok, err = verifier(packet)
-        write_json(200, _packet_verify_response(ok=bool(ok), err=err, spec=spec))
+        verifier = _load_proof_object_verifier(spec)
+        ok, err = verifier(proof_object)
+        write_json(200, _proof_object_verify_response(ok=bool(ok), err=err, spec=spec))
     except Exception:
         write_json(400, {"ok": False, "error": spec.exception_error, "details": "request failed"})
 
@@ -1821,77 +1831,147 @@ def _guarded_quote_route(
     _handle_guarded_quote(obj, parse_pools, check_exact_out_bridge, write_json)
 
 
-def _packet_verify_route(spec: _PacketVerifySpec) -> RouteHandler:
-    return lambda obj, _parse_pools, _project_quote_path, write_json, _check_exact_out_bridge: _handle_packet_verification(
+def _proof_object_verify_route(spec: _ProofObjectVerifySpec) -> RouteHandler:
+    return lambda obj, _parse_pools, _project_quote_path, write_json, _check_exact_out_bridge: _handle_proof_object_verification(
         obj, spec, write_json
     )
 
 
-_PACKET_VERIFY_SPECS: dict[str, _PacketVerifySpec] = {
-    _VERIFY_GUARDED_QUOTE_PACKET_ENDPOINT: _PacketVerifySpec(
+_PACKET_VERIFY_SPECS: dict[str, _ProofObjectVerifySpec] = {
+    _VERIFY_GUARDED_QUOTE_PACKET_ENDPOINT: _ProofObjectVerifySpec(
         verifier_name="verify_exact_out_many_pool_guarded_quote_packet_payload",
         fallback_error="guarded quote packet verification failed",
         exception_error="verify_exact_out_many_pool_guarded_quote_packet_error",
+        payload_key="packet",
+        bad_payload_error="bad_packet",
     ),
-    _VERIFY_CERTIFIED_WINNER_PACKET_ENDPOINT: _PacketVerifySpec(
+    _VERIFY_CERTIFIED_WINNER_PACKET_ENDPOINT: _ProofObjectVerifySpec(
         verifier_name="verify_exact_out_many_pool_certified_winner_packet_payload",
         fallback_error="certified winner packet verification failed",
         exception_error="verify_exact_out_many_pool_certified_winner_packet_error",
+        payload_key="packet",
+        bad_payload_error="bad_packet",
     ),
-    _VERIFY_REPAIRED_ADVISORY_PACKET_ENDPOINT: _PacketVerifySpec(
+    _VERIFY_REPAIRED_ADVISORY_PACKET_ENDPOINT: _ProofObjectVerifySpec(
         verifier_name="verify_exact_out_many_pool_repaired_advisory_quote_packet_payload",
         fallback_error="repaired advisory quote packet verification failed",
         exception_error="verify_exact_out_many_pool_repaired_advisory_quote_packet_error",
+        payload_key="packet",
+        bad_payload_error="bad_packet",
     ),
-    _VERIFY_REPAIRED_FULL_DOMAIN_PACKET_ENDPOINT: _PacketVerifySpec(
+    _VERIFY_REPAIRED_FULL_DOMAIN_PACKET_ENDPOINT: _ProofObjectVerifySpec(
         verifier_name="verify_exact_out_many_pool_repaired_full_domain_certified_packet_payload",
         fallback_error="repaired full-domain certified packet verification failed",
         exception_error="verify_exact_out_many_pool_repaired_full_domain_certified_packet_error",
+        payload_key="packet",
+        bad_payload_error="bad_packet",
         quote_policy="repaired_full_domain_certified_v1",
     ),
-    _VERIFY_REPAIRED_KEY_COVER_PACKET_ENDPOINT: _PacketVerifySpec(
+    _VERIFY_REPAIRED_KEY_COVER_PACKET_ENDPOINT: _ProofObjectVerifySpec(
         verifier_name="verify_exact_out_many_pool_repaired_key_cover_packet_payload",
         fallback_error="repaired key-cover packet verification failed",
         exception_error="verify_exact_out_many_pool_repaired_key_cover_packet_error",
+        payload_key="packet",
+        bad_payload_error="bad_packet",
         quote_policy="repaired_key_cover_v1",
     ),
-    _VERIFY_REPAIRED_KEY_COVER_INTERPRETATION_PACKET_ENDPOINT: _PacketVerifySpec(
+    _VERIFY_REPAIRED_KEY_COVER_INTERPRETATION_PACKET_ENDPOINT: _ProofObjectVerifySpec(
         verifier_name="verify_exact_out_many_pool_repaired_key_cover_interpretation_packet_payload",
         fallback_error="repaired key-cover interpretation packet verification failed",
         exception_error="verify_exact_out_many_pool_repaired_key_cover_interpretation_packet_error",
+        payload_key="packet",
+        bad_payload_error="bad_packet",
         quote_policy="repaired_key_cover_interpretation_v1",
     ),
-    _VERIFY_CERTIFIED_ADVISORY_PACKET_ENDPOINT: _PacketVerifySpec(
+    _VERIFY_CERTIFIED_ADVISORY_PACKET_ENDPOINT: _ProofObjectVerifySpec(
         verifier_name="verify_exact_out_many_pool_certified_advisory_packet_payload",
         fallback_error="certified advisory packet verification failed",
         exception_error="verify_exact_out_many_pool_certified_advisory_packet_error",
+        payload_key="packet",
+        bad_payload_error="bad_packet",
     ),
-    _VERIFY_REPLACEMENT_SHADOW_PACKET_ENDPOINT: _PacketVerifySpec(
+    _VERIFY_REPLACEMENT_SHADOW_PACKET_ENDPOINT: _ProofObjectVerifySpec(
         verifier_name="verify_exact_out_many_pool_repaired_replacement_shadow_packet_payload",
         fallback_error="repaired replacement shadow packet verification failed",
         exception_error="verify_exact_out_many_pool_repaired_replacement_shadow_packet_error",
+        payload_key="packet",
+        bad_payload_error="bad_packet",
     ),
-    _VERIFY_DEFAULT_PACKET_ENDPOINT: _PacketVerifySpec(
+    _VERIFY_DEFAULT_PACKET_ENDPOINT: _ProofObjectVerifySpec(
         verifier_name="verify_exact_out_many_pool_default_packet_payload",
         fallback_error="default packet verification failed",
         exception_error="verify_exact_out_many_pool_default_packet_error",
+        payload_key="packet",
+        bad_payload_error="bad_packet",
         quote_policy="certified_advisory_v1",
     ),
-    _VERIFY_BOUNDED_ADVISORY_PACKET_ENDPOINT: _PacketVerifySpec(
+    _VERIFY_BOUNDED_ADVISORY_PACKET_ENDPOINT: _ProofObjectVerifySpec(
         verifier_name="verify_exact_out_many_pool_bounded_advisory_quote_packet_payload",
         fallback_error="bounded advisory quote packet verification failed",
         exception_error="verify_exact_out_many_pool_bounded_advisory_quote_packet_error",
+        payload_key="packet",
+        bad_payload_error="bad_packet",
     ),
-    _VERIFY_BOUNDED_WORKAROUND_PACKET_ENDPOINT: _PacketVerifySpec(
+    _VERIFY_BOUNDED_WORKAROUND_PACKET_ENDPOINT: _ProofObjectVerifySpec(
         verifier_name="verify_exact_out_many_pool_bounded_workaround_packet_payload",
         fallback_error="bounded workaround packet verification failed",
         exception_error="verify_exact_out_many_pool_bounded_workaround_packet_error",
+        payload_key="packet",
+        bad_payload_error="bad_packet",
     ),
-    _VERIFY_ADAPTIVE_LIVENESS_PACKET_ENDPOINT: _PacketVerifySpec(
+    _VERIFY_ADAPTIVE_LIVENESS_PACKET_ENDPOINT: _ProofObjectVerifySpec(
         verifier_name="verify_exact_out_many_pool_adaptive_liveness_packet_payload",
         fallback_error="adaptive liveness packet verification failed",
         exception_error="verify_exact_out_many_pool_adaptive_liveness_packet_error",
+        payload_key="packet",
+        bad_payload_error="bad_packet",
         quote_policy="adaptive_liveness_v1",
+    ),
+}
+
+_CONTRACT_VERIFY_SPECS: dict[str, _ProofObjectVerifySpec] = {
+    _VERIFY_REPAIRED_SELECTED_DOMAIN_CONTRACT_ENDPOINT: _ProofObjectVerifySpec(
+        verifier_name="verify_exact_out_many_pool_repaired_selected_domain_oracle_contract_payload",
+        fallback_error="repaired selected-domain oracle contract verification failed",
+        exception_error="verify_exact_out_many_pool_repaired_selected_domain_oracle_contract_error",
+        payload_key="contract",
+        bad_payload_error="bad_contract",
+        quote_policy="repaired_selected_domain_v1",
+    ),
+    _VERIFY_CANDIDATE_DOMAIN_CONTRACT_ENDPOINT: _ProofObjectVerifySpec(
+        verifier_name="verify_exact_out_many_pool_candidate_domain_contract_payload",
+        fallback_error="candidate domain contract verification failed",
+        exception_error="verify_exact_out_many_pool_candidate_domain_contract_error",
+        payload_key="contract",
+        bad_payload_error="bad_contract",
+    ),
+    _VERIFY_PREFILTER_CONTRACT_ENDPOINT: _ProofObjectVerifySpec(
+        verifier_name="verify_exact_out_many_pool_prefilter_contract_payload",
+        fallback_error="prefilter contract verification failed",
+        exception_error="verify_exact_out_many_pool_prefilter_contract_error",
+        payload_key="contract",
+        bad_payload_error="bad_contract",
+    ),
+    _VERIFY_REPAIRED_PREFILTER_CONTRACT_ENDPOINT: _ProofObjectVerifySpec(
+        verifier_name="verify_exact_out_many_pool_repaired_prefilter_contract_payload",
+        fallback_error="repaired prefilter contract verification failed",
+        exception_error="verify_exact_out_many_pool_repaired_prefilter_contract_error",
+        payload_key="contract",
+        bad_payload_error="bad_contract",
+    ),
+    _VERIFY_ORACLE_CONTRACT_ENDPOINT: _ProofObjectVerifySpec(
+        verifier_name="verify_exact_out_many_pool_oracle_contract_payload",
+        fallback_error="oracle contract verification failed",
+        exception_error="verify_exact_out_many_pool_oracle_contract_error",
+        payload_key="contract",
+        bad_payload_error="bad_contract",
+    ),
+    _VERIFY_AUDITED_BOUNDS_CONTRACT_ENDPOINT: _ProofObjectVerifySpec(
+        verifier_name="verify_exact_out_many_pool_audited_bounds_contract_payload",
+        fallback_error="audited bounds contract verification failed",
+        exception_error="verify_exact_out_many_pool_audited_bounds_contract_error",
+        payload_key="contract",
+        bad_payload_error="bad_contract",
     ),
 }
 
@@ -1927,4 +2007,5 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _GUARDED_QUOTE_PACKET_ENDPOINT: _simple_route(_handle_guarded_quote_packet),
     _CERTIFIED_WINNER_PACKET_ENDPOINT: _simple_route(_handle_certified_winner_packet),
 }
-_ROUTE_HANDLERS.update({path: _packet_verify_route(spec) for path, spec in _PACKET_VERIFY_SPECS.items()})
+_ROUTE_HANDLERS.update({path: _proof_object_verify_route(spec) for path, spec in _PACKET_VERIFY_SPECS.items()})
+_ROUTE_HANDLERS.update({path: _proof_object_verify_route(spec) for path, spec in _CONTRACT_VERIFY_SPECS.items()})
