@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
-  "file_count": 448,
-  "function_count": 5888,
+  "file_count": 449,
+  "function_count": 5907,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,16 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 68,
-      "lines": 744
-    },
-    "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
-      "complexity": 4,
-      "lines": 12
-    },
-    "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj#2": {
-      "complexity": 8,
-      "lines": 11
+      "complexity": 39,
+      "lines": 548
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._exact_out_split_quote_from_dict": {
       "complexity": 20,
@@ -10302,6 +10294,90 @@
     "src/integration/api_server_exact_out_many_pool_routes.py::maybe_handle_exact_out_many_pool_route": {
       "complexity": 2,
       "lines": 10
+    },
+    "src/integration/api_server_pokayoke_routes.py::_append_target_action": {
+      "complexity": 4,
+      "lines": 4
+    },
+    "src/integration/api_server_pokayoke_routes.py::_bounded_int": {
+      "complexity": 3,
+      "lines": 5
+    },
+    "src/integration/api_server_pokayoke_routes.py::_common_inputs": {
+      "complexity": 1,
+      "lines": 9
+    },
+    "src/integration/api_server_pokayoke_routes.py::_fast_suggestion_to_dict": {
+      "complexity": 4,
+      "lines": 20
+    },
+    "src/integration/api_server_pokayoke_routes.py::_fast_suggestions": {
+      "complexity": 1,
+      "lines": 12
+    },
+    "src/integration/api_server_pokayoke_routes.py::_filtered_slippage_options": {
+      "complexity": 4,
+      "lines": 9
+    },
+    "src/integration/api_server_pokayoke_routes.py::_handle_pokayoke_swap_suggest": {
+      "complexity": 2,
+      "lines": 41
+    },
+    "src/integration/api_server_pokayoke_routes.py::_handle_pokayoke_swap_suggest_heavy": {
+      "complexity": 3,
+      "lines": 27
+    },
+    "src/integration/api_server_pokayoke_routes.py::_heavy_slippage_options": {
+      "complexity": 2,
+      "lines": 4
+    },
+    "src/integration/api_server_pokayoke_routes.py::_heavy_suggestion_to_dict": {
+      "complexity": 2,
+      "lines": 11
+    },
+    "src/integration/api_server_pokayoke_routes.py::_max_option": {
+      "complexity": 2,
+      "lines": 2
+    },
+    "src/integration/api_server_pokayoke_routes.py::_optional_int": {
+      "complexity": 2,
+      "lines": 5
+    },
+    "src/integration/api_server_pokayoke_routes.py::_optional_int_attr": {
+      "complexity": 2,
+      "lines": 3
+    },
+    "src/integration/api_server_pokayoke_routes.py::_optional_str_attr": {
+      "complexity": 2,
+      "lines": 3
+    },
+    "src/integration/api_server_pokayoke_routes.py::_optional_string_list_attr": {
+      "complexity": 2,
+      "lines": 5
+    },
+    "src/integration/api_server_pokayoke_routes.py::_required_int": {
+      "complexity": 2,
+      "lines": 5
+    },
+    "src/integration/api_server_pokayoke_routes.py::_required_slippage_suggestion": {
+      "complexity": 2,
+      "lines": 18
+    },
+    "src/integration/api_server_pokayoke_routes.py::_slippage_option": {
+      "complexity": 4,
+      "lines": 8
+    },
+    "src/integration/api_server_pokayoke_routes.py::_string_list": {
+      "complexity": 2,
+      "lines": 2
+    },
+    "src/integration/api_server_pokayoke_routes.py::_target_actions": {
+      "complexity": 4,
+      "lines": 7
+    },
+    "src/integration/api_server_pokayoke_routes.py::maybe_handle_pokayoke_swap_route": {
+      "complexity": 3,
+      "lines": 13
     },
     "src/integration/api_server_quote_receipt_routes.py::_BadRequest.__init__": {
       "complexity": 1,
@@ -23559,7 +23635,7 @@
   "line_budget": 60,
   "max_complexity": 190,
   "max_function_lines": 1925,
-  "over_complexity_budget_count": 1605,
+  "over_complexity_budget_count": 1604,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
@@ -23709,19 +23785,19 @@
     },
     {
       "complexity": 68,
-      "line_end": 1903,
-      "line_start": 1160,
-      "lines": 744,
-      "name": "_Handler._maybe_handle_dex_api",
-      "path": "src/integration/api_server.py"
-    },
-    {
-      "complexity": 68,
       "line_end": 1425,
       "line_start": 1081,
       "lines": 345,
       "name": "step_multi",
       "path": "src/core/zusd.py"
+    },
+    {
+      "complexity": 67,
+      "line_end": 133,
+      "line_start": 79,
+      "lines": 55,
+      "name": "check_invariants",
+      "path": "src/fire/kernel/fire_lp_loss_cover_v1_ref.py"
     }
   ],
   "top_lines": [
@@ -23740,14 +23816,6 @@
       "lines": 1051,
       "name": "production_tau_trace_cases",
       "path": "src/integration/tau_trace_cases.py"
-    },
-    {
-      "complexity": 68,
-      "line_end": 1903,
-      "line_start": 1160,
-      "lines": 744,
-      "name": "_Handler._maybe_handle_dex_api",
-      "path": "src/integration/api_server.py"
     },
     {
       "complexity": 126,
@@ -23780,6 +23848,14 @@
       "lines": 549,
       "name": "apply_ops",
       "path": "src/integration/dex_engine.py"
+    },
+    {
+      "complexity": 39,
+      "line_end": 1707,
+      "line_start": 1160,
+      "lines": 548,
+      "name": "_Handler._maybe_handle_dex_api",
+      "path": "src/integration/api_server.py"
     },
     {
       "complexity": 66,
