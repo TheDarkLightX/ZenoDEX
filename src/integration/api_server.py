@@ -1218,52 +1218,19 @@ class _Handler(BaseHTTPRequestHandler):
             return True
 
         if path == "/api/dex/proof_mining_status":
-            claim_artifact = obj.get("claim")
-            chain_balances = obj.get("chain_balances", {})
-            tx_sender_pubkey = str(obj.get("tx_sender_pubkey", ""))
-            expected_proposal_hash = str(obj.get("expected_proposal_hash", ""))
-            app_state_json = obj.get("app_state_json", "")
-            if not isinstance(claim_artifact, dict):
-                self._write_json(400, {"ok": False, "error": "bad_claim"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(chain_balances, dict):
-                self._write_json(400, {"ok": False, "error": "bad_chain_balances"}, cors_origin=cors_origin)
-                return True
-            if "proof_mining_context" in obj:
-                self._write_json(400, {"ok": False, "error": "proof_mining_context_not_accepted"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(app_state_json, str):
-                self._write_json(400, {"ok": False, "error": "bad_app_state_json"}, cors_origin=cors_origin)
-                return True
-            if not tx_sender_pubkey:
-                self._write_json(400, {"ok": False, "error": "missing_tx_sender_pubkey"}, cors_origin=cors_origin)
-                return True
-            if not expected_proposal_hash:
-                self._write_json(400, {"ok": False, "error": "missing_expected_proposal_hash"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.proof_mining_claimability import (  # pylint: disable=import-outside-toplevel
-                    evaluate_proof_mining_claimability,
-                )
+            from src.integration.api_server_proof_mining_routes import (  # pylint: disable=import-outside-toplevel
+                maybe_handle_proof_mining_route,
+            )
 
-                reward_pool_pubkey = os.environ.get("TAU_DEX_PROOF_MINING_POOL_PUBKEY", "").strip() or None
-                status = evaluate_proof_mining_claimability(
-                    reward_pool_pubkey=reward_pool_pubkey,
-                    app_state_json=app_state_json,
-                    chain_balances=chain_balances,
-                    claim_artifact=claim_artifact,
-                    tx_sender_pubkey=tx_sender_pubkey,
-                    expected_proposal_hash=expected_proposal_hash,
-                    proof_mining_context_obj=None,
-                )
-                self._write_json(200, {"ok": True, "status": status.to_public_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "proof_mining_status_error", "details": "request failed"},
+            if maybe_handle_proof_mining_route(
+                path=path,
+                obj=obj,
+                write_json=lambda status, payload: self._write_json(
+                    status,
+                    payload,
                     cors_origin=cors_origin,
-                )
+                ),
+            ):
                 return True
 
         def _parse_pools() -> dict[str, Any]:

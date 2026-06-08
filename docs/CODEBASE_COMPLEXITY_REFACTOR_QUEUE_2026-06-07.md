@@ -17,8 +17,8 @@ behaviorally incorrect.
 
 | Metric | Value |
 | --- | ---: |
-| Python source files scanned | 449 |
-| Functions scanned | 5,907 |
+| Python source files scanned | 450 |
+| Functions scanned | 5,917 |
 | Functions over complexity 5 | 1,604 |
 | Functions over 60 lines | 435 |
 | Maximum complexity | 190 |
@@ -41,30 +41,55 @@ behaviorally incorrect.
 | Rank | Location | Size | Grade | Why It Is Risky | First Extraction |
 | ---: | --- | ---: | --- | --- | --- |
 | 1 | `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl` | 190 complexity, 612 lines | C- | This is a fail-closed value-moving acceptance gate. The logic is conceptually right, but duplicate-ID checks, fill coverage, replay, deltas, events, LP effects, and conservation live in one control flow. | Extract pure rule functions returning `(ok, error)`: `IntentIdRule`, `IncludedIntentRule`, `FillCoverageRule`, `CowPairRule`, `ReplayDeltaRule`, `EventRule`, `ConservationRule`. |
-| 2 | `src/integration/api_server.py::_Handler._maybe_handle_dex_api` | 39 complexity, 548 lines | D+ | One method still mixes routing, auth, JSON parsing, DTO coercion, service calls, and response shaping for unrelated API families. It is no longer the highest complexity function, but it remains a broad boundary surface. | Continue the route-table extraction. The read-only routes live in `api_server_dex_readonly_routes.py`; general quote handling lives in `api_server_quote_routes.py`; quote-receipt verification lives in `api_server_quote_receipt_routes.py`; exact-in route request parsing lives in `api_server_exact_in_route_common.py`; exact-in route oracle contract build/verify lives in `api_server_exact_in_route_contract_routes.py`; exact-in route canonicality guard lives in `api_server_exact_in_route_guard_routes.py`; exact-in guarded route quote lives in `api_server_exact_in_route_quote_routes.py`; exact-in guarded quote packet build/verify lives in `api_server_exact_in_route_packet_routes.py`; exact-in rank-projection packet build/verify lives in `api_server_exact_in_route_rank_projection_routes.py`; exact-in true-key interpretation packet build/verify lives in `api_server_exact_in_route_true_key_routes.py`; pokayoke swap suggestions live in `api_server_pokayoke_routes.py`; settlement spot value contract build/verify lives in `api_server_settlement_spot_value_routes.py`; settlement LP value contract build/verify lives in `api_server_settlement_lp_value_routes.py`; settlement value packet build/verify lives in `api_server_settlement_value_packet_routes.py`; settlement endogenous LP value packet build/verify lives in `api_server_settlement_endogenous_lp_value_packet_routes.py`; settlement feature-extension packet build/verify lives in `api_server_settlement_feature_extension_routes.py`; settlement end-to-end certificate packet build/verify lives in `api_server_settlement_end_to_end_certificate_routes.py`; settlement witness lifecycle build/verify lives in `api_server_settlement_witness_routes.py`; settlement spot-price packet and attestation build/verify lives in `api_server_settlement_spot_price_routes.py`; exact-out route certificate build/verify lives in `api_server_exact_out_certificate_routes.py`; exact-out audit routes live in `api_server_exact_out_audit_routes.py`; exact-out many-pool contract builders, repaired-selected-domain quotes, repaired-advisory quotes, repaired-full-domain certified quotes, bounded-advisory quotes, the default certified-advisory quote, the adaptive liveness quote, the certified-advisory quote, packet builders, packet verifiers, contract verifiers, oracle contract builder, audited-bounds contract builder, canonicality guard route, and guarded quote route live in `api_server_exact_out_many_pool_routes.py`; the next slice is proof-mining status. |
-| 3 | `src/integration/dex_snapshot.py::state_from_snapshot` | 126 complexity, 622 lines | C- | Snapshot hydration is consensus-adjacent because bad defaults or weak parsing can create forked local state. Many schema branches share one broad parser. | Split into typed parsers per section: balances, pools, LP, fees, nonces, confidential requests, oracle metadata. Add round-trip tests section by section. |
-| 4 | `src/integration/dex_engine.py::apply_ops` | 118 complexity, 549 lines | C- | Operation application is an orchestration choke point. Mixed dispatch and mutation increases the chance that an operation bypasses a guard. | Replace the branch ladder with an `op_type -> apply_*` dispatch table. Each handler should receive validated DTOs and return data-only effects. |
-| 5 | `src/integration/autotrader_live.py::prepare_autotrader_live_quote_receipt` | 100 complexity, 1,925 lines | D+ | A large live integration path combines network/config handling, quote construction, proof metadata, and presentation. Advisory code must remain outside verifier authority. | Separate live IO, quote normalization, verifier receipt construction, and UI/report shaping. Add an import-boundary test that verifier modules do not import advisory/live modules. |
+| 2 | `src/integration/dex_snapshot.py::state_from_snapshot` | 126 complexity, 622 lines | C- | Snapshot hydration is consensus-adjacent because bad defaults or weak parsing can create forked local state. Many schema branches share one broad parser. | Split into typed parsers per section: balances, pools, LP, fees, nonces, confidential requests, oracle metadata. Add round-trip tests section by section. |
+| 3 | `src/integration/dex_engine.py::apply_ops` | 118 complexity, 549 lines | C- | Operation application is an orchestration choke point. Mixed dispatch and mutation increases the chance that an operation bypasses a guard. | Replace the branch ladder with an `op_type -> apply_*` dispatch table. Each handler should receive validated DTOs and return data-only effects. |
+| 4 | `src/integration/autotrader_live.py::prepare_autotrader_live_quote_receipt` | 100 complexity, 1,925 lines | D+ | A large live integration path combines network/config handling, quote construction, proof metadata, and presentation. Advisory code must remain outside verifier authority. | Separate live IO, quote normalization, verifier receipt construction, and UI/report shaping. Add an import-boundary test that verifier modules do not import advisory/live modules. |
+| 5 | `src/integration/fast_quote_router_v1.py::FastQuoteRouterV1.quote_exact_out_2hop_fast_v1` | 98 complexity, 361 lines | C | Routing math has many edge branches. It should be easy to prove no candidate path uses inconsistent rounding or bounds. | Extract candidate enumeration, candidate scoring, and receipt construction. Reuse the same helpers for exact-in and exact-out. |
 
 ## P1 Refactor Targets
 
 | Rank | Location | Size | Grade | Why It Is Risky | First Extraction |
 | ---: | --- | ---: | --- | --- | --- |
-| 6 | `src/integration/fast_quote_router_v1.py::FastQuoteRouterV1.quote_exact_out_2hop_fast_v1` | 98 complexity, 361 lines | C | Routing math has many edge branches. It should be easy to prove no candidate path uses inconsistent rounding or bounds. | Extract candidate enumeration, candidate scoring, and receipt construction. Reuse the same helpers for exact-in and exact-out. |
-| 7 | `src/fire/verifier/proof_tree_cert_v1.py::verify_fire_proof_tree_certificate` | 96 complexity, 239 lines | C | Proof verification needs obvious fail-closed order and anti-self-weakening checks. One large verifier makes missing-field and downgrade paths hard to audit. | Convert to staged checks: schema, digest binding, rule catalog binding, leaf validation, parent aggregation, root binding. Add mutation tests for dropped leaf and downgraded verdict. |
-| 8 | `src/integration/tau_gate.py::validate_settlement_swaps` | 87 complexity, 430 lines | C- | Tau gate checks are assurance-critical and can become config mirrors if field-level bindings are not isolated. | Split swap projection, Tau input construction, tool invocation, result parsing, and fallback policy. Add tests that a live swap-field order mutation fails. |
-| 9 | `src/core/quote_receipts.py::verify_route_quote_receipt` | 80 complexity, 223 lines | C | Quote receipts are user-facing safety objects. The verifier should make path, slippage, pool snapshot, and hash checks separately visible. | Extract receipt schema check, pool binding check, route math check, and signature/hash check. Add downgrade tests for missing route hop and stale pool root. |
-| 10 | `src/fire/verifier/object_package_v1.py::verify_fire_object_package` | 78 complexity, 299 lines | C | FIRE object packages are evidence carriers. Broad verification logic raises fake-green risk when package sections drift. | Use a package verification pipeline with explicit section results and a final aggregator. Add tests that empty required bodies fail. |
-| 11 | `src/fire/compiler/fmos_file_v1.py::_verify_fire_math_object_spec_file` | 78 complexity, 163 lines | C | Compiler-side proof metadata can accidentally accept weak specs if every clause is checked inside one branch-heavy function. | Extract schema, theorem statement, dependency digest, and exported artifact checks. |
-| 12 | `src/core/split_routing.py::resolve_two_pool_split_search_params` | 78 complexity, 147 lines | C | Split routing is math-sensitive and branch-heavy. Small parameter helpers make boundary tests clearer. | Extract domain validators and default-resolution helpers. Add max, max+1, zero, and impossible-route tests. |
-| 13 | `src/core/fhe_sealed_bid_alpha.py::verify_fhe_sealed_bid_alpha_plan` | 78 complexity, 177 lines | C | Confidential-plan verification needs crisp trust labels. Mixed checks can blur privacy, replay, and arithmetic claims. | Split confidentiality claim checks, replay checks, and arithmetic checks. Label each result as host, committee, or math. |
-| 14 | `src/integration/zusd_monetary_bridge.py::_apply_one` | 77 complexity, 201 lines | C | zUSD bridge operations are value-moving. A central branch ladder makes fail-closed behavior harder to inspect. | Dispatch by operation type into bounded handlers, each with a no-op-on-reject regression test. |
-| 15 | `src/integration/perps_wallet_encrypted_sss_backup.py::evaluate_perps_wallet_encrypted_sss_backup_v1` | 76 complexity, 269 lines | C | Wallet backup evaluation is security-sensitive and combines crypto metadata, policy, and UX results. | Split cryptographic envelope validation from policy classification and display/report output. |
+| 6 | `src/fire/verifier/proof_tree_cert_v1.py::verify_fire_proof_tree_certificate` | 96 complexity, 239 lines | C | Proof verification needs obvious fail-closed order and anti-self-weakening checks. One large verifier makes missing-field and downgrade paths hard to audit. | Convert to staged checks: schema, digest binding, rule catalog binding, leaf validation, parent aggregation, root binding. Add mutation tests for dropped leaf and downgraded verdict. |
+| 7 | `src/integration/tau_gate.py::validate_settlement_swaps` | 87 complexity, 430 lines | C- | Tau gate checks are assurance-critical and can become config mirrors if field-level bindings are not isolated. | Split swap projection, Tau input construction, tool invocation, result parsing, and fallback policy. Add tests that a live swap-field order mutation fails. |
+| 8 | `src/core/quote_receipts.py::verify_route_quote_receipt` | 80 complexity, 223 lines | C | Quote receipts are user-facing safety objects. The verifier should make path, slippage, pool snapshot, and hash checks separately visible. | Extract receipt schema check, pool binding check, route math check, and signature/hash check. Add downgrade tests for missing route hop and stale pool root. |
+| 9 | `src/fire/verifier/object_package_v1.py::verify_fire_object_package` | 78 complexity, 299 lines | C | FIRE object packages are evidence carriers. Broad verification logic raises fake-green risk when package sections drift. | Use a package verification pipeline with explicit section results and a final aggregator. Add tests that empty required bodies fail. |
+| 10 | `src/fire/compiler/fmos_file_v1.py::_verify_fire_math_object_spec_file` | 78 complexity, 163 lines | C | Compiler-side proof metadata can accidentally accept weak specs if every clause is checked inside one branch-heavy function. | Extract schema, theorem statement, dependency digest, and exported artifact checks. |
+| 11 | `src/core/split_routing.py::resolve_two_pool_split_search_params` | 78 complexity, 147 lines | C | Split routing is math-sensitive and branch-heavy. Small parameter helpers make boundary tests clearer. | Extract domain validators and default-resolution helpers. Add max, max+1, zero, and impossible-route tests. |
+| 12 | `src/core/fhe_sealed_bid_alpha.py::verify_fhe_sealed_bid_alpha_plan` | 78 complexity, 177 lines | C | Confidential-plan verification needs crisp trust labels. Mixed checks can blur privacy, replay, and arithmetic claims. | Split confidentiality claim checks, replay checks, and arithmetic checks. Label each result as host, committee, or math. |
+| 13 | `src/integration/zusd_monetary_bridge.py::_apply_one` | 77 complexity, 201 lines | C | zUSD bridge operations are value-moving. A central branch ladder makes fail-closed behavior harder to inspect. | Dispatch by operation type into bounded handlers, each with a no-op-on-reject regression test. |
+| 14 | `src/integration/perps_wallet_encrypted_sss_backup.py::evaluate_perps_wallet_encrypted_sss_backup_v1` | 76 complexity, 269 lines | C | Wallet backup evaluation is security-sensitive and combines crypto metadata, policy, and UX results. | Split cryptographic envelope validation from policy classification and display/report output. |
+
+## Recent API Dispatcher Burn-Down
+
+`src/integration/api_server.py::_Handler._maybe_handle_dex_api` is now down to
+32 complexity and 515 lines. It remains worth simplifying because it still owns
+shared parser and response-writer helpers, but it is no longer a top-five
+complexity hotspot.
+
+Extracted route helpers now cover:
+
+- Read-only DEX endpoints, quotes, quote receipts, and exact-in route helpers.
+- Exact-out certificate, audit, many-pool quote, packet, and contract helpers.
+- Settlement value, LP value, spot value, endogenous LP value, feature-extension,
+  witness lifecycle, end-to-end certificate, and spot-price helpers.
+- Pokayoke swap suggestions.
+- Proof-mining status.
+
+Residual API cleanup should move local parser and formatter helpers such as
+`_parse_pools`, `_quote_to_dict`, `_exact_out_split_quote_from_dict`, and
+`_projected_path_from_exact_out_quote_payload` into shared modules. The next
+codebase-wide ROI target is the settlement strong validator.
 
 ## Next Implementation Slice
 
-Continue with `src/integration/api_server.py::_maybe_handle_dex_api`, but do it
-in small route-family PRs. The first safe slice has landed:
+The next high-ROI slice is
+`src/core/settlement_strong_validator.py::_validate_settlement_strong_impl`.
+Extract one rule at a time, with golden tests that prove the old and new
+rejection envelopes match before each branch is moved.
+
+The API route-family extraction pass has landed in small behavior-preserving
+slices:
 
 1. `src/integration/api_server_dex_readonly_routes.py` handles
    `impact_preview` and `slippage_advice`.
@@ -149,11 +174,9 @@ in small route-family PRs. The first safe slice has landed:
    `verify_settlement_spot_price_attestation`.
 22. `src/integration/api_server_pokayoke_routes.py` handles
    `pokayoke_swap_suggest` and `pokayoke_swap_suggest_heavy`.
-23. `_maybe_handle_dex_api` remains the dispatcher and response writer.
-24. Focused route tests cover success, error mapping, unhandled-path behavior,
+23. `src/integration/api_server_proof_mining_routes.py` handles
+   `proof_mining_status`.
+24. `_maybe_handle_dex_api` remains the dispatcher and response writer.
+25. Focused route tests cover success, error mapping, unhandled-path behavior,
    bad integer fields, and pool-parse error precedence.
-25. The baseline records the reduced handler complexity and line count.
-
-Next, move `proof_mining_status` into a route helper with tests for cheap
-rejection order, reward-pool environment handling, success response shape, and
-generic error envelopes.
+26. The baseline records the reduced handler complexity and line count.

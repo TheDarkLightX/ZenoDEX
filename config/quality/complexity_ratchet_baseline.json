@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
-  "file_count": 449,
-  "function_count": 5907,
+  "file_count": 450,
+  "function_count": 5917,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 39,
-      "lines": 548
+      "complexity": 32,
+      "lines": 515
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._exact_out_split_quote_from_dict": {
       "complexity": 20,
@@ -10378,6 +10378,46 @@
     "src/integration/api_server_pokayoke_routes.py::maybe_handle_pokayoke_swap_route": {
       "complexity": 3,
       "lines": 13
+    },
+    "src/integration/api_server_proof_mining_routes.py::BadRequest.__init__": {
+      "complexity": 1,
+      "lines": 3
+    },
+    "src/integration/api_server_proof_mining_routes.py::_app_state_json": {
+      "complexity": 2,
+      "lines": 4
+    },
+    "src/integration/api_server_proof_mining_routes.py::_chain_balances": {
+      "complexity": 2,
+      "lines": 4
+    },
+    "src/integration/api_server_proof_mining_routes.py::_claim_artifact": {
+      "complexity": 2,
+      "lines": 4
+    },
+    "src/integration/api_server_proof_mining_routes.py::_handle_proof_mining_status": {
+      "complexity": 3,
+      "lines": 24
+    },
+    "src/integration/api_server_proof_mining_routes.py::_parse_request": {
+      "complexity": 1,
+      "lines": 17
+    },
+    "src/integration/api_server_proof_mining_routes.py::_reject_proof_mining_context": {
+      "complexity": 2,
+      "lines": 3
+    },
+    "src/integration/api_server_proof_mining_routes.py::_required_text": {
+      "complexity": 2,
+      "lines": 5
+    },
+    "src/integration/api_server_proof_mining_routes.py::_reward_pool_pubkey_from_env": {
+      "complexity": 3,
+      "lines": 3
+    },
+    "src/integration/api_server_proof_mining_routes.py::maybe_handle_proof_mining_route": {
+      "complexity": 2,
+      "lines": 10
     },
     "src/integration/api_server_quote_receipt_routes.py::_BadRequest.__init__": {
       "complexity": 1,
@@ -23850,20 +23890,20 @@
       "path": "src/integration/dex_engine.py"
     },
     {
-      "complexity": 39,
-      "line_end": 1707,
-      "line_start": 1160,
-      "lines": 548,
-      "name": "_Handler._maybe_handle_dex_api",
-      "path": "src/integration/api_server.py"
-    },
-    {
       "complexity": 66,
       "line_end": 837,
       "line_start": 316,
       "lines": 522,
       "name": "evaluate_autotrader_quote_receipt",
       "path": "src/integration/autotrader_controller.py"
+    },
+    {
+      "complexity": 32,
+      "line_end": 1674,
+      "line_start": 1160,
+      "lines": 515,
+      "name": "_Handler._maybe_handle_dex_api",
+      "path": "src/integration/api_server.py"
     },
     {
       "complexity": 71,
