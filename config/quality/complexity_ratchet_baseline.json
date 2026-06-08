@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
-  "file_count": 437,
-  "function_count": 5741,
+  "file_count": 438,
+  "function_count": 5743,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 457,
-      "lines": 2061
+      "complexity": 443,
+      "lines": 2006
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
       "complexity": 4,
@@ -9942,6 +9942,14 @@
     "src/integration/api_server_exact_in_route_guard_routes.py::maybe_handle_exact_in_route_guard_route": {
       "complexity": 2,
       "lines": 11
+    },
+    "src/integration/api_server_exact_in_route_quote_routes.py::_handle_quote_exact_in_route_guarded": {
+      "complexity": 5,
+      "lines": 47
+    },
+    "src/integration/api_server_exact_in_route_quote_routes.py::maybe_handle_exact_in_route_quote_route": {
+      "complexity": 2,
+      "lines": 12
     },
     "src/integration/api_server_exact_out_audit_routes.py::_BadRequest.__init__": {
       "complexity": 1,
@@ -22969,17 +22977,17 @@
     }
   },
   "line_budget": 60,
-  "max_complexity": 457,
-  "max_function_lines": 2061,
+  "max_complexity": 443,
+  "max_function_lines": 2006,
   "over_complexity_budget_count": 1605,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
     {
-      "complexity": 457,
-      "line_end": 3220,
+      "complexity": 443,
+      "line_end": 3165,
       "line_start": 1160,
-      "lines": 2061,
+      "lines": 2006,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
@@ -23138,10 +23146,10 @@
   ],
   "top_lines": [
     {
-      "complexity": 457,
-      "line_end": 3220,
+      "complexity": 443,
+      "line_end": 3165,
       "line_start": 1160,
-      "lines": 2061,
+      "lines": 2006,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
