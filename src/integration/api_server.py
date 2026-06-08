@@ -3431,111 +3431,21 @@ class _Handler(BaseHTTPRequestHandler):
         ):
             return True
 
-        if path == "/api/dex/audit_exact_out_two_pool_canonicality":
-            try:
-                pools_by_id = _parse_pools()
-                if len(pools_by_id) != 2:
-                    self._write_json(400, {"ok": False, "error": "expected_exactly_two_pools"}, cors_origin=cors_origin)
-                    return True
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                brute_force_max = obj.get("brute_force_max")
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(amount_out_total, int) or isinstance(amount_out_total, bool) or amount_out_total <= 0:
-                    self._write_json(400, {"ok": False, "error": "bad_amount_out_total"}, cors_origin=cors_origin)
-                    return True
-                if brute_force_max is not None and (
-                    not isinstance(brute_force_max, int) or isinstance(brute_force_max, bool) or brute_force_max < 0
-                ):
-                    self._write_json(400, {"ok": False, "error": "bad_brute_force_max"}, cors_origin=cors_origin)
-                    return True
+        from src.integration.api_server_exact_out_audit_routes import (  # pylint: disable=import-outside-toplevel
+            maybe_handle_exact_out_audit_route,
+        )
 
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    audit_exact_out_two_pool_runtime_canonicality,
-                )
-
-                pools = list(pools_by_id.values())
-                audit = audit_exact_out_two_pool_runtime_canonicality(
-                    pools[0],
-                    pools[1],
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    brute_force_max=(None if brute_force_max is None else int(brute_force_max)),
-                )
-                self._write_json(200, {"ok": True, "audit": audit.to_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "audit_exact_out_two_pool_canonicality_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/audit_exact_out_many_pool_canonicality":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    audit_exact_out_many_pool_runtime_canonicality,
-                )
-
-                audit = audit_exact_out_many_pool_runtime_canonicality(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                self._write_json(200, {"ok": True, "audit": audit.to_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "audit_exact_out_many_pool_canonicality_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
+        if maybe_handle_exact_out_audit_route(
+            path=path,
+            obj=obj,
+            parse_pools=_parse_pools,
+            write_json=lambda status, payload: self._write_json(
+                status,
+                payload,
+                cors_origin=cors_origin,
+            ),
+        ):
+            return True
 
         from src.integration.api_server_exact_out_many_pool_routes import (  # pylint: disable=import-outside-toplevel
             maybe_handle_exact_out_many_pool_route,

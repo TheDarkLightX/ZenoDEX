@@ -17,12 +17,12 @@ behaviorally incorrect.
 
 | Metric | Value |
 | --- | ---: |
-| Python source files scanned | 431 |
-| Functions scanned | 5,703 |
+| Python source files scanned | 432 |
+| Functions scanned | 5,711 |
 | Functions over complexity 5 | 1,605 |
 | Functions over 60 lines | 435 |
-| Maximum complexity | 535 |
-| Maximum function length | 2,400 lines |
+| Maximum complexity | 513 |
+| Maximum function length | 2,310 lines |
 
 ## Refactor Principles
 
@@ -40,7 +40,7 @@ behaviorally incorrect.
 
 | Rank | Location | Size | Grade | Why It Is Risky | First Extraction |
 | ---: | --- | ---: | --- | --- | --- |
-| 1 | `src/integration/api_server.py::_Handler._maybe_handle_dex_api` | 535 complexity, 2,400 lines | D | One method mixes routing, auth, JSON parsing, DTO coercion, service calls, and response shaping for many unrelated API families. It is the highest injection and regression surface in the repo. | Continue the route-table extraction. The read-only routes live in `api_server_dex_readonly_routes.py`; exact-out route certificate build/verify lives in `api_server_exact_out_certificate_routes.py`; exact-out many-pool contract builders, repaired-selected-domain quotes, repaired-advisory quotes, repaired-full-domain certified quotes, bounded-advisory quotes, the default certified-advisory quote, the adaptive liveness quote, the certified-advisory quote, packet builders, packet verifiers, contract verifiers, oracle contract builder, audited-bounds contract builder, canonicality guard route, and guarded quote route live in `api_server_exact_out_many_pool_routes.py`; the next slice is exact-out audit routes. |
+| 1 | `src/integration/api_server.py::_Handler._maybe_handle_dex_api` | 513 complexity, 2,310 lines | D | One method mixes routing, auth, JSON parsing, DTO coercion, service calls, and response shaping for many unrelated API families. It is the highest injection and regression surface in the repo. | Continue the route-table extraction. The read-only routes live in `api_server_dex_readonly_routes.py`; exact-out route certificate build/verify lives in `api_server_exact_out_certificate_routes.py`; exact-out audit routes live in `api_server_exact_out_audit_routes.py`; exact-out many-pool contract builders, repaired-selected-domain quotes, repaired-advisory quotes, repaired-full-domain certified quotes, bounded-advisory quotes, the default certified-advisory quote, the adaptive liveness quote, the certified-advisory quote, packet builders, packet verifiers, contract verifiers, oracle contract builder, audited-bounds contract builder, canonicality guard route, and guarded quote route live in `api_server_exact_out_many_pool_routes.py`; the next slice is the general quote endpoint. |
 | 2 | `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl` | 190 complexity, 612 lines | C- | This is a fail-closed value-moving acceptance gate. The logic is conceptually right, but duplicate-ID checks, fill coverage, replay, deltas, events, LP effects, and conservation live in one control flow. | Extract pure rule functions returning `(ok, error)`: `IntentIdRule`, `IncludedIntentRule`, `FillCoverageRule`, `CowPairRule`, `ReplayDeltaRule`, `EventRule`, `ConservationRule`. |
 | 3 | `src/integration/dex_snapshot.py::state_from_snapshot` | 126 complexity, 622 lines | C- | Snapshot hydration is consensus-adjacent because bad defaults or weak parsing can create forked local state. Many schema branches share one broad parser. | Split into typed parsers per section: balances, pools, LP, fees, nonces, confidential requests, oracle metadata. Add round-trip tests section by section. |
 | 4 | `src/integration/dex_engine.py::apply_ops` | 118 complexity, 549 lines | C- | Operation application is an orchestration choke point. Mixed dispatch and mutation increases the chance that an operation bypasses a guard. | Replace the branch ladder with an `op_type -> apply_*` dispatch table. Each handler should receive validated DTOs and return data-only effects. |
@@ -70,7 +70,10 @@ in small route-family PRs. The first safe slice has landed:
    `impact_preview` and `slippage_advice`.
 2. `src/integration/api_server_exact_out_certificate_routes.py` handles
    `build_exact_out_route_certificate` and `verify_exact_out_route_certificate`.
-3. `src/integration/api_server_exact_out_many_pool_routes.py` handles the
+3. `src/integration/api_server_exact_out_audit_routes.py` handles
+   `audit_exact_out_two_pool_canonicality` and
+   `audit_exact_out_many_pool_canonicality`.
+4. `src/integration/api_server_exact_out_many_pool_routes.py` handles the
    exact-out many-pool contract-builder endpoints and
    `quote_exact_out_many_pool_repaired_selected_domain` plus
    `quote_exact_out_many_pool_repaired_advisory` and
@@ -99,12 +102,11 @@ in small route-family PRs. The first safe slice has landed:
    `verify_exact_out_many_pool_certified_winner_packet`, and all remaining
    `verify_exact_out_many_pool_*packet` endpoints, and all
    `verify_exact_out_many_pool_*contract` endpoints.
-4. `_maybe_handle_dex_api` remains the dispatcher and response writer.
-5. Focused route tests cover success, error mapping, unhandled-path behavior,
+5. `_maybe_handle_dex_api` remains the dispatcher and response writer.
+6. Focused route tests cover success, error mapping, unhandled-path behavior,
    bad integer fields, and pool-parse error precedence.
-6. The baseline records the reduced handler complexity and line count.
+7. The baseline records the reduced handler complexity and line count.
 
-Next, move `audit_exact_out_two_pool_canonicality` and
-`audit_exact_out_many_pool_canonicality` with tests for malformed payloads, pool
-count/order, bounded integer fields, exception payloads, and audit response
-shape.
+Next, move the general `/api/dex/quote` endpoint into a route helper with tests
+for exact-in/exact-out behavior, fast-route fallback, asset validation, missing
+pool parsing, and error response shape.
