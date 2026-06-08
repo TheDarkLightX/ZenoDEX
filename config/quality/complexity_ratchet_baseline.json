@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
-  "file_count": 432,
-  "function_count": 5711,
+  "file_count": 433,
+  "function_count": 5724,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 513,
-      "lines": 2310
+      "complexity": 491,
+      "lines": 2183
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
       "complexity": 4,
@@ -10178,6 +10178,58 @@
     "src/integration/api_server_exact_out_many_pool_routes.py::maybe_handle_exact_out_many_pool_route": {
       "complexity": 2,
       "lines": 10
+    },
+    "src/integration/api_server_quote_routes.py::_BadRequest.__init__": {
+      "complexity": 1,
+      "lines": 3
+    },
+    "src/integration/api_server_quote_routes.py::_compute_quote": {
+      "complexity": 2,
+      "lines": 24
+    },
+    "src/integration/api_server_quote_routes.py::_get_fast_router": {
+      "complexity": 2,
+      "lines": 8
+    },
+    "src/integration/api_server_quote_routes.py::_handle_quote_route": {
+      "complexity": 5,
+      "lines": 48
+    },
+    "src/integration/api_server_quote_routes.py::_parse_quote_request": {
+      "complexity": 1,
+      "lines": 10
+    },
+    "src/integration/api_server_quote_routes.py::_quote_epoch": {
+      "complexity": 5,
+      "lines": 7
+    },
+    "src/integration/api_server_quote_routes.py::_quote_exact_in": {
+      "complexity": 4,
+      "lines": 37
+    },
+    "src/integration/api_server_quote_routes.py::_quote_exact_out": {
+      "complexity": 4,
+      "lines": 41
+    },
+    "src/integration/api_server_quote_routes.py::_require_assets": {
+      "complexity": 4,
+      "lines": 6
+    },
+    "src/integration/api_server_quote_routes.py::_require_kind": {
+      "complexity": 2,
+      "lines": 5
+    },
+    "src/integration/api_server_quote_routes.py::_require_routing_mode": {
+      "complexity": 2,
+      "lines": 5
+    },
+    "src/integration/api_server_quote_routes.py::_write_quote_response": {
+      "complexity": 1,
+      "lines": 19
+    },
+    "src/integration/api_server_quote_routes.py::maybe_handle_quote_route": {
+      "complexity": 2,
+      "lines": 19
     },
     "src/integration/api_server_settlement_parsers.py::_parse_balance_table_payload": {
       "complexity": 10,
@@ -22849,17 +22901,17 @@
     }
   },
   "line_budget": 60,
-  "max_complexity": 513,
-  "max_function_lines": 2310,
+  "max_complexity": 491,
+  "max_function_lines": 2183,
   "over_complexity_budget_count": 1605,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
     {
-      "complexity": 513,
-      "line_end": 3469,
+      "complexity": 491,
+      "line_end": 3342,
       "line_start": 1160,
-      "lines": 2310,
+      "lines": 2183,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
@@ -23018,10 +23070,10 @@
   ],
   "top_lines": [
     {
-      "complexity": 513,
-      "line_end": 3469,
+      "complexity": 491,
+      "line_end": 3342,
       "line_start": 1160,
-      "lines": 2310,
+      "lines": 2183,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
