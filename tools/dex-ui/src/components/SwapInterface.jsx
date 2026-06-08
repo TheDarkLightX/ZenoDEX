@@ -296,7 +296,10 @@ function SwapInterface({ wallet }) {
     }, [uiSmokeTokenSelectSide, poolFeed.source]);
 
     useEffect(() => {
-        if (!submittedSwap || submittedSwap.status !== 'pending') return undefined;
+        // Demo-only simulated confirmation. In live mode a pending tx honestly
+        // stays pending until the node reports the real receipt; we never fake
+        // a confirmation against a real submission.
+        if (!demoMode || !submittedSwap || submittedSwap.status !== 'pending') return undefined;
         const timeout = setTimeout(() => {
             setSubmittedSwap((prev) => {
                 if (!prev || prev.txHash !== submittedSwap.txHash) return prev;
@@ -311,7 +314,7 @@ function SwapInterface({ wallet }) {
             });
         }, 2200);
         return () => clearTimeout(timeout);
-    }, [submittedSwap, upsertTransaction]);
+    }, [demoMode, submittedSwap, upsertTransaction]);
 
     // Get pool key
     const poolKey = useMemo(() => {
@@ -1247,6 +1250,10 @@ function SwapInterface({ wallet }) {
         && zkPosture.zk_mode_effective === 'strict'
         && zkPosture.proof_verifier_kind === 'subprocess';
     const postureKnown = Boolean(zkPosture.zk_mode_effective);
+    // Mirrors PoolDashboard.jsx's deployment gate: there is no public explorer
+    // for a local testnet, so we hide the (broken) explorer deep-link there.
+    const isLocalTestnet = ['local-testnet', 'localtest']
+        .includes(String(getRuntimeConfig()?.deployment || '').toLowerCase());
 
     // ── Market rail derived values ────────────────────────────────────────
     const livePool = poolFeed.pools[poolKey] || null;
@@ -2078,7 +2085,7 @@ function SwapInterface({ wallet }) {
                         <p className="submitted-copy">
                             {submittedSwap.status === 'pending'
                                 ? 'Broadcasting transaction to Tau Net Alpha...'
-                                : 'Wallet submission confirmed; on-chain status tracking is ready.'}
+                                : 'Submission accepted and relayed. Final on-chain confirmation is not tracked in this build.'}
                         </p>
                         <div className="submitted-status-row">
                             <span className={`tx-status-badge ${submittedSwap.status}`}>
@@ -2137,14 +2144,16 @@ function SwapInterface({ wallet }) {
                             )}
                         </div>
                         <div className="confirm-actions">
-                            <a
-                                className="btn btn-secondary"
-                                href={`https://explorer.tau.net/tx/${submittedSwap.txHash}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                View Explorer
-                            </a>
+                            {!isLocalTestnet && (
+                                <a
+                                    className="btn btn-secondary"
+                                    href={`https://explorer.tau.net/tx/${submittedSwap.txHash}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    View Explorer
+                                </a>
+                            )}
                             <button className="btn btn-primary" onClick={() => setSubmittedSwap(null)}>
                                 Done
                             </button>
