@@ -403,3 +403,95 @@ def test_first_failure_wins_ordering() -> None:
     # No proof AND a bad chain id -> NO_PROOF wins (earlier gate).
     d = _decide(host=_host(journal_present=False), journal={**_valid_journal(), "chain_id": "mainnet"})
     assert d.refuse_code is RefuseCode.NO_PROOF
+
+
+# --------------------------------------------------------------------------- #
+# Property-based (hypothesis) fuzz: the fail-closed invariants over random input.
+# These assert the GLOBAL properties the hand-written cases only sample.
+# --------------------------------------------------------------------------- #
+from hypothesis import given, settings  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
+
+_HOST_ASSERTED = [
+    "ok", "proof_status", "status", "production_security_claim",
+    "is_final", "promotion_ready", "artifact_binding_complete", "latest_proven_height",
+]
+# Fields CHECKED AGAINST A CLIENT-TRUSTED EXPECTED VALUE (pins / head / recomputed).
+# Mutating any of these to a non-equal value MUST refuse, even under a (fake) VERIFIED
+# journal. This is the set whose integrity does NOT depend on the verifier being real.
+#
+# Deliberately EXCLUDED: the OUTPUT fields the proof PRODUCES rather than the client
+# pins -- post_app_hash (becomes the new head), state_hash, state_delta_hash,
+# participant_set_hash. The decision trusts these BECAUSE gate 3 cryptographically
+# verified the journal; a real receipt cannot carry a tampered output (it would fail
+# receipt.verify). The fake verifier here returns a tampered journal as VERIFIED, so a
+# mutated output "passes" -- that is a fake-verifier artifact, exactly the gate-3 /
+# real-ReceiptVerifierPort trust root documented in WS2_TRUSTLESS_REFUSE_BY_DEFAULT.md,
+# NOT a gap in the decision core. (A wrong post_app_hash also self-corrects: it becomes
+# the next transition's pre_app_hash and fails gate 7 on the following step.)
+_LOAD_BEARING = [
+    "proof_type", "risc0_image_id", "chain_id", "pre_app_hash_present",
+    "pre_app_hash", "operation_hash", "collateral_binding_hash", "oracle_binding_hash",
+]
+_FUZZ_VALUES = st.one_of(
+    st.none(), st.booleans(), st.integers(min_value=-3, max_value=1 << 70),
+    st.text(max_size=10), st.binary(max_size=40),
+    st.lists(st.integers(min_value=0, max_value=9), max_size=10),
+)
+
+
+@given(extra=st.dictionaries(st.sampled_from(_HOST_ASSERTED), _FUZZ_VALUES))
+@settings(max_examples=250, deadline=None)
+def test_property_host_asserted_fields_never_change_decision(extra: dict) -> None:
+    # Non-trust clause: NO host-asserted field, at ANY value, flips the decision.
+    baseline = _decide()
+    d = _decide(host=_host(**extra))
+    assert d.accepted == baseline.accepted is True
+    assert d.refuse_code == baseline.refuse_code  # both None
+
+
+@given(status=st.sampled_from([VerifyStatus.FAILED, VerifyStatus.UNKNOWN, VerifyStatus.TIMEOUT, VerifyStatus.ERROR]),
+       journal=st.one_of(st.none(), st.just(_valid_journal())))
+@settings(max_examples=50, deadline=None)
+def test_property_non_verified_status_never_accepts(status: VerifyStatus, journal) -> None:
+    # A non-VERIFIED verifier result can NEVER yield ACCEPT, regardless of the journal.
+    d = _decide(status=status, journal=journal)
+    assert d.accepted is False
+    assert d.refuse_code is RefuseCode.RECEIPT_VERIFY_FAILED
+
+
+@given(field=st.sampled_from(_LOAD_BEARING), val=_FUZZ_VALUES)
+@settings(max_examples=400, deadline=None)
+def test_property_load_bearing_mutation_never_spuriously_accepts(field: str, val) -> None:
+    if val == _valid_journal()[field]:
+        return  # no-op mutation: may legitimately still ACCEPT
+    j = _valid_journal()
+    j[field] = val
+    d = _decide(journal=j)
+    assert d.accepted is False, f"spurious ACCEPT after mutating load-bearing {field}={val!r}"
+    assert d.refuse_code is not None
+    assert d.head_advance is None  # reject-is-no-op
+
+
+@given(
+    host=st.dictionaries(st.text(max_size=8), _FUZZ_VALUES, max_size=5),
+    journal=st.one_of(st.none(), st.dictionaries(st.text(max_size=20), _FUZZ_VALUES, max_size=8)),
+    status=st.sampled_from(list(VerifyStatus)),
+)
+@settings(max_examples=400, deadline=None)
+def test_property_arbitrary_input_never_raises_and_fails_closed(host: dict, journal, status: VerifyStatus) -> None:
+    # Total function: arbitrary garbage -> always an AdmissionDecision, never an exception,
+    # and a garbage journal can never produce ACCEPT.
+    d = decide_admission(
+        SURFACE, OPERATION, dict(host),
+        RequestedOperation(surface=SURFACE, operation=OPERATION, fields={}),
+        HeadRef(surface=SURFACE, current_head=HEAD),
+        registry=_registry(), contract=_contract(),
+        verifier=_FakeVerifier(status, journal), rebind=_rebind,
+    )
+    assert isinstance(d, AdmissionDecision)
+    if d.accepted:
+        # the only way garbage accepts is if it happens to be the fully-valid journal
+        assert journal == _valid_journal() and status is VerifyStatus.VERIFIED
+    else:
+        assert d.refuse_code is not None and d.head_advance is None
