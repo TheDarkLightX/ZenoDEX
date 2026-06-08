@@ -8,6 +8,7 @@ from src.integration.exact_out_route_certificate import (
     EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_REPAIRED_KEY_COVER_INTERPRETATION_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_REPAIRED_KEY_COVER_PACKET_SCHEMA,
+    EXACT_OUT_MANY_POOL_REPAIRED_REPLACEMENT_SHADOW_PACKET_SCHEMA,
 )
 from src.integration.api_server_exact_out_many_pool_routes import (
     maybe_handle_exact_out_many_pool_route,
@@ -853,3 +854,76 @@ def test_many_pool_certified_advisory_packet_failure_payload_contract(monkeypatc
     assert payload["verify_packet_endpoint"] == "/api/dex/verify_exact_out_many_pool_certified_advisory_packet"
     assert "quote_policy" not in payload
     assert payload["error"] == "many_pool_certified_advisory_packet_not_ok"
+
+
+def test_many_pool_replacement_shadow_packet_route_rejects_bool_after_pool_parse() -> None:
+    writes, write_json = _capture()
+    parse_called = False
+
+    def parse_pools() -> dict[str, object]:
+        nonlocal parse_called
+        parse_called = True
+        return {"pool_a": object()}
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_repaired_replacement_shadow_packet",
+        obj=_minimal_request(max_full_domain_pools=True),
+        parse_pools=parse_pools,
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert parse_called is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_full_domain_pools"})]
+
+
+def test_many_pool_replacement_shadow_packet_route_rejects_oversized_budget() -> None:
+    writes, write_json = _capture()
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_repaired_replacement_shadow_packet",
+        obj=_minimal_request(max_enumerated_candidates=50_001),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_enumerated_candidates"})]
+
+
+def test_many_pool_replacement_shadow_packet_false_payload_contract(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+
+    def build_rejects(*_args: object, **_kwargs: object) -> _FakeBuildPacketWithError:
+        return _FakeBuildPacketWithError()
+
+    monkeypatch.setattr(
+        "src.integration.exact_out_route_certificate."
+        "build_exact_out_many_pool_repaired_replacement_shadow_packet",
+        build_rejects,
+    )
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_repaired_replacement_shadow_packet",
+        obj=_minimal_request(),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert len(writes) == 1
+    status, payload = writes[0]
+    assert status == 200
+    assert isinstance(payload, dict)
+    assert payload["ok"] is False
+    assert payload["packet"] == {"schema": "fake-build-packet", "packet_ok": False}
+    assert payload["packet_schema"] == EXACT_OUT_MANY_POOL_REPAIRED_REPLACEMENT_SHADOW_PACKET_SCHEMA
+    assert (
+        payload["verify_packet_endpoint"]
+        == "/api/dex/verify_exact_out_many_pool_repaired_replacement_shadow_packet"
+    )
+    assert "error" not in payload
+    assert "quote_policy" not in payload
