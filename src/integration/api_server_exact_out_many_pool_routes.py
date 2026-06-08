@@ -9,8 +9,10 @@ from src.integration.api_server_exact_out_limits import DEX_API_EXACT_OUT_SEARCH
 WriteJson = Callable[[int, object], None]
 ParsePools = Callable[[], dict[str, Any]]
 ProjectQuotePath = Callable[[object], list[list[object]] | None]
-RouteHandler = Callable[[dict[str, object], ParsePools, ProjectQuotePath, WriteJson], None]
+ExactOutBridgeCheck = Callable[..., str | None]
+RouteHandler = Callable[[dict[str, object], ParsePools, ProjectQuotePath, WriteJson, ExactOutBridgeCheck | None], None]
 SimpleRouteHandler = Callable[[dict[str, object], ParsePools, WriteJson], None]
+ProjectedRouteHandler = Callable[[dict[str, object], ParsePools, ProjectQuotePath, WriteJson], None]
 
 # The parent HTTP handler applies exact-out upper caps before dispatching here.
 # These handlers preserve the old per-route parse order and lower-bound errors.
@@ -46,6 +48,7 @@ _ORACLE_CONTRACT_ENDPOINT = "/api/dex/build_exact_out_many_pool_oracle_contract"
 _AUDITED_BOUNDS_CONTRACT_ENDPOINT = "/api/dex/build_exact_out_many_pool_audited_bounds_contract"
 _ADAPTIVE_LIVENESS_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_adaptive_liveness_packet"
 _GUARD_CANONICALITY_ENDPOINT = "/api/dex/guard_exact_out_many_pool_canonicality"
+_GUARDED_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_guarded"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -1467,6 +1470,102 @@ def _handle_guard_canonicality(
         )
 
 
+def _guarded_quote_payload(
+    *,
+    quote: object,
+    err: object,
+    contract_dict: dict[str, object],
+    contract_schema: str,
+    packet_schema: str,
+) -> dict[str, object]:
+    audit_payload = contract_dict["audit"]
+    if not isinstance(audit_payload, dict):
+        raise TypeError("contract audit must be a dict")
+    payload = {
+        "ok": bool(quote is not None),
+        "contract": contract_dict,
+        "contract_ok": bool(contract_dict["contract_ok"]),
+        "contract_schema": contract_schema,
+        "packet_schema": packet_schema,
+        "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",
+        "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_oracle_contract",
+        "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_guarded_quote_packet",
+        "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_guarded_quote_packet",
+        "runtime_projected_path": audit_payload["runtime_projected_path"],
+        "canonical_winner_projected_path": audit_payload["canonical_winner_projected_path"],
+        "runtime_matches_canonical_projected_path": audit_payload["runtime_matches_canonical_projected_path"],
+        "projection_cover_available": audit_payload["projection_cover_available"],
+        "projection_cover_holds": audit_payload["projection_cover_holds"],
+    }
+    if quote is not None:
+        payload["quote"] = dict(audit_payload["runtime_quote"])
+    else:
+        payload["error"] = str(err or "many_pool_runtime_not_canonical")
+        payload["runtime_quote"] = dict(audit_payload["runtime_quote"])
+        payload["canonical_winner_quote"] = dict(audit_payload["canonical_winner_quote"])
+    return payload
+
+
+def _handle_guarded_quote(
+    obj: dict[str, object],
+    parse_pools: ParsePools,
+    check_exact_out_bridge: ExactOutBridgeCheck | None,
+    write_json: WriteJson,
+) -> None:
+    try:
+        req = _parse_request(obj, parse_pools, _ORACLE_CONTRACT_FIELDS)
+        if check_exact_out_bridge is not None:
+            bridge_err = check_exact_out_bridge(
+                body=obj,
+                path=_GUARDED_QUOTE_ENDPOINT,
+                asset_in=req.asset_in,
+                asset_out=req.asset_out,
+                amount_out_total=req.values["amount_out_total"],
+                max_legs=req.values["max_legs"],
+                max_candidate_pools=req.values["max_candidate_pools"],
+                max_candidates=req.values["max_candidates"],
+                max_iters=req.values["max_iters"],
+                window=req.values["window"],
+                brute_force_max=req.values["brute_force_max"],
+                max_enumerated_candidates=req.values["max_enumerated_candidates"],
+            )
+            if bridge_err is not None:
+                write_json(400, {"ok": False, "error": "rejected", "detail": bridge_err})
+                return
+
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
+            EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
+            quote_exact_out_many_pool_guarded,
+        )
+
+        quote, err, contract = quote_exact_out_many_pool_guarded(
+            req.pools,
+            asset_in=req.asset_in,
+            asset_out=req.asset_out,
+            **req.values,
+        )
+        payload = _guarded_quote_payload(
+            quote=quote,
+            err=err,
+            contract_dict=contract.to_dict(),
+            contract_schema=EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
+            packet_schema=EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
+        )
+        write_json(200, payload)
+    except _BadRequest as exc:
+        _write_bad_request(write_json, exc)
+    except Exception:
+        write_json(
+            400,
+            {
+                "ok": False,
+                "error": "quote_exact_out_many_pool_guarded_error",
+                "details": "request failed",
+            },
+        )
+
+
 def _repaired_full_domain_certified_payload(
     *,
     quote: object,
@@ -1537,17 +1636,36 @@ def _handle_repaired_full_domain_certified_quote(
 
 def maybe_handle_exact_out_many_pool_route(
     *, path: str, obj: dict[str, object], parse_pools: ParsePools,
-    project_quote_path: ProjectQuotePath, write_json: WriteJson
+    project_quote_path: ProjectQuotePath, write_json: WriteJson,
+    check_exact_out_bridge: ExactOutBridgeCheck | None = None,
 ) -> bool:
     handler = _ROUTE_HANDLERS.get(path)
     if handler is None:
         return False
-    handler(obj, parse_pools, project_quote_path, write_json)
+    handler(obj, parse_pools, project_quote_path, write_json, check_exact_out_bridge)
     return True
 
 
 def _simple_route(handler: SimpleRouteHandler) -> RouteHandler:
-    return lambda obj, parse_pools, _project_quote_path, write_json: handler(obj, parse_pools, write_json)
+    return lambda obj, parse_pools, _project_quote_path, write_json, _check_exact_out_bridge: handler(
+        obj, parse_pools, write_json
+    )
+
+
+def _projected_route(handler: ProjectedRouteHandler) -> RouteHandler:
+    return lambda obj, parse_pools, project_quote_path, write_json, _check_exact_out_bridge: handler(
+        obj, parse_pools, project_quote_path, write_json
+    )
+
+
+def _guarded_quote_route(
+    obj: dict[str, object],
+    parse_pools: ParsePools,
+    _project_quote_path: ProjectQuotePath,
+    write_json: WriteJson,
+    check_exact_out_bridge: ExactOutBridgeCheck | None,
+) -> None:
+    _handle_guarded_quote(obj, parse_pools, check_exact_out_bridge, write_json)
 
 
 _ROUTE_HANDLERS: dict[str, RouteHandler] = {
@@ -1556,9 +1674,9 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _REPAIRED_PREFILTER_ENDPOINT: _simple_route(_handle_repaired_prefilter_contract),
     _REPAIRED_SELECTED_DOMAIN_ENDPOINT: _simple_route(_handle_repaired_selected_domain_contract),
     _REPAIRED_SELECTED_DOMAIN_QUOTE_ENDPOINT: _simple_route(_handle_repaired_selected_domain_quote),
-    _REPAIRED_ADVISORY_QUOTE_ENDPOINT: _handle_repaired_advisory_quote,
+    _REPAIRED_ADVISORY_QUOTE_ENDPOINT: _projected_route(_handle_repaired_advisory_quote),
     _REPAIRED_FULL_DOMAIN_CERTIFIED_QUOTE_ENDPOINT: _simple_route(_handle_repaired_full_domain_certified_quote),
-    _BOUNDED_ADVISORY_QUOTE_ENDPOINT: _handle_bounded_advisory_quote,
+    _BOUNDED_ADVISORY_QUOTE_ENDPOINT: _projected_route(_handle_bounded_advisory_quote),
     _DEFAULT_QUOTE_ENDPOINT: _simple_route(_handle_default_quote),
     _ADAPTIVE_QUOTE_ENDPOINT: _simple_route(_handle_adaptive_quote),
     _CERTIFIED_ADVISORY_QUOTE_ENDPOINT: _simple_route(_handle_certified_advisory_quote),
@@ -1577,4 +1695,5 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _AUDITED_BOUNDS_CONTRACT_ENDPOINT: _simple_route(_handle_audited_bounds_contract),
     _ADAPTIVE_LIVENESS_PACKET_ENDPOINT: _simple_route(_handle_adaptive_liveness_packet),
     _GUARD_CANONICALITY_ENDPOINT: _simple_route(_handle_guard_canonicality),
+    _GUARDED_QUOTE_ENDPOINT: _guarded_quote_route,
 }
