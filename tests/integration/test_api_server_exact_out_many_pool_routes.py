@@ -186,6 +186,29 @@ class _FakeOracleContract:
         }
 
 
+class _FakeGuardOracleContract:
+    def __init__(self, contract_ok: bool, *, projection_cover_holds: bool) -> None:
+        self._contract_ok = contract_ok
+        self._projection_cover_holds = projection_cover_holds
+
+    def to_dict(self) -> dict[str, object]:
+        runtime_projected_path = [["pool_a", 2, 3]]
+        canonical_projected_path = runtime_projected_path if self._contract_ok else [["pool_b", 2, 4]]
+        return {
+            "schema": "fake-guard-oracle-contract",
+            "contract_ok": self._contract_ok,
+            "audit": {
+                "runtime_projected_path": runtime_projected_path,
+                "canonical_winner_projected_path": canonical_projected_path,
+                "runtime_matches_canonical_projected_path": runtime_projected_path == canonical_projected_path,
+                "projection_cover_available": True,
+                "projection_cover_holds": self._projection_cover_holds,
+                "runtime_quote": {"amount_in_total": 3},
+                "canonical_winner_quote": {"amount_in_total": 4},
+            },
+        }
+
+
 class _FakeAuditedBoundsContract:
     def to_dict(self) -> dict[str, object]:
         return {
@@ -1473,6 +1496,199 @@ def test_many_pool_adaptive_liveness_packet_builder_exception_payload(monkeypatc
             {
                 "ok": False,
                 "error": "build_exact_out_many_pool_adaptive_liveness_packet_error",
+                "details": "request failed",
+            },
+        )
+    ]
+
+
+def test_many_pool_guard_canonicality_route_rejects_bool_after_pool_parse() -> None:
+    writes, write_json = _capture()
+    parse_called = False
+
+    def parse_pools() -> dict[str, object]:
+        nonlocal parse_called
+        parse_called = True
+        return {"pool_a": object()}
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/guard_exact_out_many_pool_canonicality",
+        obj=_minimal_request(max_candidates=True),
+        parse_pools=parse_pools,
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert parse_called is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_candidates"})]
+
+
+def test_many_pool_guard_canonicality_route_rejects_oversized_budget() -> None:
+    writes, write_json = _capture()
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/guard_exact_out_many_pool_canonicality",
+        obj=_minimal_request(max_enumerated_candidates=50_001),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_enumerated_candidates"})]
+
+
+def test_many_pool_guard_canonicality_accept_payload_contract(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+    captured_kwargs: dict[str, object] = {}
+
+    def guard(*_args: object, **kwargs: object) -> tuple[bool, str | None, _FakeGuardOracleContract]:
+        captured_kwargs.update(kwargs)
+        return True, None, _FakeGuardOracleContract(contract_ok=True, projection_cover_holds=True)
+
+    monkeypatch.setattr(
+        "src.integration.exact_out_route_certificate.guard_exact_out_many_pool_runtime_canonicality",
+        guard,
+    )
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/guard_exact_out_many_pool_canonicality",
+        obj=_minimal_request(max_full_domain_pools=True),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert "max_full_domain_pools" not in captured_kwargs
+    assert len(writes) == 1
+    status, payload = writes[0]
+    assert status == 200
+    assert isinstance(payload, dict)
+    assert set(payload) == {
+        "ok",
+        "contract",
+        "contract_ok",
+        "contract_schema",
+        "build_contract_endpoint",
+        "verify_contract_endpoint",
+        "runtime_projected_path",
+        "canonical_winner_projected_path",
+        "runtime_matches_canonical_projected_path",
+        "projection_cover_available",
+        "projection_cover_holds",
+        "quote",
+    }
+    assert payload["ok"] is True
+    assert payload["contract_ok"] is True
+    assert payload["contract_schema"] == EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA
+    assert payload["build_contract_endpoint"] == "/api/dex/build_exact_out_many_pool_oracle_contract"
+    assert payload["verify_contract_endpoint"] == "/api/dex/verify_exact_out_many_pool_oracle_contract"
+    assert payload["quote"] == {"amount_in_total": 3}
+
+
+def test_many_pool_guard_canonicality_reject_payload_contract(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+
+    def guard(*_args: object, **_kwargs: object) -> tuple[bool, str | None, _FakeGuardOracleContract]:
+        return False, None, _FakeGuardOracleContract(contract_ok=False, projection_cover_holds=False)
+
+    monkeypatch.setattr(
+        "src.integration.exact_out_route_certificate.guard_exact_out_many_pool_runtime_canonicality",
+        guard,
+    )
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/guard_exact_out_many_pool_canonicality",
+        obj=_minimal_request(),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert len(writes) == 1
+    status, payload = writes[0]
+    assert status == 200
+    assert isinstance(payload, dict)
+    assert set(payload) == {
+        "ok",
+        "contract",
+        "contract_ok",
+        "contract_schema",
+        "build_contract_endpoint",
+        "verify_contract_endpoint",
+        "runtime_projected_path",
+        "canonical_winner_projected_path",
+        "runtime_matches_canonical_projected_path",
+        "projection_cover_available",
+        "projection_cover_holds",
+        "error",
+        "runtime_quote",
+        "canonical_winner_quote",
+    }
+    assert payload["ok"] is False
+    assert payload["contract_ok"] is False
+    assert payload["error"] == "many_pool_runtime_not_canonical"
+    assert payload["runtime_quote"] == {"amount_in_total": 3}
+    assert payload["canonical_winner_quote"] == {"amount_in_total": 4}
+
+
+def test_many_pool_guard_canonicality_preserves_reject_reason(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+
+    def guard(*_args: object, **_kwargs: object) -> tuple[bool, str | None, _FakeGuardOracleContract]:
+        return False, "custom_reason", _FakeGuardOracleContract(contract_ok=False, projection_cover_holds=False)
+
+    monkeypatch.setattr(
+        "src.integration.exact_out_route_certificate.guard_exact_out_many_pool_runtime_canonicality",
+        guard,
+    )
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/guard_exact_out_many_pool_canonicality",
+        obj=_minimal_request(),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert len(writes) == 1
+    status, payload = writes[0]
+    assert status == 200
+    assert isinstance(payload, dict)
+    assert payload["ok"] is False
+    assert payload["error"] == "custom_reason"
+
+
+def test_many_pool_guard_canonicality_exception_payload(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+
+    def guard_raises(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("internal detail must not leak")
+
+    monkeypatch.setattr(
+        "src.integration.exact_out_route_certificate.guard_exact_out_many_pool_runtime_canonicality",
+        guard_raises,
+    )
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/guard_exact_out_many_pool_canonicality",
+        obj=_minimal_request(),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [
+        (
+            400,
+            {
+                "ok": False,
+                "error": "guard_exact_out_many_pool_canonicality_error",
                 "details": "request failed",
             },
         )

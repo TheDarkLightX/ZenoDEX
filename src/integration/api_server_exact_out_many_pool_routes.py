@@ -45,6 +45,7 @@ _BOUNDED_WORKAROUND_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_bounde
 _ORACLE_CONTRACT_ENDPOINT = "/api/dex/build_exact_out_many_pool_oracle_contract"
 _AUDITED_BOUNDS_CONTRACT_ENDPOINT = "/api/dex/build_exact_out_many_pool_audited_bounds_contract"
 _ADAPTIVE_LIVENESS_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_adaptive_liveness_packet"
+_GUARD_CANONICALITY_ENDPOINT = "/api/dex/guard_exact_out_many_pool_canonicality"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -1396,6 +1397,76 @@ def _handle_adaptive_liveness_packet(
         )
 
 
+def _guard_canonicality_payload(
+    *,
+    ok: bool,
+    err: object,
+    contract_dict: dict[str, object],
+    contract_schema: str,
+) -> dict[str, object]:
+    audit_payload = contract_dict["audit"]
+    if not isinstance(audit_payload, dict):
+        raise TypeError("contract audit must be a dict")
+    payload = {
+        "ok": bool(ok),
+        "contract": contract_dict,
+        "contract_ok": bool(contract_dict["contract_ok"]),
+        "contract_schema": contract_schema,
+        "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",
+        "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_oracle_contract",
+        "runtime_projected_path": audit_payload["runtime_projected_path"],
+        "canonical_winner_projected_path": audit_payload["canonical_winner_projected_path"],
+        "runtime_matches_canonical_projected_path": audit_payload["runtime_matches_canonical_projected_path"],
+        "projection_cover_available": audit_payload["projection_cover_available"],
+        "projection_cover_holds": audit_payload["projection_cover_holds"],
+    }
+    if ok:
+        payload["quote"] = dict(audit_payload["runtime_quote"])
+    else:
+        payload["error"] = str(err or "many_pool_runtime_not_canonical")
+        payload["runtime_quote"] = dict(audit_payload["runtime_quote"])
+        payload["canonical_winner_quote"] = dict(audit_payload["canonical_winner_quote"])
+    return payload
+
+
+def _handle_guard_canonicality(
+    obj: dict[str, object],
+    parse_pools: ParsePools,
+    write_json: WriteJson,
+) -> None:
+    try:
+        req = _parse_request(obj, parse_pools, _ORACLE_CONTRACT_FIELDS)
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
+            guard_exact_out_many_pool_runtime_canonicality,
+        )
+
+        ok, err, contract = guard_exact_out_many_pool_runtime_canonicality(
+            req.pools,
+            asset_in=req.asset_in,
+            asset_out=req.asset_out,
+            **req.values,
+        )
+        payload = _guard_canonicality_payload(
+            ok=bool(ok),
+            err=err,
+            contract_dict=contract.to_dict(),
+            contract_schema=EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
+        )
+        write_json(200, payload)
+    except _BadRequest as exc:
+        _write_bad_request(write_json, exc)
+    except Exception:
+        write_json(
+            400,
+            {
+                "ok": False,
+                "error": "guard_exact_out_many_pool_canonicality_error",
+                "details": "request failed",
+            },
+        )
+
+
 def _repaired_full_domain_certified_payload(
     *,
     quote: object,
@@ -1505,4 +1576,5 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _ORACLE_CONTRACT_ENDPOINT: _simple_route(_handle_oracle_contract),
     _AUDITED_BOUNDS_CONTRACT_ENDPOINT: _simple_route(_handle_audited_bounds_contract),
     _ADAPTIVE_LIVENESS_PACKET_ENDPOINT: _simple_route(_handle_adaptive_liveness_packet),
+    _GUARD_CANONICALITY_ENDPOINT: _simple_route(_handle_guard_canonicality),
 }
