@@ -3415,27 +3415,21 @@ class _Handler(BaseHTTPRequestHandler):
                 )
                 return True
 
-        if path == "/api/dex/build_exact_out_route_certificate":
-            quotes_obj = obj.get("quotes")
-            if not isinstance(quotes_obj, list) or not quotes_obj:
-                self._write_json(400, {"ok": False, "error": "bad_quotes"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    build_exact_out_route_canonical_certificate,
-                )
+        from src.integration.api_server_exact_out_certificate_routes import (  # pylint: disable=import-outside-toplevel
+            maybe_handle_exact_out_certificate_route,
+        )
 
-                quotes = tuple(_exact_out_split_quote_from_dict(quote_obj) for quote_obj in quotes_obj)
-                certificate = build_exact_out_route_canonical_certificate(quotes)
-                self._write_json(200, {"ok": True, "certificate": certificate.to_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "bad_exact_out_certificate_request", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
+        if maybe_handle_exact_out_certificate_route(
+            path=path,
+            obj=obj,
+            parse_exact_out_quote=_exact_out_split_quote_from_dict,
+            write_json=lambda status, payload: self._write_json(
+                status,
+                payload,
+                cors_origin=cors_origin,
+            ),
+        ):
+            return True
 
         if path == "/api/dex/audit_exact_out_two_pool_canonicality":
             try:
@@ -3560,27 +3554,6 @@ class _Handler(BaseHTTPRequestHandler):
             check_exact_out_bridge=_check_routing_exact_out_oracle_adapter_bridge,
         ):
             return True
-
-        if path == "/api/dex/verify_exact_out_route_certificate":
-            certificate = obj.get("certificate")
-            if not isinstance(certificate, dict):
-                self._write_json(400, {"ok": False, "error": "bad_certificate"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_route_canonical_certificate_payload,
-                )
-
-                ok, err = verify_exact_out_route_canonical_certificate_payload(certificate)
-                self._write_json(200, {"ok": bool(ok), "error": ("ok" if ok else str(err))}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_exact_out_certificate_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
 
         self._write_json(404, {"ok": False, "error": "not_found"}, cors_origin=cors_origin)
         return True
