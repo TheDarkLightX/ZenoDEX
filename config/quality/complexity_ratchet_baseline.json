@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
-  "file_count": 444,
-  "function_count": 5828,
+  "file_count": 445,
+  "function_count": 5847,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 214,
-      "lines": 1254
+      "complexity": 171,
+      "lines": 1111
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
       "complexity": 4,
@@ -10370,6 +10370,82 @@
     "src/integration/api_server_quote_routes.py::maybe_handle_quote_route": {
       "complexity": 2,
       "lines": 19
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::BadRequest.__init__": {
+      "complexity": 1,
+      "lines": 3
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_allowed_signers": {
+      "complexity": 3,
+      "lines": 6
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_build_packet": {
+      "complexity": 2,
+      "lines": 8
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_build_packet_from_attestation": {
+      "complexity": 1,
+      "lines": 21
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_build_packet_from_price_packet": {
+      "complexity": 1,
+      "lines": 18
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_handle_build_endogenous_lp_value_packet": {
+      "complexity": 4,
+      "lines": 22
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_handle_verify_endogenous_lp_value_packet": {
+      "complexity": 4,
+      "lines": 22
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_non_negative_int": {
+      "complexity": 4,
+      "lines": 8
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_optional_dict": {
+      "complexity": 3,
+      "lines": 6
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_parse_attestation_options": {
+      "complexity": 3,
+      "lines": 14
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_parse_endogenous_lp_value_request": {
+      "complexity": 1,
+      "lines": 25
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_require_price_input": {
+      "complexity": 3,
+      "lines": 6
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_required_dict": {
+      "complexity": 2,
+      "lines": 4
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_required_non_empty_list": {
+      "complexity": 3,
+      "lines": 6
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_verify_packet": {
+      "complexity": 2,
+      "lines": 8
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_verify_packet_from_attestation": {
+      "complexity": 1,
+      "lines": 18
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_verify_packet_from_price_packet": {
+      "complexity": 1,
+      "lines": 15
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::_with_attestation_options": {
+      "complexity": 2,
+      "lines": 20
+    },
+    "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::maybe_handle_settlement_endogenous_lp_value_packet_route": {
+      "complexity": 3,
+      "lines": 13
     },
     "src/integration/api_server_settlement_lp_value_routes.py::BadRequest.__init__": {
       "complexity": 1,
@@ -23317,20 +23393,12 @@
     }
   },
   "line_budget": 60,
-  "max_complexity": 214,
+  "max_complexity": 190,
   "max_function_lines": 1925,
   "over_complexity_budget_count": 1605,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
-    {
-      "complexity": 214,
-      "line_end": 2413,
-      "line_start": 1160,
-      "lines": 1254,
-      "name": "_Handler._maybe_handle_dex_api",
-      "path": "src/integration/api_server.py"
-    },
     {
       "complexity": 190,
       "line_end": 808,
@@ -23338,6 +23406,14 @@
       "lines": 612,
       "name": "_validate_settlement_strong_impl",
       "path": "src/core/settlement_strong_validator.py"
+    },
+    {
+      "complexity": 171,
+      "line_end": 2270,
+      "line_start": 1160,
+      "lines": 1111,
+      "name": "_Handler._maybe_handle_dex_api",
+      "path": "src/integration/api_server.py"
     },
     {
       "complexity": 126,
@@ -23494,10 +23570,10 @@
       "path": "src/integration/autotrader_live.py"
     },
     {
-      "complexity": 214,
-      "line_end": 2413,
+      "complexity": 171,
+      "line_end": 2270,
       "line_start": 1160,
-      "lines": 1254,
+      "lines": 1111,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
