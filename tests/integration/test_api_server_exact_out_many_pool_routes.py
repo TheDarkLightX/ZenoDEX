@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from src.integration.exact_out_route_certificate import (
     EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_AUDITED_BOUNDS_CONTRACT_SCHEMA,
@@ -45,6 +47,103 @@ def _minimal_request(**overrides: object) -> dict[str, object]:
 
 def _project_quote_path(payload: object) -> list[list[object]] | None:
     return None
+
+
+_VERIFY_ROUTE_CASES = (
+    (
+        "/api/dex/verify_exact_out_many_pool_guarded_quote_packet",
+        "verify_exact_out_many_pool_guarded_quote_packet_payload",
+        "guarded quote packet verification failed",
+        "verify_exact_out_many_pool_guarded_quote_packet_error",
+        None,
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_certified_winner_packet",
+        "verify_exact_out_many_pool_certified_winner_packet_payload",
+        "certified winner packet verification failed",
+        "verify_exact_out_many_pool_certified_winner_packet_error",
+        None,
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_repaired_advisory_quote_packet",
+        "verify_exact_out_many_pool_repaired_advisory_quote_packet_payload",
+        "repaired advisory quote packet verification failed",
+        "verify_exact_out_many_pool_repaired_advisory_quote_packet_error",
+        None,
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_repaired_full_domain_certified_packet",
+        "verify_exact_out_many_pool_repaired_full_domain_certified_packet_payload",
+        "repaired full-domain certified packet verification failed",
+        "verify_exact_out_many_pool_repaired_full_domain_certified_packet_error",
+        "repaired_full_domain_certified_v1",
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_repaired_key_cover_packet",
+        "verify_exact_out_many_pool_repaired_key_cover_packet_payload",
+        "repaired key-cover packet verification failed",
+        "verify_exact_out_many_pool_repaired_key_cover_packet_error",
+        "repaired_key_cover_v1",
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_repaired_key_cover_interpretation_packet",
+        "verify_exact_out_many_pool_repaired_key_cover_interpretation_packet_payload",
+        "repaired key-cover interpretation packet verification failed",
+        "verify_exact_out_many_pool_repaired_key_cover_interpretation_packet_error",
+        "repaired_key_cover_interpretation_v1",
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_certified_advisory_packet",
+        "verify_exact_out_many_pool_certified_advisory_packet_payload",
+        "certified advisory packet verification failed",
+        "verify_exact_out_many_pool_certified_advisory_packet_error",
+        None,
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_repaired_replacement_shadow_packet",
+        "verify_exact_out_many_pool_repaired_replacement_shadow_packet_payload",
+        "repaired replacement shadow packet verification failed",
+        "verify_exact_out_many_pool_repaired_replacement_shadow_packet_error",
+        None,
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_default_packet",
+        "verify_exact_out_many_pool_default_packet_payload",
+        "default packet verification failed",
+        "verify_exact_out_many_pool_default_packet_error",
+        "certified_advisory_v1",
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_bounded_advisory_quote_packet",
+        "verify_exact_out_many_pool_bounded_advisory_quote_packet_payload",
+        "bounded advisory quote packet verification failed",
+        "verify_exact_out_many_pool_bounded_advisory_quote_packet_error",
+        None,
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_bounded_workaround_packet",
+        "verify_exact_out_many_pool_bounded_workaround_packet_payload",
+        "bounded workaround packet verification failed",
+        "verify_exact_out_many_pool_bounded_workaround_packet_error",
+        None,
+    ),
+    (
+        "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet",
+        "verify_exact_out_many_pool_adaptive_liveness_packet_payload",
+        "adaptive liveness packet verification failed",
+        "verify_exact_out_many_pool_adaptive_liveness_packet_error",
+        "adaptive_liveness_v1",
+    ),
+)
+
+
+def _verify_payload(*, ok: bool, error: str | None = None, quote_policy: str | None = None) -> dict[str, object]:
+    payload: dict[str, object] = {"ok": ok}
+    if error is not None:
+        payload["error"] = error
+    if quote_policy is not None:
+        payload["quote_policy"] = quote_policy
+    return payload
 
 
 class _FakePacket:
@@ -259,6 +358,162 @@ def test_unknown_many_pool_contract_route_is_not_handled() -> None:
 
     assert handled is False
     assert writes == []
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "_verifier_name", "_fallback_error", "_exception_error", "_quote_policy"),
+    _VERIFY_ROUTE_CASES,
+)
+def test_many_pool_packet_verify_routes_reject_bad_packet_without_pool_parse(
+    endpoint: str,
+    _verifier_name: str,
+    _fallback_error: str,
+    _exception_error: str,
+    _quote_policy: str | None,
+) -> None:
+    writes, write_json = _capture()
+    parse_called = False
+
+    def parse_pools() -> dict[str, object]:
+        nonlocal parse_called
+        parse_called = True
+        return {"pool_a": object()}
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path=endpoint,
+        obj={"packet": []},
+        parse_pools=parse_pools,
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert parse_called is False
+    assert writes == [(400, {"ok": False, "error": "bad_packet"})]
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "verifier_name", "_fallback_error", "_exception_error", "quote_policy"),
+    _VERIFY_ROUTE_CASES,
+)
+def test_many_pool_packet_verify_routes_success_payload(
+    monkeypatch: Any,
+    endpoint: str,
+    verifier_name: str,
+    _fallback_error: str,
+    _exception_error: str,
+    quote_policy: str | None,
+) -> None:
+    writes, write_json = _capture()
+
+    def verify(_packet: object) -> tuple[bool, str | None]:
+        return True, None
+
+    monkeypatch.setattr(f"src.integration.exact_out_route_certificate.{verifier_name}", verify)
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path=endpoint,
+        obj={"packet": {"schema": "fake"}},
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(200, _verify_payload(ok=True, quote_policy=quote_policy))]
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "verifier_name", "fallback_error", "_exception_error", "quote_policy"),
+    _VERIFY_ROUTE_CASES,
+)
+def test_many_pool_packet_verify_routes_fallback_error(
+    monkeypatch: Any,
+    endpoint: str,
+    verifier_name: str,
+    fallback_error: str,
+    _exception_error: str,
+    quote_policy: str | None,
+) -> None:
+    writes, write_json = _capture()
+
+    def verify(_packet: object) -> tuple[bool, str | None]:
+        return False, None
+
+    monkeypatch.setattr(f"src.integration.exact_out_route_certificate.{verifier_name}", verify)
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path=endpoint,
+        obj={"packet": {"schema": "fake"}},
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(200, _verify_payload(ok=False, error=fallback_error, quote_policy=quote_policy))]
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "verifier_name", "_fallback_error", "_exception_error", "quote_policy"),
+    _VERIFY_ROUTE_CASES,
+)
+def test_many_pool_packet_verify_routes_preserve_verifier_error(
+    monkeypatch: Any,
+    endpoint: str,
+    verifier_name: str,
+    _fallback_error: str,
+    _exception_error: str,
+    quote_policy: str | None,
+) -> None:
+    writes, write_json = _capture()
+
+    def verify(_packet: object) -> tuple[bool, str | None]:
+        return False, "packet digest mismatch"
+
+    monkeypatch.setattr(f"src.integration.exact_out_route_certificate.{verifier_name}", verify)
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path=endpoint,
+        obj={"packet": {"schema": "fake"}},
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(200, _verify_payload(ok=False, error="packet digest mismatch", quote_policy=quote_policy))]
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "verifier_name", "_fallback_error", "exception_error", "_quote_policy"),
+    _VERIFY_ROUTE_CASES,
+)
+def test_many_pool_packet_verify_routes_exception_payload(
+    monkeypatch: Any,
+    endpoint: str,
+    verifier_name: str,
+    _fallback_error: str,
+    exception_error: str,
+    _quote_policy: str | None,
+) -> None:
+    writes, write_json = _capture()
+
+    def verify_raises(_packet: object) -> tuple[bool, str | None]:
+        raise RuntimeError("internal detail must not leak")
+
+    monkeypatch.setattr(f"src.integration.exact_out_route_certificate.{verifier_name}", verify_raises)
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path=endpoint,
+        obj={"packet": {"schema": "fake"}},
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": exception_error, "details": "request failed"})]
 
 
 def test_many_pool_contract_route_rejects_bool_integer_field_after_pool_parse() -> None:

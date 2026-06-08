@@ -10,6 +10,7 @@ WriteJson = Callable[[int, object], None]
 ParsePools = Callable[[], dict[str, Any]]
 ProjectQuotePath = Callable[[object], list[list[object]] | None]
 ExactOutBridgeCheck = Callable[..., str | None]
+PacketVerifier = Callable[[object], tuple[bool, str | None]]
 RouteHandler = Callable[[dict[str, object], ParsePools, ProjectQuotePath, WriteJson, ExactOutBridgeCheck | None], None]
 SimpleRouteHandler = Callable[[dict[str, object], ParsePools, WriteJson], None]
 ProjectedRouteHandler = Callable[[dict[str, object], ParsePools, ProjectQuotePath, WriteJson], None]
@@ -53,6 +54,22 @@ _GUARDED_QUOTE_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_guarded_quo
 _VERIFY_GUARDED_QUOTE_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_guarded_quote_packet"
 _CERTIFIED_WINNER_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_certified_winner_packet"
 _VERIFY_CERTIFIED_WINNER_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_certified_winner_packet"
+_VERIFY_REPAIRED_ADVISORY_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_repaired_advisory_quote_packet"
+_VERIFY_REPAIRED_FULL_DOMAIN_PACKET_ENDPOINT = (
+    "/api/dex/verify_exact_out_many_pool_repaired_full_domain_certified_packet"
+)
+_VERIFY_REPAIRED_KEY_COVER_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_repaired_key_cover_packet"
+_VERIFY_REPAIRED_KEY_COVER_INTERPRETATION_PACKET_ENDPOINT = (
+    "/api/dex/verify_exact_out_many_pool_repaired_key_cover_interpretation_packet"
+)
+_VERIFY_CERTIFIED_ADVISORY_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_certified_advisory_packet"
+_VERIFY_REPLACEMENT_SHADOW_PACKET_ENDPOINT = (
+    "/api/dex/verify_exact_out_many_pool_repaired_replacement_shadow_packet"
+)
+_VERIFY_DEFAULT_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_default_packet"
+_VERIFY_BOUNDED_ADVISORY_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_bounded_advisory_quote_packet"
+_VERIFY_BOUNDED_WORKAROUND_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_bounded_workaround_packet"
+_VERIFY_ADAPTIVE_LIVENESS_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -172,6 +189,14 @@ class _ExactOutManyPoolRequest:
     values: dict[str, int]
 
 
+@dataclass(frozen=True)
+class _PacketVerifySpec:
+    verifier_name: str
+    fallback_error: str
+    exception_error: str
+    quote_policy: str | None = None
+
+
 def _require_asset_pair(obj: dict[str, object]) -> tuple[str, str]:
     asset_in = str(obj.get("asset_in", "")).strip()
     asset_out = str(obj.get("asset_out", "")).strip()
@@ -241,6 +266,39 @@ def _certified_advisory_packet_response(*, packet: object, packet_schema: str) -
         # the packet carried a more specific internal reason.
         response["error"] = "many_pool_certified_advisory_packet_not_ok"
     return response
+
+
+def _packet_verify_response(*, ok: bool, err: str | None, spec: _PacketVerifySpec) -> dict[str, object]:
+    if ok:
+        response: dict[str, object] = {"ok": True}
+    else:
+        response = {"ok": False, "error": err or spec.fallback_error}
+    if spec.quote_policy is not None:
+        response["quote_policy"] = spec.quote_policy
+    return response
+
+
+def _load_packet_verifier(spec: _PacketVerifySpec) -> PacketVerifier:
+    from src.integration import exact_out_route_certificate  # pylint: disable=import-outside-toplevel
+
+    return getattr(exact_out_route_certificate, spec.verifier_name)
+
+
+def _handle_packet_verification(
+    obj: dict[str, object],
+    spec: _PacketVerifySpec,
+    write_json: WriteJson,
+) -> None:
+    packet = obj.get("packet")
+    if not isinstance(packet, dict):
+        write_json(400, {"ok": False, "error": "bad_packet"})
+        return
+    try:
+        verifier = _load_packet_verifier(spec)
+        ok, err = verifier(packet)
+        write_json(200, _packet_verify_response(ok=bool(ok), err=err, spec=spec))
+    except Exception:
+        write_json(400, {"ok": False, "error": spec.exception_error, "details": "request failed"})
 
 
 def _copy_packet_keys(packet_payload: dict[str, object], keys: tuple[str, ...]) -> dict[str, object]:
@@ -1621,36 +1679,6 @@ def _handle_guarded_quote_packet(
         )
 
 
-def _handle_verify_guarded_quote_packet(
-    obj: dict[str, object],
-    _parse_pools: ParsePools,
-    write_json: WriteJson,
-) -> None:
-    packet = obj.get("packet")
-    if not isinstance(packet, dict):
-        write_json(400, {"ok": False, "error": "bad_packet"})
-        return
-    try:
-        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-            verify_exact_out_many_pool_guarded_quote_packet_payload,
-        )
-
-        ok, err = verify_exact_out_many_pool_guarded_quote_packet_payload(packet)
-        if ok:
-            write_json(200, {"ok": True})
-        else:
-            write_json(200, {"ok": False, "error": err or "guarded quote packet verification failed"})
-    except Exception:
-        write_json(
-            400,
-            {
-                "ok": False,
-                "error": "verify_exact_out_many_pool_guarded_quote_packet_error",
-                "details": "request failed",
-            },
-        )
-
-
 def _handle_certified_winner_packet(
     obj: dict[str, object],
     parse_pools: ParsePools,
@@ -1686,36 +1714,6 @@ def _handle_certified_winner_packet(
             {
                 "ok": False,
                 "error": "build_exact_out_many_pool_certified_winner_packet_error",
-                "details": "request failed",
-            },
-        )
-
-
-def _handle_verify_certified_winner_packet(
-    obj: dict[str, object],
-    _parse_pools: ParsePools,
-    write_json: WriteJson,
-) -> None:
-    packet = obj.get("packet")
-    if not isinstance(packet, dict):
-        write_json(400, {"ok": False, "error": "bad_packet"})
-        return
-    try:
-        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-            verify_exact_out_many_pool_certified_winner_packet_payload,
-        )
-
-        ok, err = verify_exact_out_many_pool_certified_winner_packet_payload(packet)
-        if ok:
-            write_json(200, {"ok": True})
-        else:
-            write_json(200, {"ok": False, "error": err or "certified winner packet verification failed"})
-    except Exception:
-        write_json(
-            400,
-            {
-                "ok": False,
-                "error": "verify_exact_out_many_pool_certified_winner_packet_error",
                 "details": "request failed",
             },
         )
@@ -1823,6 +1821,81 @@ def _guarded_quote_route(
     _handle_guarded_quote(obj, parse_pools, check_exact_out_bridge, write_json)
 
 
+def _packet_verify_route(spec: _PacketVerifySpec) -> RouteHandler:
+    return lambda obj, _parse_pools, _project_quote_path, write_json, _check_exact_out_bridge: _handle_packet_verification(
+        obj, spec, write_json
+    )
+
+
+_PACKET_VERIFY_SPECS: dict[str, _PacketVerifySpec] = {
+    _VERIFY_GUARDED_QUOTE_PACKET_ENDPOINT: _PacketVerifySpec(
+        verifier_name="verify_exact_out_many_pool_guarded_quote_packet_payload",
+        fallback_error="guarded quote packet verification failed",
+        exception_error="verify_exact_out_many_pool_guarded_quote_packet_error",
+    ),
+    _VERIFY_CERTIFIED_WINNER_PACKET_ENDPOINT: _PacketVerifySpec(
+        verifier_name="verify_exact_out_many_pool_certified_winner_packet_payload",
+        fallback_error="certified winner packet verification failed",
+        exception_error="verify_exact_out_many_pool_certified_winner_packet_error",
+    ),
+    _VERIFY_REPAIRED_ADVISORY_PACKET_ENDPOINT: _PacketVerifySpec(
+        verifier_name="verify_exact_out_many_pool_repaired_advisory_quote_packet_payload",
+        fallback_error="repaired advisory quote packet verification failed",
+        exception_error="verify_exact_out_many_pool_repaired_advisory_quote_packet_error",
+    ),
+    _VERIFY_REPAIRED_FULL_DOMAIN_PACKET_ENDPOINT: _PacketVerifySpec(
+        verifier_name="verify_exact_out_many_pool_repaired_full_domain_certified_packet_payload",
+        fallback_error="repaired full-domain certified packet verification failed",
+        exception_error="verify_exact_out_many_pool_repaired_full_domain_certified_packet_error",
+        quote_policy="repaired_full_domain_certified_v1",
+    ),
+    _VERIFY_REPAIRED_KEY_COVER_PACKET_ENDPOINT: _PacketVerifySpec(
+        verifier_name="verify_exact_out_many_pool_repaired_key_cover_packet_payload",
+        fallback_error="repaired key-cover packet verification failed",
+        exception_error="verify_exact_out_many_pool_repaired_key_cover_packet_error",
+        quote_policy="repaired_key_cover_v1",
+    ),
+    _VERIFY_REPAIRED_KEY_COVER_INTERPRETATION_PACKET_ENDPOINT: _PacketVerifySpec(
+        verifier_name="verify_exact_out_many_pool_repaired_key_cover_interpretation_packet_payload",
+        fallback_error="repaired key-cover interpretation packet verification failed",
+        exception_error="verify_exact_out_many_pool_repaired_key_cover_interpretation_packet_error",
+        quote_policy="repaired_key_cover_interpretation_v1",
+    ),
+    _VERIFY_CERTIFIED_ADVISORY_PACKET_ENDPOINT: _PacketVerifySpec(
+        verifier_name="verify_exact_out_many_pool_certified_advisory_packet_payload",
+        fallback_error="certified advisory packet verification failed",
+        exception_error="verify_exact_out_many_pool_certified_advisory_packet_error",
+    ),
+    _VERIFY_REPLACEMENT_SHADOW_PACKET_ENDPOINT: _PacketVerifySpec(
+        verifier_name="verify_exact_out_many_pool_repaired_replacement_shadow_packet_payload",
+        fallback_error="repaired replacement shadow packet verification failed",
+        exception_error="verify_exact_out_many_pool_repaired_replacement_shadow_packet_error",
+    ),
+    _VERIFY_DEFAULT_PACKET_ENDPOINT: _PacketVerifySpec(
+        verifier_name="verify_exact_out_many_pool_default_packet_payload",
+        fallback_error="default packet verification failed",
+        exception_error="verify_exact_out_many_pool_default_packet_error",
+        quote_policy="certified_advisory_v1",
+    ),
+    _VERIFY_BOUNDED_ADVISORY_PACKET_ENDPOINT: _PacketVerifySpec(
+        verifier_name="verify_exact_out_many_pool_bounded_advisory_quote_packet_payload",
+        fallback_error="bounded advisory quote packet verification failed",
+        exception_error="verify_exact_out_many_pool_bounded_advisory_quote_packet_error",
+    ),
+    _VERIFY_BOUNDED_WORKAROUND_PACKET_ENDPOINT: _PacketVerifySpec(
+        verifier_name="verify_exact_out_many_pool_bounded_workaround_packet_payload",
+        fallback_error="bounded workaround packet verification failed",
+        exception_error="verify_exact_out_many_pool_bounded_workaround_packet_error",
+    ),
+    _VERIFY_ADAPTIVE_LIVENESS_PACKET_ENDPOINT: _PacketVerifySpec(
+        verifier_name="verify_exact_out_many_pool_adaptive_liveness_packet_payload",
+        fallback_error="adaptive liveness packet verification failed",
+        exception_error="verify_exact_out_many_pool_adaptive_liveness_packet_error",
+        quote_policy="adaptive_liveness_v1",
+    ),
+}
+
+
 _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _CANDIDATE_DOMAIN_ENDPOINT: _simple_route(_handle_candidate_domain_contract),
     _PREFILTER_ENDPOINT: _simple_route(_handle_prefilter_contract),
@@ -1852,7 +1925,6 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _GUARD_CANONICALITY_ENDPOINT: _simple_route(_handle_guard_canonicality),
     _GUARDED_QUOTE_ENDPOINT: _guarded_quote_route,
     _GUARDED_QUOTE_PACKET_ENDPOINT: _simple_route(_handle_guarded_quote_packet),
-    _VERIFY_GUARDED_QUOTE_PACKET_ENDPOINT: _simple_route(_handle_verify_guarded_quote_packet),
     _CERTIFIED_WINNER_PACKET_ENDPOINT: _simple_route(_handle_certified_winner_packet),
-    _VERIFY_CERTIFIED_WINNER_PACKET_ENDPOINT: _simple_route(_handle_verify_certified_winner_packet),
 }
+_ROUTE_HANDLERS.update({path: _packet_verify_route(spec) for path, spec in _PACKET_VERIFY_SPECS.items()})
