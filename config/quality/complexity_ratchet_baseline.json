@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
-  "file_count": 434,
-  "function_count": 5728,
+  "file_count": 435,
+  "function_count": 5740,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 484,
-      "lines": 2164
+      "complexity": 469,
+      "lines": 2098
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
       "complexity": 4,
@@ -9890,6 +9890,54 @@
     "src/integration/api_server_dex_readonly_routes.py::maybe_handle_dex_readonly_route": {
       "complexity": 3,
       "lines": 13
+    },
+    "src/integration/api_server_exact_in_route_contract_routes.py::_BadRequest.__init__": {
+      "complexity": 1,
+      "lines": 3
+    },
+    "src/integration/api_server_exact_in_route_contract_routes.py::_amount_in": {
+      "complexity": 4,
+      "lines": 5
+    },
+    "src/integration/api_server_exact_in_route_contract_routes.py::_asset_in": {
+      "complexity": 1,
+      "lines": 2
+    },
+    "src/integration/api_server_exact_in_route_contract_routes.py::_asset_out": {
+      "complexity": 4,
+      "lines": 6
+    },
+    "src/integration/api_server_exact_in_route_contract_routes.py::_binding_ok": {
+      "complexity": 4,
+      "lines": 5
+    },
+    "src/integration/api_server_exact_in_route_contract_routes.py::_enable_mixed_direct_twohop_split": {
+      "complexity": 2,
+      "lines": 5
+    },
+    "src/integration/api_server_exact_in_route_contract_routes.py::_handle_build_oracle_contract": {
+      "complexity": 3,
+      "lines": 29
+    },
+    "src/integration/api_server_exact_in_route_contract_routes.py::_handle_verify_oracle_contract": {
+      "complexity": 3,
+      "lines": 17
+    },
+    "src/integration/api_server_exact_in_route_contract_routes.py::_parse_build_request": {
+      "complexity": 1,
+      "lines": 9
+    },
+    "src/integration/api_server_exact_in_route_contract_routes.py::_split_search_profile": {
+      "complexity": 2,
+      "lines": 5
+    },
+    "src/integration/api_server_exact_in_route_contract_routes.py::_write_build_success": {
+      "complexity": 1,
+      "lines": 10
+    },
+    "src/integration/api_server_exact_in_route_contract_routes.py::maybe_handle_exact_in_route_contract_route": {
+      "complexity": 3,
+      "lines": 14
     },
     "src/integration/api_server_exact_out_audit_routes.py::_BadRequest.__init__": {
       "complexity": 1,
@@ -22917,17 +22965,17 @@
     }
   },
   "line_budget": 60,
-  "max_complexity": 484,
-  "max_function_lines": 2164,
+  "max_complexity": 469,
+  "max_function_lines": 2098,
   "over_complexity_budget_count": 1605,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
     {
-      "complexity": 484,
-      "line_end": 3323,
+      "complexity": 469,
+      "line_end": 3257,
       "line_start": 1160,
-      "lines": 2164,
+      "lines": 2098,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
@@ -23086,10 +23134,10 @@
   ],
   "top_lines": [
     {
-      "complexity": 484,
-      "line_end": 3323,
+      "complexity": 469,
+      "line_end": 3257,
       "line_start": 1160,
-      "lines": 2164,
+      "lines": 2098,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },

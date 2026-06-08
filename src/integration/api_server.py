@@ -1632,87 +1632,21 @@ class _Handler(BaseHTTPRequestHandler):
         ):
             return True
 
-        if path == "/api/dex/build_exact_in_route_oracle_contract":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_in = obj.get("amount_in")
-                split_search_profile = str(obj.get("split_search_profile", "adaptive_v6")).strip()
-                enable_mixed_direct_twohop_split = obj.get("enable_mixed_direct_twohop_split", False)
-                binding_ok = obj.get("binding_ok", 1)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-                    self._write_json(400, {"ok": False, "error": "bad_amount_in"}, cors_origin=cors_origin)
-                    return True
-                if not split_search_profile:
-                    self._write_json(400, {"ok": False, "error": "bad_split_search_profile"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(enable_mixed_direct_twohop_split, bool):
-                    self._write_json(
-                        400,
-                        {"ok": False, "error": "bad_enable_mixed_direct_twohop_split"},
-                        cors_origin=cors_origin,
-                    )
-                    return True
-                if not isinstance(binding_ok, int) or isinstance(binding_ok, bool) or binding_ok not in {0, 1}:
-                    self._write_json(400, {"ok": False, "error": "bad_binding_ok"}, cors_origin=cors_origin)
-                    return True
+        from src.integration.api_server_exact_in_route_contract_routes import (  # pylint: disable=import-outside-toplevel
+            maybe_handle_exact_in_route_contract_route,
+        )
 
-                from src.integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    build_exact_in_route_oracle_contract,
-                )
-
-                contract = build_exact_in_route_oracle_contract(
-                    pools_by_id=pools_by_id,
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_in=int(amount_in),
-                    split_search_profile=split_search_profile,
-                    enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
-                    binding_ok=int(binding_ok),
-                )
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "contract_schema": "zenodex/exact-in-route-oracle-contract/v1",
-                        "verify_contract_endpoint": "/api/dex/verify_exact_in_route_oracle_contract",
-                        "contract": contract.to_dict(),
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_exact_in_route_oracle_contract_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_in_route_oracle_contract":
-            contract = obj.get("contract")
-            if not isinstance(contract, dict):
-                self._write_json(400, {"ok": False, "error": "bad_contract"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_in_route_oracle_contract_payload,
-                )
-
-                ok, err = verify_exact_in_route_oracle_contract_payload(contract)
-                self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_exact_in_route_oracle_contract_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
+        if maybe_handle_exact_in_route_contract_route(
+            path=path,
+            obj=obj,
+            parse_pools=_parse_pools,
+            write_json=lambda status, payload: self._write_json(
+                status,
+                payload,
+                cors_origin=cors_origin,
+            ),
+        ):
+            return True
 
         if path == "/api/dex/guard_exact_in_route_canonicality":
             try:
