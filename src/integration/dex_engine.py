@@ -1244,6 +1244,226 @@ def _build_signing_payloads(
     return signing_dicts, signing_payloads
 
 
+def _validate_uniform_batch_evidence_consistency(
+    *,
+    uniform_batch_certificate: Any,
+    uniform_batch_optimality_certificate: Any,
+    uniform_batch_v2_bounded_grid: Any,
+    uniform_batch_v3_exact_out_grid: Any,
+) -> Optional[str]:
+    """Cross-check presence relationships between uniform-batch evidence fields.
+
+    Behavior-preserving extraction of the contiguous guard cascade in apply_ops.
+    The evaluation ORDER below is reject precedence and must not be reordered.
+    Returns the first failing reject string, or None when consistent.
+    """
+    if uniform_batch_optimality_certificate is not None and uniform_batch_certificate is None:
+        return "uniform batch optimality certificate requires uniform batch certificate"
+    if uniform_batch_v2_bounded_grid is not None and uniform_batch_certificate is None:
+        return "uniform batch v2 bounded-grid evidence requires uniform batch certificate"
+    if uniform_batch_v3_exact_out_grid is not None and uniform_batch_certificate is None:
+        return "uniform batch v3 exact-out grid evidence requires uniform batch certificate"
+    if uniform_batch_v2_bounded_grid is not None and uniform_batch_optimality_certificate is None:
+        return "uniform batch v2 bounded-grid evidence requires optimality certificate"
+    if uniform_batch_v3_exact_out_grid is not None and uniform_batch_optimality_certificate is None:
+        return "uniform batch v3 exact-out grid evidence requires optimality certificate"
+    if uniform_batch_v2_bounded_grid is not None and uniform_batch_v3_exact_out_grid is not None:
+        return "uniform batch bounded-grid evidence provided twice"
+    return None
+
+
+def _compute_uniform_batch_certificate_settlement(
+    *,
+    config: DexEngineConfig,
+    state: DexState,
+    validation_intents: List[Intent],
+    uniform_batch_certificate: Any,
+    uniform_batch_optimality_certificate: Any,
+    uniform_batch_v2_bounded_grid: Any,
+    uniform_batch_v3_exact_out_grid: Any,
+) -> Tuple[Optional[str], Optional[Settlement]]:
+    """Validate a uniform-batch certificate and build its settlement.
+
+    Behavior-preserving extraction of the ``uniform_batch_certificate is not None``
+    branch in apply_ops. Returns ``(error, None)`` on any reject (error string is
+    byte-identical to the inline version, including reject precedence) or
+    ``(None, computed_settlement)`` on success.
+    """
+    if not config.allow_uniform_batch_certificate:
+        return "uniform batch certificate not enabled", None
+    try:
+        cert = UniformBatchCertificateV1.from_obj(uniform_batch_certificate)
+    except Exception as exc:
+        return f"uniform batch certificate rejected: {_clean_error(exc)}", None
+    if (
+        cert.policy_id == UNIFORM_BATCH_POLICY_V2_ID
+        and not config.allow_uniform_batch_partial_fill_certificate
+    ):
+        return "uniform batch v2 partial-fill certificate not enabled", None
+    pool = state.pools.get(cert.pool_id)
+    if pool is None:
+        return f"uniform batch certificate pool not found: {cert.pool_id}", None
+    if config.require_uniform_batch_optimality_certificate and uniform_batch_optimality_certificate is None:
+        return "uniform batch optimality certificate required", None
+    if (
+        config.require_uniform_batch_v2_bounded_grid_optimality
+        and cert.policy_id == UNIFORM_BATCH_POLICY_V2_ID
+        and uniform_batch_v2_bounded_grid is None
+    ):
+        return "uniform batch v2 bounded-grid evidence required", None
+    if (
+        config.require_uniform_batch_v3_exact_out_grid_optimality
+        and cert.policy_id == UNIFORM_BATCH_POLICY_V3_ID
+        and uniform_batch_v3_exact_out_grid is None
+    ):
+        return "uniform batch v3 exact-out grid evidence required", None
+    if uniform_batch_v2_bounded_grid is not None and cert.policy_id != UNIFORM_BATCH_POLICY_V2_ID:
+        return "uniform batch v2 bounded-grid evidence requires v2 uniform batch certificate", None
+    if uniform_batch_v3_exact_out_grid is not None and cert.policy_id != UNIFORM_BATCH_POLICY_V3_ID:
+        return "uniform batch v3 exact-out grid evidence requires v3 uniform batch certificate", None
+    if uniform_batch_optimality_certificate is not None:
+        if uniform_batch_v2_bounded_grid is not None:
+            try:
+                optimality_result = verify_uniform_batch_v2_bounded_grid_optimality_certificate_v1(
+                    optimality_certificate=uniform_batch_optimality_certificate,
+                    uniform_batch_certificate=cert,
+                    intents=validation_intents,
+                    pool=pool,
+                    balances=state.balances,
+                    max_price_num=uniform_batch_v2_bounded_grid["max_price_num"],
+                    max_price_den=uniform_batch_v2_bounded_grid["max_price_den"],
+                    fill_vectors=uniform_batch_v2_bounded_grid["fill_vectors"],
+                    expected_table_root=uniform_batch_v2_bounded_grid.get("table_root"),
+                )
+            except KeyError as exc:
+                return (
+                    "uniform batch optimality certificate rejected: "
+                    f"uniform batch v2 bounded-grid evidence missing {str(exc)}"
+                ), None
+        elif uniform_batch_v3_exact_out_grid is not None:
+            try:
+                max_price_num, max_price_den = _v3_exact_out_grid_bounds(
+                    uniform_batch_v3_exact_out_grid
+                )
+                optimality_result = verify_uniform_batch_v3_exact_out_grid_optimality_certificate_v1(
+                    optimality_certificate=uniform_batch_optimality_certificate,
+                    uniform_batch_certificate=cert,
+                    intents=validation_intents,
+                    pool=pool,
+                    balances=state.balances,
+                    max_price_num=max_price_num,
+                    max_price_den=max_price_den,
+                )
+            except ValueError as exc:
+                return (
+                    "uniform batch optimality certificate rejected: "
+                    f"{_clean_error(exc)}"
+                ), None
+        else:
+            optimality_result = verify_uniform_batch_bound_optimality_certificate_v1(
+                optimality_certificate=uniform_batch_optimality_certificate,
+                uniform_batch_certificate=cert,
+            )
+        if not optimality_result.ok:
+            return (
+                "uniform batch optimality certificate rejected: "
+                f"{optimality_result.error or 'invalid certificate'}"
+            ), None
+    try:
+        computed_settlement = build_uniform_batch_settlement_v1(
+            intents=validation_intents,
+            pool=pool,
+            balances=state.balances,
+            certificate=cert,
+        )
+    except Exception as exc:
+        return f"uniform batch certificate rejected: {_clean_error(exc)}", None
+    return None, computed_settlement
+
+
+def _compute_proof_commitments(
+    *,
+    config: DexEngineConfig,
+    state: DexState,
+    intents: List[Intent],
+    signing_dicts: List[Dict[str, Any]],
+    settlement: Settlement,
+    proof_scheme: Optional[str],
+) -> Tuple[Optional[str], str, str]:
+    """Derive the pre-state and batch commitments for an attached proof.
+
+    Behavior-preserving extraction of the ``proof is not None and
+    verifier_enforcing`` commitment block in apply_ops. Returns
+    ``(error, pre_state_commitment, batch_commitment)``; on any reject the error
+    string matches the inline version and the commitment values are unspecified
+    (the caller returns immediately on a non-None error, matching prior control
+    flow). On success the error is None and both commitments are populated.
+    """
+    try:
+        require_normal_form(intents, strict_lp_order=True)
+    except IntentNormalFormError as exc:
+        return f"intents not in normal form: {_clean_error(exc)}", "0x0", "0x0"
+
+    try:
+        if proof_scheme in ("recompute_batch_v3", "recompute_batch_v4"):
+            pre_state_commitment = compute_support_state_root_for_batch(
+                intents=intents,
+                balances=state.balances,
+                pools=state.pools,
+                lp_balances=state.lp_balances,
+                nonces=state.nonces,
+            )
+        else:
+            pre_state_commitment = compute_state_root(
+                balances=state.balances,
+                pools=state.pools,
+                lp_balances=state.lp_balances,
+                nonces=state.nonces,
+                fee_accumulator=state.fee_accumulator,
+            )
+    except Exception as exc:
+        return f"invalid state for commitment: {exc}", "0x0", "0x0"
+
+    try:
+        if proof_scheme == "recompute_batch_v4":
+            op3 = create_settlement_operation(settlement).get("3")
+            if not isinstance(op3, dict):
+                raise TypeError("settlement operation must be an object")
+            settlement_obj_for_commit = normalize_settlement_op_for_commitment(op3)
+        else:
+            settlement_obj_for_commit = _settlement_commitment_dict(settlement)
+    except Exception as exc:
+        return f"invalid settlement payload for commitment: {exc}", pre_state_commitment, "0x0"
+    try:
+        bounded_json_utf8_size(settlement_obj_for_commit, max_bytes=config.max_settlement_bytes)
+    except ValueError:
+        return "settlement payload too large", pre_state_commitment, "0x0"
+    except Exception as exc:
+        return f"invalid settlement payload: {exc}", pre_state_commitment, "0x0"
+
+    batch_payload = {
+        "schema": "zenodex_batch",
+        "schema_version": 1,
+        "canonical_encoding_version": CANONICAL_ENCODING_VERSION,
+        "intents": signing_dicts,
+        "settlement": settlement_obj_for_commit,
+    }
+    try:
+        bounded_json_utf8_size(
+            batch_payload,
+            max_bytes=(config.max_total_intent_bytes + config.max_settlement_bytes + 8192),
+        )
+        batch_commitment = sha256_hex(
+            domain_sep_bytes("dex_batch", version=1) + canonical_json_bytes(batch_payload)
+        )
+    except ValueError:
+        return "batch payload too large", pre_state_commitment, "0x0"
+    except Exception as exc:
+        return f"invalid batch payload: {exc}", pre_state_commitment, "0x0"
+
+    return None, pre_state_commitment, batch_commitment
+
+
 def apply_ops(
     *,
     config: DexEngineConfig,
@@ -1305,36 +1525,14 @@ def apply_ops(
         uniform_batch_v3_exact_out_grid = (
             getattr(settlement_env, "uniform_batch_v3_exact_out_grid", None) if settlement_env else None
         )
-        if uniform_batch_optimality_certificate is not None and uniform_batch_certificate is None:
-            return DexTxResult(
-                ok=False,
-                error="uniform batch optimality certificate requires uniform batch certificate",
-            )
-        if uniform_batch_v2_bounded_grid is not None and uniform_batch_certificate is None:
-            return DexTxResult(
-                ok=False,
-                error="uniform batch v2 bounded-grid evidence requires uniform batch certificate",
-            )
-        if uniform_batch_v3_exact_out_grid is not None and uniform_batch_certificate is None:
-            return DexTxResult(
-                ok=False,
-                error="uniform batch v3 exact-out grid evidence requires uniform batch certificate",
-            )
-        if uniform_batch_v2_bounded_grid is not None and uniform_batch_optimality_certificate is None:
-            return DexTxResult(
-                ok=False,
-                error="uniform batch v2 bounded-grid evidence requires optimality certificate",
-            )
-        if uniform_batch_v3_exact_out_grid is not None and uniform_batch_optimality_certificate is None:
-            return DexTxResult(
-                ok=False,
-                error="uniform batch v3 exact-out grid evidence requires optimality certificate",
-            )
-        if uniform_batch_v2_bounded_grid is not None and uniform_batch_v3_exact_out_grid is not None:
-            return DexTxResult(
-                ok=False,
-                error="uniform batch bounded-grid evidence provided twice",
-            )
+        err = _validate_uniform_batch_evidence_consistency(
+            uniform_batch_certificate=uniform_batch_certificate,
+            uniform_batch_optimality_certificate=uniform_batch_optimality_certificate,
+            uniform_batch_v2_bounded_grid=uniform_batch_v2_bounded_grid,
+            uniform_batch_v3_exact_out_grid=uniform_batch_v3_exact_out_grid,
+        )
+        if err is not None:
+            return DexTxResult(ok=False, error=err)
         proof_scheme: Optional[str] = None
         if proof is not None:
             scheme_raw = proof.get("scheme")
@@ -1417,128 +1615,17 @@ def apply_ops(
         computed_settlement: Optional[Settlement] = None
         if intents:
             if uniform_batch_certificate is not None:
-                if not config.allow_uniform_batch_certificate:
-                    return DexTxResult(ok=False, error="uniform batch certificate not enabled")
-                try:
-                    cert = UniformBatchCertificateV1.from_obj(uniform_batch_certificate)
-                except Exception as exc:
-                    return DexTxResult(
-                        ok=False,
-                        error=f"uniform batch certificate rejected: {_clean_error(exc)}",
-                    )
-                if (
-                    cert.policy_id == UNIFORM_BATCH_POLICY_V2_ID
-                    and not config.allow_uniform_batch_partial_fill_certificate
-                ):
-                    return DexTxResult(
-                        ok=False,
-                        error="uniform batch v2 partial-fill certificate not enabled",
-                    )
-                pool = state.pools.get(cert.pool_id)
-                if pool is None:
-                    return DexTxResult(
-                        ok=False,
-                        error=f"uniform batch certificate pool not found: {cert.pool_id}",
-                    )
-                if config.require_uniform_batch_optimality_certificate and uniform_batch_optimality_certificate is None:
-                    return DexTxResult(ok=False, error="uniform batch optimality certificate required")
-                if (
-                    config.require_uniform_batch_v2_bounded_grid_optimality
-                    and cert.policy_id == UNIFORM_BATCH_POLICY_V2_ID
-                    and uniform_batch_v2_bounded_grid is None
-                ):
-                    return DexTxResult(
-                        ok=False,
-                        error="uniform batch v2 bounded-grid evidence required",
-                    )
-                if (
-                    config.require_uniform_batch_v3_exact_out_grid_optimality
-                    and cert.policy_id == UNIFORM_BATCH_POLICY_V3_ID
-                    and uniform_batch_v3_exact_out_grid is None
-                ):
-                    return DexTxResult(
-                        ok=False,
-                        error="uniform batch v3 exact-out grid evidence required",
-                    )
-                if uniform_batch_v2_bounded_grid is not None and cert.policy_id != UNIFORM_BATCH_POLICY_V2_ID:
-                    return DexTxResult(
-                        ok=False,
-                        error="uniform batch v2 bounded-grid evidence requires v2 uniform batch certificate",
-                    )
-                if uniform_batch_v3_exact_out_grid is not None and cert.policy_id != UNIFORM_BATCH_POLICY_V3_ID:
-                    return DexTxResult(
-                        ok=False,
-                        error="uniform batch v3 exact-out grid evidence requires v3 uniform batch certificate",
-                    )
-                if uniform_batch_optimality_certificate is not None:
-                    if uniform_batch_v2_bounded_grid is not None:
-                        try:
-                            optimality_result = verify_uniform_batch_v2_bounded_grid_optimality_certificate_v1(
-                                optimality_certificate=uniform_batch_optimality_certificate,
-                                uniform_batch_certificate=cert,
-                                intents=validation_intents,
-                                pool=pool,
-                                balances=state.balances,
-                                max_price_num=uniform_batch_v2_bounded_grid["max_price_num"],
-                                max_price_den=uniform_batch_v2_bounded_grid["max_price_den"],
-                                fill_vectors=uniform_batch_v2_bounded_grid["fill_vectors"],
-                                expected_table_root=uniform_batch_v2_bounded_grid.get("table_root"),
-                            )
-                        except KeyError as exc:
-                            return DexTxResult(
-                                ok=False,
-                                error=(
-                                    "uniform batch optimality certificate rejected: "
-                                    f"uniform batch v2 bounded-grid evidence missing {str(exc)}"
-                                ),
-                            )
-                    elif uniform_batch_v3_exact_out_grid is not None:
-                        try:
-                            max_price_num, max_price_den = _v3_exact_out_grid_bounds(
-                                uniform_batch_v3_exact_out_grid
-                            )
-                            optimality_result = verify_uniform_batch_v3_exact_out_grid_optimality_certificate_v1(
-                                optimality_certificate=uniform_batch_optimality_certificate,
-                                uniform_batch_certificate=cert,
-                                intents=validation_intents,
-                                pool=pool,
-                                balances=state.balances,
-                                max_price_num=max_price_num,
-                                max_price_den=max_price_den,
-                            )
-                        except ValueError as exc:
-                            return DexTxResult(
-                                ok=False,
-                                error=(
-                                    "uniform batch optimality certificate rejected: "
-                                    f"{_clean_error(exc)}"
-                                ),
-                            )
-                    else:
-                        optimality_result = verify_uniform_batch_bound_optimality_certificate_v1(
-                            optimality_certificate=uniform_batch_optimality_certificate,
-                            uniform_batch_certificate=cert,
-                        )
-                    if not optimality_result.ok:
-                        return DexTxResult(
-                            ok=False,
-                            error=(
-                                "uniform batch optimality certificate rejected: "
-                                f"{optimality_result.error or 'invalid certificate'}"
-                            ),
-                        )
-                try:
-                    computed_settlement = build_uniform_batch_settlement_v1(
-                        intents=validation_intents,
-                        pool=pool,
-                        balances=state.balances,
-                        certificate=cert,
-                    )
-                except Exception as exc:
-                    return DexTxResult(
-                        ok=False,
-                        error=f"uniform batch certificate rejected: {_clean_error(exc)}",
-                    )
+                err, computed_settlement = _compute_uniform_batch_certificate_settlement(
+                    config=config,
+                    state=state,
+                    validation_intents=validation_intents,
+                    uniform_batch_certificate=uniform_batch_certificate,
+                    uniform_batch_optimality_certificate=uniform_batch_optimality_certificate,
+                    uniform_batch_v2_bounded_grid=uniform_batch_v2_bounded_grid,
+                    uniform_batch_v3_exact_out_grid=uniform_batch_v3_exact_out_grid,
+                )
+                if err is not None:
+                    return DexTxResult(ok=False, error=err)
             else:
                 computed_settlement = compute_settlement(
                     intents=intents,
@@ -1601,67 +1688,16 @@ def apply_ops(
         if proof is not None and verifier_enforcing:
             if settlement is None:
                 return DexTxResult(ok=False, error="proof requires settlement")
-            try:
-                require_normal_form(intents, strict_lp_order=True)
-            except IntentNormalFormError as exc:
-                return DexTxResult(ok=False, error=f"intents not in normal form: {_clean_error(exc)}")
-
-            try:
-                if proof_scheme in ("recompute_batch_v3", "recompute_batch_v4"):
-                    pre_state_commitment = compute_support_state_root_for_batch(
-                        intents=intents,
-                        balances=state.balances,
-                        pools=state.pools,
-                        lp_balances=state.lp_balances,
-                        nonces=state.nonces,
-                    )
-                else:
-                    pre_state_commitment = compute_state_root(
-                        balances=state.balances,
-                        pools=state.pools,
-                        lp_balances=state.lp_balances,
-                        nonces=state.nonces,
-                        fee_accumulator=state.fee_accumulator,
-                    )
-            except Exception as exc:
-                return DexTxResult(ok=False, error=f"invalid state for commitment: {exc}")
-
-            try:
-                if proof_scheme == "recompute_batch_v4":
-                    op3 = create_settlement_operation(settlement).get("3")
-                    if not isinstance(op3, dict):
-                        raise TypeError("settlement operation must be an object")
-                    settlement_obj_for_commit = normalize_settlement_op_for_commitment(op3)
-                else:
-                    settlement_obj_for_commit = _settlement_commitment_dict(settlement)
-            except Exception as exc:
-                return DexTxResult(ok=False, error=f"invalid settlement payload for commitment: {exc}")
-            try:
-                bounded_json_utf8_size(settlement_obj_for_commit, max_bytes=config.max_settlement_bytes)
-            except ValueError:
-                return DexTxResult(ok=False, error="settlement payload too large")
-            except Exception as exc:
-                return DexTxResult(ok=False, error=f"invalid settlement payload: {exc}")
-
-            batch_payload = {
-                "schema": "zenodex_batch",
-                "schema_version": 1,
-                "canonical_encoding_version": CANONICAL_ENCODING_VERSION,
-                "intents": signing_dicts,
-                "settlement": settlement_obj_for_commit,
-            }
-            try:
-                bounded_json_utf8_size(
-                    batch_payload,
-                    max_bytes=(config.max_total_intent_bytes + config.max_settlement_bytes + 8192),
-                )
-                batch_commitment = sha256_hex(
-                    domain_sep_bytes("dex_batch", version=1) + canonical_json_bytes(batch_payload)
-                )
-            except ValueError:
-                return DexTxResult(ok=False, error="batch payload too large")
-            except Exception as exc:
-                return DexTxResult(ok=False, error=f"invalid batch payload: {exc}")
+            err, pre_state_commitment, batch_commitment = _compute_proof_commitments(
+                config=config,
+                state=state,
+                intents=intents,
+                signing_dicts=signing_dicts,
+                settlement=settlement,
+                proof_scheme=proof_scheme,
+            )
+            if err is not None:
+                return DexTxResult(ok=False, error=err)
 
         if (
             settlement is not None
