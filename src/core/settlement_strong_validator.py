@@ -73,6 +73,13 @@ class _CowPairEntry:
     amount_out_filled: int
 
 
+@dataclass(frozen=True)
+class _QuoteBindingFields:
+    receipt_hash: object
+    pool_fingerprint: object
+    leg_index: object
+
+
 def _validate_strong_config(
     *,
     mode: str,
@@ -187,6 +194,109 @@ def _validate_fill_actions(*, settlement: Settlement, fill_by_id: Dict[str, Fill
         if f.action != action:
             return f"Fill.action mismatch for intent_id={intent_id}: {f.action} != {action}"
     return None
+
+
+def _quote_binding_fields(intent: Intent) -> _QuoteBindingFields:
+    return _QuoteBindingFields(
+        receipt_hash=intent.get_field("quote_receipt_hash"),
+        pool_fingerprint=intent.get_field("quote_pool_fingerprint"),
+        leg_index=intent.get_field("quote_receipt_leg_index"),
+    )
+
+
+def _quote_binding_metadata_error(
+    *,
+    intent: Intent,
+    allow_snapshot_bound_quote_bindings: bool,
+) -> Optional[str]:
+    fields = _quote_binding_fields(intent)
+    for check in (
+        _quote_binding_kind_error,
+        _invalid_quote_leg_index_error,
+        _quote_leg_transport_error,
+        _quote_hash_metadata_error,
+        _quote_pool_fingerprint_metadata_error,
+    ):
+        error = check(intent, fields, allow_snapshot_bound_quote_bindings)
+        if error is not None:
+            return error
+    return None
+
+
+def _has_quote_binding(fields: _QuoteBindingFields) -> bool:
+    return fields.receipt_hash is not None or fields.pool_fingerprint is not None or fields.leg_index is not None
+
+
+def _quote_binding_kind_error(
+    intent: Intent,
+    fields: _QuoteBindingFields,
+    _allow_snapshot_bound_quote_bindings: bool,
+) -> Optional[str]:
+    if _has_quote_binding(fields) and intent.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
+        return _quote_binding_error(
+            "quote receipt binding only supported for swap intents",
+            **_quote_binding_context(intent),
+            intent_kind=intent.kind.value,
+        )
+    return None
+
+
+def _invalid_quote_leg_index_error(
+    intent: Intent,
+    fields: _QuoteBindingFields,
+    _allow_snapshot_bound_quote_bindings: bool,
+) -> Optional[str]:
+    if fields.leg_index is not None and (not is_strict_int(fields.leg_index) or int(fields.leg_index) < 0):
+        return _quote_binding_error("invalid quote_receipt_leg_index", **_quote_binding_context(intent))
+    return None
+
+
+def _quote_leg_transport_error(
+    intent: Intent,
+    fields: _QuoteBindingFields,
+    _allow_snapshot_bound_quote_bindings: bool,
+) -> Optional[str]:
+    if fields.leg_index is not None:
+        return _quote_transport_metadata_error(intent)
+    return None
+
+
+def _quote_hash_metadata_error(
+    intent: Intent,
+    fields: _QuoteBindingFields,
+    _allow_snapshot_bound_quote_bindings: bool,
+) -> Optional[str]:
+    if fields.receipt_hash is None:
+        return None
+    if not isinstance(fields.receipt_hash, str) or not fields.receipt_hash:
+        return _quote_binding_error("invalid quote_receipt_hash", **_quote_binding_context(intent))
+    return _quote_transport_metadata_error(intent)
+
+
+def _quote_pool_fingerprint_metadata_error(
+    intent: Intent,
+    fields: _QuoteBindingFields,
+    allow_snapshot_bound_quote_bindings: bool,
+) -> Optional[str]:
+    if fields.pool_fingerprint is None:
+        return None
+    if not isinstance(fields.pool_fingerprint, str) or not fields.pool_fingerprint:
+        return _quote_binding_error("missing quote_pool_fingerprint", **_quote_binding_context(intent))
+    if not allow_snapshot_bound_quote_bindings:
+        return _quote_binding_error(
+            "quote receipt snapshot binding requires validated engine witness",
+            **_quote_binding_context(intent),
+            guidance="only pass sanitized quote_pool_fingerprint through the validated engine path",
+        )
+    return None
+
+
+def _quote_transport_metadata_error(intent: Intent) -> str:
+    return _quote_binding_error(
+        "quote receipt transport metadata requires validated engine witness",
+        **_quote_binding_context(intent),
+        guidance="strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation",
+    )
 
 
 def _validate_cow_pair_index(
@@ -359,54 +469,13 @@ def _validate_settlement_strong_impl(
 
     for intent_id, action in settlement.included_intents:
         it = intents_by_id[intent_id]
-        quote_receipt_hash = it.get_field("quote_receipt_hash")
-        quote_pool_fp = it.get_field("quote_pool_fingerprint")
-        quote_leg_index = it.get_field("quote_receipt_leg_index")
-        has_quote_binding = (
-            quote_receipt_hash is not None
-            or quote_pool_fp is not None
-            or quote_leg_index is not None
+        quote_binding_error = _quote_binding_metadata_error(
+            intent=it,
+            allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
         )
-        if has_quote_binding and it.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
-            return fail(
-                _quote_binding_error(
-                    "quote receipt binding only supported for swap intents",
-                    **_quote_binding_context(it),
-                    intent_kind=it.kind.value,
-                )
-            )
-        if quote_leg_index is not None and (
-            not is_strict_int(quote_leg_index) or int(quote_leg_index) < 0
-        ):
-            return fail(_quote_binding_error("invalid quote_receipt_leg_index", **_quote_binding_context(it)))
-        if quote_leg_index is not None:
-            return fail(
-                _quote_binding_error(
-                    "quote receipt transport metadata requires validated engine witness",
-                    **_quote_binding_context(it),
-                    guidance="strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation",
-                )
-            )
-        if quote_receipt_hash is not None:
-            if not isinstance(quote_receipt_hash, str) or not quote_receipt_hash:
-                return fail(_quote_binding_error("invalid quote_receipt_hash", **_quote_binding_context(it)))
-            return fail(
-                _quote_binding_error(
-                    "quote receipt transport metadata requires validated engine witness",
-                    **_quote_binding_context(it),
-                    guidance="strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation",
-                )
-            )
-        if quote_pool_fp is not None and (not isinstance(quote_pool_fp, str) or not quote_pool_fp):
-            return fail(_quote_binding_error("missing quote_pool_fingerprint", **_quote_binding_context(it)))
-        if quote_pool_fp is not None and not allow_snapshot_bound_quote_bindings:
-            return fail(
-                _quote_binding_error(
-                    "quote receipt snapshot binding requires validated engine witness",
-                    **_quote_binding_context(it),
-                    guidance="only pass sanitized quote_pool_fingerprint through the validated engine path",
-                )
-            )
+        if quote_binding_error is not None:
+            return fail(quote_binding_error)
+        quote_pool_fp = it.get_field("quote_pool_fingerprint")
 
         if action == FillAction.REJECT:
             continue
