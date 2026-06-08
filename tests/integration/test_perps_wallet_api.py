@@ -79,7 +79,13 @@ from src.integration.production_promotion_evidence import (
 )
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
-from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
+from src.core.perps import (
+    PERPS_STATE_VERSION,
+    PerpAccountState,
+    PerpClearinghouse2pMarketState,
+    PerpMarketState,
+    PerpsState,
+)
 import src.integration.perps_wallet_api as perps_wallet_api
 
 
@@ -2138,6 +2144,68 @@ def test_status_exposes_clearinghouse_np_markets_and_supported_actions(monkeypat
     assert market["accounts"][0]["account_pubkey"] == ALICE
     assert market["accounts"][0]["collateral_quote"] == 1_000
     assert market["accounts"][0]["quote_balance"] == 4_000
+
+
+def test_status_2p_summary_surfaces_breaker_and_position_cap_from_live_state(monkeypatch) -> None:
+    """The 2p `/status` summary must echo the live kernel circuit-breaker flag and
+    per-account position cap so the UI can render PerpCircuitBreakerBanner and keep
+    the client-side position cap enforced. The values are read from market.state
+    (not fabricated): we mutate the state to NON-default values and assert the
+    summary reflects exactly those, proving the fields are not hardcoded.
+    """
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    state = _state_with_advanced_market(quote_asset=quote_asset)
+    market = state.perps.markets[MARKET_ID]
+    assert isinstance(market, PerpClearinghouse2pMarketState)
+    # Defaults are breaker_active=False / breaker_last_trigger_epoch=0 /
+    # max_position_abs=1_000_000; mutate to distinct non-default values so an
+    # equality assertion can only pass if the summary reads from live state.
+    # (The dataclass is frozen but its `state` dict is mutable.)
+    now_epoch = int(market.state["now_epoch"])
+    market.state["breaker_active"] = True
+    market.state["breaker_last_trigger_epoch"] = now_epoch
+    market.state["max_position_abs"] = 4_321
+
+    _FakeClient.app_state = _wrapped_app_state(state)
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 200
+    summary = next(item for item in payload["status"]["markets"] if item["market_id"] == MARKET_ID)
+    assert summary["kind"] == "clearinghouse_2p_v1"
+    # Live risk controls surfaced for the UI bridge (the gap this test guards).
+    assert summary["breaker_active"] is True
+    assert summary["breaker_last_trigger_epoch"] == now_epoch
+    assert summary["max_position_abs"] == 4_321
+    assert summary["max_oracle_staleness_epochs"] == int(market.state["max_oracle_staleness_epochs"])
+    # `clearing_price_seen` + the oracle pair are the SETTLED-vs-PricePublished
+    # discriminators the UI stepper consumes; they must be present and reflect
+    # the live state exactly.
+    assert summary["clearing_price_seen"] == int(bool(market.state["clearing_price_seen"]))
+    assert summary["oracle_seen"] == int(bool(market.state["oracle_seen"]))
+    assert summary["oracle_last_update_epoch"] == int(market.state["oracle_last_update_epoch"])
+
+
+def test_status_np_summary_reports_breaker_inactive(monkeypatch) -> None:
+    """The N-party clearinghouse kernel has no circuit breaker, so its summary
+    must surface an explicit `breaker_active: False` (not omit it) — otherwise the
+    UI fail-closed default would force every NP market into reduce-only mode.
+    """
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_with_np_market_and_collateral(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 200
+    market = next(item for item in payload["status"]["markets"] if item["market_id"] == NP_MARKET_ID)
+    assert market["kind"] == "clearinghouse_np_v1"
+    assert market["breaker_active"] is False
 
 
 def test_prepare_np_submit_intent_builds_v12_sender_bound_operation(monkeypatch) -> None:

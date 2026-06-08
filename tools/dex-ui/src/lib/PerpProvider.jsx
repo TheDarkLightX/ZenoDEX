@@ -31,23 +31,27 @@ function _normalizePubkey(value) {
 function _derivePhase(market) {
     // Open: epoch is collecting orders. PricePublished: clearing price is set
     // for this epoch (only apply_funding allowed). Settled: epoch closed
-    // (advance_epoch required). The wallet status doesn't expose the phase
-    // directly, but the epoch numbers do.
+    // (advance_epoch required). The wallet /status payload now surfaces the
+    // exact kernel discriminators, so the phase is derived (not guessed).
     const now = Number(market?.now_epoch ?? 0);
     const cpSeen = Number(market?.clearing_price_seen ?? 0);
     const cpEpoch = Number(market?.clearing_price_epoch ?? 0);
     const cpE8 = Number(market?.clearing_price_e8 ?? 0);
-    // A clearing price set for the CURRENT epoch means it has been published.
-    if (cpSeen === 1 && cpEpoch === now && cpE8 > 0) return 'PricePublished';
-    // SETTLED is intentionally NOT inferred here. The authoritative kernel rule
-    // (src/core/perps.py `_infer_epoch_phase`) distinguishes SETTLED from
-    // PRICE_PUBLISHED via a `clearing_price_seen`/settled flag that the wallet
-    // /status payload does not expose — both phases share
-    // clearing_price_epoch == now_epoch. Guessing from epoch arithmetic alone
-    // (e.g. cpEpoch < now) would falsely label a freshly-advanced OPEN epoch as
-    // Settled. The honest fix is backend: surface clearing_price_seen in the 2p
-    // market summary, then resolve SETTLED here. Until then the stepper stops at
-    // PRICE_PUBLISHED rather than showing a false SETTLED.
+    // Mirror src/core/perps.py `_infer_epoch_phase` exactly (verified against the
+    // 2p kernel across OPEN/PRICE_PUBLISHED/SETTLED transitions):
+    //   PricePublished: clearing_price_seen && clearing_price_epoch == now_epoch
+    //   Settled:        + oracle_seen && oracle_last_update_epoch == now_epoch
+    // `clearing_price_seen` is True in BOTH PricePublished and Settled — it only
+    // separates Open from the rest. The SETTLED-vs-PricePublished discriminator
+    // is the oracle pair, which the backend now surfaces. We require the real
+    // `oracle_seen` flag (not epoch arithmetic) so a freshly-advanced OPEN epoch
+    // is never mislabelled as Settled.
+    if (cpSeen === 1 && cpEpoch === now && cpE8 > 0) {
+        const oracleSeen = Number(market?.oracle_seen ?? 0) === 1;
+        const oracleEpoch = Number(market?.oracle_last_update_epoch ?? 0);
+        if (oracleSeen && oracleEpoch === now) return 'Settled';
+        return 'PricePublished';
+    }
     return 'Open';
 }
 
@@ -62,13 +66,32 @@ function mapWalletMarketToProviderShape(walletMarket) {
     // Sensible defaults for fields the wallet status doesn't expose.
     // initialMarginBps is conventionally ~2x maintenance.
     const initBps = Math.max(maintBps * 2, 1_000);
+    // Fail-closed risk controls. The backend surfaces the kernel's real
+    // `breaker_active` flag and `max_position_abs` cap; if either is genuinely
+    // absent or malformed (a broken/old response), default to the SAFE state:
+    //  - breakerActive -> true  (reduce-only enforced; the banner shows; never
+    //    silently `false`, which would hide a live circuit breaker), and
+    //  - maxPositionAbs -> 0    (validateSetPosition rejects |position| > 0, i.e.
+    //    blocks new/increasing positions; never MAX_SAFE_INTEGER, which would
+    //    disable the cap). `?? 0` alone is insufficient because a non-numeric
+    //    value would yield NaN and `|pos| > NaN` is false — silently uncapped —
+    //    so we coerce any non-finite value back to the blocking 0.
+    const rawCap = Number(walletMarket.max_position_abs);
+    const safeMaxPositionAbs = Number.isFinite(rawCap) ? rawCap : 0;
+    const safeBreakerActive = typeof walletMarket.breaker_active === 'boolean'
+        ? walletMarket.breaker_active
+        : true;
     return {
         id,
         kind,
         quoteAsset: walletMarket.quote_asset || null,
         nowEpoch: now,
         oracleLastUpdateEpoch: oracleEpoch,
-        oracleSeen: oracleEpoch === now,
+        // Prefer the real kernel `oracle_seen` flag (now surfaced); fall back to
+        // epoch arithmetic only when the backend omits it.
+        oracleSeen: walletMarket.oracle_seen != null
+            ? Number(walletMarket.oracle_seen) === 1
+            : oracleEpoch === now,
         epochPhase: _derivePhase(walletMarket),
         indexPriceE8: Number(walletMarket.index_price_e8 ?? 0),
         clearingPriceE8: Number(walletMarket.clearing_price_e8 ?? 0),
@@ -76,12 +99,13 @@ function mapWalletMarketToProviderShape(walletMarket) {
         maintenanceMarginBps: maintBps,
         initialMarginBps: initBps,
         depegBufferBps: 0,
-        // Fields below are not exposed by wallet status — defaulted so the
-        // existing components don't NaN. Replace when the wallet API surfaces
-        // them or when a separate market-config endpoint is wired.
-        maxPositionAbs: Number(walletMarket.max_position_abs ?? Number.MAX_SAFE_INTEGER),
-        maxOracleStalenessEpochs: 4,
-        breakerActive: false,
+        // Real kernel risk controls (see fail-closed note above). The cap is
+        // enforced client-side in perpValidation.validateSetPosition; the breaker
+        // drives PerpCircuitBreakerBanner + reduce-only validation.
+        maxPositionAbs: safeMaxPositionAbs,
+        maxOracleStalenessEpochs: Number(walletMarket.max_oracle_staleness_epochs ?? 4),
+        breakerActive: safeBreakerActive,
+        breakerLastTriggerEpoch: Number(walletMarket.breaker_last_trigger_epoch ?? 0),
         accountCount: Number(walletMarket.account_count ?? 0),
         activeCount: Number(walletMarket.active_count ?? 0),
         longCount: Number(walletMarket.long_count ?? 0),

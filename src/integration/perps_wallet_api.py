@@ -2121,6 +2121,11 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
                     ),
                     "now_epoch": int(market.state.get("now_epoch", 0)),
                     "clearing_price_seen": int(bool(market.state.get("clearing_price_seen", False))),
+                    # `oracle_seen` + `oracle_last_update_epoch == now_epoch` is the
+                    # authoritative SETTLED-vs-PricePublished discriminator (mirrors
+                    # src/core/perps.py `_infer_epoch_phase`); surface the real flag so
+                    # the UI stepper does not have to guess SETTLED from epoch math.
+                    "oracle_seen": int(bool(market.state.get("oracle_seen", False))),
                     "oracle_last_update_epoch": int(market.state.get("oracle_last_update_epoch", 0)),
                     "clearing_price_epoch": int(market.state.get("clearing_price_epoch", 0)),
                     "clearing_price_e8": int(market.state.get("clearing_price_e8", 0)),
@@ -2134,6 +2139,17 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
                     "net_deposited_e8": int(market.state.get("net_deposited_e8", 0)),
                     "maintenance_margin_bps": int(market.state.get("maintenance_margin_bps", 0)),
                     "liquidation_penalty_bps": int(market.state.get("liquidation_penalty_bps", 0)),
+                    # Live risk controls the UI must reflect (no fabrication): the 2p
+                    # kernel stores a real circuit-breaker flag and per-account position
+                    # cap. Surfacing these lets PerpCircuitBreakerBanner render in live
+                    # mode and keeps the client-side position cap enforced instead of
+                    # silently disabled. These keys are structurally required by
+                    # PerpClearinghouse2pMarketState.__post_init__, so a missing key is a
+                    # real error rather than a silent unsafe default.
+                    "breaker_active": bool(market.state["breaker_active"]),
+                    "breaker_last_trigger_epoch": int(market.state["breaker_last_trigger_epoch"]),
+                    "max_position_abs": int(market.state["max_position_abs"]),
+                    "max_oracle_staleness_epochs": int(market.state.get("max_oracle_staleness_epochs", 0)),
                 }
             )
         elif isinstance(market, PerpClearinghouseNpMarketState):
@@ -2197,6 +2213,12 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
                     "initial_margin_bps": int(market.global_state.get("initial_margin_bps", 0)),
                     "liquidation_penalty_bps": int(market.global_state.get("liquidation_penalty_bps", 0)),
                     "max_position_abs": int(market.global_state.get("max_position_abs", 0)),
+                    # The N-party clearinghouse kernel has no circuit-breaker mechanism
+                    # (no `breaker_active` in PERP_CLEARINGHOUSE_NP_GLOBAL_KEYS), so it is
+                    # structurally never active. Surface an explicit `False` rather than
+                    # omitting the field so the UI fail-closed default (treat a missing
+                    # flag as breaker-active) cannot misfire on NP markets.
+                    "breaker_active": False,
                     "fee_pool_e8": int(market.global_state.get("fee_pool_e8", 0)),
                     "insurance_e8": int(market.global_state.get("insurance_e8", 0)),
                     "insurance_ext_e8": int(market.global_state.get("insurance_ext_e8", 0)),
