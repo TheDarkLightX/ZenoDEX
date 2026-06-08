@@ -36,6 +36,7 @@ _REPAIRED_KEY_COVER_INTERPRETATION_PACKET_ENDPOINT = (
     "/api/dex/build_exact_out_many_pool_repaired_key_cover_interpretation_packet"
 )
 _BOUNDED_ADVISORY_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_bounded_advisory_quote_packet"
+_CERTIFIED_ADVISORY_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_certified_advisory_packet"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -198,6 +199,20 @@ def _packet_build_response(
     }
     if not packet.packet_ok:
         response["error"] = str(packet.error or error_fallback)
+    return response
+
+
+def _certified_advisory_packet_response(*, packet: object, packet_schema: str) -> dict[str, object]:
+    response = _packet_build_response(
+        packet=packet,
+        packet_schema=packet_schema,
+        verify_packet_endpoint="/api/dex/verify_exact_out_many_pool_certified_advisory_packet",
+        error_fallback="many_pool_certified_advisory_packet_not_ok",
+    )
+    if not packet.packet_ok:
+        # The legacy endpoint always returned this route-level error, even when
+        # the packet carried a more specific internal reason.
+        response["error"] = "many_pool_certified_advisory_packet_not_ok"
     return response
 
 
@@ -1077,6 +1092,44 @@ def _handle_bounded_advisory_packet(
         )
 
 
+def _handle_certified_advisory_packet(
+    obj: dict[str, object],
+    parse_pools: ParsePools,
+    write_json: WriteJson,
+) -> None:
+    try:
+        req = _parse_request(obj, parse_pools, _FULL_REQUEST_FIELDS)
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            EXACT_OUT_MANY_POOL_CERTIFIED_ADVISORY_PACKET_SCHEMA,
+            build_exact_out_many_pool_certified_advisory_packet,
+        )
+
+        packet = build_exact_out_many_pool_certified_advisory_packet(
+            req.pools,
+            asset_in=req.asset_in,
+            asset_out=req.asset_out,
+            **req.values,
+        )
+        write_json(
+            200,
+            _certified_advisory_packet_response(
+                packet=packet,
+                packet_schema=EXACT_OUT_MANY_POOL_CERTIFIED_ADVISORY_PACKET_SCHEMA,
+            ),
+        )
+    except _BadRequest as exc:
+        _write_bad_request(write_json, exc)
+    except Exception:
+        write_json(
+            400,
+            {
+                "ok": False,
+                "error": "build_exact_out_many_pool_certified_advisory_packet_error",
+                "details": "request failed",
+            },
+        )
+
+
 def _repaired_full_domain_certified_payload(
     *,
     quote: object,
@@ -1179,4 +1232,5 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
         _handle_repaired_key_cover_interpretation_packet
     ),
     _BOUNDED_ADVISORY_PACKET_ENDPOINT: _simple_route(_handle_bounded_advisory_packet),
+    _CERTIFIED_ADVISORY_PACKET_ENDPOINT: _simple_route(_handle_certified_advisory_packet),
 }

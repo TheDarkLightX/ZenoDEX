@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
   "file_count": 430,
-  "function_count": 5679,
+  "function_count": 5681,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 741,
-      "lines": 3870
+      "complexity": 731,
+      "lines": 3796
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
       "complexity": 4,
@@ -9915,6 +9915,10 @@
       "complexity": 1,
       "lines": 46
     },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_certified_advisory_packet_response": {
+      "complexity": 2,
+      "lines": 12
+    },
     "src/integration/api_server_exact_out_many_pool_routes.py::_certified_advisory_quote_payload": {
       "complexity": 3,
       "lines": 27
@@ -9942,6 +9946,10 @@
     "src/integration/api_server_exact_out_many_pool_routes.py::_handle_candidate_domain_contract": {
       "complexity": 3,
       "lines": 43
+    },
+    "src/integration/api_server_exact_out_many_pool_routes.py::_handle_certified_advisory_packet": {
+      "complexity": 3,
+      "lines": 36
     },
     "src/integration/api_server_exact_out_many_pool_routes.py::_handle_certified_advisory_quote": {
       "complexity": 3,
@@ -22721,17 +22729,17 @@
     }
   },
   "line_budget": 60,
-  "max_complexity": 741,
-  "max_function_lines": 3870,
+  "max_complexity": 731,
+  "max_function_lines": 3796,
   "over_complexity_budget_count": 1605,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
     {
-      "complexity": 741,
-      "line_end": 5029,
+      "complexity": 731,
+      "line_end": 4955,
       "line_start": 1160,
-      "lines": 3870,
+      "lines": 3796,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
@@ -22890,10 +22898,10 @@
   ],
   "top_lines": [
     {
-      "complexity": 741,
-      "line_end": 5029,
+      "complexity": 731,
+      "line_end": 4955,
       "line_start": 1160,
-      "lines": 3870,
+      "lines": 3796,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
