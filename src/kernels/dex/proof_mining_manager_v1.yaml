@@ -239,7 +239,7 @@ actions:
                       cond: { op: "=", args: [{ var: "epoch" }, { const: 3 }] }
                       then: { op: "div", args: [{ var: "base_reward" }, { const: 8 }] }
                       else: { const: 0 }
-              else: { const: 1 }
+              else: { const: 0 }
     updates:
       - var: "reward_pool_balance"
         expr:
@@ -284,7 +284,7 @@ actions:
                       cond: { op: "=", args: [{ var: "epoch" }, { const: 3 }] }
                       then: { op: "div", args: [{ var: "base_reward" }, { const: 8 }] }
                       else: { const: 0 }
-              else: { const: 1 }
+              else: { const: 0 }
       - var: "total_paid"
         expr:
           op: "+"
@@ -328,7 +328,7 @@ actions:
                       cond: { op: "=", args: [{ var: "epoch" }, { const: 3 }] }
                       then: { op: "div", args: [{ var: "base_reward" }, { const: 8 }] }
                       else: { const: 0 }
-              else: { const: 1 }
+              else: { const: 0 }
 
       - var: "claimed_0"
         expr:
@@ -420,6 +420,6 @@ actions:
                 cond: { op: "=", args: [{ var: "epoch" }, { const: 3 }] }
                 then: { op: "div", args: [{ var: "base_reward" }, { const: 8 }] }
                 else: { const: 0 }
-        else: { const: 1 }
+        else: { const: 0 }
       reward_kind: { enum: "TreasuryTransfer" }
       paid: { bool: true }
