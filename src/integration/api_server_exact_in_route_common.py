@@ -13,6 +13,15 @@ class ExactInRouteRequest:
     binding_ok: int
 
 
+@dataclass(frozen=True)
+class ExactInRouteNoBindingRequest:
+    asset_in: str
+    asset_out: str
+    amount_in: int
+    split_search_profile: str
+    enable_mixed_direct_twohop_split: bool
+
+
 class BadRequest(Exception):
     def __init__(self, error: str) -> None:
         super().__init__(error)
@@ -28,6 +37,17 @@ def parse_exact_in_route_request(obj: dict[str, object]) -> ExactInRouteRequest:
         split_search_profile=_split_search_profile(obj),
         enable_mixed_direct_twohop_split=_enable_mixed_direct_twohop_split(obj),
         binding_ok=_binding_ok(obj),
+    )
+
+
+def parse_exact_in_route_no_binding_request(obj: dict[str, object]) -> ExactInRouteNoBindingRequest:
+    asset_in, asset_out = _assets(obj)
+    return ExactInRouteNoBindingRequest(
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_in=_amount_in(obj),
+        split_search_profile=_split_search_profile(obj),
+        enable_mixed_direct_twohop_split=_enable_mixed_direct_twohop_split(obj),
     )
 
 

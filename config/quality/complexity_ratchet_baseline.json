@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
-  "file_count": 439,
-  "function_count": 5748,
+  "file_count": 440,
+  "function_count": 5754,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 426,
-      "lines": 1939
+      "complexity": 413,
+      "lines": 1875
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
       "complexity": 4,
@@ -9915,6 +9915,10 @@
       "complexity": 2,
       "lines": 5
     },
+    "src/integration/api_server_exact_in_route_common.py::parse_exact_in_route_no_binding_request": {
+      "complexity": 1,
+      "lines": 9
+    },
     "src/integration/api_server_exact_in_route_common.py::parse_exact_in_route_request": {
       "complexity": 1,
       "lines": 10
@@ -9970,6 +9974,26 @@
     "src/integration/api_server_exact_in_route_quote_routes.py::maybe_handle_exact_in_route_quote_route": {
       "complexity": 2,
       "lines": 12
+    },
+    "src/integration/api_server_exact_in_route_rank_projection_routes.py::RankProjectionPacket.to_dict": {
+      "complexity": 1,
+      "lines": 2
+    },
+    "src/integration/api_server_exact_in_route_rank_projection_routes.py::_handle_build_rank_projection_packet": {
+      "complexity": 3,
+      "lines": 28
+    },
+    "src/integration/api_server_exact_in_route_rank_projection_routes.py::_handle_verify_rank_projection_packet": {
+      "complexity": 3,
+      "lines": 17
+    },
+    "src/integration/api_server_exact_in_route_rank_projection_routes.py::_write_build_packet_success": {
+      "complexity": 2,
+      "lines": 13
+    },
+    "src/integration/api_server_exact_in_route_rank_projection_routes.py::maybe_handle_exact_in_route_rank_projection_route": {
+      "complexity": 3,
+      "lines": 14
     },
     "src/integration/api_server_exact_out_audit_routes.py::_BadRequest.__init__": {
       "complexity": 1,
@@ -22997,17 +23021,17 @@
     }
   },
   "line_budget": 60,
-  "max_complexity": 426,
-  "max_function_lines": 1939,
+  "max_complexity": 413,
+  "max_function_lines": 1925,
   "over_complexity_budget_count": 1605,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
     {
-      "complexity": 426,
-      "line_end": 3098,
+      "complexity": 413,
+      "line_end": 3034,
       "line_start": 1160,
-      "lines": 1939,
+      "lines": 1875,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
@@ -23166,20 +23190,20 @@
   ],
   "top_lines": [
     {
-      "complexity": 426,
-      "line_end": 3098,
-      "line_start": 1160,
-      "lines": 1939,
-      "name": "_Handler._maybe_handle_dex_api",
-      "path": "src/integration/api_server.py"
-    },
-    {
       "complexity": 100,
       "line_end": 3324,
       "line_start": 1400,
       "lines": 1925,
       "name": "prepare_autotrader_live_quote_receipt",
       "path": "src/integration/autotrader_live.py"
+    },
+    {
+      "complexity": 413,
+      "line_end": 3034,
+      "line_start": 1160,
+      "lines": 1875,
+      "name": "_Handler._maybe_handle_dex_api",
+      "path": "src/integration/api_server.py"
     },
     {
       "complexity": 1,
