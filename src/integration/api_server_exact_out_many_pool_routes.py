@@ -51,6 +51,8 @@ _GUARD_CANONICALITY_ENDPOINT = "/api/dex/guard_exact_out_many_pool_canonicality"
 _GUARDED_QUOTE_ENDPOINT = "/api/dex/quote_exact_out_many_pool_guarded"
 _GUARDED_QUOTE_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_guarded_quote_packet"
 _VERIFY_GUARDED_QUOTE_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_guarded_quote_packet"
+_CERTIFIED_WINNER_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_certified_winner_packet"
+_VERIFY_CERTIFIED_WINNER_PACKET_ENDPOINT = "/api/dex/verify_exact_out_many_pool_certified_winner_packet"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -1649,6 +1651,76 @@ def _handle_verify_guarded_quote_packet(
         )
 
 
+def _handle_certified_winner_packet(
+    obj: dict[str, object],
+    parse_pools: ParsePools,
+    write_json: WriteJson,
+) -> None:
+    try:
+        req = _parse_request(obj, parse_pools, _FULL_REQUEST_FIELDS)
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            EXACT_OUT_MANY_POOL_CERTIFIED_WINNER_PACKET_SCHEMA,
+            build_exact_out_many_pool_certified_winner_packet,
+        )
+
+        packet = build_exact_out_many_pool_certified_winner_packet(
+            req.pools,
+            asset_in=req.asset_in,
+            asset_out=req.asset_out,
+            **req.values,
+        )
+        write_json(
+            200,
+            {
+                "ok": True,
+                "packet": packet.to_dict(),
+                "packet_schema": EXACT_OUT_MANY_POOL_CERTIFIED_WINNER_PACKET_SCHEMA,
+                "verify_packet_endpoint": _VERIFY_CERTIFIED_WINNER_PACKET_ENDPOINT,
+            },
+        )
+    except _BadRequest as exc:
+        _write_bad_request(write_json, exc)
+    except Exception:
+        write_json(
+            400,
+            {
+                "ok": False,
+                "error": "build_exact_out_many_pool_certified_winner_packet_error",
+                "details": "request failed",
+            },
+        )
+
+
+def _handle_verify_certified_winner_packet(
+    obj: dict[str, object],
+    _parse_pools: ParsePools,
+    write_json: WriteJson,
+) -> None:
+    packet = obj.get("packet")
+    if not isinstance(packet, dict):
+        write_json(400, {"ok": False, "error": "bad_packet"})
+        return
+    try:
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            verify_exact_out_many_pool_certified_winner_packet_payload,
+        )
+
+        ok, err = verify_exact_out_many_pool_certified_winner_packet_payload(packet)
+        if ok:
+            write_json(200, {"ok": True})
+        else:
+            write_json(200, {"ok": False, "error": err or "certified winner packet verification failed"})
+    except Exception:
+        write_json(
+            400,
+            {
+                "ok": False,
+                "error": "verify_exact_out_many_pool_certified_winner_packet_error",
+                "details": "request failed",
+            },
+        )
+
+
 def _repaired_full_domain_certified_payload(
     *,
     quote: object,
@@ -1781,4 +1853,6 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _GUARDED_QUOTE_ENDPOINT: _guarded_quote_route,
     _GUARDED_QUOTE_PACKET_ENDPOINT: _simple_route(_handle_guarded_quote_packet),
     _VERIFY_GUARDED_QUOTE_PACKET_ENDPOINT: _simple_route(_handle_verify_guarded_quote_packet),
+    _CERTIFIED_WINNER_PACKET_ENDPOINT: _simple_route(_handle_certified_winner_packet),
+    _VERIFY_CERTIFIED_WINNER_PACKET_ENDPOINT: _simple_route(_handle_verify_certified_winner_packet),
 }

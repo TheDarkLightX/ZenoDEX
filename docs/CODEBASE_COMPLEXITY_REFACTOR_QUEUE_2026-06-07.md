@@ -18,11 +18,11 @@ behaviorally incorrect.
 | Metric | Value |
 | --- | ---: |
 | Python source files scanned | 430 |
-| Functions scanned | 5,696 |
+| Functions scanned | 5,698 |
 | Functions over complexity 5 | 1,605 |
 | Functions over 60 lines | 435 |
-| Maximum complexity | 637 |
-| Maximum function length | 3,045 lines |
+| Maximum complexity | 623 |
+| Maximum function length | 2,951 lines |
 
 ## Refactor Principles
 
@@ -40,7 +40,7 @@ behaviorally incorrect.
 
 | Rank | Location | Size | Grade | Why It Is Risky | First Extraction |
 | ---: | --- | ---: | --- | --- | --- |
-| 1 | `src/integration/api_server.py::_Handler._maybe_handle_dex_api` | 637 complexity, 3,045 lines | D | One method mixes routing, auth, JSON parsing, DTO coercion, service calls, and response shaping for many unrelated API families. It is the highest injection and regression surface in the repo. | Continue the route-table extraction. The read-only routes live in `api_server_dex_readonly_routes.py`; exact-out many-pool contract builders, repaired-selected-domain quotes, repaired-advisory quotes, repaired-full-domain certified quotes, bounded-advisory quotes, the default certified-advisory quote, the adaptive liveness quote, the certified-advisory quote, repaired-advisory packet builder, repaired-full-domain certified packet builder, repaired-key-cover packet builder, repaired-key-cover interpretation packet builder, bounded-advisory packet builder, certified-advisory packet builder, replacement-shadow packet builder, default packet builder, bounded-workaround packet builder, oracle contract builder, audited-bounds contract builder, adaptive-liveness packet builder, canonicality guard route, guarded quote route, guarded quote packet builder, and guarded quote packet verifier live in `api_server_exact_out_many_pool_routes.py`; the next slice is exact-out many-pool certified-winner packet build and verify routes. |
+| 1 | `src/integration/api_server.py::_Handler._maybe_handle_dex_api` | 623 complexity, 2,951 lines | D | One method mixes routing, auth, JSON parsing, DTO coercion, service calls, and response shaping for many unrelated API families. It is the highest injection and regression surface in the repo. | Continue the route-table extraction. The read-only routes live in `api_server_dex_readonly_routes.py`; exact-out many-pool contract builders, repaired-selected-domain quotes, repaired-advisory quotes, repaired-full-domain certified quotes, bounded-advisory quotes, the default certified-advisory quote, the adaptive liveness quote, the certified-advisory quote, repaired-advisory packet builder, repaired-full-domain certified packet builder, repaired-key-cover packet builder, repaired-key-cover interpretation packet builder, bounded-advisory packet builder, certified-advisory packet builder, replacement-shadow packet builder, default packet builder, bounded-workaround packet builder, oracle contract builder, audited-bounds contract builder, adaptive-liveness packet builder, canonicality guard route, guarded quote route, guarded quote packet builder and verifier, and certified-winner packet builder and verifier live in `api_server_exact_out_many_pool_routes.py`; the next slice is the exact-out many-pool remaining packet-verify routes. |
 | 2 | `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl` | 190 complexity, 612 lines | C- | This is a fail-closed value-moving acceptance gate. The logic is conceptually right, but duplicate-ID checks, fill coverage, replay, deltas, events, LP effects, and conservation live in one control flow. | Extract pure rule functions returning `(ok, error)`: `IntentIdRule`, `IncludedIntentRule`, `FillCoverageRule`, `CowPairRule`, `ReplayDeltaRule`, `EventRule`, `ConservationRule`. |
 | 3 | `src/integration/dex_snapshot.py::state_from_snapshot` | 126 complexity, 622 lines | C- | Snapshot hydration is consensus-adjacent because bad defaults or weak parsing can create forked local state. Many schema branches share one broad parser. | Split into typed parsers per section: balances, pools, LP, fees, nonces, confidential requests, oracle metadata. Add round-trip tests section by section. |
 | 4 | `src/integration/dex_engine.py::apply_ops` | 118 complexity, 549 lines | C- | Operation application is an orchestration choke point. Mixed dispatch and mutation increases the chance that an operation bypasses a guard. | Replace the branch ladder with an `op_type -> apply_*` dispatch table. Each handler should receive validated DTOs and return data-only effects. |
@@ -92,13 +92,14 @@ in small route-family PRs. The first safe slice has landed:
    `guard_exact_out_many_pool_canonicality`, and
    `quote_exact_out_many_pool_guarded`, and
    `build_exact_out_many_pool_guarded_quote_packet`, and
-   `verify_exact_out_many_pool_guarded_quote_packet`.
+   `verify_exact_out_many_pool_guarded_quote_packet`, and
+   `build_exact_out_many_pool_certified_winner_packet`, and
+   `verify_exact_out_many_pool_certified_winner_packet`.
 3. `_maybe_handle_dex_api` remains the dispatcher and response writer.
 4. Focused route tests cover success, error mapping, unhandled-path behavior,
    bad integer fields, and pool-parse error precedence.
 5. The baseline records the reduced handler complexity and line count.
 
-Next, move `build_exact_out_many_pool_certified_winner_packet` and the remaining
-exact-out many-pool packet-build and packet-verify endpoints one family at a time
+Next, move the remaining exact-out many-pool packet-verify endpoints one family at a time
 with mutation tests for auth bypass, malformed integer fields, oversized search
 budgets, and bad quote/proof packet receipts.
