@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
-  "file_count": 445,
-  "function_count": 5847,
+  "file_count": 446,
+  "function_count": 5850,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 171,
-      "lines": 1111
+      "complexity": 167,
+      "lines": 1080
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
       "complexity": 4,
@@ -10444,6 +10444,18 @@
       "lines": 20
     },
     "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::maybe_handle_settlement_endogenous_lp_value_packet_route": {
+      "complexity": 3,
+      "lines": 13
+    },
+    "src/integration/api_server_settlement_feature_extension_routes.py::_handle_build_feature_extension_packet": {
+      "complexity": 2,
+      "lines": 19
+    },
+    "src/integration/api_server_settlement_feature_extension_routes.py::_handle_verify_feature_extension_packet": {
+      "complexity": 3,
+      "lines": 21
+    },
+    "src/integration/api_server_settlement_feature_extension_routes.py::maybe_handle_settlement_feature_extension_route": {
       "complexity": 3,
       "lines": 13
     },
@@ -23408,10 +23420,10 @@
       "path": "src/core/settlement_strong_validator.py"
     },
     {
-      "complexity": 171,
-      "line_end": 2270,
+      "complexity": 167,
+      "line_end": 2239,
       "line_start": 1160,
-      "lines": 1111,
+      "lines": 1080,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },
@@ -23570,10 +23582,10 @@
       "path": "src/integration/autotrader_live.py"
     },
     {
-      "complexity": 171,
-      "line_end": 2270,
+      "complexity": 167,
+      "line_end": 2239,
       "line_start": 1160,
-      "lines": 1111,
+      "lines": 1080,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
     },

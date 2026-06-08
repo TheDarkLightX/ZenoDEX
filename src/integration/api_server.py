@@ -1789,51 +1789,20 @@ class _Handler(BaseHTTPRequestHandler):
         ):
             return True
 
-        if path == "/api/dex/build_settlement_feature_extension_packet":
-            feature_extension_inputs_obj = obj.get("feature_extension_inputs")
-            try:
-                from src.integration.settlement_feature_extension_packet import (  # pylint: disable=import-outside-toplevel
-                    build_settlement_feature_extension_packet,
-                )
+        from src.integration.api_server_settlement_feature_extension_routes import (  # pylint: disable=import-outside-toplevel
+            maybe_handle_settlement_feature_extension_route,
+        )
 
-                feature_extension_inputs = _parse_settlement_feature_extension_inputs_payload(
-                    feature_extension_inputs_obj
-                )
-                packet = build_settlement_feature_extension_packet(feature_extension_inputs)
-                self._write_json(200, {"ok": True, "packet": packet.to_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_settlement_feature_extension_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_settlement_feature_extension_packet":
-            feature_extension_inputs_obj = obj.get("feature_extension_inputs")
-            packet_obj = obj.get("packet")
-            if not isinstance(packet_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.settlement_feature_extension_packet import (  # pylint: disable=import-outside-toplevel
-                    verify_settlement_feature_extension_packet_payload,
-                )
-
-                ok, err = verify_settlement_feature_extension_packet_payload(
-                    inputs_payload=feature_extension_inputs_obj,
-                    packet_payload=packet_obj,
-                )
-                self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_settlement_feature_extension_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
+        if maybe_handle_settlement_feature_extension_route(
+            path=path,
+            obj=obj,
+            write_json=lambda status, payload: self._write_json(
+                status,
+                payload,
+                cors_origin=cors_origin,
+            ),
+        ):
+            return True
 
         if path == "/api/dex/build_settlement_end_to_end_certificate_packet":
             settlement_obj = obj.get("settlement")
