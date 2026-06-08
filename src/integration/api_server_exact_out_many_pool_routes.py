@@ -43,6 +43,7 @@ _REPLACEMENT_SHADOW_PACKET_ENDPOINT = (
 _DEFAULT_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_default_packet"
 _BOUNDED_WORKAROUND_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_bounded_workaround_packet"
 _ORACLE_CONTRACT_ENDPOINT = "/api/dex/build_exact_out_many_pool_oracle_contract"
+_AUDITED_BOUNDS_CONTRACT_ENDPOINT = "/api/dex/build_exact_out_many_pool_audited_bounds_contract"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -1312,6 +1313,46 @@ def _handle_oracle_contract(
         )
 
 
+def _handle_audited_bounds_contract(
+    obj: dict[str, object],
+    parse_pools: ParsePools,
+    write_json: WriteJson,
+) -> None:
+    try:
+        req = _parse_request(obj, parse_pools, _FULL_REQUEST_FIELDS)
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            EXACT_OUT_MANY_POOL_AUDITED_BOUNDS_CONTRACT_SCHEMA,
+            build_exact_out_many_pool_audited_bounds_contract,
+        )
+
+        contract = build_exact_out_many_pool_audited_bounds_contract(
+            req.pools,
+            asset_in=req.asset_in,
+            asset_out=req.asset_out,
+            **req.values,
+        )
+        write_json(
+            200,
+            {
+                "ok": True,
+                "contract": contract.to_dict(),
+                "contract_schema": EXACT_OUT_MANY_POOL_AUDITED_BOUNDS_CONTRACT_SCHEMA,
+                "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_audited_bounds_contract",
+            },
+        )
+    except _BadRequest as exc:
+        _write_bad_request(write_json, exc)
+    except Exception:
+        write_json(
+            400,
+            {
+                "ok": False,
+                "error": "build_exact_out_many_pool_audited_bounds_contract_error",
+                "details": "request failed",
+            },
+        )
+
+
 def _repaired_full_domain_certified_payload(
     *,
     quote: object,
@@ -1419,4 +1460,5 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _DEFAULT_PACKET_ENDPOINT: _simple_route(_handle_default_packet),
     _BOUNDED_WORKAROUND_PACKET_ENDPOINT: _simple_route(_handle_bounded_workaround_packet),
     _ORACLE_CONTRACT_ENDPOINT: _simple_route(_handle_oracle_contract),
+    _AUDITED_BOUNDS_CONTRACT_ENDPOINT: _simple_route(_handle_audited_bounds_contract),
 }
