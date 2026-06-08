@@ -15,7 +15,7 @@ recomputes canonical deltas/events and requires exact match.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, cast
 
 from ..kernels.python.settlement_swap_runtime_v1 import quote_cpmm_swap_exact_out
 from ..state.balances import AssetId, BalanceTable, PubKey
@@ -80,6 +80,18 @@ class _QuoteBindingFields:
     leg_index: object
 
 
+@dataclass(frozen=True)
+class _CreatePoolFields:
+    asset0: object
+    asset1: object
+    fee_bps: object
+    amount0: object
+    amount1: object
+    created_at: object
+    curve_tag: object
+    curve_params: object
+
+
 def _validate_strong_config(
     *,
     mode: str,
@@ -88,15 +100,20 @@ def _validate_strong_config(
 ) -> Optional[str]:
     if mode not in _VALIDATION_MODES:
         return f"unsupported validation mode: {mode!r}"
-    if _invalid_protocol_fee_share(protocol_fee_share_bps):
+    protocol_fee_share = _protocol_fee_share_value(protocol_fee_share_bps)
+    if protocol_fee_share is None:
         return "protocol_fee_share_bps must be an int in [0, 10000]"
-    if int(protocol_fee_share_bps) > 0 and not protocol_fee_recipient_pubkey:
+    if protocol_fee_share > 0 and not protocol_fee_recipient_pubkey:
         return "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
     return None
 
 
-def _invalid_protocol_fee_share(protocol_fee_share_bps: object) -> bool:
-    return not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000)
+def _protocol_fee_share_value(protocol_fee_share_bps: object) -> Optional[int]:
+    if not is_strict_int(protocol_fee_share_bps):
+        return None
+    if not (0 <= protocol_fee_share_bps <= 10000):
+        return None
+    return protocol_fee_share_bps
 
 
 def _build_replay_index(
@@ -246,7 +263,8 @@ def _invalid_quote_leg_index_error(
     fields: _QuoteBindingFields,
     _allow_snapshot_bound_quote_bindings: bool,
 ) -> Optional[str]:
-    if fields.leg_index is not None and (not is_strict_int(fields.leg_index) or int(fields.leg_index) < 0):
+    leg_index = fields.leg_index
+    if leg_index is not None and (not is_strict_int(leg_index) or leg_index < 0):
         return _quote_binding_error("invalid quote_receipt_leg_index", **_quote_binding_context(intent))
     return None
 
@@ -297,6 +315,93 @@ def _quote_transport_metadata_error(intent: Intent) -> str:
         **_quote_binding_context(intent),
         guidance="strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation",
     )
+
+
+def _create_pool_fields(intent: Intent) -> _CreatePoolFields:
+    return _CreatePoolFields(
+        asset0=intent.get_field("asset0"),
+        asset1=intent.get_field("asset1"),
+        fee_bps=intent.get_field("fee_bps"),
+        amount0=intent.get_field("amount0"),
+        amount1=intent.get_field("amount1"),
+        created_at=intent.get_field("created_at", 0),
+        curve_tag=intent.get_field("curve_tag", None),
+        curve_params=intent.get_field("curve_params", None),
+    )
+
+
+def _create_pool_field_error(intent_id: str, fields: _CreatePoolFields) -> Optional[str]:
+    for check in (
+        _missing_create_pool_fields_error,
+        _invalid_create_pool_asset_ids_error,
+        _invalid_create_pool_fee_bps_error,
+        _invalid_create_pool_amount0_error,
+        _invalid_create_pool_amount1_error,
+        _invalid_create_pool_created_at_error,
+    ):
+        error = check(intent_id, fields)
+        if error is not None:
+            return error
+    return None
+
+
+def _missing_create_pool_fields_error(intent_id: str, fields: _CreatePoolFields) -> Optional[str]:
+    if any(v is None for v in (fields.asset0, fields.asset1, fields.fee_bps, fields.amount0, fields.amount1)):
+        return f"missing CREATE_POOL fields for intent_id={intent_id}"
+    return None
+
+
+def _invalid_create_pool_asset_ids_error(intent_id: str, fields: _CreatePoolFields) -> Optional[str]:
+    if not isinstance(fields.asset0, str) or not isinstance(fields.asset1, str):
+        return f"invalid CREATE_POOL asset ids for intent_id={intent_id}"
+    return None
+
+
+def _invalid_create_pool_fee_bps_error(intent_id: str, fields: _CreatePoolFields) -> Optional[str]:
+    fee_bps = fields.fee_bps
+    if not is_strict_int(fee_bps):
+        return f"invalid CREATE_POOL fee_bps for intent_id={intent_id}"
+    if not (0 <= fee_bps <= 10000):
+        return f"invalid CREATE_POOL fee_bps for intent_id={intent_id}"
+    return None
+
+
+def _invalid_create_pool_amount0_error(intent_id: str, fields: _CreatePoolFields) -> Optional[str]:
+    amount0 = fields.amount0
+    if not is_strict_int(amount0):
+        return f"invalid CREATE_POOL amount0 for intent_id={intent_id}"
+    if amount0 <= 0:
+        return f"invalid CREATE_POOL amount0 for intent_id={intent_id}"
+    return None
+
+
+def _invalid_create_pool_amount1_error(intent_id: str, fields: _CreatePoolFields) -> Optional[str]:
+    amount1 = fields.amount1
+    if not is_strict_int(amount1):
+        return f"invalid CREATE_POOL amount1 for intent_id={intent_id}"
+    if amount1 <= 0:
+        return f"invalid CREATE_POOL amount1 for intent_id={intent_id}"
+    return None
+
+
+def _invalid_create_pool_created_at_error(intent_id: str, fields: _CreatePoolFields) -> Optional[str]:
+    created_at = fields.created_at
+    if created_at is None:
+        return None
+    if not is_strict_int(created_at):
+        return f"invalid CREATE_POOL created_at for intent_id={intent_id}"
+    if created_at < 0:
+        return f"invalid CREATE_POOL created_at for intent_id={intent_id}"
+    return None
+
+
+def _create_pool_created_at_value(fields: _CreatePoolFields) -> int:
+    created_at = fields.created_at
+    if created_at is None:
+        return 0
+    if not is_strict_int(created_at):
+        raise TypeError("CREATE_POOL created_at was not validated")
+    return created_at
 
 
 def _validate_cow_pair_index(
@@ -488,27 +593,18 @@ def _validate_settlement_strong_impl(
             return fail(f"invalid recipient for intent_id={intent_id}")
 
         if it.kind == IntentKind.CREATE_POOL:
-            asset0 = it.get_field("asset0")
-            asset1 = it.get_field("asset1")
-            fee_bps = it.get_field("fee_bps")
-            amount0 = it.get_field("amount0")
-            amount1 = it.get_field("amount1")
-            created_at = it.get_field("created_at", 0)
-            curve_tag = it.get_field("curve_tag", None)
-            curve_params = it.get_field("curve_params", None)
-            if any(v is None for v in (asset0, asset1, fee_bps, amount0, amount1)):
-                return fail(f"missing CREATE_POOL fields for intent_id={intent_id}")
-            if not isinstance(asset0, str) or not isinstance(asset1, str):
-                return fail(f"invalid CREATE_POOL asset ids for intent_id={intent_id}")
-            if not is_strict_int(fee_bps) or not (0 <= fee_bps <= 10000):
-                return fail(f"invalid CREATE_POOL fee_bps for intent_id={intent_id}")
-            if not is_strict_int(amount0) or amount0 <= 0:
-                return fail(f"invalid CREATE_POOL amount0 for intent_id={intent_id}")
-            if not is_strict_int(amount1) or amount1 <= 0:
-                return fail(f"invalid CREATE_POOL amount1 for intent_id={intent_id}")
-            if created_at is not None and (not is_strict_int(created_at) or created_at < 0):
-                return fail(f"invalid CREATE_POOL created_at for intent_id={intent_id}")
-            created_at_value = 0 if created_at is None else created_at
+            create_pool_fields = _create_pool_fields(it)
+            create_pool_error = _create_pool_field_error(intent_id, create_pool_fields)
+            if create_pool_error is not None:
+                return fail(create_pool_error)
+            asset0 = cast(AssetId, create_pool_fields.asset0)
+            asset1 = cast(AssetId, create_pool_fields.asset1)
+            fee_bps = cast(int, create_pool_fields.fee_bps)
+            amount0 = cast(int, create_pool_fields.amount0)
+            amount1 = cast(int, create_pool_fields.amount1)
+            curve_tag = cast(Optional[str], create_pool_fields.curve_tag)
+            curve_params = create_pool_fields.curve_params
+            created_at_value = _create_pool_created_at_value(create_pool_fields)
 
             try:
                 pool_id, created_pool, lp_minted = create_pool(

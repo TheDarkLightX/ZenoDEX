@@ -3072,6 +3072,118 @@ def test_strong_validator_rejects_create_pool_field_and_fill_failures() -> None:
     assert err == f"CREATE_POOL fill.lp_minted mismatch for intent_id={intent.intent_id}"
 
 
+def test_strong_validator_create_pool_field_rejection_order_with_multiple_bad_fields() -> None:
+    _pk, _asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
+
+    def assert_create_pool_error(fields: dict[str, object], expected: str) -> None:
+        malformed_intent = replace(intent, fields=fields)
+        ok, err = validate_settlement_strong(
+            settlement=settlement,
+            intents=[malformed_intent],
+            pre_balances=balances,
+            pre_pools={},
+            pre_lp_balances=LPTable(),
+            mode="strong_replay",
+        )
+        assert ok is False
+        assert err == expected
+
+    missing_field_with_other_bad_values = {
+        key: value for key, value in intent.fields.items() if key != "amount1"
+    }
+    missing_field_with_other_bad_values.update(
+        {
+            "asset1": 7,
+            "fee_bps": 10_001,
+            "amount0": 0,
+            "created_at": -1,
+        }
+    )
+    assert_create_pool_error(
+        missing_field_with_other_bad_values,
+        f"missing CREATE_POOL fields for intent_id={intent.intent_id}",
+    )
+
+    assert_create_pool_error(
+        {
+            **intent.fields,
+            "asset1": 7,
+            "fee_bps": 10_001,
+            "amount0": 0,
+            "amount1": 0,
+            "created_at": -1,
+        },
+        f"invalid CREATE_POOL asset ids for intent_id={intent.intent_id}",
+    )
+    assert_create_pool_error(
+        {
+            **intent.fields,
+            "fee_bps": 10_001,
+            "amount0": 0,
+            "amount1": 0,
+            "created_at": -1,
+        },
+        f"invalid CREATE_POOL fee_bps for intent_id={intent.intent_id}",
+    )
+    assert_create_pool_error(
+        {
+            **intent.fields,
+            "amount0": 0,
+            "amount1": 0,
+            "created_at": -1,
+        },
+        f"invalid CREATE_POOL amount0 for intent_id={intent.intent_id}",
+    )
+    assert_create_pool_error(
+        {
+            **intent.fields,
+            "amount1": 0,
+            "created_at": -1,
+        },
+        f"invalid CREATE_POOL amount1 for intent_id={intent.intent_id}",
+    )
+    assert_create_pool_error(
+        {**intent.fields, "created_at": -1},
+        f"invalid CREATE_POOL created_at for intent_id={intent.intent_id}",
+    )
+
+
+def test_strong_validator_accepts_create_pool_created_at_none_as_zero() -> None:
+    _pk, _asset0, _asset1, balances, intent, _settlement = _setup_create_pool_context()
+    intent_with_null_created_at = replace(intent, fields={**intent.fields, "created_at": None})
+    settlement = compute_settlement([intent_with_null_created_at], {}, balances, LPTable())
+
+    assert settlement.events is not None
+    assert settlement.events[0]["created_at"] == 0
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent_with_null_created_at],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is True, err
+
+
+def test_strong_validator_create_pool_curve_validation_stays_in_kernel_path() -> None:
+    _pk, _asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
+    malformed_curve_intent = replace(intent, fields={**intent.fields, "curve_tag": ""})
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[malformed_curve_intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"CREATE_POOL computation error for intent_id={intent.intent_id}:")
+
+
 def test_strong_validator_rejects_add_liquidity_field_fill_and_apply_failures() -> None:
     pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
 

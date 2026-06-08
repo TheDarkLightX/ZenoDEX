@@ -513,7 +513,7 @@ def _apply_create_pool_to_locals(
     fee_bps = intent.get_field("fee_bps")
     amount0 = intent.get_field("amount0")
     amount1 = intent.get_field("amount1")
-    created_at = intent.get_field("created_at", created_pool.created_at)
+    created_at = _create_pool_event_created_at(intent, created_pool)
 
     if asset0 is None or asset1 is None or amount0 is None or amount1 is None:
         raise ValueError("CREATE_POOL intent missing required liquidity fields")
@@ -549,6 +549,14 @@ def _apply_create_pool_to_locals(
 
     lp_deltas.append(LPDelta(pubkey=sender, pool_id=pool_id, delta_add=lp_minted, delta_sub=0))
     lp_deltas.append(LPDelta(pubkey=LP_LOCK_PUBKEY, pool_id=pool_id, delta_add=MIN_LP_LOCK, delta_sub=0))
+
+
+def _create_pool_event_created_at(intent: Intent, created_pool: PoolState) -> object:
+    created_at = intent.get_field("created_at", created_pool.created_at)
+    # Keep settlement construction aligned with strong replay canonicalization.
+    if created_at is None:
+        return created_pool.created_at
+    return created_at
 
 
 def _apply_filled_intent_to_locals(

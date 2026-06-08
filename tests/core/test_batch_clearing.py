@@ -1448,7 +1448,7 @@ def test_try_create_pool_success_and_apply_create_pool_to_locals() -> None:
             "curve_tag": created_pool.curve_tag,
             "curve_params": created_pool.curve_params,
             "status": PoolStatus.ACTIVE.value,
-            "created_at": None,
+            "created_at": 0,
         }
     ]
     assert len(balance_deltas) == 2
