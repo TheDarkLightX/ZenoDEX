@@ -1616,40 +1616,21 @@ class _Handler(BaseHTTPRequestHandler):
         ):
             return True
 
-        if path == "/api/dex/verify_quote_receipt":
-            rec = obj.get("receipt")
-            if not isinstance(rec, dict):
-                self._write_json(400, {"ok": False, "error": "bad_receipt"}, cors_origin=cors_origin)
-                return True
-            expected_quote_epoch = obj.get("expected_quote_epoch")
-            if expected_quote_epoch is not None:
-                if (
-                    not isinstance(expected_quote_epoch, int)
-                    or isinstance(expected_quote_epoch, bool)
-                    or expected_quote_epoch < 0
-                ):
-                    self._write_json(
-                        400,
-                        {"ok": False, "error": "bad_expected_quote_epoch"},
-                        cors_origin=cors_origin,
-                    )
-                    return True
-            try:
-                pools_by_id = _parse_pools()
-                from src.core.quote_receipts import verify_route_quote_receipt  # pylint: disable=import-outside-toplevel
+        from src.integration.api_server_quote_receipt_routes import (  # pylint: disable=import-outside-toplevel
+            maybe_handle_quote_receipt_route,
+        )
 
-                ok, err = verify_route_quote_receipt(
-                    rec,
-                    pools_by_id=pools_by_id,
-                    expected_quote_epoch=(
-                        None if expected_quote_epoch is None else int(expected_quote_epoch)
-                    ),
-                )
-                self._write_json(200, {"ok": bool(ok), "error": str(err)}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(400, {"ok": False, "error": "verify_error", "details": "request failed"}, cors_origin=cors_origin)
-                return True
+        if maybe_handle_quote_receipt_route(
+            path=path,
+            obj=obj,
+            parse_pools=_parse_pools,
+            write_json=lambda status, payload: self._write_json(
+                status,
+                payload,
+                cors_origin=cors_origin,
+            ),
+        ):
+            return True
 
         if path == "/api/dex/build_exact_in_route_oracle_contract":
             try:
