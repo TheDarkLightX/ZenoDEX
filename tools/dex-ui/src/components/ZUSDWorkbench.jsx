@@ -360,9 +360,17 @@ function MintPanel({ onClose, demoMode = false, showClose = true, wallet = null 
 
 function StabilityPoolPanel({ onClose }) {
   const [amount, setAmount] = useState('');
+  const [previewed, setPreviewed] = useState(false);
   const amt = parseFloat(amount) || 0;
   const newPool = ZUSD_SUMMARY.stabilityPoolSize + amt;
   const share = amt > 0 ? ((amt / newPool) * 100).toFixed(2) : '0';
+
+  // Demo-only: this surface does not submit Tau transactions. Mirror MintPanel's
+  // demo-preview affordance so the button is an honest no-submit preview rather
+  // than a dead no-op that implies a real deposit happened.
+  function handlePreview() {
+    setPreviewed(true);
+  }
 
   return (
     <div className="zusd-action-panel panel animate-scale-in">
@@ -399,9 +407,81 @@ function StabilityPoolPanel({ onClose }) {
           </div>
         )}
 
-        <button className="btn btn-primary btn-large zusd-submit" disabled={amt <= 0}>
-          Deposit to Stability Pool
+        <button
+          className="btn btn-primary btn-large zusd-submit"
+          type="button"
+          onClick={handlePreview}
+          disabled={amt <= 0}
+        >
+          Preview deposit
         </button>
+        <p className="zusd-hint">Demo preview only — does not submit a Tau transaction.</p>
+        {previewed && amt > 0 && (
+          <div className="zusd-result" role="status">
+            <strong>Demo preview</strong>
+            <span>Would deposit {amt.toLocaleString()} zUSD for a {share}% pool share. Demo mode does not submit Tau transactions.</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RepayRedeemPanel({ mode, onClose }) {
+  const [amount, setAmount] = useState('');
+  const [previewed, setPreviewed] = useState(false);
+  const amt = parseFloat(amount) || 0;
+  const isRepay = mode === 'repay';
+
+  // Demo-only: mirror MintPanel's demo-preview affordance. The button computes a
+  // preview and states plainly that demo mode does not submit Tau transactions,
+  // instead of being a dead no-op that implies a real repay/redeem occurred.
+  function handlePreview() {
+    setPreviewed(true);
+  }
+
+  return (
+    <div className="zusd-action-panel panel animate-scale-in">
+      <div className="zusd-action-header">
+        <h3>{isRepay ? 'Repay Debt' : 'Redeem zUSD'}</h3>
+        <button className="zusd-close" onClick={onClose}>&times;</button>
+      </div>
+      <div className="zusd-action-body">
+        <label className="label">zUSD Amount</label>
+        <input
+          className="input"
+          type="number"
+          placeholder="0.0"
+          min="0"
+          step="any"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+        <div className="zusd-hint">
+          {isRepay
+            ? 'Burns zUSD to reduce your vault debt and free collateral.'
+            : `Redeems 1 zUSD for $1 of AGRS at $${ZUSD_SUMMARY.oraclePrice}/AGRS.`}
+        </div>
+        <button
+          className="btn btn-primary btn-large zusd-submit"
+          type="button"
+          onClick={handlePreview}
+          disabled={amt <= 0}
+        >
+          {isRepay ? 'Preview repay' : 'Preview redeem'}
+        </button>
+        <p className="zusd-hint">Demo preview only — does not submit a Tau transaction.</p>
+        {previewed && amt > 0 && (
+          <div className="zusd-result" role="status">
+            <strong>Demo preview</strong>
+            <span>
+              {isRepay
+                ? `Would burn ${amt.toLocaleString()} zUSD to reduce vault debt.`
+                : `Would redeem ${amt.toLocaleString()} zUSD for ${(amt / ZUSD_SUMMARY.oraclePrice).toLocaleString(undefined, { maximumFractionDigits: 4 })} AGRS.`}
+              {' '}Demo mode does not submit Tau transactions.
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -486,24 +566,7 @@ function ZUSDWorkbench({ wallet = null }) {
         {activePanel === 'mint' && <MintPanel demoMode={demoMode} onClose={() => setActivePanel(null)} wallet={wallet} />}
         {activePanel === 'deposit_sp' && <StabilityPoolPanel onClose={() => setActivePanel(null)} />}
         {(activePanel === 'repay' || activePanel === 'redeem') && (
-          <div className="zusd-action-panel panel animate-scale-in">
-            <div className="zusd-action-header">
-              <h3>{activePanel === 'repay' ? 'Repay Debt' : 'Redeem zUSD'}</h3>
-              <button className="zusd-close" onClick={() => setActivePanel(null)}>&times;</button>
-            </div>
-            <div className="zusd-action-body">
-              <label className="label">zUSD Amount</label>
-              <input className="input" type="number" placeholder="0.0" min="0" step="any" />
-              <div className="zusd-hint">
-                {activePanel === 'repay'
-                  ? 'Burns zUSD to reduce your vault debt and free collateral.'
-                  : `Redeems 1 zUSD for $1 of AGRS at $${ZUSD_SUMMARY.oraclePrice}/AGRS.`}
-              </div>
-              <button className="btn btn-primary btn-large zusd-submit">
-                {activePanel === 'repay' ? 'Repay' : 'Redeem'}
-              </button>
-            </div>
-          </div>
+          <RepayRedeemPanel mode={activePanel} onClose={() => setActivePanel(null)} />
         )}
       </div>
 

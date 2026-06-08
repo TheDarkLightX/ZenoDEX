@@ -119,6 +119,24 @@ function ZUSDTauWalletSurface({ wallet = null }) {
     return result.transport;
   }, [result]);
 
+  // Structured outcome derived from the deterministic transport report. Distinct
+  // from `liveSummary` (transport context, rendered in Live Context) — this is
+  // the per-submit *result* of the token operation.
+  const report = result?.report || null;
+  const submission = result?.submission || null;
+  const postSubmit = result?.post_submit || null;
+  // Mirror ZUSDMonetarySurface's honest reject affordance: a result object that
+  // carries ok:false is a rejection. (Non-2xx HTTP rejections surface via the
+  // thrown-error `error` state below; this banner covers an ok:false body and is
+  // defensive — we never imply acceptance we don't have.)
+  const latestReportBadge = result?.ok === false
+    ? (result?.error || result?.status || 'rejected')
+    : submission?.sendtx_response
+      ? 'submitted'
+      : report
+        ? 'prepared'
+        : 'deterministic';
+
   async function handlePrepare() {
     setBusy(true);
     setError('');
@@ -351,10 +369,39 @@ function ZUSDTauWalletSurface({ wallet = null }) {
         <div className="panel zusd-wallet-card">
           <div className="zusd-section-header">
             <h2>Latest Report</h2>
-            <span className="zusd-section-badge">Deterministic</span>
+            <span className="zusd-section-badge">{latestReportBadge}</span>
           </div>
           {result ? (
-            <pre className="zusd-wallet-json">{JSON.stringify(result, null, 2)}</pre>
+            <>
+              {result.ok === false ? (
+                <p className="zusd-wallet-error">
+                  Submit rejected: {result.error || result.status || 'rejected'}
+                </p>
+              ) : null}
+              {report ? (
+                <div className="zusd-wallet-meta">
+                  <div className="zusd-wallet-kv"><span>Action</span><span>{report.action}</span></div>
+                  <div className="zusd-wallet-kv"><span>Sender Balance After</span><span>{report.sender_balance_after}</span></div>
+                  <div className="zusd-wallet-kv"><span>Recipient Balance After</span><span>{report.recipient_balance_after}</span></div>
+                  <div className="zusd-wallet-kv"><span>Supply After</span><span>{report.supply_after}</span></div>
+                  <div className="zusd-wallet-kv"><span>Token Nonce</span><span>{report.nonce_before} -&gt; {report.nonce_after}</span></div>
+                  {submission?.sendtx_response ? (
+                    <div className="zusd-wallet-kv"><span>Node Response</span><span>{submission.sendtx_response}</span></div>
+                  ) : null}
+                  {postSubmit?.app_hash ? (
+                    <div className="zusd-wallet-kv"><span>Post-submit App Hash</span><span className="zusd-mono">{postSubmit.app_hash}</span></div>
+                  ) : null}
+                </div>
+              ) : (
+                result.ok !== false ? (
+                  <p className="zusd-wallet-placeholder">Report accepted; no structured fields returned.</p>
+                ) : null
+              )}
+              <details className="zusd-wallet-raw">
+                <summary>Raw deterministic report (JSON)</summary>
+                <pre className="zusd-wallet-json">{JSON.stringify(result, null, 2)}</pre>
+              </details>
+            </>
           ) : (
             <p className="zusd-wallet-placeholder">No transport report yet.</p>
           )}
