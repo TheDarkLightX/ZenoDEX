@@ -5,6 +5,7 @@ from typing import Any
 from src.integration.exact_out_route_certificate import (
     EXACT_OUT_MANY_POOL_CERTIFIED_ADVISORY_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_BOUNDED_ADVISORY_QUOTE_PACKET_SCHEMA,
+    EXACT_OUT_MANY_POOL_BOUNDED_WORKAROUND_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_REPAIRED_KEY_COVER_INTERPRETATION_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_REPAIRED_KEY_COVER_PACKET_SCHEMA,
@@ -159,6 +160,15 @@ class _FakeBuildPacket:
 
 class _FakeBuildPacketWithError(_FakeBuildPacket):
     error = "packet-controlled-error"
+
+
+class _FakeBoundedWorkaroundBuildPacket:
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema": "fake-bounded-workaround-packet",
+            "packet_ok": False,
+            "runtime_quotes_agree": False,
+        }
 
 
 def test_unknown_many_pool_contract_route_is_not_handled() -> None:
@@ -996,3 +1006,106 @@ def test_many_pool_default_packet_failure_payload_contract(monkeypatch: Any) -> 
     assert payload["verify_packet_endpoint"] == "/api/dex/verify_exact_out_many_pool_default_packet"
     assert payload["quote_policy"] == "certified_advisory_v1"
     assert payload["error"] == "many_pool_default_packet_not_ok"
+
+
+def test_many_pool_bounded_workaround_packet_route_rejects_bool_after_pool_parse() -> None:
+    writes, write_json = _capture()
+    parse_called = False
+
+    def parse_pools() -> dict[str, object]:
+        nonlocal parse_called
+        parse_called = True
+        return {"pool_a": object()}
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_bounded_workaround_packet",
+        obj=_minimal_request(max_full_domain_pools=True),
+        parse_pools=parse_pools,
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert parse_called is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_full_domain_pools"})]
+
+
+def test_many_pool_bounded_workaround_packet_route_rejects_oversized_budget() -> None:
+    writes, write_json = _capture()
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_bounded_workaround_packet",
+        obj=_minimal_request(max_enumerated_candidates=50_001),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_enumerated_candidates"})]
+
+
+def test_many_pool_bounded_workaround_packet_build_payload_contract(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+
+    def build_packet(*_args: object, **_kwargs: object) -> _FakeBoundedWorkaroundBuildPacket:
+        return _FakeBoundedWorkaroundBuildPacket()
+
+    monkeypatch.setattr(
+        "src.integration.exact_out_route_certificate.build_exact_out_many_pool_bounded_workaround_packet",
+        build_packet,
+    )
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_bounded_workaround_packet",
+        obj=_minimal_request(),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert len(writes) == 1
+    status, payload = writes[0]
+    assert status == 200
+    assert isinstance(payload, dict)
+    assert payload["ok"] is True
+    assert payload["packet"] == {
+        "schema": "fake-bounded-workaround-packet",
+        "packet_ok": False,
+        "runtime_quotes_agree": False,
+    }
+    assert payload["packet_schema"] == EXACT_OUT_MANY_POOL_BOUNDED_WORKAROUND_PACKET_SCHEMA
+    assert payload["verify_packet_endpoint"] == "/api/dex/verify_exact_out_many_pool_bounded_workaround_packet"
+
+
+def test_many_pool_bounded_workaround_packet_builder_exception_payload(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+
+    def build_raises(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("internal detail must not leak")
+
+    monkeypatch.setattr(
+        "src.integration.exact_out_route_certificate.build_exact_out_many_pool_bounded_workaround_packet",
+        build_raises,
+    )
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_bounded_workaround_packet",
+        obj=_minimal_request(),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [
+        (
+            400,
+            {
+                "ok": False,
+                "error": "build_exact_out_many_pool_bounded_workaround_packet_error",
+                "details": "request failed",
+            },
+        )
+    ]

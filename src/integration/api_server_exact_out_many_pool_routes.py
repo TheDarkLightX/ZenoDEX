@@ -41,6 +41,7 @@ _REPLACEMENT_SHADOW_PACKET_ENDPOINT = (
     "/api/dex/build_exact_out_many_pool_repaired_replacement_shadow_packet"
 )
 _DEFAULT_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_default_packet"
+_BOUNDED_WORKAROUND_PACKET_ENDPOINT = "/api/dex/build_exact_out_many_pool_bounded_workaround_packet"
 
 _DEFAULTS = {
     "max_legs": 3,
@@ -1215,6 +1216,48 @@ def _handle_default_packet(
         )
 
 
+def _handle_bounded_workaround_packet(
+    obj: dict[str, object],
+    parse_pools: ParsePools,
+    write_json: WriteJson,
+) -> None:
+    try:
+        req = _parse_request(obj, parse_pools, _FULL_REQUEST_FIELDS)
+        from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+            EXACT_OUT_MANY_POOL_BOUNDED_WORKAROUND_PACKET_SCHEMA,
+            build_exact_out_many_pool_bounded_workaround_packet,
+        )
+
+        packet = build_exact_out_many_pool_bounded_workaround_packet(
+            req.pools,
+            asset_in=req.asset_in,
+            asset_out=req.asset_out,
+            **req.values,
+        )
+        # This build endpoint preserves the legacy shape: a successful builder
+        # call returns ok=true, and packet_ok is checked by the verifier route.
+        write_json(
+            200,
+            {
+                "ok": True,
+                "packet": packet.to_dict(),
+                "packet_schema": EXACT_OUT_MANY_POOL_BOUNDED_WORKAROUND_PACKET_SCHEMA,
+                "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_bounded_workaround_packet",
+            },
+        )
+    except _BadRequest as exc:
+        _write_bad_request(write_json, exc)
+    except Exception:
+        write_json(
+            400,
+            {
+                "ok": False,
+                "error": "build_exact_out_many_pool_bounded_workaround_packet_error",
+                "details": "request failed",
+            },
+        )
+
+
 def _repaired_full_domain_certified_payload(
     *,
     quote: object,
@@ -1320,4 +1363,5 @@ _ROUTE_HANDLERS: dict[str, RouteHandler] = {
     _CERTIFIED_ADVISORY_PACKET_ENDPOINT: _simple_route(_handle_certified_advisory_packet),
     _REPLACEMENT_SHADOW_PACKET_ENDPOINT: _simple_route(_handle_replacement_shadow_packet),
     _DEFAULT_PACKET_ENDPOINT: _simple_route(_handle_default_packet),
+    _BOUNDED_WORKAROUND_PACKET_ENDPOINT: _simple_route(_handle_bounded_workaround_packet),
 }
