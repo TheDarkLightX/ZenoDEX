@@ -6,6 +6,7 @@ from src.integration.exact_out_route_certificate import (
     EXACT_OUT_MANY_POOL_CERTIFIED_ADVISORY_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_BOUNDED_ADVISORY_QUOTE_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_BOUNDED_WORKAROUND_PACKET_SCHEMA,
+    EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
     EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_REPAIRED_KEY_COVER_INTERPRETATION_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_REPAIRED_KEY_COVER_PACKET_SCHEMA,
@@ -168,6 +169,18 @@ class _FakeBoundedWorkaroundBuildPacket:
             "schema": "fake-bounded-workaround-packet",
             "packet_ok": False,
             "runtime_quotes_agree": False,
+        }
+
+
+class _FakeOracleContract:
+    def __init__(self, contract_ok: bool) -> None:
+        self._contract_ok = contract_ok
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema": "fake-oracle-contract",
+            "contract_ok": self._contract_ok,
+            "max_full_domain_pools": 8,
         }
 
 
@@ -1105,6 +1118,113 @@ def test_many_pool_bounded_workaround_packet_builder_exception_payload(monkeypat
             {
                 "ok": False,
                 "error": "build_exact_out_many_pool_bounded_workaround_packet_error",
+                "details": "request failed",
+            },
+        )
+    ]
+
+
+def test_many_pool_oracle_contract_route_rejects_bool_after_pool_parse() -> None:
+    writes, write_json = _capture()
+    parse_called = False
+
+    def parse_pools() -> dict[str, object]:
+        nonlocal parse_called
+        parse_called = True
+        return {"pool_a": object()}
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_oracle_contract",
+        obj=_minimal_request(max_candidates=True),
+        parse_pools=parse_pools,
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert parse_called is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_candidates"})]
+
+
+def test_many_pool_oracle_contract_route_rejects_oversized_budget() -> None:
+    writes, write_json = _capture()
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_oracle_contract",
+        obj=_minimal_request(max_enumerated_candidates=50_001),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [(400, {"ok": False, "error": "bad_max_enumerated_candidates"})]
+
+
+def test_many_pool_oracle_contract_build_payload_contract(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+    captured_kwargs: dict[str, object] = {}
+
+    def build_contract(*_args: object, **kwargs: object) -> _FakeOracleContract:
+        captured_kwargs.update(kwargs)
+        return _FakeOracleContract(contract_ok=False)
+
+    monkeypatch.setattr(
+        "src.integration.exact_out_route_certificate.build_exact_out_many_pool_oracle_contract",
+        build_contract,
+    )
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_oracle_contract",
+        obj=_minimal_request(max_full_domain_pools=True),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert "max_full_domain_pools" not in captured_kwargs
+    assert len(writes) == 1
+    status, payload = writes[0]
+    assert status == 200
+    assert isinstance(payload, dict)
+    assert payload["ok"] is True
+    assert payload["contract"] == {
+        "schema": "fake-oracle-contract",
+        "contract_ok": False,
+        "max_full_domain_pools": 8,
+    }
+    assert payload["contract_ok"] is False
+    assert payload["contract_schema"] == EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA
+    assert payload["verify_contract_endpoint"] == "/api/dex/verify_exact_out_many_pool_oracle_contract"
+
+
+def test_many_pool_oracle_contract_builder_exception_payload(monkeypatch: Any) -> None:
+    writes, write_json = _capture()
+
+    def build_raises(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("internal detail must not leak")
+
+    monkeypatch.setattr(
+        "src.integration.exact_out_route_certificate.build_exact_out_many_pool_oracle_contract",
+        build_raises,
+    )
+
+    handled = maybe_handle_exact_out_many_pool_route(
+        path="/api/dex/build_exact_out_many_pool_oracle_contract",
+        obj=_minimal_request(),
+        parse_pools=lambda: {"pool_a": object()},
+        project_quote_path=_project_quote_path,
+        write_json=write_json,
+    )
+
+    assert handled is True
+    assert writes == [
+        (
+            400,
+            {
+                "ok": False,
+                "error": "build_exact_out_many_pool_oracle_contract_error",
                 "details": "request failed",
             },
         )
