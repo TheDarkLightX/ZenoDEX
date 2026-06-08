@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
-  "file_count": 446,
-  "function_count": 5850,
+  "file_count": 447,
+  "function_count": 5876,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -9636,8 +9636,8 @@
       "lines": 34
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api": {
-      "complexity": 167,
-      "lines": 1080
+      "complexity": 99,
+      "lines": 870
     },
     "src/integration/api_server.py::_Handler._maybe_handle_dex_api._as_obj": {
       "complexity": 4,
@@ -10370,6 +10370,110 @@
     "src/integration/api_server_quote_routes.py::maybe_handle_quote_route": {
       "complexity": 2,
       "lines": 19
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::BadRequest.__init__": {
+      "complexity": 1,
+      "lines": 3
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_allowed_signers": {
+      "complexity": 3,
+      "lines": 6
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_build_packet": {
+      "complexity": 2,
+      "lines": 16
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_build_packet_from_attestation": {
+      "complexity": 1,
+      "lines": 29
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_build_packet_from_price_packet": {
+      "complexity": 1,
+      "lines": 26
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_handle_build_end_to_end_certificate_packet": {
+      "complexity": 3,
+      "lines": 21
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_handle_verify_end_to_end_certificate_packet": {
+      "complexity": 4,
+      "lines": 24
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_lp_unit_value": {
+      "complexity": 4,
+      "lines": 8
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_non_negative_int": {
+      "complexity": 4,
+      "lines": 8
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_optional_dict": {
+      "complexity": 5,
+      "lines": 8
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_optional_list": {
+      "complexity": 5,
+      "lines": 8
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_parse_attestation_options": {
+      "complexity": 3,
+      "lines": 14
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_parse_common_inputs": {
+      "complexity": 1,
+      "lines": 12
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_parse_lp_unit_values": {
+      "complexity": 3,
+      "lines": 8
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_parse_pool_snapshots": {
+      "complexity": 3,
+      "lines": 8
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_parse_request": {
+      "complexity": 1,
+      "lines": 27
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_parse_verify_common_inputs": {
+      "complexity": 1,
+      "lines": 10
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_pool_id": {
+      "complexity": 2,
+      "lines": 5
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_reject_conflicting_value_mode_inputs": {
+      "complexity": 3,
+      "lines": 6
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_require_price_input": {
+      "complexity": 3,
+      "lines": 6
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_required_dict": {
+      "complexity": 2,
+      "lines": 4
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_verify_packet": {
+      "complexity": 2,
+      "lines": 11
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_verify_packet_from_attestation": {
+      "complexity": 1,
+      "lines": 25
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_verify_packet_from_price_packet": {
+      "complexity": 1,
+      "lines": 22
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::_with_attestation_options": {
+      "complexity": 2,
+      "lines": 24
+    },
+    "src/integration/api_server_settlement_end_to_end_certificate_routes.py::maybe_handle_settlement_end_to_end_certificate_route": {
+      "complexity": 3,
+      "lines": 13
     },
     "src/integration/api_server_settlement_endogenous_lp_value_packet_routes.py::BadRequest.__init__": {
       "complexity": 1,
@@ -23420,14 +23524,6 @@
       "path": "src/core/settlement_strong_validator.py"
     },
     {
-      "complexity": 167,
-      "line_end": 2239,
-      "line_start": 1160,
-      "lines": 1080,
-      "name": "_Handler._maybe_handle_dex_api",
-      "path": "src/integration/api_server.py"
-    },
-    {
       "complexity": 126,
       "line_end": 947,
       "line_start": 326,
@@ -23450,6 +23546,14 @@
       "lines": 1925,
       "name": "prepare_autotrader_live_quote_receipt",
       "path": "src/integration/autotrader_live.py"
+    },
+    {
+      "complexity": 99,
+      "line_end": 2029,
+      "line_start": 1160,
+      "lines": 870,
+      "name": "_Handler._maybe_handle_dex_api",
+      "path": "src/integration/api_server.py"
     },
     {
       "complexity": 98,
@@ -23582,20 +23686,20 @@
       "path": "src/integration/autotrader_live.py"
     },
     {
-      "complexity": 167,
-      "line_end": 2239,
-      "line_start": 1160,
-      "lines": 1080,
-      "name": "_Handler._maybe_handle_dex_api",
-      "path": "src/integration/api_server.py"
-    },
-    {
       "complexity": 1,
       "line_end": 1149,
       "line_start": 99,
       "lines": 1051,
       "name": "production_tau_trace_cases",
       "path": "src/integration/tau_trace_cases.py"
+    },
+    {
+      "complexity": 99,
+      "line_end": 2029,
+      "line_start": 1160,
+      "lines": 870,
+      "name": "_Handler._maybe_handle_dex_api",
+      "path": "src/integration/api_server.py"
     },
     {
       "complexity": 126,

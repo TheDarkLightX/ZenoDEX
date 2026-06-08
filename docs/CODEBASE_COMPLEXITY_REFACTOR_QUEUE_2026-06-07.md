@@ -17,8 +17,8 @@ behaviorally incorrect.
 
 | Metric | Value |
 | --- | ---: |
-| Python source files scanned | 446 |
-| Functions scanned | 5,850 |
+| Python source files scanned | 447 |
+| Functions scanned | 5,876 |
 | Functions over complexity 5 | 1,605 |
 | Functions over 60 lines | 435 |
 | Maximum complexity | 190 |
@@ -41,7 +41,7 @@ behaviorally incorrect.
 | Rank | Location | Size | Grade | Why It Is Risky | First Extraction |
 | ---: | --- | ---: | --- | --- | --- |
 | 1 | `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl` | 190 complexity, 612 lines | C- | This is a fail-closed value-moving acceptance gate. The logic is conceptually right, but duplicate-ID checks, fill coverage, replay, deltas, events, LP effects, and conservation live in one control flow. | Extract pure rule functions returning `(ok, error)`: `IntentIdRule`, `IncludedIntentRule`, `FillCoverageRule`, `CowPairRule`, `ReplayDeltaRule`, `EventRule`, `ConservationRule`. |
-| 2 | `src/integration/api_server.py::_Handler._maybe_handle_dex_api` | 167 complexity, 1,080 lines | D+ | One method still mixes routing, auth, JSON parsing, DTO coercion, service calls, and response shaping for unrelated API families. It is no longer the highest complexity function, but it remains a broad boundary surface. | Continue the route-table extraction. The read-only routes live in `api_server_dex_readonly_routes.py`; general quote handling lives in `api_server_quote_routes.py`; quote-receipt verification lives in `api_server_quote_receipt_routes.py`; exact-in route request parsing lives in `api_server_exact_in_route_common.py`; exact-in route oracle contract build/verify lives in `api_server_exact_in_route_contract_routes.py`; exact-in route canonicality guard lives in `api_server_exact_in_route_guard_routes.py`; exact-in guarded route quote lives in `api_server_exact_in_route_quote_routes.py`; exact-in guarded quote packet build/verify lives in `api_server_exact_in_route_packet_routes.py`; exact-in rank-projection packet build/verify lives in `api_server_exact_in_route_rank_projection_routes.py`; exact-in true-key interpretation packet build/verify lives in `api_server_exact_in_route_true_key_routes.py`; settlement spot value contract build/verify lives in `api_server_settlement_spot_value_routes.py`; settlement LP value contract build/verify lives in `api_server_settlement_lp_value_routes.py`; settlement value packet build/verify lives in `api_server_settlement_value_packet_routes.py`; settlement endogenous LP value packet build/verify lives in `api_server_settlement_endogenous_lp_value_packet_routes.py`; settlement feature-extension packet build/verify lives in `api_server_settlement_feature_extension_routes.py`; exact-out route certificate build/verify lives in `api_server_exact_out_certificate_routes.py`; exact-out audit routes live in `api_server_exact_out_audit_routes.py`; exact-out many-pool contract builders, repaired-selected-domain quotes, repaired-advisory quotes, repaired-full-domain certified quotes, bounded-advisory quotes, the default certified-advisory quote, the adaptive liveness quote, the certified-advisory quote, packet builders, packet verifiers, contract verifiers, oracle contract builder, audited-bounds contract builder, canonicality guard route, and guarded quote route live in `api_server_exact_out_many_pool_routes.py`; the next slice is settlement end-to-end certificate packet routes. |
+| 2 | `src/integration/api_server.py::_Handler._maybe_handle_dex_api` | 99 complexity, 870 lines | D+ | One method still mixes routing, auth, JSON parsing, DTO coercion, service calls, and response shaping for unrelated API families. It is no longer the highest complexity function, but it remains a broad boundary surface. | Continue the route-table extraction. The read-only routes live in `api_server_dex_readonly_routes.py`; general quote handling lives in `api_server_quote_routes.py`; quote-receipt verification lives in `api_server_quote_receipt_routes.py`; exact-in route request parsing lives in `api_server_exact_in_route_common.py`; exact-in route oracle contract build/verify lives in `api_server_exact_in_route_contract_routes.py`; exact-in route canonicality guard lives in `api_server_exact_in_route_guard_routes.py`; exact-in guarded route quote lives in `api_server_exact_in_route_quote_routes.py`; exact-in guarded quote packet build/verify lives in `api_server_exact_in_route_packet_routes.py`; exact-in rank-projection packet build/verify lives in `api_server_exact_in_route_rank_projection_routes.py`; exact-in true-key interpretation packet build/verify lives in `api_server_exact_in_route_true_key_routes.py`; settlement spot value contract build/verify lives in `api_server_settlement_spot_value_routes.py`; settlement LP value contract build/verify lives in `api_server_settlement_lp_value_routes.py`; settlement value packet build/verify lives in `api_server_settlement_value_packet_routes.py`; settlement endogenous LP value packet build/verify lives in `api_server_settlement_endogenous_lp_value_packet_routes.py`; settlement feature-extension packet build/verify lives in `api_server_settlement_feature_extension_routes.py`; settlement end-to-end certificate packet build/verify lives in `api_server_settlement_end_to_end_certificate_routes.py`; settlement witness lifecycle build/verify lives in `api_server_settlement_witness_routes.py`; exact-out route certificate build/verify lives in `api_server_exact_out_certificate_routes.py`; exact-out audit routes live in `api_server_exact_out_audit_routes.py`; exact-out many-pool contract builders, repaired-selected-domain quotes, repaired-advisory quotes, repaired-full-domain certified quotes, bounded-advisory quotes, the default certified-advisory quote, the adaptive liveness quote, the certified-advisory quote, packet builders, packet verifiers, contract verifiers, oracle contract builder, audited-bounds contract builder, canonicality guard route, and guarded quote route live in `api_server_exact_out_many_pool_routes.py`; the next slice is settlement spot-price provenance and attestation routes. |
 | 3 | `src/integration/dex_snapshot.py::state_from_snapshot` | 126 complexity, 622 lines | C- | Snapshot hydration is consensus-adjacent because bad defaults or weak parsing can create forked local state. Many schema branches share one broad parser. | Split into typed parsers per section: balances, pools, LP, fees, nonces, confidential requests, oracle metadata. Add round-trip tests section by section. |
 | 4 | `src/integration/dex_engine.py::apply_ops` | 118 complexity, 549 lines | C- | Operation application is an orchestration choke point. Mixed dispatch and mutation increases the chance that an operation bypasses a guard. | Replace the branch ladder with an `op_type -> apply_*` dispatch table. Each handler should receive validated DTOs and return data-only effects. |
 | 5 | `src/integration/autotrader_live.py::prepare_autotrader_live_quote_receipt` | 100 complexity, 1,925 lines | D+ | A large live integration path combines network/config handling, quote construction, proof metadata, and presentation. Advisory code must remain outside verifier authority. | Separate live IO, quote normalization, verifier receipt construction, and UI/report shaping. Add an import-boundary test that verifier modules do not import advisory/live modules. |
@@ -137,13 +137,19 @@ in small route-family PRs. The first safe slice has landed:
    `verify_exact_out_many_pool_certified_winner_packet`, and all remaining
    `verify_exact_out_many_pool_*packet` endpoints, and all
    `verify_exact_out_many_pool_*contract` endpoints.
-19. `_maybe_handle_dex_api` remains the dispatcher and response writer.
-20. Focused route tests cover success, error mapping, unhandled-path behavior,
+19. `src/integration/api_server_settlement_end_to_end_certificate_routes.py`
+   handles `build_settlement_end_to_end_certificate_packet` and
+   `verify_settlement_end_to_end_certificate_packet`.
+20. `src/integration/api_server_settlement_witness_routes.py` handles
+   `build_settlement_witness_lifecycle_packet` and
+   `verify_settlement_witness_lifecycle_packet`.
+21. `_maybe_handle_dex_api` remains the dispatcher and response writer.
+22. Focused route tests cover success, error mapping, unhandled-path behavior,
    bad integer fields, and pool-parse error precedence.
-21. The baseline records the reduced handler complexity and line count.
+23. The baseline records the reduced handler complexity and line count.
 
-Next, move `build_settlement_end_to_end_certificate_packet` and
-`verify_settlement_end_to_end_certificate_packet` into a route helper with tests
-for malformed settlement/proof flags/price history/feature inputs, value-mode
-input conflicts, price input precedence, success response shape, and certificate
-verification errors.
+Next, move `build_settlement_spot_price_packet`,
+`verify_settlement_spot_price_packet`, `build_settlement_spot_price_attestation`,
+and `verify_settlement_spot_price_attestation` into a route helper with tests for
+malformed packet and attestation containers, bad integer fields, allowed-signer
+validation, success response shape, and verifier rejection propagation.
