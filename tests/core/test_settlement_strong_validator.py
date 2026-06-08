@@ -424,6 +424,214 @@ def test_strong_validator_rejects_unsupported_validation_mode() -> None:
     assert err == "unsupported validation mode: 'bad_mode'"
 
 
+def test_strong_validator_preflight_rejection_order_with_multiple_bad_inputs() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    settlement.included_intents = [
+        (_iid(999), FillAction.REJECT),
+        (_iid(999), FillAction.REJECT),
+    ]
+    settlement.fills = [settlement.fills[0], settlement.fills[0]]
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent, intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="bad_mode",
+        protocol_fee_share_bps=True,
+    )
+    assert ok is False
+    assert err == "unsupported validation mode: 'bad_mode'"
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent, intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=True,
+    )
+    assert ok is False
+    assert err == "protocol_fee_share_bps must be an int in [0, 10000]"
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent, intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=1,
+    )
+    assert ok is False
+    assert err == "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent, intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "duplicate intent_id in input intents"
+
+
+def test_strong_validator_replay_index_rejection_order_with_multiple_bad_inputs() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    settlement.included_intents = [
+        (_iid(999), FillAction.REJECT),
+        (_iid(999), FillAction.REJECT),
+    ]
+    settlement.fills = [settlement.fills[0], settlement.fills[0]]
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"settlement included_intents mismatch: missing=['{intent.intent_id}'] extra=['{_iid(999)}']"
+
+    settlement.included_intents = [
+        (intent.intent_id, FillAction.FILL),
+        (intent.intent_id, FillAction.REJECT),
+    ]
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "settlement included_intents contains duplicate intent_id entries"
+
+    settlement.included_intents = [(intent.intent_id, FillAction.FILL)]
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "settlement fills contains duplicate intent_id entries"
+
+
+def test_strong_validator_rejects_distinct_input_intents_with_same_id() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    duplicate_intent = replace(intent)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent, duplicate_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "duplicate intent_id in input intents"
+
+
+def test_strong_validator_rejects_extra_fill_before_missing_required_fill() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    extra_intent_id = _iid(998)
+    settlement.fills = [
+        Fill(
+            intent_id=extra_intent_id,
+            action=FillAction.REJECT,
+            reason="UNSUPPORTED",
+            amount_in_filled=0,
+            amount_out_filled=0,
+            fee_paid=0,
+        )
+    ]
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"settlement fills contains intent_ids not in input intents: ['{extra_intent_id}']"
+
+
+def test_strong_validator_rejects_reverse_fill_action_mismatch() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    settlement.included_intents = [(intent.intent_id, FillAction.REJECT)]
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"Fill.action mismatch for intent_id={intent.intent_id}: FillAction.FILL != FillAction.REJECT"
+
+
+def test_build_base_replay_index_returns_valid_maps_for_fill_and_reject() -> None:
+    _pk, _asset0, _asset1, _pool_id, _pool, _balances, intent, settlement = _setup_swap_context()
+    ok, err, intents_by_id, fill_by_id = strong_validator._build_base_replay_index(
+        settlement=settlement,
+        intents=[intent],
+    )
+    assert ok is True
+    assert err is None
+    assert intents_by_id == {intent.intent_id: intent}
+    assert fill_by_id == {intent.intent_id: settlement.fills[0]}
+
+    reject_settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.REJECT)],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+    ok, err, intents_by_id, fill_by_id = strong_validator._build_base_replay_index(
+        settlement=reject_settlement,
+        intents=[intent],
+    )
+    assert ok is True
+    assert err is None
+    assert intents_by_id == {intent.intent_id: intent}
+    assert fill_by_id == {}
+
+
+def test_strong_validator_replay_index_applies_cow_gate_before_replay() -> None:
+    _pk, _asset0, _asset1, _pool_id, _pool, balances, intent, settlement = _setup_swap_context()
+    settlement.fills[0].reason = "COW_NETTED"
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"COW_NETTED not allowed for intent_id={intent.intent_id}"
+
+
 def test_strong_validator_rejects_duplicate_input_intent_ids() -> None:
     _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
     ok, err = validate_settlement_strong(

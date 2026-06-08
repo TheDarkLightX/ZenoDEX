@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
   "file_count": 450,
-  "function_count": 5917,
+  "function_count": 5925,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -4551,6 +4551,14 @@
       "complexity": 5,
       "lines": 13
     },
+    "src/core/settlement_strong_validator.py::_build_base_replay_index": {
+      "complexity": 5,
+      "lines": 22
+    },
+    "src/core/settlement_strong_validator.py::_build_replay_index": {
+      "complexity": 3,
+      "lines": 23
+    },
     "src/core/settlement_strong_validator.py::_check_canonical_deltas": {
       "complexity": 31,
       "lines": 76
@@ -4571,6 +4579,18 @@
       "complexity": 3,
       "lines": 7
     },
+    "src/core/settlement_strong_validator.py::_index_fills_by_id": {
+      "complexity": 5,
+      "lines": 13
+    },
+    "src/core/settlement_strong_validator.py::_index_intents_by_id": {
+      "complexity": 4,
+      "lines": 8
+    },
+    "src/core/settlement_strong_validator.py::_invalid_protocol_fee_share": {
+      "complexity": 2,
+      "lines": 2
+    },
     "src/core/settlement_strong_validator.py::_quote_binding_context": {
       "complexity": 1,
       "lines": 8
@@ -4583,13 +4603,25 @@
       "complexity": 38,
       "lines": 76
     },
+    "src/core/settlement_strong_validator.py::_validate_fill_actions": {
+      "complexity": 5,
+      "lines": 10
+    },
+    "src/core/settlement_strong_validator.py::_validate_included_intent_ids": {
+      "complexity": 4,
+      "lines": 9
+    },
     "src/core/settlement_strong_validator.py::_validate_settlement_strong_impl": {
-      "complexity": 190,
-      "lines": 612
+      "complexity": 172,
+      "lines": 580
     },
     "src/core/settlement_strong_validator.py::_validate_settlement_strong_impl.fail": {
       "complexity": 1,
       "lines": 2
+    },
+    "src/core/settlement_strong_validator.py::_validate_strong_config": {
+      "complexity": 5,
+      "lines": 13
     },
     "src/core/settlement_strong_validator.py::validate_settlement_strong": {
       "complexity": 6,
@@ -23673,17 +23705,17 @@
     }
   },
   "line_budget": 60,
-  "max_complexity": 190,
+  "max_complexity": 172,
   "max_function_lines": 1925,
   "over_complexity_budget_count": 1604,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
     {
-      "complexity": 190,
-      "line_end": 808,
-      "line_start": 197,
-      "lines": 612,
+      "complexity": 172,
+      "line_end": 892,
+      "line_start": 313,
+      "lines": 580,
       "name": "_validate_settlement_strong_impl",
       "path": "src/core/settlement_strong_validator.py"
     },
@@ -23866,20 +23898,20 @@
       "path": "src/integration/dex_snapshot.py"
     },
     {
-      "complexity": 190,
-      "line_end": 808,
-      "line_start": 197,
-      "lines": 612,
-      "name": "_validate_settlement_strong_impl",
-      "path": "src/core/settlement_strong_validator.py"
-    },
-    {
       "complexity": 14,
       "line_end": 621,
       "line_start": 12,
       "lines": 610,
       "name": "render_zenograph_ranking_review_campaign_html",
       "path": "src/integration/zenograph_ranking_review_campaign_report.py"
+    },
+    {
+      "complexity": 172,
+      "line_end": 892,
+      "line_start": 313,
+      "lines": 580,
+      "name": "_validate_settlement_strong_impl",
+      "path": "src/core/settlement_strong_validator.py"
     },
     {
       "complexity": 118,

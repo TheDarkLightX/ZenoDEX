@@ -18,10 +18,10 @@ behaviorally incorrect.
 | Metric | Value |
 | --- | ---: |
 | Python source files scanned | 450 |
-| Functions scanned | 5,917 |
+| Functions scanned | 5,925 |
 | Functions over complexity 5 | 1,604 |
 | Functions over 60 lines | 435 |
-| Maximum complexity | 190 |
+| Maximum complexity | 172 |
 | Maximum function length | 1,925 lines |
 
 ## Refactor Principles
@@ -40,7 +40,7 @@ behaviorally incorrect.
 
 | Rank | Location | Size | Grade | Why It Is Risky | First Extraction |
 | ---: | --- | ---: | --- | --- | --- |
-| 1 | `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl` | 190 complexity, 612 lines | C- | This is a fail-closed value-moving acceptance gate. The logic is conceptually right, but duplicate-ID checks, fill coverage, replay, deltas, events, LP effects, and conservation live in one control flow. | Extract pure rule functions returning `(ok, error)`: `IntentIdRule`, `IncludedIntentRule`, `FillCoverageRule`, `CowPairRule`, `ReplayDeltaRule`, `EventRule`, `ConservationRule`. |
+| 1 | `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl` | 172 complexity, 580 lines | C | This is a fail-closed value-moving acceptance gate. The first preflight/index extraction is landed, but quote-binding checks, replay branches, deltas, events, LP effects, and conservation still live in one control flow. | Continue extracting pure rule helpers. The next safe slice is the quote-binding guard before the replay branch, followed by one replay action family at a time. |
 | 2 | `src/integration/dex_snapshot.py::state_from_snapshot` | 126 complexity, 622 lines | C- | Snapshot hydration is consensus-adjacent because bad defaults or weak parsing can create forked local state. Many schema branches share one broad parser. | Split into typed parsers per section: balances, pools, LP, fees, nonces, confidential requests, oracle metadata. Add round-trip tests section by section. |
 | 3 | `src/integration/dex_engine.py::apply_ops` | 118 complexity, 549 lines | C- | Operation application is an orchestration choke point. Mixed dispatch and mutation increases the chance that an operation bypasses a guard. | Replace the branch ladder with an `op_type -> apply_*` dispatch table. Each handler should receive validated DTOs and return data-only effects. |
 | 4 | `src/integration/autotrader_live.py::prepare_autotrader_live_quote_receipt` | 100 complexity, 1,925 lines | D+ | A large live integration path combines network/config handling, quote construction, proof metadata, and presentation. Advisory code must remain outside verifier authority. | Separate live IO, quote normalization, verifier receipt construction, and UI/report shaping. Add an import-boundary test that verifier modules do not import advisory/live modules. |
@@ -81,12 +81,32 @@ Residual API cleanup should move local parser and formatter helpers such as
 `_projected_path_from_exact_out_quote_payload` into shared modules. The next
 codebase-wide ROI target is the settlement strong validator.
 
+## Recent Settlement Validator Burn-Down
+
+`src/core/settlement_strong_validator.py::_validate_settlement_strong_impl` is
+now down from 190 complexity and 612 lines to 172 complexity and 580 lines.
+The extracted preflight/index helpers cover:
+
+- validation mode and protocol-fee configuration;
+- duplicate input intent IDs;
+- included-intent coverage and duplicate included IDs;
+- duplicate and extra fill IDs;
+- missing fill details for filled intents;
+- fill action mismatches;
+- CoW pair indexing through the existing `_validate_cow_pair_index` helper.
+
+The public rejection order is pinned by combined-invalid tests in
+`tests/core/test_settlement_strong_validator.py`, so moving those checks again
+should fail if it changes the legacy error precedence.
+
 ## Next Implementation Slice
 
-The next high-ROI slice is
-`src/core/settlement_strong_validator.py::_validate_settlement_strong_impl`.
-Extract one rule at a time, with golden tests that prove the old and new
-rejection envelopes match before each branch is moved.
+Continue `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl`.
+Extract the quote-binding guard into a small helper next, with golden tests for:
+unsupported quote-bound intent kinds, invalid leg index, transport metadata
+requiring an engine witness, invalid and disabled snapshot fingerprints, and
+pool fingerprint mismatch. Keep the replay branches untouched until the guard is
+isolated.
 
 The API route-family extraction pass has landed in small behavior-preserving
 slices:
