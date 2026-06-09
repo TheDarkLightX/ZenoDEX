@@ -1,5 +1,5 @@
 {
-  "case_count": 54,
+  "case_count": 59,
   "cases": [
     {
       "category": "valid",
@@ -4314,6 +4314,716 @@
         "receipt_hash": "0x8eb95631237ba5aad7b94fcf23d101851d63926177e347a619f4afa2406b3b14"
       },
       "stage": "hop_replay"
+    },
+    {
+      "category": "single_fault",
+      "directives": {
+        "assert_no_op": false,
+        "cert_stub_ok": false,
+        "pools_body_inconsistent": false
+      },
+      "expected_err": "bad_canonical_route_certificate:certificate payload must be a dict",
+      "expected_ok": false,
+      "expected_quote_epoch": null,
+      "id": "cert_real_payload_not_dict",
+      "pools": {
+        "p_ab": {
+          "asset0": "A",
+          "asset1": "B",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_ab",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        },
+        "p_ac": {
+          "asset0": "A",
+          "asset1": "C",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_ac",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        },
+        "p_cb": {
+          "asset0": "B",
+          "asset1": "C",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_cb",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        }
+      },
+      "receipt": {
+        "body": {
+          "amount_in": 120,
+          "amount_out": 106,
+          "asset_in": "A",
+          "asset_out": "B",
+          "canonical_route_certificate": "tampered-not-a-dict",
+          "kind": "exact_in",
+          "legs": [
+            {
+              "amount_in": 120,
+              "amount_out": 106,
+              "hops": [
+                {
+                  "amount_in": 120,
+                  "amount_out": 106,
+                  "asset_in": "A",
+                  "asset_out": "B",
+                  "pool_id": "p_ab"
+                }
+              ]
+            }
+          ],
+          "pools": {
+            "p_ab": "0x088d98a5411c5a2e5e5c43f6b5649e8716b4228a76877373a053ea8648348e8d"
+          },
+          "schema": "zenodex/route_quote_receipt/v1"
+        },
+        "receipt_hash": "0xa51a5c996dc6b7910bbfb0f01682a570964d6149f9b3ba0aeb589ff33b6092b1"
+      },
+      "stage": "certificate"
+    },
+    {
+      "category": "single_fault",
+      "directives": {
+        "assert_no_op": false,
+        "cert_stub_ok": false,
+        "pools_body_inconsistent": false
+      },
+      "expected_err": "bad_canonical_route_certificate:certificate payload must include non-empty candidates",
+      "expected_ok": false,
+      "expected_quote_epoch": null,
+      "id": "cert_real_candidates_empty",
+      "pools": {
+        "p_ab": {
+          "asset0": "A",
+          "asset1": "B",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_ab",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        },
+        "p_ac": {
+          "asset0": "A",
+          "asset1": "C",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_ac",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        },
+        "p_cb": {
+          "asset0": "B",
+          "asset1": "C",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_cb",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        }
+      },
+      "receipt": {
+        "body": {
+          "amount_in": 120,
+          "amount_out": 106,
+          "asset_in": "A",
+          "asset_out": "B",
+          "canonical_route_certificate": {
+            "amount_in": 120,
+            "argmin_steps": [
+              {
+                "i1": 0,
+                "i2": 0,
+                "i3": 0,
+                "i4": 0,
+                "i5": 1
+              },
+              {
+                "i1": 0,
+                "i2": 0,
+                "i3": 1,
+                "i4": 1,
+                "i5": 1
+              }
+            ],
+            "asset_in": "A",
+            "asset_out": "B",
+            "candidate_set_hash": "0x511ef7258b2ba98c9d36facdd318f3538cc3138b5b95bda82cdfe148a1be442a",
+            "candidates": [],
+            "certificate_hash": "0x23525edf83191536139f1a3b442e01ce43fe2db1a0c54a481f7ff35106dc254a",
+            "schema": "zenodex/exact-in-route-certificate/v1",
+            "tau_spec_id": "argmin_stream_certificate_v1",
+            "winner_index": 0,
+            "winner_quote": {
+              "amount_in": 120,
+              "amount_out": 106,
+              "asset_in": "A",
+              "asset_out": "B",
+              "legs": [
+                {
+                  "amount_in": 120,
+                  "amount_out": 106,
+                  "hops": [
+                    {
+                      "amount_in": 120,
+                      "amount_out": 106,
+                      "asset_in": "A",
+                      "asset_out": "B",
+                      "pool_id": "p_ab"
+                    }
+                  ]
+                }
+              ]
+            },
+            "winner_route_key_rank_u64": 0
+          },
+          "kind": "exact_in",
+          "legs": [
+            {
+              "amount_in": 120,
+              "amount_out": 106,
+              "hops": [
+                {
+                  "amount_in": 120,
+                  "amount_out": 106,
+                  "asset_in": "A",
+                  "asset_out": "B",
+                  "pool_id": "p_ab"
+                }
+              ]
+            }
+          ],
+          "pools": {
+            "p_ab": "0x088d98a5411c5a2e5e5c43f6b5649e8716b4228a76877373a053ea8648348e8d"
+          },
+          "schema": "zenodex/route_quote_receipt/v1"
+        },
+        "receipt_hash": "0x5b170ef29454fb4ec5d197a70ec2987e1008661170e415634e428a4a6644a873"
+      },
+      "stage": "certificate"
+    },
+    {
+      "category": "single_fault",
+      "directives": {
+        "assert_no_op": false,
+        "cert_stub_ok": false,
+        "pools_body_inconsistent": false
+      },
+      "expected_err": "bad_canonical_route_certificate:certificate payload must include non-empty candidates",
+      "expected_ok": false,
+      "expected_quote_epoch": null,
+      "id": "cert_real_candidates_missing",
+      "pools": {
+        "p_ab": {
+          "asset0": "A",
+          "asset1": "B",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_ab",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        },
+        "p_ac": {
+          "asset0": "A",
+          "asset1": "C",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_ac",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        },
+        "p_cb": {
+          "asset0": "B",
+          "asset1": "C",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_cb",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        }
+      },
+      "receipt": {
+        "body": {
+          "amount_in": 120,
+          "amount_out": 106,
+          "asset_in": "A",
+          "asset_out": "B",
+          "canonical_route_certificate": {
+            "amount_in": 120,
+            "argmin_steps": [
+              {
+                "i1": 0,
+                "i2": 0,
+                "i3": 0,
+                "i4": 0,
+                "i5": 1
+              },
+              {
+                "i1": 0,
+                "i2": 0,
+                "i3": 1,
+                "i4": 1,
+                "i5": 1
+              }
+            ],
+            "asset_in": "A",
+            "asset_out": "B",
+            "candidate_set_hash": "0x511ef7258b2ba98c9d36facdd318f3538cc3138b5b95bda82cdfe148a1be442a",
+            "certificate_hash": "0x23525edf83191536139f1a3b442e01ce43fe2db1a0c54a481f7ff35106dc254a",
+            "schema": "zenodex/exact-in-route-certificate/v1",
+            "tau_spec_id": "argmin_stream_certificate_v1",
+            "winner_index": 0,
+            "winner_quote": {
+              "amount_in": 120,
+              "amount_out": 106,
+              "asset_in": "A",
+              "asset_out": "B",
+              "legs": [
+                {
+                  "amount_in": 120,
+                  "amount_out": 106,
+                  "hops": [
+                    {
+                      "amount_in": 120,
+                      "amount_out": 106,
+                      "asset_in": "A",
+                      "asset_out": "B",
+                      "pool_id": "p_ab"
+                    }
+                  ]
+                }
+              ]
+            },
+            "winner_route_key_rank_u64": 0
+          },
+          "kind": "exact_in",
+          "legs": [
+            {
+              "amount_in": 120,
+              "amount_out": 106,
+              "hops": [
+                {
+                  "amount_in": 120,
+                  "amount_out": 106,
+                  "asset_in": "A",
+                  "asset_out": "B",
+                  "pool_id": "p_ab"
+                }
+              ]
+            }
+          ],
+          "pools": {
+            "p_ab": "0x088d98a5411c5a2e5e5c43f6b5649e8716b4228a76877373a053ea8648348e8d"
+          },
+          "schema": "zenodex/route_quote_receipt/v1"
+        },
+        "receipt_hash": "0xc86bafc0c8211b6dc1362bbf83cf1a5f789e55cc06a5cf9bf79a771dea16c7c9"
+      },
+      "stage": "certificate"
+    },
+    {
+      "category": "single_fault",
+      "directives": {
+        "assert_no_op": false,
+        "cert_stub_ok": false,
+        "pools_body_inconsistent": false
+      },
+      "expected_err": "bad_canonical_route_certificate:certificate candidate must be a dict",
+      "expected_ok": false,
+      "expected_quote_epoch": null,
+      "id": "cert_real_candidate_not_dict",
+      "pools": {
+        "p_ab": {
+          "asset0": "A",
+          "asset1": "B",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_ab",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        },
+        "p_ac": {
+          "asset0": "A",
+          "asset1": "C",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_ac",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        },
+        "p_cb": {
+          "asset0": "B",
+          "asset1": "C",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_cb",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        }
+      },
+      "receipt": {
+        "body": {
+          "amount_in": 120,
+          "amount_out": 106,
+          "asset_in": "A",
+          "asset_out": "B",
+          "canonical_route_certificate": {
+            "amount_in": 120,
+            "argmin_steps": [
+              {
+                "i1": 0,
+                "i2": 0,
+                "i3": 0,
+                "i4": 0,
+                "i5": 1
+              },
+              {
+                "i1": 0,
+                "i2": 0,
+                "i3": 1,
+                "i4": 1,
+                "i5": 1
+              }
+            ],
+            "asset_in": "A",
+            "asset_out": "B",
+            "candidate_set_hash": "0x511ef7258b2ba98c9d36facdd318f3538cc3138b5b95bda82cdfe148a1be442a",
+            "candidates": [
+              7,
+              {
+                "candidate_index": 1,
+                "quote": {
+                  "amount_in": 120,
+                  "amount_out": 95,
+                  "asset_in": "A",
+                  "asset_out": "B",
+                  "legs": [
+                    {
+                      "amount_in": 120,
+                      "amount_out": 95,
+                      "hops": [
+                        {
+                          "amount_in": 120,
+                          "amount_out": 106,
+                          "asset_in": "A",
+                          "asset_out": "C",
+                          "pool_id": "p_ac"
+                        },
+                        {
+                          "amount_in": 106,
+                          "amount_out": 95,
+                          "asset_in": "C",
+                          "asset_out": "B",
+                          "pool_id": "p_cb"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "route_key": {
+                  "amount_out": 95,
+                  "amount_out_neg": -95,
+                  "asset_out": "B",
+                  "hop_count": 2,
+                  "intermediate_asset": "C",
+                  "leg_count": 1,
+                  "pool_sequence": "p_ac,p_cb"
+                },
+                "route_key_rank_u64": 1
+              }
+            ],
+            "certificate_hash": "0x23525edf83191536139f1a3b442e01ce43fe2db1a0c54a481f7ff35106dc254a",
+            "schema": "zenodex/exact-in-route-certificate/v1",
+            "tau_spec_id": "argmin_stream_certificate_v1",
+            "winner_index": 0,
+            "winner_quote": {
+              "amount_in": 120,
+              "amount_out": 106,
+              "asset_in": "A",
+              "asset_out": "B",
+              "legs": [
+                {
+                  "amount_in": 120,
+                  "amount_out": 106,
+                  "hops": [
+                    {
+                      "amount_in": 120,
+                      "amount_out": 106,
+                      "asset_in": "A",
+                      "asset_out": "B",
+                      "pool_id": "p_ab"
+                    }
+                  ]
+                }
+              ]
+            },
+            "winner_route_key_rank_u64": 0
+          },
+          "kind": "exact_in",
+          "legs": [
+            {
+              "amount_in": 120,
+              "amount_out": 106,
+              "hops": [
+                {
+                  "amount_in": 120,
+                  "amount_out": 106,
+                  "asset_in": "A",
+                  "asset_out": "B",
+                  "pool_id": "p_ab"
+                }
+              ]
+            }
+          ],
+          "pools": {
+            "p_ab": "0x088d98a5411c5a2e5e5c43f6b5649e8716b4228a76877373a053ea8648348e8d"
+          },
+          "schema": "zenodex/route_quote_receipt/v1"
+        },
+        "receipt_hash": "0xbc2e3b54bb24fcf0fd0a1bccdf8a3a0f6b064debf8fa5f7ed428e99e6e0e3162"
+      },
+      "stage": "certificate"
+    },
+    {
+      "category": "single_fault",
+      "directives": {
+        "assert_no_op": false,
+        "cert_stub_ok": false,
+        "pools_body_inconsistent": false
+      },
+      "expected_err": "bad_canonical_route_certificate:route quote payload must be a dict",
+      "expected_ok": false,
+      "expected_quote_epoch": null,
+      "id": "cert_real_candidate_quote_not_dict",
+      "pools": {
+        "p_ab": {
+          "asset0": "A",
+          "asset1": "B",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_ab",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        },
+        "p_ac": {
+          "asset0": "A",
+          "asset1": "C",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_ac",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        },
+        "p_cb": {
+          "asset0": "B",
+          "asset1": "C",
+          "created_at": 0,
+          "curve_params": "",
+          "curve_tag": "CPMM",
+          "fee_bps": 10,
+          "lp_supply": 1,
+          "pool_id": "p_cb",
+          "reserve0": 1000,
+          "reserve1": 1000,
+          "status": "ACTIVE"
+        }
+      },
+      "receipt": {
+        "body": {
+          "amount_in": 120,
+          "amount_out": 106,
+          "asset_in": "A",
+          "asset_out": "B",
+          "canonical_route_certificate": {
+            "amount_in": 120,
+            "argmin_steps": [
+              {
+                "i1": 0,
+                "i2": 0,
+                "i3": 0,
+                "i4": 0,
+                "i5": 1
+              },
+              {
+                "i1": 0,
+                "i2": 0,
+                "i3": 1,
+                "i4": 1,
+                "i5": 1
+              }
+            ],
+            "asset_in": "A",
+            "asset_out": "B",
+            "candidate_set_hash": "0x511ef7258b2ba98c9d36facdd318f3538cc3138b5b95bda82cdfe148a1be442a",
+            "candidates": [
+              {
+                "candidate_index": 0,
+                "quote": 7,
+                "route_key": {
+                  "amount_out": 106,
+                  "amount_out_neg": -106,
+                  "asset_out": "B",
+                  "hop_count": 1,
+                  "intermediate_asset": "",
+                  "leg_count": 1,
+                  "pool_sequence": "p_ab"
+                },
+                "route_key_rank_u64": 0
+              },
+              {
+                "candidate_index": 1,
+                "quote": {
+                  "amount_in": 120,
+                  "amount_out": 95,
+                  "asset_in": "A",
+                  "asset_out": "B",
+                  "legs": [
+                    {
+                      "amount_in": 120,
+                      "amount_out": 95,
+                      "hops": [
+                        {
+                          "amount_in": 120,
+                          "amount_out": 106,
+                          "asset_in": "A",
+                          "asset_out": "C",
+                          "pool_id": "p_ac"
+                        },
+                        {
+                          "amount_in": 106,
+                          "amount_out": 95,
+                          "asset_in": "C",
+                          "asset_out": "B",
+                          "pool_id": "p_cb"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "route_key": {
+                  "amount_out": 95,
+                  "amount_out_neg": -95,
+                  "asset_out": "B",
+                  "hop_count": 2,
+                  "intermediate_asset": "C",
+                  "leg_count": 1,
+                  "pool_sequence": "p_ac,p_cb"
+                },
+                "route_key_rank_u64": 1
+              }
+            ],
+            "certificate_hash": "0x23525edf83191536139f1a3b442e01ce43fe2db1a0c54a481f7ff35106dc254a",
+            "schema": "zenodex/exact-in-route-certificate/v1",
+            "tau_spec_id": "argmin_stream_certificate_v1",
+            "winner_index": 0,
+            "winner_quote": {
+              "amount_in": 120,
+              "amount_out": 106,
+              "asset_in": "A",
+              "asset_out": "B",
+              "legs": [
+                {
+                  "amount_in": 120,
+                  "amount_out": 106,
+                  "hops": [
+                    {
+                      "amount_in": 120,
+                      "amount_out": 106,
+                      "asset_in": "A",
+                      "asset_out": "B",
+                      "pool_id": "p_ab"
+                    }
+                  ]
+                }
+              ]
+            },
+            "winner_route_key_rank_u64": 0
+          },
+          "kind": "exact_in",
+          "legs": [
+            {
+              "amount_in": 120,
+              "amount_out": 106,
+              "hops": [
+                {
+                  "amount_in": 120,
+                  "amount_out": 106,
+                  "asset_in": "A",
+                  "asset_out": "B",
+                  "pool_id": "p_ab"
+                }
+              ]
+            }
+          ],
+          "pools": {
+            "p_ab": "0x088d98a5411c5a2e5e5c43f6b5649e8716b4228a76877373a053ea8648348e8d"
+          },
+          "schema": "zenodex/route_quote_receipt/v1"
+        },
+        "receipt_hash": "0x69823a5c750a5f9e4a9cc76522cf693bd53b4ce39804d06e3e54215025f0dfec"
+      },
+      "stage": "certificate"
     }
   ],
   "description": "Characterization corpus locking verify_route_quote_receipt's (ok, error_code) contract incl. reject ordering and no-op-on-reject. Regenerate with --regen.",

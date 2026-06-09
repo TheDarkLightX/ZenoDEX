@@ -946,13 +946,17 @@ def _verify_route_hop(
     working_pools: Dict[str, PoolState],
     kind: str,
     body_asset_in: Any,
-) -> Tuple[bool, str, PoolState | None, int | None, Any]:
+) -> Tuple[bool, str, PoolState | None, int | None, Any, str | None]:
     """Verify a single hop's structure and replay semantics.
 
-    Returns ``(True, "", next_pool, amount_out, asset_out)`` on success or
-    ``(False, error_code, None, None, None)`` on rejection. Does NOT mutate
-    ``working_pools`` -- the caller assigns ``working_pools[pid] = next_pool``
-    only after success, which preserves no-op-on-reject by construction.
+    Returns ``(True, "", next_pool, amount_out, asset_out, pool_id)`` on
+    success or ``(False, error_code, None, None, None, None)`` on rejection.
+    Does NOT mutate ``working_pools`` -- the caller assigns
+    ``working_pools[pool_id] = next_pool`` only after success (preserving
+    no-op-on-reject by construction), using the RETURNED ``pool_id`` so the
+    hop mapping's ``pool_id`` key is read exactly once via ``.get`` (matching
+    the original single-read behavior; a second ``hop["pool_id"]`` read could
+    observe a different value or raise on adversarial Mapping subclasses).
     """
     hop_dict_ok = isinstance(hop, dict)
     pid = hop.get("pool_id") if hop_dict_ok else None
@@ -987,7 +991,7 @@ def _verify_route_hop(
         hop_amount_chain_ok=hop_amount_chain_ok,
     )
     if not hop_gate.hop_ok:
-        return False, route_quote_receipt_hop_structure_error(hop_gate), None, None, None
+        return False, route_quote_receipt_hop_structure_error(hop_gate), None, None, None, None
     if (
         not isinstance(pid, str)
         or pool is None
@@ -996,7 +1000,7 @@ def _verify_route_hop(
         or amt_in is None
         or amt_out is None
     ):
-        return False, route_quote_receipt_hop_structure_error(hop_gate), None, None, None
+        return False, route_quote_receipt_hop_structure_error(hop_gate), None, None, None, None
 
     ok, err, next_pool = _replay_and_apply_hop(
         pool=pool,
@@ -1007,8 +1011,8 @@ def _verify_route_hop(
         amount_out=amt_out,
     )
     if not ok or next_pool is None:
-        return False, err, None, None, None
-    return True, "", next_pool, amt_out, asset_out
+        return False, err, None, None, None, None
+    return True, "", next_pool, amt_out, asset_out, pid
 
 
 def _verify_route_leg(
@@ -1041,7 +1045,7 @@ def _verify_route_leg(
     prev_out: int | None = None
     prev_asset_out: str | None = None
     for hop_index, hop in enumerate(hops):
-        ok, err, next_pool, amt_out, asset_out = _verify_route_hop(
+        ok, err, next_pool, amt_out, asset_out, pid = _verify_route_hop(
             hop=hop,
             is_first_hop=hop_index == 0,
             prev_out=prev_out,
@@ -1051,9 +1055,11 @@ def _verify_route_leg(
             kind=kind,
             body_asset_in=body_asset_in,
         )
-        if not ok or next_pool is None:
+        if not ok or next_pool is None or pid is None:
             return False, err, 0, 0
-        working_pools[hop["pool_id"]] = next_pool
+        # Assign via the pid RETURNED by the hop helper (read once via
+        # hop.get("pool_id") inside it) -- never re-index hop["pool_id"].
+        working_pools[pid] = next_pool
         prev_out = amt_out
         prev_asset_out = str(asset_out)
 

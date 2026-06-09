@@ -136,6 +136,20 @@ class _InconsistentPools(dict):
         return dict.__contains__(self, key)
 
 
+class _GetItemBombDict(dict):
+    """A dict subclass whose explicit indexing raises but whose C-slot reads work.
+
+    ``.get(...)``, ``.items()``, ``.keys()``, iteration, ``in`` and JSON/canonical
+    encoding all read the real underlying storage (C slots, not ``__getitem__``),
+    so receipts containing this object hash and verify normally -- but any
+    ``obj[key]`` re-read raises. Pins the verifier's single-read contract: every
+    receipt-data mapping key must be read exactly once via ``.get``.
+    """
+
+    def __getitem__(self, key: object) -> Any:
+        raise RuntimeError(f"adversarial __getitem__({key!r})")
+
+
 @contextmanager
 def _cert_payload_stub() -> Iterator[None]:
     """Force the canonical-route-certificate payload verifier to accept.
@@ -797,6 +811,86 @@ def build_corpus() -> List[JsonObj]:  # noqa: WPS213 - deliberately explicit & f
         )
     )
 
+    # ---- APPENDED (Codex review of 683d207b, finding 2): real-path -------- #
+    # certificate payload passthrough sub-codes. These exercise the REAL
+    # verify_exact_in_route_canonical_certificate_payload (NO monkeypatch),
+    # whose extract step emits passthrough sub-codes BEFORE the local
+    # certificate gate. Expected values were generated via the pristine-oracle
+    # protocol: the UNMODIFIED ad96b74d module (git show
+    # ad96b74d:src/core/quote_receipts.py, importlib-loaded under a separate
+    # module name) produced these exact (ok, err) pairs and the refactored
+    # module must reproduce them. Appended at the END so the committed fixture
+    # diff is append-only (existing case objects stay byte-stable).
+    r, p = _base_exact_in_with_certificate()
+    r["body"]["canonical_route_certificate"] = "tampered-not-a-dict"
+    cases.append(
+        _case(
+            "cert_real_payload_not_dict",
+            "single_fault",
+            "certificate",
+            _rehash(r),
+            p,
+            False,
+            "bad_canonical_route_certificate:certificate payload must be a dict",
+        )
+    )
+
+    r, p = _base_exact_in_with_certificate()
+    r["body"]["canonical_route_certificate"]["candidates"] = []
+    cases.append(
+        _case(
+            "cert_real_candidates_empty",
+            "single_fault",
+            "certificate",
+            _rehash(r),
+            p,
+            False,
+            "bad_canonical_route_certificate:certificate payload must include non-empty candidates",
+        )
+    )
+
+    r, p = _base_exact_in_with_certificate()
+    r["body"]["canonical_route_certificate"].pop("candidates")
+    cases.append(
+        _case(
+            "cert_real_candidates_missing",
+            "single_fault",
+            "certificate",
+            _rehash(r),
+            p,
+            False,
+            "bad_canonical_route_certificate:certificate payload must include non-empty candidates",
+        )
+    )
+
+    r, p = _base_exact_in_with_certificate()
+    r["body"]["canonical_route_certificate"]["candidates"][0] = 7
+    cases.append(
+        _case(
+            "cert_real_candidate_not_dict",
+            "single_fault",
+            "certificate",
+            _rehash(r),
+            p,
+            False,
+            "bad_canonical_route_certificate:certificate candidate must be a dict",
+        )
+    )
+
+    r, p = _base_exact_in_with_certificate()
+    r["body"]["canonical_route_certificate"]["candidates"][0]["quote"] = 7
+    cases.append(
+        _case(
+            "cert_real_candidate_quote_not_dict",
+            "single_fault",
+            "certificate",
+            _rehash(r),
+            p,
+            False,
+            "bad_canonical_route_certificate:route quote payload must be a dict",
+        )
+    )
+
     return cases
 
 
@@ -877,6 +971,10 @@ def test_corpus_covers_every_reachable_reject_code() -> None:
         "missing_quote_epoch",
         "quote_epoch_mismatch",
         "bad_canonical_route_certificate:certificate payload mismatch",
+        "bad_canonical_route_certificate:certificate payload must be a dict",
+        "bad_canonical_route_certificate:certificate payload must include non-empty candidates",
+        "bad_canonical_route_certificate:certificate candidate must be a dict",
+        "bad_canonical_route_certificate:route quote payload must be a dict",
         "bad_canonical_route_certificate_type",
         "bad_canonical_route_certificate_winner",
         "canonical_route_certificate_asset_in_mismatch",
@@ -911,6 +1009,48 @@ def test_corpus_covers_every_reachable_reject_code() -> None:
     seen = {c["expected_err"] for c in _CORPUS}
     missing = expected - seen
     assert not missing, f"corpus missing reject codes: {sorted(missing)}"
+
+
+def test_hop_pool_id_single_read_contract_under_adversarial_mapping() -> None:
+    """Finding-1 regression (Codex review of 683d207b): pool_id is read ONCE.
+
+    The hop is a dict subclass whose ``.get("pool_id")`` returns the valid pid
+    but whose ``__getitem__`` raises. The pristine ad96b74d verifier read
+    ``pool_id`` exactly once via ``.get`` (then assigned ``working_pools[pid]``
+    through the local), so it ACCEPTED this receipt. Expected value below was
+    generated from that pristine module via the pristine-oracle protocol
+    (git show ad96b74d:src/core/quote_receipts.py, importlib-loaded):
+    pristine -> (True, "ok"). The pre-fix refactor re-indexed
+    ``working_pools[hop["pool_id"]]`` and RAISED RuntimeError here.
+
+    Not part of the JSON corpus: a dict subclass is not JSON-representable.
+    """
+    receipt, pools = _base_single_hop_exact_in()
+    hop = receipt["body"]["legs"][0]["hops"][0]
+    receipt["body"]["legs"][0]["hops"][0] = _GetItemBombDict(hop)
+    receipt["receipt_hash"] = receipt_hash(receipt["body"])
+
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
+
+    assert (ok, err) == (True, "ok")  # pristine-oracle value (ad96b74d)
+
+
+def test_receipt_pools_map_never_indexed_under_adversarial_mapping() -> None:
+    """Companion single-read lock for body['pools'] (audited: no re-read exists).
+
+    The receipt's pools map is only iterated (``.items()``, ``for pid in``,
+    ``in``) and never indexed, in both the pristine ad96b74d verifier and the
+    refactored one. Expected value generated from the pristine module via the
+    pristine-oracle protocol: pristine -> (True, "ok"). Locks that no future
+    change introduces a ``pools[...]`` re-read on the receipt-supplied map.
+    """
+    receipt, pools = _base_single_hop_exact_in()
+    receipt["body"]["pools"] = _GetItemBombDict(receipt["body"]["pools"])
+    receipt["receipt_hash"] = receipt_hash(receipt["body"])
+
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
+
+    assert (ok, err) == (True, "ok")  # pristine-oracle value (ad96b74d)
 
 
 def _write_corpus() -> int:
