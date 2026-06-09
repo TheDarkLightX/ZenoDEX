@@ -501,9 +501,15 @@ def handle_zusd_tau_wallet_request(method: str, path: str, body: Optional[bytes]
             )
             return 200, {"ok": True, "transport": context, "chain_id": chain_id}
         if rest == ["prepare"]:
-            return 200, _build_prepare_response(parsed, for_submit=False)
+            # Fail closed on the HTTP status: a payload that reports ``ok: False``
+            # (e.g. a sendtx/createblock REJECT) must surface as 400, not 200, so a
+            # client checking only the status code cannot mistake a reject for
+            # success. Mirrors perps_wallet_api.py's status gating.
+            prepare_payload = _build_prepare_response(parsed, for_submit=False)
+            return (200 if prepare_payload.get("ok") is True else 400), prepare_payload
         if rest == ["submit"]:
-            return 200, _build_prepare_response(parsed, for_submit=True)
+            submit_payload = _build_prepare_response(parsed, for_submit=True)
+            return (200 if submit_payload.get("ok") is True else 400), submit_payload
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:
         return 400, {"ok": False, "error": str(exc)}

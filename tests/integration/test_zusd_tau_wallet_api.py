@@ -336,3 +336,65 @@ def test_submit_rejects_malformed_signed_payload_echo_flag(monkeypatch) -> None:
     assert status_code == 400
     assert payload["ok"] is False
     assert "ZUSD_TAU_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD" in str(payload["error"])
+
+
+def test_prepare_status_gates_on_payload_ok_false(monkeypatch) -> None:
+    """A prepare payload that reports ``ok: False`` must surface as HTTP 400.
+
+    Without the status gate the dispatcher returned 200 even for a reject, so a
+    client checking only the HTTP status code could mistake a sendtx_failed /
+    createblock_failed REJECT for success. This forces the reject by stubbing
+    ``_build_prepare_response`` to return ``ok: False`` and asserts the gate.
+    """
+    monkeypatch.setattr(
+        wallet_api,
+        "_build_prepare_response",
+        lambda body, *, for_submit: {"ok": False, "error": "sendtx_failed"},
+    )
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/prepare",
+        json.dumps({"action": "transfer"}).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert payload["error"] == "sendtx_failed"
+
+
+def test_submit_status_gates_on_payload_ok_false(monkeypatch) -> None:
+    """A submit payload that reports ``ok: False`` must surface as HTTP 400."""
+    monkeypatch.setattr(
+        wallet_api,
+        "_build_prepare_response",
+        lambda body, *, for_submit: {"ok": False, "error": "createblock_failed"},
+    )
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/submit",
+        json.dumps({"action": "transfer"}).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert payload["error"] == "createblock_failed"
+
+
+def test_prepare_status_stays_200_when_payload_ok_true(monkeypatch) -> None:
+    """The gate is behavior-preserving for the happy path: ok=True stays 200."""
+    monkeypatch.setattr(
+        wallet_api,
+        "_build_prepare_response",
+        lambda body, *, for_submit: {"ok": True, "transport": {}},
+    )
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/prepare",
+        json.dumps({"action": "transfer"}).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
