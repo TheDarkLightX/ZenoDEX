@@ -36,7 +36,13 @@ _NOT_CLAIMED = (
     "does_not_claim_tau_consensus_finality",
 )
 _EXERCISE_NOT_CLAIMED = (
-    "does_not_claim_public_testnet_exercise_without_broadcast_references",
+    # Honesty non-claim: when public broadcast/settlement references are
+    # supplied this path only format-checks them (non-empty / presence). It
+    # does NOT verify them against a real chain (no RPC, no inclusion proof).
+    # Presence of references therefore does NOT establish a chain-verified
+    # public-testnet exercise.
+    "public_testnet_broadcast_references_are_format_checked_not_chain_verified",
+    "does_not_claim_chain_verified_public_testnet_exercise",
     "does_not_claim_true_market_price",
     "does_not_claim_tau_consensus_finality",
 )

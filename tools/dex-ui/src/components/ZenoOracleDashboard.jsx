@@ -2093,7 +2093,9 @@ function AuthorityExercisePanel({
         </div>
         <div>
           <small>Public testnet evidence</small>
-          <strong>{publicEvidence ? 'present' : 'pending'}</strong>
+          <strong title="References are format-checked only (non-empty / presence); they are NOT verified against a real chain (no RPC, no inclusion proof).">
+            {publicEvidence ? 'present (format-checked, not chain-verified)' : 'pending'}
+          </strong>
         </div>
         <div>
           <small>Exercise hash</small>
@@ -2136,8 +2138,11 @@ function AuthorityExercisePanel({
         <span className={exerciseStatus?.authority_exercised ? 'zor-control-ok' : 'zor-control-missing'}>
           Authority exercised
         </span>
-        <span className={publicEvidence ? 'zor-control-ok' : 'zor-control-missing'}>
-          Public testnet evidence
+        <span
+          className={publicEvidence ? 'zor-control-ok' : 'zor-control-missing'}
+          title="References are format-checked only (non-empty / presence); they are NOT verified against a real chain (no RPC, no inclusion proof)."
+        >
+          Public testnet evidence (format-checked, not chain-verified)
         </span>
       </div>
       <div className="zor-toolbar">
