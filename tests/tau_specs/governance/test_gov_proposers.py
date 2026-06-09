@@ -344,3 +344,245 @@ def test_q_table_snapshot_defeats_bins_iter_type_corruption():
 
 def test_table_hash_changes_on_content_change():
     assert gp.table_hash({"0,0": 480}) != gp.table_hash({"0,0": 481})
+
+
+# --------------------------------------------------------------------------- #
+# Layered (hierarchical) frozen Q-tables
+# --------------------------------------------------------------------------- #
+def _layered():
+    # regime layer: volatility bin -> sub-policy id; action layer per sub-policy:
+    # (utilization, peg-dev) bins -> action. Two regimes, different actions for the same state.
+    return {
+        "regime": {"0": 0, "1": 1, "2": 1},
+        "actions": {
+            "0": {"0,0": 300, "1,1": 320},   # calm regime: small fees
+            "1": {"0,0": 360, "1,1": 400},   # volatile regime: larger fees
+        },
+    }
+
+
+def test_layered_q_happy_two_layer_lookup():
+    r = gp.layered_q_propose((1,), (1, 1), _layered(), 300)
+    assert r.hit is True and r.proposed == 400 and r.regime_id == 1
+    assert r.regime_key == "1" and r.action_key == "1,1"
+
+
+def test_layered_q_regimes_change_the_action_for_the_same_state():
+    # the layering is real: identical action_bins, different regime -> different action.
+    calm = gp.layered_q_propose((0,), (1, 1), _layered(), 300)
+    vol = gp.layered_q_propose((1,), (1, 1), _layered(), 300)
+    assert (calm.proposed, vol.proposed) == (320, 400)
+
+
+def test_layered_q_deterministic_replay():
+    assert gp.layered_q_propose((1,), (0, 0), _layered(), 300) == gp.layered_q_propose(
+        (1,), (0, 0), _layered(), 300
+    )
+
+
+def test_layered_q_fail_closed_on_every_layer_miss():
+    # regime bin missing
+    r1 = gp.layered_q_propose((9,), (1, 1), _layered(), 555)
+    assert r1.hit is False and r1.proposed == 555 and r1.regime_id is None
+    # regime id with no action row (dangling sub-policy id = runtime no-op, not an escape)
+    art = _layered()
+    art["regime"]["7"] = 7  # no "7" row in actions
+    r2 = gp.layered_q_propose((7,), (1, 1), art, 555)
+    assert r2.hit is False and r2.proposed == 555 and r2.regime_id == 7
+    # action bin missing inside a present row
+    r3 = gp.layered_q_propose((1,), (9, 9), _layered(), 555)
+    assert r3.hit is False and r3.proposed == 555 and r3.regime_id == 1
+
+
+def test_layered_q_exact_shape_and_types_fail_closed():
+    class LyingDict(dict):
+        pass
+
+    class EvilKey(str):
+        pass
+
+    class KeyInt(int):
+        pass
+
+    with pytest.raises(TypeError):
+        gp.layered_q_propose((0,), (0, 0), LyingDict(_layered()), 300)  # dict subclass artifact
+    bad = _layered()
+    bad["extra"] = {}
+    with pytest.raises(ValueError):
+        gp.layered_q_propose((0,), (0, 0), bad, 300)  # extra top-level key
+    with pytest.raises(ValueError):
+        gp.layered_q_propose((0,), (0, 0), {"regime": {}}, 300)  # missing top-level key
+    with pytest.raises(TypeError):
+        gp.layered_q_propose((0,), (0, 0), {"regime": {EvilKey("0"): 0}, "actions": {}}, 300)
+    with pytest.raises(TypeError):
+        gp.layered_q_propose((0,), (0, 0), {"regime": {"0": True}, "actions": {}}, 300)  # bool id
+    with pytest.raises(TypeError):
+        gp.layered_q_propose((0,), (0, 0), {"regime": {"0": 0}, "actions": {"0": {"0,0": KeyInt(5)}}}, 300)
+    with pytest.raises(TypeError):
+        gp.layered_q_propose((0,), (0, 0), {"regime": {"0": 0}, "actions": {"0": [300]}}, 300)  # row not dict
+    with pytest.raises(TypeError):
+        gp.layered_q_propose((0,), (0, 0), _layered(), True)  # bool curr
+
+
+def test_layered_q_hash_pin_match_and_mismatch():
+    art = _layered()
+    pin = gp.layered_table_hash(art)
+    r = gp.layered_q_propose((1,), (1, 1), art, 300, expected_hash=pin)
+    assert r.hit and r.proposed == 400
+    art["actions"]["1"]["1,1"] = 9000  # mutate AFTER the pin
+    with pytest.raises(ValueError):
+        gp.layered_q_propose((1,), (1, 1), art, 300, expected_hash=pin)
+    # and the pin itself covers BOTH layers: changing only the regime layer changes the hash
+    a2 = _layered()
+    a2["regime"]["0"] = 1
+    assert gp.layered_table_hash(a2) != pin
+
+
+def test_layered_q_snapshot_defeats_bins_iter_mutation_toctou():
+    # same pin/use window as the flat table (Codex r6): regime_bins.__iter__ runs after the
+    # digest check; a hostile bins that mutates the artifact there must NOT influence the result.
+    art = _layered()
+    pin = gp.layered_table_hash(art)
+
+    class MutatingBins:
+        def __iter__(self):
+            art["actions"]["1"]["1,1"] = 9000  # fires inside state_key(), post-digest
+            return iter((1,))
+
+    r = gp.layered_q_propose(MutatingBins(), (1, 1), art, 300, expected_hash=pin)
+    assert art["actions"]["1"]["1,1"] == 9000  # the hostile mutation really fired
+    assert r.hit is True and r.proposed == 400  # the PINNED action — not the post-hash 9000
+
+
+def test_layered_q_poisoned_artifact_is_bounded_by_the_gate():
+    import gov_gate
+    import gov_loop
+
+    # a poisoned layered table proposes 9000; the fee gate (cap 1000, step 50) must reject it
+    # and the loop must no-op. A sane action from the same machinery is admitted (non-vacuous).
+    poisoned = {"regime": {"1": 1}, "actions": {"1": {"1,1": 9000}}}
+    bad = gp.layered_q_propose((1,), (1, 1), poisoned, 300)
+    d_bad = gov_loop.autonomous_revision_step(
+        300, bad.proposed, gov_gate.fee_revision_ok, approved=True, proposal_ts=0, current_ts=100
+    )
+    assert d_bad.admitted is False and d_bad.applied == 300
+    sane = {"regime": {"1": 1}, "actions": {"1": {"1,1": 320}}}
+    good = gp.layered_q_propose((1,), (1, 1), sane, 300)
+    d_good = gov_loop.autonomous_revision_step(
+        300, good.proposed, gov_gate.fee_revision_ok, approved=True, proposal_ts=0, current_ts=100
+    )
+    assert d_good.admitted is True and d_good.applied == 320
+
+
+# --------------------------------------------------------------------------- #
+# Energy-based proposer (frozen integer energy model)
+# --------------------------------------------------------------------------- #
+def _energy(targets=None, w_track=1, w_move=0):
+    return {"targets": dict(targets or {"1,1": 340}), "w_track": w_track, "w_move": w_move}
+
+
+def test_energy_argmin_tracks_target_within_band():
+    # curr=300, step=50, target=340 inside the band -> argmin at the target itself
+    r = gp.energy_propose((1, 1), _energy(), 300, lo=0, hi=1000, step=50)
+    assert r.hit is True and r.proposed == 340 and r.target == 340 and r.energy == 0
+
+
+def test_energy_argmin_clips_to_band_edge_when_target_is_far():
+    # target=900 far above: best reachable candidate is the band edge curr+step
+    r = gp.energy_propose((1, 1), _energy({"1,1": 900}), 300, lo=0, hi=1000, step=50)
+    assert r.hit is True and r.proposed == 350  # 300+50, nearest the target within the band
+    r2 = gp.energy_propose((1, 1), _energy({"1,1": 0}), 300, lo=280, hi=1000, step=50)
+    assert r2.proposed == 280  # clipped by lo, not by step
+
+
+def test_energy_movement_cost_really_reasons():
+    # THE non-vacuity test for "reasoning": same state, same target, different weights ->
+    # different proposals. Heavy movement cost holds curr; pure tracking chases the target.
+    chase = gp.energy_propose((1, 1), _energy({"1,1": 340}, w_track=1, w_move=0), 300, lo=0, hi=1000, step=50)
+    hold = gp.energy_propose((1, 1), _energy({"1,1": 340}, w_track=1, w_move=10000), 300, lo=0, hi=1000, step=50)
+    assert chase.proposed == 340 and hold.proposed == 300
+    assert chase.proposed != hold.proposed
+
+
+def test_energy_tie_breaks_toward_smallest_candidate():
+    # curr=12, target=10, step=2, w_track=1, w_move=1:
+    # E(10)=0+2=2, E(11)=1+1=2 (tie), E(12)=4+0=4 -> smallest candidate of the tie wins: 10
+    r = gp.energy_propose((0,), _energy({"0": 10}, w_track=1, w_move=1), 12, lo=0, hi=100, step=2)
+    assert r.proposed == 10 and r.energy == 2
+
+
+def test_energy_step_zero_band_is_curr_only():
+    r = gp.energy_propose((0,), _energy({"0": 999}), 300, lo=0, hi=1000, step=0)
+    assert r.hit is True and r.proposed == 300  # band == {curr}
+
+
+def test_energy_fail_closed_on_missing_bin_and_empty_band():
+    r1 = gp.energy_propose((9, 9), _energy(), 300, lo=0, hi=1000, step=50)
+    assert r1.hit is False and r1.proposed == 300 and r1.target is None and r1.energy is None
+    # curr stranded below lo beyond step: band empty -> no-op (the gate would reject any move anyway)
+    r2 = gp.energy_propose((1, 1), _energy(), 100, lo=200, hi=1000, step=50)
+    assert r2.hit is False and r2.proposed == 100 and r2.energy is None
+
+
+def test_energy_model_validation_fail_closed():
+    class LyingDict(dict):
+        pass
+
+    with pytest.raises(TypeError):
+        gp.energy_propose((0,), LyingDict(_energy()), 300, lo=0, hi=1000, step=50)
+    with pytest.raises(ValueError):
+        gp.energy_propose((0,), {"targets": {}, "w_track": 0, "w_move": 0}, 300, lo=0, hi=1000, step=50)
+    with pytest.raises(ValueError):
+        gp.energy_propose((0,), {"targets": {}, "w_track": -1, "w_move": 1}, 300, lo=0, hi=1000, step=50)
+    with pytest.raises(TypeError):
+        gp.energy_propose((0,), {"targets": {}, "w_track": True, "w_move": 1}, 300, lo=0, hi=1000, step=50)
+    bad = _energy()
+    bad["extra"] = 1
+    with pytest.raises(ValueError):
+        gp.energy_propose((0,), bad, 300, lo=0, hi=1000, step=50)
+    with pytest.raises(TypeError):
+        gp.energy_propose((0,), _energy({"0": 1.5}), 300, lo=0, hi=1000, step=50)  # float target
+    with pytest.raises(ValueError):
+        gp.energy_propose((0,), _energy(), 300, lo=1000, hi=0, step=50)  # lo > hi
+    with pytest.raises(ValueError):
+        gp.energy_propose((0,), _energy(), 300, lo=0, hi=1000, step=-1)  # negative step
+    with pytest.raises(TypeError):
+        gp.energy_propose((0,), _energy(), 300, lo=0, hi=1000, step=True)  # bool step
+
+
+def test_energy_hash_pin_and_toctou_snapshot():
+    art = _energy({"1": 340})
+    pin = gp.energy_model_hash(art)
+    r = gp.energy_propose((1,), art, 300, lo=0, hi=1000, step=50, expected_hash=pin)
+    assert r.proposed == 340
+    # stale pin after mutation
+    art["targets"]["1"] = 900
+    with pytest.raises(ValueError):
+        gp.energy_propose((1,), art, 300, lo=0, hi=1000, step=50, expected_hash=pin)
+    # mid-call mutation via hostile bins: result must come from the snapshot
+    art2 = _energy({"1": 340})
+    pin2 = gp.energy_model_hash(art2)
+
+    class MutatingBins:
+        def __iter__(self):
+            art2["targets"]["1"] = 900  # fires inside state_key(), post-digest
+            return iter((1,))
+
+    r2 = gp.energy_propose(MutatingBins(), art2, 300, lo=0, hi=1000, step=50, expected_hash=pin2)
+    assert art2["targets"]["1"] == 900  # the hostile mutation really fired
+    assert r2.proposed == 340  # the PINNED target's argmin — not the post-hash 900's
+
+
+def test_energy_poisoned_targets_are_bounded_by_the_gate():
+    import gov_gate
+    import gov_loop
+
+    # poisoned target 9000: the energy proposer itself only reaches the band edge (350), and the
+    # gate then independently verifies. With a poisoned WIDE band (caller lies about lo/hi/step)
+    # the gate still rejects the out-of-envelope proposal — the gate, not the band, is the defense.
+    r = gp.energy_propose((1,), _energy({"1": 9000}), 300, lo=0, hi=20000, step=20000)
+    assert r.proposed == 9000  # the proposer chased the poisoned target through the lying band
+    d = gov_loop.autonomous_revision_step(
+        300, r.proposed, gov_gate.fee_revision_ok, approved=True, proposal_ts=0, current_ts=100
+    )
+    assert d.admitted is False and d.applied == 300  # gate bounds it: no-op
