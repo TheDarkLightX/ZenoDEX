@@ -206,6 +206,19 @@
     font-size: var(--font-size-sm);
 }
 
+/* Info note — neutral, non-alarming, non-blocking (e.g. breaker status
+   unavailable). Muted text + subtle left border; deliberately NOT red/green
+   so it neither alarms nor fabricates an all-clear. */
+.perp-order-info {
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    border-left: 3px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    line-height: 1.4;
+}
+
 /* Submit */
 .perp-submit-btn {
     width: 100%;

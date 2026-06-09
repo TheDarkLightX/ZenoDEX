@@ -20,7 +20,11 @@ function PerpPriceTicker({ market }) {
 
     const indexPrice = market.indexPriceE8 ? e8ToNumber(BigInt(market.indexPriceE8)) : null;
     const clearingPrice = market.clearingPriceE8 ? e8ToNumber(BigInt(market.clearingPriceE8)) : null;
-    const statusClass = market.breakerActive ? 'danger' : 'normal';
+    // null/undefined breaker = unknown (no backend data) -> neutral container,
+    // never the green "normal" glow. true -> danger, real false -> normal.
+    const statusClass = market.breakerActive == null
+        ? 'unknown'
+        : (market.breakerActive ? 'danger' : 'normal');
 
     return (
         <div className={`perp-price-ticker perp-price-ticker--${statusClass}`}>
@@ -71,7 +75,14 @@ function PerpPriceTicker({ market }) {
 
             {/* Breaker Status */}
             <div className="perp-ticker-item">
-                <span className="perp-ticker-label">Status</span>
+                <span className="perp-ticker-label">
+                    Status
+                    {market.breakerActive == null && (
+                        <InfoTip label="Circuit Breaker">
+                            The circuit-breaker (halt) status is not reported by this market&apos;s backend, so it is shown as Unknown rather than a confirmed Normal or Halted. Trades are not blocked, but could fail on-chain if the market is actually halted.
+                        </InfoTip>
+                    )}
+                </span>
                 <StatusBadge breakerActive={market.breakerActive} />
             </div>
         </div>
@@ -111,6 +122,13 @@ function PhaseBadge({ phase }) {
 }
 
 function StatusBadge({ breakerActive }) {
+    // When the breaker state is not exposed by the backend (live wallet status),
+    // it arrives as null/undefined. Show a neutral "unknown" status rather than
+    // fabricating either a "Normal" (false) all-clear or a scary "BREAKER" halt.
+    // Demo mode supplies a real boolean (mockData), so its states still render.
+    if (breakerActive == null) {
+        return <span className="perp-status-badge perp-status-badge--unknown" title="Circuit breaker status not reported by the backend">UNKNOWN</span>;
+    }
     if (breakerActive) {
         return <span className="perp-status-badge perp-status-badge--danger">BREAKER</span>;
     }

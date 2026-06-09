@@ -14,6 +14,13 @@
     background: var(--perp-extreme-bg);
 }
 
+/* Unknown breaker state: keep the neutral base chrome (no danger glow, no
+   green "all-clear"). Explicit so it never picks up a status-colored border. */
+.perp-price-ticker--unknown {
+    border-color: var(--border-primary);
+    background: var(--bg-secondary);
+}
+
 .perp-price-ticker--empty {
     display: flex;
     align-items: center;
@@ -104,6 +111,13 @@
     background: var(--perp-extreme-bg);
     color: var(--perp-extreme);
     animation: pulse 2s infinite;
+}
+
+/* Unknown: breaker state not reported by the backend. Neutral/muted — never
+   green (which would imply a confirmed "normal / not halted" all-clear). */
+.perp-status-badge--unknown {
+    background: transparent;
+    color: var(--text-muted);
 }
 
 @media (max-width: 768px) {

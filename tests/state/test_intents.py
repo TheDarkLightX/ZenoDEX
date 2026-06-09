@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from src.state.intents import CreatePoolIntent, Intent, IntentKind, SignedIntent, SwapIntent
+from src.state.intents import (
+    CreatePoolIntent,
+    Intent,
+    IntentKind,
+    RouteIntent,
+    SignedIntent,
+    SwapIntent,
+)
 
 
 def _hex32(byte: str) -> str:
@@ -403,3 +410,273 @@ def test_signed_intent_rejects_invalid_signature(signature: str) -> None:
             ),
             signature=signature,
         )
+
+
+# ---------------------------------------------------------------------------
+# RouteIntent — atomic route settlement intent model
+# ---------------------------------------------------------------------------
+
+
+def _route_exact_in_fields() -> dict[str, object]:
+    return {
+        "quote_receipt_hash": _hex32("e"),
+        "asset_in": _hex32("c"),
+        "asset_out": _hex32("d"),
+        "leg_indices": [0, 1],
+        "total_amount_in": 100,
+        "total_min_amount_out": 90,
+    }
+
+
+def _route_exact_out_fields() -> dict[str, object]:
+    return {
+        "quote_receipt_hash": _hex32("e"),
+        "asset_in": _hex32("c"),
+        "asset_out": _hex32("d"),
+        "leg_indices": [0, 1, 2],
+        "total_amount_out": 100,
+        "total_max_amount_in": 110,
+    }
+
+
+def _route(kind: IntentKind, fields: dict[str, object]) -> RouteIntent:
+    return RouteIntent(
+        module="TauSwap",
+        version="0.1",
+        kind=kind,
+        intent_id=_hex32("1"),
+        sender_pubkey=_pubkey("a"),
+        deadline=123,
+        fields=fields,
+    )
+
+
+def test_route_intent_accepts_valid_exact_in() -> None:
+    intent = _route(IntentKind.ROUTE_EXACT_IN, _route_exact_in_fields())
+    assert intent.get_field("leg_indices") == [0, 1]
+    assert intent.get_field("total_amount_in") == 100
+    assert intent.get_field("total_min_amount_out") == 90
+    # Hash is canonicalized (lowercased, 0x-prefixed) back into the fields dict.
+    assert intent.get_field("quote_receipt_hash") == _hex32("e")
+
+
+def test_route_intent_accepts_valid_exact_out() -> None:
+    intent = _route(IntentKind.ROUTE_EXACT_OUT, _route_exact_out_fields())
+    assert intent.get_field("leg_indices") == [0, 1, 2]
+    assert intent.get_field("total_amount_out") == 100
+    assert intent.get_field("total_max_amount_in") == 110
+
+
+def test_route_intent_canonicalizes_quote_receipt_hash() -> None:
+    fields = _route_exact_in_fields()
+    fields["quote_receipt_hash"] = "0x" + "E" * 64  # uppercase, should normalize
+    intent = _route(IntentKind.ROUTE_EXACT_IN, fields)
+    assert intent.get_field("quote_receipt_hash") == _hex32("e")
+
+
+def test_route_intent_rejects_non_route_kind() -> None:
+    with pytest.raises(ValueError, match="Invalid kind for RouteIntent"):
+        _route(IntentKind.SWAP_EXACT_IN, _route_exact_in_fields())
+
+
+@pytest.mark.parametrize(
+    "quote_receipt_hash",
+    [None, "", "abcd", "0x1234", "0x" + "zz" * 32],
+)
+def test_route_intent_rejects_invalid_quote_receipt_hash(
+    quote_receipt_hash: object,
+) -> None:
+    fields = _route_exact_in_fields()
+    fields["quote_receipt_hash"] = quote_receipt_hash
+    with pytest.raises(ValueError, match="Invalid quote_receipt_hash format:"):
+        _route(IntentKind.ROUTE_EXACT_IN, fields)
+
+
+def test_route_intent_rejects_missing_quote_receipt_hash() -> None:
+    fields = _route_exact_in_fields()
+    del fields["quote_receipt_hash"]
+    with pytest.raises(ValueError, match="Invalid quote_receipt_hash format:"):
+        _route(IntentKind.ROUTE_EXACT_IN, fields)
+
+
+@pytest.mark.parametrize("asset_in", [None, "", 7])
+def test_route_intent_rejects_invalid_asset_in(asset_in: object) -> None:
+    fields = _route_exact_in_fields()
+    fields["asset_in"] = asset_in
+    with pytest.raises(ValueError, match="asset_in must be a non-empty string"):
+        _route(IntentKind.ROUTE_EXACT_IN, fields)
+
+
+@pytest.mark.parametrize("asset_out", [None, "", 7])
+def test_route_intent_rejects_invalid_asset_out(asset_out: object) -> None:
+    fields = _route_exact_in_fields()
+    fields["asset_out"] = asset_out
+    with pytest.raises(ValueError, match="asset_out must be a non-empty string"):
+        _route(IntentKind.ROUTE_EXACT_IN, fields)
+
+
+def test_route_intent_rejects_same_in_out_asset() -> None:
+    fields = _route_exact_in_fields()
+    fields["asset_out"] = fields["asset_in"]
+    with pytest.raises(ValueError, match="asset_in must differ from asset_out"):
+        _route(IntentKind.ROUTE_EXACT_IN, fields)
+
+
+@pytest.mark.parametrize("leg_indices", [None, [], "01", 0])
+def test_route_intent_rejects_empty_or_non_list_leg_indices(
+    leg_indices: object,
+) -> None:
+    fields = _route_exact_in_fields()
+    fields["leg_indices"] = leg_indices
+    with pytest.raises(ValueError, match="leg_indices must be a non-empty list"):
+        _route(IntentKind.ROUTE_EXACT_IN, fields)
+
+
+@pytest.mark.parametrize("leg_indices", [[-1, 0], [0, -1], [0, "1"], [0, True], [0, 1.0]])
+def test_route_intent_rejects_negative_or_non_int_leg_index(
+    leg_indices: object,
+) -> None:
+    fields = _route_exact_in_fields()
+    fields["leg_indices"] = leg_indices
+    with pytest.raises(ValueError, match="leg_indices must be non-negative ints"):
+        _route(IntentKind.ROUTE_EXACT_IN, fields)
+
+
+def test_route_intent_rejects_unsorted_leg_indices() -> None:
+    fields = _route_exact_in_fields()
+    fields["leg_indices"] = [1, 0]
+    with pytest.raises(
+        ValueError, match="leg_indices must be strictly ascending with no duplicates"
+    ):
+        _route(IntentKind.ROUTE_EXACT_IN, fields)
+
+
+def test_route_intent_rejects_duplicate_leg_index() -> None:
+    fields = _route_exact_in_fields()
+    fields["leg_indices"] = [0, 1, 1, 2]
+    with pytest.raises(
+        ValueError, match="leg_indices must be strictly ascending with no duplicates"
+    ):
+        _route(IntentKind.ROUTE_EXACT_IN, fields)
+
+
+@pytest.mark.parametrize("total_amount_in", [None, 0, -1, True, 1.0])
+def test_route_intent_rejects_invalid_exact_in_total_amount_in(
+    total_amount_in: object,
+) -> None:
+    fields = _route_exact_in_fields()
+    fields["total_amount_in"] = total_amount_in
+    with pytest.raises(ValueError, match="total_amount_in must be positive"):
+        _route(IntentKind.ROUTE_EXACT_IN, fields)
+
+
+@pytest.mark.parametrize("total_min_amount_out", [None, -1, True, 1.0])
+def test_route_intent_rejects_invalid_exact_in_total_min_amount_out(
+    total_min_amount_out: object,
+) -> None:
+    fields = _route_exact_in_fields()
+    fields["total_min_amount_out"] = total_min_amount_out
+    with pytest.raises(ValueError, match="total_min_amount_out must be non-negative"):
+        _route(IntentKind.ROUTE_EXACT_IN, fields)
+
+
+@pytest.mark.parametrize("total_amount_out", [None, 0, -1, True, 1.0])
+def test_route_intent_rejects_invalid_exact_out_total_amount_out(
+    total_amount_out: object,
+) -> None:
+    fields = _route_exact_out_fields()
+    fields["total_amount_out"] = total_amount_out
+    with pytest.raises(ValueError, match="total_amount_out must be positive"):
+        _route(IntentKind.ROUTE_EXACT_OUT, fields)
+
+
+@pytest.mark.parametrize("total_max_amount_in", [None, -1, True, 1.0])
+def test_route_intent_rejects_invalid_exact_out_total_max_amount_in(
+    total_max_amount_in: object,
+) -> None:
+    # None is the fail-closed case: max input MUST be specified (no default).
+    fields = _route_exact_out_fields()
+    fields["total_max_amount_in"] = total_max_amount_in
+    with pytest.raises(ValueError, match="total_max_amount_in must be non-negative"):
+        _route(IntentKind.ROUTE_EXACT_OUT, fields)
+
+
+def test_route_intent_exact_out_requires_total_max_amount_in() -> None:
+    # Absent (not just None) total_max_amount_in must fail closed.
+    fields = _route_exact_out_fields()
+    del fields["total_max_amount_in"]
+    with pytest.raises(ValueError, match="total_max_amount_in must be non-negative"):
+        _route(IntentKind.ROUTE_EXACT_OUT, fields)
+
+
+@pytest.mark.parametrize("extra", ["total_amount_out", "total_max_amount_in"])
+def test_route_intent_rejects_exact_out_fields_on_exact_in(extra: str) -> None:
+    fields = _route_exact_in_fields()
+    fields[extra] = 1
+    with pytest.raises(ValueError, match="must not carry exact-out fields"):
+        _route(IntentKind.ROUTE_EXACT_IN, fields)
+
+
+@pytest.mark.parametrize("extra", ["total_amount_in", "total_min_amount_out"])
+def test_route_intent_rejects_exact_in_fields_on_exact_out(extra: str) -> None:
+    fields = _route_exact_out_fields()
+    fields[extra] = 1
+    with pytest.raises(ValueError, match="must not carry exact-in fields"):
+        _route(IntentKind.ROUTE_EXACT_OUT, fields)
+
+
+def test_existing_intents_unchanged_by_additive_route_kinds() -> None:
+    """The additive ROUTE_* enum entries must not regress existing intents."""
+    swap_in = SwapIntent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_hex32("1"),
+        sender_pubkey=_pubkey("a"),
+        deadline=123,
+        fields={
+            "pool_id": _hex32("b"),
+            "asset_in": _hex32("c"),
+            "asset_out": _hex32("d"),
+            "amount_in": 10,
+            "min_amount_out": 0,
+        },
+    )
+    swap_out = SwapIntent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_OUT,
+        intent_id=_hex32("2"),
+        sender_pubkey=_pubkey("a"),
+        deadline=123,
+        fields={
+            "pool_id": _hex32("b"),
+            "asset_in": _hex32("c"),
+            "asset_out": _hex32("d"),
+            "amount_out": 5,
+            "max_amount_in": 11,
+        },
+    )
+    create_pool = CreatePoolIntent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_hex32("3"),
+        sender_pubkey=_pubkey("a"),
+        deadline=123,
+        fields={
+            "asset0": _hex32("0"),
+            "asset1": _hex32("f"),
+            "fee_bps": 30,
+            "amount0": 10,
+            "amount1": 20,
+        },
+    )
+    assert swap_in.get_field("amount_in") == 10
+    assert swap_out.get_field("amount_out") == 5
+    assert create_pool.get_field("fee_bps") == 30
+    # Enum is purely additive: the original five kinds keep their values.
+    assert IntentKind.SWAP_EXACT_IN.value == "SWAP_EXACT_IN"
+    assert IntentKind.CREATE_POOL.value == "CREATE_POOL"
+    assert IntentKind.ROUTE_EXACT_IN.value == "ROUTE_EXACT_IN"
+    assert IntentKind.ROUTE_EXACT_OUT.value == "ROUTE_EXACT_OUT"

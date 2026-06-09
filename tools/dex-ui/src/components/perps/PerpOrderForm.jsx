@@ -207,6 +207,18 @@ function PerpOrderForm({ market, position, wallet, writeEnabled, writeLockReason
                 </div>
             )}
 
+            {/* Circuit-breaker status unavailable — honest, non-blocking heads-up.
+               null means the backend did not report the halt status (not a
+               confirmed "normal"); we surface the uncertainty without blocking
+               or alarming. Gated on sizeInput (like the preview/error) so it
+               reads naturally once a trade is being composed. Real true/false
+               (e.g. demo) skip this. */}
+            {market && market.breakerActive == null && sizeInput && (
+                <div className="perp-order-info" role="note">
+                    Circuit-breaker status is currently unavailable; this trade could fail on-chain if the market is halted.
+                </div>
+            )}
+
             {/* Risk Warning */}
             {validation.warning && (
                 <div className="perp-risk-warning" style={{ borderColor: riskColor, background: `${riskColor}11` }}>

@@ -80,7 +80,12 @@ function mapWalletMarketToProviderShape(walletMarket) {
         // them or when a separate market-config endpoint is wired.
         maxPositionAbs: Number.MAX_SAFE_INTEGER,
         maxOracleStalenessEpochs: 4,
-        breakerActive: false,
+        // Circuit-breaker state is NOT exposed by wallet status. Use null to
+        // signal UNKNOWN rather than fabricating a "normal / not halted" safety
+        // status (false) that has no backend data behind it. Consumers treat
+        // null as the conservative falsy default (no fabricated HALTED banner,
+        // no risk escalation); only the status display shows "—" (unknown).
+        breakerActive: null,
         // 2p-specific fields (preserved for PerpAccountSummary / debug):
         accountAPubkey: walletMarket.account_a_pubkey || null,
         accountBPubkey: walletMarket.account_b_pubkey || null,

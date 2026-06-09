@@ -197,14 +197,6 @@ export function apiGetConfidentialStatus(options = {}) {
   return apiFetchJson('/api/confidential/status', { method: 'GET', ...(options || {}) });
 }
 
-export function apiVerifyConfidentialAttestation(body, options = {}) {
-  return apiFetchJson('/api/confidential/attestation/verify', {
-    method: 'POST',
-    body: JSON.stringify(body || {}),
-    ...(options || {}),
-  });
-}
-
 export function apiAdmitConfidentialAttestation(body, options = {}) {
   return apiFetchJson('/api/confidential/attestation/admit', {
     method: 'POST',
