@@ -1889,6 +1889,90 @@ def test_strong_proof_carrying_requires_swap_reserve_witnesses() -> None:
     assert err_pc3 is not None
 
 
+def test_strong_proof_carrying_checks_swap_witnesses_before_amount_fields() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, exact_in_intent, _settlement = _setup_swap_context()
+    malformed_exact_in_intent = replace(
+        exact_in_intent,
+        fields={**exact_in_intent.fields, "amount_in": False, "min_amount_out": False},
+    )
+    exact_in_settlement = compute_settlement([exact_in_intent], {pool_id: pool}, balances, LPTable())
+    assert exact_in_settlement.fills[0].reserve_in_before is not None
+    assert exact_in_settlement.fills[0].reserve_out_before is not None
+
+    exact_in_settlement.fills[0].reserve_in_before = None
+    exact_in_settlement.fills[0].reserve_out_before = None
+    ok, err = validate_settlement_strong(
+        settlement=exact_in_settlement,
+        intents=[malformed_exact_in_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_proof_carrying",
+    )
+    assert ok is False
+    assert err == f"missing swap witness reserves for intent_id={exact_in_intent.intent_id}"
+
+    exact_in_settlement = compute_settlement([exact_in_intent], {pool_id: pool}, balances, LPTable())
+    exact_in_settlement.fills[0].reserve_in_before = int(exact_in_settlement.fills[0].reserve_in_before or 0) + 1
+    ok, err = validate_settlement_strong(
+        settlement=exact_in_settlement,
+        intents=[malformed_exact_in_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_proof_carrying",
+    )
+    assert ok is False
+    assert err == f"swap witness reserve mismatch for intent_id={exact_in_intent.intent_id}"
+
+    _pk, _asset0, _asset1, pool_id, pool, balances, exact_out_intent, _settlement = _setup_swap_exact_out_context()
+    malformed_exact_out_intent = replace(
+        exact_out_intent,
+        fields={**exact_out_intent.fields, "amount_out": False, "max_amount_in": False},
+    )
+    exact_out_settlement = compute_settlement(
+        [exact_out_intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+    assert exact_out_settlement.fills[0].reserve_in_before is not None
+    assert exact_out_settlement.fills[0].reserve_out_before is not None
+
+    exact_out_settlement.fills[0].reserve_in_before = None
+    exact_out_settlement.fills[0].reserve_out_before = None
+    ok, err = validate_settlement_strong(
+        settlement=exact_out_settlement,
+        intents=[malformed_exact_out_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_proof_carrying",
+    )
+    assert ok is False
+    assert err == f"missing swap witness reserves for intent_id={exact_out_intent.intent_id}"
+
+    exact_out_settlement = compute_settlement(
+        [exact_out_intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+    exact_out_settlement.fills[0].reserve_out_before = int(exact_out_settlement.fills[0].reserve_out_before or 0) + 1
+    ok, err = validate_settlement_strong(
+        settlement=exact_out_settlement,
+        intents=[malformed_exact_out_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_proof_carrying",
+    )
+    assert ok is False
+    assert err == f"swap witness reserve mismatch for intent_id={exact_out_intent.intent_id}"
+
+
 def test_strong_validator_rejects_nonconserving_cow_netted_settlement() -> None:
     pk0 = "0x" + "11" * 48
     pk1 = "0x" + "22" * 48
@@ -3069,6 +3153,55 @@ def test_strong_validator_accepts_reverse_direction_swap_exact_in() -> None:
     assert ok is True, err
 
 
+def test_strong_proof_carrying_reverse_exact_in_uses_directional_reserve_witnesses() -> None:
+    pk, asset0, asset1, pool_id, pool, balances, _intent, _settlement = _setup_swap_context()
+    pool.reserve0 = 2_000_000
+    pool.reserve1 = 3_000_000
+    reverse_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(9081),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset1,
+            "asset_out": asset0,
+            "amount_in": 1_000,
+            "min_amount_out": 1,
+        },
+    )
+    settlement = compute_settlement([reverse_intent], {pool_id: pool}, balances, LPTable())
+    fill = settlement.fills[0]
+    assert fill.reserve_in_before == pool.reserve1
+    assert fill.reserve_out_before == pool.reserve0
+    assert fill.reserve_in_before != fill.reserve_out_before
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[reverse_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_proof_carrying",
+    )
+    assert ok is True, err
+
+    fill.reserve_in_before = pool.reserve0
+    fill.reserve_out_before = pool.reserve1
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[reverse_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_proof_carrying",
+    )
+    assert ok is False
+    assert err == f"swap witness reserve mismatch for intent_id={reverse_intent.intent_id}"
+
+
 def test_strong_validator_accepts_reverse_direction_swap_exact_out() -> None:
     _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_exact_out_context(reverse=True)
     ok, err = validate_settlement_strong(
@@ -3080,6 +3213,46 @@ def test_strong_validator_accepts_reverse_direction_swap_exact_out() -> None:
         mode="strong_replay",
     )
     assert ok is True, err
+
+
+def test_strong_proof_carrying_reverse_exact_out_uses_directional_reserve_witnesses() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, _settlement = _setup_swap_exact_out_context(reverse=True)
+    pool.reserve0 = 2_000_000
+    pool.reserve1 = 3_000_000
+    settlement = compute_settlement(
+        [intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+    fill = settlement.fills[0]
+    assert fill.reserve_in_before == pool.reserve1
+    assert fill.reserve_out_before == pool.reserve0
+    assert fill.reserve_in_before != fill.reserve_out_before
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_proof_carrying",
+    )
+    assert ok is True, err
+
+    fill.reserve_in_before = pool.reserve0
+    fill.reserve_out_before = pool.reserve1
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_proof_carrying",
+    )
+    assert ok is False
+    assert err == f"swap witness reserve mismatch for intent_id={intent.intent_id}"
 
 
 def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monkeypatch) -> None:

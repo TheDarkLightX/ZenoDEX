@@ -124,6 +124,13 @@ class _SwapMetadata:
     asset_out: AssetId
 
 
+@dataclass(frozen=True)
+class _SwapReserves:
+    reserve_in: int
+    reserve_out: int
+    dir_is_0_to_1: bool
+
+
 def _validate_strong_config(
     *,
     mode: str,
@@ -640,6 +647,66 @@ def _quote_pool_snapshot_error(*, intent: Intent, pool: PoolState, quote_pool_fp
     )
 
 
+def _swap_reserves(
+    *,
+    intent_id: str,
+    pool: PoolState,
+    metadata: _SwapMetadata,
+) -> Tuple[Optional[_SwapReserves], Optional[str]]:
+    if metadata.asset_in == pool.asset0 and metadata.asset_out == pool.asset1:
+        return _SwapReserves(reserve_in=int(pool.reserve0), reserve_out=int(pool.reserve1), dir_is_0_to_1=True), None
+    if metadata.asset_in == pool.asset1 and metadata.asset_out == pool.asset0:
+        return _SwapReserves(reserve_in=int(pool.reserve1), reserve_out=int(pool.reserve0), dir_is_0_to_1=False), None
+    return None, f"swap asset mismatch for intent_id={intent_id}"
+
+
+def _swap_reserves_for_replay(
+    *,
+    intent_id: str,
+    pool: PoolState,
+    metadata: _SwapMetadata,
+    fill: Fill,
+    mode: str,
+) -> Tuple[Optional[_SwapReserves], Optional[str]]:
+    reserves, reserve_error = _swap_reserves(intent_id=intent_id, pool=pool, metadata=metadata)
+    if reserve_error is not None:
+        return None, reserve_error
+    if reserves is None:
+        return None, f"swap reserves missing result for intent_id={intent_id}"
+    witness_error = _swap_reserve_witness_error(intent_id=intent_id, fill=fill, mode=mode, reserves=reserves)
+    if witness_error is not None:
+        return None, witness_error
+    return reserves, None
+
+
+def _swap_reserve_witness_error(
+    *,
+    intent_id: str,
+    fill: Fill,
+    mode: str,
+    reserves: _SwapReserves,
+) -> Optional[str]:
+    if mode != _MODE_STRONG_PROOF_CARRYING:
+        return None
+    if _swap_witness_reserves_missing(fill):
+        return f"missing swap witness reserves for intent_id={intent_id}"
+    if not _swap_witness_reserves_match(fill, reserves):
+        return f"swap witness reserve mismatch for intent_id={intent_id}"
+    return None
+
+
+def _swap_witness_reserves_missing(fill: Fill) -> bool:
+    return fill.reserve_in_before is None or fill.reserve_out_before is None
+
+
+def _swap_witness_reserves_match(fill: Fill, reserves: _SwapReserves) -> bool:
+    reserve_in_before = fill.reserve_in_before
+    reserve_out_before = fill.reserve_out_before
+    if reserve_in_before is None or reserve_out_before is None:
+        return False
+    return int(reserve_in_before) == int(reserves.reserve_in) and int(reserve_out_before) == int(reserves.reserve_out)
+
+
 def _validate_cow_pair_index(
     *,
     settlement: Settlement,
@@ -920,20 +987,20 @@ def _validate_settlement_strong_impl(
                 bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=out_amt, delta_sub=0))
                 continue
 
-            if asset_in == pool.asset0 and asset_out == pool.asset1:
-                reserve_in = int(pool.reserve0)
-                reserve_out = int(pool.reserve1)
-                dir_is_0_to_1 = True
-            else:
-                reserve_in = int(pool.reserve1)
-                reserve_out = int(pool.reserve0)
-                dir_is_0_to_1 = False
-
-            if mode == _MODE_STRONG_PROOF_CARRYING:
-                if f.reserve_in_before is None or f.reserve_out_before is None:
-                    return fail(f"missing swap witness reserves for intent_id={intent_id}")
-                if int(f.reserve_in_before) != int(reserve_in) or int(f.reserve_out_before) != int(reserve_out):
-                    return fail(f"swap witness reserve mismatch for intent_id={intent_id}")
+            swap_reserves, swap_reserve_error = _swap_reserves_for_replay(
+                intent_id=intent_id,
+                pool=pool,
+                metadata=swap_metadata,
+                fill=f,
+                mode=mode,
+            )
+            if swap_reserve_error is not None:
+                return fail(swap_reserve_error)
+            if swap_reserves is None:
+                return fail(f"swap reserves missing result for intent_id={intent_id}")
+            reserve_in = swap_reserves.reserve_in
+            reserve_out = swap_reserves.reserve_out
+            dir_is_0_to_1 = swap_reserves.dir_is_0_to_1
 
             if it.kind == IntentKind.SWAP_EXACT_IN:
                 amount_in = it.get_field("amount_in")

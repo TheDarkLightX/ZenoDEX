@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
   "file_count": 450,
-  "function_count": 5958,
+  "function_count": 5963,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -4727,6 +4727,26 @@
       "complexity": 2,
       "lines": 4
     },
+    "src/core/settlement_strong_validator.py::_swap_reserve_witness_error": {
+      "complexity": 4,
+      "lines": 14
+    },
+    "src/core/settlement_strong_validator.py::_swap_reserves": {
+      "complexity": 5,
+      "lines": 11
+    },
+    "src/core/settlement_strong_validator.py::_swap_reserves_for_replay": {
+      "complexity": 4,
+      "lines": 17
+    },
+    "src/core/settlement_strong_validator.py::_swap_witness_reserves_match": {
+      "complexity": 4,
+      "lines": 6
+    },
+    "src/core/settlement_strong_validator.py::_swap_witness_reserves_missing": {
+      "complexity": 2,
+      "lines": 2
+    },
     "src/core/settlement_strong_validator.py::_validate_cow_pair_index": {
       "complexity": 38,
       "lines": 76
@@ -4740,7 +4760,7 @@
       "lines": 9
     },
     "src/core/settlement_strong_validator.py::_validate_settlement_strong_impl": {
-      "complexity": 133,
+      "complexity": 128,
       "lines": 489
     },
     "src/core/settlement_strong_validator.py::_validate_settlement_strong_impl.fail": {
@@ -23837,16 +23857,16 @@
     }
   },
   "line_budget": 60,
-  "max_complexity": 133,
+  "max_complexity": 128,
   "max_function_lines": 1925,
   "over_complexity_budget_count": 1604,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
     {
-      "complexity": 133,
-      "line_end": 1252,
-      "line_start": 764,
+      "complexity": 128,
+      "line_end": 1319,
+      "line_start": 831,
       "lines": 489,
       "name": "_validate_settlement_strong_impl",
       "path": "src/core/settlement_strong_validator.py"
@@ -24062,9 +24082,9 @@
       "path": "src/integration/api_server.py"
     },
     {
-      "complexity": 133,
-      "line_end": 1252,
-      "line_start": 764,
+      "complexity": 128,
+      "line_end": 1319,
+      "line_start": 831,
       "lines": 489,
       "name": "_validate_settlement_strong_impl",
       "path": "src/core/settlement_strong_validator.py"
