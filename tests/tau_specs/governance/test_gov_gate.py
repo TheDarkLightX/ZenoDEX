@@ -314,3 +314,84 @@ def test_master_rejects_duck_typed_revision():
 
     with pytest.raises(TypeError):
         gov_gate.master_revision_ok(FlipExec())
+
+
+# --------------------------------------------------------------------------- #
+# Trajectory tier: drift budget / cooldown / charter / epoch budget
+# (pure bits -- no approval/exec/timelock inputs; composed by the epoch machine)
+# --------------------------------------------------------------------------- #
+def test_drift_budget_admits_within_remaining():
+    assert gov_gate.drift_budget_ok(500, 520, 20, 150)          # delta 20 <= remaining 130
+    assert gov_gate.drift_budget_ok(500, 470, 120, 150)         # delta 30 == remaining 30
+
+
+def test_drift_budget_rejects_over_remaining_and_exhausted():
+    assert not gov_gate.drift_budget_ok(500, 520, 140, 150)     # delta 20 > remaining 10
+    assert not gov_gate.drift_budget_ok(500, 501, 150, 150)     # exhausted blocks minimal move
+    assert not gov_gate.drift_budget_ok(0, 0, 200, 150)         # used > budget (even a no-move)
+
+
+def test_drift_budget_no_move_admitted_when_used_in_budget():
+    assert gov_gate.drift_budget_ok(500, 500, 150, 150)         # hold consumes nothing
+
+
+def test_drift_budget_domain_fail_closed():
+    assert not gov_gate.drift_budget_ok(True, 520, 20, 150)     # bool is not a plain int
+    assert not gov_gate.drift_budget_ok(500, 520, -1, 150)
+    assert not gov_gate.drift_budget_ok(500, 70000, 0, 150)     # out of bv[16]
+
+    class EvilInt(int):
+        def __sub__(self, other):  # pragma: no cover - must never be consulted
+            return 0
+    assert not gov_gate.drift_budget_ok(EvilInt(500), 520, 0, 150)  # int subclass rejected
+
+
+def test_cooldown_boundary_and_wrap():
+    assert gov_gate.cooldown_ok(0, 48, 48)                      # gap == cooldown admits
+    assert not gov_gate.cooldown_ok(100, 110, 24)               # gap 10 < 24
+    assert not gov_gate.cooldown_ok(65520, 8, 24)               # wrap probe: now < last
+    assert not gov_gate.cooldown_ok(0, 48, True)                # bool cooldown rejected
+
+
+def test_charter_validity_window():
+    assert gov_gate.charter_ok(False, 0, 10, 24)                # inside ttl
+    assert gov_gate.charter_ok(False, 100, 100, 1)              # valid exactly at grant epoch
+    assert not gov_gate.charter_ok(False, 0, 24, 24)            # expired at granted+ttl (strict <)
+    assert not gov_gate.charter_ok(False, 0, 0, 0)              # zero ttl dead at birth
+
+
+def test_charter_revocation_and_constitutional_cap():
+    assert not gov_gate.charter_ok(True, 0, 10, 24)             # revoked
+    assert not gov_gate.charter_ok(False, 0, 10, 4097)          # ttl > CHARTER_TTL_MAX
+    assert gov_gate.charter_ok(False, 0, 10, 4096)              # at the cap is legal
+
+
+def test_charter_wrap_probe_future_grant():
+    # naive (now - granted) on modular bv[16] would wrap into a small in-ttl value
+    assert not gov_gate.charter_ok(False, 65520, 8, 4095)
+
+
+def test_charter_flag_fail_closed():
+    assert not gov_gate.charter_ok(1, 0, 10, 24)                # int 1 is not a real bool
+    assert not gov_gate.charter_ok(None, 0, 10, 24)
+
+
+def test_epoch_budget_total_and_wrap():
+    assert gov_gate.epoch_budget_ok(60, 400, 0, 600)
+    assert gov_gate.epoch_budget_ok(0, 0, 0, 0)                 # all-hold fits a zero budget
+    assert not gov_gate.epoch_budget_ok(300, 300, 100, 600)     # 700 > 600
+    assert not gov_gate.epoch_budget_ok(65535, 1, 0, 256)       # wrap probe (no-wrap guard)
+    assert not gov_gate.epoch_budget_ok(60, 400, 0, True)       # bool budget rejected
+
+
+def test_trajectory_constants_are_consistent():
+    # the reference drift budgets are exactly 3 pointwise steps per surface, and every
+    # surface the loop knows has a budget (no surface escapes the trajectory tier)
+    assert gov_gate.DRIFT_BUDGET_BPS["fee_bps"] == 3 * gov_gate.FEE_STEP_BPS
+    assert gov_gate.DRIFT_BUDGET_BPS["mcr_bps"] == 3 * gov_gate.RATIO_STEP_BPS
+    assert set(gov_gate.DRIFT_BUDGET_BPS) == {
+        "fee_bps", "funding_cap_bps", "redeem_staker_bps",
+        "buyburn_bps", "stakers_bps", "reserve_bps", "hosts_bps", "mcr_bps", "ccr_bps",
+    }
+    assert gov_gate.CHARTER_TTL_MAX == 4096
+    assert gov_gate.GOV_COOLDOWN_EPOCHS >= gov_gate.MIN_DELAY  # spacing at least the timelock
