@@ -1,0 +1,5095 @@
+{
+  "base_commit": "ad96b74d",
+  "cases": [
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1",
+            "quote_age_epochs=0",
+            "budget_window_id=1",
+            "budget_spent_after=100",
+            "lifetime_spent_after=100",
+            "live_orders_after=1"
+          ],
+          "guard_state": {
+            "budget_ok": true,
+            "execution_ok": true,
+            "oracle_freshness_ok": true,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [
+            {
+              "deadline": 99,
+              "fields": {
+                "amount_in": 100,
+                "asset_in": "A",
+                "asset_out": "B",
+                "min_amount_out": 179,
+                "pool_id": "p_ab",
+                "quote_pool_fingerprint": "0xcfae57e2d9dfb88f674439f98ef5eabafbf8f6369d2ea85a0ec68d3a22927024",
+                "quote_receipt_hash": "0x6843d4feb956e16fc221d7f9733878dbc692dea263a1ed2c15706ebdeec00b65",
+                "quote_receipt_leg_index": 0,
+                "recipient": "owner.pubkey.1"
+              },
+              "intent_id": "0xf7d06a5eb07afe8dc5bd3ee5aa397fba7f571a0b804a5e98bf73a4a8a950d8fe",
+              "kind": "SWAP_EXACT_IN",
+              "module": "TauSwap",
+              "salt": null,
+              "sender_pubkey": "owner.pubkey.1",
+              "version": "0.1"
+            }
+          ],
+          "reason": "policy_guard_passed",
+          "should_submit": true,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 100,
+              "window_id": 1
+            },
+            "last_action_epoch": 5,
+            "lifetime_spent": 100,
+            "live_orders": 1
+          },
+          "tag": "submit",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "valid_local_submit",
+      "kind": "valid",
+      "spec": {}
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=600",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=600",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=2",
+            "route_hop_count=2",
+            "route_max_input_vs_reserve_bps=3010",
+            "route_max_output_vs_reserve_bps=2310",
+            "route_max_price_impact_bps=2325",
+            "intent_count=2",
+            "projected_live_orders=1",
+            "quote_age_epochs=0",
+            "budget_window_id=1",
+            "budget_spent_after=600",
+            "lifetime_spent_after=600",
+            "live_orders_after=1"
+          ],
+          "guard_state": {
+            "budget_ok": true,
+            "execution_ok": true,
+            "oracle_freshness_ok": true,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [
+            {
+              "deadline": 99,
+              "fields": {
+                "amount_in": 301,
+                "asset_in": "A",
+                "asset_out": "B",
+                "min_amount_out": 229,
+                "nonce": 10,
+                "pool_id": "p1",
+                "quote_pool_fingerprint": "0x2bcb29b7ac361bcede5cd91c497c25719d18c57e50718d4148c9505acad3e622",
+                "quote_receipt_hash": "0x72f872b2cb6c79e70427357ef23918051409c6f18507839d36b27fd12f92c806",
+                "quote_receipt_leg_index": 0,
+                "recipient": "owner.pubkey.1"
+              },
+              "intent_id": "0xda433389095b065a1bb491db70fc0f1127a75c164f315aaf41cc1b7ebcbc9181",
+              "kind": "SWAP_EXACT_IN",
+              "module": "TauSwap",
+              "salt": null,
+              "sender_pubkey": "owner.pubkey.1",
+              "version": "0.1"
+            },
+            {
+              "deadline": 99,
+              "fields": {
+                "amount_in": 299,
+                "asset_in": "A",
+                "asset_out": "B",
+                "min_amount_out": 228,
+                "nonce": 11,
+                "pool_id": "p2",
+                "quote_pool_fingerprint": "0x7fe21be049c7a432ae8cdb2806f4ace40599e0555bc510609b0007ea74b40d4f",
+                "quote_receipt_hash": "0x72f872b2cb6c79e70427357ef23918051409c6f18507839d36b27fd12f92c806",
+                "quote_receipt_leg_index": 1,
+                "recipient": "owner.pubkey.1"
+              },
+              "intent_id": "0xa5a5e07d11dcb68a49d8312edba96e5a5fb8080f4269a99910fa4607a6913324",
+              "kind": "SWAP_EXACT_IN",
+              "module": "TauSwap",
+              "salt": null,
+              "sender_pubkey": "owner.pubkey.1",
+              "version": "0.1"
+            }
+          ],
+          "reason": "policy_guard_passed",
+          "should_submit": true,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 600,
+              "window_id": 1
+            },
+            "last_action_epoch": 5,
+            "lifetime_spent": 600,
+            "live_orders": 1
+          },
+          "tag": "submit",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "valid_local_submit_split_nonce",
+      "kind": "valid",
+      "spec": {
+        "call": {
+          "nonce_start": 10
+        },
+        "receipt": {
+          "amount_in": 600,
+          "recipe": "split"
+        },
+        "strategy": {
+          "fixed_order_size": 600,
+          "lifetime_max": 2000,
+          "max_live_orders": 1,
+          "per_order_max": 600,
+          "per_window_max": 1000
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1",
+            "quote_age_epochs=0",
+            "budget_window_id=1",
+            "budget_spent_after=100",
+            "lifetime_spent_after=100",
+            "live_orders_after=1"
+          ],
+          "guard_state": {
+            "budget_ok": true,
+            "execution_ok": true,
+            "oracle_freshness_ok": true,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [
+            {
+              "deadline": 99,
+              "fields": {
+                "amount_in": 100,
+                "asset_in": "A",
+                "asset_out": "B",
+                "min_amount_out": 179,
+                "pool_id": "p_ab",
+                "quote_pool_fingerprint": "0xcfae57e2d9dfb88f674439f98ef5eabafbf8f6369d2ea85a0ec68d3a22927024",
+                "quote_receipt_hash": "0x6843d4feb956e16fc221d7f9733878dbc692dea263a1ed2c15706ebdeec00b65",
+                "quote_receipt_leg_index": 0,
+                "recipient": "owner.pubkey.1"
+              },
+              "intent_id": "0xf7d06a5eb07afe8dc5bd3ee5aa397fba7f571a0b804a5e98bf73a4a8a950d8fe",
+              "kind": "SWAP_EXACT_IN",
+              "module": "TauSwap",
+              "salt": null,
+              "sender_pubkey": "owner.pubkey.1",
+              "version": "0.1"
+            }
+          ],
+          "reason": "policy_guard_passed",
+          "should_submit": true,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 100,
+              "window_id": 1
+            },
+            "last_action_epoch": 5,
+            "lifetime_spent": 100,
+            "live_orders": 1
+          },
+          "tag": "submit",
+          "tau_policy_receipt": {
+            "expected_ok": true,
+            "gate_output": "o1",
+            "schema": "zenodex/tau-policy-receipt/v1",
+            "spec_id": "autotrader_budget_guard_v1",
+            "steps": [
+              {
+                "i1": 0,
+                "i2": 100,
+                "i3": 100,
+                "i4": 500,
+                "i5": 100,
+                "i6": 0
+              }
+            ],
+            "strategy_hash": "0x21f661a28ab70fa8b4d181ec75751b27cd5d8566bb81920ca202f73d0901c1d6",
+            "strategy_id": "dca.tau.1"
+          }
+        },
+        "outcome": "decision"
+      },
+      "id": "valid_tau_submit",
+      "kind": "valid",
+      "spec": {
+        "patches": [
+          "tau_runner_ok"
+        ],
+        "strategy": {
+          "backend": "tau"
+        },
+        "tau_config": {
+          "enabled": true,
+          "tau_bin": "@SYS_EXECUTABLE@"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=9",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=9",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1",
+            "quote_age_epochs=0",
+            "budget_window_id=9",
+            "budget_spent_after=100",
+            "lifetime_spent_after=200",
+            "live_orders_after=1"
+          ],
+          "guard_state": {
+            "budget_ok": true,
+            "execution_ok": true,
+            "oracle_freshness_ok": true,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [
+            {
+              "deadline": 99,
+              "fields": {
+                "amount_in": 100,
+                "asset_in": "A",
+                "asset_out": "B",
+                "min_amount_out": 179,
+                "pool_id": "p_ab",
+                "quote_pool_fingerprint": "0xcfae57e2d9dfb88f674439f98ef5eabafbf8f6369d2ea85a0ec68d3a22927024",
+                "quote_receipt_hash": "0x837120666ac7839f51353a579e3ff8a3ca382d1645d71ea51ce39bccb74fe6e4",
+                "quote_receipt_leg_index": 0,
+                "recipient": "owner.pubkey.1"
+              },
+              "intent_id": "0xb1280dfa102e71eadb4a6a1fb01118c86544cd1f5aa22f62548f2632d90cf68b",
+              "kind": "SWAP_EXACT_IN",
+              "module": "TauSwap",
+              "salt": null,
+              "sender_pubkey": "owner.pubkey.1",
+              "version": "0.1"
+            }
+          ],
+          "reason": "policy_guard_passed",
+          "should_submit": true,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 100,
+              "window_id": 9
+            },
+            "last_action_epoch": 9,
+            "lifetime_spent": 200,
+            "live_orders": 1
+          },
+          "tag": "submit",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "valid_local_submit_window_roll",
+      "kind": "valid",
+      "spec": {
+        "call": {
+          "current_epoch": 9
+        },
+        "controller_state": {
+          "last_action_epoch": 5,
+          "lifetime_spent": 100,
+          "spent_in_window": 100,
+          "window_id": 5
+        },
+        "receipt": {
+          "quote_epoch": 9
+        },
+        "strategy": {
+          "budget_window_epochs": 4
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1",
+            "quote_age_epochs=0",
+            "budget_window_id=1",
+            "budget_spent_after=100",
+            "lifetime_spent_after=100",
+            "live_orders_after=1"
+          ],
+          "guard_state": {
+            "budget_ok": true,
+            "execution_ok": true,
+            "oracle_freshness_ok": true,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [
+            {
+              "deadline": 99,
+              "fields": {
+                "amount_in": 100,
+                "asset_in": "A",
+                "asset_out": "B",
+                "min_amount_out": 179,
+                "pool_id": "p_ab",
+                "quote_pool_fingerprint": "0xcfae57e2d9dfb88f674439f98ef5eabafbf8f6369d2ea85a0ec68d3a22927024",
+                "quote_receipt_hash": "0x6843d4feb956e16fc221d7f9733878dbc692dea263a1ed2c15706ebdeec00b65",
+                "quote_receipt_leg_index": 0,
+                "recipient": "owner.pubkey.1"
+              },
+              "intent_id": "0xf7d06a5eb07afe8dc5bd3ee5aa397fba7f571a0b804a5e98bf73a4a8a950d8fe",
+              "kind": "SWAP_EXACT_IN",
+              "module": "TauSwap",
+              "salt": null,
+              "sender_pubkey": "owner.pubkey.1",
+              "version": "0.1"
+            }
+          ],
+          "reason": "policy_guard_passed",
+          "should_submit": true,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 100,
+              "window_id": 1
+            },
+            "last_action_epoch": 5,
+            "lifetime_spent": 100,
+            "live_orders": 1
+          },
+          "tag": "submit",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "valid_local_submit_slippage_at_limit",
+      "kind": "valid",
+      "spec": {
+        "call": {
+          "slippage_bps": 50
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "strategy must be a StrategyIR",
+        "exception_type": "TypeError",
+        "outcome": "exception"
+      },
+      "id": "raise_strategy_not_ir",
+      "kind": "exception",
+      "spec": {
+        "strategy": "invalid"
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "controller_state must be an AutoTraderControllerState",
+        "exception_type": "TypeError",
+        "outcome": "exception"
+      },
+      "id": "raise_controller_state_invalid",
+      "kind": "exception",
+      "spec": {
+        "controller_state": "invalid"
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "receipt must be a mapping",
+        "exception_type": "TypeError",
+        "outcome": "exception"
+      },
+      "id": "raise_receipt_not_mapping",
+      "kind": "exception",
+      "spec": {
+        "receipt": {
+          "receipt_invalid": true
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "pools_by_id must be a mapping",
+        "exception_type": "TypeError",
+        "outcome": "exception"
+      },
+      "id": "raise_pools_not_mapping",
+      "kind": "exception",
+      "spec": {
+        "receipt": {
+          "pools_invalid": true
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "current_epoch must be an int",
+        "exception_type": "TypeError",
+        "outcome": "exception"
+      },
+      "id": "raise_current_epoch_bool",
+      "kind": "exception",
+      "spec": {
+        "call": {
+          "current_epoch": true
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "current_epoch out of u32 range: -1",
+        "exception_type": "ValueError",
+        "outcome": "exception"
+      },
+      "id": "raise_current_epoch_negative",
+      "kind": "exception",
+      "spec": {
+        "call": {
+          "current_epoch": -1
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "intent_deadline out of u32 range: 0",
+        "exception_type": "ValueError",
+        "outcome": "exception"
+      },
+      "id": "raise_intent_deadline_zero",
+      "kind": "exception",
+      "spec": {
+        "call": {
+          "intent_deadline": 0
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "intent_deadline must be an int",
+        "exception_type": "TypeError",
+        "outcome": "exception"
+      },
+      "id": "raise_intent_deadline_str",
+      "kind": "exception",
+      "spec": {
+        "call": {
+          "intent_deadline": "99"
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "strategy template param must be an int: fixed_order_size",
+        "exception_type": "ValueError",
+        "outcome": "exception"
+      },
+      "id": "raise_fixed_order_size_str",
+      "kind": "exception",
+      "spec": {
+        "strategy": {
+          "overrides": [
+            [
+              "template_param",
+              "fixed_order_size",
+              "bad"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "strategy template param out of range: fixed_order_size=0",
+        "exception_type": "ValueError",
+        "outcome": "exception"
+      },
+      "id": "raise_fixed_order_size_zero",
+      "kind": "exception",
+      "spec": {
+        "strategy": {
+          "overrides": [
+            [
+              "template_param",
+              "fixed_order_size",
+              0
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "strategy template param out of range: cadence_epochs=0",
+        "exception_type": "ValueError",
+        "outcome": "exception"
+      },
+      "id": "raise_cadence_zero",
+      "kind": "exception",
+      "spec": {
+        "strategy": {
+          "overrides": [
+            [
+              "template_param",
+              "cadence_epochs",
+              0
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "strategy template param must be a string: asset_in",
+        "exception_type": "ValueError",
+        "outcome": "exception"
+      },
+      "id": "raise_asset_in_non_string",
+      "kind": "exception",
+      "spec": {
+        "strategy": {
+          "overrides": [
+            [
+              "template_param",
+              "asset_in",
+              1
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "strategy template param must be non-empty: asset_in",
+        "exception_type": "ValueError",
+        "outcome": "exception"
+      },
+      "id": "raise_asset_in_blank",
+      "kind": "exception",
+      "spec": {
+        "strategy": {
+          "overrides": [
+            [
+              "template_param",
+              "asset_in",
+              "   "
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "slippage_bps must be an int",
+        "exception_type": "TypeError",
+        "outcome": "exception"
+      },
+      "id": "raise_slippage_str",
+      "kind": "exception",
+      "spec": {
+        "call": {
+          "slippage_bps": "50"
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "slippage_bps out of u32 range: -1",
+        "exception_type": "ValueError",
+        "outcome": "exception"
+      },
+      "id": "raise_slippage_negative",
+      "kind": "exception",
+      "spec": {
+        "call": {
+          "slippage_bps": -1
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "missing receipt.body",
+        "exception_type": "ValueError",
+        "outcome": "exception"
+      },
+      "id": "raise_receipt_body_missing",
+      "kind": "exception",
+      "spec": {
+        "receipt": {
+          "recipe": "no_body"
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "receipt body field must be an int: amount_in",
+        "exception_type": "ValueError",
+        "outcome": "exception"
+      },
+      "id": "raise_receipt_amount_in_str",
+      "kind": "exception",
+      "spec": {
+        "receipt": {
+          "mutations": [
+            [
+              "set_body",
+              "amount_in",
+              "100"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "receipt body field must be an int: amount_in",
+        "exception_type": "ValueError",
+        "outcome": "exception"
+      },
+      "id": "raise_receipt_amount_in_bool",
+      "kind": "exception",
+      "spec": {
+        "receipt": {
+          "mutations": [
+            [
+              "set_body",
+              "amount_in",
+              true
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=limit.local.1",
+            "backend=local",
+            "template=limit_ladder",
+            "epoch=5"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "unsupported_strategy_template:limit_ladder",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_unsupported_template",
+      "kind": "single_fault",
+      "spec": {
+        "strategy": {
+          "kind": "limit_ladder"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "strategy_action_not_allowed:place_swap_exact_in",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_action_not_allowed",
+      "kind": "single_fault",
+      "spec": {
+        "strategy": {
+          "overrides": [
+            [
+              "allowed_actions",
+              [
+                "place_order_intent"
+              ]
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "strategy_assets_outside_universe",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_assets_outside_universe",
+      "kind": "single_fault",
+      "spec": {
+        "strategy": {
+          "overrides": [
+            [
+              "asset_universe",
+              [
+                "A",
+                "C"
+              ]
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "slippage_limit_exceeded:75>50",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_slippage_limit_exceeded",
+      "kind": "single_fault",
+      "spec": {
+        "call": {
+          "slippage_bps": 75
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_out",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "unsupported_receipt_kind:exact_out",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_receipt_kind_exact_out",
+      "kind": "single_fault",
+      "spec": {
+        "receipt": {
+          "recipe": "exact_out"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "unsupported_receipt_kind:missing",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_receipt_kind_missing",
+      "kind": "single_fault",
+      "spec": {
+        "receipt": {
+          "mutations": [
+            [
+              "set_body",
+              "kind",
+              ""
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=B/A",
+            "receipt_amount_in=100"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "receipt_asset_mismatch:want=A/B,got=B/A",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_receipt_asset_mismatch",
+      "kind": "single_fault",
+      "spec": {
+        "receipt": {
+          "recipe": "reversed_pair"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=90"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "receipt_amount_mismatch:want=100,got=90",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_receipt_amount_mismatch",
+      "kind": "single_fault",
+      "spec": {
+        "receipt": {
+          "amount_in": 90
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "receipt_missing_quote_epoch",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_receipt_missing_quote_epoch",
+      "kind": "single_fault",
+      "spec": {
+        "receipt": {
+          "mutations": [
+            [
+              "pop_body",
+              "quote_epoch"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "receipt_invalid_quote_epoch",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_receipt_invalid_quote_epoch_str",
+      "kind": "single_fault",
+      "spec": {
+        "receipt": {
+          "mutations": [
+            [
+              "set_body",
+              "quote_epoch",
+              "bad"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "receipt_invalid_quote_epoch",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_receipt_invalid_quote_epoch_bool",
+      "kind": "single_fault",
+      "spec": {
+        "receipt": {
+          "mutations": [
+            [
+              "set_body",
+              "quote_epoch",
+              true
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "receipt_invalid_quote_epoch",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_receipt_invalid_quote_epoch_range",
+      "kind": "single_fault",
+      "spec": {
+        "receipt": {
+          "mutations": [
+            [
+              "set_body",
+              "quote_epoch",
+              4294967296
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "signal_packet_build_failed:ValueError:broken packet",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_signal_packet_build_failed",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "signal_packet_raises"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "signal_quote_epoch_mismatch:4!=5",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_signal_quote_epoch_mismatch",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "signal_packet_epoch_mismatch"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "lifetime_cap_exceeded:1050>1000",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 1
+            },
+            "last_action_epoch": 1,
+            "lifetime_spent": 950,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_lifetime_cap_exceeded",
+      "kind": "single_fault",
+      "spec": {
+        "controller_state": {
+          "last_action_epoch": 1,
+          "lifetime_spent": 950,
+          "window_id": 1
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "tau_policy_backend_requires_enabled_tau_config",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_tau_backend_not_enabled",
+      "kind": "single_fault",
+      "spec": {
+        "strategy": {
+          "backend": "tau"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "tau_tool_unavailable:tau_bin must be an absolute path when allow_path_lookup=False",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_tau_bin_relative",
+      "kind": "single_fault",
+      "spec": {
+        "strategy": {
+          "backend": "tau"
+        },
+        "tau_config": {
+          "enabled": true,
+          "tau_bin": "tau"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "tau_tool_unavailable:tau_bin is not an executable file: /not/an/executable",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_tau_bin_not_executable",
+      "kind": "single_fault",
+      "spec": {
+        "strategy": {
+          "backend": "tau"
+        },
+        "tau_config": {
+          "enabled": true,
+          "tau_bin": "/not/an/executable"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "tau_tool_unavailable:tau_bin not configured (set AutoTraderTauConfig.tau_bin)",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_tau_bin_unset",
+      "kind": "single_fault",
+      "spec": {
+        "strategy": {
+          "backend": "tau"
+        },
+        "tau_config": {
+          "enabled": true
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "tau_tool_unavailable:tau binary not found (fail-closed)",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_tau_lookup_fails",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "find_tau_bin_none"
+        ],
+        "strategy": {
+          "backend": "tau"
+        },
+        "tau_config": {
+          "allow_path_lookup": true,
+          "enabled": true
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "tau_policy_runner_error:RuntimeError:tau crashed",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": {
+            "expected_ok": true,
+            "gate_output": "o4",
+            "schema": "zenodex/tau-policy-receipt/v1",
+            "spec_id": "autotrader_signal_provenance_guard_v1",
+            "steps": [
+              {
+                "i1": 1,
+                "i2": 2,
+                "i3": 1,
+                "i4": 1,
+                "i5": 1,
+                "i6": 1,
+                "i7": 1,
+                "i8": 1,
+                "i9": 1
+              }
+            ],
+            "strategy_hash": "0x21f661a28ab70fa8b4d181ec75751b27cd5d8566bb81920ca202f73d0901c1d6",
+            "strategy_id": "dca.tau.1"
+          }
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_tau_runner_error",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "tau_runner_raises"
+        ],
+        "strategy": {
+          "backend": "tau"
+        },
+        "tau_config": {
+          "enabled": true,
+          "tau_bin": "@SYS_EXECUTABLE@"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "tau_policy_missing_output:o4",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": {
+            "expected_ok": true,
+            "gate_output": "o4",
+            "schema": "zenodex/tau-policy-receipt/v1",
+            "spec_id": "autotrader_signal_provenance_guard_v1",
+            "steps": [
+              {
+                "i1": 1,
+                "i2": 2,
+                "i3": 1,
+                "i4": 1,
+                "i5": 1,
+                "i6": 1,
+                "i7": 1,
+                "i8": 1,
+                "i9": 1
+              }
+            ],
+            "strategy_hash": "0x21f661a28ab70fa8b4d181ec75751b27cd5d8566bb81920ca202f73d0901c1d6",
+            "strategy_id": "dca.tau.1"
+          }
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_tau_missing_output",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "tau_runner_empty"
+        ],
+        "strategy": {
+          "backend": "tau"
+        },
+        "tau_config": {
+          "enabled": true,
+          "tau_bin": "@SYS_EXECUTABLE@"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "tau_policy_mismatch:local=1,tau=0,expected=1",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": {
+            "expected_ok": true,
+            "gate_output": "o4",
+            "schema": "zenodex/tau-policy-receipt/v1",
+            "spec_id": "autotrader_signal_provenance_guard_v1",
+            "steps": [
+              {
+                "i1": 1,
+                "i2": 2,
+                "i3": 1,
+                "i4": 1,
+                "i5": 1,
+                "i6": 1,
+                "i7": 1,
+                "i8": 1,
+                "i9": 1
+              }
+            ],
+            "strategy_hash": "0x21f661a28ab70fa8b4d181ec75751b27cd5d8566bb81920ca202f73d0901c1d6",
+            "strategy_id": "dca.tau.1"
+          }
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_tau_mismatch_provenance",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "tau_runner_gate0_provenance"
+        ],
+        "strategy": {
+          "backend": "tau"
+        },
+        "tau_config": {
+          "enabled": true,
+          "tau_bin": "@SYS_EXECUTABLE@"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "signal_verify_error=hash_mismatch"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "signal_provenance_rejected:signal_auth_invalid",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_signal_provenance_tampered_hash",
+      "kind": "single_fault",
+      "spec": {
+        "receipt": {
+          "mutations": [
+            [
+              "set_top",
+              "receipt_hash",
+              "receipt.hash.tampered"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "route_economic_sanity_unavailable",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_route_unavailable",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "route_snapshot_none"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "tau_policy_mismatch:local=1,tau=0,expected=1",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": {
+            "expected_ok": true,
+            "gate_output": "o5",
+            "schema": "zenodex/tau-policy-receipt/v1",
+            "spec_id": "autotrader_route_economic_sanity_guard_v1",
+            "steps": [
+              {
+                "i1": 1,
+                "i10": 909,
+                "i11": 10000,
+                "i12": 9000,
+                "i13": 5000,
+                "i2": 1,
+                "i3": 1,
+                "i4": 1,
+                "i5": 1,
+                "i6": 1,
+                "i7": 0,
+                "i8": 1000,
+                "i9": 900
+              }
+            ],
+            "strategy_hash": "0x21f661a28ab70fa8b4d181ec75751b27cd5d8566bb81920ca202f73d0901c1d6",
+            "strategy_id": "dca.tau.1"
+          }
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_tau_mismatch_route",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "tau_runner_gate0_route"
+        ],
+        "strategy": {
+          "backend": "tau"
+        },
+        "tau_config": {
+          "enabled": true,
+          "tau_bin": "@SYS_EXECUTABLE@"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=2",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=1000",
+            "route_sanity_error=route_mixed_asset_pairs"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "route_economic_sanity_rejected:route_mixed_asset_pairs",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_route_mixed_asset_pairs",
+      "kind": "single_fault",
+      "spec": {
+        "receipt": {
+          "recipe": "multi_hop"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=20000",
+            "route_max_output_vs_reserve_bps=6660",
+            "route_max_price_impact_bps=6670",
+            "route_sanity_error=route_extreme_input_stress:max=20000,threshold=10000"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "route_economic_sanity_rejected:route_extreme_input_stress:max=20000,threshold=10000",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "skip_route_extreme_input_stress",
+      "kind": "single_fault",
+      "spec": {
+        "receipt": {
+          "recipe": "extreme"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "route_sanity_error=route_extreme_output_depletion:max=9100,threshold=9000"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "route_economic_sanity_rejected:route_extreme_output_depletion:max=9100,threshold=9000",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "skip_route_extreme_output_depletion",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "route_snapshot_output_depletion"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "route_sanity_error=route_extreme_price_impact:max=5100,threshold=5000"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "route_economic_sanity_rejected:route_extreme_price_impact:max=5100,threshold=5000",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "skip_route_extreme_price_impact",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "route_snapshot_price_impact"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "route_sanity_error=route_economic_sanity_unknown"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "route_economic_sanity_rejected:route_economic_sanity_unknown",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_route_unknown_error",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "route_snapshot_error_none"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "intent_construction_failed:RuntimeError:quote builder exploded",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_intent_builder_raises",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "intents_raise"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "intent_construction_failed:empty_intent_list",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_intent_list_empty",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "intents_empty"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "intent_amount_missing_or_invalid:index=0",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_intent_amount_invalid_type",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "intents_bad_amount_type"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "intent_amount_mismatch:sum=99,receipt=100",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_intent_amount_mismatch",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "intents_amount_99"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=600",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=600",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=2",
+            "route_hop_count=2",
+            "route_max_input_vs_reserve_bps=3010",
+            "route_max_output_vs_reserve_bps=2310",
+            "route_max_price_impact_bps=2325"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "max_intents_per_order_exceeded:2>1",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "skip_max_intents_per_order",
+      "kind": "single_fault",
+      "spec": {
+        "call": {
+          "nonce_start": 10
+        },
+        "receipt": {
+          "amount_in": 600,
+          "recipe": "split"
+        },
+        "strategy": {
+          "fixed_order_size": 600,
+          "lifetime_max": 2000,
+          "max_intents_per_order": 1,
+          "max_live_orders": 1,
+          "per_order_max": 600,
+          "per_window_max": 1000
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "tau_policy_mismatch:local=1,tau=0,expected=1",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": {
+            "expected_ok": true,
+            "gate_output": "o1",
+            "schema": "zenodex/tau-policy-receipt/v1",
+            "spec_id": "autotrader_execution_guard_v1",
+            "steps": [
+              {
+                "i1": 5,
+                "i2": 1,
+                "i3": 100,
+                "i4": 0,
+                "i5": 0,
+                "i6": 4,
+                "i7": 0,
+                "i8": 1,
+                "i9": 3
+              }
+            ],
+            "strategy_hash": "0x21f661a28ab70fa8b4d181ec75751b27cd5d8566bb81920ca202f73d0901c1d6",
+            "strategy_id": "dca.tau.1"
+          }
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_tau_mismatch_execution",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "tau_runner_gate0_execution"
+        ],
+        "strategy": {
+          "backend": "tau"
+        },
+        "tau_config": {
+          "enabled": true,
+          "tau_bin": "@SYS_EXECUTABLE@"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=0",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=0",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "strategy_window_not_open:0<1",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "skip_strategy_window_not_open",
+      "kind": "single_fault",
+      "spec": {
+        "call": {
+          "current_epoch": 0
+        },
+        "receipt": {
+          "quote_epoch": 0
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=101",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "strategy_window_expired:101>100",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "skip_strategy_window_expired",
+      "kind": "single_fault",
+      "spec": {
+        "call": {
+          "current_epoch": 101
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "non_monotone_epoch:5<9",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 1
+            },
+            "last_action_epoch": 9,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_non_monotone_epoch",
+      "kind": "single_fault",
+      "spec": {
+        "controller_state": {
+          "last_action_epoch": 9,
+          "window_id": 1
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "cadence_not_elapsed:delta=2,required=4",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 100,
+              "window_id": 3
+            },
+            "last_action_epoch": 3,
+            "lifetime_spent": 100,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "skip_cadence_not_elapsed",
+      "kind": "single_fault",
+      "spec": {
+        "controller_state": {
+          "last_action_epoch": 3,
+          "lifetime_spent": 100,
+          "spent_in_window": 100,
+          "window_id": 3
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "cadence_not_elapsed:delta=4,required=6",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 100,
+              "window_id": 1
+            },
+            "last_action_epoch": 1,
+            "lifetime_spent": 100,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "skip_min_order_spacing_dominates_cadence",
+      "kind": "single_fault",
+      "spec": {
+        "controller_state": {
+          "last_action_epoch": 1,
+          "lifetime_spent": 100,
+          "spent_in_window": 100,
+          "window_id": 1
+        },
+        "strategy": {
+          "min_order_spacing_epochs": 6
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=4"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "max_live_orders_reached:4>3",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 3
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "skip_max_live_orders_reached",
+      "kind": "single_fault",
+      "spec": {
+        "controller_state": {
+          "live_orders": 3
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1",
+            "quote_age_epochs=0"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": true,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "tau_policy_mismatch:local=1,tau=0,expected=1",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": {
+            "expected_ok": true,
+            "gate_output": "o1",
+            "schema": "zenodex/tau-policy-receipt/v1",
+            "spec_id": "autotrader_oracle_freshness_guard_v1",
+            "steps": [
+              {
+                "i1": 5,
+                "i2": 5,
+                "i3": 3
+              }
+            ],
+            "strategy_hash": "0x21f661a28ab70fa8b4d181ec75751b27cd5d8566bb81920ca202f73d0901c1d6",
+            "strategy_id": "dca.tau.1"
+          }
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_tau_mismatch_oracle",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "tau_runner_gate0_oracle"
+        ],
+        "strategy": {
+          "backend": "tau"
+        },
+        "tau_config": {
+          "enabled": true,
+          "tau_bin": "@SYS_EXECUTABLE@"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=6",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": true,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "quote_epoch_in_future:6>5",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_quote_epoch_in_future",
+      "kind": "single_fault",
+      "spec": {
+        "receipt": {
+          "quote_epoch": 6
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=1",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1",
+            "quote_age_epochs=4"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": true,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "quote_receipt_stale:age=4,max=3",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "skip_quote_receipt_stale",
+      "kind": "single_fault",
+      "spec": {
+        "receipt": {
+          "quote_epoch": 1
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1",
+            "quote_age_epochs=0",
+            "budget_window_id=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "budget_window_roll_failed:window_roll_broken",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_budget_window_roll_failed",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "roll_window_fails"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1",
+            "quote_age_epochs=0",
+            "budget_window_id=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "budget_window_regression:1<9",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 9
+            },
+            "last_action_epoch": 1,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_budget_window_regression",
+      "kind": "single_fault",
+      "spec": {
+        "controller_state": {
+          "last_action_epoch": 1,
+          "window_id": 9
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1",
+            "quote_age_epochs=0",
+            "budget_window_id=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": true,
+            "oracle_freshness_ok": true,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "tau_policy_mismatch:local=1,tau=0,expected=1",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": {
+            "expected_ok": true,
+            "gate_output": "o1",
+            "schema": "zenodex/tau-policy-receipt/v1",
+            "spec_id": "autotrader_budget_guard_v1",
+            "steps": [
+              {
+                "i1": 0,
+                "i2": 100,
+                "i3": 100,
+                "i4": 500,
+                "i5": 100,
+                "i6": 0
+              }
+            ],
+            "strategy_hash": "0x21f661a28ab70fa8b4d181ec75751b27cd5d8566bb81920ca202f73d0901c1d6",
+            "strategy_id": "dca.tau.1"
+          }
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_tau_mismatch_budget",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "tau_runner_gate0_budget"
+        ],
+        "strategy": {
+          "backend": "tau"
+        },
+        "tau_config": {
+          "enabled": true,
+          "tau_bin": "@SYS_EXECUTABLE@"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1",
+            "quote_age_epochs=0",
+            "budget_window_id=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": true,
+            "oracle_freshness_ok": true,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "budget_guard_rejected:window_budget_exceeded",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 450,
+              "window_id": 1
+            },
+            "last_action_epoch": 1,
+            "lifetime_spent": 450,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "skip_budget_window_budget_exceeded",
+      "kind": "single_fault",
+      "spec": {
+        "controller_state": {
+          "last_action_epoch": 1,
+          "lifetime_spent": 450,
+          "spent_in_window": 450,
+          "window_id": 1
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1",
+            "quote_age_epochs=0",
+            "budget_window_id=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": true,
+            "oracle_freshness_ok": true,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "budget_guard_rejected:kill_switch_active",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": true,
+              "spent_in_window": 0,
+              "window_id": 1
+            },
+            "last_action_epoch": 1,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "skip_budget_kill_switch_active",
+      "kind": "single_fault",
+      "spec": {
+        "controller_state": {
+          "kill_switch_on": true,
+          "last_action_epoch": 1,
+          "window_id": 1
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1",
+            "quote_age_epochs=0",
+            "budget_window_id=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": true,
+            "oracle_freshness_ok": true,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "budget_guard_rejected:per_order_limit_exceeded",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_budget_per_order_limit",
+      "kind": "single_fault",
+      "spec": {
+        "strategy": {
+          "per_order_max": 50
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1",
+            "quote_age_epochs=0",
+            "budget_window_id=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": true,
+            "oracle_freshness_ok": true,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "budget_guard_rejected:spent_overflow",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 4294967245,
+              "window_id": 1
+            },
+            "last_action_epoch": 1,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_budget_spent_overflow",
+      "kind": "single_fault",
+      "spec": {
+        "controller_state": {
+          "last_action_epoch": 1,
+          "spent_in_window": 4294967245,
+          "window_id": 1
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "signal_verify_error=hash_mismatch"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "tau_policy_mismatch:local=0,tau=1,expected=0",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": {
+            "expected_ok": false,
+            "gate_output": "o4",
+            "schema": "zenodex/tau-policy-receipt/v1",
+            "spec_id": "autotrader_signal_provenance_guard_v1",
+            "steps": [
+              {
+                "i1": 1,
+                "i2": 2,
+                "i3": 1,
+                "i4": 0,
+                "i5": 1,
+                "i6": 0,
+                "i7": 0,
+                "i8": 1,
+                "i9": 1
+              }
+            ],
+            "strategy_hash": "0x21f661a28ab70fa8b4d181ec75751b27cd5d8566bb81920ca202f73d0901c1d6",
+            "strategy_id": "dca.tau.1"
+          }
+        },
+        "outcome": "decision"
+      },
+      "id": "reject_tau_mismatch_inverted_expected",
+      "kind": "single_fault",
+      "spec": {
+        "patches": [
+          "tau_runner_ok"
+        ],
+        "receipt": {
+          "mutations": [
+            [
+              "set_top",
+              "receipt_hash",
+              "receipt.hash.tampered"
+            ]
+          ]
+        },
+        "strategy": {
+          "backend": "tau"
+        },
+        "tau_config": {
+          "enabled": true,
+          "tau_bin": "@SYS_EXECUTABLE@"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=limit.local.1",
+            "backend=local",
+            "template=limit_ladder",
+            "epoch=5"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "unsupported_strategy_template:limit_ladder",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_template_beats_action_and_assets",
+      "kind": "multi_fault",
+      "spec": {
+        "receipt": {
+          "recipe": "reversed_pair"
+        },
+        "strategy": {
+          "kind": "limit_ladder"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "strategy_action_not_allowed:place_swap_exact_in",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_action_beats_universe",
+      "kind": "multi_fault",
+      "spec": {
+        "strategy": {
+          "overrides": [
+            [
+              "allowed_actions",
+              [
+                "place_order_intent"
+              ]
+            ],
+            [
+              "asset_universe",
+              [
+                "A",
+                "C"
+              ]
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "strategy_assets_outside_universe",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_universe_beats_slippage",
+      "kind": "multi_fault",
+      "spec": {
+        "call": {
+          "slippage_bps": 75
+        },
+        "strategy": {
+          "overrides": [
+            [
+              "asset_universe",
+              [
+                "A",
+                "C"
+              ]
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "slippage_limit_exceeded:75>50",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_slippage_beats_receipt_kind",
+      "kind": "multi_fault",
+      "spec": {
+        "call": {
+          "slippage_bps": 75
+        },
+        "receipt": {
+          "recipe": "exact_out"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_out",
+            "receipt_asset_pair=B/A",
+            "receipt_amount_in=90"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "unsupported_receipt_kind:exact_out",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_kind_beats_asset_and_amount",
+      "kind": "multi_fault",
+      "spec": {
+        "receipt": {
+          "amount_in": 90,
+          "recipe": "exact_out_reversed"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=B/A",
+            "receipt_amount_in=90"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "receipt_asset_mismatch:want=A/B,got=B/A",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_asset_beats_amount",
+      "kind": "multi_fault",
+      "spec": {
+        "receipt": {
+          "amount_in": 90,
+          "recipe": "reversed_pair"
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=90"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "receipt_amount_mismatch:want=100,got=90",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_amount_beats_missing_epoch",
+      "kind": "multi_fault",
+      "spec": {
+        "receipt": {
+          "amount_in": 90,
+          "mutations": [
+            [
+              "pop_body",
+              "quote_epoch"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "receipt_missing_quote_epoch",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 1
+            },
+            "last_action_epoch": 1,
+            "lifetime_spent": 950,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_missing_epoch_beats_lifetime",
+      "kind": "multi_fault",
+      "spec": {
+        "controller_state": {
+          "last_action_epoch": 1,
+          "lifetime_spent": 950,
+          "window_id": 1
+        },
+        "receipt": {
+          "mutations": [
+            [
+              "pop_body",
+              "quote_epoch"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "signal_verify_error=hash_mismatch"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "lifetime_cap_exceeded:1050>1000",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 1
+            },
+            "last_action_epoch": 1,
+            "lifetime_spent": 950,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_lifetime_beats_provenance",
+      "kind": "multi_fault",
+      "spec": {
+        "controller_state": {
+          "last_action_epoch": 1,
+          "lifetime_spent": 950,
+          "window_id": 1
+        },
+        "receipt": {
+          "mutations": [
+            [
+              "set_top",
+              "receipt_hash",
+              "receipt.hash.tampered"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=0",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=0",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "lifetime_cap_exceeded:1050>1000",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 950,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_lifetime_beats_window_not_open",
+      "kind": "multi_fault",
+      "spec": {
+        "call": {
+          "current_epoch": 0
+        },
+        "controller_state": {
+          "lifetime_spent": 950
+        },
+        "receipt": {
+          "quote_epoch": 0
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=1",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "signal_verify_error=hash_mismatch"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "signal_provenance_rejected:signal_auth_invalid",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_provenance_beats_stale",
+      "kind": "multi_fault",
+      "spec": {
+        "receipt": {
+          "mutations": [
+            [
+              "set_top",
+              "receipt_hash",
+              "receipt.hash.tampered"
+            ]
+          ],
+          "quote_epoch": 1
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=600",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=600",
+            "quote_epoch=1",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=2",
+            "route_hop_count=2",
+            "route_max_input_vs_reserve_bps=3010",
+            "route_max_output_vs_reserve_bps=2310",
+            "route_max_price_impact_bps=2325"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "max_intents_per_order_exceeded:2>1",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_intent_cap_beats_stale",
+      "kind": "multi_fault",
+      "spec": {
+        "receipt": {
+          "amount_in": 600,
+          "quote_epoch": 1,
+          "recipe": "split"
+        },
+        "strategy": {
+          "fixed_order_size": 600,
+          "lifetime_max": 2000,
+          "max_intents_per_order": 1,
+          "max_live_orders": 1,
+          "per_order_max": 600,
+          "per_window_max": 1000
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=101",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "strategy_window_expired:101>100",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_window_expired_beats_stale",
+      "kind": "multi_fault",
+      "spec": {
+        "call": {
+          "current_epoch": 101
+        },
+        "receipt": {
+          "quote_epoch": 5
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=1",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1",
+            "quote_age_epochs=4"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": true,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "quote_receipt_stale:age=4,max=3",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 450,
+              "window_id": 1
+            },
+            "last_action_epoch": 1,
+            "lifetime_spent": 450,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_stale_beats_window_budget",
+      "kind": "multi_fault",
+      "spec": {
+        "controller_state": {
+          "last_action_epoch": 1,
+          "lifetime_spent": 450,
+          "spent_in_window": 450,
+          "window_id": 1
+        },
+        "receipt": {
+          "quote_epoch": 1
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.local.1",
+            "backend=local",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "route_leg_count=1",
+            "route_hop_count=1",
+            "route_max_input_vs_reserve_bps=1000",
+            "route_max_output_vs_reserve_bps=900",
+            "route_max_price_impact_bps=909",
+            "intent_count=1",
+            "projected_live_orders=1"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": true,
+            "signal_provenance_ok": true
+          },
+          "intents": [],
+          "reason": "cadence_not_elapsed:delta=2,required=4",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 9
+            },
+            "last_action_epoch": 3,
+            "lifetime_spent": 100,
+            "live_orders": 0
+          },
+          "tag": "skip",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_cadence_beats_budget_regression",
+      "kind": "multi_fault",
+      "spec": {
+        "controller_state": {
+          "last_action_epoch": 3,
+          "lifetime_spent": 100,
+          "spent_in_window": 0,
+          "window_id": 9
+        }
+      }
+    },
+    {
+      "expected": {
+        "decision": {
+          "explain": [
+            "strategy_id=dca.tau.1",
+            "backend=tau",
+            "template=dca",
+            "epoch=5",
+            "fixed_order_size=100",
+            "cadence_epochs=4",
+            "asset_pair=A/B",
+            "max_oracle_staleness_epochs=3",
+            "slippage_bps=50",
+            "receipt_kind=exact_in",
+            "receipt_asset_pair=A/B",
+            "receipt_amount_in=100",
+            "quote_epoch=5",
+            "signal_source_kind=route_quote_receipt",
+            "signal_trust_tier=verified",
+            "signal_verify_error=hash_mismatch"
+          ],
+          "guard_state": {
+            "budget_ok": false,
+            "execution_ok": false,
+            "oracle_freshness_ok": false,
+            "route_economic_sanity_ok": false,
+            "signal_provenance_ok": false
+          },
+          "intents": [],
+          "reason": "tau_tool_unavailable:tau_bin is not an executable file: /not/an/executable",
+          "should_submit": false,
+          "state": {
+            "budget_state": {
+              "kill_switch_on": false,
+              "spent_in_window": 0,
+              "window_id": 0
+            },
+            "last_action_epoch": null,
+            "lifetime_spent": 0,
+            "live_orders": 0
+          },
+          "tag": "reject",
+          "tau_policy_receipt": null
+        },
+        "outcome": "decision"
+      },
+      "id": "prec_tau_unavailable_beats_provenance",
+      "kind": "multi_fault",
+      "spec": {
+        "receipt": {
+          "mutations": [
+            [
+              "set_top",
+              "receipt_hash",
+              "receipt.hash.tampered"
+            ]
+          ]
+        },
+        "strategy": {
+          "backend": "tau"
+        },
+        "tau_config": {
+          "enabled": true,
+          "tau_bin": "/not/an/executable"
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "strategy template param must be an int: fixed_order_size",
+        "exception_type": "ValueError",
+        "outcome": "exception"
+      },
+      "id": "prec_fixed_order_size_raise_beats_cadence_raise",
+      "kind": "multi_fault",
+      "spec": {
+        "strategy": {
+          "overrides": [
+            [
+              "template_param",
+              "fixed_order_size",
+              "bad"
+            ],
+            [
+              "template_param",
+              "cadence_epochs",
+              0
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "exception_message": "strategy template param must be an int: fixed_order_size",
+        "exception_type": "ValueError",
+        "outcome": "exception"
+      },
+      "id": "prec_template_param_raise_beats_missing_body",
+      "kind": "multi_fault",
+      "spec": {
+        "receipt": {
+          "recipe": "no_body"
+        },
+        "strategy": {
+          "overrides": [
+            [
+              "template_param",
+              "fixed_order_size",
+              "bad"
+            ]
+          ]
+        }
+      }
+    }
+  ],
+  "schema": "zenodex/autotrader-controller-characterization-corpus/v1",
+  "semantics": "first_failure_wins",
+  "target": "src.integration.autotrader_controller.evaluate_autotrader_quote_receipt"
+}
