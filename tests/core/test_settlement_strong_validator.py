@@ -4129,6 +4129,173 @@ def test_strong_validator_exact_out_protocol_fee_deltas_are_replayed_exactly() -
     assert ok is True, err
 
 
+def test_strong_validator_exact_out_protocol_fee_credit_feeds_later_replay() -> None:
+    protocol_recipient = "0x" + "99" * 48
+    pk, asset0, asset1, pool_id, pool, balances, _intent, _settlement = _setup_swap_exact_out_context()
+    fee_source_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_OUT,
+        intent_id=_iid(9093),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_out": 10_000,
+            "max_amount_in": 1_000_000,
+        },
+    )
+    fee_spend_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(9094),
+        sender_pubkey=protocol_recipient,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 10,
+            "min_amount_out": 0,
+        },
+    )
+    settlement = compute_settlement(
+        [fee_source_intent, fee_spend_intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="limit_price",
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    first_fill, second_fill = settlement.fills
+    assert first_fill.protocol_fee_paid == 15
+    assert second_fill.action == FillAction.FILL
+    assert second_fill.amount_in_filled == 10
+    assert balances.get(protocol_recipient, asset0) == 0
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[fee_source_intent, fee_spend_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    assert ok is True, err
+
+
+def test_strong_validator_reverse_exact_out_protocol_fee_deltas_are_directional() -> None:
+    protocol_recipient = "0x" + "99" * 48
+    pk, asset0, asset1, pool_id, pool, balances, intent, _settlement = _setup_swap_exact_out_context(reverse=True)
+    pool.reserve0 = 2_000_000
+    pool.reserve1 = 3_000_000
+    settlement = compute_settlement(
+        [intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+
+    assert settlement.balance_deltas == [
+        BalanceDelta(pubkey=pk, asset=asset0, delta_add=1_000, delta_sub=0),
+        BalanceDelta(pubkey=pk, asset=asset1, delta_add=0, delta_sub=1_506),
+        BalanceDelta(pubkey=protocol_recipient, asset=asset1, delta_add=2, delta_sub=0),
+    ]
+    assert settlement.reserve_deltas == [
+        ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=0, delta_sub=1_000),
+        ReserveDelta(pool_id=pool_id, asset=asset1, delta_add=1_504, delta_sub=0),
+    ]
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    assert ok is True, err
+
+
+def test_strong_validator_exact_out_apply_error_leaves_inputs_unchanged() -> None:
+    _pk, asset0, asset1, pool_id, pool, _balances, intent, settlement = _setup_swap_exact_out_context()
+    low_balances = BalanceTable()
+    low_balances.set(intent.sender_pubkey, asset0, 1)
+    low_balances.set(intent.sender_pubkey, asset1, 0)
+    balance_snapshot = low_balances.get_all_balances()
+    pool_snapshot = (pool.reserve0, pool.reserve1, pool.lp_supply)
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=low_balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"swap apply error for intent_id={intent.intent_id}:")
+    assert low_balances.get_all_balances() == balance_snapshot
+    assert (pool.reserve0, pool.reserve1, pool.lp_supply) == pool_snapshot
+
+
+def test_strong_proof_carrying_exact_out_uses_mutated_pool_for_later_fill() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, first_intent, _settlement = _setup_swap_exact_out_context()
+    second_intent = replace(
+        first_intent,
+        intent_id=_iid(9092),
+        fields={**first_intent.fields, "amount_out": 2_000, "max_amount_in": 20_000},
+    )
+    settlement = compute_settlement(
+        [first_intent, second_intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+    first_fill, second_fill = settlement.fills
+    assert first_fill.reserve_in_before == pool.reserve0
+    assert first_fill.reserve_out_before == pool.reserve1
+    assert second_fill.reserve_in_before == pool.reserve0 + int(first_fill.amount_in_filled or 0)
+    assert second_fill.reserve_out_before == pool.reserve1 - int(first_fill.amount_out_filled or 0)
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[first_intent, second_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_proof_carrying",
+    )
+    assert ok is True, err
+
+    second_fill.reserve_in_before = pool.reserve0
+    second_fill.reserve_out_before = pool.reserve1
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[first_intent, second_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_proof_carrying",
+    )
+    assert ok is False
+    assert err == f"swap witness reserve mismatch for intent_id={second_intent.intent_id}"
+
+
 def test_strong_validator_exact_out_postquote_errors_precede_later_effects(monkeypatch) -> None:
     _pk, asset0, asset1, pool_id, pool, balances, intent, settlement = _setup_swap_exact_out_context()
 

@@ -1010,6 +1010,48 @@ def _exact_out_postquote_error(
     return None
 
 
+def _apply_exact_out_swap_replay(
+    *,
+    intent_id: str,
+    sender: PubKey,
+    recipient: PubKey,
+    pool_id: str,
+    pool: PoolState,
+    metadata: _SwapMetadata,
+    reserves: _SwapReserves,
+    balances: BalanceTable,
+    inputs: _ExactOutSwapInputs,
+    quote: _ExactOutSwapQuote,
+    protocol_fee_recipient_pubkey: Optional[PubKey],
+    bal_deltas: List[BalanceDelta],
+    res_deltas: List[ReserveDelta],
+) -> Optional[str]:
+    try:
+        balances.subtract(sender, metadata.asset_in, int(quote.amount_in))
+        balances.add(recipient, metadata.asset_out, int(inputs.amount_out))
+        if quote.protocol_fee:
+            assert protocol_fee_recipient_pubkey is not None
+            balances.add(protocol_fee_recipient_pubkey, metadata.asset_in, int(quote.protocol_fee))
+    except Exception as exc:
+        return f"swap apply error for intent_id={intent_id}: {exc}"
+
+    _set_pool_reserves_after_swap(pool=pool, reserves=reserves, new_in=quote.new_in, new_out=quote.new_out)
+    _append_pool_swap_deltas(
+        pool_id=pool_id,
+        sender=sender,
+        recipient=recipient,
+        asset_in=metadata.asset_in,
+        asset_out=metadata.asset_out,
+        amount_in=quote.amount_in,
+        amount_out=inputs.amount_out,
+        protocol_fee=quote.protocol_fee,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+        bal_deltas=bal_deltas,
+        res_deltas=res_deltas,
+    )
+    return None
+
+
 def _validate_cow_pair_index(
     *,
     settlement: Settlement,
@@ -1301,7 +1343,6 @@ def _validate_settlement_strong_impl(
                 return fail(swap_reserve_error)
             if swap_reserves is None:
                 return fail(f"swap reserves missing result for intent_id={intent_id}")
-            dir_is_0_to_1 = swap_reserves.dir_is_0_to_1
 
             if it.kind == IntentKind.SWAP_EXACT_IN:
                 exact_in_inputs, exact_in_input_error = _exact_in_swap_inputs(intent_id=intent_id, intent=it)
@@ -1394,49 +1435,23 @@ def _validate_settlement_strong_impl(
             )
             if exact_out_postquote_error is not None:
                 return fail(exact_out_postquote_error)
-            amount_out_req = exact_out_inputs.amount_out
-            amount_in_req = exact_out_quote.amount_in
-            new_in = exact_out_quote.new_in
-            new_out = exact_out_quote.new_out
-            protocol_fee = exact_out_quote.protocol_fee
-
-            try:
-                balances.subtract(sender, asset_in, int(amount_in_req))
-                balances.add(recipient, asset_out, int(amount_out_req))
-                if protocol_fee:
-                    assert protocol_fee_recipient_pubkey is not None
-                    balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
-            except Exception as exc:
-                return fail(f"swap apply error for intent_id={intent_id}: {exc}")
-
-            if dir_is_0_to_1:
-                pool.reserve0 = int(new_in)
-                pool.reserve1 = int(new_out)
-            else:
-                pool.reserve1 = int(new_in)
-                pool.reserve0 = int(new_out)
-
-            bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in_req)))
-            bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out_req), delta_sub=0))
-            if protocol_fee:
-                assert protocol_fee_recipient_pubkey is not None
-                bal_deltas.append(
-                    BalanceDelta(
-                        pubkey=protocol_fee_recipient_pubkey,
-                        asset=asset_in,
-                        delta_add=int(protocol_fee),
-                        delta_sub=0,
-                    )
-                )
-            res_deltas.append(
-                ReserveDelta(
-                    pool_id=pool_id,
-                    asset=asset_in,
-                    delta_add=int(amount_in_req) - int(protocol_fee),
-                    delta_sub=0,
-                )
+            exact_out_apply_error = _apply_exact_out_swap_replay(
+                intent_id=intent_id,
+                sender=sender,
+                recipient=recipient,
+                pool_id=pool_id,
+                pool=pool,
+                metadata=swap_metadata,
+                reserves=swap_reserves,
+                balances=balances,
+                inputs=exact_out_inputs,
+                quote=exact_out_quote,
+                protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+                bal_deltas=bal_deltas,
+                res_deltas=res_deltas,
             )
-            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out_req)))
+            if exact_out_apply_error is not None:
+                return fail(exact_out_apply_error)
             continue
 
         if it.kind == IntentKind.ADD_LIQUIDITY:

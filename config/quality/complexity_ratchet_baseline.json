@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
   "file_count": 450,
-  "function_count": 5975,
+  "function_count": 5976,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -4575,6 +4575,10 @@
       "complexity": 3,
       "lines": 40
     },
+    "src/core/settlement_strong_validator.py::_apply_exact_out_swap_replay": {
+      "complexity": 3,
+      "lines": 40
+    },
     "src/core/settlement_strong_validator.py::_build_base_replay_index": {
       "complexity": 5,
       "lines": 22
@@ -4808,8 +4812,8 @@
       "lines": 9
     },
     "src/core/settlement_strong_validator.py::_validate_settlement_strong_impl": {
-      "complexity": 103,
-      "lines": 448
+      "complexity": 100,
+      "lines": 421
     },
     "src/core/settlement_strong_validator.py::_validate_settlement_strong_impl.fail": {
       "complexity": 1,
@@ -23928,20 +23932,20 @@
       "path": "src/integration/dex_engine.py"
     },
     {
-      "complexity": 103,
-      "line_end": 1581,
-      "line_start": 1134,
-      "lines": 448,
-      "name": "_validate_settlement_strong_impl",
-      "path": "src/core/settlement_strong_validator.py"
-    },
-    {
       "complexity": 100,
       "line_end": 3324,
       "line_start": 1400,
       "lines": 1925,
       "name": "prepare_autotrader_live_quote_receipt",
       "path": "src/integration/autotrader_live.py"
+    },
+    {
+      "complexity": 100,
+      "line_end": 1596,
+      "line_start": 1176,
+      "lines": 421,
+      "name": "_validate_settlement_strong_impl",
+      "path": "src/core/settlement_strong_validator.py"
     },
     {
       "complexity": 98,
@@ -24138,20 +24142,20 @@
       "path": "src/integration/perp_engine.py"
     },
     {
-      "complexity": 103,
-      "line_end": 1581,
-      "line_start": 1134,
-      "lines": 448,
-      "name": "_validate_settlement_strong_impl",
-      "path": "src/core/settlement_strong_validator.py"
-    },
-    {
       "complexity": 87,
       "line_end": 545,
       "line_start": 116,
       "lines": 430,
       "name": "validate_settlement_swaps",
       "path": "src/integration/tau_gate.py"
+    },
+    {
+      "complexity": 100,
+      "line_end": 1596,
+      "line_start": 1176,
+      "lines": 421,
+      "name": "_validate_settlement_strong_impl",
+      "path": "src/core/settlement_strong_validator.py"
     },
     {
       "complexity": 60,

@@ -18,7 +18,7 @@ behaviorally incorrect.
 | Metric | Value |
 | --- | ---: |
 | Python source files scanned | 450 |
-| Functions scanned | 5,971 |
+| Functions scanned | 5,976 |
 | Functions over complexity 5 | 1,604 |
 | Functions over 60 lines | 435 |
 | Maximum complexity | 126 |
@@ -40,7 +40,7 @@ behaviorally incorrect.
 
 | Rank | Location | Size | Grade | Why It Is Risky | First Extraction |
 | ---: | --- | ---: | --- | --- | --- |
-| 1 | `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl` | 103 complexity, 448 lines | C | This is a fail-closed value-moving acceptance gate. The preflight/index checks, early quote-binding metadata guard, CREATE_POOL replay helpers, shared pool lookup, swap metadata guards, swap reserve-witness setup, exact-in replay/application, and exact-out quote replay checks are extracted, but exact-out application, liquidity replay branches, final deltas, events, LP effects, and conservation still live in one control flow. | Continue extracting one replay action family at a time. The next safe slice is exact-out application, reserve mutation, and delta synthesis, mirroring the exact-in application helper with no-op-on-reject and exact delta regressions. |
+| 1 | `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl` | 100 complexity, 421 lines | C | This is a fail-closed value-moving acceptance gate. The preflight/index checks, early quote-binding metadata guard, CREATE_POOL replay helpers, shared pool lookup, swap metadata guards, swap reserve-witness setup, exact-in replay/application, exact-out replay/application, and swap delta synthesis are extracted, but liquidity replay branches, final deltas, events, LP effects, and conservation still live in one control flow. | Continue extracting one replay action family at a time. The next safe slice is ADD_LIQUIDITY field validation, fill matching, balance/LP/reserve application, and delta synthesis, preserving apply-error order and no-op-on-reject behavior. |
 | 2 | `src/integration/dex_snapshot.py::state_from_snapshot` | 126 complexity, 622 lines | C- | Snapshot hydration is consensus-adjacent because bad defaults or weak parsing can create forked local state. Many schema branches share one broad parser. | Split into typed parsers per section: balances, pools, LP, fees, nonces, confidential requests, oracle metadata. Add round-trip tests section by section. |
 | 3 | `src/integration/dex_engine.py::apply_ops` | 118 complexity, 549 lines | C- | Operation application is an orchestration choke point. Mixed dispatch and mutation increases the chance that an operation bypasses a guard. | Replace the branch ladder with an `op_type -> apply_*` dispatch table. Each handler should receive validated DTOs and return data-only effects. |
 | 4 | `src/integration/autotrader_live.py::prepare_autotrader_live_quote_receipt` | 100 complexity, 1,925 lines | D+ | A large live integration path combines network/config handling, quote construction, proof metadata, and presentation. Advisory code must remain outside verifier authority. | Separate live IO, quote normalization, verifier receipt construction, and UI/report shaping. Add an import-boundary test that verifier modules do not import advisory/live modules. |
@@ -84,7 +84,7 @@ codebase-wide ROI target is the settlement strong validator.
 ## Recent Settlement Validator Burn-Down
 
 `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl` is
-now down from 190 complexity and 612 lines to 103 complexity and 448 lines.
+now down from 190 complexity and 612 lines to 100 complexity and 421 lines.
 The extracted preflight/index, quote-binding, and CREATE_POOL replay helpers cover:
 
 - validation mode and protocol-fee configuration;
@@ -126,6 +126,10 @@ The extracted preflight/index, quote-binding, and CREATE_POOL replay helpers cov
 - exact-out amount/fill preflight, protocol-fee curve guard, quote replay, and
   post-quote validation, preserving field, fill, kernel, slippage, fee, and
   protocol-fee error ordering before balance application.
+- exact-out balance application, directional pool reserve mutation, and
+  balance/reserve delta synthesis, preserving reverse-direction protocol-fee
+  deltas, multi-fill proof-carrying reserve witnesses, and apply-error
+  no-mutation behavior.
 
 The public rejection order is pinned by combined-invalid tests in
 `tests/core/test_settlement_strong_validator.py`, so moving those checks again
@@ -141,11 +145,11 @@ computed settlement validates.
 ## Next Implementation Slice
 
 Continue `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl`.
-Extract exact-out application and delta synthesis next. Keep it staged: first pin
-current apply-error behavior, successful reverse-direction reserve mutation,
-protocol-fee recipient balance credit, and emitted balance/reserve deltas, then
-move only the exact-out apply/reserve/delta block into the shared swap-application
-helpers before touching liquidity replay.
+Extract ADD_LIQUIDITY replay next. Keep it staged: first pin invalid field and
+fill mismatch precedence, apply-error behavior, LP recipient credit, pool reserve
+mutation, and emitted balance/reserve/LP deltas. Then move only the
+ADD_LIQUIDITY validation/application/delta block into named helpers before
+touching REMOVE_LIQUIDITY.
 
 The API route-family extraction pass has landed in small behavior-preserving
 slices:
