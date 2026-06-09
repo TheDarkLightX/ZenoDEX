@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTransactionCenter } from '../lib/TransactionCenterContext.jsx';
+import { getRuntimeConfig } from '../lib/api.js';
+import { buildExplorerTxUrl, humanizeErrorCode } from '../sdk/txStatusView.js';
 import './TransactionDrawer.css';
 
 function formatAge(timestamp) {
@@ -27,11 +29,15 @@ function TransactionDrawer() {
     const {
         transactions,
         pendingCount,
+        backfilling,
         removeTransaction,
         clearSettled,
     } = useTransactionCenter();
 
     const visible = useMemo(() => transactions.slice(0, 14), [transactions]);
+    // Show a skeleton only when we are genuinely fetching and have nothing yet;
+    // once any rows exist we render them and let the backfill reconcile in place.
+    const showSkeleton = backfilling && visible.length === 0;
 
     return (
         <div className={`tx-drawer-shell ${open ? 'open' : ''}`}>
@@ -54,8 +60,31 @@ function TransactionDrawer() {
                         </button>
                     </div>
 
-                    {visible.length === 0 ? (
-                        <div className="tx-empty">No transactions yet.</div>
+                    {showSkeleton ? (
+                        <div className="tx-list" aria-busy="true" aria-label="Loading transaction history">
+                            {[0, 1, 2].map((row) => (
+                                <article key={`skeleton-${row}`} className="tx-item tx-item-skeleton" aria-hidden="true">
+                                    <div className="tx-item-head">
+                                        <div className="tx-title-wrap">
+                                            <span className="tx-skeleton-line tx-skeleton-title" />
+                                            <span className="tx-skeleton-line tx-skeleton-sub" />
+                                        </div>
+                                        <span className="tx-skeleton-line tx-skeleton-badge" />
+                                    </div>
+                                    <div className="tx-item-body">
+                                        <span className="tx-skeleton-line tx-skeleton-body" />
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                    ) : visible.length === 0 ? (
+                        <div className="tx-empty">
+                            <p className="tx-empty-title">No recent transactions for this wallet</p>
+                            <p className="tx-empty-hint">
+                                Swaps and liquidity actions you submit will appear here, and any
+                                committed history for the connected wallet is loaded automatically.
+                            </p>
+                        </div>
                     ) : (
                         <div className="tx-list">
                             {visible.map((tx) => (
@@ -75,20 +104,35 @@ function TransactionDrawer() {
                                     <div className="tx-item-body">
                                         {tx.marketId && <div className="tx-line">Market: {tx.marketId}</div>}
                                         {tx.routePath && <div className="tx-line">Route: {tx.routePath}</div>}
-                                        {tx.error && <div className="tx-line tx-error">Reason: {tx.error}</div>}
-                                        {tx.txHash && (
-                                            <div className="tx-line tx-hash-line">
-                                                <span className="mono">{shortHash(tx.txHash)}</span>
-                                                <a
-                                                    className="tx-link-btn"
-                                                    href={`https://explorer.tau.net/tx/${tx.txHash}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                >
-                                                    Explorer
-                                                </a>
-                                            </div>
-                                        )}
+                                        {tx.error && (() => {
+                                            const human = humanizeErrorCode(tx.error);
+                                            // Always keep the raw machine code visible; the human
+                                            // line is a best-effort gloss, never a replacement.
+                                            return (
+                                                <div className="tx-line tx-error">
+                                                    {human && <span className="tx-error-human">{human}</span>}
+                                                    <span className="tx-error-code mono">{tx.error}</span>
+                                                </div>
+                                            );
+                                        })()}
+                                        {tx.txHash && (() => {
+                                            const explorerUrl = buildExplorerTxUrl(getRuntimeConfig(), tx.txHash);
+                                            return (
+                                                <div className="tx-line tx-hash-line">
+                                                    <span className="mono">{shortHash(tx.txHash)}</span>
+                                                    {explorerUrl && (
+                                                        <a
+                                                            className="tx-link-btn"
+                                                            href={explorerUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                        >
+                                                            Explorer
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
 
                                     <div className="tx-item-foot">

@@ -24,6 +24,8 @@ from src.integration.zeno_ledger_v0 import (
     canonical_header_hash_v0,
     compute_app_hash_v0,
     dex_state_root_v0,
+    hash_v0,
+    tx_hash_v0,
 )
 from src.kernels.python.settlement_swap_runtime_v1 import quote_cpmm_swap_exact_out
 from src.state.balances import BalanceTable
@@ -45,6 +47,7 @@ from tools.zeno_ledger_node import (
     _node_status_hash,
     _public_network_config_to_join_config_v0,
     _tokenomics_buyback_source_pubkey_v0,
+    _ui_account_history_from_live_bodies_v0,
     _ui_swap_tx_v0,
     _ui_tokenomics_response_v0,
     _validate_tokenomics_claim_idempotent_payload_v0,
@@ -70,6 +73,19 @@ def _read_url_json(url: str) -> dict[str, object]:
     obj = json.loads(payload)
     assert isinstance(obj, dict)
     return obj
+
+
+def _get_url_json_status(url: str) -> tuple[int, dict[str, object]]:
+    try:
+        with urlopen(url, timeout=5) as response:  # noqa: S310 - local test server
+            body = response.read().decode("utf-8")
+            status = response.status
+    except HTTPError as exc:
+        body = exc.read().decode("utf-8")
+        status = exc.code
+    obj = json.loads(body)
+    assert isinstance(obj, dict)
+    return status, obj
 
 
 def _read_json_path(path: Path) -> dict[str, object]:
@@ -223,6 +239,316 @@ def test_ui_swap_builder_default_tx_id_does_not_collide_across_users(
     assert alice_tx["tx_id"] != bob_tx["tx_id"]
     assert str(alice_tx["tx_id"]).startswith("ui-swap-1-")
     assert str(bob_tx["tx_id"]).startswith("ui-swap-1-")
+
+
+def _ui_swap_builder_snapshot_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[str, dict[str, object]]:
+    """Pin a fixed snapshot + node_status for builder-shape unit tests.
+
+    Returns (pool_id, node_status). Monkeypatches the snapshot loader so the
+    builder is exercised deterministically with no disk/settlement dependency.
+    """
+    alice = _pubkey("31")
+    pool_id = compute_pool_id(DEFAULT_ASSET0, DEFAULT_ASSET1, 30)
+    balances = BalanceTable()
+    balances.set(alice, DEFAULT_ASSET0, 10_000)
+    balances.set(alice, DEFAULT_ASSET1, 10_000)
+    snapshot = snapshot_from_state(
+        DexState(
+            balances=balances,
+            pools={
+                pool_id: PoolState(
+                    pool_id=pool_id,
+                    asset0=DEFAULT_ASSET0,
+                    asset1=DEFAULT_ASSET1,
+                    reserve0=100_000,
+                    reserve1=100_000,
+                    fee_bps=30,
+                    lp_supply=100_000,
+                    status=PoolStatus.ACTIVE,
+                    created_at=1,
+                )
+            },
+            lp_balances=LPTable(),
+        )
+    ).data
+    node_status = {
+        "bundle_root": str(tmp_path),
+        "test_token_catalog": [
+            {"symbol": "tASSET0", "asset_id": DEFAULT_ASSET0},
+            {"symbol": "tASSET1", "asset_id": DEFAULT_ASSET1},
+        ],
+    }
+
+    def _same_height_snapshot(**_kwargs: object) -> tuple[int, dict[str, object]]:
+        return 41, snapshot
+
+    monkeypatch.setattr("tools.zeno_ledger_node._latest_snapshot_for_ui_v0", _same_height_snapshot)
+    return pool_id, node_status
+
+
+def test_ui_swap_builder_exact_in_golden_unchanged(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Golden: a pure exact-in request still produces the identical op dict.
+
+    This pins backward compatibility: the exact-out branch is purely additive,
+    so the exact-in op (including its derived intent_id) must be byte-identical.
+    """
+    alice = _pubkey("31")
+    pool_id, node_status = _ui_swap_builder_snapshot_fixture(tmp_path, monkeypatch)
+
+    tx = _ui_swap_tx_v0(
+        data_dir=tmp_path,
+        node_status=node_status,
+        payload={
+            "from": "tASSET0",
+            "to": "tASSET1",
+            "poolId": pool_id,
+            "amountIn": 25,
+            "minAmountOut": 1,
+            "senderPubkey": alice,
+            "recipient": alice,
+            "nonce": 7,
+        },
+        time_ms=1_778_740_101_000,
+    )
+
+    ops = tx["operations"]["5"]
+    assert len(ops) == 1
+    op = ops[0]
+    # Golden intent_id is the canonical hash over the exact-in intent payload.
+    expected_intent_id = hash_v0(
+        "ui_swap_intent_v0",
+        {
+            "sender_pubkey": alice,
+            "recipient": alice,
+            "pool_id": pool_id,
+            "asset_in": DEFAULT_ASSET0,
+            "asset_out": DEFAULT_ASSET1,
+            "amount_in": 25,
+            "min_amount_out": 1,
+            "nonce": 7,
+        },
+    )
+    # FULL golden: the entire op dict is pinned, so any extra/changed/dropped
+    # field (a new key, a default change) fails this test -- not just a subset.
+    assert op == {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "SWAP_EXACT_IN",
+        "intent_id": expected_intent_id,
+        "sender_pubkey": alice,
+        "deadline": 1_999_999_999,
+        "nonce": 7,
+        "pool_id": pool_id,
+        "asset_in": DEFAULT_ASSET0,
+        "asset_out": DEFAULT_ASSET1,
+        "amount_in": 25,
+        "min_amount_out": 1,
+        "recipient": alice,
+    }
+    # No exact-out fields leaked into the exact-in op.
+    assert "amount_out" not in op
+    assert "max_amount_in" not in op
+    # tx_id derivation unchanged (prefix binds sender + nonce); the collision
+    # test covers full tx_id determinism.
+    assert str(tx["tx_id"]).startswith("ui-swap-7-")
+
+
+def test_ui_swap_builder_exact_out_op_shape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Builder emits a correct SWAP_EXACT_OUT op with exact field mapping.
+
+    Verifies amount_out/max_amount_in carried in place of amount_in/
+    min_amount_out, kind flipped, and signed-intent fields carried identically.
+    """
+    alice = _pubkey("31")
+    pool_id, node_status = _ui_swap_builder_snapshot_fixture(tmp_path, monkeypatch)
+    signature = "0x" + "cd" * 96
+
+    tx = _ui_swap_tx_v0(
+        data_dir=tmp_path,
+        node_status=node_status,
+        payload={
+            "from": "tASSET0",
+            "to": "tASSET1",
+            "poolId": pool_id,
+            "kind": "SWAP_EXACT_OUT",
+            "amountOut": 1_000,
+            "maxAmountIn": 2_000,
+            "senderPubkey": alice,
+            "recipient": alice,
+            "nonce": 9,
+            "signature": signature,
+        },
+        time_ms=1_778_740_101_000,
+    )
+
+    ops = tx["operations"]["5"]
+    assert len(ops) == 1
+    op = ops[0]
+    assert op["kind"] == "SWAP_EXACT_OUT"
+    # Exact-out fields present; exact-in fields absent (intents.py SwapIntent).
+    assert op["amount_out"] == 1_000
+    assert op["max_amount_in"] == 2_000
+    assert "amount_in" not in op
+    assert "min_amount_out" not in op
+    # Shared signed-intent fields carried the same way as exact-in.
+    assert op["module"] == "TauSwap"
+    assert op["version"] == "0.1"
+    assert op["pool_id"] == pool_id
+    assert op["asset_in"] == DEFAULT_ASSET0
+    assert op["asset_out"] == DEFAULT_ASSET1
+    assert op["sender_pubkey"] == alice
+    assert op["recipient"] == alice
+    assert op["nonce"] == 9
+    assert op["deadline"] == 1_999_999_999
+    assert op["signature"] == signature
+    # intent_id binds the exact-out amount fields (amount_out/max_amount_in).
+    assert op["intent_id"] == hash_v0(
+        "ui_swap_intent_v0",
+        {
+            "sender_pubkey": alice,
+            "recipient": alice,
+            "pool_id": pool_id,
+            "asset_in": DEFAULT_ASSET0,
+            "asset_out": DEFAULT_ASSET1,
+            "amount_out": 1_000,
+            "max_amount_in": 2_000,
+            "nonce": 9,
+        },
+    )
+
+
+def test_ui_swap_builder_exact_out_detected_by_amount_keys(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Presence of amount_out/max_amount_in alone routes to exact-out."""
+    alice = _pubkey("31")
+    pool_id, node_status = _ui_swap_builder_snapshot_fixture(tmp_path, monkeypatch)
+
+    tx = _ui_swap_tx_v0(
+        data_dir=tmp_path,
+        node_status=node_status,
+        payload={
+            "from": "tASSET0",
+            "to": "tASSET1",
+            "poolId": pool_id,
+            "amount_out": 500,
+            "max_amount_in": 1_500,
+            "senderPubkey": alice,
+            "recipient": alice,
+            "nonce": 3,
+        },
+        time_ms=1_778_740_101_000,
+    )
+    op = tx["operations"]["5"][0]
+    assert op["kind"] == "SWAP_EXACT_OUT"
+    assert op["amount_out"] == 500
+    assert op["max_amount_in"] == 1_500
+
+
+def test_ui_swap_builder_exact_out_requires_max_amount_in(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fail-closed: exact-out with a missing max_amount_in cap is rejected."""
+    alice = _pubkey("31")
+    pool_id, node_status = _ui_swap_builder_snapshot_fixture(tmp_path, monkeypatch)
+
+    with pytest.raises(ValueError):
+        _ui_swap_tx_v0(
+            data_dir=tmp_path,
+            node_status=node_status,
+            payload={
+                "from": "tASSET0",
+                "to": "tASSET1",
+                "poolId": pool_id,
+                "kind": "SWAP_EXACT_OUT",
+                "amount_out": 500,
+                # max_amount_in intentionally omitted -> unbounded input -> reject
+                "senderPubkey": alice,
+                "recipient": alice,
+                "nonce": 3,
+            },
+            time_ms=1_778_740_101_000,
+        )
+
+
+def test_ui_swap_builder_exact_out_rejects_nonpositive_amount_out(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fail-closed: amount_out must be strictly positive (intents.py >0)."""
+    alice = _pubkey("31")
+    pool_id, node_status = _ui_swap_builder_snapshot_fixture(tmp_path, monkeypatch)
+
+    with pytest.raises(ValueError):
+        _ui_swap_tx_v0(
+            data_dir=tmp_path,
+            node_status=node_status,
+            payload={
+                "from": "tASSET0",
+                "to": "tASSET1",
+                "poolId": pool_id,
+                "amount_out": 0,
+                "max_amount_in": 1_000,
+                "senderPubkey": alice,
+                "recipient": alice,
+                "nonce": 3,
+            },
+            time_ms=1_778_740_101_000,
+        )
+
+
+def test_ui_swap_builder_rejects_ambiguous_exact_in_and_exact_out(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fail-closed: a request mixing exact-in and exact-out intent is rejected.
+
+    A write API must not silently disambiguate a contradictory request and drop
+    part of the caller's intent. All three ambiguity forms must raise ValueError:
+      (a) both amount families present,
+      (b) explicit exact-out marker WITH exact-in amount keys,
+      (c) explicit exact-in marker WITH exact-out amount keys.
+    """
+    alice = _pubkey("31")
+    pool_id, node_status = _ui_swap_builder_snapshot_fixture(tmp_path, monkeypatch)
+
+    base = {
+        "from": "tASSET0",
+        "to": "tASSET1",
+        "poolId": pool_id,
+        "senderPubkey": alice,
+        "recipient": alice,
+        "nonce": 3,
+    }
+    ambiguous_payloads = [
+        # (a) both families, no explicit marker
+        {**base, "amount_in": 25, "min_amount_out": 1, "amount_out": 1_000, "max_amount_in": 2_000},
+        # (b) explicit exact-out marker but exact-in amount keys also present
+        {**base, "kind": "SWAP_EXACT_OUT", "amount_out": 1_000, "max_amount_in": 2_000, "amount_in": 25},
+        # (c) explicit exact-in marker but exact-out amount keys also present
+        {**base, "kind": "SWAP_EXACT_IN", "amount_in": 25, "min_amount_out": 1, "amount_out": 1_000},
+        # camelCase variants must be detected the same way
+        {**base, "amountIn": 25, "maxAmountIn": 2_000},
+    ]
+    for payload in ambiguous_payloads:
+        with pytest.raises(ValueError, match="ambiguous swap intent"):
+            _ui_swap_tx_v0(
+                data_dir=tmp_path,
+                node_status=node_status,
+                payload=payload,
+                time_ms=1_778_740_101_000,
+            )
 
 
 def _post_url_json_status(url: str, value: dict[str, object], *, bearer_token: str | None = None) -> tuple[int, dict[str, object]]:
@@ -808,6 +1134,268 @@ def test_tokenomics_buyback_burn_wires_to_signed_swap_and_follower_replay(tmp_pa
     assert follower_live["latest_header_hash"] == writer_live["latest_header_hash"]
     follower_status = _ui_tokenomics_response_for_test(follower_dir)
     assert follower_status["status"]["buyback_burned_total"] == post_exact_out_status["status"]["buyback_burned_total"]
+
+
+def _snapshot_state_for_writer(writer_dir: Path):
+    live = _read_json_path(writer_dir / "live_state.json")
+    snapshot_path = Path(str(live["latest_snapshot_path"]))
+    if not snapshot_path.is_absolute():
+        snapshot_path = writer_dir / snapshot_path
+    return state_from_snapshot(_read_json_path(snapshot_path)), live
+
+
+def _exact_out_pool_reserves(state, pool_id: str, asset_in: str):
+    pool = state.pools[pool_id]
+    if asset_in == pool.asset0:
+        return int(pool.reserve0), int(pool.reserve1), int(pool.fee_bps)
+    return int(pool.reserve1), int(pool.reserve0), int(pool.fee_bps)
+
+
+@pytest.mark.skipif(not _BLS_AVAILABLE, reason="BLS not available")
+def test_ui_swap_builder_exact_out_settles_end_to_end(tmp_path: Path) -> None:
+    """End-to-end: a builder-emitted SWAP_EXACT_OUT op settles correctly.
+
+    Proves (a) `_ui_swap_tx_v0` emits a correct exact-out op AND (b) that op
+    settles through `append_dex_transaction_v0` -> apply_ops with the asserted
+    invariants: output == requested amount_out (exact), input == required input
+    and <= max_amount_in (bounded), fee/reserve deltas match the kernel quote,
+    nonce += 1, receipt accepted, and the committed state-root advances.
+    """
+    chain_id = "zeno-ledger-exact-out-e2e"
+    source_bundle_root = tmp_path / "source_bundle"
+    assert build_public_testnet_bundle_v0(
+        out_dir=source_bundle_root,
+        network_id=chain_id,
+        chain_id=chain_id,
+        sequencer_id="sequencer-exact-out-e2e",
+        time_ms=1_778_730_123_000,
+        token_symbol="ZDEX",
+    )["ok"] is True
+
+    writer_dir = tmp_path / "writer"
+    assert run_node_once_v0(
+        bundle_root=source_bundle_root,
+        node_id="node-exact-out-writer",
+        data_dir=writer_dir,
+        peer_watcher_attestation_paths=[],
+    )["ok"] is True
+
+    private_key = "0x" + "01".zfill(64)
+    trader = bls_public_key_hex_from_private_key_v0(private_key)
+    asset_in = min(DEFAULT_ASSET0, DEFAULT_ASSET1)
+    asset_out = max(DEFAULT_ASSET0, DEFAULT_ASSET1)
+    pool_id = compute_pool_id(asset_in, asset_out, 30)
+
+    append_testnet_faucet_v0(
+        data_dir=writer_dir,
+        to_pubkey=trader,
+        asset=asset_in,
+        amount=100_000,
+        time_ms=1_778_731_120_000,
+        tx_id="exact-out-e2e-faucet",
+    )
+
+    pre_state, _pre_live = _snapshot_state_for_writer(writer_dir)
+    pre_root = dex_state_root_v0(pre_state)
+    pre_in = pre_state.balances.get(trader, asset_in)
+    pre_out = pre_state.balances.get(trader, asset_out)
+
+    reserve_in, reserve_out, fee_bps = _exact_out_pool_reserves(pre_state, pool_id, asset_in)
+    amount_out = 1_000
+    quote = quote_cpmm_swap_exact_out(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_out=amount_out,
+        fee_bps=fee_bps,
+        protocol_fee_share_bps=2_000,
+    )
+    required_in = int(quote.amount_in)
+    max_amount_in = required_in  # exact boundary: max == required must accept
+
+    status = load_node_status_v0(writer_dir)
+    # Build the op through the WRITE-PATH builder (no signature yet), then sign
+    # the exact op the builder produced so the engine accepts it.
+    tx = _ui_swap_tx_v0(
+        data_dir=writer_dir,
+        node_status=status,
+        payload={
+            "kind": "SWAP_EXACT_OUT",
+            "pool_id": pool_id,
+            "asset_in": asset_in,
+            "asset_out": asset_out,
+            "amount_out": amount_out,
+            "max_amount_in": max_amount_in,
+            "sender_pubkey": trader,
+            "recipient": trader,
+            "nonce": 1,
+            "tx_id": "exact-out-e2e-swap",
+        },
+        time_ms=1_778_731_121_000,
+    )
+    op = tx["operations"]["5"][0]
+    # Builder emitted a correct exact-out op (field mapping check).
+    assert op["kind"] == "SWAP_EXACT_OUT"
+    assert op["amount_out"] == amount_out
+    assert op["max_amount_in"] == max_amount_in
+    assert "amount_in" not in op
+    assert "min_amount_out" not in op
+    op["signature"] = sign_dex_intent_for_engine(op, privkey=private_key, chain_id=chain_id)
+
+    append_report = append_dex_transaction_v0(
+        data_dir=writer_dir,
+        tx=tx,
+        time_ms=1_778_731_121_000,
+    )
+    assert append_report["ok"] is True
+    assert append_report["receipt"]["accepted"] is True
+
+    post_state = state_from_snapshot(_read_json_path(Path(str(append_report["post_snapshot_path"]))))
+    post_in = post_state.balances.get(trader, asset_in)
+    post_out = post_state.balances.get(trader, asset_out)
+
+    # Output is EXACT: recipient receives exactly amount_out (gap retained in pool).
+    assert post_out - pre_out == amount_out
+    # Input is BOUNDED: sender pays exactly the required input, which is <= max.
+    assert pre_in - post_in == required_in
+    assert required_in <= max_amount_in
+
+    # Reserve deltas match the kernel quote (value conservation through the pool).
+    post_reserve_in, post_reserve_out, _ = _exact_out_pool_reserves(post_state, pool_id, asset_in)
+    assert post_reserve_in == int(quote.reserve_in_after)
+    assert post_reserve_out == int(quote.reserve_out_after)
+    # net input into reserves + LP fee accounts for the pool's share of the input.
+    assert post_reserve_in - reserve_in == int(quote.net_in_actual) + int(quote.lp_fee_paid)
+    assert reserve_out - post_reserve_out == amount_out
+
+    # FULL asset_in conservation: every party that receives asset_in is counted,
+    # so this is true conservation (not just the pool's share). The input the
+    # sender paid lands entirely in the pool reserve and the protocol-fee
+    # recipient -- nothing is created or destroyed.
+    fee_recipient = _tokenomics_buyback_source_pubkey_v0(
+        load_node_status_v0(writer_dir)["token_distribution"]
+    )
+    pre_fee_recipient = pre_state.balances.get(fee_recipient, asset_in)
+    post_fee_recipient = post_state.balances.get(fee_recipient, asset_in)
+    fee_recipient_delta = post_fee_recipient - pre_fee_recipient
+    assert fee_recipient_delta == int(quote.protocol_fee_paid)
+    assert (pre_in - post_in) == (post_reserve_in - reserve_in) + fee_recipient_delta
+
+    # Nonce advanced by exactly one for the trader (pre-swap last nonce was 0).
+    assert pre_state.nonces.get_last(trader) == 0
+    assert post_state.nonces.get_last(trader) == 1
+    # Committed canonical state-root advanced, and the append report agrees with
+    # the re-derived post-state root.
+    post_root = dex_state_root_v0(post_state)
+    assert post_root != pre_root
+    assert append_report["app_hash"] == _read_json_path(writer_dir / "live_state.json")["latest_app_hash"]
+
+
+@pytest.mark.skipif(not _BLS_AVAILABLE, reason="BLS not available")
+def test_ui_swap_builder_exact_out_rejects_when_required_exceeds_max(tmp_path: Path) -> None:
+    """Reject path: exact-out whose required input exceeds max_amount_in fails closed.
+
+    The engine is the authority for the max_amount_in bound. With
+    max_amount_in == required_input - 1 the intent must be rejected and the
+    committed state must be unchanged (balances, reserves, and state-root).
+    """
+    chain_id = "zeno-ledger-exact-out-reject"
+    source_bundle_root = tmp_path / "source_bundle"
+    assert build_public_testnet_bundle_v0(
+        out_dir=source_bundle_root,
+        network_id=chain_id,
+        chain_id=chain_id,
+        sequencer_id="sequencer-exact-out-reject",
+        time_ms=1_778_730_123_000,
+        token_symbol="ZDEX",
+    )["ok"] is True
+
+    writer_dir = tmp_path / "writer"
+    assert run_node_once_v0(
+        bundle_root=source_bundle_root,
+        node_id="node-exact-out-reject-writer",
+        data_dir=writer_dir,
+        peer_watcher_attestation_paths=[],
+    )["ok"] is True
+
+    private_key = "0x" + "01".zfill(64)
+    trader = bls_public_key_hex_from_private_key_v0(private_key)
+    asset_in = min(DEFAULT_ASSET0, DEFAULT_ASSET1)
+    asset_out = max(DEFAULT_ASSET0, DEFAULT_ASSET1)
+    pool_id = compute_pool_id(asset_in, asset_out, 30)
+
+    append_testnet_faucet_v0(
+        data_dir=writer_dir,
+        to_pubkey=trader,
+        asset=asset_in,
+        amount=100_000,
+        time_ms=1_778_731_120_000,
+        tx_id="exact-out-reject-faucet",
+    )
+
+    pre_state, _pre_live = _snapshot_state_for_writer(writer_dir)
+    pre_root = dex_state_root_v0(pre_state)
+    pre_in = pre_state.balances.get(trader, asset_in)
+    pre_out = pre_state.balances.get(trader, asset_out)
+    reserve_in, reserve_out, fee_bps = _exact_out_pool_reserves(pre_state, pool_id, asset_in)
+
+    amount_out = 1_000
+    quote = quote_cpmm_swap_exact_out(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_out=amount_out,
+        fee_bps=fee_bps,
+        protocol_fee_share_bps=2_000,
+    )
+    required_in = int(quote.amount_in)
+    too_tight_max = required_in - 1  # one below required -> must reject
+
+    status = load_node_status_v0(writer_dir)
+    tx = _ui_swap_tx_v0(
+        data_dir=writer_dir,
+        node_status=status,
+        payload={
+            "kind": "SWAP_EXACT_OUT",
+            "pool_id": pool_id,
+            "asset_in": asset_in,
+            "asset_out": asset_out,
+            "amount_out": amount_out,
+            "max_amount_in": too_tight_max,
+            "sender_pubkey": trader,
+            "recipient": trader,
+            "nonce": 1,
+            "tx_id": "exact-out-reject-swap",
+        },
+        time_ms=1_778_731_121_000,
+    )
+    op = tx["operations"]["5"][0]
+    assert op["max_amount_in"] == too_tight_max
+    op["signature"] = sign_dex_intent_for_engine(op, privkey=private_key, chain_id=chain_id)
+
+    append_report = append_dex_transaction_v0(
+        data_dir=writer_dir,
+        tx=tx,
+        time_ms=1_778_731_121_000,
+    )
+    # Intent rejected: the block may be appended, but the swap is NOT accepted.
+    receipt = append_report["receipt"]
+    assert receipt["accepted"] is False
+    assert receipt["state_changed"] is False
+    # Assert the rejection REASON binds to the max_amount_in slippage bound
+    # (not a signature/parse/nonce error) so this test cannot pass spuriously.
+    error_code = receipt["error_code"]
+    assert isinstance(error_code, str)
+    assert error_code.endswith("_slippage"), error_code
+    assert "settlement_rejected" in error_code
+
+    # Fail-closed: committed state unchanged.
+    post_state = state_from_snapshot(_read_json_path(Path(str(append_report["post_snapshot_path"]))))
+    assert post_state.balances.get(trader, asset_in) == pre_in
+    assert post_state.balances.get(trader, asset_out) == pre_out
+    post_reserve_in, post_reserve_out, _ = _exact_out_pool_reserves(post_state, pool_id, asset_in)
+    assert post_reserve_in == reserve_in
+    assert post_reserve_out == reserve_out
+    # Canonical state-root unchanged: the rejected intent committed no state.
+    assert dex_state_root_v0(post_state) == pre_root
 
 
 def test_tokenomics_market_route_reports_buyback_runtime_enabled(
@@ -2271,3 +2859,495 @@ def test_zeno_ledger_node_forwarding_sends_submit_peer_auth_token(tmp_path: Path
             follower.server_close()
         writer.shutdown()
         writer.server_close()
+
+
+def _write_history_block_v0(
+    data_dir: Path,
+    *,
+    height: int,
+    transactions: list[dict[str, object]],
+    receipts: list[dict[str, object]],
+    bind_receipts: bool = True,
+) -> None:
+    bodies_dir = data_dir / "live_ledger" / "bodies"
+    receipts_dir = data_dir / "live_ledger" / "receipts"
+    bodies_dir.mkdir(parents=True, exist_ok=True)
+    receipts_dir.mkdir(parents=True, exist_ok=True)
+    body = {
+        "schema": "zenodex/zeno_ledger/body/v0",
+        "chain_id": "zeno-ledger-history-test",
+        "height": height,
+        "ingress": [],
+        "transactions": transactions,
+        "settlement_envelopes": [],
+        "evidence": {},
+    }
+    if bind_receipts:
+        # Bind each receipt to its paired transaction with the SAME hash function
+        # the node uses, so the endpoint's receipt-binding check passes. Tests that
+        # want to exercise a binding MISMATCH pass bind_receipts=False and set their
+        # own (deliberately wrong) tx_hash.
+        for tx, receipt in zip(transactions, receipts):
+            receipt["tx_hash"] = tx_hash_v0(dict(tx))
+    (bodies_dir / f"{height}.json").write_text(json.dumps(body, sort_keys=True), encoding="utf-8")
+    (receipts_dir / f"{height}.json").write_text(json.dumps(receipts, sort_keys=True), encoding="utf-8")
+
+
+def _history_swap_tx_v0(*, tx_id: str, sender: str, block_timestamp: int) -> dict[str, object]:
+    return {
+        "tx_id": tx_id,
+        "block_timestamp": block_timestamp,
+        "tx_sender_pubkey": sender,
+        "operations": {
+            "5": [
+                {
+                    "module": "TauSwap",
+                    "version": "0.1",
+                    "kind": "SWAP_EXACT_IN",
+                    "intent_id": "0x" + "ad" * 32,
+                    "sender_pubkey": sender,
+                    "deadline": 1_999_999_999,
+                    "nonce": 1,
+                    "pool_id": compute_pool_id(DEFAULT_ASSET0, DEFAULT_ASSET1, 30),
+                    "asset_in": DEFAULT_ASSET0,
+                    "asset_out": DEFAULT_ASSET1,
+                    "amount_in": 1_000,
+                    "min_amount_out": 1,
+                    "recipient": sender,
+                }
+            ]
+        },
+    }
+
+
+def _history_add_liquidity_tx_v0(*, tx_id: str, sender: str, block_timestamp: int) -> dict[str, object]:
+    return {
+        "tx_id": tx_id,
+        "block_timestamp": block_timestamp,
+        "tx_sender_pubkey": sender,
+        "operations": {
+            "5": [
+                {
+                    "module": "TauSwap",
+                    "version": "0.1",
+                    "kind": "ADD_LIQUIDITY",
+                    "intent_id": "0x" + "ce" * 32,
+                    "sender_pubkey": sender,
+                    "deadline": 1_999_999_999,
+                    "nonce": 2,
+                    "pool_id": compute_pool_id(DEFAULT_ASSET0, DEFAULT_ASSET1, 30),
+                    "amount0_desired": 10,
+                    "amount1_desired": 10,
+                    "amount0_min": 0,
+                    "amount1_min": 0,
+                    "recipient": sender,
+                }
+            ]
+        },
+    }
+
+
+def _history_receipt_v0(
+    *,
+    accepted: bool,
+    state_changed: bool,
+    tx_hash: str = "0x" + "00" * 32,
+    error_code: str | None = None,
+) -> dict[str, object]:
+    # tx_hash is a placeholder by default: _write_history_block_v0 rebinds it to the
+    # paired transaction (tx_hash_v0) unless bind_receipts=False, in which case the
+    # supplied (wrong) tx_hash is kept to exercise the binding-mismatch path.
+    return {
+        "schema": "zenodex/zeno_ledger/tx_receipt/v0",
+        "accepted": accepted,
+        "state_changed": state_changed,
+        "error_code": error_code,
+        "receipt_hash": "0x" + "ab" * 32,
+        "tx_hash": tx_hash,
+    }
+
+
+def test_account_history_returns_account_transactions_newest_first(tmp_path: Path) -> None:
+    data_dir = tmp_path / "node"
+    alice = _pubkey("31")
+    bob = _pubkey("32")
+
+    # Height 6: alice swap (confirmed).
+    alice_swap_6 = _history_swap_tx_v0(tx_id="alice-swap-6", sender=alice, block_timestamp=1_778_731_106)
+    _write_history_block_v0(
+        data_dir,
+        height=6,
+        transactions=[alice_swap_6],
+        receipts=[_history_receipt_v0(accepted=True, state_changed=True)],
+    )
+    # Height 7: bob swap (should be excluded for alice).
+    _write_history_block_v0(
+        data_dir,
+        height=7,
+        transactions=[_history_swap_tx_v0(tx_id="bob-swap-7", sender=bob, block_timestamp=1_778_731_107)],
+        receipts=[_history_receipt_v0(accepted=True, state_changed=True)],
+    )
+    # Height 8: alice add-liquidity (confirmed) AND a testnet faucet tx (no operations -> excluded).
+    alice_add_liq_8 = _history_add_liquidity_tx_v0(tx_id="alice-add-liq-8", sender=alice, block_timestamp=1_778_731_108)
+    _write_history_block_v0(
+        data_dir,
+        height=8,
+        transactions=[
+            {
+                "tx_id": "host-faucet-8",
+                "kind": "ZENODEX_TESTNET_FAUCET",
+                "to_pubkey": alice,
+                "asset": DEFAULT_ASSET0,
+                "amount": 123,
+                "block_timestamp": 1_778_731_108,
+            },
+            alice_add_liq_8,
+        ],
+        receipts=[
+            _history_receipt_v0(accepted=True, state_changed=True),
+            _history_receipt_v0(accepted=True, state_changed=True),
+        ],
+    )
+
+    result = _ui_account_history_from_live_bodies_v0(
+        data_dir=data_dir,
+        node_status={"latest_height": 8},
+        account_pubkey=alice,
+        limit=50,
+    )
+
+    assert result["ok"] is True
+    assert result["account"] == alice
+    assert result["latest_height"] == 8
+    txs = result["transactions"]
+    # Newest-first: height 8 add-liquidity, then height 6 swap. Bob's tx and the
+    # faucet tx are excluded.
+    assert [tx["tx_id"] for tx in txs] == ["alice-add-liq-8", "alice-swap-6"]
+    assert result["count"] == 2
+    assert [tx["height"] for tx in txs] == [8, 6]
+    assert txs[0]["action"] == "ADD_LIQUIDITY"
+    # tx_hash is the real committed hash, bound to the transaction it came from.
+    assert txs[0]["tx_hash"] == tx_hash_v0(dict(alice_add_liq_8))
+    assert txs[1]["action"] == "SWAP_EXACT_IN"
+    assert txs[1]["tx_hash"] == tx_hash_v0(dict(alice_swap_6))
+    assert txs[1]["asset_in"] == DEFAULT_ASSET0
+    assert txs[1]["amount_in"] == 1_000
+
+
+def test_account_history_status_is_derived_strictly_from_receipt(tmp_path: Path) -> None:
+    data_dir = tmp_path / "node"
+    alice = _pubkey("31")
+
+    # Confirmed: accepted + state_changed.
+    _write_history_block_v0(
+        data_dir,
+        height=3,
+        transactions=[_history_swap_tx_v0(tx_id="alice-confirmed", sender=alice, block_timestamp=1_778_731_103)],
+        receipts=[_history_receipt_v0(accepted=True, state_changed=True)],
+    )
+    # Failed: rejected receipt with an error code (honest negative status).
+    _write_history_block_v0(
+        data_dir,
+        height=4,
+        transactions=[_history_swap_tx_v0(tx_id="alice-failed", sender=alice, block_timestamp=1_778_731_104)],
+        receipts=[
+            _history_receipt_v0(
+                accepted=False,
+                state_changed=False,
+                error_code="insufficient_balance",
+            )
+        ],
+    )
+    # Accepted but no state change -> pending, never a fabricated confirmation.
+    _write_history_block_v0(
+        data_dir,
+        height=5,
+        transactions=[_history_swap_tx_v0(tx_id="alice-noop", sender=alice, block_timestamp=1_778_731_105)],
+        receipts=[_history_receipt_v0(accepted=True, state_changed=False)],
+    )
+
+    result = _ui_account_history_from_live_bodies_v0(
+        data_dir=data_dir,
+        node_status={"latest_height": 5},
+        account_pubkey=alice,
+        limit=50,
+    )
+    by_id = {tx["tx_id"]: tx for tx in result["transactions"]}
+
+    assert by_id["alice-confirmed"]["status"] == "confirmed"
+    assert by_id["alice-confirmed"]["accepted"] is True
+    assert by_id["alice-failed"]["status"] == "failed"
+    assert by_id["alice-failed"]["accepted"] is False
+    assert by_id["alice-failed"]["error_code"] == "insufficient_balance"
+    assert by_id["alice-noop"]["status"] == "pending"
+    assert by_id["alice-noop"]["accepted"] is True
+    assert by_id["alice-noop"]["state_changed"] is False
+
+
+def test_account_history_unknown_account_returns_empty(tmp_path: Path) -> None:
+    data_dir = tmp_path / "node"
+    alice = _pubkey("31")
+    carol = _pubkey("33")
+    _write_history_block_v0(
+        data_dir,
+        height=2,
+        transactions=[_history_swap_tx_v0(tx_id="alice-swap-2", sender=alice, block_timestamp=1_778_731_102)],
+        receipts=[_history_receipt_v0(accepted=True, state_changed=True)],
+    )
+
+    result = _ui_account_history_from_live_bodies_v0(
+        data_dir=data_dir,
+        node_status={"latest_height": 2},
+        account_pubkey=carol,
+        limit=50,
+    )
+    assert result["ok"] is True
+    assert result["count"] == 0
+    assert result["transactions"] == []
+
+
+def test_account_history_limit_is_bounded_and_read_only(tmp_path: Path) -> None:
+    data_dir = tmp_path / "node"
+    alice = _pubkey("31")
+    for height in range(1, 6):
+        _write_history_block_v0(
+            data_dir,
+            height=height,
+            transactions=[_history_swap_tx_v0(tx_id=f"alice-swap-{height}", sender=alice, block_timestamp=1_778_731_100 + height)],
+            receipts=[_history_receipt_v0(accepted=True, state_changed=True)],
+        )
+
+    bodies_dir = data_dir / "live_ledger" / "bodies"
+    receipts_dir = data_dir / "live_ledger" / "receipts"
+    pre_bodies = {p.name: p.read_bytes() for p in bodies_dir.glob("*.json")}
+    pre_receipts = {p.name: p.read_bytes() for p in receipts_dir.glob("*.json")}
+
+    result = _ui_account_history_from_live_bodies_v0(
+        data_dir=data_dir,
+        node_status={"latest_height": 5},
+        account_pubkey=alice,
+        limit=2,
+    )
+    # Bounded to the requested page size, newest-first.
+    assert result["count"] == 2
+    assert [tx["tx_id"] for tx in result["transactions"]] == ["alice-swap-5", "alice-swap-4"]
+
+    # Read-only: the scan must not mutate, add, or remove any ledger artifact.
+    post_bodies = {p.name: p.read_bytes() for p in bodies_dir.glob("*.json")}
+    post_receipts = {p.name: p.read_bytes() for p in receipts_dir.glob("*.json")}
+    assert post_bodies == pre_bodies
+    assert post_receipts == pre_receipts
+
+
+def _write_minimal_history_node_status_v0(data_dir: Path, *, latest_height: int) -> None:
+    data_dir.mkdir(parents=True, exist_ok=True)
+    status: dict[str, object] = {
+        "schema": NODE_STATUS_SCHEMA,
+        "ok": True,
+        "node_id": "node-history-http",
+        "node_role": "follower_watcher",
+        "network_id": "zeno-ledger-history-http",
+        "chain_id": "zeno-ledger-history-http",
+        "latest_height": latest_height,
+        "bundle_root": str(data_dir / "bundle"),
+    }
+    status["node_status_hash"] = _node_status_hash(status)
+    (data_dir / "node_status.json").write_text(json.dumps(status, sort_keys=True), encoding="utf-8")
+
+
+def test_account_history_http_endpoint_serves_and_rejects_bad_input(tmp_path: Path) -> None:
+    data_dir = tmp_path / "node"
+    alice = _pubkey("31")
+    _write_history_block_v0(
+        data_dir,
+        height=6,
+        transactions=[_history_swap_tx_v0(tx_id="alice-swap-6", sender=alice, block_timestamp=1_778_731_106)],
+        receipts=[_history_receipt_v0(accepted=True, state_changed=True)],
+    )
+    _write_minimal_history_node_status_v0(data_dir, latest_height=6)
+
+    server = make_node_http_server_v0(data_dir=data_dir, host="127.0.0.1", port=0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        ok_body = _read_url_json(f"http://{host}:{port}/api/history?account={alice}&limit=10")
+        assert ok_body["ok"] is True
+        assert ok_body["account"] == alice
+        assert ok_body["count"] == 1
+        assert ok_body["transactions"][0]["tx_id"] == "alice-swap-6"
+        assert ok_body["transactions"][0]["status"] == "confirmed"
+
+        missing_status, missing_body = _get_url_json_status(f"http://{host}:{port}/api/history")
+        assert missing_status == int(HTTPStatus.BAD_REQUEST)
+        assert missing_body["ok"] is False
+
+        bad_pubkey_status, _bad_pubkey_body = _get_url_json_status(
+            f"http://{host}:{port}/api/history?account=not-a-pubkey"
+        )
+        assert bad_pubkey_status == int(HTTPStatus.BAD_REQUEST)
+
+        bad_limit_status, _bad_limit_body = _get_url_json_status(
+            f"http://{host}:{port}/api/history?account={alice}&limit=0"
+        )
+        assert bad_limit_status == int(HTTPStatus.BAD_REQUEST)
+
+        nonint_limit_status, _nonint_limit_body = _get_url_json_status(
+            f"http://{host}:{port}/api/history?account={alice}&limit=abc"
+        )
+        assert nonint_limit_status == int(HTTPStatus.BAD_REQUEST)
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def _history_two_account_swaps_tx_v0(
+    *,
+    tx_id: str,
+    account_a: str,
+    account_b: str,
+    pool_a: str,
+    pool_b: str,
+    block_timestamp: int,
+) -> dict[str, object]:
+    """A single committed tx carrying TWO swaps for TWO different accounts.
+
+    op[0] belongs to account_a (its own sender/recipient/amounts), op[1] belongs
+    to account_b. This is exactly the multi-op shape that previously leaked one
+    account's swap into the other account's history.
+    """
+    return {
+        "tx_id": tx_id,
+        "block_timestamp": block_timestamp,
+        "tx_sender_pubkey": account_a,
+        "operations": {
+            "5": [
+                {
+                    "module": "TauSwap",
+                    "version": "0.1",
+                    "kind": "SWAP_EXACT_IN",
+                    "intent_id": "0x" + "a0" * 32,
+                    "sender_pubkey": account_a,
+                    "deadline": 1_999_999_999,
+                    "nonce": 1,
+                    "pool_id": pool_a,
+                    "asset_in": DEFAULT_ASSET0,
+                    "asset_out": DEFAULT_ASSET1,
+                    "amount_in": 1_111,
+                    "min_amount_out": 1,
+                    "recipient": account_a,
+                },
+                {
+                    "module": "TauSwap",
+                    "version": "0.1",
+                    "kind": "SWAP_EXACT_IN",
+                    "intent_id": "0x" + "b0" * 32,
+                    "sender_pubkey": account_b,
+                    "deadline": 1_999_999_999,
+                    "nonce": 1,
+                    "pool_id": pool_b,
+                    "asset_in": DEFAULT_ASSET1,
+                    "asset_out": DEFAULT_ASSET0,
+                    "amount_in": 2_222,
+                    "min_amount_out": 1,
+                    "recipient": account_b,
+                },
+            ]
+        },
+    }
+
+
+def test_account_history_multi_op_tx_does_not_leak_across_accounts(tmp_path: Path) -> None:
+    # Regression for the per-op attribution leak: a single committed transaction
+    # with two swaps owned by two different accounts must return ONLY each
+    # account's own op — never the other account's swap or amounts.
+    data_dir = tmp_path / "node"
+    alice = _pubkey("31")
+    bob = _pubkey("32")
+    pool_a = compute_pool_id(DEFAULT_ASSET0, DEFAULT_ASSET1, 30)
+    pool_b = compute_pool_id(DEFAULT_ASSET0, DEFAULT_ASSET1, 5)
+
+    _write_history_block_v0(
+        data_dir,
+        height=9,
+        transactions=[
+            _history_two_account_swaps_tx_v0(
+                tx_id="multi-op-9",
+                account_a=alice,
+                account_b=bob,
+                pool_a=pool_a,
+                pool_b=pool_b,
+                block_timestamp=1_778_731_109,
+            )
+        ],
+        receipts=[_history_receipt_v0(accepted=True, state_changed=True)],
+    )
+
+    alice_result = _ui_account_history_from_live_bodies_v0(
+        data_dir=data_dir,
+        node_status={"latest_height": 9},
+        account_pubkey=alice,
+        limit=50,
+    )
+    bob_result = _ui_account_history_from_live_bodies_v0(
+        data_dir=data_dir,
+        node_status={"latest_height": 9},
+        account_pubkey=bob,
+        limit=50,
+    )
+
+    # Alice sees exactly her own op (op_index 0): her pool, her amount; never bob's.
+    assert alice_result["count"] == 1
+    alice_row = alice_result["transactions"][0]
+    assert alice_row["op_index"] == 0
+    assert alice_row["pool_id"] == pool_a
+    assert alice_row["amount_in"] == 1_111
+    assert alice_row["recipient"] == alice
+    assert all(row["pool_id"] != pool_b for row in alice_result["transactions"])
+    assert all(row["amount_in"] != 2_222 for row in alice_result["transactions"])
+
+    # Bob sees exactly his own op (op_index 1): his pool, his amount; never alice's.
+    assert bob_result["count"] == 1
+    bob_row = bob_result["transactions"][0]
+    assert bob_row["op_index"] == 1
+    assert bob_row["pool_id"] == pool_b
+    assert bob_row["amount_in"] == 2_222
+    assert bob_row["recipient"] == bob
+    assert all(row["pool_id"] != pool_a for row in bob_result["transactions"])
+    assert all(row["amount_in"] != 1_111 for row in bob_result["transactions"])
+
+
+def test_account_history_skips_rows_whose_receipt_does_not_bind(tmp_path: Path) -> None:
+    # No-fake-green: a status is only reported when the receipt provably belongs to
+    # this transaction (receipt.tx_hash == tx_hash_v0(tx)). A mismatched receipt
+    # hash must fail closed — the row is absent, not emitted with a guessed status.
+    data_dir = tmp_path / "node"
+    alice = _pubkey("31")
+
+    # Height 4: receipt hash deliberately does NOT match the transaction.
+    _write_history_block_v0(
+        data_dir,
+        height=4,
+        transactions=[_history_swap_tx_v0(tx_id="alice-unbound", sender=alice, block_timestamp=1_778_731_104)],
+        receipts=[_history_receipt_v0(accepted=True, state_changed=True, tx_hash="0x" + "de" * 32)],
+        bind_receipts=False,
+    )
+    # Height 5: correctly bound receipt for the same account (must still be returned).
+    _write_history_block_v0(
+        data_dir,
+        height=5,
+        transactions=[_history_swap_tx_v0(tx_id="alice-bound", sender=alice, block_timestamp=1_778_731_105)],
+        receipts=[_history_receipt_v0(accepted=True, state_changed=True)],
+    )
+
+    result = _ui_account_history_from_live_bodies_v0(
+        data_dir=data_dir,
+        node_status={"latest_height": 5},
+        account_pubkey=alice,
+        limit=50,
+    )
+
+    tx_ids = [tx["tx_id"] for tx in result["transactions"]]
+    assert "alice-unbound" not in tx_ids
+    assert tx_ids == ["alice-bound"]
+    assert result["count"] == 1

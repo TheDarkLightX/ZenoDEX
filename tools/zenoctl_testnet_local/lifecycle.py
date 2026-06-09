@@ -291,6 +291,7 @@ def cmd_up(opts: UpOptions) -> int:
             "ZUSD_MONETARY_WALLET_API_ENABLED",
             "AUTOTRADER_LIVE_API_ENABLED",
             "CONFIDENTIAL_ATTESTATION_API_ENABLED",
+            "CONFIDENTIAL_SEALED_BID_API_ENABLED",
         ],
         fixture_paths=bundle.as_manifest_paths(),
         ledger_bundle_manifest=str(paths.out_dir / "ledger" / "public_testnet_manifest.json"),

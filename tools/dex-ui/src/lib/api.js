@@ -176,6 +176,15 @@ export function apiGetTokenomicsStatus(options = {}) {
   return apiFetchJson('/api/tokenomics/status', { method: 'GET', ...(options || {}) });
 }
 
+export function apiGetAccountHistory({ account, limit } = {}, options = {}) {
+  const params = new URLSearchParams();
+  params.set('account', String(account || ''));
+  if (Number.isFinite(limit) && limit > 0) {
+    params.set('limit', String(Math.trunc(limit)));
+  }
+  return apiFetchJson(`/api/history?${params.toString()}`, { method: 'GET', ...(options || {}) });
+}
+
 export function apiClaimTokenomicsActiveParticipantReward(body, options = {}) {
   return apiFetchJson('/api/tokenomics/active-participant/claim', {
     method: 'POST',
@@ -489,27 +498,53 @@ export function apiSwap(
     to,
     amountIn,
     minAmountOut = 1,
+    // Exact-out params (additive). When provided (or kind === 'SWAP_EXACT_OUT'),
+    // the request targets exact-out semantics and amountIn/minAmountOut are
+    // omitted so the backend (_ui_swap_tx_v0) routes via amount_out/max_amount_in.
+    kind = null,
+    amountOut = null,
+    maxAmountIn = null,
     poolId = null,
     assetIn = null,
     assetOut = null,
     senderPubkey = null,
     recipient = null,
+    // The nonce that was SIGNED over must travel on the wire. Without it the
+    // backend re-derives the nonce from the snapshot; under concurrency (another
+    // tx bumps the sender nonce between sign and submit) that derived nonce
+    // differs from the signed one -> different intent_id + signing dict -> BLS
+    // signature REJECTED. The backend reads an explicit nonce and validates it
+    // via the replay guard, so forwarding the signed nonce is the correct,
+    // more-robust contract for BOTH exact-in and exact-out.
+    nonce = null,
     deadline = null,
     signature = null,
   },
   options = {},
 ) {
-  const body = {
-    from,
-    to,
-    amountIn,
-    minAmountOut,
-  };
+  const isExactOut = kind === 'SWAP_EXACT_OUT'
+    || amountOut !== null
+    || maxAmountIn !== null;
+  const body = isExactOut
+    ? {
+        from,
+        to,
+        kind: 'SWAP_EXACT_OUT',
+        amountOut,
+        maxAmountIn,
+      }
+    : {
+        from,
+        to,
+        amountIn,
+        minAmountOut,
+      };
   if (poolId) body.poolId = poolId;
   if (assetIn) body.assetIn = assetIn;
   if (assetOut) body.assetOut = assetOut;
   if (senderPubkey) body.senderPubkey = senderPubkey;
   if (recipient) body.recipient = recipient;
+  if (nonce !== null && nonce !== undefined) body.nonce = nonce;
   if (deadline) body.deadline = deadline;
   if (signature) body.signature = signature;
   return apiFetchJson('/api/swap', {

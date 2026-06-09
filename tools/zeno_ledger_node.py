@@ -1408,6 +1408,252 @@ def _ui_pool_analytics_from_live_bodies_v0(
     }
 
 
+_UI_HISTORY_DEFAULT_LIMIT = 50
+_UI_HISTORY_MAX_LIMIT = 200
+_UI_HISTORY_MAX_SCAN_HEIGHTS = 50_000
+
+
+def _ui_history_limit_v0(value: object) -> int:
+    """Parse a fail-closed, bounded history page size.
+
+    ``None`` / missing falls back to the default. Anything that is not a
+    positive integer (within the hard cap) is rejected so the endpoint never
+    serves an unbounded or attacker-controlled scan.
+    """
+    if value is None:
+        return _UI_HISTORY_DEFAULT_LIMIT
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("limit must be a positive int")
+    if value <= 0:
+        raise ValueError("limit must be a positive int")
+    return min(int(value), _UI_HISTORY_MAX_LIMIT)
+
+
+def _ui_history_status_from_receipt_v0(receipt: Mapping[str, Any]) -> str:
+    """Derive an honest status string strictly from the committed receipt.
+
+    The status is never guessed: it is read from the receipt that the ledger
+    wrote when the transaction was applied. ``accepted is True`` with an actual
+    state change is ``confirmed``; an explicit ``accepted is False`` is
+    ``failed``; an accepted-but-no-op receipt stays ``pending`` rather than
+    claiming a confirmation the chain did not make.
+    """
+    accepted = receipt.get("accepted")
+    if accepted is True:
+        return "confirmed" if receipt.get("state_changed") is True else "pending"
+    if accepted is False:
+        return "failed"
+    return "pending"
+
+
+_UI_HISTORY_DEX_ACTIONS = frozenset(
+    {
+        "SWAP_EXACT_IN",
+        "SWAP_EXACT_OUT",
+        "ADD_LIQUIDITY",
+        "REMOVE_LIQUIDITY",
+        "CREATE_POOL",
+    }
+)
+
+
+def _op_is_dex_v0(op: Mapping[str, Any]) -> bool:
+    """True for a swap/liquidity/pool operation (the history surface scope)."""
+    return _operation_module_v0(op) == "TauSwap" or _operation_action_v0(op) in _UI_HISTORY_DEX_ACTIONS
+
+
+def _op_participants_v0(op: Mapping[str, Any], tx: Mapping[str, Any]) -> set[str]:
+    """Canonical pubkeys that are a party to THIS specific operation.
+
+    Mirrors the per-op participant derivation the node already trusts in
+    ``_eligible_reward_receipt_kinds_for_source_tx_v0`` (sender / recipient /
+    owner / beneficiary), so account attribution is consistent across the node.
+    Values that are absent or not valid pubkeys are dropped, so ``None`` / ``""``
+    can never collide with a real account.
+    """
+    sender = op.get("sender_pubkey", tx.get("tx_sender_pubkey"))
+    participants: set[str] = set()
+    for raw in (
+        sender,
+        op.get("recipient"),
+        op.get("to_pubkey"),
+        op.get("account_pubkey"),
+        op.get("owner_pubkey"),
+        op.get("recipient_pubkey"),
+    ):
+        if not isinstance(raw, str) or not raw:
+            continue
+        try:
+            participants.add(canonical_hex_fixed_allow_0x(raw, nbytes=48, name="participant"))
+        except Exception:
+            continue
+    return participants
+
+
+def _ui_history_entries_for_tx_v0(
+    *,
+    account: str,
+    tx: Mapping[str, Any],
+    receipt: Mapping[str, Any],
+    height: int,
+    tx_index: int,
+) -> list[dict[str, Any]]:
+    """Build read-only history rows for the DEX ops ``account`` is a party to.
+
+    Selection is PER-OPERATION: a row is emitted only for the specific op(s)
+    whose own participants include ``account``. In a multi-op transaction this
+    prevents one account's swap from being misattributed to another account that
+    merely touched a different op in the same tx.
+
+    The committed receipt is bound to this exact transaction before its status
+    is trusted: ``receipt["tx_hash"]`` must equal ``tx_hash_v0(tx)`` (the same
+    hash function the node uses). On any mismatch the whole transaction is
+    skipped (fail-closed) rather than emit a possibly-misaligned status.
+    """
+    operations = _iter_tx_operations_v0(tx)
+    if not operations:
+        return []
+
+    # Bind the receipt to THIS tx at THIS index. A positional mismatch must never
+    # surface a status; skip the transaction entirely.
+    try:
+        expected_tx_hash = tx_hash_v0(dict(tx))
+    except Exception:
+        return []
+    if not isinstance(receipt.get("tx_hash"), str) or receipt.get("tx_hash") != expected_tx_hash:
+        return []
+
+    block_timestamp = tx.get("block_timestamp")
+    block_timestamp_value = (
+        int(block_timestamp)
+        if isinstance(block_timestamp, int) and not isinstance(block_timestamp, bool)
+        else None
+    )
+    tx_id_value = str(tx.get("tx_id")) if isinstance(tx.get("tx_id"), str) else None
+    status = _ui_history_status_from_receipt_v0(receipt)
+    accepted = receipt.get("accepted") is True
+    state_changed = receipt.get("state_changed") is True
+    error_code = receipt.get("error_code") if isinstance(receipt.get("error_code"), str) else None
+
+    rows: list[dict[str, Any]] = []
+    for op_index, op in enumerate(operations):
+        if not _op_is_dex_v0(op):
+            continue
+        if account not in _op_participants_v0(op, tx):
+            continue
+        action = _operation_action_v0(op)
+        entry: dict[str, Any] = {
+            "schema": "zenodex/zeno_ledger/account_history_entry/v0",
+            "tx_id": tx_id_value,
+            "tx_hash": expected_tx_hash,
+            "height": int(height),
+            "tx_index": int(tx_index),
+            "op_index": int(op_index),
+            "block_timestamp": block_timestamp_value,
+            "module": _operation_module_v0(op) or None,
+            "action": action or None,
+            "status": status,
+            "accepted": accepted,
+            "state_changed": state_changed,
+            "error_code": error_code,
+        }
+        for field in ("pool_id", "asset_in", "asset_out", "recipient"):
+            value = op.get(field)
+            if isinstance(value, str) and value:
+                entry[field] = value
+        for field in ("amount_in", "amount_out", "min_amount_out", "max_amount_in", "lp_amount"):
+            value = op.get(field)
+            if isinstance(value, int) and not isinstance(value, bool):
+                entry[field] = int(value)
+        rows.append(entry)
+    return rows
+
+
+def _ui_account_history_from_live_bodies_v0(
+    *,
+    data_dir: Path,
+    node_status: Mapping[str, Any],
+    account_pubkey: str,
+    limit: int,
+) -> dict[str, Any]:
+    """Read-only account history scan over committed bodies + receipts.
+
+    Walks committed heights newest-first, and within each height walks
+    transactions newest-first. Selection is PER-OPERATION: each DEX op the
+    queried account is actually a party to (as sender, recipient, owner, or
+    beneficiary of that op) is emitted as its own row, so a multi-op transaction
+    never leaks one account's op into another account's history. The receipt is
+    bound to its transaction by hash before any status is reported. The scan only
+    reads committed ledger artifacts via the same readers the rest of the node
+    uses; it performs no state mutation and writes nothing.
+    """
+    account = canonical_hex_fixed_allow_0x(account_pubkey, nbytes=48, name="account")
+    try:
+        max_height = int(node_status.get("latest_height", 0))
+    except (TypeError, ValueError):
+        max_height = 0
+    entries: list[dict[str, Any]] = []
+    if max_height <= 0 or limit <= 0:
+        return {
+            "schema": "zenodex/zeno_ledger/account_history/v0",
+            "ok": True,
+            "account": account,
+            "latest_height": max(0, max_height),
+            "limit": int(limit),
+            "count": 0,
+            "transactions": [],
+        }
+
+    bodies_dir = data_dir / "live_ledger" / "bodies"
+    receipts_dir = data_dir / "live_ledger" / "receipts"
+    floor_height = max(1, max_height - _UI_HISTORY_MAX_SCAN_HEIGHTS + 1)
+    for height in range(max_height, floor_height - 1, -1):
+        body_path = bodies_dir / f"{height}.json"
+        receipts_path = receipts_dir / f"{height}.json"
+        if not body_path.is_file() or not receipts_path.is_file():
+            continue
+        try:
+            body = _load_json_object(body_path)
+            receipts = json.loads(receipts_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        txs = body.get("transactions")
+        if not isinstance(txs, list) or not isinstance(receipts, list):
+            continue
+        for index in range(min(len(txs), len(receipts)) - 1, -1, -1):
+            tx = txs[index]
+            receipt = receipts[index]
+            if not isinstance(tx, Mapping) or not isinstance(receipt, Mapping):
+                continue
+            # Per-op selection: emit a row only for the ops this account is a party
+            # to, after binding the receipt to this exact tx. A tx the account does
+            # not participate in (or whose receipt does not bind) yields nothing.
+            for entry in _ui_history_entries_for_tx_v0(
+                account=account,
+                tx=tx,
+                receipt=receipt,
+                height=height,
+                tx_index=index,
+            ):
+                entries.append(entry)
+                if len(entries) >= limit:
+                    break
+            if len(entries) >= limit:
+                break
+        if len(entries) >= limit:
+            break
+
+    return {
+        "schema": "zenodex/zeno_ledger/account_history/v0",
+        "ok": True,
+        "account": account,
+        "latest_height": int(max_height),
+        "limit": int(limit),
+        "count": len(entries),
+        "transactions": entries,
+    }
+
+
 def _tokenomics_buyback_source_pubkey_v0(distribution: Mapping[str, Any]) -> str:
     for allocation in distribution.get("allocations", []):
         if isinstance(allocation, Mapping) and allocation.get("id") == LOCAL_TESTNET_BUYBACK_SOURCE_ALLOCATION_ID:
@@ -2448,6 +2694,62 @@ def _find_ui_liquidity_pool_v0(
     raise ValueError("matching pool not found")
 
 
+_UI_SWAP_EXACT_IN_AMOUNT_KEYS = ("amount_in", "amountIn", "min_amount_out", "minAmountOut")
+_UI_SWAP_EXACT_OUT_AMOUNT_KEYS = ("amount_out", "amountOut", "max_amount_in", "maxAmountIn")
+
+
+def _ui_swap_mode_marker_v0(payload: Mapping[str, Any]) -> str | None:
+    """Return ``"out"``/``"in"`` for an explicit kind/mode marker, else None."""
+    mode_raw = payload.get("mode", payload.get("kind"))
+    if isinstance(mode_raw, str):
+        mode = mode_raw.strip().lower().replace("-", "_")
+        if mode in {"swap_exact_out", "exact_out", "exactout", "out"}:
+            return "out"
+        if mode in {"swap_exact_in", "exact_in", "exactin", "in"}:
+            return "in"
+    return None
+
+
+def _require_unambiguous_swap_payload_v0(payload: Mapping[str, Any]) -> None:
+    """Fail closed on a swap request that mixes exact-in and exact-out intent.
+
+    A write API must never silently drop part of the caller's intent by
+    disambiguating a contradictory request. Reject (ValueError) when:
+      1. both amount families are present (in-keys AND out-keys), or
+      2. an explicit exact-out marker is given with exact-in amount keys, or
+      3. an explicit exact-in marker is given with exact-out amount keys.
+    """
+    in_present = any(payload.get(key) is not None for key in _UI_SWAP_EXACT_IN_AMOUNT_KEYS)
+    out_present = any(payload.get(key) is not None for key in _UI_SWAP_EXACT_OUT_AMOUNT_KEYS)
+    marker = _ui_swap_mode_marker_v0(payload)
+    if (in_present and out_present) or (marker == "out" and in_present) or (marker == "in" and out_present):
+        raise ValueError("ambiguous swap intent: specify exact-in or exact-out, not both")
+
+
+def _ui_swap_is_exact_out_v0(payload: Mapping[str, Any]) -> bool:
+    """Detect whether a UI swap request targets exact-out semantics.
+
+    Pure predicate. Call ``_require_unambiguous_swap_payload_v0`` first to reject
+    contradictory requests; this classifier assumes the payload is unambiguous.
+
+    Detection precedence (deterministic):
+      1. An explicit ``kind``/``mode`` param equal to ``SWAP_EXACT_OUT`` /
+         ``exact_out`` (case-insensitive) selects exact-out; an explicit
+         exact-in marker (``SWAP_EXACT_IN`` / ``exact_in``) selects exact-in.
+      2. Otherwise, presence of any exact-out amount key
+         (``amount_out`` / ``amountOut`` / ``max_amount_in`` / ``maxAmountIn``)
+         selects exact-out.
+      3. Otherwise, default to exact-in (backward compatible).
+    """
+    marker = _ui_swap_mode_marker_v0(payload)
+    if marker is not None:
+        return marker == "out"
+    for key in _UI_SWAP_EXACT_OUT_AMOUNT_KEYS:
+        if payload.get(key) is not None:
+            return True
+    return False
+
+
 def _ui_swap_tx_v0(
     *,
     data_dir: Path,
@@ -2459,43 +2761,76 @@ def _ui_swap_tx_v0(
     recipient_raw = payload.get("recipient", sender_raw)
     sender = _require_pubkey_v0(sender_raw, name="sender_pubkey")
     recipient = _require_pubkey_v0(recipient_raw, name="recipient")
-    amount_in = _ui_amount_int_v0(
-        payload.get("amount_in", payload.get("amountIn")),
-        name="amount_in",
-        maximum=MAX_TESTNET_FAUCET_AMOUNT,
-    )
-    min_amount_out = _ui_amount_int_v0(
-        payload.get("min_amount_out", payload.get("minAmountOut", 1)),
-        name="min_amount_out",
-        maximum=MAX_TESTNET_FAUCET_AMOUNT,
-        allow_zero=True,
-    )
     deadline = _ui_amount_int_v0(
         payload.get("deadline", 1_999_999_999),
         name="deadline",
         maximum=9_999_999_999,
     )
+    _require_unambiguous_swap_payload_v0(payload)
+    exact_out = _ui_swap_is_exact_out_v0(payload)
     latest_height, snapshot = _latest_snapshot_for_ui_v0(data_dir=data_dir, node_status=node_status)
     pool, asset_in, asset_out = _find_ui_swap_pool_v0(snapshot=snapshot, node_status=node_status, payload=payload)
-    pre_state = state_from_snapshot(snapshot)
-    if pre_state.balances.get(sender, asset_in) < amount_in:
-        raise ValueError("balance_insufficient")
-    pool_asset0 = _require_asset_v0(pool.get("asset0"), name="pool.asset0")
-    reserve0 = _ui_amount_int_v0(pool.get("reserve0"), name="pool.reserve0", maximum=10**30)
-    reserve1 = _ui_amount_int_v0(pool.get("reserve1"), name="pool.reserve1", maximum=10**30)
-    fee_bps = _ui_amount_int_v0(pool.get("fee_bps", pool.get("feeBps", 0)), name="pool.fee_bps", maximum=10_000, allow_zero=True)
-    if asset_in == pool_asset0:
-        reserve_in, reserve_out = reserve0, reserve1
+
+    if exact_out:
+        # Exact-out: integer-validate amount_out (>0) and max_amount_in (>=0),
+        # then build the op. The settlement engine is the authority for
+        # balance/max_amount_in/conservation and already settles SWAP_EXACT_OUT,
+        # so the builder performs no quote or slippage pre-check here.
+        amount_out = _ui_amount_int_v0(
+            payload.get("amount_out", payload.get("amountOut")),
+            name="amount_out",
+            maximum=MAX_TESTNET_FAUCET_AMOUNT,
+        )
+        # max_amount_in is required (no default): a missing cap would be an
+        # unbounded input. allow_zero matches intents.py (max_amount_in >= 0).
+        max_amount_in = _ui_amount_int_v0(
+            payload.get("max_amount_in", payload.get("maxAmountIn")),
+            name="max_amount_in",
+            maximum=MAX_TESTNET_FAUCET_AMOUNT,
+            allow_zero=True,
+        )
+        amount_fields: dict[str, Any] = {
+            "amount_out": amount_out,
+            "max_amount_in": max_amount_in,
+        }
+        kind = "SWAP_EXACT_OUT"
     else:
-        reserve_in, reserve_out = reserve1, reserve0
-    if reserve_in <= 0 or reserve_out <= 0:
-        raise ValueError("pool reserves must be positive")
-    amount_in_less_fee = amount_in * (10_000 - fee_bps)
-    quoted_amount_out = (reserve_out * amount_in_less_fee) // (reserve_in * 10_000 + amount_in_less_fee)
-    if quoted_amount_out <= 0:
-        raise ValueError("amount_out_zero")
-    if quoted_amount_out < min_amount_out:
-        raise ValueError("slippage_min_amount_out")
+        amount_in = _ui_amount_int_v0(
+            payload.get("amount_in", payload.get("amountIn")),
+            name="amount_in",
+            maximum=MAX_TESTNET_FAUCET_AMOUNT,
+        )
+        min_amount_out = _ui_amount_int_v0(
+            payload.get("min_amount_out", payload.get("minAmountOut", 1)),
+            name="min_amount_out",
+            maximum=MAX_TESTNET_FAUCET_AMOUNT,
+            allow_zero=True,
+        )
+        pre_state = state_from_snapshot(snapshot)
+        if pre_state.balances.get(sender, asset_in) < amount_in:
+            raise ValueError("balance_insufficient")
+        pool_asset0 = _require_asset_v0(pool.get("asset0"), name="pool.asset0")
+        reserve0 = _ui_amount_int_v0(pool.get("reserve0"), name="pool.reserve0", maximum=10**30)
+        reserve1 = _ui_amount_int_v0(pool.get("reserve1"), name="pool.reserve1", maximum=10**30)
+        fee_bps = _ui_amount_int_v0(pool.get("fee_bps", pool.get("feeBps", 0)), name="pool.fee_bps", maximum=10_000, allow_zero=True)
+        if asset_in == pool_asset0:
+            reserve_in, reserve_out = reserve0, reserve1
+        else:
+            reserve_in, reserve_out = reserve1, reserve0
+        if reserve_in <= 0 or reserve_out <= 0:
+            raise ValueError("pool reserves must be positive")
+        amount_in_less_fee = amount_in * (10_000 - fee_bps)
+        quoted_amount_out = (reserve_out * amount_in_less_fee) // (reserve_in * 10_000 + amount_in_less_fee)
+        if quoted_amount_out <= 0:
+            raise ValueError("amount_out_zero")
+        if quoted_amount_out < min_amount_out:
+            raise ValueError("slippage_min_amount_out")
+        amount_fields = {
+            "amount_in": amount_in,
+            "min_amount_out": min_amount_out,
+        }
+        kind = "SWAP_EXACT_IN"
+
     nonce_raw = payload.get("nonce")
     if nonce_raw is None:
         nonce = _snapshot_last_nonce_v0(snapshot, sender) + 1
@@ -2509,8 +2844,7 @@ def _ui_swap_tx_v0(
         "pool_id": pool_id,
         "asset_in": asset_in,
         "asset_out": asset_out,
-        "amount_in": amount_in,
-        "min_amount_out": min_amount_out,
+        **amount_fields,
         "nonce": nonce,
     }
     tx_id_raw = payload.get("tx_id", payload.get("txId"))
@@ -2527,7 +2861,7 @@ def _ui_swap_tx_v0(
     operation: dict[str, Any] = {
         "module": "TauSwap",
         "version": "0.1",
-        "kind": "SWAP_EXACT_IN",
+        "kind": kind,
         "intent_id": hash_v0("ui_swap_intent_v0", intent_payload),
         "sender_pubkey": sender,
         "deadline": deadline,
@@ -2535,8 +2869,7 @@ def _ui_swap_tx_v0(
         "pool_id": pool_id,
         "asset_in": asset_in,
         "asset_out": asset_out,
-        "amount_in": amount_in,
-        "min_amount_out": min_amount_out,
+        **amount_fields,
         "recipient": recipient,
     }
     if signature is not None:
@@ -4598,6 +4931,47 @@ def make_node_http_server_v0(
                         else None
                     )
                     self._send_json(_ui_pools_response_v0(data_dir=root, node_status=status, account_pubkey=account_pubkey))
+                    return
+                if request_path == "/api/history":
+                    account_raw = ""
+                    for key in ("account", "account_pubkey", "accountPubkey", "pubkey"):
+                        values = query.get(key)
+                        if values:
+                            account_raw = values[0]
+                            break
+                    limit_raw = None
+                    for key in ("limit", "count"):
+                        values = query.get(key)
+                        if values:
+                            limit_raw = values[0]
+                            break
+                    try:
+                        if not isinstance(account_raw, str) or not account_raw.strip():
+                            raise ValueError("account is required")
+                        account_pubkey = _require_pubkey_v0(account_raw, name="account")
+                        if limit_raw is None:
+                            limit = _ui_history_limit_v0(None)
+                        elif isinstance(limit_raw, str):
+                            stripped_limit = limit_raw.strip()
+                            if not stripped_limit.lstrip("-").isdigit():
+                                raise ValueError("limit must be a positive int")
+                            limit = _ui_history_limit_v0(int(stripped_limit))
+                        else:
+                            limit = _ui_history_limit_v0(limit_raw)
+                    except ValueError as exc:
+                        self._send_json(
+                            {"ok": False, "error": str(exc)},
+                            status=HTTPStatus.BAD_REQUEST,
+                        )
+                        return
+                    self._send_json(
+                        _ui_account_history_from_live_bodies_v0(
+                            data_dir=root,
+                            node_status=status,
+                            account_pubkey=account_pubkey,
+                            limit=limit,
+                        )
+                    )
                     return
                 if request_path == "/api/dex/snapshot":
                     latest_height, snapshot = _latest_snapshot_for_ui_v0(data_dir=root, node_status=status)

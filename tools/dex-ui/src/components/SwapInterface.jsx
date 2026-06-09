@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { calcSwapOutput, calcPriceImpact, formatNumber, formatPercent } from '../lib/cpmm';
+import { calcSwapOutput, calcSwapInput, calcPriceImpact, formatNumber, formatPercent } from '../lib/cpmm';
 import { validateSwap, getSlippageOptions, getPriceImpactSeverity } from '../lib/validation';
 import { apiDexImpactPreview, apiDexSlippageAdvice, apiDexPokayokeSwapSuggest, apiDexPokayokeSwapSuggestHeavy, apiSwap, getRuntimeConfig } from '../lib/api';
 import { createQuoteDagCache, computeSwapQuotePreviewIncremental } from '../lib/incrementalQuoteDag';
@@ -23,6 +23,8 @@ import {
 import VerifiedBySpec from './VerifiedBySpec.jsx';
 import CopyHash from './CopyHash.jsx';
 import { buildAndSignSwapIntent } from '../sdk/dexIntentSigner.js';
+import { deriveSwapFinality } from '../sdk/swapFinality.js';
+import { buildExplorerTxUrl, humanizeErrorCode, isPendingStale } from '../sdk/txStatusView.js';
 import './SwapInterface.css';
 
 // SVGs
@@ -62,6 +64,13 @@ const AlertIcon = ({ className = "icon" }) => (
         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
         <line x1="12" y1="9" x2="12" y2="13"/>
         <line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+);
+
+const LockIcon = ({ className = "icon" }) => (
+    <svg className={className} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
     </svg>
 );
 
@@ -127,13 +136,18 @@ function estimateRoutePendingVolumes({ amountIn, routeType, profileId, gateDecis
 }
 
 function SwapInterface({ wallet }) {
-    const { upsertTransaction } = useTransactionCenter();
+    const { upsertTransaction, transactions, backfillAccount, backfilling } = useTransactionCenter();
     const { demoMode } = useDemoMode();
     const [fromToken, setFromToken] = useState(FALLBACK_SWAP_TOKENS[0]);
     const [toToken, setToToken] = useState(FALLBACK_SWAP_TOKENS[1]);
     const [tokenModalSide, setTokenModalSide] = useState(null);
     const [customTokens, setCustomTokens] = useState([]);
     const [amountIn, setAmountIn] = useState('');
+    // Exact-out mode: the user specifies the OUTPUT amount ("You receive") and
+    // max_amount_in is derived honestly from a real inverse-CPMM quote + slippage.
+    // Confined to non-advanced mode (the quote-certificate pipeline is exact-in).
+    const [exactOutMode, setExactOutMode] = useState(false);
+    const [amountOut, setAmountOut] = useState('');
     const [slippage, setSlippage] = useState(0.005);
     const [showSettings, setShowSettings] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
@@ -236,8 +250,13 @@ function SwapInterface({ wallet }) {
             setShowConfirm(false);
             setSubmittedSwap(null);
             setRouteApiImpactPreview(null);
+        } else if (exactOutMode) {
+            // Exact-out lives in the non-advanced path; entering advanced mode
+            // reverts to exact-in so the quote-certificate pipeline stays coherent.
+            setExactOutMode(false);
+            setAmountOut('');
         }
-    }, [advancedMode]);
+    }, [advancedMode, exactOutMode]);
 
     useEffect(() => {
         let cancelled = false;
@@ -294,24 +313,6 @@ function SwapInterface({ wallet }) {
         setTokenModalSide(uiSmokeTokenSelectSide);
     }, [uiSmokeTokenSelectSide, poolFeed.source]);
 
-    useEffect(() => {
-        if (!submittedSwap || submittedSwap.status !== 'pending') return undefined;
-        const timeout = setTimeout(() => {
-            setSubmittedSwap((prev) => {
-                if (!prev || prev.txHash !== submittedSwap.txHash) return prev;
-                const confirmedAt = Date.now();
-                upsertTransaction({
-                    id: prev.txId,
-                    status: 'confirmed',
-                    confirmedAt,
-                    updatedAt: confirmedAt,
-                });
-                return { ...prev, status: 'confirmed', confirmedAt };
-            });
-        }, 2200);
-        return () => clearTimeout(timeout);
-    }, [submittedSwap, upsertTransaction]);
-
     // Get pool key
     const poolKey = useMemo(() => {
         const sorted = [fromToken.symbol, toToken.symbol].sort();
@@ -362,6 +363,47 @@ function SwapInterface({ wallet }) {
             feeBps,
         };
     }, [amountIn, reserves, poolKey, poolFeed.pools]);
+
+    // Exact-out HONEST quote: derive the required input (and the slippage-padded
+    // max_amount_in cap) from a REAL inverse-CPMM computation over live reserves
+    // and the pool fee -- never a fabricated number. The settlement engine remains
+    // the authority for the actual fill; this cap only bounds how much the user is
+    // willing to pay. The cap is rounded UP so an honest fill within slippage is
+    // not rejected by the user's own bound, and guarded against amountOut >=
+    // reserveOut (unfillable: the pool cannot output its entire reserve).
+    const exactOutQuote = useMemo(() => {
+        if (!exactOutMode) return null;
+        if (!amountOut || !reserves) return null;
+        const desiredOut = parseFloat(amountOut);
+        if (!Number.isFinite(desiredOut) || desiredOut <= 0) return null;
+        if (desiredOut >= reserves.reserveOut) {
+            return { error: 'Output exceeds pool liquidity', desiredOut };
+        }
+        const feeBps = Number(poolFeed.pools[poolKey]?.feeBps ?? 30);
+        const feeRate = feeBps / 10_000;
+        const requiredIn = calcSwapInput(reserves.reserveIn, reserves.reserveOut, desiredOut, feeRate);
+        if (!Number.isFinite(requiredIn) || requiredIn <= 0) {
+            return { error: 'Quote unavailable', desiredOut };
+        }
+        // Integerize the output to units, and round the input cap UP with slippage.
+        // The cap is derived SOLELY from the real inverse-CPMM quote (requiredIn)
+        // plus the user's slippage tolerance -- the only non-quote term is the
+        // Math.max(1, ...) guard against a degenerate zero cap. (No amount_out
+        // floor: in an asymmetric pool that would inflate the cap above the honest
+        // required input.)
+        const amountOutUnits = Math.max(1, Math.round(desiredOut));
+        const slippageRate = Number.isFinite(slippage) ? Math.max(0, slippage) : 0;
+        const maxAmountInUnits = Math.max(1, Math.ceil(requiredIn * (1 + slippageRate)));
+        return {
+            error: null,
+            desiredOut,
+            amountOutUnits,
+            requiredIn,
+            maxAmountInUnits,
+            feeBps,
+            priceImpact: calcPriceImpact(reserves.reserveIn, reserves.reserveOut, requiredIn),
+        };
+    }, [exactOutMode, amountOut, reserves, poolKey, poolFeed.pools, slippage]);
 
     useEffect(() => {
         let cancelled = false;
@@ -855,8 +897,24 @@ function SwapInterface({ wallet }) {
         setQuoteError('');
     };
 
+    // In exact-out mode the user-entered amount is the OUTPUT, so the exact-in
+    // `validation` (keyed on amountIn) does not apply; gate on the honest quote.
+    const exactOutCanSubmit = Boolean(exactOutQuote) && !exactOutQuote.error;
+
     const handleSwapClick = () => {
-        if (!validation.ok || !wallet || isSubmitting) return;
+        if (!wallet || isSubmitting) return;
+        if (exactOutMode) {
+            if (!exactOutCanSubmit) {
+                if (exactOutQuote?.error) setQuoteError(exactOutQuote.error);
+                return;
+            }
+            // Exact-out skips the exact-in poka-yoke/price-impact confirms (those
+            // read activePreview which is not computed in exact-out mode). The
+            // settlement engine remains the authority for the fill + the cap.
+            executeSwap();
+            return;
+        }
+        if (!validation.ok) return;
         if (advancedMode && !certificateCheck.ok) {
             setQuoteError(`Quote verification failed: ${certificateCheck.reason}`);
             return;
@@ -918,12 +976,30 @@ function SwapInterface({ wallet }) {
         setPokayokeSuggestError('');
         setPokayokeHeavySuggestions(null);
         setPokayokeHeavySuggestError('');
-        if (!activePreview) {
+        // Exact-out is confined to the non-advanced path (the quote-certificate
+        // pipeline is exact-in only). It gates on the honest inverse-CPMM quote.
+        if (exactOutMode) {
+            if (!exactOutQuote || exactOutQuote.error) {
+                setQuoteError(exactOutQuote?.error || 'Missing exact-out quote');
+                return;
+            }
+        } else if (!activePreview) {
             setQuoteError('Missing quote preview');
             return;
         }
         let submitted = null;
-        if (advancedMode) {
+        if (exactOutMode) {
+            // "You receive" exactly amountOut; "You pay at most" maxAmountIn.
+            submitted = {
+                amountIn: formatNumber(exactOutQuote.requiredIn),
+                fromSymbol: fromToken.symbol,
+                amountOut: formatNumber(exactOutQuote.desiredOut),
+                toSymbol: toToken.symbol,
+                maxInput: formatNumber(exactOutQuote.maxAmountInUnits),
+                exactOut: true,
+                advanced: false,
+            };
+        } else if (advancedMode) {
             if (!quotePayload || !quoteCertificate) {
                 setQuoteError('Missing quote certificate');
                 return;
@@ -969,10 +1045,41 @@ function SwapInterface({ wallet }) {
                 return;
             }
             try {
+                // Amount fields differ by mode; the sign + send + finality path below
+                // is shared so exact-out inherits the exact-in finality honesty.
+                const exactOutAmounts = exactOutMode
+                    ? {
+                        amountOut: exactOutQuote.amountOutUnits,
+                        maxAmountIn: exactOutQuote.maxAmountInUnits,
+                    }
+                    : null;
                 const amountInUnits = Math.max(1, Math.round(Number(amountIn)));
                 const minAmountOutUnits = uiSmokeSwap.minAmountOut
                     ? Math.max(0, Math.floor(Number(uiSmokeSwap.minAmountOut)))
-                    : Math.max(0, Math.floor(Number(activePreview.minOutput ?? 1)));
+                    : Math.max(0, Math.floor(Number(activePreview?.minOutput ?? 1)));
+                // Signer payload amount fields: exact-out carries kind +
+                // amount_out/max_amount_in; exact-in carries amount_in/min_amount_out.
+                const signAmountFields = exactOutMode
+                    ? {
+                        kind: 'SWAP_EXACT_OUT',
+                        amountOut: exactOutAmounts.amountOut,
+                        maxAmountIn: exactOutAmounts.maxAmountIn,
+                    }
+                    : {
+                        amountIn: amountInUnits,
+                        minAmountOut: minAmountOutUnits,
+                    };
+                // apiSwap amount fields mirror the signed intent exactly.
+                const apiAmountFields = exactOutMode
+                    ? {
+                        kind: 'SWAP_EXACT_OUT',
+                        amountOut: exactOutAmounts.amountOut,
+                        maxAmountIn: exactOutAmounts.maxAmountIn,
+                    }
+                    : {
+                        amountIn: amountInUnits,
+                        minAmountOut: minAmountOutUnits,
+                    };
                 const currentPool = poolFeed.pools[poolKey];
                 let intentSignature = uiSmokeSwap.signature || undefined;
                 let intentNonce = uiSmokeSwap.nonce ? Number(uiSmokeSwap.nonce) : null;
@@ -993,8 +1100,7 @@ function SwapInterface({ wallet }) {
                             poolId: livePoolIntent?.poolId,
                             assetIn: livePoolIntent?.assetIn,
                             assetOut: livePoolIntent?.assetOut,
-                            amountIn: amountInUnits,
-                            minAmountOut: minAmountOutUnits,
+                            ...signAmountFields,
                             senderPubkey: wallet?.address,
                             recipient: wallet?.address,
                             deadline: intentDeadline,
@@ -1012,8 +1118,7 @@ function SwapInterface({ wallet }) {
                     {
                         from: fromToken.symbol,
                         to: toToken.symbol,
-                        amountIn: amountInUnits,
-                        minAmountOut: minAmountOutUnits,
+                        ...apiAmountFields,
                         poolId: livePoolIntent?.poolId,
                         assetIn: livePoolIntent?.assetIn,
                         assetOut: livePoolIntent?.assetOut,
@@ -1025,15 +1130,16 @@ function SwapInterface({ wallet }) {
                     },
                     { timeoutMs: 3500 },
                 );
-                if (maybeRemote?.ok === false) {
-                    throw new Error(maybeRemote?.error || 'swap_rejected');
+                // Finality comes ONLY from the ledger's synchronous acceptance signal
+                // (throws on ok===false). No optimistic auto-confirm: an accepted-but-
+                // unproven swap stays 'pending'. See src/sdk/swapFinality.js.
+                const finality = deriveSwapFinality(maybeRemote);
+                if (finality.txHash) {
+                    txHash = finality.txHash;
                 }
-                if (maybeRemote?.txHash || maybeRemote?.tx_hash) {
-                    txHash = String(maybeRemote.txHash || maybeRemote.tx_hash);
-                }
-                remoteReceipt = maybeRemote?.receipt || null;
-                remoteAccepted = maybeRemote?.tx_accepted === true || remoteReceipt?.accepted === true;
-                remoteHeight = maybeRemote?.height ?? null;
+                remoteReceipt = finality.receipt;
+                remoteAccepted = finality.accepted;
+                remoteHeight = finality.height;
                 submitPath = 'api';
                 loadSwapPools({ timeoutMs: 2200, account: wallet?.address || '' })
                     .then((next) => setPoolFeed(next))
@@ -1080,11 +1186,12 @@ function SwapInterface({ wallet }) {
                 confirmedAt: remoteAccepted ? submittedAt : null,
             });
             setAmountIn('');
+            setAmountOut('');
             setQuoteError('');
         } finally {
             setIsSubmitting(false);
         }
-    }, [amountIn, fromToken, toToken, activePreview, quotePayload, quoteCertificate, effectiveProfileConfig.label, advancedMode, upsertTransaction, demoMode, poolFeed, poolKey, livePoolIntent, wallet, uiSmokeSwap]);
+    }, [amountIn, exactOutMode, exactOutQuote, fromToken, toToken, activePreview, quotePayload, quoteCertificate, effectiveProfileConfig.label, advancedMode, upsertTransaction, demoMode, poolFeed, poolKey, livePoolIntent, wallet, uiSmokeSwap]);
 
     useEffect(() => {
         if (!uiSmokeSwap.enabled) return;
@@ -1210,6 +1317,12 @@ function SwapInterface({ wallet }) {
     const getButtonText = () => {
         if (!wallet) return 'Connect Wallet';
         if (isSubmitting) return 'Submitting...';
+        if (exactOutMode) {
+            if (!amountOut) return 'Enter Output Amount';
+            if (exactOutQuote?.error) return exactOutQuote.error;
+            if (!exactOutCanSubmit) return 'Quote Unavailable';
+            return 'Swap (Exact Out)';
+        }
         if (!amountIn) return 'Enter Amount';
         if (advancedMode && quoteError) return quoteError;
         if (advancedMode && activePreview && !certificateCheck.ok) return 'Quote Not Certified';
@@ -1261,6 +1374,41 @@ function SwapInterface({ wallet }) {
         ? Math.max(2, Math.min(98, ((activePreview.output - activePreview.amountOutWorstCase)
             / (activePreview.amountOutBestCase - activePreview.amountOutWorstCase)) * 100))
         : 50;
+
+    // ── Honest live status for the submitted-swap modal ───────────────────────
+    // The modal's displayed status is NEVER poked locally. We reconcile against
+    // the transaction-center entry (keyed by the committed txHash), which the
+    // read-only /api/history backfill upgrades to a terminal confirmed/failed
+    // ONLY when the chain says so (TransactionCenterContext.mergeBackfill). So a
+    // "Refresh status" that triggers a backfill can flip pending → confirmed/
+    // failed via real chain data, and can never fabricate a confirmation.
+    const submittedTxHash = submittedSwap?.txHash || '';
+    const reconciledTx = useMemo(() => {
+        if (!submittedTxHash) return null;
+        const target = String(submittedTxHash).toLowerCase();
+        return transactions.find((tx) => String(tx.txHash || '').toLowerCase() === target) || null;
+    }, [transactions, submittedTxHash]);
+    // Terminal chain truth (confirmed/failed) wins; otherwise keep the honest
+    // local status (which is 'confirmed' only when the swap response was accepted,
+    // see deriveSwapFinality, else 'pending').
+    const displayedSwapStatus = (() => {
+        const committed = reconciledTx?.status;
+        if (committed === 'confirmed' || committed === 'failed') return committed;
+        return submittedSwap?.status || 'pending';
+    })();
+    const reconciledErrorCode = reconciledTx?.error || null;
+    // A 96-hex wallet pubkey is the precondition for a real history backfill; a
+    // button-connected wallet without one cannot be refreshed against the chain.
+    const canRefreshStatus = /^(0x)?[0-9a-fA-F]{96}$/.test(String(wallet?.address || '').trim());
+    const pendingIsStale = isPendingStale(displayedSwapStatus, submittedSwap?.submittedAt, nowMs);
+    const submittedExplorerUrl = buildExplorerTxUrl(getRuntimeConfig(), submittedSwap?.txHash);
+    const handleRefreshSwapStatus = useCallback(() => {
+        const account = String(wallet?.address || '').trim();
+        if (!/^(0x)?[0-9a-fA-F]{96}$/.test(account)) return;
+        // Re-derives status from a REAL source: the read-only /api/history feed.
+        // backfillAccount reconciles by txHash; no fabricated state on failure.
+        backfillAccount(account);
+    }, [wallet?.address, backfillAccount]);
 
     const marketRail = (
         <aside className="swap-market panel" aria-label="Market reserves">
@@ -1566,25 +1714,86 @@ function SwapInterface({ wallet }) {
                 </div>
             )}
 
+            {/* Swap mode: exact-in ("You pay") vs exact-out ("You receive").
+                Exact-out is available in the non-advanced path. Reuses the
+                existing pill-style preset button classes for styling (no CSS
+                edit required); the swap-mode-* classes are kept for future
+                dedicated styling. */}
+            <div className="swap-mode-toggle swap-presets" role="group" aria-label="Swap mode">
+                <button
+                    type="button"
+                    className={`swap-mode-btn swap-preset-btn ${!exactOutMode ? 'active swap-preset-max' : ''}`}
+                    aria-pressed={!exactOutMode}
+                    disabled={isSubmitting}
+                    onClick={() => {
+                        if (exactOutMode) {
+                            setExactOutMode(false);
+                            setAmountOut('');
+                            setQuoteError('');
+                        }
+                    }}
+                    title="Specify the amount you pay"
+                >
+                    Exact In
+                </button>
+                <button
+                    type="button"
+                    className={`swap-mode-btn swap-preset-btn ${exactOutMode ? 'active swap-preset-max' : ''}`}
+                    aria-pressed={exactOutMode}
+                    disabled={isSubmitting || advancedMode}
+                    onClick={() => {
+                        if (!exactOutMode) {
+                            setExactOutMode(true);
+                            setAmountIn('');
+                            setQuoteError('');
+                        }
+                    }}
+                    title={advancedMode ? 'Exact-out is available in standard mode' : 'Specify the amount you receive'}
+                >
+                    Exact Out
+                </button>
+            </div>
+
             {/* From Token */}
-            <div className={`swap-input-container ${validation.error && amountIn ? 'has-error' : ''}`}>
+            <div className={`swap-input-container ${validation.error && amountIn && !exactOutMode ? 'has-error' : ''}`}>
                 <div className="swap-input-header">
-                    <span className="label">From</span>
-                    <span className="balance" onClick={handleMaxAmount} style={{ cursor: wallet ? 'pointer' : 'default' }}>
+                    <span className="label">
+                        {exactOutMode ? (
+                            <>
+                                <LockIcon className="icon-inline" /> You pay (max ≤, estimated)
+                            </>
+                        ) : 'From'}
+                    </span>
+                    <span
+                        className="balance"
+                        onClick={exactOutMode ? undefined : handleMaxAmount}
+                        style={{ cursor: wallet && !exactOutMode ? 'pointer' : 'default' }}
+                    >
                         Balance: {wallet ? (fromBalance == null ? 'N/A' : formatNumber(fromBalance)) : '-'}
-                        {wallet && fromBalance != null && fromBalance > 0 && <span className="max-label"> (MAX)</span>}
+                        {wallet && !exactOutMode && fromBalance != null && fromBalance > 0 && <span className="max-label"> (MAX)</span>}
                     </span>
                 </div>
                 <div className="swap-input-row">
-                    <input
-                        type="number"
-                        className="input input-large swap-amount-input"
-                        placeholder="0.0"
-                        value={amountIn}
-                        onChange={(e) => setAmountIn(e.target.value)}
-                        min="0"
-                        step="any"
-                    />
+                    {exactOutMode ? (
+                        <input
+                            type="text"
+                            className="input input-large swap-amount-input"
+                            placeholder="0.0"
+                            title="Maximum input (max_amount_in), derived from a real inverse-CPMM quote plus your slippage tolerance"
+                            value={exactOutQuote && !exactOutQuote.error ? formatNumber(exactOutQuote.maxAmountInUnits) : ''}
+                            readOnly
+                        />
+                    ) : (
+                        <input
+                            type="number"
+                            className="input input-large swap-amount-input"
+                            placeholder="0.0"
+                            value={amountIn}
+                            onChange={(e) => setAmountIn(e.target.value)}
+                            min="0"
+                            step="any"
+                        />
+                    )}
                     <button
                         className="token-selector"
                         type="button"
@@ -1595,7 +1804,24 @@ function SwapInterface({ wallet }) {
                         <span>{fromToken.symbol}</span>
                     </button>
                 </div>
-                {wallet && fromBalance != null && fromBalance > 0 && (
+                {exactOutMode && exactOutQuote && !exactOutQuote.error && (
+                    <div className="input-hint">
+                        <div>
+                            Est. input ~{formatNumber(exactOutQuote.requiredIn)} {fromToken.symbol}; cap ≤ {formatNumber(exactOutQuote.maxAmountInUnits)} (slippage {formatPercent(slippage)})
+                        </div>
+                        <div className="exact-out-impact-row swap-detail-row">
+                            <span>Price Impact</span>
+                            <span className={exactOutQuote.priceImpact > 0.02 ? 'impact-high' : 'impact-low'}>
+                                {formatPercent(exactOutQuote.priceImpact)}
+                                {exactOutQuote.priceImpact > 0.02 && <AlertIcon className="icon-warning" />}
+                            </span>
+                        </div>
+                    </div>
+                )}
+                {exactOutMode && exactOutQuote && exactOutQuote.error && (
+                    <div className="input-error-hint">{exactOutQuote.error}</div>
+                )}
+                {!exactOutMode && wallet && fromBalance != null && fromBalance > 0 && (
                     <div className="swap-presets" role="group" aria-label="Quick fill from balance">
                         <button
                             type="button"
@@ -1627,7 +1853,7 @@ function SwapInterface({ wallet }) {
                         </button>
                     </div>
                 )}
-                {validation.error && amountIn && (
+                {!exactOutMode && validation.error && amountIn && (
                     <div className="input-error-hint">{validation.error}</div>
                 )}
             </div>
@@ -1642,17 +1868,30 @@ function SwapInterface({ wallet }) {
             {/* To Token */}
             <div className="swap-input-container">
                 <div className="swap-input-header">
-                    <span className="label">To (estimated)</span>
+                    <span className="label">{exactOutMode ? 'You receive (exact)' : 'To (estimated)'}</span>
                     <span className="balance">Balance: {wallet ? (toBalance == null ? 'N/A' : formatNumber(toBalance)) : '-'}</span>
                 </div>
                 <div className="swap-input-row">
-                    <input
-                        type="text"
-                        className="input input-large swap-amount-input"
-                        placeholder="0.0"
-                        value={activePreview ? formatNumber(activePreview.output) : ''}
-                        readOnly
-                    />
+                    {exactOutMode ? (
+                        <input
+                            type="number"
+                            className="input input-large swap-amount-input"
+                            placeholder="0.0"
+                            title="Exact output amount (amount_out) you want to receive"
+                            value={amountOut}
+                            onChange={(e) => setAmountOut(e.target.value)}
+                            min="0"
+                            step="any"
+                        />
+                    ) : (
+                        <input
+                            type="text"
+                            className="input input-large swap-amount-input"
+                            placeholder="0.0"
+                            value={activePreview ? formatNumber(activePreview.output) : ''}
+                            readOnly
+                        />
+                    )}
                     <button
                         className="token-selector"
                         type="button"
@@ -1790,7 +2029,13 @@ function SwapInterface({ wallet }) {
             <button
                 className={`btn btn-primary btn-large swap-btn ${impactSeverity === 'high' ? 'btn-warning' : ''}`}
                 onClick={handleSwapClick}
-                disabled={isSubmitting || !wallet || !validation.ok || (advancedMode && Boolean(activePreview) && !certificateCheck.ok)}
+                disabled={
+                    isSubmitting
+                    || !wallet
+                    || (exactOutMode
+                        ? !exactOutCanSubmit
+                        : (!validation.ok || (advancedMode && Boolean(activePreview) && !certificateCheck.ok)))
+                }
             >
                 {getButtonText()}
             </button>
@@ -2056,21 +2301,71 @@ function SwapInterface({ wallet }) {
             {/* Submitted Modal */}
             {submittedSwap && (
                 <div className="confirm-overlay" onClick={() => setSubmittedSwap(null)}>
-                    <div className="confirm-modal submitted-modal animate-slide-up" onClick={e => e.stopPropagation()}>
-                        <h3>{submittedSwap.status === 'pending' ? 'Transaction Pending' : 'Swap Confirmed'}</h3>
+                    <div className={`confirm-modal submitted-modal animate-slide-up status-${displayedSwapStatus}`} onClick={e => e.stopPropagation()}>
+                        <h3>
+                            {displayedSwapStatus === 'confirmed'
+                                ? 'Swap Confirmed'
+                                : displayedSwapStatus === 'failed'
+                                    ? 'Swap Failed'
+                                    : 'Transaction Submitted'}
+                        </h3>
                         <p className="submitted-copy">
-                            {submittedSwap.status === 'pending'
-                                ? 'Broadcasting transaction to Tau Net Alpha...'
-                                : 'Wallet submission confirmed; on-chain status tracking is ready.'}
+                            {displayedSwapStatus === 'confirmed'
+                                ? 'The ledger accepted this swap. Settlement is final.'
+                                : displayedSwapStatus === 'failed'
+                                    ? 'The ledger rejected this swap. No funds were moved.'
+                                    : 'Submitted to network — awaiting confirmation. The ledger has not yet returned an acceptance for this swap.'}
                         </p>
                         <div className="submitted-status-row">
-                            <span className={`tx-status-badge ${submittedSwap.status}`}>
-                                {submittedSwap.status === 'pending' ? 'Pending' : 'Confirmed'}
+                            <span className={`tx-status-badge ${displayedSwapStatus}`}>
+                                {displayedSwapStatus === 'confirmed'
+                                    ? 'Confirmed'
+                                    : displayedSwapStatus === 'failed'
+                                        ? 'Failed'
+                                        : 'Awaiting confirmation'}
                             </span>
                             <span className="submitted-time">
                                 {new Date(submittedSwap.submittedAt).toLocaleTimeString()}
                             </span>
                         </div>
+                        {displayedSwapStatus === 'pending' && pendingIsStale && (
+                            <div className="submitted-stale">
+                                <p className="submitted-stale-copy">
+                                    Taking longer than expected.
+                                    {canRefreshStatus
+                                        ? ' You can re-check the confirmed status from on-chain history.'
+                                        : ' Status unknown for this session — check the Activity drawer or block history.'}
+                                </p>
+                                {canRefreshStatus && (
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary submitted-stale-refresh"
+                                        onClick={handleRefreshSwapStatus}
+                                        disabled={backfilling}
+                                    >
+                                        {backfilling ? 'Refreshing…' : 'Refresh status'}
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                        {displayedSwapStatus === 'failed' && reconciledErrorCode && (
+                            <div className="submitted-failed-reason">
+                                <span className="submitted-failed-label">Reason</span>
+                                <span className="submitted-failed-text">
+                                    {(() => {
+                                        const human = humanizeErrorCode(reconciledErrorCode);
+                                        // Raw machine code is always kept visible; the human gloss
+                                        // is best-effort and never replaces the underlying code.
+                                        return (
+                                            <>
+                                                {human && <span className="submitted-failed-human">{human}</span>}
+                                                <span className="submitted-failed-code mono">{reconciledErrorCode}</span>
+                                            </>
+                                        );
+                                    })()}
+                                </span>
+                            </div>
+                        )}
                         <div className="confirm-details">
                             <div className="confirm-row">
                                 <span>Tx Hash:</span>
@@ -2084,12 +2379,17 @@ function SwapInterface({ wallet }) {
                                 <span>Submission:</span>
                                 <span>{submittedSwap.submitPath === 'local-fallback' ? 'Local fallback' : 'Network relay'}</span>
                             </div>
-                            {submittedSwap.height !== null && submittedSwap.height !== undefined && (
-                                <div className="confirm-row">
-                                    <span>Block height:</span>
-                                    <span>{submittedSwap.height}</span>
-                                </div>
-                            )}
+                            {(() => {
+                                // Prefer the committed height once history backfill supplies it.
+                                const height = reconciledTx?.height ?? submittedSwap.height;
+                                if (height === null || height === undefined) return null;
+                                return (
+                                    <div className="confirm-row">
+                                        <span>Block height:</span>
+                                        <span>{height}</span>
+                                    </div>
+                                );
+                            })()}
                             <div className="confirm-row">
                                 <span>You pay:</span>
                                 <span>{submittedSwap.amountIn} {submittedSwap.fromSymbol}</span>
@@ -2120,14 +2420,16 @@ function SwapInterface({ wallet }) {
                             )}
                         </div>
                         <div className="confirm-actions">
-                            <a
-                                className="btn btn-secondary"
-                                href={`https://explorer.tau.net/tx/${submittedSwap.txHash}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                View Explorer
-                            </a>
+                            {submittedExplorerUrl && (
+                                <a
+                                    className="btn btn-secondary"
+                                    href={submittedExplorerUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    View on explorer
+                                </a>
+                            )}
                             <button className="btn btn-primary" onClick={() => setSubmittedSwap(null)}>
                                 Done
                             </button>

@@ -100,9 +100,21 @@
 }
 
 .tx-empty {
-    color: var(--text-muted);
+    padding: var(--space-md) var(--space-sm);
+    text-align: center;
+}
+
+.tx-empty-title {
+    color: var(--text-secondary);
     font-size: var(--font-size-sm);
-    padding: var(--space-md) 0;
+    font-weight: 600;
+}
+
+.tx-empty-hint {
+    margin-top: var(--space-xs);
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    line-height: 1.45;
 }
 
 .tx-list {
@@ -151,6 +163,19 @@
 
 .tx-error {
     color: var(--accent-red);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.tx-error-human {
+    font-weight: 600;
+}
+
+.tx-error-code {
+    color: var(--text-muted);
+    font-size: 10px;
+    letter-spacing: 0.02em;
 }
 
 .tx-hash-line {
@@ -212,6 +237,62 @@
     color: var(--accent-red);
     background: rgba(239, 68, 68, 0.12);
     border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* Pending status pulses to signal it is still awaiting on-chain confirmation. */
+.tx-drawer-status.pending::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: var(--accent-orange);
+    animation: tx-pending-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tx-pending-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.7); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tx-drawer-status.pending::before {
+        animation: none;
+    }
+}
+
+/* ── Backfill skeleton (history loading) ─────────────────────────────────── */
+.tx-item-skeleton {
+    pointer-events: none;
+}
+
+.tx-skeleton-line {
+    display: block;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.05) 25%,
+        rgba(255, 255, 255, 0.11) 37%,
+        rgba(255, 255, 255, 0.05) 63%
+    );
+    background-size: 400% 100%;
+    animation: tx-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.tx-skeleton-title { width: 60%; height: 12px; }
+.tx-skeleton-sub { width: 40%; height: 9px; margin-top: 6px; }
+.tx-skeleton-badge { width: 56px; height: 16px; border-radius: var(--radius-full); }
+.tx-skeleton-body { width: 80%; height: 9px; margin-top: var(--space-xs); }
+
+@keyframes tx-skeleton-shimmer {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tx-skeleton-line {
+        animation: none;
+    }
 }
 
 @media (max-width: 768px) {

@@ -393,6 +393,49 @@ export async function buildAndSignLiquidityIntent({
   };
 }
 
+/**
+ * Detect whether a UI swap payload targets exact-out semantics.
+ *
+ * Mirrors the detection PRECEDENCE in
+ * tools/zeno_ledger_node.py::_ui_swap_is_exact_out_v0 so the UI signer routes
+ * the same way the ledger builder does (consensus-critical: a divergent route
+ * would derive a non-matching intent_id):
+ *   1. Explicit kind/mode == SWAP_EXACT_OUT/exact_out (case-insensitive) ->
+ *      exact-out; SWAP_EXACT_IN/exact_in -> exact-in.
+ *   2. Otherwise, presence of any exact-out amount key
+ *      (amount_out / amountOut / max_amount_in / maxAmountIn) -> exact-out.
+ *   3. Otherwise, default to exact-in (backward compatible).
+ *
+ * Note: this only classifies. The backend additionally runs
+ * _require_unambiguous_swap_payload_v0 BEFORE classifying, which fail-closes a
+ * payload that mixes exact-in and exact-out keys; this JS classifier does not
+ * (the UI never constructs a mixed payload). The marker lookup uses
+ * `'mode' in payload ? payload.mode : payload.kind` to match Python's
+ * `get("mode", get("kind"))` semantics exactly -- an explicit `mode: null` with
+ * a `kind` present resolves to `mode` (null -> no marker), NOT `kind`.
+ */
+export function isSwapExactOutPayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+  const modeRaw = 'mode' in payload ? payload.mode : payload.kind;
+  if (typeof modeRaw === 'string') {
+    const mode = modeRaw.trim().toLowerCase().replace(/-/g, '_');
+    if (mode === 'swap_exact_out' || mode === 'exact_out' || mode === 'exactout' || mode === 'out') {
+      return true;
+    }
+    if (mode === 'swap_exact_in' || mode === 'exact_in' || mode === 'exactin' || mode === 'in') {
+      return false;
+    }
+  }
+  for (const key of ['amount_out', 'amountOut', 'max_amount_in', 'maxAmountIn']) {
+    if (payload[key] !== undefined && payload[key] !== null) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export async function buildAndSignSwapIntent({
   pool,
   payload,
@@ -408,8 +451,6 @@ export async function buildAndSignSwapIntent({
   const poolId = String(payload.poolId || payload.pool_id || pool.poolId || pool.pool_id || '').trim();
   const deadline = asInt(payload.deadline ?? 1_999_999_999, 'deadline');
   const nonce = asInt(payload.nonce, 'nonce');
-  const amountIn = asInt(payload.amountIn ?? payload.amount_in, 'amount_in');
-  const minAmountOut = asInt(payload.minAmountOut ?? payload.min_amount_out ?? 1, 'min_amount_out');
   const rawAssetIn = payload.assetIn ?? payload.asset_in;
   const rawAssetOut = payload.assetOut ?? payload.asset_out;
   const assetIn = canonicalAssetId(rawAssetIn, 'asset_in');
@@ -417,20 +458,55 @@ export async function buildAndSignSwapIntent({
   if (assetIn === assetOut) {
     throw new Error('swap_assets_must_differ');
   }
+
+  // Exact-out and exact-in share the same intent_id key order/positions; only the
+  // amount fields differ. The backend (_ui_swap_tx_v0) splices `amount_fields`
+  // into the identical slot between asset_out and nonce, and both sides hash with
+  // sorted-key canonical JSON (Python json.dumps(sort_keys=True) ==
+  // stableStringify), so the SET + VALUES of keys are what bind, not their order.
+  const exactOut = isSwapExactOutPayload(payload);
+  let kind;
+  let amountFields;
+  if (exactOut) {
+    // amount_out > 0 (required); max_amount_in >= 0 (required cap, no default:
+    // a missing cap is an unbounded input -> backend rejects it).
+    const amountOut = asInt(payload.amountOut ?? payload.amount_out, 'amount_out');
+    if (amountOut <= 0) {
+      throw new Error('amount_out_must_be_positive');
+    }
+    const rawMaxAmountIn = payload.maxAmountIn ?? payload.max_amount_in;
+    if (rawMaxAmountIn === undefined || rawMaxAmountIn === null) {
+      throw new Error('max_amount_in_required');
+    }
+    const maxAmountIn = asInt(rawMaxAmountIn, 'max_amount_in');
+    kind = 'SWAP_EXACT_OUT';
+    amountFields = {
+      amount_out: amountOut,
+      max_amount_in: maxAmountIn,
+    };
+  } else {
+    const amountIn = asInt(payload.amountIn ?? payload.amount_in, 'amount_in');
+    const minAmountOut = asInt(payload.minAmountOut ?? payload.min_amount_out ?? 1, 'min_amount_out');
+    kind = 'SWAP_EXACT_IN';
+    amountFields = {
+      amount_in: amountIn,
+      min_amount_out: minAmountOut,
+    };
+  }
+
   const intentPayload = {
     sender_pubkey: sender,
     recipient,
     pool_id: poolId,
     asset_in: assetIn,
     asset_out: assetOut,
-    amount_in: amountIn,
-    min_amount_out: minAmountOut,
+    ...amountFields,
     nonce,
   };
   const operation = {
     module: 'TauSwap',
     version: '0.1',
-    kind: 'SWAP_EXACT_IN',
+    kind,
     intent_id: await hashV0('ui_swap_intent_v0', intentPayload),
     sender_pubkey: sender,
     deadline,
@@ -438,8 +514,7 @@ export async function buildAndSignSwapIntent({
     pool_id: poolId,
     asset_in: assetIn,
     asset_out: assetOut,
-    amount_in: amountIn,
-    min_amount_out: minAmountOut,
+    ...amountFields,
     recipient,
   };
   return {
