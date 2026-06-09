@@ -33,7 +33,10 @@ from dataclasses import dataclass
 
 
 def _is_int(v: object) -> bool:
-    return isinstance(v, int) and not isinstance(v, bool)
+    # EXACT type: a "plain int" only. `isinstance` would admit bool and any `int` subclass; a
+    # hostile subclass can override `__sub__` (float into the math) or `__str__` (spoof a table
+    # key), so the "pure integer" contract requires the exact built-in type.
+    return type(v) is int
 
 
 def _clamp(v: int, lo: int, hi: int) -> int:

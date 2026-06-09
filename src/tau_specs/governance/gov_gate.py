@@ -26,8 +26,14 @@ U16_MAX = 0xFFFF
 
 
 def _in_domain(*vals: int) -> bool:
-    """Fail-closed domain guard: every value must be a bv[16]-representable int."""
-    return all(isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= U16_MAX for v in vals)
+    """Fail-closed domain guard: every value must be a bv[16]-representable PLAIN int.
+
+    EXACT type (`type(v) is int`), not `isinstance`: the latter admits bool and any `int`
+    subclass. A hostile subclass overriding `__le__`/`__sub__` could otherwise pass this guard
+    and the bound/step comparisons, admitting an out-of-cap revision. Exact-type matches the
+    `type(f) is bool` discipline used for flags below.
+    """
+    return all(type(v) is int and 0 <= v <= U16_MAX for v in vals)
 
 
 def _flags_ok(*flags: bool) -> bool:

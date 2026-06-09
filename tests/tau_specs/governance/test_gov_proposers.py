@@ -98,6 +98,16 @@ def test_pi_rejects_forged_cfg():
         gp.pi_propose(500, 1200, 0, sub)
 
 
+def test_pi_rejects_hostile_int_subclass():
+    # (Codex round-3) an int subclass overriding __sub__ used to put a FLOAT into the math
+    # (PIResult(proposed=537.0, prev_error=200.5)); "plain int" must be exact-type, not isinstance.
+    class FloatyInt(int):
+        def __sub__(self, other):
+            return 200.5
+    with pytest.raises(TypeError):
+        gp.pi_propose(500, FloatyInt(1200), 0, _cfg())
+
+
 # --------------------------------------------------------------------------- #
 # Frozen Q-table
 # --------------------------------------------------------------------------- #
@@ -146,6 +156,18 @@ def test_q_table_rejects_non_int_bins():
             gp.q_table_propose(bad_bins, {"True": 520, "0.5,1": 520, "1,2": 520}, curr=500)
         with pytest.raises(TypeError):
             gp.state_key(bad_bins)
+
+
+def test_state_key_rejects_hostile_int_subclass():
+    # (Codex round-3) an int subclass overriding __str__ used to stringify a bin to "True" and hit
+    # a different table row than the int value; exact-type rejection closes that lookup spoof.
+    class KeyInt(int):
+        def __str__(self):
+            return "True"
+    with pytest.raises(TypeError):
+        gp.state_key((KeyInt(1),))
+    with pytest.raises(TypeError):
+        gp.q_table_propose((KeyInt(1),), {"True": 520}, curr=500)
 
 
 def test_table_hash_stable_and_order_independent():
