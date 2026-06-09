@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
   "file_count": 450,
-  "function_count": 5944,
+  "function_count": 5951,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -4555,6 +4555,18 @@
       "complexity": 5,
       "lines": 13
     },
+    "src/core/settlement_strong_validator.py::_append_create_pool_deltas": {
+      "complexity": 1,
+      "lines": 15
+    },
+    "src/core/settlement_strong_validator.py::_append_create_pool_expected_event": {
+      "complexity": 1,
+      "lines": 15
+    },
+    "src/core/settlement_strong_validator.py::_apply_create_pool_replay": {
+      "complexity": 2,
+      "lines": 20
+    },
     "src/core/settlement_strong_validator.py::_build_base_replay_index": {
       "complexity": 5,
       "lines": 22
@@ -4590,6 +4602,18 @@
     "src/core/settlement_strong_validator.py::_create_pool_fields": {
       "complexity": 1,
       "lines": 11
+    },
+    "src/core/settlement_strong_validator.py::_create_pool_fill_match_error": {
+      "complexity": 3,
+      "lines": 11
+    },
+    "src/core/settlement_strong_validator.py::_create_pool_replay": {
+      "complexity": 3,
+      "lines": 25
+    },
+    "src/core/settlement_strong_validator.py::_fill_value_or_zero": {
+      "complexity": 2,
+      "lines": 5
     },
     "src/core/settlement_strong_validator.py::_format_error_details": {
       "complexity": 3,
@@ -4688,8 +4712,8 @@
       "lines": 9
     },
     "src/core/settlement_strong_validator.py::_validate_settlement_strong_impl": {
-      "complexity": 144,
-      "lines": 530
+      "complexity": 139,
+      "lines": 494
     },
     "src/core/settlement_strong_validator.py::_validate_settlement_strong_impl.fail": {
       "complexity": 1,
@@ -4698,6 +4722,10 @@
     "src/core/settlement_strong_validator.py::_validate_strong_config": {
       "complexity": 5,
       "lines": 14
+    },
+    "src/core/settlement_strong_validator.py::_validated_create_pool_fields": {
+      "complexity": 1,
+      "lines": 11
     },
     "src/core/settlement_strong_validator.py::validate_settlement_strong": {
       "complexity": 6,
@@ -23781,17 +23809,17 @@
     }
   },
   "line_budget": 60,
-  "max_complexity": 144,
+  "max_complexity": 139,
   "max_function_lines": 1925,
   "over_complexity_budget_count": 1604,
   "over_line_budget_count": 435,
   "schema": "zenodex/complexity-ratchet/v2",
   "top_complexity": [
     {
-      "complexity": 144,
-      "line_end": 1057,
-      "line_start": 528,
-      "lines": 530,
+      "complexity": 139,
+      "line_end": 1157,
+      "line_start": 664,
+      "lines": 494,
       "name": "_validate_settlement_strong_impl",
       "path": "src/core/settlement_strong_validator.py"
     },
@@ -23990,14 +24018,6 @@
       "path": "src/integration/dex_engine.py"
     },
     {
-      "complexity": 144,
-      "line_end": 1057,
-      "line_start": 528,
-      "lines": 530,
-      "name": "_validate_settlement_strong_impl",
-      "path": "src/core/settlement_strong_validator.py"
-    },
-    {
       "complexity": 66,
       "line_end": 837,
       "line_start": 316,
@@ -24012,6 +24032,14 @@
       "lines": 515,
       "name": "_Handler._maybe_handle_dex_api",
       "path": "src/integration/api_server.py"
+    },
+    {
+      "complexity": 139,
+      "line_end": 1157,
+      "line_start": 664,
+      "lines": 494,
+      "name": "_validate_settlement_strong_impl",
+      "path": "src/core/settlement_strong_validator.py"
     },
     {
       "complexity": 71,

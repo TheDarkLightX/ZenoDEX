@@ -18,10 +18,10 @@ behaviorally incorrect.
 | Metric | Value |
 | --- | ---: |
 | Python source files scanned | 450 |
-| Functions scanned | 5,944 |
+| Functions scanned | 5,951 |
 | Functions over complexity 5 | 1,604 |
 | Functions over 60 lines | 435 |
-| Maximum complexity | 144 |
+| Maximum complexity | 139 |
 | Maximum function length | 1,925 lines |
 
 ## Refactor Principles
@@ -40,7 +40,7 @@ behaviorally incorrect.
 
 | Rank | Location | Size | Grade | Why It Is Risky | First Extraction |
 | ---: | --- | ---: | --- | --- | --- |
-| 1 | `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl` | 144 complexity, 530 lines | C | This is a fail-closed value-moving acceptance gate. The preflight/index checks, early quote-binding metadata guard, and CREATE_POOL field guard are extracted, but replay branches, pool-fingerprint mismatch, deltas, events, LP effects, and conservation still live in one control flow. | Continue extracting one replay action family at a time. The next safe slice is CREATE_POOL kernel replay and delta synthesis, with golden tests for every existing CREATE_POOL error string. |
+| 1 | `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl` | 139 complexity, 494 lines | C | This is a fail-closed value-moving acceptance gate. The preflight/index checks, early quote-binding metadata guard, and CREATE_POOL replay helpers are extracted, but swap/liquidity replay branches, pool-fingerprint mismatch, deltas, events, LP effects, and conservation still live in one control flow. | Continue extracting one replay action family at a time. The next safe slice is the shared pool lookup and swap metadata guard, with golden tests for every existing pool and asset error string. |
 | 2 | `src/integration/dex_snapshot.py::state_from_snapshot` | 126 complexity, 622 lines | C- | Snapshot hydration is consensus-adjacent because bad defaults or weak parsing can create forked local state. Many schema branches share one broad parser. | Split into typed parsers per section: balances, pools, LP, fees, nonces, confidential requests, oracle metadata. Add round-trip tests section by section. |
 | 3 | `src/integration/dex_engine.py::apply_ops` | 118 complexity, 549 lines | C- | Operation application is an orchestration choke point. Mixed dispatch and mutation increases the chance that an operation bypasses a guard. | Replace the branch ladder with an `op_type -> apply_*` dispatch table. Each handler should receive validated DTOs and return data-only effects. |
 | 4 | `src/integration/autotrader_live.py::prepare_autotrader_live_quote_receipt` | 100 complexity, 1,925 lines | D+ | A large live integration path combines network/config handling, quote construction, proof metadata, and presentation. Advisory code must remain outside verifier authority. | Separate live IO, quote normalization, verifier receipt construction, and UI/report shaping. Add an import-boundary test that verifier modules do not import advisory/live modules. |
@@ -84,8 +84,8 @@ codebase-wide ROI target is the settlement strong validator.
 ## Recent Settlement Validator Burn-Down
 
 `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl` is
-now down from 190 complexity and 612 lines to 144 complexity and 530 lines.
-The extracted preflight/index, quote-binding, and CREATE_POOL field helpers cover:
+now down from 190 complexity and 612 lines to 139 complexity and 494 lines.
+The extracted preflight/index, quote-binding, and CREATE_POOL replay helpers cover:
 
 - validation mode and protocol-fee configuration;
 - duplicate input intent IDs;
@@ -100,6 +100,9 @@ The extracted preflight/index, quote-binding, and CREATE_POOL field helpers cove
 - CREATE_POOL field extraction and validation, preserving the legacy rejection
   order for missing fields, invalid asset IDs, fee bounds, amount bounds, and
   `created_at`.
+- CREATE_POOL kernel replay, duplicate-pool detection, fill matching,
+  balance/LP application, expected event construction, and
+  balance/reserve/LP delta synthesis.
 
 The public rejection order is pinned by combined-invalid tests in
 `tests/core/test_settlement_strong_validator.py`, so moving those checks again
@@ -115,9 +118,10 @@ computed settlement validates.
 ## Next Implementation Slice
 
 Continue `src/core/settlement_strong_validator.py::_validate_settlement_strong_impl`.
-Extract the CREATE_POOL replay branch next, but keep it staged: move kernel
-replay, duplicate-pool checks, fill matching, balance/LP application, and delta
-synthesis in separate behavior-pinned helpers rather than one broad rewrite.
+Extract the shared pool lookup and swap metadata guard next. Keep it staged:
+first pin missing pool IDs, missing pools, inactive pools, swap asset mismatch,
+and quote-pool fingerprint mismatch precedence, then move only those checks into
+small helpers before touching swap math replay.
 
 The API route-family extraction pass has landed in small behavior-preserving
 slices:

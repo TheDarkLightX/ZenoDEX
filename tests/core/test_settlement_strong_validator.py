@@ -3184,6 +3184,236 @@ def test_strong_validator_create_pool_curve_validation_stays_in_kernel_path() ->
     assert err.startswith(f"CREATE_POOL computation error for intent_id={intent.intent_id}:")
 
 
+def test_strong_validator_create_pool_replay_rejection_order_with_multiple_bad_effects() -> None:
+    pk, asset0, asset1, balances, intent, settlement = _setup_create_pool_context()
+    duplicate_pool_id, duplicate_pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+
+    malformed_kernel_intent = replace(intent, fields={**intent.fields, "asset1": asset0})
+    fill_mismatch_settlement = compute_settlement([intent], {}, balances, LPTable())
+    fill_mismatch_settlement.fills[0].amount0_used += 1
+    ok, err = validate_settlement_strong(
+        settlement=fill_mismatch_settlement,
+        intents=[malformed_kernel_intent],
+        pre_balances=balances,
+        pre_pools={duplicate_pool_id: duplicate_pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"CREATE_POOL computation error for intent_id={intent.intent_id}:")
+
+    ok, err = validate_settlement_strong(
+        settlement=fill_mismatch_settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={duplicate_pool_id: duplicate_pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"CREATE_POOL duplicates existing pool_id={duplicate_pool_id}"
+
+    all_fill_mismatch = compute_settlement([intent], {}, balances, LPTable())
+    all_fill_mismatch.fills[0].amount0_used += 1
+    all_fill_mismatch.fills[0].amount1_used += 1
+    all_fill_mismatch.fills[0].lp_minted += 1
+    low_balances = BalanceTable()
+    low_balances.set(intent.sender_pubkey, asset0, 1)
+    low_balances.set(intent.sender_pubkey, asset1, 1)
+    ok, err = validate_settlement_strong(
+        settlement=all_fill_mismatch,
+        intents=[intent],
+        pre_balances=low_balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"CREATE_POOL fill.amount0_used mismatch for intent_id={intent.intent_id}"
+
+    amount1_lp_apply_mismatch = compute_settlement([intent], {}, balances, LPTable())
+    amount1_lp_apply_mismatch.fills[0].amount1_used += 1
+    amount1_lp_apply_mismatch.fills[0].lp_minted += 1
+    ok, err = validate_settlement_strong(
+        settlement=amount1_lp_apply_mismatch,
+        intents=[intent],
+        pre_balances=low_balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"CREATE_POOL fill.amount1_used mismatch for intent_id={intent.intent_id}"
+
+    lp_apply_mismatch = compute_settlement([intent], {}, balances, LPTable())
+    lp_apply_mismatch.fills[0].lp_minted += 1
+    ok, err = validate_settlement_strong(
+        settlement=lp_apply_mismatch,
+        intents=[intent],
+        pre_balances=low_balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"CREATE_POOL fill.lp_minted mismatch for intent_id={intent.intent_id}"
+
+
+def test_strong_validator_rejects_create_pool_duplicate_created_earlier_in_batch() -> None:
+    _pk, _asset0, _asset1, balances, first_intent, _settlement = _setup_create_pool_context()
+    second_intent = replace(first_intent, intent_id=_iid(902))
+    _pool_id, _created_pool, lp_minted = create_pool(
+        asset0=first_intent.get_field("asset0"),
+        asset1=first_intent.get_field("asset1"),
+        amount0=first_intent.get_field("amount0"),
+        amount1=first_intent.get_field("amount1"),
+        fee_bps=first_intent.get_field("fee_bps"),
+        creator_pubkey=first_intent.sender_pubkey,
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[
+            (first_intent.intent_id, FillAction.FILL),
+            (second_intent.intent_id, FillAction.FILL),
+        ],
+        fills=[
+            Fill(
+                intent_id=first_intent.intent_id,
+                action=FillAction.FILL,
+                reason="POOL_CREATED",
+                amount0_used=first_intent.get_field("amount0"),
+                amount1_used=first_intent.get_field("amount1"),
+                lp_minted=lp_minted,
+            ),
+            Fill(
+                intent_id=second_intent.intent_id,
+                action=FillAction.FILL,
+                reason="POOL_CREATED",
+                amount0_used=second_intent.get_field("amount0"),
+                amount1_used=second_intent.get_field("amount1"),
+                lp_minted=lp_minted,
+            ),
+        ],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=[],
+    )
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[first_intent, second_intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith("CREATE_POOL duplicates existing pool_id=")
+
+
+def test_strong_validator_accepts_manual_create_pool_effect_shape() -> None:
+    pk, asset0, asset1, balances, intent, _settlement = _setup_create_pool_context()
+    created_at = 77
+    intent = replace(intent, fields={**intent.fields, "created_at": created_at})
+    pool_id, created_pool, lp_minted = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=intent.get_field("amount0"),
+        amount1=intent.get_field("amount1"),
+        fee_bps=intent.get_field("fee_bps"),
+        creator_pubkey=pk,
+        created_at=created_at,
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.FILL)],
+        fills=[
+            Fill(
+                intent_id=intent.intent_id,
+                action=FillAction.FILL,
+                reason="POOL_CREATED",
+                amount0_used=intent.get_field("amount0"),
+                amount1_used=intent.get_field("amount1"),
+                lp_minted=lp_minted,
+            )
+        ],
+        balance_deltas=[
+            BalanceDelta(pubkey=pk, asset=asset0, delta_add=0, delta_sub=intent.get_field("amount0")),
+            BalanceDelta(pubkey=pk, asset=asset1, delta_add=0, delta_sub=intent.get_field("amount1")),
+        ],
+        reserve_deltas=[
+            ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=intent.get_field("amount0"), delta_sub=0),
+            ReserveDelta(pool_id=pool_id, asset=asset1, delta_add=intent.get_field("amount1"), delta_sub=0),
+        ],
+        lp_deltas=[
+            LPDelta(
+                pubkey="0x" + "00" * 48,
+                pool_id=pool_id,
+                delta_add=created_pool.lp_supply - lp_minted,
+                delta_sub=0,
+            ),
+            LPDelta(pubkey=pk, pool_id=pool_id, delta_add=lp_minted, delta_sub=0),
+        ],
+        events=[
+            {
+                "type": "CREATE_POOL",
+                "pool_id": pool_id,
+                "asset0": asset0,
+                "asset1": asset1,
+                "fee_bps": intent.get_field("fee_bps"),
+                "curve_tag": created_pool.curve_tag,
+                "curve_params": created_pool.curve_params,
+                "status": PoolStatus.ACTIVE.value,
+                "created_at": created_at,
+            }
+        ],
+    )
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is True, err
+
+
+def test_strong_validator_create_pool_malformed_truthy_fill_scalars_fail_closed() -> None:
+    _pk, _asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
+
+    for field_name in ("amount0_used", "amount1_used", "lp_minted"):
+        malformed = compute_settlement([intent], {}, balances, LPTable())
+        setattr(malformed.fills[0], field_name, "invalid")
+        ok, err = validate_settlement_strong(
+            settlement=malformed,
+            intents=[intent],
+            pre_balances=balances,
+            pre_pools={},
+            pre_lp_balances=LPTable(),
+            mode="strong_replay",
+        )
+        assert ok is False
+        assert err is not None
+        assert err.startswith("strong validator crashed: ValueError:")
+        assert "invalid literal for int()" in err
+
+
 def test_strong_validator_rejects_add_liquidity_field_fill_and_apply_failures() -> None:
     pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
 
