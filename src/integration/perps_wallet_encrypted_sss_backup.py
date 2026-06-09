@@ -450,6 +450,16 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
     expected_chain_id: str | None = None,
     recipient_root_keys: Mapping[str, bytes] | None = None,
 ) -> dict[str, Any]:
+    """Evaluate encrypted-SSS backup readiness.
+
+    Error-accumulating: each section appends human-readable strings to one
+    shared ``errors`` list (the exact strings and their order are part of the
+    contract, locked by
+    ``tests/integration/test_perps_wallet_encrypted_sss_backup_characterization.py``).
+    The only early return is ``backup is None``. Each ``_eval_*`` section
+    helper wraps its own body in the same fail-closed try/except that the
+    section had inline, and threads its outputs to later sections.
+    """
     errors: list[str] = []
     if backup is None:
         errors.append("encrypted SSS backup artifact is missing")
@@ -471,6 +481,99 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
     if obj.get("backup_hash") != perps_wallet_encrypted_sss_backup_hash_v1(obj):
         errors.append("encrypted SSS backup hash mismatch")
 
+    threshold, share_count = _eval_sss_params(obj, errors=errors)
+    envelopes = _eval_envelopes(obj, share_count=share_count, errors=errors)
+    _eval_storage_policy(obj, provider_kinds=envelopes.provider_kinds, errors=errors)
+    delivery = _eval_delivery_evidence(
+        obj,
+        envelope_ids=envelopes.envelope_ids,
+        envelope_by_id=envelopes.envelope_by_id,
+        errors=errors,
+    )
+    drill = _eval_recovery_drill(obj, threshold=threshold, share_ids=envelopes.share_ids, errors=errors)
+    replay = _eval_replay(
+        obj,
+        profile=profile,
+        selected_share_ids=drill.selected_share_ids,
+        envelope_by_share_id=envelopes.envelope_by_share_id,
+        recipient_root_keys=recipient_root_keys,
+        threshold=threshold,
+        drill_fingerprint=drill.drill_fingerprint,
+        errors=errors,
+    )
+    hostile_share_tests_ready = _eval_hostile_tests(obj, errors=errors)
+    raw_material_absent = _eval_raw_material(obj, errors=errors)
+    external_audit_ready, audit_status = _eval_audit_evidence(obj, errors=errors)
+
+    if obj.get("production_security_claim") is not False:
+        errors.append("encrypted SSS backup must not make a production security claim in local-testnet")
+
+    return _status(
+        errors=errors,
+        profile=profile,
+        backup=obj,
+        threshold=threshold,
+        share_count=share_count,
+        provider_kinds=sorted(envelopes.provider_kinds),
+        provider_ids=sorted(envelopes.provider_ids),
+        provider_delivery_ready=delivery.provider_delivery_ready,
+        live_provider_delivery_ready=delivery.live_provider_delivery_ready,
+        delivery_modes=sorted(delivery.delivery_modes),
+        recovery_drill_ready=drill.recovery_drill_ready,
+        hostile_share_tests_ready=hostile_share_tests_ready,
+        raw_material_absent=raw_material_absent,
+        external_audit_ready=external_audit_ready,
+        audit_status=audit_status,
+        replay_recovery_ready=replay.replay_recovery_ready,
+        subject_public_key_matches=replay.subject_public_key_matches,
+        replay_hostile_tests_ready=replay.replay_hostile_tests_ready,
+    )
+
+
+@dataclass(frozen=True)
+class _SssEnvelopeIndex:
+    """Envelope-section outputs threaded into storage/delivery/drill/replay.
+
+    Containers may be partially filled when the envelope section aborted on a
+    mid-loop exception; later sections must see exactly that partial state.
+    """
+
+    provider_kinds: set[str]
+    provider_ids: set[str]
+    envelope_ids: set[str]
+    envelope_by_id: dict[str, Mapping[str, Any]]
+    envelope_by_share_id: dict[str, Mapping[str, Any]]
+    share_ids: set[str]
+
+
+@dataclass(frozen=True)
+class _DeliveryEvidenceStatus:
+    provider_delivery_ready: bool
+    live_provider_delivery_ready: bool
+    delivery_modes: set[str]
+
+
+@dataclass(frozen=True)
+class _RecoveryDrillStatus:
+    recovery_drill_ready: bool
+    selected_share_ids: list[str]
+    drill_fingerprint: str | None
+
+
+@dataclass(frozen=True)
+class _ReplayStatus:
+    replay_recovery_ready: bool
+    subject_public_key_matches: bool
+    replay_hostile_tests_ready: bool
+
+
+def _eval_sss_params(obj: Mapping[str, Any], *, errors: list[str]) -> tuple[int, int]:
+    """Validate the ``sss`` parameter block; return ``(threshold, share_count)``.
+
+    Either value stays 0 when its parse fails (the exception aborts the rest
+    of the section), and the defaults ripple into the envelope-count, drill
+    and replay checks downstream.
+    """
     threshold = 0
     share_count = 0
     try:
@@ -490,7 +593,21 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
             errors.append("encrypted SSS x_coordinates must be unique")
     except Exception as exc:
         errors.append(str(exc))
+    return threshold, share_count
 
+
+def _eval_envelopes(
+    obj: Mapping[str, Any],
+    *,
+    share_count: int,
+    errors: list[str],
+) -> _SssEnvelopeIndex:
+    """Validate the share envelopes and build the indexes for later sections.
+
+    A mid-loop exception (for example a non-object envelope entry) aborts the
+    remaining per-envelope validation AND the uniqueness checks, leaving the
+    indexes partially filled.
+    """
     provider_kinds: set[str] = set()
     provider_ids: set[str] = set()
     envelope_ids: set[str] = set()
@@ -525,7 +642,23 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
             errors.append("encrypted SSS x coordinates must be unique per envelope")
     except Exception as exc:
         errors.append(str(exc))
+    return _SssEnvelopeIndex(
+        provider_kinds=provider_kinds,
+        provider_ids=provider_ids,
+        envelope_ids=envelope_ids,
+        envelope_by_id=envelope_by_id,
+        envelope_by_share_id=envelope_by_share_id,
+        share_ids=share_ids,
+    )
 
+
+def _eval_storage_policy(
+    obj: Mapping[str, Any],
+    *,
+    provider_kinds: set[str],
+    errors: list[str],
+) -> None:
+    """Check the storage policy against the observed envelope provider kinds."""
     try:
         storage_policy = _require_mapping(obj.get("storage_policy"), name="storage_policy")
         min_provider_kinds = _require_positive_int(
@@ -544,6 +677,22 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
     except Exception as exc:
         errors.append(str(exc))
 
+
+def _eval_delivery_evidence(
+    obj: Mapping[str, Any],
+    *,
+    envelope_ids: set[str],
+    envelope_by_id: Mapping[str, Mapping[str, Any]],
+    errors: list[str],
+) -> _DeliveryEvidenceStatus:
+    """Validate delivery receipts against the envelope index.
+
+    Receipt errors accumulate in a LOCAL ``delivery_errors`` list that decides
+    ``provider_delivery_ready`` before being extended onto ``errors``; an
+    exception raised mid-section discards that local list (only ``str(exc)``
+    reaches ``errors``), and ``delivery_modes`` keeps the entries observed
+    before the exception.
+    """
     provider_delivery_ready = False
     live_provider_delivery_ready = False
     delivery_modes: set[str] = set()
@@ -574,7 +723,26 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
         errors.extend(delivery_errors)
     except Exception as exc:
         errors.append(str(exc))
+    return _DeliveryEvidenceStatus(
+        provider_delivery_ready=provider_delivery_ready,
+        live_provider_delivery_ready=live_provider_delivery_ready,
+        delivery_modes=delivery_modes,
+    )
 
+
+def _eval_recovery_drill(
+    obj: Mapping[str, Any],
+    *,
+    threshold: int,
+    share_ids: set[str],
+    errors: list[str],
+) -> _RecoveryDrillStatus:
+    """Validate the recovery drill receipt.
+
+    ``recovery_drill_ready`` prefix-scans the WHOLE accumulated ``errors``
+    list for "encrypted SSS recovery drill" at this sequence point, and stays
+    ``False`` when the section raises (the scan is then never executed).
+    """
     recovery_drill_ready = False
     selected_share_ids: list[str] = []
     drill_fingerprint: str | None = None
@@ -600,7 +768,30 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
         recovery_drill_ready = not any(error.startswith("encrypted SSS recovery drill") for error in errors)
     except Exception as exc:
         errors.append(str(exc))
+    return _RecoveryDrillStatus(
+        recovery_drill_ready=recovery_drill_ready,
+        selected_share_ids=selected_share_ids,
+        drill_fingerprint=drill_fingerprint,
+    )
 
+
+def _eval_replay(
+    obj: Mapping[str, Any],
+    *,
+    profile: Mapping[str, Any] | None,
+    selected_share_ids: Sequence[str],
+    envelope_by_share_id: Mapping[str, Mapping[str, Any]],
+    recipient_root_keys: Mapping[str, bytes] | None,
+    threshold: int,
+    drill_fingerprint: str | None,
+    errors: list[str],
+) -> _ReplayStatus:
+    """Replay the recovery drill and the hostile-share tests with trusted keys.
+
+    One try/except wraps BOTH replay calls: an exception in the recovery
+    replay skips the hostile replay entirely. Replay errors collect in a
+    local list and are extended onto ``errors`` only when non-empty.
+    """
     replay_recovery_ready = False
     subject_public_key_matches = False
     replay_hostile_tests_ready = False
@@ -631,7 +822,20 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
         replay_errors.append(f"encrypted SSS replay failed: {exc}")
     if replay_errors:
         errors.extend(replay_errors)
+    return _ReplayStatus(
+        replay_recovery_ready=replay_recovery_ready,
+        subject_public_key_matches=subject_public_key_matches,
+        replay_hostile_tests_ready=replay_hostile_tests_ready,
+    )
 
+
+def _eval_hostile_tests(obj: Mapping[str, Any], *, errors: list[str]) -> bool:
+    """Validate the self-attested hostile-share test suite.
+
+    ``hostile_share_tests_ready`` prefix-scans the WHOLE accumulated
+    ``errors`` list for "encrypted SSS hostile-share" at this sequence point
+    and stays ``False`` when the section raises.
+    """
     hostile_share_tests_ready = False
     try:
         hostile = _require_mapping(obj.get("hostile_share_tests"), name="hostile_share_tests")
@@ -648,7 +852,11 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
         hostile_share_tests_ready = not any(error.startswith("encrypted SSS hostile-share") for error in errors)
     except Exception as exc:
         errors.append(str(exc))
+    return hostile_share_tests_ready
 
+
+def _eval_raw_material(obj: Mapping[str, Any], *, errors: list[str]) -> bool:
+    """Check that no raw key/share material exposure is claimed."""
     raw_material_absent = False
     try:
         exposure = _require_mapping(obj.get("raw_material_exposure"), name="raw_material_exposure")
@@ -661,7 +869,16 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
             errors.append("encrypted SSS backup exposes raw key/share material or server-side reconstitution")
     except Exception as exc:
         errors.append(str(exc))
+    return raw_material_absent
 
+
+def _eval_audit_evidence(obj: Mapping[str, Any], *, errors: list[str]) -> tuple[bool, str]:
+    """Evaluate audit evidence; return ``(external_audit_ready, audit_status)``.
+
+    ``audit_status`` fallback chain: the top-level ``audit_status`` if it is a
+    string else "unknown", overridden by ``audit_evidence.audit_status`` when
+    that is a string — and the overridden value feeds the checks below it.
+    """
     raw_audit_status = obj.get("audit_status")
     audit_status = raw_audit_status if isinstance(raw_audit_status, str) else "unknown"
     external_audit_ready = False
@@ -688,30 +905,7 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
             _validate_external_audit_evidence(audit_evidence, backup=obj, errors=errors)
     except Exception as exc:
         errors.append(str(exc))
-
-    if obj.get("production_security_claim") is not False:
-        errors.append("encrypted SSS backup must not make a production security claim in local-testnet")
-
-    return _status(
-        errors=errors,
-        profile=profile,
-        backup=obj,
-        threshold=threshold,
-        share_count=share_count,
-        provider_kinds=sorted(provider_kinds),
-        provider_ids=sorted(provider_ids),
-        provider_delivery_ready=provider_delivery_ready,
-        live_provider_delivery_ready=live_provider_delivery_ready,
-        delivery_modes=sorted(delivery_modes),
-        recovery_drill_ready=recovery_drill_ready,
-        hostile_share_tests_ready=hostile_share_tests_ready,
-        raw_material_absent=raw_material_absent,
-        external_audit_ready=external_audit_ready,
-        audit_status=audit_status,
-        replay_recovery_ready=replay_recovery_ready,
-        subject_public_key_matches=subject_public_key_matches,
-        replay_hostile_tests_ready=replay_hostile_tests_ready,
-    )
+    return external_audit_ready, audit_status
 
 
 def _validate_external_audit_evidence(
