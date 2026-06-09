@@ -15,8 +15,9 @@ built**. The distinction is load-bearing; do not let the vision blur it.
 | The **gate** — pointwise-revision spec suite (`src/tau_specs/governance/`) | **Built + verified** this session; pushed to branch `claude/governance-pointwise-revision` (unmerged). Reviews: Gemini A+, Codex Logic A / Correctness A−. |
 | The existing **revision pipeline** it builds on (`docs/REVISION_PIPELINE.md` + the three `src/tau_specs/*_v1.tau` specs) | **Pre-existing** in the repo. |
 | The **oracle** the autonomous loop would read | **L2** (trust-minimized), per `docs/ORACLE_TRUST_POSTURE.md`. Not trustless. |
-| The **autonomous proposers** (PID controller, frozen Q-learning table) | **Design only.** No such proposer is implemented in this repo. |
-| The **live autonomous loop** (a proposer wired to drive committed parameters through the gate) | **Not built.** This is the open **WS5** integration. |
+| The **autonomous proposers** (PID controller, frozen Q-learning table) | **Reference implementation** — `src/tau_specs/governance/gov_proposers.py` (deterministic PI + frozen Q-table) for simulation/demonstration. NOT a production/live proposer. |
+| The **autonomous loop** (proposer → gate → apply/no-op) | **Reference implementation** — `src/tau_specs/governance/gov_loop.py`; the safety property (the gate bounds a poisoned proposer) and `curr`-binding are empirically tested (`tests/tau_specs/governance/test_gov_loop.py`). NOT wired to a live governance flow. |
+| The **live autonomous loop** (the reference loop driving *committed on-chain* parameters from *attested* state) | **Not built.** This is the open **WS5** integration. |
 
 **No autonomous proposer is wired into any governance path today.** Default governance
 authority is unchanged. Nothing here is deployed or promoted. The PID/Q-table sections
@@ -123,9 +124,15 @@ Last observed locally: the harness reports `ALL PASS`; `test_gov_gate.py` and `t
 pass. These are existence-of-a-passing-run statements, not a committed CI artifact. A committed,
 replayable Tau proof artifact (a recorded verifier transcript) is **not** part of the suite yet.
 
-## 3. The proposers (design)
+## 3. The proposers (reference implementation)
 
-The gate is proposer-agnostic; these are the candidate proposer populations. None is implemented.
+The gate is proposer-agnostic; these are the candidate proposer populations.
+`src/tau_specs/governance/gov_proposers.py` provides **deterministic reference implementations** of
+the PI controller and the frozen Q-table (pure integer / fixed-point — no floats or randomness,
+because a real on-chain proposer must be replayable); `src/tau_specs/governance/gov_loop.py` composes
+a proposer's candidate with the gate. These are for **simulation/demonstration** — they are not
+production proposers and are not wired to a live governance flow. The staker-vote proposer below is
+not modeled (a live vote is non-deterministic / not replayable).
 
 ### 3.1 Staker vote (manual baseline)
 Humans choose `next`; the gate bounds it. **Non-deterministic** — a live vote cannot be replayed,
@@ -142,6 +149,12 @@ the market-vs-redemption price deviation, with no human votes. Engineering notes
 - A **deadband** so noise / small deviations don't drive churn.
 - The per-revision **`step` is the rate-limit** — already enforced by the gate.
 - **Not** for discrete/structural choices.
+
+The reference `gov_proposers.py` implements PI in **velocity form** (the committed parameter is the
+accumulator; `Δ = Kp·(e − e_prev) + Ki·e`), which has inherent anti-windup and no positional-form
+steady-state runaway. Being integer fixed-point, it has a steady-state **deadzone** bounded by the
+gain denominator (an error smaller than `ki_den` floor-divides to 0) — an honest limitation of
+on-chain-friendly integer control, not a bug.
 
 ### 3.3 Frozen Q-learning lookup table (deterministic multi-factor rules — design)
 For **discrete, multi-factor** policies (e.g. `(volatility_bin, utilization_bin, peg_dev_bin) →
@@ -224,8 +237,11 @@ attested oracle/ledger snapshot (curr params + epochs, bound to committed state)
 
 Every step is intended to be machine-checkable — the proposer's action re-derivable from public
 state, the gate's decision replayable, the registry the sole source consumed by settlement. That is
-"trust the math" applied to governance. Today only the **gate** and the **registry/pipeline** are
-built; the verified proposer and the binding/apply wiring are open.
+"trust the math" applied to governance. Today the **gate**, the **registry/pipeline**, and a
+**reference proposer + loop** (deterministic; simulation; the safety property and `curr`-binding
+empirically tested in `gov_loop.py` / `test_gov_loop.py`) are built; the **production** proposer
+(tuned/trained on real signals) and the **live** binding/apply wiring — sourcing `curr` and the
+epochs from attested committed on-chain state (§5.2) — are open.
 
 ## 7. What is verified today vs open
 
@@ -238,8 +254,10 @@ built; the verified proposer and the binding/apply wiring are open.
 | Existing revision pipeline (timelock → policy → registry) | **Pre-existing** |
 | Committed/replayable Tau proof artifact (recorded verifier transcript) | **Open** |
 | `curr`/epoch binding to committed ledger state (the §5.2 precondition) | **Open** (WS2) |
-| PID / Q-table proposer implementation | **Open** (design only) |
-| Deterministic, hash-bound Q-table decision runtime | **Open** (not implemented) |
+| PID + frozen-Q proposer **reference impls** (deterministic, no floats) | **Done** (`gov_proposers.py`) — simulation only |
+| Reference **loop** + safety property (gate bounds a poisoned PI/Q-table) + `curr`-binding | **Done** (`gov_loop.py`, `test_gov_loop.py`, `test_gov_proposers.py` — 31 tests, empirical) |
+| Q-table **hash-pinning** primitive (`table_hash`) | **Done** (reference); a live consensus-bound, hash-pinned decision runtime is **Open** |
+| **Production** proposer (tuned/audited PID or trained+frozen Q-table on real signals) | **Open** |
 | Live wiring: a deployed governance flow that *requires* this gate before applying any change | **Open** (WS5) |
 | Client-side refuse-loop that rejects an unbounded/unproven revision | **Open** (WS5) |
 
@@ -251,8 +269,12 @@ built; the verified proposer and the binding/apply wiring are open.
   `gov_revision_master_v1.tau`, `gov_gate.py`, `gov_parity_cases.py`,
   `validate_governance_specs.py`, `README.md`
 - Gate tests: `tests/tau_specs/governance/test_gov_gate.py`, `tests/tau_specs/governance/test_gov_parity.py`
+- Reference proposers + loop: `src/tau_specs/governance/gov_proposers.py` (deterministic PI + frozen
+  Q-table), `src/tau_specs/governance/gov_loop.py` (proposer→gate→apply/no-op); tests
+  `tests/tau_specs/governance/test_gov_proposers.py`, `tests/tau_specs/governance/test_gov_loop.py`
 - Existing pipeline: `docs/REVISION_PIPELINE.md`, `src/tau_specs/revision_policy_v1.tau`,
   `src/tau_specs/governance_timelock_v1.tau`, `src/tau_specs/parameter_registry_v1.tau`
-- Oracle trust: `docs/ORACLE_TRUST_POSTURE.md` (and the modules it cites:
-  `src/integration/zeno_oracle_authority.py`, `src/core/oracle.py`)
+- Oracle trust: `docs/ORACLE_TRUST_POSTURE.md` (WS4 doc — lives on branch
+  `claude/prod-promotion-phase5-proof-receipt`, unmerged; not on this branch yet) and the
+  modules it cites: `src/integration/zeno_oracle_authority.py`, `src/core/oracle.py`
 - Branch: `claude/governance-pointwise-revision` (gate suite; unmerged)
