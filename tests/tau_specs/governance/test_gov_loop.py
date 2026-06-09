@@ -171,3 +171,165 @@ def test_gate_domain_rejects_hostile_int_subclass():
             return 0
     assert gov_gate.fee_revision_ok(True, True, 0, MD, EvilInt(500), 9000) is False
     assert gov_gate.fee_revision_ok(True, True, 0, MD, 500, EvilInt(9000)) is False
+
+
+# --------------------------------------------------------------------------- #
+# Multi-surface revision step (all-or-nothing; factory action shape)
+# --------------------------------------------------------------------------- #
+import json as _json  # noqa: E402
+
+_FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
+# A sane committed envelope anchor: every surface mid-range; router shares sum to 10000;
+# mcr close to ccr so an order-break is reachable within one collateral step.
+COMMITTED = {
+    "fee_bps": 300, "funding_cap_bps": 100, "redeem_staker_bps": 6000,
+    "buyburn_bps": 2000, "stakers_bps": 6000, "reserve_bps": 1000, "hosts_bps": 1000,
+    "mcr_bps": 14500, "ccr_bps": 15000,
+}
+
+
+def _multi(deltas, *, committed=None, approved=True, pts=0, cts=MD, **kw):
+    return gov_loop.multi_surface_revision_step(
+        dict(committed or COMMITTED), deltas,
+        approved=approved, proposal_ts=pts, current_ts=cts, **kw)
+
+
+def test_multi_hold_is_admitted_noop_without_gates():
+    d = _multi({})
+    assert d.admitted is True and d.reason == "admitted_hold"
+    assert d.applied == COMMITTED and d.rejected_surface is None
+
+
+def test_multi_single_surface_fee_admit_and_apply():
+    d = _multi({"fee_bps": 10})
+    assert d.admitted is True and d.reason == "admitted"
+    assert d.applied["fee_bps"] == 310
+    # untouched surfaces carried through unchanged
+    assert d.applied["funding_cap_bps"] == 100 and d.applied["stakers_bps"] == 6000
+
+
+def test_multi_coordinated_two_surface_action_admits():
+    # the factory's raise_fee_10_tighten_funding_5 shape
+    d = _multi({"fee_bps": 10, "funding_cap_bps": -5})
+    assert d.admitted and d.applied["fee_bps"] == 310 and d.applied["funding_cap_bps"] == 95
+
+
+def test_multi_router_shift_admits_when_sum_preserved():
+    # the factory's shift_router_to_reserve_100 shape: sum stays 10000, steps <= 500
+    d = _multi({"buyburn_bps": -100, "reserve_bps": 100})
+    assert d.admitted and d.applied["buyburn_bps"] == 1900 and d.applied["reserve_bps"] == 1100
+    assert d.applied["stakers_bps"] == 6000 and d.applied["hosts_bps"] == 1000
+
+
+def test_multi_all_or_nothing_legal_plus_illegal_rejects_everything():
+    # THE load-bearing test: fee +10 is legal alone, but the router sum-break poisons the
+    # WHOLE action — nothing applies, including the legal fee move.
+    d = _multi({"fee_bps": 10, "buyburn_bps": 100})  # sum 10100: router sum gate must fire
+    assert d.admitted is False and d.rejected_surface == "router"
+    assert d.reason == "rejected_by_gate:router"
+    assert d.applied == COMMITTED  # fee NOT applied
+
+
+def test_multi_negative_controls_mirror_factory_corpus():
+    # the factory corpus negative-control ids, reproduced through MY gates:
+    cases = {
+        "fee_step_over_50": ({"fee_bps": 60}, "fee_bps"),
+        "fee_cap_over_1000": ({"fee_bps": 20}, "fee_bps"),  # from committed fee 990 below
+        "funding_underflow": ({"funding_cap_bps": -150}, "funding_cap_bps"),
+        "router_sum_break": ({"buyburn_bps": 100}, "router"),
+        "whale_step_over_500": ({"redeem_staker_bps": 600}, "redeem_staker_bps"),
+        "collateral_order_break": ({"mcr_bps": 1000}, "collateral"),  # 15500 > ccr 15000
+    }
+    for name, (deltas, expect_surface) in cases.items():
+        committed = dict(COMMITTED)
+        if name == "fee_cap_over_1000":
+            committed["fee_bps"] = 990  # step 20 legal, cap 1010 > 1000 illegal
+        d = _multi(deltas, committed=committed)
+        assert d.admitted is False, name
+        assert d.rejected_surface == expect_surface, name
+        assert d.applied == committed, name  # reject-is-no-op on every control
+
+
+def test_multi_requires_approval_and_timelock():
+    ok = {"fee_bps": 10}
+    assert _multi(ok, approved=False).admitted is False
+    assert _multi(ok, cts=MD - 1).admitted is False  # timelock not elapsed
+    # wrap-safe direction: proposal in the future must not admit
+    assert _multi(ok, pts=MD + 100, cts=MD).admitted is False
+
+
+def test_multi_exact_types_fail_closed():
+    class LyingDict(dict):
+        pass
+
+    class EvilKey(str):
+        pass
+
+    with pytest.raises(TypeError):
+        _multi(LyingDict({"fee_bps": 10}))
+    with pytest.raises(TypeError):
+        gov_loop.multi_surface_revision_step(
+            LyingDict(COMMITTED), {"fee_bps": 10}, approved=True, proposal_ts=0, current_ts=MD)
+    with pytest.raises(TypeError):
+        _multi({EvilKey("fee_bps"): 10})
+    with pytest.raises(TypeError):
+        _multi({"fee_bps": True})  # bool delta
+    with pytest.raises(ValueError):
+        _multi({"evil_bps": 10})  # unknown surface must hard-reject, never silently pass
+    with pytest.raises(ValueError):
+        gov_loop.multi_surface_revision_step(
+            {"fee_bps": 300}, {"fee_bps": 10}, approved=True, proposal_ts=0, current_ts=MD,
+        )  # committed missing surfaces
+    with pytest.raises(TypeError):
+        _multi({"fee_bps": 10}, approved=1)  # non-bool approved
+
+
+def test_multi_gate_verdict_must_be_real_bool_and_gates_are_import_bound(monkeypatch):
+    # the real-bool contract is enforced by _require_bool_verdict (an int 1 must raise, not admit):
+    with pytest.raises(TypeError):
+        gov_loop._require_bool_verdict(1)
+    with pytest.raises(TypeError):
+        gov_loop._require_bool_verdict("yes")
+    assert gov_loop._require_bool_verdict(True) is True
+    assert gov_loop._require_bool_verdict(False) is False
+    # AND the gates are bound at import time (early binding) — a runtime monkeypatch of the
+    # gov_gate module CANNOT swap a forged always-admit gate under the loop; the step still
+    # consults the original verified gate (this is the no-forged-wrapper property, empirically):
+    monkeypatch.setattr(gov_gate, "fee_revision_ok", lambda *a: True)
+    d = _multi({"fee_bps": 9000})  # far out of envelope; the forged gate would admit it
+    assert d.admitted is False and d.rejected_surface == "fee_bps"  # original gate in force
+
+
+def test_multi_snapshot_defeats_midcall_mutation_of_caller_dicts():
+    # the loop must never read the caller's dicts after its snapshot: mutating them after the
+    # call started (here: between construction and use via a hostile later read there is no
+    # window — so we assert the DECISION's recorded committed/deltas are private copies)
+    committed = dict(COMMITTED)
+    deltas = {"fee_bps": 10}
+    d = _multi(deltas, committed=committed)
+    committed["fee_bps"] = 0
+    deltas["fee_bps"] = 9999
+    assert d.committed["fee_bps"] == 300 and d.deltas["fee_bps"] == 10  # private copies
+
+
+def test_factory_policy_fixture_actions_all_gate_admissible():
+    # DIFFERENTIAL BINDING to the concurrent policy-factory lane: every action in the frozen
+    # zenodex.autonomous_governance.q_policy.v1 artifact (built by the factory with my gate's
+    # guardrails as negative controls) must be admissible through the real gates from a sane
+    # mid-range committed state — proving the two lanes meet: factory actions are in-envelope,
+    # and this loop can gate them directly with no adapter.
+    art = _json.loads((_FIXTURES / "factory_q_policy_sample.json").read_text())
+    assert art["schema"] == "zenodex.autonomous_governance.q_policy.v1"
+    assert len(art["actions"]) == 7
+    seen_multi_surface = 0
+    for action in art["actions"]:
+        deltas = action["deltas"]
+        assert type(deltas) is dict
+        d = _multi(dict(deltas))
+        assert d.admitted is True, action["id"]
+        if len(deltas) >= 2:
+            seen_multi_surface += 1
+            for k, dv in deltas.items():
+                assert d.applied[k] == COMMITTED[k] + dv, action["id"]
+    assert seen_multi_surface >= 4  # the coordinated fee+funding and router-shift actions
