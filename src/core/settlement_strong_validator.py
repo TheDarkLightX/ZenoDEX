@@ -112,6 +112,18 @@ class _CreatePoolReplay:
     lp_minted: int
 
 
+@dataclass(frozen=True)
+class _ReplayPool:
+    pool_id: str
+    pool: PoolState
+
+
+@dataclass(frozen=True)
+class _SwapMetadata:
+    asset_in: AssetId
+    asset_out: AssetId
+
+
 def _validate_strong_config(
     *,
     mode: str,
@@ -540,6 +552,94 @@ def _append_create_pool_deltas(
     lp_deltas.append(LPDelta(pubkey=LP_LOCK_PUBKEY, pool_id=replay.pool_id, delta_add=int(MIN_LP_LOCK), delta_sub=0))
 
 
+def _lookup_replay_pool(
+    *,
+    intent_id: str,
+    intent: Intent,
+    pools: Dict[str, PoolState],
+) -> Tuple[Optional[_ReplayPool], Optional[str]]:
+    pool_id = intent.get_field("pool_id")
+    if not isinstance(pool_id, str) or not pool_id:
+        return None, f"missing pool_id for intent_id={intent_id}"
+    if pool_id not in pools:
+        return None, f"pool not found for intent_id={intent_id}: {pool_id}"
+    return _ReplayPool(pool_id=pool_id, pool=pools[pool_id]), None
+
+
+def _swap_metadata(
+    *,
+    intent_id: str,
+    intent: Intent,
+    pool: PoolState,
+    quote_pool_fp: object,
+) -> Tuple[Optional[_SwapMetadata], Optional[str]]:
+    metadata, error = _swap_asset_metadata(intent_id=intent_id, intent=intent)
+    if error is not None:
+        return None, error
+    return _swap_metadata_after_asset(
+        intent_id=intent_id,
+        intent=intent,
+        pool=pool,
+        metadata=metadata,
+        quote_pool_fp=quote_pool_fp,
+    )
+
+
+def _swap_metadata_after_asset(
+    *,
+    intent_id: str,
+    intent: Intent,
+    pool: PoolState,
+    metadata: Optional[_SwapMetadata],
+    quote_pool_fp: object,
+) -> Tuple[Optional[_SwapMetadata], Optional[str]]:
+    if metadata is None:
+        return None, f"swap metadata missing result for intent_id={intent_id}"
+    error = _swap_pool_status_error(intent_id=intent_id, pool=pool)
+    if error is not None:
+        return None, error
+    error = _swap_asset_pair_error(intent_id=intent_id, pool=pool, metadata=metadata)
+    if error is not None:
+        return None, error
+    snapshot_error = _quote_pool_snapshot_error(intent=intent, pool=pool, quote_pool_fp=quote_pool_fp)
+    if snapshot_error is not None:
+        return None, snapshot_error
+    return metadata, None
+
+
+def _swap_asset_metadata(*, intent_id: str, intent: Intent) -> Tuple[Optional[_SwapMetadata], Optional[str]]:
+    asset_in = intent.get_field("asset_in")
+    asset_out = intent.get_field("asset_out")
+    if not isinstance(asset_in, str) or not isinstance(asset_out, str):
+        return None, f"invalid asset_in/out for intent_id={intent_id}"
+    return _SwapMetadata(asset_in=asset_in, asset_out=asset_out), None
+
+
+def _swap_pool_status_error(*, intent_id: str, pool: PoolState) -> Optional[str]:
+    if pool.status != PoolStatus.ACTIVE:
+        return f"pool not active for intent_id={intent_id}: {pool.status}"
+    return None
+
+
+def _swap_asset_pair_error(*, intent_id: str, pool: PoolState, metadata: _SwapMetadata) -> Optional[str]:
+    if {metadata.asset_in, metadata.asset_out} != {pool.asset0, pool.asset1} or metadata.asset_in == metadata.asset_out:
+        return f"swap asset mismatch for intent_id={intent_id}"
+    return None
+
+
+def _quote_pool_snapshot_error(*, intent: Intent, pool: PoolState, quote_pool_fp: object) -> Optional[str]:
+    if quote_pool_fp is None:
+        return None
+    actual_pool_fp = pool_state_fingerprint(pool)
+    if actual_pool_fp == quote_pool_fp:
+        return None
+    return _quote_binding_error(
+        "quote receipt pool snapshot mismatch",
+        **_quote_binding_context(intent),
+        actual_pool_fingerprint=actual_pool_fp,
+    )
+
+
 def _validate_cow_pair_index(
     *,
     settlement: Settlement,
@@ -769,32 +869,27 @@ def _validate_settlement_strong_impl(
             )
             continue
 
-        pool_id = it.get_field("pool_id")
-        if not isinstance(pool_id, str) or not pool_id:
-            return fail(f"missing pool_id for intent_id={intent_id}")
-        if pool_id not in pools:
-            return fail(f"pool not found for intent_id={intent_id}: {pool_id}")
-        pool = pools[pool_id]
+        replay_pool, pool_error = _lookup_replay_pool(intent_id=intent_id, intent=it, pools=pools)
+        if pool_error is not None:
+            return fail(pool_error)
+        if replay_pool is None:
+            return fail(f"pool lookup missing result for intent_id={intent_id}")
+        pool_id = replay_pool.pool_id
+        pool = replay_pool.pool
 
         if it.kind in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
-            asset_in = it.get_field("asset_in")
-            asset_out = it.get_field("asset_out")
-            if not isinstance(asset_in, str) or not isinstance(asset_out, str):
-                return fail(f"invalid asset_in/out for intent_id={intent_id}")
-            if pool.status != PoolStatus.ACTIVE:
-                return fail(f"pool not active for intent_id={intent_id}: {pool.status}")
-            if {asset_in, asset_out} != {pool.asset0, pool.asset1} or asset_in == asset_out:
-                return fail(f"swap asset mismatch for intent_id={intent_id}")
-            if quote_pool_fp is not None:
-                actual_pool_fp = pool_state_fingerprint(pool)
-                if actual_pool_fp != quote_pool_fp:
-                    return fail(
-                        _quote_binding_error(
-                            "quote receipt pool snapshot mismatch",
-                            **_quote_binding_context(it),
-                            actual_pool_fingerprint=actual_pool_fp,
-                        )
-                    )
+            swap_metadata, swap_metadata_error = _swap_metadata(
+                intent_id=intent_id,
+                intent=it,
+                pool=pool,
+                quote_pool_fp=quote_pool_fp,
+            )
+            if swap_metadata_error is not None:
+                return fail(swap_metadata_error)
+            if swap_metadata is None:
+                return fail(f"swap metadata missing result for intent_id={intent_id}")
+            asset_in = swap_metadata.asset_in
+            asset_out = swap_metadata.asset_out
 
             # CoW netting semantics (optional): direct user-to-user swap, no pool reserve changes.
             if f.reason == "COW_NETTED":

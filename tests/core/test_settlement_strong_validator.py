@@ -1235,6 +1235,348 @@ def test_strong_validator_rejects_swap_asset_mismatch() -> None:
     assert err == f"swap asset mismatch for intent_id={intent.intent_id}"
 
 
+def test_strong_validator_pool_lookup_and_swap_metadata_rejection_order() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    inactive_pool = replace(pool, status=PoolStatus.FROZEN)
+
+    missing_pool_id_intent = Intent(
+        module=intent.module,
+        version=intent.version,
+        kind=intent.kind,
+        intent_id=intent.intent_id,
+        sender_pubkey=intent.sender_pubkey,
+        deadline=intent.deadline,
+        fields={
+            key: value
+            for key, value in {
+                **(intent.fields or {}),
+                "asset_out": 7,
+                "quote_pool_fingerprint": "stale-fingerprint",
+            }.items()
+            if key != "pool_id"
+        },
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[missing_pool_id_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: inactive_pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is False
+    assert err == f"missing pool_id for intent_id={intent.intent_id}"
+
+    invalid_asset_missing_pool_intent = Intent(
+        module=intent.module,
+        version=intent.version,
+        kind=intent.kind,
+        intent_id=intent.intent_id,
+        sender_pubkey=intent.sender_pubkey,
+        deadline=intent.deadline,
+        fields={**(intent.fields or {}), "asset_out": 7, "quote_pool_fingerprint": "stale-fingerprint"},
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_asset_missing_pool_intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is False
+    assert err == f"pool not found for intent_id={intent.intent_id}: {pool_id}"
+
+    invalid_asset_inactive_intent = Intent(
+        module=intent.module,
+        version=intent.version,
+        kind=intent.kind,
+        intent_id=intent.intent_id,
+        sender_pubkey=intent.sender_pubkey,
+        deadline=intent.deadline,
+        fields={**(intent.fields or {}), "asset_out": 7, "quote_pool_fingerprint": "stale-fingerprint"},
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_asset_inactive_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: inactive_pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is False
+    assert err == f"invalid asset_in/out for intent_id={intent.intent_id}"
+
+    mismatch_inactive_intent = Intent(
+        module=intent.module,
+        version=intent.version,
+        kind=intent.kind,
+        intent_id=intent.intent_id,
+        sender_pubkey=intent.sender_pubkey,
+        deadline=intent.deadline,
+        fields={
+            **(intent.fields or {}),
+            "asset_out": intent.get_field("asset_in"),
+            "quote_pool_fingerprint": "stale-fingerprint",
+        },
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[mismatch_inactive_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: inactive_pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is False
+    assert err == f"pool not active for intent_id={intent.intent_id}: {PoolStatus.FROZEN}"
+
+    mismatch_stale_snapshot_intent = Intent(
+        module=intent.module,
+        version=intent.version,
+        kind=intent.kind,
+        intent_id=intent.intent_id,
+        sender_pubkey=intent.sender_pubkey,
+        deadline=intent.deadline,
+        fields={
+            **(intent.fields or {}),
+            "asset_out": intent.get_field("asset_in"),
+            "quote_pool_fingerprint": "stale-fingerprint",
+        },
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[mismatch_stale_snapshot_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is False
+    assert err == f"swap asset mismatch for intent_id={intent.intent_id}"
+
+    invalid_amount_stale_snapshot_intent = Intent(
+        module=intent.module,
+        version=intent.version,
+        kind=intent.kind,
+        intent_id=intent.intent_id,
+        sender_pubkey=intent.sender_pubkey,
+        deadline=intent.deadline,
+        fields={**(intent.fields or {}), "amount_in": 0, "quote_pool_fingerprint": "stale-fingerprint"},
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_amount_stale_snapshot_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is False
+    assert err == (
+        "quote receipt pool snapshot mismatch: "
+        f"intent_id='{intent.intent_id}', "
+        "quote_pool_fingerprint='stale-fingerprint', "
+        f"pool_id='{pool_id}', "
+        f"actual_pool_fingerprint='{pool_state_fingerprint(pool)}'"
+    )
+
+
+def test_strong_validator_exact_out_pool_lookup_and_swap_metadata_rejection_order() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_exact_out_context()
+    inactive_pool = replace(pool, status=PoolStatus.FROZEN)
+
+    missing_pool_id_intent = replace(
+        intent,
+        fields={
+            key: value
+            for key, value in {**intent.fields, "asset_out": 7, "quote_pool_fingerprint": "stale-fingerprint"}.items()
+            if key != "pool_id"
+        },
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[missing_pool_id_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: inactive_pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is False
+    assert err == f"missing pool_id for intent_id={intent.intent_id}"
+
+    invalid_asset_missing_pool_intent = replace(
+        intent,
+        fields={**intent.fields, "asset_out": 7, "quote_pool_fingerprint": "stale-fingerprint"},
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_asset_missing_pool_intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is False
+    assert err == f"pool not found for intent_id={intent.intent_id}: {pool_id}"
+
+    invalid_asset_inactive_intent = replace(
+        intent,
+        fields={**intent.fields, "asset_out": 7, "quote_pool_fingerprint": "stale-fingerprint"},
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_asset_inactive_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: inactive_pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is False
+    assert err == f"invalid asset_in/out for intent_id={intent.intent_id}"
+
+    mismatch_inactive_intent = replace(
+        intent,
+        fields={
+            **intent.fields,
+            "asset_out": intent.get_field("asset_in"),
+            "quote_pool_fingerprint": "stale-fingerprint",
+        },
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[mismatch_inactive_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: inactive_pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is False
+    assert err == f"pool not active for intent_id={intent.intent_id}: {PoolStatus.FROZEN}"
+
+    mismatch_stale_snapshot_intent = replace(
+        intent,
+        fields={
+            **intent.fields,
+            "asset_out": intent.get_field("asset_in"),
+            "quote_pool_fingerprint": "stale-fingerprint",
+        },
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[mismatch_stale_snapshot_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is False
+    assert err == f"swap asset mismatch for intent_id={intent.intent_id}"
+
+    invalid_amount_stale_snapshot_intent = replace(
+        intent,
+        fields={**intent.fields, "max_amount_in": 0, "quote_pool_fingerprint": "stale-fingerprint"},
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_amount_stale_snapshot_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is False
+    assert err == (
+        "quote receipt pool snapshot mismatch: "
+        f"intent_id='{intent.intent_id}', "
+        "quote_pool_fingerprint='stale-fingerprint', "
+        f"pool_id='{pool_id}', "
+        f"actual_pool_fingerprint='{pool_state_fingerprint(pool)}'"
+    )
+
+
+def test_strong_validator_liquidity_pool_lookup_precedes_liquidity_field_validation() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, add_intent, add_settlement = (
+        _setup_add_liquidity_context()
+    )
+    malformed_add = replace(
+        add_intent,
+        fields={
+            key: value
+            for key, value in {**add_intent.fields, "amount0_desired": False, "amount1_desired": None}.items()
+            if key != "pool_id"
+        },
+    )
+    ok, err = validate_settlement_strong(
+        settlement=add_settlement,
+        intents=[malformed_add],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"missing pool_id for intent_id={add_intent.intent_id}"
+
+    unknown_add = replace(add_intent, fields={**add_intent.fields, "amount0_desired": False})
+    ok, err = validate_settlement_strong(
+        settlement=add_settlement,
+        intents=[unknown_add],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"pool not found for intent_id={add_intent.intent_id}: {pool_id}"
+
+    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, remove_intent, remove_settlement = (
+        _setup_remove_liquidity_context()
+    )
+    malformed_remove = replace(
+        remove_intent,
+        fields={
+            key: value
+            for key, value in {**remove_intent.fields, "lp_amount": False, "amount0_min": False}.items()
+            if key != "pool_id"
+        },
+    )
+    ok, err = validate_settlement_strong(
+        settlement=remove_settlement,
+        intents=[malformed_remove],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"missing pool_id for intent_id={remove_intent.intent_id}"
+
+    unknown_remove = replace(remove_intent, fields={**remove_intent.fields, "lp_amount": False})
+    ok, err = validate_settlement_strong(
+        settlement=remove_settlement,
+        intents=[unknown_remove],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"pool not found for intent_id={remove_intent.intent_id}: {pool_id}"
+
+
 def test_strong_validator_rejects_add_liquidity_on_inactive_pool() -> None:
     pk, _asset0, _asset1, pool_id, pool, balances, lp_balances = _setup_liquidity_context()
     intent = Intent(
@@ -2047,11 +2389,13 @@ def test_strong_validator_rejects_stale_quote_receipt_pool_fingerprint() -> None
         allow_snapshot_bound_quote_bindings=True,
     )
     assert ok is False
-    assert err is not None
-    assert "quote receipt pool snapshot mismatch" in err
-    assert f"intent_id='{intent.intent_id}'" in err
-    assert f"quote_pool_fingerprint='{pool_state_fingerprint(quoted_pool)}'" in err
-    assert "actual_pool_fingerprint=" in err
+    assert err == (
+        "quote receipt pool snapshot mismatch: "
+        f"intent_id='{intent.intent_id}', "
+        f"quote_pool_fingerprint='{pool_state_fingerprint(quoted_pool)}', "
+        f"pool_id='{pool_id}', "
+        f"actual_pool_fingerprint='{pool_state_fingerprint(drifted_pool)}'"
+    )
 
 
 def test_strong_validator_rejects_quote_receipt_binding_on_non_swap_intent() -> None:
@@ -3962,6 +4306,33 @@ def test_strong_validator_rejects_quote_hash_and_snapshot_binding_without_engine
         intents=[snapshot_intent],
         pre_balances=balances,
         pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is True, err
+
+    _pk, _asset0, _asset1, exact_out_pool_id, exact_out_pool, exact_out_balances, exact_out_intent, _settlement = (
+        _setup_swap_exact_out_context()
+    )
+    exact_out_snapshot_intent = replace(
+        exact_out_intent,
+        fields={
+            **exact_out_intent.fields,
+            "quote_pool_fingerprint": pool_state_fingerprint(exact_out_pool),
+        },
+    )
+    exact_out_settlement = compute_settlement(
+        [exact_out_snapshot_intent],
+        {exact_out_pool_id: exact_out_pool},
+        exact_out_balances,
+        LPTable(),
+    )
+    ok, err = validate_settlement_strong(
+        settlement=exact_out_settlement,
+        intents=[exact_out_snapshot_intent],
+        pre_balances=exact_out_balances,
+        pre_pools={exact_out_pool_id: exact_out_pool},
         pre_lp_balances=LPTable(),
         mode="strong_replay",
         allow_snapshot_bound_quote_bindings=True,
