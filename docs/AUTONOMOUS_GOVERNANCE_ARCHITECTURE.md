@@ -1,0 +1,258 @@
+# Autonomous Governance Architecture (ZenoDEX)
+
+How ZenoDEX can be governed **autonomously** — by a controller or a learned policy,
+not only by human votes — while staying safe, by separating a (possibly heuristic /
+ML) **proposer** from a formally-verified **bounded gate**. The project's north star
+applied to governance: **trust the math, not the proposer.**
+
+## Status & non-claims (read first)
+
+This document mixes what is **built and verified** with what is **designed but not
+built**. The distinction is load-bearing; do not let the vision blur it.
+
+| Layer | Status |
+|---|---|
+| The **gate** — pointwise-revision spec suite (`src/tau_specs/governance/`) | **Built + verified** this session; pushed to branch `claude/governance-pointwise-revision` (unmerged). Reviews: Gemini A+, Codex Logic A / Correctness A−. |
+| The existing **revision pipeline** it builds on (`docs/REVISION_PIPELINE.md` + the three `src/tau_specs/*_v1.tau` specs) | **Pre-existing** in the repo. |
+| The **oracle** the autonomous loop would read | **L2** (trust-minimized), per `docs/ORACLE_TRUST_POSTURE.md`. Not trustless. |
+| The **autonomous proposers** (PID controller, frozen Q-learning table) | **Design only.** No such proposer is implemented in this repo. |
+| The **live autonomous loop** (a proposer wired to drive committed parameters through the gate) | **Not built.** This is the open **WS5** integration. |
+
+**No autonomous proposer is wired into any governance path today.** Default governance
+authority is unchanged. Nothing here is deployed or promoted. The PID/Q-table sections
+below are an architecture proposal, not a description of running code.
+
+## 1. Thesis: separate the proposer from the gate
+
+A governance update has two roles, deliberately separated:
+
+| Role | Who | What it is |
+|---|---|---|
+| **Proposer** | staker vote, **PID controller**, or a frozen **Q-learning lookup table** | computes the *next* parameter value |
+| **Gate** | the verified `gov_*_v1.tau` specs (+ `gov_gate.py` runtime mirror) | decides whether *next* is **admissible** |
+
+The gate is **proposer-agnostic** (`src/tau_specs/governance/gov_action_bound_v1.tau`):
+whatever computes `next` — a human vote, a PID loop on the oracle feed, or a hash-pinned
+Q-table — the *same* verified gate admits it only if it is governance-approved, past the
+timelock, within `[min, max]`, and within one bounded `step` of the current value.
+
+So a mis-trained, poisoned, or oracle-manipulated proposer **can never escape the bounded
+envelope** — the worst it can do is move a parameter by one `step` per revision inside
+`[min, max]`. **The bound is the safety, not trust in the proposer.** This is what makes an
+autonomous proposer safe to run at all: its trustworthiness is decoupled from protocol
+safety (subject to the binding precondition in §5).
+
+```text
+   PROPOSER (untrusted, may be ML/heuristic)        GATE (verified, fail-closed)        STATE
+   ┌──────────────────────────────────────┐        ┌─────────────────────────┐
+   │ staker vote                           │        │ approved?               │
+   │ PID/PI controller  ── reads oracle ──▶│ next   │ past timelock?          │  apply iff
+   │ frozen Q-learning lookup table        │ ──────▶│ next ∈ [min,max]?        │ ─────────▶ committed
+   └──────────────────────────────────────┘        │ |next − curr| ≤ step?   │   admit    parameter
+                                                    └─────────────────────────┘            (registry)
+                                          a bad proposer can move a param by ≤ 1 step/revision
+```
+
+## 2. The gate (built + verified)
+
+### 2.1 The existing revision pipeline (prior art)
+
+ZenoDEX already has a pointwise-revision pipeline (`docs/REVISION_PIPELINE.md`):
+
+```text
+proposal → governance vote → timelock → revision_policy → parameter_registry → settlement
+```
+
+- `src/tau_specs/governance_timelock_v1.tau` — proposals must be delayed by a minimum timelock.
+- `src/tau_specs/revision_policy_v1.tau` — bounds + step limits on updatable parameters; requires
+  approval + timelock when `exec_req = 1`.
+- `src/tau_specs/parameter_registry_v1.tau` — applies *approved* updates, else keeps current values.
+
+**Safety guarantee (existing):** as long as the settlement spec consumes parameters *only* from
+the registry, an update cannot bypass the revision policy. **Immutable invariants** (conservation,
+fail-closed rejection, the AMM curve, settlement/proof-binding) are *not* parameters and are never
+touched by revision; only **parameters** (rates, caps, floors, thresholds, weights) change.
+
+### 2.2 The pointwise-revision spec suite (`src/tau_specs/governance/`)
+
+The new suite extends that pipeline with concrete, machine-verified per-surface gates and a
+universal proposer-agnostic gate. Guardrail constants are **immutable** `{ #xHHHH }:bv[16]`
+literals (changeable only by a spec-version bump, never by a pointwise revision); only `curr`/`next`
+(and, for `action_bound`, the bounds) are inputs.
+
+| Spec | Surface | Shape | Immutable guardrails |
+|---|---|---|---|
+| `gov_action_bound_v1.tau` | universal gate (any proposer) | factored bounds + step | bounds are inputs |
+| `gov_fee_revision_v1.tau` | swap fee (bps) | bounds + step | `≤ 1000` (10% cap); `\|Δ\| ≤ 50`/rev |
+| `gov_router_split_revision_v1.tau` | fee-router 4-way split (sum) | sum-budget | each `≤ 10000`; **sum = 10000** |
+| _(router per-share drift)_ | fee-router split (anti-whiplash) | per-share `action_bound` | per-share `\|Δ\| ≤ 500` |
+| `gov_collateral_ratio_revision_v1.tau` | zUSD MCR / CCR | ordered + bounds + step | `mcr ≥ 10000`, `ccr ≤ 30000`, **`mcr ≤ ccr`**, `\|Δ\| ≤ 1000` |
+| `gov_whale_defense_revision_v1.tau` | `redeem.staker_bps` | ceiling + step | `≤ 7000`; `\|Δ\| ≤ 500` |
+| `gov_funding_rate_revision_v1.tau` | perps funding-rate cap | bounds + step | cap `≤ 200` bps (2%/epoch); `\|Δ\| ≤ 25` |
+| `gov_revision_master_v1.tau` | composite | factored AND of the 4 economic-core surfaces | union of fee/router/collateral/whale + `MIN_DELAY = 24` (funding is **not** composed here — it is standalone) |
+
+**Wrap-safe timelock.** All gates use `current ≥ proposal AND current − proposal ≥ MIN_DELAY`
+(subtraction-guard), not the naive `current ≥ proposal + MIN_DELAY`, which is bypassable by
+`bv[16]` modular wrap when `proposal` is near `2^16`. `MIN_DELAY = 24` is in the runtime's own
+time unit (epochs/blocks); `proposal_ts` and `current_ts` must be supplied in the same unit.
+
+**Factoring is mandatory.** Coupling (not parameter count or bit width) is the cost driver: a
+monolithic formula does not normalize, but a factored one (one output bit per concern, ANDed)
+stays tractable. The fee-router is therefore two concerns — the sum-budget (`gov_router_split`)
+and the per-share anti-whiplash drift, where each share's drift is the universal `gov_action_bound`
+gate applied to that share. The composite master is verified **factored**: each `oN` bit in
+isolation (with teeth) + the `o1` AND-composition, because the all-surfaces monolith does not
+normalize on the current Tau build.
+
+### 2.3 Verification (hybrid: Tau validates, Python computes)
+
+- `src/tau_specs/governance/validate_governance_specs.py` drives Tau at the **Boolean-function
+  layer** (`sat`/`unsat`), *not* the temporal `always` layer (a temporal `always` is vacuously
+  satisfied by the empty trace, so `sat`/`unsat` on it prove nothing). For each spec it checks:
+  it compiles; it is **non-vacuous** (`sat` — admits some revision); and **every guardrail has
+  teeth** (`unsat` — a violating revision provably cannot be admitted).
+- `src/tau_specs/governance/gov_gate.py` is the Python runtime mirror, strictly **fail-closed**:
+  it hard-rejects out-of-domain values *and* non-`bool` control flags (stricter than the `bv[16]`
+  core, never weaker).
+- `tests/tau_specs/governance/test_gov_parity.py` is a **Tau↔Python differential** over a shared
+  boundary table (`src/tau_specs/governance/gov_parity_cases.py`): each case is evaluated by both
+  the Tau spec (ground `sat`) and `gov_gate.py`, and a disagreement fails the test.
+  `tests/tau_specs/governance/test_gov_gate.py` reproduces the teeth in pytest.
+
+Last observed locally: the harness reports `ALL PASS`; `test_gov_gate.py` and `test_gov_parity.py`
+pass. These are existence-of-a-passing-run statements, not a committed CI artifact. A committed,
+replayable Tau proof artifact (a recorded verifier transcript) is **not** part of the suite yet.
+
+## 3. The proposers (design)
+
+The gate is proposer-agnostic; these are the candidate proposer populations. None is implemented.
+
+### 3.1 Staker vote (manual baseline)
+Humans choose `next`; the gate bounds it. **Non-deterministic** — a live vote cannot be replayed,
+so any offline replay/verification guarantee does *not* extend to it. Risks: sybil/whale capture,
+bribery. This is the status-quo authority; the gate simply ensures even a captured vote is bounded.
+
+### 3.2 PID / PI controller (continuous target-tracking — design)
+For a **single continuous monetary target with a monotone response** — the canonical case being the
+zUSD peg. Proven DeFi precedent: **RAI/Reflexer**, whose controller adjusts a redemption rate from
+the market-vs-redemption price deviation, with no human votes. Engineering notes:
+- Use **PI, not full PID** — the derivative term amplifies oracle noise into erratic parameter swings
+  (RAI is effectively PI). Drop or heavily filter D.
+- **Anti-windup** on the integral (a sustained depeg otherwise saturates it and overshoots on recovery).
+- A **deadband** so noise / small deviations don't drive churn.
+- The per-revision **`step` is the rate-limit** — already enforced by the gate.
+- **Not** for discrete/structural choices.
+
+### 3.3 Frozen Q-learning lookup table (deterministic multi-factor rules — design)
+For **discrete, multi-factor** policies (e.g. `(volatility_bin, utilization_bin, peg_dev_bin) →
+fee_action`). Train offline (RL or any optimizer), then **freeze** as a hash-pinned artifact. The
+live runtime must be a **pure function**: `state → deterministic integer/fixed-point binning →
+table lookup → action → hash-bound receipt`. No learning, floats, or nondeterminism at execution
+time, so it is consensus-safe and client-verifiable (anyone re-derives the action from the public
+state + the pinned table hash). Design constraints:
+- **Layered / factored tables** — bin each dimension independently and compose; a monolithic joint
+  table over the product of all bins blows up (the same factoring lesson as the spec suite).
+- **Updating the table is itself a governed action** — pin it by hash; swapping it goes through the
+  timelock + the bounded gate; the client refuses any action not derivable from the pinned table.
+- **Determinism is load-bearing** — any float or non-canonical encoding breaks consensus. A
+  deterministic, hash-bound decision runtime of this kind is **not implemented** in this repo today.
+
+### 3.4 Which proposer for which parameter
+
+| Proposer | Best for | Avoid for | Determinism |
+|---|---|---|---|
+| Staker vote | structural / one-off / contested choices | high-frequency tuning | no (not replayable) |
+| PID / PI | one continuous peg-class target (zUSD peg) | discrete or non-monotone params | yes |
+| Frozen Q-table | discrete multi-factor rules (fees vs regime) | targets with no clear binning | yes (if frozen + canonical) |
+
+All three flow through the **same** verified bounded gate.
+
+## 4. Safety composition (blast radius)
+
+The gate (`gov_gate.py` docstring) states the safety property: a mis-trained / poisoned /
+oracle-manipulated proposer can only move a parameter by `step` per revision inside `[min,max]`.
+
+**This worst-case bound is conditional on the binding precondition in §5.** If an attacker also
+controls the `curr` value or the epoch inputs, the step and timelock gates are vacuous and the
+envelope is *unbounded*. The `step`-per-revision bound holds **only when `curr` and the epochs are
+bound to attested committed state.**
+
+Given that precondition, the composition is: a bad proposer's reachable set per revision is the
+bounded band; over N revisions (each timelocked) it can compound only at `≤ N · step`, with each
+step independently approval-gated. That is what makes autonomy tolerable — the guardrails, not the
+proposer, are the defense.
+
+## 5. Trust posture
+
+### 5.1 Oracle trust is inherited
+An autonomous proposer that reads the price oracle **inherits the oracle's trust level.** Per
+`docs/ORACLE_TRUST_POSTURE.md`, the ZenoDEX oracle is **L2** (`quorum_attested_honest_scope`):
+quorum-attested (no single signer moves the price), fail-closed, replay-bound, and *explicit about
+not claiming* the price is the true market price or the source honest. It is trust-**minimized**,
+not trustless (L3 proof-carrying provenance is an unbuilt research gap). Therefore an autonomous
+proposer is **not** trustless either; it is at most as trustworthy as L2.
+
+The gate **caps** oracle-manipulation damage to the bounded band per epoch — but does not remove
+the dependence. The **guardrails are the manipulation defense, not the proposer.** A PID/Q-table
+proposer should use the most manipulation-resistant signal available and a deadband; and per the
+oracle posture's own rule, **no surface may describe the oracle (or a proposer reading it) as
+trustless or proven** until an L3 path ships.
+
+### 5.2 The binding precondition (`curr` and epochs must be attested)
+The step-limit `|next − curr| ≤ step` is sound **only if `curr` is the true committed value**, and
+the timelock is sound **only if the epochs are attested.** In the gate, `curr` and the epochs are
+*inputs*, not read from chain by the spec. A proposer (or relay) that supplies its own `curr`/epoch
+can make an arbitrary jump look like a one-step move, or defeat the timelock.
+
+So the live runtime **MUST** bind `curr` and `current/proposal/last-update` epochs to the committed
+ledger state alongside the proposal — exactly the repo's **WS2 "right-statement-binding" / non-trust
+clause** (no proposer-asserted field is an accept input). **The spec bounds the delta; the runtime
+owns the anchor.** Until that binding is implemented, the step and timelock gates are vacuous
+against an attacker who also controls `curr`/epoch.
+
+## 6. The full autonomous loop (design)
+
+The payoff, when all pieces exist:
+
+```text
+attested oracle/ledger snapshot (curr params + epochs, bound to committed state)
+  → verified proposer (a PID or frozen Q-table that can itself be a verified/replayable function)
+  → verified bounded gate (gov_*_v1.tau + gov_gate.py)
+  → parameter_registry (the only parameter source for settlement)
+  → committed parameter + cooldown (next revision must clear the timelock again)
+```
+
+Every step is intended to be machine-checkable — the proposer's action re-derivable from public
+state, the gate's decision replayable, the registry the sole source consumed by settlement. That is
+"trust the math" applied to governance. Today only the **gate** and the **registry/pipeline** are
+built; the verified proposer and the binding/apply wiring are open.
+
+## 7. What is verified today vs open
+
+| Item | Status |
+|---|---|
+| Pointwise-revision gate suite (7 specs + composite) compiles, non-vacuous, every guardrail has teeth | **Done** (harness `ALL PASS` locally) |
+| `gov_gate.py` Python mirror, fail-closed on out-of-domain + non-bool flags | **Done** (`test_gov_gate.py`) |
+| Tau↔Python differential parity | **Done** (`test_gov_parity.py`) |
+| Reviews | **Gemini A+, Codex Logic A / Correctness A−** (gate suite) |
+| Existing revision pipeline (timelock → policy → registry) | **Pre-existing** |
+| Committed/replayable Tau proof artifact (recorded verifier transcript) | **Open** |
+| `curr`/epoch binding to committed ledger state (the §5.2 precondition) | **Open** (WS2) |
+| PID / Q-table proposer implementation | **Open** (design only) |
+| Deterministic, hash-bound Q-table decision runtime | **Open** (not implemented) |
+| Live wiring: a deployed governance flow that *requires* this gate before applying any change | **Open** (WS5) |
+| Client-side refuse-loop that rejects an unbounded/unproven revision | **Open** (WS5) |
+
+## 8. References
+
+- Gate suite: `src/tau_specs/governance/` — `gov_action_bound_v1.tau`, `gov_fee_revision_v1.tau`,
+  `gov_router_split_revision_v1.tau`, `gov_collateral_ratio_revision_v1.tau`,
+  `gov_whale_defense_revision_v1.tau`, `gov_funding_rate_revision_v1.tau`,
+  `gov_revision_master_v1.tau`, `gov_gate.py`, `gov_parity_cases.py`,
+  `validate_governance_specs.py`, `README.md`
+- Gate tests: `tests/tau_specs/governance/test_gov_gate.py`, `tests/tau_specs/governance/test_gov_parity.py`
+- Existing pipeline: `docs/REVISION_PIPELINE.md`, `src/tau_specs/revision_policy_v1.tau`,
+  `src/tau_specs/governance_timelock_v1.tau`, `src/tau_specs/parameter_registry_v1.tau`
+- Oracle trust: `docs/ORACLE_TRUST_POSTURE.md` (and the modules it cites:
+  `src/integration/zeno_oracle_authority.py`, `src/core/oracle.py`)
+- Branch: `claude/governance-pointwise-revision` (gate suite; unmerged)
