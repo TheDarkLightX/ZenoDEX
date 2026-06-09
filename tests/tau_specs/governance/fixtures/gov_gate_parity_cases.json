@@ -1,0 +1,490 @@
+{
+ "comment": "GENERATED from gov_parity_cases.py by gen_rust_parity_fixture.py \u2014 do not edit by hand; test_gov_parity.py byte-pins this file. args are POSITIONAL per SIGNATURE_ORDER.",
+ "cases": [
+  {
+   "surface": "fee",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    500,
+    550
+   ],
+   "expect": true
+  },
+  {
+   "surface": "fee",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    980,
+    1000
+   ],
+   "expect": true
+  },
+  {
+   "surface": "fee",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    500,
+    1001
+   ],
+   "expect": false
+  },
+  {
+   "surface": "fee",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    0,
+    200
+   ],
+   "expect": false
+  },
+  {
+   "surface": "fee",
+   "args": [
+    false,
+    true,
+    0,
+    24,
+    500,
+    550
+   ],
+   "expect": false
+  },
+  {
+   "surface": "fee",
+   "args": [
+    true,
+    true,
+    100,
+    110,
+    500,
+    500
+   ],
+   "expect": false
+  },
+  {
+   "surface": "fee",
+   "args": [
+    false,
+    false,
+    0,
+    0,
+    500,
+    9999
+   ],
+   "expect": true
+  },
+  {
+   "surface": "router_split",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    6000,
+    0,
+    2000,
+    2000
+   ],
+   "expect": true
+  },
+  {
+   "surface": "router_split",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    6000,
+    1,
+    2000,
+    2000
+   ],
+   "expect": false
+  },
+  {
+   "surface": "router_split",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    10001,
+    0,
+    0,
+    0
+   ],
+   "expect": false
+  },
+  {
+   "surface": "funding",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    100,
+    120
+   ],
+   "expect": true
+  },
+  {
+   "surface": "funding",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    100,
+    201
+   ],
+   "expect": false
+  },
+  {
+   "surface": "funding",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    0,
+    100
+   ],
+   "expect": false
+  },
+  {
+   "surface": "whale",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    6600,
+    7000
+   ],
+   "expect": true
+  },
+  {
+   "surface": "whale",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    5000,
+    7001
+   ],
+   "expect": false
+  },
+  {
+   "surface": "action",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    24,
+    500,
+    550,
+    0,
+    1000,
+    50
+   ],
+   "expect": true
+  },
+  {
+   "surface": "action",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    24,
+    500,
+    2000,
+    0,
+    1000,
+    50
+   ],
+   "expect": false
+  },
+  {
+   "surface": "action",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    24,
+    6000,
+    6400,
+    0,
+    10000,
+    500
+   ],
+   "expect": true
+  },
+  {
+   "surface": "action",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    24,
+    6000,
+    6600,
+    0,
+    10000,
+    500
+   ],
+   "expect": false
+  },
+  {
+   "surface": "collateral",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    11000,
+    11000,
+    15000,
+    15000
+   ],
+   "expect": true
+  },
+  {
+   "surface": "collateral",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    15000,
+    15000,
+    11000,
+    11000
+   ],
+   "expect": false
+  },
+  {
+   "surface": "drift",
+   "args": [
+    500,
+    520,
+    20,
+    150
+   ],
+   "expect": true
+  },
+  {
+   "surface": "drift",
+   "args": [
+    500,
+    470,
+    120,
+    150
+   ],
+   "expect": true
+  },
+  {
+   "surface": "drift",
+   "args": [
+    500,
+    520,
+    140,
+    150
+   ],
+   "expect": false
+  },
+  {
+   "surface": "drift",
+   "args": [
+    0,
+    0,
+    200,
+    150
+   ],
+   "expect": false
+  },
+  {
+   "surface": "drift",
+   "args": [
+    500,
+    501,
+    150,
+    150
+   ],
+   "expect": false
+  },
+  {
+   "surface": "drift",
+   "args": [
+    65520,
+    16,
+    0,
+    50
+   ],
+   "expect": false
+  },
+  {
+   "surface": "cooldown",
+   "args": [
+    0,
+    48,
+    48
+   ],
+   "expect": true
+  },
+  {
+   "surface": "cooldown",
+   "args": [
+    100,
+    110,
+    24
+   ],
+   "expect": false
+  },
+  {
+   "surface": "cooldown",
+   "args": [
+    65520,
+    8,
+    24
+   ],
+   "expect": false
+  },
+  {
+   "surface": "charter",
+   "args": [
+    false,
+    0,
+    10,
+    24
+   ],
+   "expect": true
+  },
+  {
+   "surface": "charter",
+   "args": [
+    true,
+    0,
+    10,
+    24
+   ],
+   "expect": false
+  },
+  {
+   "surface": "charter",
+   "args": [
+    false,
+    0,
+    24,
+    24
+   ],
+   "expect": false
+  },
+  {
+   "surface": "charter",
+   "args": [
+    false,
+    0,
+    10,
+    4097
+   ],
+   "expect": false
+  },
+  {
+   "surface": "charter",
+   "args": [
+    false,
+    65520,
+    8,
+    4095
+   ],
+   "expect": false
+  },
+  {
+   "surface": "charter",
+   "args": [
+    false,
+    0,
+    0,
+    0
+   ],
+   "expect": false
+  },
+  {
+   "surface": "epoch_budget",
+   "args": [
+    60,
+    400,
+    0,
+    600
+   ],
+   "expect": true
+  },
+  {
+   "surface": "epoch_budget",
+   "args": [
+    300,
+    300,
+    100,
+    600
+   ],
+   "expect": false
+  },
+  {
+   "surface": "epoch_budget",
+   "args": [
+    65535,
+    1,
+    0,
+    256
+   ],
+   "expect": false
+  }
+ ],
+ "params_digest_vectors": [
+  {
+   "params": {
+    "buyburn_bps": 6000,
+    "ccr_bps": 15000,
+    "fee_bps": 500,
+    "funding_cap_bps": 100,
+    "hosts_bps": 2000,
+    "mcr_bps": 11000,
+    "redeem_staker_bps": 6000,
+    "reserve_bps": 2000,
+    "stakers_bps": 0
+   },
+   "sha256_hex": "320f1258427571f7c14b480bf1bca0eb4d11611bc6aceb06e873a9e68a9e79b5"
+  },
+  {
+   "params": {
+    "buyburn_bps": 10000,
+    "ccr_bps": 30000,
+    "fee_bps": 0,
+    "funding_cap_bps": 200,
+    "hosts_bps": 0,
+    "mcr_bps": 10000,
+    "redeem_staker_bps": 7000,
+    "reserve_bps": 0,
+    "stakers_bps": 0
+   },
+   "sha256_hex": "8329c0b91bc15335956a3c11385945b4a76ea062156e7e91955827f7d6cb8107"
+  }
+ ]
+}

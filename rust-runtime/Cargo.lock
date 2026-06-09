@@ -711,6 +711,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenodex-governance-gate"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "zenodex-launcher"
 version = "0.1.0"
 
