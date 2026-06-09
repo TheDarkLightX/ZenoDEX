@@ -1,0 +1,666 @@
+[
+  {
+    "error": null,
+    "exc": null,
+    "exc_type": null,
+    "has_verification": true,
+    "id": "valid_baseline",
+    "kwargs": {},
+    "ok": true
+  },
+  {
+    "error": null,
+    "exc": null,
+    "exc_type": null,
+    "has_verification": true,
+    "id": "valid_with_proof_tree_required",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": true
+  },
+  {
+    "error": null,
+    "exc": null,
+    "exc_type": null,
+    "has_verification": true,
+    "id": "valid_with_expected_hashes",
+    "kwargs": {
+      "expected_bundle_file_sha256": "__VALID_BUNDLE_FILE_SHA__",
+      "expected_bundle_hash": "__VALID_BUNDLE_HASH__"
+    },
+    "ok": true
+  },
+  {
+    "error": "expected_bundle_hash_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "expected_bundle_hash_wrong",
+    "kwargs": {
+      "expected_bundle_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "ok": false
+  },
+  {
+    "error": "expected_bundle_file_sha_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "expected_bundle_file_sha_wrong",
+    "kwargs": {
+      "expected_bundle_file_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "ok": false
+  },
+  {
+    "error": "bundle_load_failed:[Errno 2] No such file or directory: '<BUNDLE>/bundle_manifest.json'",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "drop_bundle_manifest_file",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "bundle_load_failed:[Errno 2] No such file or directory: '<BUNDLE>/object_manifest.json'",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "drop_object_manifest_file",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "bundle_load_failed:[Errno 2] No such file or directory: '<BUNDLE>/instance_manifest.json'",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "drop_object_instance_file",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "bundle_load_failed:[Errno 2] No such file or directory: '<BUNDLE>/object_lock.json'",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "drop_object_lock_file",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": null,
+    "exc": "[Errno 2] No such file or directory: '<BUNDLE>/certificate.json'",
+    "exc_type": "FileNotFoundError",
+    "has_verification": null,
+    "id": "drop_certificate_file",
+    "kwargs": {},
+    "ok": null
+  },
+  {
+    "error": "bundle_load_failed:artifact_bound must be a dict",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "empty_object_manifest_body",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": null,
+    "exc": "certificate payload must be a mapping",
+    "exc_type": "TypeError",
+    "has_verification": null,
+    "id": "non_object_certificate_body",
+    "kwargs": {},
+    "ok": null
+  },
+  {
+    "error": "bundle_load_failed:Expecting property name enclosed in double quotes: line 1 column 2 (char 1)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "malformed_json_object_lock",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "object_package_schema_invalid:/:Additional properties are not allowed ('unexpected' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "schema_invalid_object_package",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "object_manifest_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "schema_invalid_object_manifest",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "object_instance_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "schema_invalid_object_instance",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "object_lock_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "schema_invalid_object_lock",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "certificate_file_sha_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "schema_invalid_certificate",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "proof_tree_certificate_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "schema_invalid_proof_tree_certificate",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "compile_receipt_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "schema_invalid_compile_receipt",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "kernel_receipt_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "schema_invalid_kernel_receipt",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "kernel_eval_receipt_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "schema_invalid_kernel_eval_receipt",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "kernel_settlement_receipt_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "schema_invalid_kernel_settlement_receipt",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "kernel_replay_receipt_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "schema_invalid_kernel_replay_receipt",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "replay_input_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "schema_invalid_replay_input",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "compile_receipt_missing",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "require_compile_receipt_missing",
+    "kwargs": {
+      "require_compile_receipt": true
+    },
+    "ok": false
+  },
+  {
+    "error": "kernel_receipt_missing",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "require_kernel_receipt_missing",
+    "kwargs": {
+      "require_kernel_receipt": true
+    },
+    "ok": false
+  },
+  {
+    "error": "kernel_eval_receipt_missing",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "require_kernel_eval_receipt_missing",
+    "kwargs": {
+      "require_kernel_eval_receipt": true
+    },
+    "ok": false
+  },
+  {
+    "error": "kernel_settlement_receipt_missing",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "require_kernel_settlement_receipt_missing",
+    "kwargs": {
+      "require_kernel_settlement_receipt": true
+    },
+    "ok": false
+  },
+  {
+    "error": "kernel_replay_receipt_missing",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "require_kernel_replay_receipt_missing",
+    "kwargs": {
+      "require_kernel_replay_receipt": true
+    },
+    "ok": false
+  },
+  {
+    "error": "replay_input_missing",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "require_replay_input_missing",
+    "kwargs": {
+      "require_replay_input": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_certificate_missing",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "require_proof_tree_cert_missing",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "compile_receipt_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "compile_receipt_object_hash_drift",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "kernel_receipt_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "kernel_receipt_model_id_drift",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "compiled_artifact_upper_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "kernel_eval_receipt_upper_drift",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "payoff_out_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "kernel_settlement_receipt_payoff_drift",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "kernel_replay_receipt_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "kernel_replay_receipt_delta_drift",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "kernel_settlement_receipt_requires_replay_input",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "settlement_requires_replay_input",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "kernel_settlement_receipt_requires_kernel_receipt",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "settlement_requires_kernel_receipt",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "kernel_settlement_receipt_requires_kernel_eval_receipt",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "settlement_requires_kernel_eval_receipt",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "kernel_replay_receipt_requires_compile_receipt",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "replay_requires_compile_receipt",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "certificate_manifest_hash_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "certificate_gate_claims_missing",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": null,
+    "exc": "authorization_ok has unsupported evidence level: not_applicable",
+    "exc_type": "ValueError",
+    "has_verification": null,
+    "id": "certificate_gate_claims_mismatch",
+    "kwargs": {},
+    "ok": null
+  },
+  {
+    "error": "proof_tree_cert_certificate_sha256_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "proof_tree_certificate_sha_drift",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_cert_runtime_certificate_summary_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "proof_tree_runtime_summary_drift",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_cert_replay_summary_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "proof_tree_replay_summary_drift",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_cert_integer_eval_summary_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "proof_tree_integer_eval_summary_drift",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_cert_unit_summary_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "proof_tree_unit_summary_drift",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_cert_witness_policy_summary_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "proof_tree_witness_policy_summary_drift",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_cert_param_summary_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "proof_tree_param_summary_drift",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_cert_authorization_summary_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "proof_tree_authorization_summary_drift",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_cert_nonce_summary_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "proof_tree_nonce_summary_drift",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_cert_maturity_summary_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "proof_tree_maturity_summary_drift",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_cert_window_summary_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "proof_tree_window_summary_drift",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_cert_object_bind_summary_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "proof_tree_object_bind_summary_drift",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_cert_instance_bind_summary_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "proof_tree_instance_bind_summary_drift",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_cert_dependency_summary_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "proof_tree_dependency_summary_drift",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "certificate_file_sha_mismatch",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "DOUBLE_schema_invalid_cert_and_compile_drift",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "bundle_load_failed:[Errno 2] No such file or directory: '<BUNDLE>/object_manifest.json'",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "DOUBLE_drop_object_manifest_and_schema_invalid_cert",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "proof_tree_certificate_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "DOUBLE_schema_proof_tree_before_compile",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_certificate_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "DOUBLE_schema_proof_tree_before_kernel",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_certificate_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "DOUBLE_schema_proof_tree_before_kernel_replay",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "proof_tree_certificate_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "DOUBLE_schema_proof_tree_before_replay_input",
+    "kwargs": {
+      "require_proof_tree_cert": true
+    },
+    "ok": false
+  },
+  {
+    "error": "compile_receipt_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "DOUBLE_schema_compile_before_kernel",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "kernel_receipt_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "DOUBLE_schema_kernel_before_kernel_eval",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "kernel_eval_receipt_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "DOUBLE_schema_kernel_eval_before_kernel_settlement",
+    "kwargs": {},
+    "ok": false
+  },
+  {
+    "error": "kernel_settlement_receipt_schema_invalid:/:Additional properties are not allowed ('unexpected_field' was unexpected)",
+    "exc": null,
+    "exc_type": null,
+    "has_verification": false,
+    "id": "DOUBLE_schema_kernel_settlement_before_kernel_replay",
+    "kwargs": {},
+    "ok": false
+  }
+]

@@ -1397,6 +1397,301 @@ def _build_signer_mismatch_report(
     )
 
 
+def _check_client_policy_bundle_identity(
+    bundle: AutoTraderClientPolicyBundle,
+    *,
+    strategy: StrategyIR,
+) -> tuple[str | None, bool | None]:
+    """Validate a client policy bundle's identity binding to ``strategy``.
+
+    Returns ``(error_reason, signature_ok)``. ``error_reason`` is ``None`` when
+    every binding check passes; otherwise it is the stable reject code that the
+    caller surfaces. ``signature_ok`` mirrors the live report's
+    ``client_policy_bundle_signature_ok`` field: it stays ``None`` until the
+    signature stage is reached, then reflects the verification result.
+
+    This is a pure re-expression of the inline binding ladder; the order of
+    checks (strategy hash -> owner pubkey -> signature present -> signature
+    valid) is part of the reject-precedence contract and is preserved exactly.
+    """
+
+    if bundle.strategy_hash != strategy.strategy_hash_hex():
+        return "client_policy_bundle_strategy_hash_mismatch", None
+    if bundle.owner_pubkey != strategy.owner_pubkey:
+        return "client_policy_bundle_owner_pubkey_mismatch", None
+    if bundle.signature is None:
+        return "client_policy_bundle_signature_missing", False
+    signature_ok = verify_autotrader_client_policy_bundle_signature(bundle)
+    if not signature_ok:
+        return "client_policy_bundle_signature_invalid", False
+    return None, signature_ok
+
+
+def _check_client_policy_bundle_artifact_binding(
+    bundle: AutoTraderClientPolicyBundle,
+    *,
+    policy_artifact: StrategyPolicyArtifact,
+    tau_policy_bundle: TauPolicyBundle,
+) -> str | None:
+    """Validate a client policy bundle's hash binding to the built artifacts.
+
+    Returns the stable reject code for the first failing hash binding, or
+    ``None`` when every present hash matches. Each ``*_hash`` field on the
+    bundle's client policy surface is optional; a ``None`` field is skipped.
+    The check order (source artifact -> tau policy bundle -> policy artifact)
+    is part of the reject-precedence contract and is preserved exactly.
+    """
+
+    surface = bundle.client_policy_surface
+    if (
+        surface.source_artifact_hash is not None
+        and surface.source_artifact_hash != policy_artifact.source_artifact_hash
+    ):
+        return "client_policy_bundle_source_artifact_hash_mismatch"
+    if (
+        surface.tau_policy_bundle_hash is not None
+        and surface.tau_policy_bundle_hash != tau_policy_bundle.tau_policy_bundle_hash_hex()
+    ):
+        return "client_policy_bundle_tau_policy_bundle_hash_mismatch"
+    if (
+        surface.policy_artifact_hash is not None
+        and surface.policy_artifact_hash != policy_artifact.policy_artifact_hash_hex()
+    ):
+        return "client_policy_bundle_policy_artifact_hash_mismatch"
+    return None
+
+
+@dataclass(frozen=True)
+class _TauPolicyBackendPrecheck:
+    """Outcome of the ``PolicyBackend.TAU`` pre-check stage (first Tau block).
+
+    On success ``error_reason`` and ``reject_finalize_kwargs`` are ``None`` and
+    the four receipt fields carry whatever was built (for the downstream
+    success path). On failure ``error_reason`` is the stable reject code and
+    ``reject_finalize_kwargs`` is the *exact* extra-kwargs payload for the
+    failing stage's ``finalize_report(...)`` call, so the caller reproduces the
+    original per-stage report byte-for-byte (including the deliberately
+    asymmetric ``external_signal_source_registry_tau_receipts`` propagation:
+    carried only on the tau-unavailable/registry-loop stages' successors and
+    dropped on the session/wallet capability mismatch stages).
+    """
+
+    error_reason: str | None
+    reject_finalize_kwargs: dict[str, Any] | None
+    session_capability_tau_receipt: TauPolicyReceipt | None
+    session_state_tau_receipt: TauPolicyReceipt | None
+    wallet_capability_tau_receipt: TauPolicyReceipt | None
+    external_signal_source_registry_tau_receipts: tuple[
+        AutoTraderExternalSignalSourceRegistryTauReceipt, ...
+    ]
+
+
+def _run_tau_policy_backend_precheck(
+    *,
+    strategy: StrategyIR,
+    controller_state: AutoTraderControllerState,
+    resolved_tau_config: AutoTraderTauConfig,
+    chain_id: str,
+    signer_pubkey: str,
+    last_used_nonce: int,
+    effective_wallet_capability: AutoTraderWalletCapability,
+    effective_session_state: AutoTraderSessionState,
+    observation_packet: AutoTraderObservationPacket | None,
+    observation_packet_error: str | None,
+    signal_source_registry: ExternalSignalSourceRegistry | None,
+    source_registry_ok: bool,
+    external_signals: tuple[ExternalSignalObservation, ...],
+    current_epoch: int,
+    asset_in: str,
+    asset_out: str,
+    fixed_order_size: int,
+) -> _TauPolicyBackendPrecheck:
+    """Build and verify the Tau policy-backend pre-check receipts.
+
+    This is a faithful re-expression of the inline first Tau block. The control
+    flow (resolve tau bin -> verify each registry receipt -> verify session
+    capability / session state / wallet capability receipts in that order) and
+    the exact reject payloads are preserved; only the bookkeeping moves here so
+    the orchestrator keeps a single reject-return.
+    """
+
+    explain = (
+        f"strategy_id={strategy.strategy_id}",
+        f"backend={strategy.policy_backend.value}",
+        f"chain_id={chain_id}",
+    )
+    common_kwargs: dict[str, Any] = dict(
+        signer_pubkey=signer_pubkey,
+        chain_id=chain_id,
+        last_used_nonce_before=last_used_nonce,
+        last_used_nonce_after=last_used_nonce,
+        wallet_capability=effective_wallet_capability,
+        session_state=effective_session_state,
+        observation_packet=observation_packet,
+        observation_packet_error=observation_packet_error,
+        signal_source_registry=signal_source_registry,
+        source_registry_ok=source_registry_ok,
+        external_signals=tuple(external_signals),
+    )
+    session_capability_tau_receipt: TauPolicyReceipt | None = None
+    session_state_tau_receipt: TauPolicyReceipt | None = None
+    wallet_capability_tau_receipt: TauPolicyReceipt | None = None
+    external_signal_source_registry_tau_receipts: tuple[
+        AutoTraderExternalSignalSourceRegistryTauReceipt, ...
+    ] = ()
+
+    def _result(
+        *, error_reason: str | None, reject_finalize_kwargs: dict[str, Any] | None
+    ) -> _TauPolicyBackendPrecheck:
+        return _TauPolicyBackendPrecheck(
+            error_reason=error_reason,
+            reject_finalize_kwargs=reject_finalize_kwargs,
+            session_capability_tau_receipt=session_capability_tau_receipt,
+            session_state_tau_receipt=session_state_tau_receipt,
+            wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+            external_signal_source_registry_tau_receipts=external_signal_source_registry_tau_receipts,
+        )
+
+    ok, tau_bin, err = autotrader_controller._resolve_tau_bin(resolved_tau_config)
+    if not ok or tau_bin is None:
+        reject = _reject(
+            state=controller_state,
+            reason=f"tau_tool_unavailable:{err}",
+            explain=explain,
+        )
+        return _result(
+            error_reason=f"tau_tool_unavailable:{err}",
+            reject_finalize_kwargs={"decision": reject, **common_kwargs},
+        )
+
+    external_signal_source_registry_tau_receipts = (
+        _build_external_signal_source_registry_tau_receipts(
+            strategy=strategy,
+            external_signals=tuple(external_signals),
+            signal_source_registry=signal_source_registry,
+        )
+    )
+    for registry_receipt in external_signal_source_registry_tau_receipts:
+        tau_error = _verify_external_signal_source_registry_tau_receipt(
+            tau_bin=tau_bin,
+            config=resolved_tau_config,
+            receipt=registry_receipt,
+        )
+        if tau_error is not None:
+            reject = _reject(
+                state=controller_state,
+                reason=tau_error,
+                explain=explain,
+            )
+            return _result(
+                error_reason=tau_error,
+                reject_finalize_kwargs={
+                    "decision": reject,
+                    "live_admission_ok": False,
+                    "live_admission_error": tau_error,
+                    **common_kwargs,
+                    "external_signal_source_registry_tau_receipts": external_signal_source_registry_tau_receipts,
+                },
+            )
+
+    session_capability_tau_receipt = build_session_capability_binding_guard_tau_policy_receipt(
+        strategy=strategy,
+        capability=effective_wallet_capability,
+        chain_id=chain_id,
+    )
+    tau_error = autotrader_controller._verify_tau_policy_receipt(
+        tau_bin=tau_bin,
+        config=resolved_tau_config,
+        receipt=session_capability_tau_receipt,
+    )
+    if tau_error is not None:
+        reject = _reject(
+            state=controller_state,
+            reason=tau_error,
+            explain=explain,
+            tau_policy_receipt=session_capability_tau_receipt,
+        )
+        return _result(
+            error_reason=tau_error,
+            reject_finalize_kwargs={
+                "decision": reject,
+                "live_admission_ok": False,
+                "live_admission_error": tau_error,
+                **common_kwargs,
+                "session_capability_tau_receipt": session_capability_tau_receipt,
+            },
+        )
+
+    session_state_tau_receipt = build_session_state_guard_tau_policy_receipt(
+        strategy=strategy,
+        session_state=effective_session_state,
+        capability=effective_wallet_capability,
+        chain_id=chain_id,
+        current_epoch=current_epoch,
+    )
+    tau_error = autotrader_controller._verify_tau_policy_receipt(
+        tau_bin=tau_bin,
+        config=resolved_tau_config,
+        receipt=session_state_tau_receipt,
+    )
+    if tau_error is not None:
+        reject = _reject(
+            state=controller_state,
+            reason=tau_error,
+            explain=explain,
+            tau_policy_receipt=session_state_tau_receipt,
+        )
+        return _result(
+            error_reason=tau_error,
+            reject_finalize_kwargs={
+                "decision": reject,
+                "live_admission_ok": False,
+                "live_admission_error": tau_error,
+                **common_kwargs,
+                "session_state_tau_receipt": session_state_tau_receipt,
+                "session_capability_tau_receipt": session_capability_tau_receipt,
+            },
+        )
+
+    wallet_capability_tau_receipt = build_wallet_capability_guard_tau_policy_receipt(
+        strategy=strategy,
+        capability=effective_wallet_capability,
+        signer_pubkey=signer_pubkey,
+        chain_id=chain_id,
+        current_epoch=current_epoch,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        order_amount=fixed_order_size,
+        action=StrategyAction.PLACE_SWAP_EXACT_IN,
+    )
+    tau_error = autotrader_controller._verify_tau_policy_receipt(
+        tau_bin=tau_bin,
+        config=resolved_tau_config,
+        receipt=wallet_capability_tau_receipt,
+    )
+    if tau_error is not None:
+        reject = _reject(
+            state=controller_state,
+            reason=tau_error,
+            explain=explain,
+            tau_policy_receipt=wallet_capability_tau_receipt,
+        )
+        return _result(
+            error_reason=tau_error,
+            reject_finalize_kwargs={
+                "decision": reject,
+                "live_admission_ok": False,
+                "live_admission_error": tau_error,
+                **common_kwargs,
+                "session_state_tau_receipt": session_state_tau_receipt,
+                "session_capability_tau_receipt": session_capability_tau_receipt,
+                "wallet_capability_tau_receipt": wallet_capability_tau_receipt,
+            },
+        )
+
+    return _result(error_reason=None, reject_finalize_kwargs=None)
+
+
 def prepare_autotrader_live_quote_receipt(
     *,
     strategy: StrategyIR,
@@ -1480,97 +1775,38 @@ def prepare_autotrader_live_quote_receipt(
             bundle_signature_ok=client_policy_bundle_signature_ok,
         )
 
-    if receipt_load_error is not None:
-        reject = _reject(
-            state=controller_state,
-            reason="receipt_file_load_rejected",
-            explain=(
-                f"strategy_id={strategy.strategy_id}",
-                f"backend={strategy.policy_backend.value}",
-                f"chain_id={chain_id}",
-                f"load_error={receipt_load_error}",
-            ),
-        )
-        return finalize_report(
-            decision=reject,
-            signer_pubkey=signer_pubkey,
-            chain_id=chain_id,
-            last_used_nonce_before=last_used_nonce,
-            last_used_nonce_after=last_used_nonce,
-            live_admission_ok=False,
-            live_admission_error="receipt_file_load_rejected",
-            wallet_capability=effective_wallet_capability,
-            session_state=effective_session_state,
-        )
-
-    if controller_state_load_error is not None:
-        reject = _reject(
-            state=controller_state,
-            reason="controller_state_load_rejected",
-            explain=(
-                f"strategy_id={strategy.strategy_id}",
-                f"backend={strategy.policy_backend.value}",
-                f"chain_id={chain_id}",
-                f"load_error={controller_state_load_error}",
-            ),
-        )
-        return finalize_report(
-            decision=reject,
-            signer_pubkey=signer_pubkey,
-            chain_id=chain_id,
-            last_used_nonce_before=last_used_nonce,
-            last_used_nonce_after=last_used_nonce,
-            live_admission_ok=False,
-            live_admission_error="controller_state_load_rejected",
-            wallet_capability=effective_wallet_capability,
-            session_state=effective_session_state,
-        )
-
-    if wallet_capability_load_error is not None:
-        reject = _reject(
-            state=controller_state,
-            reason="wallet_capability_load_rejected",
-            explain=(
-                f"strategy_id={strategy.strategy_id}",
-                f"backend={strategy.policy_backend.value}",
-                f"chain_id={chain_id}",
-                f"load_error={wallet_capability_load_error}",
-            ),
-        )
-        return finalize_report(
-            decision=reject,
-            signer_pubkey=signer_pubkey,
-            chain_id=chain_id,
-            last_used_nonce_before=last_used_nonce,
-            last_used_nonce_after=last_used_nonce,
-            live_admission_ok=False,
-            live_admission_error="wallet_capability_load_rejected",
-            wallet_capability=effective_wallet_capability,
-            session_state=effective_session_state,
-        )
-
-    if session_state_load_error is not None:
-        reject = _reject(
-            state=controller_state,
-            reason="session_state_load_rejected",
-            explain=(
-                f"strategy_id={strategy.strategy_id}",
-                f"backend={strategy.policy_backend.value}",
-                f"chain_id={chain_id}",
-                f"load_error={session_state_load_error}",
-            ),
-        )
-        return finalize_report(
-            decision=reject,
-            signer_pubkey=signer_pubkey,
-            chain_id=chain_id,
-            last_used_nonce_before=last_used_nonce,
-            last_used_nonce_after=last_used_nonce,
-            live_admission_ok=False,
-            live_admission_error="session_state_load_rejected",
-            wallet_capability=effective_wallet_capability,
-            session_state=effective_session_state,
-        )
+    # Homogeneous pre-reassignment load-error gates. These four share an
+    # identical reject shape and read only the as-yet-unbuilt effective wallet/
+    # session inputs; the tuple order is the reject-precedence contract.
+    _pre_build_load_error_gates: tuple[tuple[str | None, str], ...] = (
+        (receipt_load_error, "receipt_file_load_rejected"),
+        (controller_state_load_error, "controller_state_load_rejected"),
+        (wallet_capability_load_error, "wallet_capability_load_rejected"),
+        (session_state_load_error, "session_state_load_rejected"),
+    )
+    for load_error_value, reject_reason in _pre_build_load_error_gates:
+        if load_error_value is not None:
+            reject = _reject(
+                state=controller_state,
+                reason=reject_reason,
+                explain=(
+                    f"strategy_id={strategy.strategy_id}",
+                    f"backend={strategy.policy_backend.value}",
+                    f"chain_id={chain_id}",
+                    f"load_error={load_error_value}",
+                ),
+            )
+            return finalize_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=reject_reason,
+                wallet_capability=effective_wallet_capability,
+                session_state=effective_session_state,
+            )
 
     effective_wallet_capability = wallet_capability or build_wallet_capability_from_strategy(
         strategy=strategy,
@@ -1732,82 +1968,15 @@ def prepare_autotrader_live_quote_receipt(
         )
 
     if effective_client_policy_bundle is not None:
-        if effective_client_policy_bundle.strategy_hash != strategy.strategy_hash_hex():
-            client_policy_bundle_ok = False
-            client_policy_bundle_error = "client_policy_bundle_strategy_hash_mismatch"
-            reject = _reject(
-                state=controller_state,
-                reason=client_policy_bundle_error,
-                explain=(
-                    f"strategy_id={strategy.strategy_id}",
-                    f"backend={strategy.policy_backend.value}",
-                    f"chain_id={chain_id}",
-                ),
-            )
-            return finalize_report(
-                decision=reject,
-                signer_pubkey=signer_pubkey,
-                chain_id=chain_id,
-                last_used_nonce_before=last_used_nonce,
-                last_used_nonce_after=last_used_nonce,
-                live_admission_ok=False,
-                live_admission_error=client_policy_bundle_error,
-                wallet_capability=effective_wallet_capability,
-                session_state=effective_session_state,
-            )
-        if effective_client_policy_bundle.owner_pubkey != strategy.owner_pubkey:
-            client_policy_bundle_ok = False
-            client_policy_bundle_error = "client_policy_bundle_owner_pubkey_mismatch"
-            reject = _reject(
-                state=controller_state,
-                reason=client_policy_bundle_error,
-                explain=(
-                    f"strategy_id={strategy.strategy_id}",
-                    f"backend={strategy.policy_backend.value}",
-                    f"chain_id={chain_id}",
-                ),
-            )
-            return finalize_report(
-                decision=reject,
-                signer_pubkey=signer_pubkey,
-                chain_id=chain_id,
-                last_used_nonce_before=last_used_nonce,
-                last_used_nonce_after=last_used_nonce,
-                live_admission_ok=False,
-                live_admission_error=client_policy_bundle_error,
-                wallet_capability=effective_wallet_capability,
-                session_state=effective_session_state,
-            )
-        if effective_client_policy_bundle.signature is None:
-            client_policy_bundle_signature_ok = False
-            client_policy_bundle_ok = False
-            client_policy_bundle_error = "client_policy_bundle_signature_missing"
-            reject = _reject(
-                state=controller_state,
-                reason=client_policy_bundle_error,
-                explain=(
-                    f"strategy_id={strategy.strategy_id}",
-                    f"backend={strategy.policy_backend.value}",
-                    f"chain_id={chain_id}",
-                ),
-            )
-            return finalize_report(
-                decision=reject,
-                signer_pubkey=signer_pubkey,
-                chain_id=chain_id,
-                last_used_nonce_before=last_used_nonce,
-                last_used_nonce_after=last_used_nonce,
-                live_admission_ok=False,
-                live_admission_error=client_policy_bundle_error,
-                wallet_capability=effective_wallet_capability,
-                session_state=effective_session_state,
-            )
-        client_policy_bundle_signature_ok = verify_autotrader_client_policy_bundle_signature(
-            effective_client_policy_bundle
+        identity_error, identity_signature_ok = _check_client_policy_bundle_identity(
+            effective_client_policy_bundle,
+            strategy=strategy,
         )
-        if not client_policy_bundle_signature_ok:
+        if identity_signature_ok is not None:
+            client_policy_bundle_signature_ok = identity_signature_ok
+        if identity_error is not None:
             client_policy_bundle_ok = False
-            client_policy_bundle_error = "client_policy_bundle_signature_invalid"
+            client_policy_bundle_error = identity_error
             reject = _reject(
                 state=controller_state,
                 reason=client_policy_bundle_error,
@@ -1871,71 +2040,14 @@ def prepare_autotrader_live_quote_receipt(
             privkey=signer_privkey,
         )
     if effective_client_policy_bundle is not None:
-        bundle_surface = effective_client_policy_bundle.client_policy_surface
-        if (
-            bundle_surface.source_artifact_hash is not None
-            and bundle_surface.source_artifact_hash != effective_policy_artifact.source_artifact_hash
-        ):
+        artifact_binding_error = _check_client_policy_bundle_artifact_binding(
+            effective_client_policy_bundle,
+            policy_artifact=effective_policy_artifact,
+            tau_policy_bundle=effective_tau_policy_bundle,
+        )
+        if artifact_binding_error is not None:
             client_policy_bundle_ok = False
-            client_policy_bundle_error = "client_policy_bundle_source_artifact_hash_mismatch"
-            reject = _reject(
-                state=controller_state,
-                reason=client_policy_bundle_error,
-                explain=(
-                    f"strategy_id={strategy.strategy_id}",
-                    f"backend={strategy.policy_backend.value}",
-                    f"chain_id={chain_id}",
-                ),
-            )
-            return finalize_report(
-                decision=reject,
-                signer_pubkey=signer_pubkey,
-                chain_id=chain_id,
-                last_used_nonce_before=last_used_nonce,
-                last_used_nonce_after=last_used_nonce,
-                live_admission_ok=False,
-                live_admission_error=client_policy_bundle_error,
-                wallet_capability=effective_wallet_capability,
-                policy_artifact=effective_policy_artifact,
-                tau_policy_bundle=effective_tau_policy_bundle,
-                tau_policy_bundle_ok=True,
-                session_state=effective_session_state,
-            )
-        if (
-            bundle_surface.tau_policy_bundle_hash is not None
-            and bundle_surface.tau_policy_bundle_hash != effective_tau_policy_bundle.tau_policy_bundle_hash_hex()
-        ):
-            client_policy_bundle_ok = False
-            client_policy_bundle_error = "client_policy_bundle_tau_policy_bundle_hash_mismatch"
-            reject = _reject(
-                state=controller_state,
-                reason=client_policy_bundle_error,
-                explain=(
-                    f"strategy_id={strategy.strategy_id}",
-                    f"backend={strategy.policy_backend.value}",
-                    f"chain_id={chain_id}",
-                ),
-            )
-            return finalize_report(
-                decision=reject,
-                signer_pubkey=signer_pubkey,
-                chain_id=chain_id,
-                last_used_nonce_before=last_used_nonce,
-                last_used_nonce_after=last_used_nonce,
-                live_admission_ok=False,
-                live_admission_error=client_policy_bundle_error,
-                wallet_capability=effective_wallet_capability,
-                policy_artifact=effective_policy_artifact,
-                tau_policy_bundle=effective_tau_policy_bundle,
-                tau_policy_bundle_ok=True,
-                session_state=effective_session_state,
-            )
-        if (
-            bundle_surface.policy_artifact_hash is not None
-            and bundle_surface.policy_artifact_hash != effective_policy_artifact.policy_artifact_hash_hex()
-        ):
-            client_policy_bundle_ok = False
-            client_policy_bundle_error = "client_policy_bundle_policy_artifact_hash_mismatch"
+            client_policy_bundle_error = artifact_binding_error
             reject = _reject(
                 state=controller_state,
                 reason=client_policy_bundle_error,
@@ -2067,176 +2179,72 @@ def prepare_autotrader_live_quote_receipt(
         AutoTraderExternalSignalSourceRegistryTauReceipt, ...
     ] = ()
     if strategy.policy_backend is PolicyBackend.TAU and resolved_tau_config.enabled:
-        ok, tau_bin, err = autotrader_controller._resolve_tau_bin(resolved_tau_config)
-        if not ok or tau_bin is None:
-            reject = _reject(
-                state=controller_state,
-                reason=f"tau_tool_unavailable:{err}",
-                explain=(
-                    f"strategy_id={strategy.strategy_id}",
-                    f"backend={strategy.policy_backend.value}",
-                    f"chain_id={chain_id}",
-                ),
-            )
-            return finalize_report(
-                decision=reject,
-                signer_pubkey=signer_pubkey,
-                chain_id=chain_id,
-                last_used_nonce_before=last_used_nonce,
-                last_used_nonce_after=last_used_nonce,
-                wallet_capability=effective_wallet_capability,
-                session_state=effective_session_state,
-                observation_packet=observation_packet,
-                observation_packet_error=observation_packet_error,
-                signal_source_registry=signal_source_registry,
-                source_registry_ok=source_registry_ok,
-                external_signals=tuple(external_signals),
-            )
-        external_signal_source_registry_tau_receipts = (
-            _build_external_signal_source_registry_tau_receipts(
-                strategy=strategy,
-                external_signals=tuple(external_signals),
-                signal_source_registry=signal_source_registry,
-            )
-        )
-        for registry_receipt in external_signal_source_registry_tau_receipts:
-            tau_error = _verify_external_signal_source_registry_tau_receipt(
-                tau_bin=tau_bin,
-                config=resolved_tau_config,
-                receipt=registry_receipt,
-            )
-            if tau_error is not None:
-                reject = _reject(
-                    state=controller_state,
-                    reason=tau_error,
-                    explain=(
-                        f"strategy_id={strategy.strategy_id}",
-                        f"backend={strategy.policy_backend.value}",
-                        f"chain_id={chain_id}",
-                    ),
-                )
-                return finalize_report(
-                    decision=reject,
-                    signer_pubkey=signer_pubkey,
-                    chain_id=chain_id,
-                    last_used_nonce_before=last_used_nonce,
-                    last_used_nonce_after=last_used_nonce,
-                    live_admission_ok=False,
-                    live_admission_error=tau_error,
-                    wallet_capability=effective_wallet_capability,
-                    session_state=effective_session_state,
-                    observation_packet=observation_packet,
-                    observation_packet_error=observation_packet_error,
-                    signal_source_registry=signal_source_registry,
-                    source_registry_ok=source_registry_ok,
-                    external_signals=tuple(external_signals),
-                    external_signal_source_registry_tau_receipts=external_signal_source_registry_tau_receipts,
-                )
-        session_capability_tau_receipt = build_session_capability_binding_guard_tau_policy_receipt(
+        tau_precheck = _run_tau_policy_backend_precheck(
             strategy=strategy,
-            capability=effective_wallet_capability,
+            controller_state=controller_state,
+            resolved_tau_config=resolved_tau_config,
             chain_id=chain_id,
-        )
-        tau_error = autotrader_controller._verify_tau_policy_receipt(
-            tau_bin=tau_bin,
-            config=resolved_tau_config,
-            receipt=session_capability_tau_receipt,
-        )
-        if tau_error is not None:
-            reject = _reject(
-                state=controller_state,
-                reason=tau_error,
-                explain=(
-                    f"strategy_id={strategy.strategy_id}",
-                    f"backend={strategy.policy_backend.value}",
-                    f"chain_id={chain_id}",
-                ),
-                tau_policy_receipt=session_capability_tau_receipt,
-            )
-            return finalize_report(
-                decision=reject,
-                signer_pubkey=signer_pubkey,
-                chain_id=chain_id,
-                last_used_nonce_before=last_used_nonce,
-                last_used_nonce_after=last_used_nonce,
-                live_admission_ok=False,
-                live_admission_error=tau_error,
-                wallet_capability=effective_wallet_capability,
-                session_state=effective_session_state,
-                observation_packet=observation_packet,
-                observation_packet_error=observation_packet_error,
-                signal_source_registry=signal_source_registry,
-                source_registry_ok=source_registry_ok,
-                external_signals=tuple(external_signals),
-                session_capability_tau_receipt=session_capability_tau_receipt,
-            )
-        session_state_tau_receipt = build_session_state_guard_tau_policy_receipt(
-            strategy=strategy,
-            session_state=effective_session_state,
-            capability=effective_wallet_capability,
-            chain_id=chain_id,
-            current_epoch=current_epoch,
-        )
-        tau_error = autotrader_controller._verify_tau_policy_receipt(
-            tau_bin=tau_bin,
-            config=resolved_tau_config,
-            receipt=session_state_tau_receipt,
-        )
-        if tau_error is not None:
-            reject = _reject(
-                state=controller_state,
-                reason=tau_error,
-                explain=(
-                    f"strategy_id={strategy.strategy_id}",
-                    f"backend={strategy.policy_backend.value}",
-                    f"chain_id={chain_id}",
-                ),
-                tau_policy_receipt=session_state_tau_receipt,
-            )
-            return finalize_report(
-                decision=reject,
-                signer_pubkey=signer_pubkey,
-                chain_id=chain_id,
-                last_used_nonce_before=last_used_nonce,
-                last_used_nonce_after=last_used_nonce,
-                live_admission_ok=False,
-                live_admission_error=tau_error,
-                wallet_capability=effective_wallet_capability,
-                session_state=effective_session_state,
-                observation_packet=observation_packet,
-                observation_packet_error=observation_packet_error,
-                signal_source_registry=signal_source_registry,
-                source_registry_ok=source_registry_ok,
-                external_signals=tuple(external_signals),
-                session_state_tau_receipt=session_state_tau_receipt,
-                session_capability_tau_receipt=session_capability_tau_receipt,
-            )
-        wallet_capability_tau_receipt = build_wallet_capability_guard_tau_policy_receipt(
-            strategy=strategy,
-            capability=effective_wallet_capability,
             signer_pubkey=signer_pubkey,
-            chain_id=chain_id,
+            last_used_nonce=last_used_nonce,
+            effective_wallet_capability=effective_wallet_capability,
+            effective_session_state=effective_session_state,
+            observation_packet=observation_packet,
+            observation_packet_error=observation_packet_error,
+            signal_source_registry=signal_source_registry,
+            source_registry_ok=source_registry_ok,
+            external_signals=tuple(external_signals),
             current_epoch=current_epoch,
             asset_in=asset_in,
             asset_out=asset_out,
-            order_amount=fixed_order_size,
-            action=StrategyAction.PLACE_SWAP_EXACT_IN,
+            fixed_order_size=fixed_order_size,
         )
-        tau_error = autotrader_controller._verify_tau_policy_receipt(
-            tau_bin=tau_bin,
-            config=resolved_tau_config,
-            receipt=wallet_capability_tau_receipt,
+        session_capability_tau_receipt = tau_precheck.session_capability_tau_receipt
+        session_state_tau_receipt = tau_precheck.session_state_tau_receipt
+        wallet_capability_tau_receipt = tau_precheck.wallet_capability_tau_receipt
+        external_signal_source_registry_tau_receipts = (
+            tau_precheck.external_signal_source_registry_tau_receipts
         )
-        if tau_error is not None:
+        if tau_precheck.reject_finalize_kwargs is not None:
+            return finalize_report(**tau_precheck.reject_finalize_kwargs)
+    # Sequential capability-result gates. Identical reject payload across all
+    # three; only the error string, the gate-specific explain suffix and the
+    # carried tau policy receipt vary. Tuple order is the reject-precedence
+    # contract (session_state -> session_capability -> wallet_capability).
+    _capability_result_gates: tuple[
+        tuple[object, tuple[str, ...], TauPolicyReceipt | None], ...
+    ] = (
+        (
+            session_state_result,
+            (f"session_id={effective_session_state.session_id}",),
+            session_state_tau_receipt,
+        ),
+        (
+            session_capability_result,
+            (f"session_id={effective_wallet_capability.session_id}",),
+            session_capability_tau_receipt,
+        ),
+        (
+            wallet_capability_result,
+            (
+                f"asset_pair={asset_in}/{asset_out}",
+                f"order_amount={fixed_order_size}",
+            ),
+            wallet_capability_tau_receipt,
+        ),
+    )
+    for capability_result, explain_suffix, capability_tau_receipt in _capability_result_gates:
+        if not capability_result.ok:
+            capability_error = str(capability_result.error)
             reject = _reject(
                 state=controller_state,
-                reason=tau_error,
+                reason=capability_error,
                 explain=(
                     f"strategy_id={strategy.strategy_id}",
                     f"backend={strategy.policy_backend.value}",
                     f"chain_id={chain_id}",
-                ),
-                tau_policy_receipt=wallet_capability_tau_receipt,
+                )
+                + explain_suffix,
+                tau_policy_receipt=capability_tau_receipt,
             )
             return finalize_report(
                 decision=reject,
@@ -2245,7 +2253,7 @@ def prepare_autotrader_live_quote_receipt(
                 last_used_nonce_before=last_used_nonce,
                 last_used_nonce_after=last_used_nonce,
                 live_admission_ok=False,
-                live_admission_error=tau_error,
+                live_admission_error=capability_error,
                 wallet_capability=effective_wallet_capability,
                 session_state=effective_session_state,
                 observation_packet=observation_packet,
@@ -2257,100 +2265,6 @@ def prepare_autotrader_live_quote_receipt(
                 session_capability_tau_receipt=session_capability_tau_receipt,
                 wallet_capability_tau_receipt=wallet_capability_tau_receipt,
             )
-    if not session_state_result.ok:
-        reject = _reject(
-            state=controller_state,
-            reason=str(session_state_result.error),
-            explain=(
-                f"strategy_id={strategy.strategy_id}",
-                f"backend={strategy.policy_backend.value}",
-                f"chain_id={chain_id}",
-                f"session_id={effective_session_state.session_id}",
-            ),
-            tau_policy_receipt=session_state_tau_receipt,
-        )
-        return finalize_report(
-            decision=reject,
-            signer_pubkey=signer_pubkey,
-            chain_id=chain_id,
-            last_used_nonce_before=last_used_nonce,
-            last_used_nonce_after=last_used_nonce,
-            live_admission_ok=False,
-            live_admission_error=str(session_state_result.error),
-            wallet_capability=effective_wallet_capability,
-            session_state=effective_session_state,
-            observation_packet=observation_packet,
-            observation_packet_error=observation_packet_error,
-            signal_source_registry=signal_source_registry,
-            source_registry_ok=source_registry_ok,
-            external_signals=tuple(external_signals),
-            session_state_tau_receipt=session_state_tau_receipt,
-            session_capability_tau_receipt=session_capability_tau_receipt,
-            wallet_capability_tau_receipt=wallet_capability_tau_receipt,
-        )
-    if not session_capability_result.ok:
-        reject = _reject(
-            state=controller_state,
-            reason=str(session_capability_result.error),
-            explain=(
-                f"strategy_id={strategy.strategy_id}",
-                f"backend={strategy.policy_backend.value}",
-                f"chain_id={chain_id}",
-                f"session_id={effective_wallet_capability.session_id}",
-            ),
-            tau_policy_receipt=session_capability_tau_receipt,
-        )
-        return finalize_report(
-            decision=reject,
-            signer_pubkey=signer_pubkey,
-            chain_id=chain_id,
-            last_used_nonce_before=last_used_nonce,
-            last_used_nonce_after=last_used_nonce,
-            live_admission_ok=False,
-            live_admission_error=str(session_capability_result.error),
-            wallet_capability=effective_wallet_capability,
-            session_state=effective_session_state,
-            observation_packet=observation_packet,
-            observation_packet_error=observation_packet_error,
-            signal_source_registry=signal_source_registry,
-            source_registry_ok=source_registry_ok,
-            external_signals=tuple(external_signals),
-            session_state_tau_receipt=session_state_tau_receipt,
-            session_capability_tau_receipt=session_capability_tau_receipt,
-            wallet_capability_tau_receipt=wallet_capability_tau_receipt,
-        )
-    if not wallet_capability_result.ok:
-        reject = _reject(
-            state=controller_state,
-            reason=str(wallet_capability_result.error),
-            explain=(
-                f"strategy_id={strategy.strategy_id}",
-                f"backend={strategy.policy_backend.value}",
-                f"chain_id={chain_id}",
-                f"asset_pair={asset_in}/{asset_out}",
-                f"order_amount={fixed_order_size}",
-            ),
-            tau_policy_receipt=wallet_capability_tau_receipt,
-        )
-        return finalize_report(
-            decision=reject,
-            signer_pubkey=signer_pubkey,
-            chain_id=chain_id,
-            last_used_nonce_before=last_used_nonce,
-            last_used_nonce_after=last_used_nonce,
-            live_admission_ok=False,
-            live_admission_error=str(wallet_capability_result.error),
-            wallet_capability=effective_wallet_capability,
-            session_state=effective_session_state,
-            observation_packet=observation_packet,
-            observation_packet_error=observation_packet_error,
-            signal_source_registry=signal_source_registry,
-            source_registry_ok=source_registry_ok,
-            external_signals=tuple(external_signals),
-            session_state_tau_receipt=session_state_tau_receipt,
-            session_capability_tau_receipt=session_capability_tau_receipt,
-            wallet_capability_tau_receipt=wallet_capability_tau_receipt,
-        )
     krr_source_form = "compiled_strategy_ir"
     krr_source_preset_id: str | None = None
     if (

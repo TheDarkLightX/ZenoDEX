@@ -1,0 +1,222 @@
+{
+  "dup_import": [
+    "verify",
+    false,
+    "duplicate_import"
+  ],
+  "dup_output": [
+    "verify",
+    false,
+    "duplicate_output"
+  ],
+  "dup_source_bound": [
+    "verify",
+    false,
+    "duplicate_source_bound"
+  ],
+  "dup_source_interface_name": [
+    "verify",
+    false,
+    "duplicate_source_interface_name"
+  ],
+  "dup_term_field": [
+    "verify",
+    false,
+    "duplicate_term_field"
+  ],
+  "dup_witness": [
+    "verify",
+    false,
+    "duplicate_witness"
+  ],
+  "empty_outputs_indexerror": [
+    "verify_raise",
+    "IndexError",
+    "tuple index out of range"
+  ],
+  "expression_invalid": [
+    "verify",
+    false,
+    "expression_invalid:exact_param expression requires non-empty name"
+  ],
+  "expression_unit_invalid": [
+    "verify",
+    false,
+    "expression_unit_invalid:add requires matching units, got Index and Amount[zUSD]"
+  ],
+  "expression_unit_mismatch": [
+    "verify",
+    false,
+    "expression_unit_mismatch:expected_Amount[zUSD]:got_Index"
+  ],
+  "import_output_unit_mismatch": [
+    "verify",
+    false,
+    "import_output_unit_mismatch:burn_final:burn_index_v1:burn_final"
+  ],
+  "import_unit_invalid": [
+    "verify",
+    false,
+    "import_unit_invalid:burn_final:unsupported FIRE unit syntax: Bogus["
+  ],
+  "import_unit_mismatch": [
+    "verify",
+    false,
+    "import_unit_mismatch:burn_final:rate_idx"
+  ],
+  "not_a_spec_type": [
+    "verify_raise",
+    "TypeError",
+    "spec_file must be a FireMathObjectSpecFile"
+  ],
+  "order_dup_output_before_global_expr": [
+    "verify",
+    false,
+    "duplicate_output"
+  ],
+  "order_dup_term_before_dup_source": [
+    "verify",
+    false,
+    "duplicate_term_field"
+  ],
+  "order_import_unknown_upper_before_mismatch_lower": [
+    "verify",
+    false,
+    "unknown_term_ref_in_import:burn_final:ghost"
+  ],
+  "order_source_before_import": [
+    "verify",
+    false,
+    "source_bound_unit_mismatch:src_final:rate_idx"
+  ],
+  "order_source_unknown_upper_before_mismatch_lower": [
+    "verify",
+    false,
+    "unknown_term_ref_in_source_bound:src_final:ghost"
+  ],
+  "order_witness_before_dup_output": [
+    "verify",
+    false,
+    "witness_unit_mismatch:SrcCertificate[zUSD]:rate_idx"
+  ],
+  "order_witness_unknown_upper_before_mismatch_lower": [
+    "verify",
+    false,
+    "unknown_term_ref_in_witness:SrcCertificate[zUSD]:ghost"
+  ],
+  "output_expression_invalid": [
+    "verify",
+    false,
+    "output_expression_invalid:secondary:exact_param expression requires non-empty name"
+  ],
+  "output_expression_unit_invalid": [
+    "verify",
+    false,
+    "output_expression_unit_invalid:secondary:add requires matching units, got Index and Amount[zUSD]"
+  ],
+  "output_expression_unit_mismatch": [
+    "verify",
+    false,
+    "output_expression_unit_mismatch:secondary:expected_Amount[zUSD]:got_Index"
+  ],
+  "output_unit_invalid": [
+    "verify",
+    false,
+    "output_unit_invalid:secondary:unsupported FIRE unit syntax: Bogus["
+  ],
+  "source_bound_unit_invalid": [
+    "verify",
+    false,
+    "source_bound_unit_invalid:src_final:unsupported FIRE unit syntax: Bogus["
+  ],
+  "source_bound_unit_mismatch": [
+    "verify",
+    false,
+    "source_bound_unit_mismatch:src_final:rate_idx"
+  ],
+  "term_field_bounds_invalid_boundary": [
+    "parse_raise",
+    "ValueError",
+    "term field n_notional has inverted bounds"
+  ],
+  "term_field_unit_invalid": [
+    "verify",
+    false,
+    "term_field_unit_invalid:rate_idx:unsupported FIRE unit syntax: Bogus["
+  ],
+  "unknown_exact_params": [
+    "verify",
+    false,
+    "unknown_exact_params:ghost"
+  ],
+  "unknown_import_interface": [
+    "verify",
+    false,
+    "unknown_import_interface:missing_index_v1"
+  ],
+  "unknown_import_output": [
+    "verify",
+    false,
+    "unknown_import_output:burn_index_v1:no_such_output"
+  ],
+  "unknown_output_exact_params": [
+    "verify",
+    false,
+    "unknown_output_exact_params:secondary:ghost"
+  ],
+  "unknown_output_source_bounds": [
+    "verify",
+    false,
+    "unknown_output_source_bounds:secondary:ghost"
+  ],
+  "unknown_source_bounds": [
+    "verify",
+    false,
+    "unknown_source_bounds:ghost"
+  ],
+  "unknown_term_ref_in_import_lower": [
+    "verify",
+    false,
+    "unknown_term_ref_in_import:burn_final:ghost"
+  ],
+  "unknown_term_ref_in_import_upper": [
+    "verify",
+    false,
+    "unknown_term_ref_in_import:burn_final:ghost"
+  ],
+  "unknown_term_ref_in_source_bound_lower": [
+    "verify",
+    false,
+    "unknown_term_ref_in_source_bound:src_final:ghost"
+  ],
+  "unknown_term_ref_in_source_bound_upper": [
+    "verify",
+    false,
+    "unknown_term_ref_in_source_bound:src_final:ghost"
+  ],
+  "unknown_term_ref_in_witness_lower": [
+    "verify",
+    false,
+    "unknown_term_ref_in_witness:SrcCertificate[zUSD]:ghost"
+  ],
+  "unknown_term_ref_in_witness_upper": [
+    "verify",
+    false,
+    "unknown_term_ref_in_witness:SrcCertificate[zUSD]:ghost"
+  ],
+  "valid_baseline": [
+    "verify",
+    true,
+    null
+  ],
+  "witness_unit_invalid": [
+    "verify",
+    false,
+    "witness_unit_invalid:SrcCertificate[zUSD]:unsupported FIRE unit syntax: Bogus["
+  ],
+  "witness_unit_mismatch": [
+    "verify",
+    false,
+    "witness_unit_mismatch:SrcCertificate[zUSD]:rate_idx"
+  ]
+}

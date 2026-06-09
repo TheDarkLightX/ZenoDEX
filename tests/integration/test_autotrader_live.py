@@ -2596,3 +2596,800 @@ def test_prepare_autotrader_live_rejects_controller_guard_bundle_gap(monkeypatch
     assert report.live_admission_ok is False
     assert report.live_admission_error is not None
     assert report.live_admission_error.startswith("observation_packet_build_failed:TypeError:")
+
+
+# ---------------------------------------------------------------------------
+# Golden characterization tests for ``prepare_autotrader_live_quote_receipt``.
+#
+# These pin the *entire receipt output* (the function's return value, including
+# every proof/verifier metadata field, rounding, ordering and nested receipt) by
+# hashing a deterministic serialization of ``dataclasses.asdict(report)``. The
+# golden SHA-256 constants were captured against the UNMODIFIED source. Any
+# behavioral drift in receipt construction flips a hash and fails the test.
+#
+# Live IO is stubbed at a thin, deterministic boundary by running with
+# ``tau_config`` left at ``None`` (Tau binary disabled => no subprocess/network)
+# while BLS signing is deterministic for fixed integer private keys. The submit
+# path therefore exercises real signing without any external dependency.
+#
+# TEETH: a mutation to the receipt-construction path (e.g. adding/removing a
+# field on the returned report, changing an error string, changing nonce
+# accounting, or reordering kwargs that change a value) changes the serialized
+# asdict and flips the corresponding golden hash below.
+# ---------------------------------------------------------------------------
+import dataclasses as _dc_golden
+import hashlib as _hashlib_golden
+import pprint as _pprint_golden
+
+
+def _autotrader_live_receipt_fingerprint(report: object) -> str:
+    """Deterministic byte-identical fingerprint of a full live report.
+
+    ``pprint.pformat`` with ``sort_dicts=True`` renders nested dataclasses
+    (via ``asdict``) and enums in a stable, reproducible order. Hashing the
+    rendered text gives a compact golden that is sensitive to every field of
+    the returned receipt.
+    """
+
+    serialized = _pprint_golden.pformat(
+        _dc_golden.asdict(report), width=140, sort_dicts=True
+    )
+    return _hashlib_golden.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def test_golden_prepare_autotrader_live_submit_receipt_is_byte_identical() -> None:
+    privkey = 7
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+        krr_backend="python",
+        tx_sequence_number=9,
+        tx_expiration_time=999,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "f4f500d2afe8e7b8060720b2db15dc1281b1194b38eb77aada892ece8f9f4412"
+    )
+
+
+def test_golden_prepare_autotrader_live_uniform_load_error_receipt() -> None:
+    # Pins the homogeneous pre-reassignment load-error gates (the table-driven
+    # block). ``receipt_load_error`` is one of the four identically-shaped gates.
+    privkey = 7
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        receipt_load_error="io_boom",
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "receipt_file_load_rejected"
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "8c134959fedc849ad2a5cbd066f594b5d60a208073baeb9c4bd0311ada3424a5"
+    )
+
+
+def test_golden_prepare_autotrader_live_bespoke_load_error_receipt() -> None:
+    # Pins a post-reassignment load-error gate carrying bespoke kwargs
+    # (signal_source_registry / source_registry_ok / external_signals). This
+    # gate reads the *rebuilt* effective wallet/session defaults, so it is
+    # deliberately NOT folded into the uniform table.
+    privkey = 7
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+        signal_source_registry_load_error="reg_boom",
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "signal_source_registry_load_rejected"
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "19e4f91fed85f6958644331567812c6ca86a265eea0c815febb0e63551609cd3"
+    )
+
+
+def test_golden_prepare_autotrader_live_client_policy_bundle_mismatch_receipt() -> None:
+    # Pins the client-policy-bundle binding path, including the closure-captured
+    # client_policy_bundle_ok/error flags propagated onto the receipt.
+    privkey = 807
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    mismatched_strategy = _compiled_strategy(owner_pubkey=owner_pubkey, fixed_order_size=101)
+    pools, receipt = _single_hop_receipt()
+    client_policy_bundle = _client_policy_bundle(mismatched_strategy, privkey=privkey)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        client_policy_bundle=client_policy_bundle,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "client_policy_bundle_strategy_hash_mismatch"
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "e0b9cc72d1c46a869586fbc38ae1c3f9c148bb201773542f32a11e6e76d33991"
+    )
+
+
+def test_golden_prepare_autotrader_live_skip_receipt_is_byte_identical() -> None:
+    # Pins the SKIP (no-op) path: full presentation/actionability shaping but
+    # no signing.
+    privkey = 11
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt(quote_epoch=1)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=3,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SKIP
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "0e9c0c98b7a87bb24af31ab3f7d950c6e722c30dd8f23341ad0ae90e5e02905a"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Architectural import-boundary invariant.
+#
+# Advisory/live code (the ``autotrader_*`` family, including this module's
+# ``autotrader_live``) must remain OUTSIDE verifier/authority. Settlement and
+# proof-verification modules form the consensus-critical authority surface;
+# they must NOT import advisory/live modules, even transitively. A violation
+# would let advisory presentation logic creep into the authority path.
+#
+# This uses pure static AST analysis (no in-process ``sys.modules`` state,
+# which is polluted by the surrounding test suite) and follows first-party
+# ``src.*`` imports transitively.
+#
+# TEETH: if any authority/verifier module gains an ``import`` of an
+# ``autotrader_*`` module (directly or anywhere in its first-party transitive
+# closure), the offending mapping becomes non-empty and this test fails.
+# ---------------------------------------------------------------------------
+def test_verifier_authority_modules_do_not_import_advisory_live() -> None:
+    import ast
+    import pathlib
+
+    repo_root = pathlib.Path(__file__).resolve().parents[2]
+
+    def _module_path(module_name: str) -> pathlib.Path | None:
+        candidate = repo_root / (module_name.replace(".", "/") + ".py")
+        if candidate.exists():
+            return candidate
+        pkg_init = repo_root / module_name.replace(".", "/") / "__init__.py"
+        if pkg_init.exists():
+            return pkg_init
+        return None
+
+    def _first_party_imports(path: pathlib.Path) -> set[str]:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        names: set[str] = set()
+
+        def _add_module_and_children(resolved: str, node: ast.ImportFrom) -> None:
+            # Record the parent module itself...
+            names.add(resolved)
+            # ...and, crucially, the alias-child form
+            # ``from <pkg> import <child>`` (e.g.
+            # ``from src.integration import autotrader_live``), which imports a
+            # *submodule* by name. ``<resolved>.<child>`` is synthesised so the
+            # transitive BFS can resolve and inspect that submodule. Non-module
+            # names (e.g. ``from src.core.settlement import a_function``) simply
+            # fail to resolve to a file later and are harmlessly ignored.
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                names.add(f"{resolved}.{alias.name}")
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names.update(
+                    alias.name for alias in node.names if alias.name.startswith("src.")
+                )
+            elif isinstance(node, ast.ImportFrom):
+                if node.level and node.level > 0:
+                    # Resolve a relative import to its absolute src.* form.
+                    base_parts = path.relative_to(repo_root).with_suffix("").parts
+                    anchor = list(base_parts[:-1])  # drop the module filename
+                    for _ in range(node.level - 1):
+                        if anchor:
+                            anchor.pop()
+                    suffix = node.module.split(".") if node.module else []
+                    resolved = ".".join(anchor + suffix)
+                    if resolved.startswith("src."):
+                        _add_module_and_children(resolved, node)
+                elif node.module and node.module.startswith("src."):
+                    _add_module_and_children(node.module, node)
+        return names
+
+    authority_roots = (
+        "src.core.settlement",
+        "src.core.settlement_strong_validator",
+        "src.core.settlement_normal_form",
+        "src.core.settlement_admission",
+        "src.integration.proof_verifier",
+    )
+
+    offending: dict[str, str] = {}
+    for root in authority_roots:
+        # Transitive BFS over first-party imports.
+        seen: set[str] = set()
+        frontier = [root]
+        while frontier:
+            current = frontier.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            if "autotrader" in current:
+                offending[root] = current
+                break
+            path = _module_path(current)
+            if path is None:
+                continue
+            for imported in _first_party_imports(path):
+                if imported not in seen:
+                    frontier.append(imported)
+
+    assert not offending, (
+        "authority/verifier modules must not import advisory/live "
+        f"(autotrader_*) modules (transitively); found: {offending}"
+    )
+
+    # Synthetic-detection proof (TEETH): a verifier module that pulls in an
+    # advisory module via the *alias-child* form
+    # ``from src.integration import autotrader_live`` (parent package imported,
+    # then ``autotrader_live.<attr>`` used) must be detected. Without the
+    # alias-child handling above this slips past, because ``node.module`` is the
+    # innocuous parent ``src.integration``. We run the real extractor against a
+    # synthetic source and assert the advisory submodule is surfaced and would
+    # be flagged by the same ``"autotrader" in <name>`` BFS check.
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as synthetic_dir:
+        synthetic_module = pathlib.Path(synthetic_dir) / "fake_verifier.py"
+        synthetic_module.write_text(
+            "from src.integration import autotrader_live\n"
+            "import src.core.settlement\n",
+            encoding="utf-8",
+        )
+        synthetic_imports = _first_party_imports(synthetic_module)
+
+    # The alias-child advisory submodule is now surfaced by the extractor...
+    assert "src.integration.autotrader_live" in synthetic_imports, (
+        "import-boundary guard regressed: alias-child form "
+        "'from src.integration import autotrader_live' is no longer detected"
+    )
+    # ...and the BFS flag predicate ('autotrader' substring) would reject it.
+    synthetic_offenders = sorted(
+        name for name in synthetic_imports if "autotrader" in name
+    )
+    assert synthetic_offenders == ["src.integration.autotrader_live"], (
+        "expected exactly the advisory submodule to be flagged, "
+        f"got {synthetic_offenders}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Golden characterization tests for the Tau-verification surface of
+# ``prepare_autotrader_live_quote_receipt`` (the riskiest, highest-complexity
+# region). The Tau binary is stubbed at the same thin boundary the existing
+# ``*_tau_mismatch`` tests use: ``_resolve_tau_bin`` returns a canned
+# ``(True, sys.executable, None)`` and the per-receipt verifiers are replaced
+# with deterministic stubs, so NO subprocess is launched.
+#
+# These goldens pin the full receipt for each Tau reject/success path through
+# the first Tau block (PolicyBackend.TAU pre-checks) — in particular they lock
+# the deliberately-asymmetric propagation of
+# ``external_signal_source_registry_tau_receipts`` (carried on the registry-loop
+# reject, dropped on the session/wallet capability mismatch rejects). The
+# constants were captured against the source with the first Tau block UNMODIFIED.
+# ---------------------------------------------------------------------------
+def _tau_config_for_golden() -> AutoTraderTauConfig:
+    return AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False)
+
+
+def _verified_external_signal_and_registry() -> tuple[
+    ExternalSignalObservation, ExternalSignalSourceRegistry
+]:
+    signal = ExternalSignalObservation(
+        signal_id="sig.oracle.1",
+        source_id="oracle.alpha",
+        source_kind=SignalSourceKind.ATTESTED_EXTERNAL,
+        trust_tier=SignalTrustTier.VERIFIED,
+        freshness_ok=True,
+        auth_ok=True,
+        advisory_only=False,
+    )
+    registry = ExternalSignalSourceRegistry(
+        entries=(
+            ExternalSignalSourceRegistryEntry(
+                source_id="oracle.alpha",
+                source_kind=SignalSourceKind.ATTESTED_EXTERNAL,
+                allowed_trust_tiers=(SignalTrustTier.ATTESTED, SignalTrustTier.VERIFIED),
+                require_auth=True,
+                require_freshness=True,
+            ),
+        )
+    )
+    return signal, registry
+
+
+def test_golden_tau_tool_unavailable_receipt(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 401
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey, backend="tau")
+    pools, receipt = _single_hop_receipt()
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (False, None, "no_tau"),
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=_tau_config_for_golden(),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "tau_tool_unavailable:no_tau"
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "de8492356cd1f75ca1b397b49faaacb33c30e92dfa837e5790c902ef2c9f7043"
+    )
+
+
+def test_golden_tau_session_capability_mismatch_receipt(monkeypatch: pytest.MonkeyPatch) -> None:
+    # First sequential verify fails. Registry receipts are NOT carried onto this
+    # reject (the pinned asymmetry).
+    privkey = 183
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey, backend="tau")
+    pools, receipt = _single_hop_receipt()
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_verify_tau_policy_receipt",
+        lambda **kwargs: "tau_policy_mismatch:local=1,tau=0,expected=1",
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=_tau_config_for_golden(),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.external_signal_source_registry_tau_receipts == ()
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "0bbae1824d5f7417e9c1e4c5a0770efc3fac44123e1f60b50d642344a69e94a7"
+    )
+
+
+def test_golden_tau_session_capability_mismatch_drops_registry_receipts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Same session-capability mismatch but WITH a verified external signal +
+    # registry, so the registry receipts are actually built (non-empty). The
+    # current behavior DROPS them from this reject; this golden pins that exact
+    # asymmetry. (A regression that propagates the receipts onto this reject —
+    # the natural mistake when refactoring — flips this hash.)
+    privkey = 187
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey, backend="tau")
+    pools, receipt = _single_hop_receipt()
+    signal, registry = _verified_external_signal_and_registry()
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(
+        autotrader_live,
+        "_verify_external_signal_source_registry_tau_receipt",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_verify_tau_policy_receipt",
+        lambda **kwargs: "tau_policy_mismatch:local=1,tau=0,expected=1",
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        external_signals=(signal,),
+        signal_source_registry=registry,
+        tau_config=_tau_config_for_golden(),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    # Registry receipts were built (the registry-loop ran and passed) but are
+    # deliberately NOT carried onto this capability-mismatch reject.
+    assert report.external_signal_source_registry_tau_receipts == ()
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "3c8363755886e7ecc090731e0105293f5110363a7396711a761382fcb96ae861"
+    )
+
+
+def test_golden_tau_session_state_mismatch_receipt(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Second sequential verify fails (session_capability passes, session_state fails).
+    privkey = 283
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey, backend="tau")
+    pools, receipt = _single_hop_receipt()
+    verify_calls = {"count": 0}
+
+    def _verify(**kwargs: object) -> str | None:
+        verify_calls["count"] += 1
+        if verify_calls["count"] == 2:
+            return "tau_policy_mismatch:local=1,tau=0,expected=1"
+        return None
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_verify_tau_policy_receipt",
+        _verify,
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=_tau_config_for_golden(),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert verify_calls["count"] == 2
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "7d88e948dab78fdf25ca8341780a9dfcc88c5e65692da5b05a4aeb909fc5dadb"
+    )
+
+
+def test_golden_tau_wallet_capability_mismatch_receipt(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Third sequential verify fails (session_capability + session_state pass).
+    privkey = 184
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey, backend="tau")
+    pools, receipt = _single_hop_receipt()
+    verify_calls = {"count": 0}
+
+    def _verify(**kwargs: object) -> str | None:
+        verify_calls["count"] += 1
+        if verify_calls["count"] == 3:
+            return "tau_policy_mismatch:local=1,tau=0,expected=1"
+        return None
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_verify_tau_policy_receipt",
+        _verify,
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=_tau_config_for_golden(),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.wallet_capability_tau_receipt is not None
+    assert verify_calls["count"] == 3
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "082fd6af76558cfcd80ee925ea3ff1d38329e8682001f56b85094df395a37c02"
+    )
+
+
+def test_golden_tau_registry_receipt_mismatch_receipt(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Registry-loop verify fails. Registry receipts ARE carried onto this reject
+    # (the other side of the pinned asymmetry).
+    privkey = 586
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey, backend="tau")
+    pools, receipt = _single_hop_receipt()
+    signal, registry = _verified_external_signal_and_registry()
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(
+        autotrader_live,
+        "_verify_external_signal_source_registry_tau_receipt",
+        lambda **kwargs: "registry_tau_mismatch:x",
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        external_signals=(signal,),
+        signal_source_registry=registry,
+        tau_config=_tau_config_for_golden(),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "registry_tau_mismatch:x"
+    assert len(report.external_signal_source_registry_tau_receipts) == 1
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "241eb09dd6a9922f9a8bf4958befc7bed253d1fa232d95a128afd26bb8f282c8"
+    )
+
+
+def test_golden_tau_full_success_receipt(monkeypatch: pytest.MonkeyPatch) -> None:
+    # All Tau verifiers pass: exercises the success path through the first Tau
+    # block and the entire downstream Tau pipeline.
+    privkey = 286
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey, backend="tau")
+    pools, receipt = _single_hop_receipt()
+    signal, registry = _verified_external_signal_and_registry()
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_verify_tau_policy_receipt",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        autotrader_live,
+        "_verify_external_signal_source_registry_tau_receipt",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(autotrader_live, "_verify_nonce_tau_receipt", lambda **kwargs: None)
+    monkeypatch.setattr(autotrader_live, "_verify_boolean_tau_receipt", lambda **kwargs: None)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        external_signals=(signal,),
+        signal_source_registry=registry,
+        tau_config=_tau_config_for_golden(),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert len(report.external_signal_source_registry_tau_receipts) == 1
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "d26bae724e220762787a72aeeb9fda75d4256b2976919013b58b1da8d4d395bb"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Golden characterization tests for the three capability-result rejection gates
+# (session_state / session_capability / wallet_capability). These are the
+# sequential ``if not <X>_result.ok`` gates that follow the Tau pre-check; they
+# share an identical ``finalize_report`` payload and differ only in error
+# string, the gate-specific ``explain`` suffix and the carried tau receipt.
+# Pinning all three lets them be table-driven safely.
+# ---------------------------------------------------------------------------
+def test_golden_wallet_capability_result_reject_receipt() -> None:
+    privkey = 81
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    wallet_capability = AutoTraderWalletCapability(
+        session_id="session.low",
+        owner_pubkey=owner_pubkey,
+        chain_id="tau-net-alpha",
+        valid_from_epoch=1,
+        valid_until_epoch=100,
+        notional_remaining=50,
+        allowed_assets=("A", "B"),
+        allowed_actions=(autotrader_live.StrategyAction.PLACE_SWAP_EXACT_IN,),
+        enabled=True,
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        wallet_capability=wallet_capability,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "wallet_capability_notional_exceeded:100>50"
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "e7727ebc98bf110cdcd9425c411c611448f9b41136ea618f4e88357d3a506b2b"
+    )
+
+
+def test_golden_session_capability_result_reject_receipt() -> None:
+    privkey = 181
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    wallet_capability = AutoTraderWalletCapability(
+        session_id="session.wide",
+        owner_pubkey=owner_pubkey,
+        chain_id="tau-net-alpha",
+        valid_from_epoch=1,
+        valid_until_epoch=100,
+        notional_remaining=500,
+        allowed_assets=("A", "B", "C"),
+        allowed_actions=(autotrader_live.StrategyAction.PLACE_SWAP_EXACT_IN,),
+        enabled=True,
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        wallet_capability=wallet_capability,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "session_capability_asset_scope_exceeds_strategy"
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "403e2f6d86e2aa62d87fd16555fcfdc0606e26621e3873b8766f09c402f121a2"
+    )
+
+
+def test_golden_session_state_result_reject_receipt() -> None:
+    privkey = 281
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    session_state = AutoTraderSessionState(
+        session_id="session.revoked",
+        owner_pubkey=owner_pubkey,
+        chain_id="tau-net-alpha",
+        enabled=True,
+        revoked_at_epoch=5,
+    )
+    wallet_capability = AutoTraderWalletCapability(
+        session_id="session.revoked",
+        owner_pubkey=owner_pubkey,
+        chain_id="tau-net-alpha",
+        valid_from_epoch=1,
+        valid_until_epoch=100,
+        notional_remaining=500,
+        allowed_assets=("A", "B"),
+        allowed_actions=(autotrader_live.StrategyAction.PLACE_SWAP_EXACT_IN,),
+        enabled=True,
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        wallet_capability=wallet_capability,
+        session_state=session_state,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "session_state_revoked:5>=5"
+    assert (
+        _autotrader_live_receipt_fingerprint(report)
+        == "585cc0af000650fb6960be6036a27f51365eda3b0723113a75f4bf57ad64a0e8"
+    )

@@ -482,6 +482,336 @@ def verify_fire_math_object_spec_file(spec_file: FireMathObjectSpecFile) -> tupl
     return _verify_fire_math_object_spec_file(spec_file, visited=frozenset())
 
 
+def _names(items: tuple[Any, ...]) -> list[str]:
+    return [item.name for item in items]
+
+
+def _has_duplicates(names: list[str]) -> bool:
+    return len(names) != len(set(names))
+
+
+def _check_duplicate_names(spec_file: FireMathObjectSpecFile) -> str | None:
+    """Reject duplicate or colliding declared names.
+
+    Note: this covers term/source/import/witness duplicates only. The
+    ``duplicate_output`` check deliberately lives later (after the witness
+    loop); do not move it here -- that would change reject precedence.
+    """
+
+    source_names = _names(spec_file.source_bounds)
+    import_names = _names(spec_file.imports)
+
+    # Ordered: each per-collection duplicate check, then the source/import name
+    # collision, then the witness duplicate (matching the original sequence).
+    ordered_checks = (
+        (_has_duplicates(_names(spec_file.term_fields)), "duplicate_term_field"),
+        (_has_duplicates(source_names), "duplicate_source_bound"),
+        (_has_duplicates(import_names), "duplicate_import"),
+        (bool(set(source_names) & set(import_names)), "duplicate_source_interface_name"),
+        (_has_duplicates(_names(spec_file.witnesses)), "duplicate_witness"),
+    )
+    for failed, code in ordered_checks:
+        if failed:
+            return code
+    return None
+
+
+def _check_term_fields(spec_file: FireMathObjectSpecFile) -> str | None:
+    for field in spec_file.term_fields:
+        try:
+            parse_fire_unit(field.unit)
+        except ValueError as exc:
+            return f"term_field_unit_invalid:{field.name}:{exc}"
+        if field.minimum > field.maximum:
+            return f"term_field_bounds_invalid:{field.name}"
+    return None
+
+
+@dataclass(frozen=True)
+class _BoundRefLabels:
+    """Reject-code prefixes for a section that declares a [lower, upper] bound.
+
+    The source-bound, import, and witness loops share an identical
+    unit-and-term-ref validation pattern that differs only in these labels.
+    Factoring it here removes the triplicated logic while preserving the exact
+    reject codes and their ordering.
+    """
+
+    unit_invalid: str
+    unknown_ref: str
+    unit_mismatch: str
+
+
+_SOURCE_BOUND_LABELS = _BoundRefLabels(
+    unit_invalid="source_bound_unit_invalid",
+    unknown_ref="unknown_term_ref_in_source_bound",
+    unit_mismatch="source_bound_unit_mismatch",
+)
+_IMPORT_LABELS = _BoundRefLabels(
+    unit_invalid="import_unit_invalid",
+    unknown_ref="unknown_term_ref_in_import",
+    unit_mismatch="import_unit_mismatch",
+)
+_WITNESS_LABELS = _BoundRefLabels(
+    unit_invalid="witness_unit_invalid",
+    unknown_ref="unknown_term_ref_in_witness",
+    unit_mismatch="witness_unit_mismatch",
+)
+
+
+def _term_field_unit(spec_file: FireMathObjectSpecFile, term: str | None) -> str:
+    return next(field for field in spec_file.term_fields if field.name == term).unit
+
+
+def _check_ref_exists(value_ref: FireValueRef, term_name_set: set[str], name: str, labels: _BoundRefLabels) -> str | None:
+    if value_ref.kind == "term" and value_ref.term not in term_name_set:
+        return f"{labels.unknown_ref}:{name}:{value_ref.term}"
+    return None
+
+
+def _check_ref_unit(
+    value_ref: FireValueRef,
+    spec_file: FireMathObjectSpecFile,
+    unit: str,
+    name: str,
+    labels: _BoundRefLabels,
+) -> str | None:
+    if value_ref.kind == "term" and _term_field_unit(spec_file, value_ref.term) != unit:
+        return f"{labels.unit_mismatch}:{name}:{value_ref.term}"
+    return None
+
+
+def _check_bound_unit_and_refs(
+    name: str,
+    unit: str,
+    lower: FireValueRef,
+    upper: FireValueRef,
+    spec_file: FireMathObjectSpecFile,
+    term_name_set: set[str],
+    labels: _BoundRefLabels,
+) -> str | None:
+    """Validate one [lower, upper]-bounded declaration's unit and term refs.
+
+    Order is load-bearing: the declared unit is parsed first, then BOTH
+    existence checks (lower, upper) run before EITHER unit-mismatch check. The
+    characterization corpus locks this two-phase interleave.
+    """
+
+    try:
+        parse_fire_unit(unit)
+    except ValueError as exc:
+        return f"{labels.unit_invalid}:{name}:{exc}"
+    return (
+        _check_ref_exists(lower, term_name_set, name, labels)
+        or _check_ref_exists(upper, term_name_set, name, labels)
+        or _check_ref_unit(lower, spec_file, unit, name, labels)
+        or _check_ref_unit(upper, spec_file, unit, name, labels)
+    )
+
+
+def _check_source_bounds(spec_file: FireMathObjectSpecFile, term_name_set: set[str]) -> str | None:
+    for bound in spec_file.source_bounds:
+        error = _check_bound_unit_and_refs(
+            bound.name, bound.unit, bound.lower, bound.upper, spec_file, term_name_set, _SOURCE_BOUND_LABELS
+        )
+        if error is not None:
+            return error
+    return None
+
+
+def _check_imported_output(imported: FireImportSpec, imported_spec: FireMathObjectSpecFile) -> str | None:
+    """Confirm the declared imported output exists and matches the declared unit."""
+
+    imported_outputs = {output.name: output for output in imported_spec.outputs}
+    if imported.interface_output not in imported_outputs:
+        return f"unknown_import_output:{imported.interface_object_id}:{imported.interface_output}"
+    if imported_outputs[imported.interface_output].unit != imported.unit:
+        return (
+            f"import_output_unit_mismatch:{imported.name}:"
+            f"{imported.interface_object_id}:{imported.interface_output}"
+        )
+    return None
+
+
+def _check_import_interface(
+    imported: FireImportSpec,
+    visited: frozenset[str],
+) -> str | None:
+    """Resolve, recursively verify, and unit-check one imported interface."""
+
+    try:
+        imported_spec = _load_imported_spec_file(imported.interface_object_id)
+    except ValueError as exc:
+        return str(exc)
+    ok, err = _verify_fire_math_object_spec_file(imported_spec, visited=visited)
+    if not ok:
+        return f"import_invalid:{imported.interface_object_id}:{err}"
+    return _check_imported_output(imported, imported_spec)
+
+
+def _check_imports(
+    spec_file: FireMathObjectSpecFile,
+    term_name_set: set[str],
+    visited: frozenset[str],
+) -> str | None:
+    """Validate imported interface bindings (the dependency-digest check).
+
+    Per import: validate the local unit/term-ref binding (shared pattern), then
+    resolve and recursively verify the dependency, confirming the imported
+    output exists and matches the declared unit.
+    """
+
+    for imported in spec_file.imports:
+        error = _check_bound_unit_and_refs(
+            imported.name, imported.unit, imported.lower, imported.upper, spec_file, term_name_set, _IMPORT_LABELS
+        ) or _check_import_interface(imported, visited)
+        if error is not None:
+            return error
+    return None
+
+
+def _check_witnesses(spec_file: FireMathObjectSpecFile, term_name_set: set[str]) -> str | None:
+    for witness in spec_file.witnesses:
+        error = _check_bound_unit_and_refs(
+            witness.name, witness.unit, witness.lower, witness.upper, spec_file, term_name_set, _WITNESS_LABELS
+        )
+        if error is not None:
+            return error
+    return None
+
+
+def _check_duplicate_outputs(spec_file: FireMathObjectSpecFile) -> str | None:
+    output_names = [output.name for output in spec_file.outputs]
+    if len(output_names) != len(set(output_names)):
+        return "duplicate_output"
+    return None
+
+
+@dataclass(frozen=True)
+class _ExprRefLabels:
+    """Reject-code prefixes for the shared expression-reference checks.
+
+    Prefixes already include any per-output name segment, so the helper appends
+    only the trailing detail. Global checks pass bare prefixes; per-output checks
+    pass ``f"...:{output.name}"`` prefixes.
+    """
+
+    invalid: str
+    unknown_params: str
+    unknown_bounds: str
+
+
+def _check_expr_refs(
+    expr: FireExprFile,
+    term_name_set: set[str],
+    source_name_set: set[str],
+    labels: _ExprRefLabels,
+) -> str | None:
+    """Collect an expression's refs and reject unknown params / source bounds."""
+
+    exact_params: set[str] = set()
+    source_bounds: set[str] = set()
+    try:
+        _collect_expr_refs(expr, exact_params=exact_params, source_bounds=source_bounds)
+    except (TypeError, ValueError) as exc:
+        return f"{labels.invalid}:{exc}"
+    unknown_params = sorted(exact_params - term_name_set)
+    if unknown_params:
+        return f"{labels.unknown_params}:{','.join(unknown_params)}"
+    unknown_bounds = sorted(source_bounds - source_name_set)
+    if unknown_bounds:
+        return f"{labels.unknown_bounds}:{','.join(unknown_bounds)}"
+    return None
+
+
+def _infer_unit_or_error(expr: FireExpr, spec_file: FireMathObjectSpecFile, invalid_prefix: str) -> tuple[str | None, str | None]:
+    """Infer an expression's unit, returning ``(unit, None)`` or ``(None, error)``."""
+
+    try:
+        inferred = infer_fire_expr_unit(
+            expr,
+            exact_units={field.name: field.unit for field in spec_file.term_fields},
+            source_units=_build_source_unit_map(spec_file),
+        )
+    except (KeyError, ValueError) as exc:
+        return None, f"{invalid_prefix}:{exc}"
+    return inferred, None
+
+
+_GLOBAL_EXPR_LABELS = _ExprRefLabels(
+    invalid="expression_invalid",
+    unknown_params="unknown_exact_params",
+    unknown_bounds="unknown_source_bounds",
+)
+
+
+def _check_global_expression(
+    spec_file: FireMathObjectSpecFile,
+    term_name_set: set[str],
+    source_name_set: set[str],
+) -> str | None:
+    """Validate the top-level payoff expression's refs and inferred unit."""
+
+    ref_error = _check_expr_refs(spec_file.expression, term_name_set, source_name_set, _GLOBAL_EXPR_LABELS)
+    if ref_error is not None:
+        return ref_error
+    inferred_unit, unit_error = _infer_unit_or_error(
+        build_expression_from_spec_file(spec_file), spec_file, "expression_unit_invalid"
+    )
+    if unit_error is not None:
+        return unit_error
+    expected_unit = spec_file.outputs[0].unit
+    if inferred_unit != expected_unit:
+        return f"expression_unit_mismatch:expected_{expected_unit}:got_{inferred_unit}"
+    return None
+
+
+def _check_one_output(
+    output: FireOutputSpec,
+    spec_file: FireMathObjectSpecFile,
+    term_name_set: set[str],
+    source_name_set: set[str],
+) -> str | None:
+    """Validate one declared output's unit, expression refs, and inferred unit."""
+
+    try:
+        parse_fire_unit(output.unit)
+    except ValueError as exc:
+        return f"output_unit_invalid:{output.name}:{exc}"
+    ref_error = _check_expr_refs(
+        output.expression,
+        term_name_set,
+        source_name_set,
+        _ExprRefLabels(
+            invalid=f"output_expression_invalid:{output.name}",
+            unknown_params=f"unknown_output_exact_params:{output.name}",
+            unknown_bounds=f"unknown_output_source_bounds:{output.name}",
+        ),
+    )
+    if ref_error is not None:
+        return ref_error
+    output_inferred, unit_error = _infer_unit_or_error(
+        _build_expr(output.expression), spec_file, f"output_expression_unit_invalid:{output.name}"
+    )
+    if unit_error is not None:
+        return unit_error
+    if output_inferred != output.unit:
+        return f"output_expression_unit_mismatch:{output.name}:expected_{output.unit}:got_{output_inferred}"
+    return None
+
+
+def _check_outputs(
+    spec_file: FireMathObjectSpecFile,
+    term_name_set: set[str],
+    source_name_set: set[str],
+) -> str | None:
+    for output in spec_file.outputs:
+        error = _check_one_output(output, spec_file, term_name_set, source_name_set)
+        if error is not None:
+            return error
+    return None
+
+
 def _verify_fire_math_object_spec_file(
     spec_file: FireMathObjectSpecFile,
     *,
@@ -493,157 +823,27 @@ def _verify_fire_math_object_spec_file(
         return False, f"import_cycle:{spec_file.object_id}"
     visited = visited | {spec_file.object_id}
 
-    term_names = [field.name for field in spec_file.term_fields]
-    source_names = [bound.name for bound in spec_file.source_bounds]
-    import_names = [imported.name for imported in spec_file.imports]
-    witness_names = [witness.name for witness in spec_file.witnesses]
+    term_name_set = {field.name for field in spec_file.term_fields}
+    source_name_set = (
+        {bound.name for bound in spec_file.source_bounds}
+        | {imported.name for imported in spec_file.imports}
+    )
 
-    if len(term_names) != len(set(term_names)):
-        return False, "duplicate_term_field"
-    if len(source_names) != len(set(source_names)):
-        return False, "duplicate_source_bound"
-    if len(import_names) != len(set(import_names)):
-        return False, "duplicate_import"
-    if set(source_names) & set(import_names):
-        return False, "duplicate_source_interface_name"
-    if len(witness_names) != len(set(witness_names)):
-        return False, "duplicate_witness"
-
-    term_name_set = set(term_names)
-    source_name_set = set(source_names) | set(import_names)
-    output_names = [output.name for output in spec_file.outputs]
-
-    for field in spec_file.term_fields:
-        try:
-            parse_fire_unit(field.unit)
-        except ValueError as exc:
-            return False, f"term_field_unit_invalid:{field.name}:{exc}"
-        if field.minimum > field.maximum:
-            return False, f"term_field_bounds_invalid:{field.name}"
-
-    for bound in spec_file.source_bounds:
-        try:
-            parse_fire_unit(bound.unit)
-        except ValueError as exc:
-            return False, f"source_bound_unit_invalid:{bound.name}:{exc}"
-        if bound.lower.kind == "term" and bound.lower.term not in term_name_set:
-            return False, f"unknown_term_ref_in_source_bound:{bound.name}:{bound.lower.term}"
-        if bound.upper.kind == "term" and bound.upper.term not in term_name_set:
-            return False, f"unknown_term_ref_in_source_bound:{bound.name}:{bound.upper.term}"
-        if bound.lower.kind == "term":
-            lower_field = next(field for field in spec_file.term_fields if field.name == bound.lower.term)
-            if lower_field.unit != bound.unit:
-                return False, f"source_bound_unit_mismatch:{bound.name}:{bound.lower.term}"
-        if bound.upper.kind == "term":
-            upper_field = next(field for field in spec_file.term_fields if field.name == bound.upper.term)
-            if upper_field.unit != bound.unit:
-                return False, f"source_bound_unit_mismatch:{bound.name}:{bound.upper.term}"
-    for imported in spec_file.imports:
-        try:
-            parse_fire_unit(imported.unit)
-        except ValueError as exc:
-            return False, f"import_unit_invalid:{imported.name}:{exc}"
-        if imported.lower.kind == "term" and imported.lower.term not in term_name_set:
-            return False, f"unknown_term_ref_in_import:{imported.name}:{imported.lower.term}"
-        if imported.upper.kind == "term" and imported.upper.term not in term_name_set:
-            return False, f"unknown_term_ref_in_import:{imported.name}:{imported.upper.term}"
-        if imported.lower.kind == "term":
-            lower_field = next(field for field in spec_file.term_fields if field.name == imported.lower.term)
-            if lower_field.unit != imported.unit:
-                return False, f"import_unit_mismatch:{imported.name}:{imported.lower.term}"
-        if imported.upper.kind == "term":
-            upper_field = next(field for field in spec_file.term_fields if field.name == imported.upper.term)
-            if upper_field.unit != imported.unit:
-                return False, f"import_unit_mismatch:{imported.name}:{imported.upper.term}"
-        try:
-            imported_spec = _load_imported_spec_file(imported.interface_object_id)
-        except ValueError as exc:
-            return False, str(exc)
-        ok, err = _verify_fire_math_object_spec_file(imported_spec, visited=visited)
-        if not ok:
-            return False, f"import_invalid:{imported.interface_object_id}:{err}"
-        imported_outputs = {output.name: output for output in imported_spec.outputs}
-        if imported.interface_output not in imported_outputs:
-            return False, f"unknown_import_output:{imported.interface_object_id}:{imported.interface_output}"
-        if imported_outputs[imported.interface_output].unit != imported.unit:
-            return False, (
-                f"import_output_unit_mismatch:{imported.name}:"
-                f"{imported.interface_object_id}:{imported.interface_output}"
-            )
-    for witness in spec_file.witnesses:
-        try:
-            parse_fire_unit(witness.unit)
-        except ValueError as exc:
-            return False, f"witness_unit_invalid:{witness.name}:{exc}"
-        if witness.lower.kind == "term" and witness.lower.term not in term_name_set:
-            return False, f"unknown_term_ref_in_witness:{witness.name}:{witness.lower.term}"
-        if witness.upper.kind == "term" and witness.upper.term not in term_name_set:
-            return False, f"unknown_term_ref_in_witness:{witness.name}:{witness.upper.term}"
-        if witness.lower.kind == "term":
-            lower_field = next(field for field in spec_file.term_fields if field.name == witness.lower.term)
-            if lower_field.unit != witness.unit:
-                return False, f"witness_unit_mismatch:{witness.name}:{witness.lower.term}"
-        if witness.upper.kind == "term":
-            upper_field = next(field for field in spec_file.term_fields if field.name == witness.upper.term)
-            if upper_field.unit != witness.unit:
-                return False, f"witness_unit_mismatch:{witness.name}:{witness.upper.term}"
-    if len(output_names) != len(set(output_names)):
-        return False, "duplicate_output"
-
-    expr_exact_params: set[str] = set()
-    expr_source_bounds: set[str] = set()
-    try:
-        _collect_expr_refs(spec_file.expression, exact_params=expr_exact_params, source_bounds=expr_source_bounds)
-    except (TypeError, ValueError) as exc:
-        return False, f"expression_invalid:{exc}"
-
-    unknown_exact_params = sorted(expr_exact_params - term_name_set)
-    if unknown_exact_params:
-        return False, f"unknown_exact_params:{','.join(unknown_exact_params)}"
-    unknown_source_bounds = sorted(expr_source_bounds - source_name_set)
-    if unknown_source_bounds:
-        return False, f"unknown_source_bounds:{','.join(unknown_source_bounds)}"
-
-    try:
-        inferred_unit = infer_fire_expr_unit(
-            build_expression_from_spec_file(spec_file),
-            exact_units={field.name: field.unit for field in spec_file.term_fields},
-            source_units=_build_source_unit_map(spec_file),
-        )
-    except (KeyError, ValueError) as exc:
-        return False, f"expression_unit_invalid:{exc}"
-    expected_unit = spec_file.outputs[0].unit
-    if inferred_unit != expected_unit:
-        return False, f"expression_unit_mismatch:expected_{expected_unit}:got_{inferred_unit}"
-
-    for output in spec_file.outputs:
-        try:
-            parse_fire_unit(output.unit)
-        except ValueError as exc:
-            return False, f"output_unit_invalid:{output.name}:{exc}"
-        output_exact_params: set[str] = set()
-        output_source_bounds: set[str] = set()
-        try:
-            _collect_expr_refs(output.expression, exact_params=output_exact_params, source_bounds=output_source_bounds)
-        except (TypeError, ValueError) as exc:
-            return False, f"output_expression_invalid:{output.name}:{exc}"
-        unknown_output_exact_params = sorted(output_exact_params - term_name_set)
-        if unknown_output_exact_params:
-            return False, f"unknown_output_exact_params:{output.name}:{','.join(unknown_output_exact_params)}"
-        unknown_output_source_bounds = sorted(output_source_bounds - source_name_set)
-        if unknown_output_source_bounds:
-            return False, f"unknown_output_source_bounds:{output.name}:{','.join(unknown_output_source_bounds)}"
-        try:
-            output_inferred = infer_fire_expr_unit(
-                _build_expr(output.expression),
-                exact_units={field.name: field.unit for field in spec_file.term_fields},
-                source_units=_build_source_unit_map(spec_file),
-            )
-        except (KeyError, ValueError) as exc:
-            return False, f"output_expression_unit_invalid:{output.name}:{exc}"
-        if output_inferred != output.unit:
-            return False, f"output_expression_unit_mismatch:{output.name}:expected_{output.unit}:got_{output_inferred}"
-
+    # Ordered, short-circuiting checks. The sequence below is the consensus
+    # reject precedence and must not be reordered (see characterization corpus
+    # tests/kernels/test_fmos_file_v1_characterization.py, which locks it).
+    error = (
+        _check_duplicate_names(spec_file)
+        or _check_term_fields(spec_file)
+        or _check_source_bounds(spec_file, term_name_set)
+        or _check_imports(spec_file, term_name_set, visited)
+        or _check_witnesses(spec_file, term_name_set)
+        or _check_duplicate_outputs(spec_file)
+        or _check_global_expression(spec_file, term_name_set, source_name_set)
+        or _check_outputs(spec_file, term_name_set, source_name_set)
+    )
+    if error is not None:
+        return False, error
     return True, None
 
 
