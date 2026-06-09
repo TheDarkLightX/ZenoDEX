@@ -155,10 +155,14 @@ verified). `gov_gate.py` mirrors it; `test_timelock_wrap_bypass_rejected` pins i
 
 ## Honest boundaries
 
-- These are **gates, not proposers.** They do not choose `next`; they bound it. Pairing
-  with an autonomous proposer (PID / Q-table) is a separate, opt-in design — and that
-  proposer inherits the **oracle's trust level** (currently L2, attested — see
-  `docs/ORACLE_TRUST_POSTURE.md`). The gate caps, but does not remove, that dependence.
+- These are **gates, not proposers.** They do not choose `next`; they bound it. Deterministic
+  *reference* proposers (velocity-form PI + frozen Q-table, `gov_proposers.py`) and the loop
+  composing them with the gate (`gov_loop.py`, binds `exec_req=True` + committed `curr` itself)
+  live alongside for simulation/demonstration — opt-in, NOT wired to any live governance path
+  (see `docs/AUTONOMOUS_GOVERNANCE_ARCHITECTURE.md`). Any autonomous proposer inherits the
+  **oracle's trust level** (currently L2, attested — see `docs/ORACLE_TRUST_POSTURE.md`,
+  on branch `claude/prod-promotion-phase5-proof-receipt`, unmerged).
+  The gate caps, but does not remove, that dependence.
 - **The step-limit assumes `curr` is the true committed value.** `curr` is a *gate input*,
   not read from state by the spec. If the calling runtime lets a proposer supply a stale or
   self-serving `curr`, the proposer can jump freely within a *fake* step. The runtime MUST
