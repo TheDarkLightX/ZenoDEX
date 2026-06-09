@@ -586,3 +586,24 @@ def test_energy_poisoned_targets_are_bounded_by_the_gate():
         300, r.proposed, gov_gate.fee_revision_ok, approved=True, proposal_ts=0, current_ts=100
     )
     assert d.admitted is False and d.applied == 300  # gate bounds it: no-op
+
+
+def test_layered_q_rejects_str_subclass_top_level_key():
+    # (Codex r8 LOW) the shape check ran set-equality BEFORE key-type validation, so a
+    # str-subclass top-level key was accepted (its __eq__/__hash__ ran inside the comparison).
+    # Non-vacuous: on the pre-fix code this artifact was admitted and looked up normally.
+    class EvilKey(str):
+        pass
+
+    art = {EvilKey("regime"): {"0": 0}, "actions": {"0": {"0,0": 300}}}
+    with pytest.raises(TypeError):
+        gp.layered_q_propose((0,), (0, 0), art, 300)
+
+
+def test_energy_rejects_str_subclass_top_level_key():
+    class EvilKey(str):
+        pass
+
+    art = {EvilKey("targets"): {"0": 1}, "w_track": 1, "w_move": 0}
+    with pytest.raises(TypeError):
+        gp.energy_propose((0,), art, 300, lo=0, hi=1000, step=50)

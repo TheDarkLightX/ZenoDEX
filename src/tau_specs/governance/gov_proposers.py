@@ -290,6 +290,11 @@ def _snapshot_layered_table(artifact: dict[str, object]) -> dict[str, object]:
     """
     if type(artifact) is not dict:
         raise TypeError("layered q-table artifact must be a plain dict (no dict subclass)")
+    for k in artifact.keys():
+        # exact key type BEFORE any set/equality operation (Codex r8 LOW): a str-subclass key
+        # would otherwise run its __eq__/__hash__ inside the shape comparison and be accepted.
+        if type(k) is not str:
+            raise TypeError("layered q-table top-level keys must be plain str (no str subclass)")
     if set(artifact.keys()) != set(_LAYERED_TOP_KEYS):
         raise ValueError("layered q-table artifact must have exactly the keys {'regime', 'actions'}")
     regime = artifact["regime"]
@@ -415,6 +420,11 @@ def _snapshot_energy_model(artifact: dict[str, object]) -> dict[str, object]:
     """
     if type(artifact) is not dict:
         raise TypeError("energy model artifact must be a plain dict (no dict subclass)")
+    for k in artifact.keys():
+        # exact key type BEFORE any set/equality operation (Codex r8 LOW) — same rationale as
+        # the layered table: no hostile-key callback may run inside the shape comparison.
+        if type(k) is not str:
+            raise TypeError("energy model top-level keys must be plain str (no str subclass)")
     if set(artifact.keys()) != set(_ENERGY_TOP_KEYS):
         raise ValueError("energy model artifact must have exactly the keys {'targets', 'w_track', 'w_move'}")
     targets = artifact["targets"]
