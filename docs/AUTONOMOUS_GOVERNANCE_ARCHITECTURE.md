@@ -255,7 +255,7 @@ epochs from attested committed on-chain state (§5.2) — are open.
 | Committed/replayable Tau proof artifact (recorded verifier transcript) | **Open** |
 | `curr`/epoch binding to committed ledger state (the §5.2 precondition) | **Open** (WS2) |
 | PID + frozen-Q proposer **reference impls** (deterministic, no floats) | **Done** (`gov_proposers.py`) — simulation only |
-| Reference **loop** + safety property (gate bounds a poisoned PI/Q-table) + `curr`-binding | **Done** (`gov_loop.py`, `test_gov_loop.py`, `test_gov_proposers.py` — 31 tests, empirical) |
+| Reference **loop** + safety property (gate bounds a poisoned PI/Q-table) + `curr`-binding | **Done** (`gov_loop.py`, `test_gov_loop.py`, `test_gov_proposers.py` — 38 tests, empirical) |
 | Q-table **hash-pinning** primitive (`table_hash`) | **Done** (reference); a live consensus-bound, hash-pinned decision runtime is **Open** |
 | **Production** proposer (tuned/audited PID or trained+frozen Q-table on real signals) | **Open** |
 | Live wiring: a deployed governance flow that *requires* this gate before applying any change | **Open** (WS5) |

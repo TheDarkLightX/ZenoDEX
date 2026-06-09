@@ -65,15 +65,28 @@ class PIConfig:
     out_hi: int
 
     def __post_init__(self) -> None:
-        for name in ("setpoint", "kp_num", "kp_den", "ki_num", "ki_den", "deadband", "out_lo", "out_hi"):
-            if not _is_int(getattr(self, name)):
-                raise TypeError(f"PIConfig.{name} must be a plain int (no float/bool)")
-        if self.kp_den <= 0 or self.ki_den <= 0:
-            raise ValueError("PIConfig gain denominators must be > 0")
-        if self.deadband < 0:
-            raise ValueError("PIConfig.deadband must be >= 0")
-        if self.out_lo > self.out_hi:
-            raise ValueError("PIConfig out_lo must be <= out_hi")
+        _validate_piconfig(self)
+
+
+_PICONFIG_FIELDS = ("setpoint", "kp_num", "kp_den", "ki_num", "ki_den", "deadband", "out_lo", "out_hi")
+
+
+def _validate_piconfig(cfg: PIConfig) -> None:
+    """Validate every PIConfig field is a plain int + the bound constraints. Called by the
+    constructor AND re-run at use-time in pi_propose, so a config mutated AFTER construction (e.g.
+    via `object.__setattr__`, which bypasses frozen-dataclass immutability) cannot smuggle a float
+    into the math. (This defends post-construction mutation; a caller with arbitrary code execution
+    can defeat any in-language guard and is out of scope by definition.)
+    """
+    for name in _PICONFIG_FIELDS:
+        if not _is_int(getattr(cfg, name)):
+            raise TypeError(f"PIConfig.{name} must be a plain int (no float/bool)")
+    if cfg.kp_den <= 0 or cfg.ki_den <= 0:
+        raise ValueError("PIConfig gain denominators must be > 0")
+    if cfg.deadband < 0:
+        raise ValueError("PIConfig.deadband must be >= 0")
+    if cfg.out_lo > cfg.out_hi:
+        raise ValueError("PIConfig out_lo must be <= out_hi")
 
 
 @dataclass(frozen=True)
@@ -98,6 +111,7 @@ def pi_propose(curr: int, measured: int, prev_error: int, cfg: PIConfig) -> PIRe
         # exact type (subclasses rejected): only the PIConfig constructor runs the field
         # validation, so a duck-typed/look-alike cfg could smuggle floats into the math.
         raise TypeError("pi_propose requires a PIConfig (exact type)")
+    _validate_piconfig(cfg)  # re-validate: a frozen cfg can be mutated post-construction
     error = measured - cfg.setpoint
     if -cfg.deadband <= error <= cfg.deadband:
         return PIResult(proposed=curr, prev_error=prev_error)  # freeze inside the deadband
@@ -118,15 +132,19 @@ def bin_index(value: int, edges: tuple[int, ...]) -> int:
     """
     if not _is_int(value):
         raise TypeError("bin_index requires an integer (non-bool) value")
+    # Materialize ONCE: a hostile iterable whose __iter__ yields clean ints on a validation pass
+    # then floats on a use pass (TOCTOU) is defeated — we validate and compare the SAME captured
+    # tuple, so __iter__ is called a single time.
+    edges_t = tuple(edges)
     prev: int | None = None
-    for e in edges:
+    for e in edges_t:
         if not _is_int(e):
             raise TypeError("bin_index edges must be plain ints (no float/bool)")
         if prev is not None and e <= prev:
             raise ValueError("bin_index edges must be strictly ascending")
         prev = e
     idx = 0
-    for e in edges:
+    for e in edges_t:
         if value >= e:
             idx += 1
         else:
@@ -140,10 +158,14 @@ def state_key(bins: tuple[int, ...]) -> str:
     bins must be plain ints (enforced): a bool bin would stringify as "True" and silently key a
     different table row than the int it equals (True == 1 but str(True) != "1").
     """
-    for b in bins:
+    # Materialize ONCE (TOCTOU defense): a hostile iterable that yields clean ints during
+    # validation then hostile __str__-overriding subclasses during the join is defeated — both
+    # the check and the join run over the SAME captured tuple.
+    bins_t = tuple(bins)
+    for b in bins_t:
         if not _is_int(b):
             raise TypeError("state_key bins must be plain ints (no float/bool)")
-    return ",".join(str(b) for b in bins)
+    return ",".join(str(b) for b in bins_t)
 
 
 def table_hash(table: dict[str, int]) -> str:

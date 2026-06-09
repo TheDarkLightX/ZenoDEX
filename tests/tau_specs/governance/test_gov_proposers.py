@@ -170,6 +170,68 @@ def test_state_key_rejects_hostile_int_subclass():
         gp.q_table_propose((KeyInt(1),), {"True": 520}, curr=500)
 
 
+class _LyingBins:
+    """(Codex round-4) an iterable whose __iter__ yields clean ints on the FIRST pass (validation)
+    and a hostile __str__-overriding int subclass on the SECOND pass (use) — a TOCTOU attack."""
+    def __init__(self):
+        self._calls = 0
+
+    class _KeyInt(int):
+        def __str__(self):
+            return "True"
+
+    def __iter__(self):
+        self._calls += 1
+        if self._calls == 1:
+            return iter((1,))                       # validation pass sees a clean int
+        return iter((self._KeyInt(1),))             # use pass tries to inject "True"
+
+
+def test_state_key_defeats_two_pass_toctou():
+    # materialize-once: __iter__ is called a single time, so the lying second pass never happens.
+    b = _LyingBins()
+    # either it rejects the hostile subclass, or (because it materialized the clean first pass) it
+    # returns the honest "1" — never the spoofed "True".
+    try:
+        assert gp.state_key(b) == "1"
+    except TypeError:
+        pass  # also acceptable: caught the subclass
+    b2 = _LyingBins()
+    try:
+        r = gp.q_table_propose(b2, {"True": 520, "1": 480}, curr=500)
+        assert r.proposed != 520, "TOCTOU spoof reached the poisoned 'True' row"
+    except TypeError:
+        pass
+
+
+class _LyingEdges:
+    """(Codex round-4) edges that validate as (0,) on the first pass then SWAP to (100,) on the
+    second. The swapped values are chosen so the result distinguishes the fix: with materialize-once
+    the comparison uses the validated (0,) -> bin_index(5)=1; the old two-pass code would have
+    validated (0,) but COMPARED against (100,) -> bin_index(5)=0."""
+    def __init__(self):
+        self._calls = 0
+
+    def __iter__(self):
+        self._calls += 1
+        return iter((0,)) if self._calls == 1 else iter((100,))
+
+
+def test_bin_index_defeats_two_pass_toctou():
+    e = _LyingEdges()
+    # materialize-once: the use pass reads the SAME captured (0,) the validation pass approved.
+    assert gp.bin_index(5, e) == 1  # 5 >= 0 -> 1 (NOT 0, which the swapped (100,) would give)
+
+
+def test_pi_revalidates_mutated_frozen_cfg():
+    # (Codex round-4) a frozen PIConfig mutated post-construction via object.__setattr__ (which
+    # bypasses immutability) must be re-rejected at use-time, not trusted from construction.
+    cfg = _cfg()
+    object.__setattr__(cfg, "kp_num", 0.5)  # smuggle a float past the frozen guard
+    with pytest.raises(TypeError):
+        gp.pi_propose(500, 1200, 0, cfg)
+
+
 def test_table_hash_stable_and_order_independent():
     assert gp.table_hash({"0,1": 480, "1,1": 520}) == gp.table_hash({"1,1": 520, "0,1": 480})
 
