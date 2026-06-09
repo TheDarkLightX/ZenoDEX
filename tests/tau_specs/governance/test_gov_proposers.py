@@ -304,5 +304,43 @@ def test_q_table_rejects_non_str_expected_hash():
         gp.q_table_propose((1, 1), table, curr=500, expected_hash=12345)
 
 
+def test_q_table_snapshot_defeats_bins_iter_mutation_toctou():
+    # (Codex round-6 MED) mutation DURING the call: `state_key(bins)` runs the caller's
+    # `__iter__` AFTER the digest check but BEFORE the lookup. A hostile bins that mutates the
+    # (plain) table there used to return the post-hash action (9000) under the STALE pin —
+    # bypassing both the pin and value validation. The snapshot makes the lookup read the
+    # pinned artifact. Non-vacuous: the post-call assert proves the hostile mutation DID fire
+    # on the caller's dict, and the result still came from the snapshot (520, not 9000).
+    table = {"1": 520}
+    pin = gp.table_hash(table)
+
+    class MutatingBins:
+        def __iter__(self):
+            table["1"] = 9000  # fires inside state_key(), after the digest check
+            return iter((1,))
+
+    r = gp.q_table_propose(MutatingBins(), table, curr=500, expected_hash=pin)
+    assert table["1"] == 9000  # the hostile __iter__ really ran and mutated the caller's dict
+    assert r.hit is True and r.state_key == "1"
+    assert r.proposed == 520  # the PINNED value — not the post-hash 9000
+
+
+def test_q_table_snapshot_defeats_bins_iter_type_corruption():
+    # same window, nastier payload: the mid-call mutation installs a NON-INT action. Without the
+    # snapshot the lookup would return a float that never passed `_validate_table` (validation ran
+    # before the mutation). With the snapshot the corrupted entry is never read.
+    table = {"1": 520}
+    pin = gp.table_hash(table)
+
+    class CorruptingBins:
+        def __iter__(self):
+            table["1"] = 9000.5  # not a plain int; installed after validation
+            return iter((1,))
+
+    r = gp.q_table_propose(CorruptingBins(), table, curr=500, expected_hash=pin)
+    assert table["1"] == 9000.5  # corruption really happened on the caller's dict
+    assert r.proposed == 520 and type(r.proposed) is int  # snapshot value, type intact
+
+
 def test_table_hash_changes_on_content_change():
     assert gp.table_hash({"0,0": 480}) != gp.table_hash({"0,0": 481})

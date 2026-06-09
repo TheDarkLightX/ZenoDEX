@@ -227,16 +227,25 @@ def q_table_propose(
     between the pin and this call would otherwise be silently used with a stale pin. When
     `expected_hash` is supplied, the digest is re-checked HERE, inside the use boundary, and a
     mismatch is a hard fail-closed error — the lookup acts only on the exact pinned artifact.
+
+    The validation, digest check, and lookup all act on one private SNAPSHOT of the table taken
+    before any caller-controlled code can run: `state_key(bins)` invokes the caller's `__iter__`,
+    which could mutate the caller's (plain) dict after the digest check yet before the lookup —
+    without the snapshot that returns a post-hash action under a stale pin.
     """
     if not _is_int(curr):
         raise TypeError("q_table_propose requires an integer (non-bool) curr")
-    _validate_table(table)  # plain dict, plain-str keys, plain-int values — consistent with the hash
+    if type(table) is not dict:
+        # rejected BEFORE the copy: dict(subclass) could launder lying keys()/items() into the snapshot
+        raise TypeError("q-table must be a plain dict (no dict subclass)")
+    snap = dict(table)  # the caller's object is never read again after this line
+    _validate_table(snap)
     if expected_hash is not None:
         if type(expected_hash) is not str:
             raise TypeError("expected_hash must be a plain str")
-        if _table_digest(table) != expected_hash:
+        if _table_digest(snap) != expected_hash:
             raise ValueError("q-table hash mismatch: table is not the pinned artifact")
     key = state_key(bins)
-    if key in table:
-        return QResult(proposed=table[key], state_key=key, hit=True)  # action validated above
+    if key in snap:
+        return QResult(proposed=snap[key], state_key=key, hit=True)  # action validated above
     return QResult(proposed=curr, state_key=key, hit=False)
