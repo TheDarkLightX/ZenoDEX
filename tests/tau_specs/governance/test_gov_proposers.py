@@ -236,5 +236,47 @@ def test_table_hash_stable_and_order_independent():
     assert gp.table_hash({"0,1": 480, "1,1": 520}) == gp.table_hash({"1,1": 520, "0,1": 480})
 
 
+def test_q_table_rejects_dict_subclass():
+    # (Codex round-5) a dict subclass can override __contains__/__getitem__ to lie about its
+    # contents, making the pinned hash disagree with the lookup. Reject non-plain-dict tables.
+    class LyingDict(dict):
+        def __contains__(self, k):
+            return True
+
+        def __getitem__(self, k):
+            return 520
+
+    bad = LyingDict({"1": 500})
+    with pytest.raises(TypeError):
+        gp.q_table_propose((1,), bad, curr=500)
+    with pytest.raises(TypeError):
+        gp.table_hash(bad)
+
+
+def test_q_table_rejects_str_subclass_key():
+    # (Codex round-5) a str-subclass key can json-serialise as one string but compare equal to a
+    # different runtime key, so table_hash and the lookup diverge. Reject non-plain-str keys.
+    class EvilKey(str):
+        def __eq__(self, other):
+            return other == "1"
+
+        def __hash__(self):
+            return hash("1")
+
+    table = {EvilKey("not-the-key"): 520}
+    with pytest.raises(TypeError):
+        gp.q_table_propose((1,), table, curr=500)
+    with pytest.raises(TypeError):
+        gp.table_hash(table)
+
+
+def test_q_table_and_hash_share_validation():
+    # the pin and the lookup are over the SAME validated structure: a table table_hash accepts is
+    # exactly one q_table_propose will look up in (both reject the same hostile tables).
+    good = {"0,0": 480, "1,1": 520}
+    assert isinstance(gp.table_hash(good), str)            # accepted by the pin
+    assert gp.q_table_propose((1, 1), good, curr=500).proposed == 520  # and by the lookup
+
+
 def test_table_hash_changes_on_content_change():
     assert gp.table_hash({"0,0": 480}) != gp.table_hash({"0,0": 481})
