@@ -254,7 +254,14 @@ def master_revision_ok(r: MasterRevision) -> bool:
     on Python's non-wrapping ints. Each surface guardrail is then evaluated with exec_req
     forced True so the composite reflects the surface's bound regardless of the top-level
     exec flag; the shared gate (approval + timelock + exec_req escape) is applied once.
+
+    Requires the EXACT `MasterRevision` type: a duck-typed object with property-backed fields could
+    return `exec_req=True` during the flag check and `False` at the escape branch (a TOCTOU on
+    attribute reads). A real frozen dataclass returns the same stored value on every access, so
+    requiring the exact type makes the multiple reads of each field consistent.
     """
+    if type(r) is not MasterRevision:
+        raise TypeError("master_revision_ok requires a MasterRevision (exact type)")
     if not _flags_ok(r.approved, r.exec_req):
         return False
     if not _in_domain(

@@ -293,3 +293,24 @@ def test_master_out_of_domain_rejected_even_on_exec_escape():
 def test_master_rejects_non_bool_flags():
     assert not gov_gate.master_revision_ok(_valid_master(approved=2))      # type: ignore[arg-type]
     assert not gov_gate.master_revision_ok(_valid_master(exec_req=None))   # type: ignore[arg-type]
+
+
+def test_master_rejects_duck_typed_revision():
+    # (Codex round-5) a duck-typed object with a property-backed exec_req that returns True during
+    # the flag check then False at the escape branch (TOCTOU on attribute reads) used to be admitted
+    # for otherwise-bad in-domain fields. master_revision_ok now requires the exact MasterRevision
+    # type, so attribute reads come from consistent stored fields, not a lying property.
+    class FlipExec:
+        def __init__(self):
+            self._n = 0
+
+        def __getattr__(self, name):
+            if name == "exec_req":
+                self._n += 1
+                return True if self._n == 1 else False  # flips between the two reads
+            if name == "approved":
+                return True
+            return 0  # all numeric fields in-domain
+
+    with pytest.raises(TypeError):
+        gov_gate.master_revision_ok(FlipExec())

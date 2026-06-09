@@ -168,8 +168,32 @@ def state_key(bins: tuple[int, ...]) -> str:
     return ",".join(str(b) for b in bins_t)
 
 
+def _validate_table(table: dict[str, int]) -> None:
+    """Validate a frozen Q-table is a PLAIN dict of plain-`str` keys -> plain-`int` values.
+
+    EXACT types, and the dict itself must not be a subclass: a `dict` subclass can override
+    `__contains__`/`__getitem__` to lie about its contents, and a `str`-subclass key can serialise
+    one way under `table_hash` (json) but compare equal to a DIFFERENT runtime lookup key — either
+    makes the client-pinned hash disagree with what the lookup returns, breaking the frozen
+    hash-pinned replay guarantee. This is called by BOTH `table_hash` and `q_table_propose`, so the
+    pin and the lookup are provably over the same validated structure (or both fail closed).
+    """
+    if type(table) is not dict:
+        raise TypeError("q-table must be a plain dict (no dict subclass)")
+    for k, v in table.items():
+        if type(k) is not str:
+            raise TypeError("q-table keys must be plain str (no str subclass)")
+        if not _is_int(v):
+            raise TypeError(f"q-table value for {k!r} must be a plain int (no float/bool/str/int-subclass)")
+
+
 def table_hash(table: dict[str, int]) -> str:
-    """SHA-256 over the canonical (sorted-key) JSON of the frozen table — the pin a client checks."""
+    """SHA-256 over the canonical (sorted-key) JSON of the frozen table — the pin a client checks.
+
+    Validates the table first (same guard the lookup uses), so the hash a client pins cannot
+    diverge from what `q_table_propose` would return for that table.
+    """
+    _validate_table(table)
     canonical = json.dumps(table, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -185,16 +209,14 @@ def q_table_propose(bins: tuple[int, ...], table: dict[str, int], curr: int) -> 
     """Look up the action for a binned state in a FROZEN table.
 
     Pure function: same bins + same table => same result (replay-stable). A missing bin is
-    FAIL-CLOSED: returns `curr` (propose no change) rather than guessing. A present-but-non-int action
-    is REJECTED (the table must contain plain int actions). The returned value is still subject to the
-    gate.
+    FAIL-CLOSED: returns `curr` (propose no change) rather than guessing. The table is validated as a
+    plain dict of plain-str keys -> plain-int actions (same guard as `table_hash`, so the pin and the
+    lookup agree). The returned value is still subject to the gate.
     """
     if not _is_int(curr):
         raise TypeError("q_table_propose requires an integer (non-bool) curr")
+    _validate_table(table)  # plain dict, plain-str keys, plain-int values — consistent with the hash
     key = state_key(bins)
     if key in table:
-        action = table[key]
-        if not _is_int(action):
-            raise TypeError(f"q-table action for state {key!r} must be a plain int (no float/bool/str)")
-        return QResult(proposed=action, state_key=key, hit=True)
+        return QResult(proposed=table[key], state_key=key, hit=True)  # action validated above
     return QResult(proposed=curr, state_key=key, hit=False)
