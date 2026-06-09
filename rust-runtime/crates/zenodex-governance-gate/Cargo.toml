@@ -1,0 +1,21 @@
+[package]
+name = "zenodex-governance-gate"
+description = "Pure verdict kernel for the ZenoDEX governance pointwise-revision + trajectory gates (Rust mirror of src/tau_specs/governance/gov_gate.py; 3-way parity with the Tau specs via the shared JSON fixture)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Verdict kernel is zero-dependency by design (CBC: tiny auditable surface).
+# sha2/hex only for the canonical params digest (the cross-language golden-vector
+# surface shared with gov_epoch.params_digest).
+sha2 = { workspace = true }
+hex = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }

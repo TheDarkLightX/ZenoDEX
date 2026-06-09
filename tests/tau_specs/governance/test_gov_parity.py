@@ -60,3 +60,15 @@ def test_tau_python_parity(surface: str, kwargs: dict, expect: bool):
     assert tau == expect, f"tau spec {surface} {kwargs}: got {tau}, expected {expect}"
     assert py == tau, f"DUAL-CHECKER DISAGREEMENT {surface} {kwargs}: python={py} tau={tau}"
 
+
+
+def test_rust_fixture_in_sync():
+    """The committed Rust parity fixture must be byte-identical to what the source
+    table derives (single source of truth: gov_parity_cases.py; the r9 lesson —
+    a fixture differential proves nothing about an artifact it doesn't pin)."""
+    from gen_rust_parity_fixture import FIXTURE, fixture_bytes
+    assert FIXTURE.exists(), "run gen_rust_parity_fixture.py to create the fixture"
+    assert FIXTURE.read_bytes() == fixture_bytes(), (
+        "fixture drifted from gov_parity_cases.py — regenerate with "
+        "python3 src/tau_specs/governance/gen_rust_parity_fixture.py"
+    )
