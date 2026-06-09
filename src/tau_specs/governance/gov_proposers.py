@@ -187,6 +187,14 @@ def _validate_table(table: dict[str, int]) -> None:
             raise TypeError(f"q-table value for {k!r} must be a plain int (no float/bool/str/int-subclass)")
 
 
+def _table_digest(table: dict[str, int]) -> str:
+    """Canonical SHA-256 of an ALREADY-VALIDATED table (no re-validation). Single source of truth
+    for the digest, so `table_hash` and the `q_table_propose` use-boundary check agree by construction.
+    """
+    canonical = json.dumps(table, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def table_hash(table: dict[str, int]) -> str:
     """SHA-256 over the canonical (sorted-key) JSON of the frozen table — the pin a client checks.
 
@@ -194,8 +202,7 @@ def table_hash(table: dict[str, int]) -> str:
     diverge from what `q_table_propose` would return for that table.
     """
     _validate_table(table)
-    canonical = json.dumps(table, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return _table_digest(table)
 
 
 @dataclass(frozen=True)
@@ -205,17 +212,30 @@ class QResult:
     hit: bool  # False => bin missing => fail-closed default returned
 
 
-def q_table_propose(bins: tuple[int, ...], table: dict[str, int], curr: int) -> QResult:
+def q_table_propose(
+    bins: tuple[int, ...], table: dict[str, int], curr: int, *, expected_hash: str | None = None,
+) -> QResult:
     """Look up the action for a binned state in a FROZEN table.
 
     Pure function: same bins + same table => same result (replay-stable). A missing bin is
     FAIL-CLOSED: returns `curr` (propose no change) rather than guessing. The table is validated as a
     plain dict of plain-str keys -> plain-int actions (same guard as `table_hash`, so the pin and the
     lookup agree). The returned value is still subject to the gate.
+
+    `expected_hash` (the pin a client recorded for the frozen artifact) CLOSES the pin↔use gap: the
+    table is a two-step, mutable-object protocol (hash at pin time, look up later), so a table mutated
+    between the pin and this call would otherwise be silently used with a stale pin. When
+    `expected_hash` is supplied, the digest is re-checked HERE, inside the use boundary, and a
+    mismatch is a hard fail-closed error — the lookup acts only on the exact pinned artifact.
     """
     if not _is_int(curr):
         raise TypeError("q_table_propose requires an integer (non-bool) curr")
     _validate_table(table)  # plain dict, plain-str keys, plain-int values — consistent with the hash
+    if expected_hash is not None:
+        if type(expected_hash) is not str:
+            raise TypeError("expected_hash must be a plain str")
+        if _table_digest(table) != expected_hash:
+            raise ValueError("q-table hash mismatch: table is not the pinned artifact")
     key = state_key(bins)
     if key in table:
         return QResult(proposed=table[key], state_key=key, hit=True)  # action validated above

@@ -278,5 +278,31 @@ def test_q_table_and_hash_share_validation():
     assert gp.q_table_propose((1, 1), good, curr=500).proposed == 520  # and by the lookup
 
 
+def test_q_table_expected_hash_match_is_admitted():
+    table = {"1,1": 520}
+    pin = gp.table_hash(table)
+    r = gp.q_table_propose((1, 1), table, curr=500, expected_hash=pin)
+    assert r.hit and r.proposed == 520  # correct pin -> normal lookup
+
+
+def test_q_table_rejects_stale_pin_after_mutation():
+    # (Codex round-6) the EXACT pin↔use gap: hash a table, MUTATE it, then look up with the stale
+    # pin. The mutation changes the action (520 -> 9000), so this is non-vacuous: without the
+    # use-boundary check the lookup would return the mutated 9000 under a pin that no longer matches.
+    table = {"1,1": 520}
+    pin = gp.table_hash(table)        # client pins the frozen artifact
+    table["1,1"] = 9000               # table mutated AFTER the pin
+    with pytest.raises(ValueError):
+        gp.q_table_propose((1, 1), table, curr=500, expected_hash=pin)
+    # and without the pin, the stale/mutated table is silently used (documents the two-step risk):
+    assert gp.q_table_propose((1, 1), table, curr=500).proposed == 9000
+
+
+def test_q_table_rejects_non_str_expected_hash():
+    table = {"1,1": 520}
+    with pytest.raises(TypeError):
+        gp.q_table_propose((1, 1), table, curr=500, expected_hash=12345)
+
+
 def test_table_hash_changes_on_content_change():
     assert gp.table_hash({"0,0": 480}) != gp.table_hash({"0,0": 481})
