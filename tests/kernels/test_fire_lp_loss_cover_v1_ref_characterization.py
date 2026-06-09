@@ -3,6 +3,13 @@
 This corpus was captured against the UNMODIFIED auto-generated reference model
 (IR hash below) BEFORE any refactoring, and pins the full observable behavior of:
 
+EVIDENCE SCOPE (Codex review note): this committed corpus + the coverage guard are the
+repo-enforced regression artifact. The migration-time 13,535-comparison base-vs-refactored
+differential sweep was EXTERNAL one-time evidence (it needs both module versions live and is
+not committed); do not cite it as a repo-enforced check. Hostile duck-typed State objects /
+exotic int subclasses are OUT OF SCOPE for this kernel mirror (all in-repo callers pass plain
+dataclasses and plain dicts; the runtime normalizes via ``dict(args)``).
+
 * ``check_invariants`` -- (ok, first_failed_id) including first-failure ORDER,
 * ``step`` -- accept/reject flag, exact error strings, reject-code precedence
   (pre-invariant -> param order -> guard), full post-state, and effects,
@@ -1150,8 +1157,21 @@ def _load_corpus() -> dict[str, Any]:
 
 
 def test_ir_hash_is_pinned_to_module() -> None:
-    """The corpus is only valid for the exact generated model it was captured from."""
-    assert IR_HASH in (ref.__doc__ or ""), "ref model IR hash changed; corpus must be re-reviewed"
+    """The corpus is only valid for the exact generated model it was captured from.
+
+    Two distinct pins (Codex review finding: the hash alone catches IR drift but NOT refactor
+    erasure — a same-IR regeneration restoring the generated high-complexity bodies would keep
+    the hash and pass the corpus):
+      1. the IR hash — fires when the underlying ESSO-IR model changed (corpus must be re-reviewed);
+      2. the refactor-note marker — fires when a regeneration silently clobbers the manually
+         refactored bodies (the note only exists in the refactored file).
+    """
+    doc = ref.__doc__ or ""
+    assert IR_HASH in doc, "ref model IR hash changed; corpus must be re-reviewed"
+    assert "manually refactored" in doc, (
+        "refactor-note marker missing: the module body was regenerated over the manual "
+        "refactor (same IR, generated bodies); re-apply or re-review the refactor"
+    )
 
 
 def test_corpus_regeneration_is_byte_identical() -> None:
