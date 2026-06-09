@@ -40,7 +40,9 @@ SurfaceGate = Callable[[bool, bool, int, int, int, int], bool]
 
 
 def _is_int(v: object) -> bool:
-    return isinstance(v, int) and not isinstance(v, bool)
+    # EXACT type (not isinstance): a hostile `int` subclass reaching committed_curr/proposed_next
+    # could otherwise pass both this check and the gate's domain check and be admitted out-of-cap.
+    return type(v) is int
 
 
 @dataclass(frozen=True)

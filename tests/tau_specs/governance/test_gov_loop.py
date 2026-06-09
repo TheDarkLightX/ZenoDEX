@@ -146,3 +146,28 @@ def test_loop_rejects_non_bool_gate_verdict():
         with pytest.raises(TypeError):
             gov_loop.autonomous_revision_step(500, 520, fake_gate,
                                               approved=True, proposal_ts=0, current_ts=MD)
+
+
+def test_loop_rejects_hostile_int_subclass_committed_curr():
+    # (Codex round-3, the serious one) a hostile int subclass reaching committed_curr/proposed_next
+    # used to pass BOTH the loop's check and the gate's isinstance domain guard, admitting an
+    # out-of-cap jump (RevisionDecision(admitted=True, applied=9000)). Both now exact-type.
+    class EvilInt(int):
+        def __sub__(self, other):
+            return 0  # spoof |next - curr| == 0 to slip past the step check, if it were reached
+    with pytest.raises(TypeError):
+        gov_loop.autonomous_revision_step(EvilInt(500), 9000, FEE,
+                                          approved=True, proposal_ts=0, current_ts=MD)
+    with pytest.raises(TypeError):
+        gov_loop.autonomous_revision_step(500, EvilInt(9000), FEE,
+                                          approved=True, proposal_ts=0, current_ts=MD)
+
+
+def test_gate_domain_rejects_hostile_int_subclass():
+    # The gate (authority) itself must reject the subclass at its domain guard, independent of the
+    # loop — defense in depth: a direct caller can't admit an out-of-cap jump via an evil int.
+    class EvilInt(int):
+        def __sub__(self, other):
+            return 0
+    assert gov_gate.fee_revision_ok(True, True, 0, MD, EvilInt(500), 9000) is False
+    assert gov_gate.fee_revision_ok(True, True, 0, MD, 500, EvilInt(9000)) is False
