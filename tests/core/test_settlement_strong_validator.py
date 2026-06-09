@@ -3924,6 +3924,325 @@ def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monk
     assert err.startswith(f"swap apply error for intent_id={intent.intent_id}:")
 
 
+def test_strong_validator_exact_out_preflight_errors_precede_later_replay_errors(monkeypatch) -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_exact_out_context()
+
+    invalid_amount_and_fill = replace(
+        intent,
+        fields={**intent.fields, "amount_out": False, "max_amount_in": False},
+    )
+    settlement.fills[0].amount_out_filled = int(settlement.fills[0].amount_out_filled or 0) + 1
+    settlement.fills[0].amount_in_filled = int(settlement.fills[0].amount_in_filled or 0) + 1
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_amount_and_fill],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid amount_out for intent_id={intent.intent_id}"
+
+    invalid_max_and_fill = replace(intent, fields={**intent.fields, "max_amount_in": False})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_max_and_fill],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid max_amount_in for intent_id={intent.intent_id}"
+
+    def _boom_exact_out(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise ValueError("boom")
+
+    monkeypatch.setattr(strong_validator, "swap_exact_out_for_pool", _boom_exact_out)
+    fill_mismatch = compute_settlement(
+        [intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+    fill_mismatch.fills[0].amount_out_filled += 1
+    ok, err = validate_settlement_strong(
+        settlement=fill_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap amount_out_filled mismatch for intent_id={intent.intent_id}"
+
+
+def test_strong_validator_rejects_exact_out_protocol_fee_edge_cases(monkeypatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    protocol_recipient = "0x" + "99" * 48
+    pool_id, pool, _lp_minted = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=3_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+        curve_tag="CUBIC_SUM_V1",
+        curve_params={"p": 2, "q": 1},
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000_000)
+    balances.set(pk, asset1, 10_000_000)
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_OUT,
+        intent_id=_iid(9185),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_out": 1_000,
+            "max_amount_in": 10_000,
+        },
+    )
+    settlement = compute_settlement(
+        [intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+
+    def _boom_exact_out(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise ValueError("boom")
+
+    monkeypatch.setattr(strong_validator, "swap_exact_out_for_pool", _boom_exact_out)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=1,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    assert ok is False
+    assert err == f"protocol fee unsupported for curve intent_id={intent.intent_id}"
+    monkeypatch.undo()
+
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, _settlement = _setup_swap_exact_out_context()
+    settlement = compute_settlement(
+        [intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    assert settlement.fills[0].protocol_fee_paid is not None
+    settlement.fills[0].protocol_fee_paid += 1
+    settlement.fills[0].fee_paid += 1
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    assert ok is False
+    assert err == f"swap fee_paid mismatch for intent_id={intent.intent_id}"
+
+    settlement = compute_settlement(
+        [intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    assert settlement.fills[0].protocol_fee_paid is not None
+    settlement.fills[0].protocol_fee_paid += 1
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    assert ok is False
+    assert err == f"swap protocol_fee_paid mismatch for intent_id={intent.intent_id}"
+
+
+def test_strong_validator_exact_out_protocol_fee_deltas_are_replayed_exactly() -> None:
+    protocol_recipient = "0x" + "99" * 48
+    pk, asset0, asset1, pool_id, pool, balances, intent, _settlement = _setup_swap_exact_out_context()
+    settlement = compute_settlement(
+        [intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    fill = settlement.fills[0]
+    assert fill.amount_in_filled == 1_005
+    assert fill.amount_out_filled == 1_000
+    assert fill.protocol_fee_paid == 2
+    assert settlement.balance_deltas == [
+        BalanceDelta(pubkey=pk, asset=asset0, delta_add=0, delta_sub=1_005),
+        BalanceDelta(pubkey=pk, asset=asset1, delta_add=1_000, delta_sub=0),
+        BalanceDelta(pubkey=protocol_recipient, asset=asset0, delta_add=2, delta_sub=0),
+    ]
+    assert settlement.reserve_deltas == [
+        ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=1_003, delta_sub=0),
+        ReserveDelta(pool_id=pool_id, asset=asset1, delta_add=0, delta_sub=1_000),
+    ]
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    assert ok is True, err
+
+
+def test_strong_validator_exact_out_postquote_errors_precede_later_effects(monkeypatch) -> None:
+    _pk, asset0, asset1, pool_id, pool, balances, intent, settlement = _setup_swap_exact_out_context()
+
+    def _boom_exact_out(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise ValueError("boom")
+
+    monkeypatch.setattr(strong_validator, "swap_exact_out_for_pool", _boom_exact_out)
+    settlement.fills[0].fee_paid = int(settlement.fills[0].fee_paid or 0) + 1
+    settlement.fills[0].protocol_fee_paid = 1
+    slippage_intent = replace(intent, fields={**intent.fields, "max_amount_in": 1})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[slippage_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"swap_exact_out kernel error for intent_id={intent.intent_id}:")
+    monkeypatch.undo()
+
+    settlement = compute_settlement(
+        [intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+    settlement.fills[0].amount_in_filled += 1
+    slippage_intent = replace(intent, fields={**intent.fields, "max_amount_in": 1})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[slippage_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap amount_in_filled mismatch for intent_id={intent.intent_id}"
+
+    settlement = compute_settlement(
+        [intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+    settlement.fills[0].fee_paid += 1
+    slippage_intent = replace(intent, fields={**intent.fields, "max_amount_in": 1})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[slippage_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap slippage for intent_id={intent.intent_id}"
+
+    settlement = compute_settlement(
+        [intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+    settlement.fills[0].fee_paid += 1
+    low_balances = BalanceTable()
+    low_balances.set(intent.sender_pubkey, asset0, 1)
+    low_balances.set(intent.sender_pubkey, asset1, 0)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=low_balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap fee_paid mismatch for intent_id={intent.intent_id}"
+
+    protocol_recipient = "0x" + "99" * 48
+    settlement = compute_settlement(
+        [intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    assert settlement.fills[0].protocol_fee_paid is not None
+    settlement.fills[0].protocol_fee_paid += 1
+    low_balances = BalanceTable()
+    low_balances.set(intent.sender_pubkey, asset0, 1)
+    low_balances.set(intent.sender_pubkey, asset1, 0)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=low_balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    assert ok is False
+    assert err == f"swap protocol_fee_paid mismatch for intent_id={intent.intent_id}"
+
+
 def test_strong_validator_rejects_create_pool_field_and_fill_failures() -> None:
     _pk, asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
 

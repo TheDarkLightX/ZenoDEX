@@ -146,6 +146,21 @@ class _ExactInSwapQuote:
     protocol_fee: int
 
 
+@dataclass(frozen=True)
+class _ExactOutSwapInputs:
+    amount_out: int
+    max_in: int
+
+
+@dataclass(frozen=True)
+class _ExactOutSwapQuote:
+    amount_in: int
+    new_in: int
+    new_out: int
+    fee: int
+    protocol_fee: int
+
+
 def _validate_strong_config(
     *,
     mode: str,
@@ -908,6 +923,93 @@ def _apply_exact_in_swap_replay(
     return None
 
 
+def _exact_out_swap_inputs(
+    *,
+    intent_id: str,
+    intent: Intent,
+) -> Tuple[Optional[_ExactOutSwapInputs], Optional[str]]:
+    amount_out = intent.get_field("amount_out")
+    max_in = intent.get_field("max_amount_in")
+    if not is_strict_int(amount_out):
+        return None, f"invalid amount_out for intent_id={intent_id}"
+    if int(amount_out) <= 0:
+        return None, f"invalid amount_out for intent_id={intent_id}"
+    if not is_strict_int(max_in):
+        return None, f"invalid max_amount_in for intent_id={intent_id}"
+    if int(max_in) < 0:
+        return None, f"invalid max_amount_in for intent_id={intent_id}"
+    return _ExactOutSwapInputs(amount_out=int(amount_out), max_in=int(max_in)), None
+
+
+def _exact_out_preflight_error(*, intent_id: str, fill: Fill, inputs: _ExactOutSwapInputs) -> Optional[str]:
+    if _fill_value_or_zero(fill.amount_out_filled) != int(inputs.amount_out):
+        return f"swap amount_out_filled mismatch for intent_id={intent_id}"
+    return None
+
+
+def _quote_exact_out_swap(
+    *,
+    intent_id: str,
+    pool: PoolState,
+    reserves: _SwapReserves,
+    inputs: _ExactOutSwapInputs,
+    protocol_fee_share_bps: int,
+) -> Tuple[Optional[_ExactOutSwapQuote], Optional[str]]:
+    try:
+        if int(protocol_fee_share_bps):
+            quote = quote_cpmm_swap_exact_out(
+                reserve_in=int(reserves.reserve_in),
+                reserve_out=int(reserves.reserve_out),
+                amount_out=int(inputs.amount_out),
+                fee_bps=int(pool.fee_bps),
+                protocol_fee_share_bps=int(protocol_fee_share_bps),
+            )
+            amount_in = int(quote.amount_in)
+            new_in = int(quote.reserve_in_after)
+            new_out = int(quote.reserve_out_after)
+            protocol_fee = int(quote.protocol_fee_paid)
+        else:
+            amount_in, (new_in, new_out) = swap_exact_out_for_pool(
+                pool,
+                reserve_in=int(reserves.reserve_in),
+                reserve_out=int(reserves.reserve_out),
+                amount_out=int(inputs.amount_out),
+            )
+            protocol_fee = 0
+    except Exception as exc:
+        return None, f"swap_exact_out kernel error for intent_id={intent_id}: {exc}"
+
+    fee = compute_fee_total(int(amount_in), int(pool.fee_bps))
+    return (
+        _ExactOutSwapQuote(
+            amount_in=int(amount_in),
+            new_in=int(new_in),
+            new_out=int(new_out),
+            fee=int(fee),
+            protocol_fee=int(protocol_fee),
+        ),
+        None,
+    )
+
+
+def _exact_out_postquote_error(
+    *,
+    intent_id: str,
+    fill: Fill,
+    inputs: _ExactOutSwapInputs,
+    quote: _ExactOutSwapQuote,
+) -> Optional[str]:
+    if _fill_value_or_zero(fill.amount_in_filled) != int(quote.amount_in):
+        return f"swap amount_in_filled mismatch for intent_id={intent_id}"
+    if int(quote.amount_in) > int(inputs.max_in):
+        return f"swap slippage for intent_id={intent_id}"
+    if _fill_value_or_zero(fill.fee_paid) != int(quote.fee):
+        return f"swap fee_paid mismatch for intent_id={intent_id}"
+    if _fill_value_or_zero(fill.protocol_fee_paid) != int(quote.protocol_fee):
+        return f"swap protocol_fee_paid mismatch for intent_id={intent_id}"
+    return None
+
+
 def _validate_cow_pair_index(
     *,
     settlement: Settlement,
@@ -1199,8 +1301,6 @@ def _validate_settlement_strong_impl(
                 return fail(swap_reserve_error)
             if swap_reserves is None:
                 return fail(f"swap reserves missing result for intent_id={intent_id}")
-            reserve_in = swap_reserves.reserve_in
-            reserve_out = swap_reserves.reserve_out
             dir_is_0_to_1 = swap_reserves.dir_is_0_to_1
 
             if it.kind == IntentKind.SWAP_EXACT_IN:
@@ -1259,52 +1359,46 @@ def _validate_settlement_strong_impl(
                 continue
 
             # SWAP_EXACT_OUT
-            amount_out_req = it.get_field("amount_out")
-            max_in = it.get_field("max_amount_in")
-            if not isinstance(amount_out_req, int) or isinstance(amount_out_req, bool) or amount_out_req <= 0:
-                return fail(f"invalid amount_out for intent_id={intent_id}")
-            if not isinstance(max_in, int) or isinstance(max_in, bool) or max_in < 0:
-                return fail(f"invalid max_amount_in for intent_id={intent_id}")
+            exact_out_inputs, exact_out_input_error = _exact_out_swap_inputs(intent_id=intent_id, intent=it)
+            if exact_out_input_error is not None:
+                return fail(exact_out_input_error)
+            if exact_out_inputs is None:
+                return fail(f"exact-out swap inputs missing result for intent_id={intent_id}")
+            exact_out_error = _exact_out_preflight_error(intent_id=intent_id, fill=f, inputs=exact_out_inputs)
+            if exact_out_error is not None:
+                return fail(exact_out_error)
+            protocol_fee_curve_error = _protocol_fee_curve_error(
+                intent_id=intent_id,
+                pool=pool,
+                protocol_fee_share_bps=protocol_fee_share_bps,
+            )
+            if protocol_fee_curve_error is not None:
+                return fail(protocol_fee_curve_error)
 
-            if int(f.amount_out_filled or 0) != int(amount_out_req):
-                return fail(f"swap amount_out_filled mismatch for intent_id={intent_id}")
-
-            try:
-                if int(protocol_fee_share_bps):
-                    if pool.curve_tag != CURVE_TAG_CPMM:
-                        return fail(f"protocol fee unsupported for curve intent_id={intent_id}")
-                    quote = quote_cpmm_swap_exact_out(
-                        reserve_in=int(reserve_in),
-                        reserve_out=int(reserve_out),
-                        amount_out=int(amount_out_req),
-                        fee_bps=int(pool.fee_bps),
-                        protocol_fee_share_bps=int(protocol_fee_share_bps),
-                    )
-                    amount_in_req = int(quote.amount_in)
-                    new_in = int(quote.reserve_in_after)
-                    new_out = int(quote.reserve_out_after)
-                    protocol_fee = int(quote.protocol_fee_paid)
-                else:
-                    amount_in_req, (new_in, new_out) = swap_exact_out_for_pool(
-                        pool,
-                        reserve_in=int(reserve_in),
-                        reserve_out=int(reserve_out),
-                        amount_out=int(amount_out_req),
-                    )
-                    protocol_fee = 0
-            except Exception as exc:
-                return fail(f"swap_exact_out kernel error for intent_id={intent_id}: {exc}")
-
-            if int(f.amount_in_filled or 0) != int(amount_in_req):
-                return fail(f"swap amount_in_filled mismatch for intent_id={intent_id}")
-            if int(amount_in_req) > int(max_in):
-                return fail(f"swap slippage for intent_id={intent_id}")
-
-            fee = compute_fee_total(int(amount_in_req), int(pool.fee_bps))
-            if int(f.fee_paid or 0) != int(fee):
-                return fail(f"swap fee_paid mismatch for intent_id={intent_id}")
-            if int(f.protocol_fee_paid or 0) != int(protocol_fee):
-                return fail(f"swap protocol_fee_paid mismatch for intent_id={intent_id}")
+            exact_out_quote, exact_out_quote_error = _quote_exact_out_swap(
+                intent_id=intent_id,
+                pool=pool,
+                reserves=swap_reserves,
+                inputs=exact_out_inputs,
+                protocol_fee_share_bps=protocol_fee_share_bps,
+            )
+            if exact_out_quote_error is not None:
+                return fail(exact_out_quote_error)
+            if exact_out_quote is None:
+                return fail(f"exact-out swap quote missing result for intent_id={intent_id}")
+            exact_out_postquote_error = _exact_out_postquote_error(
+                intent_id=intent_id,
+                fill=f,
+                inputs=exact_out_inputs,
+                quote=exact_out_quote,
+            )
+            if exact_out_postquote_error is not None:
+                return fail(exact_out_postquote_error)
+            amount_out_req = exact_out_inputs.amount_out
+            amount_in_req = exact_out_quote.amount_in
+            new_in = exact_out_quote.new_in
+            new_out = exact_out_quote.new_out
+            protocol_fee = exact_out_quote.protocol_fee
 
             try:
                 balances.subtract(sender, asset_in, int(amount_in_req))
