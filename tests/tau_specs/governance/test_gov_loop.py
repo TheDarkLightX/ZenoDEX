@@ -299,6 +299,14 @@ def test_multi_gate_verdict_must_be_real_bool_and_gates_are_import_bound(monkeyp
     monkeypatch.setattr(gov_gate, "fee_revision_ok", lambda *a: True)
     d = _multi({"fee_bps": 9000})  # far out of envelope; the forged gate would admit it
     assert d.admitted is False and d.rejected_surface == "fee_bps"  # original gate in force
+    # ... and the GROUP gates are import-bound too (Codex r9: a call-time gov_gate.X lookup
+    # would be swappable even with the scalars bound):
+    monkeypatch.setattr(gov_gate, "router_revision_ok", lambda *a: True)
+    d = _multi({"buyburn_bps": 9000})  # sum break; forged router gate would admit it
+    assert d.admitted is False and d.rejected_surface == "router"
+    monkeypatch.setattr(gov_gate, "collateral_ratio_revision_ok", lambda *a: True)
+    d = _multi({"mcr_bps": 9000})  # order break; forged collateral gate would admit it
+    assert d.admitted is False and d.rejected_surface == "collateral"
 
 
 def test_multi_snapshot_defeats_midcall_mutation_of_caller_dicts():
@@ -319,7 +327,19 @@ def test_factory_policy_fixture_actions_all_gate_admissible():
     # guardrails as negative controls) must be admissible through the real gates from a sane
     # mid-range committed state — proving the two lanes meet: factory actions are in-envelope,
     # and this loop can gate them directly with no adapter.
-    art = _json.loads((_FIXTURES / "factory_q_policy_sample.json").read_text())
+    raw = (_FIXTURES / "factory_q_policy_sample.json").read_bytes()
+    # Byte-pin the fixture (Codex r9 evidence gap): the test must prove "THIS pinned factory
+    # artifact gate-admits", not "whatever currently sits in the fixture file gate-admits".
+    # The factory lane's own artifact check verified computed_policy_hash == embedded_policy_hash
+    # for this artifact; here we pin the exact bytes + the embedded factory hash.
+    import hashlib as _hashlib
+    assert _hashlib.sha256(raw).hexdigest() == (
+        "29a06792ab62932d6e3666890df3e7ef6ccf48b3a88c549fe3001f39859b0485"
+    ), "fixture bytes changed: re-pin only after re-verifying against the factory artifact"
+    art = _json.loads(raw.decode("utf-8"))
+    assert art["policy_hash"] == (
+        "0x35a2da8b1481dacc19fb00f99e4558ed90b2320eb58e830eaad2b2e336ee11d3"
+    )
     assert art["schema"] == "zenodex.autonomous_governance.q_policy.v1"
     assert len(art["actions"]) == 7
     seen_multi_surface = 0

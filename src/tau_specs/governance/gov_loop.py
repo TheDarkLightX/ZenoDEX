@@ -107,6 +107,11 @@ _SCALAR_SURFACES: dict[str, "SurfaceGate"] = {
     "funding_cap_bps": gov_gate.funding_rate_revision_ok,
     "redeem_staker_bps": gov_gate.whale_defense_revision_ok,
 }
+# The group gates are captured at import time too (Codex r9): a call-time `gov_gate.X(...)`
+# attribute lookup is monkeypatch-swappable, which would re-open the forged-wrapper surface
+# the import-binding exists to close. ALL gates this loop consults are bound here.
+_ROUTER_GATE = gov_gate.router_revision_ok
+_COLLATERAL_GATE = gov_gate.collateral_ratio_revision_ok
 _ROUTER_SURFACES = ("buyburn_bps", "stakers_bps", "reserve_bps", "hosts_bps")
 _COLLATERAL_SURFACES = ("mcr_bps", "ccr_bps")
 ALL_SURFACES: tuple[str, ...] = (
@@ -200,7 +205,7 @@ def multi_surface_revision_step(
     if any(s in dl for s in _ROUTER_SURFACES):
         nexts = tuple(comm[s] + dl.get(s, 0) for s in _ROUTER_SURFACES)
         currs = tuple(comm[s] for s in _ROUTER_SURFACES)
-        ok = _require_bool_verdict(gov_gate.router_revision_ok(
+        ok = _require_bool_verdict(_ROUTER_GATE(
             approved, True, proposal_ts, current_ts, *nexts, *currs,
         ))
         if not ok:
@@ -208,7 +213,7 @@ def multi_surface_revision_step(
     if any(s in dl for s in _COLLATERAL_SURFACES):
         mcr_next = comm["mcr_bps"] + dl.get("mcr_bps", 0)
         ccr_next = comm["ccr_bps"] + dl.get("ccr_bps", 0)
-        ok = _require_bool_verdict(gov_gate.collateral_ratio_revision_ok(
+        ok = _require_bool_verdict(_COLLATERAL_GATE(
             approved, True, proposal_ts, current_ts,
             comm["mcr_bps"], mcr_next, comm["ccr_bps"], ccr_next,
         ))
