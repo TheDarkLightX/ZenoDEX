@@ -67,6 +67,10 @@ jobs:
         working-directory: tools/dex-ui
         run: npm run lint
 
+      - name: Enforce DEX UI production-surface contract
+        working-directory: tools/dex-ui
+        run: npm run test:contract
+
       - name: Build DEX UI
         working-directory: tools/dex-ui
         run: npm run build

@@ -159,8 +159,11 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         anchors=(
             "ZUSDMonetarySurface",
             "ZUSDTauWalletSurface",
-            "<ZUSDMonetarySurface />",
-            "<ZUSDTauWalletSurface />",
+            # Prop-tolerant JSX open-tag prefixes: match both `<X />` and
+            # `<X wallet={wallet} />` so a future prop on the render does not
+            # falsely fail the release gate (matcher is substring-based).
+            "<ZUSDMonetarySurface",
+            "<ZUSDTauWalletSurface",
         ),
     ),
     AnchorCheck(
