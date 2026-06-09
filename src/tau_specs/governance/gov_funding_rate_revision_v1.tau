@@ -1,0 +1,37 @@
+# gov_funding_rate_revision_v1.tau  --  ZenoDEX governance: perps funding-rate cap revision
+# MUTABILITY: UPDATABLE (validates a perps funding-rate-cap revision)
+# SHAPE: factored bounds + bounded-drift step (the cheap, proven pattern)
+#
+# Governs the per-epoch funding-rate CLAMP (the maximum |funding rate| applied to perp
+# positions each epoch). This is the most frequently-tuned perps parameter; bounding it
+# keeps a proposer (or an autonomous PID/Q-table funding controller) from setting a
+# confiscatory funding clamp or swinging it abruptly.
+#
+# Inputs:
+#   i1 = approved (sbf)   i2 = exec_req (sbf)
+#   i3 = proposal_ts (bv[16])  i4 = current_ts (bv[16])
+#   i5 = funding_cap_curr_bps (bv[16])  i6 = funding_cap_next_bps (bv[16])
+# Output:
+#   o1 = revision_ok (sbf)
+#
+# IMMUTABLE guardrails:
+#   FUNDING_CAP_MAX = 200 ({ #x00C8 })  -- hard cap 2%/epoch on the funding clamp
+#   FUNDING_STEP    = 25  ({ #x0019 })  -- max drift per revision 0.25%/epoch
+#   MIN_DELAY       = 24  ({ #x0018 })  -- timelock
+# funding_cap_next <= 200 (<< 2^16) also prevents modular wrap.
+# Timelock uses the wrap-safe subtraction-guard form (current >= proposal AND
+# current - proposal >= MIN_DELAY); bv[16] is UNSIGNED.
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    ( (i2[t]:sbf = 0:sbf)
+      ||
+      ( (i1[t]:sbf = 1:sbf)
+        && (i4[t]:bv[16] >= i3[t]:bv[16])
+        && ((i4[t]:bv[16] - i3[t]:bv[16]) >= { #x0018 }:bv[16])
+        && (i6[t]:bv[16] <= { #x00C8 }:bv[16])
+        && ( ( (i5[t]:bv[16] >= i6[t]:bv[16]) && ((i5[t]:bv[16] - i6[t]:bv[16]) <= { #x0019 }:bv[16]) )
+             || ( (i6[t]:bv[16] > i5[t]:bv[16]) && ((i6[t]:bv[16] - i5[t]:bv[16]) <= { #x0019 }:bv[16]) ) )
+      )
+    )
+  ).
