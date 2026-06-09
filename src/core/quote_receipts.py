@@ -793,14 +793,21 @@ def verify_route_quote_receipt(
     )
     if not precheck.precheck_ok:
         return False, route_quote_receipt_precheck_error(precheck)
-    if expected_quote_epoch is not None:
-        expected_quote_epoch_value = _require_receipt_int(expected_quote_epoch)
-        if expected_quote_epoch_value is None or expected_quote_epoch_value < 0:
-            return False, "bad_expected_quote_epoch"
-        if quote_epoch_value is None:
-            return False, "missing_quote_epoch"
-        if quote_epoch_value != expected_quote_epoch_value:
-            return False, "quote_epoch_mismatch"
+    # NOTE: every line from the signature through the precheck return above is
+    # preserved BYTE-FOR-BYTE at its original line numbers on purpose. An
+    # external line-trace fuzz tool (tools/quote_receipt_transport_grammar_fuzz.py)
+    # fingerprints the executed source lines of this file and the transport test
+    # pins the `path_id` of the early `missing_receipt_hash` reject. Keeping the
+    # precheck inline (and defining the extracted stage helpers BELOW this
+    # function so they do not shift these line numbers) preserves that fuzz
+    # fingerprint. Behavior is otherwise unchanged (characterization-corpus
+    # locked); the remaining stages are factored into helpers for clarity.
+    epoch_ok, epoch_err = _verify_expected_quote_epoch(expected_quote_epoch, quote_epoch_value)
+    if not epoch_ok:
+        return False, epoch_err
+    # Dead type-narrowing: precheck already emitted these same codes via
+    # pools_object_ok / legs_list_ok / body_assets_ok, so these branches are
+    # unreachable. Kept verbatim for type narrowing + defense in depth.
     if not isinstance(pools, dict):
         return False, "bad_pools"
     if not isinstance(legs, list) or not legs:
@@ -808,29 +815,103 @@ def verify_route_quote_receipt(
     if not isinstance(body_asset_in, str) or not isinstance(body_asset_out, str):
         return False, "bad_body_assets"
 
-    if canonical_route_certificate is not None:
-        from ..integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
-            verify_exact_in_route_canonical_certificate_payload,
-        )
+    cert_ok, cert_err = _verify_route_certificate(
+        canonical_route_certificate=canonical_route_certificate,
+        body=body,
+    )
+    if not cert_ok:
+        return False, cert_err
 
-        cert_ok, cert_err = verify_exact_in_route_canonical_certificate_payload(canonical_route_certificate)
-        if not cert_ok:
-            return False, f"bad_canonical_route_certificate:{cert_err}"
-        winner_quote = canonical_route_certificate.get("winner_quote") if isinstance(canonical_route_certificate, dict) else None
-        cert_gate = evaluate_route_quote_receipt_certificate_gate(
-            cert_present=True,
-            cert_dict_ok=isinstance(canonical_route_certificate, dict),
-            winner_quote_dict_ok=isinstance(winner_quote, dict),
-            asset_in_match=isinstance(winner_quote, dict) and winner_quote.get("asset_in") == body.get("asset_in"),
-            asset_out_match=isinstance(winner_quote, dict) and winner_quote.get("asset_out") == body.get("asset_out"),
-            amount_in_match=isinstance(winner_quote, dict) and winner_quote.get("amount_in") == body.get("amount_in"),
-            amount_out_match=isinstance(winner_quote, dict) and winner_quote.get("amount_out") == body.get("amount_out"),
-            legs_match=isinstance(winner_quote, dict) and winner_quote.get("legs") == body.get("legs"),
-        )
-        if not cert_gate.certificate_ok:
-            return False, route_quote_receipt_certificate_error(cert_gate)
+    snapshot_ok, snapshot_err = _verify_pool_snapshot(pools=pools, pools_by_id=pools_by_id)
+    if not snapshot_ok:
+        return False, snapshot_err
+    # working_pools is OWNED by the orchestrator and passed by reference into
+    # each leg/hop; cross-leg/cross-hop reserve evolution is load-bearing.
+    working_pools = {pid: replace(pools_by_id[pid]) for pid in pools}
 
-    # Verify pool snapshot fingerprints.
+    # Verify hop-by-hop quote semantics, leg by leg.
+    total_in = 0
+    total_out = 0
+    for leg in legs:
+        leg_ok, leg_err, leg_in, leg_out = _verify_route_leg(
+            leg=leg,
+            pools=pools,
+            working_pools=working_pools,
+            kind=kind,
+            body_asset_in=body_asset_in,
+            body_asset_out=body_asset_out,
+        )
+        if not leg_ok:
+            return False, leg_err
+        total_in += leg_in
+        total_out += leg_out
+
+    totals_ok, totals_err = _verify_route_totals(body=body, total_in=total_in, total_out=total_out)
+    if not totals_ok:
+        return False, totals_err
+
+    return True, "ok"
+
+
+def _verify_expected_quote_epoch(
+    expected_quote_epoch: int | None,
+    quote_epoch_value: int | None,
+) -> Tuple[bool, str]:
+    """Bind the receipt's quote epoch to a caller-supplied expected epoch.
+
+    Returns ``(True, "")`` when no expected epoch is supplied or it matches,
+    else ``(False, error_code)``.
+    """
+    if expected_quote_epoch is None:
+        return True, ""
+    expected_quote_epoch_value = _require_receipt_int(expected_quote_epoch)
+    if expected_quote_epoch_value is None or expected_quote_epoch_value < 0:
+        return False, "bad_expected_quote_epoch"
+    if quote_epoch_value is None:
+        return False, "missing_quote_epoch"
+    if quote_epoch_value != expected_quote_epoch_value:
+        return False, "quote_epoch_mismatch"
+    return True, ""
+
+
+def _verify_route_certificate(*, canonical_route_certificate: Any, body: Dict[str, Any]) -> Tuple[bool, str]:
+    """Verify an attached canonical_route_certificate against the receipt body.
+
+    Returns ``(True, "")`` when no certificate is attached or it verifies, else
+    ``(False, error_code)``. The certificate-verifier import stays inside this
+    branch as an import-cycle guard.
+    """
+    if canonical_route_certificate is None:
+        return True, ""
+    from ..integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
+        verify_exact_in_route_canonical_certificate_payload,
+    )
+
+    cert_ok, cert_err = verify_exact_in_route_canonical_certificate_payload(canonical_route_certificate)
+    if not cert_ok:
+        return False, f"bad_canonical_route_certificate:{cert_err}"
+    winner_quote = canonical_route_certificate.get("winner_quote") if isinstance(canonical_route_certificate, dict) else None
+    cert_gate = evaluate_route_quote_receipt_certificate_gate(
+        cert_present=True,
+        cert_dict_ok=isinstance(canonical_route_certificate, dict),
+        winner_quote_dict_ok=isinstance(winner_quote, dict),
+        asset_in_match=isinstance(winner_quote, dict) and winner_quote.get("asset_in") == body.get("asset_in"),
+        asset_out_match=isinstance(winner_quote, dict) and winner_quote.get("asset_out") == body.get("asset_out"),
+        amount_in_match=isinstance(winner_quote, dict) and winner_quote.get("amount_in") == body.get("amount_in"),
+        amount_out_match=isinstance(winner_quote, dict) and winner_quote.get("amount_out") == body.get("amount_out"),
+        legs_match=isinstance(winner_quote, dict) and winner_quote.get("legs") == body.get("legs"),
+    )
+    if not cert_gate.certificate_ok:
+        return False, route_quote_receipt_certificate_error(cert_gate)
+    return True, ""
+
+
+def _verify_pool_snapshot(*, pools: Any, pools_by_id: Dict[str, PoolState]) -> Tuple[bool, str]:
+    """Verify that every snapshotted pool fingerprint matches current state.
+
+    Returns ``(True, "")`` when the snapshot gate passes, else
+    ``(False, error_code)``.
+    """
     pool_entries_well_formed = True
     all_pools_present = True
     all_fingerprints_match = True
@@ -852,99 +933,148 @@ def verify_route_quote_receipt(
     )
     if not pool_snapshot.snapshot_ok:
         return False, route_quote_receipt_pool_snapshot_error(pool_snapshot)
-    working_pools = {pid: replace(pools_by_id[pid]) for pid in pools}
+    return True, ""
 
-    # Verify hop-by-hop quote semantics.
-    total_in = 0
-    total_out = 0
-    for leg in legs:
-        if not isinstance(leg, dict):
-            return False, "bad_leg"
-        hops = leg.get("hops")
-        if not isinstance(hops, list) or not hops:
-            return False, "bad_hops"
 
-        leg_in = _require_receipt_int(leg.get("amount_in"))
-        leg_out = _require_receipt_int(leg.get("amount_out"))
-        if leg_in is None or leg_out is None or leg_in <= 0 or leg_out <= 0:
-            return False, "bad_leg_amounts"
+def _verify_route_hop(
+    *,
+    hop: Any,
+    is_first_hop: bool,
+    prev_out: int | None,
+    prev_asset_out: str | None,
+    pools: Any,
+    working_pools: Dict[str, PoolState],
+    kind: str,
+    body_asset_in: Any,
+) -> Tuple[bool, str, PoolState | None, int | None, Any]:
+    """Verify a single hop's structure and replay semantics.
 
-        prev_out: int | None = None
-        prev_asset_out: str | None = None
-        for hop_index, hop in enumerate(hops):
-            hop_dict_ok = isinstance(hop, dict)
-            pid = hop.get("pool_id") if hop_dict_ok else None
-            pool_id_ok = isinstance(pid, str) and bool(pid)
-            snapshotted_pool_present = bool(pool_id_ok and pid in pools)
-            pool = working_pools.get(pid) if pool_id_ok else None
-            working_pool_present = bool(pool is not None)
+    Returns ``(True, "", next_pool, amount_out, asset_out)`` on success or
+    ``(False, error_code, None, None, None)`` on rejection. Does NOT mutate
+    ``working_pools`` -- the caller assigns ``working_pools[pid] = next_pool``
+    only after success, which preserves no-op-on-reject by construction.
+    """
+    hop_dict_ok = isinstance(hop, dict)
+    pid = hop.get("pool_id") if hop_dict_ok else None
+    pool_id_ok = isinstance(pid, str) and bool(pid)
+    snapshotted_pool_present = bool(pool_id_ok and pid in pools)
+    pool = working_pools.get(pid) if pool_id_ok else None
+    working_pool_present = bool(pool is not None)
 
-            asset_in = hop.get("asset_in") if hop_dict_ok else None
-            asset_out = hop.get("asset_out") if hop_dict_ok else None
-            assets_shaped_ok = isinstance(asset_in, str) and isinstance(asset_out, str)
-            is_first_hop = hop_index == 0
-            first_hop_asset_in_ok = bool((not is_first_hop) or asset_in == body_asset_in)
-            hop_asset_chain_ok = bool(is_first_hop or asset_in == prev_asset_out)
+    asset_in = hop.get("asset_in") if hop_dict_ok else None
+    asset_out = hop.get("asset_out") if hop_dict_ok else None
+    assets_shaped_ok = isinstance(asset_in, str) and isinstance(asset_out, str)
+    first_hop_asset_in_ok = bool((not is_first_hop) or asset_in == body_asset_in)
+    hop_asset_chain_ok = bool(is_first_hop or asset_in == prev_asset_out)
 
-            amt_in = _require_receipt_int(hop.get("amount_in")) if hop_dict_ok else None
-            amt_out = _require_receipt_int(hop.get("amount_out")) if hop_dict_ok else None
-            hop_amounts_ok = (
-                amt_in is not None and amt_out is not None and amt_in > 0 and amt_out > 0
-            )
-            hop_amount_chain_ok = bool(prev_out is None or amt_in == prev_out)
+    amt_in = _require_receipt_int(hop.get("amount_in")) if hop_dict_ok else None
+    amt_out = _require_receipt_int(hop.get("amount_out")) if hop_dict_ok else None
+    hop_amounts_ok = (
+        amt_in is not None and amt_out is not None and amt_in > 0 and amt_out > 0
+    )
+    hop_amount_chain_ok = bool(prev_out is None or amt_in == prev_out)
 
-            hop_gate = evaluate_route_quote_receipt_hop_structure_gate(
-                hop_dict_ok=hop_dict_ok,
-                pool_id_ok=pool_id_ok,
-                snapshotted_pool_present=snapshotted_pool_present,
-                working_pool_present=working_pool_present,
-                assets_shaped_ok=assets_shaped_ok,
-                is_first_hop=is_first_hop,
-                first_hop_asset_in_ok=first_hop_asset_in_ok,
-                hop_asset_chain_ok=hop_asset_chain_ok,
-                hop_amounts_ok=hop_amounts_ok,
-                hop_amount_chain_ok=hop_amount_chain_ok,
-            )
-            if not hop_gate.hop_ok:
-                return False, route_quote_receipt_hop_structure_error(hop_gate)
-            if (
-                not isinstance(pid, str)
-                or pool is None
-                or not isinstance(asset_in, str)
-                or not isinstance(asset_out, str)
-                or amt_in is None
-                or amt_out is None
-            ):
-                return False, route_quote_receipt_hop_structure_error(hop_gate)
+    hop_gate = evaluate_route_quote_receipt_hop_structure_gate(
+        hop_dict_ok=hop_dict_ok,
+        pool_id_ok=pool_id_ok,
+        snapshotted_pool_present=snapshotted_pool_present,
+        working_pool_present=working_pool_present,
+        assets_shaped_ok=assets_shaped_ok,
+        is_first_hop=is_first_hop,
+        first_hop_asset_in_ok=first_hop_asset_in_ok,
+        hop_asset_chain_ok=hop_asset_chain_ok,
+        hop_amounts_ok=hop_amounts_ok,
+        hop_amount_chain_ok=hop_amount_chain_ok,
+    )
+    if not hop_gate.hop_ok:
+        return False, route_quote_receipt_hop_structure_error(hop_gate), None, None, None
+    if (
+        not isinstance(pid, str)
+        or pool is None
+        or not isinstance(asset_in, str)
+        or not isinstance(asset_out, str)
+        or amt_in is None
+        or amt_out is None
+    ):
+        return False, route_quote_receipt_hop_structure_error(hop_gate), None, None, None
 
-            ok, err, next_pool = _replay_and_apply_hop(
-                pool=pool,
-                kind=kind,
-                asset_in=asset_in,
-                asset_out=asset_out,
-                amount_in=amt_in,
-                amount_out=amt_out,
-            )
-            if not ok or next_pool is None:
-                return False, err
-            working_pools[pid] = next_pool
+    ok, err, next_pool = _replay_and_apply_hop(
+        pool=pool,
+        kind=kind,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_in=amt_in,
+        amount_out=amt_out,
+    )
+    if not ok or next_pool is None:
+        return False, err, None, None, None
+    return True, "", next_pool, amt_out, asset_out
 
-            prev_out = amt_out
-            prev_asset_out = str(asset_out)
 
-        first_hop_amount_in = _require_receipt_int(hops[0].get("amount_in"))
-        last_hop_amount_out = _require_receipt_int(hops[-1].get("amount_out"))
-        leg_summary = evaluate_route_quote_receipt_leg_summary_gate(
-            final_asset_out_ok=prev_asset_out == body_asset_out,
-            first_hop_amount_in_ok=first_hop_amount_in is not None and first_hop_amount_in == leg_in,
-            last_hop_amount_out_ok=last_hop_amount_out is not None and last_hop_amount_out == leg_out,
+def _verify_route_leg(
+    *,
+    leg: Any,
+    pools: Any,
+    working_pools: Dict[str, PoolState],
+    kind: str,
+    body_asset_in: Any,
+    body_asset_out: Any,
+) -> Tuple[bool, str, int, int]:
+    """Verify a single leg: structure, the hop loop, and the leg-summary gate.
+
+    Returns ``(True, "", leg_in, leg_out)`` on success or
+    ``(False, error_code, 0, 0)`` on rejection (the ``0`` sentinels are never
+    read on the failure path). ``prev_out`` / ``prev_asset_out`` reset to
+    ``None`` per leg.
+    """
+    if not isinstance(leg, dict):
+        return False, "bad_leg", 0, 0
+    hops = leg.get("hops")
+    if not isinstance(hops, list) or not hops:
+        return False, "bad_hops", 0, 0
+
+    leg_in = _require_receipt_int(leg.get("amount_in"))
+    leg_out = _require_receipt_int(leg.get("amount_out"))
+    if leg_in is None or leg_out is None or leg_in <= 0 or leg_out <= 0:
+        return False, "bad_leg_amounts", 0, 0
+
+    prev_out: int | None = None
+    prev_asset_out: str | None = None
+    for hop_index, hop in enumerate(hops):
+        ok, err, next_pool, amt_out, asset_out = _verify_route_hop(
+            hop=hop,
+            is_first_hop=hop_index == 0,
+            prev_out=prev_out,
+            prev_asset_out=prev_asset_out,
+            pools=pools,
+            working_pools=working_pools,
+            kind=kind,
+            body_asset_in=body_asset_in,
         )
-        if not leg_summary.leg_ok:
-            return False, route_quote_receipt_leg_summary_error(leg_summary)
+        if not ok or next_pool is None:
+            return False, err, 0, 0
+        working_pools[hop["pool_id"]] = next_pool
+        prev_out = amt_out
+        prev_asset_out = str(asset_out)
 
-        total_in += leg_in
-        total_out += leg_out
+    first_hop_amount_in = _require_receipt_int(hops[0].get("amount_in"))
+    last_hop_amount_out = _require_receipt_int(hops[-1].get("amount_out"))
+    leg_summary = evaluate_route_quote_receipt_leg_summary_gate(
+        final_asset_out_ok=prev_asset_out == body_asset_out,
+        first_hop_amount_in_ok=first_hop_amount_in is not None and first_hop_amount_in == leg_in,
+        last_hop_amount_out_ok=last_hop_amount_out is not None and last_hop_amount_out == leg_out,
+    )
+    if not leg_summary.leg_ok:
+        return False, route_quote_receipt_leg_summary_error(leg_summary), 0, 0
+    return True, "", leg_in, leg_out
 
+
+def _verify_route_totals(*, body: Dict[str, Any], total_in: int, total_out: int) -> Tuple[bool, str]:
+    """Verify the receipt body totals match the summed per-leg amounts.
+
+    Returns ``(True, "")`` when the totals gate passes, else
+    ``(False, error_code)``.
+    """
     body_amount_in = _require_receipt_int(body.get("amount_in"))
     body_amount_out = _require_receipt_int(body.get("amount_out"))
     body_amounts_ok = body_amount_in is not None and body_amount_out is not None
@@ -954,5 +1084,4 @@ def verify_route_quote_receipt(
     )
     if not totals_gate.totals_ok:
         return False, route_quote_receipt_totals_error(totals_gate)
-
-    return True, "ok"
+    return True, ""
