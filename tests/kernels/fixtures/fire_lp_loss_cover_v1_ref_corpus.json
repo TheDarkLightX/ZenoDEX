@@ -1,0 +1,4257 @@
+{
+  "case_count": 109,
+  "cases": [
+    {
+      "case_id": "ci_init_valid",
+      "comment": "init_state() satisfies all invariants",
+      "expect": {
+        "failed": null,
+        "ok": true
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_idle_max_bounds_valid",
+      "comment": "every int field at its domain extreme; Idle makes phase-conditioned invariants vacuous",
+      "expect": {
+        "failed": null,
+        "ok": true
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000000,
+        "cap_amount": 1000,
+        "deductible": 1000,
+        "hodl_lower": 1000,
+        "hodl_upper": 1000,
+        "holder_delta": 1000000,
+        "holder_posted": 1000000,
+        "lpv_lower": 1000,
+        "lpv_upper": 1000,
+        "n_notional": 1000,
+        "phase": "Idle",
+        "witness_hodl_final": 1000,
+        "witness_lpv_final": 1000,
+        "writer_delta": -1000000,
+        "writer_posted": 1000000
+      }
+    },
+    {
+      "case_id": "ci_idle_inconsistent_artifact_upper_valid",
+      "comment": "inv_compiled_upper_matches_bound is vacuous while phase == Idle",
+      "expect": {
+        "failed": null,
+        "ok": true
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 12345,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_idle_nonzero_deltas_valid",
+      "comment": "Settled-only invariants (conservation/solvency) are vacuous while phase == Idle",
+      "expect": {
+        "failed": null,
+        "ok": true
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 5,
+        "holder_posted": 1,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": -7,
+        "writer_posted": 2
+      }
+    },
+    {
+      "case_id": "ci_compiled_valid",
+      "comment": "consistent Compiled state",
+      "expect": {
+        "failed": null,
+        "ok": true
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_settled_valid",
+      "comment": "consistent Settled state",
+      "expect": {
+        "failed": null,
+        "ok": true
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 500,
+        "holder_posted": 7,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Settled",
+        "witness_hodl_final": 400,
+        "witness_lpv_final": 300,
+        "writer_delta": -500,
+        "writer_posted": 1000
+      }
+    },
+    {
+      "case_id": "ci_settled_zero_payoff_valid",
+      "comment": "Settled with zero deltas (zero payoff) is consistent",
+      "expect": {
+        "failed": null,
+        "ok": true
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Settled",
+        "witness_hodl_final": 300,
+        "witness_lpv_final": 300,
+        "writer_delta": 0,
+        "writer_posted": 1000
+      }
+    },
+    {
+      "case_id": "ci_dom_artifact_lower_one",
+      "comment": "artifact_lower domain is 0..0",
+      "expect": {
+        "failed": "domain_artifact_lower",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 1,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_artifact_lower_bool_true",
+      "comment": "bool is rejected even though True == 1",
+      "expect": {
+        "failed": "domain_artifact_lower",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": true,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_artifact_upper_negative",
+      "comment": "below 0",
+      "expect": {
+        "failed": "domain_artifact_upper",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": -1,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_artifact_upper_overflow",
+      "comment": "above 1000000",
+      "expect": {
+        "failed": "domain_artifact_upper",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000001,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_artifact_upper_str",
+      "comment": "wrong type str",
+      "expect": {
+        "failed": "domain_artifact_upper",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": "1000",
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_cap_amount_overflow",
+      "comment": "above 1000",
+      "expect": {
+        "failed": "domain_cap_amount",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 1001,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_deductible_negative",
+      "comment": "below 0",
+      "expect": {
+        "failed": "domain_deductible",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": -1,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_hodl_lower_bool_false",
+      "comment": "bool rejected",
+      "expect": {
+        "failed": "domain_hodl_lower",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": false,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_hodl_upper_float",
+      "comment": "wrong type float",
+      "expect": {
+        "failed": "domain_hodl_upper",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 1.5,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_holder_delta_overflow",
+      "comment": "above 1000000",
+      "expect": {
+        "failed": "domain_holder_delta",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 1000001,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_holder_posted_negative",
+      "comment": "below 0",
+      "expect": {
+        "failed": "domain_holder_posted",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": -5,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_lpv_lower_overflow",
+      "comment": "domain fires before interval check",
+      "expect": {
+        "failed": "domain_lpv_lower",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 2000,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_lpv_upper_negative",
+      "comment": "below 0",
+      "expect": {
+        "failed": "domain_lpv_upper",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": -1,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_n_notional_overflow",
+      "comment": "above 1000",
+      "expect": {
+        "failed": "domain_n_notional",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 1001,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_phase_unknown",
+      "comment": "not a PHASE_SYMBOLS member",
+      "expect": {
+        "failed": "domain_phase",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Bogus",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_phase_lowercase",
+      "comment": "phase matching is case-sensitive",
+      "expect": {
+        "failed": "domain_phase",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_phase_int",
+      "comment": "wrong type int",
+      "expect": {
+        "failed": "domain_phase",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": 3,
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_witness_hodl_final_negative",
+      "comment": "below 0",
+      "expect": {
+        "failed": "domain_witness_hodl_final",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": -2,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_witness_lpv_final_overflow",
+      "comment": "above 1000",
+      "expect": {
+        "failed": "domain_witness_lpv_final",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 1001,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_writer_delta_positive",
+      "comment": "writer_delta domain is -1000000..0",
+      "expect": {
+        "failed": "domain_writer_delta",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 1,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_writer_delta_underflow",
+      "comment": "below -1000000",
+      "expect": {
+        "failed": "domain_writer_delta",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": -1000001,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_dom_writer_posted_str",
+      "comment": "wrong type str",
+      "expect": {
+        "failed": "domain_writer_posted",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": "x"
+      }
+    },
+    {
+      "case_id": "ci_dom_writer_posted_none",
+      "comment": "wrong type None",
+      "expect": {
+        "failed": "domain_writer_posted",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": null
+      }
+    },
+    {
+      "case_id": "ci_inv_compiled_upper_mismatch",
+      "comment": "Compiled with artifact_upper != recomputed bound (bound is 0 here)",
+      "expect": {
+        "failed": "inv_compiled_upper_matches_bound",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 5,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_inv_compiled_upper_mismatch_settled",
+      "comment": "inv_compiled_upper_matches_bound also applies in Settled (non-Idle)",
+      "expect": {
+        "failed": "inv_compiled_upper_matches_bound",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 7,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Settled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_inv_delta_conservation",
+      "comment": "Settled with holder_delta + writer_delta != 0 (only conservation broken)",
+      "expect": {
+        "failed": "inv_delta_conservation",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Settled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": -3,
+        "writer_posted": 3
+      }
+    },
+    {
+      "case_id": "ci_inv_hodl_interval",
+      "comment": "hodl interval inverted",
+      "expect": {
+        "failed": "inv_hodl_interval_well_formed",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 5,
+        "hodl_upper": 3,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_inv_lpv_interval",
+      "comment": "lpv interval inverted",
+      "expect": {
+        "failed": "inv_lpv_interval_well_formed",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 7,
+        "lpv_upper": 2,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_inv_settled_holder_delta_bounded",
+      "comment": "holder_delta exceeds artifact_upper while all earlier invariants pass",
+      "expect": {
+        "failed": "inv_settled_holder_delta_bounded",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 3,
+        "cap_amount": 3,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 10,
+        "holder_delta": 5,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 1,
+        "phase": "Settled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": -5,
+        "writer_posted": 10
+      }
+    },
+    {
+      "case_id": "ci_inv_writer_solvent",
+      "comment": "writer_delta + writer_posted < 0 while all earlier invariants pass",
+      "expect": {
+        "failed": "inv_writer_solvent_after_accept",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 100,
+        "cap_amount": 100,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 200,
+        "holder_delta": 100,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 1,
+        "phase": "Settled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": -100,
+        "writer_posted": 50
+      }
+    },
+    {
+      "case_id": "ci_multi_first_domain_field_wins",
+      "comment": "artifact_lower is checked before phase",
+      "expect": {
+        "failed": "domain_artifact_lower",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 1,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Nope",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_multi_phase_before_witness",
+      "comment": "phase is checked before witness_hodl_final",
+      "expect": {
+        "failed": "domain_phase",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Nope",
+        "witness_hodl_final": -1,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_multi_domain_before_semantic",
+      "comment": "all domain checks run before any semantic invariant",
+      "expect": {
+        "failed": "domain_writer_posted",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 5,
+        "hodl_upper": 3,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": "x"
+      }
+    },
+    {
+      "case_id": "ci_multi_hodl_before_lpv",
+      "comment": "hodl interval is checked before lpv interval",
+      "expect": {
+        "failed": "inv_hodl_interval_well_formed",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 5,
+        "hodl_upper": 3,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 7,
+        "lpv_upper": 2,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_multi_delta_before_writer_solvency",
+      "comment": "conservation is checked before settled bounds/solvency",
+      "expect": {
+        "failed": "inv_delta_conservation",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 5,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Settled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": -3,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "ci_multi_compiled_upper_before_hodl",
+      "comment": "compiled-upper invariant is checked before the hodl interval invariant",
+      "expect": {
+        "failed": "inv_compiled_upper_matches_bound",
+        "ok": false
+      },
+      "kind": "check_invariants",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 9,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 5,
+        "hodl_upper": 3,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_typical",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "capped branch: excess 250 >= cap 100 -> artifact_upper = 100 * 10",
+      "expect": {
+        "effects": {
+          "compiled_upper": 1000,
+          "firev_accept": false,
+          "payoff_out": 0
+        },
+        "error": null,
+        "ok": true,
+        "state": {
+          "artifact_lower": 0,
+          "artifact_upper": 1000,
+          "cap_amount": 100,
+          "deductible": 50,
+          "hodl_lower": 100,
+          "hodl_upper": 500,
+          "holder_delta": 0,
+          "holder_posted": 0,
+          "lpv_lower": 200,
+          "lpv_upper": 400,
+          "n_notional": 10,
+          "phase": "Compiled",
+          "witness_hodl_final": 0,
+          "witness_lpv_final": 0,
+          "writer_delta": 0,
+          "writer_posted": 0
+        }
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_all_zero",
+      "command": {
+        "args": {
+          "cap_in": 0,
+          "deductible_in": 0,
+          "hodl_lower_in": 0,
+          "hodl_upper_in": 0,
+          "lpv_lower_in": 0,
+          "lpv_upper_in": 0,
+          "n_in": 0
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "all-zero terms compile to artifact_upper 0",
+      "expect": {
+        "effects": {
+          "compiled_upper": 0,
+          "firev_accept": false,
+          "payoff_out": 0
+        },
+        "error": null,
+        "ok": true,
+        "state": {
+          "artifact_lower": 0,
+          "artifact_upper": 0,
+          "cap_amount": 0,
+          "deductible": 0,
+          "hodl_lower": 0,
+          "hodl_upper": 0,
+          "holder_delta": 0,
+          "holder_posted": 0,
+          "lpv_lower": 0,
+          "lpv_upper": 0,
+          "n_notional": 0,
+          "phase": "Compiled",
+          "witness_hodl_final": 0,
+          "witness_lpv_final": 0,
+          "writer_delta": 0,
+          "writer_posted": 0
+        }
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_zero_payoff_below_deductible",
+      "command": {
+        "args": {
+          "cap_in": 9,
+          "deductible_in": 5,
+          "hodl_lower_in": 0,
+          "hodl_upper_in": 10,
+          "lpv_lower_in": 8,
+          "lpv_upper_in": 9,
+          "n_in": 7
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "hodl_upper 10 < deductible 5 + lpv_lower 8 -> zero branch",
+      "expect": {
+        "effects": {
+          "compiled_upper": 0,
+          "firev_accept": false,
+          "payoff_out": 0
+        },
+        "error": null,
+        "ok": true,
+        "state": {
+          "artifact_lower": 0,
+          "artifact_upper": 0,
+          "cap_amount": 9,
+          "deductible": 5,
+          "hodl_lower": 0,
+          "hodl_upper": 10,
+          "holder_delta": 0,
+          "holder_posted": 0,
+          "lpv_lower": 8,
+          "lpv_upper": 9,
+          "n_notional": 7,
+          "phase": "Compiled",
+          "witness_hodl_final": 0,
+          "witness_lpv_final": 0,
+          "writer_delta": 0,
+          "writer_posted": 0
+        }
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_excess_below_cap",
+      "command": {
+        "args": {
+          "cap_in": 1000,
+          "deductible_in": 0,
+          "hodl_lower_in": 0,
+          "hodl_upper_in": 100,
+          "lpv_lower_in": 0,
+          "lpv_upper_in": 50,
+          "n_in": 3
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "excess 100 < cap 1000 -> artifact_upper = 100 * 3",
+      "expect": {
+        "effects": {
+          "compiled_upper": 300,
+          "firev_accept": false,
+          "payoff_out": 0
+        },
+        "error": null,
+        "ok": true,
+        "state": {
+          "artifact_lower": 0,
+          "artifact_upper": 300,
+          "cap_amount": 1000,
+          "deductible": 0,
+          "hodl_lower": 0,
+          "hodl_upper": 100,
+          "holder_delta": 0,
+          "holder_posted": 0,
+          "lpv_lower": 0,
+          "lpv_upper": 50,
+          "n_notional": 3,
+          "phase": "Compiled",
+          "witness_hodl_final": 0,
+          "witness_lpv_final": 0,
+          "writer_delta": 0,
+          "writer_posted": 0
+        }
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_outer_boundary_excess_zero",
+      "command": {
+        "args": {
+          "cap_in": 5,
+          "deductible_in": 40,
+          "hodl_lower_in": 0,
+          "hodl_upper_in": 100,
+          "lpv_lower_in": 60,
+          "lpv_upper_in": 80,
+          "n_in": 4
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "hodl_upper == deductible + lpv_lower exactly -> excess 0 below cap",
+      "expect": {
+        "effects": {
+          "compiled_upper": 0,
+          "firev_accept": false,
+          "payoff_out": 0
+        },
+        "error": null,
+        "ok": true,
+        "state": {
+          "artifact_lower": 0,
+          "artifact_upper": 0,
+          "cap_amount": 5,
+          "deductible": 40,
+          "hodl_lower": 0,
+          "hodl_upper": 100,
+          "holder_delta": 0,
+          "holder_posted": 0,
+          "lpv_lower": 60,
+          "lpv_upper": 80,
+          "n_notional": 4,
+          "phase": "Compiled",
+          "witness_hodl_final": 0,
+          "witness_lpv_final": 0,
+          "writer_delta": 0,
+          "writer_posted": 0
+        }
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_excess_equals_cap",
+      "command": {
+        "args": {
+          "cap_in": 90,
+          "deductible_in": 10,
+          "hodl_lower_in": 0,
+          "hodl_upper_in": 200,
+          "lpv_lower_in": 100,
+          "lpv_upper_in": 150,
+          "n_in": 2
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "excess 90 == cap 90 takes the cap branch",
+      "expect": {
+        "effects": {
+          "compiled_upper": 180,
+          "firev_accept": false,
+          "payoff_out": 0
+        },
+        "error": null,
+        "ok": true,
+        "state": {
+          "artifact_lower": 0,
+          "artifact_upper": 180,
+          "cap_amount": 90,
+          "deductible": 10,
+          "hodl_lower": 0,
+          "hodl_upper": 200,
+          "holder_delta": 0,
+          "holder_posted": 0,
+          "lpv_lower": 100,
+          "lpv_upper": 150,
+          "n_notional": 2,
+          "phase": "Compiled",
+          "witness_hodl_final": 0,
+          "witness_lpv_final": 0,
+          "writer_delta": 0,
+          "writer_posted": 0
+        }
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_max_bounds",
+      "command": {
+        "args": {
+          "cap_in": 1000,
+          "deductible_in": 0,
+          "hodl_lower_in": 0,
+          "hodl_upper_in": 1000,
+          "lpv_lower_in": 0,
+          "lpv_upper_in": 1000,
+          "n_in": 1000
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "artifact_upper reaches its domain maximum 1000000",
+      "expect": {
+        "effects": {
+          "compiled_upper": 1000000,
+          "firev_accept": false,
+          "payoff_out": 0
+        },
+        "error": null,
+        "ok": true,
+        "state": {
+          "artifact_lower": 0,
+          "artifact_upper": 1000000,
+          "cap_amount": 1000,
+          "deductible": 0,
+          "hodl_lower": 0,
+          "hodl_upper": 1000,
+          "holder_delta": 0,
+          "holder_posted": 0,
+          "lpv_lower": 0,
+          "lpv_upper": 1000,
+          "n_notional": 1000,
+          "phase": "Compiled",
+          "witness_hodl_final": 0,
+          "witness_lpv_final": 0,
+          "writer_delta": 0,
+          "writer_posted": 0
+        }
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_from_dirty_idle_carries_fields",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "compile carries holder/writer/witness fields through unchanged",
+      "expect": {
+        "effects": {
+          "compiled_upper": 1000,
+          "firev_accept": false,
+          "payoff_out": 0
+        },
+        "error": null,
+        "ok": true,
+        "state": {
+          "artifact_lower": 0,
+          "artifact_upper": 1000,
+          "cap_amount": 100,
+          "deductible": 50,
+          "hodl_lower": 100,
+          "hodl_upper": 500,
+          "holder_delta": 11,
+          "holder_posted": 22,
+          "lpv_lower": 200,
+          "lpv_upper": 400,
+          "n_notional": 10,
+          "phase": "Compiled",
+          "witness_hodl_final": 44,
+          "witness_lpv_final": 55,
+          "writer_delta": -11,
+          "writer_posted": 33
+        }
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 11,
+        "holder_posted": 22,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 44,
+        "witness_lpv_final": 55,
+        "writer_delta": -11,
+        "writer_posted": 33
+      }
+    },
+    {
+      "case_id": "st_compile_extra_args_ignored",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "extra_junk": 999,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "unknown arg keys are ignored by the parameter validators",
+      "expect": {
+        "effects": {
+          "compiled_upper": 1000,
+          "firev_accept": false,
+          "payoff_out": 0
+        },
+        "error": null,
+        "ok": true,
+        "state": {
+          "artifact_lower": 0,
+          "artifact_upper": 1000,
+          "cap_amount": 100,
+          "deductible": 50,
+          "hodl_lower": 100,
+          "hodl_upper": 500,
+          "holder_delta": 0,
+          "holder_posted": 0,
+          "lpv_lower": 200,
+          "lpv_upper": 400,
+          "n_notional": 10,
+          "phase": "Compiled",
+          "witness_hodl_final": 0,
+          "witness_lpv_final": 0,
+          "writer_delta": 0,
+          "writer_posted": 0
+        }
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_uncapped",
+      "command": {
+        "args": {
+          "holder_posted_in": 7,
+          "witness_hodl_final_in": 400,
+          "witness_lpv_final_in": 300,
+          "writer_posted_in": 1000
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "excess 50 below cap 100 -> payoff 50 * 10 = 500",
+      "expect": {
+        "effects": {
+          "compiled_upper": 1000,
+          "firev_accept": true,
+          "payoff_out": 500
+        },
+        "error": null,
+        "ok": true,
+        "state": {
+          "artifact_lower": 0,
+          "artifact_upper": 1000,
+          "cap_amount": 100,
+          "deductible": 50,
+          "hodl_lower": 100,
+          "hodl_upper": 500,
+          "holder_delta": 500,
+          "holder_posted": 7,
+          "lpv_lower": 200,
+          "lpv_upper": 400,
+          "n_notional": 10,
+          "phase": "Settled",
+          "witness_hodl_final": 400,
+          "witness_lpv_final": 300,
+          "writer_delta": -500,
+          "writer_posted": 1000
+        }
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_capped",
+      "command": {
+        "args": {
+          "holder_posted_in": 0,
+          "witness_hodl_final_in": 500,
+          "witness_lpv_final_in": 200,
+          "writer_posted_in": 1000
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "excess 250 >= cap 100 -> payoff equals artifact_upper 1000",
+      "expect": {
+        "effects": {
+          "compiled_upper": 1000,
+          "firev_accept": true,
+          "payoff_out": 1000
+        },
+        "error": null,
+        "ok": true,
+        "state": {
+          "artifact_lower": 0,
+          "artifact_upper": 1000,
+          "cap_amount": 100,
+          "deductible": 50,
+          "hodl_lower": 100,
+          "hodl_upper": 500,
+          "holder_delta": 1000,
+          "holder_posted": 0,
+          "lpv_lower": 200,
+          "lpv_upper": 400,
+          "n_notional": 10,
+          "phase": "Settled",
+          "witness_hodl_final": 500,
+          "witness_lpv_final": 200,
+          "writer_delta": -1000,
+          "writer_posted": 1000
+        }
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_zero_payoff",
+      "command": {
+        "args": {
+          "holder_posted_in": 0,
+          "witness_hodl_final_in": 300,
+          "witness_lpv_final_in": 300,
+          "writer_posted_in": 1000
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "witness below deductible + lpv -> zero payoff branch",
+      "expect": {
+        "effects": {
+          "compiled_upper": 1000,
+          "firev_accept": true,
+          "payoff_out": 0
+        },
+        "error": null,
+        "ok": true,
+        "state": {
+          "artifact_lower": 0,
+          "artifact_upper": 1000,
+          "cap_amount": 100,
+          "deductible": 50,
+          "hodl_lower": 100,
+          "hodl_upper": 500,
+          "holder_delta": 0,
+          "holder_posted": 0,
+          "lpv_lower": 200,
+          "lpv_upper": 400,
+          "n_notional": 10,
+          "phase": "Settled",
+          "witness_hodl_final": 300,
+          "witness_lpv_final": 300,
+          "writer_delta": 0,
+          "writer_posted": 1000
+        }
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_witness_at_guard_equalities",
+      "command": {
+        "args": {
+          "holder_posted_in": 0,
+          "witness_hodl_final_in": 100,
+          "witness_lpv_final_in": 400,
+          "writer_posted_in": 1000
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "witnesses exactly on hodl_lower / lpv_upper guard boundaries",
+      "expect": {
+        "effects": {
+          "compiled_upper": 1000,
+          "firev_accept": true,
+          "payoff_out": 0
+        },
+        "error": null,
+        "ok": true,
+        "state": {
+          "artifact_lower": 0,
+          "artifact_upper": 1000,
+          "cap_amount": 100,
+          "deductible": 50,
+          "hodl_lower": 100,
+          "hodl_upper": 500,
+          "holder_delta": 0,
+          "holder_posted": 0,
+          "lpv_lower": 200,
+          "lpv_upper": 400,
+          "n_notional": 10,
+          "phase": "Settled",
+          "witness_hodl_final": 100,
+          "witness_lpv_final": 400,
+          "writer_delta": 0,
+          "writer_posted": 1000
+        }
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_excess_equals_cap",
+      "command": {
+        "args": {
+          "holder_posted_in": 0,
+          "witness_hodl_final_in": 500,
+          "witness_lpv_final_in": 350,
+          "writer_posted_in": 1000
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "witness excess 100 == cap 100 takes the cap branch",
+      "expect": {
+        "effects": {
+          "compiled_upper": 1000,
+          "firev_accept": true,
+          "payoff_out": 1000
+        },
+        "error": null,
+        "ok": true,
+        "state": {
+          "artifact_lower": 0,
+          "artifact_upper": 1000,
+          "cap_amount": 100,
+          "deductible": 50,
+          "hodl_lower": 100,
+          "hodl_upper": 500,
+          "holder_delta": 1000,
+          "holder_posted": 0,
+          "lpv_lower": 200,
+          "lpv_upper": 400,
+          "n_notional": 10,
+          "phase": "Settled",
+          "witness_hodl_final": 500,
+          "witness_lpv_final": 350,
+          "writer_delta": -1000,
+          "writer_posted": 1000
+        }
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_missing_n_in",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "absent key",
+      "expect": {
+        "effects": null,
+        "error": "invalid param n_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_n_in_str",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": "10"
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "wrong type str",
+      "expect": {
+        "effects": null,
+        "error": "invalid param n_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_n_in_bool",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": true
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "bool rejected",
+      "expect": {
+        "effects": null,
+        "error": "invalid param n_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_n_in_negative",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": -1
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "below 0",
+      "expect": {
+        "effects": null,
+        "error": "invalid param n_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_n_in_overflow",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 1001
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "above 1000",
+      "expect": {
+        "effects": null,
+        "error": "invalid param n_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_n_in_float",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 2.5
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "wrong type float",
+      "expect": {
+        "effects": null,
+        "error": "invalid param n_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_n_in_none",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": null
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "wrong type None",
+      "expect": {
+        "effects": null,
+        "error": "invalid param n_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_missing_deductible_in",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "absent key",
+      "expect": {
+        "effects": null,
+        "error": "invalid param deductible_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_cap_in_bool_false",
+      "command": {
+        "args": {
+          "cap_in": false,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "bool rejected",
+      "expect": {
+        "effects": null,
+        "error": "invalid param cap_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_hodl_lower_in_negative",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": -1,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "below 0",
+      "expect": {
+        "effects": null,
+        "error": "invalid param hodl_lower_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_hodl_upper_in_overflow",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 1001,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "above 1000",
+      "expect": {
+        "effects": null,
+        "error": "invalid param hodl_upper_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_lpv_lower_in_str",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": "x",
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "wrong type str",
+      "expect": {
+        "effects": null,
+        "error": "invalid param lpv_lower_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_missing_lpv_upper_in",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "absent key",
+      "expect": {
+        "effects": null,
+        "error": "invalid param lpv_upper_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_guard_hodl_inverted",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 5,
+          "hodl_upper_in": 3,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "hodl_lower_in > hodl_upper_in",
+      "expect": {
+        "effects": null,
+        "error": "guard failed for compile_lp_loss_cover",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_guard_lpv_inverted",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 7,
+          "lpv_upper_in": 2,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "lpv_lower_in > lpv_upper_in",
+      "expect": {
+        "effects": null,
+        "error": "guard failed for compile_lp_loss_cover",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_guard_phase_compiled",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "compile requires phase == Idle",
+      "expect": {
+        "effects": null,
+        "error": "guard failed for compile_lp_loss_cover",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_compile_guard_phase_settled",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "compile requires phase == Idle",
+      "expect": {
+        "effects": null,
+        "error": "guard failed for compile_lp_loss_cover",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 500,
+        "holder_posted": 7,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Settled",
+        "witness_hodl_final": 400,
+        "witness_lpv_final": 300,
+        "writer_delta": -500,
+        "writer_posted": 1000
+      }
+    },
+    {
+      "case_id": "st_settle_missing_witness_hodl_final_in",
+      "command": {
+        "args": {
+          "holder_posted_in": 7,
+          "witness_lpv_final_in": 300,
+          "writer_posted_in": 1000
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "absent key",
+      "expect": {
+        "effects": null,
+        "error": "invalid param witness_hodl_final_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_witness_lpv_final_in_overflow",
+      "command": {
+        "args": {
+          "holder_posted_in": 7,
+          "witness_hodl_final_in": 400,
+          "witness_lpv_final_in": 1001,
+          "writer_posted_in": 1000
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "above 1000",
+      "expect": {
+        "effects": null,
+        "error": "invalid param witness_lpv_final_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_holder_posted_in_str",
+      "command": {
+        "args": {
+          "holder_posted_in": "p",
+          "witness_hodl_final_in": 400,
+          "witness_lpv_final_in": 300,
+          "writer_posted_in": 1000
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "wrong type str",
+      "expect": {
+        "effects": null,
+        "error": "invalid param holder_posted_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_writer_posted_in_negative",
+      "command": {
+        "args": {
+          "holder_posted_in": 7,
+          "witness_hodl_final_in": 400,
+          "witness_lpv_final_in": 300,
+          "writer_posted_in": -3
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "below 0",
+      "expect": {
+        "effects": null,
+        "error": "invalid param writer_posted_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_writer_posted_in_overflow",
+      "command": {
+        "args": {
+          "holder_posted_in": 7,
+          "witness_hodl_final_in": 400,
+          "witness_lpv_final_in": 300,
+          "writer_posted_in": 1000001
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "above 1000000",
+      "expect": {
+        "effects": null,
+        "error": "invalid param writer_posted_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_guard_witness_hodl_above_upper",
+      "command": {
+        "args": {
+          "holder_posted_in": 7,
+          "witness_hodl_final_in": 501,
+          "witness_lpv_final_in": 300,
+          "writer_posted_in": 1000
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "witness_hodl_final_in > hodl_upper",
+      "expect": {
+        "effects": null,
+        "error": "guard failed for firev_accept_and_settle",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_guard_witness_lpv_above_upper",
+      "command": {
+        "args": {
+          "holder_posted_in": 7,
+          "witness_hodl_final_in": 400,
+          "witness_lpv_final_in": 401,
+          "writer_posted_in": 1000
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "witness_lpv_final_in > lpv_upper",
+      "expect": {
+        "effects": null,
+        "error": "guard failed for firev_accept_and_settle",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_guard_witness_hodl_below_lower",
+      "command": {
+        "args": {
+          "holder_posted_in": 7,
+          "witness_hodl_final_in": 99,
+          "witness_lpv_final_in": 300,
+          "writer_posted_in": 1000
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "witness_hodl_final_in < hodl_lower",
+      "expect": {
+        "effects": null,
+        "error": "guard failed for firev_accept_and_settle",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_guard_witness_lpv_below_lower",
+      "command": {
+        "args": {
+          "holder_posted_in": 7,
+          "witness_hodl_final_in": 400,
+          "witness_lpv_final_in": 199,
+          "writer_posted_in": 1000
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "witness_lpv_final_in < lpv_lower",
+      "expect": {
+        "effects": null,
+        "error": "guard failed for firev_accept_and_settle",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_guard_phase_idle",
+      "command": {
+        "args": {
+          "holder_posted_in": 0,
+          "witness_hodl_final_in": 0,
+          "witness_lpv_final_in": 0,
+          "writer_posted_in": 0
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "all other conjuncts hold on init state; only phase != Compiled fails",
+      "expect": {
+        "effects": null,
+        "error": "guard failed for firev_accept_and_settle",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_settle_guard_phase_settled",
+      "command": {
+        "args": {
+          "holder_posted_in": 0,
+          "witness_hodl_final_in": 400,
+          "witness_lpv_final_in": 300,
+          "writer_posted_in": 1000
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "settle requires phase == Compiled",
+      "expect": {
+        "effects": null,
+        "error": "guard failed for firev_accept_and_settle",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 500,
+        "holder_posted": 7,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Settled",
+        "witness_hodl_final": 400,
+        "witness_lpv_final": 300,
+        "writer_delta": -500,
+        "writer_posted": 1000
+      }
+    },
+    {
+      "case_id": "st_settle_guard_writer_posted_below_artifact_upper",
+      "command": {
+        "args": {
+          "holder_posted_in": 0,
+          "witness_hodl_final_in": 400,
+          "witness_lpv_final_in": 300,
+          "writer_posted_in": 999
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "writer_posted_in 999 < artifact_upper 1000",
+      "expect": {
+        "effects": null,
+        "error": "guard failed for firev_accept_and_settle",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_unknown_action",
+      "command": {
+        "args": {},
+        "tag": "mint_pool"
+      },
+      "comment": "tag dispatch falls through to the unknown-action reject",
+      "expect": {
+        "effects": null,
+        "error": "unknown action: mint_pool",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_unknown_action_empty_tag",
+      "command": {
+        "args": {
+          "n_in": 1
+        },
+        "tag": ""
+      },
+      "comment": "empty tag is still an unknown action",
+      "expect": {
+        "effects": null,
+        "error": "unknown action: ",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_pre_invariant_domain_phase",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "pre-state invariants are checked before anything else",
+      "expect": {
+        "effects": null,
+        "error": "pre-invariant violated: domain_phase",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Broken",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_pre_invariant_domain_writer_delta",
+      "command": {
+        "args": {
+          "holder_posted_in": 7,
+          "witness_hodl_final_in": 400,
+          "witness_lpv_final_in": 300,
+          "writer_posted_in": 1000
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "pre-state domain violation rejects the settle command",
+      "expect": {
+        "effects": null,
+        "error": "pre-invariant violated: domain_writer_delta",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 7,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_pre_invariant_semantic_hodl_interval",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "pre-state semantic violation (hodl 5 > 0) rejects before param checks",
+      "expect": {
+        "effects": null,
+        "error": "pre-invariant violated: inv_hodl_interval_well_formed",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 5,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_prec_pre_before_params",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "pre-invariant reject wins over invalid params",
+      "expect": {
+        "effects": null,
+        "error": "pre-invariant violated: domain_phase",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Broken",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_prec_pre_before_unknown_tag",
+      "command": {
+        "args": {},
+        "tag": "bogus_action"
+      },
+      "comment": "pre-invariant reject wins over unknown-action (pre-check precedes dispatch)",
+      "expect": {
+        "effects": null,
+        "error": "pre-invariant violated: domain_phase",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Broken",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_prec_param_n_before_deductible",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": "x",
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "n_in is validated before deductible_in",
+      "expect": {
+        "effects": null,
+        "error": "invalid param n_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_prec_param_deductible_before_cap",
+      "command": {
+        "args": {
+          "deductible_in": true,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": 500,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "deductible_in is validated before cap_in",
+      "expect": {
+        "effects": null,
+        "error": "invalid param deductible_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_prec_param_hodl_upper_before_lpv_lower",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 100,
+          "hodl_upper_in": -5,
+          "lpv_lower_in": "z",
+          "lpv_upper_in": 400,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "hodl_upper_in is validated before lpv_lower_in",
+      "expect": {
+        "effects": null,
+        "error": "invalid param hodl_upper_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_prec_params_before_guard",
+      "command": {
+        "args": {
+          "cap_in": 100,
+          "deductible_in": 50,
+          "hodl_lower_in": 5,
+          "hodl_upper_in": 3,
+          "lpv_lower_in": 200,
+          "lpv_upper_in": 2000,
+          "n_in": 10
+        },
+        "tag": "compile_lp_loss_cover"
+      },
+      "comment": "param rejects win over guard violations",
+      "expect": {
+        "effects": null,
+        "error": "invalid param lpv_upper_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_prec_settle_param_order",
+      "command": {
+        "args": {
+          "holder_posted_in": 7,
+          "witness_lpv_final_in": 300,
+          "writer_posted_in": "x"
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "witness_hodl_final_in is validated before writer_posted_in",
+      "expect": {
+        "effects": null,
+        "error": "invalid param witness_hodl_final_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_prec_settle_params_before_guard",
+      "command": {
+        "args": {
+          "holder_posted_in": 0,
+          "witness_hodl_final_in": 0,
+          "witness_lpv_final_in": -1,
+          "writer_posted_in": 0
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "invalid witness_lpv_final_in wins over the failing phase guard",
+      "expect": {
+        "effects": null,
+        "error": "invalid param witness_lpv_final_in",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 0,
+        "cap_amount": 0,
+        "deductible": 0,
+        "hodl_lower": 0,
+        "hodl_upper": 0,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 0,
+        "lpv_upper": 0,
+        "n_notional": 0,
+        "phase": "Idle",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "st_prec_settle_multi_guard_single_message",
+      "command": {
+        "args": {
+          "holder_posted_in": 7,
+          "witness_hodl_final_in": 501,
+          "witness_lpv_final_in": 300,
+          "writer_posted_in": 999
+        },
+        "tag": "firev_accept_and_settle"
+      },
+      "comment": "multiple broken guard conjuncts still produce the single guard message",
+      "expect": {
+        "effects": null,
+        "error": "guard failed for firev_accept_and_settle",
+        "ok": false,
+        "state": null
+      },
+      "kind": "step",
+      "state": {
+        "artifact_lower": 0,
+        "artifact_upper": 1000,
+        "cap_amount": 100,
+        "deductible": 50,
+        "hodl_lower": 100,
+        "hodl_upper": 500,
+        "holder_delta": 0,
+        "holder_posted": 0,
+        "lpv_lower": 200,
+        "lpv_upper": 400,
+        "n_notional": 10,
+        "phase": "Compiled",
+        "witness_hodl_final": 0,
+        "witness_lpv_final": 0,
+        "writer_delta": 0,
+        "writer_posted": 0
+      }
+    },
+    {
+      "case_id": "rp_full_lifecycle",
+      "commands": [
+        [
+          "compile_lp_loss_cover",
+          {
+            "cap_in": 100,
+            "deductible_in": 50,
+            "hodl_lower_in": 100,
+            "hodl_upper_in": 500,
+            "lpv_lower_in": 200,
+            "lpv_upper_in": 400,
+            "n_in": 10
+          }
+        ],
+        [
+          "firev_accept_and_settle",
+          {
+            "holder_posted_in": 7,
+            "witness_hodl_final_in": 400,
+            "witness_lpv_final_in": 300,
+            "writer_posted_in": 1000
+          }
+        ]
+      ],
+      "comment": "Idle -> Compiled -> Settled happy path",
+      "expect": {
+        "results": [
+          {
+            "effects": {
+              "compiled_upper": 1000,
+              "firev_accept": false,
+              "payoff_out": 0
+            },
+            "error": null,
+            "ok": true,
+            "state": {
+              "artifact_lower": 0,
+              "artifact_upper": 1000,
+              "cap_amount": 100,
+              "deductible": 50,
+              "hodl_lower": 100,
+              "hodl_upper": 500,
+              "holder_delta": 0,
+              "holder_posted": 0,
+              "lpv_lower": 200,
+              "lpv_upper": 400,
+              "n_notional": 10,
+              "phase": "Compiled",
+              "witness_hodl_final": 0,
+              "witness_lpv_final": 0,
+              "writer_delta": 0,
+              "writer_posted": 0
+            }
+          },
+          {
+            "effects": {
+              "compiled_upper": 1000,
+              "firev_accept": true,
+              "payoff_out": 500
+            },
+            "error": null,
+            "ok": true,
+            "state": {
+              "artifact_lower": 0,
+              "artifact_upper": 1000,
+              "cap_amount": 100,
+              "deductible": 50,
+              "hodl_lower": 100,
+              "hodl_upper": 500,
+              "holder_delta": 500,
+              "holder_posted": 7,
+              "lpv_lower": 200,
+              "lpv_upper": 400,
+              "n_notional": 10,
+              "phase": "Settled",
+              "witness_hodl_final": 400,
+              "witness_lpv_final": 300,
+              "writer_delta": -500,
+              "writer_posted": 1000
+            }
+          }
+        ]
+      },
+      "kind": "replay"
+    },
+    {
+      "case_id": "rp_compile_twice",
+      "commands": [
+        [
+          "compile_lp_loss_cover",
+          {
+            "cap_in": 100,
+            "deductible_in": 50,
+            "hodl_lower_in": 100,
+            "hodl_upper_in": 500,
+            "lpv_lower_in": 200,
+            "lpv_upper_in": 400,
+            "n_in": 10
+          }
+        ],
+        [
+          "compile_lp_loss_cover",
+          {
+            "cap_in": 100,
+            "deductible_in": 50,
+            "hodl_lower_in": 100,
+            "hodl_upper_in": 500,
+            "lpv_lower_in": 200,
+            "lpv_upper_in": 400,
+            "n_in": 10
+          }
+        ]
+      ],
+      "comment": "second compile fails the Idle-phase guard; replay stops",
+      "expect": {
+        "results": [
+          {
+            "effects": {
+              "compiled_upper": 1000,
+              "firev_accept": false,
+              "payoff_out": 0
+            },
+            "error": null,
+            "ok": true,
+            "state": {
+              "artifact_lower": 0,
+              "artifact_upper": 1000,
+              "cap_amount": 100,
+              "deductible": 50,
+              "hodl_lower": 100,
+              "hodl_upper": 500,
+              "holder_delta": 0,
+              "holder_posted": 0,
+              "lpv_lower": 200,
+              "lpv_upper": 400,
+              "n_notional": 10,
+              "phase": "Compiled",
+              "witness_hodl_final": 0,
+              "witness_lpv_final": 0,
+              "writer_delta": 0,
+              "writer_posted": 0
+            }
+          },
+          {
+            "effects": null,
+            "error": "guard failed for compile_lp_loss_cover",
+            "ok": false,
+            "state": null
+          }
+        ]
+      },
+      "kind": "replay"
+    },
+    {
+      "case_id": "rp_settle_first",
+      "commands": [
+        [
+          "firev_accept_and_settle",
+          {
+            "holder_posted_in": 0,
+            "witness_hodl_final_in": 0,
+            "witness_lpv_final_in": 0,
+            "writer_posted_in": 0
+          }
+        ]
+      ],
+      "comment": "settle from init fails the Compiled-phase guard",
+      "expect": {
+        "results": [
+          {
+            "effects": null,
+            "error": "guard failed for firev_accept_and_settle",
+            "ok": false,
+            "state": null
+          }
+        ]
+      },
+      "kind": "replay"
+    },
+    {
+      "case_id": "rp_full_then_compile_again",
+      "commands": [
+        [
+          "compile_lp_loss_cover",
+          {
+            "cap_in": 100,
+            "deductible_in": 50,
+            "hodl_lower_in": 100,
+            "hodl_upper_in": 500,
+            "lpv_lower_in": 200,
+            "lpv_upper_in": 400,
+            "n_in": 10
+          }
+        ],
+        [
+          "firev_accept_and_settle",
+          {
+            "holder_posted_in": 7,
+            "witness_hodl_final_in": 400,
+            "witness_lpv_final_in": 300,
+            "writer_posted_in": 1000
+          }
+        ],
+        [
+          "compile_lp_loss_cover",
+          {
+            "cap_in": 100,
+            "deductible_in": 50,
+            "hodl_lower_in": 100,
+            "hodl_upper_in": 500,
+            "lpv_lower_in": 200,
+            "lpv_upper_in": 400,
+            "n_in": 10
+          }
+        ]
+      ],
+      "comment": "compile after settlement fails the Idle-phase guard",
+      "expect": {
+        "results": [
+          {
+            "effects": {
+              "compiled_upper": 1000,
+              "firev_accept": false,
+              "payoff_out": 0
+            },
+            "error": null,
+            "ok": true,
+            "state": {
+              "artifact_lower": 0,
+              "artifact_upper": 1000,
+              "cap_amount": 100,
+              "deductible": 50,
+              "hodl_lower": 100,
+              "hodl_upper": 500,
+              "holder_delta": 0,
+              "holder_posted": 0,
+              "lpv_lower": 200,
+              "lpv_upper": 400,
+              "n_notional": 10,
+              "phase": "Compiled",
+              "witness_hodl_final": 0,
+              "witness_lpv_final": 0,
+              "writer_delta": 0,
+              "writer_posted": 0
+            }
+          },
+          {
+            "effects": {
+              "compiled_upper": 1000,
+              "firev_accept": true,
+              "payoff_out": 500
+            },
+            "error": null,
+            "ok": true,
+            "state": {
+              "artifact_lower": 0,
+              "artifact_upper": 1000,
+              "cap_amount": 100,
+              "deductible": 50,
+              "hodl_lower": 100,
+              "hodl_upper": 500,
+              "holder_delta": 500,
+              "holder_posted": 7,
+              "lpv_lower": 200,
+              "lpv_upper": 400,
+              "n_notional": 10,
+              "phase": "Settled",
+              "witness_hodl_final": 400,
+              "witness_lpv_final": 300,
+              "writer_delta": -500,
+              "writer_posted": 1000
+            }
+          },
+          {
+            "effects": null,
+            "error": "guard failed for compile_lp_loss_cover",
+            "ok": false,
+            "state": null
+          }
+        ]
+      },
+      "kind": "replay"
+    },
+    {
+      "case_id": "rp_max_lifecycle",
+      "commands": [
+        [
+          "compile_lp_loss_cover",
+          {
+            "cap_in": 1000,
+            "deductible_in": 0,
+            "hodl_lower_in": 0,
+            "hodl_upper_in": 1000,
+            "lpv_lower_in": 0,
+            "lpv_upper_in": 1000,
+            "n_in": 1000
+          }
+        ],
+        [
+          "firev_accept_and_settle",
+          {
+            "holder_posted_in": 1000000,
+            "witness_hodl_final_in": 1000,
+            "witness_lpv_final_in": 0,
+            "writer_posted_in": 1000000
+          }
+        ]
+      ],
+      "comment": "extreme-bounds lifecycle: payoff and deltas reach the domain extremes",
+      "expect": {
+        "results": [
+          {
+            "effects": {
+              "compiled_upper": 1000000,
+              "firev_accept": false,
+              "payoff_out": 0
+            },
+            "error": null,
+            "ok": true,
+            "state": {
+              "artifact_lower": 0,
+              "artifact_upper": 1000000,
+              "cap_amount": 1000,
+              "deductible": 0,
+              "hodl_lower": 0,
+              "hodl_upper": 1000,
+              "holder_delta": 0,
+              "holder_posted": 0,
+              "lpv_lower": 0,
+              "lpv_upper": 1000,
+              "n_notional": 1000,
+              "phase": "Compiled",
+              "witness_hodl_final": 0,
+              "witness_lpv_final": 0,
+              "writer_delta": 0,
+              "writer_posted": 0
+            }
+          },
+          {
+            "effects": {
+              "compiled_upper": 1000000,
+              "firev_accept": true,
+              "payoff_out": 1000000
+            },
+            "error": null,
+            "ok": true,
+            "state": {
+              "artifact_lower": 0,
+              "artifact_upper": 1000000,
+              "cap_amount": 1000,
+              "deductible": 0,
+              "hodl_lower": 0,
+              "hodl_upper": 1000,
+              "holder_delta": 1000000,
+              "holder_posted": 1000000,
+              "lpv_lower": 0,
+              "lpv_upper": 1000,
+              "n_notional": 1000,
+              "phase": "Settled",
+              "witness_hodl_final": 1000,
+              "witness_lpv_final": 0,
+              "writer_delta": -1000000,
+              "writer_posted": 1000000
+            }
+          }
+        ]
+      },
+      "kind": "replay"
+    },
+    {
+      "case_id": "rp_zero_notional_lifecycle",
+      "commands": [
+        [
+          "compile_lp_loss_cover",
+          {
+            "cap_in": 0,
+            "deductible_in": 0,
+            "hodl_lower_in": 0,
+            "hodl_upper_in": 0,
+            "lpv_lower_in": 0,
+            "lpv_upper_in": 0,
+            "n_in": 0
+          }
+        ],
+        [
+          "firev_accept_and_settle",
+          {
+            "holder_posted_in": 0,
+            "witness_hodl_final_in": 0,
+            "witness_lpv_final_in": 0,
+            "writer_posted_in": 0
+          }
+        ]
+      ],
+      "comment": "degenerate all-zero lifecycle settles with zero payoff",
+      "expect": {
+        "results": [
+          {
+            "effects": {
+              "compiled_upper": 0,
+              "firev_accept": false,
+              "payoff_out": 0
+            },
+            "error": null,
+            "ok": true,
+            "state": {
+              "artifact_lower": 0,
+              "artifact_upper": 0,
+              "cap_amount": 0,
+              "deductible": 0,
+              "hodl_lower": 0,
+              "hodl_upper": 0,
+              "holder_delta": 0,
+              "holder_posted": 0,
+              "lpv_lower": 0,
+              "lpv_upper": 0,
+              "n_notional": 0,
+              "phase": "Compiled",
+              "witness_hodl_final": 0,
+              "witness_lpv_final": 0,
+              "writer_delta": 0,
+              "writer_posted": 0
+            }
+          },
+          {
+            "effects": {
+              "compiled_upper": 0,
+              "firev_accept": true,
+              "payoff_out": 0
+            },
+            "error": null,
+            "ok": true,
+            "state": {
+              "artifact_lower": 0,
+              "artifact_upper": 0,
+              "cap_amount": 0,
+              "deductible": 0,
+              "hodl_lower": 0,
+              "hodl_upper": 0,
+              "holder_delta": 0,
+              "holder_posted": 0,
+              "lpv_lower": 0,
+              "lpv_upper": 0,
+              "n_notional": 0,
+              "phase": "Settled",
+              "witness_hodl_final": 0,
+              "witness_lpv_final": 0,
+              "writer_delta": 0,
+              "writer_posted": 0
+            }
+          }
+        ]
+      },
+      "kind": "replay"
+    },
+    {
+      "case_id": "rp_break_on_invalid_param",
+      "commands": [
+        [
+          "compile_lp_loss_cover",
+          {
+            "cap_in": 100,
+            "deductible_in": 50,
+            "hodl_lower_in": 100,
+            "hodl_upper_in": 500,
+            "lpv_lower_in": 200,
+            "lpv_upper_in": 400,
+            "n_in": 10
+          }
+        ],
+        [
+          "firev_accept_and_settle",
+          {
+            "holder_posted_in": 7,
+            "witness_hodl_final_in": 400,
+            "writer_posted_in": 1000
+          }
+        ]
+      ],
+      "comment": "replay records the param reject and stops",
+      "expect": {
+        "results": [
+          {
+            "effects": {
+              "compiled_upper": 1000,
+              "firev_accept": false,
+              "payoff_out": 0
+            },
+            "error": null,
+            "ok": true,
+            "state": {
+              "artifact_lower": 0,
+              "artifact_upper": 1000,
+              "cap_amount": 100,
+              "deductible": 50,
+              "hodl_lower": 100,
+              "hodl_upper": 500,
+              "holder_delta": 0,
+              "holder_posted": 0,
+              "lpv_lower": 200,
+              "lpv_upper": 400,
+              "n_notional": 10,
+              "phase": "Compiled",
+              "witness_hodl_final": 0,
+              "witness_lpv_final": 0,
+              "writer_delta": 0,
+              "writer_posted": 0
+            }
+          },
+          {
+            "effects": null,
+            "error": "invalid param witness_lpv_final_in",
+            "ok": false,
+            "state": null
+          }
+        ]
+      },
+      "kind": "replay"
+    },
+    {
+      "case_id": "rp_unknown_tag_only",
+      "commands": [
+        [
+          "not_an_action",
+          {}
+        ]
+      ],
+      "comment": "unknown tag is recorded and replay stops",
+      "expect": {
+        "results": [
+          {
+            "effects": null,
+            "error": "unknown action: not_an_action",
+            "ok": false,
+            "state": null
+          }
+        ]
+      },
+      "kind": "replay"
+    },
+    {
+      "case_id": "rp_empty",
+      "commands": [],
+      "comment": "empty trace produces no results",
+      "expect": {
+        "results": []
+      },
+      "kind": "replay"
+    }
+  ],
+  "ir_hash": "sha256:bf1509a7c86dfd9cd2d353133de9abf879f2fdf2279c4bd3114636233e8e7be4",
+  "schema": "zenodex.fire.lp_loss_cover_v1_ref.characterization_corpus.v1"
+}
