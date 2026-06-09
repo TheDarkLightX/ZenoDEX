@@ -8,8 +8,33 @@ neither is trusted over the other; they must agree on every shared case.
 CASES: (surface, kwargs-for-the-python-gate, expected-admissibility).
 SURFACE_TAU: per surface, the spec file, output bit, and how each kwarg maps onto a Tau input
              variable (kind, var). kind "sbf" => boolean (0/1), "bv" => bv[16] value.
+SIGNATURE_ORDER: positional argument order of each gate function — the contract the Rust
+             kernel mirrors. The committed JSON fixture for the Rust side
+             (tests/tau_specs/governance/fixtures/gov_gate_parity_cases.json) is generated
+             from CASES via this table (gen_rust_parity_fixture.py) and byte-pinned by
+             test_gov_parity.py, making this module the single source of truth for all
+             THREE implementations (Tau / Python / Rust).
 """
 from __future__ import annotations
+
+SIGNATURE_ORDER = {
+    "fee": ("approved", "exec_req", "proposal_ts", "current_ts",
+            "fee_curr_bps", "fee_next_bps"),
+    "router_split": ("approved", "exec_req", "proposal_ts", "current_ts",
+                     "buyburn_next", "stakers_next", "reserve_next", "hosts_next"),
+    "funding": ("approved", "exec_req", "proposal_ts", "current_ts",
+                "funding_cap_curr_bps", "funding_cap_next_bps"),
+    "collateral": ("approved", "exec_req", "proposal_ts", "current_ts",
+                   "mcr_curr_bps", "mcr_next_bps", "ccr_curr_bps", "ccr_next_bps"),
+    "whale": ("approved", "exec_req", "proposal_ts", "current_ts",
+              "staker_bps_curr", "staker_bps_next"),
+    "action": ("approved", "exec_req", "proposal_ts", "current_ts", "min_delay",
+               "curr", "nxt", "lo", "hi", "step"),
+    "drift": ("curr", "nxt", "used", "budget"),
+    "cooldown": ("last_revision_epoch", "now_epoch", "cooldown"),
+    "charter": ("revoked", "granted_epoch", "now_epoch", "ttl"),
+    "epoch_budget": ("scalar_sum", "router_sum", "collateral_sum", "budget"),
+}
 
 SURFACE_TAU = {
     "fee": ("gov_fee_revision_v1.tau", "o1", {
@@ -41,6 +66,19 @@ SURFACE_TAU = {
         "proposal_ts": ("bv", "i3"), "current_ts": ("bv", "i4"), "min_delay": ("bv", "i5"),
         "curr": ("bv", "i6"), "nxt": ("bv", "i7"),
         "lo": ("bv", "i8"), "hi": ("bv", "i9"), "step": ("bv", "i10")}),
+    # --- trajectory tier (pure bits: no approval/exec/timelock inputs) ---
+    "drift": ("gov_drift_budget_v1.tau", "o1", {
+        "curr": ("bv", "i1"), "nxt": ("bv", "i2"),
+        "used": ("bv", "i3"), "budget": ("bv", "i4")}),
+    "cooldown": ("gov_cooldown_v1.tau", "o1", {
+        "last_revision_epoch": ("bv", "i1"), "now_epoch": ("bv", "i2"),
+        "cooldown": ("bv", "i3")}),
+    "charter": ("gov_charter_v1.tau", "o1", {
+        "revoked": ("sbf", "i1"), "granted_epoch": ("bv", "i2"),
+        "now_epoch": ("bv", "i3"), "ttl": ("bv", "i4")}),
+    "epoch_budget": ("gov_epoch_budget_v1.tau", "o1", {
+        "scalar_sum": ("bv", "i1"), "router_sum": ("bv", "i2"),
+        "collateral_sum": ("bv", "i3"), "budget": ("bv", "i4")}),
 }
 
 # Python gate kwargs must match gov_gate.py signatures exactly.
@@ -95,4 +133,26 @@ CASES = [
                         mcr_curr_bps=11000, mcr_next_bps=11000, ccr_curr_bps=15000, ccr_next_bps=15000), True),
     ("collateral", dict(approved=True, exec_req=True, proposal_ts=0, current_ts=24,
                         mcr_curr_bps=15000, mcr_next_bps=15000, ccr_curr_bps=11000, ccr_next_bps=11000), False),  # order
+    # --- drift budget (trajectory window) ---
+    ("drift", dict(curr=500, nxt=520, used=20, budget=150), True),          # delta 20 <= remaining 130
+    ("drift", dict(curr=500, nxt=470, used=120, budget=150), True),         # delta 30 == remaining 30 (boundary)
+    ("drift", dict(curr=500, nxt=520, used=140, budget=150), False),        # delta 20 > remaining 10
+    ("drift", dict(curr=0, nxt=0, used=200, budget=150), False),            # used over budget (even for a no-move)
+    ("drift", dict(curr=500, nxt=501, used=150, budget=150), False),        # exhausted budget blocks minimal move
+    ("drift", dict(curr=65520, nxt=16, used=0, budget=50), False),          # large-magnitude move, wrap-safe
+    # --- cooldown (spacing between applied revisions) ---
+    ("cooldown", dict(last_revision_epoch=0, now_epoch=48, cooldown=48), True),    # boundary admit
+    ("cooldown", dict(last_revision_epoch=100, now_epoch=110, cooldown=24), False),  # gap 10 < 24
+    ("cooldown", dict(last_revision_epoch=65520, now_epoch=8, cooldown=24), False),  # wrap probe: now < last
+    # --- charter (standing approval, dead-man) ---
+    ("charter", dict(revoked=False, granted_epoch=0, now_epoch=10, ttl=24), True),     # inside ttl
+    ("charter", dict(revoked=True, granted_epoch=0, now_epoch=10, ttl=24), False),     # revoked
+    ("charter", dict(revoked=False, granted_epoch=0, now_epoch=24, ttl=24), False),    # expired at granted+ttl
+    ("charter", dict(revoked=False, granted_epoch=0, now_epoch=10, ttl=4097), False),  # ttl over constitutional max
+    ("charter", dict(revoked=False, granted_epoch=65520, now_epoch=8, ttl=4095), False),  # wrap probe: future grant
+    ("charter", dict(revoked=False, granted_epoch=0, now_epoch=0, ttl=0), False),      # zero ttl dead at birth
+    # --- epoch budget (aggregate movement per revision) ---
+    ("epoch_budget", dict(scalar_sum=60, router_sum=400, collateral_sum=0, budget=600), True),
+    ("epoch_budget", dict(scalar_sum=300, router_sum=300, collateral_sum=100, budget=600), False),  # 700 > 600
+    ("epoch_budget", dict(scalar_sum=65535, router_sum=1, collateral_sum=0, budget=256), False),    # wrap probe
 ]

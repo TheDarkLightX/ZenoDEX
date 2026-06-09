@@ -191,6 +191,43 @@ PER_SURFACE = {
     ]),
 }
 
+# PURE trajectory-tier bits (no approval/exec/timelock flags -- one concern per spec,
+# composed by the epoch machine ALONGSIDE the revision gates). Teeth therefore omit the
+# GATE_OK/EXEC clauses: each is `unsat(body && o1=1 && <violation>)` directly.
+# (spec file, output bit, non-vacuity clauses, [(teeth name, violation clauses)])
+PURE_SPECS = {
+    # i1=curr i2=next i3=used i4=budget
+    "gov_drift_budget_v1.tau": ("o1",
+        [eq("i1", 500), eq("i2", 520), eq("i3", 20), eq("i4", 150)], [
+        ("used_over_budget", [gtv("i3", "i4")]),
+        ("delta_over_remaining", [eq("i1", 0), eq("i2", 100), eq("i3", 100), eq("i4", 150)]),
+        ("wrap_probe_large_delta", [eq("i1", 0xFFF0), eq("i2", 0x0010), eq("i3", 0), eq("i4", 50)]),
+        ("exhausted_budget_blocks_minimal_move",
+         [eq("i1", 500), eq("i2", 501), eq("i3", 150), eq("i4", 150)]),
+    ]),
+    # i1=last_revision_epoch i2=now_epoch i3=cooldown
+    "gov_cooldown_v1.tau": ("o1",
+        [eq("i1", 0), eq("i2", 48), eq("i3", 48)], [
+        ("gap_below_cooldown", [eq("i1", 100), eq("i2", 110), eq("i3", 24)]),
+        ("wrap_probe_now_before_last", [eq("i1", 0xFFF0), eq("i2", 0x0008), eq("i3", 24)]),
+    ]),
+    # i1=revoked i2=granted_epoch i3=now_epoch i4=ttl ; TTL_MAX=0x1000
+    "gov_charter_v1.tau": ("o1",
+        [sbf("i1", 0), eq("i2", 0), eq("i3", 10), eq("i4", 24)], [
+        ("revoked", [sbf("i1", 1)]),
+        ("ttl_over_constitutional_max", [gt("i4", 0x1000)]),
+        ("expired_at_ttl", [sbf("i1", 0), eq("i2", 0), eq("i3", 24), eq("i4", 24)]),
+        ("wrap_probe_future_granted", [sbf("i1", 0), eq("i2", 0xFFF0), eq("i3", 0x0008), eq("i4", 0x0FFF)]),
+        ("zero_ttl_dead_at_birth", [eq("i4", 0)]),
+    ]),
+    # i1=scalar_sum i2=router_sum i3=collateral_sum i4=budget
+    "gov_epoch_budget_v1.tau": ("o1",
+        [eq("i1", 60), eq("i2", 400), eq("i3", 0), eq("i4", 600)], [
+        ("total_over_budget", [eq("i1", 300), eq("i2", 300), eq("i3", 100), eq("i4", 600)]),
+        ("wrap_probe_sum_overflow", [eq("i1", 0xFFFF), eq("i2", 0x0001), eq("i3", 0), eq("i4", 0x0100)]),
+    ]),
+}
+
 # Master bit -> (non-vacuity clauses, [(teeth name, violation clauses)]). Verified per bit.
 # Master input layout: fee i5/i6; router next i7-i10, curr i11-i14; collateral i15-i18;
 # whale i19/i20. Router is two bits (o3 sum, o6 step). EVERY guardrail of every bit gets a
@@ -225,6 +262,20 @@ def verify_per_surface(name: str, out: str, nonvac: list[str], teeth: list) -> d
            "teeth": {}}
     for tname, clauses in teeth:
         res["teeth"][tname] = check(body, "unsat", [sbf(out, 1), EXEC] + clauses) == "T"
+    res["pass"] = res["compile"] and res["non_vacuity"] and all(res["teeth"].values())
+    return res
+
+
+def verify_pure(name: str, out: str, nonvac: list[str], teeth: list) -> dict:
+    """Like verify_per_surface but for the flag-less trajectory bits: teeth do not
+    conjoin the EXEC/approval clauses (the spec has no such inputs)."""
+    spec_path = SPEC_DIR / name
+    body = extract_body(spec_path)
+    res = {"compile": compile_ok(spec_path),
+           "non_vacuity": check(body, "sat", [sbf(out, 1)] + nonvac) == "T",
+           "teeth": {}}
+    for tname, clauses in teeth:
+        res["teeth"][tname] = check(body, "unsat", [sbf(out, 1)] + clauses) == "T"
     res["pass"] = res["compile"] and res["non_vacuity"] and all(res["teeth"].values())
     return res
 
@@ -287,6 +338,18 @@ def main() -> int:
         if not as_json:
             print(f"[verify] {name} ...", flush=True)
         r = verify_per_surface(name, out, nonvac, teeth)
+        summary["per_surface"][name] = r
+        summary["all_pass"] = summary["all_pass"] and r["pass"]
+        if not as_json:
+            t = sum(r["teeth"].values())
+            print(f"   compile={'OK' if r['compile'] else 'FAIL'} "
+                  f"sat={'OK' if r['non_vacuity'] else 'FAIL'} "
+                  f"teeth={t}/{len(r['teeth'])} -> {'PASS' if r['pass'] else 'FAIL'}", flush=True)
+
+    for name, (out, nonvac, teeth) in PURE_SPECS.items():
+        if not as_json:
+            print(f"[verify] {name} (pure trajectory bit) ...", flush=True)
+        r = verify_pure(name, out, nonvac, teeth)
         summary["per_surface"][name] = r
         summary["all_pass"] = summary["all_pass"] and r["pass"]
         if not as_json:

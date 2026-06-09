@@ -220,6 +220,102 @@ def funding_rate_revision_ok(
     )
 
 
+# --------------------------------------------------------------------------- #
+# TRAJECTORY TIER (autonomy envelope). Pure bits, composed by the epoch machine
+# ALONGSIDE the pointwise revision gates above, never instead of them.
+#
+# WHY THIS TIER EXISTS: per-step safety is NOT trajectory safety. The pointwise
+# gates bound each revision to one `step` -- but under STANDING approval (the
+# autonomy charter, which is what makes a lane autonomous at all) a poisoned
+# proposer could walk a parameter from min to max at one legal step per
+# revision. These bits bound the trajectory: spacing (cooldown), window
+# displacement (drift budget), aggregate per-revision movement (epoch budget),
+# and the standing approval itself (charter: revocable + expiring -- dead-man).
+# --------------------------------------------------------------------------- #
+CHARTER_TTL_MAX = 4096   # { #x1000 } constitutional: no perpetual autonomy charter
+GOV_COOLDOWN_EPOCHS = 48     # reference spacing between applied revisions (2x MIN_DELAY)
+DRIFT_WINDOW_EPOCHS = 720    # reference trajectory window length
+# Aggregate |delta| budget per applied revision. Calibrated to the LARGEST legal
+# single-group action (the MCR+CCR pair at full step = 2000, or a full sum-preserving
+# router rebalance = 2000) so no individually-legal group move is strangled — while a
+# coordinated cross-group walk (every surface one legal step = 4575) always rejects.
+EPOCH_MOVEMENT_BUDGET = 2000
+
+# Reference per-surface window drift budgets: 3 pointwise steps per window. A surface can
+# therefore move at most 3 steps per 720 epochs even under a fully autonomous charter
+# (vs ~15 steps if only the cooldown bounded it). Constitution-tier: changeable only by
+# a version bump, NEVER by the autonomous lane itself (no self-amendment).
+DRIFT_BUDGET_BPS: dict[str, int] = {
+    "fee_bps": 3 * FEE_STEP_BPS,                 # 150
+    "funding_cap_bps": 3 * FUNDING_STEP_BPS,     # 75
+    "redeem_staker_bps": 3 * WHALE_STEP_BPS,     # 1500
+    "buyburn_bps": 3 * SPLIT_STEP_BPS,           # 1500
+    "stakers_bps": 3 * SPLIT_STEP_BPS,           # 1500
+    "reserve_bps": 3 * SPLIT_STEP_BPS,           # 1500
+    "hosts_bps": 3 * SPLIT_STEP_BPS,             # 1500
+    "mcr_bps": 3 * RATIO_STEP_BPS,               # 3000
+    "ccr_bps": 3 * RATIO_STEP_BPS,               # 3000
+}
+
+
+def drift_budget_ok(curr: int, nxt: int, used: int, budget: int) -> bool:
+    """Window drift-budget bit (mirrors gov_drift_budget_v1.tau).
+
+    Admits iff used <= budget AND |next - curr| <= budget - used. `used` is the |delta|
+    already consumed in the surface's current trajectory window; the runtime binds it to
+    committed receipts exactly as it binds `curr` (the WS2 clause): the spec bounds the
+    relation, the runtime owns the accumulator.
+    """
+    if not _in_domain(curr, nxt, used, budget):
+        return False
+    return used <= budget and abs(nxt - curr) <= budget - used
+
+
+def cooldown_ok(last_revision_epoch: int, now_epoch: int, cooldown: int) -> bool:
+    """Revision-spacing bit (mirrors gov_cooldown_v1.tau), wrap-safe subtraction-guard.
+
+    Distinct from the timelock (proposal->execution delay): this is the minimum spacing
+    between two consecutive APPLIED revisions of the same surface (anti-thrash).
+    """
+    if not _in_domain(last_revision_epoch, now_epoch, cooldown):
+        return False
+    return (now_epoch >= last_revision_epoch
+            and (now_epoch - last_revision_epoch) >= cooldown)
+
+
+def charter_ok(revoked: bool, granted_epoch: int, now_epoch: int, ttl: int) -> bool:
+    """Autonomy-charter validity bit (mirrors gov_charter_v1.tau) -- the dead-man switch.
+
+    The charter is the autonomous lane's `approved` source: a governed, revocable,
+    EXPIRING grant. Valid iff not revoked, ttl <= CHARTER_TTL_MAX (constitutional: no
+    perpetual charter), granted <= now (wrap-guard), and now - granted < ttl (strict:
+    a ttl-T charter is valid for epochs granted..granted+T-1; ttl=0 is dead at birth).
+    Expiry without renewal halts the lane to HOLD -- autonomy fails closed.
+    """
+    if not _flags_ok(revoked):
+        return False
+    if not _in_domain(granted_epoch, now_epoch, ttl):
+        return False
+    return (not revoked
+            and ttl <= CHARTER_TTL_MAX
+            and now_epoch >= granted_epoch
+            and (now_epoch - granted_epoch) < ttl)
+
+
+def epoch_budget_ok(scalar_sum: int, router_sum: int, collateral_sum: int, budget: int) -> bool:
+    """Aggregate per-revision movement bit (mirrors gov_epoch_budget_v1.tau).
+
+    Bounds the TOTAL |delta| of one applied multi-surface revision across the three gate
+    groups (scalars / router shares / collateral pair) -- a coordinated one-legal-step-
+    everywhere regime walk must fit one aggregate budget. Python ints do not wrap, so the
+    exact total comparison here is what the spec's no-wrap-guarded bv[16] chain admits:
+    any total the spec would see wrapped exceeds budget here and both sides reject.
+    """
+    if not _in_domain(scalar_sum, router_sum, collateral_sum, budget):
+        return False
+    return scalar_sum + router_sum + collateral_sum <= budget
+
+
 @dataclass(frozen=True)
 class MasterRevision:
     """A composite revision across the four economic-core surfaces."""

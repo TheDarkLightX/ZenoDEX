@@ -28,6 +28,11 @@ PY_GATE = {
     "whale": gov_gate.whale_defense_revision_ok,
     "action": gov_gate.action_bound_ok,
     "funding": gov_gate.funding_rate_revision_ok,
+    # trajectory tier (pure bits)
+    "drift": gov_gate.drift_budget_ok,
+    "cooldown": gov_gate.cooldown_ok,
+    "charter": gov_gate.charter_ok,
+    "epoch_budget": gov_gate.epoch_budget_ok,
 }
 
 
@@ -54,3 +59,4 @@ def test_tau_python_parity(surface: str, kwargs: dict, expect: bool):
     tau = _tau_admits(surface, kwargs)
     assert tau == expect, f"tau spec {surface} {kwargs}: got {tau}, expected {expect}"
     assert py == tau, f"DUAL-CHECKER DISAGREEMENT {surface} {kwargs}: python={py} tau={tau}"
+

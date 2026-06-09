@@ -218,6 +218,16 @@ bounded band; over N revisions (each timelocked) it can compound only at `≤ N 
 step independently approval-gated. That is what makes autonomy tolerable — the guardrails, not the
 proposer, are the defense.
 
+**The trajectory tier closes the standing-approval gap.** The `≤ N · step` compounding bound
+above leans on *per-revision* approval — but real autonomy replaces that approval with a STANDING
+grant, and per-step safety is not trajectory safety: under standing approval a poisoned proposer
+could walk a parameter from min to max at one legal step per revision. The trajectory tier (§6.1)
+bounds the walk itself: at most `DRIFT_BUDGET_BPS[s]` of |delta| per surface per
+`DRIFT_WINDOW_EPOCHS` (reference: 3 steps per 720 epochs), at least `GOV_COOLDOWN_EPOCHS` between
+applied revisions of a surface, at most `EPOCH_MOVEMENT_BUDGET` aggregate |delta| per applied
+multi-surface revision (a coordinated one-legal-step-everywhere regime walk rejects), and the
+standing approval itself EXPIRES (charter dead-man) and is revocable/vetoable at any moment.
+
 ## 5. Trust posture
 
 ### 5.1 Oracle trust is inherited
@@ -266,6 +276,40 @@ empirically tested in `gov_loop.py` / `test_gov_loop.py`) are built; the **produ
 (tuned/trained on real signals) and the **live** binding/apply wiring — sourcing `curr` and the
 epochs from attested committed on-chain state (§5.2) — are open.
 
+### 6.1 The epoch machine: charter, veto, freeze, and the trajectory tier (built + reference)
+
+`gov_epoch.py` is the reference machine that makes standing-approval autonomy concrete. Every
+transition is a total function `(state, inputs) -> (state', GovReceipt)` in the CBC shape —
+validate before mutate, reject leaves params unchanged (receipts carry canonical params digests,
+so no-op-on-reject is checkable: `digest_before == digest_after` on every reject), stable reject
+codes with a FIXED documented precedence (`APPLY_PRECEDENCE`).
+
+| Piece | What it is | Why |
+|---|---|---|
+| **Charter** (`renew_charter`/`revoke_charter`, `gov_charter_v1.tau`) | the autonomous lane's `approved` source: a governed, revocable, **expiring** grant (`ttl ≤ CHARTER_TTL_MAX = 4096`, constitutional — no perpetual charter), pinned to a policy artifact hash | real autonomy cannot use per-revision votes; expiry without renewal halts the lane to HOLD — a **dead-man switch**, autonomy fails closed |
+| **Timelock + veto window** (`propose_revision`/`veto_pending`) | a pending action matures `MIN_DELAY` epochs; during that window a guardian can **cancel** (never propose) — veto works even frozen/unchartered | asymmetric authority: stopping is always safe, so the stop is never gated |
+| **Freeze** (`set_frozen`) | a committed disaster flag halts propose/apply (veto still works); the machine OBEYS the flag, upstream disaster tripwires decide it | governance must park during oracle divergence / depeg / vault-floor events |
+| **Cooldown** (`gov_cooldown_v1.tau`) | ≥ `GOV_COOLDOWN_EPOCHS = 48` between applied revisions per surface (wrap-safe subtraction-guard) | anti-thrash hysteresis, distinct from the timelock |
+| **Drift budget** (`gov_drift_budget_v1.tau`) | per-surface Σ\|Δ\| ≤ `DRIFT_BUDGET_BPS[s]` (= 3 steps) per `DRIFT_WINDOW_EPOCHS = 720`, magnitude not direction (oscillation is movement) | per-step-legal walks halt at 3 steps/window — the trajectory bound |
+| **Epoch budget** (`gov_epoch_budget_v1.tau`) | aggregate Σ\|Δ\| ≤ `EPOCH_MOVEMENT_BUDGET = 2000` per applied revision across all touched surfaces | the largest single-group action fits exactly; a coordinated every-surface step (4575) rejects |
+| **Observables** (`gov_observables.py`) | staleness-guarded deterministic binning feeding the proposers' state keys (binning is consensus-side, import-bound to `gov_proposers.bin_index`) | a stale or future-dated sensor yields NO key → the lane holds; autonomy never acts on dead sensors |
+
+Trust posture matches the multi-surface loop: every gate the machine consults is **import-bound
+at module load** (`_MULTI_STEP`, `_COOLDOWN_OK`, `_DRIFT_OK`, `_CHARTER_OK`, `_EPOCH_BUDGET_OK`)
+— a forged-gate monkeypatch of gov_gate/gov_loop does not bite (empirically tested, with a
+call-counter proving the fake is never consulted). No self-amendment: the trajectory constants
+and the charter cap are constitution-tier (version bump only), and an action targeting an
+unknown surface (e.g. `charter_ttl`) hard-rejects.
+
+The machine's per-surface core is **inductively verified** in ESSO
+(`src/kernels/dex/gov_epoch_machine_v1.yaml`, z3 + cvc5 agree, badge `Inductive(k=1)`,
+10/10 queries): param bounds, `drift_used ≤ budget`, pending well-formedness, and four
+**guard-presence tripwires** — `apply` copies the pre-state of each guarded condition
+(frozen / unchartered / immature / in-cooldown) into an `applied_*` variable that the
+invariants pin at 0, so DELETING any guard conjunct is a machine-detected invariant
+violation, not a silent hole. The bv[16] wrap-safety of the absolute-epoch comparisons is
+verified at the Tau layer (the four trajectory specs carry wrap probes in their teeth).
+
 ## 7. What is verified today vs open
 
 | Item | Status |
@@ -283,9 +327,15 @@ epochs from attested committed on-chain state (§5.2) — are open.
 | Reference **loop** + safety property (gate bounds a poisoned PI/Q-table/layered/energy proposer) + `curr`-binding | **Done** (`gov_loop.py`, `test_gov_loop.py`, `test_gov_proposers.py` — empirical) |
 | **Multi-surface revision step** — all-or-nothing across every touched surface (fee/funding/whale scalars, router shares as a unit, MCR/CCR as a unit); gates import-bound (no forged-wrapper surface); consumes the policy-factory action shape (`{surface: delta}`) directly — every action in the frozen `q_policy.v1` sample is gate-admissible and the factory's negative controls all reject (differential fixture) | **Done** (`gov_loop.multi_surface_revision_step`) — reference; live `curr`/epoch binding still **Open** (WS5) |
 | Q-table **hash-pinning** primitive (`table_hash` / `layered_table_hash` / `energy_model_hash`) | **Done** (reference); a live consensus-bound, hash-pinned decision runtime is **Open** |
+| **Trajectory-tier Tau specs** — `gov_drift_budget_v1` / `gov_cooldown_v1` / `gov_charter_v1` / `gov_epoch_budget_v1` (compile + non-vacuity + teeth incl. wrap probes, via the same bf-layer harness) | **Done** (`validate_governance_specs.py` `PURE_SPECS`) |
+| Trajectory-tier Python mirrors + Tau↔Python differential parity (39 shared boundary cases) | **Done** (`gov_gate.py`, `test_gov_parity.py`) |
+| **Epoch machine** — charter (dead-man standing approval) / veto / freeze / cooldown / drift budgets / aggregate budget, stable receipt codes + params-digest no-op proofs, import-bound gates, no self-amendment | **Done** (`gov_epoch.py`, `test_gov_epoch.py`) — reference; live `now_epoch`/state binding still **Open** (WS5) |
+| **ESSO inductive verification** of the epoch machine's per-surface core (z3 + cvc5 agree, `Inductive(k=1)`, 10/10 queries, guard-presence tripwires) | **Done** (`src/kernels/dex/gov_epoch_machine_v1.yaml`) |
+| **Observables/sensor layer** — staleness-guarded deterministic binning (stale/future ⇒ hold) | **Done** (`gov_observables.py`) — reference; real committed metrics are **Open** (WS5) |
 | **Production** proposer (tuned/audited PID or trained+frozen Q-table on real signals) | **Open** |
 | Live wiring: a deployed governance flow that *requires* this gate before applying any change | **Open** (WS5) |
 | Client-side refuse-loop that rejects an unbounded/unproven revision | **Open** (WS5) |
+| Rust port of the gate kernel (3-way Tau↔Python↔Rust parity, Kani no-panic/no-overflow) | **Open** (next; planned as a standalone crate slice) |
 
 ## 8. References
 
@@ -294,6 +344,10 @@ epochs from attested committed on-chain state (§5.2) — are open.
   `gov_whale_defense_revision_v1.tau`, `gov_funding_rate_revision_v1.tau`,
   `gov_revision_master_v1.tau`, `gov_gate.py`, `gov_parity_cases.py`,
   `validate_governance_specs.py`, `README.md`
+- Trajectory tier + epoch machine: `gov_drift_budget_v1.tau`, `gov_cooldown_v1.tau`,
+  `gov_charter_v1.tau`, `gov_epoch_budget_v1.tau`, `gov_epoch.py`, `gov_observables.py`;
+  tests `tests/tau_specs/governance/test_gov_epoch.py`, `test_gov_observables.py`;
+  ESSO model `src/kernels/dex/gov_epoch_machine_v1.yaml` (verify-multi z3,cvc5 → VERIFIED)
 - Gate tests: `tests/tau_specs/governance/test_gov_gate.py`, `tests/tau_specs/governance/test_gov_parity.py`
 - Reference proposers + loop: `src/tau_specs/governance/gov_proposers.py` (deterministic PI, frozen
   Q-table, layered/hierarchical Q-tables, frozen energy model), `src/tau_specs/governance/gov_loop.py`

@@ -46,6 +46,10 @@ revision. That boundary is what makes "stakers update behavior" safe.
 | `gov_whale_defense_revision_v1.tau` | `redeem.staker_bps` | factored ceiling + step | `next ≤ 7000` (whale-defense ceiling); `\|Δ\| ≤ 500` |
 | `gov_funding_rate_revision_v1.tau` | perps funding-rate cap | factored bounds + step | cap `≤ 200` bps (2%/epoch); `\|Δ\| ≤ 25` |
 | `gov_revision_master_v1.tau` | composite | **factored** AND of the 4 economic-core surfaces | union of fee/router/collateral/whale + shared `MIN_DELAY = 24` |
+| `gov_drift_budget_v1.tau` | TRAJECTORY: per-surface window drift | pure bit (no flags) | `used ≤ budget ∧ \|Δ\| ≤ budget − used` (wrap-safe) |
+| `gov_cooldown_v1.tau` | TRAJECTORY: spacing between applied revisions | pure bit | `now − last ≥ cooldown` (subtraction-guard) |
+| `gov_charter_v1.tau` | TRAJECTORY: standing approval (dead-man) | pure bit | `TTL_MAX = 4096` (**no perpetual charter**); strict expiry; wrap-guarded |
+| `gov_epoch_budget_v1.tau` | TRAJECTORY: aggregate movement per revision | factored partial sums | no-wrap-guarded `Σ ≤ budget` |
 
 Guardrail constants are encoded as immutable bv[16] literals (`{ #xHHHH }:bv[16]`); only
 `curr`/`next` (and, for `action_bound`, the bounds) are inputs. `MIN_DELAY = 24` is expressed
@@ -61,6 +65,33 @@ master `o6` bit are each tractable — so the step is verified two independent w
 the universal gate, combined via `o6`) without a heavy standalone spec. The master composes the
 four economic-core surfaces; perps funding has its own `gov_funding_rate` gate, verified
 standalone like `action_bound`.
+
+## The trajectory tier (autonomy envelope)
+
+The pointwise gates bound each revision; the four `TRAJECTORY` specs bound **sequences** of
+revisions, because per-step safety is not trajectory safety: under STANDING approval (an
+autonomy charter — what makes a lane autonomous at all) a poisoned proposer could walk a
+parameter from min to max at one legal step per revision. The trajectory bits are **pure**
+(no approval/exec/timelock inputs — those are the pointwise gates' concerns) and are composed
+ALONGSIDE them by the epoch machine `gov_epoch.py`, never instead of them:
+
+- **charter** — the lane's `approved` source: revocable, EXPIRING (`ttl ≤ 4096`, constitutional),
+  policy-pinned. No renewal ⇒ the lane halts to HOLD (dead-man; autonomy fails closed).
+- **cooldown** — ≥ 48 epochs between applied revisions per surface (anti-thrash; distinct from
+  the timelock, which delays one proposal's execution).
+- **drift budget** — per-surface Σ|Δ| ≤ 3 steps per 720-epoch window, magnitude not direction
+  (oscillation is movement). The accumulator `used` is runtime-committed state, bound exactly
+  like `curr` (see Honest boundaries).
+- **epoch budget** — aggregate Σ|Δ| ≤ 2000 per applied multi-surface revision: the largest legal
+  single-group action fits exactly; a coordinated one-legal-step-everywhere walk (4575) rejects.
+
+`gov_epoch.py` adds the machine around them: propose → timelock/veto window → apply-or-hold,
+freeze interlock, stable receipt codes with params-digest no-op proofs, import-bound gates, and
+no self-amendment (an action targeting the envelope itself hard-rejects). Its per-surface core
+is ESSO-verified inductively (z3+cvc5, `src/kernels/dex/gov_epoch_machine_v1.yaml`) with
+guard-presence tripwires: deleting any apply-guard conjunct is a machine-detected invariant
+violation. `gov_observables.py` is the sensor side: staleness-guarded deterministic binning —
+a stale or future-dated signal yields no state key and the lane holds.
 
 ### Why these shapes are cheap (no BDD blowup)
 
@@ -99,6 +130,12 @@ structure is exactly the runtime spec's:
    vacuously always-accept, and that each guardrail genuinely rejects.
 
 (`unsat → %N: T` means *provably unsatisfiable* = the teeth hold.)
+
+The flag-less trajectory bits run the same three checks via the harness's `PURE_SPECS`
+table (`verify_pure`): their teeth conjoin only the violation clauses (there is no
+approval/exec input to hold fixed), and every epoch comparison carries a **wrap probe**
+teeth (e.g. a future-dated charter grant or a wrapped cooldown that the naive modular
+form would have admitted).
 
 ### Hybrid model: Tau validates, Python computes
 
@@ -169,6 +206,10 @@ verified). `gov_gate.py` mirrors it; `test_timelock_wrap_bypass_rejected` pins i
   bind `curr` to the committed on-chain parameter before calling the gate — exactly the WS2
   non-trust clause (no proposer-asserted field is an accept input). The spec bounds the
   *delta*; the runtime owns the *anchor*.
+- **The drift budget assumes `used` is the true committed accumulator** (and the charter bits
+  assume committed grant/revocation state) — the same WS2 clause extended to the trajectory
+  tier. In the reference machine these live in `GovEpochState` and are updated only by
+  `apply_pending`; binding them to attested on-chain state is part of the same open WS5 step.
 - bv[16] arithmetic is **modular**; every guardrail bounds its value well below `2^16`,
   and the Python shell hard-rejects out-of-domain inputs, so wrap cannot admit a bogus
   revision.
