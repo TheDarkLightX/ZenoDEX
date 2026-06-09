@@ -1,7 +1,7 @@
 {
   "complexity_budget": 5,
   "file_count": 450,
-  "function_count": 5968,
+  "function_count": 5971,
   "functions": {
     "src/agents/__init__.py::__getattr__": {
       "complexity": 2,
@@ -4563,9 +4563,17 @@
       "complexity": 1,
       "lines": 15
     },
+    "src/core/settlement_strong_validator.py::_append_pool_swap_deltas": {
+      "complexity": 2,
+      "lines": 35
+    },
     "src/core/settlement_strong_validator.py::_apply_create_pool_replay": {
       "complexity": 2,
       "lines": 20
+    },
+    "src/core/settlement_strong_validator.py::_apply_exact_in_swap_replay": {
+      "complexity": 3,
+      "lines": 40
     },
     "src/core/settlement_strong_validator.py::_build_base_replay_index": {
       "complexity": 5,
@@ -4727,6 +4735,10 @@
       "complexity": 1,
       "lines": 6
     },
+    "src/core/settlement_strong_validator.py::_set_pool_reserves_after_swap": {
+      "complexity": 2,
+      "lines": 7
+    },
     "src/core/settlement_strong_validator.py::_swap_asset_metadata": {
       "complexity": 3,
       "lines": 6
@@ -4780,8 +4792,8 @@
       "lines": 9
     },
     "src/core/settlement_strong_validator.py::_validate_settlement_strong_impl": {
-      "complexity": 117,
-      "lines": 483
+      "complexity": 114,
+      "lines": 456
     },
     "src/core/settlement_strong_validator.py::_validate_settlement_strong_impl.fail": {
       "complexity": 1,
@@ -23900,10 +23912,10 @@
       "path": "src/integration/dex_engine.py"
     },
     {
-      "complexity": 117,
-      "line_end": 1426,
-      "line_start": 944,
-      "lines": 483,
+      "complexity": 114,
+      "line_end": 1487,
+      "line_start": 1032,
+      "lines": 456,
       "name": "_validate_settlement_strong_impl",
       "path": "src/core/settlement_strong_validator.py"
     },
@@ -24102,20 +24114,20 @@
       "path": "src/integration/api_server.py"
     },
     {
-      "complexity": 117,
-      "line_end": 1426,
-      "line_start": 944,
-      "lines": 483,
-      "name": "_validate_settlement_strong_impl",
-      "path": "src/core/settlement_strong_validator.py"
-    },
-    {
       "complexity": 71,
       "line_end": 5278,
       "line_start": 4817,
       "lines": 462,
       "name": "apply_perp_ops",
       "path": "src/integration/perp_engine.py"
+    },
+    {
+      "complexity": 114,
+      "line_end": 1487,
+      "line_start": 1032,
+      "lines": 456,
+      "name": "_validate_settlement_strong_impl",
+      "path": "src/core/settlement_strong_validator.py"
     },
     {
       "complexity": 87,
