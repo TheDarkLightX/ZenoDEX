@@ -168,7 +168,30 @@ state + the pinned table hash). Design constraints:
 - **Updating the table is itself a governed action** — pin it by hash; swapping it goes through the
   timelock + the bounded gate; the client refuses any action not derivable from the pinned table.
 - **Determinism is load-bearing** — any float or non-canonical encoding breaks consensus. A
-  deterministic, hash-bound decision runtime of this kind is **not implemented** in this repo today.
+  deterministic, hash-bound decision runtime of this kind is **not implemented** in this repo today
+  (the reference proposers below are simulation-grade, not consensus-bound).
+
+### 3.3.1 Layered (hierarchical) Q-tables (reference implemented)
+`gov_proposers.layered_q_propose` makes the "layered/factored" constraint concrete: a **regime
+layer** (slow/coarse signal, e.g. volatility bin) selects a sub-policy id, and the selected
+sub-policy's **action table** (fast signals, e.g. utilization × peg-deviation bins) yields the
+action. Cost is `|regime table| + Σ|per-regime action tables|` instead of the joint product. The
+WHOLE hierarchy is **one** hash-pinned artifact (`layered_table_hash`) — swapping any layer changes
+the pin and is a governed action. Every layer miss (regime bin, dangling sub-policy id, action bin)
+is **fail-closed** (propose `curr`, `hit=False`). Validation, digest, and both lookups act on one
+private snapshot taken before any caller-controlled iteration runs (the pin/use-TOCTOU discipline).
+
+### 3.3.2 Frozen energy model (energy-based reasoning — reference implemented)
+`gov_proposers.energy_propose` is energy-based reasoning in its consensus-safe form: a frozen,
+hash-pinned **integer energy function** `E(c) = w_track·(c − target)² + w_move·|c − curr|` is
+scored over the **exactly-bounded revision band** `[curr−step, curr+step] ∩ [lo, hi]`, and the
+proposer returns the argmin (ties break toward the smallest candidate — a total, replay-stable
+order). The trade-off the model "reasons" about is explicit: tracking error toward a per-state
+target vs. movement cost (parameter churn). The artifact (`{targets, w_track, w_move}`) is one pin
+(`energy_model_hash`); a degenerate both-weights-zero model is rejected at validation. The proposer
+is in-envelope **by construction** (it only enumerates the band) — and the gate still independently
+verifies bounds, approval, and timelock: a poisoned target or a lying band cannot escape
+(empirically tested: the gate no-ops a 9000 proposal under a 1000-cap/50-step fee gate).
 
 ### 3.4 Which proposer for which parameter
 
@@ -255,8 +278,10 @@ epochs from attested committed on-chain state (§5.2) — are open.
 | Committed/replayable Tau proof artifact (recorded verifier transcript) | **Open** |
 | `curr`/epoch binding to committed ledger state (the §5.2 precondition) | **Open** (WS2) |
 | PID + frozen-Q proposer **reference impls** (deterministic, no floats) | **Done** (`gov_proposers.py`) — simulation only |
-| Reference **loop** + safety property (gate bounds a poisoned PI/Q-table) + `curr`-binding | **Done** (`gov_loop.py`, `test_gov_loop.py`, `test_gov_proposers.py` — 38 tests, empirical) |
-| Q-table **hash-pinning** primitive (`table_hash`) | **Done** (reference); a live consensus-bound, hash-pinned decision runtime is **Open** |
+| **Layered (hierarchical) Q-tables** — regime layer → per-regime action table, one pin over the whole hierarchy, fail-closed at every layer | **Done** (`layered_q_propose`) — reference/simulation only |
+| **Frozen energy model** — pinned integer `E(c)` argmin over the bounded band, explicit tracking-vs-churn trade-off | **Done** (`energy_propose`) — reference/simulation only |
+| Reference **loop** + safety property (gate bounds a poisoned PI/Q-table/layered/energy proposer) + `curr`-binding | **Done** (`gov_loop.py`, `test_gov_loop.py`, `test_gov_proposers.py` — empirical) |
+| Q-table **hash-pinning** primitive (`table_hash` / `layered_table_hash` / `energy_model_hash`) | **Done** (reference); a live consensus-bound, hash-pinned decision runtime is **Open** |
 | **Production** proposer (tuned/audited PID or trained+frozen Q-table on real signals) | **Open** |
 | Live wiring: a deployed governance flow that *requires* this gate before applying any change | **Open** (WS5) |
 | Client-side refuse-loop that rejects an unbounded/unproven revision | **Open** (WS5) |
@@ -269,8 +294,9 @@ epochs from attested committed on-chain state (§5.2) — are open.
   `gov_revision_master_v1.tau`, `gov_gate.py`, `gov_parity_cases.py`,
   `validate_governance_specs.py`, `README.md`
 - Gate tests: `tests/tau_specs/governance/test_gov_gate.py`, `tests/tau_specs/governance/test_gov_parity.py`
-- Reference proposers + loop: `src/tau_specs/governance/gov_proposers.py` (deterministic PI + frozen
-  Q-table), `src/tau_specs/governance/gov_loop.py` (proposer→gate→apply/no-op); tests
+- Reference proposers + loop: `src/tau_specs/governance/gov_proposers.py` (deterministic PI, frozen
+  Q-table, layered/hierarchical Q-tables, frozen energy model), `src/tau_specs/governance/gov_loop.py`
+  (proposer→gate→apply/no-op); tests
   `tests/tau_specs/governance/test_gov_proposers.py`, `tests/tau_specs/governance/test_gov_loop.py`
 - Existing pipeline: `docs/REVISION_PIPELINE.md`, `src/tau_specs/revision_policy_v1.tau`,
   `src/tau_specs/governance_timelock_v1.tau`, `src/tau_specs/parameter_registry_v1.tau`
