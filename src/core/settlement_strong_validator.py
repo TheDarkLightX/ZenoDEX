@@ -131,6 +131,12 @@ class _SwapReserves:
     dir_is_0_to_1: bool
 
 
+@dataclass(frozen=True)
+class _ExactInSwapInputs:
+    amount_in: int
+    min_out: int
+
+
 def _validate_strong_config(
     *,
     mode: str,
@@ -707,6 +713,41 @@ def _swap_witness_reserves_match(fill: Fill, reserves: _SwapReserves) -> bool:
     return int(reserve_in_before) == int(reserves.reserve_in) and int(reserve_out_before) == int(reserves.reserve_out)
 
 
+def _exact_in_swap_inputs(
+    *,
+    intent_id: str,
+    intent: Intent,
+) -> Tuple[Optional[_ExactInSwapInputs], Optional[str]]:
+    amount_in = intent.get_field("amount_in")
+    min_out = intent.get_field("min_amount_out", 0)
+    if not is_strict_int(amount_in):
+        return None, f"invalid amount_in for intent_id={intent_id}"
+    if int(amount_in) <= 0:
+        return None, f"invalid amount_in for intent_id={intent_id}"
+    if not is_strict_int(min_out):
+        return None, f"invalid min_amount_out for intent_id={intent_id}"
+    if int(min_out) < 0:
+        return None, f"invalid min_amount_out for intent_id={intent_id}"
+    return _ExactInSwapInputs(amount_in=int(amount_in), min_out=int(min_out)), None
+
+
+def _exact_in_preflight_error(*, intent_id: str, fill: Fill, inputs: _ExactInSwapInputs) -> Optional[str]:
+    if int(fill.amount_in_filled or 0) != int(inputs.amount_in):
+        return f"swap amount_in_filled mismatch for intent_id={intent_id}"
+    return None
+
+
+def _protocol_fee_curve_error(
+    *,
+    intent_id: str,
+    pool: PoolState,
+    protocol_fee_share_bps: int,
+) -> Optional[str]:
+    if int(protocol_fee_share_bps) and pool.curve_tag != CURVE_TAG_CPMM:
+        return f"protocol fee unsupported for curve intent_id={intent_id}"
+    return None
+
+
 def _validate_cow_pair_index(
     *,
     settlement: Settlement,
@@ -1003,20 +1044,26 @@ def _validate_settlement_strong_impl(
             dir_is_0_to_1 = swap_reserves.dir_is_0_to_1
 
             if it.kind == IntentKind.SWAP_EXACT_IN:
-                amount_in = it.get_field("amount_in")
-                min_out = it.get_field("min_amount_out", 0)
-                if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-                    return fail(f"invalid amount_in for intent_id={intent_id}")
-                if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
-                    return fail(f"invalid min_amount_out for intent_id={intent_id}")
-
-                if int(f.amount_in_filled or 0) != int(amount_in):
-                    return fail(f"swap amount_in_filled mismatch for intent_id={intent_id}")
+                exact_in_inputs, exact_in_input_error = _exact_in_swap_inputs(intent_id=intent_id, intent=it)
+                if exact_in_input_error is not None:
+                    return fail(exact_in_input_error)
+                if exact_in_inputs is None:
+                    return fail(f"exact-in swap inputs missing result for intent_id={intent_id}")
+                exact_in_error = _exact_in_preflight_error(intent_id=intent_id, fill=f, inputs=exact_in_inputs)
+                if exact_in_error is not None:
+                    return fail(exact_in_error)
+                amount_in = exact_in_inputs.amount_in
+                min_out = exact_in_inputs.min_out
+                protocol_fee_curve_error = _protocol_fee_curve_error(
+                    intent_id=intent_id,
+                    pool=pool,
+                    protocol_fee_share_bps=protocol_fee_share_bps,
+                )
+                if protocol_fee_curve_error is not None:
+                    return fail(protocol_fee_curve_error)
 
                 try:
                     if int(protocol_fee_share_bps):
-                        if pool.curve_tag != CURVE_TAG_CPMM:
-                            return fail(f"protocol fee unsupported for curve intent_id={intent_id}")
                         quote = swap_exact_in_with_protocol_fee(
                             reserve_in=int(reserve_in),
                             reserve_out=int(reserve_out),
