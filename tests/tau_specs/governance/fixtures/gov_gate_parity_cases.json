@@ -583,6 +583,38 @@
     30500
    ],
    "expect": false
+  },
+  {
+   "surface": "action",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    24,
+    10500,
+    10000,
+    0,
+    10000,
+    500
+   ],
+   "expect": true
+  },
+  {
+   "surface": "action",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    24,
+    10000,
+    10500,
+    0,
+    10000,
+    500
+   ],
+   "expect": false
   }
  ],
  "params_digest_vectors": [
