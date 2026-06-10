@@ -567,7 +567,7 @@ def test_surface_sample_policy_matches_factory_frontier_grid() -> None:
     assert report["frontier_regret_total"] == 0
     assert report["frontier_regret_count"] == 0
     assert report["frontier_utility_completion_rate"] == 1.0
-    assert report["utility_score_total"] == report["frontier_utility_total"] == 6_330
+    assert report["utility_score_total"] == report["frontier_utility_total"] == 9_670
     assert report["fallback_used_count"] == 0
     assert report["candidate_checked_count_total"] == 160
     assert report["candidate_considered_count_total"] == 160
@@ -598,7 +598,7 @@ def test_surface_sample_policy_matches_edge_and_trajectory_frontiers() -> None:
     assert intra_bin["frontier_regret_total"] == 0
     assert intra_bin["frontier_regret_count"] == 0
     assert intra_bin["frontier_utility_completion_rate"] == 1.0
-    assert intra_bin["utility_score_total"] == intra_bin["frontier_utility_total"] == 21_920
+    assert intra_bin["utility_score_total"] == intra_bin["frontier_utility_total"] == 28_600
     assert intra_bin["fallback_used_count"] == 0
     assert intra_bin["candidate_checked_count_total"] == 480
     assert intra_bin["candidate_considered_count_total"] == 480
@@ -611,7 +611,7 @@ def test_surface_sample_policy_matches_edge_and_trajectory_frontiers() -> None:
     assert long_horizon["frontier_regret_total"] == 0
     assert long_horizon["frontier_regret_count"] == 0
     assert long_horizon["frontier_utility_completion_rate"] == 1.0
-    assert long_horizon["utility_score_total"] == long_horizon["frontier_utility_total"] == 11_280
+    assert long_horizon["utility_score_total"] == long_horizon["frontier_utility_total"] == 11_380
     assert long_horizon["fallback_used_count"] == 0
     assert long_horizon["candidate_checked_count_total"] == 116
     assert long_horizon["selection_screened_count_total"] == 12
@@ -624,8 +624,8 @@ def test_surface_sample_policy_matches_edge_and_trajectory_frontiers() -> None:
     assert surface_boundary["ok"] is True
     assert surface_boundary["scenario_count"] == 12
     assert surface_boundary["approved_count"] == 12
-    assert surface_boundary["runtime_action_count"] == 4
-    assert surface_boundary["candidate_action_count"] == 10
+    assert surface_boundary["runtime_action_count"] == 5
+    assert surface_boundary["candidate_action_count"] == 11
     assert surface_boundary["q_row_missing_count"] == 0
     assert surface_boundary["missing_expected_rejection_count"] == 0
     assert surface_boundary["invalid_accept_count"] == 0

@@ -57,11 +57,12 @@ rank edge-safe actions earlier while the exact governance gates still decide
 whether a candidate executes.
 
 The current optimized runtime action set includes `hold`, single fee movement,
-one fee/funding compound action, and one router-reserve shift. Checker-only
-boundary probes cover opposite exact-limit directions such as lower-fee,
-raise-funding, and raise-buyburn. Zero-regret metrics are therefore scoped to
-the current finite runtime action vocabulary, while boundary rejection evidence
-is checked with the wider probe vocabulary.
+one fee/funding compound action, a router-reserve shift, and a reserve-to-buyburn
+recovery shift. Checker-only boundary probes cover exact-limit directions that
+the runtime table should avoid ranking, such as lower-fee, raise-funding, and
+raise-buyburn at cap. Zero-regret metrics are therefore scoped to the current
+finite runtime action vocabulary, while boundary rejection evidence is checked
+with the wider probe vocabulary.
 
 The receipt reports each surface gate and also reports
 `governance_surface_all_gates_ok`. The imported `master` gate is the composed
@@ -108,6 +109,7 @@ exhaustive verifier-labeled frontier for each scenario.
 | first-admissible only | 0 | 150 | 0.976303 |
 | first-admissible + joint deviation/volatility layer | 0 | 0 | 1.000000 |
 | + liquidity, funding-floor, and trajectory-budget layers | 0 | 0 | 1.000000 |
+| + edge-efficiency and router-recovery layers | 0 | 0 | 1.000000 |
 
 This is a ranking-quality metric only. The deterministic governance gates still
 decide every candidate before a transition can be admitted.
@@ -117,9 +119,9 @@ sequence replay to the promotion floor:
 
 | Replay family | Cases / steps | Selected utility | Frontier utility | Regret | Extra budget result |
 |---|---:|---:|---:|---:|---|
-| normal grid | 240 cases | 6,330 | 6,330 | 0 | no invalid or inconsistent accepts |
-| intra-bin stress | 480 cases | 21,920 | 21,920 | 0 | no invalid or inconsistent accepts |
-| long horizon | 127 steps | 11,280 | 11,280 | 0 | zero cumulative-drift and trajectory-budget failures |
+| normal grid | 240 cases | 9,670 | 9,670 | 0 | no invalid or inconsistent accepts |
+| intra-bin stress | 480 cases | 28,600 | 28,600 | 0 | no invalid or inconsistent accepts |
+| long horizon | 127 steps | 11,380 | 11,380 | 0 | zero cumulative-drift and trajectory-budget failures |
 
 The latest edge-efficiency guards keep the same utility frontier while reducing
 exact-gate fallbacks:
@@ -325,8 +327,8 @@ under the current finite action set and replay utility metric. The same report
 compares optimized utility against hold-only and PID-shaped baselines in both
 normal-grid and long-horizon replay. The PID-shaped baseline uses fixed
 observation-bin rules plus the same deterministic state-edge guards.
-For the current checked artifact, long-horizon replay reports 11,280 optimized
-utility, 11,280 frontier utility, zero regret, 116 approved steps, 11 rejected
+For the current checked artifact, long-horizon replay reports 11,380 optimized
+utility, 11,380 frontier utility, zero regret, 116 approved steps, 11 rejected
 steps, 116 safety-feasible steps, 12 deterministic selection screens, zero
 opportunity misses, zero cumulative-drift failures, and zero trajectory-budget
 failures. The lower utility versus the previous unbudgeted run is intentional:

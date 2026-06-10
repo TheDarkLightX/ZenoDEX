@@ -356,6 +356,24 @@ def sample_autonomous_governance_q_policy_v1() -> dict[str, Any]:
 def sample_autonomous_governance_surface_q_policy_v1() -> dict[str, Any]:
     """Return a Q-table policy whose actions target the verified governance surfaces."""
 
+    # Generate repetitive deterministic rows here; the returned policy remains plain JSON.
+    router_recovery_rows = {
+        f"{deviation_bin}|{volatility_bin}|{liquidity_bin}|{reserve_bin}": {
+            "shift_router_to_buyburn_100": 60
+        }
+        for deviation_bin in (0, 1)
+        for volatility_bin in range(4)
+        for liquidity_bin in (1, 2)
+        for reserve_bin in (2, 3)
+    }
+    combined_edge_recovery_rows = {
+        f"{deviation_bin}|{volatility_bin}|{liquidity_bin}|3|2|0": {
+            "shift_router_to_buyburn_100": 100
+        }
+        for deviation_bin in range(4)
+        for volatility_bin in range(4)
+        for liquidity_bin in (1, 2)
+    }
     policy = {
         "schema": AUTONOMOUS_GOVERNANCE_Q_POLICY_SCHEMA_V1,
         "policy_id": "sample_governance_surface_q_policy_v1",
@@ -390,7 +408,8 @@ def sample_autonomous_governance_surface_q_policy_v1() -> dict[str, Any]:
             "volatility_bps": [50, 200, 500],
             "liquidity_depth_bps": [1_000, 3_000],
             "fee_bps": [0, 990, 1_000],
-            "reserve_bps": [0, 9_900, 10_000],
+            "reserve_bps": [0, 9_000, 9_900, 10_000],
+            "buyburn_bps": [0, 9_900, 10_000],
             "funding_cap_bps": [0, 5, 120],
         },
         "actions": [
@@ -398,6 +417,7 @@ def sample_autonomous_governance_surface_q_policy_v1() -> dict[str, Any]:
             {"id": "raise_fee_10", "deltas": {"fee_bps": 10}},
             {"id": "raise_fee_10_tighten_funding_5", "deltas": {"fee_bps": 10, "funding_cap_bps": -5}},
             {"id": "shift_router_to_reserve_100", "deltas": {"buyburn_bps": -100, "reserve_bps": 100}},
+            {"id": "shift_router_to_buyburn_100", "deltas": {"buyburn_bps": 100, "reserve_bps": -100}},
         ],
         "q_layers": [
             {
@@ -498,7 +518,37 @@ def sample_autonomous_governance_surface_q_policy_v1() -> dict[str, Any]:
                 "features": ["reserve_bps"],
                 "q_table": {
                     "*": {},
-                    "2": {"shift_router_to_reserve_100": -30},
+                    "3": {"shift_router_to_reserve_100": -30},
+                },
+            },
+            {
+                "id": "router_recovery_reserve_cap_bias_v1",
+                "features": [
+                    "deviation_bps",
+                    "volatility_bps",
+                    "liquidity_depth_bps",
+                    "reserve_bps",
+                ],
+                "q_table": {"*": {}, **router_recovery_rows},
+            },
+            {
+                "id": "combined_edge_router_recovery_bias_v1",
+                "features": [
+                    "deviation_bps",
+                    "volatility_bps",
+                    "liquidity_depth_bps",
+                    "reserve_bps",
+                    "fee_bps",
+                    "funding_cap_bps",
+                ],
+                "q_table": {"*": {}, **combined_edge_recovery_rows},
+            },
+            {
+                "id": "buyburn_cap_candidate_efficiency_guard_v1",
+                "features": ["buyburn_bps"],
+                "q_table": {
+                    "*": {},
+                    "2": {"shift_router_to_buyburn_100": -120},
                 },
             },
         ],
