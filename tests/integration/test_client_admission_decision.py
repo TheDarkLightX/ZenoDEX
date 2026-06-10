@@ -179,6 +179,19 @@ def test_accept_path() -> None:
     assert all(d.gate_results.values())
 
 
+def test_nonprogress_transition_refused_at_gate12() -> None:
+    # A transition whose post_app_hash equals the head (== pre, gate 7) does not
+    # move the head, so it would re-pass every gate forever and defeat
+    # anti-double-accept. Gate 12 refuses it fail-closed.
+    journal = _valid_journal()
+    journal["post_app_hash"] = HEAD
+    d = _decide(journal=journal)
+    assert d.accepted is False
+    assert d.refuse_code is RefuseCode.HEAD_NONPROGRESS
+    assert d.gate_results.get("g12_head_progress") is False
+    assert d.head_advance is None
+
+
 def test_accept_verifies_against_client_pinned_image_not_journal() -> None:
     # The verifier must be asked to verify against the CLIENT pin, never the proof's.
     fake = _FakeVerifier(VerifyStatus.VERIFIED, _valid_journal())
