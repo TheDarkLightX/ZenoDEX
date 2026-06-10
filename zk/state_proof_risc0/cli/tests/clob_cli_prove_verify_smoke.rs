@@ -103,6 +103,7 @@ fn sample() -> (Value, Value, Value) {
         "event_log_root": hex32(&journal.event_log_root),
         "matching_rule_hash": hex32(&journal.matching_rule_hash),
         "fee_rule_hash": hex32(&journal.fee_rule_hash),
+        "matching_law_rule_hash": hex32(&journal.matching_law_rule_hash),
     });
     let generate_req = json!({
         "schema": "tau_state_proof_request",
@@ -242,6 +243,16 @@ fn clob_cli_proves_verifies_and_rejects_tampered_bindings() {
         verify_req.clone(),
         |r| r["proof"]["meta"]["matching_rule_hash"] = Value::String(hx(14)),
         "proof.meta.matching_rule_hash mismatch",
+    );
+    assert_verify_err(
+        verify_req.clone(),
+        |r| r["proof"]["meta"]["matching_law_rule_hash"] = Value::String(hx(16)),
+        "proof.meta.matching_law_rule_hash mismatch",
+    );
+    assert_verify_err(
+        verify_req.clone(),
+        |r| r["context"]["matching_law_rule_hash"] = Value::String(hx(17)),
+        "context.matching_law_rule_hash mismatch",
     );
     assert_verify_err(
         verify_req.clone(),

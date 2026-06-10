@@ -26,7 +26,48 @@ from __future__ import annotations
 from typing import Optional
 
 from src.core.clob_matching import ClobMatchAccepted, crosses
+from src.state.canonical import domain_sep_bytes, sha256_hex
 from src.state.clob_book import ClobBook, ClobOrder, order_priority_key
+
+# Stable identity hash of the matching LAW (mirrors orderbook_api's
+# MATCHING_RULE_HASH / FEE_RULE_HASH labelling). The RISC0 guest commits this
+# into its journal after running the in-guest law checker
+# (zk/state_proof_risc0/shared/src/clob.rs::clob_matching_law_rule_hash), so a
+# client can pin WHICH law (identity/version) the proof attests. The Rust label
+# MUST byte-match this constant -- the cross-language pin lives in
+# clob_law_cases_v1.json (tools/gen_clob_law_fixture.py).
+MATCHING_LAW_RULE_HASH = sha256_hex(
+    domain_sep_bytes("clob_matching_law_rule", version=1)
+    + b"no_higher_priority_eligible_order_skipped_for_any_accepted_fill"
+)
+
+# Stable cross-language violation classes. ``verify_no_priority_skip`` keeps its
+# human-readable strings (the detail is diagnostic); the no_std guest checker
+# returns these codes, and ``law_violation_code`` maps each Python violation to
+# its class so the fixture can pin verdict parity.
+LAW_ABSENT_MAKER = "law:absent_maker"
+LAW_OVERFILL = "law:overfill"
+LAW_FILL_ORDER = "law:fill_order"
+LAW_PRIORITY_SKIP = "law:priority_skip"
+
+
+def law_violation_code(violation: Optional[str]) -> Optional[str]:
+    """Classify a ``verify_no_priority_skip`` result into its stable class code.
+
+    ``None`` (law holds) maps to ``None``. Any unrecognized violation string is a
+    programming error and raises (fail-closed) rather than mislabelling.
+    """
+    if violation is None:
+        return None
+    if "absent from the pre-match book" in violation:
+        return LAW_ABSENT_MAKER
+    if "over-filled" in violation:
+        return LAW_OVERFILL
+    if violation.startswith("fill-order priority violation"):
+        return LAW_FILL_ORDER
+    if violation.startswith("priority skip"):
+        return LAW_PRIORITY_SKIP
+    raise ValueError(f"unclassifiable law violation: {violation}")
 
 
 def verify_no_priority_skip(

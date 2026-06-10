@@ -10,9 +10,9 @@ use tau_state_proof_risc0_methods::{
     TAU_STATE_PROOF_RISC0_GUEST_ID as TAU_STATE_PROOF_GUEST_ID,
 };
 use tau_state_proof_risc0_shared::clob::{
-    clob_event_log_root, clob_fee_rule_hash, clob_matching_rule_hash,
-    execute_clob_transition_v1_unchecked_with_journal, ClobBookV1, ClobOrderV1,
-    ClobTransitionInputV1, ClobTransitionJournalV1, PROOF_TYPE_CLOB,
+    clob_event_log_root, clob_fee_rule_hash, clob_matching_law_rule_hash,
+    clob_matching_rule_hash, execute_clob_transition_v1_unchecked_with_journal, ClobBookV1,
+    ClobOrderV1, ClobTransitionInputV1, ClobTransitionJournalV1, PROOF_TYPE_CLOB,
 };
 use tau_state_proof_risc0_shared::{
     accepted_receipts_root_v1, execute_perps_np_transition_v1_unchecked_with_snapshot,
@@ -876,6 +876,9 @@ fn try_verify_clob(
     if journal.fee_rule_hash != clob_fee_rule_hash() {
         return Err("fee_rule_hash mismatch".into());
     }
+    if journal.matching_law_rule_hash != clob_matching_law_rule_hash() {
+        return Err("matching_law_rule_hash mismatch".into());
+    }
     if journal.fee_total != 0 {
         return Err("journal fee_total must be zero for CLOB v1".into());
     }
@@ -1025,12 +1028,22 @@ fn verify_clob_request_bindings(
     expect_meta_hash(proof, "event_log_root", journal.event_log_root)?;
     expect_meta_hash(proof, "matching_rule_hash", journal.matching_rule_hash)?;
     expect_meta_hash(proof, "fee_rule_hash", journal.fee_rule_hash)?;
+    expect_meta_hash(
+        proof,
+        "matching_law_rule_hash",
+        journal.matching_law_rule_hash,
+    )?;
     expect_context_hash(context, "pre_book_root", journal.pre_book_root)?;
     expect_context_hash(context, "operation_hash", journal.operation_hash)?;
     expect_context_hash(context, "state_delta_hash", journal.state_delta_hash)?;
     expect_context_hash(context, "event_log_root", journal.event_log_root)?;
     expect_context_hash(context, "matching_rule_hash", journal.matching_rule_hash)?;
     expect_context_hash(context, "fee_rule_hash", journal.fee_rule_hash)?;
+    expect_context_hash(
+        context,
+        "matching_law_rule_hash",
+        journal.matching_law_rule_hash,
+    )?;
     Ok(())
 }
 
@@ -1884,6 +1897,7 @@ fn clob_meta(journal: &ClobTransitionJournalV1) -> Value {
         "event_log_root": hex_lower(&journal.event_log_root),
         "matching_rule_hash": hex_lower(&journal.matching_rule_hash),
         "fee_rule_hash": hex_lower(&journal.fee_rule_hash),
+        "matching_law_rule_hash": hex_lower(&journal.matching_law_rule_hash),
         "fee_total": journal.fee_total.to_string(),
         "resting_taker_qty": journal.resting_taker_qty,
         "fill_count": journal.fills.len(),
@@ -1967,6 +1981,7 @@ fn validate_clob_context_shape(context: &serde_json::Map<String, Value>) -> Resu
             "event_log_root",
             "matching_rule_hash",
             "fee_rule_hash",
+            "matching_law_rule_hash",
         ],
         "context",
     )
@@ -2065,6 +2080,11 @@ fn verify_clob_generate_context(
     expect_optional_context_hash(context, "event_log_root", journal.event_log_root)?;
     expect_optional_context_hash(context, "matching_rule_hash", journal.matching_rule_hash)?;
     expect_optional_context_hash(context, "fee_rule_hash", journal.fee_rule_hash)?;
+    expect_optional_context_hash(
+        context,
+        "matching_law_rule_hash",
+        journal.matching_law_rule_hash,
+    )?;
     Ok(())
 }
 
@@ -2719,6 +2739,7 @@ mod tests {
             event_log_root: h(3),
             matching_rule_hash: clob_matching_rule_hash(),
             fee_rule_hash: clob_fee_rule_hash(),
+            matching_law_rule_hash: clob_matching_law_rule_hash(),
             risc0_image_id: TAU_STATE_PROOF_GUEST_ID,
             fee_total: 0,
             fills: Vec::new(),
@@ -2787,7 +2808,8 @@ mod tests {
                 "state_delta_hash": hex_lower(&journal.state_delta_hash),
                 "event_log_root": hex_lower(&journal.event_log_root),
                 "matching_rule_hash": hex_lower(&journal.matching_rule_hash),
-                "fee_rule_hash": hex_lower(&journal.fee_rule_hash)
+                "fee_rule_hash": hex_lower(&journal.fee_rule_hash),
+                "matching_law_rule_hash": hex_lower(&journal.matching_law_rule_hash)
             }
         })
     }
@@ -2874,6 +2896,16 @@ mod tests {
         bad_meta["meta"]["matching_rule_hash"] = Value::String(hx(98));
         let err = verify_clob_request_bindings(&req, &bad_meta, &journal).unwrap_err();
         assert_eq!(err, "proof.meta.matching_rule_hash mismatch");
+
+        let mut bad_law_meta = strict_clob_proof_meta(&journal);
+        bad_law_meta["meta"]["matching_law_rule_hash"] = Value::String(hx(93));
+        let err = verify_clob_request_bindings(&req, &bad_law_meta, &journal).unwrap_err();
+        assert_eq!(err, "proof.meta.matching_law_rule_hash mismatch");
+
+        let mut bad_law_context = strict_clob_req(&journal);
+        bad_law_context["context"]["matching_law_rule_hash"] = Value::String(hx(92));
+        let err = verify_clob_request_bindings(&bad_law_context, &proof, &journal).unwrap_err();
+        assert_eq!(err, "context.matching_law_rule_hash mismatch");
     }
 
     #[test]

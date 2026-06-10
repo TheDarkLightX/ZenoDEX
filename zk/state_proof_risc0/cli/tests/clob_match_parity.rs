@@ -123,6 +123,10 @@ fn clob_transition_journal_round_trips_through_guest_postcard_channel() {
     assert_eq!(decoded.event_log_root, journal.event_log_root);
     assert_eq!(decoded.matching_rule_hash, journal.matching_rule_hash);
     assert_eq!(decoded.fee_rule_hash, journal.fee_rule_hash);
+    assert_eq!(
+        decoded.matching_law_rule_hash,
+        journal.matching_law_rule_hash
+    );
     assert_eq!(decoded.risc0_image_id, IMAGE_ID);
     assert_eq!(decoded.fee_total, 0);
     assert_eq!(decoded.fills, journal.fills);

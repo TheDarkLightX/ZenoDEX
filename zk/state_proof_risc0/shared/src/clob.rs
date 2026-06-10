@@ -145,6 +145,21 @@ impl ClobBookV1 {
                 return Err(REJ_DUP_ORDER_ID);
             }
         }
+        // Strict canonical (order_priority_key) order. serde deserialization
+        // (the guest's postcard boundary) bypasses `ClobBookV1::new`, so an
+        // adversarial prover could otherwise feed a PERMUTED book whose
+        // best-first walk fills a worse-priced maker first -- MEASURED before
+        // this check: such an input produced a journalable (STARK-provable)
+        // priority-skip transition. Python's `ClobBook.__post_init__` sorts at
+        // construction, making the state unrepresentable; this wire boundary
+        // rejects instead (fail-closed; the committed root stays bound to the
+        // one canonical encoding). Strict `<` is total here because order_id
+        // is unique (dup checked above) and final in the key.
+        for w in self.orders.windows(2) {
+            if priority_key(&w[0]) >= priority_key(&w[1]) {
+                return Err(REJ_BOOK_NOT_CANONICAL);
+            }
+        }
         Ok(())
     }
 
@@ -189,6 +204,12 @@ pub const REJ_BAD_QTY: &str = "bad_qty";
 pub const REJ_BAD_SIDE: &str = "bad_side";
 pub const REJ_BAD_ORDER_ID: &str = "bad_order_id";
 pub const REJ_BAD_OWNER: &str = "bad_owner";
+/// Rust-only wire-boundary code: a deserialized book whose orders are NOT in
+/// strict `order_priority_key` order. Python makes this state unrepresentable
+/// (`ClobBook.__post_init__` sorts at construction); the guest's postcard
+/// boundary bypasses `ClobBookV1::new`, so the raw struct must be REJECTED
+/// instead -- see `ClobBookV1::validate`.
+pub const REJ_BOOK_NOT_CANONICAL: &str = "book_not_canonical";
 
 // REVIEW(Codex 2026-06-06, grade A- after fix): Claude's parity port had the
 // right encoder and matcher algorithms, but it trusted raw Rust structs more
@@ -382,10 +403,11 @@ pub fn apply_clob_order(
 // execute_clob_transition_v1 turns the parity-only matcher into the actual
 // statement a RISC0 guest proves: given a pre-book and an incoming event, it
 // commits the pre-book root, the event-log root, the post-book root, the fills,
-// the fee total, and the matching-rule + fee-rule hashes. The pre/post BOOK roots
-// are the ledger-exact clob_book roots (no encoder obligation). The event-log /
-// rule-hash encodings are NEW canonical forms defined here; the rule-hash LABELS
-// byte-match the Python ledger (orderbook_api.py) so the client accepts.
+// the fee total, and the matching-rule + fee-rule + matching-law-rule hashes.
+// The pre/post BOOK roots are the ledger-exact clob_book roots (no encoder
+// obligation). The event-log / rule-hash encodings are NEW canonical forms
+// defined here; the rule-hash LABELS byte-match the Python ledger
+// (orderbook_api.py / tools/clob_matching_law.py) so the client accepts.
 //
 // Binding model (adversarial review 2026-06-07):
 //  * the pre-book root binds the FULL book (makers included), so the pair
@@ -393,6 +415,9 @@ pub fn apply_clob_order(
 //    event-log root need not re-bind makers.
 //  * matching_rule_hash binds the rule's VERSION; the algorithm bytes are bound
 //    by the RISC0 image id (client-pinned), NOT by this hash.
+//  * matching_law_rule_hash (I6) binds the LAW the guest CHECKED over the fills
+//    (check_no_skip_law) before any journal exists -- the proof attests the law
+//    itself, not merely that the canonical matcher ran.
 //  * pre_book_root is exposed in the journal; when pre_app_hash_present=false the
 //    CLIENT binds it by checking it against the ledger header (proof metadata).
 //  * fees are bound HONESTLY: the v1 matcher takes no fee -> fee_total=0,
@@ -462,6 +487,107 @@ pub fn clob_event_log_root(events: &[&ClobOrderV1]) -> Result<[u8; 32], &'static
     Ok(sha256_of(&p))
 }
 
+// --- I6: the Stage 2 matching LAW, checked in-guest ----------------------------
+//
+// check_no_skip_law is the no_std port of the INDEPENDENT law checker
+// `tools/clob_matching_law.py::verify_no_priority_skip` (the dual-checker
+// discipline: production matcher vs. an independent re-derivation of the law).
+// Running it inside the guest upgrades the proof statement from "the canonical
+// matcher port ran" to "the committed fills SATISFY the law" -- a matcher-port
+// bug that violated priority would make the guest refuse to prove, instead of
+// proving the violation. Violations are stable codes (no_std has no f-strings);
+// the Python classifier `law_violation_code` pins the same four classes, and
+// `clob_law_cases_v1.json` holds the cross-language verdict corpus.
+
+pub const LAW_ABSENT_MAKER: &str = "law:absent_maker";
+pub const LAW_OVERFILL: &str = "law:overfill";
+pub const LAW_FILL_ORDER: &str = "law:fill_order";
+pub const LAW_PRIORITY_SKIP: &str = "law:priority_skip";
+
+/// Stable identity hash of the matching LAW the guest checks. Committed into the
+/// journal so a client can pin WHICH law (identity/version) was enforced, exactly
+/// like `matching_rule_hash` pins the matcher rule; the checking code itself is
+/// bound by the RISC0 image id. The label/description MUST byte-match the Python
+/// mirror (tools/clob_matching_law.py MATCHING_LAW_RULE_HASH) -- the same
+/// drift-bug class as the rule hashes (adversarial review 2026-06-07, finding #5).
+pub fn clob_matching_law_rule_hash() -> [u8; 32] {
+    let mut p = domain_sep_bytes("clob_matching_law_rule", 1);
+    p.extend_from_slice(b"no_higher_priority_eligible_order_skipped_for_any_accepted_fill");
+    sha256_of(&p)
+}
+
+/// Semantics-exact port of `verify_no_priority_skip`: `Ok(())` iff the matching
+/// law holds for `fills` claimed against `book_before` + `taker`.
+///
+/// Law: for every maker that received a fill, EVERY resting maker in the
+/// PRE-match book that (a) is on the opposite side and crosses the taker and
+/// (b) has STRICTLY HIGHER priority (`priority_key` strictly smaller) must be
+/// FULLY consumed. Plus the receipt-ORDER half: fills must be emitted
+/// best-priority-first. Pure and total: only the priority key + crossing
+/// predicate applied to the pre-match book and the claimed fills.
+pub fn check_no_skip_law(
+    book_before: &ClobBookV1,
+    taker: &ClobOrderV1,
+    fills: &[ClobFillV1],
+) -> Result<(), &'static str> {
+    let mut by_id: BTreeMap<&str, &ClobOrderV1> = BTreeMap::new();
+    for o in &book_before.orders {
+        by_id.insert(o.order_id.as_str(), o);
+    }
+
+    let mut filled_base: BTreeMap<&str, u64> = BTreeMap::new();
+    for f in fills {
+        if !by_id.contains_key(f.maker_order_id.as_str()) {
+            return Err(LAW_ABSENT_MAKER);
+        }
+        let total = filled_base.entry(f.maker_order_id.as_str()).or_insert(0);
+        // Python aggregates in unbounded int and catches the excess at the
+        // over-fill compare; u64 saturation would hide it, so a checked add
+        // maps the (necessarily over-filling) overflow to the same verdict.
+        *total = total.checked_add(f.base).ok_or(LAW_OVERFILL)?;
+    }
+
+    for (oid, total) in &filled_base {
+        if *total > by_id[oid].base_qty {
+            return Err(LAW_OVERFILL);
+        }
+    }
+
+    // Receipt-ORDER price-time priority: a higher-priority maker filled AFTER a
+    // lower-priority one is a chronological violation even when both end fully
+    // consumed (Codex review 2026-06-06, finding #1).
+    let mut prev_key: Option<(u8, i128, u64, &str)> = None;
+    for f in fills {
+        let k = priority_key(by_id[f.maker_order_id.as_str()]);
+        if let Some(pk) = prev_key {
+            if k < pk {
+                return Err(LAW_FILL_ORDER);
+            }
+        }
+        prev_key = Some(k);
+    }
+
+    // Eligible makers = opposite side AND crossing the taker, from the PRE-match book.
+    let crossing: Vec<&ClobOrderV1> = book_before
+        .orders
+        .iter()
+        .filter(|o| o.side_code != taker.side_code && crosses(taker, o))
+        .collect();
+
+    for oid in filled_base.keys() {
+        let k_filled = priority_key(by_id[oid]);
+        for mp in &crossing {
+            if priority_key(mp) < k_filled {
+                let consumed = filled_base.get(mp.order_id.as_str()).copied().unwrap_or(0);
+                if consumed < mp.base_qty {
+                    return Err(LAW_PRIORITY_SKIP);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClobTransitionInputV1 {
     pub state_hash: [u8; 32],
@@ -490,6 +616,11 @@ pub struct ClobTransitionJournalV1 {
     pub event_log_root: [u8; 32],
     pub matching_rule_hash: [u8; 32],
     pub fee_rule_hash: [u8; 32],
+    /// Identity of the matching LAW the guest CHECKED before committing this
+    /// journal (`clob_matching_law_rule_hash`). A journal exists only if
+    /// `check_no_skip_law` accepted the fills, so this field is the verdict:
+    /// present + pinned == "the no-skip law held under law rule v1".
+    pub matching_law_rule_hash: [u8; 32],
     pub risc0_image_id: [u32; 8],
     pub fee_total: i128,
     pub fills: Vec<ClobFillV1>,
@@ -536,6 +667,11 @@ pub fn execute_clob_transition_v1_unchecked_with_journal(
             } => (post_book, fills, resting_taker_qty),
             ClobMatchResultV1::Rejected { reason } => return Err(reason),
         };
+    // The LAW gate (I6): independently re-derive the no-skip law over the fills
+    // the matcher just produced. A violation is not a provable transition -- the
+    // guest panics on Err, so no journal (and no proof) can exist for fills that
+    // skip a higher-priority eligible maker.
+    check_no_skip_law(&input.pre_book, &input.taker, &fills)?;
     let post_book_root = post_book.state_root()?;
     let event_log_root = clob_event_log_root(&[&input.taker])?;
     let state_delta_hash = clob_state_delta_hash(pre_book_root, post_book_root);
@@ -554,6 +690,7 @@ pub fn execute_clob_transition_v1_unchecked_with_journal(
         event_log_root,
         matching_rule_hash: clob_matching_rule_hash(),
         fee_rule_hash: clob_fee_rule_hash(),
+        matching_law_rule_hash: clob_matching_law_rule_hash(),
         risc0_image_id: input.risc0_image_id,
         fee_total: 0, // v1 matcher takes no fee
         fills,
@@ -693,6 +830,62 @@ mod tests {
     }
 
     #[test]
+    fn non_canonical_raw_book_fails_closed_at_the_wire_boundary() {
+        // MEASURED gap this closes: serde/postcard deserialization bypasses
+        // ClobBookV1::new, and before REJ_BOOK_NOT_CANONICAL this permuted book
+        // (worse-priced SELL listed first) produced an ACCEPTED transition whose
+        // single journaled fill hit the worse price -- a STARK-provable
+        // priority-skip. The raw struct must now reject everywhere.
+        let permuted = ClobBookV1 {
+            base_asset: asset("11"),
+            quote_asset: asset("22"),
+            orders: vec![
+                order(1, 110_000_000, 5, 1, 1, "bb"), // worse SELL price first
+                order(1, 100_000_000, 5, 2, 2, "cc"), // best SELL price second
+            ],
+        };
+        let taker = order(0, 110_000_000, 5, 10, 99, "aa");
+        assert_eq!(
+            permuted.state_root().unwrap_err(),
+            REJ_BOOK_NOT_CANONICAL
+        );
+        assert_eq!(
+            apply_clob_order(&permuted, &taker).unwrap_err(),
+            REJ_BOOK_NOT_CANONICAL
+        );
+        let input = ClobTransitionInputV1 {
+            state_hash: [7u8; 32],
+            chain_id: "devnet".to_string(),
+            pre_book: permuted,
+            taker,
+            pre_app_hash_present: false,
+            pre_app_hash: [0u8; 32],
+            expected_post_app_hash: [0u8; 32],
+            risc0_image_id: IMAGE_ID,
+        };
+        assert_eq!(
+            execute_clob_transition_v1_unchecked_with_journal(input).unwrap_err(),
+            REJ_BOOK_NOT_CANONICAL
+        );
+
+        // Control: the SAME resting multiset in canonical order transitions fine.
+        let canonical = ClobBookV1::new(
+            asset("11"),
+            asset("22"),
+            vec![
+                order(1, 110_000_000, 5, 1, 1, "bb"),
+                order(1, 100_000_000, 5, 2, 2, "cc"),
+            ],
+        );
+        match apply_clob_order(&canonical, &order(0, 110_000_000, 5, 10, 99, "aa")).unwrap() {
+            ClobMatchResultV1::Accepted { fills, .. } => {
+                assert_eq!(fills[0].maker_price, 100_000_000); // best price first
+            }
+            ClobMatchResultV1::Rejected { reason } => panic!("control rejected: {reason}"),
+        }
+    }
+
+    #[test]
     fn invalid_taker_rejects_with_stable_python_reason() {
         let book = ClobBookV1::new(
             asset("11"),
@@ -754,6 +947,10 @@ mod tests {
         assert_ne!(journal.state_delta_hash, [0u8; 32]);
         assert_eq!(journal.matching_rule_hash, clob_matching_rule_hash());
         assert_eq!(journal.fee_rule_hash, clob_fee_rule_hash());
+        assert_eq!(
+            journal.matching_law_rule_hash,
+            clob_matching_law_rule_hash()
+        );
         assert_eq!(journal.fee_total, 0);
         assert_eq!(journal.fills.len(), 1);
         assert_eq!(journal.resting_taker_qty, 0); // taker fully filled
@@ -841,6 +1038,98 @@ mod tests {
     fn rule_hashes_stable_and_distinct() {
         assert_eq!(clob_matching_rule_hash(), clob_matching_rule_hash());
         assert_eq!(clob_fee_rule_hash(), clob_fee_rule_hash());
+        assert_eq!(
+            clob_matching_law_rule_hash(),
+            clob_matching_law_rule_hash()
+        );
         assert_ne!(clob_matching_rule_hash(), clob_fee_rule_hash());
+        assert_ne!(clob_matching_law_rule_hash(), clob_matching_rule_hash());
+        assert_ne!(clob_matching_law_rule_hash(), clob_fee_rule_hash());
+    }
+
+    // --- I6: the law checker's own teeth (forged fills MUST be caught) --------
+    fn two_sell_book() -> ClobBookV1 {
+        ClobBookV1::new(
+            asset("11"),
+            asset("22"),
+            vec![
+                order(1, 100_000_000, 5, 1, 1, "bb"), // best price -> higher priority
+                order(1, 101_000_000, 5, 2, 2, "cc"),
+            ],
+        )
+    }
+
+    fn accepted_fills(book: &ClobBookV1, taker: &ClobOrderV1) -> Vec<ClobFillV1> {
+        match apply_clob_order(book, taker).unwrap() {
+            ClobMatchResultV1::Accepted { fills, .. } => fills,
+            ClobMatchResultV1::Rejected { reason } => panic!("expected accept, got {reason}"),
+        }
+    }
+
+    #[test]
+    fn law_accepts_canonical_matcher_output() {
+        let book = two_sell_book();
+        let taker = order(0, 101_000_000, 10, 10, 99, "aa"); // crosses + fills both
+        let fills = accepted_fills(&book, &taker);
+        assert_eq!(fills.len(), 2);
+        assert!(check_no_skip_law(&book, &taker, &fills).is_ok());
+    }
+
+    #[test]
+    fn law_rejects_priority_skip() {
+        // Forge a fill against the LOWER-priority maker (oid 2) while the
+        // higher-priority crossing maker (oid 1) is left unfilled.
+        let book = two_sell_book();
+        let taker = order(0, 101_000_000, 5, 10, 99, "aa");
+        let real = accepted_fills(&book, &taker);
+        assert!(check_no_skip_law(&book, &taker, &real).is_ok()); // control
+        let mut forged = real.clone();
+        forged[0].maker_order_id = oid(2);
+        forged[0].maker_price = 101_000_000;
+        assert_eq!(
+            check_no_skip_law(&book, &taker, &forged).unwrap_err(),
+            LAW_PRIORITY_SKIP
+        );
+    }
+
+    #[test]
+    fn law_rejects_out_of_priority_fill_order() {
+        // Same fill SET, wrong ORDER: lower-priority maker first. An
+        // aggregate/set-only check would pass it (Codex 2026-06-06, finding #1).
+        let book = two_sell_book();
+        let taker = order(0, 101_000_000, 10, 10, 99, "aa");
+        let real = accepted_fills(&book, &taker);
+        assert_eq!(real.len(), 2);
+        let mut forged = real.clone();
+        forged.reverse();
+        assert_eq!(
+            check_no_skip_law(&book, &taker, &forged).unwrap_err(),
+            LAW_FILL_ORDER
+        );
+    }
+
+    #[test]
+    fn law_rejects_overfill_and_absent_maker() {
+        let book = ClobBookV1::new(
+            asset("11"),
+            asset("22"),
+            vec![order(1, 100_000_000, 5, 1, 1, "bb")],
+        );
+        let taker = order(0, 100_000_000, 5, 10, 99, "aa");
+        let real = accepted_fills(&book, &taker);
+
+        let mut overfilled = real.clone();
+        overfilled[0].base += 1;
+        assert_eq!(
+            check_no_skip_law(&book, &taker, &overfilled).unwrap_err(),
+            LAW_OVERFILL
+        );
+
+        let mut absent = real.clone();
+        absent[0].maker_order_id = oid(77);
+        assert_eq!(
+            check_no_skip_law(&book, &taker, &absent).unwrap_err(),
+            LAW_ABSENT_MAKER
+        );
     }
 }

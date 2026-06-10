@@ -14,8 +14,9 @@ use tau_state_proof_risc0_methods::{
     TAU_STATE_PROOF_RISC0_GUEST_ELF, TAU_STATE_PROOF_RISC0_GUEST_ID,
 };
 use tau_state_proof_risc0_shared::clob::{
-    execute_clob_transition_v1, execute_clob_transition_v1_unchecked_with_journal, ClobBookV1,
-    ClobOrderV1, ClobTransitionInputV1, ClobTransitionJournalV1,
+    clob_matching_law_rule_hash, execute_clob_transition_v1,
+    execute_clob_transition_v1_unchecked_with_journal, ClobBookV1, ClobOrderV1,
+    ClobTransitionInputV1, ClobTransitionJournalV1,
 };
 use tau_state_proof_risc0_shared::ZenoProofInputV1;
 
@@ -101,6 +102,13 @@ fn clob_guest_executes_transition_and_commits_bound_journal() {
         host_journal.matching_rule_hash
     );
     assert_eq!(guest_journal.fee_rule_hash, host_journal.fee_rule_hash);
+    // I6: the REAL guest binary committed the law identity -- the journal only
+    // exists because the in-guest check_no_skip_law accepted the fills.
+    assert_eq!(
+        guest_journal.matching_law_rule_hash,
+        clob_matching_law_rule_hash(),
+        "guest journal must carry the pinned matching-law identity"
+    );
     assert_eq!(guest_journal.fee_total, 0);
     assert_eq!(guest_journal.fills, host_journal.fills);
     assert_eq!(
