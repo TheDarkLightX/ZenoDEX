@@ -30,7 +30,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-TAU = Path("/home/trevormoc/Downloads/Autonomous Tau DEX/external/tau-lang/build-Release/tau")
+ROOT = Path(__file__).resolve().parents[3]
+TAU = ROOT / "external" / "tau-lang" / "build-Release" / "tau"
 SPEC_DIR = Path(__file__).parent
 TIMEOUT = 40          # bf sat/unsat checks (per surface / per bit)
 COMPILE_TIMEOUT = 150  # full-temporal normalize of a single spec (collateral ~49s)

@@ -12,10 +12,11 @@ built**. The distinction is load-bearing; do not let the vision blur it.
 
 | Layer | Status |
 |---|---|
-| The **gate** — pointwise-revision spec suite (`src/tau_specs/governance/`) | **Built + verified** this session; pushed to branch `claude/governance-pointwise-revision` (unmerged). Reviews: Gemini A+, Codex Logic A / Correctness A−. |
+| The **gate** — pointwise-revision spec suite (`src/tau_specs/governance/`) | **Built + merged** via PR #363. Reviews: Gemini A+, Codex Logic A / Correctness A-. |
 | The existing **revision pipeline** it builds on (`docs/REVISION_PIPELINE.md` + the three `src/tau_specs/*_v1.tau` specs) | **Pre-existing** in the repo. |
 | The **oracle** the autonomous loop would read | **L2** (trust-minimized), per `docs/ORACLE_TRUST_POSTURE.md`. Not trustless. |
 | The **autonomous proposers** (PID controller, frozen Q-learning table) | **Reference implementation** — `src/tau_specs/governance/gov_proposers.py` (deterministic PI + frozen Q-table) for simulation/demonstration. NOT a production/live proposer. |
+| The **frozen Q/EBRM artifact runtime** | **Built as an offline, verifier-preserving artifact path** — `src/integration/autonomous_governance_q_policy.py`, `tools/autonomous_governance_policy_factory.py`, `tools/autonomous_governance_q_policy.py`, and `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`. It ranks proposals and emits receipts; exact gates still decide admission. |
 | The **autonomous loop** (proposer → gate → apply/no-op) | **Reference implementation** — `src/tau_specs/governance/gov_loop.py`; the safety property (the gate bounds a poisoned proposer) and `curr`-binding are empirically tested (`tests/tau_specs/governance/test_gov_loop.py`). NOT wired to a live governance flow. |
 | The **live autonomous loop** (the reference loop driving *committed on-chain* parameters from *attested* state) | **Not built.** This is the open **WS5** integration. |
 
@@ -181,6 +182,46 @@ the pin and is a governed action. Every layer miss (regime bin, dangling sub-pol
 is **fail-closed** (propose `curr`, `hit=False`). Validation, digest, and both lookups act on one
 private snapshot taken before any caller-controlled iteration runs (the pin/use-TOCTOU discipline).
 
+### 3.3.1.1 Frozen artifact runtime and selection-aware ranking
+
+`src/integration/autonomous_governance_q_policy.py` is the frozen artifact
+evaluator for governance-surface updates. It turns observations into integer
+bins, sums deterministic Q/EBRM lookup-table layers, ranks a finite action set,
+proposes a candidate surface state, and calls the exact `gov_gate.py` functions
+before anything can be admitted. The runtime is an ordering engine; the gate is
+the admission authority.
+
+The current artifact path uses `first_admissible` selection. The raw ranked
+action list is adjusted by deterministic sequence-context blockers before exact
+gate scanning:
+
+- anti-oscillation blockers prevent immediate fee/funding reversals;
+- trajectory-budget blockers prevent standing-approval walks from spending
+  beyond their configured movement budget;
+- blocked raw candidates receive a fixed selection penalty and are reported as
+  `selection_penalized_candidates`;
+- exact gate failures remain separate from selection blockers.
+
+This matters for efficiency and auditability. In the generated evidence,
+long-horizon replay keeps frontier utility at `11,380 / 11,380` with zero
+regret and zero invalid accepts, while candidate work drops from 164 scanned
+candidates to 116. The 48 raw candidates that sequence rules would have blocked
+are penalized before the first-admissible scan. The exact gates still receive
+116 candidate checks and remain the only admission authority.
+
+Developer entry points:
+
+- `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`: artifact format, metrics, commands,
+  and replay interpretation.
+- `tools/autonomous_governance_policy_factory.py`: offline policy factory,
+  residual EBRM lookup layer, replay reports, and artifact/promotion checks.
+- `tools/autonomous_governance_q_policy.py`: sample/evaluate/step CLI for the
+  frozen policy artifact.
+- `tests/integration/test_autonomous_governance_q_policy.py`: runtime behavior,
+  exact-gate boundary, and selection-aware ranking tests.
+- `tests/tools/test_autonomous_governance_q_table_optimizer.py`: full factory,
+  replay, artifact, and promotion-gate regression test.
+
 ### 3.3.2 Frozen energy model (energy-based reasoning — reference implemented)
 `gov_proposers.energy_propose` is energy-based reasoning in its consensus-safe form: a frozen,
 hash-pinned **integer energy function** `E(c) = w_track·(c − target)² + w_move·|c − curr|` is
@@ -330,6 +371,7 @@ bound attained at a concrete m=3, B=150 instance) is proved in Lean
 | Reference **loop** + safety property (gate bounds a poisoned PI/Q-table/layered/energy proposer) + `curr`-binding | **Done** (`gov_loop.py`, `test_gov_loop.py`, `test_gov_proposers.py` — empirical) |
 | **Multi-surface revision step** — all-or-nothing across every touched surface (fee/funding/whale scalars, router shares as a unit, MCR/CCR as a unit); gates import-bound (no forged-wrapper surface); consumes the policy-factory action shape (`{surface: delta}`) directly — every action in the frozen `q_policy.v1` sample is gate-admissible and the factory's negative controls all reject (differential fixture) | **Done** (`gov_loop.multi_surface_revision_step`) — reference; live `curr`/epoch binding still **Open** (WS5) |
 | Q-table **hash-pinning** primitive (`table_hash` / `layered_table_hash` / `energy_model_hash`) | **Done** (reference); a live consensus-bound, hash-pinned decision runtime is **Open** |
+| Frozen Q/EBRM artifact evaluator, factory, CLI, replay reports, and selection-aware first-admissible ranking | **Done** (`src/integration/autonomous_governance_q_policy.py`, `tools/autonomous_governance_policy_factory.py`, `tools/autonomous_governance_q_policy.py`, `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`) — offline artifact/runtime path; live `curr`/epoch binding still **Open** (WS5) |
 | **Trajectory-tier Tau specs** — `gov_drift_budget_v1` / `gov_cooldown_v1` / `gov_charter_v1` / `gov_epoch_budget_v1` (compile + non-vacuity + teeth incl. wrap probes, via the same bf-layer harness) | **Done** (`validate_governance_specs.py` `PURE_SPECS`) |
 | Trajectory-tier Python mirrors + Tau↔Python↔Rust differential parity (one shared boundary table, byte-pinned fixture) | **Done** (`gov_gate.py`, `test_gov_parity.py`) |
 | **Epoch machine** — charter (dead-man standing approval) / veto / freeze / cooldown / drift budgets / aggregate budget, stable receipt codes + params-digest no-op proofs, import-bound gates, no self-amendment | **Done** (`gov_epoch.py`, `test_gov_epoch.py`) — reference; live `now_epoch`/state binding still **Open** (WS5) |
@@ -358,9 +400,16 @@ bound attained at a concrete m=3, B=150 instance) is proved in Lean
   Q-table, layered/hierarchical Q-tables, frozen energy model), `src/tau_specs/governance/gov_loop.py`
   (proposer→gate→apply/no-op); tests
   `tests/tau_specs/governance/test_gov_proposers.py`, `tests/tau_specs/governance/test_gov_loop.py`
+- Frozen Q/EBRM artifact runtime: `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`,
+  `src/integration/autonomous_governance_q_policy.py`,
+  `tools/autonomous_governance_policy_factory.py`,
+  `tools/autonomous_governance_q_policy.py`,
+  `tools/autonomous_governance_q_table_optimize.jl`,
+  `tests/integration/test_autonomous_governance_q_policy.py`,
+  `tests/tools/test_autonomous_governance_q_table_optimizer.py`
 - Existing pipeline: `docs/REVISION_PIPELINE.md`, `src/tau_specs/revision_policy_v1.tau`,
   `src/tau_specs/governance_timelock_v1.tau`, `src/tau_specs/parameter_registry_v1.tau`
 - Oracle trust: `docs/ORACLE_TRUST_POSTURE.md` (WS4 doc — lives on branch
   `claude/prod-promotion-phase5-proof-receipt`, unmerged; not on this branch yet) and the
   modules it cites: `src/integration/zeno_oracle_authority.py`, `src/core/oracle.py`
-- Branch: `claude/governance-pointwise-revision` (gate suite; unmerged)
+- Merged source branch: `claude/governance-pointwise-revision` (gate suite; PR #363)
