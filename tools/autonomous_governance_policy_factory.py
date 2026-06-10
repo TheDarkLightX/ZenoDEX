@@ -69,7 +69,7 @@ TRAINED_EBR_RESIDUAL_LAYER_BIN_COUNTS = {
     "volatility_bps": 4,
     "liquidity_depth_bps": 3,
     "fee_bps": 4,
-    "funding_cap_bps": 3,
+    "funding_cap_bps": 4,
     "buyburn_bps": 4,
     "reserve_bps": 4,
 }
@@ -4506,10 +4506,11 @@ def _train_ebr_residual_lookup_model(training_corpus: Mapping[str, Any]) -> dict
         for split in ("train", "validation")
     }
     train_hybrid = metrics["train"]["hybrid"]
+    train_policy = metrics["train"]["policy"]
     validation_policy = metrics["validation"]["policy"]
     validation_hybrid = metrics["validation"]["hybrid"]
     cross_seed_diagnostics = _residual_cross_seed_diagnostics(rows)
-    checks = {
+    promotion_checks = {
         "training_rows_present": sum(source_histogram.values()) > 0,
         "q_table_nonempty": bool(q_table),
         "q_table_complete": completion.get("ok") is True,
@@ -4542,6 +4543,29 @@ def _train_ebr_residual_lookup_model(training_corpus: Mapping[str, Any]) -> dict
         ),
         "cross_seed_diagnostics_ok": cross_seed_diagnostics["ok"] is True,
     }
+    apply_residual = all(promotion_checks.values())
+    abstention_checks = {
+        "training_rows_present": promotion_checks["training_rows_present"],
+        "q_table_complete": promotion_checks["q_table_complete"],
+        "train_policy_frontier_rank1_complete": (
+            train_policy["rank1_frontier_count"] == train_policy["accepting_group_count"]
+            and train_policy["accepting_group_count"] > 0
+        ),
+        "validation_policy_frontier_rank1_complete": (
+            validation_policy["rank1_frontier_count"] == validation_policy["accepting_group_count"]
+            and validation_policy["accepting_group_count"] > 0
+        ),
+        "train_policy_calls_are_one": (
+            train_policy["calls_to_frontier_max"] == 1
+            and train_policy["mean_calls_to_frontier"] == 1.0
+        ),
+        "validation_policy_calls_are_one": (
+            validation_policy["calls_to_frontier_max"] == 1
+            and validation_policy["mean_calls_to_frontier"] == 1.0
+        ),
+        "residual_application_not_promoted": not apply_residual,
+    }
+    abstain_residual = all(abstention_checks.values())
     layer = {
         "id": TRAINED_EBR_RESIDUAL_LAYER_ID,
         "features": TRAINED_EBR_RESIDUAL_LAYER_FEATURES,
@@ -4549,8 +4573,16 @@ def _train_ebr_residual_lookup_model(training_corpus: Mapping[str, Any]) -> dict
     }
     return {
         "schema": EBR_RESIDUAL_MODEL_SCHEMA,
-        "ok": all(checks.values()),
-        "checks": checks,
+        "ok": apply_residual or abstain_residual,
+        "apply_residual": apply_residual,
+        "abstained": abstain_residual,
+        "abstention_reason": (
+            "base_policy_rank1_saturated"
+            if abstain_residual
+            else ""
+        ),
+        "checks": promotion_checks,
+        "abstention_checks": abstention_checks,
         "source_policy_hash": str(training_corpus.get("policy_hash", "")),
         "feature_schema": EBR_TRAINING_FEATURE_SCHEMA,
         "layer": layer,
@@ -4599,7 +4631,7 @@ def _policy_with_trained_ebr_residual(
             "limits": dict(SEQUENCE_DRIFT_LIMITS),
         }
         candidate["selection"] = selection
-    if residual_model.get("ok") is not True:
+    if residual_model.get("apply_residual") is not True:
         return candidate
     layer = residual_model.get("layer", {})
     if not isinstance(layer, Mapping):
@@ -6684,7 +6716,7 @@ def build_factory_report(*, out_dir: Path, julia_bin: str, policy_input: Path | 
     frozen_policy = _freeze_policy(residual_candidate_policy)
     residual_model = {
         **residual_model,
-        "applied_to_policy": residual_model.get("ok") is True,
+        "applied_to_policy": residual_model.get("apply_residual") is True,
         "candidate_policy_hash": frozen_policy["policy_hash"],
     }
     _write_json(residual_model_path, residual_model)

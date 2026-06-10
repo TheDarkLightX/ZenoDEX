@@ -235,7 +235,7 @@ The safety-boundary sweep records every candidate action for 80 stratified
 near-threshold scenarios across oracle freshness, divergence, volatility,
 liquidity floor, and cooldown controls. Each probe has an inside-limit case
 that must approve and an outside-limit case that must reject with the expected
-error. The current corpus contributes 800 rows from this source, and promotion
+error. The current corpus contributes 400 rows from this source, and promotion
 requires 40/40 inside approvals, 40/40 outside rejections, and zero missing
 expected errors.
 
@@ -243,17 +243,17 @@ The safety-interaction sweep records every candidate action for 160 paired
 near-threshold scenarios. It crosses four anchor bins with all ten pairs of
 freshness, divergence, volatility, liquidity, and cooldown controls, then tests
 `both_inside`, `first_outside`, `second_outside`, and `both_outside` profiles.
-The current corpus contributes 1,600 rows from this source, and promotion
+The current corpus contributes 800 rows from this source, and promotion
 requires 40/40 paired inside approvals, 120/120 paired outside rejections, and
 zero missing expected errors.
 
 The surface-boundary sweep records every candidate action for 12 exact
 governance-surface edge scenarios: fee floor/cap, funding floor/cap, reserve
 cap, and buyburn cap, each with just-inside and at-limit states. The selected
-policy must approve all 12 states, the residual layer must report zero
+policy must approve all 12 states, the selected Q rows must report zero
 `q_row_missing` errors, and forced candidate actions must still expose the
 expected fee, funding, router, and master gate rejections at exact limits. The
-current corpus contributes 120 rows from this source.
+current corpus contributes 60 rows from this source.
 
 Every candidate-complete row also receives verifier-derived supervision fields:
 `target_class`, `frontier_action_id`, `frontier_utility`,
@@ -282,8 +282,8 @@ feature-vector coverage, duplicate concentration, candidate-group completeness,
 target-class presence in both train and validation, and hard-negative
 failure-family diversity. Promotion requires this to pass so the residual layer
 is trained on a broad verifier-labeled frontier rather than repeated examples.
-The current corpus snapshot contains 11,002 rows, 1,099 candidate groups, 1,270
-sequence-step rows, 318 selection-blocked rows, and hard-negative families for
+The current corpus snapshot contains 5,507 rows, 1,099 candidate groups, 635
+sequence-step rows, 32 selection-blocked rows, and hard-negative families for
 `trajectory_budget_exceeded:fee_bps` and
 `trajectory_budget_exceeded:buyburn_bps`.
 
@@ -295,19 +295,22 @@ frontier selection and improves non-frontier and hard-negative margins. The
 deterministic gates still decide whether the selected candidate executes.
 Unseen residual bin keys use a neutral `*` fallback row, so the base Q layers
 decide instead of the residual layer producing `q_row_missing`. The residual
-report still records the full effective grid size, currently 9,216 residual
-keys, and the number of keys filled by the neutral fallback.
+report still records the full effective grid size and the number of keys filled
+by the neutral fallback.
 The current residual layer uses a wider bounded correction range (`score_clamp`
 320, `score_scale` 2). It also applies a neutral-edge prior only to learned
 rows where all actions otherwise collapse to zero because the train split saw
 only equal no-accept targets. The prior penalizes actions that push fee,
-funding, buyburn, or reserve farther into a coarse cap/floor bin. In the checked
-artifact this raises held-out residual pairwise accuracy to 0.988898 and
-residual hard-negative accuracy to 1.0 while the hybrid scorer keeps held-out
-frontier rank-1 coverage and hard-negative accuracy at 1.0.
-The residual report also reruns the same check over seven salted group-level
-splits, so a single lucky train/validation partition is not enough to promote
-the layer.
+funding, buyburn, or reserve farther into a coarse cap/floor bin.
+
+The residual can also abstain. If the base frozen policy is already rank-1 over
+all train and validation accepting groups, with one exact-gate call to the
+frontier, and the learned residual would not preserve that call profile, the
+artifact reports `ok=true`, `apply_residual=false`, `abstained=true`, and
+`abstention_reason=base_policy_rank1_saturated`. This is the expected outcome
+for the current checked policy-input artifact. The residual report also reruns
+the same promotion/abstention checks over seven salted group-level splits, so a
+single lucky train/validation partition is not enough to apply the layer.
 
 The normal-grid, intra-bin, safety-boundary, safety-interaction,
 surface-boundary, and long-horizon checkers also compute finite-action

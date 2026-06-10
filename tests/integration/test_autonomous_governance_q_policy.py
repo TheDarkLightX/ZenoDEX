@@ -632,6 +632,34 @@ def test_surface_sample_policy_matches_edge_and_trajectory_frontiers() -> None:
     assert surface_boundary["inconsistent_accept_count"] == 0
 
 
+def test_surface_sample_policy_ebr_residual_abstains_when_base_policy_is_saturated() -> None:
+    import tools.autonomous_governance_policy_factory as factory
+
+    policy = sample_autonomous_governance_surface_q_policy_v1()
+    training_corpus = factory._build_training_corpus(policy)  # noqa: SLF001
+    residual = factory._train_ebr_residual_lookup_model(training_corpus)  # noqa: SLF001
+    candidate = factory._policy_with_trained_ebr_residual(policy, residual)  # noqa: SLF001
+
+    assert residual["ok"] is True
+    assert residual["apply_residual"] is False
+    assert residual["abstained"] is True
+    assert residual["abstention_reason"] == "base_policy_rank1_saturated"
+    assert residual["q_table_completion"]["ok"] is True
+    assert residual["abstention_checks"] == {
+        "training_rows_present": True,
+        "q_table_complete": True,
+        "train_policy_frontier_rank1_complete": True,
+        "validation_policy_frontier_rank1_complete": True,
+        "train_policy_calls_are_one": True,
+        "validation_policy_calls_are_one": True,
+        "residual_application_not_promoted": True,
+    }
+    assert all(
+        layer["id"] != factory.TRAINED_EBR_RESIDUAL_LAYER_ID
+        for layer in candidate["q_layers"]
+    )
+
+
 def test_surface_q_policy_anti_oscillation_skips_reversal_candidate() -> None:
     policy = {
         "schema": "zenodex.autonomous_governance.q_policy.v1",
