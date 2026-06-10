@@ -2965,6 +2965,47 @@ def _replay_surface_boundary_sweep(policy: Mapping[str, Any], *, label: str) -> 
         action_id: _forced_existing_action_policy(frozen, action_id=action_id)
         for action_id in sorted(actions)
     }
+    # These probes are checker-only. They keep exact-limit rejection evidence
+    # complete without adding unsafe opposite-direction actions to runtime policy.
+    boundary_probe_policies = {
+        "boundary_probe_lower_fee_10": _forced_delta_policy(
+            frozen,
+            policy_id_suffix="boundary_probe_lower_fee_10",
+            action_id="boundary_probe_lower_fee_10",
+            deltas={"fee_bps": -10},
+        ),
+        "boundary_probe_raise_fee_10": _forced_delta_policy(
+            frozen,
+            policy_id_suffix="boundary_probe_raise_fee_10",
+            action_id="boundary_probe_raise_fee_10",
+            deltas={"fee_bps": 10},
+        ),
+        "boundary_probe_tighten_funding_5": _forced_delta_policy(
+            frozen,
+            policy_id_suffix="boundary_probe_tighten_funding_5",
+            action_id="boundary_probe_tighten_funding_5",
+            deltas={"funding_cap_bps": -5},
+        ),
+        "boundary_probe_relax_funding_5": _forced_delta_policy(
+            frozen,
+            policy_id_suffix="boundary_probe_relax_funding_5",
+            action_id="boundary_probe_relax_funding_5",
+            deltas={"funding_cap_bps": 5},
+        ),
+        "boundary_probe_shift_router_to_reserve_100": _forced_delta_policy(
+            frozen,
+            policy_id_suffix="boundary_probe_shift_router_to_reserve_100",
+            action_id="boundary_probe_shift_router_to_reserve_100",
+            deltas={"buyburn_bps": -100, "reserve_bps": 100},
+        ),
+        "boundary_probe_shift_router_to_buyburn_100": _forced_delta_policy(
+            frozen,
+            policy_id_suffix="boundary_probe_shift_router_to_buyburn_100",
+            action_id="boundary_probe_shift_router_to_buyburn_100",
+            deltas={"buyburn_bps": 100, "reserve_bps": -100},
+        ),
+    }
+    forced_action_policies.update(boundary_probe_policies)
     approved_count = 0
     candidate_approved_count = 0
     candidate_rejected_count = 0
@@ -3091,7 +3132,8 @@ def _replay_surface_boundary_sweep(policy: Mapping[str, Any], *, label: str) -> 
         "scenario_count": len(scenarios),
         "approved_count": approved_count,
         "rejected_count": len(scenarios) - approved_count,
-        "candidate_action_count": len(actions),
+        "runtime_action_count": len(actions),
+        "candidate_action_count": len(forced_action_policies),
         "candidate_approved_count": candidate_approved_count,
         "candidate_rejected_count": candidate_rejected_count,
         "q_row_missing_count": q_row_missing_count,

@@ -570,6 +570,10 @@ def test_surface_sample_policy_matches_edge_and_trajectory_frontiers() -> None:
         policy,
         label="sample_surface_policy_long_horizon",
     )
+    surface_boundary = factory._replay_surface_boundary_sweep(  # noqa: SLF001
+        policy,
+        label="sample_surface_policy_surface_boundary",
+    )
 
     assert intra_bin["scenario_count"] == 480
     assert intra_bin["safety_feasible_count"] == 480
@@ -593,6 +597,14 @@ def test_surface_sample_policy_matches_edge_and_trajectory_frontiers() -> None:
     assert long_horizon["trajectory_budget_failures"] == ()
     assert long_horizon["invalid_accept_count"] == 0
     assert long_horizon["inconsistent_accept_count"] == 0
+
+    assert surface_boundary["ok"] is True
+    assert surface_boundary["scenario_count"] == 12
+    assert surface_boundary["approved_count"] == 12
+    assert surface_boundary["q_row_missing_count"] == 0
+    assert surface_boundary["missing_expected_rejection_count"] == 0
+    assert surface_boundary["invalid_accept_count"] == 0
+    assert surface_boundary["inconsistent_accept_count"] == 0
 
 
 def test_surface_q_policy_anti_oscillation_skips_reversal_candidate() -> None:
@@ -736,6 +748,45 @@ def test_surface_q_policy_trajectory_budget_skips_exhausted_candidate() -> None:
         "action_id": "raise_fee_10",
         "failed_selection": ("trajectory_budget_exceeded:fee_bps",),
     }
+
+
+def test_surface_q_policy_cannot_loosen_hash_bound_trajectory_budget() -> None:
+    policy = sample_autonomous_governance_surface_q_policy_v1()
+
+    def evaluate_with_override(raw_budget: dict[str, int]) -> dict:
+        return evaluate_autonomous_governance_surface_q_policy_v1(
+            policy=policy,
+            surface_state=_surface_state(),
+            observation=_observation(),
+            current_epoch=34,
+            proposal_epoch=10,
+            last_update_epoch=32,
+            expected_policy_hash=policy["policy_hash"],
+            trajectory_used={"fee_bps": 250},
+            trajectory_budget=raw_budget,
+        )
+
+    default = evaluate_autonomous_governance_surface_q_policy_v1(
+        policy=policy,
+        surface_state=_surface_state(),
+        observation=_observation(),
+        current_epoch=34,
+        proposal_epoch=10,
+        last_update_epoch=32,
+        expected_policy_hash=policy["policy_hash"],
+        trajectory_used={"fee_bps": 250},
+    )
+    empty_override = evaluate_with_override({})
+    loose_override = evaluate_with_override({"fee_bps": 1_000_000})
+
+    for result in (default, empty_override, loose_override):
+        assert result["ok"] is True
+        assert result["approved"] is True
+        assert result["action_id"] == "hold"
+        assert result["proposed"] == result["surface_state"]
+        assert result["trajectory_budget"]["fee_bps"] == 250
+        assert result["candidate_search"]["raw_top_action_id"] == "raise_fee_10_tighten_funding_5"
+        assert result["candidate_search"]["selection_adjusted_top_action_id"] == "hold"
 
 
 def test_surface_q_policy_blocks_unsigned_underflow_after_delta() -> None:

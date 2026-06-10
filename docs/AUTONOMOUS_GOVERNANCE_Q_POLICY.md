@@ -56,10 +56,12 @@ bins those values alongside oracle observations, so offline Julia layers can
 rank edge-safe actions earlier while the exact governance gates still decide
 whether a candidate executes.
 
-The current optimized action set also includes compound liquidity-floor actions
-that move fee, funding, and reserve routing together. These are deterministic
-lookup-table candidates. A compound proposal executes only when the exact
-surface gates accept every affected parameter.
+The current optimized runtime action set includes `hold`, single fee movement,
+one fee/funding compound action, and one router-reserve shift. Checker-only
+boundary probes cover opposite exact-limit directions such as lower-fee,
+raise-funding, and raise-buyburn. Zero-regret metrics are therefore scoped to
+the current finite runtime action vocabulary, while boundary rejection evidence
+is checked with the wider probe vocabulary.
 
 The receipt reports each surface gate and also reports
 `governance_surface_all_gates_ok`. The imported `master` gate is the composed

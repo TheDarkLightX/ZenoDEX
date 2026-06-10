@@ -1282,13 +1282,32 @@ def _normalize_trajectory_budget(
     *,
     policy: Mapping[str, Any],
 ) -> tuple[dict[str, int], list[str]]:
+    policy_budget = _policy_trajectory_budget_limits(policy)
     if raw is None:
-        selection = policy.get("selection", {}) if isinstance(policy, Mapping) else {}
-        trajectory = selection.get("trajectory_budget", {}) if isinstance(selection, Mapping) else {}
-        if not isinstance(trajectory, Mapping) or trajectory.get("enabled") is not True:
-            return {}, []
-        raw = trajectory.get("limits", {})
-    return _normalize_surface_int_map(raw, name="trajectory_budget")
+        return policy_budget, []
+    supplied_budget, errors = _normalize_surface_int_map(raw, name="trajectory_budget")
+    if not policy_budget:
+        return supplied_budget, errors
+    effective_budget = dict(policy_budget)
+    # Caller-supplied limits are extra local caps; they cannot loosen the hash-bound policy budget.
+    for name, supplied_limit in supplied_budget.items():
+        policy_limit = effective_budget.get(name)
+        effective_budget[name] = (
+            supplied_limit if policy_limit is None else min(policy_limit, supplied_limit)
+        )
+    return effective_budget, errors
+
+
+def _policy_trajectory_budget_limits(policy: Mapping[str, Any]) -> dict[str, int]:
+    selection = policy.get("selection", {}) if isinstance(policy, Mapping) else {}
+    trajectory = selection.get("trajectory_budget", {}) if isinstance(selection, Mapping) else {}
+    if not isinstance(trajectory, Mapping) or trajectory.get("enabled") is not True:
+        return {}
+    limits = trajectory.get("limits", {})
+    if not isinstance(limits, Mapping):
+        return {}
+    normalized, _errors = _normalize_surface_int_map(limits, name="trajectory_budget")
+    return normalized
 
 
 def _normalize_trajectory_used(raw: Mapping[str, Any] | None) -> tuple[dict[str, int], list[str]]:
