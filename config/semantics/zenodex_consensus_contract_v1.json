@@ -44,6 +44,7 @@
         }
       },
       "guest": {
+        "proof_type": "risc0.zenodex_perps_np_transition.v1",
         "differential_ref": "tools/runtime/perps_np_guest_differential.py",
         "collateral_binding_layer": "witness_or_input_envelope",
         "envelope_binding": "live_replay_guard_admit_strict_sequential",

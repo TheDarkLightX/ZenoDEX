@@ -60,6 +60,7 @@ class RefuseCode(str, Enum):
     CLAIM_TOO_WEAK = "REFUSE_CLAIM_TOO_WEAK"
     CLAIM_OVERCLAIM = "REFUSE_CLAIM_OVERCLAIM"
     ADMISSION_NOT_PROOF_GATED = "REFUSE_ADMISSION_NOT_PROOF_GATED"
+    HEAD_NONPROGRESS = "REFUSE_HEAD_NONPROGRESS"
 
 
 class VerifyStatus(str, Enum):
@@ -434,6 +435,14 @@ def decide_admission(
         # post must exist (as bytes) to advance the head; own gate key so the trace
         # stays clean (do not overwrite the already-passed g9 result).
         return refuse(RefuseCode.BINDING_INCOMPLETE_OR_NULL, "g12_post_present")
+    # Head must STRICTLY progress: gate 7 proved pre_app_hash == head, so a
+    # post == head transition does not move the head and would stay accept-able
+    # forever (the same proof re-passes gate 7 next time), silently defeating the
+    # anti-double-accept obligation. A non-advancing transition is unsequenceable;
+    # refuse fail-closed. (The shell adds the cycle-into-a-retired-root guard the
+    # pure core cannot see.)
+    if post == client_head.current_head:
+        return refuse(RefuseCode.HEAD_NONPROGRESS, "g12_head_progress")
     passed("g12_accept")
 
     tripwire = _status_label_tripwire(host_response)
