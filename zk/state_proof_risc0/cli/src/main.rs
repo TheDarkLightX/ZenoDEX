@@ -1,3 +1,5 @@
+mod decode_journal;
+
 use std::io::{Read, Write};
 
 use base64::Engine;
@@ -46,6 +48,8 @@ fn main() {
     match schema {
         "tau_state_proof_request" => handle_generate(&req),
         "tau_state_proof_verify" => handle_verify(&req),
+        "tau_state_proof_decode_journal" => decode_journal::handle_decode_journal(&req),
+        "tau_state_proof_verifier_identity" => decode_journal::handle_verifier_identity(&req),
         "tau_state_transition_execute" => handle_execute(&req),
         _ => {
             eprintln!("unexpected schema");
@@ -1034,7 +1038,7 @@ fn verify_clob_request_bindings(
     Ok(())
 }
 
-fn validate_embedded_methods() {
+pub(crate) fn validate_embedded_methods() {
     if TAU_STATE_PROOF_GUEST_ELF.is_empty() {
         die("Risc0 guest ELF is empty (methods not embedded). Install the Risc0 toolchain/target and rebuild.");
     }
@@ -1072,7 +1076,7 @@ where
     (receipt, journal)
 }
 
-fn decode_postcard_journal<T>(receipt: &Receipt, name: &str) -> Result<T, String>
+pub(crate) fn decode_postcard_journal<T>(receipt: &Receipt, name: &str) -> Result<T, String>
 where
     T: DeserializeOwned,
 {
@@ -2617,11 +2621,11 @@ fn parse_hex32(s: &str) -> Result<[u8; 32], String> {
     Ok(arr)
 }
 
-fn hex_lower(bytes: &[u8; 32]) -> String {
+pub(crate) fn hex_lower(bytes: &[u8; 32]) -> String {
     hex::encode(bytes)
 }
 
-fn hex_u32_words(words: [u32; 8]) -> String {
+pub(crate) fn hex_u32_words(words: [u32; 8]) -> String {
     let mut out = String::with_capacity(64);
     for w in words {
         out.push_str(&format!("{w:08x}"));
@@ -2629,7 +2633,7 @@ fn hex_u32_words(words: [u32; 8]) -> String {
     out
 }
 
-fn write_json_stdout(v: &Value) {
+pub(crate) fn write_json_stdout(v: &Value) {
     let mut stdout = std::io::stdout();
     let s = serde_json::to_string(v).unwrap_or_else(|_| "{\"ok\":false}".to_string());
     let _ = stdout.write_all(s.as_bytes());
