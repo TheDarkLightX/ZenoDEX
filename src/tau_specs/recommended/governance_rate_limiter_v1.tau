@@ -17,7 +17,7 @@
 # o2 = current_ok
 # o3 = after_change_ok
 # o4 = gov_rate_ok
-# @rule o4: Current changes < max OR window has reset.
+# @rule o4: A proposed current-window change stays within max OR the window has reset.
 
 set charvar off
 
@@ -30,14 +30,15 @@ params_ok(max_ch : bv[32]) := max_ok(max_ch).
 # Current count ok
 current_ok(count : bv[32], max_ch : bv[32]) := count < max_ch.
 
-# After proposed change still ok (count + 1 <= max)
-after_change_ok(count : bv[32], max_ch : bv[32], proposing : sbf) := (proposing = 0:sbf) || ((count + { #x00000001 }:bv[32]) <= max_ch).
+# After proposed change still ok. The current_ok guard prevents the +1 check
+# from accepting via bv[32] wraparound at saturated counts.
+after_change_ok(count : bv[32], max_ch : bv[32], proposing : sbf) := (proposing = 0:sbf) || (current_ok(count, max_ch) && ((count + { #x00000001 }:bv[32]) <= max_ch)).
 
-# Window reset allows any change
+# Window reset starts a fresh count and allows the first change in that window.
 window_allows(elapsed : sbf) := elapsed = 1:sbf.
 
 # Full check
-gov_rate_valid(count : bv[32], proposing : sbf, max_ch : bv[32], elapsed : sbf) := params_ok(max_ch) && current_ok(count, max_ch) && (window_allows(elapsed) || after_change_ok(count, max_ch, proposing)).
+gov_rate_valid(count : bv[32], proposing : sbf, max_ch : bv[32], elapsed : sbf) := params_ok(max_ch) && (window_allows(elapsed) || after_change_ok(count, max_ch, proposing)).
 
 always
   # @section: Parameter validation

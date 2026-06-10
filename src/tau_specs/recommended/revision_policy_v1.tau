@@ -75,8 +75,9 @@ floor_step_ok(c_hi : bv[16], c_lo : bv[16], n_hi : bv[16], n_lo : bv[16], step_h
     )
   ).
 
-# Governance / timelock
-delay_ok(proposal_ts : bv[16], current_ts : bv[16], min_delay : bv[16]) := current_ts >= (proposal_ts + min_delay).
+# Governance / timelock. Use subtraction under a current>=proposal guard so
+# proposal_ts + min_delay cannot wrap and make a premature execution look mature.
+delay_ok(proposal_ts : bv[16], current_ts : bv[16], min_delay : bv[16]) := (current_ts >= proposal_ts) && ((current_ts - proposal_ts) >= min_delay).
 
 always
   # governance + timelock
