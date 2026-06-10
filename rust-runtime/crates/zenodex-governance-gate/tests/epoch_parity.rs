@@ -7,9 +7,7 @@
 
 use std::path::PathBuf;
 
-use zenodex_governance_gate::epoch::{
-    self, EpochState, PendingRevision, Surface, SURFACE_COUNT,
-};
+use zenodex_governance_gate::epoch::{self, EpochState, Surface, SURFACE_COUNT};
 
 fn fixture_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -125,15 +123,10 @@ fn assert_state_matches(ctx: &str, state: &EpochState, expected: &serde_json::Va
         (None, true) => {}
         (Some(p), false) => {
             let e = &expected["pending"];
-            assert_eq!(p.proposed_epoch, as_u16(&e["proposed_epoch"]), "{ctx}: pending epoch");
+            assert_eq!(p.proposed_epoch(), as_u16(&e["proposed_epoch"]), "{ctx}: pending epoch");
             let (exp_d, exp_t) = deltas_of(&e["deltas"]);
-            let norm: PendingRevision = PendingRevision {
-                deltas: exp_d,
-                touched: exp_t,
-                proposed_epoch: p.proposed_epoch,
-            };
-            assert_eq!(p.deltas, norm.deltas, "{ctx}: pending deltas");
-            assert_eq!(p.touched, norm.touched, "{ctx}: pending touched");
+            assert_eq!(*p.deltas(), exp_d, "{ctx}: pending deltas");
+            assert_eq!(*p.touched(), exp_t, "{ctx}: pending touched");
         }
         (got, _) => panic!("{ctx}: pending presence mismatch (rust={got:?})"),
     }

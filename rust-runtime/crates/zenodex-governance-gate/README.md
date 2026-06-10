@@ -28,8 +28,11 @@ non-vacuity + per-guardrail teeth) and as the Python runtime mirror
   fixed precedence, charter renew/revoke (dead-man), freeze interlock, window-
   rolled drift budgets, aggregate epoch budget, and receipts. Invalid states
   are unrepresentable (a `Surface` enum + fixed arrays replace Python's entire
-  hostile-object defense tier), and the digest-free `*_core` functions are
-  Kani-provable over the FULL symbolic state space: reject-is-no-op,
+  hostile-object defense tier; `PendingRevision` has a validating constructor —
+  empty or out-of-band pendings are UNCONSTRUCTIBLE in safe code), and the
+  digest-free `*_core` functions are Kani-proved over every constructible
+  state (the proof envelope and the representable envelope coincide):
+  reject-is-no-op,
   pending-kept-vs-cleared, accept ⇒ bookkeeping/band/charter invariants,
   precedence dominance, and per-transition field isolation.
   Cross-language bind: `tests/epoch_parity.rs` replays
