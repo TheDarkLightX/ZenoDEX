@@ -293,15 +293,35 @@ pub fn epoch_budget_ok(scalar_sum: u16, router_sum: u16, collateral_sum: u16, bu
 // `[["k",v],...]` sorted by key, no whitespace).
 // ---------------------------------------------------------------------------
 
-/// Returns `None` if any key needs JSON escaping (governance surfaces are
-/// plain `[a-z0-9_]+` identifiers; anything else is out of contract).
+/// The nine governed surfaces, sorted — exactly `gov_epoch.ALL_SURFACES`.
+/// `params_digest`'s domain is maps over EXACTLY this key set.
+pub const ALL_SURFACES: [&str; 9] = [
+    "buyburn_bps",
+    "ccr_bps",
+    "fee_bps",
+    "funding_cap_bps",
+    "hosts_bps",
+    "mcr_bps",
+    "redeem_staker_bps",
+    "reserve_bps",
+    "stakers_bps",
+];
+
+/// Returns `None` unless `params` covers EXACTLY the nine governed surfaces —
+/// the same contract `gov_epoch.params_digest` enforces via `_snapshot_params`
+/// (unknown key or missing surface ⇒ reject). Without this, the two encoders
+/// would agree on the bytes but disagree on the DOMAIN, and a digest over a
+/// map Python rejects is a pin nothing on the Python side can ever match.
 pub fn params_digest(params: &BTreeMap<String, u16>) -> Option<String> {
+    if params.len() != ALL_SURFACES.len() {
+        return None;
+    }
+    if !params.keys().all(|k| ALL_SURFACES.contains(&k.as_str())) {
+        return None;
+    }
     let mut canonical = String::from("[");
     let mut first = true;
     for (k, v) in params {
-        if !k.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_') {
-            return None;
-        }
         if !first {
             canonical.push(',');
         }
@@ -379,17 +399,40 @@ mod tests {
         assert!(!epoch_budget_ok(65535, 1, 0, 256)); // would wrap in bv[16]
     }
 
+    fn full_params(fee: u16) -> BTreeMap<String, u16> {
+        let vals: [(&str, u16); 9] = [
+            ("fee_bps", fee), ("funding_cap_bps", 100), ("redeem_staker_bps", 6000),
+            ("buyburn_bps", 6000), ("stakers_bps", 0), ("reserve_bps", 2000),
+            ("hosts_bps", 2000), ("mcr_bps", 11000), ("ccr_bps", 15000),
+        ];
+        vals.iter().map(|(k, v)| (k.to_string(), *v)).collect()
+    }
+
     #[test]
     fn digest_formatter_exact() {
         assert_eq!(itoa(0), "0");
         assert_eq!(itoa(7), "7");
         assert_eq!(itoa(65535), "65535");
-        let mut p = BTreeMap::new();
-        p.insert("fee_bps".to_string(), 500u16);
-        // canonical form is [["fee_bps",500]]
-        let d = params_digest(&p).expect("plain key");
+        let d = params_digest(&full_params(500)).expect("exact surface set");
         assert_eq!(d.len(), 64);
-        assert!(params_digest(&BTreeMap::from([("Bad Key".to_string(), 1u16)])).is_none());
+    }
+
+    #[test]
+    fn digest_contract_matches_python_domain() {
+        // gov_epoch.params_digest hard-rejects unknown keys and missing surfaces;
+        // the Rust encoder must refuse the same maps, or a pinned digest could
+        // exist that nothing on the Python side can ever reproduce.
+        let mut missing = full_params(500);
+        missing.remove("fee_bps");
+        assert!(params_digest(&missing).is_none());            // missing surface
+        let mut extra = full_params(500);
+        extra.insert("charter_ttl".to_string(), 1u16);
+        assert!(params_digest(&extra).is_none());              // unknown key (10 entries)
+        let mut renamed = full_params(500);
+        renamed.remove("fee_bps");
+        renamed.insert("Bad Key".to_string(), 500u16);
+        assert!(params_digest(&renamed).is_none());            // unknown key (9 entries)
+        assert!(params_digest(&BTreeMap::from([("fee_bps".to_string(), 1u16)])).is_none());
     }
 }
 

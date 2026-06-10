@@ -442,3 +442,55 @@ def test_forged_gates_do_not_bite(monkeypatch):
     assert calls["n"] == 0
     # non-vacuity: the fake WOULD admit anything if it were reachable
     assert always_admit(0, 0, 0, 0) is True and calls["n"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# T1 MED regressions: _validate_state must be canonical for forged states
+# --------------------------------------------------------------------------- #
+def test_forged_duplicate_params_entry_rejected():
+    # 10 sorted entries, every surface present, fee_bps duplicated with a hostile
+    # value: pre-fix this PASSED validation and _params_dict collapsed the dup
+    # (last won) — gates/receipts then operated on a map differing from the
+    # accepted state object. Must now hard-reject.
+    s = chartered()
+    dup = tuple(sorted(list(s.params) + [("fee_bps", 9000)]))
+    object.__setattr__(s, "params", dup)
+    with pytest.raises(ValueError):
+        ge.propose_revision(s, {"fee_bps": 10}, now_epoch=0)
+    with pytest.raises(ValueError):
+        ge.apply_pending(s, now_epoch=CD)
+    s2 = chartered()
+    dup_traj = tuple(sorted(list(s2.traj) + [("fee_bps", dict(s2.traj)["fee_bps"])]))
+    object.__setattr__(s2, "traj", dup_traj)
+    with pytest.raises(ValueError):
+        ge.apply_pending(s2, now_epoch=CD)
+
+
+def test_forged_hostile_params_key_rejected_before_any_comparison():
+    # a str-subclass key planted via object.__setattr__ must be type-rejected
+    # BEFORE sorted()/set() can consult its __lt__/__eq__/__hash__ — the call
+    # counter proves the hostile dunders never run (pre-fix: sorted() consulted
+    # __lt__ and the state was ADMITTED through validation).
+    calls = {"n": 0}
+
+    class EvilKey(str):
+        def __lt__(self, other):  # pragma: no cover - must never be consulted
+            calls["n"] += 1
+            return str.__lt__(self, other)
+
+        def __gt__(self, other):  # pragma: no cover - must never be consulted
+            calls["n"] += 1
+            return str.__gt__(self, other)
+
+        def __eq__(self, other):
+            calls["n"] += 1
+            return str.__eq__(self, other)
+
+        __hash__ = str.__hash__
+
+    s = chartered()
+    forged = tuple((EvilKey(k) if k == "fee_bps" else k, v) for k, v in s.params)
+    object.__setattr__(s, "params", forged)
+    with pytest.raises(TypeError):
+        ge.propose_revision(s, {"fee_bps": 10}, now_epoch=0)
+    assert calls["n"] == 0

@@ -15,10 +15,13 @@ non-vacuity + per-guardrail teeth) and as the Python runtime mirror
   budget) — the autonomy envelope.
 - `params_digest`: the canonical params encoder
   (`sha256(json([["k",v],...] sorted, no whitespace))`), byte-compatible with
-  `gov_epoch.params_digest`. This is the cross-language golden-vector surface:
-  if the two encoders ever drift, every pin built on them breaks, so the shared
-  fixture carries digest vectors computed by Python that this crate must
-  reproduce exactly.
+  `gov_epoch.params_digest` AND contract-compatible: it returns `None` unless
+  the map covers exactly the nine `ALL_SURFACES` keys, mirroring the Python
+  side's `_snapshot_params` rejection of unknown/missing surfaces — same bytes
+  on the same domain, and no digest over a map the other side would reject.
+  This is the cross-language golden-vector surface: if the two encoders ever
+  drift, every pin built on them breaks, so the shared fixture carries digest
+  vectors computed by Python that this crate must reproduce exactly.
 
 **Not** in scope (yet): the epoch machine (state, receipts, reject-is-no-op) —
 that transition ports later with its own reject-is-no-op Kani harnesses;
