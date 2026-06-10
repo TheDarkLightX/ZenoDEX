@@ -277,10 +277,12 @@ rejections.
 First-admissible runtime accounting separates exact gate checks from deterministic
 selection screens. `candidate_checked_count_total` counts candidates that reached
 the governance gate suite, `selection_screened_count_total` counts candidates
-skipped by anti-oscillation or trajectory-budget guards, and
-`candidate_considered_count_total` preserves the full ranked-action audit.
-`fallback_used_count` counts only moves past the first selection-feasible
-candidate after exact gate evaluation.
+skipped by anti-oscillation or trajectory-budget guards during the ranked scan,
+and `selection_penalized_count_total` counts blocked raw candidates moved behind
+selection-feasible candidates by deterministic selection-aware scoring.
+`candidate_considered_count_total` counts candidates actually scanned by
+first-admissible selection. `fallback_used_count` counts only moves past the
+first selection-feasible candidate after exact gate evaluation.
 Long-horizon frontier checks include the same anti-oscillation rule used by
 runtime selection. Promotion requires zero optimized-policy frontier regret
 under the current finite action set and replay utility metric. The same report
@@ -289,10 +291,10 @@ normal-grid and long-horizon replay. The PID-shaped baseline uses fixed
 observation-bin rules plus the same deterministic state-edge guards.
 For the current checked artifact, long-horizon replay reports 11,380 optimized
 utility, 11,380 frontier utility, zero regret, 116 approved steps, 11 rejected
-steps, 116 exact gate checks, 48 deterministic selection screens, zero gate
-fallbacks, and no trajectory-budget failures. Hold-only scores 1,440 utility
-with 12,040 regret; the PID-shaped baseline scores 11,280 utility with 130
-regret.
+steps, 116 exact gate checks, 48 deterministic selection-blocked raw candidates
+penalized before scanning, zero gate fallbacks, and no trajectory-budget
+failures. Hold-only scores 1,440 utility with 12,040 regret; the PID-shaped
+baseline scores 11,280 utility with 130 regret.
 
 Evaluate it:
 

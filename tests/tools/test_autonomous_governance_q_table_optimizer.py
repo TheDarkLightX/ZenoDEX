@@ -1075,6 +1075,7 @@ def test_policy_factory_generates_frozen_policy_and_replay_report(tmp_path: Path
     assert report["replay"]["optimized"]["fallback_used_count"] == 0
     assert report["replay"]["optimized"]["candidate_checked_count_total"] == 160
     assert report["replay"]["optimized"]["selection_screened_count_total"] == 0
+    assert report["replay"]["optimized"]["selection_penalized_count_total"] == 0
     assert report["replay"]["optimized"]["candidate_considered_count_total"] == 160
     assert report["replay"]["optimized"]["safety_feasible_count"] == 160
     assert report["replay"]["optimized"]["safety_blocked_count"] == 80
@@ -1093,6 +1094,7 @@ def test_policy_factory_generates_frozen_policy_and_replay_report(tmp_path: Path
     assert report["replay"]["intra_bin_stress"]["rejected_count"] == 0
     assert report["replay"]["intra_bin_stress"]["candidate_checked_count_total"] == 480
     assert report["replay"]["intra_bin_stress"]["selection_screened_count_total"] == 0
+    assert report["replay"]["intra_bin_stress"]["selection_penalized_count_total"] == 0
     assert report["replay"]["intra_bin_stress"]["candidate_considered_count_total"] == 480
     assert report["replay"]["intra_bin_stress"]["safety_feasible_count"] == 480
     assert report["replay"]["intra_bin_stress"]["safety_blocked_count"] == 0
@@ -1445,8 +1447,9 @@ def test_policy_factory_generates_frozen_policy_and_replay_report(tmp_path: Path
     assert report["replay"]["long_horizon"]["adaptive_approved_count"] == 90
     assert report["replay"]["long_horizon"]["fallback_used_count"] == 0
     assert report["replay"]["long_horizon"]["candidate_checked_count_total"] == 116
-    assert report["replay"]["long_horizon"]["selection_screened_count_total"] == 48
-    assert report["replay"]["long_horizon"]["candidate_considered_count_total"] == 164
+    assert report["replay"]["long_horizon"]["selection_screened_count_total"] == 0
+    assert report["replay"]["long_horizon"]["selection_penalized_count_total"] == 48
+    assert report["replay"]["long_horizon"]["candidate_considered_count_total"] == 116
     assert report["replay"]["long_horizon"]["safety_feasible_count"] == 116
     assert report["replay"]["long_horizon"]["safety_blocked_count"] == 11
     assert report["replay"]["long_horizon"]["opportunity_miss_count"] == 0

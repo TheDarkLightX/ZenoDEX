@@ -370,10 +370,13 @@ Selection-blocked entropy is reported separately from verifier-call entropy
 because runtime trajectory filters screen those candidates before exact gate
 evaluation. Replay reports therefore separate `candidate_checked_count_total`
 for exact gate checks from `selection_screened_count_total` for cheap
-deterministic anti-oscillation or trajectory-budget screens, while
-`candidate_considered_count_total` preserves the full ranked-action audit
-width. `fallback_used_count` is reserved for moving past the first
-selection-feasible candidate after exact gate evaluation.
+deterministic anti-oscillation or trajectory-budget screens that still occur
+inside the ranked scan. Selection-aware scoring applies a deterministic penalty
+before the scan, and those blocked raw candidates are reported through
+`selection_penalized_count_total`. `candidate_considered_count_total` tracks the
+candidates actually scanned by first-admissible selection. `fallback_used_count`
+is reserved for moving past the first selection-feasible candidate after exact
+gate evaluation.
 The residual artifact also runs seven salted group-level train/validation
 splits. Every alternate split must keep frontier candidates at rank 1, improve
 held-out p50 separation, and retain positive hard-negative margins before the
@@ -590,13 +593,14 @@ limits. Edge-aware ranking makes many edge cases select `hold` or a valid
 alternative as the first candidate instead of relying on fallback, and
 alternating high/calm pressure no longer flips fee/funding direction every step.
 The report records `fallback_used_count`, `candidate_checked_count_total`,
-`selection_screened_count_total`, `candidate_considered_count_total`,
-`oscillation_count`, `max_trajectory_budget_used`, and
+`selection_screened_count_total`, `selection_penalized_count_total`,
+`candidate_considered_count_total`, `oscillation_count`,
+`max_trajectory_budget_used`, and
 `trajectory_budget_failures` to make that behavior auditable. In the current
 checked artifact, long-horizon replay covers 127 steps, approves 116, rejects
-11, performs 116 exact gate checks plus 48 deterministic selection screens,
-uses zero gate fallbacks, scores 11,380 utility against an 11,380 frontier,
-spends the full 1,000 bps
+11, performs 116 exact gate checks, penalizes 48 deterministic selection-blocked
+raw candidates before the first-admissible scan, uses zero gate fallbacks,
+scores 11,380 utility against an 11,380 frontier, spends the full 1,000 bps
 buyburn/reserve router trajectory budget in both the router-budget and
 router-recovery walks, and reports zero regret.
 

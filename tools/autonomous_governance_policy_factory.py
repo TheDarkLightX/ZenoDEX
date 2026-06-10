@@ -1539,18 +1539,20 @@ def _policy_trajectory_budget(policy: Mapping[str, Any]) -> dict[str, int]:
     return out
 
 
-def _candidate_search_count_fields(candidate_search: Mapping[str, Any]) -> tuple[int, int, int]:
+def _candidate_search_count_fields(candidate_search: Mapping[str, Any]) -> tuple[int, int, int, int]:
     checked = candidate_search.get("checked_count", 0)
     screened = candidate_search.get("selection_screened_count", 0)
+    penalized = candidate_search.get("selection_penalized_count", 0)
     considered = candidate_search.get("candidate_considered_count", 0)
     checked_count = int(checked) if isinstance(checked, int) and not isinstance(checked, bool) else 0
     screened_count = int(screened) if isinstance(screened, int) and not isinstance(screened, bool) else 0
+    penalized_count = int(penalized) if isinstance(penalized, int) and not isinstance(penalized, bool) else 0
     considered_count = (
         int(considered)
         if isinstance(considered, int) and not isinstance(considered, bool)
         else checked_count + screened_count
     )
-    return checked_count, screened_count, considered_count
+    return checked_count, screened_count, penalized_count, considered_count
 
 
 def _sequence_step_frontier(
@@ -1644,6 +1646,7 @@ def _replay_long_horizon_sequences(policy: Mapping[str, Any], *, label: str) -> 
     fallback_used_count = 0
     candidate_checked_count_total = 0
     selection_screened_count_total = 0
+    selection_penalized_count_total = 0
     candidate_considered_count_total = 0
     safety_blocked_count = 0
     safety_feasible_count = 0
@@ -1684,6 +1687,7 @@ def _replay_long_horizon_sequences(policy: Mapping[str, Any], *, label: str) -> 
         case_inconsistent_accepts = 0
         case_fallbacks = 0
         case_selection_screened_count = 0
+        case_selection_penalized_count = 0
         case_candidate_considered_count = 0
         case_safety_feasible = 0
         case_safety_blocked = 0
@@ -1753,11 +1757,13 @@ def _replay_long_horizon_sequences(policy: Mapping[str, Any], *, label: str) -> 
                 if candidate_search.get("fallback_used") is True:
                     fallback_used_count += 1
                     case_fallbacks += 1
-                checked_count, screened_count, considered_count = _candidate_search_count_fields(candidate_search)
+                checked_count, screened_count, penalized_count, considered_count = _candidate_search_count_fields(candidate_search)
                 candidate_checked_count_total += checked_count
                 selection_screened_count_total += screened_count
+                selection_penalized_count_total += penalized_count
                 candidate_considered_count_total += considered_count
                 case_selection_screened_count += screened_count
+                case_selection_penalized_count += penalized_count
                 case_candidate_considered_count += considered_count
             errors = tuple(str(error) for error in result.get("errors", ()))
             for error in errors:
@@ -1890,6 +1896,7 @@ def _replay_long_horizon_sequences(policy: Mapping[str, Any], *, label: str) -> 
                 "inconsistent_accept_count": case_inconsistent_accepts,
                 "fallback_used_count": case_fallbacks,
                 "selection_screened_count": case_selection_screened_count,
+                "selection_penalized_count": case_selection_penalized_count,
                 "candidate_considered_count": case_candidate_considered_count,
                 "safety_feasible_count": case_safety_feasible,
                 "safety_blocked_count": case_safety_blocked,
@@ -1925,6 +1932,7 @@ def _replay_long_horizon_sequences(policy: Mapping[str, Any], *, label: str) -> 
         "fallback_used_count": fallback_used_count,
         "candidate_checked_count_total": candidate_checked_count_total,
         "selection_screened_count_total": selection_screened_count_total,
+        "selection_penalized_count_total": selection_penalized_count_total,
         "candidate_considered_count_total": candidate_considered_count_total,
         "safety_feasible_count": safety_feasible_count,
         "safety_blocked_count": safety_blocked_count,
@@ -2232,6 +2240,7 @@ def _replay_policy(policy: Mapping[str, Any], *, label: str) -> dict[str, Any]:
     fallback_used_count = 0
     candidate_checked_count_total = 0
     selection_screened_count_total = 0
+    selection_penalized_count_total = 0
     candidate_considered_count_total = 0
     safety_blocked_count = 0
     safety_feasible_count = 0
@@ -2279,9 +2288,10 @@ def _replay_policy(policy: Mapping[str, Any], *, label: str) -> dict[str, Any]:
         if isinstance(candidate_search, Mapping):
             if candidate_search.get("fallback_used") is True:
                 fallback_used_count += 1
-            checked_count, screened_count, considered_count = _candidate_search_count_fields(candidate_search)
+            checked_count, screened_count, penalized_count, considered_count = _candidate_search_count_fields(candidate_search)
             candidate_checked_count_total += checked_count
             selection_screened_count_total += screened_count
+            selection_penalized_count_total += penalized_count
             candidate_considered_count_total += considered_count
         approved = result.get("approved") is True
         if approved:
@@ -2359,6 +2369,7 @@ def _replay_policy(policy: Mapping[str, Any], *, label: str) -> dict[str, Any]:
         "fallback_used_count": fallback_used_count,
         "candidate_checked_count_total": candidate_checked_count_total,
         "selection_screened_count_total": selection_screened_count_total,
+        "selection_penalized_count_total": selection_penalized_count_total,
         "candidate_considered_count_total": candidate_considered_count_total,
         "safety_feasible_count": safety_feasible_count,
         "safety_blocked_count": safety_blocked_count,
@@ -2410,6 +2421,7 @@ def _replay_intra_bin_stress(policy: Mapping[str, Any], *, label: str) -> dict[s
     opportunity_miss_count = 0
     candidate_checked_count_total = 0
     selection_screened_count_total = 0
+    selection_penalized_count_total = 0
     candidate_considered_count_total = 0
     fallback_used_count = 0
     utility_score_total = 0
@@ -2459,9 +2471,10 @@ def _replay_intra_bin_stress(policy: Mapping[str, Any], *, label: str) -> dict[s
         if isinstance(candidate_search, Mapping):
             if candidate_search.get("fallback_used") is True:
                 fallback_used_count += 1
-            checked_count, screened_count, considered_count = _candidate_search_count_fields(candidate_search)
+            checked_count, screened_count, penalized_count, considered_count = _candidate_search_count_fields(candidate_search)
             candidate_checked_count_total += checked_count
             selection_screened_count_total += screened_count
+            selection_penalized_count_total += penalized_count
             candidate_considered_count_total += considered_count
         state_bins = result.get("state_bins", {})
         if not isinstance(state_bins, Mapping):
@@ -2591,6 +2604,7 @@ def _replay_intra_bin_stress(policy: Mapping[str, Any], *, label: str) -> dict[s
         "fallback_used_count": fallback_used_count,
         "candidate_checked_count_total": candidate_checked_count_total,
         "selection_screened_count_total": selection_screened_count_total,
+        "selection_penalized_count_total": selection_penalized_count_total,
         "candidate_considered_count_total": candidate_considered_count_total,
         "safety_feasible_count": safety_feasible_count,
         "safety_blocked_count": safety_blocked_count,
