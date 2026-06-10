@@ -308,7 +308,9 @@ The machine's per-surface core is **inductively verified** in ESSO
 (frozen / unchartered / immature / in-cooldown) into an `applied_*` variable that the
 invariants pin at 0, so DELETING any guard conjunct is a machine-detected invariant
 violation, not a silent hole. The bv[16] wrap-safety of the absolute-epoch comparisons is
-verified at the Tau layer (the four trajectory specs carry wrap probes in their teeth).
+verified at the Tau layer (the four trajectory specs carry wrap probes in their teeth),
+and the cross-window composition (m windows of budget B ⇒ displacement ≤ m·B, tight) is
+proved in Lean (`lean-mathlib/Proofs/GovTrajectoryBound.lean`).
 
 ## 7. What is verified today vs open
 
@@ -331,6 +333,7 @@ verified at the Tau layer (the four trajectory specs carry wrap probes in their 
 | Trajectory-tier Python mirrors + Tau↔Python differential parity (39 shared boundary cases) | **Done** (`gov_gate.py`, `test_gov_parity.py`) |
 | **Epoch machine** — charter (dead-man standing approval) / veto / freeze / cooldown / drift budgets / aggregate budget, stable receipt codes + params-digest no-op proofs, import-bound gates, no self-amendment | **Done** (`gov_epoch.py`, `test_gov_epoch.py`) — reference; live `now_epoch`/state binding still **Open** (WS5) |
 | **ESSO inductive verification** of the epoch machine's per-surface core (z3 + cvc5 agree, `Inductive(k=1)`, 10/10 queries, guard-presence tripwires) | **Done** (`src/kernels/dex/gov_epoch_machine_v1.yaml`) |
+| **Lean trajectory composition** — per-window budget B over m windows ⇒ end-to-end displacement ≤ m·B, with a tightness witness (m·B is achieved, the exact reachable-set radius) | **Done** (`lean-mathlib/Proofs/GovTrajectoryBound.lean`, 0 sorry) |
 | **Observables/sensor layer** — staleness-guarded deterministic binning (stale/future ⇒ hold) | **Done** (`gov_observables.py`) — reference; real committed metrics are **Open** (WS5) |
 | **Production** proposer (tuned/audited PID or trained+frozen Q-table on real signals) | **Open** |
 | Live wiring: a deployed governance flow that *requires* this gate before applying any change | **Open** (WS5) |

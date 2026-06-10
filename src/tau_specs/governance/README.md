@@ -93,6 +93,14 @@ guard-presence tripwires: deleting any apply-guard conjunct is a machine-detecte
 violation. `gov_observables.py` is the sensor side: staleness-guarded deterministic binning —
 a stale or future-dated signal yields no state key and the lane holds.
 
+The cross-window COMPOSITION is machine-checked in Lean
+(`lean-mathlib/Proofs/GovTrajectoryBound.lean`, 0 sorry, compiles against the repo
+mathlib): if every window's drift charge is ≤ B, the end-to-end displacement after m
+windows is ≤ m·B (`trajectory_bound`, real induction via |Σδ| ≤ Σ|δ|), the bound is
+TIGHT (`witness_bound_tight` — the always-max walk achieves m·B exactly), and
+oscillation charges budget without displacement (`witness_oscillation_charges`). ESSO
+proves the per-window invariant; Lean proves what it composes to.
+
 ### Why these shapes are cheap (no BDD blowup)
 
 The empirical envelope (`experiments/pointwise_revision_envelope/`) showed that the cost
