@@ -389,6 +389,8 @@ def sample_autonomous_governance_surface_q_policy_v1() -> dict[str, Any]:
             "deviation_bps": [25, 100, 300],
             "volatility_bps": [50, 200, 500],
             "liquidity_depth_bps": [1_000, 3_000],
+            "fee_bps": [0, 990, 1_000],
+            "reserve_bps": [0, 9_900, 10_000],
             "funding_cap_bps": [0, 5, 120],
         },
         "actions": [
@@ -470,6 +472,33 @@ def sample_autonomous_governance_surface_q_policy_v1() -> dict[str, Any]:
                         "shift_router_to_reserve_100": -5,
                         "raise_fee_10_tighten_funding_5": -20,
                     },
+                },
+            },
+            {
+                "id": "fee_cap_candidate_efficiency_guard_v1",
+                "features": ["fee_bps"],
+                "q_table": {
+                    "*": {},
+                    "2": {
+                        "raise_fee_10": -30,
+                        "raise_fee_10_tighten_funding_5": -30,
+                    },
+                },
+            },
+            {
+                "id": "funding_floor_candidate_efficiency_guard_v1",
+                "features": ["funding_cap_bps"],
+                "q_table": {
+                    "*": {},
+                    "0": {"raise_fee_10_tighten_funding_5": -30},
+                },
+            },
+            {
+                "id": "reserve_cap_candidate_efficiency_guard_v1",
+                "features": ["reserve_bps"],
+                "q_table": {
+                    "*": {},
+                    "2": {"shift_router_to_reserve_100": -30},
                 },
             },
         ],

@@ -121,6 +121,15 @@ sequence replay to the promotion floor:
 | intra-bin stress | 480 cases | 21,920 | 21,920 | 0 | no invalid or inconsistent accepts |
 | long horizon | 127 steps | 11,280 | 11,280 | 0 | zero cumulative-drift and trajectory-budget failures |
 
+The latest edge-efficiency guards keep the same utility frontier while reducing
+exact-gate fallbacks:
+
+| Replay family | Previous fallbacks | Current fallbacks | Current exact gate checks |
+|---|---:|---:|---:|
+| normal grid | 48 | 0 | 160 |
+| intra-bin stress | 160 | 0 | 480 |
+| long horizon | 5 | 0 | 116 |
+
 ## Replay
 
 Generate a sample evaluation bundle:
@@ -318,7 +327,7 @@ normal-grid and long-horizon replay. The PID-shaped baseline uses fixed
 observation-bin rules plus the same deterministic state-edge guards.
 For the current checked artifact, long-horizon replay reports 11,280 optimized
 utility, 11,280 frontier utility, zero regret, 116 approved steps, 11 rejected
-steps, 116 safety-feasible steps, 20 deterministic selection screens, zero
+steps, 116 safety-feasible steps, 12 deterministic selection screens, zero
 opportunity misses, zero cumulative-drift failures, and zero trajectory-budget
 failures. The lower utility versus the previous unbudgeted run is intentional:
 trajectory-budget screening now prevents repeated individually valid steps from

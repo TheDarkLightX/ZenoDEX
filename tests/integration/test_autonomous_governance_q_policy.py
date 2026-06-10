@@ -73,6 +73,20 @@ def _surface_policy_with_selection_mode(mode: str) -> dict:
     return policy
 
 
+def _surface_policy_forcing_action(action_id: str, *, mode: str = "top_scored") -> dict:
+    policy = deepcopy(sample_autonomous_governance_surface_q_policy_v1())
+    policy["selection"] = {"mode": mode}
+    policy["q_layers"].append(
+        {
+            "id": f"test_force_{action_id}",
+            "features": ["deviation_bps"],
+            "q_table": {"*": {action_id: 1_000_000}},
+        }
+    )
+    policy["policy_hash"] = policy_content_hash_v1(policy)
+    return policy
+
+
 def test_q_policy_selects_deterministic_action_and_builds_revision_packet() -> None:
     policy = sample_autonomous_governance_q_policy_v1()
     result = evaluate_autonomous_governance_q_policy_v1(
@@ -299,7 +313,7 @@ def test_surface_q_policy_commit_applies_only_after_gate_approval() -> None:
 
 
 def test_surface_q_policy_commit_noops_on_gate_rejection() -> None:
-    policy = _surface_policy_with_selection_mode("top_scored")
+    policy = _surface_policy_forcing_action("raise_fee_10_tighten_funding_5")
     initial = _surface_state(fee_bps=995)
 
     result = commit_autonomous_governance_surface_q_policy_v1(
@@ -398,7 +412,7 @@ def test_surface_q_policy_hash_mismatch_blocks_approval() -> None:
 
 
 def test_surface_q_policy_blocks_verified_fee_cap_breach() -> None:
-    policy = _surface_policy_with_selection_mode("top_scored")
+    policy = _surface_policy_forcing_action("raise_fee_10_tighten_funding_5")
 
     result = evaluate_autonomous_governance_surface_q_policy_v1(
         policy=policy,
@@ -419,7 +433,7 @@ def test_surface_q_policy_blocks_verified_fee_cap_breach() -> None:
 
 
 def test_surface_q_policy_gate_recheck_uses_import_bound_scalar_gate(monkeypatch: pytest.MonkeyPatch) -> None:
-    policy = _surface_policy_with_selection_mode("top_scored")
+    policy = _surface_policy_forcing_action("raise_fee_10_tighten_funding_5")
     initial = _surface_state(fee_bps=995)
 
     monkeypatch.setattr(gov_gate, "fee_revision_ok", lambda *args: True)
@@ -483,7 +497,7 @@ def test_surface_q_policy_gate_recheck_uses_import_bound_group_gate(monkeypatch:
     assert result["gate_recheck"]["master"] is False
 
 
-def test_surface_q_policy_first_admissible_falls_back_to_hold_at_fee_cap() -> None:
+def test_surface_q_policy_first_admissible_prefers_hold_at_fee_cap() -> None:
     policy = sample_autonomous_governance_surface_q_policy_v1()
     policy = deepcopy(policy)
     policy["selection"] = {"mode": "first_admissible"}
@@ -503,9 +517,9 @@ def test_surface_q_policy_first_admissible_falls_back_to_hold_at_fee_cap() -> No
     assert result["action_id"] == "hold"
     assert result["proposed"]["fee_bps"] == 995
     assert result["candidate_search"]["mode"] == "first_admissible"
-    assert result["candidate_search"]["fallback_used"] is True
-    assert result["candidate_search"]["rejected_candidates"][0]["action_id"] == "raise_fee_10_tighten_funding_5"
-    assert result["candidate_search"]["rejected_candidates"][0]["failed_gates"] == ("fee", "master")
+    assert result["candidate_search"]["fallback_used"] is False
+    assert result["candidate_search"]["raw_top_action_id"] == "hold"
+    assert result["candidate_search"]["checked_count"] == 1
 
 
 def test_surface_q_policy_uses_surface_state_bins_before_fallback() -> None:
@@ -554,6 +568,9 @@ def test_surface_sample_policy_matches_factory_frontier_grid() -> None:
     assert report["frontier_regret_count"] == 0
     assert report["frontier_utility_completion_rate"] == 1.0
     assert report["utility_score_total"] == report["frontier_utility_total"] == 6_330
+    assert report["fallback_used_count"] == 0
+    assert report["candidate_checked_count_total"] == 160
+    assert report["candidate_considered_count_total"] == 160
     assert report["invalid_accept_count"] == 0
     assert report["inconsistent_accept_count"] == 0
 
@@ -582,6 +599,9 @@ def test_surface_sample_policy_matches_edge_and_trajectory_frontiers() -> None:
     assert intra_bin["frontier_regret_count"] == 0
     assert intra_bin["frontier_utility_completion_rate"] == 1.0
     assert intra_bin["utility_score_total"] == intra_bin["frontier_utility_total"] == 21_920
+    assert intra_bin["fallback_used_count"] == 0
+    assert intra_bin["candidate_checked_count_total"] == 480
+    assert intra_bin["candidate_considered_count_total"] == 480
     assert intra_bin["invalid_accept_count"] == 0
     assert intra_bin["inconsistent_accept_count"] == 0
 
@@ -592,7 +612,10 @@ def test_surface_sample_policy_matches_edge_and_trajectory_frontiers() -> None:
     assert long_horizon["frontier_regret_count"] == 0
     assert long_horizon["frontier_utility_completion_rate"] == 1.0
     assert long_horizon["utility_score_total"] == long_horizon["frontier_utility_total"] == 11_280
-    assert long_horizon["selection_screened_count_total"] == 20
+    assert long_horizon["fallback_used_count"] == 0
+    assert long_horizon["candidate_checked_count_total"] == 116
+    assert long_horizon["selection_screened_count_total"] == 12
+    assert long_horizon["candidate_considered_count_total"] == 128
     assert long_horizon["cumulative_drift_failures"] == ()
     assert long_horizon["trajectory_budget_failures"] == ()
     assert long_horizon["invalid_accept_count"] == 0
@@ -601,6 +624,8 @@ def test_surface_sample_policy_matches_edge_and_trajectory_frontiers() -> None:
     assert surface_boundary["ok"] is True
     assert surface_boundary["scenario_count"] == 12
     assert surface_boundary["approved_count"] == 12
+    assert surface_boundary["runtime_action_count"] == 4
+    assert surface_boundary["candidate_action_count"] == 10
     assert surface_boundary["q_row_missing_count"] == 0
     assert surface_boundary["missing_expected_rejection_count"] == 0
     assert surface_boundary["invalid_accept_count"] == 0
@@ -790,7 +815,7 @@ def test_surface_q_policy_cannot_loosen_hash_bound_trajectory_budget() -> None:
 
 
 def test_surface_q_policy_blocks_unsigned_underflow_after_delta() -> None:
-    policy = _surface_policy_with_selection_mode("top_scored")
+    policy = _surface_policy_forcing_action("raise_fee_10_tighten_funding_5")
 
     result = evaluate_autonomous_governance_surface_q_policy_v1(
         policy=policy,
