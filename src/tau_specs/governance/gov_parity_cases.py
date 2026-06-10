@@ -155,4 +155,32 @@ CASES = [
     ("epoch_budget", dict(scalar_sum=60, router_sum=400, collateral_sum=0, budget=600), True),
     ("epoch_budget", dict(scalar_sum=300, router_sum=300, collateral_sum=100, budget=600), False),  # 700 > 600
     ("epoch_budget", dict(scalar_sum=65535, router_sum=1, collateral_sum=0, budget=256), False),    # wrap probe
+    # --- curr/next TRANSPOSITION KILLERS (T2 LOW): the step bound is symmetric, so a
+    # swapped curr/next in any implementation passes symmetric cases; these pairs flip
+    # their verdict under the swap because bounds/caps apply to NEXT only. One
+    # True-case + its swapped False-case per curr/next surface family.
+    ("fee", dict(approved=True, exec_req=True, proposal_ts=0, current_ts=24,
+                 fee_curr_bps=1005, fee_next_bps=1000), True),     # stepping back under the cap
+    ("fee", dict(approved=True, exec_req=True, proposal_ts=0, current_ts=24,
+                 fee_curr_bps=1000, fee_next_bps=1005), False),    # swapped: next over cap
+    ("funding", dict(approved=True, exec_req=True, proposal_ts=0, current_ts=24,
+                     funding_cap_curr_bps=210, funding_cap_next_bps=200), True),
+    ("funding", dict(approved=True, exec_req=True, proposal_ts=0, current_ts=24,
+                     funding_cap_curr_bps=200, funding_cap_next_bps=210), False),
+    ("whale", dict(approved=True, exec_req=True, proposal_ts=0, current_ts=24,
+                   staker_bps_curr=7100, staker_bps_next=7000), True),
+    ("whale", dict(approved=True, exec_req=True, proposal_ts=0, current_ts=24,
+                   staker_bps_curr=7000, staker_bps_next=7100), False),
+    ("collateral", dict(approved=True, exec_req=True, proposal_ts=0, current_ts=24,
+                        mcr_curr_bps=9500, mcr_next_bps=10400,
+                        ccr_curr_bps=15000, ccr_next_bps=15000), True),   # mcr climbs over the floor
+    ("collateral", dict(approved=True, exec_req=True, proposal_ts=0, current_ts=24,
+                        mcr_curr_bps=10400, mcr_next_bps=9500,
+                        ccr_curr_bps=15000, ccr_next_bps=15000), False),  # swapped: next below floor
+    ("collateral", dict(approved=True, exec_req=True, proposal_ts=0, current_ts=24,
+                        mcr_curr_bps=11000, mcr_next_bps=11000,
+                        ccr_curr_bps=30500, ccr_next_bps=29800), True),   # ccr steps back under ceiling
+    ("collateral", dict(approved=True, exec_req=True, proposal_ts=0, current_ts=24,
+                        mcr_curr_bps=11000, mcr_next_bps=11000,
+                        ccr_curr_bps=29800, ccr_next_bps=30500), False),  # swapped: next over ceiling
 ]

@@ -455,6 +455,134 @@
     256
    ],
    "expect": false
+  },
+  {
+   "surface": "fee",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    1005,
+    1000
+   ],
+   "expect": true
+  },
+  {
+   "surface": "fee",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    1000,
+    1005
+   ],
+   "expect": false
+  },
+  {
+   "surface": "funding",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    210,
+    200
+   ],
+   "expect": true
+  },
+  {
+   "surface": "funding",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    200,
+    210
+   ],
+   "expect": false
+  },
+  {
+   "surface": "whale",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    7100,
+    7000
+   ],
+   "expect": true
+  },
+  {
+   "surface": "whale",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    7000,
+    7100
+   ],
+   "expect": false
+  },
+  {
+   "surface": "collateral",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    9500,
+    10400,
+    15000,
+    15000
+   ],
+   "expect": true
+  },
+  {
+   "surface": "collateral",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    10400,
+    9500,
+    15000,
+    15000
+   ],
+   "expect": false
+  },
+  {
+   "surface": "collateral",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    11000,
+    11000,
+    30500,
+    29800
+   ],
+   "expect": true
+  },
+  {
+   "surface": "collateral",
+   "args": [
+    true,
+    true,
+    0,
+    24,
+    11000,
+    11000,
+    29800,
+    30500
+   ],
+   "expect": false
   }
  ],
  "params_digest_vectors": [

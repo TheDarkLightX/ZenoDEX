@@ -278,11 +278,22 @@ def _validate_state(s: object) -> None:
     for field_name, pairs in (("params", s.params), ("traj", s.traj)):
         if type(pairs) is not tuple:
             raise TypeError(f"state.{field_name} must be a tuple")
-        keys = []
+        keys: list[str] = []
         for item in pairs:
             if type(item) is not tuple or len(item) != 2:
                 raise TypeError(f"state.{field_name} items must be pairs")
+            # exact-type the key BEFORE any sort/set/equality below can consult a
+            # hostile __lt__/__eq__/__hash__ (the r8 lesson, applied to the validator
+            # itself — T1 MED)
+            if not _is_plain_str(item[0]):
+                raise TypeError(f"state.{field_name} keys must be plain str")
             keys.append(item[0])
+        # exact length + exact sorted set => canonical: no duplicate entry can pass
+        # validation and then silently collapse in _params_dict/_traj_dict (T1 MED)
+        if len(keys) != len(ALL_SURFACES):
+            raise ValueError(
+                f"state.{field_name} must have exactly {len(ALL_SURFACES)} entries "
+                "(one per surface, no duplicates)")
         if keys != sorted(keys) or set(keys) != set(ALL_SURFACES):
             raise ValueError(f"state.{field_name} must cover exactly the known surfaces, sorted")
     for k, v in s.params:

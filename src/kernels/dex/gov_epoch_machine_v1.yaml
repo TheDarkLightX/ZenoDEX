@@ -17,10 +17,14 @@
 #   dead-man countdown (renew sets it; tick decrements; 0 = expired or revoked).
 #   The bv[16] wrap-safety of the absolute-epoch forms is the Tau specs' concern
 #   (gov_cooldown_v1 / gov_charter_v1 wrap probes); this model checks the STATE MACHINE.
-# - GUARD-PRESENCE TRIPWIRES: apply copies the pre-state of each guarded condition into
-#   an applied_* variable. The guards force the benign value, so the invariants pin the
-#   tripwires at 0 — and DELETING a guard conjunct makes its tripwire reachable and the
-#   invariant fail. The invariants therefore machine-check that every guard exists.
+# - GUARD-PRESENCE TRIPWIRES: apply copies the pre-state of the guarded conditions into
+#   applied_* variables pinned at 0 by invariants — DELETING a guard conjunct makes its
+#   tripwire reachable and verify-multi fail. Coverage map (every apply-guard conjunct is
+#   checked by exactly one mechanism): pending -> applied_no_pending; frozen ->
+#   applied_frozen; charter -> applied_unchartered; timelock -> applied_immature;
+#   cooldown -> applied_in_cooldown; drift-budget conjunct -> applied_over_budget (and
+#   inv_drift_budget); the band (dir/bounds) conjunct -> inv_param_cap / inv_param_nonneg
+#   directly (deleting it lets param escape [0,1000], failing those invariants).
 # - Constants mirror gov_gate.py reference values: MIN_DELAY=24, COOLDOWN=48,
 #   WINDOW=720, fee step 50 / cap 1000 / window budget 150, CHARTER_TTL_MAX=4096.
 #
@@ -54,6 +58,8 @@ observables:
       "applied_unchartered",
       "applied_immature",
       "applied_in_cooldown",
+      "applied_no_pending",
+      "applied_over_budget",
     ]
   effects: []
 
@@ -100,6 +106,12 @@ state_vars:
   - id: "applied_in_cooldown"
     role: "data"
     type: { kind: "int", min: 0, max: 1 }
+  - id: "applied_no_pending"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "applied_over_budget"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
 
 invariants:
   - id: "inv_param_cap"
@@ -123,6 +135,12 @@ invariants:
   - id: "inv_no_apply_in_cooldown"
     kind: "safety"
     expr: { op: "=", args: [{ var: "applied_in_cooldown" }, { const: 0 }] }
+  - id: "inv_no_apply_without_pending"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "applied_no_pending" }, { const: 0 }] }
+  - id: "inv_no_apply_over_drift_budget"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "applied_over_budget" }, { const: 0 }] }
   - id: "inv_pending_wellformed"
     kind: "safety"
     expr:
@@ -162,6 +180,10 @@ init:
   - var: "applied_immature"
     expr: { const: 0 }
   - var: "applied_in_cooldown"
+    expr: { const: 0 }
+  - var: "applied_no_pending"
+    expr: { const: 0 }
+  - var: "applied_over_budget"
     expr: { const: 0 }
 
 actions:
@@ -334,5 +356,21 @@ actions:
         expr:
           op: "ite"
           cond: { op: "=", args: [{ var: "cooldown_left" }, { const: 0 }] }
+          then: { const: 0 }
+          else: { const: 1 }
+      - var: "applied_no_pending"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "pending" }, { const: 1 }] }
+          then: { const: 0 }
+          else: { const: 1 }
+      - var: "applied_over_budget"
+        expr:
+          op: "ite"
+          cond:
+            op: "<="
+            args:
+              - { op: "+", args: [{ var: "drift_used" }, { var: "pending_mag" }] }
+              - { const: 150 }
           then: { const: 0 }
           else: { const: 1 }
