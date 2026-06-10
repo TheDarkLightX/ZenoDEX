@@ -370,11 +370,26 @@ def sample_autonomous_governance_surface_q_policy_v1() -> dict[str, Any]:
         },
         "selection": {
             "mode": "first_admissible",
+            "trajectory_budget": {
+                "enabled": True,
+                "limits": {
+                    "fee_bps": 250,
+                    "buyburn_bps": 1_000,
+                    "stakers_bps": 1_000,
+                    "reserve_bps": 1_000,
+                    "hosts_bps": 1_000,
+                    "mcr_bps": 2_000,
+                    "ccr_bps": 2_000,
+                    "staker_bps": 1_000,
+                    "funding_cap_bps": 125,
+                },
+            },
         },
         "state_bins": {
             "deviation_bps": [25, 100, 300],
             "volatility_bps": [50, 200, 500],
             "liquidity_depth_bps": [1_000, 3_000],
+            "funding_cap_bps": [0, 5, 120],
         },
         "actions": [
             {"id": "hold", "deltas": {}},
@@ -413,6 +428,14 @@ def sample_autonomous_governance_surface_q_policy_v1() -> dict[str, Any]:
                 },
             },
             {
+                "id": "liquidity_floor_router_reserve_bias_v1",
+                "features": ["liquidity_depth_bps"],
+                "q_table": {
+                    "*": {},
+                    "0": {"shift_router_to_reserve_100": 12},
+                },
+            },
+            {
                 "id": "deviation_volatility_frontier_bias_v1",
                 "features": ["deviation_bps", "volatility_bps"],
                 "q_table": {
@@ -425,6 +448,28 @@ def sample_autonomous_governance_surface_q_policy_v1() -> dict[str, Any]:
                     "3|1": {"raise_fee_10": 8, "raise_fee_10_tighten_funding_5": -8},
                     "3|2": {"raise_fee_10_tighten_funding_5": 8},
                     "3|3": {"raise_fee_10_tighten_funding_5": 8},
+                },
+            },
+            {
+                "id": "funding_floor_high_pressure_fee_bias_v1",
+                "features": [
+                    "deviation_bps",
+                    "volatility_bps",
+                    "liquidity_depth_bps",
+                    "funding_cap_bps",
+                ],
+                "q_table": {
+                    "*": {},
+                    "3|2|0|0": {
+                        "raise_fee_10": 20,
+                        "shift_router_to_reserve_100": -5,
+                        "raise_fee_10_tighten_funding_5": -20,
+                    },
+                    "3|3|0|0": {
+                        "raise_fee_10": 20,
+                        "shift_router_to_reserve_100": -5,
+                        "raise_fee_10_tighten_funding_5": -20,
+                    },
                 },
             },
         ],

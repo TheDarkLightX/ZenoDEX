@@ -558,6 +558,43 @@ def test_surface_sample_policy_matches_factory_frontier_grid() -> None:
     assert report["inconsistent_accept_count"] == 0
 
 
+def test_surface_sample_policy_matches_edge_and_trajectory_frontiers() -> None:
+    import tools.autonomous_governance_policy_factory as factory
+
+    policy = sample_autonomous_governance_surface_q_policy_v1()
+    intra_bin = factory._replay_intra_bin_stress(  # noqa: SLF001 - factory replay is the local metric oracle.
+        policy,
+        label="sample_surface_policy_intra_bin",
+    )
+    long_horizon = factory._replay_long_horizon_sequences(  # noqa: SLF001
+        policy,
+        label="sample_surface_policy_long_horizon",
+    )
+
+    assert intra_bin["scenario_count"] == 480
+    assert intra_bin["safety_feasible_count"] == 480
+    assert intra_bin["opportunity_miss_count"] == 0
+    assert intra_bin["frontier_regret_total"] == 0
+    assert intra_bin["frontier_regret_count"] == 0
+    assert intra_bin["frontier_utility_completion_rate"] == 1.0
+    assert intra_bin["utility_score_total"] == intra_bin["frontier_utility_total"] == 21_920
+    assert intra_bin["invalid_accept_count"] == 0
+    assert intra_bin["inconsistent_accept_count"] == 0
+
+    assert long_horizon["step_count"] == 127
+    assert long_horizon["safety_feasible_count"] == 116
+    assert long_horizon["opportunity_miss_count"] == 0
+    assert long_horizon["frontier_regret_total"] == 0
+    assert long_horizon["frontier_regret_count"] == 0
+    assert long_horizon["frontier_utility_completion_rate"] == 1.0
+    assert long_horizon["utility_score_total"] == long_horizon["frontier_utility_total"] == 11_280
+    assert long_horizon["selection_screened_count_total"] == 20
+    assert long_horizon["cumulative_drift_failures"] == ()
+    assert long_horizon["trajectory_budget_failures"] == ()
+    assert long_horizon["invalid_accept_count"] == 0
+    assert long_horizon["inconsistent_accept_count"] == 0
+
+
 def test_surface_q_policy_anti_oscillation_skips_reversal_candidate() -> None:
     policy = {
         "schema": "zenodex.autonomous_governance.q_policy.v1",

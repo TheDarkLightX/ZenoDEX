@@ -105,9 +105,19 @@ exhaustive verifier-labeled frontier for each scenario.
 | top-scored sample | 53 | 920 | 0.854660 |
 | first-admissible only | 0 | 150 | 0.976303 |
 | first-admissible + joint deviation/volatility layer | 0 | 0 | 1.000000 |
+| + liquidity, funding-floor, and trajectory-budget layers | 0 | 0 | 1.000000 |
 
 This is a ranking-quality metric only. The deterministic governance gates still
 decide every candidate before a transition can be admitted.
+
+The latest broader replay adds the intra-bin stress grid and multi-epoch
+sequence replay to the promotion floor:
+
+| Replay family | Cases / steps | Selected utility | Frontier utility | Regret | Extra budget result |
+|---|---:|---:|---:|---:|---|
+| normal grid | 240 cases | 6,330 | 6,330 | 0 | no invalid or inconsistent accepts |
+| intra-bin stress | 480 cases | 21,920 | 21,920 | 0 | no invalid or inconsistent accepts |
+| long horizon | 127 steps | 11,280 | 11,280 | 0 | zero cumulative-drift and trajectory-budget failures |
 
 ## Replay
 
@@ -304,12 +314,13 @@ under the current finite action set and replay utility metric. The same report
 compares optimized utility against hold-only and PID-shaped baselines in both
 normal-grid and long-horizon replay. The PID-shaped baseline uses fixed
 observation-bin rules plus the same deterministic state-edge guards.
-For the current checked artifact, long-horizon replay reports 11,380 optimized
-utility, 11,380 frontier utility, zero regret, 116 approved steps, 11 rejected
-steps, 116 exact gate checks, 48 deterministic selection screens, zero gate
-fallbacks, and no trajectory-budget failures. Hold-only scores 1,440 utility
-with 12,040 regret; the PID-shaped baseline scores 11,280 utility with 130
-regret.
+For the current checked artifact, long-horizon replay reports 11,280 optimized
+utility, 11,280 frontier utility, zero regret, 116 approved steps, 11 rejected
+steps, 116 safety-feasible steps, 20 deterministic selection screens, zero
+opportunity misses, zero cumulative-drift failures, and zero trajectory-budget
+failures. The lower utility versus the previous unbudgeted run is intentional:
+trajectory-budget screening now prevents repeated individually valid steps from
+exceeding the same finite movement limits used by the long-horizon checker.
 
 Evaluate it:
 
