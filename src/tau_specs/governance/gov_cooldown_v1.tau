@@ -1,0 +1,25 @@
+# gov_cooldown_v1.tau  --  ZenoDEX governance: per-surface revision COOLDOWN bit (universal)
+# MUTABILITY: UPDATABLE (the gate logic; the cooldown length is supplied per call)
+# SHAPE: pure hysteresis bit -- distinct from the TIMELOCK (delay between a specific
+# proposal and its execution). The cooldown is the minimum spacing between two
+# CONSECUTIVE APPLIED revisions of the same surface, killing parameter thrash and
+# oscillation games regardless of which proposer is active. Composed (ANDed) by the
+# epoch machine alongside the pointwise revision gates.
+#
+# Inputs:
+#   i1 = last_revision_epoch (bv[16]) -- epoch of the last APPLIED revision (committed)
+#   i2 = now_epoch           (bv[16]) -- current epoch
+#   i3 = cooldown            (bv[16]) -- minimum epochs between applied revisions
+# Output:
+#   o1 = cooldown_ok (sbf) -- 1 iff now >= last AND now - last >= cooldown
+#
+# Wrap-safety: the SUBTRACTION-GUARD form (now >= last AND now - last >= cooldown), the
+# same wrap-safe shape as the timelock. The naive `now >= last + cooldown` is bypassable
+# by bv[16] modular wrap when `last` is near 2^16.
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    ( (i2[t]:bv[16] >= i1[t]:bv[16])
+      && ((i2[t]:bv[16] - i1[t]:bv[16]) >= i3[t]:bv[16])
+    )
+  ).

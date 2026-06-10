@@ -1,0 +1,36 @@
+# gov_whale_defense_revision_v1.tau  --  ZenoDEX governance: redeem.staker_bps whale-defense revision
+# MUTABILITY: UPDATABLE (validates a whale-defense-parameter revision)
+# SHAPE: factored ceiling + bounded step
+#
+# The load-bearing GLOBAL whale defense (per MEMORY: the `redeem.staker_bps <= 7000` split cap
+# gives friction >= 1 - sigma_r/D for ANY attacker share alpha; the per-account 50% stake cap is
+# only LOCAL and sybil-splittable). Governance may tune this knob but must NEVER raise it past the
+# ceiling that keeps the global friction bound intact.
+#
+# Inputs:
+#   i1 = approved (sbf)   i2 = exec_req (sbf)
+#   i3 = proposal_ts (bv[16])  i4 = current_ts (bv[16])
+#   i5 = redeem_staker_bps_curr (bv[16])  i6 = redeem_staker_bps_next (bv[16])
+# Output:
+#   o1 = revision_ok (sbf)
+#
+# IMMUTABLE guardrails:
+#   STAKER_BPS_MAX = 7000 ({ #x1B58 })  -- whale-defense ceiling (raising past this re-opens recapture)
+#   STEP           = 500  ({ #x01F4 })  -- max drift per revision 5 percentage-points
+#   MIN_DELAY      = 24   ({ #x0018 })  -- timelock
+# Timelock uses the wrap-safe subtraction-guard form (current >= proposal AND
+# current - proposal >= MIN_DELAY); bv[16] is UNSIGNED.
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    ( (i2[t]:sbf = 0:sbf)
+      ||
+      ( (i1[t]:sbf = 1:sbf)
+        && (i4[t]:bv[16] >= i3[t]:bv[16])
+        && ((i4[t]:bv[16] - i3[t]:bv[16]) >= { #x0018 }:bv[16])
+        && (i6[t]:bv[16] <= { #x1B58 }:bv[16])
+        && ( ( (i5[t]:bv[16] >= i6[t]:bv[16]) && ((i5[t]:bv[16] - i6[t]:bv[16]) <= { #x01F4 }:bv[16]) )
+             || ( (i6[t]:bv[16] > i5[t]:bv[16]) && ((i6[t]:bv[16] - i5[t]:bv[16]) <= { #x01F4 }:bv[16]) ) )
+      )
+    )
+  ).
