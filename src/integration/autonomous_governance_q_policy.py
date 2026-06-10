@@ -58,6 +58,7 @@ OBSERVATION_FIELDS_V1 = frozenset(
 U16_MAX = (1 << 16) - 1
 U32_MAX = (1 << 32) - 1
 FIXED_POINT_SCALE = 1_000_000
+SELECTION_BLOCKER_SCORE_PENALTY = 1_000_000_000
 
 # Bind the trusted governance gate call surface once at import. Runtime table
 # evaluation should not be able to pick up a later monkeypatch or forged wrapper.
@@ -711,6 +712,7 @@ def _select_first_admissible_surface_action(
             "checked_count": 0,
             "gate_checked_count": 0,
             "selection_screened_count": 0,
+            "selection_penalized_count": 0,
             "candidate_considered_count": 0,
             "fallback_used": False,
             "raw_top_action_id": top_action_id,
@@ -719,6 +721,7 @@ def _select_first_admissible_surface_action(
             "disabled_by_existing_errors": tuple(existing_errors),
             "rejected_candidates": (),
             "selection_screened_candidates": (),
+            "selection_penalized_candidates": (),
             "selected_candidate": build_candidate(top_action_id),
         }
 
@@ -727,7 +730,10 @@ def _select_first_admissible_surface_action(
     gate_checked_count = 0
     selection_adjusted_top_action_id = ""
     normalized_previous_deltas = _normalize_delta_history(previous_approved_deltas)
-    for action_id in _ranked_action_ids(actions, scores):
+
+    raw_ranked_action_ids = _ranked_action_ids(actions, scores)
+    selection_failures_by_action: dict[str, tuple[str, ...]] = {}
+    for action_id in raw_ranked_action_ids:
         action = action_by_id[action_id]
         selection_failures = _anti_oscillation_failures(
             policy=policy,
@@ -738,6 +744,26 @@ def _select_first_admissible_surface_action(
             trajectory_budget=trajectory_budget,
             trajectory_used=trajectory_used,
         )
+        if selection_failures:
+            selection_failures_by_action[action_id] = selection_failures
+
+    def score_with_selection_penalty(action_id: str) -> int:
+        raw_score = scores.get(action_id, 0)
+        score = int(raw_score) if isinstance(raw_score, int) and not isinstance(raw_score, bool) else 0
+        if action_id in selection_failures_by_action:
+            return score - SELECTION_BLOCKER_SCORE_PENALTY
+        return score
+
+    selection_adjusted_scores = {
+        str(action.get("id", "")): score_with_selection_penalty(str(action.get("id", "")))
+        for action in actions
+        if isinstance(action, Mapping)
+    }
+    selection_adjusted_ranked_action_ids = _ranked_action_ids(actions, selection_adjusted_scores)
+
+    for action_id in selection_adjusted_ranked_action_ids:
+        action = action_by_id[action_id]
+        selection_failures = selection_failures_by_action.get(action_id, ())
         if selection_failures:
             rejected = {
                 "action_id": action_id,
@@ -759,11 +785,21 @@ def _select_first_admissible_surface_action(
         failed_gates = tuple(name for name, accepted in gate_report.items() if accepted is not True)
         if not failed_gates:
             selection_screened_count = len(selection_screened_candidates)
+            selected_raw_rank = raw_ranked_action_ids.index(action_id) if action_id in raw_ranked_action_ids else len(raw_ranked_action_ids)
+            selection_penalized_candidates = tuple(
+                {
+                    "action_id": ranked_action_id,
+                    "failed_selection": selection_failures_by_action[ranked_action_id],
+                }
+                for ranked_action_id in raw_ranked_action_ids[:selected_raw_rank]
+                if ranked_action_id in selection_failures_by_action
+            )
             return {
                 "mode": "first_admissible",
                 "checked_count": gate_checked_count,
                 "gate_checked_count": gate_checked_count,
                 "selection_screened_count": selection_screened_count,
+                "selection_penalized_count": len(selection_penalized_candidates),
                 "candidate_considered_count": selection_screened_count + gate_checked_count,
                 "fallback_used": action_id != selection_adjusted_top_action_id,
                 "raw_top_action_id": top_action_id,
@@ -771,6 +807,7 @@ def _select_first_admissible_surface_action(
                 "raw_top_action_selection_screened": top_action_id != selection_adjusted_top_action_id,
                 "rejected_candidates": tuple(rejected_candidates),
                 "selection_screened_candidates": tuple(selection_screened_candidates),
+                "selection_penalized_candidates": selection_penalized_candidates,
                 "selected_candidate": {
                     "action_id": action_id,
                     "action": action,
@@ -786,11 +823,20 @@ def _select_first_admissible_surface_action(
         )
 
     selection_screened_count = len(selection_screened_candidates)
+    selection_penalized_candidates = tuple(
+        {
+            "action_id": ranked_action_id,
+            "failed_selection": selection_failures_by_action[ranked_action_id],
+        }
+        for ranked_action_id in raw_ranked_action_ids
+        if ranked_action_id in selection_failures_by_action
+    )
     return {
         "mode": "first_admissible",
         "checked_count": gate_checked_count,
         "gate_checked_count": gate_checked_count,
         "selection_screened_count": selection_screened_count,
+        "selection_penalized_count": len(selection_penalized_candidates),
         "candidate_considered_count": selection_screened_count + gate_checked_count,
         "fallback_used": False,
         "raw_top_action_id": top_action_id,
@@ -800,6 +846,7 @@ def _select_first_admissible_surface_action(
         ),
         "rejected_candidates": tuple(rejected_candidates),
         "selection_screened_candidates": tuple(selection_screened_candidates),
+        "selection_penalized_candidates": selection_penalized_candidates,
         "selected_candidate": build_candidate(top_action_id),
     }
 

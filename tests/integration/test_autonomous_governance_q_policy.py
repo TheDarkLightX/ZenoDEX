@@ -586,17 +586,16 @@ def test_surface_q_policy_anti_oscillation_skips_reversal_candidate() -> None:
     assert result["action_id"] == "hold"
     assert result["candidate_search"]["checked_count"] == 1
     assert result["candidate_search"]["gate_checked_count"] == 1
-    assert result["candidate_search"]["selection_screened_count"] == 1
-    assert result["candidate_search"]["candidate_considered_count"] == 2
+    assert result["candidate_search"]["selection_screened_count"] == 0
+    assert result["candidate_search"]["selection_penalized_count"] == 1
+    assert result["candidate_search"]["candidate_considered_count"] == 1
     assert result["candidate_search"]["fallback_used"] is False
     assert result["candidate_search"]["raw_top_action_id"] == "lower_fee_10"
     assert result["candidate_search"]["selection_adjusted_top_action_id"] == "hold"
     assert result["candidate_search"]["raw_top_action_selection_screened"] is True
-    assert result["candidate_search"]["rejected_candidates"][0] == {
-        "action_id": "lower_fee_10",
-        "failed_selection": ("anti_oscillation:fee_bps",),
-    }
-    assert result["candidate_search"]["selection_screened_candidates"][0] == {
+    assert result["candidate_search"]["rejected_candidates"] == ()
+    assert result["candidate_search"]["selection_screened_candidates"] == ()
+    assert result["candidate_search"]["selection_penalized_candidates"][0] == {
         "action_id": "lower_fee_10",
         "failed_selection": ("anti_oscillation:fee_bps",),
     }
@@ -657,17 +656,16 @@ def test_surface_q_policy_trajectory_budget_skips_exhausted_candidate() -> None:
     assert result["action_id"] == "hold"
     assert result["candidate_search"]["checked_count"] == 1
     assert result["candidate_search"]["gate_checked_count"] == 1
-    assert result["candidate_search"]["selection_screened_count"] == 1
-    assert result["candidate_search"]["candidate_considered_count"] == 2
+    assert result["candidate_search"]["selection_screened_count"] == 0
+    assert result["candidate_search"]["selection_penalized_count"] == 1
+    assert result["candidate_search"]["candidate_considered_count"] == 1
     assert result["candidate_search"]["fallback_used"] is False
     assert result["candidate_search"]["raw_top_action_id"] == "raise_fee_10"
     assert result["candidate_search"]["selection_adjusted_top_action_id"] == "hold"
     assert result["candidate_search"]["raw_top_action_selection_screened"] is True
-    assert result["candidate_search"]["rejected_candidates"][0] == {
-        "action_id": "raise_fee_10",
-        "failed_selection": ("trajectory_budget_exceeded:fee_bps",),
-    }
-    assert result["candidate_search"]["selection_screened_candidates"][0] == {
+    assert result["candidate_search"]["rejected_candidates"] == ()
+    assert result["candidate_search"]["selection_screened_candidates"] == ()
+    assert result["candidate_search"]["selection_penalized_candidates"][0] == {
         "action_id": "raise_fee_10",
         "failed_selection": ("trajectory_budget_exceeded:fee_bps",),
     }
