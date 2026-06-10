@@ -32,6 +32,8 @@
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
+pub mod epoch;
+
 // ---------------------------------------------------------------------------
 // IMMUTABLE per-surface guardrails (mirror gov_gate.py / the .tau constants).
 // ---------------------------------------------------------------------------
@@ -339,6 +341,10 @@ pub fn params_digest(params: &BTreeMap<String, u16>) -> Option<String> {
 }
 
 /// Minimal integer formatter (avoids format! machinery in the kernel path).
+pub(crate) fn itoa_u16(v: u16) -> String {
+    itoa(v)
+}
+
 fn itoa(v: u16) -> String {
     let mut n = v;
     let mut buf = [0u8; 5];

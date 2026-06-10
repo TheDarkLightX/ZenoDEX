@@ -72,3 +72,15 @@ def test_rust_fixture_in_sync():
         "fixture drifted from gov_parity_cases.py — regenerate with "
         "python3 src/tau_specs/governance/gen_rust_parity_fixture.py"
     )
+
+
+def test_rust_epoch_fixture_in_sync():
+    """The committed epoch-machine scenario fixture must be byte-identical to a
+    fresh gov_epoch.py replay (single source of truth: the Python machine; the
+    Rust epoch module replays this file transition-by-transition)."""
+    from gen_rust_epoch_fixture import FIXTURE, fixture_bytes
+    assert FIXTURE.exists(), "run gen_rust_epoch_fixture.py to create the fixture"
+    assert FIXTURE.read_bytes() == fixture_bytes(), (
+        "epoch scenario fixture drifted from gov_epoch.py — regenerate with "
+        "python3 src/tau_specs/governance/gen_rust_epoch_fixture.py"
+    )
