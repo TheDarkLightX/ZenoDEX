@@ -28,7 +28,15 @@ Evidence in the running code (not aspirational):
 - **Quorum, not single key** — `src/integration/zeno_oracle_authority.py`: an active
   signer registry with `threshold >= 2` is required (the preflight *gaps* the
   surface otherwise), verified by `verify_signature_quorum_v0`. So no single signer
-  can move the price. → **L1**.
+  can move the price. → **L1**. The median_3 aggregate lane carries the same
+  property end-to-end: `tools/zenodex_oracle_admitted_median3.py` rejects an
+  aggregate (`duplicate_reporter_pubkey`) when any two of the three inputs are
+  signed by the same BLS key, even under distinct `reporter_id` labels or a
+  re-encoded (prefix/case-variant) pubkey — so one key cannot masquerade as the
+  quorum. This is a *key*-distinctness guarantee:
+  distinct signing keys are **not** proof the operators behind them are
+  independent (that nameable assumption is the L3 gap below), which is exactly
+  why `does_not_claim_source_honesty` survives.
 - **Explicit non-claims** — the same module hardcodes
   `does_not_claim_true_market_price`, `does_not_claim_source_honesty`,
   `does_not_claim_tau_consensus_finality`. The oracle's own authority profile

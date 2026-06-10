@@ -21,6 +21,7 @@ pytest -q \
   tests/test_zenodex_oracle_median3_chaos.py \
   tests/test_zenodex_oracle_admitted_median3.py \
   tests/test_zenodex_oracle_admitted_median3_chaos.py \
+  tests/test_zenodex_oracle_admitted_median3_property.py \
   tests/test_zenodex_oracle_aggregate_read.py \
   tests/test_zenodex_oracle_aggregate_read_chaos.py \
   tests/test_zenodex_oracle_aggregate_adapter.py \

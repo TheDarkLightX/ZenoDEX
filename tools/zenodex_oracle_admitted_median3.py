@@ -82,6 +82,7 @@ class AdmittedMedian3Result:
     evidence_floor: str | None = None
     evidence_class: str | None = None
     distinct_reporter_count: int | None = None
+    distinct_reporter_pubkey_count: int | None = None
     distinct_source_count: int | None = None
 
     def to_json_obj(self) -> dict[str, Any]:
@@ -100,6 +101,7 @@ class AdmittedMedian3Result:
             "evidence_floor": self.evidence_floor,
             "evidence_class": self.evidence_class,
             "distinct_reporter_count": self.distinct_reporter_count,
+            "distinct_reporter_pubkey_count": self.distinct_reporter_pubkey_count,
             "distinct_source_count": self.distinct_source_count,
             "errors": list(self.errors),
             "not_claimed": NOT_CLAIMED,
@@ -133,6 +135,18 @@ def _confidence(values: list[int], median: int) -> int:
 
 def _deviation_bps(confidence_e8: int, median_e8: int) -> int:
     return _ceil_div(confidence_e8 * 10_000, median_e8)
+
+
+def _canonical_pubkey(value: str) -> str:
+    """Normalize a hex BLS pubkey so encoding variants of one key collide.
+
+    `verify_signed_report_submission` accepts the same key with an optional `0x`
+    prefix and in either hex case, so a raw-string comparison would let one
+    signing key masquerade as two reporters by re-encoding its pubkey. Compare
+    the prefix-stripped, lower-cased form instead.
+    """
+    text = value[2:] if value[:2].lower() == "0x" else value
+    return text.lower()
 
 
 def _single_report_admission(
@@ -410,12 +424,14 @@ def verify_admitted_median3_aggregate(obj: Mapping[str, Any]) -> AdmittedMedian3
     values: list[int] = []
     observed_epochs: list[int] = []
     reporter_ids: list[str] = []
+    reporter_pubkeys: list[str] = []
     source_ids: list[str] = []
     source_set_ids: list[str] = []
     report_ids: list[str] = []
     for pos, report in enumerate(admitted_reports):
         report_id = report.get("report_id")
         reporter_id = report.get("reporter_id")
+        reporter_pubkey = report.get("reporter_pubkey")
         source_id = report.get("source_id")
         source_set_id = report.get("source_set_id")
         value_e8 = report.get("value_e8")
@@ -424,6 +440,10 @@ def verify_admitted_median3_aggregate(obj: Mapping[str, Any]) -> AdmittedMedian3
             report_ids.append(report_id)
         if isinstance(reporter_id, str):
             reporter_ids.append(reporter_id)
+        if isinstance(reporter_pubkey, str):
+            reporter_pubkeys.append(_canonical_pubkey(reporter_pubkey))
+        else:
+            errors.append(f"admitted_report_reporter_pubkey_malformed:{pos}")
         if isinstance(source_id, str):
             source_ids.append(source_id)
         if isinstance(source_set_id, str):
@@ -447,6 +467,11 @@ def verify_admitted_median3_aggregate(obj: Mapping[str, Any]) -> AdmittedMedian3
     )
     for reporter_id in duplicate_reporters:
         errors.append(f"duplicate_reporter_id:{reporter_id}")
+    duplicate_reporter_pubkeys = sorted(
+        {pubkey for pubkey in reporter_pubkeys if reporter_pubkeys.count(pubkey) > 1}
+    )
+    for pubkey in duplicate_reporter_pubkeys:
+        errors.append(f"duplicate_reporter_pubkey:{pubkey}")
     duplicate_sources = sorted({source_id for source_id in source_ids if source_ids.count(source_id) > 1})
     for source_id in duplicate_sources:
         errors.append(f"duplicate_source_id:{source_id}")
@@ -515,6 +540,7 @@ def verify_admitted_median3_aggregate(obj: Mapping[str, Any]) -> AdmittedMedian3
         evidence_floor=evidence_floor,
         evidence_class=evidence_class,
         distinct_reporter_count=len(set(reporter_ids)),
+        distinct_reporter_pubkey_count=len(set(reporter_pubkeys)),
         distinct_source_count=len(set(source_ids)),
     )
 

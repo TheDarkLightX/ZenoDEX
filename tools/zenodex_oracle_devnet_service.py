@@ -33,6 +33,7 @@ from zenodex_oracle_adapter import (  # noqa: E402
 )
 from zenodex_oracle_admitted_median3 import (  # noqa: E402
     ADMITTED_MEDIAN3_SCHEMA,
+    _canonical_pubkey,
     aggregate_content_hash,
     verify_admitted_median3_aggregate,
 )
@@ -475,6 +476,7 @@ def submit_report(store: OracleDevnetStore, submission: Mapping[str, Any]) -> di
 def _selected_three_admissions(store: OracleDevnetStore, query_id: str) -> list[dict[str, Any]]:
     chosen: list[dict[str, Any]] = []
     reporters: set[str] = set()
+    reporter_pubkeys: set[str] = set()
     sources: set[str] = set()
     for admission in store.all_report_admissions(query_id):
         result = verify_report_admission(admission)
@@ -482,13 +484,24 @@ def _selected_three_admissions(store: OracleDevnetStore, query_id: str) -> list[
         if len(reports) != 1:
             continue
         reporter_id = reports[0].get("reporter_id")
+        reporter_pubkey = reports[0].get("reporter_pubkey")
         source_id = reports[0].get("source_id")
-        if not isinstance(reporter_id, str) or not isinstance(source_id, str):
+        if (
+            not isinstance(reporter_id, str)
+            or not isinstance(reporter_pubkey, str)
+            or not isinstance(source_id, str)
+        ):
             continue
-        if reporter_id in reporters or source_id in sources:
+        # Distinct signing keys, not just distinct reporter_id labels: the
+        # admitted-median3 verifier rejects a shared-key aggregate (comparing the
+        # canonical pubkey encoding), so selecting one would only build a doomed
+        # aggregate.
+        canonical_pubkey = _canonical_pubkey(reporter_pubkey)
+        if reporter_id in reporters or canonical_pubkey in reporter_pubkeys or source_id in sources:
             continue
         chosen.append(admission)
         reporters.add(reporter_id)
+        reporter_pubkeys.add(canonical_pubkey)
         sources.add(source_id)
         if len(chosen) == 3:
             break

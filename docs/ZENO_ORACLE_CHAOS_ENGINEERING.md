@@ -94,12 +94,12 @@ for named disaster shapes. New consumers, new evidence classes, larger
 aggregate families, live network submission, reporter economics, and dispute
 governance need their own chaos lanes.
 
-The current public Oracle chaos lanes together cover `283` named disaster
+The current public Oracle chaos lanes together cover `288` named disaster
 shapes, all rejected in the latest local replay:
 
 ```text
-total_oracle_chaos_case_count = 283
-total_oracle_chaos_rejected_count = 283
+total_oracle_chaos_case_count = 288
+total_oracle_chaos_rejected_count = 288
 total_oracle_chaos_failed_count = 0
 ```
 
@@ -468,13 +468,17 @@ deterministic single-axis mutations:
 | `too_few_admissions_survive` | aggregate is accepted below the three-admission quorum |
 | `admission_rejection_survives` | rejected report admission remains aggregatable |
 | `duplicate_admission_survives` | one admission counts as multiple independent admissions |
-| `duplicate_reporter_survives` | one reporter counts as multiple reporters |
+| `duplicate_reporter_survives` | one reporter_id counts as multiple reporters |
+| `duplicate_reporter_pubkey_survives` | one signing key masquerades as two reporters under distinct reporter_id labels |
+| `duplicate_reporter_pubkey_reencoded_survives` | the same masquerade with the second key re-encoded (no 0x prefix, upper case) |
 | `duplicate_source_survives` | one source counts as multiple independent sources |
 | `admission_query_mismatch_survives` | admission policy disagrees with aggregate query |
 | `admission_epoch_mismatch_survives` | admission freshness epoch disagrees with aggregate epoch |
 | `admission_staleness_mismatch_survives` | admission staleness window disagrees with aggregate policy |
 | `multi_report_admission_survives` | aggregate input hides selection inside a multi-report admission |
 | `deviation_policy_exceeded_survives` | high-deviation aggregate passes policy |
+| `admission_evidence_floor_bypass_survives` | an admission below the critical evidence floor is aggregated |
+| `aggregate_evidence_overclaim_survives` | aggregate claims a higher evidence class than its admissions support |
 | `hidden_top_level_field_survives` | aggregate carries unchecked authority/debug data |
 | `hidden_aggregate_field_survives` | aggregate result carries unchecked authority/debug data |
 | `wrong_schema_survives` | admitted-median3 schema downgrade is accepted |
@@ -486,11 +490,22 @@ The receipt reports:
   "schema": "zenodex.oracle.admitted_median3_chaos_replay.v1",
   "ok": true,
   "baseline_status": "accepted",
-  "case_count": 18,
-  "rejected_case_count": 18,
+  "case_count": 22,
+  "rejected_case_count": 22,
   "failed_case_count": 0
 }
 ```
+
+The `duplicate_reporter_pubkey_survives` case is the load-bearing Sybil axis:
+the `duplicate_reporter_survives` case only collides the self-chosen
+`reporter_id` label, while this case collides the verified BLS `reporter_pubkey`
+so a single signing key supplies two of the three median inputs. The verifier
+rejects it with `duplicate_reporter_pubkey` even though all three `reporter_id`
+strings and sources differ — reporter independence is a property of the signing
+key, not the label. The `duplicate_reporter_pubkey_reencoded_survives` case
+hardens this further: the colliding key is declared in a different hex encoding
+(no `0x` prefix, upper case), whose BLS signature still verifies, so the check
+must compare the canonical pubkey form rather than the raw string.
 
 This lane checks the bridge from report admission to aggregate construction:
 
@@ -530,6 +545,7 @@ deterministic single-axis mutations:
 | `boolean_freshness_window_survives` | boolean is accepted as a freshness window |
 | `zero_freshness_window_survives` | zero freshness window is accepted |
 | `weakened_read_evidence_survives` | read evidence drops below the critical floor |
+| `read_evidence_overclaim_survives` | read claims a higher evidence class than the aggregate supports |
 | `read_expiry_before_observed_survives` | read expires before the aggregate observation |
 
 The receipt reports:
@@ -539,8 +555,8 @@ The receipt reports:
   "schema": "zenodex.oracle.aggregate_read_chaos_replay.v1",
   "ok": true,
   "baseline_status": "accepted",
-  "case_count": 16,
-  "rejected_case_count": 16,
+  "case_count": 17,
+  "rejected_case_count": 17,
   "failed_case_count": 0
 }
 ```

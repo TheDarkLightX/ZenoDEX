@@ -10,6 +10,8 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools"))
 
 from zenodex_oracle_admitted_median3 import (  # noqa: E402
+    _canonical_pubkey,
+    _single_report_admission,
     aggregate_content_hash,
     sample_admitted_median3_aggregate,
     sample_hash,
@@ -138,6 +140,112 @@ def test_admitted_median3_rejects_duplicate_admission(tmp_path: Path) -> None:
     assert any(error.startswith("duplicate_report_id:") for error in result["errors"])
     assert any(error.startswith("duplicate_reporter_id:") for error in result["errors"])
     assert any(error.startswith("duplicate_source_id:") for error in result["errors"])
+
+
+def test_admitted_median3_accepts_distinct_reporter_pubkeys(tmp_path: Path) -> None:
+    code, result = _run_verify(tmp_path, sample_admitted_median3_aggregate())
+    assert code == 0
+    assert result["status"] == "accepted"
+    assert result["distinct_reporter_pubkey_count"] == 3
+
+
+def test_admitted_median3_rejects_one_key_masquerading_as_two_reporters(tmp_path: Path) -> None:
+    # A single signing key cannot supply two of the three median inputs even when
+    # it labels itself with distinct reporter_ids and distinct sources. The
+    # quorum's independence is a property of the signing key, not the self-chosen
+    # reporter_id string.
+    aggregate = sample_admitted_median3_aggregate()
+    second = aggregate["report_admissions"][1]
+    submission = second["signed_submission"]
+    report = submission["reports"][0]
+    aggregate["report_admissions"][1] = _single_report_admission(
+        private_key=43,  # same key as report_admissions[0] (reporter.alpha)
+        reporter_id=submission["reporter_id"],  # distinct reporter_id (reporter.beta)
+        source_id=report["source_id"],  # distinct source
+        query_id=aggregate["query_id"],
+        value_e8=report["value_e8"],
+        observed_epoch=report["observed_epoch"],
+        source_diversity=second["source_diversity"],
+        current_epoch=aggregate["current_epoch"],
+        max_staleness_epochs=aggregate["max_staleness_epochs"],
+    )
+    _refresh_aggregate_id(aggregate)
+    code, result = _run_verify(tmp_path, aggregate)
+    assert code == 2
+    assert any(error.startswith("duplicate_reporter_pubkey:") for error in result["errors"])
+    # The label-level distinctness still reads 3 — proving the pubkey check, not
+    # the reporter_id check, is what closes the Sybil-via-shared-key gap.
+    assert result["distinct_reporter_count"] == 3
+    assert result["distinct_reporter_pubkey_count"] == 2
+
+
+def test_canonical_pubkey_collapses_prefix_and_case() -> None:
+    body = "ab12" * 24  # 96 hex chars
+    assert _canonical_pubkey("0x" + body) == body
+    assert _canonical_pubkey("0X" + body.upper()) == body
+    assert _canonical_pubkey(body.upper()) == body
+    assert _canonical_pubkey("0x" + body) == _canonical_pubkey(body.upper())
+
+
+def test_admitted_median3_rejects_one_key_under_reencoded_pubkey(tmp_path: Path) -> None:
+    # The shared-key masquerade must still be caught when the second admission
+    # declares the same key in a different hex encoding (no 0x prefix, upper
+    # case). The signature still verifies, so only canonical comparison closes it.
+    from zenodex_oracle_report_admission import (  # noqa: E402
+        admission_content_hash,
+        sample_lifecycle_for_signed_submission,
+    )
+    from zenodex_oracle_signed_report import (  # noqa: E402
+        G2Basic,
+        SUBMISSION_SCHEMA,
+        _build_report,
+        submission_content_hash,
+    )
+
+    aggregate = sample_admitted_median3_aggregate()
+    target = aggregate["report_admissions"][1]
+    submission = target["signed_submission"]
+    report = submission["reports"][0]
+    chain_id = str(submission["chain_id"])
+    reporter_id = str(submission["reporter_id"])
+    reencoded = G2Basic.SkToPk(43).hex().upper()  # key 43, no 0x prefix, upper case
+    new_report = _build_report(
+        private_key=43,
+        chain_id=chain_id,
+        reporter_id=reporter_id,
+        reporter_pubkey=reencoded,
+        query_id=str(aggregate["query_id"]),
+        source_id=str(report["source_id"]),
+        value_e8=int(report["value_e8"]),
+        observed_epoch=int(report["observed_epoch"]),
+        sequence=0,
+        previous_report_id=None,
+    )
+    new_submission = {
+        "schema": SUBMISSION_SCHEMA,
+        "chain_id": chain_id,
+        "reporter_id": reporter_id,
+        "reporter_pubkey": reencoded,
+        "reports": [new_report],
+    }
+    new_submission["submission_id"] = submission_content_hash(new_submission)
+    new_admission = {
+        "schema": "zenodex.oracle.report_admission.v1",
+        "current_epoch": int(aggregate["current_epoch"]),
+        "max_staleness_epochs": int(aggregate["max_staleness_epochs"]),
+        "evidence_class": "O3",
+        "signed_submission": new_submission,
+        "reporter_lifecycle": sample_lifecycle_for_signed_submission(new_submission),
+        "source_diversity": target["source_diversity"],
+    }
+    new_admission["admission_id"] = admission_content_hash(new_admission)
+    aggregate["report_admissions"][1] = new_admission
+    aggregate["aggregate_id"] = aggregate_content_hash(aggregate)
+
+    code, result = _run_verify(tmp_path, aggregate)
+    assert code == 2
+    assert any(error.startswith("duplicate_reporter_pubkey:") for error in result["errors"])
+    assert result["distinct_reporter_pubkey_count"] == 2
 
 
 def test_admitted_median3_rejects_admission_epoch_mismatch(tmp_path: Path) -> None:

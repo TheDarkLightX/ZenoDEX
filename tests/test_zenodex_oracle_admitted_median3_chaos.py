@@ -21,8 +21,8 @@ def test_zenodex_oracle_admitted_median3_chaos_rejects_all_mutants() -> None:
     receipt = json.loads(proc.stdout)
     assert receipt["ok"] is True
     assert receipt["baseline_status"] == "accepted"
-    assert receipt["case_count"] == 20
-    assert receipt["rejected_case_count"] == 20
+    assert receipt["case_count"] == 22
+    assert receipt["rejected_case_count"] == 22
     assert receipt["failed_case_count"] == 0
 
     names = {case["name"] for case in receipt["cases"]}
@@ -35,6 +35,8 @@ def test_zenodex_oracle_admitted_median3_chaos_rejects_all_mutants() -> None:
     assert "admission_rejection_survives" in names
     assert "duplicate_admission_survives" in names
     assert "duplicate_reporter_survives" in names
+    assert "duplicate_reporter_pubkey_survives" in names
+    assert "duplicate_reporter_pubkey_reencoded_survives" in names
     assert "duplicate_source_survives" in names
     assert "admission_query_mismatch_survives" in names
     assert "admission_epoch_mismatch_survives" in names

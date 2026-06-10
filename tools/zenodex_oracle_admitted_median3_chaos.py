@@ -20,8 +20,14 @@ from zenodex_oracle_admitted_median3 import (  # noqa: E402
     sample_hash,
     verify_admitted_median3_aggregate,
 )
-from zenodex_oracle_report_admission import admission_content_hash  # noqa: E402
+from zenodex_oracle_report_admission import (  # noqa: E402
+    admission_content_hash,
+    sample_lifecycle_for_signed_submission,
+)
 from zenodex_oracle_signed_report import (  # noqa: E402
+    G2Basic,
+    SUBMISSION_SCHEMA,
+    _build_report,
     payload_content_hash,
     report_content_hash,
     signing_payload,
@@ -120,6 +126,70 @@ def _duplicate_source(aggregate: dict[str, Any]) -> None:
     )
 
 
+def _duplicate_reporter_pubkey(aggregate: dict[str, Any]) -> None:
+    # One reporter key masquerades as two reporters: keep admission[1]'s distinct
+    # reporter_id and source, but sign it with admission[0]'s private key so both
+    # admitted reports share one signing pubkey. Only the pubkey check should trip.
+    source_diversity = aggregate["report_admissions"][1]["source_diversity"]
+    submission = aggregate["report_admissions"][1]["signed_submission"]
+    report = submission["reports"][0]
+    aggregate["report_admissions"][1] = _single_report_admission(
+        private_key=43,
+        reporter_id=submission["reporter_id"],
+        source_id=report["source_id"],
+        query_id=aggregate["query_id"],
+        value_e8=report["value_e8"],
+        observed_epoch=report["observed_epoch"],
+        source_diversity=source_diversity,
+        current_epoch=aggregate["current_epoch"],
+        max_staleness_epochs=aggregate["max_staleness_epochs"],
+    )
+
+
+def _duplicate_reporter_pubkey_reencoded(aggregate: dict[str, Any]) -> None:
+    # Same masquerade as _duplicate_reporter_pubkey, but the second admission
+    # declares admission[0]'s key in a DIFFERENT hex encoding (no 0x prefix,
+    # upper case). The signature still verifies (BLS hex decode is case- and
+    # prefix-insensitive), so only canonical-pubkey comparison catches it.
+    target = aggregate["report_admissions"][1]
+    submission = target["signed_submission"]
+    report = submission["reports"][0]
+    chain_id = str(submission["chain_id"])
+    reporter_id = str(submission["reporter_id"])
+    reencoded_pubkey = G2Basic.SkToPk(43).hex().upper()  # key 43, no 0x, upper case
+    new_report = _build_report(
+        private_key=43,
+        chain_id=chain_id,
+        reporter_id=reporter_id,
+        reporter_pubkey=reencoded_pubkey,
+        query_id=str(aggregate["query_id"]),
+        source_id=str(report["source_id"]),
+        value_e8=int(report["value_e8"]),
+        observed_epoch=int(report["observed_epoch"]),
+        sequence=0,
+        previous_report_id=None,
+    )
+    new_submission = {
+        "schema": SUBMISSION_SCHEMA,
+        "chain_id": chain_id,
+        "reporter_id": reporter_id,
+        "reporter_pubkey": reencoded_pubkey,
+        "reports": [new_report],
+    }
+    new_submission["submission_id"] = submission_content_hash(new_submission)
+    new_admission = {
+        "schema": "zenodex.oracle.report_admission.v1",
+        "current_epoch": int(aggregate["current_epoch"]),
+        "max_staleness_epochs": int(aggregate["max_staleness_epochs"]),
+        "evidence_class": "O3",
+        "signed_submission": new_submission,
+        "reporter_lifecycle": sample_lifecycle_for_signed_submission(new_submission),
+        "source_diversity": target["source_diversity"],
+    }
+    new_admission["admission_id"] = admission_content_hash(new_admission)
+    aggregate["report_admissions"][1] = new_admission
+
+
 def _admission_query_mismatch(aggregate: dict[str, Any]) -> None:
     aggregate["report_admissions"][2]["source_diversity"]["query_id"] = sample_hash("wrong-admission-query")
     _refresh_admission_id(aggregate, 2)
@@ -188,6 +258,16 @@ def admitted_median3_chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]
             "duplicate_reporter_survives",
             _mutate(_duplicate_reporter),
             ["duplicate_reporter_id:"],
+        ),
+        (
+            "duplicate_reporter_pubkey_survives",
+            _mutate(_duplicate_reporter_pubkey),
+            ["duplicate_reporter_pubkey:"],
+        ),
+        (
+            "duplicate_reporter_pubkey_reencoded_survives",
+            _mutate(_duplicate_reporter_pubkey_reencoded),
+            ["duplicate_reporter_pubkey:"],
         ),
         (
             "duplicate_source_survives",

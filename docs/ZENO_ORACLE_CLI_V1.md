@@ -164,8 +164,8 @@ The combined replay returns:
   "schema": "zenodex.oracle.cli_chaos_all.v1",
   "ok": true,
   "surface_count": 15,
-  "case_count": 283,
-  "rejected_case_count": 283,
+  "case_count": 288,
+  "rejected_case_count": 288,
   "failed_case_count": 0
 }
 ```

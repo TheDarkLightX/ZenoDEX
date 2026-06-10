@@ -101,8 +101,10 @@ Verification returns:
     {
       "report_id": "sha256:...",
       "reporter_id": "reporter.sample",
+      "reporter_pubkey": "0x...",
       "query_id": "sha256:...",
       "source_id": "source.dex.pool.local",
+      "source_set_id": "sha256:...",
       "payload_hash": "sha256:...",
       "value_e8": 100000000,
       "observed_epoch": 100
@@ -111,6 +113,11 @@ Verification returns:
   "errors": []
 }
 ```
+
+Each admitted report carries the signature-verified `reporter_pubkey`. Downstream
+aggregation (`zenodex.oracle.admitted_median3`) uses it to require three distinct
+*signing keys*, so one key cannot supply two median inputs under different
+`reporter_id` labels.
 
 Statuses:
 

@@ -74,12 +74,12 @@ median3_chaos_case_count = 21
 median3_chaos_rejected_count = 21
 median3_chaos_failed_count = 0
 
-admitted_median3_chaos_case_count = 18
-admitted_median3_chaos_rejected_count = 18
+admitted_median3_chaos_case_count = 22
+admitted_median3_chaos_rejected_count = 22
 admitted_median3_chaos_failed_count = 0
 
-aggregate_read_chaos_case_count = 16
-aggregate_read_chaos_rejected_count = 16
+aggregate_read_chaos_case_count = 17
+aggregate_read_chaos_rejected_count = 17
 aggregate_read_chaos_failed_count = 0
 
 aggregate_adapter_chaos_case_count = 16
@@ -110,8 +110,8 @@ economic_security_chaos_case_count = 14
 economic_security_chaos_rejected_count = 14
 economic_security_chaos_failed_count = 0
 
-total_oracle_chaos_case_count = 283
-total_oracle_chaos_rejected_count = 283
+total_oracle_chaos_case_count = 288
+total_oracle_chaos_rejected_count = 288
 total_oracle_chaos_failed_count = 0
 ```
 
@@ -131,9 +131,11 @@ query mismatch, duplicate source/reporter, source-diversity binding,
 forged-hash, schema, and hidden-field mutations. The local admitted-median3
 verifier rejects all currently named aggregate-from-admission hash, median,
 confidence, deviation, observed-epoch, admission-count, admission-rejection,
-duplicate-admission, duplicate-reporter, duplicate-source, query mismatch,
-freshness-window mismatch, multi-report admission, deviation-policy,
-hidden-field, and schema mutations. The local aggregate-read bridge verifier
+duplicate-admission, duplicate-reporter, duplicate-reporter-pubkey (one signing
+key masquerading as two reporters, including a re-encoded hex form),
+duplicate-source, query mismatch, freshness-window mismatch, multi-report
+admission, deviation-policy, hidden-field, and schema mutations. The local
+aggregate-read bridge verifier
 rejects all currently named admitted-aggregate rejection, receipt-bundle
 rejection, query mismatch, value-hash mismatch, observed-epoch mismatch, expiry
 mismatch, freshness-window mismatch, missing-subobject, evidence-weakening,
@@ -174,10 +176,10 @@ Current result on this branch:
 
 ```text
 doctor_ok = true
-chaos_all_case_count = 283
-chaos_all_rejected_count = 283
+chaos_all_case_count = 288
+chaos_all_rejected_count = 288
 chaos_all_failed_count = 0
-271 passed
+307 passed
 ```
 
 The CI workflow `.github/workflows/zeno-oracle-mvp.yml` runs the same command

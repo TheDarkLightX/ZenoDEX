@@ -338,6 +338,7 @@ def verify_report_admission(obj: Mapping[str, Any]) -> ReportAdmissionResult:
                     isinstance(report_query_id, str),
                     isinstance(source_id, str),
                     isinstance(payload_hash, str),
+                    isinstance(signed_reporter_pubkey, str),
                     isinstance(value_e8, int) and not isinstance(value_e8, bool),
                     isinstance(observed_epoch, int) and not isinstance(observed_epoch, bool),
                 ]
@@ -346,6 +347,7 @@ def verify_report_admission(obj: Mapping[str, Any]) -> ReportAdmissionResult:
                     {
                         "report_id": report_id,
                         "reporter_id": reporter_id,
+                        "reporter_pubkey": signed_reporter_pubkey,
                         "query_id": report_query_id,
                         "source_id": source_id,
                         "source_set_id": (
