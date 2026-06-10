@@ -1,0 +1,376 @@
+# [FORGE] Autonomous-Governance Epoch Machine v1 (charter / veto / freeze / trajectory tier)
+#
+# Purpose:
+# - Inductive model of gov_epoch.py's per-surface core: a pending revision maturing
+#   through a timelock/veto window, applied only under a valid (unexpired, unrevoked)
+#   autonomy CHARTER, outside FREEZE, past COOLDOWN, and inside the WINDOW DRIFT BUDGET.
+# - Proves the trajectory claim the Python tests show empirically: per-step-legal walks
+#   are bounded (drift_used <= budget inductively), and no apply can ever fire while
+#   frozen / unchartered / immature / in cooldown.
+#
+# Model Scope & Boundaries:
+# - ONE representative fee-like scalar surface (cap 1000, step 50, window budget 150).
+#   The Python machine runs 9 surfaces all-or-nothing; the per-surface core is identical.
+#   The aggregate (epoch-budget) bit is a pure arithmetic relation already verified at
+#   the Tau layer (gov_epoch_budget_v1.tau) and is not re-modeled here.
+# - RELATIVE counters (ages/remaining-epochs), not absolute epochs: charter_left is the
+#   dead-man countdown (renew sets it; tick decrements; 0 = expired or revoked).
+#   The bv[16] wrap-safety of the absolute-epoch forms is the Tau specs' concern
+#   (gov_cooldown_v1 / gov_charter_v1 wrap probes); this model checks the STATE MACHINE.
+# - GUARD-PRESENCE TRIPWIRES: apply copies the pre-state of the guarded conditions into
+#   applied_* variables pinned at 0 by invariants — DELETING a guard conjunct makes its
+#   tripwire reachable and verify-multi fail. Coverage map (every apply-guard conjunct is
+#   checked by exactly one mechanism): pending -> applied_no_pending; frozen ->
+#   applied_frozen; charter -> applied_unchartered; timelock -> applied_immature;
+#   cooldown -> applied_in_cooldown; drift-budget conjunct -> applied_over_budget (and
+#   inv_drift_budget); the band (dir/bounds) conjunct -> inv_param_cap / inv_param_nonneg
+#   directly (deleting it lets param escape [0,1000], failing those invariants).
+# - Constants mirror gov_gate.py reference values: MIN_DELAY=24, COOLDOWN=48,
+#   WINDOW=720, fee step 50 / cap 1000 / window budget 150, CHARTER_TTL_MAX=4096.
+#
+# FAIL-CLOSED defaults at init: no charter (charter_left=0 -- autonomy disabled until
+# granted), full genesis cooldown, fresh window, no pending.
+
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "gov_epoch_machine_v1"
+  created_by: "zenodex-governance"
+  notes: |
+    Per-surface core of the autonomous-governance epoch machine (gov_epoch.py).
+    Charter dead-man countdown, timelock+veto window, freeze interlock, cooldown
+    spacing, and the window drift budget -- with guard-presence tripwires so the
+    invariants machine-check that every authority guard is actually consulted.
+
+observables:
+  state_vars:
+    [
+      "param",
+      "pending",
+      "pending_mag",
+      "pending_dir",
+      "pending_age",
+      "charter_left",
+      "frozen",
+      "cooldown_left",
+      "window_left",
+      "drift_used",
+      "applied_frozen",
+      "applied_unchartered",
+      "applied_immature",
+      "applied_in_cooldown",
+      "applied_no_pending",
+      "applied_over_budget",
+    ]
+  effects: []
+
+state_vars:
+  - id: "param"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1000 }
+  - id: "pending"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "pending_mag"
+    role: "data"
+    type: { kind: "int", min: 0, max: 50 }
+  - id: "pending_dir"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "pending_age"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4096 }
+  - id: "charter_left"
+    role: "control"
+    type: { kind: "int", min: 0, max: 4096 }
+  - id: "frozen"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "cooldown_left"
+    role: "data"
+    type: { kind: "int", min: 0, max: 48 }
+  - id: "window_left"
+    role: "data"
+    type: { kind: "int", min: 0, max: 720 }
+  - id: "drift_used"
+    role: "data"
+    type: { kind: "int", min: 0, max: 150 }
+  - id: "applied_frozen"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "applied_unchartered"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "applied_immature"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "applied_in_cooldown"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "applied_no_pending"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "applied_over_budget"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+
+invariants:
+  - id: "inv_param_cap"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "param" }, { const: 1000 }] }
+  - id: "inv_param_nonneg"
+    kind: "safety"
+    expr: { op: "<=", args: [{ const: 0 }, { var: "param" }] }
+  - id: "inv_drift_budget"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "drift_used" }, { const: 150 }] }
+  - id: "inv_no_apply_while_frozen"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "applied_frozen" }, { const: 0 }] }
+  - id: "inv_no_apply_unchartered"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "applied_unchartered" }, { const: 0 }] }
+  - id: "inv_no_apply_immature"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "applied_immature" }, { const: 0 }] }
+  - id: "inv_no_apply_in_cooldown"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "applied_in_cooldown" }, { const: 0 }] }
+  - id: "inv_no_apply_without_pending"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "applied_no_pending" }, { const: 0 }] }
+  - id: "inv_no_apply_over_drift_budget"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "applied_over_budget" }, { const: 0 }] }
+  - id: "inv_pending_wellformed"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: "=", args: [{ var: "pending" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "pending_mag" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "pending_age" }, { const: 0 }] }
+
+init:
+  - var: "param"
+    expr: { const: 500 }
+  - var: "pending"
+    expr: { const: 0 }
+  - var: "pending_mag"
+    expr: { const: 0 }
+  - var: "pending_dir"
+    expr: { const: 0 }
+  - var: "pending_age"
+    expr: { const: 0 }
+  - var: "charter_left"
+    expr: { const: 0 }      # fail-closed genesis: autonomy disabled until chartered
+  - var: "frozen"
+    expr: { const: 0 }
+  - var: "cooldown_left"
+    expr: { const: 48 }     # full genesis cooldown (mirrors gov_epoch.genesis_state)
+  - var: "window_left"
+    expr: { const: 720 }
+  - var: "drift_used"
+    expr: { const: 0 }
+  - var: "applied_frozen"
+    expr: { const: 0 }
+  - var: "applied_unchartered"
+    expr: { const: 0 }
+  - var: "applied_immature"
+    expr: { const: 0 }
+  - var: "applied_in_cooldown"
+    expr: { const: 0 }
+  - var: "applied_no_pending"
+    expr: { const: 0 }
+  - var: "applied_over_budget"
+    expr: { const: 0 }
+
+actions:
+  # ---- one epoch elapses: ages advance, dead-man and cooldown count down ----
+  - id: "tick"
+    guard: { op: "<=", args: [{ const: 0 }, { var: "param" }] }   # total (always enabled)
+    updates:
+      - var: "pending_age"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - { op: "=", args: [{ var: "pending" }, { const: 1 }] }
+              - { op: "<", args: [{ var: "pending_age" }, { const: 4096 }] }
+          then: { op: "+", args: [{ var: "pending_age" }, { const: 1 }] }
+          else: { var: "pending_age" }
+      - var: "charter_left"
+        expr:
+          op: "ite"
+          cond: { op: "<", args: [{ const: 0 }, { var: "charter_left" }] }
+          then: { op: "-", args: [{ var: "charter_left" }, { const: 1 }] }
+          else: { const: 0 }
+      - var: "cooldown_left"
+        expr:
+          op: "ite"
+          cond: { op: "<", args: [{ const: 0 }, { var: "cooldown_left" }] }
+          then: { op: "-", args: [{ var: "cooldown_left" }, { const: 1 }] }
+          else: { const: 0 }
+      - var: "window_left"
+        expr:
+          op: "ite"
+          cond: { op: "<", args: [{ const: 0 }, { var: "window_left" }] }
+          then: { op: "-", args: [{ var: "window_left" }, { const: 1 }] }
+          else: { const: 0 }
+
+  # ---- trajectory window rolls: budget refreshes ----
+  - id: "window_roll"
+    guard: { op: "=", args: [{ var: "window_left" }, { const: 0 }] }
+    updates:
+      - var: "drift_used"
+        expr: { const: 0 }
+      - var: "window_left"
+        expr: { const: 720 }
+
+  # ---- HUMAN/governed: grant or renew the standing approval (1..TTL_MAX only) ----
+  - id: "renew_charter"
+    params:
+      - id: "ttl"
+        type: { kind: "int", min: 1, max: 4096 }
+    guard: { op: "<=", args: [{ const: 0 }, { var: "param" }] }   # total
+    updates:
+      - var: "charter_left"
+        expr: { param: "ttl" }
+
+  # ---- GUARDIAN: kill the standing approval (never gated: stopping is always safe) ----
+  - id: "revoke_charter"
+    guard: { op: "<=", args: [{ const: 0 }, { var: "param" }] }   # total
+    updates:
+      - var: "charter_left"
+        expr: { const: 0 }
+
+  # ---- disaster interlock ----
+  - id: "freeze"
+    guard: { op: "<=", args: [{ const: 0 }, { var: "param" }] }   # total
+    updates:
+      - var: "frozen"
+        expr: { const: 1 }
+
+  - id: "unfreeze"
+    guard: { op: "<=", args: [{ const: 0 }, { var: "param" }] }   # total
+    updates:
+      - var: "frozen"
+        expr: { const: 0 }
+
+  # ---- the (untrusted) proposer queues a pointwise-legal action ----
+  - id: "propose"
+    params:
+      - id: "mag"
+        type: { kind: "int", min: 1, max: 50 }    # pointwise step bound (fee surface)
+      - id: "dir"
+        type: { kind: "int", min: 0, max: 1 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "pending" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "frozen" }, { const: 0 }] }
+        - { op: "<=", args: [{ const: 1 }, { var: "charter_left" }] }
+    updates:
+      - var: "pending"
+        expr: { const: 1 }
+      - var: "pending_mag"
+        expr: { param: "mag" }
+      - var: "pending_dir"
+        expr: { param: "dir" }
+      - var: "pending_age"
+        expr: { const: 0 }
+
+  # ---- GUARDIAN: cancel the pending revision (works frozen or not, chartered or not) ----
+  - id: "veto"
+    guard: { op: "=", args: [{ var: "pending" }, { const: 1 }] }
+    updates:
+      - var: "pending"
+        expr: { const: 0 }
+      - var: "pending_mag"
+        expr: { const: 0 }
+      - var: "pending_age"
+        expr: { const: 0 }
+
+  # ---- apply the matured revision through EVERY tier (tripwires copy pre-state) ----
+  - id: "apply"
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "pending" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "frozen" }, { const: 0 }] }
+        - { op: "<=", args: [{ const: 1 }, { var: "charter_left" }] }
+        - { op: "<=", args: [{ const: 24 }, { var: "pending_age" }] }      # timelock
+        - { op: "=", args: [{ var: "cooldown_left" }, { const: 0 }] }      # spacing
+        - op: "<="                                                          # drift budget
+          args:
+            - { op: "+", args: [{ var: "drift_used" }, { var: "pending_mag" }] }
+            - { const: 150 }
+        - op: "or"                                                           # band stays [0,1000]
+          args:
+            - op: "and"
+              args:
+                - { op: "=", args: [{ var: "pending_dir" }, { const: 1 }] }
+                - op: "<="
+                  args:
+                    - { op: "+", args: [{ var: "param" }, { var: "pending_mag" }] }
+                    - { const: 1000 }
+            - op: "and"
+              args:
+                - { op: "=", args: [{ var: "pending_dir" }, { const: 0 }] }
+                - { op: "<=", args: [{ var: "pending_mag" }, { var: "param" }] }
+    updates:
+      - var: "param"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "pending_dir" }, { const: 1 }] }
+          then: { op: "+", args: [{ var: "param" }, { var: "pending_mag" }] }
+          else: { op: "-", args: [{ var: "param" }, { var: "pending_mag" }] }
+      - var: "drift_used"
+        expr: { op: "+", args: [{ var: "drift_used" }, { var: "pending_mag" }] }
+      - var: "cooldown_left"
+        expr: { const: 48 }
+      - var: "pending"
+        expr: { const: 0 }
+      - var: "pending_mag"
+        expr: { const: 0 }
+      - var: "pending_age"
+        expr: { const: 0 }
+      # guard-presence tripwires (pre-state copies; guards force the benign value)
+      - var: "applied_frozen"
+        expr: { var: "frozen" }
+      - var: "applied_unchartered"
+        expr:
+          op: "ite"
+          cond: { op: "<=", args: [{ const: 1 }, { var: "charter_left" }] }
+          then: { const: 0 }
+          else: { const: 1 }
+      - var: "applied_immature"
+        expr:
+          op: "ite"
+          cond: { op: "<=", args: [{ const: 24 }, { var: "pending_age" }] }
+          then: { const: 0 }
+          else: { const: 1 }
+      - var: "applied_in_cooldown"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "cooldown_left" }, { const: 0 }] }
+          then: { const: 0 }
+          else: { const: 1 }
+      - var: "applied_no_pending"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "pending" }, { const: 1 }] }
+          then: { const: 0 }
+          else: { const: 1 }
+      - var: "applied_over_budget"
+        expr:
+          op: "ite"
+          cond:
+            op: "<="
+            args:
+              - { op: "+", args: [{ var: "drift_used" }, { var: "pending_mag" }] }
+              - { const: 150 }
+          then: { const: 0 }
+          else: { const: 1 }

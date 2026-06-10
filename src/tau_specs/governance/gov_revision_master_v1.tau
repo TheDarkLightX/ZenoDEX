@@ -1,0 +1,74 @@
+# gov_revision_master_v1.tau  --  ZenoDEX governance: composite revision policy
+# MUTABILITY: UPDATABLE (the top-level governance gate composing the economic-core surfaces)
+# SHAPE: FACTORED composition -- one independent output bit per concern, then a flat AND under
+# the shared approval+timelock gate. Factoring is mandatory: it keeps each bit tractable (the
+# all-surfaces monolith does not normalize) AND it is what makes the policy cheap.
+#
+# Shared gate inputs:
+#   i1 = approved (sbf)        i2 = exec_req (sbf)
+#   i3 = proposal_ts (bv[16])  i4 = current_ts (bv[16])
+# Per-surface inputs:
+#   fee:          i5 = fee_curr, i6 = fee_next
+#   router next:  i7 = buyburn_next, i8 = stakers_next, i9 = reserve_next, i10 = hosts_next
+#   router curr:  i11 = buyburn_curr, i12 = stakers_curr, i13 = reserve_curr, i14 = hosts_curr
+#   collateral:   i15 = mcr_curr, i16 = mcr_next, i17 = ccr_curr, i18 = ccr_next
+#   whale:        i19 = redeem_staker_bps_curr, i20 = redeem_staker_bps_next
+# Outputs (per-concern guardrail bits + composite):
+#   o2 = fee_ok   o3 = router_sum_ok   o6 = router_step_ok   o4 = collateral_ok   o5 = whale_ok
+#   o1 = revision_ok = gate && o2 && o3 && o6 && o4 && o5
+# (router is two bits — sum-budget o3 + per-share drift o6 — for the tractability reason above.)
+#
+# IMMUTABLE guardrails (must match the per-surface specs exactly):
+#   fee:        next <= 1000 ({ #x03E8 }), step <= 50 ({ #x0032 })
+#   router sum: each next <= 10000 ({ #x2710 }), sum = 10000 ({ #x2710 })
+#   router step:per-share <= 500 ({ #x01F4 })
+#   collateral: mcr_next >= 10000 ({ #x2710 }), ccr_next <= 30000 ({ #x7530 }),
+#               mcr_next <= ccr_next, step <= 1000 ({ #x03E8 })
+#   whale:      next <= 7000 ({ #x1B58 }), step <= 500 ({ #x01F4 })
+#   shared:     MIN_DELAY = 24 ({ #x0018 }); timelock is the wrap-safe subtraction-guard form
+#               (current >= proposal AND current - proposal >= MIN_DELAY); bv[16] is UNSIGNED.
+# (Perps funding-rate cap is governed by gov_funding_rate_revision_v1.tau, verified standalone.)
+
+always
+  ( ( o2[t]:sbf = 1:sbf <->
+        ( (i6[t]:bv[16] <= { #x03E8 }:bv[16])
+          && ( ( (i5[t]:bv[16] >= i6[t]:bv[16]) && ((i5[t]:bv[16] - i6[t]:bv[16]) <= { #x0032 }:bv[16]) )
+               || ( (i6[t]:bv[16] > i5[t]:bv[16]) && ((i6[t]:bv[16] - i5[t]:bv[16]) <= { #x0032 }:bv[16]) ) ) ) )
+    && ( o3[t]:sbf = 1:sbf <->
+        ( (i7[t]:bv[16] <= { #x2710 }:bv[16])
+          && (i8[t]:bv[16] <= { #x2710 }:bv[16])
+          && (i9[t]:bv[16] <= { #x2710 }:bv[16])
+          && (i10[t]:bv[16] <= { #x2710 }:bv[16])
+          && ((i7[t]:bv[16] + i8[t]:bv[16] + i9[t]:bv[16] + i10[t]:bv[16]) = { #x2710 }:bv[16]) ) )
+    && ( o6[t]:sbf = 1:sbf <->
+        ( ( ( (i11[t]:bv[16] >= i7[t]:bv[16]) && ((i11[t]:bv[16] - i7[t]:bv[16]) <= { #x01F4 }:bv[16]) )
+            || ( (i7[t]:bv[16] > i11[t]:bv[16]) && ((i7[t]:bv[16] - i11[t]:bv[16]) <= { #x01F4 }:bv[16]) ) )
+          && ( ( (i12[t]:bv[16] >= i8[t]:bv[16]) && ((i12[t]:bv[16] - i8[t]:bv[16]) <= { #x01F4 }:bv[16]) )
+               || ( (i8[t]:bv[16] > i12[t]:bv[16]) && ((i8[t]:bv[16] - i12[t]:bv[16]) <= { #x01F4 }:bv[16]) ) )
+          && ( ( (i13[t]:bv[16] >= i9[t]:bv[16]) && ((i13[t]:bv[16] - i9[t]:bv[16]) <= { #x01F4 }:bv[16]) )
+               || ( (i9[t]:bv[16] > i13[t]:bv[16]) && ((i9[t]:bv[16] - i13[t]:bv[16]) <= { #x01F4 }:bv[16]) ) )
+          && ( ( (i14[t]:bv[16] >= i10[t]:bv[16]) && ((i14[t]:bv[16] - i10[t]:bv[16]) <= { #x01F4 }:bv[16]) )
+               || ( (i10[t]:bv[16] > i14[t]:bv[16]) && ((i10[t]:bv[16] - i14[t]:bv[16]) <= { #x01F4 }:bv[16]) ) ) ) )
+    && ( o4[t]:sbf = 1:sbf <->
+        ( (i16[t]:bv[16] >= { #x2710 }:bv[16])
+          && (i18[t]:bv[16] <= { #x7530 }:bv[16])
+          && (i16[t]:bv[16] <= i18[t]:bv[16])
+          && ( ( (i15[t]:bv[16] >= i16[t]:bv[16]) && ((i15[t]:bv[16] - i16[t]:bv[16]) <= { #x03E8 }:bv[16]) )
+               || ( (i16[t]:bv[16] > i15[t]:bv[16]) && ((i16[t]:bv[16] - i15[t]:bv[16]) <= { #x03E8 }:bv[16]) ) )
+          && ( ( (i17[t]:bv[16] >= i18[t]:bv[16]) && ((i17[t]:bv[16] - i18[t]:bv[16]) <= { #x03E8 }:bv[16]) )
+               || ( (i18[t]:bv[16] > i17[t]:bv[16]) && ((i18[t]:bv[16] - i17[t]:bv[16]) <= { #x03E8 }:bv[16]) ) ) ) )
+    && ( o5[t]:sbf = 1:sbf <->
+        ( (i20[t]:bv[16] <= { #x1B58 }:bv[16])
+          && ( ( (i19[t]:bv[16] >= i20[t]:bv[16]) && ((i19[t]:bv[16] - i20[t]:bv[16]) <= { #x01F4 }:bv[16]) )
+               || ( (i20[t]:bv[16] > i19[t]:bv[16]) && ((i20[t]:bv[16] - i19[t]:bv[16]) <= { #x01F4 }:bv[16]) ) ) ) )
+    && ( o1[t]:sbf = 1:sbf <->
+        ( (i2[t]:sbf = 0:sbf)
+          || ( (i1[t]:sbf = 1:sbf)
+               && (i4[t]:bv[16] >= i3[t]:bv[16])
+               && ((i4[t]:bv[16] - i3[t]:bv[16]) >= { #x0018 }:bv[16])
+               && (o2[t]:sbf = 1:sbf)
+               && (o3[t]:sbf = 1:sbf)
+               && (o6[t]:sbf = 1:sbf)
+               && (o4[t]:sbf = 1:sbf)
+               && (o5[t]:sbf = 1:sbf) ) ) )
+  ).
