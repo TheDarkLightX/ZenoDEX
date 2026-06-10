@@ -309,8 +309,9 @@ The machine's per-surface core is **inductively verified** in ESSO
 invariants pin at 0, so DELETING any guard conjunct is a machine-detected invariant
 violation, not a silent hole. The bv[16] wrap-safety of the absolute-epoch comparisons is
 verified at the Tau layer (the four trajectory specs carry wrap probes in their teeth),
-and the cross-window composition (m windows of budget B ⇒ displacement ≤ m·B, tight) is
-proved in Lean (`lean-mathlib/Proofs/GovTrajectoryBound.lean`).
+and the cross-window composition (m windows of budget B ⇒ displacement ≤ m·B, with the
+bound attained at a concrete m=3, B=150 instance) is proved in Lean
+(`lean-mathlib/Proofs/GovTrajectoryBound.lean`).
 
 ## 7. What is verified today vs open
 
