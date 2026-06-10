@@ -321,9 +321,46 @@ Layered lookup tables keep the state space explicit. Each layer maps a small set
 of binned features to action scores. Runtime sums scores across layers and
 selects the highest-scoring action, with action-list order as the deterministic
 tie-breaker. In `first_admissible` mode, that same order becomes the candidate
-check order for the exact gates. If anti-oscillation is enabled, reversal
-candidates are recorded in `candidate_search.rejected_candidates` with a
-`failed_selection` reason. Trajectory-budget skips are recorded the same way.
+check order for the exact gates.
+
+Selection-aware ranking is a deterministic pre-scan adjustment over that same
+ranked action list. The runtime computes anti-oscillation and trajectory-budget
+failures for every raw-ranked action, then subtracts a fixed blocker penalty
+from those actions before first-admissible scanning. A penalized action remains
+auditable through `candidate_search.selection_penalized_candidates`, while an
+action that still appears during the adjusted scan is reported through
+`candidate_search.selection_screened_candidates`. Exact gate failures remain in
+`candidate_search.rejected_candidates`.
+
+The v9 selection-aware ranker changed only runtime ordering and replay
+accounting. It did not change the frozen Q table, residual model, exact
+governance gates, Tau specs, or the candidate action set. The important code
+paths are:
+
+- `src/integration/autonomous_governance_q_policy.py`: applies the blocker
+  penalty before first-admissible selection and emits the candidate-search
+  counters.
+- `tools/autonomous_governance_policy_factory.py`: aggregates
+  `selection_penalized_count_total` alongside exact gate checks and scanned
+  candidates.
+- `tests/integration/test_autonomous_governance_q_policy.py`: checks that
+  anti-oscillation and trajectory-budget blockers are penalized before gate
+  scanning.
+- `tests/tools/test_autonomous_governance_q_table_optimizer.py`: fixes the
+  artifact-level replay expectations for the generated policy.
+
+For developers reading replay reports, use these counters as separate facts:
+
+- `candidate_checked_count_total`: candidates that reached exact governance
+  gates.
+- `selection_penalized_count_total`: raw-ranked candidates moved behind
+  feasible actions by deterministic selection-aware scoring.
+- `selection_screened_count_total`: blocked candidates encountered during the
+  adjusted scan.
+- `candidate_considered_count_total`: candidates actually scanned by
+  first-admissible selection.
+- `fallback_used_count`: cases that moved past the first selection-feasible
+  candidate after exact gate evaluation.
 
 The table can learn richer behavior than a PID controller while still compiling
 to deterministic decision rules. The exact revision envelope remains the release
