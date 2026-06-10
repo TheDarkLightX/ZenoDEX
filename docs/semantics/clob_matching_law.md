@@ -41,6 +41,18 @@ the matching law has no replay-authority concept.
 These are stronger than the perps surface, but they are properties of the proof,
 not a higher equivalence tier:
 
+- **The LAW is checked IN-GUEST (I6).** The guest no longer attests only "the
+  canonical matcher port ran": `clob.rs::check_no_skip_law` — the no_std port of
+  the INDEPENDENT law checker `tools/clob_matching_law.py::verify_no_priority_skip`
+  (dual-checker discipline) — re-derives the no-skip law over the fills inside the
+  guest, and a violation aborts the proof. The journal commits
+  `matching_law_rule_hash` (the law identity, pinned cross-language like the rule
+  hashes), so a client can check WHICH law held without trusting the matcher port.
+  The non-canonical-book wire hole this work measured (a permuted `pre_book` via
+  postcard bypassed `ClobBookV1::new` and made a priority-skip transition
+  STARK-provable) is closed fail-closed at `ClobBookV1::validate`
+  (`book_not_canonical`) — Python makes that state unrepresentable; the guest
+  boundary now rejects it.
 - **Ledger-exact book root, by construction.** `ClobBookV1::state_root` reproduces
   `src/state/clob_book.py::ClobBook.state_root` BYTE-FOR-BYTE (ported canonical
   encoders), so the guest proves the ACTUAL ledger book root — there is NO
@@ -49,11 +61,12 @@ not a higher equivalence tier:
   transition, the receipt verifies against the pinned image id, AND tampered
   bindings are rejected.
 - **Cross-language-pinned encodings.** Every guest-defined encoding (book root,
-  matcher output, `matching_rule_hash`/`fee_rule_hash`, `event_log_root`) has a
-  Python mirror and a cross-language parity fixture/test. This is load-bearing: a
-  5-skeptic adversarial review caught that the Rust rule-hash labels had silently
-  drifted from the ledger (`orderbook_api.py`), which would have made the client
-  reject every proof. Rule: no guest-defined encoding without a pinned mirror.
+  matcher output, `matching_rule_hash`/`fee_rule_hash`/`matching_law_rule_hash`,
+  `event_log_root`, law verdict classes) has a Python mirror and a cross-language
+  parity fixture/test. This is load-bearing: a 5-skeptic adversarial review caught
+  that the Rust rule-hash labels had silently drifted from the ledger
+  (`orderbook_api.py`), which would have made the client reject every proof. Rule:
+  no guest-defined encoding without a pinned mirror.
 - **Honest fees.** The v1 matcher takes no fee; `fee_total = 0` and
   `fee_rule_hash` commits `stage0_zero_fee_stub`. The quote floor is
   conservation-exact (symmetric quote), not a hidden fee.
@@ -67,10 +80,13 @@ law is proven; making the deployed path refuse the unproven is the remaining wor
 
 ## Evidence
 
-- Guest + transition: `zk/state_proof_risc0/shared/src/clob.rs`,
+- Guest + transition + in-guest law: `zk/state_proof_risc0/shared/src/clob.rs`
+  (`check_no_skip_law`, `clob_matching_law_rule_hash`),
   `methods/guest/src/main.rs` (`ZenoProofInputV1::Clob`).
-- Parity: `cli/tests/clob_book_root_parity.rs`, `clob_match_parity.rs`;
-  `tests/core/test_clob_matching_law.py`, `test_clob_*_fixture.py`.
+- Parity: `cli/tests/clob_book_root_parity.rs`, `clob_match_parity.rs`,
+  `clob_law_parity.rs`; `tests/core/test_clob_matching_law.py`,
+  `test_clob_*_fixture.py` (law corpus: `tools/gen_clob_law_fixture.py` →
+  `shared/src/clob_law_cases_v1.json`).
 - Real proof: `cli/tests/clob_cli_prove_verify_smoke.rs`.
 - Commits: I1 `082e6a06`, I2 `6a7c11f1`, I2b `f2ec56a9`, I2b-fix `c84c2c5c`,
   I4 `bccca5ae`, I3 `81720be9`.
