@@ -1,0 +1,1161 @@
+{
+  "case_count": 101,
+  "cases": {
+    "build_allowed_int_one_renders_unknown": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 1, \"gate_status_counts\": {\"unknown\": 1}, \"block_reason_counts\": {\"none\": 1}, \"campaign_day_counts\": {\"20260601\": 1}, \"campaign_day_gate_status_counts\": {\"20260601\": {\"unknown\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 1, \"first_campaign_day\": \"20260601\", \"last_campaign_day\": \"20260601\"}}, \"latest_gate_status\": \"unknown\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"allowed-int\", \"bundle_dir\": \"<ROOT>/20260601T000000Z_p5\", \"manifest_path\": \"<ROOT>/20260601T000000Z_p5/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260601T000000Z\", \"generated_at_utc\": null, \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": 1, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nallowed-int,20260601T000000Z,,,unknown,,,unknown,<ROOT>/20260601T000000Z_p5,<ROOT>/20260601T000000Z_p5/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260601,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260601,1,0,0,1,unknown=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `1`\n\n## Summary\n\n- Gate status counts:\n  - `unknown`: `1`\n- Block reason counts:\n  - `none`: `1`\n- Campaign day counts:\n  - `20260601`: `1`\n- Latest gate status streak: `unknown` x `1`\n- Latest block reason streak: `none` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260601` | `1` | `unknown=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `1` | `20260601` | `20260601` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `allowed-int` | `unknown` | `unknown` | `none` | `unknown` | `unknown` |\n"
+      }
+    },
+    "build_block_reason_int_raises": {
+      "build": {
+        "error_message": "expected a string or null",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "build_dir_name_timestamp_zoo": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 5, \"gate_status_counts\": {\"unknown\": 5}, \"block_reason_counts\": {\"none\": 5}, \"campaign_day_counts\": {\"2026-06-\": 1, \"20260603\": 1, \"unknown\": 3}, \"campaign_day_gate_status_counts\": {\"2026-06-\": {\"unknown\": 1}, \"20260603\": {\"unknown\": 1}, \"unknown\": {\"unknown\": 3}}, \"block_reason_spans\": {\"none\": {\"count\": 5, \"first_campaign_day\": \"2026-06-\", \"last_campaign_day\": \"unknown\"}}, \"latest_gate_status\": \"unknown\", \"latest_gate_status_streak_length\": 5, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 5, \"entries\": [{\"run_id\": \"ts-whole\", \"bundle_dir\": \"<ROOT>/20260603T101500Z\", \"manifest_path\": \"<ROOT>/20260603T101500Z/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260603T101500Z\", \"generated_at_utc\": null, \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": null, \"block_reason\": null}, {\"run_id\": \"ts-iso\", \"bundle_dir\": \"<ROOT>/iso_fallback\", \"manifest_path\": \"<ROOT>/iso_fallback/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": null, \"generated_at_utc\": \"2026-06-03T10:15:00Z\", \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": null, \"block_reason\": null}, {\"run_id\": \"ts-leading\", \"bundle_dir\": \"<ROOT>/_leading_underscore\", \"manifest_path\": \"<ROOT>/_leading_underscore/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": null, \"generated_at_utc\": null, \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": null, \"block_reason\": null}, {\"run_id\": \"ts-invalid-date\", \"bundle_dir\": \"<ROOT>/20260699T000000Z_x\", \"manifest_path\": \"<ROOT>/20260699T000000Z_x/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": null, \"generated_at_utc\": null, \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": null, \"block_reason\": null}, {\"run_id\": \"ts-bad\", \"bundle_dir\": \"<ROOT>/2026bad_x\", \"manifest_path\": \"<ROOT>/2026bad_x/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": null, \"generated_at_utc\": null, \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": null, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nts-whole,20260603T101500Z,,,unknown,,,unknown,<ROOT>/20260603T101500Z,<ROOT>/20260603T101500Z/manifest.json\r\nts-iso,,2026-06-03T10:15:00Z,,unknown,,,unknown,<ROOT>/iso_fallback,<ROOT>/iso_fallback/manifest.json\r\nts-leading,,,,unknown,,,unknown,<ROOT>/_leading_underscore,<ROOT>/_leading_underscore/manifest.json\r\nts-invalid-date,,,,unknown,,,unknown,<ROOT>/20260699T000000Z_x,<ROOT>/20260699T000000Z_x/manifest.json\r\nts-bad,,,,unknown,,,unknown,<ROOT>/2026bad_x,<ROOT>/2026bad_x/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n2026-06-,none,1\r\n20260603,none,1\r\nunknown,none,3\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n2026-06-,1,0,0,1,unknown=1\r\n20260603,1,0,0,1,unknown=1\r\nunknown,3,0,0,3,unknown=3\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `5`\n\n## Summary\n\n- Gate status counts:\n  - `unknown`: `5`\n- Block reason counts:\n  - `none`: `5`\n- Campaign day counts:\n  - `2026-06-`: `1`\n  - `20260603`: `1`\n  - `unknown`: `3`\n- Latest gate status streak: `unknown` x `5`\n- Latest block reason streak: `none` x `5`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `2026-06-` | `1` | `unknown=1` |\n| `20260603` | `1` | `unknown=1` |\n| `unknown` | `3` | `unknown=3` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `5` | `2026-06-` | `unknown` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `ts-whole` | `unknown` | `unknown` | `none` | `unknown` | `unknown` |\n| `ts-iso` | `2026-06-03T10:15:00Z` | `unknown` | `none` | `unknown` | `unknown` |\n| `ts-leading` | `unknown` | `unknown` | `none` | `unknown` | `unknown` |\n| `ts-invalid-date` | `unknown` | `unknown` | `none` | `unknown` | `unknown` |\n| `ts-bad` | `unknown` | `unknown` | `none` | `unknown` | `unknown` |\n"
+      }
+    },
+    "build_filter_combined_all": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": \"blocked\", \"run_id_prefix\": \"alpha\", \"git_prefix\": \"ab\", \"dirty_state\": \"dirty\", \"generated_since_utc\": \"20260602T000000Z\", \"generated_until_utc\": \"20260602T235959Z\"}, \"bundle_count\": 1, \"gate_status_counts\": {\"blocked\": 1}, \"block_reason_counts\": {\"gate_blocked\": 1}, \"campaign_day_counts\": {\"20260602\": 1}, \"campaign_day_gate_status_counts\": {\"20260602\": {\"blocked\": 1}}, \"block_reason_spans\": {\"gate_blocked\": {\"count\": 1, \"first_campaign_day\": \"20260602\", \"last_campaign_day\": \"20260602\"}}, \"latest_gate_status\": \"blocked\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"gate_blocked\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"alpha-2\", \"bundle_dir\": \"<ROOT>/20260602T100000Z_fb\", \"manifest_path\": \"<ROOT>/20260602T100000Z_fb/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260602T100000Z\", \"generated_at_utc\": \"2026-06-02T10:00:00Z\", \"git_commit_short\": \"abd456\", \"git_dirty\": true, \"ranking_influence_allowed\": false, \"block_reason\": \"gate_blocked\"}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nalpha-2,20260602T100000Z,2026-06-02T10:00:00Z,false,blocked,gate_blocked,abd456,dirty,<ROOT>/20260602T100000Z_fb,<ROOT>/20260602T100000Z_fb/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260602,gate_blocked,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260602,1,0,1,0,blocked=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `1`\n\n## Filters\n\n- Gate status: `blocked`\n- Run ID prefix: `alpha`\n- Git prefix: `ab`\n- Dirty state: `dirty`\n- Generated since UTC: `20260602T000000Z`\n- Generated until UTC: `20260602T235959Z`\n\n## Summary\n\n- Gate status counts:\n  - `blocked`: `1`\n- Block reason counts:\n  - `gate_blocked`: `1`\n- Campaign day counts:\n  - `20260602`: `1`\n- Latest gate status streak: `blocked` x `1`\n- Latest block reason streak: `gate_blocked` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260602` | `1` | `blocked=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `gate_blocked` | `1` | `20260602` | `20260602` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `alpha-2` | `2026-06-02T10:00:00Z` | `blocked` | `gate_blocked` | `abd456` | `dirty` |\n"
+      }
+    },
+    "build_filter_dirty_clean": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": \"clean\", \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 1, \"gate_status_counts\": {\"allowed\": 1}, \"block_reason_counts\": {\"none\": 1}, \"campaign_day_counts\": {\"20260601\": 1}, \"campaign_day_gate_status_counts\": {\"20260601\": {\"allowed\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 1, \"first_campaign_day\": \"20260601\", \"last_campaign_day\": \"20260601\"}}, \"latest_gate_status\": \"allowed\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"alpha-1\", \"bundle_dir\": \"<ROOT>/20260601T100000Z_fa\", \"manifest_path\": \"<ROOT>/20260601T100000Z_fa/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260601T100000Z\", \"generated_at_utc\": \"2026-06-01T10:00:00Z\", \"git_commit_short\": \"abc123\", \"git_dirty\": false, \"ranking_influence_allowed\": true, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nalpha-1,20260601T100000Z,2026-06-01T10:00:00Z,true,allowed,,abc123,clean,<ROOT>/20260601T100000Z_fa,<ROOT>/20260601T100000Z_fa/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260601,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260601,1,1,0,0,allowed=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `1`\n\n## Filters\n\n- Gate status: `none`\n- Run ID prefix: `none`\n- Git prefix: `none`\n- Dirty state: `clean`\n- Generated since UTC: `none`\n- Generated until UTC: `none`\n\n## Summary\n\n- Gate status counts:\n  - `allowed`: `1`\n- Block reason counts:\n  - `none`: `1`\n- Campaign day counts:\n  - `20260601`: `1`\n- Latest gate status streak: `allowed` x `1`\n- Latest block reason streak: `none` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260601` | `1` | `allowed=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `1` | `20260601` | `20260601` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `alpha-1` | `2026-06-01T10:00:00Z` | `allowed` | `none` | `abc123` | `clean` |\n"
+      }
+    },
+    "build_filter_dirty_dirty": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": \"dirty\", \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 2, \"gate_status_counts\": {\"blocked\": 1, \"unknown\": 1}, \"block_reason_counts\": {\"gate_blocked\": 1, \"none\": 1}, \"campaign_day_counts\": {\"20260602\": 1, \"20260603\": 1}, \"campaign_day_gate_status_counts\": {\"20260602\": {\"blocked\": 1}, \"20260603\": {\"unknown\": 1}}, \"block_reason_spans\": {\"gate_blocked\": {\"count\": 1, \"first_campaign_day\": \"20260602\", \"last_campaign_day\": \"20260602\"}, \"none\": {\"count\": 1, \"first_campaign_day\": \"20260603\", \"last_campaign_day\": \"20260603\"}}, \"latest_gate_status\": \"unknown\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"beta-1\", \"bundle_dir\": \"<ROOT>/20260603T100000Z_fc\", \"manifest_path\": \"<ROOT>/20260603T100000Z_fc/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260603T100000Z\", \"generated_at_utc\": \"2026-06-03T10:00:00Z\", \"git_commit_short\": \"xyz789\", \"git_dirty\": true, \"ranking_influence_allowed\": \"true\", \"block_reason\": null}, {\"run_id\": \"alpha-2\", \"bundle_dir\": \"<ROOT>/20260602T100000Z_fb\", \"manifest_path\": \"<ROOT>/20260602T100000Z_fb/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260602T100000Z\", \"generated_at_utc\": \"2026-06-02T10:00:00Z\", \"git_commit_short\": \"abd456\", \"git_dirty\": true, \"ranking_influence_allowed\": false, \"block_reason\": \"gate_blocked\"}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nbeta-1,20260603T100000Z,2026-06-03T10:00:00Z,,unknown,,xyz789,dirty,<ROOT>/20260603T100000Z_fc,<ROOT>/20260603T100000Z_fc/manifest.json\r\nalpha-2,20260602T100000Z,2026-06-02T10:00:00Z,false,blocked,gate_blocked,abd456,dirty,<ROOT>/20260602T100000Z_fb,<ROOT>/20260602T100000Z_fb/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260602,gate_blocked,1\r\n20260603,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260602,1,0,1,0,blocked=1\r\n20260603,1,0,0,1,unknown=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `2`\n\n## Filters\n\n- Gate status: `none`\n- Run ID prefix: `none`\n- Git prefix: `none`\n- Dirty state: `dirty`\n- Generated since UTC: `none`\n- Generated until UTC: `none`\n\n## Summary\n\n- Gate status counts:\n  - `blocked`: `1`\n  - `unknown`: `1`\n- Block reason counts:\n  - `gate_blocked`: `1`\n  - `none`: `1`\n- Campaign day counts:\n  - `20260602`: `1`\n  - `20260603`: `1`\n- Latest gate status streak: `unknown` x `1`\n- Latest block reason streak: `none` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260602` | `1` | `blocked=1` |\n| `20260603` | `1` | `unknown=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `gate_blocked` | `1` | `20260602` | `20260602` |\n| `none` | `1` | `20260603` | `20260603` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `beta-1` | `2026-06-03T10:00:00Z` | `unknown` | `none` | `xyz789` | `dirty` |\n| `alpha-2` | `2026-06-02T10:00:00Z` | `blocked` | `gate_blocked` | `abd456` | `dirty` |\n"
+      }
+    },
+    "build_filter_gate_allowed": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": \"allowed\", \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 1, \"gate_status_counts\": {\"allowed\": 1}, \"block_reason_counts\": {\"none\": 1}, \"campaign_day_counts\": {\"20260601\": 1}, \"campaign_day_gate_status_counts\": {\"20260601\": {\"allowed\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 1, \"first_campaign_day\": \"20260601\", \"last_campaign_day\": \"20260601\"}}, \"latest_gate_status\": \"allowed\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"alpha-1\", \"bundle_dir\": \"<ROOT>/20260601T100000Z_fa\", \"manifest_path\": \"<ROOT>/20260601T100000Z_fa/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260601T100000Z\", \"generated_at_utc\": \"2026-06-01T10:00:00Z\", \"git_commit_short\": \"abc123\", \"git_dirty\": false, \"ranking_influence_allowed\": true, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nalpha-1,20260601T100000Z,2026-06-01T10:00:00Z,true,allowed,,abc123,clean,<ROOT>/20260601T100000Z_fa,<ROOT>/20260601T100000Z_fa/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260601,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260601,1,1,0,0,allowed=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `1`\n\n## Filters\n\n- Gate status: `allowed`\n- Run ID prefix: `none`\n- Git prefix: `none`\n- Dirty state: `none`\n- Generated since UTC: `none`\n- Generated until UTC: `none`\n\n## Summary\n\n- Gate status counts:\n  - `allowed`: `1`\n- Block reason counts:\n  - `none`: `1`\n- Campaign day counts:\n  - `20260601`: `1`\n- Latest gate status streak: `allowed` x `1`\n- Latest block reason streak: `none` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260601` | `1` | `allowed=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `1` | `20260601` | `20260601` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `alpha-1` | `2026-06-01T10:00:00Z` | `allowed` | `none` | `abc123` | `clean` |\n"
+      }
+    },
+    "build_filter_gate_blocked": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": \"blocked\", \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 1, \"gate_status_counts\": {\"blocked\": 1}, \"block_reason_counts\": {\"gate_blocked\": 1}, \"campaign_day_counts\": {\"20260602\": 1}, \"campaign_day_gate_status_counts\": {\"20260602\": {\"blocked\": 1}}, \"block_reason_spans\": {\"gate_blocked\": {\"count\": 1, \"first_campaign_day\": \"20260602\", \"last_campaign_day\": \"20260602\"}}, \"latest_gate_status\": \"blocked\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"gate_blocked\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"alpha-2\", \"bundle_dir\": \"<ROOT>/20260602T100000Z_fb\", \"manifest_path\": \"<ROOT>/20260602T100000Z_fb/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260602T100000Z\", \"generated_at_utc\": \"2026-06-02T10:00:00Z\", \"git_commit_short\": \"abd456\", \"git_dirty\": true, \"ranking_influence_allowed\": false, \"block_reason\": \"gate_blocked\"}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nalpha-2,20260602T100000Z,2026-06-02T10:00:00Z,false,blocked,gate_blocked,abd456,dirty,<ROOT>/20260602T100000Z_fb,<ROOT>/20260602T100000Z_fb/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260602,gate_blocked,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260602,1,0,1,0,blocked=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `1`\n\n## Filters\n\n- Gate status: `blocked`\n- Run ID prefix: `none`\n- Git prefix: `none`\n- Dirty state: `none`\n- Generated since UTC: `none`\n- Generated until UTC: `none`\n\n## Summary\n\n- Gate status counts:\n  - `blocked`: `1`\n- Block reason counts:\n  - `gate_blocked`: `1`\n- Campaign day counts:\n  - `20260602`: `1`\n- Latest gate status streak: `blocked` x `1`\n- Latest block reason streak: `gate_blocked` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260602` | `1` | `blocked=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `gate_blocked` | `1` | `20260602` | `20260602` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `alpha-2` | `2026-06-02T10:00:00Z` | `blocked` | `gate_blocked` | `abd456` | `dirty` |\n"
+      }
+    },
+    "build_filter_git_prefix_ab": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": \"ab\", \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 2, \"gate_status_counts\": {\"allowed\": 1, \"blocked\": 1}, \"block_reason_counts\": {\"gate_blocked\": 1, \"none\": 1}, \"campaign_day_counts\": {\"20260601\": 1, \"20260602\": 1}, \"campaign_day_gate_status_counts\": {\"20260601\": {\"allowed\": 1}, \"20260602\": {\"blocked\": 1}}, \"block_reason_spans\": {\"gate_blocked\": {\"count\": 1, \"first_campaign_day\": \"20260602\", \"last_campaign_day\": \"20260602\"}, \"none\": {\"count\": 1, \"first_campaign_day\": \"20260601\", \"last_campaign_day\": \"20260601\"}}, \"latest_gate_status\": \"blocked\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"gate_blocked\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"alpha-2\", \"bundle_dir\": \"<ROOT>/20260602T100000Z_fb\", \"manifest_path\": \"<ROOT>/20260602T100000Z_fb/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260602T100000Z\", \"generated_at_utc\": \"2026-06-02T10:00:00Z\", \"git_commit_short\": \"abd456\", \"git_dirty\": true, \"ranking_influence_allowed\": false, \"block_reason\": \"gate_blocked\"}, {\"run_id\": \"alpha-1\", \"bundle_dir\": \"<ROOT>/20260601T100000Z_fa\", \"manifest_path\": \"<ROOT>/20260601T100000Z_fa/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260601T100000Z\", \"generated_at_utc\": \"2026-06-01T10:00:00Z\", \"git_commit_short\": \"abc123\", \"git_dirty\": false, \"ranking_influence_allowed\": true, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nalpha-2,20260602T100000Z,2026-06-02T10:00:00Z,false,blocked,gate_blocked,abd456,dirty,<ROOT>/20260602T100000Z_fb,<ROOT>/20260602T100000Z_fb/manifest.json\r\nalpha-1,20260601T100000Z,2026-06-01T10:00:00Z,true,allowed,,abc123,clean,<ROOT>/20260601T100000Z_fa,<ROOT>/20260601T100000Z_fa/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260601,none,1\r\n20260602,gate_blocked,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260601,1,1,0,0,allowed=1\r\n20260602,1,0,1,0,blocked=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `2`\n\n## Filters\n\n- Gate status: `none`\n- Run ID prefix: `none`\n- Git prefix: `ab`\n- Dirty state: `none`\n- Generated since UTC: `none`\n- Generated until UTC: `none`\n\n## Summary\n\n- Gate status counts:\n  - `allowed`: `1`\n  - `blocked`: `1`\n- Block reason counts:\n  - `gate_blocked`: `1`\n  - `none`: `1`\n- Campaign day counts:\n  - `20260601`: `1`\n  - `20260602`: `1`\n- Latest gate status streak: `blocked` x `1`\n- Latest block reason streak: `gate_blocked` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260601` | `1` | `allowed=1` |\n| `20260602` | `1` | `blocked=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `gate_blocked` | `1` | `20260602` | `20260602` |\n| `none` | `1` | `20260601` | `20260601` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `alpha-2` | `2026-06-02T10:00:00Z` | `blocked` | `gate_blocked` | `abd456` | `dirty` |\n| `alpha-1` | `2026-06-01T10:00:00Z` | `allowed` | `none` | `abc123` | `clean` |\n"
+      }
+    },
+    "build_filter_run_prefix_alpha": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": \"alpha\", \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 2, \"gate_status_counts\": {\"allowed\": 1, \"blocked\": 1}, \"block_reason_counts\": {\"gate_blocked\": 1, \"none\": 1}, \"campaign_day_counts\": {\"20260601\": 1, \"20260602\": 1}, \"campaign_day_gate_status_counts\": {\"20260601\": {\"allowed\": 1}, \"20260602\": {\"blocked\": 1}}, \"block_reason_spans\": {\"gate_blocked\": {\"count\": 1, \"first_campaign_day\": \"20260602\", \"last_campaign_day\": \"20260602\"}, \"none\": {\"count\": 1, \"first_campaign_day\": \"20260601\", \"last_campaign_day\": \"20260601\"}}, \"latest_gate_status\": \"blocked\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"gate_blocked\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"alpha-2\", \"bundle_dir\": \"<ROOT>/20260602T100000Z_fb\", \"manifest_path\": \"<ROOT>/20260602T100000Z_fb/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260602T100000Z\", \"generated_at_utc\": \"2026-06-02T10:00:00Z\", \"git_commit_short\": \"abd456\", \"git_dirty\": true, \"ranking_influence_allowed\": false, \"block_reason\": \"gate_blocked\"}, {\"run_id\": \"alpha-1\", \"bundle_dir\": \"<ROOT>/20260601T100000Z_fa\", \"manifest_path\": \"<ROOT>/20260601T100000Z_fa/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260601T100000Z\", \"generated_at_utc\": \"2026-06-01T10:00:00Z\", \"git_commit_short\": \"abc123\", \"git_dirty\": false, \"ranking_influence_allowed\": true, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nalpha-2,20260602T100000Z,2026-06-02T10:00:00Z,false,blocked,gate_blocked,abd456,dirty,<ROOT>/20260602T100000Z_fb,<ROOT>/20260602T100000Z_fb/manifest.json\r\nalpha-1,20260601T100000Z,2026-06-01T10:00:00Z,true,allowed,,abc123,clean,<ROOT>/20260601T100000Z_fa,<ROOT>/20260601T100000Z_fa/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260601,none,1\r\n20260602,gate_blocked,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260601,1,1,0,0,allowed=1\r\n20260602,1,0,1,0,blocked=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `2`\n\n## Filters\n\n- Gate status: `none`\n- Run ID prefix: `alpha`\n- Git prefix: `none`\n- Dirty state: `none`\n- Generated since UTC: `none`\n- Generated until UTC: `none`\n\n## Summary\n\n- Gate status counts:\n  - `allowed`: `1`\n  - `blocked`: `1`\n- Block reason counts:\n  - `gate_blocked`: `1`\n  - `none`: `1`\n- Campaign day counts:\n  - `20260601`: `1`\n  - `20260602`: `1`\n- Latest gate status streak: `blocked` x `1`\n- Latest block reason streak: `gate_blocked` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260601` | `1` | `allowed=1` |\n| `20260602` | `1` | `blocked=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `gate_blocked` | `1` | `20260602` | `20260602` |\n| `none` | `1` | `20260601` | `20260601` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `alpha-2` | `2026-06-02T10:00:00Z` | `blocked` | `gate_blocked` | `abd456` | `dirty` |\n| `alpha-1` | `2026-06-01T10:00:00Z` | `allowed` | `none` | `abc123` | `clean` |\n"
+      }
+    },
+    "build_filter_run_prefix_empty": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": \"\", \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 3, \"gate_status_counts\": {\"allowed\": 1, \"blocked\": 1, \"unknown\": 1}, \"block_reason_counts\": {\"gate_blocked\": 1, \"none\": 2}, \"campaign_day_counts\": {\"20260601\": 1, \"20260602\": 1, \"20260603\": 1}, \"campaign_day_gate_status_counts\": {\"20260601\": {\"allowed\": 1}, \"20260602\": {\"blocked\": 1}, \"20260603\": {\"unknown\": 1}}, \"block_reason_spans\": {\"gate_blocked\": {\"count\": 1, \"first_campaign_day\": \"20260602\", \"last_campaign_day\": \"20260602\"}, \"none\": {\"count\": 2, \"first_campaign_day\": \"20260601\", \"last_campaign_day\": \"20260603\"}}, \"latest_gate_status\": \"unknown\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"beta-1\", \"bundle_dir\": \"<ROOT>/20260603T100000Z_fc\", \"manifest_path\": \"<ROOT>/20260603T100000Z_fc/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260603T100000Z\", \"generated_at_utc\": \"2026-06-03T10:00:00Z\", \"git_commit_short\": \"xyz789\", \"git_dirty\": true, \"ranking_influence_allowed\": \"true\", \"block_reason\": null}, {\"run_id\": \"alpha-2\", \"bundle_dir\": \"<ROOT>/20260602T100000Z_fb\", \"manifest_path\": \"<ROOT>/20260602T100000Z_fb/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260602T100000Z\", \"generated_at_utc\": \"2026-06-02T10:00:00Z\", \"git_commit_short\": \"abd456\", \"git_dirty\": true, \"ranking_influence_allowed\": false, \"block_reason\": \"gate_blocked\"}, {\"run_id\": \"alpha-1\", \"bundle_dir\": \"<ROOT>/20260601T100000Z_fa\", \"manifest_path\": \"<ROOT>/20260601T100000Z_fa/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260601T100000Z\", \"generated_at_utc\": \"2026-06-01T10:00:00Z\", \"git_commit_short\": \"abc123\", \"git_dirty\": false, \"ranking_influence_allowed\": true, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nbeta-1,20260603T100000Z,2026-06-03T10:00:00Z,,unknown,,xyz789,dirty,<ROOT>/20260603T100000Z_fc,<ROOT>/20260603T100000Z_fc/manifest.json\r\nalpha-2,20260602T100000Z,2026-06-02T10:00:00Z,false,blocked,gate_blocked,abd456,dirty,<ROOT>/20260602T100000Z_fb,<ROOT>/20260602T100000Z_fb/manifest.json\r\nalpha-1,20260601T100000Z,2026-06-01T10:00:00Z,true,allowed,,abc123,clean,<ROOT>/20260601T100000Z_fa,<ROOT>/20260601T100000Z_fa/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260601,none,1\r\n20260602,gate_blocked,1\r\n20260603,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260601,1,1,0,0,allowed=1\r\n20260602,1,0,1,0,blocked=1\r\n20260603,1,0,0,1,unknown=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `3`\n\n## Filters\n\n- Gate status: `none`\n- Run ID prefix: `none`\n- Git prefix: `none`\n- Dirty state: `none`\n- Generated since UTC: `none`\n- Generated until UTC: `none`\n\n## Summary\n\n- Gate status counts:\n  - `allowed`: `1`\n  - `blocked`: `1`\n  - `unknown`: `1`\n- Block reason counts:\n  - `gate_blocked`: `1`\n  - `none`: `2`\n- Campaign day counts:\n  - `20260601`: `1`\n  - `20260602`: `1`\n  - `20260603`: `1`\n- Latest gate status streak: `unknown` x `1`\n- Latest block reason streak: `none` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260601` | `1` | `allowed=1` |\n| `20260602` | `1` | `blocked=1` |\n| `20260603` | `1` | `unknown=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `gate_blocked` | `1` | `20260602` | `20260602` |\n| `none` | `2` | `20260601` | `20260603` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `beta-1` | `2026-06-03T10:00:00Z` | `unknown` | `none` | `xyz789` | `dirty` |\n| `alpha-2` | `2026-06-02T10:00:00Z` | `blocked` | `gate_blocked` | `abd456` | `dirty` |\n| `alpha-1` | `2026-06-01T10:00:00Z` | `allowed` | `none` | `abc123` | `clean` |\n"
+      }
+    },
+    "build_filter_since": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": \"20260602T100000Z\", \"generated_until_utc\": null}, \"bundle_count\": 3, \"gate_status_counts\": {\"blocked\": 1, \"unknown\": 2}, \"block_reason_counts\": {\"gate_blocked\": 1, \"none\": 2}, \"campaign_day_counts\": {\"20260602\": 1, \"20260603\": 1, \"20260604\": 1}, \"campaign_day_gate_status_counts\": {\"20260602\": {\"blocked\": 1}, \"20260603\": {\"unknown\": 1}, \"20260604\": {\"unknown\": 1}}, \"block_reason_spans\": {\"gate_blocked\": {\"count\": 1, \"first_campaign_day\": \"20260602\", \"last_campaign_day\": \"20260602\"}, \"none\": {\"count\": 2, \"first_campaign_day\": \"20260603\", \"last_campaign_day\": \"20260604\"}}, \"latest_gate_status\": \"unknown\", \"latest_gate_status_streak_length\": 2, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 2, \"entries\": [{\"run_id\": null, \"bundle_dir\": \"<ROOT>/20260604T100000Z_fd\", \"manifest_path\": \"<ROOT>/20260604T100000Z_fd/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260604T100000Z\", \"generated_at_utc\": null, \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": null, \"block_reason\": null}, {\"run_id\": \"beta-1\", \"bundle_dir\": \"<ROOT>/20260603T100000Z_fc\", \"manifest_path\": \"<ROOT>/20260603T100000Z_fc/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260603T100000Z\", \"generated_at_utc\": \"2026-06-03T10:00:00Z\", \"git_commit_short\": \"xyz789\", \"git_dirty\": true, \"ranking_influence_allowed\": \"true\", \"block_reason\": null}, {\"run_id\": \"alpha-2\", \"bundle_dir\": \"<ROOT>/20260602T100000Z_fb\", \"manifest_path\": \"<ROOT>/20260602T100000Z_fb/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260602T100000Z\", \"generated_at_utc\": \"2026-06-02T10:00:00Z\", \"git_commit_short\": \"abd456\", \"git_dirty\": true, \"ranking_influence_allowed\": false, \"block_reason\": \"gate_blocked\"}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\n,20260604T100000Z,,,unknown,,,unknown,<ROOT>/20260604T100000Z_fd,<ROOT>/20260604T100000Z_fd/manifest.json\r\nbeta-1,20260603T100000Z,2026-06-03T10:00:00Z,,unknown,,xyz789,dirty,<ROOT>/20260603T100000Z_fc,<ROOT>/20260603T100000Z_fc/manifest.json\r\nalpha-2,20260602T100000Z,2026-06-02T10:00:00Z,false,blocked,gate_blocked,abd456,dirty,<ROOT>/20260602T100000Z_fb,<ROOT>/20260602T100000Z_fb/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260602,gate_blocked,1\r\n20260603,none,1\r\n20260604,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260602,1,0,1,0,blocked=1\r\n20260603,1,0,0,1,unknown=1\r\n20260604,1,0,0,1,unknown=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `3`\n\n## Filters\n\n- Gate status: `none`\n- Run ID prefix: `none`\n- Git prefix: `none`\n- Dirty state: `none`\n- Generated since UTC: `20260602T100000Z`\n- Generated until UTC: `none`\n\n## Summary\n\n- Gate status counts:\n  - `blocked`: `1`\n  - `unknown`: `2`\n- Block reason counts:\n  - `gate_blocked`: `1`\n  - `none`: `2`\n- Campaign day counts:\n  - `20260602`: `1`\n  - `20260603`: `1`\n  - `20260604`: `1`\n- Latest gate status streak: `unknown` x `2`\n- Latest block reason streak: `none` x `2`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260602` | `1` | `blocked=1` |\n| `20260603` | `1` | `unknown=1` |\n| `20260604` | `1` | `unknown=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `gate_blocked` | `1` | `20260602` | `20260602` |\n| `none` | `2` | `20260603` | `20260604` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `unknown` | `unknown` | `unknown` | `none` | `unknown` | `unknown` |\n| `beta-1` | `2026-06-03T10:00:00Z` | `unknown` | `none` | `xyz789` | `dirty` |\n| `alpha-2` | `2026-06-02T10:00:00Z` | `blocked` | `gate_blocked` | `abd456` | `dirty` |\n"
+      }
+    },
+    "build_filter_since_excludes_timestampless": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": \"20000101T000000Z\", \"generated_until_utc\": null}, \"bundle_count\": 1, \"gate_status_counts\": {\"unknown\": 1}, \"block_reason_counts\": {\"none\": 1}, \"campaign_day_counts\": {\"20260601\": 1}, \"campaign_day_gate_status_counts\": {\"20260601\": {\"unknown\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 1, \"first_campaign_day\": \"20260601\", \"last_campaign_day\": \"20260601\"}}, \"latest_gate_status\": \"unknown\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"with-ts\", \"bundle_dir\": \"<ROOT>/20260601T000000Z_ok\", \"manifest_path\": \"<ROOT>/20260601T000000Z_ok/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260601T000000Z\", \"generated_at_utc\": null, \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": null, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nwith-ts,20260601T000000Z,,,unknown,,,unknown,<ROOT>/20260601T000000Z_ok,<ROOT>/20260601T000000Z_ok/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260601,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260601,1,0,0,1,unknown=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `1`\n\n## Filters\n\n- Gate status: `none`\n- Run ID prefix: `none`\n- Git prefix: `none`\n- Dirty state: `none`\n- Generated since UTC: `20000101T000000Z`\n- Generated until UTC: `none`\n\n## Summary\n\n- Gate status counts:\n  - `unknown`: `1`\n- Block reason counts:\n  - `none`: `1`\n- Campaign day counts:\n  - `20260601`: `1`\n- Latest gate status streak: `unknown` x `1`\n- Latest block reason streak: `none` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260601` | `1` | `unknown=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `1` | `20260601` | `20260601` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `with-ts` | `unknown` | `unknown` | `none` | `unknown` | `unknown` |\n"
+      }
+    },
+    "build_filter_since_iso_fallback_excluded_quirk": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": \"20260101T000000Z\", \"generated_until_utc\": null}, \"bundle_count\": 0, \"gate_status_counts\": {}, \"block_reason_counts\": {}, \"campaign_day_counts\": {}, \"campaign_day_gate_status_counts\": {}, \"block_reason_spans\": {}, \"latest_gate_status\": \"none\", \"latest_gate_status_streak_length\": 0, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 0, \"entries\": []}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `0`\n\n## Filters\n\n- Gate status: `none`\n- Run ID prefix: `none`\n- Git prefix: `none`\n- Dirty state: `none`\n- Generated since UTC: `20260101T000000Z`\n- Generated until UTC: `none`\n\nNo bundle manifests found.\n"
+      }
+    },
+    "build_filter_since_iso_fallback_included": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": \"20000101T000000Z\", \"generated_until_utc\": null}, \"bundle_count\": 1, \"gate_status_counts\": {\"unknown\": 1}, \"block_reason_counts\": {\"none\": 1}, \"campaign_day_counts\": {\"2026-06-\": 1}, \"campaign_day_gate_status_counts\": {\"2026-06-\": {\"unknown\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 1, \"first_campaign_day\": \"2026-06-\", \"last_campaign_day\": \"2026-06-\"}}, \"latest_gate_status\": \"unknown\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"iso-1\", \"bundle_dir\": \"<ROOT>/iso_only\", \"manifest_path\": \"<ROOT>/iso_only/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": null, \"generated_at_utc\": \"2026-06-03T10:15:00Z\", \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": null, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\niso-1,,2026-06-03T10:15:00Z,,unknown,,,unknown,<ROOT>/iso_only,<ROOT>/iso_only/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n2026-06-,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n2026-06-,1,0,0,1,unknown=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `1`\n\n## Filters\n\n- Gate status: `none`\n- Run ID prefix: `none`\n- Git prefix: `none`\n- Dirty state: `none`\n- Generated since UTC: `20000101T000000Z`\n- Generated until UTC: `none`\n\n## Summary\n\n- Gate status counts:\n  - `unknown`: `1`\n- Block reason counts:\n  - `none`: `1`\n- Campaign day counts:\n  - `2026-06-`: `1`\n- Latest gate status streak: `unknown` x `1`\n- Latest block reason streak: `none` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `2026-06-` | `1` | `unknown=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `1` | `2026-06-` | `2026-06-` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `iso-1` | `2026-06-03T10:15:00Z` | `unknown` | `none` | `unknown` | `unknown` |\n"
+      }
+    },
+    "build_filter_since_until_window": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": \"20260602T000000Z\", \"generated_until_utc\": \"20260602T235959Z\"}, \"bundle_count\": 1, \"gate_status_counts\": {\"blocked\": 1}, \"block_reason_counts\": {\"gate_blocked\": 1}, \"campaign_day_counts\": {\"20260602\": 1}, \"campaign_day_gate_status_counts\": {\"20260602\": {\"blocked\": 1}}, \"block_reason_spans\": {\"gate_blocked\": {\"count\": 1, \"first_campaign_day\": \"20260602\", \"last_campaign_day\": \"20260602\"}}, \"latest_gate_status\": \"blocked\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"gate_blocked\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"alpha-2\", \"bundle_dir\": \"<ROOT>/20260602T100000Z_fb\", \"manifest_path\": \"<ROOT>/20260602T100000Z_fb/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260602T100000Z\", \"generated_at_utc\": \"2026-06-02T10:00:00Z\", \"git_commit_short\": \"abd456\", \"git_dirty\": true, \"ranking_influence_allowed\": false, \"block_reason\": \"gate_blocked\"}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nalpha-2,20260602T100000Z,2026-06-02T10:00:00Z,false,blocked,gate_blocked,abd456,dirty,<ROOT>/20260602T100000Z_fb,<ROOT>/20260602T100000Z_fb/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260602,gate_blocked,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260602,1,0,1,0,blocked=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `1`\n\n## Filters\n\n- Gate status: `none`\n- Run ID prefix: `none`\n- Git prefix: `none`\n- Dirty state: `none`\n- Generated since UTC: `20260602T000000Z`\n- Generated until UTC: `20260602T235959Z`\n\n## Summary\n\n- Gate status counts:\n  - `blocked`: `1`\n- Block reason counts:\n  - `gate_blocked`: `1`\n- Campaign day counts:\n  - `20260602`: `1`\n- Latest gate status streak: `blocked` x `1`\n- Latest block reason streak: `gate_blocked` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260602` | `1` | `blocked=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `gate_blocked` | `1` | `20260602` | `20260602` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `alpha-2` | `2026-06-02T10:00:00Z` | `blocked` | `gate_blocked` | `abd456` | `dirty` |\n"
+      }
+    },
+    "build_filter_until": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": \"20260602T100000Z\"}, \"bundle_count\": 2, \"gate_status_counts\": {\"allowed\": 1, \"blocked\": 1}, \"block_reason_counts\": {\"gate_blocked\": 1, \"none\": 1}, \"campaign_day_counts\": {\"20260601\": 1, \"20260602\": 1}, \"campaign_day_gate_status_counts\": {\"20260601\": {\"allowed\": 1}, \"20260602\": {\"blocked\": 1}}, \"block_reason_spans\": {\"gate_blocked\": {\"count\": 1, \"first_campaign_day\": \"20260602\", \"last_campaign_day\": \"20260602\"}, \"none\": {\"count\": 1, \"first_campaign_day\": \"20260601\", \"last_campaign_day\": \"20260601\"}}, \"latest_gate_status\": \"blocked\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"gate_blocked\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"alpha-2\", \"bundle_dir\": \"<ROOT>/20260602T100000Z_fb\", \"manifest_path\": \"<ROOT>/20260602T100000Z_fb/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260602T100000Z\", \"generated_at_utc\": \"2026-06-02T10:00:00Z\", \"git_commit_short\": \"abd456\", \"git_dirty\": true, \"ranking_influence_allowed\": false, \"block_reason\": \"gate_blocked\"}, {\"run_id\": \"alpha-1\", \"bundle_dir\": \"<ROOT>/20260601T100000Z_fa\", \"manifest_path\": \"<ROOT>/20260601T100000Z_fa/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260601T100000Z\", \"generated_at_utc\": \"2026-06-01T10:00:00Z\", \"git_commit_short\": \"abc123\", \"git_dirty\": false, \"ranking_influence_allowed\": true, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nalpha-2,20260602T100000Z,2026-06-02T10:00:00Z,false,blocked,gate_blocked,abd456,dirty,<ROOT>/20260602T100000Z_fb,<ROOT>/20260602T100000Z_fb/manifest.json\r\nalpha-1,20260601T100000Z,2026-06-01T10:00:00Z,true,allowed,,abc123,clean,<ROOT>/20260601T100000Z_fa,<ROOT>/20260601T100000Z_fa/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260601,none,1\r\n20260602,gate_blocked,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260601,1,1,0,0,allowed=1\r\n20260602,1,0,1,0,blocked=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `2`\n\n## Filters\n\n- Gate status: `none`\n- Run ID prefix: `none`\n- Git prefix: `none`\n- Dirty state: `none`\n- Generated since UTC: `none`\n- Generated until UTC: `20260602T100000Z`\n\n## Summary\n\n- Gate status counts:\n  - `allowed`: `1`\n  - `blocked`: `1`\n- Block reason counts:\n  - `gate_blocked`: `1`\n  - `none`: `1`\n- Campaign day counts:\n  - `20260601`: `1`\n  - `20260602`: `1`\n- Latest gate status streak: `blocked` x `1`\n- Latest block reason streak: `gate_blocked` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260601` | `1` | `allowed=1` |\n| `20260602` | `1` | `blocked=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `gate_blocked` | `1` | `20260602` | `20260602` |\n| `none` | `1` | `20260601` | `20260601` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `alpha-2` | `2026-06-02T10:00:00Z` | `blocked` | `gate_blocked` | `abd456` | `dirty` |\n| `alpha-1` | `2026-06-01T10:00:00Z` | `allowed` | `none` | `abc123` | `clean` |\n"
+      }
+    },
+    "build_git_commit_int_markdown_csv_raise": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 1, \"gate_status_counts\": {\"unknown\": 1}, \"block_reason_counts\": {\"none\": 1}, \"campaign_day_counts\": {\"20260601\": 1}, \"campaign_day_gate_status_counts\": {\"20260601\": {\"unknown\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 1, \"first_campaign_day\": \"20260601\", \"last_campaign_day\": \"20260601\"}}, \"latest_gate_status\": \"unknown\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"poison-git\", \"bundle_dir\": \"<ROOT>/20260601T000000Z_p3\", \"manifest_path\": \"<ROOT>/20260601T000000Z_p3/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260601T000000Z\", \"generated_at_utc\": \"2026-06-01T00:00:00Z\", \"git_commit_short\": 99, \"git_dirty\": null, \"ranking_influence_allowed\": null, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "error_message": "expected a string or null",
+        "error_type": "TypeError",
+        "outcome": "error"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260601,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260601,1,0,0,1,unknown=1\r\n"
+      },
+      "markdown": {
+        "error_message": "expected a string or null",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "build_git_dirty_string_renders_unknown": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 1, \"gate_status_counts\": {\"unknown\": 1}, \"block_reason_counts\": {\"none\": 1}, \"campaign_day_counts\": {\"20260601\": 1}, \"campaign_day_gate_status_counts\": {\"20260601\": {\"unknown\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 1, \"first_campaign_day\": \"20260601\", \"last_campaign_day\": \"20260601\"}}, \"latest_gate_status\": \"unknown\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"dirty-str\", \"bundle_dir\": \"<ROOT>/20260601T000000Z_p4\", \"manifest_path\": \"<ROOT>/20260601T000000Z_p4/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260601T000000Z\", \"generated_at_utc\": null, \"git_commit_short\": null, \"git_dirty\": \"yes\", \"ranking_influence_allowed\": null, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\ndirty-str,20260601T000000Z,,,unknown,,,unknown,<ROOT>/20260601T000000Z_p4,<ROOT>/20260601T000000Z_p4/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260601,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260601,1,0,0,1,unknown=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `1`\n\n## Summary\n\n- Gate status counts:\n  - `unknown`: `1`\n- Block reason counts:\n  - `none`: `1`\n- Campaign day counts:\n  - `20260601`: `1`\n- Latest gate status streak: `unknown` x `1`\n- Latest block reason streak: `none` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260601` | `1` | `unknown=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `1` | `20260601` | `20260601` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `dirty-str` | `unknown` | `unknown` | `none` | `unknown` | `unknown` |\n"
+      }
+    },
+    "build_kwargs_campaign_root_str": {
+      "build": {
+        "error_message": "campaign_root must be a Path",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_dirty_state_unknown_value": {
+      "build": {
+        "error_message": "dirty_state must be 'clean' or 'dirty' when present",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_gate_status_bool": {
+      "build": {
+        "error_message": "gate_status must be 'allowed' or 'blocked' when present",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_gate_status_unknown_value": {
+      "build": {
+        "error_message": "gate_status must be 'allowed' or 'blocked' when present",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_generated_since_int": {
+      "build": {
+        "error_message": "generated UTC filters must be strings when present",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_generated_since_iso_format": {
+      "build": {
+        "error_message": "generated UTC filters must use YYYYMMDDTHHMMSSZ format",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_generated_until_bool": {
+      "build": {
+        "error_message": "generated UTC filters must be strings when present",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_generated_until_garbage": {
+      "build": {
+        "error_message": "generated UTC filters must use YYYYMMDDTHHMMSSZ format",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_git_prefix_int": {
+      "build": {
+        "error_message": "git_prefix must be a string when present",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_limit_bool_false": {
+      "build": {
+        "error_message": "limit must be a positive integer when present",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_limit_float": {
+      "build": {
+        "error_message": "limit must be a positive integer when present",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_limit_negative": {
+      "build": {
+        "error_message": "limit must be a positive integer when present",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_limit_str": {
+      "build": {
+        "error_message": "limit must be a positive integer when present",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_limit_zero": {
+      "build": {
+        "error_message": "limit must be a positive integer when present",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_precedence_dirty_before_since": {
+      "build": {
+        "error_message": "dirty_state must be 'clean' or 'dirty' when present",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_precedence_gate_before_run_prefix": {
+      "build": {
+        "error_message": "gate_status must be 'allowed' or 'blocked' when present",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_precedence_git_prefix_before_dirty": {
+      "build": {
+        "error_message": "git_prefix must be a string when present",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_precedence_limit_before_gate": {
+      "build": {
+        "error_message": "limit must be a positive integer when present",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_precedence_root_before_limit": {
+      "build": {
+        "error_message": "campaign_root must be a Path",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_precedence_run_prefix_before_git_prefix": {
+      "build": {
+        "error_message": "run_id_prefix must be a string when present",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_precedence_since_before_until": {
+      "build": {
+        "error_message": "generated UTC filters must use YYYYMMDDTHHMMSSZ format",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_run_id_prefix_bool": {
+      "build": {
+        "error_message": "run_id_prefix must be a string when present",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "build_kwargs_run_id_prefix_int": {
+      "build": {
+        "error_message": "run_id_prefix must be a string when present",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "build_limit_bool_true_acts_as_one": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 1, \"gate_status_counts\": {\"blocked\": 1}, \"block_reason_counts\": {\"why_blocked\": 1}, \"campaign_day_counts\": {\"20260602\": 1}, \"campaign_day_gate_status_counts\": {\"20260602\": {\"blocked\": 1}}, \"block_reason_spans\": {\"why_blocked\": {\"count\": 1, \"first_campaign_day\": \"20260602\", \"last_campaign_day\": \"20260602\"}}, \"latest_gate_status\": \"blocked\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"why_blocked\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"two\", \"bundle_dir\": \"<ROOT>/20260602T000000Z_b\", \"manifest_path\": \"<ROOT>/20260602T000000Z_b/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260602T000000Z\", \"generated_at_utc\": \"2026-06-02T00:00:00Z\", \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": false, \"block_reason\": \"why_blocked\"}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\ntwo,20260602T000000Z,2026-06-02T00:00:00Z,false,blocked,why_blocked,,unknown,<ROOT>/20260602T000000Z_b,<ROOT>/20260602T000000Z_b/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260602,why_blocked,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260602,1,0,1,0,blocked=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `1`\n\n## Summary\n\n- Gate status counts:\n  - `blocked`: `1`\n- Block reason counts:\n  - `why_blocked`: `1`\n- Campaign day counts:\n  - `20260602`: `1`\n- Latest gate status streak: `blocked` x `1`\n- Latest block reason streak: `why_blocked` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260602` | `1` | `blocked=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `why_blocked` | `1` | `20260602` | `20260602` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `two` | `2026-06-02T00:00:00Z` | `blocked` | `why_blocked` | `unknown` | `unknown` |\n"
+      }
+    },
+    "build_limit_exceeds_entries": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 2, \"gate_status_counts\": {\"allowed\": 1, \"blocked\": 1}, \"block_reason_counts\": {\"none\": 1, \"why_blocked\": 1}, \"campaign_day_counts\": {\"20260601\": 1, \"20260602\": 1}, \"campaign_day_gate_status_counts\": {\"20260601\": {\"allowed\": 1}, \"20260602\": {\"blocked\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 1, \"first_campaign_day\": \"20260601\", \"last_campaign_day\": \"20260601\"}, \"why_blocked\": {\"count\": 1, \"first_campaign_day\": \"20260602\", \"last_campaign_day\": \"20260602\"}}, \"latest_gate_status\": \"blocked\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"why_blocked\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"two\", \"bundle_dir\": \"<ROOT>/20260602T000000Z_b\", \"manifest_path\": \"<ROOT>/20260602T000000Z_b/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260602T000000Z\", \"generated_at_utc\": \"2026-06-02T00:00:00Z\", \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": false, \"block_reason\": \"why_blocked\"}, {\"run_id\": \"one\", \"bundle_dir\": \"<ROOT>/20260601T000000Z_a\", \"manifest_path\": \"<ROOT>/20260601T000000Z_a/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260601T000000Z\", \"generated_at_utc\": \"2026-06-01T00:00:00Z\", \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": true, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\ntwo,20260602T000000Z,2026-06-02T00:00:00Z,false,blocked,why_blocked,,unknown,<ROOT>/20260602T000000Z_b,<ROOT>/20260602T000000Z_b/manifest.json\r\none,20260601T000000Z,2026-06-01T00:00:00Z,true,allowed,,,unknown,<ROOT>/20260601T000000Z_a,<ROOT>/20260601T000000Z_a/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260601,none,1\r\n20260602,why_blocked,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260601,1,1,0,0,allowed=1\r\n20260602,1,0,1,0,blocked=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `2`\n\n## Summary\n\n- Gate status counts:\n  - `allowed`: `1`\n  - `blocked`: `1`\n- Block reason counts:\n  - `none`: `1`\n  - `why_blocked`: `1`\n- Campaign day counts:\n  - `20260601`: `1`\n  - `20260602`: `1`\n- Latest gate status streak: `blocked` x `1`\n- Latest block reason streak: `why_blocked` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260601` | `1` | `allowed=1` |\n| `20260602` | `1` | `blocked=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `1` | `20260601` | `20260601` |\n| `why_blocked` | `1` | `20260602` | `20260602` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `two` | `2026-06-02T00:00:00Z` | `blocked` | `why_blocked` | `unknown` | `unknown` |\n| `one` | `2026-06-01T00:00:00Z` | `allowed` | `none` | `unknown` | `unknown` |\n"
+      }
+    },
+    "build_limit_two_truncates_aggregates": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 2, \"gate_status_counts\": {\"allowed\": 2}, \"block_reason_counts\": {\"none\": 2}, \"campaign_day_counts\": {\"20260605\": 1, \"20260606\": 1}, \"campaign_day_gate_status_counts\": {\"20260605\": {\"allowed\": 1}, \"20260606\": {\"allowed\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 2, \"first_campaign_day\": \"20260605\", \"last_campaign_day\": \"20260606\"}}, \"latest_gate_status\": \"allowed\", \"latest_gate_status_streak_length\": 2, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 2, \"entries\": [{\"run_id\": \"r-z\", \"bundle_dir\": \"<ROOT>/20260606T000000Z_d\", \"manifest_path\": \"<ROOT>/20260606T000000Z_d/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260606T000000Z\", \"generated_at_utc\": \"2026-06-06T00:00:00Z\", \"git_commit_short\": \"ddd111\", \"git_dirty\": false, \"ranking_influence_allowed\": true, \"block_reason\": null}, {\"run_id\": \"r-a\", \"bundle_dir\": \"<ROOT>/20260605T000000Z_c\", \"manifest_path\": \"<ROOT>/20260605T000000Z_c/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260605T000000Z\", \"generated_at_utc\": \"2026-06-05T00:00:01Z\", \"git_commit_short\": \"ccc111\", \"git_dirty\": false, \"ranking_influence_allowed\": true, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nr-z,20260606T000000Z,2026-06-06T00:00:00Z,true,allowed,,ddd111,clean,<ROOT>/20260606T000000Z_d,<ROOT>/20260606T000000Z_d/manifest.json\r\nr-a,20260605T000000Z,2026-06-05T00:00:01Z,true,allowed,,ccc111,clean,<ROOT>/20260605T000000Z_c,<ROOT>/20260605T000000Z_c/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260605,none,1\r\n20260606,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260605,1,1,0,0,allowed=1\r\n20260606,1,1,0,0,allowed=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `2`\n\n## Summary\n\n- Gate status counts:\n  - `allowed`: `2`\n- Block reason counts:\n  - `none`: `2`\n- Campaign day counts:\n  - `20260605`: `1`\n  - `20260606`: `1`\n- Latest gate status streak: `allowed` x `2`\n- Latest block reason streak: `none` x `2`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260605` | `1` | `allowed=1` |\n| `20260606` | `1` | `allowed=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `2` | `20260605` | `20260606` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `r-z` | `2026-06-06T00:00:00Z` | `allowed` | `none` | `ddd111` | `clean` |\n| `r-a` | `2026-06-05T00:00:01Z` | `allowed` | `none` | `ccc111` | `clean` |\n"
+      }
+    },
+    "build_manifest_is_directory": {
+      "build": {
+        "error_message": "[Errno 21] Is a directory: '<ROOT>/bundle_x/manifest.json'",
+        "error_type": "IsADirectoryError",
+        "outcome": "error"
+      }
+    },
+    "build_manifest_non_utf8": {
+      "build": {
+        "error_message": "'utf-8' codec can't decode byte 0xff in position 0: invalid start byte",
+        "error_type": "UnicodeDecodeError",
+        "outcome": "error"
+      }
+    },
+    "build_metadata_null": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 1, \"gate_status_counts\": {\"unknown\": 1}, \"block_reason_counts\": {\"none\": 1}, \"campaign_day_counts\": {\"20260601\": 1}, \"campaign_day_gate_status_counts\": {\"20260601\": {\"unknown\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 1, \"first_campaign_day\": \"20260601\", \"last_campaign_day\": \"20260601\"}}, \"latest_gate_status\": \"unknown\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"m-null\", \"bundle_dir\": \"<ROOT>/20260601T000000Z_x\", \"manifest_path\": \"<ROOT>/20260601T000000Z_x/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260601T000000Z\", \"generated_at_utc\": null, \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": null, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nm-null,20260601T000000Z,,,unknown,,,unknown,<ROOT>/20260601T000000Z_x,<ROOT>/20260601T000000Z_x/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260601,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260601,1,0,0,1,unknown=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `1`\n\n## Summary\n\n- Gate status counts:\n  - `unknown`: `1`\n- Block reason counts:\n  - `none`: `1`\n- Campaign day counts:\n  - `20260601`: `1`\n- Latest gate status streak: `unknown` x `1`\n- Latest block reason streak: `none` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260601` | `1` | `unknown=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `1` | `20260601` | `20260601` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `m-null` | `unknown` | `unknown` | `none` | `unknown` | `unknown` |\n"
+      }
+    },
+    "build_metadata_partial": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 1, \"gate_status_counts\": {\"unknown\": 1}, \"block_reason_counts\": {\"none\": 1}, \"campaign_day_counts\": {\"20260602\": 1}, \"campaign_day_gate_status_counts\": {\"20260602\": {\"unknown\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 1, \"first_campaign_day\": \"20260602\", \"last_campaign_day\": \"20260602\"}}, \"latest_gate_status\": \"unknown\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"m-partial\", \"bundle_dir\": \"<ROOT>/20260602T080000Z_y\", \"manifest_path\": \"<ROOT>/20260602T080000Z_y/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260602T080000Z\", \"generated_at_utc\": \"2026-06-02T08:00:00Z\", \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": null, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nm-partial,20260602T080000Z,2026-06-02T08:00:00Z,,unknown,,,unknown,<ROOT>/20260602T080000Z_y,<ROOT>/20260602T080000Z_y/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260602,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260602,1,0,0,1,unknown=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `1`\n\n## Summary\n\n- Gate status counts:\n  - `unknown`: `1`\n- Block reason counts:\n  - `none`: `1`\n- Campaign day counts:\n  - `20260602`: `1`\n- Latest gate status streak: `unknown` x `1`\n- Latest block reason streak: `none` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260602` | `1` | `unknown=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `1` | `20260602` | `20260602` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `m-partial` | `2026-06-02T08:00:00Z` | `unknown` | `none` | `unknown` | `unknown` |\n"
+      }
+    },
+    "build_minimal_schema_only_manifest": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 1, \"gate_status_counts\": {\"unknown\": 1}, \"block_reason_counts\": {\"none\": 1}, \"campaign_day_counts\": {\"unknown\": 1}, \"campaign_day_gate_status_counts\": {\"unknown\": {\"unknown\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 1, \"first_campaign_day\": \"unknown\", \"last_campaign_day\": \"unknown\"}}, \"latest_gate_status\": \"unknown\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": null, \"bundle_dir\": \"<ROOT>/nodate\", \"manifest_path\": \"<ROOT>/nodate/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": null, \"generated_at_utc\": null, \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": null, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\n,,,,unknown,,,unknown,<ROOT>/nodate,<ROOT>/nodate/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\nunknown,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\nunknown,1,0,0,1,unknown=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `1`\n\n## Summary\n\n- Gate status counts:\n  - `unknown`: `1`\n- Block reason counts:\n  - `none`: `1`\n- Campaign day counts:\n  - `unknown`: `1`\n- Latest gate status streak: `unknown` x `1`\n- Latest block reason streak: `none` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `unknown` | `1` | `unknown=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `1` | `unknown` | `unknown` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `unknown` | `unknown` | `unknown` | `none` | `unknown` | `unknown` |\n"
+      }
+    },
+    "build_root_empty_dir": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 0, \"gate_status_counts\": {}, \"block_reason_counts\": {}, \"campaign_day_counts\": {}, \"campaign_day_gate_status_counts\": {}, \"block_reason_spans\": {}, \"latest_gate_status\": \"none\", \"latest_gate_status_streak_length\": 0, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 0, \"entries\": []}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `0`\n\nNo bundle manifests found.\n"
+      }
+    },
+    "build_root_is_file": {
+      "build": {
+        "error_message": "[Errno 20] Not a directory: '<ROOT>'",
+        "error_type": "NotADirectoryError",
+        "outcome": "error"
+      }
+    },
+    "build_root_missing": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 0, \"gate_status_counts\": {}, \"block_reason_counts\": {}, \"campaign_day_counts\": {}, \"campaign_day_gate_status_counts\": {}, \"block_reason_spans\": {}, \"latest_gate_status\": \"none\", \"latest_gate_status_streak_length\": 0, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 0, \"entries\": []}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `0`\n\nNo bundle manifests found.\n"
+      }
+    },
+    "build_root_missing_with_all_filters": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": \"allowed\", \"run_id_prefix\": \"r\", \"git_prefix\": \"g\", \"dirty_state\": \"clean\", \"generated_since_utc\": \"20260101T000000Z\", \"generated_until_utc\": \"20261231T235959Z\"}, \"bundle_count\": 0, \"gate_status_counts\": {}, \"block_reason_counts\": {}, \"campaign_day_counts\": {}, \"campaign_day_gate_status_counts\": {}, \"block_reason_spans\": {}, \"latest_gate_status\": \"none\", \"latest_gate_status_streak_length\": 0, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 0, \"entries\": []}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `0`\n\n## Filters\n\n- Gate status: `allowed`\n- Run ID prefix: `r`\n- Git prefix: `g`\n- Dirty state: `clean`\n- Generated since UTC: `20260101T000000Z`\n- Generated until UTC: `20261231T235959Z`\n\nNo bundle manifests found.\n"
+      }
+    },
+    "build_run_id_int_markdown_csv_raise": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 1, \"gate_status_counts\": {\"allowed\": 1}, \"block_reason_counts\": {\"none\": 1}, \"campaign_day_counts\": {\"20260601\": 1}, \"campaign_day_gate_status_counts\": {\"20260601\": {\"allowed\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 1, \"first_campaign_day\": \"20260601\", \"last_campaign_day\": \"20260601\"}}, \"latest_gate_status\": \"allowed\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": 123, \"bundle_dir\": \"<ROOT>/20260601T000000Z_p2\", \"manifest_path\": \"<ROOT>/20260601T000000Z_p2/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260601T000000Z\", \"generated_at_utc\": \"2026-06-01T00:00:00Z\", \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": true, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "error_message": "expected a string or null",
+        "error_type": "TypeError",
+        "outcome": "error"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260601,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260601,1,1,0,0,allowed=1\r\n"
+      },
+      "markdown": {
+        "error_message": "expected a string or null",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "build_scan_skips_zoo": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 1, \"gate_status_counts\": {\"allowed\": 1}, \"block_reason_counts\": {\"none\": 1}, \"campaign_day_counts\": {\"20260601\": 1}, \"campaign_day_gate_status_counts\": {\"20260601\": {\"allowed\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 1, \"first_campaign_day\": \"20260601\", \"last_campaign_day\": \"20260601\"}}, \"latest_gate_status\": \"allowed\", \"latest_gate_status_streak_length\": 1, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 1, \"entries\": [{\"run_id\": \"good-1\", \"bundle_dir\": \"<ROOT>/20260601T120000Z_good\", \"manifest_path\": \"<ROOT>/20260601T120000Z_good/manifest.json\", \"baseline_report_path\": \"baseline_report.json\", \"gate_report_path\": \"gate_report.json\", \"summary_path\": \"ranking_review.md\", \"instructions_path\": \"README.md\", \"campaign_timestamp_utc\": \"20260601T120000Z\", \"generated_at_utc\": \"2026-06-01T12:00:00Z\", \"git_commit_short\": \"abc1234\", \"git_dirty\": false, \"ranking_influence_allowed\": true, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\ngood-1,20260601T120000Z,2026-06-01T12:00:00Z,true,allowed,,abc1234,clean,<ROOT>/20260601T120000Z_good,<ROOT>/20260601T120000Z_good/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260601,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260601,1,1,0,0,allowed=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `1`\n\n## Summary\n\n- Gate status counts:\n  - `allowed`: `1`\n- Block reason counts:\n  - `none`: `1`\n- Campaign day counts:\n  - `20260601`: `1`\n- Latest gate status streak: `allowed` x `1`\n- Latest block reason streak: `none` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260601` | `1` | `allowed=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `1` | `20260601` | `20260601` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `good-1` | `2026-06-01T12:00:00Z` | `allowed` | `none` | `abc1234` | `clean` |\n"
+      }
+    },
+    "build_sort_and_streaks": {
+      "build": {
+        "index_json": "{\"schema\": \"zenodex/zenograph-autotrader-ranking-review-campaign-index/v1\", \"campaign_root\": \"<ROOT>\", \"filters\": {\"gate_status\": null, \"run_id_prefix\": null, \"git_prefix\": null, \"dirty_state\": null, \"generated_since_utc\": null, \"generated_until_utc\": null}, \"bundle_count\": 5, \"gate_status_counts\": {\"allowed\": 2, \"blocked\": 1, \"unknown\": 2}, \"block_reason_counts\": {\"none\": 4, \"x_reason\": 1}, \"campaign_day_counts\": {\"20260605\": 3, \"20260606\": 1, \"unknown\": 1}, \"campaign_day_gate_status_counts\": {\"20260605\": {\"allowed\": 1, \"blocked\": 1, \"unknown\": 1}, \"20260606\": {\"allowed\": 1}, \"unknown\": {\"unknown\": 1}}, \"block_reason_spans\": {\"none\": {\"count\": 4, \"first_campaign_day\": \"20260605\", \"last_campaign_day\": \"unknown\"}, \"x_reason\": {\"count\": 1, \"first_campaign_day\": \"20260605\", \"last_campaign_day\": \"20260605\"}}, \"latest_gate_status\": \"allowed\", \"latest_gate_status_streak_length\": 2, \"latest_block_reason\": \"none\", \"latest_block_reason_streak_length\": 2, \"entries\": [{\"run_id\": \"r-z\", \"bundle_dir\": \"<ROOT>/20260606T000000Z_d\", \"manifest_path\": \"<ROOT>/20260606T000000Z_d/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260606T000000Z\", \"generated_at_utc\": \"2026-06-06T00:00:00Z\", \"git_commit_short\": \"ddd111\", \"git_dirty\": false, \"ranking_influence_allowed\": true, \"block_reason\": null}, {\"run_id\": \"r-a\", \"bundle_dir\": \"<ROOT>/20260605T000000Z_c\", \"manifest_path\": \"<ROOT>/20260605T000000Z_c/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260605T000000Z\", \"generated_at_utc\": \"2026-06-05T00:00:01Z\", \"git_commit_short\": \"ccc111\", \"git_dirty\": false, \"ranking_influence_allowed\": true, \"block_reason\": null}, {\"run_id\": \"r-c\", \"bundle_dir\": \"<ROOT>/20260605T000000Z_a\", \"manifest_path\": \"<ROOT>/20260605T000000Z_a/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260605T000000Z\", \"generated_at_utc\": \"2026-06-05T00:00:00Z\", \"git_commit_short\": \"aaa111\", \"git_dirty\": true, \"ranking_influence_allowed\": false, \"block_reason\": \"x_reason\"}, {\"run_id\": \"r-b\", \"bundle_dir\": \"<ROOT>/20260605T000000Z_b\", \"manifest_path\": \"<ROOT>/20260605T000000Z_b/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": \"20260605T000000Z\", \"generated_at_utc\": \"2026-06-05T00:00:00Z\", \"git_commit_short\": \"bbb111\", \"git_dirty\": null, \"ranking_influence_allowed\": null, \"block_reason\": \"\"}, {\"run_id\": \"r-m\", \"bundle_dir\": \"<ROOT>/nodate\", \"manifest_path\": \"<ROOT>/nodate/manifest.json\", \"baseline_report_path\": null, \"gate_report_path\": null, \"summary_path\": null, \"instructions_path\": null, \"campaign_timestamp_utc\": null, \"generated_at_utc\": null, \"git_commit_short\": null, \"git_dirty\": null, \"ranking_influence_allowed\": null, \"block_reason\": null}]}",
+        "outcome": "ok"
+      },
+      "csv": {
+        "outcome": "ok",
+        "output": "run_id,campaign_timestamp_utc,generated_at_utc,ranking_influence_allowed,gate_status,block_reason,git_commit_short,git_dirty,bundle_dir,manifest_path\r\nr-z,20260606T000000Z,2026-06-06T00:00:00Z,true,allowed,,ddd111,clean,<ROOT>/20260606T000000Z_d,<ROOT>/20260606T000000Z_d/manifest.json\r\nr-a,20260605T000000Z,2026-06-05T00:00:01Z,true,allowed,,ccc111,clean,<ROOT>/20260605T000000Z_c,<ROOT>/20260605T000000Z_c/manifest.json\r\nr-c,20260605T000000Z,2026-06-05T00:00:00Z,false,blocked,x_reason,aaa111,dirty,<ROOT>/20260605T000000Z_a,<ROOT>/20260605T000000Z_a/manifest.json\r\nr-b,20260605T000000Z,2026-06-05T00:00:00Z,,unknown,,bbb111,unknown,<ROOT>/20260605T000000Z_b,<ROOT>/20260605T000000Z_b/manifest.json\r\nr-m,,,,unknown,,,unknown,<ROOT>/nodate,<ROOT>/nodate/manifest.json\r\n"
+      },
+      "daily_block_reason_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,block_reason,count\r\n20260605,none,2\r\n20260605,x_reason,1\r\n20260606,none,1\r\nunknown,none,1\r\n"
+      },
+      "daily_csv": {
+        "outcome": "ok",
+        "output": "campaign_day,bundle_count,allowed_count,blocked_count,unknown_count,gate_status_counts\r\n20260605,3,1,1,1,allowed=1;blocked=1;unknown=1\r\n20260606,1,1,0,0,allowed=1\r\nunknown,1,0,0,1,unknown=1\r\n"
+      },
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `<ROOT>`\n- Bundle count: `5`\n\n## Summary\n\n- Gate status counts:\n  - `allowed`: `2`\n  - `blocked`: `1`\n  - `unknown`: `2`\n- Block reason counts:\n  - `none`: `4`\n  - `x_reason`: `1`\n- Campaign day counts:\n  - `20260605`: `3`\n  - `20260606`: `1`\n  - `unknown`: `1`\n- Latest gate status streak: `allowed` x `2`\n- Latest block reason streak: `none` x `2`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260605` | `3` | `allowed=1, blocked=1, unknown=1` |\n| `20260606` | `1` | `allowed=1` |\n| `unknown` | `1` | `unknown=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `4` | `20260605` | `unknown` |\n| `x_reason` | `1` | `20260605` | `20260605` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `r-z` | `2026-06-06T00:00:00Z` | `allowed` | `none` | `ddd111` | `clean` |\n| `r-a` | `2026-06-05T00:00:01Z` | `allowed` | `none` | `ccc111` | `clean` |\n| `r-c` | `2026-06-05T00:00:00Z` | `blocked` | `x_reason` | `aaa111` | `dirty` |\n| `r-b` | `2026-06-05T00:00:00Z` | `unknown` | `none` | `bbb111` | `unknown` |\n| `r-m` | `unknown` | `unknown` | `none` | `unknown` | `unknown` |\n"
+      }
+    },
+    "render_csv_entries_dict": {
+      "csv": {
+        "error_message": "entries must be a list",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_csv_schema_wrong": {
+      "csv": {
+        "error_message": "unsupported campaign index schema",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "render_md_block_reason_count_value_str_raises": {
+      "markdown": {
+        "error_message": "block_reason_counts.x must be an int",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_block_reason_counts_int": {
+      "markdown": {
+        "error_message": "block_reason_counts must be a mapping",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_block_reason_spans_list": {
+      "markdown": {
+        "error_message": "block_reason_spans must be a mapping",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_bundle_count_bool": {
+      "markdown": {
+        "error_message": "bundle_count must be an int",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_bundle_count_str": {
+      "markdown": {
+        "error_message": "bundle_count must be an int",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_campaign_day_counts_null": {
+      "markdown": {
+        "error_message": "campaign_day_counts must be a mapping",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_campaign_root_int": {
+      "markdown": {
+        "error_message": "campaign_root must be a string",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_campaign_root_missing": {
+      "markdown": {
+        "error_message": "campaign_root must be a string",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_day_count_value_float_raises": {
+      "markdown": {
+        "error_message": "campaign_day_counts.20260101 must be an int",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_day_gate_counts_string": {
+      "markdown": {
+        "error_message": "campaign_day_gate_status_counts must be a mapping",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_day_gate_inner_value_str_raises": {
+      "markdown": {
+        "error_message": "campaign_day_gate_status_counts.20260101.allowed must be an int",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_day_missing_from_gate_counts_raises": {
+      "markdown": {
+        "error_message": "campaign_day_gate_status_counts entries must be mappings",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_empty_no_filters": {
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `/campaigns`\n- Bundle count: `0`\n\nNo bundle manifests found.\n"
+      }
+    },
+    "render_md_empty_with_one_filter": {
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `/campaigns`\n- Bundle count: `0`\n\n## Filters\n\n- Gate status: `allowed`\n- Run ID prefix: `none`\n- Git prefix: `none`\n- Dirty state: `none`\n- Generated since UTC: `none`\n- Generated until UTC: `none`\n\nNo bundle manifests found.\n"
+      }
+    },
+    "render_md_entries_dict": {
+      "markdown": {
+        "error_message": "entries must be a list",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_entries_missing": {
+      "markdown": {
+        "error_message": "entries must be a list",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_entry_all_fields_missing_row_unknowns": {
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `/campaigns`\n- Bundle count: `1`\n\n## Summary\n\n- Gate status counts:\n  - `unknown`: `1`\n- Block reason counts:\n  - `none`: `1`\n- Campaign day counts:\n  - `unknown`: `1`\n- Latest gate status streak: `unknown` x `1`\n- Latest block reason streak: `none` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `unknown` | `1` | `unknown=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `1` | `unknown` | `unknown` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `unknown` | `unknown` | `unknown` | `none` | `unknown` | `unknown` |\n"
+      }
+    },
+    "render_md_entry_field_type_zoo": {
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `/campaigns`\n- Bundle count: `1`\n\n## Summary\n\n- Gate status counts:\n  - `unknown`: `1`\n- Block reason counts:\n  - `none`: `1`\n- Campaign day counts:\n  - `unknown`: `1`\n- Latest gate status streak: `unknown` x `1`\n- Latest block reason streak: `none` x `1`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `unknown` | `1` | `unknown=1` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `none` | `1` | `unknown` | `unknown` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `ok-1` | `unknown` | `unknown` | `none` | `unknown` | `unknown` |\n"
+      }
+    },
+    "render_md_entry_not_mapping_raises": {
+      "markdown": {
+        "error_message": "entries must contain objects",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_filter_empty_string_renders_section_with_none": {
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `/campaigns`\n- Bundle count: `0`\n\n## Filters\n\n- Gate status: `none`\n- Run ID prefix: `none`\n- Git prefix: `none`\n- Dirty state: `none`\n- Generated since UTC: `none`\n- Generated until UTC: `none`\n\nNo bundle manifests found.\n"
+      }
+    },
+    "render_md_filter_value_int_raises": {
+      "markdown": {
+        "error_message": "expected a string or null",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_filters_missing": {
+      "markdown": {
+        "error_message": "filters must be a mapping",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_filters_string": {
+      "markdown": {
+        "error_message": "filters must be a mapping",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_gate_count_value_bool_raises": {
+      "markdown": {
+        "error_message": "gate_status_counts.allowed must be an int",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_gate_status_counts_list": {
+      "markdown": {
+        "error_message": "gate_status_counts must be a mapping",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_latest_block_reason_int": {
+      "markdown": {
+        "error_message": "latest_block_reason must be a string",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_latest_block_streak_null": {
+      "markdown": {
+        "error_message": "latest_block_reason_streak_length must be an int",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_latest_gate_status_missing": {
+      "markdown": {
+        "error_message": "latest_gate_status must be a string",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_latest_gate_streak_string": {
+      "markdown": {
+        "error_message": "latest_gate_status_streak_length must be an int",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_payload_list": {
+      "markdown": {
+        "error_message": "payload must be a mapping",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_payload_string": {
+      "markdown": {
+        "error_message": "payload must be a mapping",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_precedence_campaign_root_before_bundle_count": {
+      "markdown": {
+        "error_message": "campaign_root must be a string",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_precedence_entries_before_gate_counts": {
+      "markdown": {
+        "error_message": "entries must be a list",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_precedence_filters_before_entries": {
+      "markdown": {
+        "error_message": "filters must be a mapping",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_precedence_schema_before_campaign_root": {
+      "markdown": {
+        "error_message": "unsupported campaign index schema",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "render_md_schema_missing": {
+      "markdown": {
+        "error_message": "unsupported campaign index schema",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "render_md_schema_wrong": {
+      "markdown": {
+        "error_message": "unsupported campaign index schema",
+        "error_type": "ValueError",
+        "outcome": "error"
+      }
+    },
+    "render_md_span_count_missing_raises": {
+      "markdown": {
+        "error_message": "block_reason_spans.x.count must be an int",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_span_entry_not_mapping_raises": {
+      "markdown": {
+        "error_message": "block_reason_spans entries must be mappings",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_span_first_day_int_raises": {
+      "markdown": {
+        "error_message": "block_reason_spans.x.first_campaign_day must be a string",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_span_last_day_missing_raises": {
+      "markdown": {
+        "error_message": "block_reason_spans.x.last_campaign_day must be a string",
+        "error_type": "TypeError",
+        "outcome": "error"
+      }
+    },
+    "render_md_unsorted_inputs_resorted": {
+      "markdown": {
+        "outcome": "ok",
+        "output": "# ZenoGraph Ranking Review Campaign Index\n\n- Campaign root: `/campaigns`\n- Bundle count: `3`\n\n## Summary\n\n- Gate status counts:\n  - `aa-gate`: `2`\n  - `zz-gate`: `1`\n- Block reason counts:\n  - `a-reason`: `2`\n  - `b-reason`: `1`\n- Campaign day counts:\n  - `20260101`: `2`\n  - `20260102`: `1`\n- Latest gate status streak: `aa-gate` x `2`\n- Latest block reason streak: `a-reason` x `3`\n\n## Campaign Day Trends\n\n| Campaign Day | Bundle Count | Gate Status Counts |\n| --- | --- | --- |\n| `20260101` | `2` | `a-gate=1, b-gate=1` |\n| `20260102` | `1` | `none` |\n\n## Block Reason Spans\n\n| Block Reason | Count | First Day | Last Day |\n| --- | --- | --- | --- |\n| `a-span` | `2` | `20260101` | `20260101` |\n| `z-span` | `1` | `20260101` | `20260102` |\n\n| Run ID | Generated UTC | Gate | Block Reason | Git | Dirty |\n| --- | --- | --- | --- | --- | --- |\n| `row-1` | `2026-01-01T00:00:00Z` | `allowed` | `none` | `c0ffee1` | `clean` |\n| `row-2` | `unknown` | `unknown` | `none` | `unknown` | `unknown` |\n"
+      }
+    }
+  },
+  "schema": "zenodex/zenograph-ranking-review-campaign-index-characterization-corpus/v1"
+}
