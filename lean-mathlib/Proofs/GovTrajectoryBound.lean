@@ -100,9 +100,10 @@ theorem witness_two_window_walk :
   intro w hw
   fin_cases hw <;> native_decide
 
-/-- Tightness: the bound m·B is ACHIEVED (not just an over-approximation) by
-the always-max same-direction walk — so m·B is exactly the reachable-set
-radius, and the Lean bound cannot be sharpened without new hypotheses. -/
+/-- Achievement: the bound m·B is ATTAINED at this concrete instance (m = 3,
+B = 150) by the always-max same-direction walk. The same construction scales
+to any m and B ≥ 0, so the m·B form is not sharpenable in general — but what
+is PROVED here is exactly this instance's equality, nothing stronger. -/
 theorem witness_bound_tight :
     let windows : List (List ℤ) := [[150], [150], [150]]
     (∀ w ∈ windows, (w.map abs).sum ≤ 150)
