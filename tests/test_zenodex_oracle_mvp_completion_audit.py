@@ -28,3 +28,12 @@ def test_oracle_mvp_completion_audit_accepts_current_local_shell() -> None:
     assert by_id[8]["ok"] is True
     assert by_id[10]["ok"] is True
     assert any("not every future routing" in limit for limit in by_id[6]["residual_limits"])
+
+    # Criterion 8 must be backed by a live, measured chaos closure, not just a
+    # CI workflow file: every case rejects and none fail.
+    chaos = receipt["chaos"]
+    assert chaos["total_case_count"] == chaos["total_rejected_case_count"]
+    assert chaos["total_failed_case_count"] == 0
+    assert chaos["total_case_count"] > 0
+    assert all(surface["closed"] is True for surface in chaos["surfaces"])
+    assert any("measured chaos closure" in line for line in by_id[8]["evidence"])

@@ -78,6 +78,62 @@ def _step_names(dry_run: dict[str, Any] | None) -> set[str]:
     return names
 
 
+def _chaos_summary() -> tuple[bool, dict[str, Any], str]:
+    """Run every chaos lane and measure that each rejects all of its cases.
+
+    This makes the audit depend on the live fail-closed chaos closure, not just
+    on the presence of a CI workflow file. A surface is healthy only when its
+    rejected_case_count equals its case_count and no case failed.
+    """
+    proc = subprocess.run(
+        [str(BIN), "chaos", "all"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=900,
+    )
+    try:
+        obj = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        return False, {}, f"chaos_non_json_output:{exc}"
+    results = obj.get("results")
+    if not isinstance(results, list) or not results:
+        return False, {}, "chaos_results_missing"
+    surfaces: list[dict[str, Any]] = []
+    all_closed = proc.returncode == 0 and obj.get("ok") is True
+    for item in results:
+        case_count = item.get("case_count")
+        rejected = item.get("rejected_case_count")
+        failed = item.get("failed_case_count")
+        surface_closed = (
+            isinstance(case_count, int)
+            and isinstance(rejected, int)
+            and isinstance(failed, int)
+            and case_count > 0
+            and rejected == case_count
+            and failed == 0
+        )
+        all_closed = all_closed and surface_closed
+        surfaces.append(
+            {
+                "surface": item.get("surface"),
+                "case_count": case_count,
+                "rejected_case_count": rejected,
+                "failed_case_count": failed,
+                "closed": surface_closed,
+            }
+        )
+    summary = {
+        "surface_count": obj.get("surface_count"),
+        "total_case_count": obj.get("case_count"),
+        "total_rejected_case_count": obj.get("rejected_case_count"),
+        "total_failed_case_count": obj.get("failed_case_count"),
+        "surfaces": surfaces,
+    }
+    return bool(all_closed), summary, ""
+
+
 def _package_manifest(version: str) -> tuple[bool, dict[str, Any] | None, str]:
     proc = subprocess.run(
         ["bash", "scripts/package_zeno_oracle_rc.sh", version],
@@ -106,6 +162,7 @@ def run_audit(*, run_gate: bool) -> dict[str, Any]:
         dry_ok, dry_run, dry_error = _run_json([str(BIN), "dry-run", "--workdir", str(dry_workdir)], timeout_s=180)
 
     package_ok, manifest, package_error = _package_manifest("zeno-oracle-audit-rc")
+    chaos_closed, chaos_summary, chaos_error = _chaos_summary()
     gate_ok = False
     gate_error = ""
     if run_gate:
@@ -207,9 +264,22 @@ def run_audit(*, run_gate: bool) -> dict[str, Any]:
         _criterion(
             8,
             "Oracle chaos lanes pass in CI",
-            workflow_ok and ((not run_gate) or gate_ok),
-            ["CI workflow runs the MVP gate directly or through the stronger devnet-alpha gate and uploads the RC artifact"]
-            + (["local full gate passed in this audit"] if run_gate and gate_ok else []),
+            workflow_ok and chaos_closed and ((not run_gate) or gate_ok),
+            (
+                ["CI workflow runs the MVP gate directly or through the stronger devnet-alpha gate and uploads the RC artifact"]
+                + (
+                    [
+                        "measured chaos closure: "
+                        f"{chaos_summary.get('total_rejected_case_count')}/"
+                        f"{chaos_summary.get('total_case_count')} cases rejected, "
+                        f"{chaos_summary.get('total_failed_case_count')} failed across "
+                        f"{chaos_summary.get('surface_count')} surfaces"
+                    ]
+                    if chaos_closed
+                    else [chaos_error or "chaos_lanes_not_fully_closed"]
+                )
+                + (["local full gate passed in this audit"] if run_gate and gate_ok else [])
+            ),
             residual_limits=[] if run_gate else ["local full gate was not rerun by this audit; use --run-gate for that"],
         ),
         _criterion(
@@ -234,6 +304,7 @@ def run_audit(*, run_gate: bool) -> dict[str, Any]:
         "criteria_count": len(criteria),
         "accepted_criteria_count": sum(1 for item in criteria if item["ok"]),
         "criteria": criteria,
+        "chaos": chaos_summary,
         "not_claimed": [
             "does_not_claim_live_oracle_network",
             "does_not_claim_platform_native_installer",
