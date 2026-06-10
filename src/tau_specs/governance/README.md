@@ -97,7 +97,8 @@ The cross-window COMPOSITION is machine-checked in Lean
 (`lean-mathlib/Proofs/GovTrajectoryBound.lean`, 0 sorry, compiles against the repo
 mathlib): if every window's drift charge is ≤ B, the end-to-end displacement after m
 windows is ≤ m·B (`trajectory_bound`, real induction via |Σδ| ≤ Σ|δ|), the bound is
-TIGHT (`witness_bound_tight` — the always-max walk achieves m·B exactly), and
+ACHIEVED at a concrete instance (`witness_bound_tight`: the always-max walk attains
+m·B exactly at m=3, B=150 — the construction scales, so m·B is not sharpenable), and
 oscillation charges budget without displacement (`witness_oscillation_charges`). ESSO
 proves the per-window invariant; Lean proves what it composes to.
 

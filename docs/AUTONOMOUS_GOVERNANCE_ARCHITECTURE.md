@@ -330,15 +330,15 @@ proved in Lean (`lean-mathlib/Proofs/GovTrajectoryBound.lean`).
 | **Multi-surface revision step** — all-or-nothing across every touched surface (fee/funding/whale scalars, router shares as a unit, MCR/CCR as a unit); gates import-bound (no forged-wrapper surface); consumes the policy-factory action shape (`{surface: delta}`) directly — every action in the frozen `q_policy.v1` sample is gate-admissible and the factory's negative controls all reject (differential fixture) | **Done** (`gov_loop.multi_surface_revision_step`) — reference; live `curr`/epoch binding still **Open** (WS5) |
 | Q-table **hash-pinning** primitive (`table_hash` / `layered_table_hash` / `energy_model_hash`) | **Done** (reference); a live consensus-bound, hash-pinned decision runtime is **Open** |
 | **Trajectory-tier Tau specs** — `gov_drift_budget_v1` / `gov_cooldown_v1` / `gov_charter_v1` / `gov_epoch_budget_v1` (compile + non-vacuity + teeth incl. wrap probes, via the same bf-layer harness) | **Done** (`validate_governance_specs.py` `PURE_SPECS`) |
-| Trajectory-tier Python mirrors + Tau↔Python differential parity (39 shared boundary cases) | **Done** (`gov_gate.py`, `test_gov_parity.py`) |
+| Trajectory-tier Python mirrors + Tau↔Python↔Rust differential parity (one shared boundary table, byte-pinned fixture) | **Done** (`gov_gate.py`, `test_gov_parity.py`) |
 | **Epoch machine** — charter (dead-man standing approval) / veto / freeze / cooldown / drift budgets / aggregate budget, stable receipt codes + params-digest no-op proofs, import-bound gates, no self-amendment | **Done** (`gov_epoch.py`, `test_gov_epoch.py`) — reference; live `now_epoch`/state binding still **Open** (WS5) |
 | **ESSO inductive verification** of the epoch machine's per-surface core (z3 + cvc5 agree, `Inductive(k=1)`, 10/10 queries, guard-presence tripwires) | **Done** (`src/kernels/dex/gov_epoch_machine_v1.yaml`) |
-| **Lean trajectory composition** — per-window budget B over m windows ⇒ end-to-end displacement ≤ m·B, with a tightness witness (m·B is achieved, the exact reachable-set radius) | **Done** (`lean-mathlib/Proofs/GovTrajectoryBound.lean`, 0 sorry) |
+| **Lean trajectory composition** — per-window budget B over m windows ⇒ end-to-end displacement ≤ m·B; achievement witness at m=3, B=150 (the always-max walk attains m·B; the construction scales) | **Done** (`lean-mathlib/Proofs/GovTrajectoryBound.lean`, 0 sorry; verify from a dep-complete checkout: `cd lean-mathlib && lake env lean Proofs/GovTrajectoryBound.lean` — `external/mathlib4` is git-ignored and absent in bare worktrees) |
 | **Observables/sensor layer** — staleness-guarded deterministic binning (stale/future ⇒ hold) | **Done** (`gov_observables.py`) — reference; real committed metrics are **Open** (WS5) |
 | **Production** proposer (tuned/audited PID or trained+frozen Q-table on real signals) | **Open** |
 | Live wiring: a deployed governance flow that *requires* this gate before applying any change | **Open** (WS5) |
 | Client-side refuse-loop that rejects an unbounded/unproven revision | **Open** (WS5) |
-| Rust port of the gate kernel (3-way Tau↔Python↔Rust parity, Kani no-panic/no-overflow) | **Open** (next; planned as a standalone crate slice) |
+| Rust port of the gate kernel — `rust-runtime/crates/zenodex-governance-gate`: all gates + trajectory bits + the canonical params digest (contract-equal to `gov_epoch.params_digest`), 3-way parity over the shared byte-pinned fixture, clippy-clean checked arithmetic, Kani 7/7 full-domain accept⇒invariant | **Done** (reference/shadow; authority stays `gov_gate.py`; promotion via the CBC matrix) |
 
 ## 8. References
 

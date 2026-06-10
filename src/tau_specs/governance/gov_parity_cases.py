@@ -183,4 +183,8 @@ CASES = [
     ("collateral", dict(approved=True, exec_req=True, proposal_ts=0, current_ts=24,
                         mcr_curr_bps=11000, mcr_next_bps=11000,
                         ccr_curr_bps=29800, ccr_next_bps=30500), False),  # swapped: next over ceiling
+    ("action", dict(approved=True, exec_req=True, proposal_ts=0, current_ts=24, min_delay=24,
+                    curr=10500, nxt=10000, lo=0, hi=10000, step=500), True),   # share steps back into band
+    ("action", dict(approved=True, exec_req=True, proposal_ts=0, current_ts=24, min_delay=24,
+                    curr=10000, nxt=10500, lo=0, hi=10000, step=500), False),  # swapped: next over hi
 ]

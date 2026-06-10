@@ -57,7 +57,7 @@ cd rust-runtime && cargo test -p zenodex-governance-gate
 
 ## Verification
 
-- `cargo test` — unit teeth + the 39-case shared table + digest golden vectors.
+- `cargo test` — unit teeth + every case in the shared boundary table + the digest golden vectors.
 - `cargo clippy` — clean under `#![forbid(unsafe_code)]` and
   `#![deny(clippy::arithmetic_side_effects)]` (checked or provably-widened
   arithmetic only).

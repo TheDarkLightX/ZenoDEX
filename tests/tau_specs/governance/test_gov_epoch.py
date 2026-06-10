@@ -469,8 +469,10 @@ def test_forged_duplicate_params_entry_rejected():
 def test_forged_hostile_params_key_rejected_before_any_comparison():
     # a str-subclass key planted via object.__setattr__ must be type-rejected
     # BEFORE sorted()/set() can consult its __lt__/__eq__/__hash__ — the call
-    # counter proves the hostile dunders never run (pre-fix: sorted() consulted
-    # __lt__ and the state was ADMITTED through validation).
+    # counter proves the hostile dunders never run. (Pre-fix: sorted()/set()
+    # consulted them — hostile code EXECUTED inside the validator — before the
+    # per-entry type loop eventually rejected; the fix removes the execution
+    # window, not just the final verdict.)
     calls = {"n": 0}
 
     class EvilKey(str):
