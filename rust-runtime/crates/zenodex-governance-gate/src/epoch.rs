@@ -789,7 +789,9 @@ mod tests {
 }
 
 // ---------------------------------------------------------------------------
-// Kani harnesses over the FULL symbolic state space (digest-free core only).
+// Kani harnesses over every CONSTRUCTIBLE state (digest-free core only;
+// any_state builds pendings through the validating constructor, so the proof
+// envelope and the representable envelope coincide).
 // Run: cargo kani -p zenodex-governance-gate
 // ---------------------------------------------------------------------------
 #[cfg(kani)]
