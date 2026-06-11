@@ -13,6 +13,11 @@ inside `experiments/mechanism_design_math_v1/`.
 | `H-MD-SB-004` | `O-SB-04` | sealed bid | `SUPPORTED` | `wave2_sealed_bid/test_sealed_bid_deviations.py` |
 | `H-MD-SB-005` | `O-SB-05` | sealed bid | `SUPPORTED` | `wave2_sealed_bid/test_sealed_bid_deviations.py` |
 | `H-MD-SB-006` | `O-SB-06` | sealed bid | `SUPPORTED` | `wave2_sealed_bid/test_sealed_bid_deviations.py` |
+| `H-MD-PT-001` | `O-PT-01` | perps timing | `SUPPORTED` | `wave3_perp_timing/test_perp_timing_and_keeper_deviations.py` |
+| `H-MD-PT-002` | `O-PT-02` | perps timing | `SUPPORTED` | `wave3_perp_timing/test_perp_timing_and_keeper_deviations.py` |
+| `H-MD-PT-003` | `O-PT-03` | perps timing | `SUPPORTED` | `wave3_perp_timing/test_perp_timing_and_keeper_deviations.py` |
+| `H-MD-PT-005` | `O-PT-01` | perps timing | `SUPPORTED` | `wave3_perp_timing/test_perp_timing_and_keeper_deviations.py` |
+| `H-MD-PT-006` | `O-PT-05` | perps timing | `SUPPORTED` | `wave3_perp_timing/test_perp_timing_and_keeper_deviations.py` |
 | `H-MD-VM-001` | `O-VM-01` | verification markets | `SUPPORTED` | `wave4_verification_markets/test_verification_market_deviations.py` |
 | `H-MD-VM-002` | `O-VM-02` | verification markets | `SUPPORTED` | `wave4_verification_markets/test_verification_market_deviations.py` |
 | `H-MD-VM-003` | `O-VM-03` | verification markets | `SUPPORTED` | `wave4_verification_markets/test_verification_market_deviations.py` |

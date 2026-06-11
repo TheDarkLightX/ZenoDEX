@@ -1,0 +1,65 @@
+{
+  "wave": 3,
+  "domain": "perp_timing",
+  "timestamp": "2026-06-11T00:00:00Z",
+  "hypotheses": [
+    {
+      "id": "H-MD-PT-001",
+      "description": "Funding timing residual is bounded by the configured per-epoch cap in the inspected single-account funding gate.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "A 10000-base long at price 1.0 and rate 100 bps pays exactly 100 quote units; the flat account has immediate funding payment 0 and funding_apply_allowed false. The avoided immediate amount equals floor(notional * funding_cap_bps / 10000).",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave3_perp_timing/test_perp_timing_and_keeper_deviations.py -q",
+      "obligation": "O-PT-01"
+    },
+    {
+      "id": "H-MD-PT-005",
+      "description": "OPEN-phase set_position can condition on funding_last_applied_epoch because the position guard does not inspect that field.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "Two states identical except funding_last_applied_epoch in {0, now_epoch} both admit set_position under the real guard; entering after funding has been marked applied remains legal in OPEN phase.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave3_perp_timing/test_perp_timing_and_keeper_deviations.py -q",
+      "obligation": "O-PT-01"
+    },
+    {
+      "id": "H-MD-PT-002",
+      "description": "PRICE_PUBLISHED phase blocks voluntary position changes and allowed phase steps keep position size for a non-liquidatable account.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "After publishing the clearing price, SET_POSITION rejects with guard. APPLY_FUNDING at rate 0 and SETTLE_EPOCH are accepted in the tested non-liquidatable state and leave position_base unchanged.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave3_perp_timing/test_perp_timing_and_keeper_deviations.py -q",
+      "obligation": "O-PT-02"
+    },
+    {
+      "id": "H-MD-PT-003",
+      "description": "A priority-gas all-pay keeper-race trace can dissipate almost the entire liquidation reward while deterministic execution spends only the execution cost.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.85,
+      "key_finding": "For rewards 2..128, the bounded trace with winning bid reward - 1 leaves winner surplus 1 and total all-pay effort at least the deterministic execution-cost baseline. This is cost-surface evidence, not an equilibrium proof.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave3_perp_timing/test_perp_timing_and_keeper_deviations.py -q",
+      "obligation": "O-PT-03"
+    },
+    {
+      "id": "H-MD-PT-006",
+      "description": "The caller-chosen fraction_bps parameter is a value-transfer lever: full liquidation can be legal while the auto minimum restores margin with less penalty.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "In the witness with position 100000, price 1.0, collateral 5900, and effective maintenance 6000, the auto minimum is 181 bps with penalty 9; full 10000 bps liquidation is also accepted and transfers penalty 500.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave3_perp_timing/test_perp_timing_and_keeper_deviations.py -q",
+      "obligation": "O-PT-05"
+    }
+  ],
+  "total_tests": 5,
+  "total_passed": 5,
+  "total_failed": 0
+}

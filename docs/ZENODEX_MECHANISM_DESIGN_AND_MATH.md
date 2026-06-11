@@ -311,12 +311,12 @@ per-epoch event, permissionlessly triggered.
 
 | Adversary move | Rule engaged | Status |
 |---|---|---|
-| Hold exposure only in the funding-free part of each epoch (straddle) | once-per-epoch `apply_funding`, OPEN-phase `set_position` | **[open]** — residual bounded by `floor(notional·cap/10⁴)`/epoch (O-PT-01) |
-| Condition entry on `funding_last_applied_epoch` | same | **[open]** (O-PT-01) |
-| Condition position on the published clearing price | OPEN-only position guards | **[obligation]** airtightness to verify, not assume (O-PT-02) |
-| Race other keepers for liquidation rewards | deterministic eligibility/selection | **[open]** — rent dissipation vs gas-auction baseline (O-PT-03) |
+| Hold exposure only in the funding-free part of each epoch (straddle) | once-per-epoch `apply_funding`, OPEN-phase `set_position` | **[NUMERICAL]** immediate residual bounded by `floor(notional·cap/10⁴)`/epoch in the single-account gate (O-PT-01) |
+| Condition entry on `funding_last_applied_epoch` | same | **[NUMERICAL]** `set_position` ignores the funding-applied epoch bit in OPEN phase (O-PT-01) |
+| Condition position on the published clearing price | OPEN-only position guards | **[NUMERICAL]** tested PRICE_PUBLISHED sequence blocks voluntary position edits (O-PT-02) |
+| Race other keepers for liquidation rewards | deterministic eligibility/selection | **[NUMERICAL]** cost-surface model shows all-pay traces can dissipate near the full reward (O-PT-03) |
 | Liquidate A to push the mark price into B's liquidation | per-account isolation (proven) + price impact (not modeled) | **[open]** — cross-account cascade depth bound (O-PT-04) |
-| Over-liquidate via `fraction_bps` choice | `guard_partial_liquidate` bounds | **[open]** — value-transfer lever (O-PT-05) |
+| Over-liquidate via `fraction_bps` choice | `guard_partial_liquidate` bounds | **[NUMERICAL]** full liquidation can be legal while auto-minimum restores margin with less penalty (O-PT-05) |
 
 ---
 
@@ -395,11 +395,11 @@ as waves complete.
 | O-SB-04 | bond < option value | for `q ≥ 2` there exist adverse moves Δ with `Δ·q > MAX_BOND` ⇒ no admissible bond forces reveal | "bonds make reveal rational" | H-MD-SB-004 | bounded pytest witness — [numeric: exact threshold Δ = MAX_BOND//q + 1; threshold arithmetic exhaustive over q in 2..MAX_UNITS, real-function payoff binding for q in 2..16; q = 1 boundary covered separately]; [exp] AuctionBondOptionBound.lean still queued |
 | O-SB-05 | conditional-reveal straddle | commit-then-reveal-iff-favorable beats always-reveal when `q·support_width > bond` | costless-straddle denial | H-MD-SB-005 | bounded sim via real settle+bond functions — [numeric: conditional − always = q·w − b exactly on the grid] |
 | O-SB-06 | self-competition pinning | one bidder, two commitments can lower its own average paid price | decoy-bid neutrality | H-MD-SB-006 | pytest witness — [numeric: decoy pins the clearing price; constructive witness made the planned miner unnecessary] |
-| O-PT-01 | funding-straddle residual | intra-epoch round-trips around `apply_funding` pay 0 funding; avoided amount ≤ `floor(notional·cap/10⁴)` per epoch | "funding is timing-neutral" | H-MD-PT-001, H-MD-PT-005 | [exp] PerpFundingStraddleBound.lean — [open] |
-| O-PT-02 | settlement-boundary airtightness | no reachable PRICE_PUBLISHED action sequence changes `position_base` conditioned on the published clearing price | free-look on clearing price | H-MD-PT-002 | `esso/md_perp_epoch_phase_gate_v1.yaml` — [open] |
-| O-PT-03 | keeper-race dissipation | deterministic selection ⇒ expended effort ε, vs ≈ full reward under an all-pay gas-auction baseline | "races are free" / monopolization-by-latency | H-MD-PT-003 | [exp] PerpKeeperRaceGame.lean — [open] |
+| O-PT-01 | funding-straddle residual | immediate funding exposure is zero when the account is flat; avoided amount ≤ `floor(notional·cap/10⁴)` per epoch, and OPEN-phase entry can condition on `funding_last_applied_epoch` | "funding is timing-neutral" | H-MD-PT-001, H-MD-PT-005 | bounded pytest evidence — [numeric: 100 quote-unit cap witness; `set_position` allowed before and after funding-applied bit] |
+| O-PT-02 | settlement-boundary airtightness | no voluntary PRICE_PUBLISHED action in the tested sequence changes `position_base` conditioned on the published clearing price; settlement can still change position through liquidation, which is outside the voluntary free-look claim | free-look on clearing price | H-MD-PT-002 | bounded pytest evidence — [numeric: SET_POSITION rejects; zero-rate funding and non-liquidating settlement keep position unchanged] |
+| O-PT-03 | keeper-race dissipation | deterministic execution cost ε is small, while a priority-gas all-pay trace can spend `reward - ε` and leave winner surplus ε | "races are free" / monopolization-by-latency | H-MD-PT-003 | bounded pytest evidence — [numeric: rewards 2..128; cost-surface evidence, not equilibrium proof] |
 | O-PT-04 | price-mediated cascade bound | cascade depth K ≤ f(insurance, penalty_bps, book depth, headroom spacing); K = 0 condition stated | unbounded cross-account contagion | H-MD-PT-004 | [exp] PerpPriceMediatedCascade.lean — [open] |
-| O-PT-05 | fraction_bps lever | states exist where maximal `fraction_bps` is guard-legal but minimal restores margin with strictly less penalty transfer | "liquidation size choice is neutral" | H-MD-PT-006 | pytest — [open] |
+| O-PT-05 | fraction_bps lever | states exist where maximal `fraction_bps` is guard-legal but minimal restores margin with strictly less penalty transfer | "liquidation size choice is neutral" | H-MD-PT-006 | bounded pytest evidence — [numeric: auto 181 bps penalty 9 vs full 10000 bps penalty 500] |
 | O-VM-01 | participation collapse | prover i enters iff `cost_i ≤ reward · P(win_i)`; deterministic speed ranking ⇒ unique entrant | "open race ⇒ open market" | H-MD-VM-001 | bounded pytest evidence — [numeric: fastest profitable prover enters; slower cheaper provers exit in deterministic race model] |
 | O-VM-02 | depletion cliff | under halving with the implemented reward floor, participation stops at `E_stop = ⌊log₂(base/c)⌋ + 1` for `c > 1`, while `c = 1` stays active through the bounded epoch cap; pool remainder can be stranded | "pool depletes gracefully" | H-MD-VM-002 | bounded pytest evidence — [numeric: base 64, cost 9 leaves 888/1000 stranded; bounded schedule sweep matches the cost-sensitive bit-length formula] |
 | O-VM-03 | tie-break selectability | improvement ties resolve by `_route_tiebreak_key` incl. submitter-chosen `miner_id` ⇒ tie wins are costlessly selectable | "ties are rare/neutral" | H-MD-VM-003 | bounded pytest evidence — [numeric: miner_id and route-shape ordering select equal-improvement winners] |
