@@ -340,6 +340,105 @@ def test_derive_verified_replay_bound_certificate_flags_overrides_proof_binding_
     assert flags.binding_ok == 1
 
 
+FEE_RECIPIENT = "0x" + "fe" * 48
+
+
+def test_validate_settlement_strong_with_certificate_forwards_protocol_fee_config() -> None:
+    # Regression: the certificate wrapper must forward the protocol-fee config
+    # to validate_settlement_strong (the same hole 5ec79367 closed for
+    # enforce_settlement_end_to_end_certificate). A fee-less settlement must
+    # NOT validate when a protocol fee is configured; this error can only come
+    # from the strong validator receiving protocol_fee_share_bps > 0.
+    intent, settlement, balances, pools = _swap_context()
+    cert = build_settlement_strong_certificate(settlement=settlement, proof_flags=SettlementProofFlags.all_true())
+
+    ok, err = validate_settlement_strong_with_certificate(
+        settlement=settlement,
+        certificate=cert,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=5000,
+        protocol_fee_recipient_pubkey=FEE_RECIPIENT,
+    )
+    assert ok is False
+    assert "swap protocol_fee_paid mismatch" in str(err)
+
+
+def test_validate_settlement_strong_with_certificate_forwards_protocol_fee_recipient_requirement() -> None:
+    intent, settlement, balances, pools = _swap_context()
+    cert = build_settlement_strong_certificate(settlement=settlement, proof_flags=SettlementProofFlags.all_true())
+
+    ok, err = validate_settlement_strong_with_certificate(
+        settlement=settlement,
+        certificate=cert,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=5000,
+        protocol_fee_recipient_pubkey=None,
+    )
+    assert ok is False
+    assert "protocol_fee_recipient_pubkey is required" in str(err)
+
+
+def test_validate_settlement_strong_with_certificate_accepts_fee_bound_settlement() -> None:
+    # The fee-bound settlement must validate through the wrapper under the
+    # SAME fee config it was computed with (fee semantics round-trip).
+    intent, _settlement, balances, pools = _swap_context()
+    settlement = compute_settlement(
+        [intent],
+        pools,
+        balances,
+        LPTable(),
+        protocol_fee_share_bps=5000,
+        protocol_fee_recipient_pubkey=FEE_RECIPIENT,
+    )
+    assert settlement.fills[0].protocol_fee_paid == 1
+    cert = build_settlement_strong_certificate(settlement=settlement, proof_flags=SettlementProofFlags.all_true())
+
+    ok, err = validate_settlement_strong_with_certificate(
+        settlement=settlement,
+        certificate=cert,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=5000,
+        protocol_fee_recipient_pubkey=FEE_RECIPIENT,
+    )
+    assert ok is True
+    assert err is None
+
+
+def test_enforce_replay_bound_settlement_certificate_forwards_protocol_fee_config() -> None:
+    # Regression: the replay-bound certificate must be earned against
+    # fee-bound replay math, so a fee-less settlement must not earn one when a
+    # protocol fee is configured.
+    intents, settlement, balances, pools = _four_swap_context()
+
+    ok, err, cert = enforce_replay_bound_settlement_certificate(
+        settlement=settlement,
+        external_proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        intents=intents,
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=10000,
+        protocol_fee_recipient_pubkey=FEE_RECIPIENT,
+    )
+    assert ok is False
+    assert "swap protocol_fee_paid mismatch" in str(err)
+    assert cert is None
+
+
 def test_settlement_strong_certificate_tau_bundle_steps_replay() -> None:
     tau_bin = find_tau_bin()
     if not tau_bin:

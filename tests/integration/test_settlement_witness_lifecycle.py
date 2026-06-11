@@ -214,3 +214,65 @@ def test_settlement_witness_lifecycle_packet_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "settlement witness lifecycle packet payload mismatch"
+
+
+FEE_RECIPIENT = "0x" + "fe" * 48
+
+
+def test_settlement_witness_lifecycle_packet_forwards_protocol_fee_config() -> None:
+    # Regression: the lifecycle builder must forward the protocol-fee config to
+    # validate_settlement_strong (the same hole 5ec79367 closed for
+    # enforce_settlement_end_to_end_certificate). A fee-less settlement must
+    # not settle a witness when a protocol fee is configured; this rejection
+    # reason can only come from the strong validator receiving
+    # protocol_fee_share_bps > 0.
+    intents, settlement, balances, pools, certificate_inputs = _settlement_context()
+
+    packet = build_settlement_witness_lifecycle_packet(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_end_to_end_certificate_inputs=certificate_inputs,
+        protocol_fee_share_bps=10000,
+        protocol_fee_recipient_pubkey=FEE_RECIPIENT,
+    )
+
+    assert packet.settled is False
+    assert packet.rejected_with_reason is True
+    assert "swap protocol_fee_paid mismatch" in str(packet.rejection_reason)
+    assert packet.lifecycle_ok is True
+
+    # The verifier must bind the same fee config when rebuilding the expected
+    # packet: with it the rejection packet round-trips ...
+    ok, err = verify_settlement_witness_lifecycle_packet_payload(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_end_to_end_certificate_inputs=certificate_inputs,
+        packet_payload=packet.to_dict(),
+        protocol_fee_share_bps=10000,
+        protocol_fee_recipient_pubkey=FEE_RECIPIENT,
+    )
+    assert ok is True
+    assert err is None
+
+    # ... and without it the same payload must NOT verify (fee-less replay
+    # would have settled this settlement).
+    ok, err = verify_settlement_witness_lifecycle_packet_payload(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_end_to_end_certificate_inputs=certificate_inputs,
+        packet_payload=packet.to_dict(),
+    )
+    assert ok is False
+    assert err == "settlement witness lifecycle packet payload mismatch"

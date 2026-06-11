@@ -520,6 +520,8 @@ def validate_settlement_strong_with_certificate(
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Any | None = None,
 ) -> tuple[bool, Optional[str]]:
     ok, err = verify_settlement_strong_certificate(settlement=settlement, certificate=certificate)
     if not ok:
@@ -528,6 +530,11 @@ def validate_settlement_strong_with_certificate(
         return False, "settlement certificate module bundle rejected"
     if certificate.semantic_summary is not None and certificate.full_price_rails_ok != 1:
         return False, "settlement certificate full price rails rejected"
+    # The protocol-fee config MUST reach the strong validator on this path too:
+    # leaving it at the default 0 while a protocol fee is configured would make
+    # the certificate path replay fee-less swap math (and skip the
+    # route/protocol-fee gate), letting a certificate-validated settlement
+    # bypass protocol fee capture.
     return validate_settlement_strong(
         settlement=settlement,
         intents=intents,
@@ -537,6 +544,8 @@ def validate_settlement_strong_with_certificate(
         mode=mode,
         allow_cow_netting=allow_cow_netting,
         allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
 
 
@@ -552,7 +561,11 @@ def enforce_replay_bound_settlement_certificate(
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Any | None = None,
 ) -> tuple[bool, Optional[str], Optional[SettlementStrongCertificate]]:
+    # Same fee-binding requirement as validate_settlement_strong_with_certificate:
+    # the replay-bound certificate must be earned against fee-bound replay math.
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=intents,
@@ -562,6 +575,8 @@ def enforce_replay_bound_settlement_certificate(
         mode=mode,
         allow_cow_netting=allow_cow_netting,
         allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
     if not ok:
         return False, err, None
