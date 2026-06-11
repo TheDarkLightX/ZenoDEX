@@ -2964,11 +2964,9 @@ def _validate_confidential_extension_id(
     ctx: _ConfidentialContext,
     gaps: _Gaps,
 ) -> None:
-    if (
-        ctx.expected_extension_id is not None
-        and extension_id is not None
-        and extension_id != ctx.expected_extension_id
-    ):
+    if ctx.expected_extension_id is None:
+        gaps.add("expected extension_id is required for confidential runtime binding")
+    elif extension_id is not None and extension_id != ctx.expected_extension_id:
         gaps.add("confidential runtime evidence extension_id mismatch")
 
 

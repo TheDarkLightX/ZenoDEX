@@ -229,6 +229,15 @@ def build_confidential_runtime_evidence(args: argparse.Namespace) -> dict[str, o
     verified_at = _positive_int(args.tee_verified_at, label="tee_verified_at")
     _validate_tee_time(verified_at=verified_at, issued_at=issued_at)
     extension_id = _safe_token(args.extension_id, label="extension_id")
+    expected_extension_id = (
+        _safe_token(args.expected_extension_id, label="expected_extension_id")
+        if args.expected_extension_id
+        else None
+    )
+    if expected_extension_id is None:
+        raise ValueError("expected extension_id is required for confidential runtime binding")
+    if extension_id != expected_extension_id:
+        raise ValueError("extension_id does not match expected extension_id")
     provider_id = _safe_token(args.provider_id, label="provider_id")
     attestation_receipt_hash = _normalize_hex(
         args.attestation_receipt_hash,

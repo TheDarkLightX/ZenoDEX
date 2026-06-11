@@ -612,9 +612,10 @@ Current checker hardening in this workstream:
   signer Ed25519 signature over the canonical run approval message.
 - `confidential_runtime` rejects private execution receipts whose
   `result_code` is not `ok`, binds the approved-measurements digest to the
-  active allowlist, and recomputes the canonical confidential runtime receipt
-  hash from the redacted receipt fields plus the active operator/verifier
-  bindings.
+  active allowlist, requires the extension ID to match the independently
+  configured production extension, and recomputes the canonical confidential
+  runtime receipt hash from the redacted receipt fields plus the active
+  operator/verifier bindings.
 - `oracle_authority` rejects localhost, private, or non-routable explorer URLs
   for public-testnet evidence, and verifies the authority attestation as an
   Ed25519 signature over the canonical public-testnet exercise statement. The

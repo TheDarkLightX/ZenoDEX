@@ -149,6 +149,39 @@ def test_confidential_runtime_builder_derives_approved_measurements_hash(
     assert evidence["approved_measurements_hash"] == _approved_hash()
 
 
+def test_confidential_runtime_builder_rejects_missing_expected_extension_id(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "confidential_runtime.json"
+    args = _base_args(out)
+    index = args.index("--expected-extension-id")
+    del args[index : index + 2]
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "confidential_runtime_evidence_build_failed"
+    assert "expected extension_id is required" in payload["detail"]
+    assert not out.exists()
+
+
+def test_confidential_runtime_builder_rejects_expected_extension_id_mismatch(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "confidential_runtime.json"
+    args = _base_args(out)
+    args[args.index("--expected-extension-id") + 1] = "different-confidential-ext"
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "confidential_runtime_evidence_build_failed"
+    assert "extension_id does not match expected extension_id" in payload["detail"]
+    assert not out.exists()
+
+
 def test_confidential_runtime_builder_check_rejects_allowlist_hash_drift(
     capsys,
     tmp_path: Path,
@@ -246,6 +279,29 @@ def test_confidential_runtime_builder_rejects_non_ok_result_before_writing(
     assert payload["error"] == "confidential_runtime_evidence_build_failed"
     assert "result_code must be ok" in payload["detail"]
     assert not out.exists()
+
+
+def test_confidential_runtime_evaluator_requires_expected_extension_id(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "confidential_runtime.json"
+
+    assert builder.main(_base_args(out)) == 0
+    assert json.loads(capsys.readouterr().out)["ok"] is True
+    evidence = json.loads(out.read_text(encoding="utf-8"))
+
+    lane = evaluate_production_confidential_runtime_evidence_v1(
+        evidence,
+        approved_measurements=[NITRO_MEASUREMENT, AZURE_MEASUREMENT],
+        operator_status_hash="22" * 32,
+        external_verifier_binding_hash="33" * 32,
+        expected_extension_id=None,
+        now=NOW,
+    )
+
+    assert lane["production_ready"] is False
+    assert "expected extension_id is required for confidential runtime binding" in lane["gaps"]
 
 
 def test_confidential_runtime_evaluator_rejects_rehashed_non_ok_result(
