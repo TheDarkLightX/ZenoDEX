@@ -38,7 +38,8 @@ readiness and it does **not** weaken any promotion boundary in the plan.
 >   `admit_autonomous_governance_session_continuation_v1` and
 >   `verify_autonomous_governance_session_store_v1`;
 >   `admit_autonomous_governance_session_file_continuation_v1` and
->   `verify_autonomous_governance_session_store_file_v1`);
+>   `verify_autonomous_governance_session_store_file_v1`;
+>   `admit_autonomous_governance_live_session_file_update_v1`);
 > - **[obligation]** — a proposed Phase-4 property, not yet code.
 >
 > Verify every citation against the module at the commit being promoted; the
@@ -428,6 +429,15 @@ and `expected_store_hash` compare-and-swap refusal. That closes stale local
 writers that use this API. Global DA or node apply ordering remains a separate
 requirement.
 
+**Live apply admission binds committed state to store custody.**
+`admit_autonomous_governance_live_session_file_update_v1` is the integration
+boundary a node/apply layer can call before mutating governance surface
+parameters. It requires the caller's committed surface state to equal the
+persisted store head, requires an `expected_live_context_hash`, verifies the
+trajectory from that head, advances the file-backed store, then returns the new
+`applied_state`. A mismatched context, forged receipt, stale store hash, or
+committed-state/head mismatch is a no-op result.
+
 **Lemma (bounded drift).** Over any governance trajectory, the total absolute
 movement of a budgeted parameter is at most its `limit`, regardless of the number
 of steps, the action ranking, or the observation sequence — provided every step
@@ -621,6 +631,7 @@ is the narrow claim this mechanism should carry.
 | store receipts-replayed audit | `verify_autonomous_governance_session_store_v1` | [committed] |
 | file-backed store admission | `initialize_autonomous_governance_session_store_file_v1`, `admit_autonomous_governance_session_file_continuation_v1` | [committed] |
 | file-backed store audit/head read | `verify_autonomous_governance_session_store_file_v1`, `current_session_store_file_head_v1` | [committed] |
+| live apply admission wrapper | `admit_autonomous_governance_live_session_file_update_v1`, `autonomous_governance_live_session_file_context_hash_v1` | [committed] |
 | proposer (re-run inside disposer) | `_select_action`, `_ranked_action_ids`, `_bin_index` | [committed] |
 | offline training only | `q_learning_update_fixed_point_v1` | [committed] |
 | surface evaluator | `evaluate_autonomous_governance_surface_q_policy_v1` | [committed] |
@@ -628,6 +639,7 @@ is the narrow claim this mechanism should carry.
 Status is as of the branch carrying this document. **[P1-WIP]** symbols are
 still working-tree admission hardening and must be reverified before promotion.
 **[committed]** symbols are present in the integration modules on this branch.
-The deployed node/apply path still has to require these receipts, context
-hashes, and a globally ordered store custody rule before this becomes a live
-governance claim.
+The integration node/apply guard now requires these receipts and context hashes
+before returning an applied state. A production node still has to route live
+governance messages through that guard and provide a globally ordered store
+custody rule before this becomes a live governance claim.

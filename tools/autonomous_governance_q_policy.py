@@ -42,6 +42,10 @@ from src.integration.autonomous_governance_session_store_file import (  # noqa: 
     initialize_autonomous_governance_session_store_file_v1,
     verify_autonomous_governance_session_store_file_v1,
 )
+from src.integration.autonomous_governance_live_apply import (  # noqa: E402
+    admit_autonomous_governance_live_session_file_update_v1,
+    autonomous_governance_live_session_file_context_hash_v1,
+)
 
 
 MAX_INPUT_BYTES = 500_000
@@ -566,6 +570,95 @@ def _cmd_session_store_file_head(args: argparse.Namespace) -> int:
     return 0 if result.get("ok") is True else 2
 
 
+def _cmd_live_session_file_context(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        path = _store_file_path_from_bundle(bundle, command="live_session_file_context")
+        receipt = bundle.get("trajectory_receipt", bundle.get("receipt", {}))
+        if not isinstance(receipt, dict):
+            raise ValueError("live_session_file_context_requires_trajectory_receipt")
+        surface = bundle.get("committed_surface_state", bundle.get("surface_state", {}))
+        expected_policy_hash = bundle.get("expected_policy_hash", "")
+        head = current_session_store_file_head_v1(path=path)
+        if head.get("ok") is not True:
+            result = {
+                "schema": "zenodex.autonomous_governance.live_session_file_context_bundle.v1",
+                "ok": False,
+                "errors": tuple(head.get("errors", ())),
+                "head": head,
+                "live_context_hash": "",
+            }
+        else:
+            result = {
+                "schema": "zenodex.autonomous_governance.live_session_file_context_bundle.v1",
+                "ok": True,
+                "errors": (),
+                "store_path": path,
+                "store_hash": head.get("store_hash", ""),
+                "head_pin_hash": dict(head.get("head_pin", {})).get("pin_hash", "")
+                if isinstance(head.get("head_pin"), dict)
+                else "",
+                "trajectory_hash": receipt.get("trajectory_hash", ""),
+                "expected_policy_hash": expected_policy_hash,
+                "head": head,
+                "live_context_hash": autonomous_governance_live_session_file_context_hash_v1(
+                    store_hash=str(head.get("store_hash", "")),
+                    head_pin_hash=str(
+                        dict(head.get("head_pin", {})).get("pin_hash", "")
+                        if isinstance(head.get("head_pin"), dict)
+                        else ""
+                    ),
+                    committed_surface_state=surface,
+                    trajectory_hash=str(receipt.get("trajectory_hash", "")),
+                    expected_policy_hash=str(expected_policy_hash),
+                ),
+            }
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"live_session_file_context_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("ok") is True else 2
+
+
+def _cmd_admit_live_session_file_update(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        if "policy" not in bundle:
+            raise ValueError("admit_live_session_file_update_requires_policy")
+        receipt = bundle.get("trajectory_receipt", bundle.get("receipt", {}))
+        surface = bundle.get("committed_surface_state", bundle.get("surface_state", {}))
+        result = admit_autonomous_governance_live_session_file_update_v1(
+            store_path=_store_file_path_from_bundle(
+                bundle, command="admit_live_session_file_update"
+            ),
+            policy=bundle.get("policy", {}),
+            trajectory_receipt=receipt,
+            committed_surface_state=surface,
+            expected_policy_hash=bundle.get("expected_policy_hash"),
+            expected_store_hash=bundle.get("expected_store_hash"),
+            expected_live_context_hash=bundle.get("expected_live_context_hash"),
+        )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"admit_live_session_file_update_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("admitted") is True else 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -722,6 +815,35 @@ def main(argv: list[str] | None = None) -> int:
         help="path to JSON with path",
     )
     session_store_file_head.set_defaults(func=_cmd_session_store_file_head)
+
+    live_session_file_context = sub.add_parser(
+        "live-session-file-context",
+        help="compute the live context hash for a persisted session-store update",
+    )
+    live_session_file_context.add_argument(
+        "bundle",
+        help=(
+            "path to JSON with path, trajectory_receipt, expected_policy_hash, "
+            "and committed_surface_state"
+        ),
+    )
+    live_session_file_context.set_defaults(func=_cmd_live_session_file_context)
+
+    admit_live_session_file_update = sub.add_parser(
+        "admit-live-session-file-update",
+        help="admit a live autonomous-governance update through file-store custody",
+    )
+    admit_live_session_file_update.add_argument(
+        "bundle",
+        help=(
+            "path to JSON with path, policy, trajectory_receipt, "
+            "committed_surface_state, expected_policy_hash, expected_store_hash, "
+            "and expected_live_context_hash"
+        ),
+    )
+    admit_live_session_file_update.set_defaults(
+        func=_cmd_admit_live_session_file_update
+    )
 
     args = parser.parse_args(argv)
     return int(args.func(args))
