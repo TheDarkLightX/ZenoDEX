@@ -51,6 +51,10 @@ from src.integration.autonomous_governance_ebrm_policy import (  # noqa: E402
     evaluate_autonomous_governance_ebrm_policy_step_v1,
     sample_autonomous_governance_ebrm_policy_v1,
 )
+from src.integration.autonomous_governance_ebrm_evidence import (  # noqa: E402
+    build_autonomous_governance_ebrm_corpus_v1,
+    build_autonomous_governance_ebrm_evidence_report_v1,
+)
 
 
 MAX_INPUT_BYTES = 500_000
@@ -324,6 +328,39 @@ def _cmd_ebrm_step(args: argparse.Namespace) -> int:
 
     sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
     return 0 if result.get("ok") is True else 2
+
+
+def _write_json_output(data: dict[str, Any], output: str | None) -> None:
+    text = json.dumps(data, indent=2, sort_keys=True) + "\n"
+    if output:
+        Path(output).write_text(text, encoding="utf-8")
+    else:
+        sys.stdout.write(text)
+
+
+def _cmd_ebrm_evidence(args: argparse.Namespace) -> int:
+    try:
+        report = build_autonomous_governance_ebrm_evidence_report_v1(
+            include_corpus=bool(args.include_corpus)
+        )
+        if args.corpus_output:
+            corpus = build_autonomous_governance_ebrm_corpus_v1()
+            Path(args.corpus_output).write_text(
+                json.dumps(corpus, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"ebrm_evidence_failed:{exc}"],
+        }
+        _write_json_output(result, args.output)
+        return 3
+
+    _write_json_output(report, args.output)
+    return 0 if report.get("ok") is True else 2
 
 
 def _cmd_trajectory(args: argparse.Namespace) -> int:
@@ -761,6 +798,22 @@ def main(argv: list[str] | None = None) -> int:
     ebrm_step = sub.add_parser("ebrm-step", help="evaluate one frozen EBRM policy step")
     ebrm_step.add_argument("bundle", help="path to EBRM policy-step bundle JSON")
     ebrm_step.set_defaults(func=_cmd_ebrm_step)
+
+    ebrm_evidence = sub.add_parser(
+        "ebrm-evidence",
+        help="emit deterministic verifier-labeled EBRM corpus metrics",
+    )
+    ebrm_evidence.add_argument("--output", help="path to write report; stdout when omitted")
+    ebrm_evidence.add_argument(
+        "--corpus-output",
+        help="optional path to write the full verifier-labeled corpus JSON",
+    )
+    ebrm_evidence.add_argument(
+        "--include-corpus",
+        action="store_true",
+        help="include full corpus rows inside the report JSON",
+    )
+    ebrm_evidence.set_defaults(func=_cmd_ebrm_evidence)
 
     trajectory = sub.add_parser(
         "trajectory",
