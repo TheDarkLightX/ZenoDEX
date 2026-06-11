@@ -129,6 +129,23 @@ def test_autotrader_builder_writes_lane_ready_evidence(capsys, tmp_path: Path) -
     assert len(evidence["evidence_hash"]) == 64
 
 
+def test_autotrader_builder_check_rejects_template_chain_id_before_write(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "autotrader.json"
+    args = _base_args(tmp_path, out)
+    args[args.index("tau-test-prod")] = "EXPECTED_CHAIN_ID"
+    args[args.index("tau-test-prod")] = "EXPECTED_CHAIN_ID"
+
+    assert builder.main([*args, "--check"]) == 1
+
+    err = json.loads(capsys.readouterr().err)
+    assert err["production_ready"] is False
+    assert any("placeholder value 'EXPECTED_CHAIN_ID'" in gap for gap in err["gaps"])
+    assert not out.exists()
+
+
 def test_autotrader_builder_check_rejects_heartbeat_gap(capsys, tmp_path: Path) -> None:
     out = tmp_path / "autotrader.json"
     heartbeats = _heartbeats()

@@ -161,6 +161,72 @@ _ALLOWED_OS_PROMPT_KINDS: Final = frozenset(
 )
 _PUBLIC_TESTNET_NETWORK: Final = "public_testnet"
 _NEAR_AND_SAME_HOUR_SECONDS: Final = 3600
+_PLACEHOLDER_MARKERS: Final = ("PLACEHOLDER", "REPLACE_ME", "TODO", "FIXME", "YOUR_")
+_RUNBOOK_PLACEHOLDER_VALUES: Final = frozenset(
+    {
+        "APPROVAL_CAPTURED_AT",
+        "APPROVAL_SIGNATURE",
+        "APPROVAL_TX_PAYLOAD_HASH",
+        "APPROVED_MEASUREMENT",
+        "ATTESTATION_CHALLENGE",
+        "ATTESTATION_SIGNATURE",
+        "AUDITED_AT",
+        "AUDIT_ID",
+        "AUDIT_REPORT_HASH",
+        "AUDITOR",
+        "AUTHORITY_ATTESTATION_SIGNATURE",
+        "AUTHORITY_ATTESTATION_SIGNER_PUBKEY",
+        "CONFIG_MAX_ACTIONS_PER_TICK",
+        "CONFIG_MAX_RUNS_PER_PROCESS",
+        "DEVICE_FIRMWARE_VERSION",
+        "DEVICE_ID",
+        "DEVICE_MODEL",
+        "DEVICE_PUBKEY",
+        "DURATION_SECONDS",
+        "EXECUTION_ID",
+        "EXECUTION_KIND",
+        "EXPECTED_CHAIN_ID",
+        "EXPECTED_DEVICE_PUBKEY",
+        "EXPECTED_EXTENSION_ID",
+        "EXPECTED_SURFACE",
+        "EXTERNAL_VERIFIER_BINDING_HASH",
+        "LAST_HEARTBEAT_AT",
+        "MAX_ACTIONS_PER_TICK_OBSERVED",
+        "MAX_RUNS_PER_PROCESS_OBSERVED",
+        "OPERATOR_STATUS_HASH",
+        "ORACLE_AUTHORITY_ID",
+        "PLATFORM_PUBKEY",
+        "PROMPT_CAPTURED_AT",
+        "PROMPT_HASH",
+        "PROMPT_KIND",
+        "PROVIDER_ID",
+        "PUBLIC_BROADCAST_BLOCK_HASH",
+        "PUBLIC_BROADCAST_EXPLORER_URL",
+        "PUBLIC_EFFECT_DIGEST",
+        "PUBLIC_SETTLEMENT_BLOCK_HASH",
+        "PUBLIC_SETTLEMENT_EXPLORER_URL",
+        "RAW_ATTESTATION_HASH",
+        "RESULT_CODE",
+        "STARTED_AT",
+        "SUPERVISOR_ID",
+        "SUPERVISOR_PROFILE_HASH",
+        "TEE_KIND",
+        "TEE_VERIFIED_AT",
+        "TICKS_EXECUTED",
+        "TICKS_FAILED",
+        "TICKS_THROTTLED",
+        "VERIFIER_CMD_JSON",
+        "WALLET_AUTHORITY_PROFILE_HASH",
+    }
+)
+
+
+def _is_template_placeholder(value: str) -> bool:
+    stripped = value.strip()
+    if stripped in _RUNBOOK_PLACEHOLDER_VALUES:
+        return True
+    upper = stripped.upper()
+    return any(marker in upper for marker in _PLACEHOLDER_MARKERS)
 
 
 # -----------------------------------------------------------------------------
@@ -215,6 +281,13 @@ class _P:
     def nonempty_str(value: object, *, path: str, gaps: _Gaps) -> str | None:
         if not isinstance(value, str) or value == "":
             gaps.at(path, "must be a non-empty string")
+            return None
+        if _is_template_placeholder(value):
+            # Production-promotion evidence is operator-facing, so the verifier
+            # rejects collection-runbook placeholders at the parser boundary.
+            # This keeps producer --check paths from emitting a green lane for a
+            # self-consistent template artifact.
+            gaps.at(path, f"placeholder value {value!r} must be replaced by real external artifact data")
             return None
         return value
 
