@@ -298,9 +298,13 @@ invariant that training quality is never the authority boundary.
 data plane for learned EBRM evaluation. It deterministically generates synthetic
 fee, funding-cap, and staker-defense contexts, enumerates candidate revisions,
 labels every row with `gov_gate.py`, assigns group-level train/heldout splits,
-and compares a compositional integer energy scorer against a target-only
-baseline. The report is replayable through
-`tools/autonomous_governance_q_policy.py ebrm-evidence`; it keeps
+compares a compositional integer energy scorer against a target-only baseline,
+and trains a small deterministic linear ranker through integer grid search. The
+scorers use pre-label `model_features` such as structural guard pressure from
+immutable caps and step limits; `gate_admitted` and `gate_errors` stay labels,
+not model inputs. The reports are replayable through
+`tools/autonomous_governance_q_policy.py ebrm-evidence` and
+`tools/autonomous_governance_q_policy.py ebrm-train`; they keep
 `production_promotion_claim=false` and `promotion_ready=false` because synthetic
 coverage is training/evaluation material, not live-distribution assurance.
 

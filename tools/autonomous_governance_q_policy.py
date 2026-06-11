@@ -54,6 +54,7 @@ from src.integration.autonomous_governance_ebrm_policy import (  # noqa: E402
 from src.integration.autonomous_governance_ebrm_evidence import (  # noqa: E402
     build_autonomous_governance_ebrm_corpus_v1,
     build_autonomous_governance_ebrm_evidence_report_v1,
+    build_autonomous_governance_ebrm_training_report_v1,
 )
 
 
@@ -355,6 +356,33 @@ def _cmd_ebrm_evidence(args: argparse.Namespace) -> int:
             "ok": False,
             "status": "inconclusive",
             "errors": [f"ebrm_evidence_failed:{exc}"],
+        }
+        _write_json_output(result, args.output)
+        return 3
+
+    _write_json_output(report, args.output)
+    return 0 if report.get("ok") is True else 2
+
+
+def _cmd_ebrm_train(args: argparse.Namespace) -> int:
+    try:
+        report = build_autonomous_governance_ebrm_training_report_v1(
+            include_corpus=bool(args.include_corpus)
+        )
+        if args.model_output:
+            model = report.get("trained_model")
+            if not isinstance(model, dict):
+                raise ValueError("ebrm_training_report_missing_trained_model")
+            Path(args.model_output).write_text(
+                json.dumps(model, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"ebrm_train_failed:{exc}"],
         }
         _write_json_output(result, args.output)
         return 3
@@ -814,6 +842,22 @@ def main(argv: list[str] | None = None) -> int:
         help="include full corpus rows inside the report JSON",
     )
     ebrm_evidence.set_defaults(func=_cmd_ebrm_evidence)
+
+    ebrm_train = sub.add_parser(
+        "ebrm-train",
+        help="train and evaluate a deterministic verifier-labeled EBRM ranker",
+    )
+    ebrm_train.add_argument("--output", help="path to write report; stdout when omitted")
+    ebrm_train.add_argument(
+        "--model-output",
+        help="optional path to write only the trained ranker artifact",
+    )
+    ebrm_train.add_argument(
+        "--include-corpus",
+        action="store_true",
+        help="include full corpus rows inside the training report JSON",
+    )
+    ebrm_train.set_defaults(func=_cmd_ebrm_train)
 
     trajectory = sub.add_parser(
         "trajectory",
