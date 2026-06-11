@@ -1,0 +1,30 @@
+{
+  "wave": 0,
+  "domain": "census",
+  "timestamp": "2026-06-10T00:00:00Z",
+  "hypotheses": [
+    {
+      "id": "H-MD-XD-001",
+      "description": "The mechanism-design charter's repo-local path citations are grounded in existing files.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "The grounding checker rejects missing repo-local paths in the charter and currently passes.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave0_census/test_census.py -q"
+    },
+    {
+      "id": "H-MD-XD-002",
+      "description": "The crosswalk covers the charter's mechanism-design obligations.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "The crosswalk checker requires every O-SS/O-SB/O-PT/O-VM obligation in the charter to appear in CROSSWALK.md and currently passes.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave0_census/test_census.py -q"
+    }
+  ],
+  "total_tests": 2,
+  "total_passed": 2,
+  "total_failed": 0
+}
