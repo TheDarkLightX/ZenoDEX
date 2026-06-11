@@ -26,6 +26,10 @@ from src.integration.autonomous_governance_trajectory import (  # noqa: E402
     run_autonomous_governance_surface_trajectory_v1,
     verify_autonomous_governance_surface_trajectory_v1,
 )
+from src.integration.autonomous_governance_session import (  # noqa: E402
+    continue_autonomous_governance_surface_trajectory_v1,
+    verify_autonomous_governance_surface_session_v1,
+)
 
 
 MAX_INPUT_BYTES = 500_000
@@ -240,6 +244,7 @@ def _cmd_trajectory(args: argparse.Namespace) -> int:
             trajectory_budget=bundle.get("trajectory_budget"),
             trajectory_used=bundle.get("trajectory_used"),
             previous_approved_deltas=bundle.get("previous_approved_deltas"),
+            previous_chain_head=bundle.get("previous_chain_head"),
         )
     except Exception as exc:
         result = {
@@ -247,6 +252,31 @@ def _cmd_trajectory(args: argparse.Namespace) -> int:
             "ok": False,
             "status": "inconclusive",
             "errors": [f"trajectory_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("ok") is True else 2
+
+
+def _cmd_continue_trajectory(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        if "previous_receipt" not in bundle or "policy" not in bundle:
+            raise ValueError("continue_trajectory_requires_policy_and_previous_receipt")
+        result = continue_autonomous_governance_surface_trajectory_v1(
+            policy=bundle.get("policy", {}),
+            previous_receipt=bundle.get("previous_receipt", {}),
+            steps=bundle.get("steps", []),
+            expected_policy_hash=bundle.get("expected_policy_hash", ""),
+        )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"continue_trajectory_failed:{exc}"],
         }
         sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
         return 3
@@ -305,6 +335,31 @@ def _cmd_admit_trajectory(args: argparse.Namespace) -> int:
     return 0 if result.get("accepted") is True else 2
 
 
+def _cmd_verify_session(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        if "policy" not in bundle:
+            raise ValueError("verify_session_requires_policy")
+        receipts = bundle.get("trajectory_receipts", bundle.get("receipts"))
+        result = verify_autonomous_governance_surface_session_v1(
+            receipts=receipts,
+            policy=bundle.get("policy", {}),
+            expected_policy_hash=bundle.get("expected_policy_hash"),
+        )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"verify_session_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("ok") is True else 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -332,6 +387,19 @@ def main(argv: list[str] | None = None) -> int:
     trajectory.add_argument("bundle", help="path to trajectory bundle JSON")
     trajectory.set_defaults(func=_cmd_trajectory)
 
+    continue_trajectory = sub.add_parser(
+        "continue-trajectory",
+        help="run the next trajectory segment from a verified parent receipt",
+    )
+    continue_trajectory.add_argument(
+        "bundle",
+        help=(
+            "path to JSON with policy, previous_receipt, steps, and "
+            "expected_policy_hash"
+        ),
+    )
+    continue_trajectory.set_defaults(func=_cmd_continue_trajectory)
+
     verify_trajectory = sub.add_parser(
         "verify-trajectory",
         help="independently re-verify a trajectory receipt against its policy",
@@ -353,6 +421,16 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     admit_trajectory.set_defaults(func=_cmd_admit_trajectory)
+
+    verify_session = sub.add_parser(
+        "verify-session",
+        help="verify an ordered cross-trajectory autonomous governance session",
+    )
+    verify_session.add_argument(
+        "bundle",
+        help="path to JSON with policy and trajectory_receipts (or receipts)",
+    )
+    verify_session.set_defaults(func=_cmd_verify_session)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

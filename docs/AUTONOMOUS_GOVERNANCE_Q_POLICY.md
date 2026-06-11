@@ -32,6 +32,14 @@ wrappers of `gov_gate` do not change the final gate report; artifact source
 manifests still record the verifier/runtime files so drift is explicit at
 promotion time.
 
+Cross-trajectory sessions are now explicit. A single trajectory bounds one
+multi-step run; a session is the ordered sequence of such receipts. The session
+continuation helper derives the next segment's carry-in from a fully reverified
+parent receipt, and the session verifier replays the whole sequence under one
+policy hash and one trajectory budget. That closes the operator reset path for
+`trajectory_used`, anti-oscillation history, cooldown state, and
+`previous_chain_head` inside the integration artifact path.
+
 Surface evaluation can also bind the committed-state context with
 `expected_committed_context_hash`. The hash covers the current surface state,
 `current_epoch`, `proposal_epoch`, optional `last_update_epoch`,
@@ -359,6 +367,55 @@ PY
 python3 tools/autonomous_governance_q_policy.py admit-trajectory /tmp/autogov-trajectory-admit-bundle.json
 ```
 
+Continue a trajectory session from the verified parent receipt:
+
+```bash
+python3 - <<'PY'
+import json
+bundle = json.load(open("/tmp/autogov-trajectory-bundle.json"))
+receipt = json.load(open("/tmp/autogov-trajectory-receipt.json"))
+steps = [
+    {
+        "observation": bundle["steps"][0]["observation"],
+        "current_epoch": 175,
+        "proposal_epoch": 151,
+    }
+]
+json.dump(
+    {
+        "policy": bundle["policy"],
+        "previous_receipt": receipt,
+        "steps": steps,
+        "expected_policy_hash": bundle["expected_policy_hash"],
+    },
+    open("/tmp/autogov-trajectory-continue-bundle.json", "w"),
+    sort_keys=True,
+)
+PY
+python3 tools/autonomous_governance_q_policy.py continue-trajectory /tmp/autogov-trajectory-continue-bundle.json > /tmp/autogov-trajectory-child.json
+```
+
+Verify the ordered session:
+
+```bash
+python3 - <<'PY'
+import json
+bundle = json.load(open("/tmp/autogov-trajectory-bundle.json"))
+parent = json.load(open("/tmp/autogov-trajectory-receipt.json"))
+child = json.load(open("/tmp/autogov-trajectory-child.json"))
+json.dump(
+    {
+        "policy": bundle["policy"],
+        "trajectory_receipts": [parent, child],
+        "expected_policy_hash": bundle["expected_policy_hash"],
+    },
+    open("/tmp/autogov-session-verify-bundle.json", "w"),
+    sort_keys=True,
+)
+PY
+python3 tools/autonomous_governance_q_policy.py verify-session /tmp/autogov-session-verify-bundle.json
+```
+
 Exit code `0` means the autonomous revision packet is approved. Exit code `2`
 means it was rejected fail-closed. Exit code `3` means the input could not be
 evaluated.
@@ -377,6 +434,17 @@ client-facing refuse-loop. It requires successful replay verification,
 `trajectory_ok`, completed status, all invariant flags true, the external policy
 hash to match the policy and receipt pins, and any caller-supplied state or
 previous-chain anchors to match.
+
+For cross-trajectory operation, use
+`continue_autonomous_governance_surface_trajectory_v1` instead of hand-supplying
+carry fields to `run_autonomous_governance_surface_trajectory_v1`. It rechecks
+the parent receipt and copies only the parent's verified final state,
+`trajectory_used_final`, `previous_approved_deltas_final`,
+`last_update_epoch_final`, `trajectory_budget`, and `chain_head` into the child
+run. `verify_autonomous_governance_surface_session_v1` then checks the ordered
+receipt list independently, including fresh genesis, exact boundary carry,
+policy-hash consistency, budget consistency, strictly increasing boundary
+epochs, completed statuses, drift conservation, and monotone session usage.
 
 ## Design Notes
 
@@ -406,9 +474,16 @@ paths are:
 - `src/integration/autonomous_governance_trajectory.py`: owns multi-step
   trajectory threading, context hashes, receipt chains, and independent replay
   verification.
+- `src/integration/autonomous_governance_session.py`: owns cross-trajectory
+  continuation and whole-session verification, so the movement budget and
+  cooldown state cannot be reset at a receipt boundary inside the integration
+  artifact path.
 - `tools/autonomous_governance_policy_factory.py`: aggregates
   `selection_penalized_count_total` alongside exact gate checks and scanned
   candidates.
+- `tools/autonomous_governance_q_policy.py`: exposes `trajectory`,
+  `continue-trajectory`, `verify-trajectory`, `admit-trajectory`, and
+  `verify-session` for replay and client admission checks.
 - `tests/integration/test_autonomous_governance_q_policy.py`: checks that
   anti-oscillation and trajectory-budget blockers are penalized before gate
   scanning.
