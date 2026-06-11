@@ -337,7 +337,9 @@ def build_autotrader_evidence(args: argparse.Namespace) -> dict[str, Any]:
         last_heartbeat_at=int(run_window["last_heartbeat_at"]),
     )
     budget = _validate_budget(args)
-    if args.expected_chain_id is not None and args.chain_id != args.expected_chain_id:
+    if not isinstance(args.expected_chain_id, str) or not args.expected_chain_id:
+        raise ValueError("expected chain_id is required for autotrader binding")
+    if args.chain_id != args.expected_chain_id:
         raise ValueError("chain_id does not match expected_chain_id")
     evidence_body: dict[str, Any] = {
         "schema": AUTOTRADER_EVIDENCE_SCHEMA_V1,

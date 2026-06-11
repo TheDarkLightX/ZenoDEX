@@ -2330,7 +2330,9 @@ class _AutotraderLane(Lane):
 
         issued_at = _P.positive_int(obj.get("issued_at"), path="issued_at", gaps=gaps)
 
-        if ctx.expected_chain_id is not None and chain_id is not None and chain_id != ctx.expected_chain_id:
+        if ctx.expected_chain_id is None:
+            gaps.add("expected chain_id is required for autotrader binding")
+        elif chain_id is not None and chain_id != ctx.expected_chain_id:
             gaps.add("autotrader evidence chain_id mismatch")
         if ctx.supervisor_profile_hash is None:
             gaps.add("supervisor profile hash is required for binding")
@@ -2559,6 +2561,10 @@ def _enforce_autotrader_budgets(
     ctx: _AutotraderContext,
     gaps: _Gaps,
 ) -> None:
+    if ctx.config_max_actions_per_tick is None:
+        gaps.add("config_max_actions_per_tick is required for autotrader binding")
+    if ctx.config_max_runs_per_process is None:
+        gaps.add("config_max_runs_per_process is required for autotrader binding")
     if not budget:
         return
     _enforce_autotrader_budget_limit(

@@ -269,6 +269,39 @@ def test_autotrader_builder_rejects_budget_overrun_before_writing(capsys, tmp_pa
     assert not out.exists()
 
 
+def test_autotrader_builder_rejects_missing_expected_chain_id_before_writing(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "autotrader.json"
+    args = _base_args(tmp_path, out)
+    index = args.index("--expected-chain-id")
+    del args[index : index + 2]
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "autotrader_evidence_build_failed"
+    assert "expected chain_id is required for autotrader binding" in payload["detail"]
+    assert not out.exists()
+
+
+def test_autotrader_builder_rejects_expected_chain_id_mismatch_before_writing(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "autotrader.json"
+    args = _base_args(tmp_path, out)
+    args[args.index("--expected-chain-id") + 1] = "wrong-chain"
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "autotrader_evidence_build_failed"
+    assert "chain_id does not match expected_chain_id" in payload["detail"]
+    assert not out.exists()
+
+
 def test_autotrader_builder_rejects_duplicate_signer_before_writing(capsys, tmp_path: Path) -> None:
     out = tmp_path / "autotrader.json"
     approvals = tmp_path / "approvals-duplicate.json"
@@ -393,6 +426,30 @@ def test_autotrader_evaluator_rejects_rehashed_fake_approval_signature(
 
     assert lane["production_ready"] is False
     assert "multi_signer_approvals[0].signature is invalid" in lane["gaps"]
+
+
+def test_autotrader_evaluator_requires_external_binding_config(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "autotrader.json"
+    assert builder.main(_base_args(tmp_path, out)) == 0
+    capsys.readouterr()
+    evidence = json.loads(out.read_text(encoding="utf-8"))
+
+    lane = evaluate_production_autotrader_evidence_v1(
+        evidence,
+        supervisor_profile_hash="sup-hash",
+        config_max_actions_per_tick=None,
+        config_max_runs_per_process=None,
+        expected_chain_id=None,
+        now=NOW,
+    )
+
+    assert lane["production_ready"] is False
+    assert "expected chain_id is required for autotrader binding" in lane["gaps"]
+    assert "config_max_actions_per_tick is required for autotrader binding" in lane["gaps"]
+    assert "config_max_runs_per_process is required for autotrader binding" in lane["gaps"]
 
 
 def test_autotrader_builder_rejects_overlapping_crash_recovery_before_writing(capsys, tmp_path: Path) -> None:
