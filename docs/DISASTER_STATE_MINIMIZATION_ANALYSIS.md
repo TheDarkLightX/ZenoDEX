@@ -304,7 +304,7 @@ matching `PerpFundingSinkConservation.lean` (`perp_engine.py:2553-2557`).
 
 | Lever | Action | Disaster-state effect | Cost |
 |---|---|---|---|
-| 1 | `inv_funded_liquidation` (R1 of mechanism doc) | single-epoch bad-debt class unrepresentable | **implemented** (`src/core/perp_v2/invariants.py`, registry entry 19) |
+| 1 | `inv_funded_liquidation` (R1 of mechanism doc) | single-epoch bad-debt class unrepresentable | **advisory checker shipped**; enforcement belongs at parameter ADMISSION, not per-transition — retroactive per-transition enforcement freezes legacy-parameter markets (CI-demonstrated); paired Python+Rust admission change is the scoped follow-up |
 | 2 | strict-descent receipts above per-axis θ | unbounded dwell → dwell ≤ initial excess (checked) | receipt field + checker rule |
 | 3 | dominance accounting + minimal antichain + hitting-set order | effective open frontier < 96; per-proof closure dividend | bookkeeping only |
 | 4 | `insurance ≥ OI_short_cap·shortfall(L*)` keyed to the SHORT tail | residual tail explicitly priced; `L`-epoch envelope and tail asymmetry machine-checked | parameter declaration (lemmas done) |

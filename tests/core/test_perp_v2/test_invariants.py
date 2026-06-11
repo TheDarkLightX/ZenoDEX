@@ -1,8 +1,12 @@
-"""Tests for src/core/perp_v2/invariants.py — 19 invariant checkers."""
+"""Tests for src/core/perp_v2/invariants.py — 18 registered invariant checkers + advisory funded-liquidation checker."""
 
 from dataclasses import replace
 
-from src.core.perp_v2.invariants import INVARIANT_REGISTRY, check_all
+from src.core.perp_v2.invariants import (
+    INVARIANT_REGISTRY,
+    check_all,
+    inv_funded_liquidation,
+)
 from src.core.perp_v2.state import initial_state
 from src.core.perp_v2.types import EpochPhase
 
@@ -13,8 +17,8 @@ class TestAllInvariantsOnInitialState:
         violations = check_all(s)
         assert violations == []
 
-    def test_registry_has_19_invariants(self):
-        assert len(INVARIANT_REGISTRY) == 19
+    def test_registry_has_18_invariants(self):
+        assert len(INVARIANT_REGISTRY) == 18
 
 
 class TestClearingNotFromFuture:
@@ -161,26 +165,32 @@ class TestLiquidationIcGuard:
 
 
 class TestFundedLiquidation:
+    """Advisory checker (not in INVARIANT_REGISTRY): the funded-liquidation
+    inequality is an admission-time condition, not a per-transition one —
+    enforcing it on every transition would freeze legacy-parameter markets
+    and make the defensive liq_penalty_capped branch untestable."""
+
+    def test_not_registered(self):
+        assert "inv_funded_liquidation" not in INVARIANT_REGISTRY
+
     def test_pass_defaults(self):
         # 50 * (10000 + 500) = 525_000 <= 10000 * (600 - 500) = 1_000_000
-        assert "inv_funded_liquidation" not in check_all(initial_state())
+        assert inv_funded_liquidation(initial_state())
 
     def test_fail_clamp_drift(self):
         # m=548: 50 * 10548 = 527_400 > 10000 * (600 - 548) = 520_000.
         # inv_margin_params_ordered still passes (548 <= 600), so only the
-        # funded-liquidation invariant catches the drift.
+        # funded-liquidation checker catches the drift.
         s = replace(initial_state(), max_oracle_move_bps=548)
-        violations = check_all(s)
-        assert "inv_funded_liquidation" in violations
-        assert "inv_margin_params_ordered" not in violations
+        assert not inv_funded_liquidation(s)
+        assert "inv_margin_params_ordered" not in check_all(s)
 
     def test_fail_clamp_at_maintenance(self):
         # m = eff_maint = 600: the weaker IC guard (penalty < eff_maint)
         # still passes, but the penalty is unfunded at the clamp edge.
         s = replace(initial_state(), max_oracle_move_bps=600)
-        violations = check_all(s)
-        assert "inv_funded_liquidation" in violations
-        assert "inv_liquidation_ic_guard" not in violations
+        assert not inv_funded_liquidation(s)
+        assert "inv_liquidation_ic_guard" not in check_all(s)
 
 
 class TestFundingEpochGated:
