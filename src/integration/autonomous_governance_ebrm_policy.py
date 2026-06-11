@@ -15,6 +15,10 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
+from src.integration.autonomous_governance_hostile_input import (
+    is_canonically_encodable,
+    safe_field_label,
+)
 from src.integration.autonomous_governance_q_policy import (
     OBSERVATION_FIELDS_V1,
     SURFACE_PARAMETER_NAMES_V1,
@@ -97,21 +101,43 @@ def _is_canonical_hash_v0(value: object) -> bool:
     return all(ch in "0123456789abcdef" for ch in value[2:])
 
 
+def _safe_label(value: object) -> str:
+    return safe_field_label(value)
+
+
+def _has_surrogate_string(value: object) -> bool:
+    if type(value) is not str:
+        return False
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return True
+    return False
+
+
+def _flat_mapping_has_surrogate_string(raw: Mapping[object, object]) -> bool:
+    return any(
+        _has_surrogate_string(key) or _has_surrogate_string(value)
+        for key, value in raw.items()
+    )
+
+
 def _normalize_edges(raw: object, *, field: str) -> tuple[tuple[int, ...], list[str]]:
+    field_label = _safe_label(field)
     if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes, bytearray)):
-        return (), [f"ebrm_state_bins_{field}_must_be_sequence"]
+        return (), [f"ebrm_state_bins_{field_label}_must_be_sequence"]
     errors: list[str] = []
     edges: list[int] = []
     previous: int | None = None
     for index, value in enumerate(raw):
         if not _is_plain_int(value):
-            errors.append(f"ebrm_state_bins_{field}_{index}_must_be_plain_int")
+            errors.append(f"ebrm_state_bins_{field_label}_{index}_must_be_plain_int")
             continue
         if value < 0:
-            errors.append(f"ebrm_state_bins_{field}_{index}_must_be_nonnegative")
+            errors.append(f"ebrm_state_bins_{field_label}_{index}_must_be_nonnegative")
             continue
         if previous is not None and value <= previous:
-            errors.append(f"ebrm_state_bins_{field}_must_be_strictly_ascending")
+            errors.append(f"ebrm_state_bins_{field_label}_must_be_strictly_ascending")
             continue
         edges.append(value)
         previous = value
@@ -146,7 +172,7 @@ def _normalize_feature_bounds(
     bounds: dict[str, dict[str, int]] = {}
     for key in raw:
         if key not in features:
-            errors.append(f"ebrm_feature_bounds_unknown_feature:{key}")
+            errors.append(f"ebrm_feature_bounds_unknown_feature:{_safe_label(key)}")
     for feature in features:
         item = raw.get(feature)
         if not isinstance(item, Mapping):
@@ -177,10 +203,16 @@ def normalize_autonomous_governance_ebrm_policy_v1(
 
     if not isinstance(policy, Mapping):
         return {}, ["ebrm_policy_must_be_object"]
+    try:
+        policy = dict(policy)
+    except Exception:  # noqa: BLE001 - hostile mappings fail closed at the boundary
+        return {}, ["ebrm_policy_not_canonically_encodable"]
+    if not is_canonically_encodable(policy):
+        return {}, ["ebrm_policy_not_canonically_encodable"]
     errors: list[str] = []
     for key in policy:
         if key not in _ALLOWED_POLICY_KEYS:
-            errors.append(f"ebrm_policy_unknown_key:{key}")
+            errors.append(f"ebrm_policy_unknown_key:{_safe_label(key)}")
     if policy.get("schema") != AUTONOMOUS_GOVERNANCE_EBRM_POLICY_SCHEMA_V1:
         errors.append("ebrm_policy_schema_mismatch")
     policy_id = policy.get("policy_id")
@@ -209,7 +241,7 @@ def normalize_autonomous_governance_ebrm_policy_v1(
                 errors.append("ebrm_feature_must_be_plain_str")
                 continue
             if feature not in _ALLOWED_FEATURES:
-                errors.append(f"ebrm_feature_unknown:{feature}")
+                errors.append(f"ebrm_feature_unknown:{_safe_label(feature)}")
                 continue
             if feature in seen:
                 errors.append(f"ebrm_feature_duplicate:{feature}")
@@ -232,7 +264,7 @@ def normalize_autonomous_governance_ebrm_policy_v1(
     else:
         for key in bins_raw:
             if key not in features:
-                errors.append(f"ebrm_state_bins_unknown_feature:{key}")
+                errors.append(f"ebrm_state_bins_unknown_feature:{_safe_label(key)}")
         for feature in features:
             if feature not in bins_raw:
                 errors.append(f"ebrm_state_bins_missing:{feature}")
@@ -350,14 +382,28 @@ def evaluate_autonomous_governance_ebrm_policy_step_v1(
         errors.append("ebrm_expected_policy_hash_required")
     elif not _is_canonical_hash_v0(expected_hash):
         errors.append("ebrm_expected_policy_hash_invalid")
+        expected_hash = ""
     elif policy_hash and policy_hash != expected_hash:
         errors.append("ebrm_expected_policy_hash_mismatch")
 
+    if not is_canonically_encodable(committed_surface_state):
+        errors.append("ebrm_committed_state_not_canonically_encodable")
+        committed_surface_state = {}
     state, state_errors = _normalize_surface_state(committed_surface_state)
     errors.extend(f"ebrm_committed_{error}" for error in state_errors)
     if not isinstance(observation, Mapping):
         errors.append("ebrm_observation_must_be_object")
         observation = {}
+    else:
+        try:
+            observation = dict(observation)
+        except Exception:  # noqa: BLE001 - hostile mappings fail closed
+            errors.append("ebrm_observation_not_canonically_encodable")
+            observation = {}
+        else:
+            if _flat_mapping_has_surrogate_string(observation):
+                errors.append("ebrm_observation_not_canonically_encodable")
+                observation = {}
     if type(approved) is not bool:
         errors.append("ebrm_approved_must_be_bool")
         approved = False
@@ -390,6 +436,7 @@ def evaluate_autonomous_governance_ebrm_policy_step_v1(
         errors.append("ebrm_expected_committed_context_hash_required")
     elif not _is_canonical_hash_v0(expected_context):
         errors.append("ebrm_expected_committed_context_hash_invalid")
+        expected_context = ""
     elif context_hash and context_hash != expected_context:
         errors.append("ebrm_committed_context_hash_mismatch")
 

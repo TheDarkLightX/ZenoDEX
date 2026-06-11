@@ -230,6 +230,57 @@ class TestEBRMStepSemantics:
         assert "ebrm_feature_out_of_training_domain:deviation_bps" in result["errors"]
         assert result["final_state"] == result["committed_state"]
 
+    def test_hostile_policy_input_refuses_without_crashing_receipt_hash(self) -> None:
+        policy = sample_autonomous_governance_ebrm_policy_v1()
+        clean_hash = ebrm_policy_content_hash_v1(policy)
+        policy["\ud800evil"] = 1
+
+        result = _step(policy=policy, expected_policy_hash=clean_hash)
+
+        assert result["admitted"] is False
+        assert "ebrm_policy_not_canonically_encodable" in result["errors"]
+        assert result["step_hash"].startswith("0x")
+
+    def test_hostile_committed_state_refuses_without_crashing_receipt_hash(self) -> None:
+        hostile_state = {**_SURFACE_STATE, "\ud800evil": 1}
+
+        result = _step(committed_surface_state=hostile_state)
+
+        assert result["admitted"] is False
+        assert "ebrm_committed_state_not_canonically_encodable" in result["errors"]
+        assert result["step_hash"].startswith("0x")
+
+    def test_hostile_observation_refuses_without_crashing_receipt_hash(self) -> None:
+        result = _step(
+            observation={
+                "observed_price_bps": 10_500,
+                "target_price_bps": 10_000,
+                "deviation_bps": 500,
+                "volatility_bps": 250,
+                "divergence_bps": 10,
+                "freshness_lag_epochs": 0,
+                "liquidity_depth_bps": 5_000,
+                "\ud800evil": 1,
+            }
+        )
+
+        assert result["admitted"] is False
+        assert "ebrm_observation_not_canonically_encodable" in result["errors"]
+        assert result["step_hash"].startswith("0x")
+
+    def test_hostile_hash_pins_refuse_without_crashing_receipt_hash(self) -> None:
+        bad_hash = "0x" + "\ud800" * 32
+
+        result = _step(expected_policy_hash=bad_hash)
+        assert result["admitted"] is False
+        assert "ebrm_expected_policy_hash_invalid" in result["errors"]
+        assert result["step_hash"].startswith("0x")
+
+        result = _step(expected_committed_context_hash=bad_hash)
+        assert result["admitted"] is False
+        assert "ebrm_expected_committed_context_hash_invalid" in result["errors"]
+        assert result["step_hash"].startswith("0x")
+
     def test_cli_sample_and_ebrm_step_replays_frozen_artifact(self, tmp_path: Path) -> None:
         bundle_path = tmp_path / "ebrm-policy-bundle.json"
         sample = subprocess.run(
