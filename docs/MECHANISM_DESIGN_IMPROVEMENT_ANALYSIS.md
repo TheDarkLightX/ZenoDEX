@@ -15,7 +15,7 @@ Companion Lean strengthenings shipped with this analysis:
 - `lean-mathlib/Proofs/PerpEpochSafety.lean`:
   `collateral_headroom_after_bounded_move`,
   `liquidation_penalty_funded_after_bounded_move`,
-  `witness_production_funded_liquidation`
+  `witness_production_funded_liquidation`, `two_epoch_move_bound`
 - `lean-mathlib/Proofs/PerpGameTheory.lean`:
   `liquidation_reward_floor`, `liquidation_profitable_on_clamp_band`,
   `liquidation_game_strict_dominant`, `liquidation_game_unique_nash`
@@ -411,7 +411,97 @@ parameter instead of implicit.
 
 ---
 
-## 6) Summary table
+## 6) Second-pass runtime findings (zUSD and perp engine)
+
+A code-level cross-check of the Python runtime against the Lean models
+surfaced three gaps where a *proven* defense exists but the shipping defaults
+or implementation do not activate it.
+
+### 6.1 zUSD redemption fee defaults to zero → free oracle-lag arbitrage
+
+Defaults (`src/core/zusd.py:155-163`): `base_rate_bps = 0`, decay = 0, both
+bumps = 0, `redemption_fee_floor_bps = 0`. By `_effective_fee_bps`
+(`zusd.py:114-120`) the effective redemption fee is therefore **0 bps**, and
+there is no per-epoch redemption volume cap (bounded only by total free
+debt).
+
+The arbitrage condition: a redeemer burns `z` zUSD and receives
+`(z/p_oracle)·(1 − fee)` collateral. At true collateral price `p_true` this
+is profitable iff
+
+```
+p_oracle < p_true · (1 − fee)
+```
+
+so the fee is exactly the protocol's tolerance for a stale-low oracle. With
+`fee = 0`, **any** oracle understatement of the collateral price is
+extractable at full size within the freshness window — and the default
+staleness window is generous (`max_staleness_epochs = 100`, `zusd.py:131`).
+The base-rate bump machinery (the SimplexBorrow/Liquity-style dynamic
+throttle, proven in `ZUSDFeePipeline.lean`) exists in both code and proof but
+is **switched off by the zero defaults**.
+
+**Recommendation R6.** Ship non-zero defaults:
+`redemption_fee_floor_bps ≥` the declared worst-case oracle drift over
+`max_staleness_epochs` (Liquity's 50 bps assumes near-real-time oracles; a
+100-epoch window needs correspondingly more, or a much smaller window), and
+`base_rate_redeem_bump_bps > 0` so redemption volume self-throttles. The
+mint side is bounded by the MCR buffer (1000 bps), which gives the dual
+constraint: declared staleness drift budget must stay below `MCR − 10⁴` bps.
+
+### 6.2 Stability-pool cooldown is proven in Lean but absent in Python
+
+`CBCDisasterStateRefactors.cooldown_pending_deposit_extracts_zero_reward`
+proves the JIT-extraction defense (same-epoch SP deposits earn nothing). The
+Python `withdraw_sp` path (`zusd.py:665-685`) has **no cooldown and no
+same-epoch restriction**: a depositor can withdraw in the same epoch a
+liquidation lands, avoiding the loss entirely. This composes badly with the
+liquidation absorption rule (`zusd.py:774-775`): liquidation is **refused**
+outright when `vault debt > sp_debt` — all-or-nothing, no partial
+absorption, no redistribution fallback. The resulting spiral:
+
+```
+vault approaches MCR → SP depositors exit (allowed while TCR ≥ CCR)
+→ sp_debt < vault debt → liquidation refused → vault sinks further
+→ exit pressure increases (loss grows) → SP empties → insolvency dwell
+```
+
+Each arrow is currently permitted. **Recommendation R7**, three parts, in
+order of impact: (a) implement the proven cooldown (pending vs. active SP
+deposits, exactly the Lean model); (b) allow partial liquidation up to
+`sp_debt` (respecting the existing min-debt dust rule) so absorption capacity
+is never wasted; (c) treat `sp_debt < total under-MCR debt` as a monitored
+pre-disaster axis. Note 6.2 is the zUSD twin of the perp keeper-skip path of
+§1.2: both are incentive-mediated insolvency spirals, and both have the
+defense already proven.
+
+### 6.3 ADL is proven in Lean but not implemented
+
+`PerpADLSybilBankruptcyClosure.lean` proves the auto-deleverage haircut rule
+closes the sybil insurance-drain attack (offsetting accounts forcing
+insurance to pay a manufactured deficit; with ADL the attacker nets zero and
+insurance pays zero). The Python engine has **no ADL implementation** (no
+match for adl/delever in `src/core/perp_v2/`). The kernel instead
+fail-closes: `guard_settle_epoch` rejects any settlement with
+`coll_after_pnl < 0` (`guards.py:71`). That prevents bad debt
+*representationally* but converts a counterparty bankruptcy into a
+**settlement-liveness event** at the clearinghouse layer — the safe state is
+a frozen market, and the proven haircut rule is exactly the designed escape
+valve that is missing. **Recommendation R8:** implement the Lean-modeled ADL
+haircut (deficit charged against the winner's PnL before payout) so the
+proof's conclusion applies to the runtime; until then, the
+sybil-bankruptcy-closure claim should be labeled model-only.
+
+Verified-sound in the same pass (no action needed): zero/stale index guards
+are fail-closed (`funding_rule.py:28`); the multi-account funding floor
+residual is routed to a sink whose zero-sum conservation matches
+`PerpFundingSinkConservation.lean` exactly (`perp_engine.py:2553-2557`); and
+allowing redemption in recovery mode is correct, not a hole — redeeming at
+par strictly improves TCR whenever TCR > 100%.
+
+---
+
+## 7) Summary table
 
 | # | Mechanism | Gap | Improvement | Status |
 |---|-----------|-----|-------------|--------|
@@ -421,5 +511,9 @@ parameter instead of implicit.
 | 4 | Funding | premium-only signal; imbalance EV diverges unobserved | exact `2ρ²/(1−ρ²)` identity; bounded ρ² funding term | **Identity proven in Lean**; controller change recommended (R3) |
 | 5 | Batch MEV | doubling-only bound; equal-size model quotable as guarantee | exact k-fold composition + sharpness; weighted restatement | **Proven in Lean**; weighted file recommended (R4) |
 | 6 | Solver bounty | `q = 1` catch assumption implicit | (DETERRENCE) with explicit `q`, shared with oracle lane | Recommended (R5) |
-| 7 | Funding dust | bounded leak, destination unspecified | exact conservation with insurance sink | Recommended |
+| 7 | Funding dust | bounded leak, destination unspecified | exact conservation with insurance sink | Partially present (sink matches Lean); per-epoch assertion recommended |
 | 8 | Tokenomics | emission lane outside proven guard | instantiate `RewardControllerGuard` | Recommended |
+| 9 | zUSD redemption | zero default fee ⇒ free oracle-lag arbitrage | fee floor ≥ staleness drift budget; non-zero redeem bump | Recommended (R6) |
+| 10 | zUSD stability pool | proven cooldown unimplemented; all-or-nothing absorption ⇒ exit spiral | cooldown + partial liquidation + SP-coverage axis | Recommended (R7) |
+| 11 | Perp ADL | proven haircut unimplemented; bankruptcies fail-closed into freeze | implement Lean-modeled ADL | Recommended (R8) |
+| 12 | Liquidation latency | doc-only compounding arithmetic | two-epoch bound `2m + m²/10⁴` | **Proven in Lean** (`two_epoch_move_bound`) |

@@ -212,6 +212,13 @@ L = 2: 10.25% − 6% = +4.25%   → 425 bps of notional at risk
 L = 3: 15.76% − 6% = +9.76%
 ```
 
+The `L = 2` row is now machine-checked:
+`PerpEpochSafety.two_epoch_move_bound` proves two clamped moves stay within
+`2m + m²/10⁴` bps of the original price, and
+`witness_two_epoch_factor` / `witness_two_epoch_exceeds_maintenance` pin the
+production numbers (`1025` bps total move capacity vs `600` bps
+maintenance).
+
 So the entire insurance requirement is generated at `L ≥ 2`, and it is linear
 in the open interest that can plausibly be stranded for `L` epochs.
 Minimization actions:
@@ -229,15 +236,45 @@ Minimization actions:
   below-maintenance positions (caps the exposure factor between epochs, the
   ADL lane already has the machinery). Both are parameter/policy changes
   inside already-modeled lanes, not new mechanisms.
-- A two-epoch Lean lemma (`|P₂ − P₀| ≤ (2m + m²/10⁴)·P₀/10⁴` by two
-  applications of the clamp bound and one triangle inequality) is the natural
-  next proof artifact; the `L`-epoch version is an induction over the same
-  step. This would move `shortfall(L)` from doc arithmetic to checked
-  arithmetic.
+- The two-epoch lemma is now shipped
+  (`PerpEpochSafety.two_epoch_move_bound`); the `L`-epoch version is an
+  induction over the same step and remains the natural next artifact for
+  `L* ≥ 3` budgets.
 
 ---
 
-## 5) What this does *not* claim
+## 5) Second-pass: two named disaster traces in the runtime, both with proven-but-inactive defenses
+
+A cross-check of the Python runtime against the Lean models (details and
+recommendations R6–R8 in `docs/MECHANISM_DESIGN_IMPROVEMENT_ANALYSIS.md` §6)
+adds two concrete traces to the frontier. Both are notable because the
+*defense already exists as a checked artifact* — the gap is activation, not
+invention:
+
+1. **zUSD stability-pool exit spiral.** `withdraw_sp` has no cooldown
+   (the cooldown design is proven in
+   `CBCDisasterStateRefactors.cooldown_pending_deposit_extracts_zero_reward`
+   but unimplemented), and liquidation is refused outright when
+   `vault debt > sp_debt` (`src/core/zusd.py:774-775`, all-or-nothing).
+   Rational SP depositors exit as a vault nears MCR; the pool empties below
+   the vault's debt; liquidation becomes impossible; the vault's deficit
+   compounds. Closure = implement the proven cooldown + partial absorption,
+   and monitor `sp_debt ≥ under-MCR debt` as a pre-disaster axis.
+2. **Perp bankruptcy freeze vs. unproven insurance drain.** The kernel
+   fail-closes would-be bad debt (`guard_settle_epoch` rejects
+   `coll_after_pnl < 0`, `src/core/perp_v2/guards.py:71`) — bad debt is
+   unrepresentable, but a counterparty bankruptcy at the clearinghouse layer
+   then has no settlement path: the safe state is a frozen market. The
+   designed escape valve — the ADL haircut whose sybil-drain-closure theorem
+   is `PerpADLSybilBankruptcyClosure.lean` — has no Python implementation.
+   Until it does, that closure claim is model-only, and the liveness cost of
+   fail-closed bankruptcy handling is unpriced.
+
+Also re-checked and sound: zero/stale-index funding guards are fail-closed,
+and the multi-account funding floor residual is routed to a sink exactly
+matching `PerpFundingSinkConservation.lean` (`perp_engine.py:2553-2557`).
+
+## 6) What this does *not* claim
 
 - No claim that the 125-axis registry is complete (the metric doc itself caps
   the score for this reason); levers 2–3 reduce and re-price the *known*
@@ -249,11 +286,13 @@ Minimization actions:
   ℕ by a receipt the runtime actually verifies; it is a guard-shape upgrade,
   not a statement that all axes have such scores today.
 
-## 6) Summary
+## 7) Summary
 
 | Lever | Action | Disaster-state effect | Cost |
 |---|---|---|---|
 | 1 | `inv_funded_liquidation` (R1 of mechanism doc) | single-epoch bad-debt class unrepresentable | one runtime inequality |
 | 2 | strict-descent receipts above per-axis θ | unbounded dwell → dwell ≤ initial excess (checked) | receipt field + checker rule |
 | 3 | dominance accounting + minimal antichain + hitting-set order | effective open frontier < 96; per-proof closure dividend | bookkeeping only |
-| 4 | `insurance ≥ OI_cap·shortfall(L*)` | residual tail explicitly priced; adequacy checkable | parameter declaration + one lemma |
+| 4 | `insurance ≥ OI_cap·shortfall(L*)` | residual tail explicitly priced; adequacy checkable (`L = 2` row machine-checked) | parameter declaration + one lemma |
+| 5a | SP cooldown + partial absorption (R7) | zUSD exit-spiral trace broken at two arrows | activate proven design |
+| 5b | implement ADL haircut (R8) | bankruptcy freeze gets an escape valve; sybil-drain closure becomes runtime-real | implement proven design |
