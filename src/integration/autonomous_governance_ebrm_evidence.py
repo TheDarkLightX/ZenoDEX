@@ -2,8 +2,8 @@
 
 This module is offline evidence tooling. It generates deterministic synthetic
 governance contexts, labels candidate revisions with the exact `gov_gate.py`
-surface gates, and compares a compositional integer energy scorer against a
-target-only baseline.
+surface gates, compares deterministic energy scorers, and can train a small
+integer ranker from the train split.
 
 The generated report is training and search-efficiency evidence only. It does
 not train online, authorize governance updates, mutate ledger state, or replace
@@ -14,7 +14,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, Sequence
+from itertools import product
+from typing import Any, Callable, Mapping, Sequence, cast
 
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.tau_specs.governance import gov_gate
@@ -26,13 +27,22 @@ AUTONOMOUS_GOVERNANCE_EBRM_CORPUS_SCHEMA_V1 = (
 AUTONOMOUS_GOVERNANCE_EBRM_EVIDENCE_SCHEMA_V1 = (
     "zenodex.autonomous_governance.ebrm_evidence_report.v1"
 )
+AUTONOMOUS_GOVERNANCE_EBRM_TRAINED_RANKER_SCHEMA_V1 = (
+    "zenodex.autonomous_governance.ebrm_trained_ranker.v1"
+)
+AUTONOMOUS_GOVERNANCE_EBRM_TRAINING_REPORT_SCHEMA_V1 = (
+    "zenodex.autonomous_governance.ebrm_training_report.v1"
+)
 
 _CORPUS_HASH_TAG = "autonomous_governance_ebrm_labeled_corpus_v1"
 _EVIDENCE_HASH_TAG = "autonomous_governance_ebrm_evidence_report_v1"
+_TRAINED_RANKER_HASH_TAG = "autonomous_governance_ebrm_trained_ranker_v1"
+_TRAINING_REPORT_HASH_TAG = "autonomous_governance_ebrm_training_report_v1"
 _ROW_HASH_TAG = "autonomous_governance_ebrm_labeled_row_v1"
 _GROUP_HASH_TAG = "autonomous_governance_ebrm_candidate_group_v1"
 
 _REPLAY_COMMAND = "python3 tools/autonomous_governance_q_policy.py ebrm-evidence"
+_TRAIN_REPLAY_COMMAND = "python3 tools/autonomous_governance_q_policy.py ebrm-train"
 
 _NOT_CLAIMED = (
     "does_not_authorize_governance_update",
@@ -64,6 +74,30 @@ _BASE_SURFACE_STATE = {
 
 _PROPOSAL_EPOCH = 10
 _CURRENT_EPOCH = 34
+
+_MODEL_FEATURE_NAMES = (
+    "structural_guard_pressure",
+    "target_tracking",
+    "movement",
+    "wrong_direction",
+    "thin_liquidity_underreaction",
+)
+
+_HAND_COMPOSITIONAL_WEIGHTS = {
+    "structural_guard_pressure": 1_000_000,
+    "target_tracking": 100,
+    "movement": 2,
+    "wrong_direction": 20,
+    "thin_liquidity_underreaction": 10,
+}
+
+_TRAINING_GRID = {
+    "structural_guard_pressure": (100_000, 1_000_000),
+    "target_tracking": (50, 100, 200),
+    "movement": (0, 2),
+    "wrong_direction": (0, 20),
+    "thin_liquidity_underreaction": (0, 10),
+}
 
 
 GateFn = Callable[[bool, bool, int, int, int, int], bool]
@@ -209,12 +243,66 @@ def _objective_cost(
     return surface_weight * (tracking + churn + wrong_direction + thin_liquidity_underreaction)
 
 
-def _baseline_energy(*, curr: int, candidate: int, target: int) -> int:
-    return abs(candidate - target) * 100 + abs(candidate - curr) * 2
+def _structural_guard_pressure(surface: SurfaceSpec, curr: int, candidate: int) -> int:
+    """Pre-label guard distance from immutable bounds and step constants.
+
+    This does not read `gate_admitted`. It is the local hard-term feature an
+    energy ranker can compute before the exact gate labels the candidate.
+    """
+
+    pressure = 0
+    if candidate < surface.lo:
+        pressure += surface.lo - candidate
+    if candidate > surface.hi:
+        pressure += candidate - surface.hi
+    step_overflow = abs(candidate - curr) - surface.step
+    if step_overflow > 0:
+        pressure += step_overflow
+    return pressure
 
 
-def _compositional_energy(*, gate_admitted: bool, objective_cost: int) -> int:
-    return objective_cost if gate_admitted else 1_000_000 + objective_cost
+def _model_feature_values(
+    *,
+    surface: SurfaceSpec,
+    curr: int,
+    candidate: int,
+    target: int,
+    observation: Mapping[str, int],
+) -> dict[str, int]:
+    signal = _stress_signal(observation)
+    wrong_direction = 0
+    if signal > 0 and candidate < curr:
+        wrong_direction = abs(candidate - curr)
+    elif signal < 0 and candidate > curr:
+        wrong_direction = abs(candidate - curr)
+    thin_liquidity_underreaction = 0
+    if observation["liquidity_depth_bps"] <= 1_000 and candidate < target:
+        thin_liquidity_underreaction = target - candidate
+    return {
+        "structural_guard_pressure": _structural_guard_pressure(surface, curr, candidate),
+        "target_tracking": abs(candidate - target),
+        "movement": abs(candidate - curr),
+        "wrong_direction": wrong_direction,
+        "thin_liquidity_underreaction": thin_liquidity_underreaction,
+    }
+
+
+def _energy_from_weights(
+    feature_values: Mapping[str, int],
+    weights: Mapping[str, int],
+) -> int:
+    return sum(int(feature_values[name]) * int(weights[name]) for name in _MODEL_FEATURE_NAMES)
+
+
+def _baseline_energy(feature_values: Mapping[str, int]) -> int:
+    return (
+        int(feature_values["target_tracking"]) * 100
+        + int(feature_values["movement"]) * 2
+    )
+
+
+def _compositional_energy(feature_values: Mapping[str, int]) -> int:
+    return _energy_from_weights(feature_values, _HAND_COMPOSITIONAL_WEIGHTS)
 
 
 def _split_for_group(group_id: str) -> str:
@@ -266,11 +354,15 @@ def _rows_for_group(
             target=target,
             observation=observation,
         )
-        baseline = _baseline_energy(curr=curr, candidate=candidate, target=target)
-        compositional = _compositional_energy(
-            gate_admitted=admitted,
-            objective_cost=objective_cost,
+        model_features = _model_feature_values(
+            surface=surface,
+            curr=curr,
+            candidate=candidate,
+            target=target,
+            observation=observation,
         )
+        baseline = _baseline_energy(model_features)
+        compositional = _compositional_energy(model_features)
         gate_errors = () if admitted else (f"gov_gate_rejected:{surface.name}",)
         row = {
             "schema": "zenodex.autonomous_governance.ebrm_labeled_row.v1",
@@ -289,13 +381,30 @@ def _rows_for_group(
             "gate_admitted": admitted,
             "gate_errors": gate_errors,
             "objective_cost": objective_cost,
+            "model_features": model_features,
             "baseline_energy": baseline,
             "compositional_energy": compositional,
             "energy_terms": {
-                "hard_gate_reject_penalty": 0 if admitted else 1_000_000,
-                "objective_cost": objective_cost,
-                "target_tracking": abs(candidate - target) * 100,
-                "movement": abs(candidate - curr) * 2,
+                "structural_guard_penalty": (
+                    model_features["structural_guard_pressure"]
+                    * _HAND_COMPOSITIONAL_WEIGHTS["structural_guard_pressure"]
+                ),
+                "target_tracking": (
+                    model_features["target_tracking"]
+                    * _HAND_COMPOSITIONAL_WEIGHTS["target_tracking"]
+                ),
+                "movement": (
+                    model_features["movement"]
+                    * _HAND_COMPOSITIONAL_WEIGHTS["movement"]
+                ),
+                "wrong_direction": (
+                    model_features["wrong_direction"]
+                    * _HAND_COMPOSITIONAL_WEIGHTS["wrong_direction"]
+                ),
+                "thin_liquidity_underreaction": (
+                    model_features["thin_liquidity_underreaction"]
+                    * _HAND_COMPOSITIONAL_WEIGHTS["thin_liquidity_underreaction"]
+                ),
             },
         }
         rows.append({**row, "row_id": _row_id(row)})
@@ -359,11 +468,36 @@ def _target_class_counts(rows: Sequence[Mapping[str, Any]]) -> dict[str, int]:
     return dict(sorted(counts.items()))
 
 
-def _score_group(rows: Sequence[Mapping[str, Any]], *, energy_field: str) -> dict[str, int | bool]:
+def _row_energy(
+    row: Mapping[str, Any],
+    *,
+    energy_field: str | None = None,
+    weights: Mapping[str, int] | None = None,
+) -> int:
+    if weights is not None:
+        features = row.get("model_features")
+        if not isinstance(features, Mapping):
+            raise ValueError("row_missing_model_features")
+        feature_values = {
+            name: int(features[name])
+            for name in _MODEL_FEATURE_NAMES
+        }
+        return _energy_from_weights(feature_values, weights)
+    if energy_field is None:
+        raise ValueError("energy_field_or_weights_required")
+    return int(row[energy_field])
+
+
+def _score_group(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    energy_field: str | None = None,
+    weights: Mapping[str, int] | None = None,
+) -> dict[str, int | bool]:
     ranked = sorted(
         rows,
         key=lambda row: (
-            int(row[energy_field]),
+            _row_energy(row, energy_field=energy_field, weights=weights),
             int(row["candidate"]),
             str(row["row_id"]),
         ),
@@ -404,7 +538,8 @@ def _score_group(rows: Sequence[Mapping[str, Any]], *, energy_field: str) -> dic
 def _aggregate_scores(
     grouped: Mapping[str, Sequence[Mapping[str, Any]]],
     *,
-    energy_field: str,
+    energy_field: str | None = None,
+    weights: Mapping[str, int] | None = None,
     split: str | None,
 ) -> dict[str, Any]:
     selected = [
@@ -412,7 +547,10 @@ def _aggregate_scores(
         for group_rows in grouped.values()
         if split is None or str(group_rows[0]["split"]) == split
     ]
-    scores = [_score_group(group_rows, energy_field=energy_field) for group_rows in selected]
+    scores = [
+        _score_group(group_rows, energy_field=energy_field, weights=weights)
+        for group_rows in selected
+    ]
     groups_total = len(scores)
     first_rank_total = sum(int(score["first_admitted_rank"]) for score in scores)
     groups_with_admitted = sum(1 for score in scores if score["has_admitted"] is True)
@@ -436,7 +574,11 @@ def _aggregate_scores(
     }
 
 
-def _ranking_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def _ranking_metrics(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    learned_weights: Mapping[str, int] | None = None,
+) -> dict[str, Any]:
     grouped = _group_rows(rows)
     metrics: dict[str, Any] = {}
     for scorer_name, energy_field in (
@@ -448,6 +590,14 @@ def _ranking_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "train": _aggregate_scores(grouped, energy_field=energy_field, split="train"),
             "heldout": _aggregate_scores(
                 grouped, energy_field=energy_field, split="heldout"
+            ),
+        }
+    if learned_weights is not None:
+        metrics["learned_ebrm"] = {
+            "all": _aggregate_scores(grouped, weights=learned_weights, split=None),
+            "train": _aggregate_scores(grouped, weights=learned_weights, split="train"),
+            "heldout": _aggregate_scores(
+                grouped, weights=learned_weights, split="heldout"
             ),
         }
     base = metrics["target_only_baseline"]["heldout"]
@@ -469,6 +619,26 @@ def _ranking_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             >= int(base["rank1_gate_admitted_count"])
         ),
     }
+    if learned_weights is not None:
+        learned = metrics["learned_ebrm"]["heldout"]
+        metrics["comparison"]["heldout_regret_delta_baseline_minus_learned"] = (
+            int(base["selected_regret_total"])
+            - int(learned["selected_regret_total"])
+        )
+        metrics["comparison"][
+            "heldout_invalid_before_first_delta_baseline_minus_learned"
+        ] = (
+            int(base["invalid_before_first_admitted_total"])
+            - int(learned["invalid_before_first_admitted_total"])
+        )
+        metrics["comparison"]["learned_beats_or_ties_baseline"] = (
+            int(learned["selected_regret_total"])
+            <= int(base["selected_regret_total"])
+            and int(learned["invalid_before_first_admitted_total"])
+            <= int(base["invalid_before_first_admitted_total"])
+            and int(learned["rank1_gate_admitted_count"])
+            >= int(base["rank1_gate_admitted_count"])
+        )
     return metrics
 
 
@@ -507,10 +677,12 @@ def _corpus_summary(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "curr",
             "candidate",
             "delta",
+            "target_candidate_from_policy_objective",
             "observation.deviation_bps",
             "observation.volatility_bps",
             "observation.liquidity_depth_bps",
             "surface_state",
+            "structural_guard_pressure_from_static_bounds_and_step",
         ),
         "forbidden_feature_sources": (
             "gate_admitted",
@@ -520,7 +692,102 @@ def _corpus_summary(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "utility_regret_to_frontier",
             "split",
         ),
+        "model_feature_names": _MODEL_FEATURE_NAMES,
     }
+
+
+def _weight_candidates() -> Sequence[dict[str, int]]:
+    names = _MODEL_FEATURE_NAMES
+    values = [_TRAINING_GRID[name] for name in names]
+    candidates: list[dict[str, int]] = [
+        dict(_HAND_COMPOSITIONAL_WEIGHTS),
+    ]
+    for combo in product(*values):
+        candidates.append({name: int(value) for name, value in zip(names, combo)})
+    unique: dict[tuple[int, ...], dict[str, int]] = {}
+    for weights in candidates:
+        key = tuple(int(weights[name]) for name in names)
+        unique[key] = weights
+    return [unique[key] for key in sorted(unique)]
+
+
+def _training_objective(score: Mapping[str, Any]) -> tuple[int, int, int, int]:
+    groups_total = int(score["groups_total"])
+    rank1_frontier = int(score["rank1_frontier_count"])
+    invalid_before = int(score["invalid_before_first_admitted_total"])
+    regret = int(score["selected_regret_total"])
+    missed_frontier = groups_total - rank1_frontier
+    return (
+        invalid_before * 10_000 + regret + missed_frontier * 100,
+        invalid_before,
+        regret,
+        missed_frontier,
+    )
+
+
+def _train_weight_vector(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    grouped = _group_rows(rows)
+    best_weights: dict[str, int] | None = None
+    best_score: dict[str, Any] | None = None
+    best_objective: tuple[int, int, int, int] | None = None
+    evaluated = 0
+    for weights in _weight_candidates():
+        evaluated += 1
+        score = _aggregate_scores(grouped, weights=weights, split="train")
+        objective = _training_objective(score)
+        tie_key = tuple(int(weights[name]) for name in _MODEL_FEATURE_NAMES)
+        best_tie_key = (
+            tuple(int(best_weights[name]) for name in _MODEL_FEATURE_NAMES)
+            if best_weights is not None
+            else None
+        )
+        if (
+            best_objective is None
+            or objective < best_objective
+            or (
+                objective == best_objective
+                and best_tie_key is not None
+                and tie_key < best_tie_key
+            )
+        ):
+            best_weights = dict(weights)
+            best_score = dict(score)
+            best_objective = objective
+    if best_weights is None or best_score is None or best_objective is None:
+        raise ValueError("training_grid_empty")
+    return {
+        "weights": best_weights,
+        "train_score": best_score,
+        "training_objective": {
+            "value": best_objective[0],
+            "invalid_before_first_admitted_total": best_objective[1],
+            "selected_regret_total": best_objective[2],
+            "missed_frontier_count": best_objective[3],
+        },
+        "grid_points_evaluated": evaluated,
+    }
+
+
+def _trained_model(corpus_hash: str, training_result: Mapping[str, Any]) -> dict[str, Any]:
+    weights = training_result.get("weights")
+    if not isinstance(weights, Mapping):
+        raise ValueError("training_result_missing_weights")
+    body = {
+        "schema": AUTONOMOUS_GOVERNANCE_EBRM_TRAINED_RANKER_SCHEMA_V1,
+        "model_id": "synthetic_linear_guard_energy_ranker_v1",
+        "model_family": "integer_linear_energy_ranker",
+        "feature_names": _MODEL_FEATURE_NAMES,
+        "weights": {name: int(weights[name]) for name in _MODEL_FEATURE_NAMES},
+        "training_corpus_hash": corpus_hash,
+        "training_method": "deterministic_grid_search_on_grouped_train_split_v1",
+        "objective": (
+            "minimize invalid candidates before first admitted candidate, then "
+            "regret, then missed frontier count"
+        ),
+        "authority": "candidate_ordering_only",
+        "not_claimed": _NOT_CLAIMED,
+    }
+    return {**body, "model_hash": hash_v0(_TRAINED_RANKER_HASH_TAG, body)}
 
 
 def build_autonomous_governance_ebrm_corpus_v1() -> dict[str, Any]:
@@ -544,11 +811,14 @@ def build_autonomous_governance_ebrm_evidence_report_v1(
     """Build a deterministic EBRM evidence report with heldout ranking metrics."""
 
     corpus = build_autonomous_governance_ebrm_corpus_v1()
-    rows = corpus["rows"]
-    assert isinstance(rows, Sequence)
-    metrics = _ranking_metrics(rows)  # type: ignore[arg-type]
-    summary = corpus["summary"]
-    assert isinstance(summary, Mapping)
+    rows_obj = corpus.get("rows")
+    if not isinstance(rows_obj, Sequence):
+        raise ValueError("corpus_rows_must_be_sequence")
+    rows = cast(Sequence[Mapping[str, Any]], rows_obj)
+    metrics = _ranking_metrics(rows)
+    summary = corpus.get("summary")
+    if not isinstance(summary, Mapping):
+        raise ValueError("corpus_summary_must_be_mapping")
     comp_all = metrics["compositional_ebrm"]["all"]
     comparison = metrics["comparison"]
     evidence_ok = (
@@ -587,3 +857,66 @@ def build_autonomous_governance_ebrm_evidence_report_v1(
     if include_corpus:
         body["corpus"] = corpus
     return {**body, "evidence_hash": hash_v0(_EVIDENCE_HASH_TAG, body)}
+
+
+def build_autonomous_governance_ebrm_training_report_v1(
+    *,
+    include_corpus: bool = False,
+) -> dict[str, Any]:
+    """Train and evaluate a deterministic integer EBRM ranker offline."""
+
+    corpus = build_autonomous_governance_ebrm_corpus_v1()
+    rows_obj = corpus["rows"]
+    if not isinstance(rows_obj, Sequence):
+        raise ValueError("corpus_rows_must_be_sequence")
+    rows = cast(Sequence[Mapping[str, Any]], rows_obj)
+    training_result = _train_weight_vector(rows)
+    model = _trained_model(str(corpus["corpus_hash"]), training_result)
+    weights_obj = model["weights"]
+    if not isinstance(weights_obj, Mapping):
+        raise ValueError("trained_model_weights_must_be_mapping")
+    learned_weights = {name: int(weights_obj[name]) for name in _MODEL_FEATURE_NAMES}
+    metrics = _ranking_metrics(rows, learned_weights=learned_weights)
+    learned = metrics["learned_ebrm"]["heldout"]
+    baseline = metrics["target_only_baseline"]["heldout"]
+    comparison = metrics["comparison"]
+    ok = (
+        bool(comparison["learned_beats_or_ties_baseline"])
+        and int(learned["groups_without_admitted"]) == 0
+        and int(learned["rank1_gate_admitted_count"])
+        >= int(baseline["rank1_gate_admitted_count"])
+    )
+    body: dict[str, Any] = {
+        "schema": AUTONOMOUS_GOVERNANCE_EBRM_TRAINING_REPORT_SCHEMA_V1,
+        "ok": ok,
+        "corpus_hash": corpus["corpus_hash"],
+        "corpus_summary": corpus["summary"],
+        "trained_model": model,
+        "training_result": training_result,
+        "ranking_metrics": metrics,
+        "production_promotion_claim": False,
+        "promotion_ready": False,
+        "promotion_blockers": (
+            "synthetic_corpus_only",
+            "cross_seed_learned_model_validation_not_yet_run",
+            "adversarial_hard_negative_mining_not_yet_run",
+            "no_live_distribution_replay_claim",
+            "runtime_authority_remains_exact_gov_gate",
+        ),
+        "determinism": {
+            "uses_randomness": False,
+            "uses_floats": False,
+            "uses_online_learning": False,
+            "training_grid_points": int(training_result["grid_points_evaluated"]),
+        },
+        "authority_boundary": {
+            "model_role": "candidate_ordering_only",
+            "label_authority": "src.tau_specs.governance.gov_gate",
+            "admission_authority": "exact_gate_and_integration_admission_wrappers",
+        },
+        "replay_command": _TRAIN_REPLAY_COMMAND,
+        "not_claimed": _NOT_CLAIMED,
+    }
+    if include_corpus:
+        body["corpus"] = corpus
+    return {**body, "training_report_hash": hash_v0(_TRAINING_REPORT_HASH_TAG, body)}

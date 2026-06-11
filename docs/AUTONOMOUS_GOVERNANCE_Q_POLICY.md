@@ -161,12 +161,32 @@ python3 tools/autonomous_governance_q_policy.py ebrm-evidence \
   --corpus-output /tmp/autogov-ebrm-corpus.json
 ```
 
+Train and evaluate the deterministic integer EBRM ranker on that corpus:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py ebrm-train \
+  --output /tmp/autogov-ebrm-training-report.json \
+  --model-output /tmp/autogov-ebrm-trained-ranker.json
+```
+
 The EBRM evidence command enumerates bounded candidate revisions for fee,
 funding-cap, and staker-defense surfaces, labels each row with `gov_gate.py`,
 assigns deterministic group-level train/heldout splits, and compares a
-compositional integer energy scorer against a target-only baseline. The report
-is evaluation and training material only: it keeps
-`production_promotion_claim=false` and `promotion_ready=false`.
+compositional integer energy scorer against a target-only baseline. The
+compositional scorer uses pre-label `model_features`, including structural
+guard pressure derived from immutable caps and step limits; it does not read
+`gate_admitted` or `gate_errors`.
+
+The `ebrm-train` command performs deterministic integer grid search on the
+train split and emits a hash-pinned linear energy ranker:
+
+```text
+E(context, candidate) = Σ_i weight_i * feature_i(context, candidate)
+```
+
+The learned ranker orders candidates only. `gov_gate.py` remains the labeler
+and the admission authority. Both reports are evaluation and training material:
+they keep `production_promotion_claim=false` and `promotion_ready=false`.
 
 Generate a multi-step trajectory bundle:
 
