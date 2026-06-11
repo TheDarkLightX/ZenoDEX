@@ -1920,6 +1920,15 @@ _AUTOTRADER_RUN_WINDOW_FIELDS = frozenset(
 )
 _AUTOTRADER_CRASH_FIELDS = frozenset({"crash_at", "recovery_at", "checkpoint_hash"})
 _AUTOTRADER_APPROVAL_FIELDS = frozenset({"signer_pubkey", "approval_hash", "signature"})
+_AUTOTRADER_APPROVAL_BODY_FIELDS = (
+    "schema",
+    "supervisor_id",
+    "chain_id",
+    "profile_supervisor_hash",
+    "run_window",
+    "crash_recovery",
+    "budget_compliance",
+)
 _AUTOTRADER_BUDGET_FIELDS = frozenset(
     {
         "max_actions_per_tick_observed",
@@ -1928,6 +1937,22 @@ _AUTOTRADER_BUDGET_FIELDS = frozenset(
         "config_max_runs_per_process",
     }
 )
+
+
+def production_autotrader_run_approval_hash_v1(evidence: Mapping[str, Any]) -> str:
+    """Return the canonical hash that AutoTrader lane signers approve.
+
+    The approval binds the operator's multi-signer decision to the exact
+    supervisor profile, chain, run window, crash-recovery evidence, and budget
+    observations. It deliberately excludes signatures, ``issued_at``, and the
+    outer evidence hash to avoid circular approval material. Freshness remains a
+    separate verifier check against the latest heartbeat and evidence issue time.
+    """
+
+    return hash_v0(
+        "production_autotrader_run_approval_v1",
+        {field: evidence.get(field) for field in _AUTOTRADER_APPROVAL_BODY_FIELDS},
+    ).removeprefix("0x")
 
 
 class _AutotraderLane(Lane):
@@ -2000,7 +2025,12 @@ class _AutotraderLane(Lane):
         _validate_autotrader_heartbeats(rw, gaps=gaps)
         _validate_autotrader_run_freshness(rw, issued_at=issued_at, now=ctx.now, gaps=gaps)
         crash_count = _validate_autotrader_crash_recovery(crash_recovery, rw=rw, gaps=gaps)
-        distinct_signers = _validate_autotrader_signers(approvals, gaps=gaps)
+        expected_approval_hash = production_autotrader_run_approval_hash_v1(obj)
+        distinct_signers = _validate_autotrader_signers(
+            approvals,
+            expected_approval_hash=expected_approval_hash,
+            gaps=gaps,
+        )
         _enforce_autotrader_budgets(budget_parsed, ctx=ctx, gaps=gaps)
 
         if issued_at is not None:
@@ -2016,6 +2046,7 @@ class _AutotraderLane(Lane):
             "supervisor_id": supervisor_id,
             "chain_id": chain_id,
             "profile_supervisor_hash": profile_supervisor_hash,
+            "run_approval_hash": expected_approval_hash,
         }
         extras = {
             "duration_seconds": rw.get("duration_seconds"),
@@ -2349,6 +2380,7 @@ def _validate_autotrader_crash_overlaps(
 def _validate_autotrader_signers(
     approvals: list[Mapping[str, Any]] | None,
     *,
+    expected_approval_hash: str,
     gaps: _Gaps,
 ) -> int:
     if approvals is None:
@@ -2368,7 +2400,12 @@ def _validate_autotrader_signers(
             gaps=gaps,
         )
 
-    _validate_autotrader_approval_set(seen_signer_pubkeys, approval_hashes, gaps=gaps)
+    _validate_autotrader_approval_set(
+        seen_signer_pubkeys,
+        approval_hashes,
+        expected_approval_hash=expected_approval_hash,
+        gaps=gaps,
+    )
     return len(seen_signer_pubkeys)
 
 
@@ -2421,6 +2458,7 @@ def _validate_autotrader_approval_set(
     seen_signer_pubkeys: set[str],
     approval_hashes: set[str],
     *,
+    expected_approval_hash: str,
     gaps: _Gaps,
 ) -> None:
     if len(seen_signer_pubkeys) < _MIN_AUTOTRADER_MULTI_SIGNERS:
@@ -2429,6 +2467,8 @@ def _validate_autotrader_approval_set(
         )
     if len(approval_hashes) > 1:
         gaps.add("multi_signer_approvals entries must all share the same approval_hash")
+    if approval_hashes and expected_approval_hash not in approval_hashes:
+        gaps.add("multi_signer_approvals approval_hash must equal canonical run approval hash")
 
 
 # -----------------------------------------------------------------------------

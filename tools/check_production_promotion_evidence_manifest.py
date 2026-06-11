@@ -166,7 +166,7 @@ _LANE_REQUIREMENTS: Mapping[str, Mapping[str, Any]] = {
         "external_artifacts": [
             "24h+ unattended supervisor run window with heartbeat timestamps",
             "crash recovery checkpoint evidence",
-            "multi-signer approvals",
+            "multi-signer approvals over the canonical run approval hash",
             "budget compliance observations",
         ],
         "producer_tool": "tools/build_autotrader_evidence.py",

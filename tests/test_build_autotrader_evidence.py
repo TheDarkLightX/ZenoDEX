@@ -6,6 +6,7 @@ from pathlib import Path
 from src.integration.production_promotion_evidence import (
     attach_production_autotrader_hash_v1,
     evaluate_production_autotrader_evidence_v1,
+    production_autotrader_run_approval_hash_v1,
 )
 from tools import build_autotrader_evidence as builder
 
@@ -26,13 +27,60 @@ def _write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def _approval_file(tmp_path: Path) -> Path:
+def _crashes() -> list[dict[str, int | str]]:
+    return [
+        {
+            "crash_at": STARTED + 3600,
+            "recovery_at": STARTED + 3620,
+            "checkpoint_hash": "aa" * 32,
+        },
+        {
+            "crash_at": STARTED + 7200,
+            "recovery_at": STARTED + 7250,
+            "checkpoint_hash": "bb" * 32,
+        },
+    ]
+
+
+def _budget() -> dict[str, int]:
+    return {
+        "max_actions_per_tick_observed": 3,
+        "max_runs_per_process_observed": 100,
+        "config_max_actions_per_tick": 4,
+        "config_max_runs_per_process": 200,
+    }
+
+
+def _expected_approval_hash(*, chain_id: str = "tau-test-prod") -> str:
+    return production_autotrader_run_approval_hash_v1(
+        {
+            "schema": "zenodex/production-autotrader-evidence/v1",
+            "supervisor_id": "autotrader-prod-1",
+            "chain_id": chain_id,
+            "profile_supervisor_hash": "sup-hash",
+            "run_window": {
+                "started_at": STARTED,
+                "last_heartbeat_at": LAST_HEARTBEAT,
+                "duration_seconds": DURATION,
+                "ticks_executed": 500,
+                "ticks_failed": 3,
+                "ticks_throttled": 20,
+                "heartbeat_timestamps": _heartbeats(),
+            },
+            "crash_recovery": _crashes(),
+            "budget_compliance": _budget(),
+        }
+    )
+
+
+def _approval_file(tmp_path: Path, *, approval_hash: str | None = None) -> Path:
+    run_approval_hash = _expected_approval_hash() if approval_hash is None else approval_hash
     path = tmp_path / "approvals.json"
     _write_json(
         path,
         [
-            {"signer_pubkey": "11" * 32, "approval_hash": "12" * 32, "signature": "13" * 64},
-            {"signer_pubkey": "21" * 32, "approval_hash": "12" * 32, "signature": "23" * 64},
+            {"signer_pubkey": "11" * 32, "approval_hash": run_approval_hash, "signature": "13" * 64},
+            {"signer_pubkey": "21" * 32, "approval_hash": run_approval_hash, "signature": "23" * 64},
         ],
     )
     return path
@@ -42,18 +90,7 @@ def _crash_file(tmp_path: Path) -> Path:
     path = tmp_path / "crashes.json"
     _write_json(
         path,
-        [
-            {
-                "crash_at": STARTED + 3600,
-                "recovery_at": STARTED + 3620,
-                "checkpoint_hash": "aa" * 32,
-            },
-            {
-                "crash_at": STARTED + 7200,
-                "recovery_at": STARTED + 7250,
-                "checkpoint_hash": "bb" * 32,
-            },
-        ],
+        _crashes(),
     )
     return path
 
@@ -137,6 +174,11 @@ def test_autotrader_builder_check_rejects_template_chain_id_before_write(
     args = _base_args(tmp_path, out)
     args[args.index("tau-test-prod")] = "EXPECTED_CHAIN_ID"
     args[args.index("tau-test-prod")] = "EXPECTED_CHAIN_ID"
+    approvals = _approval_file(
+        tmp_path,
+        approval_hash=_expected_approval_hash(chain_id="EXPECTED_CHAIN_ID"),
+    )
+    args[args.index("--multi-signer-approvals-file") + 1] = str(approvals)
 
     assert builder.main([*args, "--check"]) == 1
 
@@ -201,11 +243,12 @@ def test_autotrader_builder_rejects_budget_overrun_before_writing(capsys, tmp_pa
 def test_autotrader_builder_rejects_duplicate_signer_before_writing(capsys, tmp_path: Path) -> None:
     out = tmp_path / "autotrader.json"
     approvals = tmp_path / "approvals-duplicate.json"
+    approval_hash = _expected_approval_hash()
     _write_json(
         approvals,
         [
-            {"signer_pubkey": "11" * 32, "approval_hash": "12" * 32, "signature": "13" * 64},
-            {"signer_pubkey": "11" * 32, "approval_hash": "12" * 32, "signature": "23" * 64},
+            {"signer_pubkey": "11" * 32, "approval_hash": approval_hash, "signature": "13" * 64},
+            {"signer_pubkey": "11" * 32, "approval_hash": approval_hash, "signature": "23" * 64},
         ],
     )
     args = _base_args(tmp_path, out)
@@ -217,6 +260,51 @@ def test_autotrader_builder_rejects_duplicate_signer_before_writing(capsys, tmp_
     assert payload["error"] == "autotrader_evidence_build_failed"
     assert "duplicates an earlier approval" in payload["detail"]
     assert not out.exists()
+
+
+def test_autotrader_builder_rejects_approval_hash_for_different_run(capsys, tmp_path: Path) -> None:
+    out = tmp_path / "autotrader.json"
+    args = _base_args(tmp_path, out)
+    approvals = Path(args[args.index("--multi-signer-approvals-file") + 1])
+    _write_json(
+        approvals,
+        [
+            {"signer_pubkey": "11" * 32, "approval_hash": "ff" * 32, "signature": "13" * 64},
+            {"signer_pubkey": "21" * 32, "approval_hash": "ff" * 32, "signature": "23" * 64},
+        ],
+    )
+    args[args.index("--multi-signer-approvals-file") + 1] = str(approvals)
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "autotrader_evidence_build_failed"
+    assert "canonical run approval hash" in payload["detail"]
+    assert not out.exists()
+
+
+def test_autotrader_evaluator_rejects_approval_hash_for_mutated_run_report(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "autotrader.json"
+    assert builder.main(_base_args(tmp_path, out)) == 0
+    capsys.readouterr()
+    evidence = json.loads(out.read_text(encoding="utf-8"))
+    evidence["run_window"]["ticks_executed"] = int(evidence["run_window"]["ticks_executed"]) + 1
+    evidence = attach_production_autotrader_hash_v1(evidence)
+
+    lane = evaluate_production_autotrader_evidence_v1(
+        evidence,
+        supervisor_profile_hash="sup-hash",
+        config_max_actions_per_tick=4,
+        config_max_runs_per_process=200,
+        expected_chain_id="tau-test-prod",
+        now=NOW,
+    )
+
+    assert lane["production_ready"] is False
+    assert "multi_signer_approvals approval_hash must equal canonical run approval hash" in lane["gaps"]
 
 
 def test_autotrader_builder_rejects_overlapping_crash_recovery_before_writing(capsys, tmp_path: Path) -> None:

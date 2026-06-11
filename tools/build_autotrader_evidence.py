@@ -40,6 +40,7 @@ from src.integration.production_promotion_evidence import (  # noqa: E402
     AUTOTRADER_EVIDENCE_SCHEMA_V1,
     attach_production_autotrader_hash_v1,
     evaluate_production_autotrader_evidence_v1,
+    production_autotrader_run_approval_hash_v1,
 )
 
 _HEX = frozenset("0123456789abcdef")
@@ -215,7 +216,7 @@ def _validate_crash_recovery(
     return out
 
 
-def _validate_approvals(path: Path) -> list[dict[str, str]]:
+def _validate_approvals(path: Path, *, expected_approval_hash: str) -> list[dict[str, str]]:
     raw = _mapping_list(path, label="multi-signer approvals")
     if len(raw) < _MIN_AUTOTRADER_MULTI_SIGNERS or len(raw) > _MAX_AUTOTRADER_MULTI_SIGNERS:
         raise ValueError(
@@ -250,6 +251,8 @@ def _validate_approvals(path: Path) -> list[dict[str, str]]:
         out.append({"signer_pubkey": signer_pubkey, "approval_hash": approval_hash, "signature": signature})
     if len(approval_hashes) != 1:
         raise ValueError("multi-signer approvals entries must all share the same approval_hash")
+    if expected_approval_hash not in approval_hashes:
+        raise ValueError("multi-signer approvals approval_hash must equal canonical run approval hash")
     return out
 
 
@@ -306,28 +309,30 @@ def build_autotrader_evidence(args: argparse.Namespace) -> dict[str, Any]:
         started_at=int(run_window["started_at"]),
         last_heartbeat_at=int(run_window["last_heartbeat_at"]),
     )
-    approvals = _validate_approvals(args.multi_signer_approvals_file)
     budget = _validate_budget(args)
     if args.expected_chain_id is not None and args.chain_id != args.expected_chain_id:
         raise ValueError("chain_id does not match expected_chain_id")
-    return attach_production_autotrader_hash_v1(
-        {
-            "schema": AUTOTRADER_EVIDENCE_SCHEMA_V1,
-            "supervisor_id": args.supervisor_id,
-            "chain_id": args.chain_id,
-            "profile_supervisor_hash": args.profile_supervisor_hash,
-            # Review finding (grade B+ -> A-): without --check the producer could
-            # write a production-looking supervisor run with invalid heartbeats,
-            # crash intervals, signer quorum, or budget overruns. Validate the
-            # structural evidence before hashing; the lane verifier remains the
-            # final authority for freshness and binding.
-            "run_window": run_window,
-            "crash_recovery": crash_recovery,
-            "multi_signer_approvals": approvals,
-            "budget_compliance": budget,
-            "issued_at": issued_at,
-        }
+    evidence_body: dict[str, Any] = {
+        "schema": AUTOTRADER_EVIDENCE_SCHEMA_V1,
+        "supervisor_id": args.supervisor_id,
+        "chain_id": args.chain_id,
+        "profile_supervisor_hash": args.profile_supervisor_hash,
+        # Review finding (grade B+ -> A-): without --check the producer could
+        # write a production-looking supervisor run with invalid heartbeats,
+        # crash intervals, signer quorum, or budget overruns. Validate the
+        # structural evidence before hashing; the lane verifier remains the
+        # final authority for freshness and binding.
+        "run_window": run_window,
+        "crash_recovery": crash_recovery,
+        "budget_compliance": budget,
+        "issued_at": issued_at,
+    }
+    expected_approval_hash = production_autotrader_run_approval_hash_v1(evidence_body)
+    approvals = _validate_approvals(
+        args.multi_signer_approvals_file,
+        expected_approval_hash=expected_approval_hash,
     )
+    return attach_production_autotrader_hash_v1({**evidence_body, "multi_signer_approvals": approvals})
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
