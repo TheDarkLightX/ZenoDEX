@@ -36,6 +36,12 @@ from src.integration.autonomous_governance_session_store import (  # noqa: E402
     initialize_autonomous_governance_session_store_v1,
     verify_autonomous_governance_session_store_v1,
 )
+from src.integration.autonomous_governance_session_store_file import (  # noqa: E402
+    admit_autonomous_governance_session_file_continuation_v1,
+    current_session_store_file_head_v1,
+    initialize_autonomous_governance_session_store_file_v1,
+    verify_autonomous_governance_session_store_file_v1,
+)
 
 
 MAX_INPUT_BYTES = 500_000
@@ -456,6 +462,110 @@ def _cmd_session_store_head(args: argparse.Namespace) -> int:
     return 0 if result.get("ok") is True else 2
 
 
+def _store_file_path_from_bundle(bundle: dict[str, Any], *, command: str) -> str:
+    value = bundle.get("path", bundle.get("store_path"))
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{command}_requires_path")
+    return value
+
+
+def _cmd_init_session_store_file(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        if "policy" not in bundle:
+            raise ValueError("init_session_store_file_requires_policy")
+        result = initialize_autonomous_governance_session_store_file_v1(
+            path=_store_file_path_from_bundle(bundle, command="init_session_store_file"),
+            genesis_pin=bundle.get("genesis_pin", {}),
+            genesis_receipt=bundle.get("genesis_receipt", {}),
+            policy=bundle.get("policy", {}),
+            create_only=bundle.get("create_only", True),
+        )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"init_session_store_file_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("ok") is True else 2
+
+
+def _cmd_admit_session_file_continuation(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        if "policy" not in bundle:
+            raise ValueError("admit_session_file_continuation_requires_policy")
+        receipt = bundle.get("trajectory_receipt", bundle.get("receipt", {}))
+        result = admit_autonomous_governance_session_file_continuation_v1(
+            path=_store_file_path_from_bundle(
+                bundle, command="admit_session_file_continuation"
+            ),
+            receipt=receipt,
+            policy=bundle.get("policy", {}),
+            expected_store_hash=bundle.get("expected_store_hash"),
+        )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"admit_session_file_continuation_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("admitted") is True else 2
+
+
+def _cmd_verify_session_store_file(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        if "policy" not in bundle:
+            raise ValueError("verify_session_store_file_requires_policy")
+        result = verify_autonomous_governance_session_store_file_v1(
+            path=_store_file_path_from_bundle(bundle, command="verify_session_store_file"),
+            policy=bundle.get("policy", {}),
+        )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"verify_session_store_file_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("ok") is True else 2
+
+
+def _cmd_session_store_file_head(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        result = current_session_store_file_head_v1(
+            path=_store_file_path_from_bundle(bundle, command="session_store_file_head")
+        )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"session_store_file_head_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("ok") is True else 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -567,6 +677,51 @@ def main(argv: list[str] | None = None) -> int:
         help="path to JSON store object or {store}",
     )
     session_store_head.set_defaults(func=_cmd_session_store_head)
+
+    init_session_store_file = sub.add_parser(
+        "init-session-store-file",
+        help="initialize and persist a single-live-head session store file",
+    )
+    init_session_store_file.add_argument(
+        "bundle",
+        help="path to JSON with path, policy, genesis_pin, and genesis_receipt",
+    )
+    init_session_store_file.set_defaults(func=_cmd_init_session_store_file)
+
+    admit_session_file_continuation = sub.add_parser(
+        "admit-session-file-continuation",
+        help="advance a persisted session store file on a verified continuation",
+    )
+    admit_session_file_continuation.add_argument(
+        "bundle",
+        help=(
+            "path to JSON with path, policy, trajectory_receipt, and optional "
+            "expected_store_hash"
+        ),
+    )
+    admit_session_file_continuation.set_defaults(
+        func=_cmd_admit_session_file_continuation
+    )
+
+    verify_session_store_file = sub.add_parser(
+        "verify-session-store-file",
+        help="audit a persisted session store file with archived receipts replayed",
+    )
+    verify_session_store_file.add_argument(
+        "bundle",
+        help="path to JSON with path and policy",
+    )
+    verify_session_store_file.set_defaults(func=_cmd_verify_session_store_file)
+
+    session_store_file_head = sub.add_parser(
+        "session-store-file-head",
+        help="read the current persisted session-store head and surface state",
+    )
+    session_store_file_head.add_argument(
+        "bundle",
+        help="path to JSON with path",
+    )
+    session_store_file_head.set_defaults(func=_cmd_session_store_file_head)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

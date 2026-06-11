@@ -48,6 +48,14 @@ rollback replay is refused against the current head and returns the store
 unchanged. Protecting and distributing that store state remains a deployment
 responsibility.
 
+`autonomous_governance_session_store_file.py` adds a local durable repository
+for that store. It persists the JSON store blob with atomic replacement, uses an
+exclusive `.lock` sidecar during writes, and can require an
+`expected_store_hash` on admission. A stale writer therefore receives
+`session_store_file_expected_hash_mismatch` before it can advance an old head.
+This is a local deployment guard; global ordering, data availability, and
+replicated custody remain outside this module.
+
 Surface evaluation can also bind the committed-state context with
 `expected_committed_context_hash`. The hash covers the current surface state,
 `current_epoch`, `proposal_epoch`, optional `last_update_epoch`,
@@ -439,6 +447,21 @@ The `init-session-store` bundle contains `policy`, `genesis_pin`, and
 pin chain and one trajectory receipt per pin, so `verify-session-store` can run
 in receipts-replayed scope.
 
+Initialize and advance the file-backed session store:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py init-session-store-file /tmp/autogov-session-store-file-init-bundle.json
+python3 tools/autonomous_governance_q_policy.py admit-session-file-continuation /tmp/autogov-session-store-file-admit-bundle.json
+python3 tools/autonomous_governance_q_policy.py verify-session-store-file /tmp/autogov-session-store-file-verify-bundle.json
+python3 tools/autonomous_governance_q_policy.py session-store-file-head /tmp/autogov-session-store-file-verify-bundle.json
+```
+
+The file-backed init bundle contains `path`, `policy`, `genesis_pin`, and
+`genesis_receipt`. The admission bundle contains `path`, `policy`,
+`trajectory_receipt` (or `receipt`), and should carry `expected_store_hash` from
+the caller's last verified head. The file path stores the raw session-store JSON,
+so callers stop passing the whole store blob through every admission request.
+
 Exit code `0` means the autonomous revision packet is approved. Exit code `2`
 means it was rejected fail-closed. Exit code `3` means the input could not be
 evaluated.
@@ -517,6 +540,9 @@ paths are:
   lineage for verified genesis and continuation records.
 - `src/integration/autonomous_governance_session_store.py`: single-live-head
   admission store that refuses forks, rollbacks, and malformed state blobs.
+- `src/integration/autonomous_governance_session_store_file.py`: file-backed
+  store repository with atomic replace, lock refusal, and expected-store-hash
+  stale-write checks.
 - `src/integration/zeno_governance_authority.py`: governance action authority
   gate for quorum, timelock, Tau receipt, and backend evidence.
 - `tools/autonomous_governance_policy_factory.py`: aggregates
@@ -526,10 +552,15 @@ paths are:
   `continue-trajectory`, `verify-trajectory`, `admit-trajectory`, and
   `verify-session` for replay and client admission checks, plus
   `init-session-store`, `admit-session-continuation`, `verify-session-store`,
-  and `session-store-head` for live-head store checks.
+  `session-store-head`, `init-session-store-file`,
+  `admit-session-file-continuation`, `verify-session-store-file`, and
+  `session-store-file-head` for live-head store checks.
 - `tests/integration/test_autonomous_governance_q_policy.py`: checks that
   anti-oscillation and trajectory-budget blockers are penalized before gate
   scanning.
+- `tests/integration/test_autonomous_governance_session_store_file.py`: checks
+  file-backed initialization, expected-hash CAS refusal, fork/replay refusal,
+  malformed-file refusal, lock refusal, and CLI lifecycle commands.
 - `tests/tools/test_autonomous_governance_q_table_optimizer.py`: fixes the
   artifact-level replay expectations for the generated policy.
 
