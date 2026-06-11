@@ -23,8 +23,19 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+try:
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+    _ED25519_AVAILABLE = True
+except ImportError:  # pragma: no cover - dependency guard for fail-closed builder errors
+    InvalidSignature = Exception
+    Ed25519PublicKey = None
+    _ED25519_AVAILABLE = False
+
 from src.integration.production_promotion_evidence import (  # noqa: E402
     ORACLE_AUTHORITY_EVIDENCE_SCHEMA_V1,
+    _oracle_authority_attestation_message,
     attach_production_oracle_authority_hash_v1,
     evaluate_production_oracle_authority_evidence_v1,
 )
@@ -79,6 +90,16 @@ def _normalize_hex(value: str, *, label: str, length: int) -> str:
     return text
 
 
+def _verify_ed25519_signature(*, pubkey: str, signature: str, message: bytes, label: str) -> None:
+    if not _ED25519_AVAILABLE or Ed25519PublicKey is None:
+        raise ValueError(f"{label} Ed25519 verifier is unavailable")
+    try:
+        public_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(pubkey))
+        public_key.verify(bytes.fromhex(signature), message)
+    except (InvalidSignature, ValueError) as exc:
+        raise ValueError(f"{label} is invalid") from exc
+
+
 def build_oracle_authority_evidence(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
     bounded = _load_json_object(args.bounded_oracle_exercise_status, label="bounded oracle exercise status")
     # Review finding (grade B+ -> A-): the lane verifier rejected unexercised
@@ -131,37 +152,56 @@ def build_oracle_authority_evidence(args: argparse.Namespace) -> tuple[dict[str,
         raise ValueError("expected oracle authority signer pubkey is required for binding")
     if signer_pubkey != expected_signer_pubkey:
         raise ValueError("authority attestation signer pubkey does not match expected authority signer pubkey")
-    evidence = attach_production_oracle_authority_hash_v1(
-        {
-            "schema": ORACLE_AUTHORITY_EVIDENCE_SCHEMA_V1,
-            "authority_id": args.authority_id,
-            "chain_id": expected_chain_id,
-            "target_network": args.target_network,
-            "exercise_hash": _required_str(bounded, "exercise_hash", label="bounded oracle exercise status"),
-            "profile_authority_hash": _required_str(bounded, "authority_hash", label="bounded oracle exercise status"),
-            "public_broadcast_height": broadcast_height,
-            "public_settlement_height": settlement_height,
-            "public_broadcast_block_hash": _normalize_hex(
-                args.public_broadcast_block_hash,
-                label="public broadcast block hash",
-                length=64,
-            ),
-            "public_settlement_block_hash": _normalize_hex(
-                args.public_settlement_block_hash,
-                label="public settlement block hash",
-                length=64,
-            ),
-            "public_broadcast_explorer_url": args.public_broadcast_explorer_url,
-            "public_settlement_explorer_url": args.public_settlement_explorer_url,
-            "authority_attestation_signature": _normalize_hex(
-                args.authority_attestation_signature,
-                label="authority attestation signature",
-                length=128,
-            ),
-            "authority_attestation_signer_pubkey": signer_pubkey,
-            "issued_at": issued_at,
-        }
+    authority_attestation_signature = _normalize_hex(
+        args.authority_attestation_signature,
+        label="authority attestation signature",
+        length=128,
     )
+    evidence_body = {
+        "schema": ORACLE_AUTHORITY_EVIDENCE_SCHEMA_V1,
+        "authority_id": args.authority_id,
+        "chain_id": expected_chain_id,
+        "target_network": args.target_network,
+        "exercise_hash": _required_str(bounded, "exercise_hash", label="bounded oracle exercise status"),
+        "profile_authority_hash": _required_str(bounded, "authority_hash", label="bounded oracle exercise status"),
+        "public_broadcast_height": broadcast_height,
+        "public_settlement_height": settlement_height,
+        "public_broadcast_block_hash": _normalize_hex(
+            args.public_broadcast_block_hash,
+            label="public broadcast block hash",
+            length=64,
+        ),
+        "public_settlement_block_hash": _normalize_hex(
+            args.public_settlement_block_hash,
+            label="public settlement block hash",
+            length=64,
+        ),
+        "public_broadcast_explorer_url": args.public_broadcast_explorer_url,
+        "public_settlement_explorer_url": args.public_settlement_explorer_url,
+        "authority_attestation_signature": authority_attestation_signature,
+        "authority_attestation_signer_pubkey": signer_pubkey,
+        "issued_at": issued_at,
+    }
+    _verify_ed25519_signature(
+        pubkey=signer_pubkey,
+        signature=authority_attestation_signature,
+        message=_oracle_authority_attestation_message(
+            authority_id=str(evidence_body["authority_id"]),
+            chain_id=str(evidence_body["chain_id"]),
+            target_network=str(evidence_body["target_network"]),
+            exercise_hash=str(evidence_body["exercise_hash"]),
+            profile_authority_hash=str(evidence_body["profile_authority_hash"]),
+            public_broadcast_height=int(evidence_body["public_broadcast_height"]),
+            public_settlement_height=int(evidence_body["public_settlement_height"]),
+            public_broadcast_block_hash=str(evidence_body["public_broadcast_block_hash"]),
+            public_settlement_block_hash=str(evidence_body["public_settlement_block_hash"]),
+            public_broadcast_explorer_url=str(evidence_body["public_broadcast_explorer_url"]),
+            public_settlement_explorer_url=str(evidence_body["public_settlement_explorer_url"]),
+            issued_at=int(evidence_body["issued_at"]),
+        ),
+        label="authority attestation signature",
+    )
+    evidence = attach_production_oracle_authority_hash_v1(evidence_body)
     return evidence, bounded
 
 

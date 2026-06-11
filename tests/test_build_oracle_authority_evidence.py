@@ -83,6 +83,35 @@ def _base_args(tmp_path: Path, bounded_path: Path, out: Path) -> list[str]:
     ]
 
 
+def _arg_value(args: list[str], option: str) -> str:
+    return args[args.index(option) + 1]
+
+
+def _set_arg(args: list[str], option: str, value: str) -> None:
+    args[args.index(option) + 1] = value
+
+
+def _resign_args(args: list[str]) -> None:
+    bounded = _bounded_oracle_exercise()
+    signature = _ORACLE_AUTHORITY_PRIVATE_KEY.sign(
+        _oracle_authority_attestation_message(
+            authority_id=_arg_value(args, "--authority-id"),
+            chain_id=str(bounded["chain_id"]),
+            target_network="public_testnet",
+            exercise_hash=str(bounded["exercise_hash"]),
+            profile_authority_hash=str(bounded["authority_hash"]),
+            public_broadcast_height=int(str(bounded["public_broadcast_height"])),
+            public_settlement_height=int(str(bounded["public_settlement_height"])),
+            public_broadcast_block_hash=_arg_value(args, "--public-broadcast-block-hash"),
+            public_settlement_block_hash=_arg_value(args, "--public-settlement-block-hash"),
+            public_broadcast_explorer_url=_arg_value(args, "--public-broadcast-explorer-url"),
+            public_settlement_explorer_url=_arg_value(args, "--public-settlement-explorer-url"),
+            issued_at=int(_arg_value(args, "--issued-at")),
+        )
+    )
+    _set_arg(args, "--authority-attestation-signature", signature.hex())
+
+
 def test_oracle_builder_writes_lane_ready_evidence(capsys, tmp_path: Path) -> None:
     bounded_path = tmp_path / "bounded.json"
     bounded_path.write_text(json.dumps(_bounded_oracle_exercise()), encoding="utf-8")
@@ -275,8 +304,8 @@ def test_oracle_builder_check_rejects_local_explorer_url(capsys, tmp_path: Path)
     bounded_path.write_text(json.dumps(_bounded_oracle_exercise()), encoding="utf-8")
     out = tmp_path / "oracle_authority.json"
     args = _base_args(tmp_path, bounded_path, out)
-    index = args.index("--public-settlement-explorer-url") + 1
-    args[index] = "https://localhost/block/105"
+    _set_arg(args, "--public-settlement-explorer-url", "https://localhost/block/105")
+    _resign_args(args)
 
     assert builder.main([*args, "--check"]) == 1
 
@@ -294,13 +323,31 @@ def test_oracle_builder_check_rejects_invalid_authority_attestation_signature(
     bounded_path.write_text(json.dumps(_bounded_oracle_exercise()), encoding="utf-8")
     out = tmp_path / "oracle_authority.json"
     args = _base_args(tmp_path, bounded_path, out)
-    args[args.index("--authority-attestation-signature") + 1] = "aa" * 64
+    _set_arg(args, "--authority-attestation-signature", "aa" * 64)
 
-    assert builder.main([*args, "--check"]) == 1
+    assert builder.main([*args, "--check"]) == 2
 
-    err = json.loads(capsys.readouterr().err)
-    assert err["production_ready"] is False
-    assert "oracle authority attestation signature is invalid" in err["gaps"]
+    err = json.loads(capsys.readouterr().out)
+    assert err["error"] == "oracle_authority_evidence_build_failed"
+    assert "authority attestation signature is invalid" in err["detail"]
+    assert not out.exists()
+
+
+def test_oracle_builder_rejects_invalid_authority_attestation_signature_before_writing(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    bounded_path = tmp_path / "bounded.json"
+    bounded_path.write_text(json.dumps(_bounded_oracle_exercise()), encoding="utf-8")
+    out = tmp_path / "oracle_authority.json"
+    args = _base_args(tmp_path, bounded_path, out)
+    _set_arg(args, "--authority-attestation-signature", "aa" * 64)
+
+    assert builder.main(args) == 2
+
+    err = json.loads(capsys.readouterr().out)
+    assert err["error"] == "oracle_authority_evidence_build_failed"
+    assert "authority attestation signature is invalid" in err["detail"]
     assert not out.exists()
 
 
@@ -309,7 +356,8 @@ def test_oracle_builder_check_rejects_stale_issued_at(capsys, tmp_path: Path) ->
     bounded_path.write_text(json.dumps(_bounded_oracle_exercise()), encoding="utf-8")
     out = tmp_path / "oracle_authority.json"
     args = _base_args(tmp_path, bounded_path, out)
-    args[args.index("--issued-at") + 1] = str(NOW - 31 * 24 * 3600)
+    _set_arg(args, "--issued-at", str(NOW - 31 * 24 * 3600))
+    _resign_args(args)
 
     assert builder.main([*args, "--check"]) == 1
 
@@ -327,7 +375,7 @@ def test_oracle_builder_rejects_non_positive_issued_at_before_writing(
     bounded_path.write_text(json.dumps(_bounded_oracle_exercise()), encoding="utf-8")
     out = tmp_path / "oracle_authority.json"
     args = _base_args(tmp_path, bounded_path, out)
-    args[args.index("--issued-at") + 1] = "0"
+    _set_arg(args, "--issued-at", "0")
 
     assert builder.main(args) == 2
 
