@@ -36,7 +36,7 @@ theorem card_insert_erase_eq
   -- (S.card - 1) + 1 = S.card
   have hcard_pos : 0 < S.card := Finset.card_pos.2 ⟨e, he⟩
   have hcard_one_le : 1 ≤ S.card := Nat.succ_le_of_lt hcard_pos
-  simpa [hcard_erase, hcard_ins, Nat.sub_add_cancel hcard_one_le]
+  simp [hcard_erase, hcard_ins, Nat.sub_add_cancel hcard_one_le]
 
 end MST
 end TauSwap
