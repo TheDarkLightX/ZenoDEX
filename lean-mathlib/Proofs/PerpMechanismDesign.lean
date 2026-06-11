@@ -104,6 +104,66 @@ theorem ic_from_dominant {n m : Nat} (g : Game n m) (i : Fin n) (h : Fin m)
     (hdom : DominantStrategy g i h) : IncentiveCompatible g i h :=
   hdom
 
+/-! ## Strict Dominance and Equilibrium Uniqueness
+
+Weak dominance certifies an equilibrium but says nothing about other
+equilibria, so a mechanism analyzed with `DominantProfile` alone has a
+*supported* outcome, not a *predicted* one.  Strict dominance closes that
+gap: a strictly-dominant profile is the **unique** Nash equilibrium
+(`strict_dominant_unique_nash`), pinning the mechanism's predicted outcome.
+-/
+
+/-- Strategy s is strictly dominant for player i: strictly better than every
+    alternative `s' ≠ s`, regardless of opponents' strategies. -/
+@[reducible]
+def StrictlyDominantStrategy {n m : Nat} (g : Game n m) (i : Fin n) (s : Fin m) : Prop :=
+  ∀ σ : Fin n → Fin m, ∀ s' : Fin m, s' ≠ s →
+    g.payoff (deviate σ i s') i < g.payoff (deviate σ i s) i
+
+/-- A strictly-dominant profile: every player's strategy is strictly dominant. -/
+@[reducible]
+def StrictDominantProfile {n m : Nat} (g : Game n m) (σ : Fin n → Fin m) : Prop :=
+  ∀ i : Fin n, StrictlyDominantStrategy g i (σ i)
+
+/-- Strict dominance implies weak dominance. -/
+theorem strict_dominant_implies_dominant {n m : Nat} (g : Game n m) (i : Fin n)
+    (s : Fin m) (h : StrictlyDominantStrategy g i s) : DominantStrategy g i s := by
+  intro σ s'
+  by_cases hs : s' = s
+  · subst hs
+    exact le_rfl
+  · exact le_of_lt (h σ s' hs)
+
+/-- A strictly-dominant profile is a Nash equilibrium (existence half). -/
+theorem strict_dominant_profile_nash {n m : Nat} (g : Game n m) (σ : Fin n → Fin m)
+    (hdom : StrictDominantProfile g σ) : NashEq g σ :=
+  dominant_implies_nash g σ fun i => strict_dominant_implies_dominant g i (σ i) (hdom i)
+
+/-- **Uniqueness**: every Nash equilibrium coincides with a strictly-dominant
+    profile.  Proof: if `τ i ≠ σ i`, strict dominance at profile `τ` gives
+    `payoff τ i < payoff (deviate τ i (σ i)) i`, contradicting the Nash
+    condition for `τ` at deviation `σ i`. -/
+theorem strict_dominant_unique_nash {n m : Nat} (g : Game n m)
+    (σ τ : Fin n → Fin m) (hdom : StrictDominantProfile g σ) (hτ : NashEq g τ) :
+    τ = σ := by
+  funext i
+  by_contra hne
+  have hstrict := hdom i τ (τ i) hne
+  rw [deviate_self] at hstrict
+  have hnash := hτ i (σ i)
+  exact absurd (lt_of_lt_of_le hstrict hnash) (lt_irrefl _)
+
+/-- Full characterization: under a strictly-dominant profile `σ`, a profile is
+    a Nash equilibrium iff it equals `σ`.  The mechanism's predicted outcome
+    is unique. -/
+theorem nash_iff_eq_of_strict_dominant {n m : Nat} (g : Game n m)
+    (σ : Fin n → Fin m) (hdom : StrictDominantProfile g σ) (τ : Fin n → Fin m) :
+    NashEq g τ ↔ τ = σ := by
+  constructor
+  · exact strict_dominant_unique_nash g σ τ hdom
+  · rintro rfl
+    exact strict_dominant_profile_nash _ _ hdom
+
 /-! ## Non-Vacuity Witness
 
 Concrete 2-player, 2-strategy Prisoner's Dilemma where strategy 1 (defect) is
@@ -138,6 +198,16 @@ theorem witness_two_player_game :
     IndividuallyRational pdGame σ (0 : Fin 2) (0 : ℤ) ∧
     IndividuallyRational pdGame σ (1 : Fin 2) (0 : ℤ) ∧
     BudgetBalanced₂ pdGame σ := by
+  native_decide
+
+/-- Non-vacuity for strict dominance: in the Prisoner's Dilemma,
+    (Defect, Defect) is a strictly-dominant profile.  By
+    `nash_iff_eq_of_strict_dominant` it is therefore the UNIQUE Nash
+    equilibrium of `pdGame` — a strictly stronger conclusion than
+    `witness_two_player_game`, which only certifies it as *a* Nash
+    equilibrium. -/
+theorem witness_pd_strict_dominance :
+    StrictDominantProfile pdGame (fun _ => 1) := by
   native_decide
 
 end PerpMechanismDesign
