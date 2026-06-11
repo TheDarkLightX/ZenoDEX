@@ -146,9 +146,8 @@ theorem median3_coalition_bond_floor (gain slash margin : ℚ)
     (hdet : (1 + margin) * gain ≤ 2 * slash) :
     coalitionPostHocEV gain slash 2 ≤ -(margin * gain) := by
   have h2 : ((2 : ℕ) : ℚ) = 2 := by norm_num
-  refine coalition_deterrence gain slash margin 2 ?_
-  rw [h2]
-  exact hdet
+  apply coalition_deterrence
+  simpa [h2] using hdet
 
 /-- Unilateral sizing is insufficient for a quorum: slash 12 deters the
     unilateral gain 10 at margin 20% (`12 ≥ 1.2 · 10`), yet a 2-coalition
@@ -158,7 +157,7 @@ theorem witness_unilateral_sizing_insufficient :
     (1 + 2 / 10 : ℚ) * 10 ≤ 12 ∧
     coalitionPostHocEV 100 12 2 = 76 ∧
     (0 : ℚ) < coalitionPostHocEV 100 12 2 := by
-  refine ⟨by norm_num, ?_, ?_⟩ <;> norm_num [coalitionPostHocEV]
+  norm_num [coalitionPostHocEV]
 
 end EconomicSecurityEnvelope
 end Proofs

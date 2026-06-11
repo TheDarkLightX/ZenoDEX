@@ -59,8 +59,8 @@ theorem median3_robust_corrupt_second (lo hi a b c : ℚ)
     lo ≤ median3 a b c ∧ median3 a b c ≤ hi := by
   unfold median3
   constructor
-  · refine le_trans (le_min ?_ hc1) (le_max_right _ _)
-    exact le_trans ha1 (le_max_left a b)
+  · have hlo_max_ab : lo ≤ max a b := le_trans ha1 (le_max_left a b)
+    exact le_trans (le_min hlo_max_ab hc1) (le_max_right _ _)
   · apply max_le
     · exact le_trans (min_le_left a b) ha2
     · exact le_trans (min_le_right (max a b) c) hc2
@@ -72,8 +72,8 @@ theorem median3_robust_corrupt_first (lo hi a b c : ℚ)
     lo ≤ median3 a b c ∧ median3 a b c ≤ hi := by
   unfold median3
   constructor
-  · refine le_trans (le_min ?_ hc1) (le_max_right _ _)
-    exact le_trans hb1 (le_max_right a b)
+  · have hlo_max_ab : lo ≤ max a b := le_trans hb1 (le_max_right a b)
+    exact le_trans (le_min hlo_max_ab hc1) (le_max_right _ _)
   · apply max_le
     · exact le_trans (min_le_right a b) hb2
     · exact le_trans (min_le_right (max a b) c) hc2

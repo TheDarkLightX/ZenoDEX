@@ -131,8 +131,16 @@ theorem witness_dutch :
     ramp 3 (firstCross 3 10) = 12 ∧
     ramp 3 (firstCross 3 10) - 10 < 3 ∧
     RaceEquilibriumCount ((12 : ℕ) : ℚ) (10 : ℚ) 1 := by
-  refine ⟨by norm_num [firstCross], by norm_num [ramp, firstCross], by norm_num [ramp, firstCross], ⟨fun _ => ?_, ?_⟩⟩ <;>
+  constructor
+  · norm_num [firstCross]
+  constructor
+  · norm_num [ramp, firstCross]
+  constructor
+  · norm_num [ramp, firstCross]
+  constructor
+  · intro _
     norm_num [raceAttemptPayoff]
+  · norm_num [raceAttemptPayoff]
 
 end DutchLiquidationAuction
 end Proofs
