@@ -32,7 +32,7 @@ theorem optimal_index_mem_plateau
     cases hcmp with
     | inl hlt =>
         have hlt_best : f a < best := h_left a h_a_lo hlt
-        exact False.elim ((Nat.lt_irrefl best) (by simpa [h_a_best] using hlt_best))
+        simp [h_a_best] at hlt_best
     | inr hge =>
         exact hge
 
@@ -41,7 +41,7 @@ theorem optimal_index_mem_plateau
     cases hcmp with
     | inl hgt =>
         have hgt_best : f a < best := h_right a hgt h_a_hi
-        exact False.elim ((Nat.lt_irrefl best) (by simpa [h_a_best] using hgt_best))
+        simp [h_a_best] at hgt_best
     | inr hle =>
         exact hle
 
@@ -74,7 +74,7 @@ theorem zero_gap_if_selected_in_plateau
     (h_sel : pLo ≤ aSel ∧ aSel ≤ pHi) :
     best - f aSel = 0 := by
   have h_eq : f aSel = best := h_plateau aSel h_sel.1 h_sel.2
-  simpa [h_eq]
+  simp [h_eq]
 
 end SplitRouting
 end Proofs
