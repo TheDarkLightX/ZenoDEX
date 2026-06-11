@@ -21,6 +21,7 @@ inside `experiments/mechanism_design_math_v1/`.
 | `H-MD-PT-001` | `O-PT-01` | perps timing | `SUPPORTED` | `wave3_perp_timing/test_perp_timing_and_keeper_deviations.py` |
 | `H-MD-PT-002` | `O-PT-02` | perps timing | `SUPPORTED` | `wave3_perp_timing/test_perp_timing_and_keeper_deviations.py` |
 | `H-MD-PT-003` | `O-PT-03` | perps timing | `SUPPORTED` | `wave3_perp_timing/test_perp_timing_and_keeper_deviations.py` |
+| `H-MD-PT-004` | `O-PT-04` | perps timing | `SUPPORTED` | `wave3_perp_timing/test_perp_price_mediated_cascade.py` |
 | `H-MD-PT-005` | `O-PT-01` | perps timing | `SUPPORTED` | `wave3_perp_timing/test_perp_timing_and_keeper_deviations.py` |
 | `H-MD-PT-006` | `O-PT-05` | perps timing | `SUPPORTED` | `wave3_perp_timing/test_perp_timing_and_keeper_deviations.py` |
 | `H-MD-VM-001` | `O-VM-01` | verification markets | `SUPPORTED` | `wave4_verification_markets/test_verification_market_deviations.py` |

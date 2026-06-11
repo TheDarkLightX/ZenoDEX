@@ -48,6 +48,17 @@
       "obligation": "O-PT-03"
     },
     {
+      "id": "H-MD-PT-004",
+      "description": "Under an explicit one-sided linear book-impact model, real per-account perp transitions admit bounded price-mediated liquidation cascades with exact K=0 thresholds and strict-progress depth bounds.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 7,
+      "tests_failed": 0,
+      "confidence": 0.8,
+      "key_finding": "The real single-account kernel clamps per-epoch settlement moves, fails closed on negative post-PnL collateral, and allows an exact K=0 threshold at maint(sp1)+loss(sp1). In the modeled cross-account price-impact channel, a 4-account chain reaches the strict-progress bound K=3, K is weakly decreasing over the swept book-depth grid, and keeper fraction_bps can flip K from 0 to 1.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave3_perp_timing/test_perp_price_mediated_cascade.py -q",
+      "obligation": "O-PT-04"
+    },
+    {
       "id": "H-MD-PT-006",
       "description": "The caller-chosen fraction_bps parameter is a value-transfer lever: full liquidation can be legal while the auto minimum restores margin with less penalty.",
       "verdict": "SUPPORTED",
@@ -59,7 +70,7 @@
       "obligation": "O-PT-05"
     }
   ],
-  "total_tests": 5,
-  "total_passed": 5,
+  "total_tests": 12,
+  "total_passed": 12,
   "total_failed": 0
 }
