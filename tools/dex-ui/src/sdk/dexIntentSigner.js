@@ -448,6 +448,182 @@ export async function buildAndSignSwapIntent({
   };
 }
 
+/**
+ * Compute a route intent_id reproducing the Python agent signer
+ * (src/agents/intent_signer.py::_generate_intent_id) BYTE-FOR-BYTE:
+ *
+ *   sha256( sender || str(deadline) || kind || canonical_json(fields) [|| salt] )
+ *
+ * NOTE: route intents use the raw-concat `_generate_intent_id` scheme (no domain
+ * separation), NOT the `hashV0` scheme the swap/create-pool UI builders use —
+ * because the route reference builder is the Python agent signer, which is what
+ * the cross-language parity test pins. `canonical_json(fields)` is byte-identical
+ * to `stableStringify(fields)` (verified in the parity test).
+ */
+async function routeIntentIdV0({ sender, deadline, kind, fields, salt }) {
+  const parts = [
+    textEncoder.encode(String(sender)),
+    textEncoder.encode(String(asInt(deadline, 'deadline'))),
+    textEncoder.encode(String(kind)),
+    canonicalJsonBytes(fields),
+  ];
+  if (salt !== undefined && salt !== null && salt !== '') {
+    parts.push(textEncoder.encode(String(salt)));
+  }
+  const digest = await sha256Bytes(concatBytes(parts));
+  return `0x${bytesToHex(digest)}`;
+}
+
+function ceilDiv(a, b) {
+  if (b <= 0n) {
+    throw new Error('division_by_zero');
+  }
+  return (a + b - 1n) / b;
+}
+
+/**
+ * Lightly read a verified route quote receipt body into the fields a route
+ * intent binds. This is NOT the full receipt verifier (that stays server-side,
+ * `verify_route_quote_receipt`); the UI only needs the endpoints, totals,
+ * receipt hash and leg count to build + sign the intent, and the backend
+ * re-verifies the receipt before settlement.
+ *
+ * v1 scope (mirrors resolve_route_binding_from_receipt): single-hop legs whose
+ * endpoints span the receipt's (asset_in, asset_out).
+ */
+function readRouteReceipt(receipt) {
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) {
+    throw new Error('route_receipt_must_be_object');
+  }
+  const receiptHash = String(receipt.receipt_hash || '').trim();
+  if (!/^0x[0-9a-fA-F]{64}$/.test(receiptHash)) {
+    throw new Error('route_receipt_hash_invalid');
+  }
+  const body = receipt.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new Error('route_receipt_missing_body');
+  }
+  const kind = String(body.kind || '').trim().toLowerCase();
+  if (kind !== 'exact_in' && kind !== 'exact_out') {
+    throw new Error('route_receipt_bad_kind');
+  }
+  const assetIn = String(body.asset_in || '').trim();
+  const assetOut = String(body.asset_out || '').trim();
+  if (!assetIn || !assetOut || assetIn === assetOut) {
+    throw new Error('route_receipt_bad_assets');
+  }
+  const totalAmountIn = asInt(body.amount_in, 'route_total_amount_in');
+  const totalAmountOut = asInt(body.amount_out, 'route_total_amount_out');
+  if (totalAmountIn <= 0 || totalAmountOut <= 0) {
+    throw new Error('route_receipt_bad_totals');
+  }
+  const legs = body.legs;
+  if (!Array.isArray(legs) || legs.length === 0) {
+    throw new Error('route_receipt_bad_legs');
+  }
+  for (const leg of legs) {
+    const hops = leg && typeof leg === 'object' ? leg.hops : undefined;
+    if (!Array.isArray(hops) || hops.length !== 1) {
+      throw new Error('route_multi_hop_leg_unsupported');
+    }
+  }
+  return { receiptHash, kind, assetIn, assetOut, totalAmountIn, totalAmountOut, legCount: legs.length };
+}
+
+/**
+ * Build and sign ONE atomic route intent from a verified route quote receipt,
+ * reproducing src/agents/intent_signer.py::create_route_intent_from_quote_receipt.
+ *
+ * The whole route (all legs) is bound by a single signature; the engine settles
+ * it atomically. Slippage derives the totals exactly as the Python signer does:
+ *   exact_in:  total_min_amount_out = floor(total_out * (10000 - s) / 10000)
+ *   exact_out: total_max_amount_in  = ceil(total_in  * (10000 + s) / 10000)
+ */
+export async function buildAndSignRouteIntent({
+  receipt,
+  payload,
+  privkey,
+  signDexIntent,
+  chainId = 'zeno-ledger-localtest-v0',
+}) {
+  const parsed = readRouteReceipt(receipt);
+  const sender = String(payload.senderPubkey || payload.sender_pubkey || '').trim();
+  if (!sender) {
+    throw new Error('sender_pubkey_required');
+  }
+  const recipient = String(payload.recipient || sender).trim();
+  const deadline = asInt(payload.deadline ?? 1_999_999_999, 'deadline');
+  const nonce = asInt(payload.nonce, 'nonce');
+  const slippageBps = asInt(payload.slippageBps ?? payload.slippage_bps ?? 50, 'slippage_bps');
+  if (slippageBps > 10_000) {
+    throw new Error('slippage_bps_must_be_at_most_10000');
+  }
+  const salt = payload.salt ?? null;
+
+  const legIndices = Array.from({ length: parsed.legCount }, (_unused, i) => i);
+  let kind;
+  let totalFields;
+  if (parsed.kind === 'exact_in') {
+    kind = 'ROUTE_EXACT_IN';
+    const totalMinOut = divFloor(
+      BigInt(parsed.totalAmountOut) * BigInt(10_000 - slippageBps),
+      10_000n,
+    );
+    totalFields = {
+      total_amount_in: parsed.totalAmountIn,
+      total_min_amount_out: toSafeNumber(totalMinOut, 'total_min_amount_out'),
+    };
+  } else {
+    kind = 'ROUTE_EXACT_OUT';
+    const totalMaxIn = ceilDiv(
+      BigInt(parsed.totalAmountIn) * BigInt(10_000 + slippageBps),
+      10_000n,
+    );
+    totalFields = {
+      total_amount_out: parsed.totalAmountOut,
+      total_max_amount_in: toSafeNumber(totalMaxIn, 'total_max_amount_in'),
+    };
+  }
+
+  // Field SET matches create_route_intent_from_quote_receipt exactly; canonical
+  // JSON sorts keys so insertion order is irrelevant to the intent_id.
+  const fields = {
+    quote_receipt_hash: parsed.receiptHash,
+    asset_in: parsed.assetIn,
+    asset_out: parsed.assetOut,
+    leg_indices: legIndices,
+    recipient,
+    ...totalFields,
+    nonce,
+  };
+
+  const intentId = await routeIntentIdV0({ sender, deadline, kind, fields, salt });
+
+  const operation = {
+    module: 'TauSwap',
+    version: '0.1',
+    kind,
+    intent_id: intentId,
+    sender_pubkey: sender,
+    deadline,
+    quote_receipt_hash: parsed.receiptHash,
+    asset_in: parsed.assetIn,
+    asset_out: parsed.assetOut,
+    leg_indices: legIndices,
+    recipient,
+    ...totalFields,
+    nonce,
+  };
+  if (salt !== undefined && salt !== null && salt !== '') {
+    operation.salt = salt;
+  }
+
+  return {
+    intent: operation,
+    signature: await signDexIntentWithAvailableSigner(operation, { privkey, chainId, signDexIntent }),
+  };
+}
+
 export async function buildAndSignCreatePoolIntent({
   payload,
   privkey,
