@@ -512,6 +512,119 @@ def test_manifest_checker_can_attach_collection_runbook_for_all_lanes(
     assert out["promotion_ready"] is False
 
 
+def test_manifest_checker_can_attach_compact_readiness_plan(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": MANIFEST_SCHEMA,
+                "config": {},
+                "bundle": {
+                    "oracle_authority": None,
+                    "hardware_wallet": None,
+                    "zk_wrapping": None,
+                    "autotrader": None,
+                    "confidential_runtime": None,
+                    "app_root_jmt": None,
+                },
+            },
+            sort_keys=True,
+        )
+    )
+
+    assert main([str(manifest_path), "--readiness-plan"]) == 1
+    out = json.loads(capsys.readouterr().out)
+    plan = out["readiness_plan"]
+    assert plan["schema"] == "zenodex/production-promotion-readiness-plan/v1"
+    assert plan["promotion_ready"] is False
+    assert set(plan["blocked_lanes"]) == {
+        "oracle_authority",
+        "hardware_wallet",
+        "zk_wrapping",
+        "autotrader",
+        "confidential_runtime",
+        "app_root_jmt",
+    }
+    oracle = plan["lanes"]["oracle_authority"]
+    assert oracle["status"] == "blocked"
+    assert oracle["missing_artifact"] is True
+    assert oracle["missing_config"] == [
+        "bounded_oracle_exercise_status_path",
+        "expected_chain_id",
+    ]
+    assert oracle["categories"] == [
+        "missing_artifact",
+        "missing_config",
+        "external_required",
+    ]
+    assert oracle["producer_tool"] == "tools/build_oracle_authority_evidence.py"
+
+
+def test_manifest_checker_readiness_plan_marks_ready_lane(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": MANIFEST_SCHEMA,
+                "config": {},
+                "bundle": {"app_root_jmt": _app_root_evidence()},
+            },
+            sort_keys=True,
+        )
+    )
+
+    assert main([str(manifest_path), "--lane", "app_root_jmt", "--now", str(NOW), "--readiness-plan"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    lane_plan = out["readiness_plan"]["lanes"]["app_root_jmt"]
+    assert lane_plan["status"] == "ready"
+    assert lane_plan["categories"] == ["ready"]
+    assert lane_plan["missing_artifact"] is False
+    assert lane_plan["missing_config"] == []
+    assert lane_plan["missing_sidecars"] == []
+
+
+def test_manifest_checker_readiness_plan_reports_missing_sidecar(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": MANIFEST_SCHEMA,
+                "config": {"live_proof_wrapper_status_path": "missing-wrapper.json"},
+                "bundle": {"zk_wrapping": None},
+            },
+            sort_keys=True,
+        )
+    )
+
+    assert main([str(manifest_path), "--lane", "zk_wrapping", "--readiness-plan"]) == 2
+    out = json.loads(capsys.readouterr().out)
+    assert out["error"] == "manifest_config_invalid"
+    lane_plan = out["readiness_plan"]["lanes"]["zk_wrapping"]
+    assert lane_plan["status"] == "blocked"
+    assert lane_plan["missing_sidecars"] == [
+        {
+            "field": "live_proof_wrapper_status_path",
+            "path": "missing-wrapper.json",
+            "reason": "sidecar file not found",
+        }
+    ]
+    assert lane_plan["categories"] == [
+        "missing_artifact",
+        "missing_config",
+        "missing_sidecar",
+        "external_required",
+    ]
+
+
 def test_manifest_checker_collection_runbook_scopes_to_selected_lane(
     capsys,
     tmp_path: Path,

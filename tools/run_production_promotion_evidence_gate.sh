@@ -2,7 +2,7 @@
 # Production-promotion evidence gate.
 #
 # Usage:
-#   tools/run_production_promotion_evidence_gate.sh [manifest-path] [--lane <lane>] [--now <unix-seconds>] [--explain-missing] [--include-runbook]
+#   tools/run_production_promotion_evidence_gate.sh [manifest-path] [--lane <lane>] [--now <unix-seconds>] [--explain-missing] [--include-runbook] [--readiness-plan]
 #
 # Default manifest: tools/production_promotion_evidence_manifest.json
 # Env override: PRODUCTION_PROMOTION_EVIDENCE_MANIFEST=/path/to/manifest.json

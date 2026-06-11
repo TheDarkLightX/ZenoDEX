@@ -560,6 +560,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Attach deterministic producer command templates for the selected/current lanes",
     )
+    parser.add_argument(
+        "--readiness-plan",
+        action="store_true",
+        help="Attach compact per-lane readiness categories for operator dashboards",
+    )
     return parser.parse_args(argv)
 
 
@@ -846,6 +851,170 @@ def _attach_runbook(out: dict[str, Any], *, lane: str | None) -> dict[str, Any]:
     return {**out, "collection_runbook": _runbook_for_scope(lane)}
 
 
+def _lanes_for_scope(lane: str | None) -> tuple[str, ...]:
+    return (lane,) if lane is not None else _LANES
+
+
+def _missing_required_config(
+    config: Mapping[str, Any],
+    *,
+    lane_id: str,
+) -> list[str]:
+    req = _LANE_REQUIREMENTS[lane_id]
+    missing: list[str] = []
+    for field_name in req["required_config_paths"]:
+        if not _config_path_present(config.get(field_name)):
+            missing.append(field_name)
+    for field_name in req["required_config_values"]:
+        if not _config_value_present(config.get(field_name), field_name=field_name):
+            missing.append(field_name)
+    return missing
+
+
+def _missing_required_sidecars(
+    config: Mapping[str, Any],
+    *,
+    lane_id: str,
+    manifest_dir: Path,
+) -> list[dict[str, str]]:
+    missing: list[dict[str, str]] = []
+    req = _LANE_REQUIREMENTS[lane_id]
+    for field_name in req["required_config_paths"]:
+        value = config.get(field_name)
+        if not _config_path_present(value):
+            continue
+        if not isinstance(value, str):
+            continue
+        try:
+            resolved = _resolve_manifest_path(Path(value), base_dir=manifest_dir)
+        except ValueError as exc:
+            missing.append({"field": field_name, "path": value, "reason": str(exc)})
+            continue
+        if not resolved.is_file():
+            missing.append({"field": field_name, "path": value, "reason": "sidecar file not found"})
+    return missing
+
+
+def _lane_status_gaps(lane_status: object) -> list[str]:
+    if not isinstance(lane_status, Mapping):
+        return ["lane status missing from evaluator output"]
+    raw_gaps = lane_status.get("gaps", [])
+    if not isinstance(raw_gaps, list):
+        return []
+    return [gap for gap in raw_gaps if isinstance(gap, str)]
+
+
+def _readiness_categories(
+    *,
+    lane_ready: bool,
+    missing_evidence: bool,
+    missing_config: list[str],
+    missing_sidecars: list[Mapping[str, str]],
+    evidence_gaps: list[str],
+) -> list[str]:
+    if lane_ready:
+        return ["ready"]
+
+    categories: list[str] = []
+    if missing_evidence:
+        categories.append("missing_artifact")
+    if missing_config:
+        categories.append("missing_config")
+    if missing_sidecars:
+        categories.append("missing_sidecar")
+    if evidence_gaps and not missing_evidence:
+        categories.append("invalid_artifact")
+    categories.append("external_required")
+    return categories
+
+
+def _readiness_plan_for_scope(
+    out: Mapping[str, Any],
+    *,
+    config: Mapping[str, Any],
+    bundle: Mapping[str, Any],
+    lane: str | None,
+    manifest_dir: Path,
+) -> dict[str, Any]:
+    lanes_obj = out.get("lanes")
+    lanes_status = lanes_obj if isinstance(lanes_obj, Mapping) else {}
+    blocked_lanes = [name for name in out.get("blocked_lanes", []) if isinstance(name, str)]
+
+    lane_plans: dict[str, Any] = {}
+    for lane_id in _lanes_for_scope(lane):
+        lane_status = lanes_status.get(lane_id)
+        lane_ready = isinstance(lane_status, Mapping) and lane_status.get("production_ready") is True
+        missing_config = _missing_required_config(config, lane_id=lane_id)
+        missing_sidecars = _missing_required_sidecars(config, lane_id=lane_id, manifest_dir=manifest_dir)
+        missing_evidence = lane_id not in bundle or bundle.get(lane_id) is None
+        evidence_gaps = _lane_status_gaps(lane_status)
+        lane_plans[lane_id] = {
+            "status": "ready" if lane_ready else "blocked",
+            "categories": _readiness_categories(
+                lane_ready=lane_ready,
+                missing_evidence=missing_evidence,
+                missing_config=missing_config,
+                missing_sidecars=missing_sidecars,
+                evidence_gaps=evidence_gaps,
+            ),
+            "producer_tool": _LANE_REQUIREMENTS[lane_id]["producer_tool"],
+            "missing_config": missing_config,
+            "missing_sidecars": missing_sidecars,
+            "missing_artifact": missing_evidence,
+            "external_artifacts": list(_LANE_REQUIREMENTS[lane_id]["external_artifacts"]),
+            "gaps": evidence_gaps,
+        }
+
+    return {
+        "schema": "zenodex/production-promotion-readiness-plan/v1",
+        "posture": "diagnostic only; lane evaluators and the final promotion gate remain authoritative",
+        "promotion_ready": out.get("promotion_ready") is True,
+        "blocked_lanes": blocked_lanes,
+        "lanes": lane_plans,
+    }
+
+
+def _attach_readiness_plan(
+    out: dict[str, Any],
+    *,
+    config: Mapping[str, Any],
+    bundle: Mapping[str, Any],
+    lane: str | None,
+    manifest_dir: Path,
+) -> dict[str, Any]:
+    return {
+        **out,
+        "readiness_plan": _readiness_plan_for_scope(
+            out,
+            config=config,
+            bundle=bundle,
+            lane=lane,
+            manifest_dir=manifest_dir,
+        ),
+    }
+
+
+def _error_out_for_scope(*, lane: str | None, detail: str) -> dict[str, Any]:
+    lanes = {
+        lane_id: {
+            "ok": False,
+            "production_ready": False,
+            "status": "blocked",
+            "gaps": [detail],
+        }
+        for lane_id in _lanes_for_scope(lane)
+    }
+    return {
+        "schema": "zenodex/production-promotion-evidence-status/v1",
+        "promotion_ready": False,
+        "status": "blocked",
+        "selected_lane": lane,
+        "blocked_lanes": list(lanes),
+        "gaps": [detail],
+        "lanes": lanes,
+    }
+
+
 def _exit_code(out: Mapping[str, Any], *, lane: str | None) -> int:
     if lane is None:
         return 0 if out["promotion_ready"] is True else 1
@@ -861,7 +1030,14 @@ def main(argv: list[str] | None = None) -> int:
     if error is not None:
         print(json.dumps(error))
         return 2
-    assert manifest is not None
+    if manifest is None:
+        print(json.dumps({"ok": False, "error": "manifest_load_failed"}))
+        return 2
+    try:
+        config, bundle = _manifest_config_and_bundle(manifest, lane=args.lane)
+    except _ManifestConfigBundleError as exc:
+        print(json.dumps({"ok": False, "error": "config_or_bundle_not_object", "detail": str(exc)}))
+        return 2
     try:
         out = _evaluate_manifest(
             manifest,
@@ -873,12 +1049,30 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"ok": False, "error": "config_or_bundle_not_object", "detail": str(exc)}))
         return 2
     except (FileNotFoundError, TypeError, ValueError) as exc:
-        print(json.dumps({"ok": False, "error": "manifest_config_invalid", "detail": str(exc)}))
+        error_out: dict[str, Any] = {"ok": False, "error": "manifest_config_invalid", "detail": str(exc)}
+        if args.readiness_plan:
+            scoped = _error_out_for_scope(lane=args.lane, detail=str(exc))
+            error_out["readiness_plan"] = _readiness_plan_for_scope(
+                scoped,
+                config=config,
+                bundle=bundle,
+                lane=args.lane,
+                manifest_dir=manifest_path.resolve().parent,
+            )
+        print(json.dumps(error_out))
         return 2
     if args.explain_missing:
         out = _attach_requirements(out, lane=args.lane)
     if args.include_runbook:
         out = _attach_runbook(out, lane=args.lane)
+    if args.readiness_plan:
+        out = _attach_readiness_plan(
+            out,
+            config=config,
+            bundle=bundle,
+            lane=args.lane,
+            manifest_dir=manifest_path.resolve().parent,
+        )
     print(json.dumps(out, sort_keys=True))
     return _exit_code(out, lane=args.lane)
 

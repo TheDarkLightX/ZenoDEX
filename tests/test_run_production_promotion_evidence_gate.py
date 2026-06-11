@@ -109,6 +109,21 @@ def test_production_promotion_gate_can_include_collection_runbook() -> None:
     assert out["lanes"]["app_root_jmt"]["production_ready"] is True
 
 
+def test_production_promotion_gate_can_include_readiness_plan() -> None:
+    proc = _run_gate("--explain-missing", "--readiness-plan")
+
+    assert proc.returncode == 1
+    out = json.loads(proc.stdout)
+    plan = out["readiness_plan"]
+    assert plan["schema"] == "zenodex/production-promotion-readiness-plan/v1"
+    assert plan["promotion_ready"] is False
+    assert plan["lanes"]["app_root_jmt"]["categories"] == ["ready"]
+    assert "app_root_jmt" not in plan["blocked_lanes"]
+    assert "missing_artifact" in plan["lanes"]["oracle_authority"]["categories"]
+    assert "missing_config" in plan["lanes"]["oracle_authority"]["categories"]
+    assert "external_required" in plan["lanes"]["oracle_authority"]["categories"]
+
+
 def test_production_promotion_gate_include_runbook_respects_selected_lane() -> None:
     proc = _run_gate("--lane", "autotrader", "--include-runbook")
 
