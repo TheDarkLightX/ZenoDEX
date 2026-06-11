@@ -165,3 +165,17 @@ class TestControllerSemantics:
         assert result["admitted"] is False
         assert "pi_measured_must_be_plain_int" in result["errors"]
         assert result["final_state"] == result["committed_state"]
+
+    def test_negative_epochs_fail_closed_without_crash(self) -> None:
+        # Codex P2: a negative epoch must yield the documented fail-closed
+        # no-op receipt, not a ValueError out of the context-hash helper.
+        for overrides, code in (
+            ({"proposal_epoch": -1}, "pi_proposal_epoch_must_be_nonnegative"),
+            ({"current_epoch": -5}, "pi_current_epoch_must_be_nonnegative"),
+            ({"last_update_epoch": -2}, "pi_last_update_epoch_must_be_nonnegative_int"),
+        ):
+            result = _step(**overrides)
+            assert result["admitted"] is False
+            assert code in result["errors"]
+            assert result["final_state"] == result["committed_state"]
+            assert result["prev_error_out"] == result["prev_error_in"]

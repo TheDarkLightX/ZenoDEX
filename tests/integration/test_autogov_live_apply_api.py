@@ -130,6 +130,63 @@ def test_unknown_route_404(tmp_path: Path) -> None:
     assert status == 404
 
 
+def test_api_server_routes_autogov_apply_post_body(tmp_path: Path, monkeypatch) -> None:
+    """Codex P1 regression: POST bodies must be read for /api/autogov/ at the
+    transport layer (body-read allowlist), so a real HTTP apply succeeds
+    end-to-end instead of failing with autogov_body_required."""
+    from src.integration import api_server
+
+    path = tmp_path / "store.json"
+    policy, genesis, init = _init_file(path)
+    receipt = _continue(policy, genesis, 103)
+    pin = str(policy["policy_hash"])
+    monkeypatch.setenv("AUTOGOV_SESSION_STORE_PATH", str(path))
+    monkeypatch.setenv("AUTOGOV_PINNED_POLICY_HASH", pin)
+
+    httpd = api_server.ThreadingHTTPServer(("127.0.0.1", 0), api_server._Handler)
+    httpd.cors_origins = set()  # type: ignore[attr-defined]
+    httpd.rate_limiter = api_server.TokenBucketRateLimiter(rpm=0)  # type: ignore[attr-defined]
+    httpd.perps_api_enabled = False  # type: ignore[attr-defined]
+    httpd.perps_wallet_api_enabled = False  # type: ignore[attr-defined]
+    httpd.zusd_api_enabled = False  # type: ignore[attr-defined]
+    httpd.zusd_tau_wallet_api_enabled = False  # type: ignore[attr-defined]
+    httpd.zusd_monetary_wallet_api_enabled = False  # type: ignore[attr-defined]
+    httpd.autogov_live_apply_api_enabled = True  # type: ignore[attr-defined]
+    httpd.autotrader_live_api_enabled = False  # type: ignore[attr-defined]
+    httpd.confidential_attestation_api_enabled = False  # type: ignore[attr-defined]
+    httpd.dex_api_enabled = False  # type: ignore[attr-defined]
+    httpd.demo_api_token = "autogov-test-token"  # type: ignore[attr-defined]
+    httpd.external_auth_enforced = False  # type: ignore[attr-defined]
+
+    thread = threading.Thread(
+        target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
+    thread.start()
+    host, port = httpd.server_address[:2]
+    conn = HTTPConnection(str(host), int(port), timeout=10)
+    try:
+        conn.request(
+            "POST",
+            "/api/autogov/apply",
+            body=_apply_body(policy, receipt, pin),
+            headers={
+                "Authorization": "Bearer autogov-test-token",
+                "Content-Type": "application/json",
+            },
+        )
+        response = conn.getresponse()
+        data = json.loads(response.read().decode("utf-8"))
+        assert response.status == 200, data
+        assert data["admitted"] is True
+        assert data["applied_state"] == receipt["final_state"]
+        assert data["store_hash_before"] == init["store_hash"]
+    finally:
+        conn.close()
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2.0)
+
+
 def test_api_server_routes_autogov_surface(tmp_path: Path, monkeypatch) -> None:
     from src.integration import api_server
 

@@ -208,11 +208,19 @@ def evaluate_autonomous_governance_pi_policy_step_v1(
     if not _is_plain_int(proposal_epoch):
         errors.append("pi_proposal_epoch_must_be_plain_int")
         proposal_epoch = 0
+    elif proposal_epoch < 0:
+        errors.append("pi_proposal_epoch_must_be_nonnegative")
+        proposal_epoch = 0
     if not _is_plain_int(current_epoch):
         errors.append("pi_current_epoch_must_be_plain_int")
         current_epoch = 0
-    if last_update_epoch is not None and not _is_plain_int(last_update_epoch):
-        errors.append("pi_last_update_epoch_must_be_plain_int")
+    elif current_epoch < 0:
+        errors.append("pi_current_epoch_must_be_nonnegative")
+        current_epoch = 0
+    if last_update_epoch is not None and (
+        not _is_plain_int(last_update_epoch) or last_update_epoch < 0
+    ):
+        errors.append("pi_last_update_epoch_must_be_nonnegative_int")
         last_update_epoch = None
 
     context_hash = ""
