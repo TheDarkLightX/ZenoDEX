@@ -388,6 +388,14 @@ def _validate_settlement_strong_impl(
 
         if action == FillAction.REJECT:
             if is_route_intent_kind(it.kind) and allow_snapshot_bound_quote_bindings:
+                if int(protocol_fee_share_bps) > 0:
+                    # v1 protocol-fee gate: canonical clearing rejects EVERY
+                    # route when a protocol fee is configured (route fills do
+                    # not capture protocol_fee_share_bps). The reject is
+                    # therefore unconditionally justified and the must-fill
+                    # discipline below — which would otherwise demand the route
+                    # fill — does not apply.
+                    continue
                 # Must-fill discipline for the engine path. The engine injects
                 # an authentic binding (legs + pool fingerprints) for EVERY
                 # admitted route, filled or rejected, so under the engine
@@ -550,6 +558,18 @@ def _validate_settlement_strong_impl(
             continue
 
         if is_route_intent_kind(it.kind):
+            # v1 protocol-fee gate (fail-closed): route leg replay uses the
+            # no-protocol-fee swap kernels and emits no protocol_fee_paid, so a
+            # route FILL cannot capture a configured protocol_fee_share_bps.
+            # Canonical clearing rejects EVERY route in this mode (see
+            # compute_settlement), so any route FILL in the certificate is
+            # non-canonical and would leak protocol revenue. Reject the
+            # settlement before replaying it.
+            if int(protocol_fee_share_bps) > 0:
+                return fail(
+                    "route fills unsupported when protocol_fee_share_bps > 0: "
+                    f"intent_id={intent_id}"
+                )
             # Atomic route fill: re-parse the engine-injected binding
             # (untrusted), re-validate it against the signed route fields, and
             # replay every leg with the verified kernels against the CURRENT

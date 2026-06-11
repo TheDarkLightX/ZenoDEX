@@ -41,6 +41,7 @@ from src.state.pools import PoolState, PoolStatus
 
 SENDER = "0x" + "ab" * 48
 OTHER = "0x" + "cd" * 48
+FEE_RECIP = "0x" + "ee" * 48
 
 
 def _pool(pool_id: str, *, asset0: str = "A", asset1: str = "B", r0: int = 1_000, r1: int = 1_000, fee_bps: int = 0) -> PoolState:
@@ -1378,3 +1379,146 @@ def test_validator_accepts_rejected_route_action_without_binding_fields() -> Non
         allow_snapshot_bound_quote_bindings=False,
     )
     assert ok, err
+
+
+# ---------------------------------------------------------------------------
+# v1 protocol-fee gate (fail-closed): routes and protocol_fee_share_bps are
+# mutually exclusive until per-leg protocol-fee accounting lands. Route leg
+# replay uses the no-protocol-fee swap kernels, so a route FILL would bypass a
+# configured protocol fee. Both the producer (compute_settlement) and the
+# acceptance gate (strong validator) must enforce this consistently.
+# ---------------------------------------------------------------------------
+
+
+def _gate_rejected_route_fixture():
+    """compute_settlement under a configured protocol fee rejects the route;
+    return (pools, balances, rejected_settlement, engine_sanitized_intent) for
+    direct strong-validator calls. The sanitized intent carries the engine-
+    injected binding fields (as on the real engine path), so the validator's
+    route-REJECT must-fill discipline is reachable and the gate is exercised."""
+    from src.core.route_settlement import (
+        resolve_route_binding_from_receipt,
+        route_binding_to_fields,
+    )
+    from src.state.intents import Intent
+
+    pools, _quote, receipt = _exact_in_route_setup(2, amount_in=600)
+    intent = _route_intent(receipt, pools)
+    binding, err = resolve_route_binding_from_receipt(receipt)
+    assert binding is not None, err
+
+    balances = BalanceTable()
+    balances.set(SENDER, "A", 10_000)
+
+    settlement = compute_settlement(
+        intents=[intent],
+        pools=pools,
+        balances=balances,
+        lp_balances=LPTable(),
+        protocol_fee_share_bps=30,
+        protocol_fee_recipient_pubkey=FEE_RECIP,
+        route_bindings={intent.intent_id: binding},
+    )
+    assert settlement.fills[0].action == FillAction.REJECT
+
+    sanitized_fields = dict(intent.fields or {})
+    sanitized_fields.pop("quote_receipt_hash", None)
+    sanitized_fields.update(route_binding_to_fields(binding))
+    sanitized = Intent(
+        module=intent.module,
+        version=intent.version,
+        kind=intent.kind,
+        intent_id=intent.intent_id,
+        sender_pubkey=intent.sender_pubkey,
+        deadline=intent.deadline,
+        salt=intent.salt,
+        fields=sanitized_fields,
+    )
+    return pools, balances, settlement, sanitized
+
+
+def test_compute_settlement_rejects_route_when_protocol_fee_configured() -> None:
+    from src.core.route_settlement import (
+        ROUTE_REJECT_PROTOCOL_FEE_UNSUPPORTED,
+        resolve_route_binding_from_receipt,
+    )
+
+    pools, _quote, receipt = _exact_in_route_setup(2, amount_in=600)
+    intent = _route_intent(receipt, pools)
+    binding, err = resolve_route_binding_from_receipt(receipt)
+    assert binding is not None, err
+
+    balances = BalanceTable()
+    balances.set(SENDER, "A", 10_000)
+
+    settlement = compute_settlement(
+        intents=[intent],
+        pools=pools,
+        balances=balances,
+        lp_balances=LPTable(),
+        protocol_fee_share_bps=30,
+        protocol_fee_recipient_pubkey=FEE_RECIP,
+        route_bindings={intent.intent_id: binding},
+    )
+
+    # Route is rejected fail-closed; zero state change leaks.
+    assert len(settlement.fills) == 1
+    assert settlement.fills[0].action == FillAction.REJECT
+    assert settlement.fills[0].reason == ROUTE_REJECT_PROTOCOL_FEE_UNSUPPORTED
+    assert len(settlement.balance_deltas) == 0
+    assert len(settlement.reserve_deltas) == 0
+
+
+def test_validator_rejects_route_fill_when_protocol_fee_configured() -> None:
+    # A canonical (fee=0) FILL settlement must be rejected by the acceptance
+    # gate when a protocol fee is configured: a route FILL bypasses fee capture.
+    pools, balances, settlement, sanitized, _quote = _validator_fixture()
+    assert settlement.fills[0].action == FillAction.FILL
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[sanitized],
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        allow_snapshot_bound_quote_bindings=True,
+        protocol_fee_share_bps=30,
+        protocol_fee_recipient_pubkey=FEE_RECIP,
+    )
+    assert not ok
+    assert "route fills unsupported when protocol_fee_share_bps > 0" in err
+
+
+def test_validator_accepts_gate_rejected_route_when_protocol_fee_configured() -> None:
+    # The engine's own gate-induced route REJECT must pass its own validation:
+    # under a configured protocol fee the reject is unconditionally justified.
+    pools, balances, settlement, sanitized = _gate_rejected_route_fixture()
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[sanitized],
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        allow_snapshot_bound_quote_bindings=True,
+        protocol_fee_share_bps=30,
+        protocol_fee_recipient_pubkey=FEE_RECIP,
+    )
+    assert ok, err
+
+
+def test_gate_rejected_route_reject_is_unjustified_without_protocol_fee() -> None:
+    # Control: the SAME gate-induced REJECT (for a route that could otherwise
+    # fill) is NOT accepted when no protocol fee is configured — the must-fill
+    # discipline correctly flags it. This proves the protocol-fee gate is the
+    # load-bearing reason the reject is accepted in the test above (the reject
+    # is not silently always-justified).
+    pools, balances, settlement, sanitized = _gate_rejected_route_fixture()
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[sanitized],
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert not ok
+    assert "route reject not justified" in err

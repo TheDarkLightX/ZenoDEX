@@ -59,6 +59,13 @@ ROUTE_REJECT_POOL_STATE_DRIFT = "ROUTE_POOL_STATE_DRIFT"
 ROUTE_REJECT_INSUFFICIENT_BALANCE = "INSUFFICIENT_BALANCE"
 ROUTE_REJECT_LEG_QUOTE_MISMATCH = "ROUTE_LEG_QUOTE_MISMATCH"
 ROUTE_REJECT_SLIPPAGE = "SLIPPAGE"
+# v1 protocol-fee gate: route leg replay uses the no-protocol-fee swap kernels
+# and emits no protocol_fee_paid, so a route FILL cannot capture a configured
+# protocol_fee_share_bps. Routes and protocol fees are therefore mutually
+# exclusive until per-leg protocol-fee accounting lands; with a protocol fee
+# configured every route is rejected fail-closed with this reason rather than
+# silently bypassing fee capture (see docs/ATOMIC_ROUTE_SETTLEMENT_DESIGN.md).
+ROUTE_REJECT_PROTOCOL_FEE_UNSUPPORTED = "ROUTE_PROTOCOL_FEE_UNSUPPORTED"
 
 _ROUTE_INTENT_KINDS = (IntentKind.ROUTE_EXACT_IN, IntentKind.ROUTE_EXACT_OUT)
 

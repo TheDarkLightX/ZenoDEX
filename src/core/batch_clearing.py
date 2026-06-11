@@ -51,6 +51,7 @@ from .route_settlement import (
     ROUTE_REJECT_BINDING_MISSING,
     ROUTE_REJECT_INSUFFICIENT_BALANCE,
     ROUTE_REJECT_INVALID_PARAMS,
+    ROUTE_REJECT_PROTOCOL_FEE_UNSUPPORTED,
     RouteBinding,
     is_route_intent_kind,
     replay_route_legs,
@@ -191,15 +192,29 @@ def compute_settlement(
     # Process atomic route intents (snapshot-bound; before per-pool clearing,
     # whose fills would otherwise invalidate the receipt-pinned pool states).
     # Deterministic order: intent_id ascending.
+    #
+    # v1 protocol-fee gate (fail-closed): the route leg replay uses the
+    # no-protocol-fee swap kernels and emits no protocol_fee_paid, so a route
+    # FILL would bypass a configured protocol_fee_share_bps. Rather than leak
+    # that revenue, reject EVERY route when a protocol fee is configured. The
+    # strong validator enforces the mirror invariant (route FILL unsupported,
+    # route REJECT unconditionally justified) for protocol_fee_share_bps > 0.
     for intent in sorted(route_intents, key=lambda i: i.intent_id):
-        fill = _clear_route_intent_against_locals(
-            intent=intent,
-            binding=(route_bindings or {}).get(intent.intent_id),
-            pool_states=pool_states,
-            balances=balances_local,
-            balance_deltas=all_balance_deltas,
-            reserve_deltas=all_reserve_deltas,
-        )
+        if protocol_fee_share_bps > 0:
+            fill = Fill(
+                intent_id=intent.intent_id,
+                action=FillAction.REJECT,
+                reason=ROUTE_REJECT_PROTOCOL_FEE_UNSUPPORTED,
+            )
+        else:
+            fill = _clear_route_intent_against_locals(
+                intent=intent,
+                binding=(route_bindings or {}).get(intent.intent_id),
+                pool_states=pool_states,
+                balances=balances_local,
+                balance_deltas=all_balance_deltas,
+                reserve_deltas=all_reserve_deltas,
+            )
         included_intents.append((intent.intent_id, fill.action))
         all_fills.append(fill)
 
