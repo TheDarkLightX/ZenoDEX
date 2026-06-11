@@ -1,0 +1,57 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  critical-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dev tooling
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Fetch PR base ref
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
+
+      - name: Check Unicode source safety
+        run: python tools/check_source_unicode_safety.py
+
+      - name: Check dependency approval note
+        if: github.event_name == 'pull_request'
+        run: python tools/check_dependency_change_approval.py --base-ref "origin/${{ github.base_ref }}"
+
+      - name: Run critical quality gate
+        run: bash tools/run_critical_quality_gate.sh
+
+      - name: Run /api/dex dispatch quality gate
+        # Locks in the PR1/PR2 refactor (Steps 1-5): mypy --strict on
+        # the 3 dispatch modules, ≥80% branch coverage, no F-grade
+        # cyclomatic complexity, A-grade maintainability on helpers +
+        # registry. Cheap (~30s) and catches imperative-shell regressions
+        # the broader critical gate doesn't focus on.
+        run: bash tools/run_dex_dispatch_quality_gate.sh
+
+      - name: Run AutoGovNEXT governance lane gate
+        run: |
+          bash tools/run_autogovnext_governance_lane_assurance_gate.sh

@@ -24,11 +24,11 @@
     },
     {
       "path": "src/integration/autonomous_governance_q_policy.py",
-      "sha256": "b35a4acca0a377ad4b91f083cbf0e40b7721a0c563ad6e2bf096e38e13e940e2"
+      "sha256": "8fbf9466b70981928914cbbd2e233a29cf1b66b7de72030b097c9f3de1619bbb"
     },
     {
       "path": "tools/autonomous_governance_q_policy.py",
-      "sha256": "d88a0bf26990295578a51abe084a7407673587a6bb2a4cd3a84074ebdf6afe78"
+      "sha256": "d3cf726621b54bb19bfd1bf63690c70a6a430f1427d2b619e299b7eabd531a05"
     },
     {
       "path": "tools/zeno_ledger_node.py",
@@ -112,7 +112,7 @@
     },
     {
       "path": "tools/check_autogovnext_governance_lane_assurance_manifest.py",
-      "sha256": "11cb3fca577a6fcb92459587efab50c8129fa0feb501e0fa8ffab2eb2ee99e13"
+      "sha256": "20571c776e4bd2f66480cfd84fbee1b606ed876069cfb4c2c4656495f9a2fba5"
     },
     {
       "path": "tools/run_autogovnext_governance_lane_assurance_gate.sh",
@@ -120,7 +120,7 @@
     },
     {
       "path": "tests/test_check_autogovnext_governance_lane_assurance_manifest.py",
-      "sha256": "a94b5ae8d78270f1e81322816640d9e69ab9db02ca84e6e47514ae90d6c81263"
+      "sha256": "65bea1d5430ef414f39d8b00db3055abc672a418aaf6aee561eec536ab56d07c"
     }
   ],
   "required_commands": [

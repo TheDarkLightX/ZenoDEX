@@ -61,6 +61,18 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _is_git_tracked(rel: str) -> bool:
+    proc = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", "--", rel],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return proc.returncode == 0
+
+
 def _repo_path(rel: str) -> Path:
     path = (REPO_ROOT / rel).resolve()
     try:
@@ -83,6 +95,7 @@ def _check_source_files(entries: object) -> list[dict[str, str]]:
         seen.add(rel)
         path = _repo_path(rel)
         _require(path.is_file(), f"missing source/test/workflow file: {rel}")
+        _require(_is_git_tracked(rel), f"source/test/workflow file is not git-tracked: {rel}")
         actual = _sha256_file(path)
         _require(actual == expected, f"source hash mismatch for {rel}: {actual} != {expected}")
         checked.append({"path": rel, "sha256": actual})
