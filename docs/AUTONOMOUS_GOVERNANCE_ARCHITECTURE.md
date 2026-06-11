@@ -18,12 +18,15 @@ oracle/state snapshot
 
 Runtime execution uses the frozen policy artifact only. It does not call Julia,
 train online, sample probabilistically, or use an energy score as an acceptance
-predicate.
+predicate. The runtime may use a frozen EBRM artifact as a deterministic
+candidate proposer: it scores a finite candidate band with integer energy,
+selects the minimum-energy candidate with a fixed tie-break, and then submits
+that candidate to the exact governance gate.
 
 The authority contract is:
 
 ```text
-QPolicy(state) = candidate_action or ranked_candidate_actions
+QPolicy(state) or EBRM(state) = candidate_action or ranked_candidate_actions
 GovernanceGates(state, candidate_action) = admissible?
 Commit(state, candidate_action) = proposed_state if admissible else state
 ```
@@ -138,8 +141,11 @@ This prevents repeated small admissible moves from accumulating into an
 unbounded autonomous path. Budget skips are training negatives and audit
 signals; the exact gates still decide the candidate that remains.
 
-The current optimizer is a deterministic hand-energy baseline. A learned EBRM
-can replace or augment `ebrm_prior` after it is trained and audited.
+The current optimizer includes a deterministic hand-energy baseline. Runtime
+also has a frozen EBRM artifact path
+(`src/integration/autonomous_governance_ebrm_policy.py`) for deterministic
+candidate generation. A learned EBRM can replace or augment `ebrm_prior` after
+it is trained, audited, frozen, and hash-pinned in the same artifact discipline.
 
 ## EBRM Role
 
@@ -155,6 +161,23 @@ E_theta(context, action)
 
 Lower energy means the action should be checked earlier or receive a higher
 lookup-table score. It does not mean the action is allowed.
+
+Runtime EBRM is allowed only in deterministic structured-prediction form:
+
+```text
+argmin_{candidate in finite_gate_band(state)} E_theta(state, candidate)
+```
+
+The candidate band is derived from the same cap and step constants used by the
+exact gates, and the selected candidate is still gate-checked. Stochastic EBM
+sampling, Langevin dynamics, MCMC, online learning, floating weights, and
+unbounded candidate search stay outside the live governance lane.
+
+Each runtime EBRM artifact also carries explicit `feature_bounds` for the
+training domain. An observation outside those bounds returns a no-op receipt
+with an out-of-training-domain error before the energy model can move a
+governance parameter. This makes unexpected regimes observable while preserving
+the invariant that training quality is never the authority boundary.
 
 Good EBRM training labels come from replay and exact gates:
 

@@ -6,6 +6,7 @@ table, but runtime evaluation is a pure lookup plus bounded revision check.
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
@@ -17,6 +18,48 @@ from src.tau_specs.governance import gov_gate
 AUTONOMOUS_GOVERNANCE_Q_POLICY_SCHEMA_V1 = "zenodex.autonomous_governance.q_policy.v1"
 AUTONOMOUS_GOVERNANCE_Q_RECEIPT_SCHEMA_V1 = "zenodex.autonomous_governance.q_receipt.v1"
 AUTONOMOUS_GOVERNANCE_SURFACE_STEP_SCHEMA_V1 = "zenodex.autonomous_governance.q_surface_step.v1"
+AUTONOMOUS_GOVERNANCE_SURFACE_CONTEXT_SCHEMA_V1 = (
+    "zenodex.autonomous_governance.committed_surface_context.v1"
+)
+AUTONOMOUS_GOVERNANCE_SURFACE_ADMISSION_SCHEMA_V1 = (
+    "zenodex.autonomous_governance.q_surface_admission.v1"
+)
+AUTONOMOUS_GOVERNANCE_SURFACE_EVAL_BUNDLE_SCHEMA_V1 = (
+    "zenodex.autonomous_governance.q_surface_policy_eval_bundle.v1"
+)
+ALLOWED_SURFACE_ADMISSION_REQUEST_FIELDS_V1 = frozenset(
+    {
+        "schema",
+        "tx_id",
+        "time_ms",
+        "policy",
+        "expected_policy_hash",
+        "expected_committed_context_hash",
+        "surface_state",
+        "observation",
+        "current_epoch",
+        "proposal_epoch",
+        "last_update_epoch",
+        "previous_approved_deltas",
+        "trajectory_budget",
+        "trajectory_used",
+    }
+)
+FORBIDDEN_SURFACE_ADMISSION_RESULT_FIELDS_V1 = frozenset(
+    {
+        "action_id",
+        "admission_hash",
+        "applied_state",
+        "gate_recheck",
+        "proposed",
+        "proposed_state",
+        "receipt",
+        "receipt_hash",
+        "scores",
+        "step",
+        "step_hash",
+    }
+)
 
 PARAMETER_NAMES_V1 = (
     "fee",
@@ -43,6 +86,23 @@ SURFACE_PARAMETER_NAMES_V1 = (
     "funding_cap_bps",
 )
 
+AUTOGOVNEXT_FORBIDDEN_AUTHORITY_PARAMETERS_V1 = frozenset(
+    {
+        "config_digest",
+        "deployment_profile",
+        "governance_authority_hash",
+        "module_versions_digest",
+        "policy_registry_hash",
+        "risc0_image_id",
+        "sequencer_set_hash",
+        "signature_set_root",
+        "signer_set_hash",
+        "threshold_bls_registry_hash",
+        "verifier_image_id",
+        "verifier_key_hash",
+    }
+)
+
 OBSERVATION_FIELDS_V1 = frozenset(
     {
         "observed_price_bps",
@@ -52,6 +112,12 @@ OBSERVATION_FIELDS_V1 = frozenset(
         "divergence_bps",
         "freshness_lag_epochs",
         "liquidity_depth_bps",
+        "oracle_confidence_bps",
+        "liquidity_concentration_bps",
+        "recent_governance_churn_bps",
+        "proof_market_health_bps",
+        "validator_stress_bps",
+        "network_stress_bps",
     }
 )
 
@@ -148,6 +214,62 @@ def policy_content_hash_v1(policy: Mapping[str, Any]) -> str:
     body = dict(policy)
     body.pop("policy_hash", None)
     return hash_v0("autonomous_governance_q_policy_v1", body)
+
+
+def governance_surface_context_hash_v1(
+    *,
+    surface_state: Mapping[str, Any],
+    current_epoch: int,
+    proposal_epoch: int,
+    last_update_epoch: int | None = None,
+    previous_approved_deltas: Mapping[str, Any] | None = None,
+    trajectory_used: Mapping[str, Any] | None = None,
+) -> str:
+    """Hash the committed state context consumed by a surface-policy step.
+
+    The hash covers the committed surface values plus the epoch and trajectory
+    bookkeeping that make the pointwise and long-horizon gates meaningful.
+    """
+
+    errors: list[str] = []
+    state, state_errors = _normalize_surface_state(surface_state)
+    errors.extend(state_errors)
+    normalized_current_epoch = _require_nonnegative_int_or_error(
+        current_epoch, name="current_epoch", errors=errors
+    )
+    normalized_proposal_epoch = _require_nonnegative_int_or_error(
+        proposal_epoch, name="proposal_epoch", errors=errors
+    )
+    normalized_last_update_epoch = _normalize_optional_nonnegative_int(
+        last_update_epoch,
+        name="last_update_epoch",
+        errors=errors,
+    )
+    normalized_trajectory_used, trajectory_used_errors = _normalize_trajectory_used(trajectory_used)
+    errors.extend(trajectory_used_errors)
+    normalized_previous_deltas, previous_delta_errors = _normalize_previous_approved_deltas(
+        previous_approved_deltas
+    )
+    errors.extend(previous_delta_errors)
+    if errors:
+        raise ValueError(";".join(errors))
+    context = _surface_context_payload(
+        state=state,
+        current_epoch=normalized_current_epoch,
+        proposal_epoch=normalized_proposal_epoch,
+        last_update_epoch=normalized_last_update_epoch,
+        previous_approved_deltas=normalized_previous_deltas,
+        trajectory_used=normalized_trajectory_used,
+    )
+    return _surface_context_hash(context)
+
+
+def _is_canonical_hash_v0(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    if len(value) != 66 or not value.startswith("0x"):
+        return False
+    return all(ch in "0123456789abcdef" for ch in value[2:])
 
 
 def _policy_content_hash_for_receipt(policy: object, errors: list[str]) -> str:
@@ -415,6 +537,176 @@ def sample_autonomous_governance_surface_q_policy_v1() -> dict[str, Any]:
     return {**policy, "policy_hash": policy_content_hash_v1(policy)}
 
 
+def sample_autonomous_governance_next_policy_v1() -> dict[str, Any]:
+    """Return a deterministic AutoGovNEXT policy candidate.
+
+    AutoGovNEXT expands the candidate vocabulary and observation bins used to
+    order governance proposals. It still uses the same frozen policy schema and
+    concrete governance gates as the existing surface policy.
+    """
+
+    policy = copy.deepcopy(sample_autonomous_governance_surface_q_policy_v1())
+    policy.pop("policy_hash", None)
+    policy["policy_id"] = "sample_autogovnext_governance_surface_q_policy_v1"
+    policy["version"] = 2
+    policy["safety"] = {
+        **dict(policy["safety"]),
+        "min_oracle_confidence_bps": 7_000,
+        "max_liquidity_concentration_bps": 9_500,
+        "max_recent_governance_churn_bps": 8,
+        "min_proof_market_health_bps": 1_000,
+        "max_validator_stress_bps": 8_000,
+        "max_network_stress_bps": 8_000,
+    }
+    policy["selection"] = {
+        "mode": "first_admissible",
+        "anti_oscillation": {
+            "enabled": True,
+            "parameters": [
+                "fee_bps",
+                "funding_cap_bps",
+                "buyburn_bps",
+                "reserve_bps",
+                "hosts_bps",
+            ],
+        },
+        "trajectory_budget": {
+            "enabled": True,
+            "limits": {
+                "fee_bps": 250,
+                "funding_cap_bps": 125,
+                "buyburn_bps": 1_000,
+                "reserve_bps": 1_000,
+                "hosts_bps": 1_000,
+            },
+        },
+    }
+    policy["state_bins"] = {
+        **dict(policy["state_bins"]),
+        "fee_bps": [50, 200, 500, 990, 1_000],
+        "funding_cap_bps": [0, 5, 120, 190, 200],
+        "reserve_bps": [0, 2_500, 7_500, 9_000, 9_900, 10_000],
+        "hosts_bps": [0, 500, 2_500, 5_000, 10_000],
+        "oracle_confidence_bps": [7_000, 9_000, 9_800],
+        "liquidity_concentration_bps": [2_500, 5_000, 7_500, 9_500],
+        "recent_governance_churn_bps": [0, 2, 5, 8],
+        "proof_market_health_bps": [1_000, 5_000, 8_000, 9_500],
+        "validator_stress_bps": [500, 2_000, 5_000, 8_000],
+        "network_stress_bps": [500, 2_000, 5_000, 8_000],
+    }
+    policy["actions"] = [
+        *list(policy["actions"]),
+        {"id": "lower_fee_10", "deltas": {"fee_bps": -10}},
+        {
+            "id": "lower_fee_10_relax_funding_5",
+            "deltas": {"fee_bps": -10, "funding_cap_bps": 5},
+        },
+        {"id": "relax_funding_5", "deltas": {"funding_cap_bps": 5}},
+        {
+            "id": "shift_router_reserve_to_hosts_100",
+            "deltas": {"reserve_bps": -100, "hosts_bps": 100},
+        },
+        {
+            "id": "shift_router_hosts_to_reserve_100",
+            "deltas": {"hosts_bps": -100, "reserve_bps": 100},
+        },
+        {
+            "id": "shift_router_reserve_to_buyburn_100",
+            "deltas": {"reserve_bps": -100, "buyburn_bps": 100},
+        },
+    ]
+    policy["q_layers"] = [
+        *list(policy["q_layers"]),
+        {
+            "id": "autogovnext_calm_fee_normalization_v1",
+            "features": [
+                "deviation_bps",
+                "volatility_bps",
+                "liquidity_depth_bps",
+                "oracle_confidence_bps",
+                "proof_market_health_bps",
+                "validator_stress_bps",
+                "network_stress_bps",
+                "recent_governance_churn_bps",
+                "fee_bps",
+                "funding_cap_bps",
+            ],
+            "q_table": {
+                "*": {},
+                "0|0|2|3|4|0|0|0|2|3": {
+                    "lower_fee_10_relax_funding_5": 120,
+                    "lower_fee_10": 80,
+                    "relax_funding_5": 35,
+                    "hold": -20,
+                },
+                "0|0|2|3|4|0|0|0|2|4": {
+                    "lower_fee_10_relax_funding_5": 120,
+                    "lower_fee_10": 80,
+                    "relax_funding_5": 35,
+                    "hold": -20,
+                },
+            },
+        },
+        {
+            "id": "autogovnext_proof_market_router_rebalance_v1",
+            "features": ["proof_market_health_bps", "reserve_bps", "hosts_bps"],
+            "q_table": {
+                "*": {},
+                "0|4|0": {
+                    "shift_router_reserve_to_hosts_100": 140,
+                    "hold": -20,
+                },
+                "1|4|0": {
+                    "shift_router_reserve_to_hosts_100": 120,
+                    "hold": -10,
+                },
+                "4|4|0": {
+                    "shift_router_reserve_to_buyburn_100": 90,
+                    "hold": 10,
+                },
+                "4|1|3": {
+                    "shift_router_hosts_to_reserve_100": 70,
+                    "hold": 10,
+                },
+            },
+        },
+        {
+            "id": "autogovnext_concentration_reserve_bias_v1",
+            "features": ["liquidity_concentration_bps", "liquidity_depth_bps"],
+            "q_table": {
+                "*": {},
+                "3|0": {"shift_router_to_reserve_100": 80, "hold": -10},
+                "4|0": {"shift_router_to_reserve_100": 100, "hold": -20},
+            },
+        },
+        {
+            "id": "autogovnext_stress_freeze_v1",
+            "features": [
+                "validator_stress_bps",
+                "network_stress_bps",
+                "recent_governance_churn_bps",
+            ],
+            "q_table": {
+                "*": {},
+                **{
+                    f"{validator_bin}|{network_bin}|{churn_bin}": {
+                        "hold": 220,
+                        "raise_fee_10": -40,
+                        "raise_fee_10_tighten_funding_5": -60,
+                        "lower_fee_10": -60,
+                        "lower_fee_10_relax_funding_5": -80,
+                        "relax_funding_5": -80,
+                    }
+                    for validator_bin in (2, 3)
+                    for network_bin in (2, 3)
+                    for churn_bin in range(5)
+                },
+            },
+        },
+    ]
+    return {**policy, "policy_hash": policy_content_hash_v1(policy)}
+
+
 def evaluate_autonomous_governance_surface_q_policy_v1(
     *,
     policy: Mapping[str, Any],
@@ -424,6 +716,7 @@ def evaluate_autonomous_governance_surface_q_policy_v1(
     proposal_epoch: int,
     last_update_epoch: int | None = None,
     expected_policy_hash: str | None = None,
+    expected_committed_context_hash: str | None = None,
     previous_approved_deltas: Mapping[str, Any] | None = None,
     trajectory_budget: Mapping[str, Any] | None = None,
     trajectory_used: Mapping[str, Any] | None = None,
@@ -463,11 +756,34 @@ def evaluate_autonomous_governance_surface_q_policy_v1(
     normalized_proposal_epoch = _require_nonnegative_int_or_error(
         proposal_epoch, name="proposal_epoch", errors=errors
     )
+    normalized_last_update_epoch = _normalize_optional_nonnegative_int(
+        last_update_epoch,
+        name="last_update_epoch",
+        errors=errors,
+    )
+    normalized_previous_deltas, previous_delta_errors = _normalize_previous_approved_deltas(
+        previous_approved_deltas
+    )
+    errors.extend(previous_delta_errors)
+    committed_context = _surface_context_payload(
+        state=state,
+        current_epoch=normalized_current_epoch,
+        proposal_epoch=normalized_proposal_epoch,
+        last_update_epoch=normalized_last_update_epoch,
+        previous_approved_deltas=normalized_previous_deltas,
+        trajectory_used=normalized_trajectory_used,
+    )
+    committed_context_hash = _surface_context_hash(committed_context)
+    if (
+        expected_committed_context_hash is not None
+        and expected_committed_context_hash != committed_context_hash
+    ):
+        errors.append("committed_context_hash_mismatch")
     safety_errors = _safety_errors(
         normalized_policy,
         obs,
         current_epoch=normalized_current_epoch,
-        last_update_epoch=last_update_epoch,
+        last_update_epoch=normalized_last_update_epoch,
     )
     errors.extend(safety_errors)
 
@@ -502,7 +818,7 @@ def evaluate_autonomous_governance_surface_q_policy_v1(
             proposal_epoch=normalized_proposal_epoch,
             current_epoch=normalized_current_epoch,
             existing_errors=errors,
-            previous_approved_deltas=previous_approved_deltas,
+            previous_approved_deltas=normalized_previous_deltas,
             trajectory_budget=normalized_trajectory_budget,
             trajectory_used=normalized_trajectory_used,
         )
@@ -560,7 +876,10 @@ def evaluate_autonomous_governance_surface_q_policy_v1(
         "state_bins": state_bins,
         "scores": scores,
         "candidate_search": candidate_search,
-        "previous_approved_deltas": _normalize_delta_history(previous_approved_deltas),
+        "committed_context": committed_context,
+        "committed_context_hash": committed_context_hash,
+        "expected_committed_context_hash": expected_committed_context_hash or "",
+        "previous_approved_deltas": normalized_previous_deltas,
         "trajectory_budget": normalized_trajectory_budget,
         "trajectory_used": normalized_trajectory_used,
         "observation": obs,
@@ -591,6 +910,7 @@ def commit_autonomous_governance_surface_q_policy_v1(
     proposal_epoch: int,
     last_update_epoch: int | None = None,
     expected_policy_hash: str | None = None,
+    expected_committed_context_hash: str | None = None,
     previous_approved_deltas: Mapping[str, Any] | None = None,
     trajectory_budget: Mapping[str, Any] | None = None,
     trajectory_used: Mapping[str, Any] | None = None,
@@ -612,6 +932,7 @@ def commit_autonomous_governance_surface_q_policy_v1(
         proposal_epoch=proposal_epoch,
         last_update_epoch=last_update_epoch,
         expected_policy_hash=expected_policy_hash,
+        expected_committed_context_hash=expected_committed_context_hash,
         previous_approved_deltas=previous_approved_deltas,
         trajectory_budget=trajectory_budget,
         trajectory_used=trajectory_used,
@@ -652,6 +973,12 @@ def commit_autonomous_governance_surface_q_policy_v1(
     else:
         reason = "gate_recheck_rejected_noop"
         applied_state = committed
+    trajectory_used_after = _advance_trajectory_used_after_step(
+        admitted=admitted,
+        committed=committed,
+        applied=applied_state,
+        trajectory_used=trajectory_used,
+    )
 
     body = {
         "schema": AUTONOMOUS_GOVERNANCE_SURFACE_STEP_SCHEMA_V1,
@@ -663,6 +990,7 @@ def commit_autonomous_governance_surface_q_policy_v1(
         "gate_recheck": gate_recheck,
         "admitted": admitted,
         "reason": reason,
+        "trajectory_used_after": trajectory_used_after,
         "ok": not commit_errors,
         "errors": tuple(commit_errors),
         "not_claimed": (
@@ -673,6 +1001,193 @@ def commit_autonomous_governance_surface_q_policy_v1(
         ),
     }
     return {**body, "step_hash": hash_v0("autonomous_governance_q_surface_step_v1", body)}
+
+
+def admit_autonomous_governance_surface_request_v1(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Fail closed at the live autonomous-governance request boundary.
+
+    The caller supplies committed state, observations, timing, a frozen policy,
+    and a pinned policy hash. Proposed states, receipts, action IDs, and other
+    result fields are recomputed here and are rejected if supplied by the
+    caller.
+    """
+
+    request_is_mapping = isinstance(request, Mapping)
+    request_obj = request if request_is_mapping else {}
+    raw_state = request_obj.get("surface_state", {})
+    committed, committed_errors = _normalize_surface_state(
+        raw_state if isinstance(raw_state, Mapping) else {}
+    )
+    errors: list[str] = []
+    if not request_is_mapping:
+        errors.append("request_must_be_object")
+    schema = request_obj.get("schema")
+    if schema is not None and schema not in {
+        AUTONOMOUS_GOVERNANCE_SURFACE_ADMISSION_SCHEMA_V1,
+        AUTONOMOUS_GOVERNANCE_SURFACE_EVAL_BUNDLE_SCHEMA_V1,
+    }:
+        errors.append("admission_schema_invalid")
+    errors.extend(f"committed_{error}" for error in committed_errors)
+
+    unknown_fields = tuple(
+        sorted(
+            str(field)
+            for field in request_obj
+            if field not in ALLOWED_SURFACE_ADMISSION_REQUEST_FIELDS_V1
+            and field not in FORBIDDEN_SURFACE_ADMISSION_RESULT_FIELDS_V1
+        )
+    )
+    forbidden_fields = tuple(
+        sorted(str(field) for field in FORBIDDEN_SURFACE_ADMISSION_RESULT_FIELDS_V1 if field in request_obj)
+    )
+    errors.extend(f"unknown_admission_request_field:{field}" for field in unknown_fields)
+    errors.extend(f"direct_result_field_forbidden:{field}" for field in forbidden_fields)
+
+    tx_id = request_obj.get("tx_id")
+    if tx_id is not None:
+        if not isinstance(tx_id, str) or not tx_id.strip() or len(tx_id) > 128:
+            errors.append("tx_id_invalid")
+        elif any(ord(ch) < 32 for ch in tx_id):
+            errors.append("tx_id_invalid")
+    time_ms = request_obj.get("time_ms")
+    if time_ms is not None:
+        try:
+            _require_nonnegative_int(time_ms, name="time_ms")
+        except ValueError as exc:
+            errors.append(str(exc))
+
+    expected_policy_hash = request_obj.get("expected_policy_hash")
+    if not _is_canonical_hash_v0(expected_policy_hash):
+        errors.append("expected_policy_hash_invalid")
+    expected_committed_context_hash = request_obj.get("expected_committed_context_hash")
+    if (
+        expected_committed_context_hash is not None
+        and not _is_canonical_hash_v0(expected_committed_context_hash)
+    ):
+        errors.append("expected_committed_context_hash_invalid")
+
+    if errors:
+        return _surface_admission_rejection(
+            committed=committed,
+            request_obj=request_obj,
+            errors=errors,
+            unknown_fields=unknown_fields,
+            forbidden_fields=forbidden_fields,
+        )
+
+    step = commit_autonomous_governance_surface_q_policy_v1(
+        policy=request_obj.get("policy", {}),
+        surface_state=request_obj.get("surface_state", {}),
+        observation=request_obj.get("observation", {}),
+        current_epoch=request_obj.get("current_epoch"),
+        proposal_epoch=request_obj.get("proposal_epoch"),
+        last_update_epoch=request_obj.get("last_update_epoch"),
+        expected_policy_hash=str(expected_policy_hash),
+        expected_committed_context_hash=(
+            str(expected_committed_context_hash)
+            if isinstance(expected_committed_context_hash, str)
+            else None
+        ),
+        previous_approved_deltas=request_obj.get("previous_approved_deltas"),
+        trajectory_budget=request_obj.get("trajectory_budget"),
+        trajectory_used=request_obj.get("trajectory_used"),
+    )
+    admitted = step.get("admitted") is True
+    receipt = step.get("receipt", {})
+    step_errors = tuple(str(error) for error in step.get("errors", ()))
+    receipt_errors = (
+        tuple(str(error) for error in receipt.get("errors", ()))
+        if isinstance(receipt, Mapping)
+        else ()
+    )
+    admission_errors = step_errors if admitted else step_errors + receipt_errors
+    body = {
+        "schema": AUTONOMOUS_GOVERNANCE_SURFACE_ADMISSION_SCHEMA_V1,
+        "tx_id": tx_id if isinstance(tx_id, str) else "",
+        "time_ms": time_ms if type(time_ms) is int else None,
+        "step": step,
+        "receipt": receipt,
+        "receipt_hash": step.get("receipt_hash", ""),
+        "step_hash": step.get("step_hash", ""),
+        "committed_state": step.get("committed_state", committed),
+        "proposed_state": step.get("proposed_state", committed),
+        "applied_state": step.get("applied_state", committed),
+        "gate_recheck": step.get("gate_recheck", {}),
+        "trajectory_used_after": step.get("trajectory_used_after", {}),
+        "admitted": admitted,
+        "reason": step.get("reason", "commit_rejected_noop"),
+        "ok": step.get("ok") is True and admitted,
+        "errors": admission_errors,
+        "unknown_fields": (),
+        "forbidden_fields": (),
+        "not_claimed": (
+            "does_not_authorize_settlement",
+            "does_not_change_immutable_rules",
+            "does_not_claim_oracle_truth",
+            "does_not_train_q_table_online",
+        ),
+    }
+    return {**body, "admission_hash": hash_v0("autonomous_governance_q_surface_admission_v1", body)}
+
+
+def _surface_admission_rejection(
+    *,
+    committed: Mapping[str, int],
+    request_obj: Mapping[str, Any],
+    errors: Sequence[str],
+    unknown_fields: Sequence[str],
+    forbidden_fields: Sequence[str],
+) -> dict[str, Any]:
+    trajectory_used_after, _trajectory_errors = _normalize_trajectory_used(
+        request_obj.get("trajectory_used")
+    )
+    body = {
+        "schema": AUTONOMOUS_GOVERNANCE_SURFACE_ADMISSION_SCHEMA_V1,
+        "tx_id": request_obj.get("tx_id") if isinstance(request_obj.get("tx_id"), str) else "",
+        "time_ms": request_obj.get("time_ms") if type(request_obj.get("time_ms")) is int else None,
+        "step": {},
+        "receipt": {},
+        "receipt_hash": "",
+        "step_hash": "",
+        "committed_state": dict(committed),
+        "proposed_state": dict(committed),
+        "applied_state": dict(committed),
+        "gate_recheck": {},
+        "trajectory_used_after": trajectory_used_after,
+        "admitted": False,
+        "reason": "admission_rejected_noop",
+        "ok": False,
+        "errors": tuple(errors),
+        "unknown_fields": tuple(unknown_fields),
+        "forbidden_fields": tuple(forbidden_fields),
+        "not_claimed": (
+            "does_not_authorize_settlement",
+            "does_not_change_immutable_rules",
+            "does_not_claim_oracle_truth",
+            "does_not_train_q_table_online",
+        ),
+    }
+    return {**body, "admission_hash": hash_v0("autonomous_governance_q_surface_admission_v1", body)}
+
+
+def _advance_trajectory_used_after_step(
+    *,
+    admitted: bool,
+    committed: Mapping[str, int],
+    applied: Mapping[str, int],
+    trajectory_used: Mapping[str, Any] | None,
+) -> dict[str, int]:
+    used, _errors = _normalize_trajectory_used(trajectory_used)
+    out = dict(used)
+    if not admitted:
+        return out
+    for name in SURFACE_PARAMETER_NAMES_V1:
+        if name not in committed or name not in applied:
+            continue
+        delta = abs(int(applied[name]) - int(committed[name]))
+        if delta:
+            out[name] = int(out.get(name, 0)) + delta
+    return out
 
 
 def _select_first_admissible_surface_action(
@@ -863,6 +1378,26 @@ def _normalize_delta_history(raw: Mapping[str, Any] | None) -> dict[str, int]:
     return out
 
 
+def _normalize_previous_approved_deltas(
+    raw: Mapping[str, Any] | None,
+) -> tuple[dict[str, int], list[str]]:
+    if raw is None:
+        return {}, []
+    if not isinstance(raw, Mapping):
+        return {}, ["previous_approved_deltas_must_be_object"]
+    errors: list[str] = []
+    out: dict[str, int] = {}
+    for key, value in raw.items():
+        if key not in SURFACE_PARAMETER_NAMES_V1:
+            errors.append(f"unknown_previous_approved_delta_parameter:{key}")
+            continue
+        if type(value) is not int:
+            errors.append(f"previous_approved_deltas.{key} must be an int")
+            continue
+        out[str(key)] = int(value)
+    return out, errors
+
+
 def _anti_oscillation_failures(
     *,
     policy: Mapping[str, Any],
@@ -945,6 +1480,57 @@ def _require_nonnegative_int_or_error(value: object, *, name: str, errors: list[
         return 0
 
 
+def _normalize_optional_nonnegative_int(
+    value: object,
+    *,
+    name: str,
+    errors: list[str],
+) -> int | None:
+    if value is None:
+        return None
+    try:
+        return _require_nonnegative_int(value, name=name)
+    except ValueError as exc:
+        errors.append(str(exc))
+        return None
+
+
+def _surface_context_payload(
+    *,
+    state: Mapping[str, int],
+    current_epoch: int,
+    proposal_epoch: int,
+    last_update_epoch: int | None,
+    previous_approved_deltas: Mapping[str, int],
+    trajectory_used: Mapping[str, int],
+) -> dict[str, Any]:
+    return {
+        "schema": AUTONOMOUS_GOVERNANCE_SURFACE_CONTEXT_SCHEMA_V1,
+        "surface_state": {
+            name: int(state[name])
+            for name in SURFACE_PARAMETER_NAMES_V1
+            if name in state
+        },
+        "current_epoch": int(current_epoch),
+        "proposal_epoch": int(proposal_epoch),
+        "last_update_epoch": last_update_epoch,
+        "previous_approved_deltas": {
+            name: int(previous_approved_deltas[name])
+            for name in sorted(previous_approved_deltas)
+            if name in SURFACE_PARAMETER_NAMES_V1
+        },
+        "trajectory_used": {
+            name: int(trajectory_used[name])
+            for name in sorted(trajectory_used)
+            if name in SURFACE_PARAMETER_NAMES_V1
+        },
+    }
+
+
+def _surface_context_hash(context: Mapping[str, Any]) -> str:
+    return hash_v0("autonomous_governance_surface_context_v1", context)
+
+
 def _normalize_policy(
     policy: Mapping[str, Any],
     *,
@@ -1010,10 +1596,14 @@ def _normalize_policy(
                 errors.append("anti_oscillation_parameters_must_be_sequence")
             else:
                 for parameter in parameters_raw:
-                    if parameter not in parameter_names:
+                    if not isinstance(parameter, str):
+                        errors.append(f"anti_oscillation_parameter_invalid:{parameter}")
+                    elif parameter in AUTOGOVNEXT_FORBIDDEN_AUTHORITY_PARAMETERS_V1:
+                        errors.append(f"authority_anti_oscillation_parameter_forbidden:{parameter}")
+                    elif parameter not in parameter_names:
                         errors.append(f"anti_oscillation_unknown_parameter:{parameter}")
                     else:
-                        parameters.append(str(parameter))
+                        parameters.append(parameter)
             normalized_selection["anti_oscillation"] = {
                 "enabled": bool(enabled),
                 "parameters": parameters,
@@ -1033,6 +1623,9 @@ def _normalize_policy(
                 errors.append("trajectory_budget_limits_must_be_object")
             else:
                 for parameter, raw_limit in limits_raw.items():
+                    if parameter in AUTOGOVNEXT_FORBIDDEN_AUTHORITY_PARAMETERS_V1:
+                        errors.append(f"authority_trajectory_budget_parameter_forbidden:{parameter}")
+                        continue
                     if parameter not in parameter_names:
                         errors.append(f"trajectory_budget_unknown_parameter:{parameter}")
                         continue
@@ -1055,6 +1648,9 @@ def _normalize_policy(
         errors.append("state_bins_must_be_object")
     else:
         for field, raw_thresholds in state_bins.items():
+            if field in AUTOGOVNEXT_FORBIDDEN_AUTHORITY_PARAMETERS_V1:
+                errors.append(f"authority_state_bin_forbidden:{field}")
+                continue
             if field not in allowed_bin_fields:
                 errors.append(f"unknown_state_bin_field:{field}")
                 continue
@@ -1094,6 +1690,9 @@ def _normalize_policy(
                 deltas_raw = {}
             deltas: dict[str, int] = {}
             for name, raw_delta in deltas_raw.items():
+                if name in AUTOGOVNEXT_FORBIDDEN_AUTHORITY_PARAMETERS_V1:
+                    errors.append(f"authority_action_delta_forbidden:{name}")
+                    continue
                 if name not in parameter_names:
                     errors.append(f"unknown_action_delta_parameter:{name}")
                     continue
@@ -1376,6 +1975,20 @@ def _normalize_observation(raw: Mapping[str, Any]) -> tuple[dict[str, int], list
             obs[field] = _require_nonnegative_int(raw.get(field), name=field)
         except ValueError as exc:
             errors.append(str(exc))
+    for field in (
+        "oracle_confidence_bps",
+        "liquidity_concentration_bps",
+        "recent_governance_churn_bps",
+        "proof_market_health_bps",
+        "validator_stress_bps",
+        "network_stress_bps",
+    ):
+        if field not in raw:
+            continue
+        try:
+            obs[field] = _require_nonnegative_int(raw.get(field), name=field)
+        except ValueError as exc:
+            errors.append(str(exc))
     if "deviation_bps" in raw:
         try:
             explicit = _require_nonnegative_int(raw.get("deviation_bps"), name="deviation_bps")
@@ -1404,6 +2017,30 @@ def _safety_errors(
     _check_max(observation, safety, errors, field="freshness_lag_epochs", setting="max_freshness_lag_epochs")
     _check_max(observation, safety, errors, field="divergence_bps", setting="max_divergence_bps")
     _check_max(observation, safety, errors, field="volatility_bps", setting="max_volatility_bps")
+    _check_min(observation, safety, errors, field="oracle_confidence_bps", setting="min_oracle_confidence_bps")
+    _check_max(
+        observation,
+        safety,
+        errors,
+        field="liquidity_concentration_bps",
+        setting="max_liquidity_concentration_bps",
+    )
+    _check_max(
+        observation,
+        safety,
+        errors,
+        field="recent_governance_churn_bps",
+        setting="max_recent_governance_churn_bps",
+    )
+    _check_min(
+        observation,
+        safety,
+        errors,
+        field="proof_market_health_bps",
+        setting="min_proof_market_health_bps",
+    )
+    _check_max(observation, safety, errors, field="validator_stress_bps", setting="max_validator_stress_bps")
+    _check_max(observation, safety, errors, field="network_stress_bps", setting="max_network_stress_bps")
     try:
         min_liquidity = _require_nonnegative_int(
             safety.get("min_liquidity_depth_bps", 0), name="min_liquidity_depth_bps"
@@ -1437,6 +2074,24 @@ def _check_max(
         maximum = _require_nonnegative_int(safety.get(setting), name=setting)
         if observation.get(field, 0) > maximum:
             errors.append(f"{field}_exceeds_{setting}")
+    except ValueError as exc:
+        errors.append(str(exc))
+
+
+def _check_min(
+    observation: Mapping[str, int],
+    safety: Mapping[str, Any],
+    errors: list[str],
+    *,
+    field: str,
+    setting: str,
+) -> None:
+    if setting not in safety:
+        return
+    try:
+        minimum = _require_nonnegative_int(safety.get(setting), name=setting)
+        if observation.get(field, 0) < minimum:
+            errors.append(f"{field}_below_{setting}")
     except ValueError as exc:
         errors.append(str(exc))
 

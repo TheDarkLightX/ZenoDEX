@@ -10,7 +10,7 @@ Security posture:
 - Default-deny CORS (no wildcard by default)
 - Basic rate limiting (per-IP, token bucket)
 - Tight request parsing and bounded request sizes
-- Demo bearer-token auth for explicitly approved demo/dev routes (DEMO_API_TOKEN)
+- Bearer-token auth for explicitly enabled local/testnet routes (ZENODEX_API_BEARER_TOKEN)
 """
 
 from __future__ import annotations
@@ -76,6 +76,22 @@ def _env_bool(name: str, default: bool = False) -> bool:
     if raw is None or not raw.strip():
         return bool(default)
     return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
+def _confidential_sealed_bid_enabled_from_env() -> bool:
+    """Resolve whether the confidential sealed-bid settlement API is enabled.
+
+    The sealed-bid API is a *distinct* privileged writer surface: it admits and
+    settles confidential asset trades against the local ledger. It must require
+    its OWN explicit opt-in and must NOT be implied by enabling the separate
+    confidential *attestation* API. Previously the default inherited
+    ``CONFIDENTIAL_ATTESTATION_API_ENABLED``, so an operator who enabled only
+    attestation silently turned on the sealed-bid writer surface as well
+    (disaster class D-CONFIG-001: env default weakens production boundary).
+
+    Fail-closed: every sensitive-API flag requires explicit ``1/true/yes/on``.
+    """
+    return _env_bool("CONFIDENTIAL_SEALED_BID_API_ENABLED", False)
 
 
 def _safe_http_header_value(value: object) -> Optional[str]:
@@ -907,15 +923,17 @@ class _Handler(BaseHTTPRequestHandler):
         return None
 
     def _demo_auth_ok(self) -> bool:
-        """Optional bearer token auth for demo/dev routes.
+        """Bearer-token check for sensitive local/testnet routes.
 
-        If no token is configured, auth is not enforced by the handler. main()
-        refuses that configuration for enabled sensitive APIs unless an external
-        auth boundary is explicitly declared.
+        Review note (grade A-): this handler used to allow requests whenever
+        no token was attached, relying on startup validation to make that state
+        unreachable. Sensitive routes should stay fail-closed at the request
+        boundary too; only an explicit external-auth server flag may bypass the
+        in-process bearer check.
         """
         token = getattr(self.server, "demo_api_token", "")  # type: ignore[attr-defined]
         if not isinstance(token, str) or not token:
-            return True
+            return bool(getattr(self.server, "external_auth_enforced", False))  # type: ignore[attr-defined]
         auth = self.headers.get("Authorization")
         if not isinstance(auth, str) or not auth:
             return False
@@ -974,6 +992,10 @@ class _Handler(BaseHTTPRequestHandler):
             return 96_000
         if path.startswith("/api/confidential/attestation/"):
             return 96_000
+        if path.startswith("/api/confidential/sealed-bid/"):
+            return 96_000
+        if path.startswith("/api/autogov/"):
+            return 8 * 1024 * 1024
         return 65_536
 
     def _perps_state(self) -> Any:
@@ -992,16 +1014,11 @@ class _Handler(BaseHTTPRequestHandler):
                 cors_origin=cors_origin,
                 raw_body=raw_body,
             )
-        if not getattr(self.server, "perps_api_enabled", False):
-            return False
-        if not self._demo_auth_ok():
-            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
-            return True
-        from src.integration.perps_api import handle_perps_request
-
-        status, resp = handle_perps_request(method, path, raw_body)
-        self._write_json(status, resp, cors_origin=cors_origin)
-        return True
+        # No HTTP exposure for non-wallet /api/perps/* routes. The signed
+        # production write path is /api/perps/wallet/submit. The in-memory
+        # audit-replay scaffold lives at src/integration/_perps_audit_replay_state.py
+        # and is imported only by tools/check_* audit harnesses, never served.
+        return False
 
     def _maybe_handle_perps_wallet_api(
         self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
@@ -1038,16 +1055,12 @@ class _Handler(BaseHTTPRequestHandler):
                 cors_origin=cors_origin,
                 raw_body=raw_body,
             )
-        if not getattr(self.server, "zusd_api_enabled", False):
-            return False
-        if not self._demo_auth_ok():
-            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
-            return True
-        from src.integration.zusd_api import handle_zusd_request
-
-        status, resp = handle_zusd_request(method, path, raw_body)
-        self._write_json(status, resp, cors_origin=cors_origin)
-        return True
+        # No HTTP exposure for non-wallet /api/zusd/* routes. Signed
+        # production writes go through /api/zusd/wallet/* and
+        # /api/zusd/monetary/*. The in-memory audit-replay scaffold lives
+        # at src/integration/_zusd_audit_replay_state.py and is imported
+        # only by tools/check_* audit harnesses, never served.
+        return False
 
     def _maybe_handle_zusd_tau_wallet_api(
         self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
@@ -1154,6 +1167,61 @@ class _Handler(BaseHTTPRequestHandler):
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
+    def _maybe_handle_confidential_sealed_bid_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/confidential/sealed-bid/"):
+            return False
+        if not getattr(self.server, "confidential_sealed_bid_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.confidential_sealed_bid_api import handle_confidential_sealed_bid_request
+
+        table = getattr(self.server, "confidential_sealed_bid_table", None)  # type: ignore[attr-defined]
+        asset_settlement_submitter = getattr(  # type: ignore[attr-defined]
+            self.server,
+            "confidential_sealed_bid_asset_settlement_submitter",
+            None,
+        )
+        lock = getattr(self.server, "confidential_sealed_bid_lock", None)  # type: ignore[attr-defined]
+        if lock is not None:
+            with lock:
+                status, resp = handle_confidential_sealed_bid_request(
+                    method,
+                    path,
+                    raw_body,
+                    table=table,
+                    asset_settlement_submitter=asset_settlement_submitter,
+                )
+        else:
+            status, resp = handle_confidential_sealed_bid_request(
+                method,
+                path,
+                raw_body,
+                table=table,
+                asset_settlement_submitter=asset_settlement_submitter,
+            )
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
+    def _maybe_handle_autogov_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/autogov/"):
+            return False
+        if not getattr(self.server, "autogov_live_apply_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.autogov_live_apply_api import handle_autogov_request
+
+        status, resp = handle_autogov_request(method, path, raw_body)
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
     def _maybe_handle_dex_api(
         self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
     ) -> bool:
@@ -1163,6 +1231,26 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         if not self._demo_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        # Step 7: serve the auto-generated OpenAPI 3.1 document. GET-only.
+        # Only the schema-backed (Step 6) endpoints appear; ad-hoc-validated
+        # handlers are intentionally omitted so the published surface
+        # never lies about the contract.
+        if path == "/api/dex/openapi.json" and method == "GET":
+            from src.integration.api_server_dex_dispatch import (  # pylint: disable=import-outside-toplevel
+                generate_openapi_document,
+            )
+
+            self._write_json(200, generate_openapi_document(), cors_origin=cors_origin)
+            return True
+        # Step 8: per-endpoint dispatch metrics (request count, error
+        # count, latency p50/p95/p99). GET-only. Operator-facing.
+        if path == "/api/dex/metrics" and method == "GET":
+            from src.integration.api_server_dex_dispatch import (  # pylint: disable=import-outside-toplevel
+                serve_metrics,
+            )
+
+            self._write_json(200, serve_metrics(), cors_origin=cors_origin)
             return True
         if method != "POST":
             self._write_json(405, {"ok": False, "error": "method_not_allowed"}, cors_origin=cors_origin)
@@ -1184,580 +1272,37 @@ class _Handler(BaseHTTPRequestHandler):
             self._write_json(400, {"ok": False, "error": search_limit_error}, cors_origin=cors_origin)
             return True
 
-        if path == "/api/dex/impact_preview":
-            try:
-                from src.core.price_impact_preview import price_impact_preview  # pylint: disable=import-outside-toplevel
+        # Strangler-fig dispatch: handlers migrated to api_server_dex_dispatch
+        # take precedence over the legacy if-chain below. New endpoints should
+        # be added to dex_dispatch_handlers.py, not here. The dispatcher
+        # absorbs DexEndpointError and applies the per-endpoint catch-all
+        # error_code, so individual handlers don't need their own
+        # try/except.
+        from src.integration.api_server_dex_dispatch import (  # pylint: disable=import-outside-toplevel
+            DexRequestContext as _DexRequestContext,
+            dispatch as _dex_dispatch,
+        )
 
-                reserve_in = int(obj.get("reserve_in", 0))
-                reserve_out = int(obj.get("reserve_out", 0))
-                amount_in = int(obj.get("amount_in", 0))
-                fee_bps = int(obj.get("fee_bps", 0))
-                pending_same_dir = int(obj.get("pending_volume_same_direction", 0))
-                confidence_bps = int(obj.get("confidence_bps", 9500))
+        _ctx = _DexRequestContext(server=self.server, cors_origin=cors_origin, raw_body=raw_body)
+        _dispatched = _dex_dispatch(path, obj, _ctx)
+        if _dispatched is not None:
+            _status, _body = _dispatched
+            self._write_json(_status, _body, cors_origin=cors_origin)
+            return True
 
-                preview = price_impact_preview(
-                    reserve_in=reserve_in,
-                    reserve_out=reserve_out,
-                    amount_in=amount_in,
-                    fee_bps=fee_bps,
-                    pending_volume_same_direction=pending_same_dir,
-                    confidence_bps=confidence_bps,
-                )
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "preview": {
-                            "amount_out_isolated": int(preview.amount_out_isolated),
-                            "fee_amount": int(preview.fee_amount),
-                            "price_impact_bps": int(preview.price_impact_bps),
-                            "effective_price_e8": int(preview.effective_price_e8),
-                            "spot_price_e8": int(preview.spot_price_e8),
-                            "amount_out_best_case": int(preview.amount_out_best_case),
-                            "amount_out_worst_case": int(preview.amount_out_worst_case),
-                            "recommended_min_out": int(preview.recommended_min_out),
-                            "pending_volume_same_direction": int(preview.pending_volume_same_direction),
-                            "confidence_bps": int(preview.confidence_bps),
-                            "pending_volume_at_confidence": int(preview.pending_volume_at_confidence),
-                            "amount_out_at_confidence": int(preview.amount_out_at_confidence),
-                        },
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "impact_preview_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/slippage_advice":
-            try:
-                from src.core.slippage_advisor import (  # pylint: disable=import-outside-toplevel
-                    slippage_advice_exact_in_cpmm,
-                )
-                from src.core.pokayoke_swap_guardrails import (  # pylint: disable=import-outside-toplevel
-                    SwapGuardrailContext,
-                    decide_swap_guardrails,
-                )
-
-                reserve_in = int(obj.get("reserve_in", 0))
-                reserve_out = int(obj.get("reserve_out", 0))
-                amount_in = int(obj.get("amount_in", 0))
-                fee_bps = int(obj.get("fee_bps", 0))
-                pending_same_dir = int(obj.get("pending_volume_same_direction", 0))
-                confidence_bps = int(obj.get("confidence_bps", 9500))
-                max_attacker_amount_in = int(obj.get("max_attacker_amount_in", 5000))
-                user_slippage_bps_raw = obj.get("user_slippage_bps", None)
-                user_slippage_bps: int | None
-                if user_slippage_bps_raw is None:
-                    user_slippage_bps = None
-                else:
-                    user_slippage_bps = int(user_slippage_bps_raw)
-
-                raw_opts = obj.get("slippage_options_bps")
-                if isinstance(raw_opts, list):
-                    slippage_options_bps = []
-                    for x in raw_opts:
-                        try:
-                            slippage_options_bps.append(int(x))
-                        except Exception:
-                            continue
-                else:
-                    slippage_options_bps = None
-
-                advice = slippage_advice_exact_in_cpmm(
-                    reserve_in=reserve_in,
-                    reserve_out=reserve_out,
-                    fee_bps=fee_bps,
-                    amount_in=amount_in,
-                    pending_volume_same_direction=pending_same_dir,
-                    confidence_bps=confidence_bps,
-                    slippage_options_bps=slippage_options_bps,
-                    max_attacker_amount_in=max_attacker_amount_in,
-                )
-
-                pokayoke = None
-                if user_slippage_bps is not None:
-                    ctx = SwapGuardrailContext(
-                        price_impact_bps=int(advice.price_impact_bps),
-                        slippage_advice_status=str(advice.status),
-                        required_slippage_bps=int(advice.required_slippage_bps),
-                        recommended_slippage_bps_revert_safe=(
-                            int(advice.recommended_slippage_bps_revert_safe)
-                            if advice.recommended_slippage_bps_revert_safe is not None
-                            else None
-                        ),
-                        recommended_slippage_bps_mev_safe=(
-                            int(advice.recommended_slippage_bps_mev_safe)
-                            if advice.recommended_slippage_bps_mev_safe is not None
-                            else None
-                        ),
-                        recommended_slippage_bps=(
-                            int(advice.recommended_slippage_bps) if advice.recommended_slippage_bps is not None else None
-                        ),
-                    )
-                    decision = decide_swap_guardrails(ctx=ctx, user_slippage_bps=int(user_slippage_bps))
-                    pokayoke = {
-                        "action": str(decision.action),
-                        "reasons": list(decision.reasons),
-                        "messages": list(decision.messages),
-                        "typed_confirm_phrase": decision.typed_confirm_phrase,
-                    }
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "advice": {
-                            "best_amount_out": int(advice.best_amount_out),
-                            "price_impact_bps": int(advice.price_impact_bps),
-                            "amount_out_at_confidence": int(advice.amount_out_at_confidence),
-                            "pending_volume_at_confidence": int(advice.pending_volume_at_confidence),
-                            "confidence_bps": int(advice.confidence_bps),
-                            "required_slippage_bps": int(advice.required_slippage_bps),
-                            "recommended_slippage_bps_revert_safe": (
-                                int(advice.recommended_slippage_bps_revert_safe)
-                                if advice.recommended_slippage_bps_revert_safe is not None
-                                else None
-                            ),
-                            "recommended_slippage_bps_mev_safe": (
-                                int(advice.recommended_slippage_bps_mev_safe)
-                                if advice.recommended_slippage_bps_mev_safe is not None
-                                else None
-                            ),
-                            "recommended_slippage_bps": (
-                                int(advice.recommended_slippage_bps)
-                                if advice.recommended_slippage_bps is not None
-                                else None
-                            ),
-                            "status": str(advice.status),
-                            "pokayoke": pokayoke,
-                            "options": [
-                                {
-                                    "slippage_bps": int(o.slippage_bps),
-                                    "min_amount_out": int(o.min_amount_out),
-                                    "is_revert_safe_at_confidence": bool(o.is_revert_safe_at_confidence),
-                                    "sandwich_status": str(o.sandwich_status),
-                                    "sandwich_max_profit": int(o.sandwich_max_profit),
-                                    "sandwich_attacker_amount_in": int(o.sandwich_attacker_amount_in),
-                                    "sandwich_victim_amount_out": int(o.sandwich_victim_amount_out),
-                                    "sandwich_scanned_max_attacker_amount_in": int(o.sandwich_scanned_max_attacker_amount_in),
-                                }
-                                for o in advice.options
-                            ],
-                        },
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "slippage_advice_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/pokayoke_swap_suggest":
-            try:
-                from src.core.pokayoke_swap_suggest import (  # pylint: disable=import-outside-toplevel
-                    suggest_amount_in_for_impact_lt_bps,
-                    suggest_amount_in_for_required_slippage_le_bps,
-                )
-
-                reserve_in = int(obj.get("reserve_in", 0))
-                reserve_out = int(obj.get("reserve_out", 0))
-                amount_in = int(obj.get("amount_in", 0))
-                fee_bps = int(obj.get("fee_bps", 0))
-                pending_same_dir = int(obj.get("pending_volume_same_direction", 0))
-                confidence_bps = int(obj.get("confidence_bps", 9500))
-
-                user_slippage_bps_raw = obj.get("user_slippage_bps", None)
-                user_slippage_bps: int | None
-                if user_slippage_bps_raw is None:
-                    user_slippage_bps = None
-                else:
-                    user_slippage_bps = int(user_slippage_bps_raw)
-
-                raw_opts = obj.get("slippage_options_bps")
-                opts: list[int] = []
-                if isinstance(raw_opts, list):
-                    for x in raw_opts:
-                        try:
-                            v = int(x)
-                        except Exception:
-                            continue
-                        if v < 0 or v > 10_000:
-                            continue
-                        opts.append(int(v))
-                max_opt = max(opts) if opts else None
-
-                impact_5 = suggest_amount_in_for_impact_lt_bps(
-                    reserve_in=reserve_in,
-                    reserve_out=reserve_out,
-                    fee_bps=fee_bps,
-                    amount_in=amount_in,
-                    target_impact_bps=500,
-                    window=256,
-                )
-                impact_1 = suggest_amount_in_for_impact_lt_bps(
-                    reserve_in=reserve_in,
-                    reserve_out=reserve_out,
-                    fee_bps=fee_bps,
-                    amount_in=amount_in,
-                    target_impact_bps=100,
-                    window=256,
-                )
-
-                req_user = (
-                    suggest_amount_in_for_required_slippage_le_bps(
-                        reserve_in=reserve_in,
-                        reserve_out=reserve_out,
-                        fee_bps=fee_bps,
-                        amount_in=amount_in,
-                        pending_volume_same_direction=pending_same_dir,
-                        confidence_bps=confidence_bps,
-                        target_required_slippage_bps=int(user_slippage_bps),
-                        window=256,
-                    )
-                    if user_slippage_bps is not None
-                    else None
-                )
-                req_max_opt = (
-                    suggest_amount_in_for_required_slippage_le_bps(
-                        reserve_in=reserve_in,
-                        reserve_out=reserve_out,
-                        fee_bps=fee_bps,
-                        amount_in=amount_in,
-                        pending_volume_same_direction=pending_same_dir,
-                        confidence_bps=confidence_bps,
-                        target_required_slippage_bps=int(max_opt),
-                        window=256,
-                    )
-                    if max_opt is not None
-                    else None
-                )
-
-                def _as_obj(sugg):
-                    if sugg is None:
-                        return None
-                    return {
-                        "kind": str(sugg.kind),
-                        "target_bps": int(sugg.target_bps),
-                        "suggested_amount_in": int(sugg.suggested_amount_in) if sugg.suggested_amount_in is not None else None,
-                        "status": str(sugg.status),
-                        "eval_count": int(sugg.eval_count),
-                        "baseline_value_bps": int(sugg.baseline_value_bps),
-                        "suggested_value_bps": int(sugg.suggested_value_bps) if sugg.suggested_value_bps is not None else None,
-                    }
-
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "suggestions": {
-                            "impact_lt_500_bps": _as_obj(impact_5),
-                            "impact_lt_100_bps": _as_obj(impact_1),
-                            "required_slippage_le_user_bps": _as_obj(req_user),
-                            "required_slippage_le_max_option_bps": _as_obj(req_max_opt),
-                        },
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "pokayoke_swap_suggest_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/pokayoke_swap_suggest_heavy":
-            try:
-                from src.core.pokayoke_swap_suggest import (  # pylint: disable=import-outside-toplevel
-                    suggest_amount_in_exact_in_cpmm,
-                )
-
-                reserve_in = int(obj.get("reserve_in", 0))
-                reserve_out = int(obj.get("reserve_out", 0))
-                amount_in = int(obj.get("amount_in", 0))
-                fee_bps = int(obj.get("fee_bps", 0))
-                pending_same_dir = int(obj.get("pending_volume_same_direction", 0))
-                confidence_bps = int(obj.get("confidence_bps", 9500))
-
-                user_slippage_bps_raw = obj.get("user_slippage_bps", None)
-                if user_slippage_bps_raw is None:
-                    raise ValueError("user_slippage_bps is required")
-                user_slippage_bps = int(user_slippage_bps_raw)
-
-                raw_opts = obj.get("slippage_options_bps")
-                opts: list[int] | None
-                if isinstance(raw_opts, list):
-                    opts = []
-                    for x in raw_opts:
-                        try:
-                            v = int(x)
-                        except Exception:
-                            continue
-                        if v < 0 or v > 10_000:
-                            continue
-                        opts.append(int(v))
-                else:
-                    opts = None
-
-                max_attacker_amount_in_raw = obj.get("max_attacker_amount_in", 2000)
-                max_attacker_amount_in = int(max_attacker_amount_in_raw)
-                # Hard cap to avoid accidental runaway scans on the API.
-                if max_attacker_amount_in < 0 or max_attacker_amount_in > 50_000:
-                    raise ValueError("max_attacker_amount_in must be in [0, 50_000]")
-
-                max_evals_raw = obj.get("max_evals", 16)
-                max_evals = int(max_evals_raw)
-                if max_evals <= 0 or max_evals > 64:
-                    raise ValueError("max_evals must be in [1, 64]")
-
-                raw_targets = obj.get("target_actions")
-                targets: tuple[str, ...]
-                if isinstance(raw_targets, list):
-                    cleaned: list[str] = []
-                    for x in raw_targets:
-                        s = str(x or "").strip().lower()
-                        if s in {"confirm", "allow"} and s not in cleaned:
-                            cleaned.append(s)
-                    targets = tuple(cleaned) if cleaned else ("confirm", "allow")
-                else:
-                    targets = ("confirm", "allow")
-
-                rows = suggest_amount_in_exact_in_cpmm(
-                    reserve_in=reserve_in,
-                    reserve_out=reserve_out,
-                    fee_bps=fee_bps,
-                    amount_in=amount_in,
-                    pending_volume_same_direction=pending_same_dir,
-                    confidence_bps=confidence_bps,
-                    slippage_options_bps=opts,
-                    max_attacker_amount_in=max_attacker_amount_in,
-                    user_slippage_bps=user_slippage_bps,
-                    max_evals=max_evals,
-                    target_actions=targets,
-                )
-
-                def _as_obj(sugg):
-                    return {
-                        "target_action": str(sugg.target_action),
-                        "suggested_amount_in": int(sugg.suggested_amount_in) if sugg.suggested_amount_in is not None else None,
-                        "status": str(sugg.status),
-                        "eval_count": int(sugg.eval_count),
-                        "baseline_action": str(sugg.baseline_action),
-                        "suggested_action": str(sugg.suggested_action) if sugg.suggested_action is not None else None,
-                        "baseline_reasons": [str(x) for x in (sugg.baseline_reasons or ())],
-                        "suggested_reasons": [str(x) for x in (sugg.suggested_reasons or ())] if sugg.suggested_reasons is not None else None,
-                    }
-
-                self._write_json(
-                    200,
-                    {"ok": True, "suggestions": [_as_obj(s) for s in rows]},
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "pokayoke_swap_suggest_heavy_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/proof_mining_status":
-            claim_artifact = obj.get("claim")
-            chain_balances = obj.get("chain_balances", {})
-            tx_sender_pubkey = str(obj.get("tx_sender_pubkey", ""))
-            expected_proposal_hash = str(obj.get("expected_proposal_hash", ""))
-            proof_mining_context = obj.get("proof_mining_context")
-            app_state_json = obj.get("app_state_json", "")
-            if not isinstance(claim_artifact, dict):
-                self._write_json(400, {"ok": False, "error": "bad_claim"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(chain_balances, dict):
-                self._write_json(400, {"ok": False, "error": "bad_chain_balances"}, cors_origin=cors_origin)
-                return True
-            if proof_mining_context is not None and not isinstance(proof_mining_context, dict):
-                self._write_json(400, {"ok": False, "error": "bad_proof_mining_context"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(app_state_json, str):
-                self._write_json(400, {"ok": False, "error": "bad_app_state_json"}, cors_origin=cors_origin)
-                return True
-            if not tx_sender_pubkey:
-                self._write_json(400, {"ok": False, "error": "missing_tx_sender_pubkey"}, cors_origin=cors_origin)
-                return True
-            if not expected_proposal_hash:
-                self._write_json(400, {"ok": False, "error": "missing_expected_proposal_hash"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.proof_mining_claimability import (  # pylint: disable=import-outside-toplevel
-                    evaluate_proof_mining_claimability,
-                )
-
-                reward_pool_pubkey = os.environ.get("TAU_DEX_PROOF_MINING_POOL_PUBKEY", "").strip() or None
-                status = evaluate_proof_mining_claimability(
-                    reward_pool_pubkey=reward_pool_pubkey,
-                    app_state_json=app_state_json,
-                    chain_balances=chain_balances,
-                    claim_artifact=claim_artifact,
-                    tx_sender_pubkey=tx_sender_pubkey,
-                    expected_proposal_hash=expected_proposal_hash,
-                    proof_mining_context_obj=proof_mining_context,
-                )
-                self._write_json(200, {"ok": True, "status": status.to_public_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "proof_mining_status_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
+        # Closures kept as thin wrappers around helpers in _dex_api_helpers
+        # so the legacy if-chain below still calls them by their original
+        # names. Migrated handlers in dex_dispatch_handlers.py import the
+        # helpers directly.
+        from src.integration._dex_api_helpers import (  # pylint: disable=import-outside-toplevel
+            exact_out_split_quote_from_dict as _exact_out_split_quote_from_dict,
+            parse_pools as _parse_pools_helper,
+            projected_path_from_exact_out_quote_payload as _projected_path_from_exact_out_quote_payload,
+            quote_to_dict as _quote_to_dict,
+        )
 
         def _parse_pools() -> dict[str, Any]:
-            from src.state.pools import PoolState, PoolStatus  # pylint: disable=import-outside-toplevel
-
-            pools_raw = obj.get("pools")
-            if not isinstance(pools_raw, list) or not pools_raw:
-                raise ValueError("pools must be a non-empty list")
-            pools_by_id: dict[str, PoolState] = {}
-            for row in pools_raw:
-                if not isinstance(row, dict):
-                    raise ValueError("pool must be an object")
-                pid = row.get("pool_id")
-                if not isinstance(pid, str) or not pid:
-                    raise ValueError("pool_id must be a non-empty string")
-                if pid in pools_by_id:
-                    raise ValueError(f"duplicate pool_id: {pid}")
-                st_raw = str(row.get("status", "ACTIVE")).strip().upper()
-                try:
-                    st = PoolStatus[st_raw]
-                except Exception as exc:
-                    raise ValueError(f"bad pool status: {st_raw}") from exc
-                pools_by_id[pid] = PoolState(
-                    pool_id=pid,
-                    asset0=str(row.get("asset0", "")),
-                    asset1=str(row.get("asset1", "")),
-                    reserve0=int(row.get("reserve0", 0)),
-                    reserve1=int(row.get("reserve1", 0)),
-                    fee_bps=int(row.get("fee_bps", 0)),
-                    lp_supply=int(row.get("lp_supply", 1)),
-                    status=st,
-                    created_at=int(row.get("created_at", 0)),
-                    curve_tag=str(row.get("curve_tag", "CPMM")),
-                    curve_params=row.get("curve_params", ""),
-                )
-            return pools_by_id
-
-        def _quote_to_dict(q: object) -> dict[str, object]:
-            # Minimal JSON shape for UI consumption.
-            from src.core.routing import RouteQuote  # pylint: disable=import-outside-toplevel
-
-            if not isinstance(q, RouteQuote):
-                return {}
-            legs_out = []
-            for leg in q.legs:
-                hops_out = []
-                for hop in leg.hops:
-                    hops_out.append(
-                        {
-                            "pool_id": hop.pool_id,
-                            "asset_in": hop.asset_in,
-                            "asset_out": hop.asset_out,
-                            "amount_in": int(hop.amount_in),
-                            "amount_out": int(hop.amount_out),
-                        }
-                    )
-                legs_out.append(
-                    {
-                        "amount_in": int(leg.amount_in),
-                        "amount_out": int(leg.amount_out),
-                        "hops": hops_out,
-                    }
-                )
-            return {
-                "asset_in": q.asset_in,
-                "asset_out": q.asset_out,
-                "amount_in": int(q.amount_in),
-                "amount_out": int(q.amount_out),
-                "legs": legs_out,
-            }
-
-        def _exact_out_split_quote_from_dict(payload: object):
-            from src.core.split_routing_dispatch import (  # pylint: disable=import-outside-toplevel
-                SplitLegExactOutQuote,
-                SplitManyPoolsExactOutQuote,
-            )
-
-            if not isinstance(payload, dict):
-                raise ValueError("bad_exact_out_quote")
-            amount_out_total = payload.get("amount_out_total")
-            amount_in_total = payload.get("amount_in_total")
-            legs = payload.get("legs")
-            if not isinstance(amount_out_total, int) or isinstance(amount_out_total, bool) or amount_out_total <= 0:
-                raise ValueError("bad_amount_out_total")
-            if not isinstance(amount_in_total, int) or isinstance(amount_in_total, bool) or amount_in_total <= 0:
-                raise ValueError("bad_amount_in_total")
-            if not isinstance(legs, list) or not legs:
-                raise ValueError("bad_exact_out_legs")
-
-            parsed_legs = []
-            for leg in legs:
-                if not isinstance(leg, dict):
-                    raise ValueError("bad_exact_out_leg")
-                pool_id = leg.get("pool_id")
-                amount_out = leg.get("amount_out")
-                amount_in = leg.get("amount_in")
-                if not isinstance(pool_id, str) or not pool_id:
-                    raise ValueError("bad_exact_out_leg_pool_id")
-                if not isinstance(amount_out, int) or isinstance(amount_out, bool) or amount_out <= 0:
-                    raise ValueError("bad_exact_out_leg_amount_out")
-                if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-                    raise ValueError("bad_exact_out_leg_amount_in")
-                parsed_legs.append(
-                    SplitLegExactOutQuote(
-                        pool_id=pool_id,
-                        amount_out=int(amount_out),
-                        amount_in=int(amount_in),
-                    )
-                )
-
-            return SplitManyPoolsExactOutQuote(
-                amount_out_total=int(amount_out_total),
-                amount_in_total=int(amount_in_total),
-                legs=tuple(parsed_legs),
-            )
-
-        def _projected_path_from_exact_out_quote_payload(payload: object) -> list[list[object]] | None:
-            if payload is None:
-                return None
-            if not isinstance(payload, dict):
-                raise ValueError("bad_exact_out_quote_payload")
-            legs = payload.get("legs")
-            if not isinstance(legs, list):
-                raise ValueError("bad_exact_out_quote_legs")
-            projected: list[list[object]] = []
-            for leg in legs:
-                if not isinstance(leg, dict):
-                    raise ValueError("bad_exact_out_quote_leg")
-                pool_id = leg.get("pool_id")
-                amount_out = leg.get("amount_out")
-                amount_in = leg.get("amount_in")
-                if not isinstance(pool_id, str) or not pool_id:
-                    raise ValueError("bad_exact_out_quote_leg_pool_id")
-                if not isinstance(amount_out, int) or isinstance(amount_out, bool):
-                    raise ValueError("bad_exact_out_quote_leg_amount_out")
-                if not isinstance(amount_in, int) or isinstance(amount_in, bool):
-                    raise ValueError("bad_exact_out_quote_leg_amount_in")
-                projected.append([pool_id, int(amount_out), int(amount_in)])
-            return projected
+            return _parse_pools_helper(obj)
 
         if path == "/api/dex/quote":
             kind = str(obj.get("kind", "")).strip().lower()
@@ -1902,494 +1447,16 @@ class _Handler(BaseHTTPRequestHandler):
                 self._write_json(400, {"ok": False, "error": err, "details": "request failed"}, cors_origin=cors_origin)
                 return True
 
-        if path == "/api/dex/verify_quote_receipt":
-            rec = obj.get("receipt")
-            if not isinstance(rec, dict):
-                self._write_json(400, {"ok": False, "error": "bad_receipt"}, cors_origin=cors_origin)
-                return True
-            expected_quote_epoch = obj.get("expected_quote_epoch")
-            if expected_quote_epoch is not None:
-                if (
-                    not isinstance(expected_quote_epoch, int)
-                    or isinstance(expected_quote_epoch, bool)
-                    or expected_quote_epoch < 0
-                ):
-                    self._write_json(
-                        400,
-                        {"ok": False, "error": "bad_expected_quote_epoch"},
-                        cors_origin=cors_origin,
-                    )
-                    return True
-            try:
-                pools_by_id = _parse_pools()
-                from src.core.quote_receipts import verify_route_quote_receipt  # pylint: disable=import-outside-toplevel
 
-                ok, err = verify_route_quote_receipt(
-                    rec,
-                    pools_by_id=pools_by_id,
-                    expected_quote_epoch=(
-                        None if expected_quote_epoch is None else int(expected_quote_epoch)
-                    ),
-                )
-                self._write_json(200, {"ok": bool(ok), "error": str(err)}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(400, {"ok": False, "error": "verify_error", "details": "request failed"}, cors_origin=cors_origin)
-                return True
 
-        if path == "/api/dex/build_exact_in_route_oracle_contract":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_in = obj.get("amount_in")
-                split_search_profile = str(obj.get("split_search_profile", "adaptive_v6")).strip()
-                enable_mixed_direct_twohop_split = obj.get("enable_mixed_direct_twohop_split", False)
-                binding_ok = obj.get("binding_ok", 1)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-                    self._write_json(400, {"ok": False, "error": "bad_amount_in"}, cors_origin=cors_origin)
-                    return True
-                if not split_search_profile:
-                    self._write_json(400, {"ok": False, "error": "bad_split_search_profile"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(enable_mixed_direct_twohop_split, bool):
-                    self._write_json(
-                        400,
-                        {"ok": False, "error": "bad_enable_mixed_direct_twohop_split"},
-                        cors_origin=cors_origin,
-                    )
-                    return True
-                if not isinstance(binding_ok, int) or isinstance(binding_ok, bool) or binding_ok not in {0, 1}:
-                    self._write_json(400, {"ok": False, "error": "bad_binding_ok"}, cors_origin=cors_origin)
-                    return True
 
-                from src.integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    build_exact_in_route_oracle_contract,
-                )
 
-                contract = build_exact_in_route_oracle_contract(
-                    pools_by_id=pools_by_id,
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_in=int(amount_in),
-                    split_search_profile=split_search_profile,
-                    enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
-                    binding_ok=int(binding_ok),
-                )
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "contract_schema": "zenodex/exact-in-route-oracle-contract/v1",
-                        "verify_contract_endpoint": "/api/dex/verify_exact_in_route_oracle_contract",
-                        "contract": contract.to_dict(),
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_exact_in_route_oracle_contract_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
 
-        if path == "/api/dex/verify_exact_in_route_oracle_contract":
-            contract = obj.get("contract")
-            if not isinstance(contract, dict):
-                self._write_json(400, {"ok": False, "error": "bad_contract"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_in_route_oracle_contract_payload,
-                )
 
-                ok, err = verify_exact_in_route_oracle_contract_payload(contract)
-                self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_exact_in_route_oracle_contract_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
 
-        if path == "/api/dex/guard_exact_in_route_canonicality":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_in = obj.get("amount_in")
-                split_search_profile = str(obj.get("split_search_profile", "adaptive_v6")).strip()
-                enable_mixed_direct_twohop_split = obj.get("enable_mixed_direct_twohop_split", False)
-                binding_ok = obj.get("binding_ok", 1)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-                    self._write_json(400, {"ok": False, "error": "bad_amount_in"}, cors_origin=cors_origin)
-                    return True
-                if not split_search_profile:
-                    self._write_json(400, {"ok": False, "error": "bad_split_search_profile"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(enable_mixed_direct_twohop_split, bool):
-                    self._write_json(
-                        400,
-                        {"ok": False, "error": "bad_enable_mixed_direct_twohop_split"},
-                        cors_origin=cors_origin,
-                    )
-                    return True
-                if not isinstance(binding_ok, int) or isinstance(binding_ok, bool) or binding_ok not in {0, 1}:
-                    self._write_json(400, {"ok": False, "error": "bad_binding_ok"}, cors_origin=cors_origin)
-                    return True
 
-                from src.integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    guard_exact_in_route_runtime_canonicality,
-                )
 
-                ok, err, contract = guard_exact_in_route_runtime_canonicality(
-                    pools_by_id=pools_by_id,
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_in=int(amount_in),
-                    split_search_profile=split_search_profile,
-                    enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
-                    binding_ok=int(binding_ok),
-                )
-                response = {"ok": bool(ok), "contract": contract.to_dict(), "error": err}
-                self._write_json(200, response, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "guard_exact_in_route_canonicality_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
 
-        if path == "/api/dex/quote_exact_in_route_guarded":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_in = obj.get("amount_in")
-                split_search_profile = str(obj.get("split_search_profile", "adaptive_v6")).strip()
-                enable_mixed_direct_twohop_split = obj.get("enable_mixed_direct_twohop_split", False)
-                binding_ok = obj.get("binding_ok", 1)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-                    self._write_json(400, {"ok": False, "error": "bad_amount_in"}, cors_origin=cors_origin)
-                    return True
-                if not split_search_profile:
-                    self._write_json(400, {"ok": False, "error": "bad_split_search_profile"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(enable_mixed_direct_twohop_split, bool):
-                    self._write_json(
-                        400,
-                        {"ok": False, "error": "bad_enable_mixed_direct_twohop_split"},
-                        cors_origin=cors_origin,
-                    )
-                    return True
-                if not isinstance(binding_ok, int) or isinstance(binding_ok, bool) or binding_ok not in {0, 1}:
-                    self._write_json(400, {"ok": False, "error": "bad_binding_ok"}, cors_origin=cors_origin)
-                    return True
-                bridge_err = _check_routing_oracle_adapter_bridge(
-                    body=obj,
-                    path=path,
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_in=int(amount_in),
-                    split_search_profile=split_search_profile,
-                    enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
-                    binding_ok=int(binding_ok),
-                )
-                if bridge_err is not None:
-                    self._write_json(
-                        400,
-                        {"ok": False, "error": "rejected", "detail": bridge_err},
-                        cors_origin=cors_origin,
-                    )
-                    return True
-
-                from src.integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    quote_exact_in_route_guarded,
-                )
-
-                quote, err, contract = quote_exact_in_route_guarded(
-                    pools_by_id=pools_by_id,
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_in=int(amount_in),
-                    split_search_profile=split_search_profile,
-                    enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
-                    binding_ok=int(binding_ok),
-                )
-                response = {"ok": quote is not None, "contract": contract.to_dict(), "error": err}
-                if quote is not None:
-                    response["quote"] = contract.to_dict()["runtime_quote"]
-                self._write_json(200, response, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "quote_exact_in_route_guarded_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_in_route_guarded_quote_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_in = obj.get("amount_in")
-                split_search_profile = str(obj.get("split_search_profile", "adaptive_v6")).strip()
-                enable_mixed_direct_twohop_split = obj.get("enable_mixed_direct_twohop_split", False)
-                binding_ok = obj.get("binding_ok", 1)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-                    self._write_json(400, {"ok": False, "error": "bad_amount_in"}, cors_origin=cors_origin)
-                    return True
-                if not split_search_profile:
-                    self._write_json(400, {"ok": False, "error": "bad_split_search_profile"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(enable_mixed_direct_twohop_split, bool):
-                    self._write_json(
-                        400,
-                        {"ok": False, "error": "bad_enable_mixed_direct_twohop_split"},
-                        cors_origin=cors_origin,
-                    )
-                    return True
-                if not isinstance(binding_ok, int) or isinstance(binding_ok, bool) or binding_ok not in {0, 1}:
-                    self._write_json(400, {"ok": False, "error": "bad_binding_ok"}, cors_origin=cors_origin)
-                    return True
-
-                from src.integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    build_exact_in_route_guarded_quote_packet,
-                )
-
-                packet = build_exact_in_route_guarded_quote_packet(
-                    pools_by_id=pools_by_id,
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_in=int(amount_in),
-                    split_search_profile=split_search_profile,
-                    enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
-                    binding_ok=int(binding_ok),
-                )
-                packet_dict = packet.to_dict()
-                response = {
-                    "ok": True,
-                    "packet_schema": "zenodex/exact-in-route-guarded-quote-packet/v1",
-                    "verify_packet_endpoint": "/api/dex/verify_exact_in_route_guarded_quote_packet",
-                    "packet": packet_dict,
-                }
-                if not packet.guard_ok:
-                    response["guard_ok"] = False
-                    response["error"] = str(packet.error or "exact_in_runtime_not_canonical")
-                self._write_json(200, response, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_exact_in_route_guarded_quote_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_in_route_guarded_quote_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_in_route_guarded_quote_packet_payload,
-                )
-
-                ok, err = verify_exact_in_route_guarded_quote_packet_payload(packet)
-                self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_exact_in_route_guarded_quote_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_in_route_rank_projection_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_in = obj.get("amount_in")
-                split_search_profile = str(obj.get("split_search_profile", "adaptive_v6")).strip()
-                enable_mixed_direct_twohop_split = obj.get("enable_mixed_direct_twohop_split", False)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-                    self._write_json(400, {"ok": False, "error": "bad_amount_in"}, cors_origin=cors_origin)
-                    return True
-                if not split_search_profile:
-                    self._write_json(400, {"ok": False, "error": "bad_split_search_profile"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(enable_mixed_direct_twohop_split, bool):
-                    self._write_json(
-                        400,
-                        {"ok": False, "error": "bad_enable_mixed_direct_twohop_split"},
-                        cors_origin=cors_origin,
-                    )
-                    return True
-
-                from src.integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    build_exact_in_route_rank_projection_packet_for_pools,
-                )
-
-                packet = build_exact_in_route_rank_projection_packet_for_pools(
-                    pools_by_id=pools_by_id,
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_in=int(amount_in),
-                    split_search_profile=split_search_profile,
-                    enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
-                )
-                if packet is None:
-                    self._write_json(200, {"ok": False, "error": "no_route_candidates"}, cors_origin=cors_origin)
-                    return True
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "packet_schema": "zenodex/exact-in-route-rank-projection-packet/v1",
-                        "verify_packet_endpoint": "/api/dex/verify_exact_in_route_rank_projection_packet",
-                        "packet": packet.to_dict(),
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_exact_in_route_rank_projection_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_in_route_rank_projection_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_in_route_rank_projection_packet_payload,
-                )
-
-                ok, err = verify_exact_in_route_rank_projection_packet_payload(packet)
-                self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_exact_in_route_rank_projection_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_in_route_true_key_interpretation_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_in = obj.get("amount_in")
-                split_search_profile = str(obj.get("split_search_profile", "adaptive_v6")).strip()
-                enable_mixed_direct_twohop_split = obj.get("enable_mixed_direct_twohop_split", False)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-                    self._write_json(400, {"ok": False, "error": "bad_amount_in"}, cors_origin=cors_origin)
-                    return True
-                if not split_search_profile:
-                    self._write_json(400, {"ok": False, "error": "bad_split_search_profile"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(enable_mixed_direct_twohop_split, bool):
-                    self._write_json(
-                        400,
-                        {"ok": False, "error": "bad_enable_mixed_direct_twohop_split"},
-                        cors_origin=cors_origin,
-                    )
-                    return True
-
-                from src.integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    build_exact_in_route_true_key_interpretation_packet_for_pools,
-                )
-
-                packet = build_exact_in_route_true_key_interpretation_packet_for_pools(
-                    pools_by_id=pools_by_id,
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_in=int(amount_in),
-                    split_search_profile=split_search_profile,
-                    enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
-                )
-                if packet is None:
-                    self._write_json(200, {"ok": False, "error": "no_route_candidates"}, cors_origin=cors_origin)
-                    return True
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "packet_schema": "zenodex/exact-in-route-true-key-interpretation-packet/v1",
-                        "verify_packet_endpoint": "/api/dex/verify_exact_in_route_true_key_interpretation_packet",
-                        "packet": packet.to_dict(),
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_exact_in_route_true_key_interpretation_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_in_route_true_key_interpretation_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_in_route_true_key_interpretation_packet_payload,
-                )
-
-                ok, err = verify_exact_in_route_true_key_interpretation_packet_payload(packet)
-                self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_in_route_true_key_interpretation_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
 
         if path == "/api/dex/build_settlement_spot_value_contract":
             settlement_obj = obj.get("settlement")
@@ -3147,51 +2214,7 @@ class _Handler(BaseHTTPRequestHandler):
                 )
                 return True
 
-        if path == "/api/dex/build_settlement_feature_extension_packet":
-            feature_extension_inputs_obj = obj.get("feature_extension_inputs")
-            try:
-                from src.integration.settlement_feature_extension_packet import (  # pylint: disable=import-outside-toplevel
-                    build_settlement_feature_extension_packet,
-                )
 
-                feature_extension_inputs = _parse_settlement_feature_extension_inputs_payload(
-                    feature_extension_inputs_obj
-                )
-                packet = build_settlement_feature_extension_packet(feature_extension_inputs)
-                self._write_json(200, {"ok": True, "packet": packet.to_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_settlement_feature_extension_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_settlement_feature_extension_packet":
-            feature_extension_inputs_obj = obj.get("feature_extension_inputs")
-            packet_obj = obj.get("packet")
-            if not isinstance(packet_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.settlement_feature_extension_packet import (  # pylint: disable=import-outside-toplevel
-                    verify_settlement_feature_extension_packet_payload,
-                )
-
-                ok, err = verify_settlement_feature_extension_packet_payload(
-                    inputs_payload=feature_extension_inputs_obj,
-                    packet_payload=packet_obj,
-                )
-                self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_settlement_feature_extension_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
 
         if path == "/api/dex/build_settlement_end_to_end_certificate_packet":
             settlement_obj = obj.get("settlement")
@@ -3434,529 +2457,16 @@ class _Handler(BaseHTTPRequestHandler):
         ):
             return True
 
-        if path == "/api/dex/build_settlement_spot_price_packet":
-            entries_obj = obj.get("entries")
-            now_epoch = obj.get("now_epoch")
-            max_staleness_epochs = obj.get("max_staleness_epochs")
-            cross_module_sync_required = obj.get("cross_module_sync_required", False)
-            cross_module_sync_contract = obj.get("cross_module_sync_contract")
-            if not isinstance(entries_obj, list) or not entries_obj:
-                self._write_json(400, {"ok": False, "error": "bad_entries"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(now_epoch, int) or isinstance(now_epoch, bool) or now_epoch < 0:
-                self._write_json(400, {"ok": False, "error": "bad_now_epoch"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(max_staleness_epochs, int) or isinstance(max_staleness_epochs, bool) or max_staleness_epochs < 0:
-                self._write_json(400, {"ok": False, "error": "bad_max_staleness_epochs"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(cross_module_sync_required, bool):
-                self._write_json(400, {"ok": False, "error": "bad_cross_module_sync_required"}, cors_origin=cors_origin)
-                return True
-            if cross_module_sync_contract is not None and not isinstance(cross_module_sync_contract, dict):
-                self._write_json(400, {"ok": False, "error": "bad_cross_module_sync_contract"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
-                    SettlementSpotPriceEntry,
-                    build_settlement_spot_price_packet,
-                )
 
-                entries = tuple(SettlementSpotPriceEntry.from_dict(entry) for entry in entries_obj)
-                packet = build_settlement_spot_price_packet(
-                    entries=entries,
-                    now_epoch=int(now_epoch),
-                    max_staleness_epochs=int(max_staleness_epochs),
-                    cross_module_sync_required=bool(cross_module_sync_required),
-                    cross_module_sync_contract=cross_module_sync_contract,
-                )
-                self._write_json(200, {"ok": True, "packet": packet.to_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_settlement_spot_price_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
 
-        if path == "/api/dex/verify_settlement_spot_price_packet":
-            packet_obj = obj.get("packet")
-            if not isinstance(packet_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
-                    verify_settlement_spot_price_packet_payload,
-                )
 
-                ok, err = verify_settlement_spot_price_packet_payload(packet_obj)
-                self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_settlement_spot_price_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
 
-        if path == "/api/dex/build_settlement_spot_price_attestation":
-            packet_obj = obj.get("packet")
-            signer_privkey = obj.get("signer_privkey")
-            if not isinstance(packet_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(signer_privkey, (str, int)):
-                self._write_json(400, {"ok": False, "error": "bad_signer_privkey"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
-                    build_settlement_spot_price_attestation,
-                )
-                from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
-                    SettlementSpotPricePacket,
-                )
 
-                packet = SettlementSpotPricePacket.from_dict(packet_obj)
-                attestation = build_settlement_spot_price_attestation(
-                    packet=packet,
-                    signer_privkey=signer_privkey,
-                )
-                self._write_json(200, {"ok": True, "attestation": attestation.to_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_settlement_spot_price_attestation_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
 
-        if path == "/api/dex/verify_settlement_spot_price_attestation":
-            attestation_obj = obj.get("attestation")
-            consumer_now_epoch = obj.get("consumer_now_epoch")
-            max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            allowed_signers_obj = obj.get("allowed_signers")
-            if not isinstance(attestation_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_attestation"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
-                self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
-                return True
-            if (
-                not isinstance(max_attestation_age_epochs, int)
-                or isinstance(max_attestation_age_epochs, bool)
-                or max_attestation_age_epochs < 0
-            ):
-                self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
-                return True
-            if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
-                    verify_settlement_spot_price_attestation_payload,
-                )
 
-                ok, err = verify_settlement_spot_price_attestation_payload(
-                    payload=attestation_obj,
-                    consumer_now_epoch=int(consumer_now_epoch),
-                    max_attestation_age_epochs=int(max_attestation_age_epochs),
-                    allowed_signers=allowed_signers_obj,
-                )
-                self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_settlement_spot_price_attestation_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
 
-        if path == "/api/dex/build_exact_out_route_certificate":
-            quotes_obj = obj.get("quotes")
-            if not isinstance(quotes_obj, list) or not quotes_obj:
-                self._write_json(400, {"ok": False, "error": "bad_quotes"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    build_exact_out_route_canonical_certificate,
-                )
 
-                quotes = tuple(_exact_out_split_quote_from_dict(quote_obj) for quote_obj in quotes_obj)
-                certificate = build_exact_out_route_canonical_certificate(quotes)
-                self._write_json(200, {"ok": True, "certificate": certificate.to_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "bad_exact_out_certificate_request", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
 
-        if path == "/api/dex/audit_exact_out_two_pool_canonicality":
-            try:
-                pools_by_id = _parse_pools()
-                if len(pools_by_id) != 2:
-                    self._write_json(400, {"ok": False, "error": "expected_exactly_two_pools"}, cors_origin=cors_origin)
-                    return True
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                brute_force_max = obj.get("brute_force_max")
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                if not isinstance(amount_out_total, int) or isinstance(amount_out_total, bool) or amount_out_total <= 0:
-                    self._write_json(400, {"ok": False, "error": "bad_amount_out_total"}, cors_origin=cors_origin)
-                    return True
-                if brute_force_max is not None and (
-                    not isinstance(brute_force_max, int) or isinstance(brute_force_max, bool) or brute_force_max < 0
-                ):
-                    self._write_json(400, {"ok": False, "error": "bad_brute_force_max"}, cors_origin=cors_origin)
-                    return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    audit_exact_out_two_pool_runtime_canonicality,
-                )
-
-                pools = list(pools_by_id.values())
-                audit = audit_exact_out_two_pool_runtime_canonicality(
-                    pools[0],
-                    pools[1],
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    brute_force_max=(None if brute_force_max is None else int(brute_force_max)),
-                )
-                self._write_json(200, {"ok": True, "audit": audit.to_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "audit_exact_out_two_pool_canonicality_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/audit_exact_out_many_pool_canonicality":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    audit_exact_out_many_pool_runtime_canonicality,
-                )
-
-                audit = audit_exact_out_many_pool_runtime_canonicality(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                self._write_json(200, {"ok": True, "audit": audit.to_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "audit_exact_out_many_pool_canonicality_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_candidate_domain_contract":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_CANDIDATE_DOMAIN_CONTRACT_SCHEMA,
-                    build_exact_out_many_pool_candidate_domain_contract,
-                )
-
-                contract = build_exact_out_many_pool_candidate_domain_contract(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "contract": contract.to_dict(),
-                        "contract_schema": EXACT_OUT_MANY_POOL_CANDIDATE_DOMAIN_CONTRACT_SCHEMA,
-                        "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_candidate_domain_contract",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_candidate_domain_contract_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_prefilter_contract":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_PREFILTER_CONTRACT_SCHEMA,
-                    build_exact_out_many_pool_prefilter_contract,
-                )
-
-                contract = build_exact_out_many_pool_prefilter_contract(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                )
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "contract": contract.to_dict(),
-                        "contract_schema": EXACT_OUT_MANY_POOL_PREFILTER_CONTRACT_SCHEMA,
-                        "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_prefilter_contract",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_prefilter_contract_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_repaired_prefilter_contract":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_REPAIRED_PREFILTER_CONTRACT_SCHEMA,
-                    build_exact_out_many_pool_repaired_prefilter_contract,
-                )
-
-                contract = build_exact_out_many_pool_repaired_prefilter_contract(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "contract": contract.to_dict(),
-                        "contract_schema": EXACT_OUT_MANY_POOL_REPAIRED_PREFILTER_CONTRACT_SCHEMA,
-                        "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_repaired_prefilter_contract",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_repaired_prefilter_contract_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_repaired_selected_domain_oracle_contract":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_REPAIRED_SELECTED_DOMAIN_ORACLE_CONTRACT_SCHEMA,
-                    build_exact_out_many_pool_repaired_selected_domain_oracle_contract,
-                )
-
-                contract = build_exact_out_many_pool_repaired_selected_domain_oracle_contract(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "contract": contract.to_dict(),
-                        "contract_schema": EXACT_OUT_MANY_POOL_REPAIRED_SELECTED_DOMAIN_ORACLE_CONTRACT_SCHEMA,
-                        "quote_endpoint": "/api/dex/quote_exact_out_many_pool_repaired_selected_domain",
-                        "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_repaired_selected_domain_oracle_contract",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_repaired_selected_domain_oracle_contract_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
 
         if path == "/api/dex/quote_exact_out_many_pool_repaired_selected_domain":
             try:
@@ -4165,88 +2675,6 @@ class _Handler(BaseHTTPRequestHandler):
                 )
                 return True
 
-        if path == "/api/dex/quote_exact_out_many_pool_repaired_full_domain_certified":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_PACKET_SCHEMA,
-                    quote_exact_out_many_pool_repaired_full_domain_certified,
-                )
-
-                quote, err, packet = quote_exact_out_many_pool_repaired_full_domain_certified(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                payload = {
-                    "ok": bool(quote is not None),
-                    "packet": packet.to_dict(),
-                    "packet_schema": EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_PACKET_SCHEMA,
-                    "quote_policy": "repaired_full_domain_certified_v1",
-                    "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_repaired_full_domain_certified_packet",
-                    "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_repaired_full_domain_certified_packet",
-                    "runtime_quote": packet.repaired_packet.to_dict()["runtime_quote"],
-                    "full_domain_canonical_quote": packet.to_dict()["full_domain_canonical_quote"],
-                    "repaired_matches_full_canonical": bool(packet.repaired_matches_full_canonical),
-                    "full_domain_candidate_count": int(packet.full_domain_candidate_count),
-                    "full_domain_feasible_pool_ids": [str(pool_id) for pool_id in packet.full_domain_feasible_pool_ids],
-                }
-                if quote is not None:
-                    payload["quote"] = packet.to_dict()["repaired_quote"]
-                else:
-                    payload["error"] = str(err or "many_pool_repaired_advisory_not_full_domain_canonical")
-                self._write_json(200, payload, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "quote_exact_out_many_pool_repaired_full_domain_certified_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
 
         if path == "/api/dex/quote_exact_out_many_pool_bounded_advisory":
             try:
@@ -4790,1847 +3218,6 @@ class _Handler(BaseHTTPRequestHandler):
                 )
                 return True
 
-        if path == "/api/dex/build_exact_out_many_pool_repaired_advisory_quote_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_REPAIRED_ADVISORY_QUOTE_PACKET_SCHEMA,
-                    build_exact_out_many_pool_repaired_advisory_quote_packet,
-                )
-
-                packet = build_exact_out_many_pool_repaired_advisory_quote_packet(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                response = {
-                    "ok": True,
-                    "packet": packet.to_dict(),
-                    "packet_schema": EXACT_OUT_MANY_POOL_REPAIRED_ADVISORY_QUOTE_PACKET_SCHEMA,
-                    "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_repaired_advisory_quote_packet",
-                }
-                if not packet.packet_ok:
-                    response["ok"] = False
-                    response["error"] = str(packet.error or "many_pool_repaired_prefilter_contract_not_ok")
-                self._write_json(200, response, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_repaired_advisory_quote_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_repaired_full_domain_certified_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_PACKET_SCHEMA,
-                    build_exact_out_many_pool_repaired_full_domain_certified_packet,
-                )
-
-                packet = build_exact_out_many_pool_repaired_full_domain_certified_packet(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                response = {
-                    "ok": bool(packet.packet_ok),
-                    "packet": packet.to_dict(),
-                    "packet_schema": EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_PACKET_SCHEMA,
-                    "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_repaired_full_domain_certified_packet",
-                    "quote_policy": "repaired_full_domain_certified_v1",
-                }
-                if not packet.packet_ok:
-                    response["error"] = str(packet.error or "many_pool_repaired_advisory_not_full_domain_canonical")
-                self._write_json(200, response, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_repaired_full_domain_certified_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_repaired_key_cover_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_REPAIRED_KEY_COVER_PACKET_SCHEMA,
-                    build_exact_out_many_pool_repaired_key_cover_packet,
-                )
-
-                packet = build_exact_out_many_pool_repaired_key_cover_packet(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                response = {
-                    "ok": bool(packet.packet_ok),
-                    "packet": packet.to_dict(),
-                    "packet_schema": EXACT_OUT_MANY_POOL_REPAIRED_KEY_COVER_PACKET_SCHEMA,
-                    "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_repaired_key_cover_packet",
-                    "quote_policy": "repaired_key_cover_v1",
-                }
-                if not packet.packet_ok:
-                    response["error"] = str(packet.error or "many_pool_repaired_selected_domain_not_key_cover_complete")
-                self._write_json(200, response, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_repaired_key_cover_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_repaired_key_cover_interpretation_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_REPAIRED_KEY_COVER_INTERPRETATION_PACKET_SCHEMA,
-                    build_exact_out_many_pool_repaired_key_cover_interpretation_packet,
-                )
-
-                packet = build_exact_out_many_pool_repaired_key_cover_interpretation_packet(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                response = {
-                    "ok": bool(packet.packet_ok),
-                    "packet": packet.to_dict(),
-                    "packet_schema": EXACT_OUT_MANY_POOL_REPAIRED_KEY_COVER_INTERPRETATION_PACKET_SCHEMA,
-                    "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_repaired_key_cover_interpretation_packet",
-                    "quote_policy": "repaired_key_cover_interpretation_v1",
-                }
-                if not packet.packet_ok:
-                    response["error"] = str(
-                        packet.error or "many_pool_repaired_key_cover_witness_interpretation_inconsistent"
-                    )
-                self._write_json(200, response, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_repaired_key_cover_interpretation_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_bounded_advisory_quote_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_BOUNDED_ADVISORY_QUOTE_PACKET_SCHEMA,
-                    build_exact_out_many_pool_bounded_advisory_quote_packet,
-                )
-
-                packet = build_exact_out_many_pool_bounded_advisory_quote_packet(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                response = {
-                    "ok": bool(packet.packet_ok),
-                    "packet": packet.to_dict(),
-                    "packet_schema": EXACT_OUT_MANY_POOL_BOUNDED_ADVISORY_QUOTE_PACKET_SCHEMA,
-                    "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_bounded_advisory_quote_packet",
-                }
-                if not packet.packet_ok:
-                    response["error"] = str(packet.error or "many_pool_bounded_advisory_unavailable")
-                self._write_json(200, response, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_bounded_advisory_quote_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_certified_advisory_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_CERTIFIED_ADVISORY_PACKET_SCHEMA,
-                    build_exact_out_many_pool_certified_advisory_packet,
-                )
-
-                packet = build_exact_out_many_pool_certified_advisory_packet(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                response = {
-                    "ok": bool(packet.packet_ok),
-                    "packet": packet.to_dict(),
-                    "packet_schema": EXACT_OUT_MANY_POOL_CERTIFIED_ADVISORY_PACKET_SCHEMA,
-                    "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_certified_advisory_packet",
-                }
-                if not packet.packet_ok:
-                    response["error"] = "many_pool_certified_advisory_packet_not_ok"
-                self._write_json(200, response, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_certified_advisory_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_repaired_replacement_shadow_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_REPAIRED_REPLACEMENT_SHADOW_PACKET_SCHEMA,
-                    build_exact_out_many_pool_repaired_replacement_shadow_packet,
-                )
-
-                packet = build_exact_out_many_pool_repaired_replacement_shadow_packet(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                self._write_json(
-                    200,
-                    {
-                        "ok": bool(packet.packet_ok),
-                        "packet": packet.to_dict(),
-                        "packet_schema": EXACT_OUT_MANY_POOL_REPAIRED_REPLACEMENT_SHADOW_PACKET_SCHEMA,
-                        "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_repaired_replacement_shadow_packet",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_repaired_replacement_shadow_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_default_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_CERTIFIED_ADVISORY_PACKET_SCHEMA,
-                    build_exact_out_many_pool_default_packet,
-                )
-
-                packet = build_exact_out_many_pool_default_packet(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                response = {
-                    "ok": bool(packet.packet_ok),
-                    "packet": packet.to_dict(),
-                    "packet_schema": EXACT_OUT_MANY_POOL_CERTIFIED_ADVISORY_PACKET_SCHEMA,
-                    "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_default_packet",
-                    "quote_policy": "certified_advisory_v1",
-                }
-                if not packet.packet_ok:
-                    response["error"] = "many_pool_default_packet_not_ok"
-                self._write_json(200, response, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_default_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_bounded_workaround_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_BOUNDED_WORKAROUND_PACKET_SCHEMA,
-                    build_exact_out_many_pool_bounded_workaround_packet,
-                )
-
-                packet = build_exact_out_many_pool_bounded_workaround_packet(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "packet": packet.to_dict(),
-                        "packet_schema": EXACT_OUT_MANY_POOL_BOUNDED_WORKAROUND_PACKET_SCHEMA,
-                        "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_bounded_workaround_packet",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_bounded_workaround_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_oracle_contract":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
-                    build_exact_out_many_pool_oracle_contract,
-                )
-
-                contract = build_exact_out_many_pool_oracle_contract(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                contract_dict = contract.to_dict()
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "contract": contract_dict,
-                        "contract_ok": bool(contract_dict["contract_ok"]),
-                        "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
-                        "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_oracle_contract",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_exact_out_many_pool_oracle_contract_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_audited_bounds_contract":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_AUDITED_BOUNDS_CONTRACT_SCHEMA,
-                    build_exact_out_many_pool_audited_bounds_contract,
-                )
-
-                contract = build_exact_out_many_pool_audited_bounds_contract(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "contract": contract.to_dict(),
-                        "contract_schema": EXACT_OUT_MANY_POOL_AUDITED_BOUNDS_CONTRACT_SCHEMA,
-                        "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_audited_bounds_contract",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_audited_bounds_contract_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_adaptive_liveness_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA,
-                    build_exact_out_many_pool_adaptive_liveness_packet,
-                )
-
-                packet = build_exact_out_many_pool_adaptive_liveness_packet(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                self._write_json(
-                    200,
-                    {
-                        "ok": bool(packet.packet_ok),
-                        "packet": packet.to_dict(),
-                        "packet_schema": EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA,
-                        "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet",
-                        "quote_policy": "adaptive_liveness_v1",
-                        "liveness_ok": bool(packet.liveness_ok),
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "build_exact_out_many_pool_adaptive_liveness_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/guard_exact_out_many_pool_canonicality":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
-                    guard_exact_out_many_pool_runtime_canonicality,
-                )
-
-                ok, err, contract = guard_exact_out_many_pool_runtime_canonicality(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                contract_dict = contract.to_dict()
-                audit_payload = contract_dict["audit"]
-                payload = {
-                    "ok": bool(ok),
-                    "contract": contract_dict,
-                    "contract_ok": bool(contract_dict["contract_ok"]),
-                    "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
-                    "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",
-                    "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_oracle_contract",
-                    "runtime_projected_path": audit_payload["runtime_projected_path"],
-                    "canonical_winner_projected_path": audit_payload["canonical_winner_projected_path"],
-                    "runtime_matches_canonical_projected_path": audit_payload["runtime_matches_canonical_projected_path"],
-                    "projection_cover_available": audit_payload["projection_cover_available"],
-                    "projection_cover_holds": audit_payload["projection_cover_holds"],
-                }
-                if ok:
-                    payload["quote"] = dict(contract_dict["audit"]["runtime_quote"])
-                else:
-                    payload["error"] = str(err or "many_pool_runtime_not_canonical")
-                    payload["runtime_quote"] = dict(contract_dict["audit"]["runtime_quote"])
-                    payload["canonical_winner_quote"] = dict(contract_dict["audit"]["canonical_winner_quote"])
-                self._write_json(200, payload, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "guard_exact_out_many_pool_canonicality_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/quote_exact_out_many_pool_guarded":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-                bridge_err = _check_routing_exact_out_oracle_adapter_bridge(
-                    body=obj,
-                    path=path,
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                if bridge_err is not None:
-                    self._write_json(
-                        400,
-                        {"ok": False, "error": "rejected", "detail": bridge_err},
-                        cors_origin=cors_origin,
-                    )
-                    return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
-                    EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
-                    quote_exact_out_many_pool_guarded,
-                )
-
-                quote, err, contract = quote_exact_out_many_pool_guarded(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                contract_dict = contract.to_dict()
-                audit_payload = contract_dict["audit"]
-                if quote is not None:
-                    self._write_json(
-                        200,
-                        {
-                            "ok": True,
-                            "quote": dict(contract_dict["audit"]["runtime_quote"]),
-                            "contract": contract_dict,
-                            "contract_ok": bool(contract_dict["contract_ok"]),
-                            "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
-                            "packet_schema": EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
-                            "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",
-                            "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_oracle_contract",
-                            "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_guarded_quote_packet",
-                            "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_guarded_quote_packet",
-                            "runtime_projected_path": audit_payload["runtime_projected_path"],
-                            "canonical_winner_projected_path": audit_payload["canonical_winner_projected_path"],
-                            "runtime_matches_canonical_projected_path": audit_payload[
-                                "runtime_matches_canonical_projected_path"
-                            ],
-                            "projection_cover_available": audit_payload["projection_cover_available"],
-                            "projection_cover_holds": audit_payload["projection_cover_holds"],
-                        },
-                        cors_origin=cors_origin,
-                    )
-                else:
-                    self._write_json(
-                        200,
-                        {
-                            "ok": False,
-                            "error": str(err or "many_pool_runtime_not_canonical"),
-                            "runtime_quote": dict(contract_dict["audit"]["runtime_quote"]),
-                            "canonical_winner_quote": dict(contract_dict["audit"]["canonical_winner_quote"]),
-                            "contract": contract_dict,
-                            "contract_ok": bool(contract_dict["contract_ok"]),
-                            "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
-                            "packet_schema": EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
-                            "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",
-                            "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_oracle_contract",
-                            "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_guarded_quote_packet",
-                            "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_guarded_quote_packet",
-                            "runtime_projected_path": audit_payload["runtime_projected_path"],
-                            "canonical_winner_projected_path": audit_payload["canonical_winner_projected_path"],
-                            "runtime_matches_canonical_projected_path": audit_payload[
-                                "runtime_matches_canonical_projected_path"
-                            ],
-                            "projection_cover_available": audit_payload["projection_cover_available"],
-                            "projection_cover_holds": audit_payload["projection_cover_holds"],
-                        },
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "quote_exact_out_many_pool_guarded_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_guarded_quote_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
-                    build_exact_out_many_pool_guarded_quote_packet,
-                )
-
-                packet = build_exact_out_many_pool_guarded_quote_packet(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                packet_dict = packet.to_dict()
-                response = {
-                    "ok": True,
-                    "packet": packet_dict,
-                    "packet_schema": EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
-                    "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_guarded_quote_packet",
-                }
-                if not packet.guard_ok:
-                    response["guard_ok"] = False
-                    response["error"] = str(packet.error or "many_pool_runtime_not_canonical")
-                self._write_json(200, response, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_exact_out_many_pool_guarded_quote_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_guarded_quote_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_guarded_quote_packet_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_guarded_quote_packet_payload(packet)
-                if ok:
-                    self._write_json(200, {"ok": True}, cors_origin=cors_origin)
-                else:
-                    self._write_json(200, {"ok": False, "error": err or "guarded quote packet verification failed"}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_exact_out_many_pool_guarded_quote_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_exact_out_many_pool_certified_winner_packet":
-            try:
-                pools_by_id = _parse_pools()
-                asset_in = str(obj.get("asset_in", "")).strip()
-                asset_out = str(obj.get("asset_out", "")).strip()
-                amount_out_total = obj.get("amount_out_total")
-                max_legs = obj.get("max_legs", 3)
-                max_candidate_pools = obj.get("max_candidate_pools", 5)
-                max_candidates = obj.get("max_candidates", 12)
-                max_iters = obj.get("max_iters", 4096)
-                window = obj.get("window", 64)
-                brute_force_max = obj.get("brute_force_max", 512)
-                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
-                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
-                if not asset_in or not asset_out or asset_in == asset_out:
-                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
-                    return True
-                int_fields = (
-                    ("amount_out_total", amount_out_total, 1),
-                    ("max_legs", max_legs, 1),
-                    ("max_candidate_pools", max_candidate_pools, 1),
-                    ("max_candidates", max_candidates, 1),
-                    ("max_iters", max_iters, 1),
-                    ("window", window, 0),
-                    ("brute_force_max", brute_force_max, 0),
-                    ("max_full_domain_pools", max_full_domain_pools, 1),
-                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
-                )
-                for field_name, value, min_value in int_fields:
-                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
-                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
-                        return True
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    EXACT_OUT_MANY_POOL_CERTIFIED_WINNER_PACKET_SCHEMA,
-                    build_exact_out_many_pool_certified_winner_packet,
-                )
-
-                packet = build_exact_out_many_pool_certified_winner_packet(
-                    list(pools_by_id.values()),
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidate_pools),
-                    max_candidates=int(max_candidates),
-                    max_iters=int(max_iters),
-                    window=int(window),
-                    brute_force_max=int(brute_force_max),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
-                )
-                self._write_json(
-                    200,
-                    {
-                        "ok": True,
-                        "packet": packet.to_dict(),
-                        "packet_schema": EXACT_OUT_MANY_POOL_CERTIFIED_WINNER_PACKET_SCHEMA,
-                        "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_certified_winner_packet",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_exact_out_many_pool_certified_winner_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_certified_winner_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_certified_winner_packet_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_certified_winner_packet_payload(packet)
-                if ok:
-                    self._write_json(200, {"ok": True}, cors_origin=cors_origin)
-                else:
-                    self._write_json(200, {"ok": False, "error": err or "certified winner packet verification failed"}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_exact_out_many_pool_certified_winner_packet_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_repaired_advisory_quote_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_repaired_advisory_quote_packet_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_repaired_advisory_quote_packet_payload(packet)
-                if ok:
-                    self._write_json(200, {"ok": True}, cors_origin=cors_origin)
-                else:
-                    self._write_json(
-                        200,
-                        {"ok": False, "error": err or "repaired advisory quote packet verification failed"},
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_repaired_advisory_quote_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_repaired_full_domain_certified_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_repaired_full_domain_certified_packet_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_repaired_full_domain_certified_packet_payload(packet)
-                if ok:
-                    self._write_json(200, {"ok": True, "quote_policy": "repaired_full_domain_certified_v1"}, cors_origin=cors_origin)
-                else:
-                    self._write_json(
-                        200,
-                        {
-                            "ok": False,
-                            "error": err or "repaired full-domain certified packet verification failed",
-                            "quote_policy": "repaired_full_domain_certified_v1",
-                        },
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_repaired_full_domain_certified_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_repaired_key_cover_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_repaired_key_cover_packet_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_repaired_key_cover_packet_payload(packet)
-                if ok:
-                    self._write_json(200, {"ok": True, "quote_policy": "repaired_key_cover_v1"}, cors_origin=cors_origin)
-                else:
-                    self._write_json(
-                        200,
-                        {"ok": False, "error": err or "repaired key-cover packet verification failed", "quote_policy": "repaired_key_cover_v1"},
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_repaired_key_cover_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_repaired_key_cover_interpretation_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_repaired_key_cover_interpretation_packet_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_repaired_key_cover_interpretation_packet_payload(packet)
-                if ok:
-                    self._write_json(
-                        200,
-                        {"ok": True, "quote_policy": "repaired_key_cover_interpretation_v1"},
-                        cors_origin=cors_origin,
-                    )
-                else:
-                    self._write_json(
-                        200,
-                        {
-                            "ok": False,
-                            "error": err or "repaired key-cover interpretation packet verification failed",
-                            "quote_policy": "repaired_key_cover_interpretation_v1",
-                        },
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_repaired_key_cover_interpretation_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_certified_advisory_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_certified_advisory_packet_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_certified_advisory_packet_payload(packet)
-                if ok:
-                    self._write_json(200, {"ok": True}, cors_origin=cors_origin)
-                else:
-                    self._write_json(
-                        200,
-                        {"ok": False, "error": err or "certified advisory packet verification failed"},
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_certified_advisory_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_repaired_replacement_shadow_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_repaired_replacement_shadow_packet_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_repaired_replacement_shadow_packet_payload(packet)
-                if ok:
-                    self._write_json(200, {"ok": True}, cors_origin=cors_origin)
-                else:
-                    self._write_json(
-                        200,
-                        {"ok": False, "error": err or "repaired replacement shadow packet verification failed"},
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_repaired_replacement_shadow_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_default_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_default_packet_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_default_packet_payload(packet)
-                if ok:
-                    self._write_json(200, {"ok": True, "quote_policy": "certified_advisory_v1"}, cors_origin=cors_origin)
-                else:
-                    self._write_json(
-                        200,
-                        {"ok": False, "error": err or "default packet verification failed", "quote_policy": "certified_advisory_v1"},
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_default_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_bounded_advisory_quote_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_bounded_advisory_quote_packet_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_bounded_advisory_quote_packet_payload(packet)
-                if ok:
-                    self._write_json(200, {"ok": True}, cors_origin=cors_origin)
-                else:
-                    self._write_json(
-                        200,
-                        {"ok": False, "error": err or "bounded advisory quote packet verification failed"},
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_bounded_advisory_quote_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_bounded_workaround_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_bounded_workaround_packet_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_bounded_workaround_packet_payload(packet)
-                if ok:
-                    self._write_json(200, {"ok": True}, cors_origin=cors_origin)
-                else:
-                    self._write_json(
-                        200,
-                        {"ok": False, "error": err or "bounded workaround packet verification failed"},
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_bounded_workaround_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_repaired_selected_domain_oracle_contract":
-            contract = obj.get("contract")
-            if not isinstance(contract, dict):
-                self._write_json(400, {"ok": False, "error": "bad_contract"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_repaired_selected_domain_oracle_contract_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_repaired_selected_domain_oracle_contract_payload(contract)
-                if ok:
-                    self._write_json(200, {"ok": True, "quote_policy": "repaired_selected_domain_v1"}, cors_origin=cors_origin)
-                else:
-                    self._write_json(
-                        200,
-                        {
-                            "ok": False,
-                            "error": err or "repaired selected-domain oracle contract verification failed",
-                            "quote_policy": "repaired_selected_domain_v1",
-                        },
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_repaired_selected_domain_oracle_contract_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_candidate_domain_contract":
-            contract = obj.get("contract")
-            if not isinstance(contract, dict):
-                self._write_json(400, {"ok": False, "error": "bad_contract"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_candidate_domain_contract_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_candidate_domain_contract_payload(contract)
-                if ok:
-                    self._write_json(200, {"ok": True}, cors_origin=cors_origin)
-                else:
-                    self._write_json(
-                        200,
-                        {"ok": False, "error": err or "candidate domain contract verification failed"},
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_candidate_domain_contract_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_prefilter_contract":
-            contract = obj.get("contract")
-            if not isinstance(contract, dict):
-                self._write_json(400, {"ok": False, "error": "bad_contract"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_prefilter_contract_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_prefilter_contract_payload(contract)
-                if ok:
-                    self._write_json(200, {"ok": True}, cors_origin=cors_origin)
-                else:
-                    self._write_json(
-                        200,
-                        {"ok": False, "error": err or "prefilter contract verification failed"},
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_prefilter_contract_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_repaired_prefilter_contract":
-            contract = obj.get("contract")
-            if not isinstance(contract, dict):
-                self._write_json(400, {"ok": False, "error": "bad_contract"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_repaired_prefilter_contract_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_repaired_prefilter_contract_payload(contract)
-                if ok:
-                    self._write_json(200, {"ok": True}, cors_origin=cors_origin)
-                else:
-                    self._write_json(
-                        200,
-                        {"ok": False, "error": err or "repaired prefilter contract verification failed"},
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_repaired_prefilter_contract_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_oracle_contract":
-            contract = obj.get("contract")
-            if not isinstance(contract, dict):
-                self._write_json(400, {"ok": False, "error": "bad_contract"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_oracle_contract_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_oracle_contract_payload(contract)
-                if ok:
-                    self._write_json(200, {"ok": True}, cors_origin=cors_origin)
-                else:
-                    self._write_json(200, {"ok": False, "error": err or "oracle contract verification failed"}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_exact_out_many_pool_oracle_contract_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_audited_bounds_contract":
-            contract = obj.get("contract")
-            if not isinstance(contract, dict):
-                self._write_json(400, {"ok": False, "error": "bad_contract"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_audited_bounds_contract_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_audited_bounds_contract_payload(contract)
-                if ok:
-                    self._write_json(200, {"ok": True}, cors_origin=cors_origin)
-                else:
-                    self._write_json(
-                        200,
-                        {"ok": False, "error": err or "audited bounds contract verification failed"},
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_audited_bounds_contract_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet":
-            packet = obj.get("packet")
-            if not isinstance(packet, dict):
-                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_many_pool_adaptive_liveness_packet_payload,
-                )
-
-                ok, err = verify_exact_out_many_pool_adaptive_liveness_packet_payload(packet)
-                if ok:
-                    self._write_json(200, {"ok": True, "quote_policy": "adaptive_liveness_v1"}, cors_origin=cors_origin)
-                else:
-                    self._write_json(
-                        200,
-                        {
-                            "ok": False,
-                            "error": err or "adaptive liveness packet verification failed",
-                            "quote_policy": "adaptive_liveness_v1",
-                        },
-                        cors_origin=cors_origin,
-                    )
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {
-                        "ok": False,
-                        "error": "verify_exact_out_many_pool_adaptive_liveness_packet_error",
-                        "details": "request failed",
-                    },
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_exact_out_route_certificate":
-            certificate = obj.get("certificate")
-            if not isinstance(certificate, dict):
-                self._write_json(400, {"ok": False, "error": "bad_certificate"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
-                    verify_exact_out_route_canonical_certificate_payload,
-                )
-
-                ok, err = verify_exact_out_route_canonical_certificate_payload(certificate)
-                self._write_json(200, {"ok": bool(ok), "error": ("ok" if ok else str(err))}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_exact_out_certificate_error", "details": "request failed"},
-                    cors_origin=cors_origin,
-                )
-                return True
-
         self._write_json(404, {"ok": False, "error": "not_found"}, cors_origin=cors_origin)
         return True
 
@@ -6663,13 +3250,14 @@ class _Handler(BaseHTTPRequestHandler):
         path = (self.path or "").split("?", 1)[0]
 
         if path == "/health":
-            self._write_json(200, {"status": "healthy", "service": "zenodex-api"}, cors_origin=cors_origin)
+            self._write_json(200, {"ok": True, "status": "healthy", "service": "zenodex-api"}, cors_origin=cors_origin)
             return
 
         if path == "/version":
             self._write_json(
                 200,
                 {
+                    "ok": True,
                     "service": "zenodex-api",
                     "python": os.environ.get("PYTHON_VERSION", ""),
                 },
@@ -6678,22 +3266,33 @@ class _Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/confidential/status":
-            status = getattr(self.server, "confidential_feature_status", None)  # type: ignore[attr-defined]
+            status = getattr(self.server, "confidential_feature_status", None)
             if not isinstance(status, dict):
-                from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
+                from src.integration.confidential_feature_status import (  # pylint: disable=import-outside-toplevel
+                    load_confidential_feature_status_from_env,
+                )
 
                 status = load_confidential_feature_status_from_env().to_public_dict()
             self._write_json(200, {"ok": True, "status": status}, cors_origin=cors_origin)
             return
 
-        # Demo/dev routes (gated by env vars in main()).
         if self._maybe_handle_perps_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
             return
         if self._maybe_handle_zusd_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
             return
+        if self._maybe_handle_autogov_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
+            return
         if self._maybe_handle_autotrader_live_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
             return
         if self._maybe_handle_confidential_attestation_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
+            return
+        if self._maybe_handle_confidential_sealed_bid_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
+            return
+        # Step 7: /api/dex/openapi.json (GET-only auto-generated spec).
+        # The dex API handler is normally POST-only, but this single GET
+        # route is required for introspection. Routed last so other GET
+        # surfaces take precedence.
+        if self._maybe_handle_dex_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
             return
 
         self._write_json(404, {"ok": False, "error": "not_found"}, cors_origin=cors_origin)
@@ -6713,6 +3312,8 @@ class _Handler(BaseHTTPRequestHandler):
             or path.startswith("/api/dex/")
             or path.startswith("/api/strategy/autotrader/")
             or path.startswith("/api/confidential/attestation/")
+            or path.startswith("/api/confidential/sealed-bid/")
+            or path.startswith("/api/autogov/")
         ):
             ctype = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
             if ctype and ctype != "application/json":
@@ -6727,9 +3328,13 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if self._maybe_handle_zusd_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
+        if self._maybe_handle_autogov_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
+            return
         if self._maybe_handle_autotrader_live_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
         if self._maybe_handle_confidential_attestation_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
+            return
+        if self._maybe_handle_confidential_sealed_bid_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
         if self._maybe_handle_dex_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
@@ -6757,9 +3362,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     rpm = _env_int("RATE_LIMIT_RPM", 600, lo=0, hi=1_000_000)
     max_buckets = _env_int("RATE_LIMIT_MAX_BUCKETS", 10_000, lo=1, hi=1_000_000)
 
-    perps_enabled = _env_str("PERPS_API_ENABLED", "false").lower() in ("1", "true", "yes")
     perps_wallet_enabled = _env_str("PERPS_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    zusd_enabled = _env_str("ZUSD_API_ENABLED", "false").lower() in ("1", "true", "yes")
     zusd_tau_wallet_enabled = _env_str("ZUSD_TAU_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
     zusd_monetary_wallet_enabled = _env_str("ZUSD_MONETARY_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
     autotrader_live_enabled = _env_str("AUTOTRADER_LIVE_API_ENABLED", "false").lower() in ("1", "true", "yes")
@@ -6768,39 +3371,63 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "true",
         "yes",
     )
+    confidential_sealed_bid_enabled = _confidential_sealed_bid_enabled_from_env()
+    confidential_sealed_bid_state_file = _env_str("CONFIDENTIAL_SEALED_BID_STATE_FILE", "")
     dex_enabled = _env_str("DEX_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    demo_api_token = _env_str("DEMO_API_TOKEN", "")
+    autogov_live_apply_enabled = _env_str("AUTOGOV_LIVE_APPLY_API_ENABLED", "false").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    api_bearer_token = _env_str("ZENODEX_API_BEARER_TOKEN", "")
+    legacy_demo_api_token = _env_str("DEMO_API_TOKEN", "")
+    auth_bearer_token = api_bearer_token or legacy_demo_api_token
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
     confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
+    from src.integration.confidential_sealed_bid_api import (  # pylint: disable=import-outside-toplevel
+        ConfidentialSealedBidTable,
+        submit_confidential_sealed_bid_local_ledger_settlement,
+    )
     from src.state.confidential_requests import ConfidentialRequestTable  # pylint: disable=import-outside-toplevel
 
     sensitive_api_enabled = bool(
-        perps_enabled
-        or perps_wallet_enabled
-        or zusd_enabled
+        perps_wallet_enabled
         or zusd_tau_wallet_enabled
         or zusd_monetary_wallet_enabled
         or autotrader_live_enabled
         or confidential_attestation_enabled
+        or confidential_sealed_bid_enabled
         or dex_enabled
+        or autogov_live_apply_enabled
     )
     runtime_env = _env_str("ZENODEX_ENV", _env_str("APP_ENV", "production")).lower()
     production_mode = runtime_env not in ("dev", "development", "test", "local")
     external_auth_enforced = _env_bool("ZENODEX_EXTERNAL_AUTH_ENFORCED", False)
     allow_demo_token_auth = _env_bool("ALLOW_DEMO_TOKEN_AUTH", False)
+    allow_in_memory_sealed_bid = _env_bool("CONFIDENTIAL_SEALED_BID_ALLOW_IN_MEMORY_STATE", False)
 
-    if sensitive_api_enabled and not external_auth_enforced and not demo_api_token:
+    legacy_demo_token_active = bool(legacy_demo_api_token and not api_bearer_token)
+
+    if sensitive_api_enabled and not external_auth_enforced and not auth_bearer_token:
         print(
-            "Refusing to start: sensitive APIs enabled without external auth or DEMO_API_TOKEN "
-            f"(host={host!r}, perps_api={perps_enabled}, perps_wallet_api={perps_wallet_enabled}, "
-            f"zusd_api={zusd_enabled}, "
+            "Refusing to start: sensitive APIs enabled without external auth or ZENODEX_API_BEARER_TOKEN "
+            f"(host={host!r}, perps_wallet_api={perps_wallet_enabled}, "
             f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
             f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, "
             f"autotrader_live_api={autotrader_live_enabled}, "
-            f"confidential_attestation_api={confidential_attestation_enabled}, dex_api={dex_enabled})"
+            f"confidential_attestation_api={confidential_attestation_enabled}, "
+            f"confidential_sealed_bid_api={confidential_sealed_bid_enabled}, "
+            f"dex_api={dex_enabled}, autogov_live_apply_api={autogov_live_apply_enabled})"
         )
         return 2
-    if sensitive_api_enabled and not external_auth_enforced and demo_api_token and production_mode and not allow_demo_token_auth:
+    if confidential_sealed_bid_enabled and production_mode and not confidential_sealed_bid_state_file and not allow_in_memory_sealed_bid:
+        print(
+            "Refusing to start: confidential sealed-bid API requires "
+            "CONFIDENTIAL_SEALED_BID_STATE_FILE in production mode. "
+            "Set CONFIDENTIAL_SEALED_BID_ALLOW_IN_MEMORY_STATE=1 only for controlled demos."
+        )
+        return 2
+    if sensitive_api_enabled and not external_auth_enforced and legacy_demo_token_active and production_mode and not allow_demo_token_auth:
         print(
             "Refusing to start: DEMO_API_TOKEN is demo/dev auth only. "
             "Set ZENODEX_EXTERNAL_AUTH_ENFORCED=1 for a real auth gateway, or "
@@ -6810,7 +3437,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if (
         sensitive_api_enabled
         and not external_auth_enforced
-        and demo_api_token
+        and legacy_demo_token_active
         and not _is_loopback_host(host)
         and not allow_demo_token_auth
     ):
@@ -6820,13 +3447,55 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
         return 2
 
+    # Deploy-profile consistency gate (D-CONFIG-002): when a deployment profile is
+    # selected, the declared policy in config/deploy/<profile>.yaml is parsed and
+    # enforced against the active runtime env. The profiles were previously
+    # documentation-only; this makes them load-bearing. Fail-closed on conflict.
+    deploy_profile_id = _env_str("ZENODEX_DEPLOY_PROFILE", "")
+    if deploy_profile_id:
+        from src.integration.deploy_profile import (  # pylint: disable=import-outside-toplevel
+            evaluate_deploy_profile_consistency,
+            load_deploy_profile,
+        )
+
+        try:
+            _profile = load_deploy_profile(deploy_profile_id)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"Refusing to start: invalid ZENODEX_DEPLOY_PROFILE={deploy_profile_id!r}: {exc}")
+            return 2
+        _runtime_facts = {
+            "sensitive_api_enabled": sensitive_api_enabled,
+            "external_auth_enforced": external_auth_enforced,
+            "auth_bearer_token_set": bool(auth_bearer_token),
+            "allow_demo_token_auth": allow_demo_token_auth,
+            "legacy_demo_token_active": legacy_demo_token_active,
+            "confidential_sealed_bid_allow_in_memory_state": allow_in_memory_sealed_bid,
+            "confidential_sealed_bid_allow_fixture_settlement": _env_bool(
+                "CONFIDENTIAL_SEALED_BID_ALLOW_FIXTURE_SETTLEMENT", False
+            ),
+            "confidential_sealed_bid_return_signed_tau_tx_payload": _env_bool(
+                "CONFIDENTIAL_SEALED_BID_RETURN_SIGNED_TAU_TX_PAYLOAD", False
+            ),
+            "perps_wallet_allow_local_signing": _env_bool("PERPS_WALLET_ALLOW_LOCAL_SIGNING", False),
+            "perps_wallet_return_signed_tau_tx_payload": _env_bool(
+                "PERPS_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False
+            ),
+        }
+        _conflicts = evaluate_deploy_profile_consistency(_profile, _runtime_facts)
+        if _conflicts:
+            print(
+                f"Refusing to start: runtime env conflicts with deploy profile "
+                f"{deploy_profile_id!r}:"
+            )
+            for _c in _conflicts:
+                print(f"  - {_c}")
+            return 2
+
     httpd = ThreadingHTTPServer((host, port), _Handler)
     # Attach config to server instance (used by handler).
     httpd.cors_origins = cors_origins  # type: ignore[attr-defined]
     httpd.rate_limiter = TokenBucketRateLimiter(rpm=rpm, max_buckets=max_buckets)  # type: ignore[attr-defined]
-    httpd.perps_api_enabled = perps_enabled  # type: ignore[attr-defined]
     httpd.perps_wallet_api_enabled = perps_wallet_enabled  # type: ignore[attr-defined]
-    httpd.zusd_api_enabled = zusd_enabled  # type: ignore[attr-defined]
     httpd.zusd_tau_wallet_api_enabled = zusd_tau_wallet_enabled  # type: ignore[attr-defined]
     httpd.zusd_monetary_wallet_api_enabled = zusd_monetary_wallet_enabled  # type: ignore[attr-defined]
     httpd.autotrader_live_api_enabled = autotrader_live_enabled  # type: ignore[attr-defined]
@@ -6834,22 +3503,43 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     httpd.autotrader_supervisor_runs = {}  # type: ignore[attr-defined]
     httpd.autotrader_execution_lock = threading.Lock()  # type: ignore[attr-defined]
     httpd.confidential_attestation_api_enabled = confidential_attestation_enabled  # type: ignore[attr-defined]
+    httpd.confidential_sealed_bid_api_enabled = confidential_sealed_bid_enabled  # type: ignore[attr-defined]
     httpd.dex_api_enabled = dex_enabled  # type: ignore[attr-defined]
-    httpd.demo_api_token = demo_api_token  # type: ignore[attr-defined]
+    httpd.autogov_live_apply_api_enabled = autogov_live_apply_enabled  # type: ignore[attr-defined]
+    httpd.demo_api_token = auth_bearer_token  # type: ignore[attr-defined]
+    httpd.external_auth_enforced = external_auth_enforced  # type: ignore[attr-defined]
     httpd.confidential_feature_status = confidential_feature_status  # type: ignore[attr-defined]
     httpd.confidential_request_table = ConfidentialRequestTable()  # type: ignore[attr-defined]
     httpd.confidential_request_lock = threading.Lock()  # type: ignore[attr-defined]
+    httpd.confidential_sealed_bid_table = ConfidentialSealedBidTable(  # type: ignore[attr-defined]
+        state_path=confidential_sealed_bid_state_file
+    )
+    httpd.confidential_sealed_bid_lock = threading.Lock()  # type: ignore[attr-defined]
+    confidential_sealed_bid_asset_settlement_enabled = _env_bool(
+        "CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED",
+        False,
+    )
+    httpd.confidential_sealed_bid_asset_settlement_submitter = (  # type: ignore[attr-defined]
+        submit_confidential_sealed_bid_local_ledger_settlement
+        if confidential_sealed_bid_asset_settlement_enabled
+        else None
+    )
 
     print(
         f"zenodex-api listening on http://{host}:{port} "
         f"(cors_origins={sorted(cors_origins)}, rpm={rpm}, max_buckets={max_buckets}, "
-        f"perps_api={perps_enabled}, perps_wallet_api={perps_wallet_enabled}, zusd_api={zusd_enabled}, "
+        f"perps_wallet_api={perps_wallet_enabled}, "
         f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
         f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, "
         f"autotrader_live_api={autotrader_live_enabled}, "
-        f"confidential_attestation_api={confidential_attestation_enabled}, dex_api={dex_enabled}, "
+        f"confidential_attestation_api={confidential_attestation_enabled}, "
+        f"confidential_sealed_bid_api={confidential_sealed_bid_enabled}, "
+        f"confidential_sealed_bid_asset_settlement={confidential_sealed_bid_asset_settlement_enabled}, "
+        f"dex_api={dex_enabled}, "
+        f"autogov_live_apply_api={autogov_live_apply_enabled}, "
         f"confidential_stage={confidential_feature_status.get('stage')}, "
-        f"external_auth_enforced={external_auth_enforced}, demo_api_token_set={bool(demo_api_token)}, "
+        f"external_auth_enforced={external_auth_enforced}, bearer_token_set={bool(auth_bearer_token)}, "
+        f"legacy_demo_token_set={bool(legacy_demo_api_token)}, "
         f"demo_token_auth_allowed={allow_demo_token_auth})"
     )
     httpd.serve_forever(poll_interval=0.25)

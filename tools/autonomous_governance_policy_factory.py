@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate and replay an autonomous-governance Q-policy artifact.
 
-The factory is offline tooling. It may call Julia and EBRM-style optimizers, but
+The factory is offline tooling. It may call Julia and EBRM optimizers, but
 the runtime governance path consumes only the frozen policy JSON and rechecks it
 with deterministic Python/Tau governance gates.
 """

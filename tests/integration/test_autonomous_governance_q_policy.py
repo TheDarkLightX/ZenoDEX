@@ -10,11 +10,13 @@ import pytest
 
 from src.integration.autonomous_governance_q_policy import (
     BoundedParameter,
+    admit_autonomous_governance_surface_request_v1,
     commit_autonomous_governance_surface_q_policy_v1,
     evaluate_autonomous_governance_q_policy_v1,
     evaluate_autonomous_governance_surface_q_policy_v1,
     policy_content_hash_v1,
     q_learning_update_fixed_point_v1,
+    sample_autonomous_governance_next_policy_v1,
     sample_autonomous_governance_q_policy_v1,
     sample_autonomous_governance_surface_q_policy_v1,
 )
@@ -45,6 +47,27 @@ def _observation(**overrides: int) -> dict[str, int]:
         "freshness_lag_epochs": 0,
         "liquidity_depth_bps": 5_000,
     }
+    obs.update(overrides)
+    return obs
+
+
+def _next_observation(**overrides: int) -> dict[str, int]:
+    obs = _observation(
+        observed_price_bps=10_000,
+        target_price_bps=10_000,
+        volatility_bps=25,
+        liquidity_depth_bps=5_000,
+    )
+    obs.update(
+        {
+            "oracle_confidence_bps": 9_900,
+            "liquidity_concentration_bps": 2_000,
+            "recent_governance_churn_bps": 0,
+            "proof_market_health_bps": 9_900,
+            "validator_stress_bps": 100,
+            "network_stress_bps": 100,
+        }
+    )
     obs.update(overrides)
     return obs
 
@@ -710,6 +733,190 @@ def test_surface_malformed_policy_returns_fail_closed_receipt() -> None:
     assert "policy_hash_mismatch" in result["errors"]
 
 
+def test_autogovnext_policy_cannot_touch_authority_parameters() -> None:
+    policy = deepcopy(sample_autonomous_governance_next_policy_v1())
+    policy["actions"].append(
+        {
+            "id": "rotate_verifier_keys",
+            "deltas": {
+                "verifier_image_id": 1,
+                "signer_set_hash": 1,
+            },
+        }
+    )
+    policy["policy_hash"] = policy_content_hash_v1(policy)
+
+    result = evaluate_autonomous_governance_surface_q_policy_v1(
+        policy=policy,
+        surface_state=_surface_state(fee_bps=300, funding_cap_bps=150),
+        observation=_next_observation(),
+        current_epoch=50,
+        proposal_epoch=10,
+        last_update_epoch=48,
+        expected_policy_hash=policy["policy_hash"],
+    )
+
+    assert result["ok"] is False
+    assert result["approved"] is False
+    assert "authority_action_delta_forbidden:verifier_image_id" in result["errors"]
+    assert "authority_action_delta_forbidden:signer_set_hash" in result["errors"]
+
+
+def test_autogovnext_policy_rejects_malformed_anti_oscillation_parameter() -> None:
+    policy = deepcopy(sample_autonomous_governance_next_policy_v1())
+    policy["selection"]["anti_oscillation"]["parameters"].append(["fee_bps"])
+    policy["policy_hash"] = policy_content_hash_v1(policy)
+
+    result = evaluate_autonomous_governance_surface_q_policy_v1(
+        policy=policy,
+        surface_state=_surface_state(fee_bps=300, funding_cap_bps=150),
+        observation=_next_observation(),
+        current_epoch=50,
+        proposal_epoch=10,
+        last_update_epoch=48,
+        expected_policy_hash=policy["policy_hash"],
+    )
+
+    assert result["ok"] is False
+    assert result["approved"] is False
+    assert "anti_oscillation_parameter_invalid:['fee_bps']" in result["errors"]
+
+
+def test_autogovnext_live_admission_matches_commit_for_valid_policy() -> None:
+    policy = sample_autonomous_governance_next_policy_v1()
+    request = {
+        "schema": "zenodex.autonomous_governance.q_surface_policy_eval_bundle.v1",
+        "tx_id": "autogovnext-valid-1",
+        "time_ms": 1_800_000_000_000,
+        "policy": policy,
+        "expected_policy_hash": policy["policy_hash"],
+        "surface_state": _surface_state(fee_bps=300, funding_cap_bps=150),
+        "observation": _next_observation(),
+        "current_epoch": 50,
+        "proposal_epoch": 10,
+        "last_update_epoch": 48,
+    }
+
+    admission = admit_autonomous_governance_surface_request_v1(request)
+    direct = commit_autonomous_governance_surface_q_policy_v1(
+        policy=policy,
+        surface_state=request["surface_state"],
+        observation=request["observation"],
+        current_epoch=request["current_epoch"],
+        proposal_epoch=request["proposal_epoch"],
+        last_update_epoch=request["last_update_epoch"],
+        expected_policy_hash=policy["policy_hash"],
+    )
+
+    assert admission["ok"] is True
+    assert admission["admitted"] is True
+    assert admission["step_hash"] == direct["step_hash"]
+    assert admission["applied_state"] == direct["applied_state"]
+    assert admission["receipt"]["policy_hash"] == policy["policy_hash"]
+    assert admission["receipt"]["action_id"] == "lower_fee_10_relax_funding_5"
+    assert admission["applied_state"]["fee_bps"] == 290
+    assert admission["applied_state"]["funding_cap_bps"] == 155
+    assert "does_not_authorize_settlement" in admission["not_claimed"]
+
+
+def test_autogovnext_live_admission_reports_receipt_rejection_as_not_ok() -> None:
+    policy = sample_autonomous_governance_next_policy_v1()
+    initial = _surface_state(fee_bps=300, funding_cap_bps=150)
+
+    admission = admit_autonomous_governance_surface_request_v1(
+        {
+            "policy": policy,
+            "expected_policy_hash": policy["policy_hash"],
+            "surface_state": initial,
+            "observation": _next_observation(oracle_confidence_bps=6_999),
+            "current_epoch": 50,
+            "proposal_epoch": 10,
+            "last_update_epoch": 48,
+        }
+    )
+
+    assert admission["ok"] is False
+    assert admission["admitted"] is False
+    assert admission["reason"] == "receipt_rejected_noop"
+    assert admission["applied_state"] == initial
+    assert "oracle_confidence_bps_below_min_oracle_confidence_bps" in admission["errors"]
+    assert "oracle_confidence_bps_below_min_oracle_confidence_bps" in admission["receipt"]["errors"]
+
+
+def test_autogovnext_live_admission_requires_canonical_expected_policy_hash() -> None:
+    policy = sample_autonomous_governance_next_policy_v1()
+    initial = _surface_state(fee_bps=300, funding_cap_bps=150)
+
+    admission = admit_autonomous_governance_surface_request_v1(
+        {
+            "policy": policy,
+            "expected_policy_hash": "not-a-root",
+            "surface_state": initial,
+            "observation": _next_observation(),
+            "current_epoch": 50,
+            "proposal_epoch": 10,
+            "last_update_epoch": 48,
+        }
+    )
+
+    assert admission["ok"] is False
+    assert admission["admitted"] is False
+    assert admission["reason"] == "admission_rejected_noop"
+    assert admission["applied_state"] == initial
+    assert admission["step"] == {}
+    assert "expected_policy_hash_invalid" in admission["errors"]
+
+
+def test_autogovnext_live_admission_rejects_direct_result_field_bypass() -> None:
+    policy = sample_autonomous_governance_next_policy_v1()
+    initial = _surface_state(fee_bps=300, funding_cap_bps=150)
+    injected = _surface_state(fee_bps=1_000, funding_cap_bps=0)
+
+    admission = admit_autonomous_governance_surface_request_v1(
+        {
+            "policy": policy,
+            "expected_policy_hash": policy["policy_hash"],
+            "surface_state": initial,
+            "observation": _next_observation(),
+            "current_epoch": 50,
+            "proposal_epoch": 10,
+            "last_update_epoch": 48,
+            "proposed_state": injected,
+        }
+    )
+
+    assert admission["ok"] is False
+    assert admission["admitted"] is False
+    assert admission["reason"] == "admission_rejected_noop"
+    assert admission["applied_state"] == initial
+    assert admission["proposed_state"] == initial
+    assert admission["forbidden_fields"] == ("proposed_state",)
+    assert "direct_result_field_forbidden:proposed_state" in admission["errors"]
+
+
+def test_autogovnext_live_admission_rejects_unknown_request_field() -> None:
+    policy = sample_autonomous_governance_next_policy_v1()
+    initial = _surface_state(fee_bps=300, funding_cap_bps=150)
+
+    admission = admit_autonomous_governance_surface_request_v1(
+        {
+            "policy": policy,
+            "expected_policy_hash": policy["policy_hash"],
+            "surface_state": initial,
+            "observation": _next_observation(),
+            "current_epoch": 50,
+            "proposal_epoch": 10,
+            "last_update_epoch": 48,
+            "model_says_approved": True,
+        }
+    )
+
+    assert admission["ok"] is False
+    assert admission["admitted"] is False
+    assert admission["unknown_fields"] == ("model_says_approved",)
+    assert "unknown_admission_request_field:model_says_approved" in admission["errors"]
+
+
 def test_autonomous_governance_q_policy_cli_sample_and_evaluate(tmp_path: Path) -> None:
     bundle = tmp_path / "bundle.json"
     sample = subprocess.run(
@@ -768,3 +975,78 @@ def test_autonomous_governance_q_policy_cli_surface_sample_and_evaluate(tmp_path
     assert step_result["ok"] is True
     assert step_result["admitted"] is True
     assert step_result["applied_state"]["fee_bps"] == 40
+
+
+def test_autonomous_governance_q_policy_cli_autogovnext_sample_and_admit(tmp_path: Path) -> None:
+    bundle = tmp_path / "autogovnext-bundle.json"
+    sample = subprocess.run(
+        [
+            sys.executable,
+            "tools/autonomous_governance_q_policy.py",
+            "sample",
+            "--surface",
+            "--next",
+            "--output",
+            str(bundle),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert sample.returncode == 0, sample.stderr
+    assert sample.stdout == ""
+
+    data = json.loads(bundle.read_text(encoding="utf-8"))
+    assert data["policy"]["policy_id"] == "sample_autogovnext_governance_surface_q_policy_v1"
+    assert "oracle_confidence_bps" in data["observation"]
+
+    admit = subprocess.run(
+        [sys.executable, "tools/autonomous_governance_q_policy.py", "admit", str(bundle)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert admit.returncode == 0, admit.stderr
+    result = json.loads(admit.stdout)
+    assert result["ok"] is True
+    assert result["admitted"] is True
+    assert result["receipt"]["policy_hash"] == data["expected_policy_hash"]
+    assert result["receipt"]["action_id"] == "raise_fee_10_tighten_funding_5"
+
+
+def test_autonomous_governance_q_policy_cli_admit_rejects_bypass_field(tmp_path: Path) -> None:
+    bundle = tmp_path / "autogovnext-bypass-bundle.json"
+    sample = subprocess.run(
+        [
+            sys.executable,
+            "tools/autonomous_governance_q_policy.py",
+            "sample",
+            "--surface",
+            "--next",
+            "--output",
+            str(bundle),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert sample.returncode == 0, sample.stderr
+
+    data = json.loads(bundle.read_text(encoding="utf-8"))
+    data["proposed_state"] = {**data["surface_state"], "fee_bps": 1_000}
+    bundle.write_text(json.dumps(data, sort_keys=True), encoding="utf-8")
+
+    admit = subprocess.run(
+        [sys.executable, "tools/autonomous_governance_q_policy.py", "admit", str(bundle)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert admit.returncode == 2
+    result = json.loads(admit.stdout)
+    assert result["ok"] is False
+    assert result["admitted"] is False
+    assert result["applied_state"] == data["surface_state"]
+    assert result["forbidden_fields"] == ["proposed_state"]
+    assert "direct_result_field_forbidden:proposed_state" in result["errors"]
