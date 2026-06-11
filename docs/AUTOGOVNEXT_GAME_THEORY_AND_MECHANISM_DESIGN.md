@@ -36,7 +36,9 @@ readiness and it does **not** weaken any promotion boundary in the plan.
 >   `continue_autonomous_governance_surface_trajectory_v1` and
 >   `verify_autonomous_governance_surface_session_v1`;
 >   `admit_autonomous_governance_session_continuation_v1` and
->   `verify_autonomous_governance_session_store_v1`);
+>   `verify_autonomous_governance_session_store_v1`;
+>   `admit_autonomous_governance_session_file_continuation_v1` and
+>   `verify_autonomous_governance_session_store_file_v1`);
 > - **[obligation]** — a proposed Phase-4 property, not yet code.
 >
 > Verify every citation against the module at the commit being promoted; the
@@ -420,6 +422,11 @@ fails because the current head has already moved; a rollback replay fails the
 same chain-head and boundary-epoch checks. The store hash and receipts-replayed
 audit make corruption loud, but protecting and distributing exactly one live
 store blob is still a deployment/ordering-layer responsibility.
+`autonomous_governance_session_store_file.py` now provides the local deployment
+repository for that blob: atomic JSON replacement, an exclusive lock sidecar,
+and `expected_store_hash` compare-and-swap refusal. That closes stale local
+writers that use this API. Global DA or node apply ordering remains a separate
+requirement.
 
 **Lemma (bounded drift).** Over any governance trajectory, the total absolute
 movement of a budgeted parameter is at most its `limit`, regardless of the number
@@ -612,6 +619,8 @@ is the narrow claim this mechanism should carry.
 | session-head pin lineage | `open_autonomous_governance_session_v1`, `advance_autonomous_governance_session_v1` | [committed] |
 | single-live-head store admission | `initialize_autonomous_governance_session_store_v1`, `admit_autonomous_governance_session_continuation_v1` | [committed] |
 | store receipts-replayed audit | `verify_autonomous_governance_session_store_v1` | [committed] |
+| file-backed store admission | `initialize_autonomous_governance_session_store_file_v1`, `admit_autonomous_governance_session_file_continuation_v1` | [committed] |
+| file-backed store audit/head read | `verify_autonomous_governance_session_store_file_v1`, `current_session_store_file_head_v1` | [committed] |
 | proposer (re-run inside disposer) | `_select_action`, `_ranked_action_ids`, `_bin_index` | [committed] |
 | offline training only | `q_learning_update_fixed_point_v1` | [committed] |
 | surface evaluator | `evaluate_autonomous_governance_surface_q_policy_v1` | [committed] |
@@ -619,5 +628,6 @@ is the narrow claim this mechanism should carry.
 Status is as of the branch carrying this document. **[P1-WIP]** symbols are
 still working-tree admission hardening and must be reverified before promotion.
 **[committed]** symbols are present in the integration modules on this branch.
-The deployed node/apply path still has to require these receipts and context
-hashes before this becomes a live governance claim.
+The deployed node/apply path still has to require these receipts, context
+hashes, and a globally ordered store custody rule before this becomes a live
+governance claim.

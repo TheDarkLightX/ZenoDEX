@@ -309,6 +309,7 @@ GENERATOR_FILES = (
     "src/integration/autonomous_governance_policy_pin.py",
     "src/integration/autonomous_governance_session_pin.py",
     "src/integration/autonomous_governance_session_store.py",
+    "src/integration/autonomous_governance_session_store_file.py",
     "src/integration/zeno_governance_authority.py",
     "src/integration/zenodex_external_threshold_bls.py",
     "src/integration/autonomous_governance_hostile_input.py",
