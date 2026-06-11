@@ -607,7 +607,8 @@ Current checker hardening in this workstream:
   sufficient.
 - `autotrader` rejects an internally coherent but stale 24h run rehashed with a
   fresh `issued_at`; the latest supervisor heartbeat must be fresh relative to
-  the evidence issuance time.
+  the evidence issuance time. Each production approval must also carry a valid
+  signer Ed25519 signature over the canonical run approval message.
 - `confidential_runtime` rejects private execution receipts whose
   `result_code` is not `ok`, binds the approved-measurements digest to the
   active allowlist, and recomputes the canonical confidential runtime receipt

@@ -24,6 +24,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+try:
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+    _ED25519_AVAILABLE = True
+except ImportError:  # pragma: no cover - dependency guard for fail-closed builder errors
+    InvalidSignature = Exception
+    Ed25519PublicKey = None
+    _ED25519_AVAILABLE = False
+
 from src.integration.production_promotion_evidence import (  # noqa: E402
     _AUTOTRADER_APPROVAL_FIELDS,
     _AUTOTRADER_CRASH_FIELDS,
@@ -41,6 +51,7 @@ from src.integration.production_promotion_evidence import (  # noqa: E402
     attach_production_autotrader_hash_v1,
     evaluate_production_autotrader_evidence_v1,
     production_autotrader_run_approval_hash_v1,
+    production_autotrader_run_approval_message_v1,
 )
 
 _HEX = frozenset("0123456789abcdef")
@@ -101,6 +112,16 @@ def _normalize_hex(value: object, *, label: str, length: int) -> str:
     if len(text) != length or any(ch not in _HEX for ch in text):
         raise ValueError(f"{label} must be {length}-char lowercase hex, optionally prefixed with 0x")
     return text
+
+
+def _verify_ed25519_signature(*, pubkey: str, signature: str, message: bytes, label: str) -> None:
+    if not _ED25519_AVAILABLE or Ed25519PublicKey is None:
+        raise ValueError(f"{label} Ed25519 verifier is unavailable")
+    try:
+        public_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(pubkey))
+        public_key.verify(bytes.fromhex(signature), message)
+    except (InvalidSignature, ValueError) as exc:
+        raise ValueError(f"{label} is invalid") from exc
 
 
 def _mapping_list(path: Path | None, *, label: str) -> list[Mapping[str, Any]]:
@@ -243,6 +264,12 @@ def _validate_approvals(path: Path, *, expected_approval_hash: str) -> list[dict
             entry.get("signature"),
             label=f"multi-signer approvals[{index}].signature",
             length=_SIGNATURE_HEX_LEN,
+        )
+        _verify_ed25519_signature(
+            pubkey=signer_pubkey,
+            signature=signature,
+            message=production_autotrader_run_approval_message_v1(approval_hash),
+            label=f"multi-signer approvals[{index}].signature",
         )
         if signer_pubkey in signer_pubkeys:
             raise ValueError(f"multi-signer approvals[{index}] signer_pubkey duplicates an earlier approval")

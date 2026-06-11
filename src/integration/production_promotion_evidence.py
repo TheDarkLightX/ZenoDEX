@@ -2235,6 +2235,18 @@ def production_autotrader_run_approval_hash_v1(evidence: Mapping[str, Any]) -> s
     ).removeprefix("0x")
 
 
+def production_autotrader_run_approval_message_v1(approval_hash: str) -> bytes:
+    """Canonical message signed by AutoTrader production-run approvers."""
+
+    return canonical_json_bytes_v0(
+        {
+            "domain": "zenodex.production_autotrader_run_approval.v1",
+            "schema": AUTOTRADER_EVIDENCE_SCHEMA_V1,
+            "approval_hash": approval_hash,
+        }
+    )
+
+
 class _AutotraderLane(Lane):
     LANE_ID = LANE_AUTOTRADER
     SCHEMA = AUTOTRADER_EVIDENCE_SCHEMA_V1
@@ -2668,7 +2680,7 @@ def _validate_autotrader_signers(
     seen_signer_pubkeys: set[str] = set()
     approval_hashes: set[str] = set()
     for index, entry in enumerate(approvals):
-        signer_pubkey, approval_hash = _parse_autotrader_approval_entry(index, entry, gaps=gaps)
+        signer_pubkey, approval_hash, signature = _parse_autotrader_approval_entry(index, entry, gaps=gaps)
         if signer_pubkey is None or approval_hash is None:
             continue
         _record_autotrader_approval(
@@ -2677,6 +2689,13 @@ def _validate_autotrader_signers(
             approval_hash=approval_hash,
             seen_signer_pubkeys=seen_signer_pubkeys,
             approval_hashes=approval_hashes,
+            gaps=gaps,
+        )
+        _validate_ed25519_signature(
+            pubkey=signer_pubkey,
+            signature=signature,
+            message=production_autotrader_run_approval_message_v1(approval_hash),
+            label=f"multi_signer_approvals[{index}].signature",
             gaps=gaps,
         )
 
@@ -2694,7 +2713,7 @@ def _parse_autotrader_approval_entry(
     entry: Mapping[str, Any],
     *,
     gaps: _Gaps,
-) -> tuple[str | None, str | None]:
+) -> tuple[str | None, str | None, str | None]:
     for key in entry.keys():
         if key not in _AUTOTRADER_APPROVAL_FIELDS:
             gaps.add(f"unknown field: multi_signer_approvals[{index}].{key}")
@@ -2710,13 +2729,13 @@ def _parse_autotrader_approval_entry(
         gaps=gaps,
         exact_len=_HASH_HEX_LEN,
     )
-    _P.hex_token(
+    signature = _P.hex_token(
         entry.get("signature"),
         path=f"multi_signer_approvals[{index}].signature",
         gaps=gaps,
         exact_len=_SIGNATURE_HEX_LEN,
     )
-    return signer_pubkey, approval_hash
+    return signer_pubkey, approval_hash, signature
 
 
 def _record_autotrader_approval(

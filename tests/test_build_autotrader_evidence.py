@@ -3,10 +3,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
 from src.integration.production_promotion_evidence import (
     attach_production_autotrader_hash_v1,
     evaluate_production_autotrader_evidence_v1,
     production_autotrader_run_approval_hash_v1,
+    production_autotrader_run_approval_message_v1,
 )
 from tools import build_autotrader_evidence as builder
 
@@ -14,6 +18,23 @@ NOW = 1747878000
 DURATION = 25 * 3600
 STARTED = NOW - DURATION - 60
 LAST_HEARTBEAT = STARTED + DURATION
+SIGNER_PRIVATE_KEYS = (
+    Ed25519PrivateKey.from_private_bytes(bytes([11]) * 32),
+    Ed25519PrivateKey.from_private_bytes(bytes([21]) * 32),
+)
+SIGNER_PUBKEYS = tuple(
+    key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    ).hex()
+    for key in SIGNER_PRIVATE_KEYS
+)
+
+
+def _sign_approval(index: int, approval_hash: str) -> str:
+    return SIGNER_PRIVATE_KEYS[index].sign(
+        production_autotrader_run_approval_message_v1(approval_hash)
+    ).hex()
 
 
 def _heartbeats() -> list[int]:
@@ -79,8 +100,16 @@ def _approval_file(tmp_path: Path, *, approval_hash: str | None = None) -> Path:
     _write_json(
         path,
         [
-            {"signer_pubkey": "11" * 32, "approval_hash": run_approval_hash, "signature": "13" * 64},
-            {"signer_pubkey": "21" * 32, "approval_hash": run_approval_hash, "signature": "23" * 64},
+            {
+                "signer_pubkey": SIGNER_PUBKEYS[0],
+                "approval_hash": run_approval_hash,
+                "signature": _sign_approval(0, run_approval_hash),
+            },
+            {
+                "signer_pubkey": SIGNER_PUBKEYS[1],
+                "approval_hash": run_approval_hash,
+                "signature": _sign_approval(1, run_approval_hash),
+            },
         ],
     )
     return path
@@ -247,8 +276,16 @@ def test_autotrader_builder_rejects_duplicate_signer_before_writing(capsys, tmp_
     _write_json(
         approvals,
         [
-            {"signer_pubkey": "11" * 32, "approval_hash": approval_hash, "signature": "13" * 64},
-            {"signer_pubkey": "11" * 32, "approval_hash": approval_hash, "signature": "23" * 64},
+            {
+                "signer_pubkey": SIGNER_PUBKEYS[0],
+                "approval_hash": approval_hash,
+                "signature": _sign_approval(0, approval_hash),
+            },
+            {
+                "signer_pubkey": SIGNER_PUBKEYS[0],
+                "approval_hash": approval_hash,
+                "signature": _sign_approval(0, approval_hash),
+            },
         ],
     )
     args = _base_args(tmp_path, out)
@@ -269,8 +306,16 @@ def test_autotrader_builder_rejects_approval_hash_for_different_run(capsys, tmp_
     _write_json(
         approvals,
         [
-            {"signer_pubkey": "11" * 32, "approval_hash": "ff" * 32, "signature": "13" * 64},
-            {"signer_pubkey": "21" * 32, "approval_hash": "ff" * 32, "signature": "23" * 64},
+            {
+                "signer_pubkey": SIGNER_PUBKEYS[0],
+                "approval_hash": "ff" * 32,
+                "signature": _sign_approval(0, "ff" * 32),
+            },
+            {
+                "signer_pubkey": SIGNER_PUBKEYS[1],
+                "approval_hash": "ff" * 32,
+                "signature": _sign_approval(1, "ff" * 32),
+            },
         ],
     )
     args[args.index("--multi-signer-approvals-file") + 1] = str(approvals)
@@ -280,6 +325,25 @@ def test_autotrader_builder_rejects_approval_hash_for_different_run(capsys, tmp_
     payload = json.loads(capsys.readouterr().out)
     assert payload["error"] == "autotrader_evidence_build_failed"
     assert "canonical run approval hash" in payload["detail"]
+    assert not out.exists()
+
+
+def test_autotrader_builder_rejects_fake_approval_signature_before_writing(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "autotrader.json"
+    args = _base_args(tmp_path, out)
+    approvals = Path(args[args.index("--multi-signer-approvals-file") + 1])
+    data = json.loads(approvals.read_text(encoding="utf-8"))
+    data[0]["signature"] = "13" * 64
+    _write_json(approvals, data)
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "autotrader_evidence_build_failed"
+    assert "multi-signer approvals[0].signature is invalid" in payload["detail"]
     assert not out.exists()
 
 
@@ -305,6 +369,30 @@ def test_autotrader_evaluator_rejects_approval_hash_for_mutated_run_report(
 
     assert lane["production_ready"] is False
     assert "multi_signer_approvals approval_hash must equal canonical run approval hash" in lane["gaps"]
+
+
+def test_autotrader_evaluator_rejects_rehashed_fake_approval_signature(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "autotrader.json"
+    assert builder.main(_base_args(tmp_path, out)) == 0
+    capsys.readouterr()
+    evidence = json.loads(out.read_text(encoding="utf-8"))
+    evidence["multi_signer_approvals"][0]["signature"] = "13" * 64
+    evidence = attach_production_autotrader_hash_v1(evidence)
+
+    lane = evaluate_production_autotrader_evidence_v1(
+        evidence,
+        supervisor_profile_hash="sup-hash",
+        config_max_actions_per_tick=4,
+        config_max_runs_per_process=200,
+        expected_chain_id="tau-test-prod",
+        now=NOW,
+    )
+
+    assert lane["production_ready"] is False
+    assert "multi_signer_approvals[0].signature is invalid" in lane["gaps"]
 
 
 def test_autotrader_builder_rejects_overlapping_crash_recovery_before_writing(capsys, tmp_path: Path) -> None:
