@@ -7,9 +7,7 @@
 
 use std::path::PathBuf;
 
-use zenodex_governance_gate::epoch::{
-    self, EpochState, PendingRevision, Surface, SURFACE_COUNT,
-};
+use zenodex_governance_gate::epoch::{self, EpochState, PendingRevision, Surface, SURFACE_COUNT};
 
 fn fixture_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -79,8 +77,9 @@ fn step(
         "renew" => {
             let s = state.expect("state");
             let pin = pin_bytes(args["pin"].as_str().expect("pin"));
-            let (new, r) = epoch::renew_charter(&s, as_u16(&args["now"]), as_u16(&args["ttl"]), pin)
-                .expect("legal ttl");
+            let (new, r) =
+                epoch::renew_charter(&s, as_u16(&args["now"]), as_u16(&args["ttl"]), pin)
+                    .expect("legal ttl");
             (new, Some(r))
         }
         "revoke" => {
@@ -104,28 +103,59 @@ fn assert_state_matches(ctx: &str, state: &EpochState, expected: &serde_json::Va
     for (k, t) in traj {
         let s = Surface::from_name(k).expect("known surface");
         let got = state.traj[s as usize];
-        assert_eq!(got.last_revision_epoch, as_u16(&t["last_revision_epoch"]), "{ctx}: {k} last_rev");
-        assert_eq!(got.window_start_epoch, as_u16(&t["window_start_epoch"]), "{ctx}: {k} window");
-        assert_eq!(got.drift_used, as_u16(&t["drift_used"]), "{ctx}: {k} drift_used");
+        assert_eq!(
+            got.last_revision_epoch,
+            as_u16(&t["last_revision_epoch"]),
+            "{ctx}: {k} last_rev"
+        );
+        assert_eq!(
+            got.window_start_epoch,
+            as_u16(&t["window_start_epoch"]),
+            "{ctx}: {k} window"
+        );
+        assert_eq!(
+            got.drift_used,
+            as_u16(&t["drift_used"]),
+            "{ctx}: {k} drift_used"
+        );
     }
     match (&state.charter, expected["charter"].is_null()) {
         (None, true) => {}
         (Some(c), false) => {
             let e = &expected["charter"];
-            assert_eq!(c.granted_epoch, as_u16(&e["granted_epoch"]), "{ctx}: charter granted");
+            assert_eq!(
+                c.granted_epoch,
+                as_u16(&e["granted_epoch"]),
+                "{ctx}: charter granted"
+            );
             assert_eq!(c.ttl, as_u16(&e["ttl"]), "{ctx}: charter ttl");
-            assert_eq!(c.revoked, e["revoked"].as_bool().expect("bool"), "{ctx}: revoked");
-            assert_eq!(hex::encode(c.policy_pin), e["policy_pin"].as_str().expect("pin"),
-                "{ctx}: charter pin");
+            assert_eq!(
+                c.revoked,
+                e["revoked"].as_bool().expect("bool"),
+                "{ctx}: revoked"
+            );
+            assert_eq!(
+                hex::encode(c.policy_pin),
+                e["policy_pin"].as_str().expect("pin"),
+                "{ctx}: charter pin"
+            );
         }
         (got, _) => panic!("{ctx}: charter presence mismatch (rust={got:?})"),
     }
-    assert_eq!(state.frozen, expected["frozen"].as_bool().expect("bool"), "{ctx}: frozen");
+    assert_eq!(
+        state.frozen,
+        expected["frozen"].as_bool().expect("bool"),
+        "{ctx}: frozen"
+    );
     match (&state.pending, expected["pending"].is_null()) {
         (None, true) => {}
         (Some(p), false) => {
             let e = &expected["pending"];
-            assert_eq!(p.proposed_epoch, as_u16(&e["proposed_epoch"]), "{ctx}: pending epoch");
+            assert_eq!(
+                p.proposed_epoch,
+                as_u16(&e["proposed_epoch"]),
+                "{ctx}: pending epoch"
+            );
             let (exp_d, exp_t) = deltas_of(&e["deltas"]);
             let norm: PendingRevision = PendingRevision {
                 deltas: exp_d,
@@ -149,26 +179,50 @@ fn rust_epoch_machine_replays_python_scenarios() {
     for scenario in scenarios {
         let name = scenario["name"].as_str().expect("name");
         let mut state: Option<EpochState> = None;
-        for (i, rec) in scenario["steps"].as_array().expect("steps").iter().enumerate() {
+        for (i, rec) in scenario["steps"]
+            .as_array()
+            .expect("steps")
+            .iter()
+            .enumerate()
+        {
             let ctx = format!("{name}#{i} {}", rec["op"].as_str().unwrap_or("?"));
             let (new, got_receipt) = step(state, rec["op"].as_str().expect("op"), &rec["args"]);
             if let Some(exp) = rec.get("receipt") {
-                let r = got_receipt.as_ref().unwrap_or_else(|| panic!("{ctx}: receipt expected"));
-                assert_eq!(r.code.as_str(), exp["code"].as_str().expect("code"), "{ctx}: code");
+                let r = got_receipt
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("{ctx}: receipt expected"));
+                assert_eq!(
+                    r.code.as_str(),
+                    exp["code"].as_str().expect("code"),
+                    "{ctx}: code"
+                );
                 assert_eq!(r.epoch, as_u16(&exp["epoch"]), "{ctx}: epoch");
                 let exp_surface = exp["surface"].as_str();
                 assert_eq!(r.surface, exp_surface, "{ctx}: surface");
-                assert_eq!(r.digest_before, exp["digest_before"].as_str().expect("d0"),
-                    "{ctx}: digest_before");
-                assert_eq!(r.digest_after, exp["digest_after"].as_str().expect("d1"),
-                    "{ctx}: digest_after");
+                assert_eq!(
+                    r.digest_before,
+                    exp["digest_before"].as_str().expect("d0"),
+                    "{ctx}: digest_before"
+                );
+                assert_eq!(
+                    r.digest_after,
+                    exp["digest_after"].as_str().expect("d1"),
+                    "{ctx}: digest_after"
+                );
                 let exp_pin = exp["policy_pin"].as_str();
-                assert_eq!(r.policy_pin.map(hex::encode).as_deref(), exp_pin, "{ctx}: pin");
+                assert_eq!(
+                    r.policy_pin.map(hex::encode).as_deref(),
+                    exp_pin,
+                    "{ctx}: pin"
+                );
             }
             assert_state_matches(&ctx, &new, &rec["state"]);
             state = Some(new);
             steps_total += 1;
         }
     }
-    assert!(steps_total >= 50, "fixture unexpectedly small: {steps_total}");
+    assert!(
+        steps_total >= 50,
+        "fixture unexpectedly small: {steps_total}"
+    );
 }
