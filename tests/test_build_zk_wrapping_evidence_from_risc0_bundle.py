@@ -318,6 +318,36 @@ def test_zk_wrapping_evaluator_rejects_live_wrapper_error(
     assert "live proof wrapper error must be null for production evidence" in lane["gaps"]
 
 
+def test_zk_wrapping_builder_rejects_live_wrapper_error_before_writing_without_check(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "lib.rs").write_text("pub fn checked() {}\n", encoding="utf-8")
+    candidate_out = tmp_path / "candidate_zk_wrapping.json"
+    checked_out = tmp_path / "checked_zk_wrapping.json"
+    live_in = tmp_path / "captured_live_wrapper.json"
+
+    assert builder.main([*_base_builder_args(tmp_path, candidate_out, source_dir), "--candidate-only"]) == 0
+    capsys.readouterr()
+    candidate = json.loads(candidate_out.read_text(encoding="utf-8"))
+    live_status = _live_status_for_evidence(candidate)
+    live_status["zk_proof_verified"] = False
+    live_status["error"] = "proof rejected"
+    _write_json(live_in, live_status)
+
+    args = _base_builder_args(tmp_path, checked_out, source_dir)
+    code = builder.main([*args, "--live-wrapper-status", str(live_in)])
+
+    assert code == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "zk_wrapping_evidence_build_failed"
+    assert "live proof wrapper status rejected" in payload["detail"]
+    assert "zk_proof_verified=true" in payload["detail"]
+    assert not checked_out.exists()
+
+
 def test_zk_wrapping_evaluator_rejects_live_circuit_artifact_hash_drift(
     capsys,
     tmp_path: Path,

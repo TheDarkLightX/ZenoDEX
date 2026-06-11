@@ -280,6 +280,19 @@ def _build_evidence(args: argparse.Namespace) -> dict[str, Any]:
             "issued_at": issued_at,
         }
     )
+    if live_status is not None and not args.check:
+        # Live-wrapper status is an external production artifact. Verify its
+        # surface, artifact, sample, and freshness binding before writing a
+        # hashed evidence file; --candidate-only remains the explicit local
+        # preflight path for unbound artifacts.
+        check = evaluate_production_zk_wrapping_evidence_v1(
+            evidence,
+            live_proof_wrapper_status=live_status,
+            expected_surface=args.expected_surface,
+            now=args.check_now if args.check_now is not None else int(time.time()),
+        )
+        if check.get("production_ready") is not True:
+            raise ValueError(f"live proof wrapper status rejected: {check.get('gaps')}")
     return evidence
 
 
