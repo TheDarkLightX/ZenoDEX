@@ -10,6 +10,7 @@ from tools.build_operator_release_bundle import (
     verify_operator_release_manifest,
 )
 
+
 def _write(path: Path, text: str = "x\n") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
@@ -20,6 +21,8 @@ def _minimal_repo(tmp_path: Path) -> Path:
     for relpath in (
         "bin/zenoctl",
         "bin/zenodex-local-testnet",
+        "bin/zenodex-public-testnet",
+        "bin/zenodex-public-testnet.command",
         "scripts/install_zenodex.sh",
         "scripts/install_zenodex.ps1",
         "src/__init__.py",
@@ -27,7 +30,20 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "tools/zenoctl.py",
         "tools/zeno_ledger_node.py",
         "tools/check_zeno_ledger_light_client_checkpoint.py",
+        "tools/autogovnext_governance_lane_assurance_manifest.json",
+        "tools/build_app_root_jmt_evidence.py",
+        "tools/build_autotrader_evidence.py",
+        "tools/build_confidential_runtime_evidence.py",
+        "tools/build_hardware_wallet_evidence.py",
+        "tools/build_oracle_authority_evidence.py",
         "tools/build_operator_release_bundle.py",
+        "tools/build_production_promotion_evidence_manifest.py",
+        "tools/build_zk_wrapping_evidence_from_risc0_bundle.py",
+        "tools/check_autogovnext_governance_lane_assurance_manifest.py",
+        "tools/check_production_promotion_evidence_manifest.py",
+        "tools/production_promotion_evidence_manifest.json",
+        "tools/run_autogovnext_governance_lane_assurance_gate.sh",
+        "tools/run_production_promotion_evidence_gate.sh",
         "config/deploy/local-dev.yaml",
         ".docker/entrypoint.sh",
         "Dockerfile",
@@ -53,10 +69,15 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "pyproject.toml",
         "pytest.ini",
         "README.md",
+        "src/integration/production_promotion_evidence.py",
         "docs/DEPLOYMENT_QUICKSTART.md",
         "docs/DOCKER_HASHLOCKED_DEPLOYMENT.md",
         "docs/LOCAL_TESTNET_QUICKSTART.md",
+        "docs/AUTOGOVNEXT_AND_ZENODEX_PRODUCTION_READINESS_PLAN_2026_06_10.md",
+        "docs/AUTOGOVNEXT_GAME_THEORY_AND_MECHANISM_DESIGN.md",
+        "docs/PUBLIC_TESTNET_V0_1_16.md",
         "docs/PERMISSIONLESS_HOSTING.md",
+        "docs/PRODUCTION_PROMOTION_EVIDENCE_REQUIREMENTS.md",
         "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json",
         "docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md",
         "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
@@ -88,13 +109,25 @@ def test_build_operator_release_bundle_writes_archive_and_manifest(tmp_path: Pat
     paths = {item["path"] for item in manifest["files"]}
     assert "bin/zenoctl" in paths
     assert "bin/zenodex-local-testnet" in paths
+    assert "bin/zenodex-public-testnet" in paths
+    assert "bin/zenodex-public-testnet.command" in paths
     assert "scripts/install_zenodex.sh" in paths
     assert "tools/zenoctl.py" in paths
     assert "tools/check_zeno_ledger_light_client_checkpoint.py" in paths
+    assert "tools/autogovnext_governance_lane_assurance_manifest.json" in paths
+    assert "tools/check_autogovnext_governance_lane_assurance_manifest.py" in paths
+    assert "tools/run_autogovnext_governance_lane_assurance_gate.sh" in paths
+    assert "tools/build_production_promotion_evidence_manifest.py" in paths
+    assert "tools/check_production_promotion_evidence_manifest.py" in paths
+    assert "tools/run_production_promotion_evidence_gate.sh" in paths
     assert "tools/build_operator_release_bundle.py" in paths
     assert "Dockerfile.hashlocked" in paths
     assert "docker-compose.local-testnet.yml" in paths
     assert "docs/LOCAL_TESTNET_QUICKSTART.md" in paths
+    assert "docs/AUTOGOVNEXT_AND_ZENODEX_PRODUCTION_READINESS_PLAN_2026_06_10.md" in paths
+    assert "docs/AUTOGOVNEXT_GAME_THEORY_AND_MECHANISM_DESIGN.md" in paths
+    assert "docs/PUBLIC_TESTNET_V0_1_16.md" in paths
+    assert "docs/PRODUCTION_PROMOTION_EVIDENCE_REQUIREMENTS.md" in paths
     assert "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json" in paths
     assert "docs/claims_registry.yaml" in paths
     assert "packages/zeno-proof-client/package.json" in paths
@@ -123,6 +156,7 @@ def test_operator_release_bundle_archive_members_are_prefixed(tmp_path: Path) ->
     assert all(name.startswith("zenodex-operator-prefixed/") for name in names)
     assert "zenodex-operator-prefixed/bin/zenoctl" in names
     assert "zenodex-operator-prefixed/bin/zenodex-local-testnet" in names
+    assert "zenodex-operator-prefixed/bin/zenodex-public-testnet" in names
 
 
 def test_operator_release_bundle_is_deterministic_for_same_checkout(tmp_path: Path) -> None:
@@ -147,6 +181,71 @@ def test_operator_release_bundle_verify_rejects_tampered_archive(tmp_path: Path)
 
     assert verify["ok"] is False
     assert "archive_sha256 mismatch" in verify["errors"]
+
+
+def test_operator_release_bundle_verify_rejects_invalid_file_size(tmp_path: Path) -> None:
+    root = _minimal_repo(tmp_path)
+    report = build_operator_release_bundle(root=root, out_dir=tmp_path / "out", version="bad-size")
+    manifest_path = Path(report["manifest_path"])
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"][0]["size_bytes"] = True
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    verify = verify_operator_release_manifest(manifest_path=manifest_path)
+
+    # Review finding (grade B -> A-): the verifier compared a maybe-missing
+    # JSON field directly against zero. This now rejects bool/missing/negative
+    # sizes through an explicit type narrow before archive-member checks.
+    assert verify["ok"] is False
+    assert any(error.startswith("invalid file size:") for error in verify["errors"])
+
+
+def test_operator_release_bundle_verify_rejects_missing_required_operator_file(
+    tmp_path: Path,
+) -> None:
+    root = _minimal_repo(tmp_path)
+    report = build_operator_release_bundle(root=root, out_dir=tmp_path / "out", version="missing-required")
+    manifest_path = Path(report["manifest_path"])
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"] = [
+        item
+        for item in manifest["files"]
+        if item["path"] != "docs/PRODUCTION_PROMOTION_EVIDENCE_REQUIREMENTS.md"
+    ]
+    manifest["file_count"] = len(manifest["files"])
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    verify = verify_operator_release_manifest(manifest_path=manifest_path)
+
+    assert verify["ok"] is False
+    assert (
+        "missing required operator file: docs/PRODUCTION_PROMOTION_EVIDENCE_REQUIREMENTS.md"
+        in verify["errors"]
+    )
+
+
+def test_operator_release_bundle_verify_rejects_missing_autogovnext_gate(
+    tmp_path: Path,
+) -> None:
+    root = _minimal_repo(tmp_path)
+    report = build_operator_release_bundle(root=root, out_dir=tmp_path / "out", version="missing-autogov")
+    manifest_path = Path(report["manifest_path"])
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"] = [
+        item
+        for item in manifest["files"]
+        if item["path"] != "tools/run_autogovnext_governance_lane_assurance_gate.sh"
+    ]
+    manifest["file_count"] = len(manifest["files"])
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    verify = verify_operator_release_manifest(manifest_path=manifest_path)
+
+    assert verify["ok"] is False
+    assert (
+        "missing required operator file: tools/run_autogovnext_governance_lane_assurance_gate.sh"
+        in verify["errors"]
+    )
 
 
 def test_operator_release_bundle_cli_build_and_verify(tmp_path: Path, capsys) -> None:

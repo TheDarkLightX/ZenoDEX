@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "zenodex.operator_release_bundle.v0"
 
@@ -23,6 +22,7 @@ INCLUDE_PATHS = (
     "tools",
     "config",
     ".docker",
+    ".github/workflows/release-integrity.yml",
     "Dockerfile",
     "Dockerfile.hashlocked",
     "Dockerfile.operator-tools",
@@ -48,8 +48,12 @@ INCLUDE_PATHS = (
     "docs/DEPLOYMENT_QUICKSTART.md",
     "docs/DOCKER_HASHLOCKED_DEPLOYMENT.md",
     "docs/LOCAL_TESTNET_QUICKSTART.md",
+    "docs/AUTOGOVNEXT_AND_ZENODEX_PRODUCTION_READINESS_PLAN_2026_06_10.md",
+    "docs/AUTOGOVNEXT_GAME_THEORY_AND_MECHANISM_DESIGN.md",
+    "docs/PUBLIC_TESTNET_V0_1_16.md",
     "docs/LATEST_TESTNET_CHECKPOINT.md",
     "docs/PERMISSIONLESS_HOSTING.md",
+    "docs/PRODUCTION_PROMOTION_EVIDENCE_REQUIREMENTS.md",
     "docs/KEYS_STANDALONE_APP_SPEC.md",
     "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json",
     "docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md",
@@ -58,6 +62,32 @@ INCLUDE_PATHS = (
     "docs/assurance",
     "docs/claims_registry.yaml",
     "docs/tau_supported_runtime_contract.json",
+)
+
+REQUIRED_OPERATOR_PATHS = frozenset(
+    {
+        # Review finding (grade B+ -> A-): archive verification used to prove
+        # hash consistency only. An internally consistent operator bundle could
+        # omit the production-promotion gate and still verify. These files are
+        # the minimum release-evidence toolchain an operator must receive.
+        "docs/PRODUCTION_PROMOTION_EVIDENCE_REQUIREMENTS.md",
+        "docs/AUTOGOVNEXT_AND_ZENODEX_PRODUCTION_READINESS_PLAN_2026_06_10.md",
+        "docs/AUTOGOVNEXT_GAME_THEORY_AND_MECHANISM_DESIGN.md",
+        "src/integration/production_promotion_evidence.py",
+        "tools/autogovnext_governance_lane_assurance_manifest.json",
+        "tools/build_app_root_jmt_evidence.py",
+        "tools/build_autotrader_evidence.py",
+        "tools/build_confidential_runtime_evidence.py",
+        "tools/build_hardware_wallet_evidence.py",
+        "tools/build_oracle_authority_evidence.py",
+        "tools/build_production_promotion_evidence_manifest.py",
+        "tools/build_zk_wrapping_evidence_from_risc0_bundle.py",
+        "tools/check_production_promotion_evidence_manifest.py",
+        "tools/check_autogovnext_governance_lane_assurance_manifest.py",
+        "tools/production_promotion_evidence_manifest.json",
+        "tools/run_autogovnext_governance_lane_assurance_gate.sh",
+        "tools/run_production_promotion_evidence_gate.sh",
+    }
 )
 
 EXCLUDED_PARTS = {
@@ -177,10 +207,14 @@ def verify_operator_release_manifest(*, manifest_path: Path, archive_path: Path 
         seen.add(relpath)
         if not _is_safe_relative_path(relpath):
             errors.append(f"unsafe file path: {relpath}")
-        if not isinstance(item.get("size_bytes"), int) or item.get("size_bytes") < 0:
+        size_bytes = item.get("size_bytes")
+        if not isinstance(size_bytes, int) or isinstance(size_bytes, bool) or size_bytes < 0:
             errors.append(f"invalid file size: {relpath}")
         if not _looks_sha256(item.get("sha256")):
             errors.append(f"invalid file sha256: {relpath}")
+
+    for required_path in sorted(REQUIRED_OPERATOR_PATHS - seen):
+        errors.append(f"missing required operator file: {required_path}")
 
     if archive.is_file() and not errors:
         errors.extend(_verify_archive_members(archive=archive, manifest=manifest))
