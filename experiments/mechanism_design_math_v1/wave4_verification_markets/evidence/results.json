@@ -1,0 +1,76 @@
+{
+  "wave": 4,
+  "domain": "verification_markets",
+  "timestamp": "2026-06-11T00:00:00Z",
+  "hypotheses": [
+    {
+      "id": "H-MD-VM-001",
+      "description": "First-valid-wins proof races collapse to a unique fastest entrant in the deterministic speed-ranking model.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "With reward 10, the fastest prover at cost 7 enters and earns 3; slower provers with costs 5 and 1 lose for sure if they enter and therefore prefer exit. If the globally fastest prover is not profitable, the next-fastest profitable prover becomes the unique entrant.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave4_verification_markets/test_verification_market_deviations.py -q",
+      "obligation": "O-VM-01"
+    },
+    {
+      "id": "H-MD-VM-002",
+      "description": "The halving proof-mining reward schedule creates a participation cliff before a pre-funded pool is exhausted.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "At base reward 64 and prover cost 9, epochs 0..2 pay enough to participate, epoch 3 pays 8 and participation stops, leaving 888 of a 1000 pool. The bounded grid matches E_stop = min(epoch_cap + 1, bit_length(base // cost)) for cost > 1; cost-one provers remain active because the implemented schedule floors rewards at one.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave4_verification_markets/test_verification_market_deviations.py -q",
+      "obligation": "O-VM-02"
+    },
+    {
+      "id": "H-MD-VM-003",
+      "description": "Permissionless-hosting improvement ties are selectable because `_route_tiebreak_key` includes submitter-chosen `miner_id` and route shape.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "For equal routes and equal improvements, miner_id '0000' sorts before 'zzzz' and wins the tie under the implemented key order; one-hop routes also sort before two-hop routes for the same miner_id.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave4_verification_markets/test_verification_market_deviations.py -q",
+      "obligation": "O-VM-03"
+    },
+    {
+      "id": "H-MD-VM-004",
+      "description": "Per-round bounty caps and per-round base rewards make improvement withholding profitable in a concrete integer witness.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "With base_reward 10, improvement_reward_bps 2500, max_reward 25, and \u03b4 = 80, one-shot payout is capped at 25 while two \u03b4/2 submissions pay 20 + 20 = 40 across rounds.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave4_verification_markets/test_verification_market_deviations.py -q",
+      "obligation": "O-VM-04"
+    },
+    {
+      "id": "H-MD-VM-005",
+      "description": "The exact sybil submission-fee floor for flooding S slots is ceil(reward / S).",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "For rewards 1..128 and caps 1..16, flooding payoff reward - S * fee is non-positive exactly when fee >= ceil(reward / S), and one unit below the threshold is profitable when the threshold exceeds one.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave4_verification_markets/test_verification_market_deviations.py -q",
+      "obligation": "O-VM-05"
+    },
+    {
+      "id": "H-MD-VM-006",
+      "description": "Proof-mining pool conservation holds under admissible-award semantics with rejected claims treated as no-ops.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "Across a mixed valid/invalid epoch sequence, every admissible claim updates total_paid and pool so total_paid + pool remains the initial pool; invalid claims and insufficient-budget claims are modeled as no-ops.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave4_verification_markets/test_verification_market_deviations.py -q",
+      "obligation": "O-VM-06"
+    }
+  ],
+  "total_tests": 6,
+  "total_passed": 6,
+  "total_failed": 0
+}
