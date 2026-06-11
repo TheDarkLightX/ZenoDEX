@@ -6741,6 +6741,7 @@ class _Handler(BaseHTTPRequestHandler):
             path.startswith("/api/perps/")
             or path.startswith("/api/zusd/")
             or path.startswith("/api/dex/")
+            or path.startswith("/api/autogov/")
             or path.startswith("/api/strategy/autotrader/")
             or path.startswith("/api/confidential/attestation/")
         ):
