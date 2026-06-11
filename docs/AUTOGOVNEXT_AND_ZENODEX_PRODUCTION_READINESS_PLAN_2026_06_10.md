@@ -619,8 +619,8 @@ Current checker hardening in this workstream:
 - `oracle_authority` rejects localhost, private, or non-routable explorer URLs
   for public-testnet evidence, and verifies the authority attestation as an
   Ed25519 signature over the canonical public-testnet exercise statement. The
-  signer pubkey must also match the independently configured oracle authority
-  signer key in the promotion manifest.
+  chain ID and signer pubkey must also match the independently configured
+  production chain and oracle authority signer key in the promotion manifest.
 
 Adopted preflight for any production-readiness edit:
 

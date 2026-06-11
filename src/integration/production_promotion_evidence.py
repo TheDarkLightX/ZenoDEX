@@ -943,7 +943,9 @@ def _validate_oracle_network(
 ) -> None:
     if target_network is not None and target_network != _PUBLIC_TESTNET_NETWORK:
         gaps.add("production oracle authority evidence requires target_network=public_testnet")
-    if ctx.expected_chain_id is not None and chain_id is not None and chain_id != ctx.expected_chain_id:
+    if ctx.expected_chain_id is None:
+        gaps.add("expected chain_id is required for oracle authority binding")
+    elif chain_id is not None and chain_id != ctx.expected_chain_id:
         gaps.add("oracle authority evidence chain_id mismatch")
 
 

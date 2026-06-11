@@ -175,6 +175,62 @@ def test_oracle_builder_rejects_malformed_public_block_hash(capsys, tmp_path: Pa
     assert not out.exists()
 
 
+def test_oracle_builder_rejects_missing_expected_chain_id_before_writing(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    bounded_path = tmp_path / "bounded.json"
+    bounded_path.write_text(json.dumps(_bounded_oracle_exercise()), encoding="utf-8")
+    out = tmp_path / "oracle_authority.json"
+    args = _base_args(tmp_path, bounded_path, out)
+    index = args.index("--expected-chain-id")
+    del args[index : index + 2]
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "oracle_authority_evidence_build_failed"
+    assert "expected chain_id is required" in payload["detail"]
+    assert not out.exists()
+
+
+def test_oracle_builder_rejects_expected_chain_id_mismatch_before_writing(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    bounded_path = tmp_path / "bounded.json"
+    bounded_path.write_text(json.dumps(_bounded_oracle_exercise()), encoding="utf-8")
+    out = tmp_path / "oracle_authority.json"
+    args = _base_args(tmp_path, bounded_path, out)
+    args[args.index("--expected-chain-id") + 1] = "wrong-chain"
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "oracle_authority_evidence_build_failed"
+    assert "does not match expected chain_id" in payload["detail"]
+    assert not out.exists()
+
+
+def test_oracle_builder_rejects_missing_expected_authority_signer_before_writing(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    bounded_path = tmp_path / "bounded.json"
+    bounded_path.write_text(json.dumps(_bounded_oracle_exercise()), encoding="utf-8")
+    out = tmp_path / "oracle_authority.json"
+    args = _base_args(tmp_path, bounded_path, out)
+    index = args.index("--expected-authority-signer-pubkey")
+    del args[index : index + 2]
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "oracle_authority_evidence_build_failed"
+    assert "expected oracle authority signer pubkey is required" in payload["detail"]
+    assert not out.exists()
+
+
 def test_oracle_builder_rejects_unexpected_authority_signer_before_writing(
     capsys,
     tmp_path: Path,
@@ -191,6 +247,27 @@ def test_oracle_builder_rejects_unexpected_authority_signer_before_writing(
     assert payload["error"] == "oracle_authority_evidence_build_failed"
     assert "expected authority signer pubkey" in payload["detail"]
     assert not out.exists()
+
+
+def test_oracle_evaluator_requires_expected_chain_id(capsys, tmp_path: Path) -> None:
+    bounded_path = tmp_path / "bounded.json"
+    bounded_path.write_text(json.dumps(_bounded_oracle_exercise()), encoding="utf-8")
+    out = tmp_path / "oracle_authority.json"
+
+    assert builder.main(_base_args(tmp_path, bounded_path, out)) == 0
+    assert json.loads(capsys.readouterr().out)["ok"] is True
+    evidence = json.loads(out.read_text(encoding="utf-8"))
+
+    lane = evaluate_production_oracle_authority_evidence_v1(
+        evidence,
+        bounded_exercise_status=_bounded_oracle_exercise(),
+        expected_chain_id=None,
+        expected_authority_signer_pubkey=_oracle_pubkey_hex(),
+        now=NOW,
+    )
+
+    assert lane["production_ready"] is False
+    assert "expected chain_id is required for oracle authority binding" in lane["gaps"]
 
 
 def test_oracle_builder_check_rejects_local_explorer_url(capsys, tmp_path: Path) -> None:

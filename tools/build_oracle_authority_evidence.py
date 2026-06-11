@@ -113,6 +113,11 @@ def build_oracle_authority_evidence(args: argparse.Namespace) -> tuple[dict[str,
         label="authority attestation signer pubkey",
         length=64,
     )
+    expected_chain_id = args.expected_chain_id
+    if not isinstance(expected_chain_id, str) or not expected_chain_id:
+        raise ValueError("expected chain_id is required for oracle authority binding")
+    if _required_str(bounded, "chain_id", label="bounded oracle exercise status") != expected_chain_id:
+        raise ValueError("bounded oracle exercise status.chain_id does not match expected chain_id")
     expected_signer_pubkey = (
         _normalize_hex(
             args.expected_authority_signer_pubkey,
@@ -122,13 +127,15 @@ def build_oracle_authority_evidence(args: argparse.Namespace) -> tuple[dict[str,
         if args.expected_authority_signer_pubkey
         else None
     )
-    if expected_signer_pubkey is not None and signer_pubkey != expected_signer_pubkey:
+    if expected_signer_pubkey is None:
+        raise ValueError("expected oracle authority signer pubkey is required for binding")
+    if signer_pubkey != expected_signer_pubkey:
         raise ValueError("authority attestation signer pubkey does not match expected authority signer pubkey")
     evidence = attach_production_oracle_authority_hash_v1(
         {
             "schema": ORACLE_AUTHORITY_EVIDENCE_SCHEMA_V1,
             "authority_id": args.authority_id,
-            "chain_id": _required_str(bounded, "chain_id", label="bounded oracle exercise status"),
+            "chain_id": expected_chain_id,
             "target_network": args.target_network,
             "exercise_hash": _required_str(bounded, "exercise_hash", label="bounded oracle exercise status"),
             "profile_authority_hash": _required_str(bounded, "authority_hash", label="bounded oracle exercise status"),
