@@ -346,7 +346,14 @@ def enforce_settlement_end_to_end_certificate(
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Any | None = None,
 ) -> tuple[bool, str | None, SettlementEndToEndCertificatePacket | None]:
+    # The protocol-fee config MUST reach the strong validator on this path too:
+    # leaving it at the default 0 while a protocol fee is configured would make
+    # the certificate path replay fee-less swap math (and skip the
+    # route/protocol-fee gate), letting a certificate-validated settlement
+    # bypass protocol fee capture.
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=intents,
@@ -356,6 +363,8 @@ def enforce_settlement_end_to_end_certificate(
         mode=mode,
         allow_cow_netting=allow_cow_netting,
         allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
     if not ok:
         return False, err, None

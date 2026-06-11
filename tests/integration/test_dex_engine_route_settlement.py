@@ -1522,3 +1522,139 @@ def test_gate_rejected_route_reject_is_unjustified_without_protocol_fee() -> Non
     )
     assert not ok
     assert "route reject not justified" in err
+
+
+def _route_certificate_inputs():
+    from src.integration.settlement_end_to_end_certificate_packet import (
+        SettlementEndToEndCertificateInputs,
+    )
+    from src.integration.settlement_feature_extension_packet import (
+        SettlementFeatureExtensionInputs,
+    )
+    from src.integration.settlement_price_provenance import (
+        SettlementSpotPriceEntry,
+        build_settlement_spot_price_packet,
+    )
+    from src.integration.settlement_strong_certificate import SettlementProofFlags
+
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(
+                asset="A",
+                price=100,
+                observed_epoch=95,
+                age_epochs=5,
+                source_id="oracle:a",
+            ),
+            SettlementSpotPriceEntry(
+                asset="B",
+                price=120,
+                observed_epoch=97,
+                age_epochs=3,
+                source_id="oracle:b",
+            ),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    return SettlementEndToEndCertificateInputs(
+        proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        feature_extension_inputs=SettlementFeatureExtensionInputs(
+            trade_amount=100,
+            fee_charged=1,
+            buyback_amount=1,
+            burned_amount=1,
+            supply_before=1_000,
+            supply_after=999,
+            supply_floor=500,
+            unit_scale=1,
+            rebate_rate_bps=500,
+            rebate_amount=1,
+            rebate_cap=1,
+            lock_days=60,
+            stake_amount=50,
+            tier1_days=30,
+            tier2_days=90,
+            weight_t1=1,
+            weight_t2=2,
+            weight_t3=3,
+            weight_claimed=2,
+            weighted_stake=100,
+        ),
+        price_packet=price_packet,
+    )
+
+
+def test_certificate_path_forwards_protocol_fee_to_route_gate() -> None:
+    # The end-to-end-certificate acceptance path calls validate_settlement_strong
+    # internally; the protocol-fee config must reach it there too, or a
+    # certificate-validated route FILL would bypass the protocol-fee gate.
+    # The route-gate error below can only be produced by validate_settlement_strong
+    # receiving protocol_fee_share_bps>0 through enforce_settlement_end_to_end_certificate.
+    from src.integration.settlement_end_to_end_certificate_packet import (
+        enforce_settlement_end_to_end_certificate,
+    )
+
+    pools, balances, settlement, sanitized, _quote = _validator_fixture()
+    assert settlement.fills[0].action == FillAction.FILL
+
+    ok, err, _packet = enforce_settlement_end_to_end_certificate(
+        settlement=settlement,
+        certificate_inputs=_route_certificate_inputs(),
+        intents=[sanitized],
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        allow_snapshot_bound_quote_bindings=True,
+        protocol_fee_share_bps=30,
+        protocol_fee_recipient_pubkey=FEE_RECIP,
+    )
+    assert not ok
+    assert "route fills unsupported when protocol_fee_share_bps > 0" in str(err)
+
+
+def test_certificate_path_forwards_protocol_fee_recipient_requirement() -> None:
+    from src.integration.settlement_end_to_end_certificate_packet import (
+        enforce_settlement_end_to_end_certificate,
+    )
+
+    pools, balances, settlement, sanitized, _quote = _validator_fixture()
+    assert settlement.fills[0].action == FillAction.FILL
+
+    ok, err, _packet = enforce_settlement_end_to_end_certificate(
+        settlement=settlement,
+        certificate_inputs=_route_certificate_inputs(),
+        intents=[sanitized],
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        allow_snapshot_bound_quote_bindings=True,
+        protocol_fee_share_bps=30,
+        protocol_fee_recipient_pubkey=None,
+    )
+    assert not ok
+    assert "protocol_fee_recipient_pubkey is required" in str(err)
+
+
+def test_certificate_path_preserves_strict_protocol_fee_bps_type() -> None:
+    from src.integration.settlement_end_to_end_certificate_packet import (
+        enforce_settlement_end_to_end_certificate,
+    )
+
+    pools, balances, settlement, sanitized, _quote = _validator_fixture()
+    assert settlement.fills[0].action == FillAction.FILL
+
+    ok, err, _packet = enforce_settlement_end_to_end_certificate(
+        settlement=settlement,
+        certificate_inputs=_route_certificate_inputs(),
+        intents=[sanitized],
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        allow_snapshot_bound_quote_bindings=True,
+        protocol_fee_share_bps=True,  # type: ignore[arg-type]
+        protocol_fee_recipient_pubkey=FEE_RECIP,
+    )
+    assert not ok
+    assert "protocol_fee_share_bps must be an int" in str(err)

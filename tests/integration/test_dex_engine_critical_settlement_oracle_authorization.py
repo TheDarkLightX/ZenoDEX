@@ -275,3 +275,57 @@ def test_critical_settlement_rejects_authorization_without_price_history() -> No
 
     assert res.ok is False
     assert res.error == "critical settlement oracle authorization requires settlement_certificate_price_history"
+
+
+def test_critical_settlement_authorization_binds_fee_accumulator_pre_state_root() -> None:
+    # Regression: the engine's pre_state_hash for critical-settlement oracle
+    # authorization must bind state.fee_accumulator (state-root v5 dust carry).
+    # The route-settlement port (a2346d18) dropped fee_accumulator from this
+    # compute_state_root call; with NON-EMPTY dust the engine then derived a
+    # different pre-state root than the authorization signer and rejected every
+    # valid authorization with "pre_state_hash mismatch". The empty-dust case
+    # cannot catch this (fee_accumulator=None is defined equal to dust==0), so
+    # this test pins the non-empty case end-to-end through apply_ops.
+    from dataclasses import replace as dc_replace
+
+    from src.core.fees import FeeAccumulatorState
+
+    state, intent_dicts, _settlement_op, _runtime = _state_intent_and_settlement()
+    state = dc_replace(state, fee_accumulator=FeeAccumulatorState(dust=7))
+
+    intents = parse_intents({"2": intent_dicts})
+    settlement = compute_settlement(
+        intents=intents,
+        pools=state.pools,
+        balances=state.balances,
+        lp_balances=state.lp_balances,
+    )
+    settlement_op = create_settlement_operation(settlement)["3"]
+    pre_state_hash = compute_state_root(
+        balances=state.balances,
+        pools=state.pools,
+        lp_balances=state.lp_balances,
+        nonces=state.nonces,
+        fee_accumulator=state.fee_accumulator,
+    )
+    runtime = critical_settlement_runtime_facts(
+        settlement=settlement,
+        pre_state_hash=pre_state_hash,
+        price_history=PRICE_HISTORY,
+        now_epoch=42,
+    )
+    settlement_op["oracle_authorization"] = _authorization_for(runtime)
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            require_intent_signatures=False,
+            settlement_certificate_price_history=PRICE_HISTORY,
+            require_oracle_authorization_for_critical_settlements=True,
+        ),
+        state=state,
+        operations={"2": intent_dicts, "3": settlement_op},
+        block_timestamp=42,
+        tx_sender_pubkey=intent_dicts[0]["sender_pubkey"],
+    )
+
+    assert res.ok is True, res.error
