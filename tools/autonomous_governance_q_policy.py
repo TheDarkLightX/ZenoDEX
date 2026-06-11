@@ -17,8 +17,13 @@ from src.integration.autonomous_governance_q_policy import (  # noqa: E402
     commit_autonomous_governance_surface_q_policy_v1,
     evaluate_autonomous_governance_q_policy_v1,
     evaluate_autonomous_governance_surface_q_policy_v1,
+    governance_surface_context_hash_v1,
     sample_autonomous_governance_q_policy_v1,
     sample_autonomous_governance_surface_q_policy_v1,
+)
+from src.integration.autonomous_governance_trajectory import (  # noqa: E402
+    run_autonomous_governance_surface_trajectory_v1,
+    verify_autonomous_governance_surface_trajectory_v1,
 )
 
 
@@ -60,21 +65,31 @@ def _sample_bundle() -> dict[str, Any]:
 
 def _sample_surface_bundle() -> dict[str, Any]:
     policy = sample_autonomous_governance_surface_q_policy_v1()
+    surface_state = {
+        "fee_bps": 30,
+        "buyburn_bps": 6_000,
+        "stakers_bps": 0,
+        "reserve_bps": 2_000,
+        "hosts_bps": 2_000,
+        "mcr_bps": 11_000,
+        "ccr_bps": 15_000,
+        "staker_bps": 5_000,
+        "funding_cap_bps": 120,
+    }
+    current_epoch = 34
+    proposal_epoch = 10
+    last_update_epoch = 32
     return {
         "schema": "zenodex.autonomous_governance.q_surface_policy_eval_bundle.v1",
         "policy": policy,
         "expected_policy_hash": policy["policy_hash"],
-        "surface_state": {
-            "fee_bps": 30,
-            "buyburn_bps": 6_000,
-            "stakers_bps": 0,
-            "reserve_bps": 2_000,
-            "hosts_bps": 2_000,
-            "mcr_bps": 11_000,
-            "ccr_bps": 15_000,
-            "staker_bps": 5_000,
-            "funding_cap_bps": 120,
-        },
+        "expected_committed_context_hash": governance_surface_context_hash_v1(
+            surface_state=surface_state,
+            current_epoch=current_epoch,
+            proposal_epoch=proposal_epoch,
+            last_update_epoch=last_update_epoch,
+        ),
+        "surface_state": surface_state,
         "observation": {
             "observed_price_bps": 10_500,
             "target_price_bps": 10_000,
@@ -83,9 +98,37 @@ def _sample_surface_bundle() -> dict[str, Any]:
             "freshness_lag_epochs": 0,
             "liquidity_depth_bps": 5_000,
         },
-        "current_epoch": 34,
-        "proposal_epoch": 10,
-        "last_update_epoch": 32,
+        "current_epoch": current_epoch,
+        "proposal_epoch": proposal_epoch,
+        "last_update_epoch": last_update_epoch,
+    }
+
+
+def _sample_trajectory_bundle() -> dict[str, Any]:
+    surface = _sample_surface_bundle()
+    policy = surface["policy"]
+
+    def step(observation: dict[str, Any], current_epoch: int) -> dict[str, Any]:
+        return {
+            "observation": observation,
+            "current_epoch": current_epoch,
+            "proposal_epoch": current_epoch - 24,
+        }
+
+    hot = dict(surface["observation"])
+    calm = {**hot, "observed_price_bps": 10_000, "volatility_bps": 25, "divergence_bps": 5}
+    return {
+        "schema": "zenodex.autonomous_governance.q_surface_trajectory_bundle.v1",
+        "policy": policy,
+        "expected_policy_hash": surface["expected_policy_hash"],
+        "initial_surface_state": dict(surface["surface_state"]),
+        "steps": [step(hot, 100), step(calm, 125), step(hot, 150)],
+        "trajectory_budget": {
+            "fee_bps": 50,
+            "funding_cap_bps": 25,
+            "buyburn_bps": 200,
+            "reserve_bps": 200,
+        },
     }
 
 
@@ -99,7 +142,15 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 
 def _cmd_sample(args: argparse.Namespace) -> int:
-    bundle = _sample_surface_bundle() if args.surface else _sample_bundle()
+    if args.surface and args.trajectory:
+        sys.stderr.write("choose at most one of --surface / --trajectory\n")
+        return 3
+    if args.trajectory:
+        bundle = _sample_trajectory_bundle()
+    elif args.surface:
+        bundle = _sample_surface_bundle()
+    else:
+        bundle = _sample_bundle()
     text = json.dumps(bundle, indent=2, sort_keys=True) + "\n"
     if args.output:
         Path(args.output).write_text(text, encoding="utf-8")
@@ -120,6 +171,7 @@ def _cmd_evaluate(args: argparse.Namespace) -> int:
                 proposal_epoch=bundle.get("proposal_epoch"),
                 last_update_epoch=bundle.get("last_update_epoch"),
                 expected_policy_hash=bundle.get("expected_policy_hash"),
+                expected_committed_context_hash=bundle.get("expected_committed_context_hash"),
             )
         else:
             result = evaluate_autonomous_governance_q_policy_v1(
@@ -159,6 +211,7 @@ def _cmd_step(args: argparse.Namespace) -> int:
             proposal_epoch=bundle.get("proposal_epoch"),
             last_update_epoch=bundle.get("last_update_epoch"),
             expected_policy_hash=bundle.get("expected_policy_hash"),
+            expected_committed_context_hash=bundle.get("expected_committed_context_hash"),
         )
     except Exception as exc:
         result = {
@@ -174,6 +227,56 @@ def _cmd_step(args: argparse.Namespace) -> int:
     return 0 if result.get("ok") is True else 2
 
 
+def _cmd_trajectory(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        result = run_autonomous_governance_surface_trajectory_v1(
+            policy=bundle.get("policy", {}),
+            initial_surface_state=bundle.get("initial_surface_state", {}),
+            steps=bundle.get("steps", []),
+            expected_policy_hash=bundle.get("expected_policy_hash", ""),
+            last_update_epoch=bundle.get("last_update_epoch"),
+            trajectory_budget=bundle.get("trajectory_budget"),
+            trajectory_used=bundle.get("trajectory_used"),
+            previous_approved_deltas=bundle.get("previous_approved_deltas"),
+        )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"trajectory_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("ok") is True else 2
+
+
+def _cmd_verify_trajectory(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        if "trajectory_receipt" not in bundle or "policy" not in bundle:
+            raise ValueError("verify_trajectory_requires_policy_and_trajectory_receipt")
+        result = verify_autonomous_governance_surface_trajectory_v1(
+            receipt=bundle.get("trajectory_receipt", {}),
+            policy=bundle.get("policy", {}),
+        )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"verify_trajectory_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("ok") is True else 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -181,6 +284,9 @@ def main(argv: list[str] | None = None) -> int:
     sample = sub.add_parser("sample", help="write a sample evaluation bundle")
     sample.add_argument("--output", help="path to write; stdout when omitted")
     sample.add_argument("--surface", action="store_true", help="sample the governance-surface bundle")
+    sample.add_argument(
+        "--trajectory", action="store_true", help="sample the multi-step trajectory bundle"
+    )
     sample.set_defaults(func=_cmd_sample)
 
     evaluate = sub.add_parser("evaluate", help="evaluate a policy bundle")
@@ -190,6 +296,22 @@ def main(argv: list[str] | None = None) -> int:
     step = sub.add_parser("step", help="evaluate and apply one governance-surface policy step")
     step.add_argument("bundle", help="path to surface evaluation bundle JSON")
     step.set_defaults(func=_cmd_step)
+
+    trajectory = sub.add_parser(
+        "trajectory",
+        help="run a multi-step autonomous governance trajectory (fail-closed)",
+    )
+    trajectory.add_argument("bundle", help="path to trajectory bundle JSON")
+    trajectory.set_defaults(func=_cmd_trajectory)
+
+    verify_trajectory = sub.add_parser(
+        "verify-trajectory",
+        help="independently re-verify a trajectory receipt against its policy",
+    )
+    verify_trajectory.add_argument(
+        "bundle", help="path to JSON with {policy, trajectory_receipt}"
+    )
+    verify_trajectory.set_defaults(func=_cmd_verify_trajectory)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

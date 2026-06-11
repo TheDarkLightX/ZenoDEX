@@ -32,6 +32,15 @@ wrappers of `gov_gate` do not change the final gate report; artifact source
 manifests still record the verifier/runtime files so drift is explicit at
 promotion time.
 
+Surface evaluation can also bind the committed-state context with
+`expected_committed_context_hash`. The hash covers the current surface state,
+`current_epoch`, `proposal_epoch`, optional `last_update_epoch`,
+`previous_approved_deltas`, and `trajectory_used`. A mismatch adds
+`committed_context_hash_mismatch`, keeps `approved = false`, and makes
+`commit_autonomous_governance_surface_q_policy_v1` return a deterministic no-op.
+This is the integration hook that prevents a proposer or relay from choosing a
+convenient `curr`/epoch anchor for the step gate.
+
 Optimized policies may use `selection.mode = "first_admissible"`. In that mode
 the table is a deterministic action ranking: the evaluator checks candidates in
 score order and executes the first one accepted by the governance gates. A
@@ -104,6 +113,12 @@ Generate a governance-surface sample bundle:
 
 ```bash
 python3 tools/autonomous_governance_q_policy.py sample --surface --output /tmp/autogov-surface-q-bundle.json
+```
+
+Generate a multi-step trajectory bundle:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py sample --trajectory --output /tmp/autogov-trajectory-bundle.json
 ```
 
 Generate a Julia-optimized frozen policy plus replay report:
@@ -308,12 +323,32 @@ Evaluate and apply one governance-surface step:
 python3 tools/autonomous_governance_q_policy.py step /tmp/autogov-surface-q-bundle.json
 ```
 
+Run a multi-step trajectory and independently verify the receipt:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py trajectory /tmp/autogov-trajectory-bundle.json > /tmp/autogov-trajectory-receipt.json
+python3 - <<'PY'
+import json
+bundle = json.load(open("/tmp/autogov-trajectory-bundle.json"))
+receipt = json.load(open("/tmp/autogov-trajectory-receipt.json"))
+json.dump({"policy": bundle["policy"], "trajectory_receipt": receipt}, open("/tmp/autogov-trajectory-verify-bundle.json", "w"), sort_keys=True)
+PY
+python3 tools/autonomous_governance_q_policy.py verify-trajectory /tmp/autogov-trajectory-verify-bundle.json
+```
+
 Exit code `0` means the autonomous revision packet is approved. Exit code `2`
 means it was rejected fail-closed. Exit code `3` means the input could not be
 evaluated.
 
 For `step`, exit code `0` means the commit loop produced a deterministic
 decision. Inspect `admitted` to distinguish an applied revision from a no-op.
+
+For `trajectory`, the runner owns the cross-step state that is easy for callers
+to forget: applied surface state, `trajectory_used`,
+`previous_approved_deltas`, and `last_update_epoch`. Every internal single-step
+call is supplied with an `expected_committed_context_hash`; the final
+hash-chained receipt is verified by replay through
+`verify_autonomous_governance_surface_trajectory_v1`.
 
 ## Design Notes
 
@@ -340,6 +375,9 @@ paths are:
 - `src/integration/autonomous_governance_q_policy.py`: applies the blocker
   penalty before first-admissible selection and emits the candidate-search
   counters.
+- `src/integration/autonomous_governance_trajectory.py`: owns multi-step
+  trajectory threading, context hashes, receipt chains, and independent replay
+  verification.
 - `tools/autonomous_governance_policy_factory.py`: aggregates
   `selection_penalized_count_total` alongside exact gate checks and scanned
   candidates.

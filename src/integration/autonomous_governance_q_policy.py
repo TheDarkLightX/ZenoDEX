@@ -17,6 +17,9 @@ from src.tau_specs.governance import gov_gate
 AUTONOMOUS_GOVERNANCE_Q_POLICY_SCHEMA_V1 = "zenodex.autonomous_governance.q_policy.v1"
 AUTONOMOUS_GOVERNANCE_Q_RECEIPT_SCHEMA_V1 = "zenodex.autonomous_governance.q_receipt.v1"
 AUTONOMOUS_GOVERNANCE_SURFACE_STEP_SCHEMA_V1 = "zenodex.autonomous_governance.q_surface_step.v1"
+AUTONOMOUS_GOVERNANCE_SURFACE_CONTEXT_SCHEMA_V1 = (
+    "zenodex.autonomous_governance.committed_surface_context.v1"
+)
 
 PARAMETER_NAMES_V1 = (
     "fee",
@@ -148,6 +151,58 @@ def policy_content_hash_v1(policy: Mapping[str, Any]) -> str:
     body = dict(policy)
     body.pop("policy_hash", None)
     return hash_v0("autonomous_governance_q_policy_v1", body)
+
+
+def governance_surface_context_hash_v1(
+    *,
+    surface_state: Mapping[str, Any],
+    current_epoch: int,
+    proposal_epoch: int,
+    last_update_epoch: int | None = None,
+    previous_approved_deltas: Mapping[str, Any] | None = None,
+    trajectory_used: Mapping[str, Any] | None = None,
+) -> str:
+    """Hash the committed state context consumed by a surface-policy step.
+
+    Live autonomous governance should compare this hash with an independently
+    attested committed-state context before accepting a policy receipt. The hash
+    covers the current surface values plus the epoch and trajectory bookkeeping
+    that make the pointwise and trajectory gates meaningful.
+    """
+
+    errors: list[str] = []
+    state, state_errors = _normalize_surface_state(surface_state)
+    errors.extend(state_errors)
+    normalized_current_epoch = _require_nonnegative_int_or_error(
+        current_epoch, name="current_epoch", errors=errors
+    )
+    normalized_proposal_epoch = _require_nonnegative_int_or_error(
+        proposal_epoch, name="proposal_epoch", errors=errors
+    )
+    normalized_last_update_epoch = _normalize_optional_nonnegative_int(
+        last_update_epoch,
+        name="last_update_epoch",
+        errors=errors,
+    )
+    normalized_trajectory_used, trajectory_used_errors = _normalize_trajectory_used(trajectory_used)
+    errors.extend(trajectory_used_errors)
+    if errors:
+        raise ValueError(";".join(errors))
+    normalized_previous_deltas, previous_delta_errors = _normalize_previous_approved_deltas(
+        previous_approved_deltas
+    )
+    errors.extend(previous_delta_errors)
+    if errors:
+        raise ValueError(";".join(errors))
+    context = _surface_context_payload(
+        state=state,
+        current_epoch=normalized_current_epoch,
+        proposal_epoch=normalized_proposal_epoch,
+        last_update_epoch=normalized_last_update_epoch,
+        previous_approved_deltas=normalized_previous_deltas,
+        trajectory_used=normalized_trajectory_used,
+    )
+    return _surface_context_hash(context)
 
 
 def _policy_content_hash_for_receipt(policy: object, errors: list[str]) -> str:
@@ -424,6 +479,7 @@ def evaluate_autonomous_governance_surface_q_policy_v1(
     proposal_epoch: int,
     last_update_epoch: int | None = None,
     expected_policy_hash: str | None = None,
+    expected_committed_context_hash: str | None = None,
     previous_approved_deltas: Mapping[str, Any] | None = None,
     trajectory_budget: Mapping[str, Any] | None = None,
     trajectory_used: Mapping[str, Any] | None = None,
@@ -463,11 +519,34 @@ def evaluate_autonomous_governance_surface_q_policy_v1(
     normalized_proposal_epoch = _require_nonnegative_int_or_error(
         proposal_epoch, name="proposal_epoch", errors=errors
     )
+    normalized_last_update_epoch = _normalize_optional_nonnegative_int(
+        last_update_epoch,
+        name="last_update_epoch",
+        errors=errors,
+    )
+    normalized_previous_deltas, previous_delta_errors = _normalize_previous_approved_deltas(
+        previous_approved_deltas
+    )
+    errors.extend(previous_delta_errors)
+    committed_context = _surface_context_payload(
+        state=state,
+        current_epoch=normalized_current_epoch,
+        proposal_epoch=normalized_proposal_epoch,
+        last_update_epoch=normalized_last_update_epoch,
+        previous_approved_deltas=normalized_previous_deltas,
+        trajectory_used=normalized_trajectory_used,
+    )
+    committed_context_hash = _surface_context_hash(committed_context)
+    if (
+        expected_committed_context_hash is not None
+        and expected_committed_context_hash != committed_context_hash
+    ):
+        errors.append("committed_context_hash_mismatch")
     safety_errors = _safety_errors(
         normalized_policy,
         obs,
         current_epoch=normalized_current_epoch,
-        last_update_epoch=last_update_epoch,
+        last_update_epoch=normalized_last_update_epoch,
     )
     errors.extend(safety_errors)
 
@@ -502,7 +581,7 @@ def evaluate_autonomous_governance_surface_q_policy_v1(
             proposal_epoch=normalized_proposal_epoch,
             current_epoch=normalized_current_epoch,
             existing_errors=errors,
-            previous_approved_deltas=previous_approved_deltas,
+            previous_approved_deltas=normalized_previous_deltas,
             trajectory_budget=normalized_trajectory_budget,
             trajectory_used=normalized_trajectory_used,
         )
@@ -560,7 +639,10 @@ def evaluate_autonomous_governance_surface_q_policy_v1(
         "state_bins": state_bins,
         "scores": scores,
         "candidate_search": candidate_search,
-        "previous_approved_deltas": _normalize_delta_history(previous_approved_deltas),
+        "committed_context": committed_context,
+        "committed_context_hash": committed_context_hash,
+        "expected_committed_context_hash": expected_committed_context_hash or "",
+        "previous_approved_deltas": normalized_previous_deltas,
         "trajectory_budget": normalized_trajectory_budget,
         "trajectory_used": normalized_trajectory_used,
         "observation": obs,
@@ -591,6 +673,7 @@ def commit_autonomous_governance_surface_q_policy_v1(
     proposal_epoch: int,
     last_update_epoch: int | None = None,
     expected_policy_hash: str | None = None,
+    expected_committed_context_hash: str | None = None,
     previous_approved_deltas: Mapping[str, Any] | None = None,
     trajectory_budget: Mapping[str, Any] | None = None,
     trajectory_used: Mapping[str, Any] | None = None,
@@ -612,6 +695,7 @@ def commit_autonomous_governance_surface_q_policy_v1(
         proposal_epoch=proposal_epoch,
         last_update_epoch=last_update_epoch,
         expected_policy_hash=expected_policy_hash,
+        expected_committed_context_hash=expected_committed_context_hash,
         previous_approved_deltas=previous_approved_deltas,
         trajectory_budget=trajectory_budget,
         trajectory_used=trajectory_used,
@@ -863,6 +947,26 @@ def _normalize_delta_history(raw: Mapping[str, Any] | None) -> dict[str, int]:
     return out
 
 
+def _normalize_previous_approved_deltas(
+    raw: Mapping[str, Any] | None,
+) -> tuple[dict[str, int], list[str]]:
+    if raw is None:
+        return {}, []
+    if not isinstance(raw, Mapping):
+        return {}, ["previous_approved_deltas_must_be_object"]
+    errors: list[str] = []
+    out: dict[str, int] = {}
+    for key, value in raw.items():
+        if key not in SURFACE_PARAMETER_NAMES_V1:
+            errors.append(f"unknown_previous_approved_delta_parameter:{key}")
+            continue
+        if type(value) is not int:
+            errors.append(f"previous_approved_deltas.{key} must be an int")
+            continue
+        out[str(key)] = int(value)
+    return out, errors
+
+
 def _anti_oscillation_failures(
     *,
     policy: Mapping[str, Any],
@@ -943,6 +1047,53 @@ def _require_nonnegative_int_or_error(value: object, *, name: str, errors: list[
     except ValueError as exc:
         errors.append(str(exc))
         return 0
+
+
+def _normalize_optional_nonnegative_int(
+    value: object,
+    *,
+    name: str,
+    errors: list[str],
+) -> int | None:
+    if value is None:
+        return None
+    try:
+        return _require_nonnegative_int(value, name=name)
+    except ValueError as exc:
+        errors.append(str(exc))
+        return None
+
+
+def _surface_context_payload(
+    *,
+    state: Mapping[str, int],
+    current_epoch: int,
+    proposal_epoch: int,
+    last_update_epoch: int | None,
+    previous_approved_deltas: Mapping[str, int],
+    trajectory_used: Mapping[str, int],
+) -> dict[str, Any]:
+    return {
+        "schema": AUTONOMOUS_GOVERNANCE_SURFACE_CONTEXT_SCHEMA_V1,
+        "surface_state": {name: int(state[name]) for name in SURFACE_PARAMETER_NAMES_V1 if name in state},
+        "current_epoch": int(current_epoch),
+        "proposal_epoch": int(proposal_epoch),
+        "last_update_epoch": last_update_epoch,
+        "previous_approved_deltas": {
+            name: int(previous_approved_deltas[name])
+            for name in sorted(previous_approved_deltas)
+            if name in SURFACE_PARAMETER_NAMES_V1
+        },
+        "trajectory_used": {
+            name: int(trajectory_used[name])
+            for name in sorted(trajectory_used)
+            if name in SURFACE_PARAMETER_NAMES_V1
+        },
+    }
+
+
+def _surface_context_hash(context: Mapping[str, Any]) -> str:
+    return hash_v0("autonomous_governance_surface_context_v1", context)
 
 
 def _normalize_policy(
