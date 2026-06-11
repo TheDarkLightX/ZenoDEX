@@ -124,6 +124,31 @@ def _verify_ed25519_signature(*, pubkey: str, signature: str, message: bytes, la
         raise ValueError(f"{label} is invalid") from exc
 
 
+def _load_expected_approval_signer_pubkeys(args: argparse.Namespace) -> frozenset[str]:
+    if args.expected_approval_signer_pubkeys_file is not None:
+        raw = _load_json(args.expected_approval_signer_pubkeys_file, label="expected approval signer pubkeys")
+    else:
+        raw = json.loads(args.expected_approval_signer_pubkeys_json)
+    if not isinstance(raw, list):
+        raise ValueError("expected approval signer pubkeys must be a JSON list")
+    if len(raw) < _MIN_AUTOTRADER_MULTI_SIGNERS or len(raw) > _MAX_AUTOTRADER_MULTI_SIGNERS:
+        raise ValueError(
+            f"expected approval signer pubkeys length must be in "
+            f"[{_MIN_AUTOTRADER_MULTI_SIGNERS}, {_MAX_AUTOTRADER_MULTI_SIGNERS}]"
+        )
+    out: set[str] = set()
+    for index, item in enumerate(raw):
+        signer = _normalize_hex(
+            item,
+            label=f"expected approval signer pubkeys[{index}]",
+            length=_PUBKEY_HEX_LEN,
+        )
+        if signer in out:
+            raise ValueError(f"expected approval signer pubkeys[{index}] duplicates an earlier key")
+        out.add(signer)
+    return frozenset(out)
+
+
 def _mapping_list(path: Path | None, *, label: str) -> list[Mapping[str, Any]]:
     values = _load_list(path, label=label)
     out: list[Mapping[str, Any]] = []
@@ -237,7 +262,12 @@ def _validate_crash_recovery(
     return out
 
 
-def _validate_approvals(path: Path, *, expected_approval_hash: str) -> list[dict[str, str]]:
+def _validate_approvals(
+    path: Path,
+    *,
+    expected_approval_hash: str,
+    expected_signer_pubkeys: frozenset[str],
+) -> list[dict[str, str]]:
     raw = _mapping_list(path, label="multi-signer approvals")
     if len(raw) < _MIN_AUTOTRADER_MULTI_SIGNERS or len(raw) > _MAX_AUTOTRADER_MULTI_SIGNERS:
         raise ValueError(
@@ -271,6 +301,8 @@ def _validate_approvals(path: Path, *, expected_approval_hash: str) -> list[dict
             message=production_autotrader_run_approval_message_v1(approval_hash),
             label=f"multi-signer approvals[{index}].signature",
         )
+        if signer_pubkey not in expected_signer_pubkeys:
+            raise ValueError(f"multi-signer approvals[{index}].signer_pubkey is not in expected approver set")
         if signer_pubkey in signer_pubkeys:
             raise ValueError(f"multi-signer approvals[{index}] signer_pubkey duplicates an earlier approval")
         signer_pubkeys.add(signer_pubkey)
@@ -341,6 +373,7 @@ def build_autotrader_evidence(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("expected chain_id is required for autotrader binding")
     if args.chain_id != args.expected_chain_id:
         raise ValueError("chain_id does not match expected_chain_id")
+    expected_signer_pubkeys = _load_expected_approval_signer_pubkeys(args)
     evidence_body: dict[str, Any] = {
         "schema": AUTOTRADER_EVIDENCE_SCHEMA_V1,
         "supervisor_id": args.supervisor_id,
@@ -360,6 +393,7 @@ def build_autotrader_evidence(args: argparse.Namespace) -> dict[str, Any]:
     approvals = _validate_approvals(
         args.multi_signer_approvals_file,
         expected_approval_hash=expected_approval_hash,
+        expected_signer_pubkeys=expected_signer_pubkeys,
     )
     return attach_production_autotrader_hash_v1({**evidence_body, "multi_signer_approvals": approvals})
 
@@ -389,6 +423,9 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     hb.add_argument("--heartbeat-timestamps-file", type=Path)
     parser.add_argument("--crash-recovery-file", type=Path)
     parser.add_argument("--multi-signer-approvals-file", type=Path, required=True)
+    expected_signers = parser.add_mutually_exclusive_group(required=True)
+    expected_signers.add_argument("--expected-approval-signer-pubkeys-json")
+    expected_signers.add_argument("--expected-approval-signer-pubkeys-file", type=Path)
     parser.add_argument("--max-actions-per-tick-observed", type=int, required=True)
     parser.add_argument("--max-runs-per-process-observed", type=int, required=True)
     parser.add_argument("--config-max-actions-per-tick", type=int, required=True)
@@ -419,6 +456,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 config_max_actions_per_tick=args.config_max_actions_per_tick,
                 config_max_runs_per_process=args.config_max_runs_per_process,
                 expected_chain_id=args.expected_chain_id,
+                expected_approval_signer_pubkeys=list(_load_expected_approval_signer_pubkeys(args)),
                 now=check_now,
             )
             if check.get("production_ready") is not True:

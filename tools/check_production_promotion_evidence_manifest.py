@@ -12,6 +12,7 @@ Reads a JSON manifest with this shape::
         "supervisor_profile_hash": "...",                     # required for autotrader
         "config_max_actions_per_tick": 4,                     # required for autotrader
         "config_max_runs_per_process": 200,                   # required for autotrader
+        "expected_autotrader_approval_signer_pubkeys": [...], # required for autotrader
         "approved_measurements": ["nitro:..."],               # required for confidential_runtime
         "operator_status_hash": "...",                        # required for confidential_runtime
         "external_verifier_binding_hash": "..."               # required for confidential_runtime
@@ -150,6 +151,7 @@ _LANE_REQUIREMENTS: Mapping[str, Mapping[str, Any]] = {
             "config_max_actions_per_tick",
             "config_max_runs_per_process",
             "expected_chain_id",
+            "expected_autotrader_approval_signer_pubkeys",
         ],
         "required_evidence_fields": [
             "schema",
@@ -167,6 +169,7 @@ _LANE_REQUIREMENTS: Mapping[str, Mapping[str, Any]] = {
             "24h+ unattended supervisor run window with heartbeat timestamps",
             "crash recovery checkpoint evidence",
             "multi-signer Ed25519 approvals over the canonical run approval message",
+            "configured production AutoTrader approver public-key set",
             "budget compliance observations",
         ],
         "producer_tool": "tools/build_autotrader_evidence.py",
@@ -358,6 +361,8 @@ _LANE_COLLECTION_COMMAND_TEMPLATES: Mapping[str, tuple[str, ...]] = {
         "CONFIG_MAX_RUNS_PER_PROCESS",
         "--expected-chain-id",
         "EXPECTED_CHAIN_ID",
+        "--expected-approval-signer-pubkeys-file",
+        "runs/production_promotion/latest/autotrader_expected_approvers.json",
         "--check",
     ),
     "confidential_runtime": (
@@ -663,6 +668,7 @@ def _evaluate_manifest(
         expected_surface=config.get("expected_surface"),
         expected_extension_id=config.get("expected_extension_id"),
         expected_device_pubkey=config.get("expected_device_pubkey"),
+        expected_autotrader_approval_signer_pubkeys=config.get("expected_autotrader_approval_signer_pubkeys"),
         now=now,
     )
     scoped = _lane_scoped_output(out, lane) if lane is not None else out
@@ -674,6 +680,12 @@ def _config_value_present(value: object, *, field_name: str) -> bool:
         return (
             isinstance(value, list)
             and bool(value)
+            and all(isinstance(item, str) and item for item in value)
+        )
+    if field_name == "expected_autotrader_approval_signer_pubkeys":
+        return (
+            isinstance(value, list)
+            and len(value) >= 2
             and all(isinstance(item, str) and item for item in value)
         )
     if field_name in {"config_max_actions_per_tick", "config_max_runs_per_process"}:

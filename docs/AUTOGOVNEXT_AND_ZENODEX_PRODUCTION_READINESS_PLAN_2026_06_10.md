@@ -720,6 +720,7 @@ python3 tools/build_autotrader_evidence.py \
   --heartbeat-timestamps-file runs/production_promotion/latest/autotrader_heartbeats.json \
   --crash-recovery-file runs/production_promotion/latest/autotrader_crash_recovery.json \
   --multi-signer-approvals-file runs/production_promotion/latest/autotrader_multisig_approvals.json \
+  --expected-approval-signer-pubkeys-file runs/production_promotion/latest/autotrader_expected_approvers.json \
   --max-actions-per-tick-observed MAX_ACTIONS_PER_TICK_OBSERVED \
   --max-runs-per-process-observed MAX_RUNS_PER_PROCESS_OBSERVED \
   --config-max-actions-per-tick CONFIG_MAX_ACTIONS_PER_TICK \

@@ -623,6 +623,7 @@ class _AutotraderContext(_LaneContext):
         "config_max_actions_per_tick",
         "config_max_runs_per_process",
         "expected_chain_id",
+        "expected_approval_signer_pubkeys",
         "now",
     )
 
@@ -633,12 +634,14 @@ class _AutotraderContext(_LaneContext):
         config_max_actions_per_tick: int | None,
         config_max_runs_per_process: int | None,
         expected_chain_id: str | None,
+        expected_approval_signer_pubkeys: Sequence[str] | None,
         now: int,
     ) -> None:
         self.supervisor_profile_hash = supervisor_profile_hash
         self.config_max_actions_per_tick = config_max_actions_per_tick
         self.config_max_runs_per_process = config_max_runs_per_process
         self.expected_chain_id = expected_chain_id
+        self.expected_approval_signer_pubkeys = expected_approval_signer_pubkeys
         self.now = now
 
 
@@ -2349,9 +2352,14 @@ class _AutotraderLane(Lane):
         _validate_autotrader_run_freshness(rw, issued_at=issued_at, now=ctx.now, gaps=gaps)
         crash_count = _validate_autotrader_crash_recovery(crash_recovery, rw=rw, gaps=gaps)
         expected_approval_hash = production_autotrader_run_approval_hash_v1(obj)
+        expected_approval_signers = _parse_autotrader_expected_approval_signers(
+            ctx.expected_approval_signer_pubkeys,
+            gaps=gaps,
+        )
         distinct_signers = _validate_autotrader_signers(
             approvals,
             expected_approval_hash=expected_approval_hash,
+            expected_signer_pubkeys=expected_approval_signers,
             gaps=gaps,
         )
         _enforce_autotrader_budgets(budget_parsed, ctx=ctx, gaps=gaps)
@@ -2378,6 +2386,7 @@ class _AutotraderLane(Lane):
             "ticks_throttled": rw.get("ticks_throttled"),
             "crash_recovery_count": crash_count,
             "distinct_signer_count": distinct_signers,
+            "expected_signer_count": len(expected_approval_signers),
             "max_actions_per_tick_observed": budget_parsed.get("max_actions_per_tick_observed"),
             "max_runs_per_process_observed": budget_parsed.get("max_runs_per_process_observed"),
         }
@@ -2608,6 +2617,42 @@ def _enforce_autotrader_budget_limit(
         gaps.add(config_mismatch_message)
 
 
+def _parse_autotrader_expected_approval_signers(
+    value: object,
+    *,
+    gaps: _Gaps,
+) -> frozenset[str]:
+    if not isinstance(value, list):
+        gaps.add("expected autotrader approval signer pubkeys are required for binding")
+        return frozenset()
+    if len(value) < _MIN_AUTOTRADER_MULTI_SIGNERS:
+        gaps.add(
+            f"expected autotrader approval signer pubkeys must contain at least "
+            f"{_MIN_AUTOTRADER_MULTI_SIGNERS} entries"
+        )
+        return frozenset()
+    if len(value) > _MAX_AUTOTRADER_MULTI_SIGNERS:
+        gaps.add(
+            f"expected autotrader approval signer pubkeys must contain at most "
+            f"{_MAX_AUTOTRADER_MULTI_SIGNERS} entries"
+        )
+        return frozenset()
+    out: set[str] = set()
+    for index, raw in enumerate(value):
+        signer = _P.hex_token(
+            raw,
+            path=f"expected_autotrader_approval_signer_pubkeys[{index}]",
+            gaps=gaps,
+            exact_len=_PUBKEY_HEX_LEN,
+        )
+        if signer is None:
+            continue
+        if signer in out:
+            gaps.add(f"expected_autotrader_approval_signer_pubkeys[{index}] duplicates an earlier key")
+        out.add(signer)
+    return frozenset(out)
+
+
 def _validate_autotrader_crash_recovery(
     crash_recovery: list[Mapping[str, Any]] | None,
     *,
@@ -2708,6 +2753,7 @@ def _validate_autotrader_signers(
     approvals: list[Mapping[str, Any]] | None,
     *,
     expected_approval_hash: str,
+    expected_signer_pubkeys: frozenset[str],
     gaps: _Gaps,
 ) -> int:
     if approvals is None:
@@ -2733,6 +2779,8 @@ def _validate_autotrader_signers(
             label=f"multi_signer_approvals[{index}].signature",
             gaps=gaps,
         )
+        if expected_signer_pubkeys and signer_pubkey not in expected_signer_pubkeys:
+            gaps.add(f"multi_signer_approvals[{index}].signer_pubkey is not in expected approver set")
 
     _validate_autotrader_approval_set(
         seen_signer_pubkeys,
@@ -3776,6 +3824,7 @@ def evaluate_production_autotrader_evidence_v1(
     config_max_actions_per_tick: int | None,
     config_max_runs_per_process: int | None,
     expected_chain_id: str | None = None,
+    expected_approval_signer_pubkeys: Sequence[str] | None = None,
     now: int | None = None,
 ) -> dict[str, Any]:
     ctx = _AutotraderContext(
@@ -3783,6 +3832,7 @@ def evaluate_production_autotrader_evidence_v1(
         config_max_actions_per_tick=config_max_actions_per_tick,
         config_max_runs_per_process=config_max_runs_per_process,
         expected_chain_id=expected_chain_id,
+        expected_approval_signer_pubkeys=expected_approval_signer_pubkeys,
         now=_now_seconds(now),
     )
     return _evaluate_lane(_AUTOTRADER_LANE, evidence, ctx)
@@ -3838,6 +3888,7 @@ def evaluate_production_promotion_bundle_v1(
     expected_surface: str | None = None,
     expected_extension_id: str | None = None,
     expected_device_pubkey: str | None = None,
+    expected_autotrader_approval_signer_pubkeys: Sequence[str] | None = None,
     now: int | None = None,
 ) -> dict[str, Any]:
     """Evaluate a bundle containing evidence for one or more lanes."""
@@ -3872,6 +3923,7 @@ def evaluate_production_promotion_bundle_v1(
             config_max_actions_per_tick=config_max_actions_per_tick,
             config_max_runs_per_process=config_max_runs_per_process,
             expected_chain_id=expected_chain_id,
+            expected_approval_signer_pubkeys=expected_autotrader_approval_signer_pubkeys,
             now=now_s,
         ),
         LANE_CONFIDENTIAL_RUNTIME: _ConfidentialContext(

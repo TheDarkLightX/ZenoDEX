@@ -101,6 +101,9 @@ def _manifest_config(args: argparse.Namespace) -> dict[str, Any]:
         "supervisor_profile_hash": args.supervisor_profile_hash,
         "config_max_actions_per_tick": args.config_max_actions_per_tick,
         "config_max_runs_per_process": args.config_max_runs_per_process,
+        "expected_autotrader_approval_signer_pubkeys": list(
+            args.expected_autotrader_approval_signer_pubkey or []
+        ),
         "approved_measurements": list(args.approved_measurement or []),
         "operator_status_hash": args.operator_status_hash,
         "external_verifier_binding_hash": args.external_verifier_binding_hash,
@@ -189,6 +192,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--supervisor-profile-hash")
     parser.add_argument("--config-max-actions-per-tick", type=int)
     parser.add_argument("--config-max-runs-per-process", type=int)
+    parser.add_argument("--expected-autotrader-approval-signer-pubkey", action="append", default=[])
     parser.add_argument("--approved-measurement", action="append", default=[])
     parser.add_argument("--operator-status-hash")
     parser.add_argument("--external-verifier-binding-hash")

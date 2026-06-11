@@ -199,6 +199,31 @@ def test_builder_hashes_app_root_jmt_lane_and_lane_check_passes(capsys, tmp_path
     assert len(app_root["evidence_hash"]) == 64
 
 
+def test_builder_writes_autotrader_expected_approver_config(capsys, tmp_path: Path) -> None:
+    manifest_path = tmp_path / "manifest.json"
+
+    assert (
+        builder.main(
+            [
+                "--out",
+                str(manifest_path),
+                "--expected-autotrader-approval-signer-pubkey",
+                "11" * 32,
+                "--expected-autotrader-approval-signer-pubkey",
+                "22" * 32,
+            ]
+        )
+        == 0
+    )
+
+    assert json.loads(capsys.readouterr().out)["ok"] is True
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["config"]["expected_autotrader_approval_signer_pubkeys"] == [
+        "11" * 32,
+        "22" * 32,
+    ]
+
+
 def test_builder_full_check_stays_blocked_when_other_lanes_missing(capsys, tmp_path: Path) -> None:
     bounded_path = tmp_path / "bounded.json"
     bounded_path.write_text(json.dumps(_bounded_oracle_exercise()), encoding="utf-8")

@@ -10,10 +10,14 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from src.integration import production_promotion_evidence as promotion_evidence
 from src.integration.production_promotion_evidence import (
     APP_ROOT_JMT_EVIDENCE_SCHEMA_V1,
+    AUTOTRADER_EVIDENCE_SCHEMA_V1,
     ORACLE_AUTHORITY_EVIDENCE_SCHEMA_V1,
     _oracle_authority_attestation_message,
     attach_production_app_root_jmt_hash_v1,
+    attach_production_autotrader_hash_v1,
     attach_production_oracle_authority_hash_v1,
+    production_autotrader_run_approval_hash_v1,
+    production_autotrader_run_approval_message_v1,
 )
 from src.state.app_root import APP_ROOT_LANE_KINDS
 from tools import check_production_promotion_evidence_manifest as checker
@@ -23,6 +27,14 @@ NOW = 1747878000
 MANIFEST_SCHEMA = "zenodex/production-promotion-evidence-manifest/v1"
 ROOT = Path(__file__).resolve().parents[1]
 _ORACLE_AUTHORITY_PRIVATE_KEY = Ed25519PrivateKey.from_private_bytes(bytes.fromhex("43" * 32))
+_AUTOTRADER_APPROVER_KEYS = (
+    Ed25519PrivateKey.from_private_bytes(bytes.fromhex("51" * 32)),
+    Ed25519PrivateKey.from_private_bytes(bytes.fromhex("52" * 32)),
+)
+_AUTOTRADER_UNAPPROVED_KEYS = (
+    Ed25519PrivateKey.from_private_bytes(bytes.fromhex("61" * 32)),
+    Ed25519PrivateKey.from_private_bytes(bytes.fromhex("62" * 32)),
+)
 
 
 def _oracle_pubkey_hex() -> str:
@@ -30,6 +42,64 @@ def _oracle_pubkey_hex() -> str:
         encoding=serialization.Encoding.Raw,
         format=serialization.PublicFormat.Raw,
     ).hex()
+
+
+def _pubkey_hex(private_key: Ed25519PrivateKey) -> str:
+    return private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    ).hex()
+
+
+def _autotrader_expected_approvers() -> list[str]:
+    return [_pubkey_hex(key) for key in _AUTOTRADER_APPROVER_KEYS]
+
+
+def _autotrader_evidence(
+    *,
+    signing_keys: tuple[Ed25519PrivateKey, Ed25519PrivateKey] = _AUTOTRADER_APPROVER_KEYS,
+) -> dict[str, object]:
+    started = NOW - 25 * 3600 - 60
+    last_heartbeat = started + 25 * 3600
+    heartbeats = list(range(started, last_heartbeat + 1, 5 * 60))
+    if heartbeats[-1] != last_heartbeat:
+        heartbeats.append(last_heartbeat)
+    evidence: dict[str, object] = {
+        "schema": AUTOTRADER_EVIDENCE_SCHEMA_V1,
+        "supervisor_id": "autotrader-prod-1",
+        "chain_id": "tau-test-prod",
+        "profile_supervisor_hash": "sup-hash",
+        "run_window": {
+            "started_at": started,
+            "last_heartbeat_at": last_heartbeat,
+            "duration_seconds": 25 * 3600,
+            "ticks_executed": 500,
+            "ticks_failed": 3,
+            "ticks_throttled": 20,
+            "heartbeat_timestamps": heartbeats,
+        },
+        "crash_recovery": [
+            {"crash_at": started + 3600, "recovery_at": started + 3620, "checkpoint_hash": "aa" * 32},
+        ],
+        "budget_compliance": {
+            "max_actions_per_tick_observed": 3,
+            "max_runs_per_process_observed": 100,
+            "config_max_actions_per_tick": 4,
+            "config_max_runs_per_process": 200,
+        },
+        "issued_at": NOW - 30,
+    }
+    approval_hash = production_autotrader_run_approval_hash_v1(evidence)
+    message = production_autotrader_run_approval_message_v1(approval_hash)
+    evidence["multi_signer_approvals"] = [
+        {
+            "signer_pubkey": _pubkey_hex(key),
+            "approval_hash": approval_hash,
+            "signature": key.sign(message).hex(),
+        }
+        for key in signing_keys
+    ]
+    return attach_production_autotrader_hash_v1(evidence)
 
 
 def _bounded_oracle_exercise(*, chain_id: str = "tau-test-prod") -> dict[str, object]:
@@ -352,6 +422,83 @@ def test_manifest_checker_selected_lane_ignores_unrelated_missing_sidecar(
     assert any("autotrader evidence is missing" in gap for gap in out["gaps"])
 
 
+def test_manifest_checker_accepts_autotrader_expected_approver_set(capsys, tmp_path: Path) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": MANIFEST_SCHEMA,
+                "config": {
+                    "supervisor_profile_hash": "sup-hash",
+                    "config_max_actions_per_tick": 4,
+                    "config_max_runs_per_process": 200,
+                    "expected_chain_id": "tau-test-prod",
+                    "expected_autotrader_approval_signer_pubkeys": _autotrader_expected_approvers(),
+                },
+                "bundle": {"autotrader": _autotrader_evidence()},
+            },
+            sort_keys=True,
+        )
+    )
+
+    assert main([str(manifest_path), "--lane", "autotrader", "--now", str(NOW)]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["promotion_ready"] is True
+    assert out["selected_lane"] == "autotrader"
+    assert out["blocked_lanes"] == []
+
+
+def test_manifest_checker_rejects_autotrader_missing_approver_set(capsys, tmp_path: Path) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": MANIFEST_SCHEMA,
+                "config": {
+                    "supervisor_profile_hash": "sup-hash",
+                    "config_max_actions_per_tick": 4,
+                    "config_max_runs_per_process": 200,
+                    "expected_chain_id": "tau-test-prod",
+                },
+                "bundle": {"autotrader": _autotrader_evidence()},
+            },
+            sort_keys=True,
+        )
+    )
+
+    assert main([str(manifest_path), "--lane", "autotrader", "--now", str(NOW)]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["promotion_ready"] is False
+    assert out["blocked_lanes"] == ["autotrader"]
+    assert any("config.expected_autotrader_approval_signer_pubkeys is required" in gap for gap in out["gaps"])
+
+
+def test_manifest_checker_rejects_autotrader_unapproved_signer_set(capsys, tmp_path: Path) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": MANIFEST_SCHEMA,
+                "config": {
+                    "supervisor_profile_hash": "sup-hash",
+                    "config_max_actions_per_tick": 4,
+                    "config_max_runs_per_process": 200,
+                    "expected_chain_id": "tau-test-prod",
+                    "expected_autotrader_approval_signer_pubkeys": _autotrader_expected_approvers(),
+                },
+                "bundle": {"autotrader": _autotrader_evidence(signing_keys=_AUTOTRADER_UNAPPROVED_KEYS)},
+            },
+            sort_keys=True,
+        )
+    )
+
+    assert main([str(manifest_path), "--lane", "autotrader", "--now", str(NOW)]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["promotion_ready"] is False
+    assert out["blocked_lanes"] == ["autotrader"]
+    assert any("not in expected approver set" in gap for gap in out["gaps"])
+
+
 def test_manifest_checker_selected_lane_loads_relevant_missing_sidecar(
     capsys,
     tmp_path: Path,
@@ -479,6 +626,10 @@ def test_manifest_checker_explains_missing_lane_requirements(capsys, tmp_path: P
         == "tools/build_zk_wrapping_evidence_from_risc0_bundle.py"
     )
     assert out["requirements"]["autotrader"]["producer_tool"] == "tools/build_autotrader_evidence.py"
+    assert (
+        "expected_autotrader_approval_signer_pubkeys"
+        in out["requirements"]["autotrader"]["required_config_values"]
+    )
     assert (
         out["requirements"]["confidential_runtime"]["producer_tool"]
         == "tools/build_confidential_runtime_evidence.py"
@@ -685,6 +836,7 @@ def test_manifest_checker_collection_runbook_scopes_to_selected_lane(
     assert list(runbook["lanes"]) == ["autotrader"]
     command = runbook["lanes"]["autotrader"]["producer_command_template"]
     assert command[1] == "tools/build_autotrader_evidence.py"
+    assert "--expected-approval-signer-pubkeys-file" in command
     assert "MAX_RUNS_PER_PROCESS_OBSERVED" in command
     assert "MAX_RUNS_PER_PROCESS_OBERVED" not in command
     assert "--include-runbook" in runbook["final_gate_command_template"]

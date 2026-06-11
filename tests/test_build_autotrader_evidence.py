@@ -115,6 +115,12 @@ def _approval_file(tmp_path: Path, *, approval_hash: str | None = None) -> Path:
     return path
 
 
+def _expected_approvers_file(tmp_path: Path, *, pubkeys: tuple[str, ...] = SIGNER_PUBKEYS) -> Path:
+    path = tmp_path / "expected-approvers.json"
+    _write_json(path, list(pubkeys))
+    return path
+
+
 def _crash_file(tmp_path: Path) -> Path:
     path = tmp_path / "crashes.json"
     _write_json(
@@ -157,6 +163,8 @@ def _base_args(
         str(_crash_file(tmp_path)),
         "--multi-signer-approvals-file",
         str(_approval_file(tmp_path)),
+        "--expected-approval-signer-pubkeys-file",
+        str(_expected_approvers_file(tmp_path)),
         "--max-actions-per-tick-observed",
         "3",
         "--max-runs-per-process-observed",
@@ -187,6 +195,7 @@ def test_autotrader_builder_writes_lane_ready_evidence(capsys, tmp_path: Path) -
         config_max_actions_per_tick=4,
         config_max_runs_per_process=200,
         expected_chain_id="tau-test-prod",
+        expected_approval_signer_pubkeys=list(SIGNER_PUBKEYS),
         now=NOW,
     )
     assert lane["production_ready"] is True
@@ -332,6 +341,21 @@ def test_autotrader_builder_rejects_duplicate_signer_before_writing(capsys, tmp_
     assert not out.exists()
 
 
+def test_autotrader_builder_rejects_unapproved_signer_before_writing(capsys, tmp_path: Path) -> None:
+    out = tmp_path / "autotrader.json"
+    expected = tmp_path / "expected-other-approvers.json"
+    _write_json(expected, ["ab" * 32, "cd" * 32])
+    args = _base_args(tmp_path, out)
+    args[args.index("--expected-approval-signer-pubkeys-file") + 1] = str(expected)
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "autotrader_evidence_build_failed"
+    assert "not in expected approver set" in payload["detail"]
+    assert not out.exists()
+
+
 def test_autotrader_builder_rejects_approval_hash_for_different_run(capsys, tmp_path: Path) -> None:
     out = tmp_path / "autotrader.json"
     args = _base_args(tmp_path, out)
@@ -397,6 +421,7 @@ def test_autotrader_evaluator_rejects_approval_hash_for_mutated_run_report(
         config_max_actions_per_tick=4,
         config_max_runs_per_process=200,
         expected_chain_id="tau-test-prod",
+        expected_approval_signer_pubkeys=list(SIGNER_PUBKEYS),
         now=NOW,
     )
 
@@ -421,6 +446,7 @@ def test_autotrader_evaluator_rejects_rehashed_fake_approval_signature(
         config_max_actions_per_tick=4,
         config_max_runs_per_process=200,
         expected_chain_id="tau-test-prod",
+        expected_approval_signer_pubkeys=list(SIGNER_PUBKEYS),
         now=NOW,
     )
 
@@ -443,6 +469,7 @@ def test_autotrader_evaluator_requires_external_binding_config(
         config_max_actions_per_tick=None,
         config_max_runs_per_process=None,
         expected_chain_id=None,
+        expected_approval_signer_pubkeys=None,
         now=NOW,
     )
 
@@ -450,6 +477,7 @@ def test_autotrader_evaluator_requires_external_binding_config(
     assert "expected chain_id is required for autotrader binding" in lane["gaps"]
     assert "config_max_actions_per_tick is required for autotrader binding" in lane["gaps"]
     assert "config_max_runs_per_process is required for autotrader binding" in lane["gaps"]
+    assert "expected autotrader approval signer pubkeys are required for binding" in lane["gaps"]
 
 
 def test_autotrader_builder_rejects_overlapping_crash_recovery_before_writing(capsys, tmp_path: Path) -> None:
@@ -513,6 +541,7 @@ def test_autotrader_evaluator_rejects_rehashed_stale_run_window(
         config_max_actions_per_tick=4,
         config_max_runs_per_process=200,
         expected_chain_id="tau-test-prod",
+        expected_approval_signer_pubkeys=list(SIGNER_PUBKEYS),
         now=NOW,
     )
 

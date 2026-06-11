@@ -8,6 +8,7 @@
     "supervisor_profile_hash": null,
     "config_max_actions_per_tick": null,
     "config_max_runs_per_process": null,
+    "expected_autotrader_approval_signer_pubkeys": [],
     "approved_measurements": [],
     "operator_status_hash": null,
     "external_verifier_binding_hash": null,
