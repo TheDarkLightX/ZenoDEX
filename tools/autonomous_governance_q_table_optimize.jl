@@ -2,10 +2,11 @@
 
 # Deterministic offline optimizer for autonomous governance Q-table artifacts.
 #
-# This is an EBRM-style hand-energy baseline. It enumerates the bounded state-bin
-# space and action set, assigns an integer energy to each candidate action, and
-# emits a frozen lookup-table policy. Runtime governance does not call Julia and
-# does not trust the energy score for acceptance; the Python/Tau gates decide.
+# This is a deterministic hand-energy baseline for EBRM candidate scoring. It
+# enumerates the bounded state-bin space and action set, assigns an integer
+# energy to each candidate action, and emits a frozen lookup-table policy.
+# Runtime governance does not call Julia and does not trust the energy score for
+# acceptance; the Python/Tau gates decide.
 
 using Dates
 

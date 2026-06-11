@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import threading
+from http.client import HTTPConnection
 from pathlib import Path
 
 from src.integration.autogov_live_apply_api import handle_autogov_request
@@ -126,3 +128,48 @@ def test_unknown_route_404(tmp_path: Path) -> None:
         "GET", "/api/autogov/unknown", None, store_path=str(path), pinned_policy_hash=""
     )
     assert status == 404
+
+
+def test_api_server_routes_autogov_surface(tmp_path: Path, monkeypatch) -> None:
+    from src.integration import api_server
+
+    path = tmp_path / "store.json"
+    policy, genesis, _init = _init_file(path)
+    monkeypatch.setenv("AUTOGOV_SESSION_STORE_PATH", str(path))
+    monkeypatch.setenv("AUTOGOV_PINNED_POLICY_HASH", str(policy["policy_hash"]))
+
+    httpd = api_server.ThreadingHTTPServer(("127.0.0.1", 0), api_server._Handler)
+    httpd.cors_origins = set()  # type: ignore[attr-defined]
+    httpd.rate_limiter = api_server.TokenBucketRateLimiter(rpm=0)  # type: ignore[attr-defined]
+    httpd.perps_api_enabled = False  # type: ignore[attr-defined]
+    httpd.perps_wallet_api_enabled = False  # type: ignore[attr-defined]
+    httpd.zusd_api_enabled = False  # type: ignore[attr-defined]
+    httpd.zusd_tau_wallet_api_enabled = False  # type: ignore[attr-defined]
+    httpd.zusd_monetary_wallet_api_enabled = False  # type: ignore[attr-defined]
+    httpd.autogov_live_apply_api_enabled = True  # type: ignore[attr-defined]
+    httpd.autotrader_live_api_enabled = False  # type: ignore[attr-defined]
+    httpd.confidential_attestation_api_enabled = False  # type: ignore[attr-defined]
+    httpd.dex_api_enabled = False  # type: ignore[attr-defined]
+    httpd.demo_api_token = "autogov-test-token"  # type: ignore[attr-defined]
+    httpd.external_auth_enforced = False  # type: ignore[attr-defined]
+
+    thread = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
+    thread.start()
+    host, port = httpd.server_address[:2]
+    conn = HTTPConnection(str(host), int(port), timeout=5)
+    try:
+        conn.request(
+            "GET",
+            "/api/autogov/surface",
+            headers={"Authorization": "Bearer autogov-test-token"},
+        )
+        response = conn.getresponse()
+        data = json.loads(response.read().decode("utf-8"))
+        assert response.status == 200
+        assert data["surface_state"] == genesis["final_state"]
+        assert data["anchor_source"] == "session_store_file_head_v1"
+    finally:
+        conn.close()
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2.0)

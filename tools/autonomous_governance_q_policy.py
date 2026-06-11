@@ -46,6 +46,11 @@ from src.integration.autonomous_governance_live_apply import (  # noqa: E402
     admit_autonomous_governance_live_session_file_update_v1,
     autonomous_governance_live_session_file_context_hash_v1,
 )
+from src.integration.autonomous_governance_ebrm_policy import (  # noqa: E402
+    ebrm_policy_content_hash_v1,
+    evaluate_autonomous_governance_ebrm_policy_step_v1,
+    sample_autonomous_governance_ebrm_policy_v1,
+)
 
 
 MAX_INPUT_BYTES = 500_000
@@ -153,6 +158,46 @@ def _sample_trajectory_bundle() -> dict[str, Any]:
     }
 
 
+def _sample_ebrm_bundle() -> dict[str, Any]:
+    policy = sample_autonomous_governance_ebrm_policy_v1()
+    surface_state = {
+        "fee_bps": 30,
+        "buyburn_bps": 6_000,
+        "stakers_bps": 0,
+        "reserve_bps": 2_000,
+        "hosts_bps": 2_000,
+        "mcr_bps": 11_000,
+        "ccr_bps": 15_000,
+        "staker_bps": 5_000,
+        "funding_cap_bps": 120,
+    }
+    current_epoch = 34
+    proposal_epoch = 10
+    return {
+        "schema": "zenodex.autonomous_governance.ebrm_policy_eval_bundle.v1",
+        "policy": policy,
+        "expected_policy_hash": ebrm_policy_content_hash_v1(policy),
+        "expected_committed_context_hash": governance_surface_context_hash_v1(
+            surface_state=surface_state,
+            current_epoch=current_epoch,
+            proposal_epoch=proposal_epoch,
+        ),
+        "committed_surface_state": surface_state,
+        "observation": {
+            "observed_price_bps": 10_500,
+            "target_price_bps": 10_000,
+            "deviation_bps": 500,
+            "volatility_bps": 250,
+            "divergence_bps": 10,
+            "freshness_lag_epochs": 0,
+            "liquidity_depth_bps": 5_000,
+        },
+        "approved": True,
+        "current_epoch": current_epoch,
+        "proposal_epoch": proposal_epoch,
+    }
+
+
 def _load_json(path: Path) -> dict[str, Any]:
     if path.stat().st_size > MAX_INPUT_BYTES:
         raise ValueError(f"input_file_too_large:{path.stat().st_size}>{MAX_INPUT_BYTES}")
@@ -163,10 +208,13 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 
 def _cmd_sample(args: argparse.Namespace) -> int:
-    if args.surface and args.trajectory:
-        sys.stderr.write("choose at most one of --surface / --trajectory\n")
+    selected = sum(bool(value) for value in (args.surface, args.trajectory, args.ebrm))
+    if selected > 1:
+        sys.stderr.write("choose at most one of --surface / --trajectory / --ebrm\n")
         return 3
-    if args.trajectory:
+    if args.ebrm:
+        bundle = _sample_ebrm_bundle()
+    elif args.trajectory:
         bundle = _sample_trajectory_bundle()
     elif args.surface:
         bundle = _sample_surface_bundle()
@@ -240,6 +288,36 @@ def _cmd_step(args: argparse.Namespace) -> int:
             "ok": False,
             "status": "inconclusive",
             "errors": [f"step_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("ok") is True else 2
+
+
+def _cmd_ebrm_step(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        result = evaluate_autonomous_governance_ebrm_policy_step_v1(
+            policy=bundle.get("policy", {}),
+            committed_surface_state=bundle.get(
+                "committed_surface_state", bundle.get("surface_state", {})
+            ),
+            observation=bundle.get("observation", {}),
+            approved=bundle.get("approved"),
+            current_epoch=bundle.get("current_epoch"),
+            proposal_epoch=bundle.get("proposal_epoch"),
+            last_update_epoch=bundle.get("last_update_epoch"),
+            expected_policy_hash=bundle.get("expected_policy_hash"),
+            expected_committed_context_hash=bundle.get("expected_committed_context_hash"),
+        )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"ebrm_step_failed:{exc}"],
         }
         sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
         return 3
@@ -669,6 +747,7 @@ def main(argv: list[str] | None = None) -> int:
     sample.add_argument(
         "--trajectory", action="store_true", help="sample the multi-step trajectory bundle"
     )
+    sample.add_argument("--ebrm", action="store_true", help="sample a frozen EBRM policy-step bundle")
     sample.set_defaults(func=_cmd_sample)
 
     evaluate = sub.add_parser("evaluate", help="evaluate a policy bundle")
@@ -678,6 +757,10 @@ def main(argv: list[str] | None = None) -> int:
     step = sub.add_parser("step", help="evaluate and apply one governance-surface policy step")
     step.add_argument("bundle", help="path to surface evaluation bundle JSON")
     step.set_defaults(func=_cmd_step)
+
+    ebrm_step = sub.add_parser("ebrm-step", help="evaluate one frozen EBRM policy step")
+    ebrm_step.add_argument("bundle", help="path to EBRM policy-step bundle JSON")
+    ebrm_step.set_defaults(func=_cmd_ebrm_step)
 
     trajectory = sub.add_parser(
         "trajectory",
