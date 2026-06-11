@@ -37,6 +37,28 @@
       "obligation": "O-SS-04"
     },
     {
+      "id": "H-MD-SS-005",
+      "description": "Adding one rejected dust intent across _MAX_SWAP_ORDERING_BRUTE_FORCE_N strictly lowers a victim's fill via the silent optimal_ab_bounded to limit_price fallback.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 3,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "With the bound reduced 12 to 3 on the live compute_settlement path, one 1-unit dust intent (itself rejected with zero output) flips the victim from fill 47619 to REJECT(SLIPPAGE) while the same dust added below the bound is harmless; at the untouched constant 12, the n=13 fallback returns exactly the limit_price order and rejects the victim, and n=3 brute force reorders and fills it. The literal 12-intent brute-force side is not replayable (12! = 479001600 orderings), so the production crossing is bound branch-by-branch.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave1_spot_settlement/test_spot_cardinality_cliff.py -q",
+      "obligation": "O-SS-05"
+    },
+    {
+      "id": "H-MD-SS-006",
+      "description": "The same one-intent bound crossing strictly lowers the global (A, B) settlement objective; cardinality alone selects between the two pricing regimes.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 2,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "Across the reduced bound the settled objective drops from (A, B) = (50000, 619) to (10000, 100); at the untouched constant the identical 3-intent instance settles (50000, 619) under optimal_ab_bounded and (10000, 100) under limit_price, and n=13 under optimal_ab_bounded settles at the limit_price objective.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave1_spot_settlement/test_spot_cardinality_cliff.py -q",
+      "obligation": "O-SS-05"
+    },
+    {
       "id": "H-MD-SS-007",
       "description": "CoW self-netting captures fees and spread relative to pool execution for a self-supplied counter-intent pair.",
       "verdict": "SUPPORTED",
@@ -59,7 +81,7 @@
       "obligation": "O-SS-07"
     }
   ],
-  "total_tests": 6,
-  "total_passed": 6,
+  "total_tests": 11,
+  "total_passed": 11,
   "total_failed": 0
 }

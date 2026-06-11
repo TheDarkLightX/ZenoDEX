@@ -8,6 +8,8 @@ inside `experiments/mechanism_design_math_v1/`.
 | `H-MD-SS-001` | `O-SS-01` | spot settlement | `SUPPORTED` | `wave1_spot_settlement/test_spot_strategy_deviations.py` |
 | `H-MD-SS-002` | `O-SS-02` | spot settlement | `SUPPORTED` | `wave1_spot_settlement/test_spot_fee_arithmetic.py` |
 | `H-MD-SS-004` | `O-SS-04` | spot settlement | `SUPPORTED` | `wave1_spot_settlement/test_spot_strategy_deviations.py` |
+| `H-MD-SS-005` | `O-SS-05` | spot settlement | `SUPPORTED` | `wave1_spot_settlement/test_spot_cardinality_cliff.py` |
+| `H-MD-SS-006` | `O-SS-05` | spot settlement | `SUPPORTED` | `wave1_spot_settlement/test_spot_cardinality_cliff.py` |
 | `H-MD-SS-007` | `O-SS-06` | spot settlement | `SUPPORTED` | `wave1_spot_settlement/test_spot_strategy_deviations.py` |
 | `H-MD-SS-008` | `O-SS-07` | spot settlement | `SUPPORTED` | `wave1_spot_settlement/test_spot_fee_arithmetic.py` |
 | `H-MD-SB-001` | `O-SB-01` | sealed bid | `SUPPORTED` | `wave2_sealed_bid/test_sealed_bid_deviations.py` |
