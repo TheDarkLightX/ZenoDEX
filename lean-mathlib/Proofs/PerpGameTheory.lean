@@ -281,6 +281,95 @@ theorem witness_funding_game :
     (fundingGame 100).payoff (fun _ => 0) 0 + (fundingGame 100).payoff (fun _ => 0) 1 = 0 := by
   native_decide
 
+/-! ## Tier 5 — Funded-Liquidation Incentive Chain
+
+`PerpEpochSafety.liquidation_penalty_funded_after_bounded_move` shows the
+liquidated account itself funds the penalty after any clamped oracle move.
+The lemmas below complete the keeper side of the incentive chain:
+
+* `liquidation_reward_floor` gives a uniform lower bound on the reward over
+  the whole admissible post-move price band, computable at the PRE-move
+  price.
+* `liquidation_profitable_on_clamp_band` turns that floor into a robust
+  profitability condition: a keeper whose gas cost is below the floor finds
+  liquidation profitable at EVERY admissible post-move price — dominance is
+  robust to the oracle move, not contingent on one realized price.
+* `liquidation_game_strict_dominant` and `liquidation_game_unique_nash`
+  upgrade the Tier-4 result: with strictly positive net profit, liquidate is
+  not merely *a* Nash equilibrium but the UNIQUE one.
+-/
+
+/-- Uniform reward floor over the clamp band: the liquidation reward at any
+    admissible post-move price `P'` is at least the reward computed at the
+    worst-case downward price `P * (10000 - m) / 10000`. -/
+theorem liquidation_reward_floor (pos P P' m penalty_bps : ℚ)
+    (hpen : 0 ≤ penalty_bps)
+    (hmove : |P' - P| ≤ m * P / 10000) :
+    |pos| * (P * (10000 - m) / 10000) * penalty_bps / 10000
+      ≤ liquidation_reward pos P' penalty_bps := by
+  unfold liquidation_reward
+  have habs_nonneg : 0 ≤ |pos| := abs_nonneg pos
+  have hP'ge : P * (10000 - m) / 10000 ≤ P' := by
+    have h1 : -(m * P / 10000) ≤ P' - P := by
+      have h := neg_abs_le (P' - P)
+      linarith
+    have h2 : P * (10000 - m) / 10000 = P - m * P / 10000 := by ring
+    linarith
+  have h1 : |pos| * (P * (10000 - m) / 10000) ≤ |pos| * P' :=
+    mul_le_mul_of_nonneg_left hP'ge habs_nonneg
+  have h2 : |pos| * (P * (10000 - m) / 10000) * penalty_bps ≤ |pos| * P' * penalty_bps :=
+    mul_le_mul_of_nonneg_right h1 hpen
+  linarith
+
+/-- Robust keeper profitability: if the gas cost is below the uniform reward
+    floor (checkable at the pre-move price `P`), liquidation has non-negative
+    net profit at every admissible post-move price `P'`. -/
+theorem liquidation_profitable_on_clamp_band (pos P m penalty_bps gas_cost : ℚ)
+    (hpen : 0 ≤ penalty_bps)
+    (hgas : gas_cost ≤ |pos| * (P * (10000 - m) / 10000) * penalty_bps / 10000) :
+    ∀ P', |P' - P| ≤ m * P / 10000 →
+      0 ≤ liquidation_reward pos P' penalty_bps - gas_cost := by
+  intro P' hmove
+  have hfloor := liquidation_reward_floor pos P P' m penalty_bps hpen hmove
+  linarith
+
+/-- With strictly positive net profit, liquidate (strategy 1) is STRICTLY
+    dominant in the liquidation game. -/
+theorem liquidation_game_strict_dominant (p : ℤ) (hp : 0 < p) :
+    StrictlyDominantStrategy (liquidationGame p) 0 1 := by
+  intro σ s' hs'
+  fin_cases s'
+  · simp only [liquidationGame, deviate, Function.update_self]
+    simpa using hp
+  · exact absurd rfl hs'
+
+/-- When liquidation is strictly profitable, "liquidate" is the UNIQUE Nash
+    equilibrium of the liquidation game: the mechanism's predicted outcome is
+    pinned, not merely supported.  Upgrades `liquidation_game_nash`. -/
+theorem liquidation_game_unique_nash (p : ℤ) (hp : 0 < p)
+    (τ : Fin 1 → Fin 2) (hτ : NashEq (liquidationGame p) τ) :
+    τ = fun _ => 1 := by
+  refine strict_dominant_unique_nash (liquidationGame p) (fun _ => 1) τ ?_ hτ
+  intro i
+  fin_cases i
+  exact liquidation_game_strict_dominant p hp
+
+/-- Non-vacuity: with net profit 3, liquidate is strictly dominant, hence the
+    unique Nash equilibrium. -/
+theorem witness_liquidation_strict_dominance :
+    StrictlyDominantStrategy (liquidationGame 3) 0 1 := by
+  native_decide
+
+/-- Non-vacuity for the reward floor with concrete values:
+    pos = 1, P = 10000, m = 500, penalty = 50.  The floor is
+    `9500 * 50 / 10000 / 10000 = 47.5 / 10000`-scaled, and any admissible
+    post-move price (e.g. the worst case P' = 9500) attains at least it. -/
+theorem witness_reward_floor :
+    |(1 : ℚ)| * (10000 * (10000 - 500) / 10000) * 50 / 10000
+      ≤ liquidation_reward 1 9500 50 := by
+  unfold liquidation_reward
+  norm_num
+
 end PerpGameTheory
 
 end Proofs

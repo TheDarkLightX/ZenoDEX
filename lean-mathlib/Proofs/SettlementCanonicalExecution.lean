@@ -23,6 +23,21 @@ the executed settlement and objective.
 -/
 
 namespace TauSwap
+namespace Batch
+
+/-- Decompose `k₁ ≤ k₂` for abstract keys into the component statement:
+either `k₁` has strictly more volume, or volumes tie and either `k₁` has
+strictly more surplus, or both tie and `ord k₁ ≤ ord k₂`.  Abstract-key
+counterpart of `key_le_iff`, used by the settlement execution bridge below. -/
+theorem key_le_components {k₁ k₂ : Key} (h : k₁ ≤ k₂) :
+    (vol k₂ < vol k₁) ∨
+      (vol k₁ = vol k₂ ∧ ((sur k₂ < sur k₁) ∨ (sur k₁ = sur k₂ ∧ ord k₁ ≤ ord k₂))) := by
+  simpa [vol, sur, ord, key] using
+    (key_le_iff (v₁ := vol k₁) (v₂ := vol k₂) (s₁ := sur k₁) (s₂ := sur k₂)
+      (o₁ := ord k₁) (o₂ := ord k₂)).1 (by simpa [key, vol, sur, ord] using h)
+
+end Batch
+
 namespace SettlementCanonicalExecution
 
 open BatchCPMMUnification
