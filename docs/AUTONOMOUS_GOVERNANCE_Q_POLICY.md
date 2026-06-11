@@ -133,6 +133,44 @@ following hold:
 The receipt explicitly does not claim settlement authority, immutable rule
 changes, oracle truth, or online Q-table training.
 
+## Live Node Wiring
+
+A deployed `zeno_ledger_node` can host the live proposer path. It is off by
+default and enables only when all three flags are supplied together:
+
+```bash
+python3 tools/zeno_ledger_node.py run \
+  --bundle-root <bundle> --node-id <id> --data-dir <data> --serve \
+  --write-auth-token-env ZENO_NODE_WRITE_AUTH_TOKEN \
+  --autonomous-governance-store <data>/governance/session_store.json \
+  --autonomous-governance-policy <artifacts>/optimized_policy.frozen.json \
+  --autonomous-governance-expected-policy-hash 0x<policy_hash>
+```
+
+The store file is created once with the existing CLI
+(`tools/autonomous_governance_q_policy.py init-session-store-file`) from a
+genesis pin and receipt. The node then serves:
+
+- `GET /api/governance/surface` — the committed store head: surface state,
+  store hash, head pin hash, policy hash, segment count.
+- `POST /api/governance/propose-step` — write-auth required; body carries
+  `observation`, `current_epoch`, `proposal_epoch`. The node re-pins the policy
+  file bytes on every call, runs the production proposer step
+  (`src/integration/autonomous_governance_live_proposer.py`), and admits at
+  most one continuation segment through
+  `admit_autonomous_governance_live_session_file_update_v1`. Inside the
+  proposer, every refusal and every gate-rejected step returns the committed
+  state as a no-op, and refused steps do not grow the store; malformed request
+  bodies and policy-load failures refuse earlier, at the HTTP layer, with
+  plain fail-closed errors.
+
+Partial flag configuration refuses to start, and enabling governance without
+a configured write-auth token refuses to start. The committed governance surface
+is node-local session-store state: it is not bound into ledger consensus
+state, and the caller of the propose endpoint owns observation authenticity
+(the policy safety checks bound staleness, divergence, and volatility; they do
+not authenticate the feed).
+
 ## Replay
 
 Generate a sample evaluation bundle:

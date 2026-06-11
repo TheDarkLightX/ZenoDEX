@@ -55,6 +55,11 @@ from src.integration.zeno_ledger_v0 import (
     tx_hash_v0,
     validate_body_v0,
 )
+from src.integration.autonomous_governance_live_proposer import (
+    current_autonomous_governance_live_surface_v1,
+    load_autonomous_governance_pinned_policy_v1,
+    propose_autonomous_governance_live_update_v1,
+)
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.integration.zeno_ledger_rejections_v0 import (
     BAD_AUTH,
@@ -4704,15 +4709,43 @@ def make_node_http_server_v0(
     write_auth_token: str | None = None,
     submit_peer_auth_token: str | None = None,
     peer_urls: list[str] | None = None,
+    autonomous_governance_store: Path | None = None,
+    autonomous_governance_policy: Path | None = None,
+    autonomous_governance_expected_policy_hash: str | None = None,
 ) -> ThreadingHTTPServer:
     """Create a small read-only HTTP server for node status artifacts."""
 
     if allow_unauthenticated_testnet_writes and host not in {"127.0.0.1", "localhost", "::1"}:
         raise ValueError("allow_unauthenticated_testnet_writes is only allowed on loopback binds")
 
+    governance_settings = (
+        autonomous_governance_store,
+        autonomous_governance_policy,
+        autonomous_governance_expected_policy_hash,
+    )
+    if any(item is not None for item in governance_settings) and not all(
+        item is not None for item in governance_settings
+    ):
+        raise ValueError(
+            "autonomous governance requires store path, policy path, and expected policy hash together"
+        )
+    autonomous_governance_enabled = all(item is not None for item in governance_settings)
+    if autonomous_governance_enabled and (
+        type(autonomous_governance_expected_policy_hash) is not str
+        or not autonomous_governance_expected_policy_hash
+    ):
+        raise ValueError("autonomous governance expected policy hash must be a non-empty string")
+    if autonomous_governance_enabled and not write_auth_token:
+        # Governance proposals must never ride the unauthenticated-testnet
+        # loophole: with no token configured (or an empty one), refuse to
+        # start instead of letting allow_unauthenticated_testnet_writes open
+        # the endpoint.
+        raise ValueError("autonomous governance requires a non-empty write auth token")
+
     root = data_dir.resolve()
     append_lock = threading.Lock()
-    mutation_enabled = enable_testnet_intake or enable_testnet_faucet
+    governance_lock = threading.Lock()
+    mutation_enabled = enable_testnet_intake or enable_testnet_faucet or autonomous_governance_enabled
     write_auth_required = bool(
         mutation_enabled and (write_auth_token is not None or not allow_unauthenticated_testnet_writes)
     )
@@ -4785,6 +4818,25 @@ def make_node_http_server_v0(
                             min_lp_position_age_seconds=min_lp_position_age_seconds,
                             lp_duration_risk_policy=lp_duration_risk_policy,
                         )
+                    )
+                    return
+                if request_path == "/api/governance/surface":
+                    if not autonomous_governance_enabled or autonomous_governance_store is None:
+                        self._send_json(
+                            {"ok": False, "error": "autonomous_governance_disabled"},
+                            status=HTTPStatus.FORBIDDEN,
+                        )
+                        return
+                    report = current_autonomous_governance_live_surface_v1(
+                        store_path=autonomous_governance_store,
+                    )
+                    report = {
+                        **report,
+                        "expected_policy_hash": str(autonomous_governance_expected_policy_hash),
+                    }
+                    self._send_json(
+                        report,
+                        status=HTTPStatus.OK if report.get("ok") is True else HTTPStatus.BAD_REQUEST,
                     )
                     return
                 if request_path.startswith("/ledger-bundle/"):
@@ -5073,6 +5125,61 @@ def make_node_http_server_v0(
                         )
                     self._send_json(report, status=HTTPStatus.OK if report["ok"] else HTTPStatus.BAD_REQUEST)
                     return
+                if request_path == "/api/governance/propose-step":
+                    if (
+                        not autonomous_governance_enabled
+                        or autonomous_governance_store is None
+                        or autonomous_governance_policy is None
+                    ):
+                        self._send_json(
+                            {"ok": False, "error": "autonomous_governance_disabled"},
+                            status=HTTPStatus.FORBIDDEN,
+                        )
+                        return
+                    if not self._require_write_auth():
+                        return
+                    payload = _read_http_json_body(self)
+                    observation = payload.get("observation")
+                    if not isinstance(observation, Mapping):
+                        self._send_json(
+                            {"ok": False, "error": "observation_must_be_object"},
+                            status=HTTPStatus.BAD_REQUEST,
+                        )
+                        return
+                    # One proposal at a time per node: the store file has its own
+                    # lock and stale-write CAS, so this lock only serializes
+                    # local callers instead of letting them race to a refusal.
+                    with governance_lock:
+                        policy_load = load_autonomous_governance_pinned_policy_v1(
+                            path=autonomous_governance_policy,
+                            expected_policy_hash=autonomous_governance_expected_policy_hash,
+                        )
+                        if policy_load.get("ok") is not True:
+                            self._send_json(
+                                {
+                                    "ok": False,
+                                    "error": "autonomous_governance_policy_rejected",
+                                    "policy_load_errors": list(policy_load.get("errors", ())),
+                                    "expected_policy_hash": str(
+                                        autonomous_governance_expected_policy_hash
+                                    ),
+                                },
+                                status=HTTPStatus.BAD_REQUEST,
+                            )
+                            return
+                        receipt = propose_autonomous_governance_live_update_v1(
+                            store_path=autonomous_governance_store,
+                            policy=policy_load["policy"],
+                            expected_policy_hash=autonomous_governance_expected_policy_hash,
+                            observation=observation,
+                            current_epoch=payload.get("current_epoch"),
+                            proposal_epoch=payload.get("proposal_epoch"),
+                        )
+                    self._send_json(
+                        receipt,
+                        status=HTTPStatus.OK if receipt.get("ok") is True else HTTPStatus.BAD_REQUEST,
+                    )
+                    return
                 if request_path == "/faucet":
                     if not self._require_write_auth():
                         return
@@ -5237,6 +5344,9 @@ def serve_node_v0(
     submit_peer_url: str | None = None,
     write_auth_token: str | None = None,
     submit_peer_auth_token: str | None = None,
+    autonomous_governance_store: Path | None = None,
+    autonomous_governance_policy: Path | None = None,
+    autonomous_governance_expected_policy_hash: str | None = None,
 ) -> None:
     _start_peer_follow_loop(
         data_dir=data_dir,
@@ -5259,6 +5369,9 @@ def serve_node_v0(
         write_auth_token=write_auth_token,
         submit_peer_auth_token=submit_peer_auth_token,
         peer_urls=list(peer_urls or []),
+        autonomous_governance_store=autonomous_governance_store,
+        autonomous_governance_policy=autonomous_governance_policy,
+        autonomous_governance_expected_policy_hash=autonomous_governance_expected_policy_hash,
     )
     server_address = server.server_address
     raw_address = server_address[0]
@@ -5277,12 +5390,23 @@ def serve_node_v0(
                 "testnet_faucet_enabled": enable_testnet_faucet,
                 "testnet_faucet_http_exposed": expose_testnet_faucet_http,
                 "write_auth_required": bool(
-                    (enable_testnet_intake or enable_testnet_faucet)
+                    (
+                        enable_testnet_intake
+                        or enable_testnet_faucet
+                        or (
+                            autonomous_governance_store is not None
+                            and autonomous_governance_policy is not None
+                            and autonomous_governance_expected_policy_hash is not None
+                        )
+                    )
                     and (write_auth_token is not None or not allow_unauthenticated_testnet_writes)
                 ),
                 "unauthenticated_testnet_writes_allowed": allow_unauthenticated_testnet_writes,
                 "submit_peer_url": submit_peer_url,
                 "submit_peer_auth_configured": submit_peer_auth_token is not None,
+                "autonomous_governance_enabled": autonomous_governance_store is not None
+                and autonomous_governance_policy is not None
+                and autonomous_governance_expected_policy_hash is not None,
                 "status_url": f"http://{address}:{actual_port}/status",
             },
             indent=2,
@@ -6042,6 +6166,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
             submit_peer_url=args.submit_peer_url,
             write_auth_token=_auth_token_from_env_name(args.write_auth_token_env, name="write_auth_token_env"),
             submit_peer_auth_token=_auth_token_from_env_name(args.submit_peer_auth_token_env, name="submit_peer_auth_token_env"),
+            autonomous_governance_store=args.autonomous_governance_store,
+            autonomous_governance_policy=args.autonomous_governance_policy,
+            autonomous_governance_expected_policy_hash=args.autonomous_governance_expected_policy_hash,
         )
     return 0
 
@@ -6301,6 +6428,20 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--submit-peer-url")
     run.add_argument("--write-auth-token-env")
     run.add_argument("--submit-peer-auth-token-env")
+    run.add_argument(
+        "--autonomous-governance-store",
+        type=Path,
+        help="file-backed autonomous-governance session store; requires the policy and hash flags",
+    )
+    run.add_argument(
+        "--autonomous-governance-policy",
+        type=Path,
+        help="frozen autonomous-governance policy artifact JSON; requires the store and hash flags",
+    )
+    run.add_argument(
+        "--autonomous-governance-expected-policy-hash",
+        help="pinned policy content hash; proposals refuse on any mismatch",
+    )
     run.set_defaults(func=_cmd_run)
 
     append = sub.add_parser("append", help="append one testnet DEX transaction to a node-local live ledger")
