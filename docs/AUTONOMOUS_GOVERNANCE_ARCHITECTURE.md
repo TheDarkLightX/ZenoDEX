@@ -216,9 +216,10 @@ Developer entry points:
 - `tools/autonomous_governance_policy_factory.py`: offline policy factory,
   residual EBRM lookup layer, replay reports, and artifact/promotion checks.
 - `tools/autonomous_governance_q_policy.py`: sample/evaluate/step plus
-  trajectory-run/verify CLI for the frozen policy artifact.
+  trajectory-run/verify/admit CLI for the frozen policy artifact.
 - `src/integration/autonomous_governance_trajectory.py`: deterministic
-  multi-step runner, receipt hash chain, and independent replay verifier.
+  multi-step runner, receipt hash chain, independent replay verifier, and
+  client-side admission refuse-loop.
 - `tests/integration/test_autonomous_governance_q_policy.py`: runtime behavior,
   exact-gate boundary, and selection-aware ranking tests.
 - `tests/integration/test_autonomous_governance_trajectory.py`: trajectory
@@ -379,7 +380,7 @@ bound attained at a concrete m=3, B=150 instance) is proved in Lean
 | Reference **loop** + safety property (gate bounds a poisoned PI/Q-table/layered/energy proposer) + `curr`-binding | **Done** (`gov_loop.py`, `test_gov_loop.py`, `test_gov_proposers.py` — empirical) |
 | **Multi-surface revision step** — all-or-nothing across every touched surface (fee/funding/whale scalars, router shares as a unit, MCR/CCR as a unit); gates import-bound (no forged-wrapper surface); consumes the policy-factory action shape (`{surface: delta}`) directly — every action in the frozen `q_policy.v1` sample is gate-admissible and the factory's negative controls all reject (differential fixture) | **Done** (`gov_loop.multi_surface_revision_step`) — reference; live `curr`/epoch binding still **Open** (WS5) |
 | Q-table **hash-pinning** primitive (`table_hash` / `layered_table_hash` / `energy_model_hash`) | **Done** (reference); a live consensus-bound, hash-pinned decision runtime is **Open** |
-| Frozen Q/EBRM artifact evaluator, factory, CLI, replay reports, selection-aware first-admissible ranking, context-hash binding, and multi-step trajectory runner/verifier | **Done** (`src/integration/autonomous_governance_q_policy.py`, `src/integration/autonomous_governance_trajectory.py`, `tools/autonomous_governance_policy_factory.py`, `tools/autonomous_governance_q_policy.py`, `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`) — offline/integration artifact path; deployed apply wiring still **Open** (WS5) |
+| Frozen Q/EBRM artifact evaluator, factory, CLI, replay reports, selection-aware first-admissible ranking, context-hash binding, multi-step trajectory runner/verifier, and client-side trajectory refuse-loop | **Done** (`src/integration/autonomous_governance_q_policy.py`, `src/integration/autonomous_governance_trajectory.py`, `tools/autonomous_governance_policy_factory.py`, `tools/autonomous_governance_q_policy.py`, `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`) — offline/integration artifact path; deployed apply wiring still **Open** (WS5) |
 | **Trajectory-tier Tau specs** — `gov_drift_budget_v1` / `gov_cooldown_v1` / `gov_charter_v1` / `gov_epoch_budget_v1` (compile + non-vacuity + teeth incl. wrap probes, via the same bf-layer harness) | **Done** (`validate_governance_specs.py` `PURE_SPECS`) |
 | Trajectory-tier Python mirrors + Tau↔Python↔Rust differential parity (one shared boundary table, byte-pinned fixture) | **Done** (`gov_gate.py`, `test_gov_parity.py`) |
 | **Epoch machine** — charter (dead-man standing approval) / veto / freeze / cooldown / drift budgets / aggregate budget, stable receipt codes + params-digest no-op proofs, import-bound gates, no self-amendment | **Done** (`gov_epoch.py`, `test_gov_epoch.py`) — reference; live `now_epoch`/state binding still **Open** (WS5) |
@@ -388,7 +389,7 @@ bound attained at a concrete m=3, B=150 instance) is proved in Lean
 | **Observables/sensor layer** — staleness-guarded deterministic binning (stale/future ⇒ hold) | **Done** (`gov_observables.py`) — reference; real committed metrics are **Open** (WS5) |
 | **Production** proposer (tuned/audited PID or trained+frozen Q-table on real signals) | **Open** |
 | Live wiring: a deployed governance flow that *requires* this gate before applying any change | **Open** (WS5) |
-| Client-side refuse-loop that rejects an unbounded/unproven revision | **Open** (WS5) |
+| Client-side refuse-loop that rejects an unbounded/unproven trajectory receipt | **Done** for the integration artifact path (`admit_verified_autonomous_governance_surface_trajectory_v1`, CLI `admit-trajectory`); deployed clients/nodes still must require it before live application (**Open**, WS5) |
 | Rust port of the gate kernel — `rust-runtime/crates/zenodex-governance-gate`: all gates + trajectory bits + the canonical params digest (contract-equal to `gov_epoch.params_digest`), 3-way parity over the shared byte-pinned fixture, clippy-clean checked arithmetic, Kani 7/7 full-domain accept⇒invariant | **Done** (reference/shadow; authority stays `gov_gate.py`; promotion via the CBC matrix)
 | Rust port of the EPOCH MACHINE — `epoch` module: Surface enum + fixed arrays make the hostile-object tier unrepresentable; digest-free core proved by Kani over the FULL symbolic state space (reject-is-no-op, pending kept-vs-cleared, accept⇒bookkeeping/band/charter invariants, precedence dominance, stop-authority field isolation — 15/15 harnesses); bound to `gov_epoch.py` by a 53-transition replay fixture generated from the Python machine itself (all 17 receipt codes, byte-pinned) | **Done** (reference/shadow; `gov_epoch.py` stays the authority machine) |
 

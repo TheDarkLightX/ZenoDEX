@@ -15,6 +15,8 @@ run_autonomous_governance_surface_trajectory_v1(policy, initial_state, steps, ..
   -> hash-chained trajectory receipt (self-contained, deterministic)
 verify_autonomous_governance_surface_trajectory_v1(receipt, policy)
   -> independent re-derivation; a client refuses any trajectory that does not replay
+admit_verified_autonomous_governance_surface_trajectory_v1(receipt, policy, expected_hash, ...)
+  -> client-side refuse-loop binding external policy/state anchors
 ```
 
 Threading semantics deliberately match the factory's long-horizon replay
@@ -86,10 +88,14 @@ AUTONOMOUS_GOVERNANCE_TRAJECTORY_SCHEMA_V1 = (
 AUTONOMOUS_GOVERNANCE_TRAJECTORY_VERIFICATION_SCHEMA_V1 = (
     "zenodex.autonomous_governance.q_surface_trajectory_verification.v1"
 )
+AUTONOMOUS_GOVERNANCE_TRAJECTORY_ADMISSION_SCHEMA_V1 = (
+    "zenodex.autonomous_governance.q_surface_trajectory_admission.v1"
+)
 
 _TRAJECTORY_HASH_TAG = "autonomous_governance_q_surface_trajectory_v1"
 _CHAIN_HASH_TAG = "autonomous_governance_q_surface_trajectory_chain_v1"
 _VERIFICATION_HASH_TAG = "autonomous_governance_q_surface_trajectory_verification_v1"
+_ADMISSION_HASH_TAG = "autonomous_governance_q_surface_trajectory_admission_v1"
 
 MAX_TRAJECTORY_STEPS_V1 = 4096
 
@@ -1061,3 +1067,187 @@ def verify_autonomous_governance_surface_trajectory_v1(
         "trajectory_ok": trajectory_ok,
     }
     return {**body, "verification_hash": _HASH_V0(_VERIFICATION_HASH_TAG, body)}
+
+
+def _state_matches_expected(
+    *,
+    expected: object,
+    actual: object,
+    label: str,
+    errors: list[str],
+) -> bool:
+    if expected is None:
+        return True
+    if not isinstance(expected, Mapping):
+        errors.append(f"expected_{label}_must_be_object")
+        return False
+    if not isinstance(actual, Mapping):
+        errors.append(f"receipt_{label}_must_be_object")
+        return False
+    expected_state, expected_errors = _normalize_surface_state(expected)
+    actual_state, actual_errors = _normalize_surface_state(actual)
+    if expected_errors:
+        errors.extend(f"expected_{label}_{error}" for error in expected_errors)
+        return False
+    if actual_errors:
+        errors.extend(f"receipt_{label}_{error}" for error in actual_errors)
+        return False
+    if expected_state != actual_state:
+        errors.append(f"{label}_mismatch")
+        return False
+    return True
+
+
+def admit_verified_autonomous_governance_surface_trajectory_v1(
+    *,
+    receipt: object,
+    policy: object,
+    expected_policy_hash: object,
+    expected_initial_state: object | None = None,
+    expected_final_state: object | None = None,
+    expected_previous_chain_head: object | None = None,
+    require_trajectory_ok: bool = True,
+) -> dict[str, Any]:
+    """Client-side refuse-loop for a presented autonomous-governance trajectory.
+
+    `verify_autonomous_governance_surface_trajectory_v1` answers the audit
+    question: does this receipt replay under this policy? This function answers
+    the admission question: should a client or node accept the presented
+    trajectory as the one it expected? It adds external pin checks that the
+    receipt cannot prove by itself: the expected policy hash, optional initial
+    and final state anchors, and optional previous-chain continuity.
+    """
+
+    errors: list[str] = []
+    checks = {
+        "expected_policy_hash_bound": False,
+        "verification_ok": False,
+        "trajectory_ok": False,
+        "status_completed": False,
+        "invariant_report_ok": False,
+        "initial_state_matches": expected_initial_state is None,
+        "final_state_matches": expected_final_state is None,
+        "previous_chain_head_matches": expected_previous_chain_head is None,
+    }
+
+    expected_hash = expected_policy_hash if isinstance(expected_policy_hash, str) else ""
+    if not expected_hash or not is_canonically_encodable(expected_hash):
+        errors.append("expected_policy_hash_required")
+        expected_hash = ""
+
+    verification = verify_autonomous_governance_surface_trajectory_v1(
+        receipt=receipt,
+        policy=policy,
+    )
+    if verification.get("ok") is True:
+        checks["verification_ok"] = True
+    else:
+        errors.append("trajectory_verification_failed")
+
+    if verification.get("trajectory_ok") is True:
+        checks["trajectory_ok"] = True
+    elif require_trajectory_ok:
+        errors.append("trajectory_not_ok")
+
+    receipt_mapping = receipt if isinstance(receipt, Mapping) else {}
+    if receipt_mapping.get("status") == STATUS_COMPLETED:
+        checks["status_completed"] = True
+    else:
+        errors.append("trajectory_status_not_completed")
+
+    policy_hash = ""
+    if isinstance(policy, Mapping):
+        try:
+            policy_hash = policy_content_hash_v1(policy)
+        except (TypeError, ValueError):
+            errors.append("policy_hash_unavailable")
+    else:
+        errors.append("policy_must_be_object")
+
+    receipt_policy_hash = (
+        receipt_mapping.get("policy_hash") if isinstance(receipt_mapping, Mapping) else None
+    )
+    receipt_expected_hash = (
+        receipt_mapping.get("expected_policy_hash")
+        if isinstance(receipt_mapping, Mapping)
+        else None
+    )
+    if expected_hash:
+        hash_errors_before = len(errors)
+        if policy_hash != expected_hash:
+            errors.append("expected_policy_hash_mismatch:policy")
+        if receipt_policy_hash != expected_hash:
+            errors.append("expected_policy_hash_mismatch:receipt_policy")
+        if receipt_expected_hash != expected_hash:
+            errors.append("expected_policy_hash_mismatch:receipt_expected")
+        checks["expected_policy_hash_bound"] = len(errors) == hash_errors_before
+
+    invariant_report = receipt_mapping.get("invariant_report")
+    if (
+        isinstance(invariant_report, Mapping)
+        and bool(invariant_report)
+        and all(value is True for value in invariant_report.values())
+    ):
+        checks["invariant_report_ok"] = True
+    else:
+        errors.append("trajectory_invariant_report_not_all_true")
+
+    if _state_matches_expected(
+        expected=expected_initial_state,
+        actual=receipt_mapping.get("initial_state"),
+        label="initial_state",
+        errors=errors,
+    ):
+        checks["initial_state_matches"] = True
+
+    if _state_matches_expected(
+        expected=expected_final_state,
+        actual=receipt_mapping.get("final_state"),
+        label="final_state",
+        errors=errors,
+    ):
+        checks["final_state_matches"] = True
+
+    if expected_previous_chain_head is not None:
+        if (
+            not isinstance(expected_previous_chain_head, str)
+            or not expected_previous_chain_head
+            or not is_canonically_encodable(expected_previous_chain_head)
+        ):
+            errors.append("expected_previous_chain_head_invalid")
+        else:
+            carry_in = receipt_mapping.get("carry_in", {})
+            actual_head = (
+                carry_in.get("previous_chain_head")
+                if isinstance(carry_in, Mapping)
+                else None
+            )
+            if actual_head == expected_previous_chain_head:
+                checks["previous_chain_head_matches"] = True
+            else:
+                errors.append("previous_chain_head_mismatch")
+
+    accepted = not errors
+    final_state = (
+        dict(receipt_mapping.get("final_state", {}))
+        if accepted and isinstance(receipt_mapping.get("final_state"), Mapping)
+        else {}
+    )
+    body = {
+        "schema": AUTONOMOUS_GOVERNANCE_TRAJECTORY_ADMISSION_SCHEMA_V1,
+        "ok": accepted,
+        "accepted": accepted,
+        "errors": tuple(errors),
+        "checks": checks,
+        "verification": verification,
+        "trajectory_hash": receipt_mapping.get("trajectory_hash", ""),
+        "policy_hash": policy_hash,
+        "expected_policy_hash": expected_hash,
+        "accepted_final_state": final_state,
+        "chain_head": receipt_mapping.get("chain_head", ""),
+        "not_claimed": _NOT_CLAIMED
+        + (
+            "does_not_claim_deployed_node_required_this_receipt",
+        ),
+    }
+    return {**body, "admission_hash": _HASH_V0(_ADMISSION_HASH_TAG, body)}

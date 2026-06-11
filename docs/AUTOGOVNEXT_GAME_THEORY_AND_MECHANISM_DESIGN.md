@@ -29,7 +29,9 @@ readiness and it does **not** weaken any promotion boundary in the plan.
 >   `_trajectory_budget_failures`, `governance_surface_context_hash_v1`,
 >   `_select_action`, `SURFACE_PARAMETER_NAMES_V1`, the surface evaluator,
 >   `commit_…_surface_…_v1`, and
->   `run_autonomous_governance_surface_trajectory_v1`);
+>   `run_autonomous_governance_surface_trajectory_v1`,
+>   `verify_autonomous_governance_surface_trajectory_v1`, and
+>   `admit_verified_autonomous_governance_surface_trajectory_v1`);
 > - **[obligation]** — a proposed Phase-4 property, not yet code.
 >
 > Verify every citation against the module at the commit being promoted; the
@@ -575,6 +577,7 @@ is the narrow claim this mechanism should carry.
 | trajectory budget check | `_trajectory_budget_failures` | [committed] |
 | trajectory accumulator custody | `run_autonomous_governance_surface_trajectory_v1` | [committed] |
 | trajectory replay verification | `verify_autonomous_governance_surface_trajectory_v1` | [committed] |
+| client-side trajectory refuse-loop | `admit_verified_autonomous_governance_surface_trajectory_v1` | [committed] |
 | proposer (re-run inside disposer) | `_select_action`, `_ranked_action_ids`, `_bin_index` | [committed] |
 | offline training only | `q_learning_update_fixed_point_v1` | [committed] |
 | surface evaluator | `evaluate_autonomous_governance_surface_q_policy_v1` | [committed] |

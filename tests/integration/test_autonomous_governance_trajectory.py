@@ -32,11 +32,13 @@ from src.integration.autonomous_governance_q_policy import (
 )
 from src.integration.autonomous_governance_trajectory import (
     AUTONOMOUS_GOVERNANCE_TRAJECTORY_SCHEMA_V1,
+    AUTONOMOUS_GOVERNANCE_TRAJECTORY_ADMISSION_SCHEMA_V1,
     MAX_TRAJECTORY_STEPS_V1,
     STATUS_COMPLETED,
     STATUS_HALTED_INVARIANT_BREACH,
     STATUS_REJECTED_STRUCTURAL,
     _TRAJECTORY_HASH_TAG,
+    admit_verified_autonomous_governance_surface_trajectory_v1,
     _audit_step_transition,
     _chain_genesis,
     _chain_link,
@@ -895,6 +897,106 @@ def test_verify_fails_closed_on_malformed_receipts() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Admission / refuse-loop
+# --------------------------------------------------------------------------- #
+def test_admission_accepts_verified_pinned_trajectory() -> None:
+    policy = _sample_policy()
+    receipt = _run(policy=policy)
+
+    admission = admit_verified_autonomous_governance_surface_trajectory_v1(
+        receipt=receipt,
+        policy=policy,
+        expected_policy_hash=policy["policy_hash"],
+        expected_initial_state=_surface_state(),
+        expected_final_state=receipt["final_state"],
+    )
+
+    assert admission["schema"] == AUTONOMOUS_GOVERNANCE_TRAJECTORY_ADMISSION_SCHEMA_V1
+    assert admission["ok"] is True
+    assert admission["accepted"] is True
+    assert admission["errors"] == ()
+    assert all(admission["checks"].values())
+    assert admission["accepted_final_state"] == receipt["final_state"]
+    assert admission["trajectory_hash"] == receipt["trajectory_hash"]
+
+
+def test_admission_rejects_external_policy_pin_mismatch() -> None:
+    policy = _sample_policy()
+    receipt = _run(policy=policy)
+
+    admission = admit_verified_autonomous_governance_surface_trajectory_v1(
+        receipt=receipt,
+        policy=policy,
+        expected_policy_hash="0x" + "00" * 32,
+    )
+
+    assert admission["accepted"] is False
+    assert admission["checks"]["verification_ok"] is True
+    assert "expected_policy_hash_mismatch:policy" in admission["errors"]
+    assert "expected_policy_hash_mismatch:receipt_policy" in admission["errors"]
+    assert "expected_policy_hash_mismatch:receipt_expected" in admission["errors"]
+
+
+def test_admission_rejects_state_anchor_mismatch() -> None:
+    policy = _sample_policy()
+    receipt = _run(policy=policy)
+
+    admission = admit_verified_autonomous_governance_surface_trajectory_v1(
+        receipt=receipt,
+        policy=policy,
+        expected_policy_hash=policy["policy_hash"],
+        expected_initial_state=_surface_state(fee_bps=31),
+        expected_final_state=receipt["final_state"],
+    )
+
+    assert admission["accepted"] is False
+    assert admission["checks"]["verification_ok"] is True
+    assert admission["checks"]["initial_state_matches"] is False
+    assert "initial_state_mismatch" in admission["errors"]
+
+
+def test_admission_rejects_rehashed_forgery() -> None:
+    policy = _sample_policy()
+    receipt = _as_json_obj(_run(policy=policy))
+    receipt["final_state"]["fee_bps"] = 45
+    receipt = _rehash(receipt)
+
+    admission = admit_verified_autonomous_governance_surface_trajectory_v1(
+        receipt=receipt,
+        policy=policy,
+        expected_policy_hash=policy["policy_hash"],
+    )
+
+    assert admission["accepted"] is False
+    assert admission["checks"]["verification_ok"] is False
+    assert "trajectory_verification_failed" in admission["errors"]
+    assert "replay_divergence" in admission["verification"]["errors"]
+
+
+def test_admission_checks_previous_chain_head_when_expected() -> None:
+    policy = _sample_policy()
+    previous = "0x" + "12" * 32
+    receipt = _run(policy=policy, previous_chain_head=previous)
+
+    accepted = admit_verified_autonomous_governance_surface_trajectory_v1(
+        receipt=receipt,
+        policy=policy,
+        expected_policy_hash=policy["policy_hash"],
+        expected_previous_chain_head=previous,
+    )
+    assert accepted["accepted"] is True
+
+    rejected = admit_verified_autonomous_governance_surface_trajectory_v1(
+        receipt=receipt,
+        policy=policy,
+        expected_policy_hash=policy["policy_hash"],
+        expected_previous_chain_head="0x" + "34" * 32,
+    )
+    assert rejected["accepted"] is False
+    assert "previous_chain_head_mismatch" in rejected["errors"]
+
+
+# --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
 def test_cli_trajectory_run_and_verify(tmp_path: Path) -> None:
@@ -956,6 +1058,35 @@ def test_cli_trajectory_run_and_verify(tmp_path: Path) -> None:
     assert verification["ok"] is True
     assert verification["trajectory_ok"] is True
 
+    admit_path = tmp_path / "admit-bundle.json"
+    admit_path.write_text(
+        json.dumps(
+            {
+                "policy": bundle["policy"],
+                "trajectory_receipt": receipt,
+                "expected_policy_hash": bundle["expected_policy_hash"],
+                "expected_initial_state": bundle["initial_surface_state"],
+                "expected_final_state": receipt["final_state"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    admit = subprocess.run(
+        [
+            sys.executable,
+            "tools/autonomous_governance_q_policy.py",
+            "admit-trajectory",
+            str(admit_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert admit.returncode == 0, admit.stderr
+    admission = json.loads(admit.stdout)
+    assert admission["accepted"] is True
+    assert admission["accepted_final_state"] == receipt["final_state"]
+
     # Tampered receipt must exit 2 with replay divergence.
     receipt["steps"][0]["state_after"]["fee_bps"] = 31
     forged = dict(receipt)
@@ -978,6 +1109,30 @@ def test_cli_trajectory_run_and_verify(tmp_path: Path) -> None:
     )
     assert tampered.returncode == 2, tampered.stdout
     assert "replay_divergence" in tampered.stdout
+
+    admit_path.write_text(
+        json.dumps(
+            {
+                "policy": bundle["policy"],
+                "trajectory_receipt": forged,
+                "expected_policy_hash": bundle["expected_policy_hash"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    tampered_admit = subprocess.run(
+        [
+            sys.executable,
+            "tools/autonomous_governance_q_policy.py",
+            "admit-trajectory",
+            str(admit_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert tampered_admit.returncode == 2, tampered_admit.stdout
+    assert "trajectory_verification_failed" in tampered_admit.stdout
 
 
 # --------------------------------------------------------------------------- #

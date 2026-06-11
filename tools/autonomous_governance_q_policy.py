@@ -22,6 +22,7 @@ from src.integration.autonomous_governance_q_policy import (  # noqa: E402
     sample_autonomous_governance_surface_q_policy_v1,
 )
 from src.integration.autonomous_governance_trajectory import (  # noqa: E402
+    admit_verified_autonomous_governance_surface_trajectory_v1,
     run_autonomous_governance_surface_trajectory_v1,
     verify_autonomous_governance_surface_trajectory_v1,
 )
@@ -277,6 +278,33 @@ def _cmd_verify_trajectory(args: argparse.Namespace) -> int:
     return 0 if result.get("ok") is True else 2
 
 
+def _cmd_admit_trajectory(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        if "trajectory_receipt" not in bundle or "policy" not in bundle:
+            raise ValueError("admit_trajectory_requires_policy_and_trajectory_receipt")
+        result = admit_verified_autonomous_governance_surface_trajectory_v1(
+            receipt=bundle.get("trajectory_receipt", {}),
+            policy=bundle.get("policy", {}),
+            expected_policy_hash=bundle.get("expected_policy_hash", ""),
+            expected_initial_state=bundle.get("expected_initial_state"),
+            expected_final_state=bundle.get("expected_final_state"),
+            expected_previous_chain_head=bundle.get("expected_previous_chain_head"),
+        )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"admit_trajectory_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("accepted") is True else 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -312,6 +340,19 @@ def main(argv: list[str] | None = None) -> int:
         "bundle", help="path to JSON with {policy, trajectory_receipt}"
     )
     verify_trajectory.set_defaults(func=_cmd_verify_trajectory)
+
+    admit_trajectory = sub.add_parser(
+        "admit-trajectory",
+        help="verify and run the client-side trajectory refuse-loop",
+    )
+    admit_trajectory.add_argument(
+        "bundle",
+        help=(
+            "path to JSON with policy, trajectory_receipt, expected_policy_hash, "
+            "and optional expected state anchors"
+        ),
+    )
+    admit_trajectory.set_defaults(func=_cmd_admit_trajectory)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

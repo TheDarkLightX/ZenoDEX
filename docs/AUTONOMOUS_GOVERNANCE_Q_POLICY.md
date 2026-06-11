@@ -336,6 +336,29 @@ PY
 python3 tools/autonomous_governance_q_policy.py verify-trajectory /tmp/autogov-trajectory-verify-bundle.json
 ```
 
+Run the stricter client-side refuse-loop, binding the external policy pin and
+expected state anchors:
+
+```bash
+python3 - <<'PY'
+import json
+bundle = json.load(open("/tmp/autogov-trajectory-bundle.json"))
+receipt = json.load(open("/tmp/autogov-trajectory-receipt.json"))
+json.dump(
+    {
+        "policy": bundle["policy"],
+        "trajectory_receipt": receipt,
+        "expected_policy_hash": bundle["expected_policy_hash"],
+        "expected_initial_state": bundle["initial_surface_state"],
+        "expected_final_state": receipt["final_state"],
+    },
+    open("/tmp/autogov-trajectory-admit-bundle.json", "w"),
+    sort_keys=True,
+)
+PY
+python3 tools/autonomous_governance_q_policy.py admit-trajectory /tmp/autogov-trajectory-admit-bundle.json
+```
+
 Exit code `0` means the autonomous revision packet is approved. Exit code `2`
 means it was rejected fail-closed. Exit code `3` means the input could not be
 evaluated.
@@ -349,6 +372,11 @@ to forget: applied surface state, `trajectory_used`,
 call is supplied with an `expected_committed_context_hash`; the final
 hash-chained receipt is verified by replay through
 `verify_autonomous_governance_surface_trajectory_v1`.
+`admit_verified_autonomous_governance_surface_trajectory_v1` is the
+client-facing refuse-loop. It requires successful replay verification,
+`trajectory_ok`, completed status, all invariant flags true, the external policy
+hash to match the policy and receipt pins, and any caller-supplied state or
+previous-chain anchors to match.
 
 ## Design Notes
 
