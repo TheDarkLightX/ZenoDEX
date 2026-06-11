@@ -147,6 +147,27 @@ Generate a governance-surface sample bundle:
 python3 tools/autonomous_governance_q_policy.py sample --surface --output /tmp/autogov-surface-q-bundle.json
 ```
 
+Generate a deterministic frozen EBRM step bundle:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py sample --ebrm --output /tmp/autogov-ebrm-bundle.json
+```
+
+Generate the verifier-labeled synthetic EBRM corpus/evidence report:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py ebrm-evidence \
+  --output /tmp/autogov-ebrm-evidence.json \
+  --corpus-output /tmp/autogov-ebrm-corpus.json
+```
+
+The EBRM evidence command enumerates bounded candidate revisions for fee,
+funding-cap, and staker-defense surfaces, labels each row with `gov_gate.py`,
+assigns deterministic group-level train/heldout splits, and compares a
+compositional integer energy scorer against a target-only baseline. The report
+is evaluation and training material only: it keeps
+`production_promotion_claim=false` and `promotion_ready=false`.
+
 Generate a multi-step trajectory bundle:
 
 ```bash
@@ -353,6 +374,12 @@ Evaluate and apply one governance-surface step:
 
 ```bash
 python3 tools/autonomous_governance_q_policy.py step /tmp/autogov-surface-q-bundle.json
+```
+
+Evaluate one deterministic EBRM step:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py ebrm-step /tmp/autogov-ebrm-bundle.json
 ```
 
 Run a multi-step trajectory and independently verify the receipt:
