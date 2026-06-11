@@ -501,19 +501,104 @@ par strictly improves TCR whenever TCR > 100%.
 
 ---
 
-## 7) Summary table
+## 7) Third-pass results: implemented recommendations and deep-audit findings
+
+### 7.1 Recommendations promoted from "recommended" to "done"
+
+- **R1 implemented.** `inv_funded_liquidation` is now in the runtime
+  invariant registry (`src/core/perp_v2/invariants.py`), with tests showing
+  the exact drift scenarios the old invariants miss: at
+  `max_oracle_move_bps = 548` (or `= 600`), `inv_margin_params_ordered` and
+  `inv_liquidation_ic_guard` both still pass while the penalty is unfunded —
+  only the new invariant trips.
+- **R5 implemented.** `lean-mathlib/Proofs/EconomicSecurityEnvelope.lean`
+  formalizes all three envelope laws (post-hoc slash deterrence, attack-cost
+  floor, honest-reward floor) plus the detection-probability generalization
+  `cheatEV = (1−q)·gain − q·slash`, with the README's solver assumption
+  recovered as the `q = 1` slice (`cheatEV_at_certain_detection`) and the
+  production envelope numbers witnessed.
+- **R4 implemented.** `MEVResistanceBound.weightedExposure` states the
+  weighted dilution model: conservation
+  (`weightedExposure_sum_le : Σ exposures ≤ base`), the equal-size
+  specialization recovering `1/n` exactly
+  (`weightedExposure_equal_sizes`), and the whale witness (96% retention in
+  a batch of 5).
+
+### 7.2 New theorems beyond the round-2 surface
+
+- **L-epoch clamp envelope** (`PerpEpochSafety.clamped_path_upper/lower`):
+  `k` clamped moves confine the price to
+  `[P₀(1−m/10⁴)^k, P₀(1+m/10⁴)^k]`, generalizing the two-epoch bound to all
+  horizons.
+- **Tail asymmetry** (`clamped_path_drop_le_linear`,
+  `short_tail_dominates_linear`, `short_tail_ge_long_tail`): under
+  multiplicative clamps the long-side multi-epoch tail is **subadditive**
+  (≤ `k·m` bps of the original price, by Bernoulli) while the short-side
+  tail is **superadditive** (≥ `k·m` bps), and the short tail dominates the
+  long tail at every horizon. At production `L = 3`: short `1576.25` bps vs
+  long `1426.25` bps (`witness_three_epoch_tails`). Insurance sized on
+  long-side arithmetic underestimates the short-side requirement at every
+  `L ≥ 2`.
+- **Keeper-race rent dissipation** (`PerpGameTheory` Tier 6): in the
+  reduced-form race, the equilibrium attempter count is unique and aggregate
+  gas lands in `(R − c, R]` (`race_dissipation_bounds`,
+  `race_equilibrium_count_unique`); waste exceeds `R − 2c`
+  (`race_waste_exceeds_prize_minus_two_gas`). Consequence: raising the
+  penalty above the Tier-5 gas floor buys no liveness in this model — it
+  only burns more aggregate gas. Optimal penalty = just above the
+  (KEEPER-GAS) floor, subject to the (FUNDED-LIQ) cap; or assign
+  liquidations in-batch, consistent with uniform clearing.
+- **CPMM Lipschitz hop bridge** (`RoundingErrorBound.cpmm_hop_lipschitz`):
+  discharges the file's previously-unverified caller obligation for
+  down-price hops (`y ≤ x`): the floored output is 1-Lipschitz in the input,
+  so the `g(k) ≤ k` route bound applies (halving the conservative `2k − 1`
+  bound) on routes of such hops. The matching counterexample
+  (`witness_hop_not_lipschitz`: a 1-unit input difference moving the output
+  by 500 on a `y > x` pool) shows the price-side restriction is necessary,
+  not an artifact.
+
+### 7.3 Deep-audit residue (found, not yet fixed — ranked)
+
+From a full-cluster audit of the AMM/routing proofs, the remaining
+mathematically weak spots, in priority order:
+
+1. `CPMMConcavity.lean`: split-objective discrete concavity is verified
+   per-instance (bounded `D`), not proven globally; the proven second-
+   difference bound is `≤ 2`, and unimodality of split routing rests on it.
+2. `MobiusCPMMRoutingBounds.lean`: the 2-hop floor bound is one-sided with
+   no equality characterization, so closed-form route pruning must
+   re-simulate candidates.
+3. `SplitRoutingArgmaxPlateau.lean`: plateau *properties* are proven
+   conditional on a plateau existing; existence itself is not proven.
+4. `AntiFragmentation.lean`: the split gap `≤ 1` has no computable
+   `gap = 0/1` predicate, so single-vs-batch advantage is not decidable
+   a priori.
+5. Across the yield/cover/staking cluster, the recurring shape is a
+   **three-tier gap**: arithmetic proven; runtime-binding (do the Python
+   gates enforce the Lean hypotheses?) mostly unproven; oracle/economic
+   truth (are claims, IL measurements, anti-abuse flags honest?) explicitly
+   out of scope. The single sharpest instances: `TreasuryRebalancerGuard`'s
+   five anti-abuse booleans and `worstCaseLoss` are proposer-supplied
+   inputs, and `ZenoCover*`'s `covered` flag has no oracle binding — both
+   guard families bound losses only conditional on honest inputs.
+
+---
+
+## 8) Summary table
 
 | # | Mechanism | Gap | Improvement | Status |
 |---|-----------|-----|-------------|--------|
-| 1 | Liquidation | equity ≥ 0 proven, penalty funding unproven; cap binds under stress | (FUNDED-LIQ): `penalty·(10⁴+m) ≤ 10⁴·(maint−m)` | **Proven in Lean**; runtime invariant recommended (R1) |
+| 1 | Liquidation | equity ≥ 0 proven, penalty funding unproven; cap binds under stress | (FUNDED-LIQ): `penalty·(10⁴+m) ≤ 10⁴·(maint−m)` | **Proven in Lean + enforced** (`inv_funded_liquidation`) |
 | 2 | Liquidation | keeper profitability assumed | (KEEPER-GAS) uniform floor over clamp band | **Proven in Lean**; gate sizing recommended (R2) |
 | 3 | Liquidation | weak dominance only | strict dominance ⇒ unique Nash | **Proven in Lean** |
 | 4 | Funding | premium-only signal; imbalance EV diverges unobserved | exact `2ρ²/(1−ρ²)` identity; bounded ρ² funding term | **Identity proven in Lean**; controller change recommended (R3) |
-| 5 | Batch MEV | doubling-only bound; equal-size model quotable as guarantee | exact k-fold composition + sharpness; weighted restatement | **Proven in Lean**; weighted file recommended (R4) |
-| 6 | Solver bounty | `q = 1` catch assumption implicit | (DETERRENCE) with explicit `q`, shared with oracle lane | Recommended (R5) |
+| 5 | Batch MEV | doubling-only bound; equal-size model quotable as guarantee | exact k-fold composition + sharpness; weighted model | **Proven in Lean** (incl. weighted `weightedExposure`) |
+| 6 | Solver bounty | `q = 1` catch assumption implicit | (DETERRENCE) with explicit `q`, shared with oracle lane | **Proven in Lean** (`EconomicSecurityEnvelope`) |
 | 7 | Funding dust | bounded leak, destination unspecified | exact conservation with insurance sink | Partially present (sink matches Lean); per-epoch assertion recommended |
 | 8 | Tokenomics | emission lane outside proven guard | instantiate `RewardControllerGuard` | Recommended |
 | 9 | zUSD redemption | zero default fee ⇒ free oracle-lag arbitrage | fee floor ≥ staleness drift budget; non-zero redeem bump | Recommended (R6) |
 | 10 | zUSD stability pool | proven cooldown unimplemented; all-or-nothing absorption ⇒ exit spiral | cooldown + partial liquidation + SP-coverage axis | Recommended (R7) |
 | 11 | Perp ADL | proven haircut unimplemented; bankruptcies fail-closed into freeze | implement Lean-modeled ADL | Recommended (R8) |
-| 12 | Liquidation latency | doc-only compounding arithmetic | two-epoch bound `2m + m²/10⁴` | **Proven in Lean** (`two_epoch_move_bound`) |
+| 12 | Liquidation latency | doc-only compounding arithmetic | two-epoch + L-epoch envelopes; short/long tail asymmetry | **Proven in Lean** (`two_epoch_move_bound`, `clamped_path_*`, tail lemmas) |
+| 13 | Keeper race | 1-player model ignores competition | rent dissipation: equilibrium gas ∈ `(R−c, R]`, unique count | **Proven in Lean** (Tier 6); penalty sizing + batch assignment recommended |
+| 14 | Route rounding | Lipschitz route bound unverified for CPMM | 1-Lipschitz hop bridge for `y ≤ x` + necessity counterexample | **Proven in Lean** (`cpmm_hop_lipschitz`) |

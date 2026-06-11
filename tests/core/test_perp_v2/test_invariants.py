@@ -1,4 +1,4 @@
-"""Tests for src/core/perp_v2/invariants.py — 16 invariant checkers."""
+"""Tests for src/core/perp_v2/invariants.py — 19 invariant checkers."""
 
 from dataclasses import replace
 
@@ -13,8 +13,8 @@ class TestAllInvariantsOnInitialState:
         violations = check_all(s)
         assert violations == []
 
-    def test_registry_has_18_invariants(self):
-        assert len(INVARIANT_REGISTRY) == 18
+    def test_registry_has_19_invariants(self):
+        assert len(INVARIANT_REGISTRY) == 19
 
 
 class TestClearingNotFromFuture:
@@ -158,6 +158,29 @@ class TestLiquidationIcGuard:
         # liq_penalty=600 >= eff_maint=600
         s = replace(initial_state(), liquidation_penalty_bps=600)
         assert "inv_liquidation_ic_guard" in check_all(s)
+
+
+class TestFundedLiquidation:
+    def test_pass_defaults(self):
+        # 50 * (10000 + 500) = 525_000 <= 10000 * (600 - 500) = 1_000_000
+        assert "inv_funded_liquidation" not in check_all(initial_state())
+
+    def test_fail_clamp_drift(self):
+        # m=548: 50 * 10548 = 527_400 > 10000 * (600 - 548) = 520_000.
+        # inv_margin_params_ordered still passes (548 <= 600), so only the
+        # funded-liquidation invariant catches the drift.
+        s = replace(initial_state(), max_oracle_move_bps=548)
+        violations = check_all(s)
+        assert "inv_funded_liquidation" in violations
+        assert "inv_margin_params_ordered" not in violations
+
+    def test_fail_clamp_at_maintenance(self):
+        # m = eff_maint = 600: the weaker IC guard (penalty < eff_maint)
+        # still passes, but the penalty is unfunded at the clamp edge.
+        s = replace(initial_state(), max_oracle_move_bps=600)
+        violations = check_all(s)
+        assert "inv_funded_liquidation" in violations
+        assert "inv_liquidation_ic_guard" not in violations
 
 
 class TestFundingEpochGated:
