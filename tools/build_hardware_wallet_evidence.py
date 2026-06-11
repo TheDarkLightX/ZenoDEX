@@ -30,6 +30,7 @@ from src.integration.production_promotion_evidence import (  # noqa: E402
     HARDWARE_WALLET_EVIDENCE_SCHEMA_V1,
     attach_production_hardware_wallet_hash_v1,
     evaluate_production_hardware_wallet_evidence_v1,
+    production_hardware_wallet_attestation_challenge_v1,
 )
 
 _HEX = frozenset("0123456789abcdef")
@@ -105,31 +106,33 @@ def build_hardware_wallet_evidence(args: argparse.Namespace) -> dict[str, object
         # time. Rejecting it here keeps the produced artifact aligned with the
         # verifier's same-hour custody rule before any evidence hash is minted.
         raise ValueError("OS prompt capture and approval must be captured within the same hour")
-    return attach_production_hardware_wallet_hash_v1(
-        {
-            "schema": HARDWARE_WALLET_EVIDENCE_SCHEMA_V1,
-            "device_id": args.device_id,
-            "device_model": device_model,
-            "device_firmware_version": args.device_firmware_version,
-            "device_attestation": {
-                "pubkey": device_pubkey,
-                "challenge": attestation_challenge,
-                "signature": attestation_signature,
-            },
-            "os_prompt_capture": {
-                "kind": prompt_kind,
-                "hash": _normalize_hex(args.prompt_hash, label="OS prompt capture hash", length=64),
-                "captured_at": prompt_captured_at,
-            },
-            "device_approval_tx": {
-                "tx_payload_hash": approval_tx_payload_hash,
-                "approval_signature": approval_signature,
-                "captured_at": approval_captured_at,
-            },
-            "profile_wallet_authority_hash": args.wallet_authority_profile_hash,
-            "issued_at": issued_at,
-        }
-    )
+    evidence_body: dict[str, object] = {
+        "schema": HARDWARE_WALLET_EVIDENCE_SCHEMA_V1,
+        "device_id": args.device_id,
+        "device_model": device_model,
+        "device_firmware_version": args.device_firmware_version,
+        "device_attestation": {
+            "pubkey": device_pubkey,
+            "challenge": attestation_challenge,
+            "signature": attestation_signature,
+        },
+        "os_prompt_capture": {
+            "kind": prompt_kind,
+            "hash": _normalize_hex(args.prompt_hash, label="OS prompt capture hash", length=64),
+            "captured_at": prompt_captured_at,
+        },
+        "device_approval_tx": {
+            "tx_payload_hash": approval_tx_payload_hash,
+            "approval_signature": approval_signature,
+            "captured_at": approval_captured_at,
+        },
+        "profile_wallet_authority_hash": args.wallet_authority_profile_hash,
+        "issued_at": issued_at,
+    }
+    expected_challenge = production_hardware_wallet_attestation_challenge_v1(evidence_body)
+    if attestation_challenge != expected_challenge:
+        raise ValueError("attestation challenge must equal canonical hardware approval challenge")
+    return attach_production_hardware_wallet_hash_v1(evidence_body)
 
 
 def _write_json(path: Path, payload: Mapping[str, object]) -> None:

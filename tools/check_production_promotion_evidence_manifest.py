@@ -112,7 +112,7 @@ _LANE_REQUIREMENTS: Mapping[str, Mapping[str, Any]] = {
             "evidence_hash",
         ],
         "external_artifacts": [
-            "hardware wallet attestation pubkey/challenge/signature",
+            "hardware wallet attestation pubkey and signature over the canonical approval challenge",
             "OS prompt capture hash",
             "device approval transaction payload hash and signature",
         ],

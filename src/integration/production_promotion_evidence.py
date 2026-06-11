@@ -1174,6 +1174,44 @@ _HW_OS_PROMPT_FIELDS = frozenset({"kind", "hash", "captured_at"})
 _HW_APPROVAL_FIELDS = frozenset({"tx_payload_hash", "approval_signature", "captured_at"})
 
 
+def _lower_if_str(value: object) -> object:
+    return value.lower() if isinstance(value, str) else value
+
+
+def production_hardware_wallet_attestation_challenge_v1(evidence: Mapping[str, Any]) -> str:
+    """Return the canonical challenge a hardware-wallet attestation must sign.
+
+    The challenge binds the device identity to the OS prompt capture, approval
+    transaction payload, and active wallet-authority profile. Cryptographic
+    signature verification still belongs to the external hardware-wallet
+    attestation flow; this verifier rejects evidence that is internally
+    self-consistent but whose challenge was chosen independently of the custody
+    approval material.
+    """
+
+    attestation_raw = evidence.get("device_attestation")
+    attestation = attestation_raw if isinstance(attestation_raw, Mapping) else {}
+    prompt_raw = evidence.get("os_prompt_capture")
+    prompt = prompt_raw if isinstance(prompt_raw, Mapping) else {}
+    approval_raw = evidence.get("device_approval_tx")
+    approval = approval_raw if isinstance(approval_raw, Mapping) else {}
+    body = {
+        "schema": evidence.get("schema"),
+        "device_id": evidence.get("device_id"),
+        "device_model": _lower_if_str(evidence.get("device_model")),
+        "device_firmware_version": evidence.get("device_firmware_version"),
+        "device_pubkey": _lower_if_str(attestation.get("pubkey")),
+        "os_prompt_capture": {
+            "kind": _lower_if_str(prompt.get("kind")),
+            "hash": _lower_if_str(prompt.get("hash")),
+            "captured_at": prompt.get("captured_at"),
+        },
+        "approval_tx_payload_hash": _lower_if_str(approval.get("tx_payload_hash")),
+        "profile_wallet_authority_hash": evidence.get("profile_wallet_authority_hash"),
+    }
+    return hash_v0("production_hardware_wallet_attestation_challenge_v1", body).removeprefix("0x")
+
+
 class _HardwareWalletLane(Lane):
     LANE_ID = LANE_HARDWARE_WALLET
     SCHEMA = HARDWARE_WALLET_EVIDENCE_SCHEMA_V1
@@ -1206,6 +1244,7 @@ class _HardwareWalletLane(Lane):
         issued_at = _P.positive_int(obj.get("issued_at"), path="issued_at", gaps=gaps)
 
         _validate_hardware_wallet_rules(
+            raw_evidence=obj,
             device_model=device_model,
             attestation=attestation,
             prompt=prompt,
@@ -1327,6 +1366,7 @@ def _parse_hardware_approval(value: object, *, gaps: _Gaps) -> dict[str, Any]:
 
 def _validate_hardware_wallet_rules(
     *,
+    raw_evidence: Mapping[str, Any],
     device_model: str | None,
     attestation: Mapping[str, Any],
     prompt: Mapping[str, Any],
@@ -1343,6 +1383,7 @@ def _validate_hardware_wallet_rules(
     if prompt_kind is not None and prompt_kind not in _ALLOWED_OS_PROMPT_KINDS:
         gaps.add(f"os_prompt_capture.kind {prompt_kind!r} is not in the allowed set")
 
+    _validate_hardware_attestation_challenge(raw_evidence, attestation, gaps=gaps)
     _validate_hardware_attestation_vs_approval(attestation, approval, gaps=gaps)
     _validate_hardware_context_binding(
         attestation_pubkey=attestation.get("pubkey"),
@@ -1358,6 +1399,20 @@ def _validate_hardware_wallet_rules(
         now=ctx.now,
         gaps=gaps,
     )
+
+
+def _validate_hardware_attestation_challenge(
+    raw_evidence: Mapping[str, Any],
+    attestation: Mapping[str, Any],
+    *,
+    gaps: _Gaps,
+) -> None:
+    challenge = attestation.get("challenge")
+    if challenge is None:
+        return
+    expected = production_hardware_wallet_attestation_challenge_v1(raw_evidence)
+    if challenge != expected:
+        gaps.add("device_attestation.challenge must equal canonical hardware approval challenge")
 
 
 def _validate_hardware_attestation_vs_approval(

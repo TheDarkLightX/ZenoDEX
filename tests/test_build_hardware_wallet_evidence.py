@@ -4,14 +4,57 @@ import json
 from pathlib import Path
 
 from src.integration.production_promotion_evidence import (
+    attach_production_hardware_wallet_hash_v1,
     evaluate_production_hardware_wallet_evidence_v1,
+    production_hardware_wallet_attestation_challenge_v1,
 )
 from tools import build_hardware_wallet_evidence as builder
 
 NOW = 1747878000
 
 
-def _base_args(out: Path) -> list[str]:
+def _expected_challenge(
+    *,
+    prompt_captured_at: int = NOW - 120,
+    approval_captured_at: int = NOW - 60,
+    prompt_hash: str = "ff" * 32,
+    tx_payload_hash: str = "10" * 32,
+) -> str:
+    return production_hardware_wallet_attestation_challenge_v1(
+        {
+            "schema": "zenodex/production-hardware-wallet-evidence/v1",
+            "device_id": "ledger-x-prod-01",
+            "device_model": "ledger-nano-x",
+            "device_firmware_version": "2.4.0",
+            "device_attestation": {
+                "pubkey": "cc" * 32,
+                "challenge": "00" * 32,
+                "signature": "ee" * 64,
+            },
+            "os_prompt_capture": {
+                "kind": "screenshot_hash",
+                "hash": prompt_hash,
+                "captured_at": prompt_captured_at,
+            },
+            "device_approval_tx": {
+                "tx_payload_hash": tx_payload_hash,
+                "approval_signature": "20" * 64,
+                "captured_at": approval_captured_at,
+            },
+            "profile_wallet_authority_hash": "wallet-auth-hash",
+            "issued_at": NOW,
+        }
+    )
+
+
+def _base_args(
+    out: Path,
+    *,
+    prompt_captured_at: int = NOW - 120,
+    approval_captured_at: int = NOW - 60,
+    prompt_hash: str = "ff" * 32,
+    tx_payload_hash: str = "10" * 32,
+) -> list[str]:
     return [
         "--out",
         str(out),
@@ -24,21 +67,26 @@ def _base_args(out: Path) -> list[str]:
         "--device-pubkey",
         "cc" * 32,
         "--attestation-challenge",
-        "dd" * 32,
+        _expected_challenge(
+            prompt_captured_at=prompt_captured_at,
+            approval_captured_at=approval_captured_at,
+            prompt_hash=prompt_hash,
+            tx_payload_hash=tx_payload_hash,
+        ),
         "--attestation-signature",
         "ee" * 64,
         "--prompt-kind",
         "screenshot_hash",
         "--prompt-hash",
-        "ff" * 32,
+        prompt_hash,
         "--prompt-captured-at",
-        str(NOW - 120),
+        str(prompt_captured_at),
         "--approval-tx-payload-hash",
-        "10" * 32,
+        tx_payload_hash,
         "--approval-signature",
         "20" * 64,
         "--approval-captured-at",
-        str(NOW - 60),
+        str(approval_captured_at),
         "--wallet-authority-profile-hash",
         "wallet-auth-hash",
         "--expected-device-pubkey",
@@ -109,6 +157,19 @@ def test_hardware_builder_rejects_expected_device_pubkey_mismatch(capsys, tmp_pa
     assert not out.exists()
 
 
+def test_hardware_builder_rejects_challenge_for_different_payload(capsys, tmp_path: Path) -> None:
+    out = tmp_path / "hardware_wallet.json"
+    args = _base_args(out, tx_payload_hash="11" * 32)
+    args[args.index("--attestation-challenge") + 1] = _expected_challenge(tx_payload_hash="10" * 32)
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "hardware_wallet_evidence_build_failed"
+    assert "canonical hardware approval challenge" in payload["detail"]
+    assert not out.exists()
+
+
 def test_hardware_builder_rejects_capture_window_before_writing(capsys, tmp_path: Path) -> None:
     out = tmp_path / "hardware_wallet.json"
     args = _base_args(out)
@@ -153,10 +214,12 @@ def test_hardware_evaluator_rejects_rehashed_stale_device_approval(
     tmp_path: Path,
 ) -> None:
     out = tmp_path / "hardware_wallet.json"
-    args = _base_args(out)
     stale_prompt = NOW - 7 * 24 * 3600
-    args[args.index("--prompt-captured-at") + 1] = str(stale_prompt)
-    args[args.index("--approval-captured-at") + 1] = str(stale_prompt + 60)
+    args = _base_args(
+        out,
+        prompt_captured_at=stale_prompt,
+        approval_captured_at=stale_prompt + 60,
+    )
 
     assert builder.main(args) == 0
     capsys.readouterr()
@@ -171,6 +234,29 @@ def test_hardware_evaluator_rejects_rehashed_stale_device_approval(
 
     assert lane["production_ready"] is False
     assert "device_approval_tx.captured_at is too old for evidence issued_at" in lane["gaps"]
+
+
+def test_hardware_evaluator_rejects_rehashed_payload_without_new_challenge(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "hardware_wallet.json"
+
+    assert builder.main(_base_args(out)) == 0
+    capsys.readouterr()
+    evidence = json.loads(out.read_text(encoding="utf-8"))
+    evidence["device_approval_tx"]["tx_payload_hash"] = "11" * 32
+    evidence = attach_production_hardware_wallet_hash_v1(evidence)
+
+    lane = evaluate_production_hardware_wallet_evidence_v1(
+        evidence,
+        wallet_authority_profile_hash="wallet-auth-hash",
+        expected_device_pubkey="cc" * 32,
+        now=NOW,
+    )
+
+    assert lane["production_ready"] is False
+    assert "device_attestation.challenge must equal canonical hardware approval challenge" in lane["gaps"]
 
 
 def test_hardware_builder_rejects_non_positive_issued_at_before_writing(
