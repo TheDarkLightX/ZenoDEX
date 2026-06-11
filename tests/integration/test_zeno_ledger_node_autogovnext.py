@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -245,6 +247,47 @@ def test_autogovnext_append_commits_request_and_replays_to_follower(tmp_path: Pa
     assert follower_body["transactions"][0]["request"]["tx_id"] == "autogovnext-node-valid-1"
     follower_snapshot = _load_json(follower_dir / "live_ledger" / "snapshots" / f"{append_report['height']}.json")
     assert follower_snapshot["governance"] == governance_state
+
+
+def test_autogovnext_cli_append_commits_real_node_update(tmp_path: Path) -> None:
+    _bundle_root, writer_dir = _make_bundle_and_writer(tmp_path, slug="cli")
+    request = _autogovnext_request(tx_id="autogovnext-node-cli-1")
+    request_path = tmp_path / "autogovnext-request.json"
+    _write_json(request_path, request)
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "tools/zeno_ledger_node.py",
+            "append-autogov-next",
+            "--data-dir",
+            str(writer_dir),
+            "--request",
+            str(request_path),
+            "--time-ms",
+            str(DEFAULT_TIME_MS + 2_005_000),
+        ],
+        cwd=Path(__file__).resolve().parents[2],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    report = json.loads(proc.stdout)
+    assert report["ok"] is True
+    assert report["append_kind"] == "autogovnext_admission"
+    assert report["autogovnext_admission"]["admitted"] is True
+    assert report["receipt"]["accepted"] is True
+    assert report["production_security_claim"] is False
+    header = _load_json(Path(str(report["header_path"])))
+    assert header["pre_state_root"] != header["post_state_root"]
+    post_snapshot = _load_json(Path(str(report["post_snapshot_path"])))
+    assert post_snapshot["governance"]["last_tx_id"] == "autogovnext-node-cli-1"
+    live_state = _load_json(writer_dir / "live_state.json")
+    assert live_state["latest_height"] == report["height"]
+    assert live_state["latest_header_hash"] == report["header_hash"]
 
 
 def test_autogovnext_append_uses_node_owned_governance_state_for_next_update(tmp_path: Path) -> None:
