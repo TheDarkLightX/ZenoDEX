@@ -46,7 +46,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -68,7 +68,7 @@ _LANE_REQUIREMENTS: Mapping[str, Mapping[str, Any]] = {
     "oracle_authority": {
         "purpose": "prove the production oracle authority has exercised the public-testnet path",
         "required_config_paths": ["bounded_oracle_exercise_status_path"],
-        "required_config_values": ["expected_chain_id"],
+        "required_config_values": ["expected_chain_id", "expected_oracle_authority_signer_pubkey"],
         "required_evidence_fields": [
             "schema",
             "authority_id",
@@ -90,7 +90,7 @@ _LANE_REQUIREMENTS: Mapping[str, Mapping[str, Any]] = {
         "external_artifacts": [
             "bounded oracle exercise JSON with authority_exercised=true",
             "public testnet broadcast and settlement block references",
-            "oracle authority attestation signature",
+            "oracle authority attestation signature from the expected signer pubkey",
         ],
         "producer_tool": "tools/build_oracle_authority_evidence.py",
         "validator": "evaluate_production_oracle_authority_evidence_v1",
@@ -253,6 +253,8 @@ _LANE_COLLECTION_COMMAND_TEMPLATES: Mapping[str, tuple[str, ...]] = {
         "AUTHORITY_ATTESTATION_SIGNER_PUBKEY",
         "--expected-chain-id",
         "EXPECTED_CHAIN_ID",
+        "--expected-authority-signer-pubkey",
+        "EXPECTED_ORACLE_AUTHORITY_SIGNER_PUBKEY",
         "--check",
     ),
     "hardware_wallet": (
@@ -454,6 +456,8 @@ _MANIFEST_BUILDER_TEMPLATE: tuple[str, ...] = (
     "EXTERNAL_VERIFIER_BINDING_HASH",
     "--expected-chain-id",
     "EXPECTED_CHAIN_ID",
+    "--expected-oracle-authority-signer-pubkey",
+    "EXPECTED_ORACLE_AUTHORITY_SIGNER_PUBKEY",
     "--expected-surface",
     "EXPECTED_SURFACE",
     "--expected-extension-id",
@@ -653,6 +657,7 @@ def _evaluate_manifest(
         operator_status_hash=config.get("operator_status_hash"),
         external_verifier_binding_hash=config.get("external_verifier_binding_hash"),
         expected_chain_id=config.get("expected_chain_id"),
+        expected_oracle_authority_signer_pubkey=config.get("expected_oracle_authority_signer_pubkey"),
         expected_surface=config.get("expected_surface"),
         expected_extension_id=config.get("expected_extension_id"),
         expected_device_pubkey=config.get("expected_device_pubkey"),
@@ -921,7 +926,7 @@ def _readiness_categories(
     lane_ready: bool,
     missing_evidence: bool,
     missing_config: list[str],
-    missing_sidecars: list[Mapping[str, str]],
+    missing_sidecars: Sequence[Mapping[str, str]],
     evidence_gaps: list[str],
 ) -> list[str]:
     if lane_ready:

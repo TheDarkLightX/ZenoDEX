@@ -16,6 +16,13 @@ NOW = 1747878000
 _ORACLE_AUTHORITY_PRIVATE_KEY = Ed25519PrivateKey.from_private_bytes(bytes.fromhex("42" * 32))
 
 
+def _oracle_pubkey_hex() -> str:
+    return _ORACLE_AUTHORITY_PRIVATE_KEY.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    ).hex()
+
+
 def _bounded_oracle_exercise() -> dict[str, object]:
     return {
         "authority_exercised": True,
@@ -30,10 +37,6 @@ def _bounded_oracle_exercise() -> dict[str, object]:
 
 def _base_args(tmp_path: Path, bounded_path: Path, out: Path) -> list[str]:
     bounded = _bounded_oracle_exercise()
-    pubkey = _ORACLE_AUTHORITY_PRIVATE_KEY.public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
     signature = _ORACLE_AUTHORITY_PRIVATE_KEY.sign(
         _oracle_authority_attestation_message(
             authority_id="zeno-oracle-prod",
@@ -41,8 +44,8 @@ def _base_args(tmp_path: Path, bounded_path: Path, out: Path) -> list[str]:
             target_network="public_testnet",
             exercise_hash=str(bounded["exercise_hash"]),
             profile_authority_hash=str(bounded["authority_hash"]),
-            public_broadcast_height=int(bounded["public_broadcast_height"]),
-            public_settlement_height=int(bounded["public_settlement_height"]),
+            public_broadcast_height=100,
+            public_settlement_height=105,
             public_broadcast_block_hash="11" * 32,
             public_settlement_block_hash="22" * 32,
             public_broadcast_explorer_url="https://explorer.public-testnet/block/100",
@@ -68,13 +71,15 @@ def _base_args(tmp_path: Path, bounded_path: Path, out: Path) -> list[str]:
         "--authority-attestation-signature",
         signature.hex(),
         "--authority-attestation-signer-pubkey",
-        pubkey.hex(),
+        _oracle_pubkey_hex(),
         "--issued-at",
         str(NOW),
         "--check-now",
         str(NOW),
         "--expected-chain-id",
         "tau-test-prod",
+        "--expected-authority-signer-pubkey",
+        _oracle_pubkey_hex(),
     ]
 
 
@@ -91,6 +96,7 @@ def test_oracle_builder_writes_lane_ready_evidence(capsys, tmp_path: Path) -> No
         evidence,
         bounded_exercise_status=_bounded_oracle_exercise(),
         expected_chain_id="tau-test-prod",
+        expected_authority_signer_pubkey=_oracle_pubkey_hex(),
         now=NOW,
     )
     assert lane["production_ready"] is True
@@ -166,6 +172,24 @@ def test_oracle_builder_rejects_malformed_public_block_hash(capsys, tmp_path: Pa
     payload = json.loads(capsys.readouterr().out)
     assert payload["error"] == "oracle_authority_evidence_build_failed"
     assert "public broadcast block hash" in payload["detail"]
+    assert not out.exists()
+
+
+def test_oracle_builder_rejects_unexpected_authority_signer_before_writing(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    bounded_path = tmp_path / "bounded.json"
+    bounded_path.write_text(json.dumps(_bounded_oracle_exercise()), encoding="utf-8")
+    out = tmp_path / "oracle_authority.json"
+    args = _base_args(tmp_path, bounded_path, out)
+    args[args.index("--expected-authority-signer-pubkey") + 1] = "99" * 32
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "oracle_authority_evidence_build_failed"
+    assert "expected authority signer pubkey" in payload["detail"]
     assert not out.exists()
 
 

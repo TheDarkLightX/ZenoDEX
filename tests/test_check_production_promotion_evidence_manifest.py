@@ -25,6 +25,13 @@ ROOT = Path(__file__).resolve().parents[1]
 _ORACLE_AUTHORITY_PRIVATE_KEY = Ed25519PrivateKey.from_private_bytes(bytes.fromhex("43" * 32))
 
 
+def _oracle_pubkey_hex() -> str:
+    return _ORACLE_AUTHORITY_PRIVATE_KEY.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    ).hex()
+
+
 def _bounded_oracle_exercise(*, chain_id: str = "tau-test-prod") -> dict[str, object]:
     return {
         "authority_exercised": True,
@@ -39,10 +46,6 @@ def _bounded_oracle_exercise(*, chain_id: str = "tau-test-prod") -> dict[str, ob
 
 def _oracle_evidence(*, chain_id: str = "tau-test-prod") -> dict[str, object]:
     issued_at = NOW - 60
-    pubkey = _ORACLE_AUTHORITY_PRIVATE_KEY.public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
     signature = _ORACLE_AUTHORITY_PRIVATE_KEY.sign(
         _oracle_authority_attestation_message(
             authority_id="zeno-oracle-prod",
@@ -74,7 +77,7 @@ def _oracle_evidence(*, chain_id: str = "tau-test-prod") -> dict[str, object]:
             "public_broadcast_explorer_url": "https://explorer.public-testnet/block/100",
             "public_settlement_explorer_url": "https://explorer.public-testnet/block/105",
             "authority_attestation_signature": signature.hex(),
-            "authority_attestation_signer_pubkey": pubkey.hex(),
+            "authority_attestation_signer_pubkey": _oracle_pubkey_hex(),
             "issued_at": issued_at,
         }
     )
@@ -148,6 +151,7 @@ def test_manifest_checker_lane_output_matches_selected_lane_exit(capsys, tmp_pat
                 "config": {
                     "bounded_oracle_exercise_status_path": "bounded.json",
                     "expected_chain_id": "tau-test-prod",
+                    "expected_oracle_authority_signer_pubkey": _oracle_pubkey_hex(),
                 },
                 "bundle": {"oracle_authority": _oracle_evidence()},
             },
@@ -180,6 +184,7 @@ def test_manifest_checker_resolves_config_paths_relative_to_manifest_file(
                 "config": {
                     "bounded_oracle_exercise_status_path": "bounded.json",
                     "expected_chain_id": "tau-test-prod",
+                    "expected_oracle_authority_signer_pubkey": _oracle_pubkey_hex(),
                 },
                 "bundle": {"oracle_authority": _oracle_evidence()},
             },
@@ -216,6 +221,37 @@ def test_manifest_checker_required_config_value_blocks_selected_lane(
     assert out["promotion_ready"] is False
     assert out["blocked_lanes"] == ["oracle_authority"]
     assert any("config.expected_chain_id is required" in gap for gap in out["gaps"])
+    assert any("config.expected_oracle_authority_signer_pubkey is required" in gap for gap in out["gaps"])
+    assert out["lanes"]["oracle_authority"]["production_ready"] is False
+
+
+def test_manifest_checker_rejects_oracle_authority_signer_config_mismatch(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    bounded_path = tmp_path / "bounded.json"
+    bounded_path.write_text(json.dumps(_bounded_oracle_exercise(), sort_keys=True))
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": MANIFEST_SCHEMA,
+                "config": {
+                    "bounded_oracle_exercise_status_path": "bounded.json",
+                    "expected_chain_id": "tau-test-prod",
+                    "expected_oracle_authority_signer_pubkey": "99" * 32,
+                },
+                "bundle": {"oracle_authority": _oracle_evidence()},
+            },
+            sort_keys=True,
+        )
+    )
+
+    assert main([str(manifest_path), "--lane", "oracle_authority", "--now", str(NOW)]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["promotion_ready"] is False
+    assert out["blocked_lanes"] == ["oracle_authority"]
+    assert any("oracle authority attestation signer pubkey mismatch" in gap for gap in out["gaps"])
     assert out["lanes"]["oracle_authority"]["production_ready"] is False
 
 
@@ -236,6 +272,7 @@ def test_manifest_checker_rejects_runbook_placeholder_values_even_when_self_cons
                 "config": {
                     "bounded_oracle_exercise_status_path": "bounded.json",
                     "expected_chain_id": placeholder_chain_id,
+                    "expected_oracle_authority_signer_pubkey": "EXPECTED_ORACLE_AUTHORITY_SIGNER_PUBKEY",
                 },
                 "bundle": {
                     "oracle_authority": _oracle_evidence(chain_id=placeholder_chain_id),
@@ -348,6 +385,7 @@ def test_manifest_checker_rejects_absolute_config_sidecar_path(capsys, tmp_path:
                 "config": {
                     "bounded_oracle_exercise_status_path": str(bounded_path),
                     "expected_chain_id": "tau-test-prod",
+                    "expected_oracle_authority_signer_pubkey": _oracle_pubkey_hex(),
                 },
                 "bundle": {"oracle_authority": _oracle_evidence()},
             },
@@ -374,6 +412,7 @@ def test_manifest_checker_rejects_config_sidecar_escape(capsys, tmp_path: Path) 
                 "config": {
                     "bounded_oracle_exercise_status_path": "../bounded.json",
                     "expected_chain_id": "tau-test-prod",
+                    "expected_oracle_authority_signer_pubkey": _oracle_pubkey_hex(),
                 },
                 "bundle": {"oracle_authority": _oracle_evidence()},
             },
@@ -419,6 +458,10 @@ def test_manifest_checker_explains_missing_lane_requirements(capsys, tmp_path: P
         "app_root_jmt",
     }
     assert "bounded_oracle_exercise_status_path" in out["requirements"]["oracle_authority"]["required_config_paths"]
+    assert (
+        "expected_oracle_authority_signer_pubkey"
+        in out["requirements"]["oracle_authority"]["required_config_values"]
+    )
     assert "live_proof_wrapper_status_path" in out["requirements"]["zk_wrapping"]["required_config_paths"]
     assert "device_attestation" in out["requirements"]["hardware_wallet"]["required_evidence_fields"]
     assert "approved_measurements" in out["requirements"]["confidential_runtime"]["required_config_values"]
@@ -554,6 +597,7 @@ def test_manifest_checker_can_attach_compact_readiness_plan(
     assert oracle["missing_config"] == [
         "bounded_oracle_exercise_status_path",
         "expected_chain_id",
+        "expected_oracle_authority_signer_pubkey",
     ]
     assert oracle["categories"] == [
         "missing_artifact",

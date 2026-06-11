@@ -18,6 +18,13 @@ NOW = 1747878000
 _ORACLE_AUTHORITY_PRIVATE_KEY = Ed25519PrivateKey.from_private_bytes(bytes.fromhex("45" * 32))
 
 
+def _oracle_pubkey_hex() -> str:
+    return _ORACLE_AUTHORITY_PRIVATE_KEY.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    ).hex()
+
+
 def _bounded_oracle_exercise() -> dict[str, object]:
     return {
         "authority_exercised": True,
@@ -32,10 +39,6 @@ def _bounded_oracle_exercise() -> dict[str, object]:
 
 def _oracle_evidence_body() -> dict[str, object]:
     issued_at = NOW - 60
-    pubkey = _ORACLE_AUTHORITY_PRIVATE_KEY.public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
     signature = _ORACLE_AUTHORITY_PRIVATE_KEY.sign(
         _oracle_authority_attestation_message(
             authority_id="zeno-oracle-prod",
@@ -66,7 +69,7 @@ def _oracle_evidence_body() -> dict[str, object]:
         "public_broadcast_explorer_url": "https://explorer.public-testnet/block/100",
         "public_settlement_explorer_url": "https://explorer.public-testnet/block/105",
         "authority_attestation_signature": signature.hex(),
-        "authority_attestation_signer_pubkey": pubkey.hex(),
+        "authority_attestation_signer_pubkey": _oracle_pubkey_hex(),
         "issued_at": issued_at,
     }
 
@@ -144,6 +147,8 @@ def test_builder_hashes_oracle_lane_and_lane_check_passes(capsys, tmp_path: Path
                 str(bounded_path),
                 "--expected-chain-id",
                 "tau-test-prod",
+                "--expected-oracle-authority-signer-pubkey",
+                _oracle_pubkey_hex(),
                 "--now",
                 str(NOW),
                 "--check-lane",
@@ -157,6 +162,7 @@ def test_builder_hashes_oracle_lane_and_lane_check_passes(capsys, tmp_path: Path
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     oracle = manifest["bundle"]["oracle_authority"]
     assert manifest["config"]["bounded_oracle_exercise_status_path"] == "bounded.json"
+    assert manifest["config"]["expected_oracle_authority_signer_pubkey"] == _oracle_pubkey_hex()
     assert checker_out["promotion_ready"] is True
     assert checker_out["selected_lane"] == "oracle_authority"
     assert oracle["evidence_hash"] != _oracle_evidence_body().get("evidence_hash")
@@ -211,6 +217,8 @@ def test_builder_full_check_stays_blocked_when_other_lanes_missing(capsys, tmp_p
                 str(bounded_path),
                 "--expected-chain-id",
                 "tau-test-prod",
+                "--expected-oracle-authority-signer-pubkey",
+                _oracle_pubkey_hex(),
                 "--now",
                 str(NOW),
                 "--check",
@@ -290,6 +298,8 @@ def test_builder_rejects_sidecar_path_outside_manifest_directory(capsys, tmp_pat
                 str(bounded_path),
                 "--expected-chain-id",
                 "tau-test-prod",
+                "--expected-oracle-authority-signer-pubkey",
+                _oracle_pubkey_hex(),
             ]
         )
         == 2
@@ -317,6 +327,8 @@ def test_builder_rejects_missing_sidecar_inside_manifest_directory(capsys, tmp_p
                 str(tmp_path / "missing-bounded.json"),
                 "--expected-chain-id",
                 "tau-test-prod",
+                "--expected-oracle-authority-signer-pubkey",
+                _oracle_pubkey_hex(),
             ]
         )
         == 2
@@ -346,6 +358,8 @@ def test_builder_rejects_directory_sidecar_inside_manifest_directory(capsys, tmp
                 str(sidecar_dir),
                 "--expected-chain-id",
                 "tau-test-prod",
+                "--expected-oracle-authority-signer-pubkey",
+                _oracle_pubkey_hex(),
             ]
         )
         == 2

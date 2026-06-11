@@ -197,6 +197,7 @@ _RUNBOOK_PLACEHOLDER_VALUES: Final = frozenset(
         "EXPECTED_CHAIN_ID",
         "EXPECTED_DEVICE_PUBKEY",
         "EXPECTED_EXTENSION_ID",
+        "EXPECTED_ORACLE_AUTHORITY_SIGNER_PUBKEY",
         "EXPECTED_SURFACE",
         "EXTERNAL_VERIFIER_BINDING_HASH",
         "LAST_HEARTBEAT_AT",
@@ -565,17 +566,24 @@ class _LaneContext:
 
 
 class _OracleAuthorityContext(_LaneContext):
-    __slots__ = ("bounded_exercise_status", "expected_chain_id", "now")
+    __slots__ = (
+        "bounded_exercise_status",
+        "expected_chain_id",
+        "expected_authority_signer_pubkey",
+        "now",
+    )
 
     def __init__(
         self,
         *,
         bounded_exercise_status: Mapping[str, Any] | None,
         expected_chain_id: str | None,
+        expected_authority_signer_pubkey: str | None,
         now: int,
     ) -> None:
         self.bounded_exercise_status = bounded_exercise_status
         self.expected_chain_id = expected_chain_id
+        self.expected_authority_signer_pubkey = expected_authority_signer_pubkey
         self.now = now
 
 
@@ -859,6 +867,11 @@ class _OracleAuthorityLane(Lane):
             signer_pubkey=signer_pubkey,
             gaps=gaps,
         )
+        _validate_oracle_authority_signer_binding(
+            signer_pubkey=signer_pubkey,
+            ctx=ctx,
+            gaps=gaps,
+        )
         _bind_oracle_to_bounded(
             ctx.bounded_exercise_status,
             chain_id=chain_id,
@@ -932,6 +945,21 @@ def _validate_oracle_network(
         gaps.add("production oracle authority evidence requires target_network=public_testnet")
     if ctx.expected_chain_id is not None and chain_id is not None and chain_id != ctx.expected_chain_id:
         gaps.add("oracle authority evidence chain_id mismatch")
+
+
+def _validate_oracle_authority_signer_binding(
+    *,
+    signer_pubkey: str | None,
+    ctx: _OracleAuthorityContext,
+    gaps: _Gaps,
+) -> None:
+    expected = ctx.expected_authority_signer_pubkey
+    if expected is None:
+        gaps.add("expected oracle authority signer pubkey is required for binding")
+        return
+    expected = expected.lower()
+    if signer_pubkey is not None and signer_pubkey != expected:
+        gaps.add("oracle authority attestation signer pubkey mismatch")
 
 
 def _validate_oracle_public_markers(
@@ -1042,40 +1070,39 @@ def _validate_oracle_authority_attestation(
     signer_pubkey: str | None,
     gaps: _Gaps,
 ) -> None:
-    values = (
-        authority_id,
-        chain_id,
-        target_network,
-        exercise_hash,
-        profile_authority_hash,
-        broadcast_height,
-        settlement_height,
-        broadcast_block_hash,
-        settlement_block_hash,
-        broadcast_url,
-        settlement_url,
-        issued_at,
-        signature,
-        signer_pubkey,
-    )
-    if any(value is None for value in values):
+    if (
+        authority_id is None
+        or chain_id is None
+        or target_network is None
+        or exercise_hash is None
+        or profile_authority_hash is None
+        or broadcast_height is None
+        or settlement_height is None
+        or broadcast_block_hash is None
+        or settlement_block_hash is None
+        or broadcast_url is None
+        or settlement_url is None
+        or issued_at is None
+        or signature is None
+        or signer_pubkey is None
+    ):
         return
     if not _ED25519_AVAILABLE or Ed25519PublicKey is None:
         gaps.add("oracle authority Ed25519 verifier is unavailable")
         return
     message = _oracle_authority_attestation_message(
-        authority_id=str(authority_id),
-        chain_id=str(chain_id),
-        target_network=str(target_network),
-        exercise_hash=str(exercise_hash),
-        profile_authority_hash=str(profile_authority_hash),
-        public_broadcast_height=int(broadcast_height),
-        public_settlement_height=int(settlement_height),
-        public_broadcast_block_hash=str(broadcast_block_hash),
-        public_settlement_block_hash=str(settlement_block_hash),
-        public_broadcast_explorer_url=str(broadcast_url),
-        public_settlement_explorer_url=str(settlement_url),
-        issued_at=int(issued_at),
+        authority_id=authority_id,
+        chain_id=chain_id,
+        target_network=target_network,
+        exercise_hash=exercise_hash,
+        profile_authority_hash=profile_authority_hash,
+        public_broadcast_height=broadcast_height,
+        public_settlement_height=settlement_height,
+        public_broadcast_block_hash=broadcast_block_hash,
+        public_settlement_block_hash=settlement_block_hash,
+        public_broadcast_explorer_url=broadcast_url,
+        public_settlement_explorer_url=settlement_url,
+        issued_at=issued_at,
     )
     try:
         public_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(str(signer_pubkey)))
@@ -3694,11 +3721,13 @@ def evaluate_production_oracle_authority_evidence_v1(
     *,
     bounded_exercise_status: Mapping[str, Any] | None,
     expected_chain_id: str | None = None,
+    expected_authority_signer_pubkey: str | None = None,
     now: int | None = None,
 ) -> dict[str, Any]:
     ctx = _OracleAuthorityContext(
         bounded_exercise_status=bounded_exercise_status,
         expected_chain_id=expected_chain_id,
+        expected_authority_signer_pubkey=expected_authority_signer_pubkey,
         now=_now_seconds(now),
     )
     return _evaluate_lane(_ORACLE_AUTHORITY_LANE, evidence, ctx)
@@ -3799,6 +3828,7 @@ def evaluate_production_promotion_bundle_v1(
     operator_status_hash: str | None = None,
     external_verifier_binding_hash: str | None = None,
     expected_chain_id: str | None = None,
+    expected_oracle_authority_signer_pubkey: str | None = None,
     expected_surface: str | None = None,
     expected_extension_id: str | None = None,
     expected_device_pubkey: str | None = None,
@@ -3818,6 +3848,7 @@ def evaluate_production_promotion_bundle_v1(
         LANE_ORACLE_AUTHORITY: _OracleAuthorityContext(
             bounded_exercise_status=bounded_oracle_exercise_status,
             expected_chain_id=expected_chain_id,
+            expected_authority_signer_pubkey=expected_oracle_authority_signer_pubkey,
             now=now_s,
         ),
         LANE_HARDWARE_WALLET: _HardwareWalletContext(

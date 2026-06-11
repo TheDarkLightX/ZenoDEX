@@ -105,6 +105,7 @@ def _manifest_config(args: argparse.Namespace) -> dict[str, Any]:
         "operator_status_hash": args.operator_status_hash,
         "external_verifier_binding_hash": args.external_verifier_binding_hash,
         "expected_chain_id": args.expected_chain_id,
+        "expected_oracle_authority_signer_pubkey": args.expected_oracle_authority_signer_pubkey,
         "expected_surface": args.expected_surface,
         "expected_extension_id": args.expected_extension_id,
         "expected_device_pubkey": args.expected_device_pubkey,
@@ -192,6 +193,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--operator-status-hash")
     parser.add_argument("--external-verifier-binding-hash")
     parser.add_argument("--expected-chain-id")
+    parser.add_argument("--expected-oracle-authority-signer-pubkey")
     parser.add_argument("--expected-surface")
     parser.add_argument("--expected-extension-id")
     parser.add_argument("--expected-device-pubkey")

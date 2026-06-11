@@ -20,6 +20,13 @@ NOW = 1747878000
 _ORACLE_AUTHORITY_PRIVATE_KEY = Ed25519PrivateKey.from_private_bytes(bytes.fromhex("44" * 32))
 
 
+def _oracle_pubkey_hex() -> str:
+    return _ORACLE_AUTHORITY_PRIVATE_KEY.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    ).hex()
+
+
 def _bounded_oracle_exercise() -> dict[str, object]:
     return {
         "authority_exercised": True,
@@ -34,10 +41,6 @@ def _bounded_oracle_exercise() -> dict[str, object]:
 
 def _oracle_evidence() -> dict[str, object]:
     issued_at = NOW - 60
-    pubkey = _ORACLE_AUTHORITY_PRIVATE_KEY.public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
     signature = _ORACLE_AUTHORITY_PRIVATE_KEY.sign(
         _oracle_authority_attestation_message(
             authority_id="zeno-oracle-prod",
@@ -69,7 +72,7 @@ def _oracle_evidence() -> dict[str, object]:
             "public_broadcast_explorer_url": "https://explorer.public-testnet/block/100",
             "public_settlement_explorer_url": "https://explorer.public-testnet/block/105",
             "authority_attestation_signature": signature.hex(),
-            "authority_attestation_signer_pubkey": pubkey.hex(),
+            "authority_attestation_signer_pubkey": _oracle_pubkey_hex(),
             "issued_at": issued_at,
         }
     )
@@ -211,6 +214,7 @@ def test_production_promotion_gate_full_scope_preserves_relative_sidecars_during
                 "config": {
                     "bounded_oracle_exercise_status_path": "bounded.json",
                     "expected_chain_id": "tau-test-prod",
+                    "expected_oracle_authority_signer_pubkey": _oracle_pubkey_hex(),
                 },
                 "bundle": {"oracle_authority": _oracle_evidence(), "app_root_jmt": None},
             },

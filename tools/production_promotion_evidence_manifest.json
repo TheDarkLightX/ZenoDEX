@@ -12,6 +12,7 @@
     "operator_status_hash": null,
     "external_verifier_binding_hash": null,
     "expected_chain_id": null,
+    "expected_oracle_authority_signer_pubkey": null,
     "expected_surface": null,
     "expected_extension_id": null,
     "expected_device_pubkey": null

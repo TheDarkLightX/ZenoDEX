@@ -108,6 +108,22 @@ def build_oracle_authority_evidence(args: argparse.Namespace) -> tuple[dict[str,
         int(args.issued_at if args.issued_at is not None else time.time()),
         label="issued_at",
     )
+    signer_pubkey = _normalize_hex(
+        args.authority_attestation_signer_pubkey,
+        label="authority attestation signer pubkey",
+        length=64,
+    )
+    expected_signer_pubkey = (
+        _normalize_hex(
+            args.expected_authority_signer_pubkey,
+            label="expected authority signer pubkey",
+            length=64,
+        )
+        if args.expected_authority_signer_pubkey
+        else None
+    )
+    if expected_signer_pubkey is not None and signer_pubkey != expected_signer_pubkey:
+        raise ValueError("authority attestation signer pubkey does not match expected authority signer pubkey")
     evidence = attach_production_oracle_authority_hash_v1(
         {
             "schema": ORACLE_AUTHORITY_EVIDENCE_SCHEMA_V1,
@@ -135,11 +151,7 @@ def build_oracle_authority_evidence(args: argparse.Namespace) -> tuple[dict[str,
                 label="authority attestation signature",
                 length=128,
             ),
-            "authority_attestation_signer_pubkey": _normalize_hex(
-                args.authority_attestation_signer_pubkey,
-                label="authority attestation signer pubkey",
-                length=64,
-            ),
+            "authority_attestation_signer_pubkey": signer_pubkey,
             "issued_at": issued_at,
         }
     )
@@ -166,6 +178,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--issued-at", type=int)
     parser.add_argument("--check-now", type=int, help="override verifier time for reproducible --check runs")
     parser.add_argument("--expected-chain-id")
+    parser.add_argument("--expected-authority-signer-pubkey")
     parser.add_argument("--check", action="store_true", help="run the oracle-authority lane verifier before writing")
     return parser.parse_args(list(argv))
 
@@ -184,6 +197,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 evidence,
                 bounded_exercise_status=bounded,
                 expected_chain_id=args.expected_chain_id,
+                expected_authority_signer_pubkey=args.expected_authority_signer_pubkey,
                 now=check_now,
             )
             if check.get("production_ready") is not True:

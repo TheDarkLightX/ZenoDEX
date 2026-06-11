@@ -616,7 +616,9 @@ Current checker hardening in this workstream:
   bindings.
 - `oracle_authority` rejects localhost, private, or non-routable explorer URLs
   for public-testnet evidence, and verifies the authority attestation as an
-  Ed25519 signature over the canonical public-testnet exercise statement.
+  Ed25519 signature over the canonical public-testnet exercise statement. The
+  signer pubkey must also match the independently configured oracle authority
+  signer key in the promotion manifest.
 
 Adopted preflight for any production-readiness edit:
 
@@ -660,6 +662,7 @@ python3 tools/build_oracle_authority_evidence.py \
   --authority-attestation-signature AUTHORITY_ATTESTATION_SIGNATURE \
   --authority-attestation-signer-pubkey AUTHORITY_ATTESTATION_SIGNER_PUBKEY \
   --expected-chain-id EXPECTED_CHAIN_ID \
+  --expected-authority-signer-pubkey EXPECTED_ORACLE_AUTHORITY_SIGNER_PUBKEY \
   --check
 
 python3 tools/build_hardware_wallet_evidence.py \
@@ -759,6 +762,7 @@ python3 tools/build_production_promotion_evidence_manifest.py \
   --operator-status-hash OPERATOR_STATUS_HASH \
   --external-verifier-binding-hash EXTERNAL_VERIFIER_BINDING_HASH \
   --expected-chain-id EXPECTED_CHAIN_ID \
+  --expected-oracle-authority-signer-pubkey EXPECTED_ORACLE_AUTHORITY_SIGNER_PUBKEY \
   --expected-surface EXPECTED_SURFACE \
   --expected-extension-id EXPECTED_EXTENSION_ID \
   --expected-device-pubkey EXPECTED_DEVICE_PUBKEY \
