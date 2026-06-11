@@ -20,7 +20,7 @@
     },
     {
       "path": "src/integration/zeno_ledger_v0.py",
-      "sha256": "abf086f3f6822090927f1131b106ae2ae654e59a44308fa6595c27d7929126fd"
+      "sha256": "65823356bf33ca05e7dcdadef97988bd5af53489bb93114cac66f2876d3dadb0"
     },
     {
       "path": "src/integration/autonomous_governance_q_policy.py",
@@ -40,7 +40,7 @@
     },
     {
       "path": "tests/integration/test_zeno_ledger_v0.py",
-      "sha256": "61473bba503edf5dd0d6f39d3d08ec7f0c0cd1ddd05734ffec0c3ee5ed6bcd74"
+      "sha256": "750f9a7442809fb8978e818f841665c7e2888674091a39e1874a244e84d6c3d4"
     },
     {
       "path": "tests/integration/test_autonomous_governance_q_policy.py",

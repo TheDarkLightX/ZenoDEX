@@ -41,6 +41,10 @@ jobs:
         run: |
           bash tools/prod_gate.sh --image-tag zenodex:release-integrity
 
+      - name: Run AutoGovNEXT governance lane gate
+        run: |
+          bash tools/run_autogovnext_governance_lane_assurance_gate.sh
+
       - name: Run FIRE package + settlement replay gates
         run: |
           python3 tools/check_fire_snapshot_packages.py \

@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import re
 from copy import deepcopy
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 from src.core.dex import DexState
 from src.integration.dex_engine import DexEngineConfig, apply_ops
+from src.integration.dex_snapshot import snapshot_from_state
+from src.state.app_root import APP_ROOT_LANE_KINDS, AppRootLeaf, compute_required_app_root
 from src.state.canonical import (
     canonical_hex_fixed_allow_0x,
     canonical_json_bytes,
@@ -24,10 +26,10 @@ from src.state.canonical import (
 )
 from src.state.state_root import compute_state_root
 
-
 HEADER_SCHEMA_V0 = "zenodex/zeno_ledger/header/v0"
 BODY_SCHEMA_V0 = "zenodex/zeno_ledger/body/v0"
 CHECKPOINT_SCHEMA_V0 = "zenodex/zeno_ledger/checkpoint/v0"
+VALIDATOR_SET_SCHEMA_V0 = "zenodex/zeno_ledger/validator_set/v0"
 BATCH_CUTOFF_SCHEMA_V0 = "zenodex/zeno_ledger/batch_cutoff/v0"
 INGRESS_RECEIPT_SCHEMA_V0 = "zenodex/zeno_ledger/ingress_receipt/v0"
 FORCED_INCLUSION_REQUEST_SCHEMA_V0 = "zenodex/zeno_ledger/forced_inclusion_request/v0"
@@ -107,6 +109,27 @@ APP_HASH_ROOT_FIELDS_V0 = (
     "config_digest",
     "module_versions_digest",
 )
+
+TAU_APP_STATE_SCHEMA_V1 = "zenodex/tau_app_state/v1"
+TAU_APP_STATE_VERSION_V1 = 1
+
+APP_ROOT_SPOT_LANE_SCHEMA_V0 = "zenodex/zeno_ledger/app_root/spot_lane/v0"
+APP_ROOT_SINGLETON_LANE_SCHEMA_V0 = "zenodex/zeno_ledger/app_root/singleton_lane/v0"
+
+APP_ROOT_SPOT_KEYS_V0 = (
+    "version",
+    "balances",
+    "pools",
+    "lp_balances",
+    "lp_mint_timestamps",
+    "lp_duration_risk",
+    "nonces",
+    "fee_accumulator",
+)
+
+APP_ROOT_DEX_LANE_KINDS_V0 = frozenset({"spot", "oracle", "vault", "perps"})
+APP_ROOT_REQUIRED_DEX_LANE_KINDS_V0 = APP_ROOT_LANE_KINDS
+APP_ROOT_REQUIRED_TAU_APP_LANE_KINDS_V0 = APP_ROOT_LANE_KINDS
 
 _DOMAIN_RE = re.compile(r"^[A-Za-z0-9_.:/-]+$")
 
@@ -256,6 +279,305 @@ def dex_state_root_v0(state: DexState) -> str:
         pools=state.pools,
         lp_balances=state.lp_balances,
         nonces=state.nonces,
+        fee_accumulator=state.fee_accumulator,
+    )
+
+
+def _require_positive_int(value: object, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{name} must be a positive int")
+    return value
+
+
+def _dex_snapshot_version_for_app_root_v0(snapshot: Mapping[str, Any]) -> int:
+    return _require_positive_int(snapshot.get("version"), name="dex_snapshot.version")
+
+
+def _spot_lane_payload_from_snapshot_v0(snapshot: Mapping[str, Any]) -> dict[str, Any]:
+    missing = [key for key in APP_ROOT_SPOT_KEYS_V0 if key not in snapshot]
+    if missing:
+        raise ValueError(f"dex_snapshot missing spot app-root field(s): {', '.join(missing)}")
+    version = _dex_snapshot_version_for_app_root_v0(snapshot)
+    for key in (
+        "balances",
+        "pools",
+        "lp_balances",
+        "lp_mint_timestamps",
+        "lp_duration_risk",
+        "nonces",
+    ):
+        _require_list(snapshot.get(key), name=f"dex_snapshot.{key}")
+    _require_mapping(snapshot.get("fee_accumulator"), name="dex_snapshot.fee_accumulator")
+    return {
+        "schema": APP_ROOT_SPOT_LANE_SCHEMA_V0,
+        "snapshot_version": version,
+        "state": {
+            key: snapshot[key]
+            for key in APP_ROOT_SPOT_KEYS_V0
+            if key != "version"
+        },
+    }
+
+
+def _snapshot_singleton_lane_payload_v0(
+    *,
+    lane_kind: str,
+    snapshot_version: int,
+    state: object,
+) -> dict[str, Any]:
+    return {
+        "schema": APP_ROOT_SINGLETON_LANE_SCHEMA_V0,
+        "lane_kind": lane_kind,
+        "snapshot_version": snapshot_version,
+        "state": state,
+    }
+
+
+def _wrapper_singleton_lane_payload_v0(
+    *,
+    lane_kind: str,
+    app_state_version: int,
+    state: object,
+    source_key: str,
+) -> dict[str, Any]:
+    return {
+        "schema": APP_ROOT_SINGLETON_LANE_SCHEMA_V0,
+        "lane_kind": lane_kind,
+        "app_state_version": app_state_version,
+        "source_key": source_key,
+        "state": state,
+    }
+
+
+def app_root_lanes_from_dex_snapshot_v0(snapshot: Mapping[str, Any]) -> tuple[AppRootLeaf, ...]:
+    """Return the DexState lanes committed by the app-root JMT bridge.
+
+    Review note, grade A-: the old spot ``state_root`` commitment excluded
+    oracle, vault, and perps state. These leaves make each lane explicit and
+    include ``None`` lane state where a module is empty.
+
+    Review note, grade B+ -> A-: this path previously returned only the four
+    DexState lanes while the app-root evidence builder labeled the root as a
+    full multi-lane keystone. That failed review because wrapper-only lanes
+    could be silently omitted. The fix commits explicit empty
+    ``proof_mining``, ``zusd``, and ``clob`` leaves for Dex snapshots, so a
+    full-root claim binds absence instead of relying on a partial tree.
+    """
+
+    obj = _require_mapping(snapshot, name="dex_snapshot")
+    version = _dex_snapshot_version_for_app_root_v0(obj)
+    for key in ("oracle", "vault", "perps"):
+        if key not in obj:
+            raise ValueError(f"dex_snapshot missing {key} app-root field")
+    return (
+        AppRootLeaf.from_json(
+            lane_kind="spot",
+            lane_id="global",
+            payload=_spot_lane_payload_from_snapshot_v0(obj),
+        ),
+        AppRootLeaf.from_json(
+            lane_kind="oracle",
+            lane_id="global",
+            payload=_snapshot_singleton_lane_payload_v0(
+                lane_kind="oracle",
+                snapshot_version=version,
+                state=obj.get("oracle"),
+            ),
+        ),
+        AppRootLeaf.from_json(
+            lane_kind="vault",
+            lane_id="protocol",
+            payload=_snapshot_singleton_lane_payload_v0(
+                lane_kind="vault",
+                snapshot_version=version,
+                state=obj.get("vault"),
+            ),
+        ),
+        AppRootLeaf.from_json(
+            lane_kind="perps",
+            lane_id="global",
+            payload=_snapshot_singleton_lane_payload_v0(
+                lane_kind="perps",
+                snapshot_version=version,
+                state=obj.get("perps"),
+            ),
+        ),
+        AppRootLeaf.from_json(
+            lane_kind="proof_mining",
+            lane_id="global",
+            payload=_snapshot_singleton_lane_payload_v0(
+                lane_kind="proof_mining",
+                snapshot_version=version,
+                state=None,
+            ),
+        ),
+        AppRootLeaf.from_json(
+            lane_kind="zusd",
+            lane_id="system",
+            payload=_snapshot_singleton_lane_payload_v0(
+                lane_kind="zusd",
+                snapshot_version=version,
+                state=None,
+            ),
+        ),
+        AppRootLeaf.from_json(
+            lane_kind="clob",
+            lane_id="global",
+            payload=_snapshot_singleton_lane_payload_v0(
+                lane_kind="clob",
+                snapshot_version=version,
+                state=None,
+            ),
+        ),
+        AppRootLeaf.from_json(
+            lane_kind="governance",
+            lane_id="global",
+            payload=_snapshot_singleton_lane_payload_v0(
+                lane_kind="governance",
+                snapshot_version=version,
+                state=obj.get("governance"),
+            ),
+        ),
+    )
+
+
+def app_root_lanes_from_dex_state_v0(state: DexState) -> tuple[AppRootLeaf, ...]:
+    if not isinstance(state, DexState):
+        raise TypeError("state must be a DexState")
+    return app_root_lanes_from_dex_snapshot_v0(snapshot_from_state(state).data)
+
+
+def compute_dex_snapshot_app_root_v0(
+    snapshot: Mapping[str, Any],
+    *,
+    required_lane_kinds: Iterable[str] = APP_ROOT_REQUIRED_DEX_LANE_KINDS_V0,
+) -> str:
+    return compute_required_app_root(
+        app_root_lanes_from_dex_snapshot_v0(snapshot),
+        required_lane_kinds=required_lane_kinds,
+    )
+
+
+def compute_dex_state_app_root_v0(
+    state: DexState,
+    *,
+    required_lane_kinds: Iterable[str] = APP_ROOT_REQUIRED_DEX_LANE_KINDS_V0,
+) -> str:
+    return compute_required_app_root(
+        app_root_lanes_from_dex_state_v0(state),
+        required_lane_kinds=required_lane_kinds,
+    )
+
+
+def _tau_app_state_version_for_app_root_v0(app_state: Mapping[str, Any]) -> int:
+    version = _require_positive_int(
+        app_state.get("version", TAU_APP_STATE_VERSION_V1),
+        name="app_state.version",
+    )
+    if version != TAU_APP_STATE_VERSION_V1:
+        raise ValueError(f"unsupported app_state version: {version}")
+    return version
+
+
+def _clob_lane_source_and_state_v0(app_state: Mapping[str, Any]) -> tuple[str, object]:
+    has_clob = "clob" in app_state
+    has_orderbook = "orderbook" in app_state
+    if has_clob and has_orderbook:
+        raise ValueError("app_state must not carry both clob and orderbook lanes")
+    if has_clob:
+        return "clob", app_state.get("clob")
+    if has_orderbook:
+        return "orderbook", app_state.get("orderbook")
+    return "missing", None
+
+
+def app_root_lanes_from_tau_app_state_v0(app_state: Mapping[str, Any]) -> tuple[AppRootLeaf, ...]:
+    """Return all live Tau app-state lanes for the JMT app-root bridge.
+
+    This is a bridge helper, not a header-v1 migration by itself. It is meant to
+    give release gates a precise root target while keeping ZenoLedger v0 header
+    validation stable.
+    """
+
+    obj = _require_mapping(app_state, name="app_state")
+    allowed_keys = {
+        "schema",
+        "version",
+        "dex_state",
+        "proof_mining",
+        "zusd_monetary",
+        "clob",
+        "orderbook",
+        "governance",
+    }
+    extra = sorted(set(obj) - allowed_keys)
+    if extra:
+        raise ValueError(f"unsupported app_state app-root field(s): {', '.join(extra)}")
+    if obj.get("schema") != TAU_APP_STATE_SCHEMA_V1:
+        raise ValueError("app_state schema mismatch")
+    version = _tau_app_state_version_for_app_root_v0(obj)
+    dex_snapshot = _require_mapping(obj.get("dex_state"), name="app_state.dex_state")
+    clob_source_key, clob_state = _clob_lane_source_and_state_v0(obj)
+    leaves = [
+        leaf
+        for leaf in app_root_lanes_from_dex_snapshot_v0(dex_snapshot)
+        if leaf.lane_kind in APP_ROOT_DEX_LANE_KINDS_V0
+    ]
+    leaves.extend(
+        (
+            AppRootLeaf.from_json(
+                lane_kind="proof_mining",
+                lane_id="global",
+                payload=_wrapper_singleton_lane_payload_v0(
+                    lane_kind="proof_mining",
+                    app_state_version=version,
+                    source_key="proof_mining" if "proof_mining" in obj else "missing",
+                    state=obj.get("proof_mining"),
+                ),
+            ),
+            AppRootLeaf.from_json(
+                lane_kind="zusd",
+                lane_id="system",
+                payload=_wrapper_singleton_lane_payload_v0(
+                    lane_kind="zusd",
+                    app_state_version=version,
+                    source_key="zusd_monetary" if "zusd_monetary" in obj else "missing",
+                    state=obj.get("zusd_monetary"),
+                ),
+            ),
+            AppRootLeaf.from_json(
+                lane_kind="clob",
+                lane_id="global",
+                payload=_wrapper_singleton_lane_payload_v0(
+                    lane_kind="clob",
+                    app_state_version=version,
+                    source_key=clob_source_key,
+                    state=clob_state,
+                ),
+            ),
+            AppRootLeaf.from_json(
+                lane_kind="governance",
+                lane_id="global",
+                payload=_wrapper_singleton_lane_payload_v0(
+                    lane_kind="governance",
+                    app_state_version=version,
+                    source_key="governance" if "governance" in obj else "missing",
+                    state=obj.get("governance"),
+                ),
+            ),
+        )
+    )
+    return tuple(leaves)
+
+
+def compute_tau_app_state_app_root_v0(
+    app_state: Mapping[str, Any],
+    *,
+    required_lane_kinds: Iterable[str] = APP_ROOT_REQUIRED_TAU_APP_LANE_KINDS_V0,
+) -> str:
+    return compute_required_app_root(
+        app_root_lanes_from_tau_app_state_v0(app_state),
+        required_lane_kinds=required_lane_kinds,
     )
 
 
@@ -477,6 +799,7 @@ def apply_body_transactions_v0(
     working_state = state
     executed_body = deepcopy(body)
     receipts: list[dict[str, Any]] = []
+    executed_body["evidence"]["rejection_receipts"] = []
     rejection_receipts = executed_body["evidence"]["rejection_receipts"]
     height = _require_nonnegative_int(executed_body["height"], name="body.height")
 
@@ -640,6 +963,36 @@ def validate_ingress_v0(ingress: dict[str, Any]) -> None:
         _validate_forced_inclusion_decision(decision, index=index)
 
 
+def _validate_ingress_body_context_v0(ingress: object, *, chain_id: str, height: int) -> None:
+    obj = _require_mapping(ingress, name="ingress")
+    batch_cutoff = _require_mapping(obj.get("batch_cutoff"), name="ingress.batch_cutoff")
+    if batch_cutoff.get("chain_id") != chain_id:
+        raise ValueError("batch_cutoff/body chain_id mismatch")
+    if batch_cutoff.get("height") != height:
+        raise ValueError("batch_cutoff/body height mismatch")
+
+    for index, raw_receipt in enumerate(_require_list(obj.get("ingress_receipts"), name="ingress.ingress_receipts")):
+        receipt = _require_mapping(raw_receipt, name=f"ingress.ingress_receipts[{index}]")
+        if receipt.get("chain_id") != chain_id:
+            raise ValueError(f"ingress_receipts[{index}]/body chain_id mismatch")
+        if receipt.get("height") != height:
+            raise ValueError(f"ingress_receipts[{index}]/body height mismatch")
+
+    for index, raw_request in enumerate(
+        _require_list(obj.get("forced_inclusion_requests"), name="ingress.forced_inclusion_requests")
+    ):
+        request = _require_mapping(raw_request, name=f"ingress.forced_inclusion_requests[{index}]")
+        if request.get("chain_id") != chain_id:
+            raise ValueError(f"forced_inclusion_requests[{index}]/body chain_id mismatch")
+
+    for index, raw_decision in enumerate(
+        _require_list(obj.get("forced_inclusion_decisions"), name="ingress.forced_inclusion_decisions")
+    ):
+        decision = _require_mapping(raw_decision, name=f"ingress.forced_inclusion_decisions[{index}]")
+        if decision.get("chain_id") != chain_id:
+            raise ValueError(f"forced_inclusion_decisions[{index}]/body chain_id mismatch")
+
+
 def compute_ingress_root_v0(ingress: dict[str, Any]) -> str:
     validate_ingress_v0(ingress)
     leaves: list[str] = [hash_v0("batch_cutoff_v0", ingress["batch_cutoff"])]
@@ -679,9 +1032,10 @@ def validate_body_v0(body: dict[str, Any]) -> None:
         raise ValueError("body keys mismatch")
     if obj.get("schema") != BODY_SCHEMA_V0:
         raise ValueError("body schema mismatch")
-    _require_str(obj.get("chain_id"), name="body.chain_id")
-    _require_nonnegative_int(obj.get("height"), name="body.height")
+    chain_id = _require_str(obj.get("chain_id"), name="body.chain_id")
+    height = _require_nonnegative_int(obj.get("height"), name="body.height")
     validate_ingress_v0(obj["ingress"])
+    _validate_ingress_body_context_v0(obj["ingress"], chain_id=chain_id, height=height)
     _require_list(obj.get("transactions"), name="body.transactions")
     _require_list(obj.get("settlement_envelopes"), name="body.settlement_envelopes")
     _validate_evidence(obj.get("evidence"))
@@ -716,6 +1070,281 @@ def validate_header_v0(header: dict[str, Any]) -> None:
     _require_nonnegative_int(obj.get("time_ms"), name="header.time_ms")
     for key in HEADER_ROOT_FIELDS_V0:
         _require_root(obj.get(key), name=f"header.{key}")
+
+
+def validate_validator_set_v0(validator_set: dict[str, Any]) -> None:
+    obj = _require_mapping(validator_set, name="validator_set")
+    expected = {"schema", "chain_id", "epoch", "validators"}
+    if set(obj.keys()) != expected:
+        raise ValueError("validator_set keys mismatch")
+    if obj.get("schema") != VALIDATOR_SET_SCHEMA_V0:
+        raise ValueError("validator_set schema mismatch")
+    _require_str(obj.get("chain_id"), name="validator_set.chain_id")
+    _require_nonnegative_int(obj.get("epoch"), name="validator_set.epoch")
+    validators = _require_list(obj.get("validators"), name="validator_set.validators")
+    if not validators:
+        raise ValueError("validator_set.validators must be non-empty")
+    seen_ids: set[str] = set()
+    for index, raw_validator in enumerate(validators):
+        validator = _require_mapping(raw_validator, name=f"validator_set.validators[{index}]")
+        if set(validator.keys()) != {"validator_id", "public_key", "voting_power"}:
+            raise ValueError("validator keys mismatch")
+        validator_id = _require_str(validator.get("validator_id"), name="validator.validator_id")
+        if validator_id in seen_ids:
+            raise ValueError("duplicate validator_id")
+        seen_ids.add(validator_id)
+        _require_str(validator.get("public_key"), name="validator.public_key")
+        voting_power = _require_nonnegative_int(validator.get("voting_power"), name="validator.voting_power")
+        if voting_power == 0:
+            raise ValueError("validator.voting_power must be positive")
+
+
+def validator_set_hash_v0(validator_set: dict[str, Any]) -> str:
+    validate_validator_set_v0(validator_set)
+    validators = [
+        {
+            "validator_id": str(validator["validator_id"]),
+            "public_key": str(validator["public_key"]),
+            "voting_power": int(validator["voting_power"]),
+        }
+        for validator in validator_set["validators"]
+    ]
+    normalized = {
+        "schema": VALIDATOR_SET_SCHEMA_V0,
+        "chain_id": validator_set["chain_id"],
+        "epoch": int(validator_set["epoch"]),
+        "validators": sorted(validators, key=lambda validator: str(validator["validator_id"])),
+    }
+    return hash_v0("validator_set_v0", normalized)
+
+
+def scheduled_validator_id_for_height_v0(
+    validator_set: dict[str, Any],
+    *,
+    height: int,
+) -> str:
+    validate_validator_set_v0(validator_set)
+    height_v = _require_nonnegative_int(height, name="height")
+    validators = sorted(
+        (
+            (
+                str(validator["validator_id"]),
+                int(validator["voting_power"]),
+            )
+            for validator in validator_set["validators"]
+        ),
+        key=lambda item: item[0],
+    )
+    total_power = sum(power for _, power in validators)
+    slot = height_v % total_power
+    cumulative = 0
+    for validator_id, power in validators:
+        cumulative += power
+        if slot < cumulative:
+            return validator_id
+    raise AssertionError("unreachable validator schedule state")
+
+
+def validate_header_validator_set_hash_v0(
+    header: dict[str, Any],
+    validator_set: dict[str, Any],
+) -> None:
+    validate_header_v0(header)
+    validate_validator_set_v0(validator_set)
+    if header["chain_id"] != validator_set["chain_id"]:
+        raise ValueError("header/validator_set chain_id mismatch")
+    expected_hash = validator_set_hash_v0(validator_set)
+    if header["sequencer_set_hash"] != expected_hash:
+        raise ValueError("header sequencer_set_hash mismatch")
+
+
+def validate_body_validator_schedule_v0(
+    body: dict[str, Any],
+    validator_set: dict[str, Any],
+) -> None:
+    validate_body_v0(body)
+    validate_validator_set_v0(validator_set)
+    if body["chain_id"] != validator_set["chain_id"]:
+        raise ValueError("body/validator_set chain_id mismatch")
+    batch_cutoff = _require_mapping(body["ingress"].get("batch_cutoff"), name="body.ingress.batch_cutoff")
+    sequencer_id = _require_str(batch_cutoff.get("sequencer_id"), name="body.ingress.batch_cutoff.sequencer_id")
+    expected = scheduled_validator_id_for_height_v0(validator_set, height=int(body["height"]))
+    if sequencer_id != expected:
+        raise ValueError("body sequencer_id does not match validator schedule")
+
+
+def detect_header_equivocations_v0(headers: object) -> list[dict[str, Any]]:
+    if not isinstance(headers, Sequence) or isinstance(headers, (str, bytes, bytearray)):
+        raise TypeError("headers must be a sequence")
+    by_height: dict[tuple[str, int], set[str]] = {}
+    for header in headers:
+        validate_header_v0(header)
+        key = (str(header["chain_id"]), int(header["height"]))
+        by_height.setdefault(key, set()).add(canonical_header_hash_v0(header))
+    conflicts: list[dict[str, Any]] = []
+    for (chain_id, height), hashes in sorted(by_height.items()):
+        if len(hashes) > 1:
+            conflicts.append(
+                {
+                    "chain_id": chain_id,
+                    "height": height,
+                    "header_hashes": sorted(hashes),
+                }
+            )
+    return conflicts
+
+
+def validate_header_chain_linkage_v0(
+    headers: object,
+    *,
+    expected_prev_header_hash: str | None = None,
+) -> None:
+    """Fail closed unless an ordered header segment links by parent hash."""
+
+    if not isinstance(headers, Sequence) or isinstance(headers, (str, bytes, bytearray)):
+        raise TypeError("headers must be a sequence")
+    if not headers:
+        raise ValueError("headers must be non-empty")
+    if expected_prev_header_hash is not None:
+        _require_root(expected_prev_header_hash, name="expected_prev_header_hash")
+
+    normalized: list[dict[str, Any]] = []
+    for index, header in enumerate(headers):
+        if not isinstance(header, dict):
+            raise TypeError(f"headers[{index}] must be a dict")
+        validate_header_v0(header)
+        normalized.append(header)
+
+    chain_ids = {str(header["chain_id"]) for header in normalized}
+    if len(chain_ids) != 1:
+        raise ValueError("headers must share one chain_id")
+
+    by_height: dict[int, dict[str, Any]] = {}
+    for header in normalized:
+        height = int(header["height"])
+        if height in by_height:
+            raise ValueError("headers must contain unique heights")
+        by_height[height] = header
+    sorted_headers = [by_height[height] for height in sorted(by_height)]
+
+    first = sorted_headers[0]
+    if expected_prev_header_hash is not None and first["prev_header_hash"] != expected_prev_header_hash:
+        raise ValueError("first header prev_header_hash mismatch")
+
+    previous = first
+    for current in sorted_headers[1:]:
+        if int(current["height"]) != int(previous["height"]) + 1:
+            raise ValueError("headers must have consecutive heights")
+        expected_prev = canonical_header_hash_v0(previous)
+        if current["prev_header_hash"] != expected_prev:
+            raise ValueError("header prev_header_hash does not match previous header hash")
+        previous = current
+
+
+def canonical_header_chain_tip_v0(headers: Sequence[dict[str, Any]]) -> str:
+    validate_header_chain_linkage_v0(headers)
+    tip = max(headers, key=lambda header: int(header["height"]))
+    return canonical_header_hash_v0(tip)
+
+
+def evaluate_header_fork_choice_v0(
+    headers: object,
+    *,
+    expected_prev_header_hash: str = ZERO_ROOT_V0,
+) -> dict[str, Any]:
+    """Select a deterministic canonical branch from an anchored header set."""
+
+    if not isinstance(headers, Sequence) or isinstance(headers, (str, bytes, bytearray)):
+        raise TypeError("headers must be a sequence")
+    if not headers:
+        raise ValueError("headers must be non-empty")
+    _require_root(expected_prev_header_hash, name="expected_prev_header_hash")
+
+    hash_to_header: dict[str, dict[str, Any]] = {}
+    for index, header in enumerate(headers):
+        if not isinstance(header, dict):
+            raise TypeError(f"headers[{index}] must be a dict")
+        validate_header_v0(header)
+        header_hash = canonical_header_hash_v0(header)
+        hash_to_header.setdefault(header_hash, header)
+
+    chain_ids = {str(header["chain_id"]) for header in hash_to_header.values()}
+    if len(chain_ids) != 1:
+        raise ValueError("headers must share one chain_id")
+    chain_id = next(iter(chain_ids))
+
+    anchored_chains: list[list[dict[str, Any]]] = []
+    orphan_header_hashes: set[str] = set()
+    for tip_hash in sorted(hash_to_header):
+        chain_hashes_from_tip: list[str] = []
+        seen_hashes: set[str] = set()
+        current_hash = tip_hash
+        anchored = False
+        while True:
+            if current_hash in seen_hashes:
+                raise ValueError("header parent cycle")
+            seen_hashes.add(current_hash)
+            current = hash_to_header[current_hash]
+            chain_hashes_from_tip.append(current_hash)
+            parent_hash = str(current["prev_header_hash"])
+            if parent_hash == expected_prev_header_hash:
+                anchored = True
+                break
+            parent = hash_to_header.get(parent_hash)
+            if parent is None:
+                break
+            if int(parent["height"]) + 1 != int(current["height"]):
+                raise ValueError("header parent height mismatch")
+            current_hash = parent_hash
+
+        if anchored:
+            chain_headers = [
+                hash_to_header[header_hash]
+                for header_hash in reversed(chain_hashes_from_tip)
+            ]
+            validate_header_chain_linkage_v0(
+                chain_headers,
+                expected_prev_header_hash=expected_prev_header_hash,
+            )
+            anchored_chains.append(chain_headers)
+        else:
+            orphan_header_hashes.add(tip_hash)
+
+    if not anchored_chains:
+        raise ValueError("no anchored header chain")
+
+    def _score(chain: list[dict[str, Any]]) -> tuple[int, int]:
+        return int(chain[-1]["height"]), len(chain)
+
+    best_score = max(_score(chain) for chain in anchored_chains)
+    best_candidates = [chain for chain in anchored_chains if _score(chain) == best_score]
+    selected = min(best_candidates, key=lambda chain: canonical_header_hash_v0(chain[-1]))
+    selected_hashes = [canonical_header_hash_v0(header) for header in selected]
+
+    return {
+        "schema": "zenodex/zeno_ledger/header_fork_choice_report/v0",
+        "chain_id": chain_id,
+        "expected_prev_header_hash": expected_prev_header_hash,
+        "canonical_tip_hash": selected_hashes[-1],
+        "canonical_tip_height": int(selected[-1]["height"]),
+        "canonical_chain_hashes": selected_hashes,
+        "anchored_chain_count": len(anchored_chains),
+        "orphan_header_hashes": sorted(orphan_header_hashes),
+        "tie_breaker": "max_tip_height_then_chain_length_then_lowest_tip_hash",
+    }
+
+
+def select_canonical_header_chain_v0(
+    headers: Sequence[dict[str, Any]],
+    *,
+    expected_prev_header_hash: str = ZERO_ROOT_V0,
+) -> list[dict[str, Any]]:
+    report = evaluate_header_fork_choice_v0(
+        headers,
+        expected_prev_header_hash=expected_prev_header_hash,
+    )
+    by_hash = {canonical_header_hash_v0(header): header for header in headers}
+    return [by_hash[header_hash] for header_hash in report["canonical_chain_hashes"]]
 
 
 def canonical_header_hash_v0(header: dict[str, Any]) -> str:

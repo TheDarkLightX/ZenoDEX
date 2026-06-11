@@ -24,6 +24,8 @@ export interface ZkProofStatusSummary {
   zk_required: boolean;
   proof_verifier_kind?: 'disabled' | 'subprocess' | 'misconfigured' | null;
   proof_artifact_hashes: Record<string, string>;
+  expected_proof_artifact_hashes: Record<string, string>;
+  artifact_pinning_verified: boolean;
   fallback: boolean;
   fallback_reason: string | null;
   fixture_backed: boolean;
@@ -32,7 +34,14 @@ export interface ZkProofStatusSummary {
   gaps: string[];
 }
 
-export function parseZkProofStatusV0(input: unknown): ZkProofStatusSummary;
+export interface ParseZkProofStatusOptions {
+  /** Caller-pinned verifier/circuit/image hashes. A mismatch makes the status fail closed. */
+  expectedProofArtifactHashes?: Record<string, string>;
+  /** Snake-case alias for JSON-loaded option bags. */
+  expected_proof_artifact_hashes?: Record<string, string>;
+}
+
+export function parseZkProofStatusV0(input: unknown, options?: ParseZkProofStatusOptions): ZkProofStatusSummary;
 
 export interface VerifyBundleOptions {
   /** Header hash/root the first bundle header must extend. This must come from caller trust state, not the bundle. */

@@ -241,20 +241,20 @@ function optionalStringOrNull(value, name) {
   return value;
 }
 
-function parseProofArtifactHashes(value, gaps) {
+function parseProofArtifactHashes(value, gaps, name = 'proof_artifact_hashes') {
   if (value === undefined || value === null) return {};
   if (!isRecord(value)) {
-    gaps.push('proof_artifact_hashes must be an object');
+    gaps.push(`${name} must be an object`);
     return {};
   }
   const out = {};
   for (const [key, item] of Object.entries(value)) {
     if (typeof key !== 'string' || key === '') {
-      gaps.push('proof_artifact_hashes keys must be non-empty strings');
+      gaps.push(`${name} keys must be non-empty strings`);
       continue;
     }
     if (typeof item !== 'string' || !HASH_RE.test(item)) {
-      gaps.push(`proof_artifact_hashes.${key} must be a 32-byte 0x or sha256 hash`);
+      gaps.push(`${name}.${key} must be a 32-byte 0x or sha256 hash`);
       continue;
     }
     out[key] = item;
@@ -262,10 +262,13 @@ function parseProofArtifactHashes(value, gaps) {
   return out;
 }
 
-export function parseZkProofStatusV0(input) {
+export function parseZkProofStatusV0(input, options = {}) {
   const gaps = [];
   try {
     const obj = requireRecord(input, 'proof status');
+    const opts = options === undefined || options === null
+      ? {}
+      : requireRecord(options, 'proof status options');
     const requested = obj.zk_mode_requested ?? obj.mode_requested ?? 'open';
     const effective = obj.zk_mode_effective ?? obj.mode_effective ?? requested;
     if (typeof requested !== 'string' || !ZK_MODES.has(requested)) {
@@ -280,6 +283,11 @@ export function parseZkProofStatusV0(input) {
       gaps.push('proof_verifier_kind is invalid');
     }
     const proofArtifactHashes = parseProofArtifactHashes(obj.proof_artifact_hashes, gaps);
+    const expectedProofArtifactHashes = parseProofArtifactHashes(
+      opts.expectedProofArtifactHashes ?? opts.expected_proof_artifact_hashes,
+      gaps,
+      'expected_proof_artifact_hashes',
+    );
     const fallbackReason = optionalStringOrNull(obj.zk_fallback_reason ?? obj.fallback_reason ?? null, 'zk_fallback_reason');
     const productionSecurityClaim = obj.production_security_claim === true;
     const custodyMode = typeof obj.custody_mode === 'string' ? obj.custody_mode : '';
@@ -308,6 +316,13 @@ export function parseZkProofStatusV0(input) {
       if (!proofArtifactHashes.verifier) gaps.push('strict zk mode requires proof verifier artifact hash');
       if (!proofArtifactHashes.circuit) gaps.push('strict zk mode requires proof circuit artifact hash');
     }
+    for (const [key, expected] of Object.entries(expectedProofArtifactHashes)) {
+      if (!proofArtifactHashes[key]) {
+        gaps.push(`expected proof artifact hash missing:${key}`);
+      } else if (proofArtifactHashes[key] !== expected) {
+        gaps.push(`proof artifact hash mismatch:${key}`);
+      }
+    }
     if (productionSecurityClaim && proofMode !== 'strict') {
       gaps.push('production_security_claim requires strict non-fixture zk mode');
     }
@@ -325,6 +340,11 @@ export function parseZkProofStatusV0(input) {
       zk_required: zkRequired,
       proof_verifier_kind: typeof verifierKind === 'string' ? verifierKind : null,
       proof_artifact_hashes: proofArtifactHashes,
+      expected_proof_artifact_hashes: expectedProofArtifactHashes,
+      artifact_pinning_verified: (
+        Object.keys(expectedProofArtifactHashes).length > 0
+        && Object.entries(expectedProofArtifactHashes).every(([key, expected]) => proofArtifactHashes[key] === expected)
+      ),
       fallback,
       fallback_reason: fallbackReason,
       fixture_backed: fixtureBacked,
@@ -340,6 +360,8 @@ export function parseZkProofStatusV0(input) {
       proof_mode: 'rejected',
       zk_required: false,
       proof_artifact_hashes: {},
+      expected_proof_artifact_hashes: {},
+      artifact_pinning_verified: false,
       fallback: false,
       fallback_reason: null,
       fixture_backed: false,
@@ -524,8 +546,8 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
     if (!requireIndependentBls && !trustBuilderBls) {
       throw new Error('trustBuilderBls=true is required when independent BLS verification is disabled');
     }
-    // A bundle can be internally self-consistent. Browser acceptance also needs
-    // caller-pinned anchors that were not supplied by the bundle builder.
+    // The bundle can be internally consistent while still pointing at an
+    // attacker-selected history. Browser callers must pin the roots they trust.
     const expectedTrustedPrevHeaderHash = requireRoot(
       options.expectedTrustedPrevHeaderHash,
       'expectedTrustedPrevHeaderHash',
@@ -638,7 +660,7 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
       throw new Error('verification summary range_summary mismatch');
     }
     // Builder-trust mode skips cryptographic signature verification only. It
-    // still must bind the registry contents to the caller-pinned registry hash.
+    // still binds the registry contents to the caller-pinned registry hash.
     const { validateSignerRegistryV0 } = await import('./zenoBlsVerifier.js');
     const signerRegistry = await validateSignerRegistryV0(registry);
     requireRoot(signerRegistry.registry_hash, 'signer registry hash');
@@ -783,6 +805,7 @@ export async function advanceWalletSyncStateV0({
   ) {
     return { ok: false, status: 'rejected', gaps: ['wallet sync rollback rejected'] };
   }
+
   let effectiveExpectedTrustedPrevHeaderHash = expectedTrustedPrevHeaderHash;
   if (
     effectiveExpectedTrustedPrevHeaderHash === null

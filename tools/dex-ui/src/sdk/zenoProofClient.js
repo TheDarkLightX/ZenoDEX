@@ -2,11 +2,16 @@ export const BROWSER_CHECKPOINT_BUNDLE_SCHEMA_V0 = 'zenodex.zeno_sdk.browser_che
 export const BROWSER_WALLET_SYNC_STATE_SCHEMA_V0 = 'zenodex.zeno_sdk.wallet_sync_state.v0';
 export const BROWSER_CHECKPOINT_VERIFICATION_SUMMARY_SCHEMA_V0 =
   'zenodex.zeno_sdk.browser_checkpoint_verification_summary.v0';
+export const ZK_PROOF_STATUS_SUMMARY_SCHEMA_V0 = 'zenodex.zeno_sdk.zk_proof_status_summary.v0';
 
 const ROOT_RE = /^0x[0-9a-f]{64}$/;
+const HASH_RE = /^(?:0x|sha256:)[0-9a-f]{64}$/;
 const MAX_SIGNATURE_ENVELOPES = 64;
 const MAX_HEADER_CHAIN_HEADERS = 4096;
 const textEncoder = new TextEncoder();
+const ZK_MODES = new Set(['auto-strict', 'strict', 'open']);
+const ZK_EFFECTIVE_MODES = new Set(['strict', 'open']);
+const PROOF_VERIFIER_KINDS = new Set(['disabled', 'subprocess', 'misconfigured']);
 const HEADER_SCHEMA_V0 = 'zenodex/zeno_ledger/header/v0';
 const CHECKPOINT_SCHEMA_V0 = 'zenodex/zeno_ledger/checkpoint/v0';
 const BUNDLE_KEYS_V0 = [
@@ -66,7 +71,10 @@ const WALLET_SYNC_STATE_KEYS_V0 = [
   'chain_id',
   'height',
   'app_hash',
+  'target_header_hash',
   'checkpoint_hash',
+  'signer_registry_hash',
+  'trust_model',
   'bundle_hash',
   'updated_at_ms',
   'state_hash',
@@ -223,6 +231,145 @@ function requireNonEmptyString(value, name) {
     throw new Error(`${name} must be non-empty`);
   }
   return value;
+}
+
+function optionalStringOrNull(value, name) {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string') {
+    throw new Error(`${name} must be a string or null`);
+  }
+  return value;
+}
+
+function parseProofArtifactHashes(value, gaps, name = 'proof_artifact_hashes') {
+  if (value === undefined || value === null) return {};
+  if (!isRecord(value)) {
+    gaps.push(`${name} must be an object`);
+    return {};
+  }
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof key !== 'string' || key === '') {
+      gaps.push(`${name} keys must be non-empty strings`);
+      continue;
+    }
+    if (typeof item !== 'string' || !HASH_RE.test(item)) {
+      gaps.push(`${name}.${key} must be a 32-byte 0x or sha256 hash`);
+      continue;
+    }
+    out[key] = item;
+  }
+  return out;
+}
+
+export function parseZkProofStatusV0(input, options = {}) {
+  const gaps = [];
+  try {
+    const obj = requireRecord(input, 'proof status');
+    const opts = options === undefined || options === null
+      ? {}
+      : requireRecord(options, 'proof status options');
+    const requested = obj.zk_mode_requested ?? obj.mode_requested ?? 'open';
+    const effective = obj.zk_mode_effective ?? obj.mode_effective ?? requested;
+    if (typeof requested !== 'string' || !ZK_MODES.has(requested)) {
+      gaps.push('zk_mode_requested is invalid');
+    }
+    if (typeof effective !== 'string' || !ZK_EFFECTIVE_MODES.has(effective)) {
+      gaps.push('zk_mode_effective is invalid');
+    }
+    const zkRequired = obj.zk_required === true || obj.required === true;
+    const verifierKind = obj.proof_verifier_kind ?? obj.verifier_kind ?? 'disabled';
+    if (typeof verifierKind !== 'string' || !PROOF_VERIFIER_KINDS.has(verifierKind)) {
+      gaps.push('proof_verifier_kind is invalid');
+    }
+    const proofArtifactHashes = parseProofArtifactHashes(obj.proof_artifact_hashes, gaps);
+    const expectedProofArtifactHashes = parseProofArtifactHashes(
+      opts.expectedProofArtifactHashes ?? opts.expected_proof_artifact_hashes,
+      gaps,
+      'expected_proof_artifact_hashes',
+    );
+    const fallbackReason = optionalStringOrNull(obj.zk_fallback_reason ?? obj.fallback_reason ?? null, 'zk_fallback_reason');
+    const productionSecurityClaim = obj.production_security_claim === true;
+    const custodyMode = typeof obj.custody_mode === 'string' ? obj.custody_mode : '';
+    const fixtureBacked = obj.fixture_backed === true
+      || custodyMode.includes('fixture');
+    const fallback = requested === 'auto-strict' && effective === 'open' && Boolean(fallbackReason);
+    let proofMode = 'open';
+    if (fallback) {
+      proofMode = 'fallback';
+    } else if (fixtureBacked) {
+      proofMode = 'fixture';
+    } else if (effective === 'strict') {
+      proofMode = 'strict';
+    }
+
+    if (effective === 'strict' && zkRequired !== true) {
+      gaps.push('strict zk mode requires zk_required=true');
+    }
+    if (fallback) {
+      gaps.push('auto-strict fallback is not an acceptable proof status');
+    }
+    if (effective === 'strict' && verifierKind !== 'subprocess') {
+      gaps.push('strict zk mode requires a configured subprocess verifier');
+    }
+    if (effective === 'strict') {
+      if (!proofArtifactHashes.verifier) gaps.push('strict zk mode requires proof verifier artifact hash');
+      if (!proofArtifactHashes.circuit) gaps.push('strict zk mode requires proof circuit artifact hash');
+    }
+    for (const [key, expected] of Object.entries(expectedProofArtifactHashes)) {
+      if (!proofArtifactHashes[key]) {
+        gaps.push(`expected proof artifact hash missing:${key}`);
+      } else if (proofArtifactHashes[key] !== expected) {
+        gaps.push(`proof artifact hash mismatch:${key}`);
+      }
+    }
+    if (productionSecurityClaim && proofMode !== 'strict') {
+      gaps.push('production_security_claim requires strict non-fixture zk mode');
+    }
+    if (productionSecurityClaim) {
+      gaps.push('production_security_claim is self-reported and cannot be promoted by this parser');
+    }
+
+    return {
+      schema: ZK_PROOF_STATUS_SUMMARY_SCHEMA_V0,
+      ok: gaps.length === 0,
+      status: gaps.length === 0 ? 'accepted' : 'blocked',
+      proof_mode: proofMode,
+      zk_mode_requested: typeof requested === 'string' ? requested : null,
+      zk_mode_effective: typeof effective === 'string' ? effective : null,
+      zk_required: zkRequired,
+      proof_verifier_kind: typeof verifierKind === 'string' ? verifierKind : null,
+      proof_artifact_hashes: proofArtifactHashes,
+      expected_proof_artifact_hashes: expectedProofArtifactHashes,
+      artifact_pinning_verified: (
+        Object.keys(expectedProofArtifactHashes).length > 0
+        && Object.entries(expectedProofArtifactHashes).every(([key, expected]) => proofArtifactHashes[key] === expected)
+      ),
+      fallback,
+      fallback_reason: fallbackReason,
+      fixture_backed: fixtureBacked,
+      production_security_claim: productionSecurityClaim,
+      can_make_production_security_claim: false,
+      gaps,
+    };
+  } catch (err) {
+    return {
+      schema: ZK_PROOF_STATUS_SUMMARY_SCHEMA_V0,
+      ok: false,
+      status: 'blocked',
+      proof_mode: 'rejected',
+      zk_required: false,
+      proof_artifact_hashes: {},
+      expected_proof_artifact_hashes: {},
+      artifact_pinning_verified: false,
+      fallback: false,
+      fallback_reason: null,
+      fixture_backed: false,
+      production_security_claim: false,
+      can_make_production_security_claim: false,
+      gaps: [err?.message || 'proof status rejected'],
+    };
+  }
 }
 
 function validateHeaderShape(header, name = 'header') {
@@ -391,8 +538,24 @@ function requireRangeSummary(summary) {
 
 export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
   const gaps = [];
-  const requireIndependentBls = Boolean(options.requireIndependentBls);
+  const trustBuilderBls = options.trustBuilderBls === true;
+  const requireIndependentBls = options.requireIndependentBls === undefined
+    ? !trustBuilderBls
+    : Boolean(options.requireIndependentBls);
   try {
+    if (!requireIndependentBls && !trustBuilderBls) {
+      throw new Error('trustBuilderBls=true is required when independent BLS verification is disabled');
+    }
+    // The bundle can be internally consistent while still pointing at an
+    // attacker-selected history. Browser callers must pin the roots they trust.
+    const expectedTrustedPrevHeaderHash = requireRoot(
+      options.expectedTrustedPrevHeaderHash,
+      'expectedTrustedPrevHeaderHash',
+    );
+    const expectedSignerRegistryHash = requireRoot(
+      options.expectedSignerRegistryHash,
+      'expectedSignerRegistryHash',
+    );
     requireRecord(bundle, 'bundle');
     exactKeys(bundle, BUNDLE_KEYS_V0, 'bundle');
     if (bundle.schema !== BROWSER_CHECKPOINT_BUNDLE_SCHEMA_V0) {
@@ -431,6 +594,9 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
       throw new Error('bundle to_height mismatch');
     }
     const trustedPrevHeaderHash = requireRoot(bundle.trusted_prev_header_hash, 'trusted_prev_header_hash');
+    if (trustedPrevHeaderHash !== expectedTrustedPrevHeaderHash) {
+      throw new Error('trusted_prev_header_hash trust anchor mismatch');
+    }
 
     if (summary.schema !== BROWSER_CHECKPOINT_VERIFICATION_SUMMARY_SCHEMA_V0) {
       throw new Error('verification summary schema mismatch');
@@ -493,12 +659,19 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
     ) {
       throw new Error('verification summary range_summary mismatch');
     }
-    requireRoot(registry.registry_hash, 'signer registry hash');
-    requireNonnegativeInt(registry.threshold, 'signer registry threshold');
+    // Builder-trust mode skips cryptographic signature verification only. It
+    // still binds the registry contents to the caller-pinned registry hash.
+    const { validateSignerRegistryV0 } = await import('./zenoBlsVerifier.js');
+    const signerRegistry = await validateSignerRegistryV0(registry);
+    requireRoot(signerRegistry.registry_hash, 'signer registry hash');
+    if (signerRegistry.registry_hash !== expectedSignerRegistryHash) {
+      throw new Error('signer registry trust anchor mismatch');
+    }
+    requireNonnegativeInt(signerRegistry.threshold, 'signer registry threshold');
     const signatureSetRoot = await hashV0('light_client_signature_set_root_v0', {
-      registry_hash: registry.registry_hash,
+      registry_hash: signerRegistry.registry_hash,
       payload_kind: 'checkpoint',
-      threshold: registry.threshold,
+      threshold: signerRegistry.threshold,
     });
     if (checkpoint.signature_set_root !== signatureSetRoot) {
       throw new Error('checkpoint signature_set_root mismatch');
@@ -506,13 +679,13 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
     if (summary.expected_signature_set_root !== signatureSetRoot) {
       throw new Error('verification summary signature_set_root mismatch');
     }
-    if (summary.registry_hash !== registry.registry_hash) {
+    if (summary.registry_hash !== signerRegistry.registry_hash) {
       throw new Error('verification summary registry_hash mismatch');
     }
     requireRoot(summary.quorum_report_hash, 'verification summary quorum_report_hash');
     const acceptedWeight = requireNonnegativeInt(summary.accepted_weight, 'verification summary accepted_weight');
     const threshold = requireNonnegativeInt(summary.threshold, 'verification summary threshold');
-    if (threshold <= 0 || acceptedWeight <= 0 || threshold !== registry.threshold || acceptedWeight < threshold) {
+    if (threshold <= 0 || acceptedWeight <= 0 || threshold !== signerRegistry.threshold || acceptedWeight < threshold) {
       throw new Error('verification summary threshold mismatch');
     }
     if (summary.python_bls_quorum_verified !== true || capabilities.python_bls_quorum_verified !== true) {
@@ -520,6 +693,7 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
     }
     let browserBlsVerified = false;
     let browserBlsAcceptedWeight = null;
+    const trustModel = requireIndependentBls ? 'independent_bls' : 'builder_bls_claim';
     if (requireIndependentBls) {
       // Lazy-import the BLS verifier so consumers who don't need it pay
       // zero cost in load time + bundle size.
@@ -542,11 +716,15 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
     }
     return {
       ok: true,
-      status: 'accepted',
+      status: requireIndependentBls ? 'accepted' : 'accepted_with_builder_bls_trust',
+      trust_model: trustModel,
       bundle_hash: bundle.bundle_hash,
       chain_id: bundle.chain_id,
       height: checkpoint.height,
       checkpoint_hash: checkpointHash,
+      target_header_hash: targetHeaderHash,
+      trusted_prev_header_hash: trustedPrevHeaderHash,
+      signer_registry_hash: signerRegistry.registry_hash,
       browser_range_replay_verified: true,
       browser_range_last_header_hash: rangeReplay.lastHeaderHash,
       browser_bls_quorum_verified: browserBlsVerified,
@@ -576,7 +754,12 @@ async function validateWalletSyncStateInternal(state) {
   requireNonEmptyString(obj.chain_id, 'wallet sync state chain_id');
   requireNonnegativeInt(obj.height, 'wallet sync state height');
   requireRoot(obj.app_hash, 'wallet sync state app_hash');
+  requireRoot(obj.target_header_hash, 'wallet sync state target_header_hash');
   requireRoot(obj.checkpoint_hash, 'wallet sync state checkpoint_hash');
+  requireRoot(obj.signer_registry_hash, 'wallet sync state signer_registry_hash');
+  if (!['independent_bls', 'builder_bls_claim'].includes(obj.trust_model)) {
+    throw new Error('wallet sync state trust_model mismatch');
+  }
   requireRoot(obj.bundle_hash, 'wallet sync state bundle_hash');
   requireNonnegativeInt(obj.updated_at_ms, 'wallet sync state updated_at_ms');
   requireRoot(obj.state_hash, 'wallet sync state state_hash');
@@ -592,16 +775,16 @@ export async function advanceWalletSyncStateV0({
   bundle,
   surface = 'wallet',
   updatedAtMs = Date.now(),
-  requireIndependentBls = false,
+  requireIndependentBls = undefined,
+  trustBuilderBls = false,
+  expectedTrustedPrevHeaderHash = null,
+  expectedSignerRegistryHash = null,
 } = {}) {
-  const verification = await verifyBrowserCheckpointBundleV0(bundle, { requireIndependentBls });
-  if (!verification.ok) {
-    return { ok: false, status: 'rejected', gaps: verification.gaps };
-  }
-  const checkpoint = bundle.target_checkpoint;
+  let validatedCurrentState = null;
   if (currentState) {
     try {
       await validateWalletSyncStateInternal(currentState);
+      validatedCurrentState = currentState;
     } catch (err) {
       return {
         ok: false,
@@ -609,20 +792,66 @@ export async function advanceWalletSyncStateV0({
         gaps: [err?.message || 'wallet sync state rejected'],
       };
     }
-    if (currentState.chain_id !== checkpoint.chain_id) {
+  }
+
+  const bundleCheckpoint = isRecord(bundle) && isRecord(bundle.target_checkpoint) ? bundle.target_checkpoint : null;
+  const candidateHeight = bundleCheckpoint && Number.isSafeInteger(bundleCheckpoint.height)
+    ? bundleCheckpoint.height
+    : null;
+  if (
+    validatedCurrentState
+    && candidateHeight !== null
+    && candidateHeight < validatedCurrentState.height
+  ) {
+    return { ok: false, status: 'rejected', gaps: ['wallet sync rollback rejected'] };
+  }
+
+  let effectiveExpectedTrustedPrevHeaderHash = expectedTrustedPrevHeaderHash;
+  if (
+    effectiveExpectedTrustedPrevHeaderHash === null
+    && validatedCurrentState
+    && candidateHeight !== null
+    && candidateHeight > validatedCurrentState.height
+  ) {
+    // Continue only from the header the wallet already accepted; a replay from
+    // a different root is an alternate history even if its local hashes line up.
+    effectiveExpectedTrustedPrevHeaderHash = validatedCurrentState.target_header_hash;
+  }
+  const effectiveExpectedSignerRegistryHash = expectedSignerRegistryHash
+    ?? validatedCurrentState?.signer_registry_hash
+    ?? null;
+
+  const verification = await verifyBrowserCheckpointBundleV0(bundle, {
+    requireIndependentBls,
+    trustBuilderBls,
+    expectedTrustedPrevHeaderHash: effectiveExpectedTrustedPrevHeaderHash,
+    expectedSignerRegistryHash: effectiveExpectedSignerRegistryHash,
+  });
+  if (!verification.ok) {
+    return { ok: false, status: 'rejected', gaps: verification.gaps };
+  }
+  const checkpoint = bundle.target_checkpoint;
+  if (validatedCurrentState) {
+    if (validatedCurrentState.chain_id !== checkpoint.chain_id) {
       return { ok: false, status: 'rejected', gaps: ['wallet sync chain_id mismatch'] };
     }
-    if (checkpoint.height < currentState.height) {
+    if (checkpoint.height < validatedCurrentState.height) {
       return { ok: false, status: 'rejected', gaps: ['wallet sync rollback rejected'] };
     }
     if (
-      checkpoint.height === currentState.height
+      checkpoint.height === validatedCurrentState.height
       && (
-        currentState.checkpoint_hash !== verification.checkpoint_hash
-        || currentState.app_hash !== checkpoint.app_hash
+        validatedCurrentState.checkpoint_hash !== verification.checkpoint_hash
+        || validatedCurrentState.app_hash !== checkpoint.app_hash
       )
     ) {
       return { ok: false, status: 'rejected', gaps: ['wallet sync same-height drift rejected'] };
+    }
+    if (
+      checkpoint.height > validatedCurrentState.height
+      && verification.trusted_prev_header_hash !== validatedCurrentState.target_header_hash
+    ) {
+      return { ok: false, status: 'rejected', gaps: ['wallet sync extension root mismatch'] };
     }
   }
   const body = {
@@ -631,13 +860,16 @@ export async function advanceWalletSyncStateV0({
     chain_id: checkpoint.chain_id,
     height: checkpoint.height,
     app_hash: checkpoint.app_hash,
+    target_header_hash: verification.target_header_hash,
     checkpoint_hash: verification.checkpoint_hash,
+    signer_registry_hash: verification.signer_registry_hash,
+    trust_model: verification.trust_model,
     bundle_hash: bundle.bundle_hash,
     updated_at_ms: requireNonnegativeInt(Math.trunc(updatedAtMs), 'updated_at_ms'),
   };
   return {
     ok: true,
-    status: 'accepted',
+    status: verification.status,
     state: {
       ...body,
       state_hash: await hashV0('wallet_sync_state_v0', body),

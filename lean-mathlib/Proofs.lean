@@ -26,6 +26,7 @@ import Proofs.ArbitrageCertificate
 import Proofs.AsynchronousIntentSettlement
 import Proofs.AtomicCrossMarginHealth
 import Proofs.AutotraderControllerPolicyClosure
+import Proofs.AutogovNextTrajectoryBudget
 import Proofs.BatchApproximation
 import Proofs.BatchAuctionCanonical
 import Proofs.BatchCPMMUnification
@@ -75,6 +76,7 @@ import Proofs.DisasterClassClosure.NumericArithmeticRounding
 import Proofs.DisasterClassClosure.SettlementWitnessCertificate
 import Proofs.DisasterPotentialSafety
 import Proofs.EndogenousManipulationDefense
+import Proofs.EncryptedSSSBackupReadiness
 import Proofs.ExactOutAdaptiveGate
 import Proofs.ExoticCurveInvariantGate
 import Proofs.ExploitRepairComposition
@@ -99,6 +101,7 @@ import Proofs.GeneralizedSettlementCertificates
 import Proofs.GracefulDegradation
 import Proofs.GrossMarginSafety
 import Proofs.HybridCurveProperties
+import Proofs.HostInterfaceFeeAccounting
 import Proofs.ILFuturesSafety
 import Proofs.ImpossibilityTheorem
 import Proofs.ImpossibilityTheoremV2
@@ -227,6 +230,7 @@ import Proofs.ZenoCoverPayoutCap
 import Proofs.ZenoCoverReserveArithmetic
 import Proofs.ZenoEnergyAdvisoryBoundary
 import Proofs.ZenoDEXExactInRouteCertificate
+import Proofs.ZenoVolNotes
 import Proofs.ZenoDEXExactInRouteGuardedQuotePacket
 import Proofs.ZenoDEXExactInRouteOracleContract
 import Proofs.ZenoDEXExactInRouteRankProjection
@@ -303,6 +307,7 @@ import Proofs.ZenoDEXStakingShareSafety
 import Proofs.ZenoDEXUniqueCanonicalWinnerEverywhere
 import Proofs.ZenoDEXYieldLikeFundingSafety
 import Proofs.ZenoHypergraphPadding
+import Proofs.ZenoKeyManagerRecovery
 import Proofs.ZenoLedgerZkTeeProofComposition
 import Proofs.ZenoOracleGeneralizationV1
 import Proofs.ZenoOracleMathWitness
@@ -323,7 +328,10 @@ import Proofs.ZUSDDebtHomomorphism
 import Proofs.ZUSDDualConservation
 import Proofs.ZUSDFeePipeline
 import Proofs.ZUSDMCRHeadroom
+import Proofs.ZUSDMonetarySubmitClassifier
 import Proofs.ZUSDMultiRedeemSelector
+import Proofs.ZUSDFeeStakingAccounting
+import Proofs.ZUSDRedemptionDrainGuards
 import Proofs.ZUSDSPConvexity
 
 /-!
