@@ -104,6 +104,45 @@ theorem double_batch_halves_modeled_profit (base_profit n : ℕ) (hn : 0 < n) :
     Nat.div_mul_le_self base_profit (2 * n)
   simpa [Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using hmul
 
+/-! ## General k-fold dilution scaling law
+
+The doubling lemma above is the `k = 2` slice of an exact composition law:
+in floor arithmetic, diluting by `k·n` IS diluting by `n` and then by `k`
+(`batch_dilution_compose`, an equality, not a bound).  The one-sided k-fold
+bound and a matching sharpness bound follow, pinning `k · profit(k·n)`
+inside the window `(profit(n) − k, profit(n)]` — the dilution model loses
+less than one unit of modeled profit per dilution factor to rounding. -/
+
+/-- Exact composition: `profit(k·n) = profit(n) / k` in floor arithmetic.
+    Scaling the batch by `k` exactly floor-divides the remaining modeled
+    profit by `k`. -/
+theorem batch_dilution_compose (base_profit k n : ℕ) :
+    base_profit / (k * n) = base_profit / n / k := by
+  rw [Nat.div_div_eq_div_mul, Nat.mul_comm n k]
+
+/-- General k-fold dilution: scaling the batch size by `k` divides the
+    remaining modeled profit by at least `k`.  Generalizes
+    `double_batch_halves_modeled_profit` (the case `k = 2`), with no
+    positivity hypotheses. -/
+theorem k_fold_batch_dilution (base_profit k n : ℕ) :
+    k * (base_profit / (k * n)) ≤ base_profit / n := by
+  rw [batch_dilution_compose, Nat.mul_comm]
+  exact Nat.div_mul_le_self (base_profit / n) k
+
+/-- Sharpness of k-fold dilution: the rounding loss is strictly below `k`,
+    i.e. `profit(n) < k · profit(k·n) + k`.  Together with
+    `k_fold_batch_dilution` this pins `k · profit(k·n)` within
+    `(profit(n) − k, profit(n)]`. -/
+theorem k_fold_batch_dilution_sharp (base_profit k n : ℕ) (hk : 0 < k) :
+    base_profit / n < k * (base_profit / (k * n)) + k := by
+  rw [batch_dilution_compose]
+  have hdm : k * (base_profit / n / k) + base_profit / n % k = base_profit / n :=
+    Nat.div_add_mod _ _
+  have hmod : base_profit / n % k < k := Nat.mod_lt _ hk
+  have hsum := Nat.add_lt_add_left hmod (k * (base_profit / n / k))
+  rw [hdm] at hsum
+  exact hsum
+
 /-- The reduction fraction (n-1)/n is always ≤ 1. -/
 theorem reduction_bounded (n : ℕ) (_hn : 0 < n) :
     reductionNum n ≤ n := by
@@ -180,6 +219,101 @@ theorem witness_reduction_identity :
 theorem witness_modeled_profit_can_floor_to_zero :
     1 / 2 = 0 := by
   native_decide
+
+/-- Concrete k-fold dilution: base 1000, n = 4, k = 5.
+    `profit(4) = 250`, `profit(20) = 50`, `5 · 50 = 250 ≤ 250`,
+    and the exact composition law holds. -/
+theorem witness_k_fold_dilution :
+    1000 / (5 * 4) = 1000 / 4 / 5 ∧
+    5 * (1000 / (5 * 4)) ≤ 1000 / 4 ∧
+    1000 / 4 < 5 * (1000 / (5 * 4)) + 5 := by
+  native_decide
+
+/-- Concrete sharpness: base 1003, n = 1, k = 5.
+    `profit(1) = 1003`, `5 · profit(5) = 5 · 200 = 1000`; the rounding loss
+    is `3 < 5`, strictly inside the window proved by
+    `k_fold_batch_dilution_sharp`. -/
+theorem witness_k_fold_sharpness :
+    1003 / 1 - 5 * (1003 / (5 * 1)) = 3 ∧
+    1003 / 1 < 5 * (1003 / (5 * 1)) + 5 := by
+  native_decide
+
+/-! ## Weighted dilution (heterogeneous intent sizes)
+
+The `1/n` family above models EQUAL intents.  With heterogeneous sizes the
+modeled sandwichable surface of an intent is proportional to its SHARE of
+the batch, not to `1/n`: a whale retains its share of the exposure no
+matter how many small intents surround it (`witness_whale_exposure`).  The
+results below state the weighted model and its conservation law, and
+recover the `1/n` family as the equal-size specialization — so the `1/n`
+headline numbers are licensed exactly for equal-size batches and nothing
+stronger. -/
+
+/-- Modeled sandwich exposure of an intent of size `s` in a batch of total
+    size `S`: the intent's share of the single-intent base exposure. -/
+def weightedExposure (base s S : ℕ) : ℕ := base * s / S
+
+/-- Floor division is superadditive in the numerator:
+    `a/d + b/d ≤ (a+b)/d`. -/
+theorem nat_div_add_div_le (a b d : ℕ) : a / d + b / d ≤ (a + b) / d := by
+  rcases Nat.eq_zero_or_pos d with h | h
+  · simp [h]
+  · rw [Nat.le_div_iff_mul_le h, Nat.add_mul]
+    exact Nat.add_le_add (Nat.div_mul_le_self a d) (Nat.div_mul_le_self b d)
+
+/-- Conservation: total modeled exposure across the batch never exceeds the
+    single-intent base exposure. -/
+theorem weightedExposure_sum_le (base : ℕ) (sizes : List ℕ) :
+    (sizes.map (fun s => weightedExposure base s sizes.sum)).sum ≤ base := by
+  have hsub : ∀ (l : List ℕ) (d : ℕ),
+      (l.map (fun s => base * s / d)).sum ≤ (l.map (fun s => base * s)).sum / d := by
+    intro l d
+    induction l with
+    | nil => simp
+    | cons a t ih =>
+        simp only [List.map_cons, List.sum_cons]
+        calc base * a / d + (t.map (fun s => base * s / d)).sum
+            ≤ base * a / d + (t.map (fun s => base * s)).sum / d :=
+              Nat.add_le_add_left ih _
+          _ ≤ (base * a + (t.map (fun s => base * s)).sum) / d :=
+              nat_div_add_div_le _ _ _
+  have hmul : ∀ l : List ℕ, (l.map (fun s => base * s)).sum = base * l.sum := by
+    intro l
+    induction l with
+    | nil => simp
+    | cons a t ih => simp [ih, Nat.mul_add]
+  calc (sizes.map (fun s => weightedExposure base s sizes.sum)).sum
+      ≤ (sizes.map (fun s => base * s)).sum / sizes.sum := hsub sizes sizes.sum
+    _ = base * sizes.sum / sizes.sum := by rw [hmul]
+    _ ≤ base := by
+        rcases Nat.eq_zero_or_pos sizes.sum with h | h
+        · simp [h]
+        · rw [Nat.mul_div_cancel _ h]
+
+/-- Equal-size specialization: in a batch of `n` equal intents the weighted
+    exposure is exactly `base / n` — the original `1/n` dilution family. -/
+theorem weightedExposure_equal_sizes (base n s : ℕ) (hs : 0 < s) :
+    weightedExposure base s (List.replicate n s).sum = base / n := by
+  have hsum : (List.replicate n s).sum = n * s := by
+    induction n with
+    | zero => simp
+    | succ k ih =>
+        simp only [List.replicate_succ, List.sum_cons, ih]
+        ring
+  unfold weightedExposure
+  rw [hsum]
+  exact Nat.mul_div_mul_right _ _ hs
+
+/-- Honest counterpoint to the equal-size family: one whale of size 96 with
+    four size-1 intents (batch of 5, total 100) retains 96% of the base
+    exposure.  The `n = 5` headline (80% reduction) does not apply to
+    whale-bearing batches; only share dilution does, and the shares conserve
+    the base exactly here (960 + 4·10 = 1000). -/
+theorem witness_whale_exposure :
+    weightedExposure 1000 96 100 = 960 ∧
+    weightedExposure 1000 1 100 = 10 ∧
+    960 + 4 * 10 = 1000 := by
+  refine ⟨?_, ?_, ?_⟩ <;> native_decide
 
 end MEVResistanceBound
 end Proofs

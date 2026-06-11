@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from .math import maint_margin_req
+from .math import BPS_SCALE, maint_margin_req
 from .types import EpochPhase, PerpState
 
 
@@ -94,6 +94,37 @@ def inv_insurance_conservation(s: PerpState) -> bool:
 def inv_liquidation_ic_guard(s: PerpState) -> bool:
     eff_maint = s.maintenance_margin_bps + s.depeg_buffer_bps
     return s.liquidation_penalty_bps < eff_maint
+
+
+def inv_funded_liquidation(s: PerpState) -> bool:
+    """Funded-liquidation parameter inequality (ADVISORY checker).
+
+    ``penalty * (BPS + m) <= BPS * (eff_maint - m)`` guarantees that after any
+    single clamped oracle move the liquidation penalty priced at the post-move
+    price is covered by the account's own post-move equity, so the
+    ``liq_penalty_capped`` cap never binds and the keeper reward never draws
+    on the insurance fund.  Lean proof:
+    ``Proofs.PerpEpochSafety.liquidation_penalty_funded_after_bounded_move``.
+
+    Strictly stronger than ``inv_liquidation_ic_guard`` (which ignores the
+    oracle clamp ``m``): with ``m = eff_maint`` the IC guard still passes
+    while the penalty is unfunded at the clamp edge.
+
+    Deliberately NOT in ``INVARIANT_REGISTRY``: per-transition enforcement
+    would retroactively freeze any live market whose legacy parameters sit in
+    the unfunded region (every op would fail the registry check), and it
+    would make the defensive ``liq_penalty_capped`` branch unreachable for
+    the Rust-shadow parity suites that exercise it.  The enforcement point
+    for this inequality is parameter ADMISSION (market creation and
+    ``set_market_params``), which is a synchronized Python+Rust authority
+    surface with golden traces; see
+    ``docs/MECHANISM_DESIGN_IMPROVEMENT_ANALYSIS.md`` (R1).
+    """
+    eff_maint = s.maintenance_margin_bps + s.depeg_buffer_bps
+    return (
+        s.liquidation_penalty_bps * (BPS_SCALE + s.max_oracle_move_bps)
+        <= BPS_SCALE * (eff_maint - s.max_oracle_move_bps)
+    )
 
 
 def inv_funding_epoch_gated(s: PerpState) -> bool:

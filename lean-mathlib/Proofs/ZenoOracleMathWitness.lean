@@ -46,6 +46,16 @@ def O5OracleUseOK
     (O5IndependenceWitnessOK
       primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed)
 
+def PerpsOracleSnapshotUsableOK
+    (sameActionId sameRuntimeFacts sameQueryValueWindow freshEnough : Prop) :
+    Prop :=
+  And sameActionId (And sameRuntimeFacts (And sameQueryValueWindow freshEnough))
+
+def PerpsSnapshotCriticalActionOK
+    (snapshotUsableOK o3ActionBindingOK : Prop) :
+    Prop :=
+  And snapshotUsableOK o3ActionBindingOK
+
 theorem median_deviation_boundary_accepts :
     MaxDeviationBpsSorted 98000000 100000000 102000000 10000 = 200 := by
   norm_num [MaxDeviationBpsSorted]
@@ -166,6 +176,45 @@ theorem o5_use_rejects_missing_dag_closure
         primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed) := by
   intro h
   exact hMissingDagClosed (o5_independence_witness_requires_dag_closed h.right)
+
+theorem perps_snapshot_usable_iff_obligations
+    {sameActionId sameRuntimeFacts sameQueryValueWindow freshEnough : Prop} :
+    PerpsOracleSnapshotUsableOK
+        sameActionId sameRuntimeFacts sameQueryValueWindow freshEnough ↔
+      sameActionId ∧ sameRuntimeFacts ∧ sameQueryValueWindow ∧ freshEnough := by
+  rfl
+
+theorem perps_snapshot_usable_rejects_action_id_drift
+    {sameActionId sameRuntimeFacts sameQueryValueWindow freshEnough : Prop}
+    (hActionIdDrift : Not sameActionId) :
+    Not
+      (PerpsOracleSnapshotUsableOK
+        sameActionId sameRuntimeFacts sameQueryValueWindow freshEnough) := by
+  intro h
+  exact hActionIdDrift h.left
+
+theorem perps_snapshot_usable_rejects_runtime_fact_drift
+    {sameActionId sameRuntimeFacts sameQueryValueWindow freshEnough : Prop}
+    (hRuntimeFactDrift : Not sameRuntimeFacts) :
+    Not
+      (PerpsOracleSnapshotUsableOK
+        sameActionId sameRuntimeFacts sameQueryValueWindow freshEnough) := by
+  intro h
+  exact hRuntimeFactDrift h.right.left
+
+theorem perps_snapshot_critical_action_rejects_missing_usable_snapshot
+    {snapshotUsableOK o3ActionBindingOK : Prop}
+    (hMissingSnapshot : Not snapshotUsableOK) :
+    Not (PerpsSnapshotCriticalActionOK snapshotUsableOK o3ActionBindingOK) := by
+  intro h
+  exact hMissingSnapshot h.left
+
+theorem perps_snapshot_critical_action_rejects_missing_o3_action_binding
+    {snapshotUsableOK o3ActionBindingOK : Prop}
+    (hMissingActionBinding : Not o3ActionBindingOK) :
+    Not (PerpsSnapshotCriticalActionOK snapshotUsableOK o3ActionBindingOK) := by
+  intro h
+  exact hMissingActionBinding h.right
 
 end ZenoOracleMathWitness
 end Proofs
