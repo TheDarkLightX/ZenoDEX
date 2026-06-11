@@ -85,8 +85,8 @@ theorem collateral_nonneg_after_bounded_move_with_abs_bound
       mul_le_mul_of_nonneg_right hpos hfactor
     simpa [mul_assoc, mul_left_comm, mul_comm, div_eq_mul_inv] using h1
 
-  refine collateral_nonneg_after_bounded_move pos P P' C m maint hP hmaint hmove ?_
-  exact le_trans hbound_scaled hC
+  exact collateral_nonneg_after_bounded_move pos P P' C m maint hP hmaint hmove
+    (le_trans hbound_scaled hC)
 
 /-!
 v1.1 clamp lemma.
@@ -130,8 +130,8 @@ theorem collateral_nonneg_after_clamped_move
     (hmaint : m ≤ maint)
     (hC : |pos| * P * maint / 10000 ≤ C) :
     0 ≤ C + pos * (clamp_move P P_raw m - P) := by
-  refine collateral_nonneg_after_bounded_move pos P (clamp_move P P_raw m) C m maint hP hmaint ?_ hC
-  exact abs_clamp_move_sub_le P P_raw m hP hm
+  exact collateral_nonneg_after_bounded_move pos P (clamp_move P P_raw m) C m maint hP hmaint
+    (abs_clamp_move_sub_le P P_raw m hP hm) hC
 
 /-!
 Quantitative headroom and funded-liquidation strengthening.

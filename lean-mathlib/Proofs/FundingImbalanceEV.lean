@@ -180,7 +180,7 @@ theorem witness_imbalance_form :
     dualEV 7 3 = 8 / 21 ∧
     2 * (imbalanceRatio 7 3) ^ 2 ≤ dualEV 7 3 ∧
     dualEV (2 * 7) (2 * 3) = dualEV 7 3 := by
-  refine ⟨?_, ?_, ?_, ?_⟩ <;> norm_num [imbalanceRatio, dualEV]
+  norm_num [imbalanceRatio, dualEV]
 
 end FundingImbalanceEV
 end Proofs

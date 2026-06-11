@@ -88,9 +88,10 @@ theorem strict_descent_reaches_threshold (θ a : ℕ) (l : List ℕ)
     ∃ x ∈ a :: l, x ≤ θ := by
   induction l generalizing a with
   | nil =>
-      refine ⟨a, by simp, ?_⟩
-      simp only [List.length_nil, Nat.le_zero] at hlen
-      omega
+      have ha_le : a ≤ θ := by
+        simp only [List.length_nil, Nat.le_zero] at hlen
+        omega
+      exact ⟨a, by simp, ha_le⟩
   | cons b rest ih =>
       by_cases ha : a ≤ θ
       · exact ⟨a, by simp, ha⟩

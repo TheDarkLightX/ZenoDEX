@@ -349,10 +349,11 @@ theorem liquidation_game_strict_dominant (p : ℤ) (hp : 0 < p) :
 theorem liquidation_game_unique_nash (p : ℤ) (hp : 0 < p)
     (τ : Fin 1 → Fin 2) (hτ : NashEq (liquidationGame p) τ) :
     τ = fun _ => 1 := by
-  refine strict_dominant_unique_nash (liquidationGame p) (fun _ => 1) τ ?_ hτ
-  intro i
-  fin_cases i
-  exact liquidation_game_strict_dominant p hp
+  apply strict_dominant_unique_nash (liquidationGame p) (fun _ => 1) τ
+  · intro i
+    fin_cases i
+    exact liquidation_game_strict_dominant p hp
+  · exact hτ
 
 /-- Non-vacuity: with net profit 3, liquidate is strictly dominant, hence the
     unique Nash equilibrium. -/

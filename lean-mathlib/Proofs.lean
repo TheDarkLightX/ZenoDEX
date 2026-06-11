@@ -27,8 +27,10 @@ import Proofs.FeeCeilDecomposition
 import Proofs.FeeDustCarryConservation
 import Proofs.FeeRevenueBoundedness
 import Proofs.FeeSplitRoundingGap
+import Proofs.FiniteTraceBarriers
 import Proofs.FixedPointIntervalBridge
 import Proofs.FixedPointPortfolioBridge
+import Proofs.ForbiddenTraceMinor
 import Proofs.FundingImbalanceEV
 import Proofs.FundingRateMarketSafety
 import Proofs.HybridCurveProperties
@@ -52,6 +54,7 @@ import Proofs.MSTCertificateSingleSwap
 import Proofs.MSTCertificateSoundness
 import Proofs.MSTCertificateSwapFinset
 import Proofs.MobiusCPMMRoutingBounds
+import Proofs.NoFreeResourceTraceLedger
 import Proofs.NoRisklessYieldLaw
 import Proofs.PerpADLSybilBankruptcyClosure
 import Proofs.PerpCascadeSafety
@@ -82,6 +85,7 @@ import Proofs.SwapRouterBounds
 import Proofs.TWALYieldVampireDefense
 import Proofs.TauSafeMul32
 import Proofs.TokenomicsMechanismSafety
+import Proofs.TokenomicsTraceSafety
 import Proofs.TreasuryRebalancerGuard
 import Proofs.UPBAV2ScoreOrder
 import Proofs.UXAlgorithms

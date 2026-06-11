@@ -293,11 +293,14 @@ theorem realized_certificate_canonical_objective
           candidate.order ≤ _root_.TauSwap.Batch.ord x) := by
   have hAB : batchAB trace = batchAB candidate.batch :=
     realizes_batchAB_eq hreal
-  refine ⟨hcert.1, ?_, ?_, ?_⟩
+  constructor
+  · exact hcert.1
+  constructor
   · intro x hx
     have hmax := certificate_volume_max hcert x hx
     simpa [SettlementCandidate.key, hAB]
       using hmax
+  constructor
   · intro x hx hvol
     have hsur := certificate_surplus_max_on_volume_tie hcert x hx
     have hvolKey :
