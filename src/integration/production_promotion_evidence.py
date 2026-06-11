@@ -1,4 +1,4 @@
-"""Production-promotion evidence verifiers (five lanes).
+"""Production-promotion evidence verifiers (six lanes).
 
 Architecture
 ============
@@ -43,12 +43,24 @@ this module — fields are size/format-checked opaque evidence.
 
 from __future__ import annotations
 
+import ipaddress
 import time
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Final, Mapping, Sequence
+from urllib.parse import urlparse
 
-from src.integration.zeno_ledger_v0 import hash_v0
+from src.integration.zeno_ledger_v0 import canonical_json_bytes_v0, hash_v0
+from src.state.app_root import APP_ROOT_LANE_KINDS
 
+try:
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+    _ED25519_AVAILABLE = True
+except ImportError:  # pragma: no cover - dependency guard for fail-closed reports
+    InvalidSignature = Exception
+    Ed25519PublicKey = None
+    _ED25519_AVAILABLE = False
 
 # -----------------------------------------------------------------------------
 # Public schema identifiers and lane ids.
@@ -59,6 +71,7 @@ HARDWARE_WALLET_EVIDENCE_SCHEMA_V1: Final = "zenodex/production-hardware-wallet-
 ZK_WRAPPING_EVIDENCE_SCHEMA_V1: Final = "zenodex/production-zk-wrapping-evidence/v1"
 AUTOTRADER_EVIDENCE_SCHEMA_V1: Final = "zenodex/production-autotrader-evidence/v1"
 CONFIDENTIAL_RUNTIME_EVIDENCE_SCHEMA_V1: Final = "zenodex/production-confidential-runtime-evidence/v1"
+APP_ROOT_JMT_EVIDENCE_SCHEMA_V1: Final = "zenodex/production-app-root-jmt-evidence/v1"
 
 PRODUCTION_PROMOTION_STATUS_SCHEMA_V1: Final = "zenodex/production-promotion-status/v1"
 PRODUCTION_PROMOTION_BUNDLE_STATUS_SCHEMA_V1: Final = "zenodex/production-promotion-bundle-status/v1"
@@ -68,6 +81,7 @@ LANE_HARDWARE_WALLET: Final = "hardware_wallet"
 LANE_ZK_WRAPPING: Final = "zk_wrapping"
 LANE_AUTOTRADER: Final = "autotrader"
 LANE_CONFIDENTIAL_RUNTIME: Final = "confidential_runtime"
+LANE_APP_ROOT_JMT: Final = "app_root_jmt"
 
 ALL_LANE_IDS: Final = (
     LANE_ORACLE_AUTHORITY,
@@ -75,6 +89,7 @@ ALL_LANE_IDS: Final = (
     LANE_ZK_WRAPPING,
     LANE_AUTOTRADER,
     LANE_CONFIDENTIAL_RUNTIME,
+    LANE_APP_ROOT_JMT,
 )
 
 
@@ -103,6 +118,17 @@ _FUTURE_SKEW_TOLERANCE_SECONDS: Final = 60
 
 _MAX_TICKS_PER_PROCESS_HARD_CAP: Final = 1_000_000
 _MAX_APPROVED_MEASUREMENTS: Final = 1000
+_MAX_APP_ROOT_CHECKS: Final = 100
+_MAX_APP_ROOT_NEGATIVE_CHECKS: Final = 50
+
+_APP_ROOT_REQUIRED_POSITIVE_MODES: Final = frozenset(
+    {
+        "plain_dex_snapshot_live_root",
+        "tau_app_state_wrapper_live_root",
+        "local_block_pre_snapshot_header",
+    }
+)
+_APP_ROOT_REQUIRED_NEGATIVE_MUTATIONS: Final = frozenset({"lane_tamper_rejected"})
 
 _INT_BOUND_HI: Final = (1 << 63) - 1
 
@@ -547,6 +573,13 @@ class _ConfidentialContext(_LaneContext):
         self.now = now
 
 
+class _AppRootJmtContext(_LaneContext):
+    __slots__ = ("now",)
+
+    def __init__(self, *, now: int) -> None:
+        self.now = now
+
+
 # -----------------------------------------------------------------------------
 # Orchestration.
 # -----------------------------------------------------------------------------
@@ -614,6 +647,11 @@ def _parse_subobject(
     return sub
 
 
+def _invalid_lane_context(expected: str, *, gaps: _Gaps) -> tuple[dict[str, Any], dict[str, Any]]:
+    gaps.add(f"internal evaluator context mismatch: expected {expected}")
+    return {}, {}
+
+
 # -----------------------------------------------------------------------------
 # Lane 1: oracle authority.
 # -----------------------------------------------------------------------------
@@ -654,7 +692,8 @@ class _OracleAuthorityLane(Lane):
         ctx: "_LaneContext",
         gaps: _Gaps,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        assert isinstance(ctx, _OracleAuthorityContext)
+        if not isinstance(ctx, _OracleAuthorityContext):
+            return _invalid_lane_context("_OracleAuthorityContext", gaps=gaps)
         authority_id = _P.nonempty_str(obj.get("authority_id"), path="authority_id", gaps=gaps)
         chain_id = _P.nonempty_str(obj.get("chain_id"), path="chain_id", gaps=gaps)
         target_network = _P.nonempty_str(obj.get("target_network"), path="target_network", gaps=gaps)
@@ -715,6 +754,23 @@ class _OracleAuthorityLane(Lane):
             settlement_url=settlement_url,
             issued_at=issued_at,
             ctx=ctx,
+            gaps=gaps,
+        )
+        _validate_oracle_authority_attestation(
+            authority_id=authority_id,
+            chain_id=chain_id,
+            target_network=target_network,
+            exercise_hash=exercise_hash,
+            profile_authority_hash=profile_authority_hash,
+            broadcast_height=broadcast_height,
+            settlement_height=settlement_height,
+            broadcast_block_hash=broadcast_block_hash,
+            settlement_block_hash=settlement_block_hash,
+            broadcast_url=broadcast_url,
+            settlement_url=settlement_url,
+            issued_at=issued_at,
+            signature=signature,
+            signer_pubkey=signer_pubkey,
             gaps=gaps,
         )
         _bind_oracle_to_bounded(
@@ -812,6 +868,138 @@ def _validate_oracle_public_markers(
         gaps.add("broadcast and settlement block hashes must differ")
     if broadcast_url is not None and settlement_url is not None and broadcast_url == settlement_url:
         gaps.add("broadcast and settlement explorer URLs must differ")
+    if broadcast_url is not None:
+        _validate_public_explorer_url(
+            broadcast_url,
+            label="public_broadcast_explorer_url",
+            gaps=gaps,
+        )
+    if settlement_url is not None:
+        _validate_public_explorer_url(
+            settlement_url,
+            label="public_settlement_explorer_url",
+            gaps=gaps,
+        )
+
+
+def _validate_public_explorer_url(url: str, *, label: str, gaps: _Gaps) -> None:
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme.lower() != "https" or not host:
+        gaps.add(f"{label} must be an https public explorer URL")
+        return
+    if host == "localhost" or host.endswith(".localhost") or host.endswith(".local"):
+        # Review note (grade B+): oracle production evidence previously accepted
+        # any non-empty, distinct explorer URL. That let localhost or lab-only
+        # fixture URLs satisfy the public-testnet lane. The evaluator now rejects
+        # local hosts before a manifest can become production_ready.
+        gaps.add(f"{label} must not point at a local explorer host")
+        return
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return
+    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+        gaps.add(f"{label} must not point at a private or non-routable explorer host")
+
+
+def _oracle_authority_attestation_message(
+    *,
+    authority_id: str,
+    chain_id: str,
+    target_network: str,
+    exercise_hash: str,
+    profile_authority_hash: str,
+    public_broadcast_height: int,
+    public_settlement_height: int,
+    public_broadcast_block_hash: str,
+    public_settlement_block_hash: str,
+    public_broadcast_explorer_url: str,
+    public_settlement_explorer_url: str,
+    issued_at: int,
+) -> bytes:
+    return canonical_json_bytes_v0(
+        {
+            "domain": "zenodex.production_oracle_authority_attestation.v1",
+            "schema": ORACLE_AUTHORITY_EVIDENCE_SCHEMA_V1,
+            "authority_id": authority_id,
+            "chain_id": chain_id,
+            "target_network": target_network,
+            "exercise_hash": exercise_hash,
+            "profile_authority_hash": profile_authority_hash,
+            "public_broadcast_height": public_broadcast_height,
+            "public_settlement_height": public_settlement_height,
+            "public_broadcast_block_hash": public_broadcast_block_hash,
+            "public_settlement_block_hash": public_settlement_block_hash,
+            "public_broadcast_explorer_url": public_broadcast_explorer_url,
+            "public_settlement_explorer_url": public_settlement_explorer_url,
+            "issued_at": issued_at,
+        }
+    )
+
+
+def _validate_oracle_authority_attestation(
+    *,
+    authority_id: str | None,
+    chain_id: str | None,
+    target_network: str | None,
+    exercise_hash: str | None,
+    profile_authority_hash: str | None,
+    broadcast_height: int | None,
+    settlement_height: int | None,
+    broadcast_block_hash: str | None,
+    settlement_block_hash: str | None,
+    broadcast_url: str | None,
+    settlement_url: str | None,
+    issued_at: int | None,
+    signature: str | None,
+    signer_pubkey: str | None,
+    gaps: _Gaps,
+) -> None:
+    values = (
+        authority_id,
+        chain_id,
+        target_network,
+        exercise_hash,
+        profile_authority_hash,
+        broadcast_height,
+        settlement_height,
+        broadcast_block_hash,
+        settlement_block_hash,
+        broadcast_url,
+        settlement_url,
+        issued_at,
+        signature,
+        signer_pubkey,
+    )
+    if any(value is None for value in values):
+        return
+    if not _ED25519_AVAILABLE or Ed25519PublicKey is None:
+        gaps.add("oracle authority Ed25519 verifier is unavailable")
+        return
+    message = _oracle_authority_attestation_message(
+        authority_id=str(authority_id),
+        chain_id=str(chain_id),
+        target_network=str(target_network),
+        exercise_hash=str(exercise_hash),
+        profile_authority_hash=str(profile_authority_hash),
+        public_broadcast_height=int(broadcast_height),
+        public_settlement_height=int(settlement_height),
+        public_broadcast_block_hash=str(broadcast_block_hash),
+        public_settlement_block_hash=str(settlement_block_hash),
+        public_broadcast_explorer_url=str(broadcast_url),
+        public_settlement_explorer_url=str(settlement_url),
+        issued_at=int(issued_at),
+    )
+    try:
+        public_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(str(signer_pubkey)))
+        public_key.verify(bytes.fromhex(str(signature)), message)
+    except (InvalidSignature, ValueError):
+        # Review note (grade B -> A-): the oracle lane previously accepted any
+        # 64-byte hex signature. Production authority evidence now requires the
+        # declared Ed25519 signer key to verify the canonical public-testnet
+        # exercise statement.
+        gaps.add("oracle authority attestation signature is invalid")
 
 
 def _bind_oracle_to_bounded(
@@ -926,7 +1114,8 @@ class _HardwareWalletLane(Lane):
         ctx: "_LaneContext",
         gaps: _Gaps,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        assert isinstance(ctx, _HardwareWalletContext)
+        if not isinstance(ctx, _HardwareWalletContext):
+            return _invalid_lane_context("_HardwareWalletContext", gaps=gaps)
         device_id = _P.nonempty_str(obj.get("device_id"), path="device_id", gaps=gaps)
         device_model_raw = _P.nonempty_str(obj.get("device_model"), path="device_model", gaps=gaps)
         device_model = device_model_raw.lower() if device_model_raw else None
@@ -949,6 +1138,7 @@ class _HardwareWalletLane(Lane):
             prompt=prompt,
             approval=approval,
             profile_wallet_authority_hash=profile_wallet_authority_hash,
+            issued_at=issued_at,
             ctx=ctx,
             gaps=gaps,
         )
@@ -1069,6 +1259,7 @@ def _validate_hardware_wallet_rules(
     prompt: Mapping[str, Any],
     approval: Mapping[str, Any],
     profile_wallet_authority_hash: str | None,
+    issued_at: int | None,
     ctx: _HardwareWalletContext,
     gaps: _Gaps,
 ) -> None:
@@ -1087,6 +1278,13 @@ def _validate_hardware_wallet_rules(
         gaps=gaps,
     )
     _validate_hardware_capture_window(prompt, approval, gaps=gaps)
+    _validate_hardware_capture_freshness(
+        prompt,
+        approval,
+        issued_at=issued_at,
+        now=ctx.now,
+        gaps=gaps,
+    )
 
 
 def _validate_hardware_attestation_vs_approval(
@@ -1149,6 +1347,59 @@ def _validate_hardware_capture_window(
         gaps.add("os prompt capture and approval must be captured within the same hour")
 
 
+def _validate_hardware_capture_freshness(
+    prompt: Mapping[str, Any],
+    approval: Mapping[str, Any],
+    *,
+    issued_at: int | None,
+    now: int,
+    gaps: _Gaps,
+) -> None:
+    approval_captured_at = approval.get("captured_at")
+    prompt_captured_at = prompt.get("captured_at")
+    _validate_hardware_capture_timestamp(
+        "os_prompt_capture.captured_at",
+        prompt_captured_at,
+        issued_at=issued_at,
+        now=now,
+        gaps=gaps,
+    )
+    _validate_hardware_capture_timestamp(
+        "device_approval_tx.captured_at",
+        approval_captured_at,
+        issued_at=issued_at,
+        now=now,
+        gaps=gaps,
+    )
+    if issued_at is None or approval_captured_at is None:
+        return
+    max_lag = _NEAR_AND_SAME_HOUR_SECONDS + _FUTURE_SKEW_TOLERANCE_SECONDS
+    if issued_at - approval_captured_at > max_lag:
+        # Review note (grade B+ -> A-): a stale hardware approval could be
+        # rehashed with a fresh issued_at while preserving the prompt/approval
+        # same-hour relation. Production evidence now requires the device
+        # approval itself to be fresh relative to the evidence issuance.
+        gaps.add("device_approval_tx.captured_at is too old for evidence issued_at")
+
+
+def _validate_hardware_capture_timestamp(
+    label: str,
+    captured_at: object,
+    *,
+    issued_at: int | None,
+    now: int,
+    gaps: _Gaps,
+) -> None:
+    if captured_at is None:
+        return
+    if not isinstance(captured_at, int) or isinstance(captured_at, bool):
+        return
+    if issued_at is not None and captured_at > issued_at + _FUTURE_SKEW_TOLERANCE_SECONDS:
+        gaps.add(f"{label} cannot postdate evidence issued_at")
+    if captured_at > now + _FUTURE_SKEW_TOLERANCE_SECONDS:
+        gaps.add(f"{label} is in the future")
+
+
 # -----------------------------------------------------------------------------
 # Lane 3: zk wrapping.
 # -----------------------------------------------------------------------------
@@ -1179,6 +1430,7 @@ _ZK_CIRCUIT_FIELDS = frozenset(
 _ZK_AUDIT_FIELDS = frozenset({"audit_id", "audit_report_hash", "auditor", "audited_at"})
 _ZK_VERIFIER_FIELDS = frozenset({"verifier_cmd_hash", "verifier_binary_hash"})
 _ZK_SAMPLE_FIELDS = frozenset({"proof_intent_receipt_hash", "verifier_request_hash", "accepted_at"})
+_LIVE_PROOF_WRAPPER_STATUS_SCHEMA = "zenodex/live-proof-wrapper-status/v1"
 
 
 class _ZkWrappingLane(Lane):
@@ -1194,7 +1446,8 @@ class _ZkWrappingLane(Lane):
         ctx: "_LaneContext",
         gaps: _Gaps,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        assert isinstance(ctx, _ZkWrappingContext)
+        if not isinstance(ctx, _ZkWrappingContext):
+            return _invalid_lane_context("_ZkWrappingContext", gaps=gaps)
         surface = _P.nonempty_str(obj.get("surface"), path="surface", gaps=gaps)
 
         circuit = _parse_subobject(
@@ -1252,6 +1505,8 @@ class _ZkWrappingLane(Lane):
             ctx.live_proof_wrapper_status,
             surface=surface,
             verifier_cmd_hash=verifier_cmd_hash,
+            sample_intent_hash=sample_intent,
+            sample_request_hash=sample_request,
             gaps=gaps,
         )
 
@@ -1429,17 +1684,55 @@ def _bind_zk_to_live_wrapper(
     *,
     surface: str | None,
     verifier_cmd_hash: str | None,
+    sample_intent_hash: str | None,
+    sample_request_hash: str | None,
     gaps: _Gaps,
 ) -> None:
     if live is None:
         gaps.add("live proof wrapper status is required for binding")
         return
+    _validate_live_wrapper_status_shape(live, gaps=gaps)
     if live.get("zk_proof_verified") is not True:
         gaps.add("live proof wrapper must show zk_proof_verified=true before production")
     if live.get("artifact_binding_complete") is not True:
         gaps.add("live proof wrapper must show artifact_binding_complete=true")
     _bind_zk_artifact(live, verifier_cmd_hash=verifier_cmd_hash, gaps=gaps)
     _bind_zk_surface(live, surface=surface, gaps=gaps)
+    _bind_zk_sample_acceptance(
+        live,
+        sample_intent_hash=sample_intent_hash,
+        sample_request_hash=sample_request_hash,
+        gaps=gaps,
+    )
+
+
+def _validate_live_wrapper_status_shape(live: Mapping[str, Any], *, gaps: _Gaps) -> None:
+    # Review note (grade B+ -> A-): the ZK wrapping lane previously accepted a
+    # minimal hand-made JSON status as long as it said zk_proof_verified=true.
+    # Production evidence must be bound to the live wrapper result shape, so the
+    # lane now rejects statuses that are missing the proof, verifier, or wrapper
+    # metadata fields emitted by verify_live_proof_wrapper.
+    if live.get("schema") != _LIVE_PROOF_WRAPPER_STATUS_SCHEMA:
+        gaps.add("live proof wrapper status schema mismatch")
+    if live.get("required") is not True:
+        gaps.add("live proof wrapper status must have required=true")
+    if live.get("proof_provided") is not True:
+        gaps.add("live proof wrapper status must have proof_provided=true")
+    if live.get("verifier_configured") is not True:
+        gaps.add("live proof wrapper status must have verifier_configured=true")
+    if live.get("artifact_binding_configured") is not True:
+        # Review note (grade B+ -> A-): production evidence must come from a
+        # wrapper that was configured to bind verifier/circuit artifacts, not
+        # only from a sidecar that happens to contain an artifact_binding object.
+        gaps.add("live proof wrapper must show artifact_binding_configured=true")
+    proof_verifier = live.get("proof_verifier")
+    if not isinstance(proof_verifier, Mapping):
+        gaps.add("live proof wrapper proof_verifier is required and must be an object")
+        return
+    if proof_verifier.get("kind") != "subprocess":
+        gaps.add("live proof wrapper proof_verifier.kind must be subprocess")
+    if live.get("error") is not None:
+        gaps.add("live proof wrapper error must be null for production evidence")
 
 
 def _bind_zk_artifact(
@@ -1452,11 +1745,41 @@ def _bind_zk_artifact(
     if not isinstance(wrapper_artifact, Mapping):
         gaps.add("live proof wrapper artifact_binding is required and must be an object")
         return
-    wrapper_cmd_hash = wrapper_artifact.get("verifier_cmd_hash")
-    if not isinstance(wrapper_cmd_hash, str) or not wrapper_cmd_hash:
+    wrapper_cmd_hash = _normalize_hash_token(wrapper_artifact.get("verifier_cmd_hash"))
+    if wrapper_cmd_hash is None:
         gaps.add("live proof wrapper verifier_cmd_hash is required for binding")
     elif verifier_cmd_hash is not None and wrapper_cmd_hash != verifier_cmd_hash:
         gaps.add("live wrapper verifier_cmd_hash does not match evidence verifier_cmd_hash")
+    proof_verifier = live.get("proof_verifier")
+    if isinstance(proof_verifier, Mapping):
+        verifier_status_hash = _normalize_hash_token(proof_verifier.get("cmd_hash"))
+        if verifier_status_hash is None:
+            gaps.add("live proof wrapper proof_verifier.cmd_hash is required for binding")
+        elif verifier_cmd_hash is not None and verifier_status_hash != verifier_cmd_hash:
+            gaps.add("live proof wrapper proof_verifier.cmd_hash does not match evidence verifier_cmd_hash")
+
+
+def _normalize_hash_token(value: object) -> str | None:
+    """Normalize live-wrapper hash syntax to the evidence lane's 64-hex form.
+
+    Grade: A. The live proof wrapper emits ``0x``-prefixed hashes, while the
+    production-promotion evidence body intentionally stores canonical bare
+    lowercase hex. Without this boundary normalizer, real live-wrapper output
+    could not satisfy the ZK wrapping lane unless an operator hand-edited the
+    sidecar, which is exactly the kind of release evidence drift this verifier
+    is meant to prevent.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    text = value.strip()
+    if text.startswith(("0x", "0X")):
+        text = text[2:]
+    elif text.startswith("sha256:"):
+        text = text[len("sha256:") :]
+    text = text.lower()
+    if len(text) != _HASH_HEX_LEN or any(ch not in _HEX_CHARS for ch in text):
+        return None
+    return text
 
 
 def _bind_zk_surface(
@@ -1470,6 +1793,26 @@ def _bind_zk_surface(
         gaps.add("live proof wrapper surface is required for binding")
     elif surface is not None and wrapper_surface != surface:
         gaps.add("live wrapper surface does not match evidence surface")
+
+
+def _bind_zk_sample_acceptance(
+    live: Mapping[str, Any],
+    *,
+    sample_intent_hash: str | None,
+    sample_request_hash: str | None,
+    gaps: _Gaps,
+) -> None:
+    live_intent_hash = _normalize_hash_token(live.get("proof_intent_receipt_hash"))
+    if live_intent_hash is None:
+        gaps.add("live proof wrapper proof_intent_receipt_hash is required for sample binding")
+    elif sample_intent_hash is not None and live_intent_hash != sample_intent_hash:
+        gaps.add("live proof wrapper proof_intent_receipt_hash does not match sample_proof_acceptance")
+
+    live_request_hash = _normalize_hash_token(live.get("verifier_request_hash"))
+    if live_request_hash is None:
+        gaps.add("live proof wrapper verifier_request_hash is required for sample binding")
+    elif sample_request_hash is not None and live_request_hash != sample_request_hash:
+        gaps.add("live proof wrapper verifier_request_hash does not match sample_proof_acceptance")
 
 
 # -----------------------------------------------------------------------------
@@ -1527,7 +1870,8 @@ class _AutotraderLane(Lane):
         ctx: "_LaneContext",
         gaps: _Gaps,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        assert isinstance(ctx, _AutotraderContext)
+        if not isinstance(ctx, _AutotraderContext):
+            return _invalid_lane_context("_AutotraderContext", gaps=gaps)
         supervisor_id = _P.nonempty_str(obj.get("supervisor_id"), path="supervisor_id", gaps=gaps)
         chain_id = _P.nonempty_str(obj.get("chain_id"), path="chain_id", gaps=gaps)
         profile_supervisor_hash = _P.nonempty_str(
@@ -1581,6 +1925,7 @@ class _AutotraderLane(Lane):
 
         _validate_autotrader_run_window(rw, gaps=gaps)
         _validate_autotrader_heartbeats(rw, gaps=gaps)
+        _validate_autotrader_run_freshness(rw, issued_at=issued_at, now=ctx.now, gaps=gaps)
         crash_count = _validate_autotrader_crash_recovery(crash_recovery, rw=rw, gaps=gaps)
         distinct_signers = _validate_autotrader_signers(approvals, gaps=gaps)
         _enforce_autotrader_budgets(budget_parsed, ctx=ctx, gaps=gaps)
@@ -1750,7 +2095,7 @@ def _validate_autotrader_heartbeat_endpoints(
 
 
 def _validate_autotrader_heartbeat_spacing(heartbeats: list[int], *, gaps: _Gaps) -> None:
-    for i, (prev, cur) in enumerate(zip(heartbeats, heartbeats[1:]), start=1):
+    for i, (prev, cur) in enumerate(zip(heartbeats, heartbeats[1:], strict=False), start=1):
         if cur < prev:
             gaps.add(f"run_window.heartbeat_timestamps[{i}] must be >= predecessor")
             return
@@ -1760,6 +2105,29 @@ def _validate_autotrader_heartbeat_spacing(heartbeats: list[int], *, gaps: _Gaps
                 f"{_MAX_AUTOTRADER_HEARTBEAT_GAP_SECONDS}s exceeded between index {i - 1} and {i}"
             )
             return
+
+
+def _validate_autotrader_run_freshness(
+    rw: Mapping[str, Any],
+    *,
+    issued_at: int | None,
+    now: int,
+    gaps: _Gaps,
+) -> None:
+    last_hb = rw.get("last_heartbeat_at")
+    if issued_at is None or last_hb is None:
+        return
+    if last_hb > issued_at + _FUTURE_SKEW_TOLERANCE_SECONDS:
+        gaps.add("run_window.last_heartbeat_at cannot postdate evidence issued_at")
+    if last_hb > now + _FUTURE_SKEW_TOLERANCE_SECONDS:
+        gaps.add("run_window.last_heartbeat_at is in the future")
+    max_lag = _MAX_AUTOTRADER_HEARTBEAT_GAP_SECONDS + _FUTURE_SKEW_TOLERANCE_SECONDS
+    if issued_at - last_hb > max_lag:
+        # Review note (grade B -> A-): a stale but internally coherent
+        # unattended run can otherwise be rehashed with a fresh issued_at. The
+        # production lane now binds issuance to the live supervisor's latest
+        # heartbeat freshness window.
+        gaps.add("run_window.last_heartbeat_at is too old for evidence issued_at")
 
 
 def _enforce_autotrader_budgets(
@@ -2044,7 +2412,8 @@ class _ConfidentialRuntimeLane(Lane):
         ctx: "_LaneContext",
         gaps: _Gaps,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        assert isinstance(ctx, _ConfidentialContext)
+        if not isinstance(ctx, _ConfidentialContext):
+            return _invalid_lane_context("_ConfidentialContext", gaps=gaps)
         extension_id = _P.nonempty_str(obj.get("extension_id"), path="extension_id", gaps=gaps)
         provider_id = _P.nonempty_str(obj.get("provider_id"), path="provider_id", gaps=gaps)
 
@@ -2088,6 +2457,7 @@ class _ConfidentialRuntimeLane(Lane):
         _validate_confidential_tee(tee_data, issued_at=issued_at, now=ctx.now, gaps=gaps)
         _validate_confidential_context_bindings(
             approved_measurements=ctx.approved_measurements,
+            approved_measurements_hash=approved_measurements_hash,
             measurement=tee_data.get("measurement"),
             operator_status_hash=operator_status_hash,
             expected_operator_status_hash=ctx.operator_status_hash,
@@ -2288,6 +2658,7 @@ def _parse_confidential_receipt(receipt: Mapping[str, Any] | None, *, gaps: _Gap
 def _validate_confidential_context_bindings(
     *,
     approved_measurements: Sequence[str] | None,
+    approved_measurements_hash: str | None,
     measurement: str | None,
     operator_status_hash: str | None,
     expected_operator_status_hash: str | None,
@@ -2298,7 +2669,12 @@ def _validate_confidential_context_bindings(
     if approved_measurements is None:
         gaps.add("approved_measurements are required for confidential runtime binding")
     else:
-        _validate_approved_measurements(approved_measurements, measurement=measurement, gaps=gaps)
+        _validate_approved_measurements(
+            approved_measurements,
+            approved_measurements_hash=approved_measurements_hash,
+            measurement=measurement,
+            gaps=gaps,
+        )
 
     if expected_operator_status_hash is None:
         gaps.add("operator_status_hash is required for confidential runtime binding")
@@ -2315,6 +2691,12 @@ def _validate_confidential_context_bindings(
 
 
 def _validate_confidential_receipt(receipt_data: Mapping[str, Any], *, gaps: _Gaps) -> None:
+    if receipt_data.get("result_code") != "ok":
+        # Review note (grade B -> A-): this check intentionally lives in the
+        # shared evaluator as well as the builder. A receipt can be hand-edited
+        # and self-hashed; the production gate must still require a successful
+        # private execution result.
+        gaps.add("private_execution_receipt.result_code must be ok")
     if receipt_data.get("result_redacted") is False:
         gaps.add("private_execution_receipt.result_redacted must be true")
 
@@ -2322,6 +2704,7 @@ def _validate_confidential_receipt(receipt_data: Mapping[str, Any], *, gaps: _Ga
 def _validate_approved_measurements(
     approved: Sequence[str],
     *,
+    approved_measurements_hash: str | None = None,
     measurement: str | None,
     gaps: _Gaps,
 ) -> None:
@@ -2330,6 +2713,23 @@ def _validate_approved_measurements(
         return
     if measurement is not None and measurement not in normalized:
         gaps.add("tee_attestation.measurement is not in approved_measurements")
+    if approved_measurements_hash is not None:
+        expected_hash = _confidential_approved_measurements_hash(normalized)
+        if approved_measurements_hash != expected_hash:
+            # Review note (grade B -> A-): this lane parsed
+            # approved_measurements_hash but did not compare it to the active
+            # allowlist context. A stale or fabricated allowlist digest could
+            # therefore be published while the measured enclave happened to be
+            # in the supplied list. The evidence hash now binds the full active
+            # measurement allowlist used by the verifier.
+            gaps.add("approved_measurements_hash does not match active approved_measurements")
+
+
+def _confidential_approved_measurements_hash(approved: set[str]) -> str:
+    return hash_v0(
+        "production_confidential_runtime_approved_measurements_v1",
+        {"approved_measurements": sorted(approved)},
+    ).removeprefix("0x")
 
 
 def _normalize_approved_measurements(
@@ -2361,6 +2761,300 @@ def _normalize_approved_measurements(
 
 
 # -----------------------------------------------------------------------------
+# Lane 6: app-root/JMT live root coverage.
+# -----------------------------------------------------------------------------
+
+
+_APP_ROOT_JMT_FIELDS = frozenset(
+    {
+        "schema",
+        "evidence_kind",
+        "root_system",
+        "required_lane_kinds",
+        "live_root_checks",
+        "negative_checks",
+        "issued_at",
+        "evidence_hash",
+    }
+)
+_APP_ROOT_LIVE_CHECK_FIELDS = frozenset(
+    {
+        "check_id",
+        "mode",
+        "source_kind",
+        "observed_root",
+        "recomputed_root",
+        "source_state_hash",
+        "required_lane_kinds",
+        "live_path",
+        "checked_at",
+    }
+)
+_APP_ROOT_NEGATIVE_CHECK_FIELDS = frozenset(
+    {
+        "check_id",
+        "mutation",
+        "source_kind",
+        "rejected",
+        "checked_at",
+    }
+)
+_APP_ROOT_ALLOWED_EVIDENCE_KIND = "live_replay"
+_APP_ROOT_ALLOWED_ROOT_SYSTEM = "typed_app_root_jmt_v1"
+_APP_ROOT_ALLOWED_SOURCE_KINDS = frozenset({"live_node", "live_local_replay", "release_replay"})
+
+
+class _AppRootJmtLane(Lane):
+    LANE_ID = LANE_APP_ROOT_JMT
+    SCHEMA = APP_ROOT_JMT_EVIDENCE_SCHEMA_V1
+    DOMAIN = "production_app_root_jmt_evidence_v1"
+    ALLOWED_FIELDS = _APP_ROOT_JMT_FIELDS
+    MISSING_MESSAGE = "app-root/JMT live-root evidence is missing"
+
+    def validate(
+        self,
+        obj: Mapping[str, Any],
+        ctx: "_LaneContext",
+        gaps: _Gaps,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        if not isinstance(ctx, _AppRootJmtContext):
+            return _invalid_lane_context("_AppRootJmtContext", gaps=gaps)
+        evidence_kind = _P.nonempty_str(obj.get("evidence_kind"), path="evidence_kind", gaps=gaps)
+        root_system = _P.nonempty_str(obj.get("root_system"), path="root_system", gaps=gaps)
+        required_lane_kinds = _parse_app_root_lane_kind_set(
+            obj.get("required_lane_kinds"),
+            path="required_lane_kinds",
+            gaps=gaps,
+        )
+        live_checks = _P.list_of_mappings(
+            obj.get("live_root_checks"),
+            path="live_root_checks",
+            gaps=gaps,
+            min_len=len(_APP_ROOT_REQUIRED_POSITIVE_MODES),
+            max_len=_MAX_APP_ROOT_CHECKS,
+        )
+        negative_checks = _P.list_of_mappings(
+            obj.get("negative_checks"),
+            path="negative_checks",
+            gaps=gaps,
+            min_len=len(_APP_ROOT_REQUIRED_NEGATIVE_MUTATIONS),
+            max_len=_MAX_APP_ROOT_NEGATIVE_CHECKS,
+        )
+        issued_at = _P.positive_int(obj.get("issued_at"), path="issued_at", gaps=gaps)
+
+        _validate_app_root_evidence_kind(evidence_kind, gaps=gaps)
+        if root_system is not None and root_system != _APP_ROOT_ALLOWED_ROOT_SYSTEM:
+            gaps.add("app-root/JMT root_system must be typed_app_root_jmt_v1")
+        if required_lane_kinds is not None:
+            _validate_app_root_required_lane_set(required_lane_kinds, path="required_lane_kinds", gaps=gaps)
+        observed_roots = _validate_app_root_live_checks(
+            live_checks or [],
+            ctx=ctx,
+            gaps=gaps,
+        )
+        negative_mutations = _validate_app_root_negative_checks(
+            negative_checks or [],
+            ctx=ctx,
+            gaps=gaps,
+        )
+        if issued_at is not None:
+            _check_freshness(
+                issued_at,
+                now=ctx.now,
+                max_age_s=_MAX_EVIDENCE_AGE_SECONDS,
+                label="app-root/JMT evidence",
+                gaps=gaps,
+            )
+
+        bindings = {
+            "evidence_kind": evidence_kind,
+            "root_system": root_system,
+            "required_lane_kinds": sorted(required_lane_kinds or []),
+        }
+        extras = {
+            "positive_modes": sorted(observed_roots),
+            "negative_mutations": sorted(negative_mutations),
+        }
+        return bindings, extras
+
+
+def _validate_app_root_evidence_kind(evidence_kind: str | None, *, gaps: _Gaps) -> None:
+    if evidence_kind is None:
+        return
+    if evidence_kind != _APP_ROOT_ALLOWED_EVIDENCE_KIND:
+        gaps.add("app-root/JMT evidence_kind must be live_replay")
+    if evidence_kind in {"fixture", "synthetic", "demo", "echo"}:
+        gaps.add("app-root/JMT fixture or synthetic evidence cannot clear production promotion")
+
+
+def _parse_app_root_lane_kind_set(
+    value: object,
+    *,
+    path: str,
+    gaps: _Gaps,
+) -> frozenset[str] | None:
+    if not isinstance(value, list):
+        gaps.at(path, "must be a list")
+        return None
+    if not value:
+        gaps.at(path, "must be non-empty")
+        return None
+    normalized: set[str] = set()
+    for index, item in enumerate(value):
+        lane_kind = _P.nonempty_str(item, path=f"{path}[{index}]", gaps=gaps)
+        if lane_kind is None:
+            return None
+        if lane_kind not in APP_ROOT_LANE_KINDS:
+            gaps.at(f"{path}[{index}]", f"unsupported app-root lane kind {lane_kind!r}")
+            return None
+        if lane_kind in normalized:
+            gaps.at(f"{path}[{index}]", f"duplicate app-root lane kind {lane_kind!r}")
+            return None
+        normalized.add(lane_kind)
+    return frozenset(normalized)
+
+
+def _validate_app_root_required_lane_set(
+    lane_kinds: frozenset[str],
+    *,
+    path: str,
+    gaps: _Gaps,
+) -> None:
+    expected = APP_ROOT_LANE_KINDS
+    missing = sorted(expected - lane_kinds)
+    extra = sorted(lane_kinds - expected)
+    if missing:
+        gaps.at(path, "missing lane kind(s): " + ", ".join(missing))
+    if extra:
+        gaps.at(path, "unsupported lane kind(s): " + ", ".join(extra))
+
+
+def _validate_app_root_live_checks(
+    checks: Sequence[Mapping[str, Any]],
+    *,
+    ctx: _AppRootJmtContext,
+    gaps: _Gaps,
+) -> set[str]:
+    seen_modes: set[str] = set()
+    for index, check in enumerate(checks):
+        _check_unknown_fields(check, allowed=_APP_ROOT_LIVE_CHECK_FIELDS, gaps=gaps)
+        mode = _P.nonempty_str(check.get("mode"), path=f"live_root_checks[{index}].mode", gaps=gaps)
+        source_kind = _P.nonempty_str(
+            check.get("source_kind"),
+            path=f"live_root_checks[{index}].source_kind",
+            gaps=gaps,
+        )
+        _P.safe_token(check.get("check_id"), path=f"live_root_checks[{index}].check_id", gaps=gaps)
+        observed_root = _P.hex_token(
+            check.get("observed_root"),
+            path=f"live_root_checks[{index}].observed_root",
+            gaps=gaps,
+            exact_len=_HASH_HEX_LEN,
+        )
+        recomputed_root = _P.hex_token(
+            check.get("recomputed_root"),
+            path=f"live_root_checks[{index}].recomputed_root",
+            gaps=gaps,
+            exact_len=_HASH_HEX_LEN,
+        )
+        _P.hex_token(
+            check.get("source_state_hash"),
+            path=f"live_root_checks[{index}].source_state_hash",
+            gaps=gaps,
+            exact_len=_HASH_HEX_LEN,
+        )
+        lane_kinds = _parse_app_root_lane_kind_set(
+            check.get("required_lane_kinds"),
+            path=f"live_root_checks[{index}].required_lane_kinds",
+            gaps=gaps,
+        )
+        live_path = _P.nonempty_str(check.get("live_path"), path=f"live_root_checks[{index}].live_path", gaps=gaps)
+        checked_at = _P.positive_int(check.get("checked_at"), path=f"live_root_checks[{index}].checked_at", gaps=gaps)
+
+        if mode is not None:
+            if mode in _APP_ROOT_REQUIRED_POSITIVE_MODES:
+                seen_modes.add(mode)
+            else:
+                gaps.at(f"live_root_checks[{index}].mode", "unsupported app-root live-root mode")
+        _validate_app_root_source_kind(source_kind, path=f"live_root_checks[{index}].source_kind", gaps=gaps)
+        if observed_root is not None and recomputed_root is not None and observed_root != recomputed_root:
+            gaps.at(f"live_root_checks[{index}].observed_root", "does not match recomputed_root")
+        if lane_kinds is not None:
+            _validate_app_root_required_lane_set(
+                lane_kinds,
+                path=f"live_root_checks[{index}].required_lane_kinds",
+                gaps=gaps,
+            )
+        _validate_app_root_live_path(live_path, path=f"live_root_checks[{index}].live_path", gaps=gaps)
+        if checked_at is not None:
+            _check_freshness(
+                checked_at,
+                now=ctx.now,
+                max_age_s=_MAX_EVIDENCE_AGE_SECONDS,
+                label=f"app-root/JMT live_root_checks[{index}]",
+                gaps=gaps,
+            )
+    missing_modes = sorted(_APP_ROOT_REQUIRED_POSITIVE_MODES - seen_modes)
+    if missing_modes:
+        gaps.add("app-root/JMT live_root_checks missing mode(s): " + ", ".join(missing_modes))
+    return seen_modes
+
+
+def _validate_app_root_negative_checks(
+    checks: Sequence[Mapping[str, Any]],
+    *,
+    ctx: _AppRootJmtContext,
+    gaps: _Gaps,
+) -> set[str]:
+    seen_mutations: set[str] = set()
+    for index, check in enumerate(checks):
+        _check_unknown_fields(check, allowed=_APP_ROOT_NEGATIVE_CHECK_FIELDS, gaps=gaps)
+        _P.safe_token(check.get("check_id"), path=f"negative_checks[{index}].check_id", gaps=gaps)
+        mutation = _P.nonempty_str(check.get("mutation"), path=f"negative_checks[{index}].mutation", gaps=gaps)
+        source_kind = _P.nonempty_str(check.get("source_kind"), path=f"negative_checks[{index}].source_kind", gaps=gaps)
+        rejected = _P.bool_strict(check.get("rejected"), path=f"negative_checks[{index}].rejected", gaps=gaps)
+        checked_at = _P.positive_int(check.get("checked_at"), path=f"negative_checks[{index}].checked_at", gaps=gaps)
+
+        if mutation is not None:
+            if mutation in _APP_ROOT_REQUIRED_NEGATIVE_MUTATIONS:
+                seen_mutations.add(mutation)
+            else:
+                gaps.at(f"negative_checks[{index}].mutation", "unsupported app-root negative mutation")
+        _validate_app_root_source_kind(source_kind, path=f"negative_checks[{index}].source_kind", gaps=gaps)
+        if rejected is False:
+            gaps.at(f"negative_checks[{index}].rejected", "must be true")
+        if checked_at is not None:
+            _check_freshness(
+                checked_at,
+                now=ctx.now,
+                max_age_s=_MAX_EVIDENCE_AGE_SECONDS,
+                label=f"app-root/JMT negative_checks[{index}]",
+                gaps=gaps,
+            )
+    missing_mutations = sorted(_APP_ROOT_REQUIRED_NEGATIVE_MUTATIONS - seen_mutations)
+    if missing_mutations:
+        gaps.add("app-root/JMT negative_checks missing mutation(s): " + ", ".join(missing_mutations))
+    return seen_mutations
+
+
+def _validate_app_root_source_kind(source_kind: str | None, *, path: str, gaps: _Gaps) -> None:
+    if source_kind is None:
+        return
+    if source_kind in {"fixture", "synthetic", "demo", "echo"}:
+        gaps.at(path, "fixture or synthetic source kinds cannot clear production promotion")
+    elif source_kind not in _APP_ROOT_ALLOWED_SOURCE_KINDS:
+        gaps.at(path, "unsupported app-root source kind")
+
+
+def _validate_app_root_live_path(live_path: str | None, *, path: str, gaps: _Gaps) -> None:
+    if live_path is None:
+        return
+    lowered = live_path.lower()
+    if any(marker in lowered for marker in ("fixture", "synthetic", "demo", "echo")):
+        gaps.at(path, "must identify a live or replayed authority path, not fixture/demo evidence")
+
+
+# -----------------------------------------------------------------------------
 # Lane registry.
 # -----------------------------------------------------------------------------
 
@@ -2370,6 +3064,7 @@ _HARDWARE_WALLET_LANE = _HardwareWalletLane()
 _ZK_WRAPPING_LANE = _ZkWrappingLane()
 _AUTOTRADER_LANE = _AutotraderLane()
 _CONFIDENTIAL_RUNTIME_LANE = _ConfidentialRuntimeLane()
+_APP_ROOT_JMT_LANE = _AppRootJmtLane()
 
 _LANE_REGISTRY: Final[Mapping[str, Lane]] = {
     LANE_ORACLE_AUTHORITY: _ORACLE_AUTHORITY_LANE,
@@ -2377,6 +3072,7 @@ _LANE_REGISTRY: Final[Mapping[str, Lane]] = {
     LANE_ZK_WRAPPING: _ZK_WRAPPING_LANE,
     LANE_AUTOTRADER: _AUTOTRADER_LANE,
     LANE_CONFIDENTIAL_RUNTIME: _CONFIDENTIAL_RUNTIME_LANE,
+    LANE_APP_ROOT_JMT: _APP_ROOT_JMT_LANE,
 }
 
 
@@ -2468,6 +3164,15 @@ def evaluate_production_confidential_runtime_evidence_v1(
     return _evaluate_lane(_CONFIDENTIAL_RUNTIME_LANE, evidence, ctx)
 
 
+def evaluate_production_app_root_jmt_evidence_v1(
+    evidence: Mapping[str, Any] | None,
+    *,
+    now: int | None = None,
+) -> dict[str, Any]:
+    ctx = _AppRootJmtContext(now=_now_seconds(now))
+    return _evaluate_lane(_APP_ROOT_JMT_LANE, evidence, ctx)
+
+
 # -----------------------------------------------------------------------------
 # Aggregate bundle evaluator.
 # -----------------------------------------------------------------------------
@@ -2531,6 +3236,7 @@ def evaluate_production_promotion_bundle_v1(
             expected_extension_id=expected_extension_id,
             now=now_s,
         ),
+        LANE_APP_ROOT_JMT: _AppRootJmtContext(now=now_s),
     }
 
     unknown_lanes: list[str] = sorted(
@@ -2617,3 +3323,7 @@ def attach_production_autotrader_hash_v1(evidence: Mapping[str, Any]) -> dict[st
 
 def attach_production_confidential_runtime_hash_v1(evidence: Mapping[str, Any]) -> dict[str, Any]:
     return attach_evidence_hash(evidence, domain=_CONFIDENTIAL_RUNTIME_LANE.DOMAIN)
+
+
+def attach_production_app_root_jmt_hash_v1(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    return attach_evidence_hash(evidence, domain=_APP_ROOT_JMT_LANE.DOMAIN)

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """Run a ZenoLedger v0 follower/watcher node.
 
 The v0 node wraps the existing deterministic public-testnet bundle and watcher
@@ -10,17 +11,17 @@ from __future__ import annotations
 
 import argparse
 import fcntl
-import hmac
 import hashlib
+import hmac
 import json
 import os
-from collections import OrderedDict
-from contextlib import contextmanager
 import socket
 import sys
 import tempfile
 import threading
 import time
+from collections import OrderedDict
+from contextlib import contextmanager
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -33,26 +34,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
-from src.integration.zeno_ledger_v0 import (
-    BATCH_CUTOFF_SCHEMA_V0,
-    BODY_SCHEMA_V0,
-    INGRESS_RECEIPT_SCHEMA_V0,
-    build_checkpoint_v0,
-    build_header_v0,
-    build_tx_receipt_v0,
-    canonical_body_root_v0,
-    canonical_header_hash_v0,
-    compute_app_hash_v0,
-    compute_evidence_root_v0,
-    compute_ingress_root_v0,
-    compute_tx_root_v0,
-    dex_state_root_v0,
-    hash_v0,
-    tx_hash_v0,
-    validate_body_v0,
+from src.core.amm_dispatch import swap_exact_in_for_pool
+from src.core.dex import DexConfig
+from src.integration.autonomous_governance_q_policy import (
+    AUTONOMOUS_GOVERNANCE_SURFACE_ADMISSION_SCHEMA_V1,
+    SURFACE_PARAMETER_NAMES_V1,
+    admit_autonomous_governance_surface_request_v1,
 )
+from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
+from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
 from src.integration.zeno_ledger_rejections_v0 import (
     BAD_AUTH,
     BAD_JSON,
@@ -72,11 +63,28 @@ from src.integration.zeno_ledger_tokenomics import (
     validate_protocol_token_distribution_v0,
     validate_tokenomics_buyback_burn_event_v0,
 )
-from src.core.amm_dispatch import swap_exact_in_for_pool
-from src.core.dex import DexConfig
-from src.integration.dex_engine import DexEngineConfig, apply_ops
+from src.integration.zeno_ledger_v0 import (
+    BATCH_CUTOFF_SCHEMA_V0,
+    BODY_SCHEMA_V0,
+    INGRESS_RECEIPT_SCHEMA_V0,
+    build_checkpoint_v0,
+    build_header_v0,
+    build_tx_receipt_v0,
+    canonical_body_root_v0,
+    canonical_header_hash_v0,
+    compute_app_hash_v0,
+    compute_dex_snapshot_app_root_v0,
+    compute_evidence_root_v0,
+    compute_ingress_root_v0,
+    compute_tau_app_state_app_root_v0,
+    compute_tx_root_v0,
+    hash_v0,
+    stable_error_code_v0,
+    tx_hash_v0,
+    validate_body_v0,
+)
 from src.state.balances import NATIVE_ASSET
-from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
+from src.state.canonical import canonical_hex_fixed_allow_0x
 from src.state.pools import compute_pool_id
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
 from tools.zeno_ledger_make_testnet_bundle import (
@@ -86,7 +94,6 @@ from tools.zeno_ledger_make_testnet_bundle import (
 )
 from tools.zeno_ledger_operator_rehearsal import run_operator_rehearsal_v0
 from tools.zeno_ledger_run_local import ZERO_ROOT, build_local_block_v0
-
 
 NODE_STATUS_SCHEMA = "zenodex.zeno_ledger.node_status.v0"
 NODE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_report.v0"
@@ -99,11 +106,15 @@ NODE_JOIN_REPORT_SCHEMA = "zenodex.zeno_ledger.node_join_report.v0"
 NODE_PREFLIGHT_REPORT_SCHEMA = "zenodex.zeno_ledger.node_preflight_report.v0"
 NODE_PEER_CHECK_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_check_report.v0"
 NODE_PUBLIC_NETWORK_CONFIG_SCHEMA = "zenodex.zeno_ledger.public_network_config.v0"
+AUTOGOVNEXT_GOVERNANCE_STATE_SCHEMA_V1 = "zenodex.zeno_ledger.autogovnext_governance_state.v1"
+AUTOGOVNEXT_TRAJECTORY_RESET_POLICY_V1 = "no_auto_reset_governance_authority_only_v1"
+AUTOGOVNEXT_TRAJECTORY_WINDOW_POLICY_V1 = "lifetime_until_governance_authority_reset_v1"
 MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_HTTP_POST_BYTES = 2 * 1024 * 1024
 MAX_TESTNET_FAUCET_AMOUNT = 1_000_000_000_000
 TESTNET_FAUCET_KIND = "ZENODEX_TESTNET_FAUCET"
 TOKENOMICS_REWARD_CLAIM_KIND = "ZENODEX_ACTIVE_PARTICIPANT_REWARD_CLAIM"
+AUTOGOVNEXT_ADMISSION_KIND = "ZENODEX_AUTOGOVNEXT_ADMISSION"
 TOKENOMICS_BUYBACK_BURN_OP_STREAM = "12"
 TOKENOMICS_BUYBACK_BURN_OP_KIND = "ZENODEX_TOKENOMICS_BUYBACK_BURN"
 PEER_FOLLOW_ERROR_LOG_CAP_PER_PEER = 64
@@ -143,9 +154,15 @@ def _state_root_for_live_state_file_v0(path: Path) -> str:
 
 def _state_root_for_state_file_obj_v0(obj: Mapping[str, Any]) -> str:
     if _is_tau_app_state_obj_v0(obj):
-        digest = hashlib.sha256(canonical_json_bytes(dict(obj))).hexdigest()
-        return canonical_hex_fixed_allow_0x(digest, nbytes=32, name="app_state_hash")
-    return dex_state_root_v0(state_from_snapshot(obj))
+        # Review note, grade A-: hashing the wrapper as an opaque JSON blob let
+        # live roots drift from the typed JMT app-root contract. Use the same
+        # lane assembler as the proof/header bridge so proof mining, zUSD, CLOB,
+        # oracle, vault, and perps are independently committed.
+        return compute_tau_app_state_app_root_v0(obj)
+    # Review note, grade A-: plain live snapshots carry oracle/vault/perps
+    # fields too. The legacy spot root is still available for old proof
+    # surfaces, but live header roots must commit the full Dex snapshot lanes.
+    return compute_dex_snapshot_app_root_v0(obj)
 
 
 def _replace_dex_snapshot_in_state_file_obj_v0(
@@ -156,7 +173,10 @@ def _replace_dex_snapshot_in_state_file_obj_v0(
         wrapped = dict(original)
         wrapped["dex_state"] = dict(dex_snapshot)
         return wrapped
-    return dex_snapshot
+    updated = dict(dex_snapshot)
+    if "governance" in original:
+        updated["governance"] = original["governance"]
+    return updated
 
 
 def _native_chain_balances_from_snapshot_v0(snapshot: Mapping[str, Any]) -> dict[str, int]:
@@ -1189,6 +1209,259 @@ def _is_tokenomics_reward_claim_body_v0(body: Mapping[str, Any]) -> bool:
     if not isinstance(txs, list) or len(txs) != 1 or not isinstance(txs[0], Mapping):
         return False
     return txs[0].get("kind") == TOKENOMICS_REWARD_CLAIM_KIND
+
+
+def _autogovnext_request_with_tx_id_v1(request: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(request, Mapping):
+        raise ValueError("autogovnext request must be an object")
+    request_obj = json.loads(json.dumps(dict(request), sort_keys=True))
+    tx_id_raw = request_obj.get("tx_id")
+    if tx_id_raw is None:
+        digest = hash_v0("zeno_ledger_autogovnext_default_tx_id_v1", request_obj)
+        request_obj["tx_id"] = f"autogovnext-{digest.removeprefix('0x')[:32]}"
+        return request_obj
+    if not isinstance(tx_id_raw, str) or not tx_id_raw.strip() or len(tx_id_raw) > 128:
+        raise ValueError("autogovnext tx_id invalid")
+    if any(ord(ch) < 32 for ch in tx_id_raw):
+        raise ValueError("autogovnext tx_id invalid")
+    request_obj["tx_id"] = tx_id_raw.strip()
+    return request_obj
+
+
+def _autogovnext_tx_v1(request: Mapping[str, Any]) -> dict[str, Any]:
+    request_obj = _autogovnext_request_with_tx_id_v1(request)
+    return {
+        "tx_id": str(request_obj["tx_id"]),
+        "kind": AUTOGOVNEXT_ADMISSION_KIND,
+        "request": request_obj,
+    }
+
+
+def _autogovnext_request_from_submitted_tx_v1(tx: Mapping[str, Any]) -> dict[str, Any]:
+    if tx.get("kind") != AUTOGOVNEXT_ADMISSION_KIND:
+        raise ValueError("tx is not an AutoGovNEXT admission")
+    request = tx.get("request")
+    if not isinstance(request, Mapping):
+        raise ValueError("autogovnext tx request must be an object")
+    request_obj = _autogovnext_request_with_tx_id_v1(request)
+    tx_id_raw = tx.get("tx_id")
+    if tx_id_raw is not None and str(tx_id_raw) != str(request_obj["tx_id"]):
+        raise ValueError("autogovnext tx_id/request tx_id mismatch")
+    return request_obj
+
+
+def _is_autogovnext_body_v1(body: Mapping[str, Any]) -> bool:
+    txs = body.get("transactions")
+    if not isinstance(txs, list) or len(txs) != 1 or not isinstance(txs[0], Mapping):
+        return False
+    return txs[0].get("kind") == AUTOGOVNEXT_ADMISSION_KIND
+
+
+def _autogovnext_admission_from_tx_v1(tx: Mapping[str, Any]) -> dict[str, Any]:
+    request = tx.get("request")
+    if not isinstance(request, Mapping):
+        raise ValueError("autogovnext tx request must be an object")
+    if str(tx.get("tx_id", "")) != str(request.get("tx_id", "")):
+        raise ValueError("autogovnext tx_id/request tx_id mismatch")
+    admission = admit_autonomous_governance_surface_request_v1(request)
+    if admission.get("schema") != AUTONOMOUS_GOVERNANCE_SURFACE_ADMISSION_SCHEMA_V1:
+        raise ValueError("autogovnext admission schema mismatch")
+    return dict(admission)
+
+
+def _autogovnext_json_clone_v1(value: object) -> object:
+    return json.loads(json.dumps(value, sort_keys=True))
+
+
+def _autogovnext_strict_int_map_v1(
+    value: object,
+    *,
+    name: str,
+    require_all_parameters: bool,
+    allow_negative: bool,
+    maximum_abs: int,
+) -> dict[str, int]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{name} must be an object")
+    extra = sorted(set(value) - set(SURFACE_PARAMETER_NAMES_V1))
+    if extra:
+        raise ValueError(f"{name} unknown parameter(s): {', '.join(str(item) for item in extra)}")
+    if require_all_parameters:
+        missing = sorted(set(SURFACE_PARAMETER_NAMES_V1) - set(value))
+        if missing:
+            raise ValueError(f"{name} missing parameter(s): {', '.join(missing)}")
+    out: dict[str, int] = {}
+    for key, raw in value.items():
+        if not isinstance(raw, int) or isinstance(raw, bool):
+            raise ValueError(f"{name}.{key} must be an int")
+        if not allow_negative and raw < 0:
+            raise ValueError(f"{name}.{key} must be non-negative")
+        if abs(int(raw)) > maximum_abs:
+            raise ValueError(f"{name}.{key} exceeds bound")
+        out[str(key)] = int(raw)
+    return out
+
+
+def _autogovnext_governance_state_from_state_file_obj_v1(
+    state_file_obj: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    raw = state_file_obj.get("governance")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise ValueError("autogovnext governance state must be an object")
+    if raw.get("schema") != AUTOGOVNEXT_GOVERNANCE_STATE_SCHEMA_V1:
+        raise ValueError("autogovnext governance state schema mismatch")
+    if raw.get("version") != 1:
+        raise ValueError("autogovnext governance state version mismatch")
+    surface_state = _autogovnext_strict_int_map_v1(
+        raw.get("surface_state"),
+        name="governance.surface_state",
+        require_all_parameters=True,
+        allow_negative=False,
+        maximum_abs=65_535,
+    )
+    previous_approved_deltas = _autogovnext_strict_int_map_v1(
+        raw.get("previous_approved_deltas", {}),
+        name="governance.previous_approved_deltas",
+        require_all_parameters=False,
+        allow_negative=True,
+        maximum_abs=65_535,
+    )
+    trajectory_used = _autogovnext_strict_int_map_v1(
+        raw.get("trajectory_used", {}),
+        name="governance.trajectory_used",
+        require_all_parameters=False,
+        allow_negative=False,
+        maximum_abs=1_000_000_000,
+    )
+    last_update_epoch = _ui_amount_int_v0(
+        raw.get("last_update_epoch"),
+        name="governance.last_update_epoch",
+        maximum=9_223_372_036_854_775_807,
+        allow_zero=True,
+    )
+    accepted_update_count = _ui_amount_int_v0(
+        raw.get("accepted_update_count", 0),
+        name="governance.accepted_update_count",
+        maximum=9_223_372_036_854_775_807,
+        allow_zero=True,
+    )
+    trajectory_reset_policy = str(raw.get("trajectory_reset_policy", AUTOGOVNEXT_TRAJECTORY_RESET_POLICY_V1))
+    if trajectory_reset_policy != AUTOGOVNEXT_TRAJECTORY_RESET_POLICY_V1:
+        raise ValueError("autogovnext governance state trajectory reset policy mismatch")
+    trajectory_window_policy = str(raw.get("trajectory_window_policy", AUTOGOVNEXT_TRAJECTORY_WINDOW_POLICY_V1))
+    if trajectory_window_policy != AUTOGOVNEXT_TRAJECTORY_WINDOW_POLICY_V1:
+        raise ValueError("autogovnext governance state trajectory window policy mismatch")
+    return {
+        **dict(raw),
+        "schema": AUTOGOVNEXT_GOVERNANCE_STATE_SCHEMA_V1,
+        "version": 1,
+        "trajectory_reset_policy": trajectory_reset_policy,
+        "trajectory_window_policy": trajectory_window_policy,
+        "surface_state": surface_state,
+        "previous_approved_deltas": previous_approved_deltas,
+        "trajectory_used": trajectory_used,
+        "last_update_epoch": last_update_epoch,
+        "accepted_update_count": accepted_update_count,
+    }
+
+
+def _require_autogovnext_request_matches_governance_state_v1(
+    *,
+    request: Mapping[str, Any],
+    governance_state: Mapping[str, Any] | None,
+) -> None:
+    if governance_state is None:
+        return
+    expected = {
+        "surface_state": dict(governance_state["surface_state"]),
+        "previous_approved_deltas": dict(governance_state["previous_approved_deltas"]),
+        "trajectory_used": dict(governance_state["trajectory_used"]),
+        "last_update_epoch": int(governance_state["last_update_epoch"]),
+    }
+    for field, expected_value in expected.items():
+        actual = request.get(field)
+        if _autogovnext_json_clone_v1(actual) != _autogovnext_json_clone_v1(expected_value):
+            raise ValueError(f"autogovnext request not bound to node governance state: {field}")
+
+
+def _autogovnext_approved_delta_map_v1(admission: Mapping[str, Any]) -> dict[str, int]:
+    receipt = admission.get("receipt")
+    if not isinstance(receipt, Mapping):
+        raise ValueError("autogovnext admission missing receipt")
+    search = receipt.get("candidate_search")
+    selected = search.get("selected_candidate") if isinstance(search, Mapping) else None
+    action = selected.get("action") if isinstance(selected, Mapping) else None
+    deltas = action.get("deltas") if isinstance(action, Mapping) else None
+    return _autogovnext_strict_int_map_v1(
+        deltas or {},
+        name="autogovnext.approved_deltas",
+        require_all_parameters=False,
+        allow_negative=True,
+        maximum_abs=65_535,
+    )
+
+
+def _autogovnext_governance_state_after_admission_v1(
+    *,
+    pre_governance_state: Mapping[str, Any] | None,
+    request: Mapping[str, Any],
+    admission: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if admission.get("admitted") is not True:
+        return dict(pre_governance_state) if pre_governance_state is not None else None
+    applied_state = _autogovnext_strict_int_map_v1(
+        admission.get("applied_state"),
+        name="autogovnext.applied_state",
+        require_all_parameters=True,
+        allow_negative=False,
+        maximum_abs=65_535,
+    )
+    trajectory_used_after = _autogovnext_strict_int_map_v1(
+        admission.get("trajectory_used_after"),
+        name="autogovnext.trajectory_used_after",
+        require_all_parameters=False,
+        allow_negative=False,
+        maximum_abs=1_000_000_000,
+    )
+    current_epoch = _ui_amount_int_v0(
+        request.get("current_epoch"),
+        name="autogovnext.current_epoch",
+        maximum=9_223_372_036_854_775_807,
+        allow_zero=True,
+    )
+    accepted_update_count = 1
+    if pre_governance_state is not None:
+        accepted_update_count = int(pre_governance_state.get("accepted_update_count", 0)) + 1
+    return {
+        "schema": AUTOGOVNEXT_GOVERNANCE_STATE_SCHEMA_V1,
+        "version": 1,
+        "trajectory_reset_policy": AUTOGOVNEXT_TRAJECTORY_RESET_POLICY_V1,
+        "trajectory_window_policy": AUTOGOVNEXT_TRAJECTORY_WINDOW_POLICY_V1,
+        "surface_state": applied_state,
+        "previous_approved_deltas": _autogovnext_approved_delta_map_v1(admission),
+        "trajectory_used": trajectory_used_after,
+        "last_update_epoch": current_epoch,
+        "accepted_update_count": accepted_update_count,
+        "last_tx_id": str(request.get("tx_id", "")),
+        "last_policy_hash": str(request.get("expected_policy_hash", "")),
+        "last_admission_hash": str(admission.get("admission_hash", "")),
+        "last_step_hash": str(admission.get("step_hash", "")),
+        "last_receipt_hash": str(admission.get("receipt_hash", "")),
+    }
+
+
+def _replace_governance_state_in_state_file_obj_v1(
+    original: Mapping[str, Any],
+    governance_state: Mapping[str, Any] | None,
+) -> Mapping[str, Any]:
+    updated = dict(original)
+    if governance_state is None:
+        updated.pop("governance", None)
+    else:
+        updated["governance"] = _autogovnext_json_clone_v1(dict(governance_state))
+    return updated
 
 
 def _tokenomics_claim_index_from_live_bodies_v0(*, data_dir: Path, max_height: int) -> tuple[dict[str, int], set[str]]:
@@ -3521,6 +3794,131 @@ def _build_tokenomics_reward_claim_block_from_body_v0(
     }
 
 
+def _build_autogovnext_block_from_body_v1(
+    *,
+    data_dir: Path,
+    body: Mapping[str, Any],
+    time_ms: int,
+    prev_header_path: Path,
+    pre_snapshot_path: Path,
+    sequencer_set_hash: str,
+    config_digest: str,
+    module_versions_digest: str,
+) -> dict[str, Any]:
+    body_obj = dict(body)
+    validate_body_v0(body_obj)
+    if not _is_autogovnext_body_v1(body_obj):
+        raise ValueError("body is not an AutoGovNEXT admission body")
+    tx = dict(body_obj["transactions"][0])
+    admission = _autogovnext_admission_from_tx_v1(tx)
+    structurally_invalid = (
+        admission.get("reason") == "admission_rejected_noop"
+        or admission.get("forbidden_fields") not in ((), [])
+        or admission.get("unknown_fields") not in ((), [])
+    )
+    if structurally_invalid:
+        raise ValueError("autogovnext admission request invalid")
+
+    pre_snapshot_obj = _load_json_object(pre_snapshot_path)
+    pre_governance_state = _autogovnext_governance_state_from_state_file_obj_v1(pre_snapshot_obj)
+    request_obj = tx.get("request")
+    if not isinstance(request_obj, Mapping):
+        raise ValueError("autogovnext tx request must be an object")
+    _require_autogovnext_request_matches_governance_state_v1(
+        request=request_obj,
+        governance_state=pre_governance_state,
+    )
+    pre_state_root = _state_root_for_state_file_obj_v0(pre_snapshot_obj)
+    post_governance_state = _autogovnext_governance_state_after_admission_v1(
+        pre_governance_state=pre_governance_state,
+        request=request_obj,
+        admission=admission,
+    )
+    post_snapshot = _replace_governance_state_in_state_file_obj_v1(
+        pre_snapshot_obj,
+        post_governance_state,
+    )
+    post_state_root = _state_root_for_state_file_obj_v0(post_snapshot)
+    height = int(body_obj["height"])
+    chain_id = str(body_obj["chain_id"])
+    prev_header = dict(_load_json_object(prev_header_path))
+    prev_header_hash = canonical_header_hash_v0(prev_header)
+    evidence_root = compute_evidence_root_v0(body_obj["evidence"])
+    app_hash = compute_app_hash_v0(
+        {
+            "chain_id": chain_id,
+            "height": height,
+            "post_state_root": post_state_root,
+            "evidence_root": evidence_root,
+            "config_digest": config_digest,
+            "module_versions_digest": module_versions_digest,
+        }
+    )
+    header = build_header_v0(
+        chain_id=chain_id,
+        height=height,
+        time_ms=time_ms,
+        prev_header_hash=prev_header_hash,
+        sequencer_set_hash=sequencer_set_hash,
+        ingress_root=compute_ingress_root_v0(body_obj["ingress"]),
+        tx_root=compute_tx_root_v0(body_obj["transactions"]),
+        pre_state_root=pre_state_root,
+        post_state_root=post_state_root,
+        app_hash=app_hash,
+        evidence_root=evidence_root,
+        body_root=canonical_body_root_v0(body_obj),
+        data_availability_root=ZERO_ROOT,
+        proof_journal_hash=ZERO_ROOT,
+        config_digest=config_digest,
+        module_versions_digest=module_versions_digest,
+        signature_set_root=ZERO_ROOT,
+    )
+    checkpoint = build_checkpoint_v0(header)
+    header_hash = canonical_header_hash_v0(header)
+    tx_hash = tx_hash_v0(tx)
+    accepted = admission.get("admitted") is True
+    error_code = None if accepted else stable_error_code_v0(str(admission.get("reason", "autogovnext_rejected")))
+    state_changed = post_state_root != pre_state_root
+    receipt = build_tx_receipt_v0(
+        tx_hash=tx_hash,
+        height=height,
+        index=0,
+        accepted=accepted,
+        error_code=error_code,
+        state_changed=state_changed,
+    )
+    live_ledger_dir = data_dir / "live_ledger"
+    header_path = live_ledger_dir / "headers" / f"{height}.json"
+    body_path = live_ledger_dir / "bodies" / f"{height}.json"
+    checkpoint_path = live_ledger_dir / "checkpoints" / f"{height}.json"
+    receipts_path = live_ledger_dir / "receipts" / f"{height}.json"
+    snapshot_path = live_ledger_dir / "snapshots" / f"{height}.json"
+    _write_json(header_path, header)
+    _write_json(body_path, body_obj)
+    _write_json(checkpoint_path, checkpoint)
+    _write_json(receipts_path, [receipt])
+    _write_json(snapshot_path, post_snapshot)
+    return {
+        "height": height,
+        "tx_hash": tx_hash,
+        "header_hash": header_hash,
+        "app_hash": app_hash,
+        "body_path": str(body_path),
+        "header_path": str(header_path),
+        "checkpoint_path": str(checkpoint_path),
+        "receipts_path": str(receipts_path),
+        "post_snapshot_path": str(snapshot_path),
+        "receipt": receipt,
+        "autogovnext_admission": admission,
+        "production_security_claim": False,
+        "not_claimed": [
+            "does_not_authorize_settlement",
+            "does_not_train_q_table_online",
+            "does_not_implement_governance_authority_reset_yet",
+        ],
+    }
+
+
 def _build_dex_block_with_tokenomics_buyback_v0(
     *,
     data_dir: Path,
@@ -3940,6 +4338,96 @@ def _append_tokenomics_reward_claim_v0_locked(
     return {**report, "append_report_path": str(append_report_path)}
 
 
+def append_autogovnext_admission_v1(
+    *,
+    data_dir: Path,
+    request: Mapping[str, Any],
+    time_ms: int,
+) -> dict[str, Any]:
+    """Append one AutoGovNEXT request to the node-local live ledger."""
+
+    with _data_dir_writer_lock_v0(data_dir):
+        return _append_autogovnext_admission_v1_locked(
+            data_dir=data_dir,
+            request=request,
+            time_ms=time_ms,
+        )
+
+
+def _append_autogovnext_admission_v1_locked(
+    *,
+    data_dir: Path,
+    request: Mapping[str, Any],
+    time_ms: int,
+) -> dict[str, Any]:
+    node_status = load_node_status_v0(data_dir)
+    bundle_root = Path(str(node_status["bundle_root"]))
+    public_manifest = _read_public_manifest(bundle_root)
+    bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
+    base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
+    latest_height = int(base["latest_height"])
+    height = latest_height + 1
+    request_obj = _autogovnext_request_with_tx_id_v1(request)
+    tx = _autogovnext_tx_v1(request_obj)
+    admission = _autogovnext_admission_from_tx_v1(tx)
+    structurally_invalid = (
+        admission.get("reason") == "admission_rejected_noop"
+        or admission.get("forbidden_fields") not in ((), [])
+        or admission.get("unknown_fields") not in ((), [])
+    )
+    if structurally_invalid:
+        raise ValueError("autogovnext admission request invalid")
+    existing_report = _existing_append_report_for_tx_id_v0(
+        data_dir=data_dir,
+        tx_id=str(tx["tx_id"]),
+        tx=tx,
+        max_height=latest_height,
+    )
+    if existing_report is not None:
+        existing_height = int(existing_report.get("height", latest_height))
+        return {
+            **existing_report,
+            "append_report_path": str(data_dir / "append_reports" / f"{existing_height}.json"),
+        }
+    body = _body_for_tx_v0(
+        chain_id=str(public_manifest["chain_id"]),
+        height=height,
+        time_ms=time_ms,
+        sequencer_id=str(public_manifest["sequencer_id"]),
+        tx=tx,
+    )
+    block_report = _build_autogovnext_block_from_body_v1(
+        data_dir=data_dir,
+        body=body,
+        time_ms=time_ms,
+        prev_header_path=Path(str(base["prev_header_path"])),
+        pre_snapshot_path=Path(str(base["pre_snapshot_path"])),
+        sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+        config_digest=str(bootstrap_manifest["config_digest"]),
+        module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+    )
+    _write_live_state(
+        data_dir=data_dir,
+        height=height,
+        header_path=str(block_report["header_path"]),
+        snapshot_path=str(block_report["post_snapshot_path"]),
+        header_hash=str(block_report["header_hash"]),
+        app_hash=str(block_report["app_hash"]),
+    )
+    report = {
+        "schema": NODE_APPEND_REPORT_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "node_id": node_status["node_id"],
+        "append_kind": "autogovnext_admission",
+        **block_report,
+        "production_security_claim": False,
+    }
+    append_report_path = data_dir / "append_reports" / f"{height}.json"
+    _write_json(append_report_path, report)
+    return {**report, "append_report_path": str(append_report_path)}
+
+
 def _live_artifact_path(*, data_dir: Path, kind: str, height: int) -> Path:
     if kind == "header":
         return data_dir / "live_ledger" / "headers" / f"{height}.json"
@@ -4070,6 +4558,17 @@ def _pull_live_from_peer_v0_locked(
             )
         elif _is_tokenomics_reward_claim_body_v0(peer_body):
             block_report = _build_tokenomics_reward_claim_block_from_body_v0(
+                data_dir=data_dir,
+                body=peer_body,
+                time_ms=int(peer_header["time_ms"]),
+                prev_header_path=current_prev_header,
+                pre_snapshot_path=current_pre_snapshot,
+                sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+                config_digest=str(bootstrap_manifest["config_digest"]),
+                module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+            )
+        elif _is_autogovnext_body_v1(peer_body):
+            block_report = _build_autogovnext_block_from_body_v1(
                 data_dir=data_dir,
                 body=peer_body,
                 time_ms=int(peer_header["time_ms"]),
@@ -4726,6 +5225,50 @@ def make_node_http_server_v0(
                         )
                     self._send_json(report)
                     return
+                if request_path == "/api/governance/autogov-next":
+                    if not self._require_write_auth():
+                        return
+                    if not enable_testnet_intake:
+                        self._send_json({"ok": False, "error": "testnet_intake_disabled"}, status=HTTPStatus.FORBIDDEN)
+                        return
+                    payload = _read_http_json_body(self)
+                    if submit_peer_url:
+                        report, peer_status = _post_json_url(
+                            urljoin(submit_peer_url.rstrip("/") + "/", "api/governance/autogov-next"),
+                            payload,
+                            bearer_token=submit_peer_auth_token,
+                        )
+                        self._send_json({**report, "forwarded_to": submit_peer_url}, status=peer_status)
+                        return
+                    time_ms = payload.get("time_ms", payload.get("timeMs"))
+                    if time_ms is None:
+                        time_ms = int(time.time() * 1000)
+                    if not isinstance(time_ms, int) or isinstance(time_ms, bool) or time_ms < 0:
+                        self._send_json({"ok": False, "error": "time_ms_must_be_nonnegative_int"}, status=HTTPStatus.BAD_REQUEST)
+                        return
+                    try:
+                        with append_lock:
+                            report = append_autogovnext_admission_v1(
+                                data_dir=root,
+                                request=payload,
+                                time_ms=int(time_ms),
+                            )
+                    except ValueError as exc:
+                        self._send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+                        return
+                    admission = report.get("autogovnext_admission", {})
+                    admitted = bool(isinstance(admission, Mapping) and admission.get("admitted") is True)
+                    response = {
+                        **report,
+                        # A structurally valid governance request can commit as
+                        # an explicit no-op rejection receipt. Reserve HTTP 400
+                        # for malformed or bypass attempts, not for policy
+                        # decisions that the ledger recorded deterministically.
+                        "ok": report.get("ok") is True,
+                        "autogovnext_admitted": admitted,
+                    }
+                    self._send_json(response, status=HTTPStatus.OK if response["ok"] else HTTPStatus.BAD_REQUEST)
+                    return
                 if request_path == "/tx":
                     if not self._require_write_auth():
                         return
@@ -4750,6 +5293,25 @@ def make_node_http_server_v0(
                         time_ms = int(time.time() * 1000)
                     if not isinstance(time_ms, int) or isinstance(time_ms, bool) or time_ms < 0:
                         self._send_json({"ok": False, "error": "time_ms_must_be_nonnegative_int"}, status=HTTPStatus.BAD_REQUEST)
+                        return
+                    if tx_raw.get("kind") == AUTOGOVNEXT_ADMISSION_KIND:
+                        try:
+                            autogovnext_request = _autogovnext_request_from_submitted_tx_v1(tx_raw)
+                            with append_lock:
+                                report = append_autogovnext_admission_v1(
+                                    data_dir=root,
+                                    request=autogovnext_request,
+                                    time_ms=int(time_ms),
+                                )
+                        except ValueError as exc:
+                            self._send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+                            return
+                        admission = report.get("autogovnext_admission", {})
+                        admitted = bool(isinstance(admission, Mapping) and admission.get("admitted") is True)
+                        self._send_json(
+                            {**report, "autogovnext_admitted": admitted},
+                            status=HTTPStatus.OK if report["ok"] else HTTPStatus.BAD_REQUEST,
+                        )
                         return
                     with append_lock:
                         report = append_dex_transaction_v0(
@@ -5555,6 +6117,20 @@ def _cmd_append(args: argparse.Namespace) -> int:
     return 0 if report.get("ok") is True else 1
 
 
+def _cmd_append_autogovnext(args: argparse.Namespace) -> int:
+    try:
+        request = _load_json_object(args.request)
+        report = append_autogovnext_admission_v1(
+            data_dir=args.data_dir,
+            request=request,
+            time_ms=args.time_ms,
+        )
+    except Exception as exc:
+        report = {"schema": NODE_APPEND_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report.get("ok") is True else 1
+
+
 def _cmd_pull_live(args: argparse.Namespace) -> int:
     try:
         report = pull_live_from_peer_v0(
@@ -5797,6 +6373,15 @@ def main(argv: list[str] | None = None) -> int:
     append.add_argument("--tx", required=True, type=Path)
     append.add_argument("--time-ms", type=int, default=DEFAULT_TIME_MS + 1_000_000)
     append.set_defaults(func=_cmd_append)
+
+    append_autogovnext = sub.add_parser(
+        "append-autogov-next",
+        help="append one AutoGovNEXT admission request to a node-local live ledger",
+    )
+    append_autogovnext.add_argument("--data-dir", required=True, type=Path)
+    append_autogovnext.add_argument("--request", required=True, type=Path)
+    append_autogovnext.add_argument("--time-ms", type=int, default=DEFAULT_TIME_MS + 1_000_000)
+    append_autogovnext.set_defaults(func=_cmd_append_autogovnext)
 
     pull_live = sub.add_parser("pull-live", help="pull and replay live blocks from a peer node")
     pull_live.add_argument("--data-dir", required=True, type=Path)

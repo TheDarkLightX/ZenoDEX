@@ -1,0 +1,27 @@
+{
+  "schema": "zenodex/production-promotion-evidence-manifest/v1",
+  "comment": "Production-promotion evidence manifest. Replace each lane's evidence body with real-world artifacts produced by external infrastructure. The verifier in src/integration/production_promotion_evidence.py fails closed on every malformed or unbound entry.",
+  "config": {
+    "bounded_oracle_exercise_status_path": null,
+    "wallet_authority_profile_hash": null,
+    "live_proof_wrapper_status_path": null,
+    "supervisor_profile_hash": null,
+    "config_max_actions_per_tick": null,
+    "config_max_runs_per_process": null,
+    "approved_measurements": [],
+    "operator_status_hash": null,
+    "external_verifier_binding_hash": null,
+    "expected_chain_id": null,
+    "expected_surface": null,
+    "expected_extension_id": null,
+    "expected_device_pubkey": null
+  },
+  "bundle": {
+    "oracle_authority": null,
+    "hardware_wallet": null,
+    "zk_wrapping": null,
+    "autotrader": null,
+    "confidential_runtime": null,
+    "app_root_jmt": null
+  }
+}

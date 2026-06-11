@@ -1,0 +1,210 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the AutoGovNEXT governance lane. Update only alongside a successful run of tools/run_autogovnext_governance_lane_assurance_gate.sh and tools/check_autogovnext_governance_lane_assurance_manifest.py --run-commands.",
+  "production_security_claim": false,
+  "scope": {
+    "surface": "autogovnext_governance_lane",
+    "claim": "AutoGovNEXT requests are locally admitted, node-owned governance state is app-root committed on accepted updates, rejected policy decisions are no-op receipts, and writer/follower replay is deterministic.",
+    "schema": "zenodex/autogovnext_governance_lane_assurance_manifest/v1"
+  },
+  "non_claims": [
+    "does_not_authorize_settlement",
+    "does_not_train_q_table_online",
+    "does_not_implement_governance_authority_reset_yet",
+    "does_not_replace_governance_authority_for_upgrade_actions"
+  ],
+  "source_files": [
+    {
+      "path": "src/state/app_root.py",
+      "sha256": "80d2ce410fbe5c0cc72cab5bf8d2eb6a3b81b37605b343a65be9a54ff5e239f1"
+    },
+    {
+      "path": "src/integration/zeno_ledger_v0.py",
+      "sha256": "abf086f3f6822090927f1131b106ae2ae654e59a44308fa6595c27d7929126fd"
+    },
+    {
+      "path": "src/integration/autonomous_governance_q_policy.py",
+      "sha256": "b35a4acca0a377ad4b91f083cbf0e40b7721a0c563ad6e2bf096e38e13e940e2"
+    },
+    {
+      "path": "tools/autonomous_governance_q_policy.py",
+      "sha256": "d88a0bf26990295578a51abe084a7407673587a6bb2a4cd3a84074ebdf6afe78"
+    },
+    {
+      "path": "tools/zeno_ledger_node.py",
+      "sha256": "e44809ad3e039f19a527831d81c851a3dc8bab33df762920f1ec2414bb5314a4"
+    },
+    {
+      "path": "tests/state/test_app_root.py",
+      "sha256": "738b71f16e9cca90a8e876ee8810e6592a271d113e77571a6db93a83cc1ee1c8"
+    },
+    {
+      "path": "tests/integration/test_zeno_ledger_v0.py",
+      "sha256": "61473bba503edf5dd0d6f39d3d08ec7f0c0cd1ddd05734ffec0c3ee5ed6bcd74"
+    },
+    {
+      "path": "tests/integration/test_autonomous_governance_q_policy.py",
+      "sha256": "50b005c3da210c01d27895d593198639891e24030d228157833f08091f52874d"
+    },
+    {
+      "path": "tests/integration/test_zeno_ledger_node_autogovnext.py",
+      "sha256": "af56cf81d7954454a8255fd089ea7a466e6e58746a677954e503c5ab0c6b61ce"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "1846eb4050a618a1bc1e842b61a94e0c1a5ac1b48213ec2b6897b55d071fb218"
+    },
+    {
+      "path": ".github/workflows/release-integrity.yml",
+      "sha256": "ce7634a37bcdc1aa24d6f7a14ab9efe1cab1efb52c505b9ab625ca473d9b4a4a"
+    },
+    {
+      "path": "docs/AUTOGOVNEXT_AND_ZENODEX_PRODUCTION_READINESS_PLAN_2026_06_10.md",
+      "sha256": "7d174e352932e8b5727f2b13fef9b1b2ad25c402ecc4e2a8070575c0f5b4168b"
+    },
+    {
+      "path": "docs/AUTOGOVNEXT_GAME_THEORY_AND_MECHANISM_DESIGN.md",
+      "sha256": "d9c20574722aa9bf22ced7dc3188cdd4b7d70e23c6c98f91bd8032cc623b96e5"
+    },
+    {
+      "path": "lean-mathlib/Proofs/AutogovNextTrajectoryBudget.lean",
+      "sha256": "638aad704be1a3c83aadf5a35d5c6682a9013968fe58e6ac011b54cdcda0391a"
+    },
+    {
+      "path": "lean-mathlib/Proofs.lean",
+      "sha256": "ad26754aa9caf35ddf604ce1d7f5a9946c266cc334104e8d52d34121405fc55f"
+    },
+    {
+      "path": "tools/dex-ui/src/sdk/zenoProofClient.js",
+      "sha256": "5c17ad9632ddf9b2de2c4fd55eebae6acd037b5748a93a50a30a34187f8b9f7a"
+    },
+    {
+      "path": "tools/dex-ui/src/sdk/zenoBlsVerifier.js",
+      "sha256": "a070bc764374a69b0ae3aa2ab0beb42fad355d84ad1c3d3aac0f1d03ea15520f"
+    },
+    {
+      "path": "tools/dex-ui/src/sdk/zenoProofClient.test.mjs",
+      "sha256": "fb77b93bd6e8776f9fca40b71a90f25fec82d0ee5a9b5b1833420119b4509838"
+    },
+    {
+      "path": "packages/zeno-proof-client/src/zenoProofClient.js",
+      "sha256": "5c17ad9632ddf9b2de2c4fd55eebae6acd037b5748a93a50a30a34187f8b9f7a"
+    },
+    {
+      "path": "packages/zeno-proof-client/src/zenoProofClient.d.ts",
+      "sha256": "5d37556a3b630d3d1f27bf2d7d01b62583ad5e4c17dec1d93a62eb892ae8395a"
+    },
+    {
+      "path": "packages/zeno-proof-client/src/index.d.ts",
+      "sha256": "5d37556a3b630d3d1f27bf2d7d01b62583ad5e4c17dec1d93a62eb892ae8395a"
+    },
+    {
+      "path": "packages/zeno-proof-client/test/zenoProofClient.test.mjs",
+      "sha256": "588abd6ef654ae63e375723e2ebfe35d65babdcd5ac32b36ab323382a3889b76"
+    },
+    {
+      "path": "tests/integration/test_zeno_proof_client_package.py",
+      "sha256": "ff93423a0c5aa47eea5879b6bc886c83fdb5ab6e52df71a7383a1b3e343a6fc1"
+    },
+    {
+      "path": "tools/sync_zeno_proof_client_package.sh",
+      "sha256": "ef00a3f669bf320a11f8740d6618e1d141e51f2e0cd939b5718909bcda1bda3f"
+    },
+    {
+      "path": "tools/check_autogovnext_governance_lane_assurance_manifest.py",
+      "sha256": "11cb3fca577a6fcb92459587efab50c8129fa0feb501e0fa8ffab2eb2ee99e13"
+    },
+    {
+      "path": "tools/run_autogovnext_governance_lane_assurance_gate.sh",
+      "sha256": "95305f037e5cea1c91b288e471d16a94628e70799ad7ceb3a1f9b2cdb7d2096d"
+    },
+    {
+      "path": "tests/test_check_autogovnext_governance_lane_assurance_manifest.py",
+      "sha256": "a94b5ae8d78270f1e81322816640d9e69ab9db02ca84e6e47514ae90d6c81263"
+    }
+  ],
+  "required_commands": [
+    {
+      "id": "py_compile",
+      "expected_exit": 0,
+      "argv": [
+        "{python}",
+        "-m",
+        "py_compile",
+        "tools/zeno_ledger_node.py",
+        "src/integration/zeno_ledger_v0.py",
+        "src/state/app_root.py",
+        "src/integration/autonomous_governance_q_policy.py",
+        "tools/autonomous_governance_q_policy.py",
+        "tests/integration/test_zeno_ledger_node_autogovnext.py",
+        "tests/integration/test_autonomous_governance_q_policy.py",
+        "tests/integration/test_zeno_ledger_v0.py",
+        "tests/state/test_app_root.py"
+      ]
+    },
+    {
+      "id": "lean_bounded_drift",
+      "expected_exit": 0,
+      "argv": [
+        "bash",
+        "-lc",
+        "cd lean-mathlib && lake env lean Proofs/AutogovNextTrajectoryBudget.lean"
+      ]
+    },
+    {
+      "id": "focused_pytest",
+      "expected_exit": 0,
+      "argv": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/state/test_app_root.py",
+        "tests/integration/test_zeno_ledger_v0.py",
+        "tests/integration/test_autonomous_governance_q_policy.py",
+        "tests/integration/test_zeno_ledger_node_autogovnext.py"
+      ]
+    },
+    {
+      "id": "ui_sdk_tests",
+      "expected_exit": 0,
+      "argv": [
+        "npm",
+        "--prefix",
+        "tools/dex-ui",
+        "run",
+        "test:sdk"
+      ]
+    },
+    {
+      "id": "proof_client_package_tests",
+      "expected_exit": 0,
+      "argv": [
+        "bash",
+        "-lc",
+        "cd packages/zeno-proof-client && npm test"
+      ]
+    },
+    {
+      "id": "proof_client_package_integration",
+      "expected_exit": 0,
+      "argv": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_zeno_proof_client_package.py",
+        "-q"
+      ]
+    },
+    {
+      "id": "proof_client_package_sync",
+      "expected_exit": 0,
+      "argv": [
+        "bash",
+        "tools/sync_zeno_proof_client_package.sh",
+        "--check"
+      ]
+    }
+  ]
+}
