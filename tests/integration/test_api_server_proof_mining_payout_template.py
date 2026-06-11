@@ -2,11 +2,14 @@
 End-to-end test for the proof-mining payout TEMPLATE endpoint.
 
 The template endpoint (POST /api/dex/proof_mining_payout_template) builds a
-real, claimability-passing proof-mining claim plus the submit transaction.
-The decisive check: feed the template's status_request straight into
-/api/dex/proof_mining_status and assert it reports `claimable: true` — i.e.
-the template the UI's ProofMiningWorkbench consumes actually produces a claim
-the live claimability gate accepts (closing the previously-404 wiring gap).
+real, well-formed proof-mining claim plus the submit transaction. The decisive
+checks: (1) feed the template's status_request into the live
+/api/dex/proof_mining_status PREFLIGHT and assert every consistency check
+passes (the preflight reports claimable=false only because it defers DEX-proof
+verification, passing context=None by design); (2) supply the template's proof
+context directly to evaluate_proof_mining_claimability and assert claimable
+becomes True — proving the template produces a genuinely payable claim, closing
+the previously-404 wiring gap the UI's ProofMiningWorkbench consumes.
 """
 
 from __future__ import annotations
@@ -200,6 +203,44 @@ def test_payout_template_rejects_underfunded_reward_pool(monkeypatch) -> None:
         status, body = _post(host, port, "/api/dex/proof_mining_payout_template", req)
         assert status == 400
         assert body["error"] == "reward_pool_before_below_reward_amount"
+    finally:
+        _stop_test_server(httpd, thread)
+
+
+def test_payout_template_rejects_malformed_pubkeys(monkeypatch) -> None:
+    monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", _REWARD_POOL)
+    httpd, thread, host, port = _start_test_server()
+    try:
+        # Non-canonical sender pubkey (too short) must be rejected BEFORE a
+        # template is returned, matching what the claimability gate requires.
+        status, body = _post(
+            host, port, "/api/dex/proof_mining_payout_template",
+            _template_request(tx_sender_pubkey="0xdeadbeef"),
+        )
+        assert status == 400
+        assert body["error"] == "bad_tx_sender_pubkey"
+
+        status, body = _post(
+            host, port, "/api/dex/proof_mining_payout_template",
+            _template_request(reward_pool_pubkey="not-a-pubkey"),
+        )
+        assert status == 400
+        assert body["error"] == "bad_reward_pool_pubkey"
+    finally:
+        _stop_test_server(httpd, thread)
+
+
+def test_payout_template_rejects_pool_equal_sender(monkeypatch) -> None:
+    monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", _REWARD_POOL)
+    httpd, thread, host, port = _start_test_server()
+    try:
+        # Pool == sender would collapse the two chain_balances entries.
+        status, body = _post(
+            host, port, "/api/dex/proof_mining_payout_template",
+            _template_request(reward_pool_pubkey=_SENDER),
+        )
+        assert status == 400
+        assert body["error"] == "reward_pool_pubkey_must_differ_from_sender"
     finally:
         _stop_test_server(httpd, thread)
 

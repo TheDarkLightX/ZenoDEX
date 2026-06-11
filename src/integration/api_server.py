@@ -1633,15 +1633,18 @@ class _Handler(BaseHTTPRequestHandler):
 
         if path == "/api/dex/proof_mining_payout_template":
             # Build a deterministic proof-mining payout TEMPLATE: a real,
-            # claimability-passing claim (constructed with the canonical core
-            # builder) plus the runtime app-state, chain balances, proof
-            # context, and the submit transaction the operator would sign and
-            # send. The template's proposal binding is derived deterministically
-            # from the request inputs (it is a preview, NOT an attestation of a
-            # settled on-chain DEX batch); /api/dex/proof_mining_status checks
-            # claim internal consistency + budget + flags + context match, none
-            # of which require a live-settled state, so the produced template is
-            # accepted by that endpoint as claimable.
+            # well-formed claim (constructed with the canonical core builder)
+            # plus the runtime app-state, chain balances, proof context, and the
+            # submit transaction the operator would sign and send. The template's
+            # proposal binding is derived deterministically from the request
+            # inputs (it is a preview, NOT an attestation of a settled on-chain
+            # DEX batch). /api/dex/proof_mining_status is a PREFLIGHT: it checks
+            # claim internal consistency + budget + flags + context match, but
+            # deliberately passes proof_mining_context_obj=None, so it reports
+            # claimable=false ("requires verified DEX proof context") for this
+            # template — the consistency checks all pass; full claimability is
+            # established only when the verified proof context is supplied at
+            # actual submission (see the direct-evaluator check in the test).
             try:
                 from src.core.proof_mining_claims import (  # pylint: disable=import-outside-toplevel
                     build_proof_mining_claim,
@@ -1675,6 +1678,40 @@ class _Handler(BaseHTTPRequestHandler):
                     return True
                 if not reward_pool_pubkey:
                     self._write_json(400, {"ok": False, "error": "missing_reward_pool_pubkey"}, cors_origin=cors_origin)
+                    return True
+
+                # Canonicalize both pubkeys to the SAME 48-byte form the live
+                # claimability gate requires, so a template can never be returned
+                # for a sender/pool that /api/dex/proof_mining_status would
+                # reject as malformed. Use the canonical forms throughout.
+                from src.state.canonical import (  # pylint: disable=import-outside-toplevel
+                    canonical_hex_fixed_allow_0x,
+                )
+
+                try:
+                    tx_sender_pubkey = canonical_hex_fixed_allow_0x(
+                        tx_sender_pubkey, nbytes=48, name="tx_sender_pubkey"
+                    )
+                except Exception:
+                    self._write_json(400, {"ok": False, "error": "bad_tx_sender_pubkey"}, cors_origin=cors_origin)
+                    return True
+                try:
+                    reward_pool_pubkey = canonical_hex_fixed_allow_0x(
+                        reward_pool_pubkey, nbytes=48, name="reward_pool_pubkey"
+                    )
+                except Exception:
+                    self._write_json(400, {"ok": False, "error": "bad_reward_pool_pubkey"}, cors_origin=cors_origin)
+                    return True
+                # The reward pool and the recipient must be distinct accounts: a
+                # shared pubkey would collapse the two chain_balances entries (the
+                # recipient's 0 would clobber the pool balance) and the claim
+                # would pay the pool to itself.
+                if reward_pool_pubkey == tx_sender_pubkey:
+                    self._write_json(
+                        400,
+                        {"ok": False, "error": "reward_pool_pubkey_must_differ_from_sender"},
+                        cors_origin=cors_origin,
+                    )
                     return True
 
                 def _bounded_nonneg_int(value: Any, *, name: str, default: int) -> int:
