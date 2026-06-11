@@ -114,8 +114,16 @@ pub fn fee_revision_ok(
     fee_next_bps: u16,
 ) -> bool {
     action_bound_ok(
-        approved, exec_req, proposal_ts, current_ts, MIN_DELAY,
-        fee_curr_bps, fee_next_bps, 0, FEE_MAX_BPS, FEE_STEP_BPS,
+        approved,
+        exec_req,
+        proposal_ts,
+        current_ts,
+        MIN_DELAY,
+        fee_curr_bps,
+        fee_next_bps,
+        0,
+        FEE_MAX_BPS,
+        FEE_STEP_BPS,
     )
 }
 
@@ -166,8 +174,16 @@ pub fn router_step_revision_ok(
     ];
     pairs.iter().all(|&(c, n)| {
         action_bound_ok(
-            approved, exec_req, proposal_ts, current_ts, MIN_DELAY,
-            c, n, 0, SPLIT_SHARE_MAX, SPLIT_STEP_BPS,
+            approved,
+            exec_req,
+            proposal_ts,
+            current_ts,
+            MIN_DELAY,
+            c,
+            n,
+            0,
+            SPLIT_SHARE_MAX,
+            SPLIT_STEP_BPS,
         )
     })
 }
@@ -188,12 +204,27 @@ pub fn router_revision_ok(
     hosts_curr: u16,
 ) -> bool {
     router_split_revision_ok(
-        approved, exec_req, proposal_ts, current_ts,
-        buyburn_next, stakers_next, reserve_next, hosts_next,
+        approved,
+        exec_req,
+        proposal_ts,
+        current_ts,
+        buyburn_next,
+        stakers_next,
+        reserve_next,
+        hosts_next,
     ) && router_step_revision_ok(
-        approved, exec_req, proposal_ts, current_ts,
-        buyburn_next, stakers_next, reserve_next, hosts_next,
-        buyburn_curr, stakers_curr, reserve_curr, hosts_curr,
+        approved,
+        exec_req,
+        proposal_ts,
+        current_ts,
+        buyburn_next,
+        stakers_next,
+        reserve_next,
+        hosts_next,
+        buyburn_curr,
+        stakers_curr,
+        reserve_curr,
+        hosts_curr,
     )
 }
 
@@ -229,8 +260,16 @@ pub fn whale_defense_revision_ok(
     staker_bps_next: u16,
 ) -> bool {
     action_bound_ok(
-        approved, exec_req, proposal_ts, current_ts, MIN_DELAY,
-        staker_bps_curr, staker_bps_next, 0, WHALE_STAKER_BPS_MAX, WHALE_STEP_BPS,
+        approved,
+        exec_req,
+        proposal_ts,
+        current_ts,
+        MIN_DELAY,
+        staker_bps_curr,
+        staker_bps_next,
+        0,
+        WHALE_STAKER_BPS_MAX,
+        WHALE_STEP_BPS,
     )
 }
 
@@ -243,8 +282,16 @@ pub fn funding_rate_revision_ok(
     funding_cap_next_bps: u16,
 ) -> bool {
     action_bound_ok(
-        approved, exec_req, proposal_ts, current_ts, MIN_DELAY,
-        funding_cap_curr_bps, funding_cap_next_bps, 0, FUNDING_CAP_MAX_BPS, FUNDING_STEP_BPS,
+        approved,
+        exec_req,
+        proposal_ts,
+        current_ts,
+        MIN_DELAY,
+        funding_cap_curr_bps,
+        funding_cap_next_bps,
+        0,
+        FUNDING_CAP_MAX_BPS,
+        FUNDING_STEP_BPS,
     )
 }
 
@@ -407,9 +454,15 @@ mod tests {
 
     fn full_params(fee: u16) -> BTreeMap<String, u16> {
         let vals: [(&str, u16); 9] = [
-            ("fee_bps", fee), ("funding_cap_bps", 100), ("redeem_staker_bps", 6000),
-            ("buyburn_bps", 6000), ("stakers_bps", 0), ("reserve_bps", 2000),
-            ("hosts_bps", 2000), ("mcr_bps", 11000), ("ccr_bps", 15000),
+            ("fee_bps", fee),
+            ("funding_cap_bps", 100),
+            ("redeem_staker_bps", 6000),
+            ("buyburn_bps", 6000),
+            ("stakers_bps", 0),
+            ("reserve_bps", 2000),
+            ("hosts_bps", 2000),
+            ("mcr_bps", 11000),
+            ("ccr_bps", 15000),
         ];
         vals.iter().map(|(k, v)| (k.to_string(), *v)).collect()
     }
@@ -430,14 +483,14 @@ mod tests {
         // exist that nothing on the Python side can ever reproduce.
         let mut missing = full_params(500);
         missing.remove("fee_bps");
-        assert!(params_digest(&missing).is_none());            // missing surface
+        assert!(params_digest(&missing).is_none()); // missing surface
         let mut extra = full_params(500);
         extra.insert("charter_ttl".to_string(), 1u16);
-        assert!(params_digest(&extra).is_none());              // unknown key (10 entries)
+        assert!(params_digest(&extra).is_none()); // unknown key (10 entries)
         let mut renamed = full_params(500);
         renamed.remove("fee_bps");
         renamed.insert("Bad Key".to_string(), 500u16);
-        assert!(params_digest(&renamed).is_none());            // unknown key (9 entries)
+        assert!(params_digest(&renamed).is_none()); // unknown key (9 entries)
         assert!(params_digest(&BTreeMap::from([("fee_bps".to_string(), 1u16)])).is_none());
     }
 }
@@ -506,8 +559,14 @@ mod verification {
     #[kani::proof]
     fn router_split_no_panic() {
         let _ = router_split_revision_ok(
-            kani::any(), kani::any(), kani::any(), kani::any(),
-            kani::any(), kani::any(), kani::any(), kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
         );
     }
 

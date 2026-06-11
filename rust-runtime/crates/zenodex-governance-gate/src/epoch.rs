@@ -102,16 +102,25 @@ impl Surface {
             Surface::FeeBps => 3 * FEE_STEP_BPS,
             Surface::FundingCapBps => 3 * FUNDING_STEP_BPS,
             Surface::RedeemStakerBps => 3 * WHALE_STEP_BPS,
-            Surface::BuyburnBps | Surface::StakersBps | Surface::ReserveBps
-            | Surface::HostsBps => 3 * SPLIT_STEP_BPS,
+            Surface::BuyburnBps | Surface::StakersBps | Surface::ReserveBps | Surface::HostsBps => {
+                3 * SPLIT_STEP_BPS
+            }
             Surface::McrBps | Surface::CcrBps => 3 * RATIO_STEP_BPS,
         }
     }
 }
 
-const SCALARS: [Surface; 3] = [Surface::FeeBps, Surface::FundingCapBps, Surface::RedeemStakerBps];
-const ROUTER: [Surface; 4] =
-    [Surface::BuyburnBps, Surface::StakersBps, Surface::ReserveBps, Surface::HostsBps];
+const SCALARS: [Surface; 3] = [
+    Surface::FeeBps,
+    Surface::FundingCapBps,
+    Surface::RedeemStakerBps,
+];
+const ROUTER: [Surface; 4] = [
+    Surface::BuyburnBps,
+    Surface::StakersBps,
+    Surface::ReserveBps,
+    Surface::HostsBps,
+];
 const COLLATERAL: [Surface; 2] = [Surface::McrBps, Surface::CcrBps];
 
 /// Per-surface trajectory bookkeeping (mirrors gov_epoch.SurfaceTraj).
@@ -338,7 +347,11 @@ pub fn apply_pending_core(
     // per-surface cooldown, declaration order
     for (i, s) in SURFACES.iter().enumerate() {
         if pending.touched[i]
-            && !cooldown_ok(state.traj[i].last_revision_epoch, now_epoch, GOV_COOLDOWN_EPOCHS)
+            && !cooldown_ok(
+                state.traj[i].last_revision_epoch,
+                now_epoch,
+                GOV_COOLDOWN_EPOCHS,
+            )
         {
             return (cleared, Code::RejCooldown, Some(RejectAt::Surface(*s)));
         }
@@ -347,11 +360,14 @@ pub fn apply_pending_core(
     // candidate next values (i64 to carry out-of-band candidates to the gates,
     // which reject them exactly as Python's domain guards do)
     let mut next = [0_i64; SURFACE_COUNT];
-    for i in 0..SURFACE_COUNT {
+    for (i, slot) in next.iter_mut().enumerate() {
         // |params| <= 0xFFFF and |delta| <= 0xFFFF: saturation is unreachable,
         // written saturating to satisfy the checked-arithmetic lint exactly.
-        next[i] = i64::from(state.params[i])
-            .saturating_add(if pending.touched[i] { i64::from(pending.deltas[i]) } else { 0 });
+        *slot = i64::from(state.params[i]).saturating_add(if pending.touched[i] {
+            i64::from(pending.deltas[i])
+        } else {
+            0
+        });
     }
     let in_band = |v: i64| -> Option<u16> { u16::try_from(v).ok() };
 
@@ -395,8 +411,14 @@ pub fn apply_pending_core(
         })();
         let ok = match nx {
             Some([b, st, r, h]) => router_revision_ok(
-                true, true, pending.proposed_epoch, now_epoch,
-                b, st, r, h,
+                true,
+                true,
+                pending.proposed_epoch,
+                now_epoch,
+                b,
+                st,
+                r,
+                h,
                 state.params[Surface::BuyburnBps as usize],
                 state.params[Surface::StakersBps as usize],
                 state.params[Surface::ReserveBps as usize],
@@ -413,8 +435,14 @@ pub fn apply_pending_core(
         let ccr_i = Surface::CcrBps as usize;
         let ok = match (in_band(next[mcr_i]), in_band(next[ccr_i])) {
             (Some(mn), Some(cn)) => collateral_ratio_revision_ok(
-                true, true, pending.proposed_epoch, now_epoch,
-                state.params[mcr_i], mn, state.params[ccr_i], cn,
+                true,
+                true,
+                pending.proposed_epoch,
+                now_epoch,
+                state.params[mcr_i],
+                mn,
+                state.params[ccr_i],
+                cn,
             ),
             _ => false,
         };
@@ -435,7 +463,11 @@ pub fn apply_pending_core(
             .checked_sub(t.window_start_epoch)
             .is_some_and(|age| age >= DRIFT_WINDOW_EPOCHS);
         let used = if fresh { 0 } else { t.drift_used };
-        let start = if fresh { now_epoch } else { t.window_start_epoch };
+        let start = if fresh {
+            now_epoch
+        } else {
+            t.window_start_epoch
+        };
         // gates passed => next[i] is in the surface band, hence in u16
         let nxt = match in_band(next[i]) {
             Some(v) => v,
@@ -500,7 +532,12 @@ pub fn renew_charter_core(
         return Err(EpochError::TtlOutOfRange);
     }
     let mut new = *state;
-    new.charter = Some(Charter { granted_epoch: now_epoch, ttl, revoked: false, policy_pin });
+    new.charter = Some(Charter {
+        granted_epoch: now_epoch,
+        ttl,
+        revoked: false,
+        policy_pin,
+    });
     Ok((new, Code::OkCharterRenewed))
 }
 
@@ -626,7 +663,14 @@ pub fn revoke_charter(state: &EpochState, now_epoch: u16) -> (EpochState, EpochR
     let pin = pin_of(state);
     let (new, code) = revoke_charter_core(state, now_epoch);
     // mirrors gov_epoch: no-charter reject carries pin=None; revocation carries the pin
-    let r = receipt(code, now_epoch, None, state, &new, if state.charter.is_some() { pin } else { None });
+    let r = receipt(
+        code,
+        now_epoch,
+        None,
+        state,
+        &new,
+        if state.charter.is_some() { pin } else { None },
+    );
     (new, r)
 }
 
@@ -688,7 +732,12 @@ mod tests {
         }
         assert_eq!(
             codes,
-            vec![Code::OkApplied, Code::OkApplied, Code::OkApplied, Code::RejDriftBudget]
+            vec![
+                Code::OkApplied,
+                Code::OkApplied,
+                Code::OkApplied,
+                Code::RejDriftBudget
+            ]
         );
         assert_eq!(s.params[Surface::FeeBps as usize], 650);
     }
@@ -743,7 +792,10 @@ mod tests {
             .iter()
             .map(|s| (s.name().to_string(), GENESIS[*s as usize]))
             .collect();
-        assert_eq!(arr_digest, crate::params_digest(&map).expect("exact surface set"));
+        assert_eq!(
+            arr_digest,
+            crate::params_digest(&map).expect("exact surface set")
+        );
     }
 }
 
@@ -793,11 +845,21 @@ mod verification {
                 touched[j] = kani::any();
                 j += 1;
             }
-            Some(PendingRevision { deltas, touched, proposed_epoch: kani::any() })
+            Some(PendingRevision {
+                deltas,
+                touched,
+                proposed_epoch: kani::any(),
+            })
         } else {
             None
         };
-        EpochState { params, traj, charter, frozen: kani::any(), pending }
+        EpochState {
+            params,
+            traj,
+            charter,
+            frozen: kani::any(),
+            pending,
+        }
     }
 
     /// THE machine-level CBC property, over the whole bounded domain: any
@@ -881,7 +943,9 @@ mod verification {
                 assert!(post.params[Surface::FundingCapBps as usize] <= crate::FUNDING_CAP_MAX_BPS);
             }
             if p.touched[Surface::RedeemStakerBps as usize] {
-                assert!(post.params[Surface::RedeemStakerBps as usize] <= crate::WHALE_STAKER_BPS_MAX);
+                assert!(
+                    post.params[Surface::RedeemStakerBps as usize] <= crate::WHALE_STAKER_BPS_MAX
+                );
             }
             let router_touched = p.touched[Surface::BuyburnBps as usize]
                 || p.touched[Surface::StakersBps as usize]
