@@ -27,6 +27,9 @@ import json
 import os
 from typing import Any
 
+from src.integration.autonomous_governance_hostile_input import (
+    is_canonically_encodable,
+)
 from src.integration.autonomous_governance_live_registry import (
     apply_autonomous_governance_update_from_node_state_v1,
     committed_governance_surface_v1,
@@ -37,6 +40,20 @@ AUTOGOV_SESSION_STORE_PATH_ENV = "AUTOGOV_SESSION_STORE_PATH"
 AUTOGOV_PINNED_POLICY_HASH_ENV = "AUTOGOV_PINNED_POLICY_HASH"
 
 _MAX_BODY_BYTES = 8 * 1024 * 1024
+
+
+def _is_canonical_hash_v0(value: object) -> bool:
+    if type(value) is not str:
+        return False
+    if not is_canonically_encodable(value):
+        return False
+    if len(value) != 66 or not value.startswith("0x"):
+        return False
+    return all(ch in "0123456789abcdef" for ch in value[2:])
+
+
+def _is_safe_config_text(value: object) -> bool:
+    return isinstance(value, str) and is_canonically_encodable(value)
 
 
 def handle_autogov_request(
@@ -67,6 +84,12 @@ def handle_autogov_request(
             "error": "autogov_store_path_not_configured",
             "required_env": AUTOGOV_SESSION_STORE_PATH_ENV,
         }
+    if not _is_safe_config_text(store_path):
+        return 503, {
+            "ok": False,
+            "error": "autogov_store_path_invalid",
+            "required_env": AUTOGOV_SESSION_STORE_PATH_ENV,
+        }
 
     if method == "GET" and path == "/api/autogov/surface":
         surface = committed_governance_surface_v1(store_path=store_path)
@@ -77,6 +100,12 @@ def handle_autogov_request(
             return 503, {
                 "ok": False,
                 "error": "autogov_policy_pin_not_configured",
+                "required_env": AUTOGOV_PINNED_POLICY_HASH_ENV,
+            }
+        if not _is_canonical_hash_v0(pinned_policy_hash):
+            return 503, {
+                "ok": False,
+                "error": "autogov_policy_pin_invalid",
                 "required_env": AUTOGOV_PINNED_POLICY_HASH_ENV,
             }
         if raw_body is None or len(raw_body) == 0:
@@ -93,6 +122,8 @@ def handle_autogov_request(
         requested_pin = body.get("expected_policy_hash")
         if type(requested_pin) is not str or not requested_pin:
             return 400, {"ok": False, "error": "autogov_expected_policy_hash_required"}
+        if not _is_canonical_hash_v0(requested_pin):
+            return 400, {"ok": False, "error": "autogov_expected_policy_hash_invalid"}
         if requested_pin != pinned_policy_hash:
             # The node pins the policy; a caller cannot select a different one.
             return 403, {

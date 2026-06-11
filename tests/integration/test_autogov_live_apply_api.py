@@ -55,6 +55,52 @@ def test_apply_requires_node_policy_pin(tmp_path: Path) -> None:
     assert resp["error"] == "autogov_policy_pin_not_configured"
 
 
+def test_refuses_hostile_store_path_before_filesystem_access() -> None:
+    status, resp = handle_autogov_request(
+        "GET",
+        "/api/autogov/surface",
+        None,
+        store_path="/tmp/\ud800store",
+        pinned_policy_hash="",
+    )
+
+    assert status == 503
+    assert resp["error"] == "autogov_store_path_invalid"
+
+
+def test_refuses_hostile_node_policy_pin_without_echoing_it(tmp_path: Path) -> None:
+    path = tmp_path / "store.json"
+    policy, genesis, _init = _init_file(path)
+    receipt = _continue(policy, genesis, 103)
+    status, resp = handle_autogov_request(
+        "POST",
+        "/api/autogov/apply",
+        _apply_body(policy, receipt, str(policy["policy_hash"])),
+        store_path=str(path),
+        pinned_policy_hash="0x" + "\ud800" * 32,
+    )
+
+    assert status == 503
+    assert resp["error"] == "autogov_policy_pin_invalid"
+    assert "node_pinned_policy_hash" not in resp
+
+
+def test_refuses_hostile_requested_policy_pin_without_node_apply(tmp_path: Path) -> None:
+    path = tmp_path / "store.json"
+    policy, genesis, _init = _init_file(path)
+    receipt = _continue(policy, genesis, 103)
+    status, resp = handle_autogov_request(
+        "POST",
+        "/api/autogov/apply",
+        _apply_body(policy, receipt, "0x" + "\ud800" * 32),
+        store_path=str(path),
+        pinned_policy_hash=str(policy["policy_hash"]),
+    )
+
+    assert status == 400
+    assert resp["error"] == "autogov_expected_policy_hash_invalid"
+
+
 def test_apply_refuses_non_pinned_policy_hash(tmp_path: Path) -> None:
     path = tmp_path / "store.json"
     policy, genesis, _init = _init_file(path)
@@ -115,7 +161,7 @@ def test_malformed_body_rejected(tmp_path: Path) -> None:
         "/api/autogov/apply",
         b"not json",
         store_path=str(path),
-        pinned_policy_hash="deadbeef",
+        pinned_policy_hash="0x" + "00" * 32,
     )
     assert status == 400
     assert resp["error"] == "autogov_body_invalid_json"
