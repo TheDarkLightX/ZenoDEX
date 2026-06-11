@@ -305,6 +305,7 @@ GENERATOR_FILES = (
     "tools/autonomous_governance_q_table_optimize.jl",
     "src/integration/autonomous_governance_q_policy.py",
     "src/integration/autonomous_governance_trajectory.py",
+    "src/integration/autonomous_governance_session.py",
     "src/integration/autonomous_governance_hostile_input.py",
     "src/tau_specs/governance/gov_gate.py",
 )

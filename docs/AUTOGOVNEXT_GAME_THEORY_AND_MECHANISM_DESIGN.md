@@ -15,9 +15,10 @@ readiness and it does **not** weaken any promotion boundary in the plan.
 > This document grounds against the committed Q-policy integration path plus
 > the trajectory-runner work ported from `claude/autogov-trajectory-runner`.
 > The current branch has committed-state context hashing, single-step
-> expected-context checking, and a multi-step trajectory runner/verifier. The
-> separate P1 admission hardening surface described in the production-readiness
-> plan remains in-flight. Symbols are tagged below as one of:
+> expected-context checking, a multi-step trajectory runner/verifier, and a
+> cross-trajectory session verifier. The separate P1 admission hardening
+> surface described in the production-readiness plan remains in-flight. Symbols
+> are tagged below as one of:
 >
 > - **[P1-WIP]** — exists in the Phase-1 working tree, not yet committed to any
 >   branch (`admit_autonomous_governance_surface_request_v1`,
@@ -31,7 +32,9 @@ readiness and it does **not** weaken any promotion boundary in the plan.
 >   `commit_…_surface_…_v1`, and
 >   `run_autonomous_governance_surface_trajectory_v1`,
 >   `verify_autonomous_governance_surface_trajectory_v1`, and
->   `admit_verified_autonomous_governance_surface_trajectory_v1`);
+>   `admit_verified_autonomous_governance_surface_trajectory_v1`;
+>   `continue_autonomous_governance_surface_trajectory_v1` and
+>   `verify_autonomous_governance_surface_session_v1`);
 > - **[obligation]** — a proposed Phase-4 property, not yet code.
 >
 > Verify every citation against the module at the commit being promoted; the
@@ -395,6 +398,19 @@ bounded-drift lemma below is conditional on the committed runner or a deployed
 node append path that threads the accumulator monotonically. The integration
 runner now provides that custody; the deployed node path must make it mandatory.
 
+**Session custody closes the receipt-boundary reset.** A trajectory receipt can
+still end, so the reset question moves to the boundary between receipts.
+`continue_autonomous_governance_surface_trajectory_v1` re-verifies the parent
+receipt and derives the child carry-in only from the parent's verified finals:
+`final_state`, `trajectory_used_final`, `previous_approved_deltas_final`,
+`last_update_epoch_final`, `trajectory_budget`, and `chain_head`.
+`verify_autonomous_governance_surface_session_v1` independently checks the
+ordered session: fresh genesis, exact boundary carry, one policy hash, one
+budget, strictly increasing boundary epochs, completed receipts, drift
+conservation, and monotone session usage. This makes reset a visible verification
+failure in the integration artifact path. A deployed session-head pin is still
+needed to reject forks or withheld sibling continuations.
+
 **Lemma (bounded drift).** Over any governance trajectory, the total absolute
 movement of a budgeted parameter is at most its `limit`, regardless of the number
 of steps, the action ranking, or the observation sequence — provided every step
@@ -417,10 +433,9 @@ a *chosen, auditable* quantity, instead of unbounded drift.
   trajectory runner implements this; a no-op or admitted hold must not consume
   budget.
 - The budget reset policy is a **mechanism parameter with teeth**: whoever can
-  reset `trajectory_used` can re-open the drift. Resetting must itself be a
-  governed/authority action, or be tied to a long, fixed window. *This is an open
-  design question — see §11, Q1.* The current code carries the accumulator; the
-  reset/window policy should be made explicit and gated before promotion.
+  reset `trajectory_used` can re-open the drift. The integration session verifier
+  now treats a reset as a verification failure. Renewing or replacing a session
+  still needs an authority action or fixed era rule before live promotion.
 - The bounded-drift lemma is the headline Phase 4 theorem (O2, §10). It is
   decidable over the bounded model: finite parameters, integer deltas, integer
   budgets.
@@ -466,6 +481,7 @@ integer) or Lean (the inductive budget argument).
 |---|---|---|---|
 | **O1** | Authority soundness (P1) | `NodeAccepts(r) → Disposer(committed(r), r) = ACCEPT` | A1, A2, A11 |
 | **O2** | Bounded drift | over any trajectory, `Σ|applied−committed| ≤ limit` per budgeted parameter | A6 |
+| **O2b** | Session continuity | over any accepted session, each child carry-in equals the verified parent finals and session-used is monotone | A6 boundary reset |
 | **O3** | Bounded damage | in-envelope observation ⇒ `|applied − committed| ≤ step` and budgeted; out-of-envelope ⇒ no-op | A3 |
 | **O4** | Type confinement | no admissible action mutates a parameter ∉ `SURFACE_PARAMETER_NAMES_V1` | A10 |
 | **O5** | Non-vacuous totality | every gate drives off the closed parameter set; a missing proposed parameter is an error, never a skipped check | silent-skip holes |
@@ -493,13 +509,12 @@ to guard against; O5 is specifically there to catch it.
 These are genuine design choices the code does not yet pin down. Flagging them so
 Codex and review can resolve them deliberately rather than by default.
 
-- **Q1 — Budget reset / window policy.** The trajectory accumulator bounds drift
-  *within a trajectory*; what resets it, and when? A naive per-epoch reset
-  re-opens unbounded drift (A6 returns). Options: (a) a fixed long window with
-  decay, (b) reset only via a governance-authority action, (c) a permanent cap
-  per parameter per epoch-era. This must be explicit and gated before promotion.
-  Recommended: tie reset to the same authority gate as Phase 3, or a fixed
-  era-length window — never an automatic per-step reset.
+- **Q1 — Budget reset / window policy.** Resolved for the integration artifact
+  path by session continuity: a child receipt must carry the verified parent's
+  `trajectory_used_final`, cooldown, oscillation history, budget, and chain
+  head, or `verify_autonomous_governance_surface_session_v1` rejects it. Live
+  promotion still needs a single session-head pin and an explicit renewal rule:
+  either a governance-authority reset or a fixed era-length window.
 
 - **Q2 — Cumulative cross-parameter envelope.** Budgets are per-parameter. Is
   there a *joint* move (e.g. fee up + reserve down) that is individually budgeted
@@ -578,6 +593,8 @@ is the narrow claim this mechanism should carry.
 | trajectory accumulator custody | `run_autonomous_governance_surface_trajectory_v1` | [committed] |
 | trajectory replay verification | `verify_autonomous_governance_surface_trajectory_v1` | [committed] |
 | client-side trajectory refuse-loop | `admit_verified_autonomous_governance_surface_trajectory_v1` | [committed] |
+| cross-trajectory continuation | `continue_autonomous_governance_surface_trajectory_v1` | [committed] |
+| whole-session verification | `verify_autonomous_governance_surface_session_v1` | [committed] |
 | proposer (re-run inside disposer) | `_select_action`, `_ranked_action_ids`, `_bin_index` | [committed] |
 | offline training only | `q_learning_update_fixed_point_v1` | [committed] |
 | surface evaluator | `evaluate_autonomous_governance_surface_q_policy_v1` | [committed] |
