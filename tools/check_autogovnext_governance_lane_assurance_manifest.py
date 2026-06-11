@@ -28,6 +28,7 @@ REQUIRED_NON_CLAIMS = frozenset(
         "does_not_authorize_settlement",
         "does_not_train_q_table_online",
         "does_not_implement_governance_authority_reset_yet",
+        "does_not_replace_governance_authority_for_upgrade_actions",
     }
 )
 

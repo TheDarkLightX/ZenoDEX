@@ -68,6 +68,20 @@ def test_autogovnext_governance_lane_manifest_rejects_production_claim_flip(tmp_
         check_manifest(manifest_path=manifest_path)
 
 
+def test_autogovnext_governance_lane_manifest_requires_upgrade_authority_non_claim(tmp_path: Path) -> None:
+    manifest_path = _copy_manifest(tmp_path)
+    manifest = _load(manifest_path)
+    non_claims = manifest["non_claims"]
+    assert isinstance(non_claims, list)
+    manifest["non_claims"] = [
+        item for item in non_claims if item != "does_not_replace_governance_authority_for_upgrade_actions"
+    ]
+    _write(manifest_path, manifest)
+
+    with pytest.raises(ManifestError, match="does_not_replace_governance_authority_for_upgrade_actions"):
+        check_manifest(manifest_path=manifest_path)
+
+
 def test_autogovnext_governance_lane_manifest_rejects_missing_focused_pytest(tmp_path: Path) -> None:
     manifest_path = _copy_manifest(tmp_path)
     manifest = _load(manifest_path)

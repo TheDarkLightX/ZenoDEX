@@ -112,7 +112,7 @@
     },
     {
       "path": "tools/check_autogovnext_governance_lane_assurance_manifest.py",
-      "sha256": "20571c776e4bd2f66480cfd84fbee1b606ed876069cfb4c2c4656495f9a2fba5"
+      "sha256": "4395c0cac0e9674b1c82d0a93c29628bd030df83d97eb5da188871949e77f158"
     },
     {
       "path": "tools/run_autogovnext_governance_lane_assurance_gate.sh",
@@ -120,7 +120,7 @@
     },
     {
       "path": "tests/test_check_autogovnext_governance_lane_assurance_manifest.py",
-      "sha256": "65bea1d5430ef414f39d8b00db3055abc672a418aaf6aee561eec536ab56d07c"
+      "sha256": "190efd0150ff46910beba3f5ccf11258c12f722c49f0fe4ea342cbe662dd8d38"
     }
   ],
   "required_commands": [
