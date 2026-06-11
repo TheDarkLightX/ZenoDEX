@@ -1563,11 +1563,9 @@ def _validate_hardware_context_binding(
     ctx: _HardwareWalletContext,
     gaps: _Gaps,
 ) -> None:
-    if (
-        ctx.expected_device_pubkey is not None
-        and attestation_pubkey is not None
-        and attestation_pubkey != ctx.expected_device_pubkey.lower()
-    ):
+    if ctx.expected_device_pubkey is None:
+        gaps.add("expected device pubkey is required for hardware wallet binding")
+    elif attestation_pubkey is not None and attestation_pubkey != ctx.expected_device_pubkey.lower():
         gaps.add("device_attestation.pubkey does not match expected device pubkey")
 
     if ctx.wallet_authority_profile_hash is None:

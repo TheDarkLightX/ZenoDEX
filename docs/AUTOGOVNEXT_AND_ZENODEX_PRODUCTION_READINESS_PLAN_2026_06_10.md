@@ -603,7 +603,8 @@ Current checker hardening in this workstream:
   `issued_at`; the prompt and approval must remain close in time, and the
   approval itself must be fresh relative to evidence issuance. The lane also
   verifies the device attestation and approval signatures over canonical
-  ZenoDEX custody messages, so correctly shaped hex signatures are not
+  ZenoDEX custody messages, and the attested pubkey must match the independently
+  configured expected device pubkey. Correctly shaped hex signatures are not
   sufficient.
 - `autotrader` rejects an internally coherent but stale 24h run rehashed with a
   fresh `issued_at`; the latest supervisor heartbeat must be fresh relative to

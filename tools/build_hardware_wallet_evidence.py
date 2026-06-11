@@ -108,7 +108,9 @@ def build_hardware_wallet_evidence(args: argparse.Namespace) -> dict[str, object
         if args.expected_device_pubkey
         else None
     )
-    if expected_device_pubkey is not None and device_pubkey != expected_device_pubkey:
+    if expected_device_pubkey is None:
+        raise ValueError("expected device pubkey is required for hardware wallet binding")
+    if device_pubkey != expected_device_pubkey:
         raise ValueError("device pubkey does not match expected device pubkey")
     attestation_challenge = _normalize_hex(args.attestation_challenge, label="attestation challenge", length=64)
     approval_tx_payload_hash = _normalize_hex(args.approval_tx_payload_hash, label="approval tx payload hash", length=64)

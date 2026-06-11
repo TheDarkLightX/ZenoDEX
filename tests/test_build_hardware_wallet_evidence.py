@@ -176,6 +176,39 @@ def test_hardware_builder_rejects_expected_device_pubkey_mismatch(capsys, tmp_pa
     assert not out.exists()
 
 
+def test_hardware_builder_rejects_missing_expected_device_pubkey(capsys, tmp_path: Path) -> None:
+    out = tmp_path / "hardware_wallet.json"
+    args = _base_args(out)
+    del args[args.index("--expected-device-pubkey") : args.index("--expected-device-pubkey") + 2]
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "hardware_wallet_evidence_build_failed"
+    assert "expected device pubkey is required" in payload["detail"]
+    assert not out.exists()
+
+
+def test_hardware_evaluator_requires_expected_device_pubkey(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "hardware_wallet.json"
+
+    assert builder.main(_base_args(out)) == 0
+    capsys.readouterr()
+    evidence = json.loads(out.read_text(encoding="utf-8"))
+
+    lane = evaluate_production_hardware_wallet_evidence_v1(
+        evidence,
+        wallet_authority_profile_hash="wallet-auth-hash",
+        now=NOW,
+    )
+
+    assert lane["production_ready"] is False
+    assert "expected device pubkey is required for hardware wallet binding" in lane["gaps"]
+
+
 def test_hardware_builder_rejects_challenge_for_different_payload(capsys, tmp_path: Path) -> None:
     out = tmp_path / "hardware_wallet.json"
     args = _base_args(out, tx_payload_hash="11" * 32)
