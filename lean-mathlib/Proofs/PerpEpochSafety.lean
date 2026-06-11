@@ -264,6 +264,61 @@ theorem witness_production_penalty_funded :
     |(1 : ℚ)| * 9500 * 50 / 10000 ≤ 600 + 1 * (9500 - 10000) := by
   norm_num
 
+/-!
+Two-epoch compounded clamp bound.
+
+The single-epoch lemmas above assume the liquidation engine runs every epoch.
+If liquidation is delayed by one epoch (keeper outage, censorship), the price
+can move twice before the engine acts, and per-epoch clamps compound
+geometrically: each move is bounded relative to the *then-current* price, not
+the original one.  `two_epoch_move_bound` makes the compounding explicit:
+two `m`-bps clamped moves stay within `2m + m²/10⁴` bps of the original
+price.
+
+With production `m = 500` the two-epoch factor is `1025` bps
+(`witness_two_epoch_factor`), which exceeds the effective maintenance of
+`600` bps (`witness_two_epoch_exceeds_maintenance`): a single missed
+liquidation epoch can already exhaust the entire maintenance buffer.  This is
+the checked anchor for the `L = 2` row of the insurance shortfall analysis in
+`docs/DISASTER_STATE_MINIMIZATION_ANALYSIS.md`.
+-/
+
+/-- Two consecutive clamped moves compound: if each move is bounded by `m`
+    bps of the then-current price, the total move is bounded by
+    `(2m + m²/10⁴)` bps of the original price. -/
+theorem two_epoch_move_bound
+    (P₀ P₁ P₂ m : ℚ)
+    (hm : 0 ≤ m)
+    (h1 : |P₁ - P₀| ≤ m * P₀ / 10000)
+    (h2 : |P₂ - P₁| ≤ m * P₁ / 10000) :
+    |P₂ - P₀| ≤ (2 * m + m ^ 2 / 10000) * P₀ / 10000 := by
+  have htri : |P₂ - P₀| ≤ |P₂ - P₁| + |P₁ - P₀| := abs_sub_le P₂ P₁ P₀
+  have hP₁le : P₁ ≤ P₀ + m * P₀ / 10000 := by
+    have h := le_abs_self (P₁ - P₀)
+    linarith
+  have hmP₁ : m * P₁ ≤ m * (P₀ + m * P₀ / 10000) :=
+    mul_le_mul_of_nonneg_left hP₁le hm
+  have hexp : m * (P₀ + m * P₀ / 10000) = m * P₀ + m * (m * P₀) / 10000 := by
+    ring
+  have hgoal_exp : (2 * m + m ^ 2 / 10000) * P₀ / 10000
+      = m * P₀ / 10000 + m * P₀ / 10000 + m * (m * P₀) / 10000 / 10000 := by
+    ring
+  linarith
+
+/-- Production two-epoch factor: with `m = 500`, two compounded clamped moves
+    reach at most `1025` bps of the original price. -/
+theorem witness_two_epoch_factor :
+    2 * 500 + (500 : ℚ) ^ 2 / 10000 = 1025 := by
+  norm_num
+
+/-- One missed liquidation epoch already exhausts production maintenance:
+    the two-epoch factor (`1025` bps) exceeds effective maintenance
+    (`600` bps).  Insurance is therefore sized by the `L ≥ 2`
+    liveness-failure tail, not by single-epoch arithmetic. -/
+theorem witness_two_epoch_exceeds_maintenance :
+    (600 : ℚ) < 2 * 500 + (500 : ℚ) ^ 2 / 10000 := by
+  norm_num
+
 end PerpEpochSafety
 
 end Proofs
