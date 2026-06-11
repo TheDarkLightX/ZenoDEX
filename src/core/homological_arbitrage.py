@@ -153,7 +153,7 @@ def find_marginal_arbitrage_cycle(edges: Sequence[MarginalEdge]) -> Optional[Mar
     pred: Dict[AssetId, Tuple[AssetId, MarginalEdge] | None] = {n: None for n in nodes}
 
     improved: AssetId | None = None
-    for i in range(len(nodes)):
+    for _ in range(len(nodes)):
         improved = None
         for e in edges_sorted:
             u, v = e.asset_in, e.asset_out
@@ -176,7 +176,8 @@ def find_marginal_arbitrage_cycle(edges: Sequence[MarginalEdge]) -> Optional[Mar
             return None
 
     # Improvement on the V-th iteration implies a profitable cycle exists.
-    assert improved is not None
+    if improved is None:
+        return None
     x = improved
     for _ in range(len(nodes)):
         p = pred.get(x)

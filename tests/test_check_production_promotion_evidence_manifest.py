@@ -23,19 +23,19 @@ ROOT = Path(__file__).resolve().parents[1]
 _ORACLE_AUTHORITY_PRIVATE_KEY = Ed25519PrivateKey.from_private_bytes(bytes.fromhex("43" * 32))
 
 
-def _bounded_oracle_exercise() -> dict[str, object]:
+def _bounded_oracle_exercise(*, chain_id: str = "tau-test-prod") -> dict[str, object]:
     return {
         "authority_exercised": True,
         "public_testnet_exercised": True,
         "exercise_hash": "exhash",
         "authority_hash": "authhash",
-        "chain_id": "tau-test-prod",
+        "chain_id": chain_id,
         "public_broadcast_height": 100,
         "public_settlement_height": 105,
     }
 
 
-def _oracle_evidence() -> dict[str, object]:
+def _oracle_evidence(*, chain_id: str = "tau-test-prod") -> dict[str, object]:
     issued_at = NOW - 60
     pubkey = _ORACLE_AUTHORITY_PRIVATE_KEY.public_key().public_bytes(
         encoding=serialization.Encoding.Raw,
@@ -44,7 +44,7 @@ def _oracle_evidence() -> dict[str, object]:
     signature = _ORACLE_AUTHORITY_PRIVATE_KEY.sign(
         _oracle_authority_attestation_message(
             authority_id="zeno-oracle-prod",
-            chain_id="tau-test-prod",
+            chain_id=chain_id,
             target_network="public_testnet",
             exercise_hash="exhash",
             profile_authority_hash="authhash",
@@ -61,7 +61,7 @@ def _oracle_evidence() -> dict[str, object]:
         {
             "schema": ORACLE_AUTHORITY_EVIDENCE_SCHEMA_V1,
             "authority_id": "zeno-oracle-prod",
-            "chain_id": "tau-test-prod",
+            "chain_id": chain_id,
             "target_network": "public_testnet",
             "exercise_hash": "exhash",
             "profile_authority_hash": "authhash",
@@ -215,6 +215,59 @@ def test_manifest_checker_required_config_value_blocks_selected_lane(
     assert out["blocked_lanes"] == ["oracle_authority"]
     assert any("config.expected_chain_id is required" in gap for gap in out["gaps"])
     assert out["lanes"]["oracle_authority"]["production_ready"] is False
+
+
+def test_manifest_checker_rejects_runbook_placeholder_values_even_when_self_consistent(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    placeholder_chain_id = "EXPECTED_CHAIN_ID"
+    bounded_path = tmp_path / "bounded.json"
+    bounded_path.write_text(
+        json.dumps(_bounded_oracle_exercise(chain_id=placeholder_chain_id), sort_keys=True)
+    )
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": MANIFEST_SCHEMA,
+                "config": {
+                    "bounded_oracle_exercise_status_path": "bounded.json",
+                    "expected_chain_id": placeholder_chain_id,
+                },
+                "bundle": {
+                    "oracle_authority": _oracle_evidence(chain_id=placeholder_chain_id),
+                },
+            },
+            sort_keys=True,
+        )
+    )
+
+    assert main([str(manifest_path), "--lane", "oracle_authority", "--now", str(NOW)]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["promotion_ready"] is False
+    assert out["blocked_lanes"] == ["oracle_authority"]
+    assert any("placeholder value 'EXPECTED_CHAIN_ID'" in gap for gap in out["gaps"])
+    assert out["lanes"]["oracle_authority"]["production_ready"] is False
+
+
+def test_manifest_checker_placeholder_scan_is_lane_scoped(capsys, tmp_path: Path) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": MANIFEST_SCHEMA,
+                "config": {"expected_chain_id": "EXPECTED_CHAIN_ID"},
+                "bundle": {"app_root_jmt": _app_root_evidence()},
+            },
+            sort_keys=True,
+        )
+    )
+
+    assert main([str(manifest_path), "--lane", "app_root_jmt", "--now", str(NOW)]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["promotion_ready"] is True
+    assert out["selected_lane"] == "app_root_jmt"
 
 
 def test_manifest_checker_reports_missing_config_path(capsys, tmp_path: Path) -> None:

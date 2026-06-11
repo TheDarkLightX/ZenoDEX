@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Mapping
@@ -451,6 +452,20 @@ _MANIFEST_BUILDER_TEMPLATE: tuple[str, ...] = (
     "--explain-missing",
 )
 
+_PLACEHOLDER_TOKEN_RE = re.compile(r"^[A-Z][A-Z0-9_]{2,}$")
+_PLACEHOLDER_MARKERS = ("PLACEHOLDER", "REPLACE_ME", "TODO", "FIXME", "YOUR_")
+
+
+def _command_placeholder_tokens() -> frozenset[str]:
+    command_parts: list[str] = []
+    for template in _LANE_COLLECTION_COMMAND_TEMPLATES.values():
+        command_parts.extend(template)
+    command_parts.extend(_MANIFEST_BUILDER_TEMPLATE)
+    return frozenset(part for part in command_parts if _PLACEHOLDER_TOKEN_RE.fullmatch(part))
+
+
+_RUNBOOK_PLACEHOLDER_TOKENS: frozenset[str] = _command_placeholder_tokens()
+
 
 class _ManifestConfigBundleError(ValueError):
     pass
@@ -627,7 +642,7 @@ def _evaluate_manifest(
         now=now,
     )
     scoped = _lane_scoped_output(out, lane) if lane is not None else out
-    return _apply_required_manifest_config(scoped, config=config, lane=lane)
+    return _apply_required_manifest_config(scoped, config=config, bundle=bundle, lane=lane)
 
 
 def _config_value_present(value: object, *, field_name: str) -> bool:
@@ -686,10 +701,66 @@ def _blocked_lane_names(lanes: Mapping[str, Any]) -> list[str]:
     ]
 
 
+def _is_placeholder_string(value: str) -> bool:
+    stripped = value.strip()
+    if stripped in _RUNBOOK_PLACEHOLDER_TOKENS:
+        return True
+    upper = stripped.upper()
+    return any(marker in upper for marker in _PLACEHOLDER_MARKERS)
+
+
+def _placeholder_gaps(value: object, *, path: str) -> list[str]:
+    if isinstance(value, str):
+        if _is_placeholder_string(value):
+            return [f"{path}: placeholder value {value!r} must be replaced by real external artifact data"]
+        return []
+    if isinstance(value, Mapping):
+        gaps: list[str] = []
+        for key in sorted(value):
+            gaps.extend(_placeholder_gaps(value[key], path=f"{path}.{key}"))
+        return gaps
+    if isinstance(value, list):
+        gaps = []
+        for index, item in enumerate(value):
+            gaps.extend(_placeholder_gaps(item, path=f"{path}[{index}]"))
+        return gaps
+    return []
+
+
+def _placeholder_gaps_for_scope(
+    config: Mapping[str, Any],
+    bundle: Mapping[str, Any],
+    *,
+    lane: str | None,
+) -> dict[str, list[str]]:
+    lanes = (lane,) if lane is not None else _LANES
+    gaps: dict[str, list[str]] = {}
+    for lane_id in lanes:
+        lane_gaps: list[str] = []
+        req = _LANE_REQUIREMENTS[lane_id]
+        for field_name in (*req["required_config_paths"], *req["required_config_values"]):
+            if field_name in config:
+                lane_gaps.extend(_placeholder_gaps(config[field_name], path=f"manifest config.{field_name}"))
+        if lane_id in bundle and bundle[lane_id] is not None:
+            lane_gaps.extend(_placeholder_gaps(bundle[lane_id], path=f"bundle.{lane_id}"))
+        if lane_gaps:
+            gaps[lane_id] = lane_gaps
+    return gaps
+
+
+def _merge_lane_gaps(*gap_maps: Mapping[str, list[str]]) -> dict[str, list[str]]:
+    merged: dict[str, list[str]] = {}
+    for gap_map in gap_maps:
+        for lane_id, gaps in gap_map.items():
+            merged.setdefault(lane_id, []).extend(gaps)
+    return merged
+
+
 def _apply_required_manifest_config(
     out: dict[str, Any],
     *,
     config: Mapping[str, Any],
+    bundle: Mapping[str, Any],
     lane: str | None,
 ) -> dict[str, Any]:
     # Review note (grade B+ -> A-): lane evaluators intentionally allow some
@@ -698,7 +769,14 @@ def _apply_required_manifest_config(
     # values must be present before a lane can clear. This closes the path where
     # a lane could pass with real-looking evidence while omitting expected_chain,
     # expected_surface, expected_device_pubkey, or expected_extension_id.
-    required_gaps = _required_config_gaps(config, lane=lane)
+    # The collection runbook intentionally contains exact placeholder tokens.
+    # The manifest checker must reject those tokens if they are copied into a
+    # promotion bundle; otherwise a self-consistent fixture can satisfy a lane
+    # while still being made of operator-template values.
+    required_gaps = _merge_lane_gaps(
+        _required_config_gaps(config, lane=lane),
+        _placeholder_gaps_for_scope(config, bundle, lane=lane),
+    )
     if not required_gaps:
         return out
 
