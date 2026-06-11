@@ -4,6 +4,17 @@
   "timestamp": "2026-06-10T00:00:00Z",
   "hypotheses": [
     {
+      "id": "H-MD-SS-001",
+      "description": "A tighter executable min_amount_out can buy greedy AB execution priority and raise the reporter's output.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "With two 10000 exact-in swaps, Alice's loose min_out=0 executes second and receives 9706; raising her executable min_out to 9000 makes greedy_ab execute her first and receive 9900.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave1_spot_settlement/test_spot_strategy_deviations.py -q",
+      "obligation": "O-SS-01"
+    },
+    {
       "id": "H-MD-SS-002",
       "description": "Ceil-rounded exact-in fees are superadditive under order splitting in the bounded Wave 1 grid.",
       "verdict": "SUPPORTED",
@@ -13,6 +24,28 @@
       "key_finding": "Across all fee rates 0..10000 and every two-way partition of gross amounts 0..64, sum(split fees) >= one-shot fee; representative consensus-helper probes match the closed-form ceil formula.",
       "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave1_spot_settlement/test_spot_fee_arithmetic.py -q",
       "obligation": "O-SS-02"
+    },
+    {
+      "id": "H-MD-SS-004",
+      "description": "Identical exact-in swap ties have positive output value because the lower intent_id executes first.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "Two identical 10000 exact-in swaps tie under limit_price; the lower intent_id receives 9900 and the higher receives 9706, so the tie value is 194 output units.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave1_spot_settlement/test_spot_strategy_deviations.py -q",
+      "obligation": "O-SS-04"
+    },
+    {
+      "id": "H-MD-SS-007",
+      "description": "CoW self-netting captures fees and spread relative to pool execution for a self-supplied counter-intent pair.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "The A->B and B->A self pair nets at 100/100 with zero fees and no reserve deltas under cow_pair_netting_v1; the same pair through pool execution pays total fee 2, receives 98/99, and moves reserves.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave1_spot_settlement/test_spot_strategy_deviations.py -q",
+      "obligation": "O-SS-06"
     },
     {
       "id": "H-MD-SS-008",
@@ -26,7 +59,7 @@
       "obligation": "O-SS-07"
     }
   ],
-  "total_tests": 3,
-  "total_passed": 3,
+  "total_tests": 6,
+  "total_passed": 6,
   "total_failed": 0
 }

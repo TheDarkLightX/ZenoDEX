@@ -208,12 +208,12 @@ exactly `10_000`, carrying the remainder in `FeeAccumulatorState.dust`.
 
 | Adversary move | Rule engaged | Status |
 |---|---|---|
-| Report `min_out` above true floor to gain greedy priority | `_greedy_marginal_ab` tightest-first selection | **[open]** — selection explicitly *rewards* tight reports (O-SS-01) |
+| Report `min_out` above true floor to gain greedy priority | `_greedy_marginal_ab` tightest-first selection | **[NUMERICAL]** executable tightening flips priority and raises output in the witness (O-SS-01) |
 | Split one intent into k to change fees | `compute_fee_total` ceil per order | **[NUMERICAL]** bounded pytest supports superadditivity (O-SS-02) |
 | Split to change execution position | concavity vs priority interaction | **[open]** (O-SS-03) |
-| Choose small `intent_id` to win ties | lexicographic tie-break | **[open]** — tie value strictly positive, id is free (O-SS-04) |
+| Choose small `intent_id` to win ties | lexicographic tie-break | **[NUMERICAL]** identical-swap tie value is positive (O-SS-04) |
 | Add a 13th dust intent to flip `optimal_ab_bounded → limit_price` | `_MAX_SWAP_ORDERING_BRUTE_FORCE_N` | **[open]** — cardinality cliff (O-SS-05) |
-| Self-supply a counter-intent to net at zero fee | `cow_pair_netting_v1` | **[open]** — LP fee/spread capture (O-SS-06) |
+| Self-supply a counter-intent to net at zero fee | `cow_pair_netting_v1` | **[NUMERICAL]** self-counterpair avoids pool fees/spread in the witness (O-SS-06) |
 | Drain value through repeated fee splits | dust-carry | **[NUMERICAL]** bounded pytest supports conservation + `dust < 3` (O-SS-07) |
 
 The *operator-side* equivocation game (a forged settlement choosing which
@@ -382,12 +382,12 @@ as waves complete.
 
 | ID | Property | Statement (bounded, integer) | Denies / characterizes | Evidence | Artifact |
 |---|---|---|---|---|---|
-| O-SS-01 | min_out-priority characterization | in greedy modes, raising `min_amount_out` weakly raises execution priority; quantify the output gain at the rejection frontier | truthful-floor reporting is NOT dominant | H-MD-SS-001 | [exp] SpotBatchTiebreakGame.lean — [open] |
+| O-SS-01 | min_out-priority characterization | in greedy modes, raising `min_amount_out` can raise execution priority and output while still executable | truthful-floor reporting is NOT dominant | H-MD-SS-001 | bounded pytest evidence — [numeric: Alice min_out 0 → 9000 flips second→first and output 9706→9900] |
 | O-SS-02 | ceil-fee superadditivity | for any partition of `gross`, `Σ ceil(gᵢ·f/10⁴) ≥ ceil(Σgᵢ·f/10⁴)` | fee-motivated order splitting | H-MD-SS-002 | bounded pytest evidence — [verified: 0..64 gross, all fee bps, all two-way splits] |
 | O-SS-03 | split execution dominance + exception | sequential split output ≤ one-shot output (CPMM concavity), EXCEPT when O-SS-01 priority reorders rivals in between | naive "splitting is always bad" | H-MD-SS-003 | cites `lean-mathlib/Proofs` CPMM concavity — [open] |
-| O-SS-04 | tie-break value | for identical-tying intents, first position gains an exactly computable output delta > 0; `intent_id` is a free choice | "ties are harmless" | H-MD-SS-004 | pytest-pinned integer — [open] |
+| O-SS-04 | tie-break value | for identical-tying intents, first position gains an exactly computable output delta > 0; `intent_id` is a free choice | "ties are harmless" | H-MD-SS-004 | bounded pytest evidence — [numeric: identical 10000 exact-in swaps produce 9900 vs 9706, tie value 194] |
 | O-SS-05 | cardinality cliff | adding one intent across `_MAX_SWAP_ORDERING_BRUTE_FORCE_N` can strictly lower a victim's fill and the global (A,B) | settlement continuity in batch size | H-MD-SS-005, H-MD-SS-006 | miner witness + `esso/md_spot_cardinality_cliff_v1.yaml` — [open] |
-| O-SS-06 | CoW self-netting capture | a self-supplied counter-intent nets at zero fee and captures fee+spread otherwise accruing to LPs | "netting is neutral for LPs" | H-MD-SS-007 | derivation 03 + pytest — [open] |
+| O-SS-06 | CoW self-netting capture | a self-supplied counter-intent nets at zero fee and captures fee+spread otherwise accruing to LPs | "netting is neutral for LPs" | H-MD-SS-007 | bounded pytest evidence — [numeric: netted pair pays zero fees/no reserve deltas vs pool execution fee 2 and outputs 98/99] |
 | O-SS-07 | dust conservation, tight | `distributed + dust' = fee + dust` invariant; `dust' < 3` for the 3-way split (not merely < 10⁴) | stranded/created value across splits | H-MD-SS-008 | bounded pytest evidence — [verified: representative routes, fees, dust, and sequence carry] |
 | O-SB-01 | demand reduction exists | a 2-bidder, 2-unit integer witness where reducing reported quantity strictly raises surplus | "uniform pricing is IC" | H-MD-SB-001 | bounded pytest witness — [numeric: strict gain, rival sweep 1..99 at value 100]; [exp] AuctionUniformPriceIC.lean still queued |
 | O-SB-02 | single-unit non-truthfulness | pivotal winner pays own bid ⇒ shading to runner-up+1 strictly profits | "single-unit demand is truthful here" | H-MD-SB-002 | bounded pytest witness — [numeric: optimal shade = runner-up+1, strict gain]; derivation 06 still queued |

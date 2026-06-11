@@ -6,12 +6,12 @@ artifact status.
 
 | Obligation | Hypothesis ID(s) | Domain | Artifact / status |
 |---|---|---|---|
-| `O-SS-01` | `H-MD-SS-001` | spot settlement | queued |
+| `O-SS-01` | `H-MD-SS-001` | spot settlement | `wave1_spot_settlement/test_spot_strategy_deviations.py`; supported |
 | `O-SS-02` | `H-MD-SS-002` | spot settlement | `wave1_spot_settlement/test_spot_fee_arithmetic.py`; supported |
 | `O-SS-03` | `H-MD-SS-003` | spot settlement | queued |
-| `O-SS-04` | `H-MD-SS-004` | spot settlement | queued |
+| `O-SS-04` | `H-MD-SS-004` | spot settlement | `wave1_spot_settlement/test_spot_strategy_deviations.py`; supported |
 | `O-SS-05` | `H-MD-SS-005`, `H-MD-SS-006` | spot settlement | queued |
-| `O-SS-06` | `H-MD-SS-007` | spot settlement | queued |
+| `O-SS-06` | `H-MD-SS-007` | spot settlement | `wave1_spot_settlement/test_spot_strategy_deviations.py`; supported |
 | `O-SS-07` | `H-MD-SS-008` | spot settlement | `wave1_spot_settlement/test_spot_fee_arithmetic.py`; supported |
 | `O-SB-01` | `H-MD-SB-001` | sealed bid | `wave2_sealed_bid/test_sealed_bid_deviations.py`; supported |
 | `O-SB-02` | `H-MD-SB-002` | sealed bid | `wave2_sealed_bid/test_sealed_bid_deviations.py`; supported |
