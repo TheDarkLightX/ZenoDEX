@@ -204,7 +204,7 @@ def test_autotrader_builder_writes_lane_ready_evidence(capsys, tmp_path: Path) -
     assert len(evidence["evidence_hash"]) == 64
 
 
-def test_autotrader_builder_check_rejects_template_chain_id_before_write(
+def test_autotrader_builder_rejects_template_chain_id_before_write(
     capsys,
     tmp_path: Path,
 ) -> None:
@@ -218,11 +218,11 @@ def test_autotrader_builder_check_rejects_template_chain_id_before_write(
     )
     args[args.index("--multi-signer-approvals-file") + 1] = str(approvals)
 
-    assert builder.main([*args, "--check"]) == 1
+    assert builder.main(args) == 2
 
-    err = json.loads(capsys.readouterr().err)
-    assert err["production_ready"] is False
-    assert any("placeholder value 'EXPECTED_CHAIN_ID'" in gap for gap in err["gaps"])
+    err = json.loads(capsys.readouterr().out)
+    assert err["error"] == "autotrader_evidence_build_failed"
+    assert "chain_id placeholder value 'EXPECTED_CHAIN_ID' must be replaced" in err["detail"]
     assert not out.exists()
 
 
@@ -291,7 +291,7 @@ def test_autotrader_builder_rejects_missing_expected_chain_id_before_writing(
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["error"] == "autotrader_evidence_build_failed"
-    assert "expected chain_id is required for autotrader binding" in payload["detail"]
+    assert "expected_chain_id must be a non-empty string" in payload["detail"]
     assert not out.exists()
 
 

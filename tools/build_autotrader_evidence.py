@@ -48,6 +48,7 @@ from src.integration.production_promotion_evidence import (  # noqa: E402
     _PUBKEY_HEX_LEN,
     _SIGNATURE_HEX_LEN,
     AUTOTRADER_EVIDENCE_SCHEMA_V1,
+    _is_template_placeholder,
     attach_production_autotrader_hash_v1,
     evaluate_production_autotrader_evidence_v1,
     production_autotrader_run_approval_hash_v1,
@@ -94,6 +95,14 @@ def _positive_int(value: object, *, label: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise ValueError(f"{label} must be a positive integer")
     return int(value)
+
+
+def _non_placeholder_str(value: object, *, label: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{label} must be a non-empty string")
+    if _is_template_placeholder(value):
+        raise ValueError(f"{label} placeholder value {value!r} must be replaced")
+    return value
 
 
 def _bounded_int(value: object, *, label: str, lo: int, hi: int) -> int:
@@ -369,16 +378,21 @@ def build_autotrader_evidence(args: argparse.Namespace) -> dict[str, Any]:
         last_heartbeat_at=int(run_window["last_heartbeat_at"]),
     )
     budget = _validate_budget(args)
-    if not isinstance(args.expected_chain_id, str) or not args.expected_chain_id:
-        raise ValueError("expected chain_id is required for autotrader binding")
-    if args.chain_id != args.expected_chain_id:
+    supervisor_id = _non_placeholder_str(args.supervisor_id, label="supervisor_id")
+    chain_id = _non_placeholder_str(args.chain_id, label="chain_id")
+    profile_supervisor_hash = _non_placeholder_str(
+        args.profile_supervisor_hash,
+        label="profile_supervisor_hash",
+    )
+    expected_chain_id = _non_placeholder_str(args.expected_chain_id, label="expected_chain_id")
+    if chain_id != expected_chain_id:
         raise ValueError("chain_id does not match expected_chain_id")
     expected_signer_pubkeys = _load_expected_approval_signer_pubkeys(args)
     evidence_body: dict[str, Any] = {
         "schema": AUTOTRADER_EVIDENCE_SCHEMA_V1,
-        "supervisor_id": args.supervisor_id,
-        "chain_id": args.chain_id,
-        "profile_supervisor_hash": args.profile_supervisor_hash,
+        "supervisor_id": supervisor_id,
+        "chain_id": chain_id,
+        "profile_supervisor_hash": profile_supervisor_hash,
         # Review finding (grade B+ -> A-): without --check the producer could
         # write a production-looking supervisor run with invalid heartbeats,
         # crash intervals, signer quorum, or budget overruns. Validate the
