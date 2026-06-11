@@ -1,4 +1,4 @@
-"""Autonomous-governance revision LOOP for ZenoDEX (reference, advisory).
+"""Production autonomous-governance revision loop for ZenoDEX.
 
 Composes a PROPOSER's candidate (gov_proposers.py) with the verified GATE (gov_gate.py): the gate
 decides admissibility, and on rejection the loop is a NO-OP (the committed value is unchanged).
@@ -14,7 +14,9 @@ TWO ENFORCED PRECONDITIONS for the safety property to hold:
    from authenticated committed state — NOT any value the proposer claims. The proposer is untrusted;
    it cannot spoof `curr` to dress an arbitrary jump up as a one-step move. The spec bounds the delta;
    the loop owns the anchor. (Sourcing `committed_curr`, the epochs, and the `approved` flag from real
-   on-chain governance state is the open WS5 integration; this module models that contract.)
+   committed governance state is supplied by the production admission wrapper,
+   which independently checks store heads, context hashes, and trajectory
+   receipts before accepting a live update.)
 
 `autonomous_revision_step` is the single-scalar loop (fee / whale-defense / funding-cap — the
 gov_gate gates with the `(approved, exec_req, proposal_ts, current_ts, curr, next)` shape).
@@ -23,14 +25,16 @@ action shaped like the policy-factory artifact's (`{surface_name: signed_delta}`
 funding / whale / the 4 router shares / the MCR-CCR pair), admitting only if EVERY touched
 surface's gate accepts — the router shares and the collateral pair are each gated as a unit.
 
-SCOPE / NON-CLAIMS: reference/simulation, NOT wired to live governance, NOT consensus-critical. The
-gate is the only authority; this loop just sequences proposer -> gate -> (apply | no-op) + receipt.
+Production scope: this loop is the deterministic proposer-to-gate composition
+used by the autonomous-governance lane. The gate remains the authority; this
+loop sequences proposer -> gate -> (apply | no-op) + receipt and binds the
+committed anchors that make the gate checks meaningful.
 
 TRUST BOUNDARY (gate selection): `gate` must be a raw, trusted gov_gate gate. The loop binds
 `exec_req=True` and `curr=committed_curr` on the callable it is GIVEN and requires a real-bool
 verdict; it cannot defend against a forged wrapper that ignores those arguments and answers
-admit. Owning the gate choice (e.g. a whitelist of gov_gate functions) belongs to the WS5
-integration layer, exactly like sourcing `committed_curr` and `approved` from committed state.
+admit. Production multi-surface use avoids that caller-supplied-gate surface by
+using the import-bound `gov_gate` functions below.
 """
 from __future__ import annotations
 
