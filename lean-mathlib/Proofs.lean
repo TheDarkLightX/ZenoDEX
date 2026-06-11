@@ -39,6 +39,7 @@ import Proofs.DisasterAntichainBasis
 import Proofs.DisasterClassClosure
 import Proofs.DisasterPotentialSafety
 import Proofs.DisasterTraceDiscoveryChallenge
+import Proofs.DutchLiquidationAuction
 import Proofs.EconomicSecurityEnvelope
 import Proofs.ExactOutAdaptiveGate
 import Proofs.FeeAwareAntiFragmentation
@@ -85,6 +86,7 @@ import Proofs.MSTCertificateSwapFinset
 import Proofs.NoFreeResourceTraceLedger
 import Proofs.NoRisklessYieldLaw
 import Proofs.OppositeDirectionNoncommutativity
+import Proofs.OracleMedianRobustness
 import Proofs.PerpADLSybilBankruptcyClosure
 import Proofs.PerpCascadeSafety
 import Proofs.PerpEpochSafety
