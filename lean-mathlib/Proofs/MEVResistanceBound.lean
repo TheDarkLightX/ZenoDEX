@@ -238,5 +238,82 @@ theorem witness_k_fold_sharpness :
     1003 / 1 < 5 * (1003 / (5 * 1)) + 5 := by
   native_decide
 
+/-! ## Weighted dilution (heterogeneous intent sizes)
+
+The `1/n` family above models EQUAL intents.  With heterogeneous sizes the
+modeled sandwichable surface of an intent is proportional to its SHARE of
+the batch, not to `1/n`: a whale retains its share of the exposure no
+matter how many small intents surround it (`witness_whale_exposure`).  The
+results below state the weighted model and its conservation law, and
+recover the `1/n` family as the equal-size specialization — so the `1/n`
+headline numbers are licensed exactly for equal-size batches and nothing
+stronger. -/
+
+/-- Modeled sandwich exposure of an intent of size `s` in a batch of total
+    size `S`: the intent's share of the single-intent base exposure. -/
+def weightedExposure (base s S : ℕ) : ℕ := base * s / S
+
+/-- Floor division is superadditive in the numerator:
+    `a/d + b/d ≤ (a+b)/d`. -/
+theorem nat_div_add_div_le (a b d : ℕ) : a / d + b / d ≤ (a + b) / d := by
+  rcases Nat.eq_zero_or_pos d with h | h
+  · simp [h]
+  · rw [Nat.le_div_iff_mul_le h, Nat.add_mul]
+    exact Nat.add_le_add (Nat.div_mul_le_self a d) (Nat.div_mul_le_self b d)
+
+/-- Conservation: total modeled exposure across the batch never exceeds the
+    single-intent base exposure. -/
+theorem weightedExposure_sum_le (base : ℕ) (sizes : List ℕ) :
+    (sizes.map (fun s => weightedExposure base s sizes.sum)).sum ≤ base := by
+  have hsub : ∀ (l : List ℕ) (d : ℕ),
+      (l.map (fun s => base * s / d)).sum ≤ (l.map (fun s => base * s)).sum / d := by
+    intro l d
+    induction l with
+    | nil => simp
+    | cons a t ih =>
+        simp only [List.map_cons, List.sum_cons]
+        calc base * a / d + (t.map (fun s => base * s / d)).sum
+            ≤ base * a / d + (t.map (fun s => base * s)).sum / d :=
+              Nat.add_le_add_left ih _
+          _ ≤ (base * a + (t.map (fun s => base * s)).sum) / d :=
+              nat_div_add_div_le _ _ _
+  have hmul : ∀ l : List ℕ, (l.map (fun s => base * s)).sum = base * l.sum := by
+    intro l
+    induction l with
+    | nil => simp
+    | cons a t ih => simp [ih, Nat.mul_add]
+  calc (sizes.map (fun s => weightedExposure base s sizes.sum)).sum
+      ≤ (sizes.map (fun s => base * s)).sum / sizes.sum := hsub sizes sizes.sum
+    _ = base * sizes.sum / sizes.sum := by rw [hmul]
+    _ ≤ base := by
+        rcases Nat.eq_zero_or_pos sizes.sum with h | h
+        · simp [h]
+        · rw [Nat.mul_div_cancel _ h]
+
+/-- Equal-size specialization: in a batch of `n` equal intents the weighted
+    exposure is exactly `base / n` — the original `1/n` dilution family. -/
+theorem weightedExposure_equal_sizes (base n s : ℕ) (hs : 0 < s) :
+    weightedExposure base s (List.replicate n s).sum = base / n := by
+  have hsum : (List.replicate n s).sum = n * s := by
+    induction n with
+    | zero => simp
+    | succ k ih =>
+        simp only [List.replicate_succ, List.sum_cons, ih]
+        ring
+  unfold weightedExposure
+  rw [hsum]
+  exact Nat.mul_div_mul_right _ _ hs
+
+/-- Honest counterpoint to the equal-size family: one whale of size 96 with
+    four size-1 intents (batch of 5, total 100) retains 96% of the base
+    exposure.  The `n = 5` headline (80% reduction) does not apply to
+    whale-bearing batches; only share dilution does, and the shares conserve
+    the base exactly here (960 + 4·10 = 1000). -/
+theorem witness_whale_exposure :
+    weightedExposure 1000 96 100 = 960 ∧
+    weightedExposure 1000 1 100 = 10 ∧
+    960 + 4 * 10 = 1000 := by
+  refine ⟨?_, ?_, ?_⟩ <;> native_decide
+
 end MEVResistanceBound
 end Proofs

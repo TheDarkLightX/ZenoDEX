@@ -370,6 +370,92 @@ theorem witness_reward_floor :
   unfold liquidation_reward
   norm_num
 
+/-! ## Tier 6 — Keeper-Race Rent Dissipation
+
+The Tier-4/5 results are 1-player: ONE keeper decides whether to liquidate.
+With an open mempool, liquidation is a race: several keepers pay gas, one
+claims the penalty.  The reduced-form model below shows the equilibrium
+outcome: keepers enter until the prize is exhausted, so the aggregate gas
+burned is within ONE gas unit of the entire penalty
+(`race_dissipation_bounds`) — the prize is dissipated into competition, not
+captured.  The equilibrium attempter count is unique
+(`race_equilibrium_count_unique`), and the waste (gas beyond the single
+useful attempt) exceeds `prize − 2·gas` (`race_waste_exceeds_prize_minus_two_gas`).
+
+Mechanism consequence: raising the liquidation penalty above the keeper-gas
+floor of Tier 5 does NOT buy additional liveness in this model — it only
+increases dissipated gas linearly.  The penalty should sit just above the
+`liquidation_profitable_on_clamp_band` floor (subject to the funded-
+liquidation cap of `PerpEpochSafety`), or the race should be replaced by a
+batch assignment, consistent with the protocol's uniform-clearing design. -/
+
+/-- Reduced-form keeper race: `k` symmetric attempters each pay gas `c`; one
+    wins the prize `R` under a uniform tie-break, so each attempter's
+    expected net payoff is `R / k − c`.  Skipping pays 0. -/
+def raceAttemptPayoff (R c : ℚ) (k : ℕ) : ℚ := R / k - c
+
+/-- `k` is an equilibrium attempter count: no attempter regrets entering,
+    and one more entrant would be strictly unprofitable. -/
+def RaceEquilibriumCount (R c : ℚ) (k : ℕ) : Prop :=
+  (1 ≤ k → 0 ≤ raceAttemptPayoff R c k) ∧ raceAttemptPayoff R c (k + 1) < 0
+
+/-- **Rent dissipation**: in any keeper-race equilibrium with at least one
+    attempter, the aggregate gas spend `k·c` is within one gas unit of the
+    entire prize: `R − c < k·c ≤ R`. -/
+theorem race_dissipation_bounds (R c : ℚ) (k : ℕ) (hk : 1 ≤ k)
+    (heq : RaceEquilibriumCount R c k) :
+    (k : ℚ) * c ≤ R ∧ R - c < (k : ℚ) * c := by
+  obtain ⟨hin, hout⟩ := heq
+  have hkQ : (1 : ℚ) ≤ (k : ℚ) := by exact_mod_cast hk
+  have hkpos : (0 : ℚ) < (k : ℚ) := by linarith
+  have h1 : 0 ≤ R / (k : ℚ) - c := by
+    have h := hin hk
+    simpa [raceAttemptPayoff] using h
+  have h2 : R / ((k : ℚ) + 1) - c < 0 := by
+    have h := hout
+    simpa [raceAttemptPayoff, Nat.cast_add, Nat.cast_one] using h
+  constructor
+  · have hc_le : c ≤ R / (k : ℚ) := by linarith
+    rw [mul_comm]
+    exact (le_div_iff₀ hkpos).mp hc_le
+  · have hk1 : (0 : ℚ) < (k : ℚ) + 1 := by linarith
+    have hRc : R / ((k : ℚ) + 1) < c := by linarith
+    have h3 : R < c * ((k : ℚ) + 1) := (div_lt_iff₀ hk1).mp hRc
+    nlinarith
+
+/-- The equilibrium attempter count is unique (it is `⌊R/c⌋`). -/
+theorem race_equilibrium_count_unique (R c : ℚ) (hc : 0 < c) (k₁ k₂ : ℕ)
+    (hk₁ : 1 ≤ k₁) (hk₂ : 1 ≤ k₂)
+    (h₁ : RaceEquilibriumCount R c k₁) (h₂ : RaceEquilibriumCount R c k₂) :
+    k₁ = k₂ := by
+  obtain ⟨hA1, hA2⟩ := race_dissipation_bounds R c k₁ hk₁ h₁
+  obtain ⟨hB1, hB2⟩ := race_dissipation_bounds R c k₂ hk₂ h₂
+  have h12 : (k₁ : ℚ) * c < ((k₂ : ℚ) + 1) * c := by nlinarith
+  have h21 : (k₂ : ℚ) * c < ((k₁ : ℚ) + 1) * c := by nlinarith
+  have hk12 : (k₁ : ℚ) < (k₂ : ℚ) + 1 := lt_of_mul_lt_mul_right h12 (le_of_lt hc)
+  have hk21 : (k₂ : ℚ) < (k₁ : ℚ) + 1 := lt_of_mul_lt_mul_right h21 (le_of_lt hc)
+  have hn12 : k₁ < k₂ + 1 := by exact_mod_cast hk12
+  have hn21 : k₂ < k₁ + 1 := by exact_mod_cast hk21
+  omega
+
+/-- The dissipated waste (gas beyond the one useful attempt) exceeds
+    `R − 2c`: it grows linearly with the prize.  Raising the penalty beyond
+    the gas floor only burns more aggregate gas. -/
+theorem race_waste_exceeds_prize_minus_two_gas (R c : ℚ) (k : ℕ) (hk : 1 ≤ k)
+    (heq : RaceEquilibriumCount R c k) :
+    R - 2 * c < ((k : ℚ) - 1) * c := by
+  have h := (race_dissipation_bounds R c k hk heq).2
+  have hexp : ((k : ℚ) - 1) * c = (k : ℚ) * c - c := by ring
+  linarith
+
+/-- Non-vacuity: prize 10, gas 3.  The unique equilibrium count is 3
+    (payoff `10/3 − 3 ≥ 0`, a fourth entrant nets `10/4 − 3 < 0`); the
+    aggregate gas `9` sits inside `(R − c, R] = (7, 10]`. -/
+theorem witness_race_equilibrium :
+    RaceEquilibriumCount 10 3 3 ∧
+    (3 : ℚ) * 3 ≤ 10 ∧ (10 : ℚ) - 3 < 3 * 3 := by
+  refine ⟨⟨fun _ => ?_, ?_⟩, ?_, ?_⟩ <;> norm_num [raceAttemptPayoff]
+
 end PerpGameTheory
 
 end Proofs

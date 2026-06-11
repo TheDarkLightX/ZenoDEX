@@ -219,6 +219,20 @@ The `L = 2` row is now machine-checked:
 production numbers (`1025` bps total move capacity vs `600` bps
 maintenance).
 
+The full `L`-epoch envelope is also now machine-checked
+(`clamped_path_upper` / `clamped_path_lower`), together with a structural
+asymmetry that changes how this table should be read: by Bernoulli, the
+long-side (downward) tail is **subadditive** — at most `L·m` bps of the
+original price (`clamped_path_drop_le_linear`) — while the short-side
+(upward) tail is **superadditive** — at least `L·m` bps
+(`short_tail_dominates_linear`) — and the short tail dominates the long
+tail at every horizon (`short_tail_ge_long_tail`).  At `L = 3` with
+production parameters: short `1576.25` bps vs long `1426.25` bps
+(`witness_three_epoch_tails`).  **The shortfall table above is therefore
+exact for shorts and conservative for longs; insurance must key on the
+short-side OI, and any sizing derived from long-side arithmetic
+under-provisions at every `L ≥ 2`.**
+
 So the entire insurance requirement is generated at `L ≥ 2`, and it is linear
 in the open interest that can plausibly be stranded for `L` epochs.
 Minimization actions:
@@ -290,9 +304,9 @@ matching `PerpFundingSinkConservation.lean` (`perp_engine.py:2553-2557`).
 
 | Lever | Action | Disaster-state effect | Cost |
 |---|---|---|---|
-| 1 | `inv_funded_liquidation` (R1 of mechanism doc) | single-epoch bad-debt class unrepresentable | one runtime inequality |
+| 1 | `inv_funded_liquidation` (R1 of mechanism doc) | single-epoch bad-debt class unrepresentable | **implemented** (`src/core/perp_v2/invariants.py`, registry entry 19) |
 | 2 | strict-descent receipts above per-axis θ | unbounded dwell → dwell ≤ initial excess (checked) | receipt field + checker rule |
 | 3 | dominance accounting + minimal antichain + hitting-set order | effective open frontier < 96; per-proof closure dividend | bookkeeping only |
-| 4 | `insurance ≥ OI_cap·shortfall(L*)` | residual tail explicitly priced; adequacy checkable (`L = 2` row machine-checked) | parameter declaration + one lemma |
+| 4 | `insurance ≥ OI_short_cap·shortfall(L*)` keyed to the SHORT tail | residual tail explicitly priced; `L`-epoch envelope and tail asymmetry machine-checked | parameter declaration (lemmas done) |
 | 5a | SP cooldown + partial absorption (R7) | zUSD exit-spiral trace broken at two arrows | activate proven design |
 | 5b | implement ADL haircut (R8) | bankruptcy freeze gets an escape valve; sybil-drain closure becomes runtime-real | implement proven design |

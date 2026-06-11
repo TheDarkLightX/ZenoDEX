@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from .math import maint_margin_req
+from .math import BPS_SCALE, maint_margin_req
 from .types import EpochPhase, PerpState
 
 
@@ -96,6 +96,27 @@ def inv_liquidation_ic_guard(s: PerpState) -> bool:
     return s.liquidation_penalty_bps < eff_maint
 
 
+def inv_funded_liquidation(s: PerpState) -> bool:
+    """Funded-liquidation parameter inequality.
+
+    ``penalty * (BPS + m) <= BPS * (eff_maint - m)`` guarantees that after any
+    single clamped oracle move the liquidation penalty priced at the post-move
+    price is covered by the account's own post-move equity, so the
+    ``liq_penalty_capped`` cap never binds and the keeper reward never draws
+    on the insurance fund.  Lean proof:
+    ``Proofs.PerpEpochSafety.liquidation_penalty_funded_after_bounded_move``.
+
+    Strictly stronger than ``inv_liquidation_ic_guard`` (which ignores the
+    oracle clamp ``m``): with ``m = eff_maint`` the IC guard still passes
+    while the penalty is unfunded at the clamp edge.
+    """
+    eff_maint = s.maintenance_margin_bps + s.depeg_buffer_bps
+    return (
+        s.liquidation_penalty_bps * (BPS_SCALE + s.max_oracle_move_bps)
+        <= BPS_SCALE * (eff_maint - s.max_oracle_move_bps)
+    )
+
+
 def inv_funding_epoch_gated(s: PerpState) -> bool:
     return s.funding_last_applied_epoch <= s.now_epoch
 
@@ -133,6 +154,7 @@ INVARIANT_REGISTRY: dict[str, Callable[[PerpState], bool]] = {
     "inv_insurance_nonneg": inv_insurance_nonneg,
     "inv_insurance_conservation": inv_insurance_conservation,
     "inv_liquidation_ic_guard": inv_liquidation_ic_guard,
+    "inv_funded_liquidation": inv_funded_liquidation,
     "inv_funding_epoch_gated": inv_funding_epoch_gated,
     "inv_fee_pool_eq_fee_income": inv_fee_pool_eq_fee_income,
     "inv_phase_consistent": inv_phase_consistent,
