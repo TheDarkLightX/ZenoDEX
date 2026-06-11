@@ -1903,7 +1903,9 @@ def _check_zk_pairwise_distinct_hashes(
 
 
 def _validate_zk_surface(surface: str | None, *, expected_surface: str | None, gaps: _Gaps) -> None:
-    if expected_surface is not None and surface is not None and surface != expected_surface:
+    if expected_surface is None:
+        gaps.add("expected surface is required for zk wrapping binding")
+    elif surface is not None and surface != expected_surface:
         gaps.add("zk wrapping evidence surface does not match expected_surface")
 
 

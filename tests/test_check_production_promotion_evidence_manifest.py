@@ -549,6 +549,7 @@ def test_manifest_checker_can_attach_collection_runbook_for_all_lanes(
     assert "runs/production_promotion/input/live_proof_wrapper_status.json" in (
         runbook["lanes"]["zk_wrapping"]["producer_command_template"]
     )
+    assert "--expected-surface" in runbook["lanes"]["zk_wrapping"]["producer_command_template"]
     assert "tools/build_production_promotion_evidence_manifest.py" in runbook["manifest_command_template"]
     assert "tools/run_production_promotion_evidence_gate.sh" in runbook["final_gate_command_template"]
     assert "--include-runbook" in runbook["final_gate_command_template"]

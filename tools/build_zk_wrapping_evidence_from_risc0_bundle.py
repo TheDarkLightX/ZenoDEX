@@ -170,6 +170,10 @@ def _live_wrapper_sample_hashes(live_status: Mapping[str, Any] | None) -> tuple[
 def _build_evidence(args: argparse.Namespace) -> dict[str, Any]:
     if args.candidate_only and args.check:
         raise ValueError("--candidate-only cannot be combined with --check")
+    if not isinstance(args.expected_surface, str) or not args.expected_surface:
+        raise ValueError("expected surface is required for ZK wrapping binding")
+    if args.surface != args.expected_surface:
+        raise ValueError("surface does not match expected_surface")
     if args.live_wrapper_status is None and not args.candidate_only:
         # Review finding (grade B+ -> A-): the builder could emit a
         # production-schema ZK wrapping artifact from local bundle metadata
@@ -290,6 +294,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--out", type=Path, required=True, help="ZK wrapping evidence output path")
     parser.add_argument("--live-wrapper-out", type=Path, help="matching live-wrapper status sidecar output path")
     parser.add_argument("--surface", required=True)
+    parser.add_argument("--expected-surface")
     parser.add_argument("--artifact-id", default="risc0-surface-bundle-v1")
     parser.add_argument("--proof-system", default="risc-zero-v1")
     parser.add_argument("--circuit-source", type=Path, default=ROOT / "zk" / "state_proof_risc0")
@@ -332,7 +337,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             check = evaluate_production_zk_wrapping_evidence_v1(
                 evidence,
                 live_proof_wrapper_status=live_status,
-                expected_surface=args.surface,
+                expected_surface=args.expected_surface,
                 # Review note (grade B -> A-): production verifier time must
                 # not be inferred from the evidence timestamp. Otherwise stale
                 # proof-wrapper evidence can self-certify freshness.

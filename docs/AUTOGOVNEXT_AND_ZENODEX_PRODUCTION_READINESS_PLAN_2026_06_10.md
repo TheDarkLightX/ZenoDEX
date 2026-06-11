@@ -598,7 +598,8 @@ Current checker hardening in this workstream:
   matching sample proof request and receipt hashes. The lane also binds the
   captured live wrapper verifier/circuit artifact metadata and artifact-binding
   hash back to the evidence body so a sidecar from one circuit or verifier
-  cannot clear another circuit's production-promotion evidence.
+  cannot clear another circuit's production-promotion evidence. The surface
+  must also match the independently configured production surface.
 - `hardware_wallet` rejects stale device approvals rehashed with a fresh
   `issued_at`; the prompt and approval must remain close in time, and the
   approval itself must be fresh relative to evidence issuance. The lane also
@@ -691,6 +692,7 @@ python3 tools/build_zk_wrapping_evidence_from_risc0_bundle.py \
   --out runs/production_promotion/latest/zk_wrapping.json \
   --live-wrapper-out runs/production_promotion/latest/live_proof_wrapper_status.json \
   --surface EXPECTED_SURFACE \
+  --expected-surface EXPECTED_SURFACE \
   --verifier-cmd-json VERIFIER_CMD_JSON \
   --live-wrapper-status runs/production_promotion/input/live_proof_wrapper_status.json \
   --audit-id AUDIT_ID \

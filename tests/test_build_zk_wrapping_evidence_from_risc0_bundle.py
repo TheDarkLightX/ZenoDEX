@@ -178,6 +178,8 @@ def _base_builder_args(tmp_path: Path, out: Path, source_dir: Path) -> list[str]
         str(out),
         "--surface",
         "risc0.zenodex_public_surfaces.v1",
+        "--expected-surface",
+        "risc0.zenodex_public_surfaces.v1",
         "--verifier-cmd-json",
         json.dumps(["r0vm", "verify"]),
         "--audit-id",
@@ -263,6 +265,31 @@ def test_zk_wrapping_evaluator_rejects_unconfigured_live_artifact_binding(
 
     assert lane["production_ready"] is False
     assert "live proof wrapper must show artifact_binding_configured=true" in lane["gaps"]
+
+
+def test_zk_wrapping_evaluator_requires_expected_surface(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "lib.rs").write_text("pub fn checked() {}\n", encoding="utf-8")
+    out = tmp_path / "zk_wrapping.json"
+
+    assert builder.main([*_base_builder_args(tmp_path, out, source_dir), "--candidate-only"]) == 0
+    capsys.readouterr()
+    evidence = json.loads(out.read_text(encoding="utf-8"))
+    live_status = _live_status_for_evidence(evidence)
+
+    lane = evaluate_production_zk_wrapping_evidence_v1(
+        evidence,
+        live_proof_wrapper_status=live_status,
+        expected_surface=None,
+        now=NOW,
+    )
+
+    assert lane["production_ready"] is False
+    assert "expected surface is required for zk wrapping binding" in lane["gaps"]
 
 
 def test_zk_wrapping_evaluator_rejects_live_wrapper_error(
@@ -416,6 +443,47 @@ def test_zk_wrapping_builder_requires_live_status_unless_candidate_only(
     assert not out.exists()
 
 
+def test_zk_wrapping_builder_rejects_missing_expected_surface_before_write(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "lib.rs").write_text("pub fn checked() {}\n", encoding="utf-8")
+    out = tmp_path / "zk_wrapping.json"
+    args = _base_builder_args(tmp_path, out, source_dir)
+    index = args.index("--expected-surface")
+    del args[index : index + 2]
+
+    code = builder.main([*args, "--candidate-only"])
+
+    assert code == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "zk_wrapping_evidence_build_failed"
+    assert "expected surface is required" in payload["detail"]
+    assert not out.exists()
+
+
+def test_zk_wrapping_builder_rejects_expected_surface_mismatch_before_write(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "lib.rs").write_text("pub fn checked() {}\n", encoding="utf-8")
+    out = tmp_path / "zk_wrapping.json"
+    args = _base_builder_args(tmp_path, out, source_dir)
+    args[args.index("--expected-surface") + 1] = "risc0.other_surface.v1"
+
+    code = builder.main([*args, "--candidate-only"])
+
+    assert code == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "zk_wrapping_evidence_build_failed"
+    assert "surface does not match expected_surface" in payload["detail"]
+    assert not out.exists()
+
+
 def test_zk_wrapping_builder_rejects_candidate_only_with_check(
     capsys,
     tmp_path: Path,
@@ -495,6 +563,8 @@ def test_zk_wrapping_builder_rejects_bad_risc0_bundle_before_write(capsys, tmp_p
             "--out",
             str(out),
             "--surface",
+            "risc0.zenodex_public_surfaces.v1",
+            "--expected-surface",
             "risc0.zenodex_public_surfaces.v1",
             "--verifier-cmd-json",
             json.dumps(["r0vm", "verify"]),

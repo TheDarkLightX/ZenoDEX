@@ -303,6 +303,8 @@ _LANE_COLLECTION_COMMAND_TEMPLATES: Mapping[str, tuple[str, ...]] = {
         "runs/production_promotion/latest/live_proof_wrapper_status.json",
         "--surface",
         "EXPECTED_SURFACE",
+        "--expected-surface",
+        "EXPECTED_SURFACE",
         "--verifier-cmd-json",
         "VERIFIER_CMD_JSON",
         "--live-wrapper-status",
