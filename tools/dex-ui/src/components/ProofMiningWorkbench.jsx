@@ -393,7 +393,7 @@ function dexIntentSignerForWallet(wallet) {
 async function buildLiveProofMiningPayoutTemplate() {
   const chainId = 'zeno-ledger-localtest-v0';
   const wallet = await connectProofMiningSigningWallet(chainId);
-  const { rewardPool } = await resolveDemoRewardPool();
+  const { rewardPool, rewardPoolBefore } = await resolveDemoRewardPool();
   const seed = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   const rawAsset0 = await hashV0('proof_mining_demo_asset0_v0', { seed });
   const rawAsset1 = await hashV0('proof_mining_demo_asset1_v0', { seed });
@@ -428,6 +428,9 @@ async function buildLiveProofMiningPayoutTemplate() {
     proposal_slot: 0,
     prover_id: 1,
     reward_pool_pubkey: rewardPool,
+    // The reward pool balance the UI already resolved from tokenomics; the
+    // backend binds the template to it (and rejects an under-funded pool).
+    reward_pool_before: rewardPoolBefore,
   }, { timeoutMs: 20_000 });
   return {
     ...response.status_request,

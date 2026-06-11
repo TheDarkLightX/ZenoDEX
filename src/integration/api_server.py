@@ -1631,6 +1631,256 @@ class _Handler(BaseHTTPRequestHandler):
                 )
                 return True
 
+        if path == "/api/dex/proof_mining_payout_template":
+            # Build a deterministic proof-mining payout TEMPLATE: a real,
+            # claimability-passing claim (constructed with the canonical core
+            # builder) plus the runtime app-state, chain balances, proof
+            # context, and the submit transaction the operator would sign and
+            # send. The template's proposal binding is derived deterministically
+            # from the request inputs (it is a preview, NOT an attestation of a
+            # settled on-chain DEX batch); /api/dex/proof_mining_status checks
+            # claim internal consistency + budget + flags + context match, none
+            # of which require a live-settled state, so the produced template is
+            # accepted by that endpoint as claimable.
+            try:
+                from src.core.proof_mining_claims import (  # pylint: disable=import-outside-toplevel
+                    build_proof_mining_claim,
+                    schedule_reward_amount,
+                )
+                from src.integration.proof_mining_context import (  # pylint: disable=import-outside-toplevel
+                    ProofMiningContext,
+                    proof_mining_context_to_obj,
+                )
+                from src.integration.proof_mining_runtime import (  # pylint: disable=import-outside-toplevel
+                    initialize_proof_mining_runtime_state,
+                    proof_mining_runtime_state_to_obj,
+                )
+                from src.state.canonical import (  # pylint: disable=import-outside-toplevel
+                    domain_sep_bytes,
+                    sha256_hex,
+                )
+
+                def _short_detail(exc: Exception) -> str:
+                    detail = " ".join(str(exc).split())
+                    return detail[:200]
+
+                chain_id = str(obj.get("chain_id", "")).strip()
+                tx_sender_pubkey = str(obj.get("tx_sender_pubkey", "")).strip()
+                reward_pool_pubkey = str(obj.get("reward_pool_pubkey", "")).strip()
+                if not chain_id:
+                    self._write_json(400, {"ok": False, "error": "missing_chain_id"}, cors_origin=cors_origin)
+                    return True
+                if not tx_sender_pubkey:
+                    self._write_json(400, {"ok": False, "error": "missing_tx_sender_pubkey"}, cors_origin=cors_origin)
+                    return True
+                if not reward_pool_pubkey:
+                    self._write_json(400, {"ok": False, "error": "missing_reward_pool_pubkey"}, cors_origin=cors_origin)
+                    return True
+
+                def _bounded_nonneg_int(value: Any, *, name: str, default: int) -> int:
+                    if value is None:
+                        return int(default)
+                    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                        raise ValueError(name)
+                    return int(value)
+
+                try:
+                    base_reward = _bounded_nonneg_int(obj.get("base_reward"), name="base_reward", default=8)
+                    epoch = _bounded_nonneg_int(obj.get("epoch"), name="epoch", default=1)
+                    proposal_slot = _bounded_nonneg_int(obj.get("proposal_slot"), name="proposal_slot", default=0)
+                    prover_id = _bounded_nonneg_int(obj.get("prover_id"), name="prover_id", default=1)
+                except ValueError as exc:
+                    field = "".join(ch for ch in str(exc) if ch.isalnum() or ch == "_")[:40] or "field"
+                    self._write_json(
+                        400, {"ok": False, "error": f"bad_{field}"}, cors_origin=cors_origin
+                    )
+                    return True
+                if base_reward <= 0:
+                    self._write_json(400, {"ok": False, "error": "bad_base_reward"}, cors_origin=cors_origin)
+                    return True
+
+                try:
+                    reward_amount = schedule_reward_amount(base_reward=base_reward, epoch=epoch)
+                except Exception:
+                    self._write_json(400, {"ok": False, "error": "bad_reward_schedule"}, cors_origin=cors_origin)
+                    return True
+
+                # Reward pool starting balance: caller-provided (the UI already
+                # resolved it from tokenomics) or a safe default that covers the
+                # reward. Must be >= reward_amount or the claim fails the budget
+                # gate by construction.
+                try:
+                    reward_pool_before = _bounded_nonneg_int(
+                        obj.get("reward_pool_before"),
+                        name="reward_pool_before",
+                        default=max(int(reward_amount) * 4, int(reward_amount)),
+                    )
+                except ValueError:
+                    self._write_json(400, {"ok": False, "error": "bad_reward_pool_before"}, cors_origin=cors_origin)
+                    return True
+                if reward_pool_before < reward_amount:
+                    self._write_json(
+                        400,
+                        {"ok": False, "error": "reward_pool_before_below_reward_amount"},
+                        cors_origin=cors_origin,
+                    )
+                    return True
+
+                # Deterministic, request-bound proposal binding (preview, not a
+                # settled-state attestation). All four fields hash the same
+                # canonical request projection so the template is reproducible
+                # and bound to its inputs.
+                binding_projection = {
+                    "chain_id": chain_id,
+                    "tx_sender_pubkey": tx_sender_pubkey,
+                    "reward_pool_pubkey": reward_pool_pubkey,
+                    "base_reward": int(base_reward),
+                    "epoch": int(epoch),
+                    "proposal_slot": int(proposal_slot),
+                    "prover_id": int(prover_id),
+                    "faucet_mint": obj.get("faucet_mint"),
+                    "signed_intent": obj.get("signed_intent"),
+                }
+
+                def _template_hash(tag: str) -> str:
+                    return sha256_hex(
+                        domain_sep_bytes(f"zenodex.proof_mining_payout_template/{tag}", version=1)
+                        + canonical_json_bytes(binding_projection)
+                    )
+
+                witness_sha256 = _template_hash("witness")
+                prev_state_hash = _template_hash("prev_state")
+                batch_hash = _template_hash("batch")
+                dex_hash_after = _template_hash("dex_after")
+                round_id = _template_hash("round")[:32]
+
+                try:
+                    claim = build_proof_mining_claim(
+                        round_obj={
+                            "schema": "zenodex/improvement_bounty_round/v1",
+                            "ok": True,
+                            "job_digest": _template_hash("job")[:32],
+                            "winner": {
+                                "miner_id": tx_sender_pubkey,
+                                "witness_sha256": witness_sha256,
+                                "improvement_u64": 1,
+                            },
+                            "candidates": [],
+                            "argmax_certificate": None,
+                        },
+                        round_id=round_id,
+                        reward_pool_before=int(reward_pool_before),
+                        base_reward=int(base_reward),
+                        epoch=int(epoch),
+                        proposal_slot=int(proposal_slot),
+                        prover_id=int(prover_id),
+                        chain_id=chain_id,
+                        prev_state_hash=prev_state_hash,
+                        batch_hash=batch_hash,
+                        dex_hash_after=dex_hash_after,
+                    )
+                except Exception as exc:
+                    self._write_json(
+                        400,
+                        {"ok": False, "error": "proof_mining_claim_build_failed", "details": _short_detail(exc)},
+                        cors_origin=cors_origin,
+                    )
+                    return True
+
+                try:
+                    runtime_state = initialize_proof_mining_runtime_state(
+                        reward_pool_pubkey=reward_pool_pubkey,
+                        reward_pool_balance=int(reward_pool_before),
+                        claim_artifact=claim,
+                    )
+                except Exception as exc:
+                    self._write_json(
+                        400,
+                        {"ok": False, "error": "proof_mining_runtime_init_failed", "details": _short_detail(exc)},
+                        cors_origin=cors_origin,
+                    )
+                    return True
+
+                app_state_json = json.dumps(
+                    {
+                        "schema": "zenodex/tau_app_state/v1",
+                        "proof_mining": proof_mining_runtime_state_to_obj(runtime_state),
+                    },
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+
+                proposal_binding = claim["body"]["proposal_binding"]
+                context_obj = proof_mining_context_to_obj(
+                    ProofMiningContext(
+                        chain_id=str(proposal_binding["chain_id"]),
+                        prev_state_hash=str(proposal_binding["prev_state_hash"]),
+                        batch_hash=str(proposal_binding["batch_hash"]),
+                        witness_hash=str(proposal_binding["witness_hash"]),
+                        dex_hash_after=str(proposal_binding["dex_hash_after"]),
+                        proposal_hash=str(claim["body"]["proposal_hash"]),
+                        proof_scheme="template_preview_v1",
+                    )
+                )
+
+                # chain_balances are keyed by pubkey: the reward pool holds the
+                # pre-payout balance, the recipient starts at 0 (the payout
+                # template attests claimability; settlement applies the move).
+                chain_balances: dict[str, int] = {
+                    reward_pool_pubkey: int(reward_pool_before),
+                    tx_sender_pubkey: 0,
+                }
+
+                reward_asset_id = str(
+                    obj.get("reward_asset_id")
+                    or os.environ.get("TAU_DEX_PROOF_MINING_REWARD_ASSET", "")
+                ).strip() or None
+
+                status_request = {
+                    "claim": claim,
+                    "chain_balances": chain_balances,
+                    "app_state_json": app_state_json,
+                    "tx_sender_pubkey": tx_sender_pubkey,
+                    "expected_proposal_hash": str(claim["body"]["proposal_hash"]),
+                }
+
+                payout_tx = {
+                    "tx_id": "proof-mining-payout-" + _template_hash("tx")[:24],
+                    "tx_sender_pubkey": tx_sender_pubkey,
+                    "operations": {
+                        "10": {
+                            "module": "ZenoProofMining",
+                            "action": "submit_proof",
+                            "claim": claim,
+                            "recipient_pubkey": tx_sender_pubkey,
+                        }
+                    },
+                }
+
+                self._write_json(
+                    200,
+                    {
+                        "ok": True,
+                        "template_mode": "preview_v1",
+                        "status_request": status_request,
+                        "proof_mining_context": context_obj,
+                        "tx": payout_tx,
+                        "reward_pool_pubkey": reward_pool_pubkey,
+                        "reward_asset_id": reward_asset_id,
+                        "reward_pool_before": int(reward_pool_before),
+                        "reward_amount": int(reward_amount),
+                    },
+                    cors_origin=cors_origin,
+                )
+                return True
+            except Exception as exc:
+                self._write_json(
+                    400,
+                    {"ok": False, "error": "proof_mining_payout_template_error", "details": "request failed"},
+                    cors_origin=cors_origin,
+                )
+                return True
+
         def _parse_pools() -> dict[str, Any]:
             from src.state.pools import PoolState, PoolStatus  # pylint: disable=import-outside-toplevel
 
