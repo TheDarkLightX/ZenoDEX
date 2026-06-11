@@ -606,8 +606,10 @@ Current checker hardening in this workstream:
   fresh `issued_at`; the latest supervisor heartbeat must be fresh relative to
   the evidence issuance time.
 - `confidential_runtime` rejects private execution receipts whose
-  `result_code` is not `ok` and binds the approved-measurements digest to the
-  active allowlist.
+  `result_code` is not `ok`, binds the approved-measurements digest to the
+  active allowlist, and recomputes the canonical confidential runtime receipt
+  hash from the redacted receipt fields plus the active operator/verifier
+  bindings.
 - `oracle_authority` rejects localhost, private, or non-routable explorer URLs
   for public-testnet evidence, and verifies the authority attestation as an
   Ed25519 signature over the canonical public-testnet exercise statement.
@@ -721,10 +723,16 @@ python3 tools/build_confidential_runtime_evidence.py \
   --tee-verified-at TEE_VERIFIED_AT \
   --operator-status-hash OPERATOR_STATUS_HASH \
   --external-verifier-binding-hash EXTERNAL_VERIFIER_BINDING_HASH \
+  --runtime-receipt-hash RUNTIME_RECEIPT_HASH \
+  --attestation-receipt-hash ATTESTATION_RECEIPT_HASH \
+  --request-id REQUEST_ID \
   --execution-id EXECUTION_ID \
   --execution-kind EXECUTION_KIND \
   --result-code RESULT_CODE \
   --result-redacted \
+  --attestation-epoch ATTESTATION_EPOCH \
+  --current-epoch CURRENT_EPOCH \
+  --units-charged UNITS_CHARGED \
   --public-effect-digest PUBLIC_EFFECT_DIGEST \
   --approved-measurement APPROVED_MEASUREMENT \
   --expected-extension-id EXPECTED_EXTENSION_ID \

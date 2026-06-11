@@ -24,6 +24,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.integration.confidential_runtime_receipts import (  # noqa: E402
+    CONFIDENTIAL_RUNTIME_EXECUTION_RECEIPT_SCHEMA_V1,
+    confidential_runtime_execution_receipt_hash_v1,
+)
 from src.integration.production_promotion_evidence import (  # noqa: E402
     _ALLOWED_TEE_KINDS,
     _FUTURE_SKEW_TOLERANCE_SECONDS,
@@ -75,6 +79,16 @@ def _positive_int(value: object, *, label: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise ValueError(f"{label} must be a positive integer")
     return int(value)
+
+
+def _bounded_u32(value: object, *, label: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > 0xFFFFFFFF:
+        raise ValueError(f"{label} must be an integer in [0, 4294967295]")
+    return int(value)
+
+
+def _prefix_0x(value: str) -> str:
+    return value if value.startswith("0x") else "0x" + value
 
 
 def _normalize_tee_kind(value: object) -> str:
@@ -149,6 +163,60 @@ def _validate_tee_time(*, verified_at: int, issued_at: int) -> None:
         raise ValueError("tee verified_at is outside the TEE verification window")
 
 
+def _measurement_provider(measurement: str) -> str:
+    if measurement.startswith("nitro:"):
+        return "nitro"
+    if measurement.startswith("azure-sevsnp:"):
+        return "azure-sevsnp"
+    return "custom"
+
+
+def _runtime_receipt_body(
+    *,
+    extension_id: str,
+    provider_id: str,
+    attestation_receipt_hash: str,
+    request_id: str,
+    execution_id: str,
+    execution_kind: str,
+    result_code: str,
+    measurement: str,
+    operator_status_hash: str,
+    approved_measurements_hash: str,
+    external_verifier_binding_hash: str,
+    attestation_epoch: int,
+    current_epoch: int,
+    units_charged: int,
+    result_redacted: bool,
+    public_effect_digest: str,
+) -> dict[str, object]:
+    return {
+        "schema": CONFIDENTIAL_RUNTIME_EXECUTION_RECEIPT_SCHEMA_V1,
+        "attestation_receipt_hash": _prefix_0x(attestation_receipt_hash),
+        "extension_id": extension_id,
+        "provider_id": provider_id,
+        "request_id": request_id,
+        "execution_id": execution_id,
+        "execution_kind": execution_kind,
+        "result_code": result_code,
+        "measurement_provider": _measurement_provider(measurement),
+        "operator_status_hash": _prefix_0x(operator_status_hash),
+        "approved_measurements_hash": _prefix_0x(approved_measurements_hash),
+        "external_verifier_binding_hash": _prefix_0x(external_verifier_binding_hash),
+        "attestation_epoch": attestation_epoch,
+        "current_epoch": current_epoch,
+        "units_charged": units_charged,
+        "result_redacted": result_redacted,
+        "public_effect_digest": _prefix_0x(public_effect_digest),
+        "public_summary": {
+            "execution_admitted": True,
+            "policy_ok": True,
+            "output_bound_ok": True,
+            "request_bound": True,
+        },
+    }
+
+
 def build_confidential_runtime_evidence(args: argparse.Namespace) -> dict[str, object]:
     issued_at = _positive_int(
         args.issued_at if args.issued_at is not None else int(time.time()),
@@ -160,16 +228,75 @@ def build_confidential_runtime_evidence(args: argparse.Namespace) -> dict[str, o
     _validate_measurement_binding(tee_kind=tee_kind, measurement=measurement, approved=approved)
     verified_at = _positive_int(args.tee_verified_at, label="tee_verified_at")
     _validate_tee_time(verified_at=verified_at, issued_at=issued_at)
+    extension_id = _safe_token(args.extension_id, label="extension_id")
+    provider_id = _safe_token(args.provider_id, label="provider_id")
+    attestation_receipt_hash = _normalize_hex(
+        args.attestation_receipt_hash,
+        label="attestation receipt hash",
+        length=_HASH_HEX_LEN,
+    )
+    request_id = _safe_token(args.request_id, label="request_id")
     execution_id = _safe_token(args.execution_id, label="execution_id")
     execution_kind = _safe_token(args.execution_kind, label="execution_kind")
     result_code = _safe_token(args.result_code, label="result_code")
     if result_code != "ok":
         raise ValueError("result_code must be ok for production confidential-runtime evidence")
+    operator_status_hash = _normalize_hex(
+        args.operator_status_hash,
+        label="operator status hash",
+        length=_HASH_HEX_LEN,
+    )
+    approved_measurements_hash = _approved_measurements_hash(args)
+    external_verifier_binding_hash = _normalize_hex(
+        args.external_verifier_binding_hash,
+        label="external verifier binding hash",
+        length=_HASH_HEX_LEN,
+    )
+    attestation_epoch = _bounded_u32(args.attestation_epoch, label="attestation_epoch")
+    current_epoch = _bounded_u32(args.current_epoch, label="current_epoch")
+    if attestation_epoch > current_epoch:
+        raise ValueError("attestation_epoch cannot exceed current_epoch")
+    units_charged = _bounded_u32(args.units_charged, label="units_charged")
+    public_effect_digest = _normalize_hex(
+        args.public_effect_digest,
+        label="public effect digest",
+        length=_HASH_HEX_LEN,
+    )
+    runtime_receipt_hash = _normalize_hex(
+        args.runtime_receipt_hash,
+        label="runtime receipt hash",
+        length=_HASH_HEX_LEN,
+    )
+    runtime_body = _runtime_receipt_body(
+        extension_id=extension_id,
+        provider_id=provider_id,
+        attestation_receipt_hash=attestation_receipt_hash,
+        request_id=request_id,
+        execution_id=execution_id,
+        execution_kind=execution_kind,
+        result_code=result_code,
+        measurement=measurement,
+        operator_status_hash=operator_status_hash,
+        approved_measurements_hash=approved_measurements_hash,
+        external_verifier_binding_hash=external_verifier_binding_hash,
+        attestation_epoch=attestation_epoch,
+        current_epoch=current_epoch,
+        units_charged=units_charged,
+        result_redacted=bool(args.result_redacted),
+        public_effect_digest=public_effect_digest,
+    )
+    expected_runtime_hash = _normalize_hex(
+        confidential_runtime_execution_receipt_hash_v1(runtime_body),
+        label="derived runtime receipt hash",
+        length=_HASH_HEX_LEN,
+    )
+    if runtime_receipt_hash != expected_runtime_hash:
+        raise ValueError("runtime receipt hash does not match supplied runtime receipt fields")
     return attach_production_confidential_runtime_hash_v1(
         {
             "schema": CONFIDENTIAL_RUNTIME_EVIDENCE_SCHEMA_V1,
-            "extension_id": _safe_token(args.extension_id, label="extension_id"),
-            "provider_id": _safe_token(args.provider_id, label="provider_id"),
+            "extension_id": extension_id,
+            "provider_id": provider_id,
             "tee_attestation": {
                 "kind": tee_kind,
                 "raw_attestation_hash": _normalize_hex(
@@ -191,32 +318,27 @@ def build_confidential_runtime_evidence(args: argparse.Namespace) -> dict[str, o
                 ),
                 "verified_at": verified_at,
             },
-            "approved_measurements_hash": _approved_measurements_hash(args),
-            "operator_status_hash": _normalize_hex(
-                args.operator_status_hash,
-                label="operator status hash",
-                length=_HASH_HEX_LEN,
-            ),
-            "external_verifier_binding_hash": _normalize_hex(
-                args.external_verifier_binding_hash,
-                label="external verifier binding hash",
-                length=_HASH_HEX_LEN,
-            ),
+            "approved_measurements_hash": approved_measurements_hash,
+            "operator_status_hash": operator_status_hash,
+            "external_verifier_binding_hash": external_verifier_binding_hash,
             "private_execution_receipt": {
                 # Review finding (grade B+ -> A-): without --check this
                 # producer could write a production-shaped receipt with unsafe
                 # tokens, stale TEE timing, or a non-success result. Validate
                 # the shape before hashing; the lane verifier remains the
                 # authority for freshness and external binding.
+                "runtime_receipt_hash": runtime_receipt_hash,
+                "attestation_receipt_hash": attestation_receipt_hash,
+                "request_id": request_id,
                 "execution_id": execution_id,
                 "execution_kind": execution_kind,
                 "result_code": result_code,
+                "measurement_provider": _measurement_provider(measurement),
+                "attestation_epoch": attestation_epoch,
+                "current_epoch": current_epoch,
+                "units_charged": units_charged,
                 "result_redacted": bool(args.result_redacted),
-                "public_effect_digest": _normalize_hex(
-                    args.public_effect_digest,
-                    label="public effect digest",
-                    length=_HASH_HEX_LEN,
-                ),
+                "public_effect_digest": public_effect_digest,
             },
             "issued_at": issued_at,
         }
@@ -246,10 +368,16 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--approved-measurements-hash")
     parser.add_argument("--operator-status-hash", required=True)
     parser.add_argument("--external-verifier-binding-hash", required=True)
+    parser.add_argument("--runtime-receipt-hash", required=True)
+    parser.add_argument("--attestation-receipt-hash", required=True)
+    parser.add_argument("--request-id", required=True)
     parser.add_argument("--execution-id", required=True)
     parser.add_argument("--execution-kind", required=True)
     parser.add_argument("--result-code", required=True)
     parser.add_argument("--result-redacted", action="store_true", required=True)
+    parser.add_argument("--attestation-epoch", type=int, required=True)
+    parser.add_argument("--current-epoch", type=int, required=True)
+    parser.add_argument("--units-charged", type=int, required=True)
     parser.add_argument("--public-effect-digest", required=True)
     parser.add_argument("--issued-at", type=int)
     parser.add_argument("--check-now", type=int, help="override verifier time for reproducible --check runs")

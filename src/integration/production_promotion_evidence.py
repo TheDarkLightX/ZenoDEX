@@ -49,6 +49,10 @@ from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Final, Mapping, Sequence
 from urllib.parse import urlparse
 
+from src.integration.confidential_runtime_receipts import (
+    CONFIDENTIAL_RUNTIME_EXECUTION_RECEIPT_SCHEMA_V1,
+    confidential_runtime_execution_receipt_hash_v1,
+)
 from src.integration.live_proof_wrapper import LIVE_PROOF_WRAPPER_ARTIFACT_BINDING_HASH_DOMAIN
 from src.integration.zeno_ledger_v0 import canonical_json_bytes_v0, hash_v0
 from src.state.app_root import APP_ROOT_LANE_KINDS
@@ -170,6 +174,8 @@ _RUNBOOK_PLACEHOLDER_VALUES: Final = frozenset(
         "APPROVAL_SIGNATURE",
         "APPROVAL_TX_PAYLOAD_HASH",
         "APPROVED_MEASUREMENT",
+        "ATTESTATION_EPOCH",
+        "ATTESTATION_RECEIPT_HASH",
         "ATTESTATION_CHALLENGE",
         "ATTESTATION_SIGNATURE",
         "AUDITED_AT",
@@ -209,6 +215,8 @@ _RUNBOOK_PLACEHOLDER_VALUES: Final = frozenset(
         "PUBLIC_SETTLEMENT_EXPLORER_URL",
         "RAW_ATTESTATION_HASH",
         "RESULT_CODE",
+        "REQUEST_ID",
+        "RUNTIME_RECEIPT_HASH",
         "STARTED_AT",
         "SUPERVISOR_ID",
         "SUPERVISOR_PROFILE_HASH",
@@ -217,6 +225,8 @@ _RUNBOOK_PLACEHOLDER_VALUES: Final = frozenset(
         "TICKS_EXECUTED",
         "TICKS_FAILED",
         "TICKS_THROTTLED",
+        "CURRENT_EPOCH",
+        "UNITS_CHARGED",
         "VERIFIER_CMD_JSON",
         "WALLET_AUTHORITY_PROFILE_HASH",
     }
@@ -2692,9 +2702,16 @@ _CONFIDENTIAL_TEE_FIELDS = frozenset(
 )
 _CONFIDENTIAL_RECEIPT_FIELDS = frozenset(
     {
+        "runtime_receipt_hash",
+        "attestation_receipt_hash",
+        "request_id",
         "execution_id",
         "execution_kind",
         "result_code",
+        "measurement_provider",
+        "attestation_epoch",
+        "current_epoch",
+        "units_charged",
         "result_redacted",
         "public_effect_digest",
     }
@@ -2767,7 +2784,16 @@ class _ConfidentialRuntimeLane(Lane):
             expected_external_verifier_binding_hash=ctx.external_verifier_binding_hash,
             gaps=gaps,
         )
-        _validate_confidential_receipt(receipt_data, gaps=gaps)
+        _validate_confidential_receipt(
+            receipt_data,
+            extension_id=extension_id,
+            provider_id=provider_id,
+            measurement=tee_data.get("measurement"),
+            approved_measurements_hash=approved_measurements_hash,
+            operator_status_hash=operator_status_hash,
+            external_verifier_binding_hash=external_verifier_binding_hash,
+            gaps=gaps,
+        )
 
         if issued_at is not None:
             _check_freshness(
@@ -2792,9 +2818,16 @@ class _ConfidentialRuntimeLane(Lane):
             "tee_kind": tee_data.get("kind"),
             "raw_attestation_hash": tee_data.get("raw_attestation_hash"),
             "attestation_signature": tee_data.get("attestation_signature"),
+            "runtime_receipt_hash": receipt_data.get("runtime_receipt_hash"),
+            "attestation_receipt_hash": receipt_data.get("attestation_receipt_hash"),
+            "request_id": receipt_data.get("request_id"),
             "execution_id": receipt_data.get("execution_id"),
             "execution_kind": receipt_data.get("execution_kind"),
             "result_code": receipt_data.get("result_code"),
+            "measurement_provider": receipt_data.get("measurement_provider"),
+            "attestation_epoch": receipt_data.get("attestation_epoch"),
+            "current_epoch": receipt_data.get("current_epoch"),
+            "units_charged": receipt_data.get("units_charged"),
             "public_effect_digest": receipt_data.get("public_effect_digest"),
         }
         return bindings, extras
@@ -2928,6 +2961,23 @@ def _parse_confidential_receipt(receipt: Mapping[str, Any] | None, *, gaps: _Gap
     if receipt is None:
         return {}
     return {
+        "runtime_receipt_hash": _P.hex_token(
+            receipt.get("runtime_receipt_hash"),
+            path="private_execution_receipt.runtime_receipt_hash",
+            gaps=gaps,
+            exact_len=_HASH_HEX_LEN,
+        ),
+        "attestation_receipt_hash": _P.hex_token(
+            receipt.get("attestation_receipt_hash"),
+            path="private_execution_receipt.attestation_receipt_hash",
+            gaps=gaps,
+            exact_len=_HASH_HEX_LEN,
+        ),
+        "request_id": _P.safe_token(
+            receipt.get("request_id"),
+            path="private_execution_receipt.request_id",
+            gaps=gaps,
+        ),
         "execution_id": _P.safe_token(
             receipt.get("execution_id"),
             path="private_execution_receipt.execution_id",
@@ -2942,6 +2992,32 @@ def _parse_confidential_receipt(receipt: Mapping[str, Any] | None, *, gaps: _Gap
             receipt.get("result_code"),
             path="private_execution_receipt.result_code",
             gaps=gaps,
+        ),
+        "measurement_provider": _P.safe_token(
+            receipt.get("measurement_provider"),
+            path="private_execution_receipt.measurement_provider",
+            gaps=gaps,
+        ),
+        "attestation_epoch": _P.bounded_int(
+            receipt.get("attestation_epoch"),
+            path="private_execution_receipt.attestation_epoch",
+            gaps=gaps,
+            lo=0,
+            hi=0xFFFFFFFF,
+        ),
+        "current_epoch": _P.bounded_int(
+            receipt.get("current_epoch"),
+            path="private_execution_receipt.current_epoch",
+            gaps=gaps,
+            lo=0,
+            hi=0xFFFFFFFF,
+        ),
+        "units_charged": _P.bounded_int(
+            receipt.get("units_charged"),
+            path="private_execution_receipt.units_charged",
+            gaps=gaps,
+            lo=0,
+            hi=0xFFFFFFFF,
         ),
         "result_redacted": _P.bool_strict(
             receipt.get("result_redacted"),
@@ -2992,7 +3068,17 @@ def _validate_confidential_context_bindings(
         gaps.add("evidence.external_verifier_binding_hash does not match active binding hash")
 
 
-def _validate_confidential_receipt(receipt_data: Mapping[str, Any], *, gaps: _Gaps) -> None:
+def _validate_confidential_receipt(
+    receipt_data: Mapping[str, Any],
+    *,
+    extension_id: str | None,
+    provider_id: str | None,
+    measurement: str | None,
+    approved_measurements_hash: str | None,
+    operator_status_hash: str | None,
+    external_verifier_binding_hash: str | None,
+    gaps: _Gaps,
+) -> None:
     if receipt_data.get("result_code") != "ok":
         # Review note (grade B -> A-): this check intentionally lives in the
         # shared evaluator as well as the builder. A receipt can be hand-edited
@@ -3001,6 +3087,126 @@ def _validate_confidential_receipt(receipt_data: Mapping[str, Any], *, gaps: _Ga
         gaps.add("private_execution_receipt.result_code must be ok")
     if receipt_data.get("result_redacted") is False:
         gaps.add("private_execution_receipt.result_redacted must be true")
+    _validate_confidential_runtime_receipt_hash(
+        receipt_data,
+        extension_id=extension_id,
+        provider_id=provider_id,
+        measurement=measurement,
+        approved_measurements_hash=approved_measurements_hash,
+        operator_status_hash=operator_status_hash,
+        external_verifier_binding_hash=external_verifier_binding_hash,
+        gaps=gaps,
+    )
+
+
+def _validate_confidential_runtime_receipt_hash(
+    receipt_data: Mapping[str, Any],
+    *,
+    extension_id: str | None,
+    provider_id: str | None,
+    measurement: str | None,
+    approved_measurements_hash: str | None,
+    operator_status_hash: str | None,
+    external_verifier_binding_hash: str | None,
+    gaps: _Gaps,
+) -> None:
+    runtime_receipt_hash = receipt_data.get("runtime_receipt_hash")
+    body = _confidential_runtime_receipt_body(
+        receipt_data,
+        extension_id=extension_id,
+        provider_id=provider_id,
+        measurement=measurement,
+        approved_measurements_hash=approved_measurements_hash,
+        operator_status_hash=operator_status_hash,
+        external_verifier_binding_hash=external_verifier_binding_hash,
+    )
+    if body is None:
+        return
+    expected_hash = confidential_runtime_execution_receipt_hash_v1(body).removeprefix("0x")
+    if runtime_receipt_hash is not None and runtime_receipt_hash != expected_hash:
+        gaps.add("private_execution_receipt.runtime_receipt_hash does not match canonical runtime receipt")
+    if receipt_data.get("attestation_epoch") is not None and receipt_data.get("current_epoch") is not None:
+        if int(receipt_data["attestation_epoch"]) > int(receipt_data["current_epoch"]):
+            gaps.add("private_execution_receipt.attestation_epoch cannot exceed current_epoch")
+    measurement_provider = receipt_data.get("measurement_provider")
+    expected_provider = _confidential_measurement_provider(measurement)
+    if (
+        measurement_provider is not None
+        and expected_provider is not None
+        and measurement_provider != expected_provider
+    ):
+        gaps.add("private_execution_receipt.measurement_provider does not match tee_attestation.measurement")
+
+
+def _confidential_runtime_receipt_body(
+    receipt_data: Mapping[str, Any],
+    *,
+    extension_id: str | None,
+    provider_id: str | None,
+    measurement: str | None,
+    approved_measurements_hash: str | None,
+    operator_status_hash: str | None,
+    external_verifier_binding_hash: str | None,
+) -> dict[str, Any] | None:
+    required: tuple[object | None, ...] = (
+        receipt_data.get("attestation_receipt_hash"),
+        extension_id,
+        provider_id,
+        receipt_data.get("request_id"),
+        receipt_data.get("execution_id"),
+        receipt_data.get("execution_kind"),
+        receipt_data.get("result_code"),
+        receipt_data.get("measurement_provider"),
+        operator_status_hash,
+        approved_measurements_hash,
+        external_verifier_binding_hash,
+        receipt_data.get("attestation_epoch"),
+        receipt_data.get("current_epoch"),
+        receipt_data.get("units_charged"),
+        receipt_data.get("result_redacted"),
+        receipt_data.get("public_effect_digest"),
+    )
+    if any(value is None for value in required):
+        return None
+    return {
+        "schema": CONFIDENTIAL_RUNTIME_EXECUTION_RECEIPT_SCHEMA_V1,
+        "attestation_receipt_hash": _prefix_0x(str(receipt_data["attestation_receipt_hash"])),
+        "extension_id": extension_id,
+        "provider_id": provider_id,
+        "request_id": receipt_data["request_id"],
+        "execution_id": receipt_data["execution_id"],
+        "execution_kind": receipt_data["execution_kind"],
+        "result_code": receipt_data["result_code"],
+        "measurement_provider": receipt_data["measurement_provider"],
+        "operator_status_hash": _prefix_0x(str(operator_status_hash)),
+        "approved_measurements_hash": _prefix_0x(str(approved_measurements_hash)),
+        "external_verifier_binding_hash": _prefix_0x(str(external_verifier_binding_hash)),
+        "attestation_epoch": receipt_data["attestation_epoch"],
+        "current_epoch": receipt_data["current_epoch"],
+        "units_charged": receipt_data["units_charged"],
+        "result_redacted": receipt_data["result_redacted"],
+        "public_effect_digest": _prefix_0x(str(receipt_data["public_effect_digest"])),
+        "public_summary": {
+            "execution_admitted": True,
+            "policy_ok": True,
+            "output_bound_ok": True,
+            "request_bound": True,
+        },
+    }
+
+
+def _prefix_0x(value: str) -> str:
+    return value if value.startswith("0x") else "0x" + value
+
+
+def _confidential_measurement_provider(measurement: str | None) -> str | None:
+    if measurement is None:
+        return None
+    if measurement.startswith("nitro:"):
+        return "nitro"
+    if measurement.startswith("azure-sevsnp:"):
+        return "azure-sevsnp"
+    return "custom"
 
 
 def _validate_approved_measurements(
