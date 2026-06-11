@@ -13,12 +13,12 @@ artifact status.
 | `O-SS-05` | `H-MD-SS-005`, `H-MD-SS-006` | spot settlement | queued |
 | `O-SS-06` | `H-MD-SS-007` | spot settlement | queued |
 | `O-SS-07` | `H-MD-SS-008` | spot settlement | `wave1_spot_settlement/test_spot_fee_arithmetic.py`; supported |
-| `O-SB-01` | `H-MD-SB-001` | sealed bid | queued |
-| `O-SB-02` | `H-MD-SB-002` | sealed bid | queued |
-| `O-SB-03` | `H-MD-SB-003` | sealed bid | queued |
-| `O-SB-04` | `H-MD-SB-004` | sealed bid | queued |
-| `O-SB-05` | `H-MD-SB-005` | sealed bid | queued |
-| `O-SB-06` | `H-MD-SB-006` | sealed bid | queued |
+| `O-SB-01` | `H-MD-SB-001` | sealed bid | `wave2_sealed_bid/test_sealed_bid_deviations.py`; supported |
+| `O-SB-02` | `H-MD-SB-002` | sealed bid | `wave2_sealed_bid/test_sealed_bid_deviations.py`; supported |
+| `O-SB-03` | `H-MD-SB-003` | sealed bid | `wave2_sealed_bid/test_sealed_bid_deviations.py`; supported |
+| `O-SB-04` | `H-MD-SB-004` | sealed bid | `wave2_sealed_bid/test_sealed_bid_deviations.py`; supported |
+| `O-SB-05` | `H-MD-SB-005` | sealed bid | `wave2_sealed_bid/test_sealed_bid_deviations.py`; supported |
+| `O-SB-06` | `H-MD-SB-006` | sealed bid | `wave2_sealed_bid/test_sealed_bid_deviations.py`; supported |
 | `O-PT-01` | `H-MD-PT-001`, `H-MD-PT-005` | perps timing | queued |
 | `O-PT-02` | `H-MD-PT-002` | perps timing | queued |
 | `O-PT-03` | `H-MD-PT-003` | perps timing | queued |

@@ -264,11 +264,11 @@ nonce**. Non-reveal bonds: `settle_sealed_bid_non_reveal_bonds` in
 
 | Adversary move | Rule engaged | Status |
 |---|---|---|
-| Under-report quantity so a lower rival sets the clearing price (demand reduction) | lowest-accepted uniform pricing | **[open]** — classic non-IC, needs implemented-rule witness (O-SB-01) |
-| Shade a pivotal single-unit bid (pays own bid when marginal) | clearing = last *accepted* bid | **[open]** (O-SB-02) |
-| Grind `nonce` to get a small `commitment` and win price ties | sort key `(−price, commitment, bidder_id)` | **[open]** — expected ~m+1 hashes to beat m rivals (O-SB-03) |
-| Commit, then reveal only if favorable (free option) | non-reveal bond slash | **[open]** — `MAX_BOND` may not cover option value (O-SB-04, O-SB-05) |
-| Submit decoy + real bids under one `bidder_id` to pin the clearing price | repeated-bidder admission | **[open]** (O-SB-06) |
+| Under-report quantity so a lower rival sets the clearing price (demand reduction) | lowest-accepted uniform pricing | **[NUMERICAL]** witness held — reduction strictly profits for value 100 with rival prices 1..99 (O-SB-01) |
+| Shade a pivotal single-unit bid (pays own bid when marginal) | clearing = last *accepted* bid | **[NUMERICAL]** witness held — optimal shade = runner-up + 1, strict gain (O-SB-02) |
+| Grind `nonce` to get a small `commitment` and win price ties | sort key `(−price, commitment, bidder_id)` | **[NUMERICAL]** grinding flips settlement ties; win rate matches the exchangeability law T/(T+m) (O-SB-03) |
+| Commit, then reveal only if favorable (free option) | non-reveal bond slash | **[NUMERICAL]** `MAX_BOND` beaten for every q ≥ 2 (threshold arithmetic exhaustive over 2..MAX_UNITS; payoffs bound to the real functions for 2..16); q = 1 is the in-domain boundary where `MAX_BOND` forces reveal (O-SB-04, O-SB-05) |
+| Submit decoy + real bids under one `bidder_id` to pin the clearing price | repeated-bidder admission | **[NUMERICAL]** witness held — decoy pins the clearing price for its owner (O-SB-06) |
 
 ---
 
@@ -389,12 +389,12 @@ as waves complete.
 | O-SS-05 | cardinality cliff | adding one intent across `_MAX_SWAP_ORDERING_BRUTE_FORCE_N` can strictly lower a victim's fill and the global (A,B) | settlement continuity in batch size | H-MD-SS-005, H-MD-SS-006 | miner witness + `esso/md_spot_cardinality_cliff_v1.yaml` — [open] |
 | O-SS-06 | CoW self-netting capture | a self-supplied counter-intent nets at zero fee and captures fee+spread otherwise accruing to LPs | "netting is neutral for LPs" | H-MD-SS-007 | derivation 03 + pytest — [open] |
 | O-SS-07 | dust conservation, tight | `distributed + dust' = fee + dust` invariant; `dust' < 3` for the 3-way split (not merely < 10⁴) | stranded/created value across splits | H-MD-SS-008 | bounded pytest evidence — [verified: representative routes, fees, dust, and sequence carry] |
-| O-SB-01 | demand reduction exists | a 2-bidder, 2-unit integer witness where reducing reported quantity strictly raises surplus | "uniform pricing is IC" | H-MD-SB-001 | [exp] AuctionUniformPriceIC.lean — [open] |
-| O-SB-02 | single-unit non-truthfulness | pivotal winner pays own bid ⇒ shading to runner-up+1 strictly profits | "single-unit demand is truthful here" | H-MD-SB-002 | derivation 06 — [open] |
-| O-SB-03 | tie grindability | expected nonce trials to beat m rival commitments ≈ m+1; cost ≪ tie value | "hash tie-break is neutral" | H-MD-SB-003 | pytest empirical + derivation 08 — [open] |
-| O-SB-04 | bond < option value | for `q ≥ 2` there exist adverse moves Δ with `Δ·q > MAX_BOND` ⇒ no admissible bond forces reveal | "bonds make reveal rational" | H-MD-SB-004 | [exp] AuctionBondOptionBound.lean — [open] |
-| O-SB-05 | conditional-reveal straddle | commit-then-reveal-iff-favorable beats always-reveal when price-support width > bond | costless-straddle denial | H-MD-SB-005 | sim — [open] |
-| O-SB-06 | self-competition pinning | one bidder, two commitments can lower its own average paid price | decoy-bid neutrality | H-MD-SB-006 | miner — [open] |
+| O-SB-01 | demand reduction exists | a 2-bidder, 2-unit integer witness where reducing reported quantity strictly raises surplus | "uniform pricing is IC" | H-MD-SB-001 | bounded pytest witness — [numeric: strict gain, rival sweep 1..99 at value 100]; [exp] AuctionUniformPriceIC.lean still queued |
+| O-SB-02 | single-unit non-truthfulness | pivotal winner pays own bid ⇒ shading to runner-up+1 strictly profits | "single-unit demand is truthful here" | H-MD-SB-002 | bounded pytest witness — [numeric: optimal shade = runner-up+1, strict gain]; derivation 06 still queued |
+| O-SB-03 | tie grindability | win odds for T nonce trials against m rival commitments = T/(T+m); each trial costs one hash, and the fixed witness has positive tie value (trial-count distribution is heavy-tailed, so stated as a win-rate law, not an expected-trials claim) | "hash tie-break is neutral" | H-MD-SB-003 | pytest empirical — [numeric: grinding flips settlement ties; measured rate matches T/(T+m)]; derivation 08 still queued |
+| O-SB-04 | bond < option value | for `q ≥ 2` there exist adverse moves Δ with `Δ·q > MAX_BOND` ⇒ no admissible bond forces reveal | "bonds make reveal rational" | H-MD-SB-004 | bounded pytest witness — [numeric: exact threshold Δ = MAX_BOND//q + 1; threshold arithmetic exhaustive over q in 2..MAX_UNITS, real-function payoff binding for q in 2..16; q = 1 boundary covered separately]; [exp] AuctionBondOptionBound.lean still queued |
+| O-SB-05 | conditional-reveal straddle | commit-then-reveal-iff-favorable beats always-reveal when `q·support_width > bond` | costless-straddle denial | H-MD-SB-005 | bounded sim via real settle+bond functions — [numeric: conditional − always = q·w − b exactly on the grid] |
+| O-SB-06 | self-competition pinning | one bidder, two commitments can lower its own average paid price | decoy-bid neutrality | H-MD-SB-006 | pytest witness — [numeric: decoy pins the clearing price; constructive witness made the planned miner unnecessary] |
 | O-PT-01 | funding-straddle residual | intra-epoch round-trips around `apply_funding` pay 0 funding; avoided amount ≤ `floor(notional·cap/10⁴)` per epoch | "funding is timing-neutral" | H-MD-PT-001, H-MD-PT-005 | [exp] PerpFundingStraddleBound.lean — [open] |
 | O-PT-02 | settlement-boundary airtightness | no reachable PRICE_PUBLISHED action sequence changes `position_base` conditioned on the published clearing price | free-look on clearing price | H-MD-PT-002 | `esso/md_perp_epoch_phase_gate_v1.yaml` — [open] |
 | O-PT-03 | keeper-race dissipation | deterministic selection ⇒ expended effort ε, vs ≈ full reward under an all-pay gas-auction baseline | "races are free" / monopolization-by-latency | H-MD-PT-003 | [exp] PerpKeeperRaceGame.lean — [open] |
