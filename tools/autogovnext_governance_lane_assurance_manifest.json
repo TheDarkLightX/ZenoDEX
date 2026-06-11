@@ -32,7 +32,7 @@
     },
     {
       "path": "tools/zeno_ledger_node.py",
-      "sha256": "e44809ad3e039f19a527831d81c851a3dc8bab33df762920f1ec2414bb5314a4"
+      "sha256": "38987189508f52bcbe97f59e570df537d00b0b1419e4624777edf3f431f9e60b"
     },
     {
       "path": "tests/state/test_app_root.py",
@@ -48,7 +48,7 @@
     },
     {
       "path": "tests/integration/test_zeno_ledger_node_autogovnext.py",
-      "sha256": "c928bd56ab79c27e8d66cb77853f0384a1167c83016ae34a6a1ca9526ffbc6e0"
+      "sha256": "f07ee23ab52ff60dd9ed9ee810bdb369048421e8b22a8bff820f3830f5b8f711"
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -60,7 +60,7 @@
     },
     {
       "path": "docs/AUTOGOVNEXT_AND_ZENODEX_PRODUCTION_READINESS_PLAN_2026_06_10.md",
-      "sha256": "7d174e352932e8b5727f2b13fef9b1b2ad25c402ecc4e2a8070575c0f5b4168b"
+      "sha256": "14c31c3d52db6709166202a33ecf17a88ba7ac6ed3f25f5b088299068e93f790"
     },
     {
       "path": "docs/AUTOGOVNEXT_GAME_THEORY_AND_MECHANISM_DESIGN.md",

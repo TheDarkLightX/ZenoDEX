@@ -1246,7 +1246,9 @@ def _autogovnext_request_from_submitted_tx_v1(tx: Mapping[str, Any]) -> dict[str
         raise ValueError("autogovnext tx request must be an object")
     request_obj = _autogovnext_request_with_tx_id_v1(request)
     tx_id_raw = tx.get("tx_id")
-    if tx_id_raw is not None and str(tx_id_raw) != str(request_obj["tx_id"]):
+    if not isinstance(tx_id_raw, str) or not tx_id_raw.strip():
+        raise ValueError("autogovnext tx_id invalid")
+    if tx_id_raw.strip() != str(request_obj["tx_id"]):
         raise ValueError("autogovnext tx_id/request tx_id mismatch")
     return request_obj
 

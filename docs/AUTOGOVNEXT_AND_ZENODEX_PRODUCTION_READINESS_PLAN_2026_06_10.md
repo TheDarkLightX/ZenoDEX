@@ -111,6 +111,8 @@ Implemented in this working tree:
   - HTTP policy rejection committed as a no-op receipt.
   - generic `/tx` AutoGovNEXT admission routing;
   - generic `/tx` tx-id mismatch rejection without tip mutation.
+  - generic `/tx` missing or non-string outer `tx_id` rejection without tip
+    mutation.
 - Imported and current-grounded
   `docs/AUTOGOVNEXT_GAME_THEORY_AND_MECHANISM_DESIGN.md` from
   `claude/autogov-trajectory-runner`. Its current correction is that the node
@@ -176,8 +178,11 @@ increment.
 
 Latest local confirmation: the focused AutoGovNEXT governance-lane assurance
 gate (`bash tools/run_autogovnext_governance_lane_assurance_gate.sh`) exited
-successfully after adding generic `/tx` AutoGovNEXT routing. That gate executes
-the manifest-pinned compile, Lean bounded-drift, policy/node pytest, UI SDK,
+successfully after adding generic `/tx` AutoGovNEXT routing. A later defensive
+boundary hardening pass made the generic `/tx` envelope require a string outer
+`tx_id` equal to the inner request `tx_id`, with missing and non-string ID
+regressions covered at the live HTTP route. That gate executes the
+manifest-pinned compile, Lean bounded-drift, policy/node pytest, UI SDK,
 proof-client package, package-sync, and manifest checks while keeping
 `production_security_claim=false`.
 

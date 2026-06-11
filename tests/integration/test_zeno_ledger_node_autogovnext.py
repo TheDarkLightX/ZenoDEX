@@ -198,6 +198,24 @@ def _post_json_status(url: str, payload: dict[str, object]) -> tuple[int, dict[s
     return status, obj
 
 
+def _post_node_tx_status(writer_dir: Path, payload: dict[str, object]) -> tuple[int, dict[str, object]]:
+    server = make_node_http_server_v0(
+        data_dir=writer_dir,
+        host="127.0.0.1",
+        port=0,
+        enable_testnet_intake=True,
+        allow_unauthenticated_testnet_writes=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        return _post_json_status(f"http://{host}:{port}/tx", payload)
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_autogovnext_append_commits_request_and_replays_to_follower(tmp_path: Path) -> None:
     _bundle_root, writer_dir, follower_dir = _make_bundle_and_nodes(tmp_path, slug="valid")
     request = _autogovnext_request(tx_id="autogovnext-node-valid-1")
@@ -612,6 +630,55 @@ def test_autogovnext_tx_endpoint_rejects_mismatched_tx_id_without_tip_mutation(t
     assert status == 400
     assert report["ok"] is False
     assert report["error"] == "autogovnext tx_id/request tx_id mismatch"
+    assert after_status["latest_height"] == before_status["latest_height"]
+    assert not (writer_dir / "live_state.json").exists()
+
+
+def test_autogovnext_tx_endpoint_rejects_missing_outer_tx_id_without_tip_mutation(tmp_path: Path) -> None:
+    _bundle_root, writer_dir = _make_bundle_and_writer(tmp_path, slug="http-tx-missing-id")
+    before_status = load_node_status_v0(writer_dir)
+    request = _autogovnext_request(tx_id="autogovnext-node-http-tx-missing-id-1")
+
+    status, report = _post_node_tx_status(
+        writer_dir,
+        {
+            "time_ms": DEFAULT_TIME_MS + 2_340_000,
+            "tx": {
+                "kind": AUTOGOVNEXT_ADMISSION_KIND,
+                "request": request,
+            },
+        },
+    )
+
+    after_status = load_node_status_v0(writer_dir)
+    assert status == 400
+    assert report["ok"] is False
+    assert report["error"] == "autogovnext tx_id invalid"
+    assert after_status["latest_height"] == before_status["latest_height"]
+    assert not (writer_dir / "live_state.json").exists()
+
+
+def test_autogovnext_tx_endpoint_rejects_non_string_outer_tx_id_without_tip_mutation(tmp_path: Path) -> None:
+    _bundle_root, writer_dir = _make_bundle_and_writer(tmp_path, slug="http-tx-int-id")
+    before_status = load_node_status_v0(writer_dir)
+    request = _autogovnext_request(tx_id="123")
+
+    status, report = _post_node_tx_status(
+        writer_dir,
+        {
+            "time_ms": DEFAULT_TIME_MS + 2_345_000,
+            "tx": {
+                "tx_id": 123,
+                "kind": AUTOGOVNEXT_ADMISSION_KIND,
+                "request": request,
+            },
+        },
+    )
+
+    after_status = load_node_status_v0(writer_dir)
+    assert status == 400
+    assert report["ok"] is False
+    assert report["error"] == "autogovnext tx_id invalid"
     assert after_status["latest_height"] == before_status["latest_height"]
     assert not (writer_dir / "live_state.json").exists()
 
