@@ -3,14 +3,32 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
 from src.integration.production_promotion_evidence import (
     attach_production_hardware_wallet_hash_v1,
     evaluate_production_hardware_wallet_evidence_v1,
+    production_hardware_wallet_approval_message_v1,
     production_hardware_wallet_attestation_challenge_v1,
+    production_hardware_wallet_attestation_message_v1,
 )
 from tools import build_hardware_wallet_evidence as builder
 
 NOW = 1747878000
+DEVICE_PRIVATE_KEY = Ed25519PrivateKey.from_private_bytes(bytes([7]) * 32)
+DEVICE_PUBKEY = DEVICE_PRIVATE_KEY.public_key().public_bytes(
+    encoding=serialization.Encoding.Raw,
+    format=serialization.PublicFormat.Raw,
+).hex()
+
+
+def _sign_attestation(challenge: str) -> str:
+    return DEVICE_PRIVATE_KEY.sign(production_hardware_wallet_attestation_message_v1(challenge)).hex()
+
+
+def _sign_approval(tx_payload_hash: str) -> str:
+    return DEVICE_PRIVATE_KEY.sign(production_hardware_wallet_approval_message_v1(tx_payload_hash)).hex()
 
 
 def _expected_challenge(
@@ -27,7 +45,7 @@ def _expected_challenge(
             "device_model": "ledger-nano-x",
             "device_firmware_version": "2.4.0",
             "device_attestation": {
-                "pubkey": "cc" * 32,
+                "pubkey": DEVICE_PUBKEY,
                 "challenge": "00" * 32,
                 "signature": "ee" * 64,
             },
@@ -55,6 +73,12 @@ def _base_args(
     prompt_hash: str = "ff" * 32,
     tx_payload_hash: str = "10" * 32,
 ) -> list[str]:
+    challenge = _expected_challenge(
+        prompt_captured_at=prompt_captured_at,
+        approval_captured_at=approval_captured_at,
+        prompt_hash=prompt_hash,
+        tx_payload_hash=tx_payload_hash,
+    )
     return [
         "--out",
         str(out),
@@ -65,16 +89,11 @@ def _base_args(
         "--device-firmware-version",
         "2.4.0",
         "--device-pubkey",
-        "cc" * 32,
+        DEVICE_PUBKEY,
         "--attestation-challenge",
-        _expected_challenge(
-            prompt_captured_at=prompt_captured_at,
-            approval_captured_at=approval_captured_at,
-            prompt_hash=prompt_hash,
-            tx_payload_hash=tx_payload_hash,
-        ),
+        challenge,
         "--attestation-signature",
-        "ee" * 64,
+        _sign_attestation(challenge),
         "--prompt-kind",
         "screenshot_hash",
         "--prompt-hash",
@@ -84,13 +103,13 @@ def _base_args(
         "--approval-tx-payload-hash",
         tx_payload_hash,
         "--approval-signature",
-        "20" * 64,
+        _sign_approval(tx_payload_hash),
         "--approval-captured-at",
         str(approval_captured_at),
         "--wallet-authority-profile-hash",
         "wallet-auth-hash",
         "--expected-device-pubkey",
-        "cc" * 32,
+        DEVICE_PUBKEY,
         "--issued-at",
         str(NOW),
         "--check-now",
@@ -108,12 +127,12 @@ def test_hardware_builder_writes_lane_ready_evidence(capsys, tmp_path: Path) -> 
     lane = evaluate_production_hardware_wallet_evidence_v1(
         evidence,
         wallet_authority_profile_hash="wallet-auth-hash",
-        expected_device_pubkey="cc" * 32,
+        expected_device_pubkey=DEVICE_PUBKEY,
         now=NOW,
     )
     assert lane["production_ready"] is True
     assert lane["gaps"] == []
-    assert evidence["device_attestation"]["pubkey"] == "cc" * 32
+    assert evidence["device_attestation"]["pubkey"] == DEVICE_PUBKEY
     assert len(evidence["evidence_hash"]) == 64
 
 
@@ -186,13 +205,29 @@ def test_hardware_builder_rejects_capture_window_before_writing(capsys, tmp_path
 def test_hardware_builder_rejects_reused_attestation_and_approval_signature(capsys, tmp_path: Path) -> None:
     out = tmp_path / "hardware_wallet.json"
     args = _base_args(out)
-    args[args.index("--approval-signature") + 1] = "ee" * 64
+    args[args.index("--approval-signature") + 1] = args[args.index("--attestation-signature") + 1]
 
     assert builder.main(args) == 2
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["error"] == "hardware_wallet_evidence_build_failed"
     assert "signature must differ" in payload["detail"]
+    assert not out.exists()
+
+
+def test_hardware_builder_rejects_invalid_attestation_signature_before_writing(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "hardware_wallet.json"
+    args = _base_args(out)
+    args[args.index("--attestation-signature") + 1] = "ee" * 64
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "hardware_wallet_evidence_build_failed"
+    assert "attestation signature is invalid" in payload["detail"]
     assert not out.exists()
 
 
@@ -228,7 +263,7 @@ def test_hardware_evaluator_rejects_rehashed_stale_device_approval(
     lane = evaluate_production_hardware_wallet_evidence_v1(
         evidence,
         wallet_authority_profile_hash="wallet-auth-hash",
-        expected_device_pubkey="cc" * 32,
+        expected_device_pubkey=DEVICE_PUBKEY,
         now=NOW,
     )
 
@@ -251,12 +286,35 @@ def test_hardware_evaluator_rejects_rehashed_payload_without_new_challenge(
     lane = evaluate_production_hardware_wallet_evidence_v1(
         evidence,
         wallet_authority_profile_hash="wallet-auth-hash",
-        expected_device_pubkey="cc" * 32,
+        expected_device_pubkey=DEVICE_PUBKEY,
         now=NOW,
     )
 
     assert lane["production_ready"] is False
     assert "device_attestation.challenge must equal canonical hardware approval challenge" in lane["gaps"]
+
+
+def test_hardware_evaluator_rejects_rehashed_fake_approval_signature(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "hardware_wallet.json"
+
+    assert builder.main(_base_args(out)) == 0
+    capsys.readouterr()
+    evidence = json.loads(out.read_text(encoding="utf-8"))
+    evidence["device_approval_tx"]["approval_signature"] = "20" * 64
+    evidence = attach_production_hardware_wallet_hash_v1(evidence)
+
+    lane = evaluate_production_hardware_wallet_evidence_v1(
+        evidence,
+        wallet_authority_profile_hash="wallet-auth-hash",
+        expected_device_pubkey=DEVICE_PUBKEY,
+        now=NOW,
+    )
+
+    assert lane["production_ready"] is False
+    assert "device_approval_tx.approval_signature is invalid" in lane["gaps"]
 
 
 def test_hardware_builder_rejects_non_positive_issued_at_before_writing(

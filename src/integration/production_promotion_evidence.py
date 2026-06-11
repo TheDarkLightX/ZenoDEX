@@ -37,8 +37,9 @@ Every lane enforces, in this order:
 8. Self-binding hash recomputation over the canonical body.
 
 If any step adds a gap, ``production_ready`` is ``False`` and the gap list
-explains why. Signature/attestation cryptographic verification stays outside
-this module — fields are size/format-checked opaque evidence.
+explains why. Oracle and hardware-wallet Ed25519 attestations are verified
+against canonical ZenoDEX statements. TEE/vendor attestation verification
+remains external and is bound here by receipt and measurement hashes.
 """
 
 from __future__ import annotations
@@ -1224,6 +1225,30 @@ def production_hardware_wallet_attestation_challenge_v1(evidence: Mapping[str, A
     return hash_v0("production_hardware_wallet_attestation_challenge_v1", body).removeprefix("0x")
 
 
+def production_hardware_wallet_attestation_message_v1(challenge: str) -> bytes:
+    """Canonical message signed by the hardware device for custody evidence."""
+
+    return canonical_json_bytes_v0(
+        {
+            "domain": "zenodex.production_hardware_wallet_attestation.v1",
+            "schema": HARDWARE_WALLET_EVIDENCE_SCHEMA_V1,
+            "challenge": challenge,
+        }
+    )
+
+
+def production_hardware_wallet_approval_message_v1(tx_payload_hash: str) -> bytes:
+    """Canonical approval message signed by the hardware device."""
+
+    return canonical_json_bytes_v0(
+        {
+            "domain": "zenodex.production_hardware_wallet_approval.v1",
+            "schema": HARDWARE_WALLET_EVIDENCE_SCHEMA_V1,
+            "tx_payload_hash": tx_payload_hash,
+        }
+    )
+
+
 class _HardwareWalletLane(Lane):
     LANE_ID = LANE_HARDWARE_WALLET
     SCHEMA = HARDWARE_WALLET_EVIDENCE_SCHEMA_V1
@@ -1397,6 +1422,7 @@ def _validate_hardware_wallet_rules(
 
     _validate_hardware_attestation_challenge(raw_evidence, attestation, gaps=gaps)
     _validate_hardware_attestation_vs_approval(attestation, approval, gaps=gaps)
+    _validate_hardware_ed25519_signatures(attestation, approval, gaps=gaps)
     _validate_hardware_context_binding(
         attestation_pubkey=attestation.get("pubkey"),
         profile_wallet_authority_hash=profile_wallet_authority_hash,
@@ -1446,6 +1472,61 @@ def _validate_hardware_attestation_vs_approval(
         and attestation_signature == approval_signature
     ):
         gaps.add("attestation signature must differ from approval signature")
+
+
+def _validate_hardware_ed25519_signatures(
+    attestation: Mapping[str, Any],
+    approval: Mapping[str, Any],
+    *,
+    gaps: _Gaps,
+) -> None:
+    pubkey = attestation.get("pubkey")
+    challenge = attestation.get("challenge")
+    attestation_signature = attestation.get("signature")
+    tx_payload_hash = approval.get("tx_payload_hash")
+    approval_signature = approval.get("approval_signature")
+    _validate_ed25519_signature(
+        pubkey=pubkey,
+        signature=attestation_signature,
+        message=(
+            production_hardware_wallet_attestation_message_v1(str(challenge))
+            if challenge is not None
+            else None
+        ),
+        label="device_attestation.signature",
+        gaps=gaps,
+    )
+    _validate_ed25519_signature(
+        pubkey=pubkey,
+        signature=approval_signature,
+        message=(
+            production_hardware_wallet_approval_message_v1(str(tx_payload_hash))
+            if tx_payload_hash is not None
+            else None
+        ),
+        label="device_approval_tx.approval_signature",
+        gaps=gaps,
+    )
+
+
+def _validate_ed25519_signature(
+    *,
+    pubkey: object,
+    signature: object,
+    message: bytes | None,
+    label: str,
+    gaps: _Gaps,
+) -> None:
+    if pubkey is None or signature is None or message is None:
+        return
+    if not _ED25519_AVAILABLE or Ed25519PublicKey is None:
+        gaps.add(f"{label} Ed25519 verifier is unavailable")
+        return
+    try:
+        public_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(str(pubkey)))
+        public_key.verify(bytes.fromhex(str(signature)), message)
+    except (InvalidSignature, ValueError):
+        gaps.add(f"{label} is invalid")
 
 
 def _validate_hardware_context_binding(

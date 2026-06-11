@@ -23,6 +23,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+try:
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+    _ED25519_AVAILABLE = True
+except ImportError:  # pragma: no cover - dependency guard for fail-closed builder errors
+    InvalidSignature = Exception
+    Ed25519PublicKey = None
+    _ED25519_AVAILABLE = False
+
 from src.integration.production_promotion_evidence import (  # noqa: E402
     _ALLOWED_HW_WALLET_MODELS,
     _ALLOWED_OS_PROMPT_KINDS,
@@ -30,7 +40,9 @@ from src.integration.production_promotion_evidence import (  # noqa: E402
     HARDWARE_WALLET_EVIDENCE_SCHEMA_V1,
     attach_production_hardware_wallet_hash_v1,
     evaluate_production_hardware_wallet_evidence_v1,
+    production_hardware_wallet_approval_message_v1,
     production_hardware_wallet_attestation_challenge_v1,
+    production_hardware_wallet_attestation_message_v1,
 )
 
 _HEX = frozenset("0123456789abcdef")
@@ -59,6 +71,16 @@ def _positive_int(value: int, *, label: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise ValueError(f"{label} must be a positive integer")
     return int(value)
+
+
+def _verify_ed25519_signature(*, pubkey: str, signature: str, message: bytes, label: str) -> None:
+    if not _ED25519_AVAILABLE or Ed25519PublicKey is None:
+        raise ValueError(f"{label} Ed25519 verifier is unavailable")
+    try:
+        public_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(pubkey))
+        public_key.verify(bytes.fromhex(signature), message)
+    except (InvalidSignature, ValueError) as exc:
+        raise ValueError(f"{label} is invalid") from exc
 
 
 def build_hardware_wallet_evidence(args: argparse.Namespace) -> dict[str, object]:
@@ -132,6 +154,18 @@ def build_hardware_wallet_evidence(args: argparse.Namespace) -> dict[str, object
     expected_challenge = production_hardware_wallet_attestation_challenge_v1(evidence_body)
     if attestation_challenge != expected_challenge:
         raise ValueError("attestation challenge must equal canonical hardware approval challenge")
+    _verify_ed25519_signature(
+        pubkey=device_pubkey,
+        signature=attestation_signature,
+        message=production_hardware_wallet_attestation_message_v1(attestation_challenge),
+        label="attestation signature",
+    )
+    _verify_ed25519_signature(
+        pubkey=device_pubkey,
+        signature=approval_signature,
+        message=production_hardware_wallet_approval_message_v1(approval_tx_payload_hash),
+        label="approval signature",
+    )
     return attach_production_hardware_wallet_hash_v1(evidence_body)
 
 

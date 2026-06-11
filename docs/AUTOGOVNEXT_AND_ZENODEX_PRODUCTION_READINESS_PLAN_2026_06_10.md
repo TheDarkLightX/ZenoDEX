@@ -601,7 +601,10 @@ Current checker hardening in this workstream:
   cannot clear another circuit's production-promotion evidence.
 - `hardware_wallet` rejects stale device approvals rehashed with a fresh
   `issued_at`; the prompt and approval must remain close in time, and the
-  approval itself must be fresh relative to evidence issuance.
+  approval itself must be fresh relative to evidence issuance. The lane also
+  verifies the device attestation and approval signatures over canonical
+  ZenoDEX custody messages, so correctly shaped hex signatures are not
+  sufficient.
 - `autotrader` rejects an internally coherent but stale 24h run rehashed with a
   fresh `issued_at`; the latest supervisor heartbeat must be fresh relative to
   the evidence issuance time.

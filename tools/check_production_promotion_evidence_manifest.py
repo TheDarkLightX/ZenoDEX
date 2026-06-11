@@ -114,7 +114,7 @@ _LANE_REQUIREMENTS: Mapping[str, Mapping[str, Any]] = {
         "external_artifacts": [
             "hardware wallet attestation pubkey and signature over the canonical approval challenge",
             "OS prompt capture hash",
-            "device approval transaction payload hash and signature",
+            "device approval transaction payload hash and signature over the canonical approval message",
         ],
         "producer_tool": "tools/build_hardware_wallet_evidence.py",
         "validator": "evaluate_production_hardware_wallet_evidence_v1",
