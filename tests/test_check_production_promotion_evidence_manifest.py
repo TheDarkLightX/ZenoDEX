@@ -7,6 +7,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from src.integration import production_promotion_evidence as promotion_evidence
 from src.integration.production_promotion_evidence import (
     APP_ROOT_JMT_EVIDENCE_SCHEMA_V1,
     ORACLE_AUTHORITY_EVIDENCE_SCHEMA_V1,
@@ -15,6 +16,7 @@ from src.integration.production_promotion_evidence import (
     attach_production_oracle_authority_hash_v1,
 )
 from src.state.app_root import APP_ROOT_LANE_KINDS
+from tools import check_production_promotion_evidence_manifest as checker
 from tools.check_production_promotion_evidence_manifest import main
 
 NOW = 1747878000
@@ -529,6 +531,18 @@ def test_manifest_checker_collection_runbook_scopes_to_selected_lane(
     assert "MAX_RUNS_PER_PROCESS_OBERVED" not in command
     assert "--include-runbook" in runbook["final_gate_command_template"]
     assert out["blocked_lanes"] == ["autotrader"]
+
+
+def test_manifest_runbook_placeholders_match_lane_verifier_policy() -> None:
+    # The manifest checker derives placeholders from operator command
+    # templates; the lane verifier rejects the same values during producer
+    # --check. Keep the two gates synchronized so a runbook edit cannot create a
+    # checker-only or producer-only false-green path.
+    assert checker._RUNBOOK_PLACEHOLDER_TOKENS == promotion_evidence._RUNBOOK_PLACEHOLDER_VALUES
+    assert all(
+        promotion_evidence._is_template_placeholder(value)
+        for value in checker._RUNBOOK_PLACEHOLDER_TOKENS
+    )
 
 
 def test_manifest_checker_app_root_jmt_selected_lane_passes(capsys, tmp_path: Path) -> None:
