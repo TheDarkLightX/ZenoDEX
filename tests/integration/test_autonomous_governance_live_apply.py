@@ -194,6 +194,84 @@ def test_live_session_file_update_refuses_stale_expected_store_hash(
     assert current_session_store_file_head_v1(path=path)["store_hash"] == init["store_hash"]
 
 
+def test_live_context_hash_refuses_hostile_inputs_without_crashing(tmp_path: Path) -> None:
+    path = tmp_path / "live-store.json"
+    policy, genesis, _init = _init_file(path)
+    receipt = _continue(policy, genesis, 103)
+    head = current_session_store_file_head_v1(path=path)
+    hostile_state = {**dict(genesis["final_state"]), "\ud800evil": 1}
+
+    digest = autonomous_governance_live_session_file_context_hash_v1(
+        store_hash="0x" + "\ud800" * 32,
+        head_pin_hash=str(head["head_pin"]["pin_hash"]),
+        committed_surface_state=hostile_state,
+        trajectory_hash=str(receipt["trajectory_hash"]),
+        expected_policy_hash="0x" + "\ud800" * 32,
+    )
+
+    assert digest.startswith("0x")
+
+
+def test_live_session_file_update_hostile_inputs_refuse_without_crashing(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "live-store.json"
+    policy, genesis, init = _init_file(path)
+    receipt = _continue(policy, genesis, 103)
+    committed = dict(genesis["final_state"])
+    context_hash = _context_hash(
+        path=path,
+        committed_surface_state=committed,
+        receipt=receipt,
+        expected_policy_hash=str(policy["policy_hash"]),
+    )
+
+    cases = (
+        (
+            {**committed, "\ud800evil": 1},
+            str(policy["policy_hash"]),
+            init["store_hash"],
+            context_hash,
+            "committed_surface_state_not_canonically_encodable",
+        ),
+        (
+            committed,
+            "0x" + "\ud800" * 32,
+            init["store_hash"],
+            context_hash,
+            "live_expected_policy_hash_invalid",
+        ),
+        (
+            committed,
+            str(policy["policy_hash"]),
+            "0x" + "\ud800" * 32,
+            context_hash,
+            "live_expected_store_hash_invalid",
+        ),
+        (
+            committed,
+            str(policy["policy_hash"]),
+            init["store_hash"],
+            "0x" + "\ud800" * 32,
+            "live_expected_context_hash_invalid",
+        ),
+    )
+    for state, expected_hash, expected_store, expected_context, expected_error in cases:
+        result = admit_autonomous_governance_live_session_file_update_v1(
+            store_path=path,
+            policy=policy,
+            trajectory_receipt=receipt,
+            committed_surface_state=state,
+            expected_policy_hash=expected_hash,
+            expected_store_hash=expected_store,
+            expected_live_context_hash=expected_context,
+        )
+        assert result["admitted"] is False
+        assert expected_error in result["errors"]
+        assert result["live_update_hash"].startswith("0x")
+        assert current_session_store_file_head_v1(path=path)["store_hash"] == init["store_hash"]
+
+
 def test_cli_live_session_file_update_lifecycle(tmp_path: Path) -> None:
     path = tmp_path / "live-store.json"
     policy, genesis, init = _init_file(path)

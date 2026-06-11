@@ -36,6 +36,10 @@ from __future__ import annotations
 import os
 from typing import Any, Mapping
 
+from src.integration.autonomous_governance_hostile_input import (
+    is_canonically_encodable,
+    safe_field_label,
+)
 from src.integration.autonomous_governance_live_apply import (
     admit_autonomous_governance_live_session_file_update_v1,
     autonomous_governance_live_session_file_context_hash_v1,
@@ -62,6 +66,32 @@ _NOT_CLAIMED = (
     "does_not_claim_global_store_ordering",
     "does_not_claim_oracle_truth",
 )
+
+
+def _is_safe_text(value: object) -> bool:
+    return isinstance(value, str) and is_canonically_encodable(value)
+
+
+def _required_safe_text(
+    value: object,
+    *,
+    required_error: str,
+    invalid_error: str,
+    errors: list[str],
+) -> str:
+    if type(value) is not str or not value:
+        errors.append(required_error)
+        return ""
+    if not is_canonically_encodable(value):
+        errors.append(invalid_error)
+        return ""
+    return value
+
+
+def _safe_body_text(value: object) -> str:
+    if _is_safe_text(value):
+        return str(value)
+    return safe_field_label(value)
 
 
 def committed_governance_surface_v1(
@@ -116,9 +146,12 @@ def apply_autonomous_governance_update_from_node_state_v1(
     """
     errors: list[str] = []
 
-    expected_hash = expected_policy_hash if type(expected_policy_hash) is str else ""
-    if not expected_hash:
-        errors.append("node_apply_expected_policy_hash_required")
+    expected_hash = _required_safe_text(
+        expected_policy_hash,
+        required_error="node_apply_expected_policy_hash_required",
+        invalid_error="node_apply_expected_policy_hash_invalid",
+        errors=errors,
+    )
 
     head = current_session_store_file_head_v1(path=store_path)
     if head.get("ok") is not True:
@@ -143,6 +176,9 @@ def apply_autonomous_governance_update_from_node_state_v1(
     trajectory_hash = receipt.get("trajectory_hash", "") if receipt else ""
     if type(trajectory_hash) is not str or not trajectory_hash:
         errors.append("node_apply_trajectory_hash_required")
+        trajectory_hash = ""
+    elif not is_canonically_encodable(trajectory_hash):
+        errors.append("node_apply_trajectory_hash_invalid")
         trajectory_hash = ""
 
     admission: dict[str, Any] = {}
@@ -185,7 +221,7 @@ def apply_autonomous_governance_update_from_node_state_v1(
         "admitted": admitted,
         "errors": tuple(errors),
         "anchor_source": ANCHOR_SOURCE_V1,
-        "store_path": str(store_path),
+        "store_path": _safe_body_text(store_path),
         "expected_policy_hash": expected_hash,
         "trajectory_hash": trajectory_hash,
         "committed_state": committed_surface_state,

@@ -19,6 +19,10 @@ from __future__ import annotations
 import os
 from typing import Any, Mapping
 
+from src.integration.autonomous_governance_hostile_input import (
+    is_canonically_encodable,
+    safe_field_label,
+)
 from src.integration.autonomous_governance_q_policy import (
     _normalize_surface_state,
     policy_content_hash_v1,
@@ -51,6 +55,50 @@ _NOT_CLAIMED = (
 )
 
 
+def _is_safe_text(value: object) -> bool:
+    return isinstance(value, str) and is_canonically_encodable(value)
+
+
+def _required_safe_text(
+    value: object,
+    *,
+    required_error: str,
+    invalid_error: str,
+    errors: list[str],
+) -> str:
+    if not isinstance(value, str) or not value:
+        errors.append(required_error)
+        return ""
+    if not is_canonically_encodable(value):
+        errors.append(invalid_error)
+        return ""
+    return value
+
+
+def _safe_body_text(value: object) -> str:
+    if _is_safe_text(value):
+        return str(value)
+    return safe_field_label(value)
+
+
+def _surface_state_has_unsafe_key(raw: object) -> bool:
+    if not isinstance(raw, Mapping):
+        return False
+    try:
+        keys = tuple(raw.keys())
+    except Exception:  # noqa: BLE001 - hostile mapping keys fail closed
+        return True
+    return any(type(key) is not str or not is_canonically_encodable(key) for key in keys)
+
+
+def _normalize_live_surface_state(
+    raw: Mapping[str, Any],
+) -> tuple[dict[str, int], list[str]]:
+    if _surface_state_has_unsafe_key(raw):
+        return {}, ["surface_state_not_canonically_encodable"]
+    return _normalize_surface_state(raw)
+
+
 def autonomous_governance_live_session_file_context_hash_v1(
     *,
     store_hash: str,
@@ -66,16 +114,18 @@ def autonomous_governance_live_session_file_context_hash_v1(
     committed surface, the trajectory receipt hash, and the policy pin.
     """
 
-    state, state_errors = _normalize_surface_state(committed_surface_state)
+    state, state_errors = _normalize_live_surface_state(committed_surface_state)
     if state_errors:
         state = {}
     body = {
         "schema": AUTONOMOUS_GOVERNANCE_LIVE_SESSION_FILE_CONTEXT_SCHEMA_V1,
-        "store_hash": str(store_hash),
-        "head_pin_hash": str(head_pin_hash),
+        "store_hash": store_hash if _is_safe_text(store_hash) else "",
+        "head_pin_hash": head_pin_hash if _is_safe_text(head_pin_hash) else "",
         "committed_surface_state": state,
-        "trajectory_hash": str(trajectory_hash),
-        "expected_policy_hash": str(expected_policy_hash),
+        "trajectory_hash": trajectory_hash if _is_safe_text(trajectory_hash) else "",
+        "expected_policy_hash": expected_policy_hash
+        if _is_safe_text(expected_policy_hash)
+        else "",
         "state_errors": tuple(state_errors),
     }
     return hash_v0(_LIVE_CONTEXT_HASH_TAG, body)
@@ -106,22 +156,29 @@ def admit_autonomous_governance_live_session_file_update_v1(
     """
 
     errors: list[str] = []
-    committed, committed_errors = _normalize_surface_state(committed_surface_state)
+    committed, committed_errors = _normalize_live_surface_state(committed_surface_state)
     errors.extend(f"committed_{error}" for error in committed_errors)
 
-    expected_hash = expected_policy_hash if isinstance(expected_policy_hash, str) else ""
-    if not expected_hash:
-        errors.append("live_expected_policy_hash_required")
-
-    expected_store = expected_store_hash if isinstance(expected_store_hash, str) else ""
-    if not expected_store:
-        errors.append("live_expected_store_hash_required")
-
-    expected_context = (
-        expected_live_context_hash if isinstance(expected_live_context_hash, str) else ""
+    expected_hash = _required_safe_text(
+        expected_policy_hash,
+        required_error="live_expected_policy_hash_required",
+        invalid_error="live_expected_policy_hash_invalid",
+        errors=errors,
     )
-    if not expected_context:
-        errors.append("live_expected_context_hash_required")
+
+    expected_store = _required_safe_text(
+        expected_store_hash,
+        required_error="live_expected_store_hash_required",
+        invalid_error="live_expected_store_hash_invalid",
+        errors=errors,
+    )
+
+    expected_context = _required_safe_text(
+        expected_live_context_hash,
+        required_error="live_expected_context_hash_required",
+        invalid_error="live_expected_context_hash_invalid",
+        errors=errors,
+    )
 
     policy_hash = ""
     if isinstance(policy, Mapping):
@@ -166,6 +223,9 @@ def admit_autonomous_governance_live_session_file_update_v1(
     trajectory_hash = receipt.get("trajectory_hash", "") if receipt else ""
     if not isinstance(trajectory_hash, str) or not trajectory_hash:
         errors.append("live_trajectory_hash_required")
+        trajectory_hash = ""
+    elif not is_canonically_encodable(trajectory_hash):
+        errors.append("live_trajectory_hash_invalid")
         trajectory_hash = ""
 
     live_context_hash = autonomous_governance_live_session_file_context_hash_v1(
@@ -230,7 +290,7 @@ def admit_autonomous_governance_live_session_file_update_v1(
         "ok": admitted,
         "admitted": admitted,
         "errors": tuple(errors),
-        "store_path": str(store_path),
+        "store_path": _safe_body_text(store_path),
         "expected_policy_hash": expected_hash,
         "expected_store_hash": expected_store,
         "expected_live_context_hash": expected_context,

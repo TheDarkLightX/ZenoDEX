@@ -115,3 +115,40 @@ def test_node_apply_requires_policy_pin(tmp_path: Path) -> None:
     )
     assert result["admitted"] is False
     assert "node_apply_expected_policy_hash_required" in result["errors"]
+
+
+def test_node_apply_hostile_pin_refuses_without_crashing_hash(tmp_path: Path) -> None:
+    path = tmp_path / "autogov-store.json"
+    policy, genesis, _init = _init_file(path)
+    receipt = _continue(policy, genesis, 103)
+
+    result = apply_autonomous_governance_update_from_node_state_v1(
+        store_path=path,
+        policy=policy,
+        trajectory_receipt=receipt,
+        expected_policy_hash="0x" + "\ud800" * 32,
+    )
+
+    assert result["admitted"] is False
+    assert "node_apply_expected_policy_hash_invalid" in result["errors"]
+    assert result["node_apply_hash"].startswith("0x")
+
+
+def test_node_apply_hostile_trajectory_hash_refuses_without_crashing_hash(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "autogov-store.json"
+    policy, genesis, _init = _init_file(path)
+    receipt = dict(_continue(policy, genesis, 103))
+    receipt["trajectory_hash"] = "0x" + "\ud800" * 32
+
+    result = apply_autonomous_governance_update_from_node_state_v1(
+        store_path=path,
+        policy=policy,
+        trajectory_receipt=receipt,
+        expected_policy_hash=str(policy["policy_hash"]),
+    )
+
+    assert result["admitted"] is False
+    assert "node_apply_trajectory_hash_invalid" in result["errors"]
+    assert result["node_apply_hash"].startswith("0x")
