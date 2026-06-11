@@ -518,6 +518,31 @@ _KIND_INTENT_FIELD_KEYS = {
             "amount1_min",
         }
     ),
+    IntentKind.ROUTE_EXACT_IN: frozenset(
+        {
+            "asset_in",
+            "asset_out",
+            "leg_indices",
+            "total_amount_in",
+            "total_min_amount_out",
+            # Engine-internal fields are listed here so user-supplied values
+            # reach the route witness gate, where they are rejected with the
+            # route-specific reserved-field error.
+            "route_legs",
+            "route_pool_fingerprints",
+        }
+    ),
+    IntentKind.ROUTE_EXACT_OUT: frozenset(
+        {
+            "asset_in",
+            "asset_out",
+            "leg_indices",
+            "total_amount_out",
+            "total_max_amount_in",
+            "route_legs",
+            "route_pool_fingerprints",
+        }
+    ),
 }
 
 
@@ -716,6 +741,61 @@ def _validate_remove_liquidity_intent_fields(intent: Intent, fields: Dict[str, A
     )
 
 
+def _validate_route_intent_fields(intent: Intent, fields: Dict[str, Any]) -> None:
+    # Routes are receipt-bound by construction. The generic parser only
+    # enforces basic JSON domain bounds; receipt coverage, duplicate leg
+    # rejection, and reserved binding fields are checked by the engine witness
+    # gate so errors stay tied to the validated quote receipt.
+    kind = intent.kind
+    if "quote_receipt_hash" in fields:
+        _require_str(fields["quote_receipt_hash"], name="intent.quote_receipt_hash", non_empty=True, max_len=512)
+    if "asset_in" in fields:
+        _require_str(fields["asset_in"], name="intent.asset_in", non_empty=True, max_len=256)
+    if "asset_out" in fields:
+        _require_str(fields["asset_out"], name="intent.asset_out", non_empty=True, max_len=256)
+    if "asset_in" in fields and "asset_out" in fields and fields["asset_in"] == fields["asset_out"]:
+        raise ValueError("intent.asset_in and intent.asset_out must differ")
+    if "leg_indices" in fields:
+        leg_indices = fields["leg_indices"]
+        if not isinstance(leg_indices, list) or not leg_indices:
+            raise ValueError("intent.leg_indices must be a non-empty list")
+        for idx in leg_indices:
+            if not isinstance(idx, int) or isinstance(idx, bool) or idx < 0:
+                raise ValueError("intent.leg_indices must contain non-negative ints")
+
+    if kind == IntentKind.ROUTE_EXACT_IN:
+        if "total_amount_in" in fields:
+            _require_int_range(
+                fields["total_amount_in"],
+                name="intent.total_amount_in",
+                minimum=1,
+                maximum=DEX_SWAP_AMOUNT_MAX,
+            )
+        if "total_min_amount_out" in fields:
+            _require_int_range(
+                fields["total_min_amount_out"],
+                name="intent.total_min_amount_out",
+                minimum=0,
+                maximum=DEX_SWAP_AMOUNT_MAX,
+            )
+        return
+
+    if "total_amount_out" in fields:
+        _require_int_range(
+            fields["total_amount_out"],
+            name="intent.total_amount_out",
+            minimum=1,
+            maximum=DEX_SWAP_AMOUNT_MAX,
+        )
+    if "total_max_amount_in" in fields:
+        _require_int_range(
+            fields["total_max_amount_in"],
+            name="intent.total_max_amount_in",
+            minimum=0,
+            maximum=DEX_SWAP_AMOUNT_MAX,
+        )
+
+
 def _validate_intent_fields(intent: Intent) -> None:
     """
     Validate the kind-specific normal form produced by the JSON parser.
@@ -740,6 +820,9 @@ def _validate_intent_fields(intent: Intent) -> None:
         return
     if intent.kind == IntentKind.REMOVE_LIQUIDITY:
         _validate_remove_liquidity_intent_fields(intent, fields)
+        return
+    if intent.kind in (IntentKind.ROUTE_EXACT_IN, IntentKind.ROUTE_EXACT_OUT):
+        _validate_route_intent_fields(intent, fields)
         return
     raise ValueError(f"unsupported intent kind: {intent.kind}")
 

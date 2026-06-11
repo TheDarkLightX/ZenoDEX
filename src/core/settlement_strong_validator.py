@@ -28,6 +28,16 @@ from .cpmm import MIN_LP_LOCK, compute_fee_total, swap_exact_in_with_protocol_fe
 from .domain_limits import is_strict_int
 from .liquidity import add_liquidity, create_pool, remove_liquidity
 from .quote_receipts import pool_state_fingerprint
+from .route_settlement import (
+    ROUTE_REJECT_POOL_STATE_DRIFT,
+    ROUTE_RESERVED_FIELDS,
+    is_route_intent_kind,
+    parse_route_binding_fields,
+    replay_route_legs,
+    route_binding_pins_snapshot,
+    route_totals_violation,
+    validate_route_intent_against_binding,
+)
 from .settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta, Settlement
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
@@ -260,6 +270,46 @@ def _validate_settlement_strong_impl(
     if not ok_cow:
         return False, err_cow
 
+    # Canonical route discipline. compute_settlement clears intents in strict
+    # phase order: CREATE_POOL (phase 0) -> routes in ascending intent_id
+    # (phase 1) -> per-pool batches and non-pool rejects (phase 2). Routes are
+    # snapshot-bound, so their FILL/REJECT outcome depends on replay position;
+    # without pinning the phase order a forged settlement could pick the
+    # non-canonical winner between two routes sharing a pool, interleave a
+    # fill before a route to fake a "justified" drift reject, or move a
+    # CREATE_POOL after a route so it spends balance the route just produced
+    # (canonical compute creates pools first, before that balance exists).
+    # Enforce this ONLY when routes are present (leaves non-route settlements,
+    # whose phase order the legacy replay does not pin, byte-for-byte
+    # unchanged).
+    route_entry_ids = [
+        intent_id
+        for intent_id, _action in settlement.included_intents
+        if is_route_intent_kind(intents_by_id[intent_id].kind)
+    ]
+    if route_entry_ids:
+        if route_entry_ids != sorted(route_entry_ids):
+            return False, "route intents must be settled in ascending intent_id order"
+
+        def _settlement_phase(intent_id: str) -> int:
+            kind = intents_by_id[intent_id].kind
+            if kind == IntentKind.CREATE_POOL:
+                return 0
+            if is_route_intent_kind(kind):
+                return 1
+            return 2
+
+        prev_phase = 0
+        for intent_id, _action in settlement.included_intents:
+            phase = _settlement_phase(intent_id)
+            if phase < prev_phase:
+                return False, (
+                    "non-canonical settlement phase order at intent_id="
+                    f"{intent_id}: routes require CREATE_POOL before route "
+                    "before other pool intents"
+                )
+            prev_phase = phase
+
     # Replay state (pure local copies).
     balances = _copy_balance_table(pre_balances)
     pools: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pre_pools.items()}
@@ -290,6 +340,18 @@ def _validate_settlement_strong_impl(
                     **_quote_binding_context(it),
                     intent_kind=it.kind.value,
                 )
+            )
+        has_route_binding_fields = any(
+            it.get_field(field) is not None for field in ROUTE_RESERVED_FIELDS
+        )
+        if has_route_binding_fields and not is_route_intent_kind(it.kind):
+            return fail(
+                f"route binding fields only supported for route intents: "
+                f"intent_id={it.intent_id} intent_kind={it.kind.value}"
+            )
+        if is_route_intent_kind(it.kind) and has_route_binding_fields and not allow_snapshot_bound_quote_bindings:
+            return fail(
+                f"route binding requires validated engine witness: intent_id={it.intent_id}"
             )
         if quote_leg_index is not None and (
             not is_strict_int(quote_leg_index) or int(quote_leg_index) < 0
@@ -325,6 +387,73 @@ def _validate_settlement_strong_impl(
             )
 
         if action == FillAction.REJECT:
+            if is_route_intent_kind(it.kind) and allow_snapshot_bound_quote_bindings:
+                # Must-fill discipline for the engine path. The engine injects
+                # an authentic binding (legs + pool fingerprints) for EVERY
+                # admitted route, filled or rejected, so under the engine
+                # gate a route REJECT must carry a well-formed, intent-
+                # consistent binding. A stripped binding (no fields) or a
+                # tampered binding (parse fails / does not match the signed
+                # route) cannot have come from the validated engine path, and
+                # silently accepting such a REJECT would let a competing route
+                # win the shared pool. Fail closed on all three; only a clean
+                # binding whose replay genuinely cannot fill (drift, totals,
+                # or insufficient balance at this position) justifies the
+                # REJECT.
+                if not has_route_binding_fields:
+                    return fail(
+                        f"route reject missing engine binding: intent_id={intent_id}"
+                    )
+                binding, parse_err = parse_route_binding_fields(it)
+                if binding is None:
+                    return fail(
+                        f"route binding invalid for rejected intent_id={intent_id}: {parse_err}"
+                    )
+                bind_err = validate_route_intent_against_binding(it, binding)
+                if bind_err is not None:
+                    return fail(
+                        f"route reject binding mismatch for intent_id={intent_id}: {bind_err}"
+                    )
+                # Authenticity anchor: an authentic binding pins the pre-state
+                # snapshot. A binding whose fingerprints match neither pre- nor
+                # current-state would forge a fake ROUTE_POOL_STATE_DRIFT and
+                # "justify" the reject; reject it before classifying drift.
+                if not route_binding_pins_snapshot(binding, pre_pools):
+                    return fail(
+                        "route reject binding does not pin the pre-state snapshot "
+                        f"for intent_id={intent_id}"
+                    )
+                replay = replay_route_legs(binding=binding, pools=pools)
+                if replay.ok:
+                    # Legs replayed exactly and totals are satisfiable (the
+                    # binding matches the signed route), so the only canonical
+                    # reason this route would not fill is the sender cannot
+                    # afford the route total. Anything else means a FILL was
+                    # due and the REJECT is a lie.
+                    if route_totals_violation(it, replay) is not None:
+                        return fail(
+                            f"route reject totals inconsistent for intent_id={intent_id}"
+                        )
+                    reject_sender: PubKey = it.sender_pubkey
+                    if balances.get(reject_sender, binding.asset_in) >= int(replay.total_amount_in):
+                        return fail(
+                            "route reject not justified — canonical clearing "
+                            f"would fill intent_id={intent_id}"
+                        )
+                elif replay.reject_reason != ROUTE_REJECT_POOL_STATE_DRIFT:
+                    # Replay failed for a reason OTHER than genuine snapshot
+                    # drift (fingerprints still match the current pools but the
+                    # kernel disagrees with the claimed leg amounts, or the
+                    # binding references a missing/invalid pool). An authentic
+                    # engine-injected binding can only fail replay via drift;
+                    # any other failure means the supplied binding is
+                    # inconsistent with the snapshot it pins — tampered. Fail
+                    # closed rather than letting it "justify" the REJECT.
+                    return fail(
+                        "route reject binding inconsistent with pinned snapshot "
+                        f"for intent_id={intent_id}: {replay.reject_reason}"
+                    )
+                # else: genuine ROUTE_POOL_STATE_DRIFT — a canonical reject.
             continue
 
         f = fill_by_id[intent_id]
@@ -418,6 +547,70 @@ def _validate_settlement_strong_impl(
 
             lp_deltas.append(LPDelta(pubkey=sender, pool_id=pool_id, delta_add=int(lp_minted), delta_sub=0))
             lp_deltas.append(LPDelta(pubkey=LP_LOCK_PUBKEY, pool_id=pool_id, delta_add=int(MIN_LP_LOCK), delta_sub=0))
+            continue
+
+        if is_route_intent_kind(it.kind):
+            # Atomic route fill: re-parse the engine-injected binding
+            # (untrusted), re-validate it against the signed route fields, and
+            # replay every leg with the verified kernels against the CURRENT
+            # local replay state. Exact-quote semantics: any drift fails the
+            # settlement (a computed settlement only ever FILLs a route that
+            # replays exactly at this same position in included_intents order).
+            binding, parse_err = parse_route_binding_fields(it)
+            if binding is None:
+                return fail(f"route binding invalid for intent_id={intent_id}: {parse_err}")
+            route_err = validate_route_intent_against_binding(it, binding)
+            if route_err is not None:
+                return fail(f"route intent/binding mismatch for intent_id={intent_id}: {route_err}")
+            # Authenticity anchor: the binding must pin the pre-state snapshot.
+            # Without it a forged settlement could pin the CURRENT (drifted)
+            # state and fill a route that the canonical pre-state snapshot would
+            # not — snapshot-bound execution must fill only against pre-state.
+            if not route_binding_pins_snapshot(binding, pre_pools):
+                return fail(
+                    "route fill binding does not pin the pre-state snapshot "
+                    f"for intent_id={intent_id}"
+                )
+
+            replay = replay_route_legs(binding=binding, pools=pools)
+            if not replay.ok:
+                return fail(
+                    f"route replay failed for intent_id={intent_id}: {replay.reject_reason}"
+                )
+            totals_err = route_totals_violation(it, replay)
+            if totals_err is not None:
+                return fail(f"route totals violation for intent_id={intent_id}: {totals_err}")
+
+            if int(f.amount_in_filled or 0) != int(replay.total_amount_in):
+                return fail(f"route amount_in_filled mismatch for intent_id={intent_id}")
+            if int(f.amount_out_filled or 0) != int(replay.total_amount_out):
+                return fail(f"route amount_out_filled mismatch for intent_id={intent_id}")
+            if int(f.fee_paid or 0) != int(replay.total_fee_paid):
+                return fail(f"route fee_paid mismatch for intent_id={intent_id}")
+
+            try:
+                for leg in replay.legs:
+                    balances.subtract(sender, leg.asset_in, int(leg.amount_in))
+                    balances.add(recipient, leg.asset_out, int(leg.amount_out))
+            except Exception as exc:
+                return fail(f"route apply error for intent_id={intent_id}: {exc}")
+
+            for leg in replay.legs:
+                leg_pool = pools[leg.pool_id]
+                leg_pool.reserve0 = int(leg.new_reserve0)
+                leg_pool.reserve1 = int(leg.new_reserve1)
+                bal_deltas.append(
+                    BalanceDelta(pubkey=sender, asset=leg.asset_in, delta_add=0, delta_sub=int(leg.amount_in))
+                )
+                bal_deltas.append(
+                    BalanceDelta(pubkey=recipient, asset=leg.asset_out, delta_add=int(leg.amount_out), delta_sub=0)
+                )
+                res_deltas.append(
+                    ReserveDelta(pool_id=leg.pool_id, asset=leg.asset_in, delta_add=int(leg.amount_in), delta_sub=0)
+                )
+                res_deltas.append(
+                    ReserveDelta(pool_id=leg.pool_id, asset=leg.asset_out, delta_add=0, delta_sub=int(leg.amount_out))
+                )
             continue
 
         pool_id = it.get_field("pool_id")

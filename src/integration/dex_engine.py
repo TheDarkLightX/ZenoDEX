@@ -20,6 +20,14 @@ from ..core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from ..core.fees import split_fee_with_dust_carry
 from ..core.intent_normal_form import IntentNormalFormError, require_normal_form
 from ..core.quote_receipts import verify_route_quote_receipt
+from ..core.route_settlement import (
+    ROUTE_RESERVED_FIELDS,
+    RouteBinding,
+    is_route_intent_kind,
+    resolve_route_binding_from_receipt,
+    route_binding_to_fields,
+    validate_route_intent_against_binding,
+)
 from ..core.settlement import Settlement
 from ..core.settlement_normal_form import normalize_settlement_op_for_commitment
 from ..core.uniform_batch_clearing import (
@@ -41,7 +49,7 @@ from ..state.canonical import (
     domain_sep_bytes,
     sha256_hex,
 )
-from ..state.intents import Intent, IntentKind
+from ..state.intents import Intent, IntentKind, RouteIntent
 from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from ..state.state_root import compute_state_root
 from ..state.support_root import compute_support_state_root_for_batch
@@ -742,6 +750,72 @@ def _validate_intent_preconditions(
     return None
 
 
+def _validate_route_intent_against_quote_receipt(
+    intent: Intent, receipt: Mapping[str, Any]
+) -> Tuple[Optional[RouteBinding], Optional[str]]:
+    """
+    Validate a ROUTE_* intent against its (already-verified) quote receipt and
+    resolve the route binding for settlement.
+
+    Returns (binding, None) on success or (None, error).
+    """
+    # Reserved engine-internal fields must not be user-supplied: they are
+    # injected from the verified receipt after this validation.
+    for reserved in ROUTE_RESERVED_FIELDS:
+        if intent.get_field(reserved) is not None:
+            return None, _quote_receipt_error(
+                "route intent must not carry reserved binding fields",
+                **_quote_receipt_intent_context(intent),
+                reserved_field=reserved,
+            )
+    # Swap-shaped binding fields are not valid on route intents: a route binds
+    # ALL receipt legs with one signature.
+    if intent.get_field("quote_receipt_leg_index") is not None:
+        return None, _quote_receipt_error(
+            "route intent must not carry quote_receipt_leg_index",
+            **_quote_receipt_intent_context(intent),
+        )
+    if intent.get_field("quote_pool_fingerprint") is not None:
+        return None, _quote_receipt_error(
+            "route intent must not carry quote_pool_fingerprint",
+            **_quote_receipt_intent_context(intent),
+        )
+
+    # Shape validation: re-construct through the RouteIntent model (the parser
+    # builds generic Intents, so the model's field validation runs here).
+    try:
+        RouteIntent(
+            module=intent.module,
+            version=intent.version,
+            kind=intent.kind,
+            intent_id=intent.intent_id,
+            sender_pubkey=intent.sender_pubkey,
+            deadline=intent.deadline,
+            salt=intent.salt,
+            fields=dict(intent.fields or {}),
+        )
+    except ValueError as exc:
+        return None, _quote_receipt_error(
+            f"invalid route intent: {_clean_error(exc)}",
+            **_quote_receipt_intent_context(intent),
+        )
+
+    binding, resolve_err = resolve_route_binding_from_receipt(receipt)
+    if binding is None:
+        return None, _quote_receipt_error(
+            f"route quote receipt unsupported: {resolve_err}",
+            **_quote_receipt_intent_context(intent),
+        )
+
+    binding_err = validate_route_intent_against_binding(intent, binding)
+    if binding_err is not None:
+        return None, _quote_receipt_error(
+            f"route intent does not match quote receipt: {binding_err}",
+            **_quote_receipt_intent_context(intent),
+        )
+    return binding, None
+
+
 def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str, Any]) -> Optional[str]:
     if intent.kind.value not in {"SWAP_EXACT_IN", "SWAP_EXACT_OUT"}:
         return _quote_receipt_error(
@@ -901,54 +975,87 @@ def _validate_quote_receipt_witnesses(
     *,
     signed_intents: List[SignedIntentEnvelope],
     pools: Dict[str, Any],
-) -> Optional[str]:
+) -> Tuple[Optional[str], Dict[str, RouteBinding]]:
     grouped_by_hash: Dict[str, List[SignedIntentEnvelope]] = {}
+    route_bound_hashes: Dict[str, str] = {}
+    route_bindings: Dict[str, RouteBinding] = {}
     for env in signed_intents:
         quote_hash = env.intent.get_field("quote_receipt_hash")
         receipt = env.quote_receipt
         if quote_hash is not None and receipt is None:
-            return _quote_receipt_error("missing quote receipt witness", **_quote_receipt_intent_context(env.intent))
+            return _quote_receipt_error("missing quote receipt witness", **_quote_receipt_intent_context(env.intent)), {}
         if receipt is None:
+            if is_route_intent_kind(env.intent.kind):
+                # Routes are receipt-bound by construction; fail closed here
+                # rather than letting an unbound route reach settlement.
+                return _quote_receipt_error(
+                    "route intent requires quote receipt witness",
+                    **_quote_receipt_intent_context(env.intent),
+                ), {}
             continue
         if quote_hash is None:
             return _quote_receipt_error(
                 "quote receipt provided without quote_receipt_hash",
                 **_quote_receipt_intent_context(env.intent),
                 witness_hash=receipt.get("receipt_hash") if isinstance(receipt, Mapping) else None,
-            )
+            ), {}
         if not isinstance(quote_hash, str) or not quote_hash:
-            return _quote_receipt_error("invalid quote_receipt_hash", **_quote_receipt_intent_context(env.intent))
+            return _quote_receipt_error("invalid quote_receipt_hash", **_quote_receipt_intent_context(env.intent)), {}
         ok, receipt_verify_err = verify_route_quote_receipt(receipt, pools_by_id=pools)
         if not ok:
             return _quote_receipt_error(
                 "invalid quote receipt",
                 **_quote_receipt_intent_context(env.intent),
                 verifier_error=(receipt_verify_err or "rejected"),
-            )
+            ), {}
         if receipt.get("receipt_hash") != quote_hash:
             return _quote_receipt_error(
                 "quote receipt hash mismatch",
                 **_quote_receipt_intent_context(env.intent),
                 witness_hash=receipt.get("receipt_hash"),
-            )
+            ), {}
+        if is_route_intent_kind(env.intent.kind):
+            binding, route_err = _validate_route_intent_against_quote_receipt(env.intent, receipt)
+            if binding is None:
+                return route_err or "route intent rejected", {}
+            if str(quote_hash) in route_bound_hashes:
+                return _quote_receipt_error(
+                    "quote receipt already bound by route intent",
+                    **_quote_receipt_intent_context(env.intent),
+                    bound_by=route_bound_hashes[str(quote_hash)],
+                ), {}
+            route_bound_hashes[str(quote_hash)] = env.intent.intent_id
+            route_bindings[env.intent.intent_id] = binding
+            continue
         leg_index = env.intent.get_field("quote_receipt_leg_index")
         if not isinstance(leg_index, int) or isinstance(leg_index, bool) or leg_index < 0:
             return _quote_receipt_error(
                 "missing quote_receipt_leg_index",
                 **_quote_receipt_intent_context(env.intent),
                 guidance="direct quote-bound intents must bind exactly one receipt leg",
-            )
+            ), {}
         grouped_by_hash.setdefault(str(quote_hash), []).append(env)
         intent_receipt_err = _validate_intent_against_quote_receipt(env.intent, receipt)
         if intent_receipt_err is not None:
-            return intent_receipt_err
+            return intent_receipt_err, {}
+
+    # A route covers ALL legs of its receipt: no other intent (swap or route)
+    # may bind the same receipt hash in the same batch.
+    for quote_hash, route_intent_id in route_bound_hashes.items():
+        if quote_hash in grouped_by_hash:
+            return _quote_receipt_error(
+                "quote receipt bound by route intent cannot be shared",
+                quote_hash=quote_hash,
+                route_intent_id=route_intent_id,
+                intent_ids=[env.intent.intent_id for env in grouped_by_hash[quote_hash]],
+            ), {}
 
     for quote_hash, envs in grouped_by_hash.items():
         receipt = envs[0].quote_receipt
         body = receipt.get("body") if isinstance(receipt, Mapping) else None
         legs = body.get("legs") if isinstance(body, Mapping) else None
         if not isinstance(legs, list) or not legs:
-            return f"invalid quote receipt legs: {envs[0].intent.intent_id}"
+            return f"invalid quote receipt legs: {envs[0].intent.intent_id}", {}
 
         observed_leg_indices: List[int] = []
         seen_leg_indices: set[int] = set()
@@ -960,7 +1067,7 @@ def _validate_quote_receipt_witnesses(
                     "missing quote_receipt_leg_index",
                     **_quote_receipt_intent_context(env.intent),
                     guidance="direct quote-bound intents must bind exactly one receipt leg",
-                )
+                ), {}
             normalized_leg_index = int(leg_index)
             observed_leg_indices.append(normalized_leg_index)
             if normalized_leg_index in seen_leg_indices:
@@ -974,7 +1081,7 @@ def _validate_quote_receipt_witnesses(
                 quote_hash=quote_hash,
                 duplicate_leg_indices=sorted(duplicate_leg_indices),
                 intent_ids=[env.intent.intent_id for env in envs],
-            )
+            ), {}
 
         required_leg_indices = set(range(len(legs)))
         if set(observed_leg_indices) != required_leg_indices:
@@ -984,8 +1091,8 @@ def _validate_quote_receipt_witnesses(
                 expected_leg_indices=sorted(required_leg_indices),
                 observed_leg_indices=sorted(observed_leg_indices),
                 intent_ids=[env.intent.intent_id for env in envs],
-            )
-    return None
+            ), {}
+    return None, route_bindings
 
 
 def _validate_protected_swap_oracle_authorizations(
@@ -1003,6 +1110,15 @@ def _validate_protected_swap_oracle_authorizations(
                 return _quote_receipt_error(
                     "oracle authorization only supported for swap intents",
                     **_quote_receipt_intent_context(env.intent),
+                )
+            if require_authorization and is_route_intent_kind(env.intent.kind):
+                # Fail closed: route intents do not support protected-swap
+                # oracle authorization yet, so a deployment that REQUIRES it
+                # must not admit quote-bound routes without it.
+                return _quote_receipt_error(
+                    "oracle_authorization_required",
+                    **_quote_receipt_intent_context(env.intent),
+                    guidance="route intents do not support oracle authorization yet",
                 )
             continue
         quote_hash = env.intent.get_field("quote_receipt_hash")
@@ -1072,7 +1188,6 @@ def _validate_critical_settlement_oracle_authorization(
             pools=state.pools,
             lp_balances=state.lp_balances,
             nonces=state.nonces,
-            fee_accumulator=state.fee_accumulator,
         )
     except Exception as exc:
         return f"critical_settlement_oracle_authorization_rejected: invalid pre-state root: {_clean_error(exc)}"
@@ -1090,6 +1205,45 @@ def _validate_critical_settlement_oracle_authorization(
         errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
         return "critical_settlement_oracle_authorization_rejected: " + "; ".join(str(err) for err in errors)
     return None
+
+
+def _sanitize_intents_after_quote_receipt_validation(
+    intents: List[Intent],
+    *,
+    route_bindings: Optional[Dict[str, "RouteBinding"]] = None,
+) -> List[Intent]:
+    """
+    Strip transport-only quote receipt witness fields after engine-side witness
+    validation. The strong validator should only consume the stale-snapshot
+    marker (`quote_pool_fingerprint`) and not raw receipt transport metadata.
+
+    Route intents additionally receive the resolved binding (legs + pool
+    fingerprints) extracted from their verified receipt; the strong validator
+    only accepts those fields on this validated engine path.
+    """
+    out: List[Intent] = []
+    for intent in intents:
+        fields = dict(intent.fields or {})
+        fields.pop("quote_receipt_hash", None)
+        fields.pop("quote_receipt_leg_index", None)
+        fields.pop("oracle_authorization", None)
+        if route_bindings is not None:
+            binding = route_bindings.get(intent.intent_id)
+            if binding is not None and is_route_intent_kind(intent.kind):
+                fields.update(route_binding_to_fields(binding))
+        out.append(
+            Intent(
+                module=intent.module,
+                version=intent.version,
+                kind=intent.kind,
+                intent_id=intent.intent_id,
+                sender_pubkey=intent.sender_pubkey,
+                deadline=intent.deadline,
+                salt=intent.salt,
+                fields=fields,
+            )
+        )
+    return out
 
 
 def _require_canonical_committed_identifiers(intents: List[Intent]) -> Optional[str]:
@@ -1140,33 +1294,6 @@ def _require_canonical_committed_identifiers(intents: List[Intent]) -> Optional[
                 if not _is_canonical(intent.get_field(field_name), 32):
                     return "non-canonical pool asset"
     return None
-
-
-def _sanitize_intents_after_quote_receipt_validation(intents: List[Intent]) -> List[Intent]:
-    """
-    Strip transport-only quote receipt witness fields after engine-side witness
-    validation. The strong validator should only consume the stale-snapshot
-    marker (`quote_pool_fingerprint`) and not raw receipt transport metadata.
-    """
-    out: List[Intent] = []
-    for intent in intents:
-        fields = dict(intent.fields or {})
-        fields.pop("quote_receipt_hash", None)
-        fields.pop("quote_receipt_leg_index", None)
-        fields.pop("oracle_authorization", None)
-        out.append(
-            Intent(
-                module=intent.module,
-                version=intent.version,
-                kind=intent.kind,
-                intent_id=intent.intent_id,
-                sender_pubkey=intent.sender_pubkey,
-                deadline=intent.deadline,
-                salt=intent.salt,
-                fields=fields,
-            )
-        )
-    return out
 
 
 def _is_supported_uniform_batch_swap_family(intents: List[Intent]) -> bool:
@@ -1379,7 +1506,7 @@ def apply_ops(
             return DexTxResult(ok=False, error=err)
         _fault_stage(config, "after_signature_verification")
 
-        err = _validate_quote_receipt_witnesses(signed_intents=signed_intents, pools=state.pools)
+        err, route_bindings = _validate_quote_receipt_witnesses(signed_intents=signed_intents, pools=state.pools)
         if err is not None:
             return DexTxResult(ok=False, error=err)
         err = _validate_protected_swap_oracle_authorizations(
@@ -1389,7 +1516,9 @@ def apply_ops(
         )
         if err is not None:
             return DexTxResult(ok=False, error=err)
-        validation_intents = _sanitize_intents_after_quote_receipt_validation(intents)
+        validation_intents = _sanitize_intents_after_quote_receipt_validation(
+            intents, route_bindings=route_bindings
+        )
         if (
             config.require_uniform_batch_certificate_for_supported_swaps
             and uniform_batch_certificate is None
@@ -1548,6 +1677,7 @@ def apply_ops(
                     swap_ordering=str(config.swap_ordering),
                     protocol_fee_share_bps=int(config.dex_config.protocol_fee_share_bps),
                     protocol_fee_recipient_pubkey=config.dex_config.protocol_fee_recipient_pubkey,
+                    route_bindings=route_bindings,
                 )
 
             if settlement is None:
