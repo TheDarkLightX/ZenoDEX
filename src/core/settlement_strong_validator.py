@@ -260,6 +260,14 @@ def _validate_settlement_strong_impl(
             continue
         if f.action != action:
             return False, f"Fill.action mismatch for intent_id={intent_id}: {f.action} != {action}"
+        if f.action == FillAction.FILL and int(f.protocol_fee_paid or 0) != 0:
+            it = intents_by_id[intent_id]
+            if is_route_intent_kind(it.kind):
+                return False, f"route protocol_fee_paid must be 0: intent_id={intent_id}"
+            if f.reason == "COW_NETTED":
+                return False, f"COW_NETTED protocol_fee_paid must be 0: intent_id={intent_id}"
+            if it.kind in (IntentKind.CREATE_POOL, IntentKind.ADD_LIQUIDITY, IntentKind.REMOVE_LIQUIDITY):
+                return False, f"{it.kind.value} protocol_fee_paid must be 0: intent_id={intent_id}"
 
     ok_cow, err_cow = _validate_cow_pair_index(
         settlement=settlement,

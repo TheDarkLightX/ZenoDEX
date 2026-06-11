@@ -9,7 +9,9 @@ from src.core.batch_clearing import compute_settlement, validate_settlement
 from src.core.dex import DexConfig, DexState
 from src.core.dex import step as dex_step
 from src.core.liquidity import create_pool
-from src.core.quote_receipts import pool_state_fingerprint
+from src.core.quote_receipts import make_route_quote_receipt, pool_state_fingerprint
+from src.core.route_settlement import resolve_route_binding_from_receipt, route_binding_to_fields
+from src.core.routing import best_route_exact_in_2hop
 from src.core.settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta, Settlement
 from src.core.settlement_strong_validator import validate_settlement_strong
 from src.state import BalanceTable, LPTable
@@ -110,6 +112,58 @@ def _setup_create_pool_context() -> tuple[str, str, str, BalanceTable, Intent, S
     return pk, asset0, asset1, balances, intent, settlement
 
 
+def _route_pool(pool_id: str) -> PoolState:
+    return PoolState(
+        pool_id=pool_id,
+        asset0="A",
+        asset1="B",
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=30,
+        lp_supply=1,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+
+
+def _setup_route_context() -> tuple[dict[str, PoolState], BalanceTable, Intent, Settlement]:
+    sender = "0x" + "ab" * 48
+    pools = {"p1": _route_pool("p1"), "p2": _route_pool("p2")}
+    quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=600)
+    assert quote is not None
+    receipt = make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools)
+    binding, err = resolve_route_binding_from_receipt(receipt)
+    assert binding is not None, err
+    fields = {
+        "asset_in": binding.asset_in,
+        "asset_out": binding.asset_out,
+        "leg_indices": list(range(len(binding.legs))),
+        "total_amount_in": int(binding.total_amount_in),
+        "total_min_amount_out": 0,
+        "nonce": 1,
+    }
+    fields.update(route_binding_to_fields(binding))
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ROUTE_EXACT_IN,
+        intent_id=_iid(902),
+        sender_pubkey=sender,
+        deadline=9999999999,
+        fields=fields,
+    )
+    balances = BalanceTable()
+    balances.set(sender, "A", 10_000)
+    settlement = compute_settlement(
+        [intent],
+        {pool_id: replace(pool) for pool_id, pool in pools.items()},
+        balances,
+        LPTable(),
+        route_bindings={intent.intent_id: binding},
+    )
+    return pools, balances, intent, settlement
+
+
 def _setup_swap_exact_out_context(
     *, reverse: bool = False
 ) -> tuple[str, str, str, str, PoolState, BalanceTable, Intent, Settlement]:
@@ -201,6 +255,58 @@ def _setup_remove_liquidity_context() -> tuple[str, str, str, str, PoolState, Ba
     )
     settlement = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
     return pk, asset0, asset1, pool_id, pool, balances, lp_balances, intent, settlement
+
+
+def test_strong_validator_rejects_route_protocol_fee_metadata() -> None:
+    pools, balances, intent, settlement = _setup_route_context()
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: replace(pool) for pool_id, pool in pools.items()},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is True, err
+
+    forged = replace(settlement, fills=[replace(settlement.fills[0], protocol_fee_paid=7)])
+    ok, err = validate_settlement_strong(
+        settlement=forged,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: replace(pool) for pool_id, pool in pools.items()},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is False
+    assert err == f"route protocol_fee_paid must be 0: intent_id={intent.intent_id}"
+
+
+def test_strong_validator_rejects_create_pool_protocol_fee_metadata() -> None:
+    _pk, _asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is True, err
+
+    forged = replace(settlement, fills=[replace(settlement.fills[0], protocol_fee_paid=7)])
+    ok, err = validate_settlement_strong(
+        settlement=forged,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"CREATE_POOL protocol_fee_paid must be 0: intent_id={intent.intent_id}"
 
 
 def test_quote_binding_error_without_context_returns_reason() -> None:
@@ -3199,7 +3305,14 @@ def test_strong_validator_rejects_cow_netted_input_and_apply_errors() -> None:
     balances.set(pk1, asset0, 0)
     balances.set(pk1, asset1, 0)
 
-    def _settlement_for(intent_id: str, *, amount_in_filled: int = 100, amount_out_filled: int = 50, fee_paid: int = 0) -> Settlement:
+    def _settlement_for(
+        intent_id: str,
+        *,
+        amount_in_filled: int = 100,
+        amount_out_filled: int = 50,
+        fee_paid: int = 0,
+        protocol_fee_paid: int | None = None,
+    ) -> Settlement:
         return Settlement(
             module="TauSwap",
             version="0.1",
@@ -3213,6 +3326,7 @@ def test_strong_validator_rejects_cow_netted_input_and_apply_errors() -> None:
                     amount_in_filled=amount_in_filled,
                     amount_out_filled=amount_out_filled,
                     fee_paid=fee_paid,
+                    protocol_fee_paid=protocol_fee_paid,
                 )
             ],
             balance_deltas=[
@@ -3285,6 +3399,18 @@ def test_strong_validator_rejects_cow_netted_input_and_apply_errors() -> None:
     )
     assert ok is False
     assert err == f"COW_NETTED fee_paid must be 0: intent_id={base_intent.intent_id}"
+
+    ok, err = validate_settlement_strong(
+        settlement=_settlement_for(base_intent.intent_id, protocol_fee_paid=1),
+        intents=[base_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err == f"COW_NETTED protocol_fee_paid must be 0: intent_id={base_intent.intent_id}"
 
     ok, err = validate_settlement_strong(
         settlement=_settlement_for(base_intent.intent_id, amount_in_filled=99),
