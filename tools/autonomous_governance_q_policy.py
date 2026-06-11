@@ -30,6 +30,12 @@ from src.integration.autonomous_governance_session import (  # noqa: E402
     continue_autonomous_governance_surface_trajectory_v1,
     verify_autonomous_governance_surface_session_v1,
 )
+from src.integration.autonomous_governance_session_store import (  # noqa: E402
+    admit_autonomous_governance_session_continuation_v1,
+    current_session_store_head_v1,
+    initialize_autonomous_governance_session_store_v1,
+    verify_autonomous_governance_session_store_v1,
+)
 
 
 MAX_INPUT_BYTES = 500_000
@@ -360,6 +366,96 @@ def _cmd_verify_session(args: argparse.Namespace) -> int:
     return 0 if result.get("ok") is True else 2
 
 
+def _cmd_init_session_store(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        if "policy" not in bundle:
+            raise ValueError("init_session_store_requires_policy")
+        result = initialize_autonomous_governance_session_store_v1(
+            genesis_pin=bundle.get("genesis_pin", {}),
+            genesis_receipt=bundle.get("genesis_receipt", {}),
+            policy=bundle.get("policy", {}),
+        )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"init_session_store_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("ok") is True else 2
+
+
+def _cmd_admit_session_continuation(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        if "policy" not in bundle:
+            raise ValueError("admit_session_continuation_requires_policy")
+        receipt = bundle.get("trajectory_receipt", bundle.get("receipt", {}))
+        result = admit_autonomous_governance_session_continuation_v1(
+            store=bundle.get("store", {}),
+            receipt=receipt,
+            policy=bundle.get("policy", {}),
+        )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"admit_session_continuation_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("admitted") is True else 2
+
+
+def _cmd_verify_session_store(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        if "policy" not in bundle:
+            raise ValueError("verify_session_store_requires_policy")
+        result = verify_autonomous_governance_session_store_v1(
+            store=bundle.get("store", {}),
+            policy=bundle.get("policy", {}),
+        )
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"verify_session_store_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("ok") is True else 2
+
+
+def _cmd_session_store_head(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        result = current_session_store_head_v1(bundle.get("store", bundle))
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"session_store_head_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("ok") is True else 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -431,6 +527,46 @@ def main(argv: list[str] | None = None) -> int:
         help="path to JSON with policy and trajectory_receipts (or receipts)",
     )
     verify_session.set_defaults(func=_cmd_verify_session)
+
+    init_session_store = sub.add_parser(
+        "init-session-store",
+        help="initialize a single-live-head session store from a genesis pin",
+    )
+    init_session_store.add_argument(
+        "bundle",
+        help="path to JSON with policy, genesis_pin, and genesis_receipt",
+    )
+    init_session_store.set_defaults(func=_cmd_init_session_store)
+
+    admit_session_continuation = sub.add_parser(
+        "admit-session-continuation",
+        help="advance the session store head on a verified continuation",
+    )
+    admit_session_continuation.add_argument(
+        "bundle",
+        help="path to JSON with policy, store, and trajectory_receipt (or receipt)",
+    )
+    admit_session_continuation.set_defaults(func=_cmd_admit_session_continuation)
+
+    verify_session_store = sub.add_parser(
+        "verify-session-store",
+        help="audit a session store with archived receipts replayed",
+    )
+    verify_session_store.add_argument(
+        "bundle",
+        help="path to JSON with policy and store",
+    )
+    verify_session_store.set_defaults(func=_cmd_verify_session_store)
+
+    session_store_head = sub.add_parser(
+        "session-store-head",
+        help="read the current session-store head and surface state",
+    )
+    session_store_head.add_argument(
+        "bundle",
+        help="path to JSON store object or {store}",
+    )
+    session_store_head.set_defaults(func=_cmd_session_store_head)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

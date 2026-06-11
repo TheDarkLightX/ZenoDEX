@@ -16,9 +16,9 @@ built**. The distinction is load-bearing; do not let the vision blur it.
 | The existing **revision pipeline** it builds on (`docs/REVISION_PIPELINE.md` + the three `src/tau_specs/*_v1.tau` specs) | **Pre-existing** in the repo. |
 | The **oracle** the autonomous loop would read | **L2** (trust-minimized), per `docs/ORACLE_TRUST_POSTURE.md`. Not trustless. |
 | The **autonomous proposers** (PID controller, frozen Q-learning table) | **Reference implementation** — `src/tau_specs/governance/gov_proposers.py` (deterministic PI + frozen Q-table) for simulation/demonstration. NOT a production/live proposer. |
-| The **frozen Q/EBRM artifact runtime** | **Built as an offline, verifier-preserving artifact path** — `src/integration/autonomous_governance_q_policy.py`, `src/integration/autonomous_governance_trajectory.py`, `src/integration/autonomous_governance_session.py`, `tools/autonomous_governance_policy_factory.py`, `tools/autonomous_governance_q_policy.py`, and `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`. It ranks proposals, binds committed context hashes, runs/verifies multi-step trajectories and cross-trajectory sessions, and emits receipts; exact gates still decide admission. |
+| The **frozen Q/EBRM artifact runtime** | **Built as an offline, verifier-preserving artifact path** — `src/integration/autonomous_governance_q_policy.py`, `src/integration/autonomous_governance_trajectory.py`, `src/integration/autonomous_governance_session.py`, `src/integration/autonomous_governance_policy_pin.py`, `src/integration/autonomous_governance_session_pin.py`, `src/integration/autonomous_governance_session_store.py`, `tools/autonomous_governance_policy_factory.py`, `tools/autonomous_governance_q_policy.py`, and `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`. It ranks proposals, binds committed context hashes, runs/verifies multi-step trajectories and cross-trajectory sessions, pins the authorized policy/session head, and emits receipts; exact gates still decide admission. |
 | The **autonomous loop** (proposer → gate → apply/no-op) | **Reference implementation** — `src/tau_specs/governance/gov_loop.py`; the safety property (the gate bounds a poisoned proposer) and `curr`-binding are empirically tested (`tests/tau_specs/governance/test_gov_loop.py`). NOT wired to a live governance flow. |
-| The **live autonomous loop** (the reference loop driving *committed on-chain* parameters from *attested* state) | **Partially built in integration code.** The Q-policy step can require a committed-context hash, the trajectory runner threads state across epochs, and the session verifier binds receipt boundaries. The deployed node/apply flow that requires those artifacts is still open **WS5** work. |
+| The **live autonomous loop** (the reference loop driving *committed on-chain* parameters from *attested* state) | **Partially built in integration code.** The Q-policy step can require a committed-context hash, the trajectory runner threads state across epochs, the session verifier binds receipt boundaries, and the session store keeps one live head through its admission API. The deployed node/apply flow that requires and persists those artifacts is still open **WS5** work. |
 
 **No autonomous proposer is wired into any governance path today.** Default governance
 authority is unchanged. Nothing here is deployed or promoted. The PID/Q-table sections
@@ -223,12 +223,24 @@ Developer entry points:
 - `src/integration/autonomous_governance_session.py`: cross-trajectory
   continuation and whole-session verifier for budget, cooldown, oscillation, and
   chain-head continuity.
+- `src/integration/autonomous_governance_policy_pin.py`: quorum-gated policy
+  pin lineage for the frozen autonomous policy artifact.
+- `src/integration/autonomous_governance_session_pin.py`: session-head pin
+  lineage for genesis and continuation summaries.
+- `src/integration/autonomous_governance_session_store.py`: single-live-head
+  admission store that rejects forks and rollback replays through the API.
 - `tests/integration/test_autonomous_governance_q_policy.py`: runtime behavior,
   exact-gate boundary, and selection-aware ranking tests.
 - `tests/integration/test_autonomous_governance_trajectory.py`: trajectory
   threading, invariant tripwires, tamper matrix, and CLI verification tests.
 - `tests/integration/test_autonomous_governance_session.py`: boundary-reset
   attacks, session accounting, continuation refusals, and CLI session checks.
+- `tests/integration/test_autonomous_governance_policy_pin.py`: policy-pin
+  authority, payload binding, and lineage checks.
+- `tests/integration/test_autonomous_governance_session_pin.py`: session-pin
+  opening, continuation, and fork-refusal checks.
+- `tests/integration/test_autonomous_governance_session_store.py`: store
+  initialization, head admission, rollback/fork refusal, and CLI checks.
 - `tests/tools/test_autonomous_governance_q_table_optimizer.py`: full factory,
   replay, artifact, and promotion-gate regression test.
 
@@ -385,7 +397,7 @@ bound attained at a concrete m=3, B=150 instance) is proved in Lean
 | Reference **loop** + safety property (gate bounds a poisoned PI/Q-table/layered/energy proposer) + `curr`-binding | **Done** (`gov_loop.py`, `test_gov_loop.py`, `test_gov_proposers.py` — empirical) |
 | **Multi-surface revision step** — all-or-nothing across every touched surface (fee/funding/whale scalars, router shares as a unit, MCR/CCR as a unit); gates import-bound (no forged-wrapper surface); consumes the policy-factory action shape (`{surface: delta}`) directly — every action in the frozen `q_policy.v1` sample is gate-admissible and the factory's negative controls all reject (differential fixture) | **Done** (`gov_loop.multi_surface_revision_step`) — reference; live `curr`/epoch binding still **Open** (WS5) |
 | Q-table **hash-pinning** primitive (`table_hash` / `layered_table_hash` / `energy_model_hash`) | **Done** (reference); a live consensus-bound, hash-pinned decision runtime is **Open** |
-| Frozen Q/EBRM artifact evaluator, factory, CLI, replay reports, selection-aware first-admissible ranking, context-hash binding, multi-step trajectory runner/verifier, cross-trajectory session verifier, and client-side trajectory refuse-loop | **Done** (`src/integration/autonomous_governance_q_policy.py`, `src/integration/autonomous_governance_trajectory.py`, `src/integration/autonomous_governance_session.py`, `tools/autonomous_governance_policy_factory.py`, `tools/autonomous_governance_q_policy.py`, `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`) — offline/integration artifact path; deployed apply wiring still **Open** (WS5) |
+| Frozen Q/EBRM artifact evaluator, factory, CLI, replay reports, selection-aware first-admissible ranking, context-hash binding, multi-step trajectory runner/verifier, cross-trajectory session verifier, policy/session pins, single-live-head store, and client-side trajectory refuse-loop | **Done** (`src/integration/autonomous_governance_q_policy.py`, `src/integration/autonomous_governance_trajectory.py`, `src/integration/autonomous_governance_session.py`, `src/integration/autonomous_governance_policy_pin.py`, `src/integration/autonomous_governance_session_pin.py`, `src/integration/autonomous_governance_session_store.py`, `tools/autonomous_governance_policy_factory.py`, `tools/autonomous_governance_q_policy.py`, `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`) — offline/integration artifact path; deployed apply wiring and durable store distribution remain **Open** (WS5) |
 | **Trajectory-tier Tau specs** — `gov_drift_budget_v1` / `gov_cooldown_v1` / `gov_charter_v1` / `gov_epoch_budget_v1` (compile + non-vacuity + teeth incl. wrap probes, via the same bf-layer harness) | **Done** (`validate_governance_specs.py` `PURE_SPECS`) |
 | Trajectory-tier Python mirrors + Tau↔Python↔Rust differential parity (one shared boundary table, byte-pinned fixture) | **Done** (`gov_gate.py`, `test_gov_parity.py`) |
 | **Epoch machine** — charter (dead-man standing approval) / veto / freeze / cooldown / drift budgets / aggregate budget, stable receipt codes + params-digest no-op proofs, import-bound gates, no self-amendment | **Done** (`gov_epoch.py`, `test_gov_epoch.py`) — reference; live `now_epoch`/state binding still **Open** (WS5) |
@@ -395,7 +407,8 @@ bound attained at a concrete m=3, B=150 instance) is proved in Lean
 | **Production** proposer (tuned/audited PID or trained+frozen Q-table on real signals) | **Open** |
 | Live wiring: a deployed governance flow that *requires* this gate before applying any change | **Open** (WS5) |
 | Client-side refuse-loop that rejects an unbounded/unproven trajectory receipt | **Done** for the integration artifact path (`admit_verified_autonomous_governance_surface_trajectory_v1`, CLI `admit-trajectory`); deployed clients/nodes still must require it before live application (**Open**, WS5) |
-| Cross-trajectory session continuity that rejects boundary resets of budget, cooldown, anti-oscillation history, policy hash, and chain head | **Done** for the integration artifact path (`continue_autonomous_governance_surface_trajectory_v1`, `verify_autonomous_governance_surface_session_v1`, CLI `continue-trajectory` / `verify-session`); a deployed single live session-head pin remains **Open** (WS5) |
+| Cross-trajectory session continuity that rejects boundary resets of budget, cooldown, anti-oscillation history, policy hash, and chain head | **Done** for the integration artifact path (`continue_autonomous_governance_surface_trajectory_v1`, `verify_autonomous_governance_surface_session_v1`, CLI `continue-trajectory` / `verify-session`) |
+| Single-live-head session admission store that refuses forks, rollback replays, malformed store blobs, and unverified continuations | **Done** for the integration artifact path (`initialize_autonomous_governance_session_store_v1`, `admit_autonomous_governance_session_continuation_v1`, `verify_autonomous_governance_session_store_v1`, CLI store commands); deployed storage/ordering/distribution remains **Open** (WS5) |
 | Rust port of the gate kernel — `rust-runtime/crates/zenodex-governance-gate`: all gates + trajectory bits + the canonical params digest (contract-equal to `gov_epoch.params_digest`), 3-way parity over the shared byte-pinned fixture, clippy-clean checked arithmetic, Kani 7/7 full-domain accept⇒invariant | **Done** (reference/shadow; authority stays `gov_gate.py`; promotion via the CBC matrix)
 | Rust port of the EPOCH MACHINE — `epoch` module: Surface enum + fixed arrays make the hostile-object tier unrepresentable; digest-free core proved by Kani over the FULL symbolic state space (reject-is-no-op, pending kept-vs-cleared, accept⇒bookkeeping/band/charter invariants, precedence dominance, stop-authority field isolation — 15/15 harnesses); bound to `gov_epoch.py` by a 53-transition replay fixture generated from the Python machine itself (all 17 receipt codes, byte-pinned) | **Done** (reference/shadow; `gov_epoch.py` stays the authority machine) |
 
@@ -418,10 +431,20 @@ bound attained at a concrete m=3, B=150 instance) is proved in Lean
 - Frozen Q/EBRM artifact runtime: `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`,
   `src/integration/autonomous_governance_q_policy.py`,
   `src/integration/autonomous_governance_session.py`,
+  `src/integration/autonomous_governance_policy_pin.py`,
+  `src/integration/autonomous_governance_session_pin.py`,
+  `src/integration/autonomous_governance_session_store.py`,
+  `src/integration/zeno_governance_authority.py`,
+  `src/integration/zenodex_external_threshold_bls.py`,
   `tools/autonomous_governance_policy_factory.py`,
   `tools/autonomous_governance_q_policy.py`,
   `tools/autonomous_governance_q_table_optimize.jl`,
   `tests/integration/test_autonomous_governance_session.py`,
+  `tests/integration/test_autonomous_governance_policy_pin.py`,
+  `tests/integration/test_autonomous_governance_session_pin.py`,
+  `tests/integration/test_autonomous_governance_session_store.py`,
+  `tests/integration/test_zeno_governance_authority.py`,
+  `tests/integration/test_zeno_governance_authority_quorum_required.py`,
   `tests/integration/test_autonomous_governance_q_policy.py`,
   `tests/tools/test_autonomous_governance_q_table_optimizer.py`
 - Existing pipeline: `docs/REVISION_PIPELINE.md`, `src/tau_specs/revision_policy_v1.tau`,

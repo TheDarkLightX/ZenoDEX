@@ -40,6 +40,14 @@ policy hash and one trajectory budget. That closes the operator reset path for
 `trajectory_used`, anti-oscillation history, cooldown state, and
 `previous_chain_head` inside the integration artifact path.
 
+The single-live-head store closes the next boundary. A verified session proves
+the receipt sequence it is shown; the store is the admission API that keeps one
+current head and advances it only through
+`admit_autonomous_governance_session_continuation_v1`. A forked continuation or
+rollback replay is refused against the current head and returns the store
+unchanged. Protecting and distributing that store state remains a deployment
+responsibility.
+
 Surface evaluation can also bind the committed-state context with
 `expected_committed_context_hash`. The hash covers the current surface state,
 `current_epoch`, `proposal_epoch`, optional `last_update_epoch`,
@@ -416,6 +424,21 @@ PY
 python3 tools/autonomous_governance_q_policy.py verify-session /tmp/autogov-session-verify-bundle.json
 ```
 
+Initialize and advance the single-live-head session store:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py init-session-store /tmp/autogov-session-store-init-bundle.json
+python3 tools/autonomous_governance_q_policy.py admit-session-continuation /tmp/autogov-session-store-admit-bundle.json
+python3 tools/autonomous_governance_q_policy.py verify-session-store /tmp/autogov-session-store-verify-bundle.json
+python3 tools/autonomous_governance_q_policy.py session-store-head /tmp/autogov-session-store-verify-bundle.json
+```
+
+The `init-session-store` bundle contains `policy`, `genesis_pin`, and
+`genesis_receipt`. The `admit-session-continuation` bundle contains `policy`,
+`store`, and `trajectory_receipt` (or `receipt`). The store archive includes the
+pin chain and one trajectory receipt per pin, so `verify-session-store` can run
+in receipts-replayed scope.
+
 Exit code `0` means the autonomous revision packet is approved. Exit code `2`
 means it was rejected fail-closed. Exit code `3` means the input could not be
 evaluated.
@@ -445,6 +468,16 @@ run. `verify_autonomous_governance_surface_session_v1` then checks the ordered
 receipt list independently, including fresh genesis, exact boundary carry,
 policy-hash consistency, budget consistency, strictly increasing boundary
 epochs, completed statuses, drift conservation, and monotone session usage.
+
+For live-head admission, use
+`initialize_autonomous_governance_session_store_v1` to bind a genesis pin,
+genesis receipt, and policy. Thereafter use
+`admit_autonomous_governance_session_continuation_v1` as the only state-moving
+entry point. It validates the existing store hash, verifies the presented
+continuation through the session-pin advance logic, appends the new pin and
+receipt on success, and returns the original store unchanged on refusal.
+`current_session_store_head_v1` is the read path for the current surface state;
+`verify_autonomous_governance_session_store_v1` is the archived-lineage audit.
 
 ## Design Notes
 
@@ -478,12 +511,22 @@ paths are:
   continuation and whole-session verification, so the movement budget and
   cooldown state cannot be reset at a receipt boundary inside the integration
   artifact path.
+- `src/integration/autonomous_governance_policy_pin.py`: quorum-gated frozen
+  policy pin lineage for which autonomous-governance brain is authorized.
+- `src/integration/autonomous_governance_session_pin.py`: session-head pin
+  lineage for verified genesis and continuation records.
+- `src/integration/autonomous_governance_session_store.py`: single-live-head
+  admission store that refuses forks, rollbacks, and malformed state blobs.
+- `src/integration/zeno_governance_authority.py`: governance action authority
+  gate for quorum, timelock, Tau receipt, and backend evidence.
 - `tools/autonomous_governance_policy_factory.py`: aggregates
   `selection_penalized_count_total` alongside exact gate checks and scanned
   candidates.
 - `tools/autonomous_governance_q_policy.py`: exposes `trajectory`,
   `continue-trajectory`, `verify-trajectory`, `admit-trajectory`, and
-  `verify-session` for replay and client admission checks.
+  `verify-session` for replay and client admission checks, plus
+  `init-session-store`, `admit-session-continuation`, `verify-session-store`,
+  and `session-store-head` for live-head store checks.
 - `tests/integration/test_autonomous_governance_q_policy.py`: checks that
   anti-oscillation and trajectory-budget blockers are penalized before gate
   scanning.
