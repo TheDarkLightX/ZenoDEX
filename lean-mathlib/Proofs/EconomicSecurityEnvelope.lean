@@ -112,5 +112,52 @@ theorem witness_escape_model :
     (1 + 1 / 5 : ℚ) * ((1 - 3 / 4) * 100) ≤ (3 / 4) * 40 := by
   constructor <;> norm_num [cheatEV]
 
+/-! ## Coalition deterrence
+
+Every law above is unilateral: one cheater, one slash.  For a quorum
+aggregator the binding constraint is the smallest coalition that controls
+the output — for median-of-`(2f+1)`, any `f+1` reporters (`f+1 = 2` at the
+production `k = 3`).  The pooled coalition gain is the full extractable
+value, while the slash scales only with coalition SIZE, so the deterrence
+inequality must be stated against `k_break · slash`, not against the
+per-reporter gain.  `witness_unilateral_sizing_insufficient` shows the gap
+concretely: a slash sized to deter the unilateral gain leaves the
+2-coalition strictly profitable. -/
+
+/-- Post-hoc coalition value: `k` members are each slashed `slash`; the
+    coalition's pooled gain is `gain`. -/
+def coalitionPostHocEV (gain slash : ℚ) (k : ℕ) : ℚ := gain - (k : ℚ) * slash
+
+/-- **Coalition deterrence law**: if the aggregate slash of a `k`-coalition
+    exceeds the pooled gain by the factor `1 + margin`, the coalition nets
+    at most `−margin · gain`. -/
+theorem coalition_deterrence (gain slash margin : ℚ) (k : ℕ)
+    (hdet : (1 + margin) * gain ≤ (k : ℚ) * slash) :
+    coalitionPostHocEV gain slash k ≤ -(margin * gain) := by
+  unfold coalitionPostHocEV
+  have hexp : (1 + margin) * gain = gain + margin * gain := by ring
+  linarith
+
+/-- Median-of-3 bond floor: the binding coalition is TWO reporters, so the
+    per-reporter slash must satisfy `2 · slash ≥ (1 + margin) · gain` where
+    `gain` is the COALITION-extractable value (the full oracle-mediated
+    MEV), not the per-reporter share. -/
+theorem median3_coalition_bond_floor (gain slash margin : ℚ)
+    (hdet : (1 + margin) * gain ≤ 2 * slash) :
+    coalitionPostHocEV gain slash 2 ≤ -(margin * gain) := by
+  have h2 : ((2 : ℕ) : ℚ) = 2 := by norm_num
+  apply coalition_deterrence
+  simpa [h2] using hdet
+
+/-- Unilateral sizing is insufficient for a quorum: slash 12 deters the
+    unilateral gain 10 at margin 20% (`12 ≥ 1.2 · 10`), yet a 2-coalition
+    whose pooled extractable gain is 100 nets `100 − 2·12 = +76`.  Bonds
+    must scale with coalition-extractable value. -/
+theorem witness_unilateral_sizing_insufficient :
+    (1 + 2 / 10 : ℚ) * 10 ≤ 12 ∧
+    coalitionPostHocEV 100 12 2 = 76 ∧
+    (0 : ℚ) < coalitionPostHocEV 100 12 2 := by
+  norm_num [coalitionPostHocEV]
+
 end EconomicSecurityEnvelope
 end Proofs
