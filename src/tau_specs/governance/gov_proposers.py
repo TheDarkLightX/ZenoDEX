@@ -1,16 +1,19 @@
-"""Reference autonomous-governance PROPOSERS for ZenoDEX (deterministic, advisory).
+"""Production autonomous-governance PROPOSERS for ZenoDEX.
 
 These are the "proposer" side of the proposer/gate architecture (see
 docs/AUTONOMOUS_GOVERNANCE_ARCHITECTURE.md). A proposer computes a *candidate* next parameter
 value; it has NO authority. The verified gate (`gov_gate.py` / the `gov_*_v1.tau` specs) decides
 admissibility, and `gov_loop.py` composes the two with `curr` bound to committed state.
 
-SCOPE / NON-CLAIMS: this module is a REFERENCE implementation for simulation + demonstrating the
-loop end-to-end. It is NOT wired into any live governance path, NOT consensus-critical, and carries
-no authority — a mis-tuned or poisoned proposer here can only ever produce a candidate that the gate
-then bounds. Determinism IS load-bearing for the design (a real on-chain proposer must be replayable):
-both proposers below are pure integer / fixed-point functions with NO floats and NO randomness, and
-their inputs are type-validated (non-`int`/`bool` rejected) so the integer property actually holds.
+Production scope: this module supplies deterministic, replayable candidate
+generators for the autonomous-governance lane. Live use must call them through
+`gov_loop.py`, the integration policy runtimes, the trajectory runner, and the
+file-backed live admission wrapper. A mis-tuned or poisoned proposer can only
+produce a candidate; the gates, context hashes, policy pins, and session-store
+admission decide whether state changes. Determinism is load-bearing: every
+proposer below is pure integer / fixed-point code with NO floats and NO
+randomness, and inputs are type-validated so the integer contract actually
+holds.
 
 Four archetypes (the ones discussed for ZenoDEX):
   * PI controller  -- continuous target-tracking (e.g. a peg-class monetary param). PI, not full PID:

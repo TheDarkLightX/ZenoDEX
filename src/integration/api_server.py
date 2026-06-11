@@ -982,6 +982,8 @@ class _Handler(BaseHTTPRequestHandler):
             return 96_000
         if path.startswith("/api/confidential/attestation/"):
             return 96_000
+        if path.startswith("/api/autogov/"):
+            return 8 * 1024 * 1024
         return 65_536
 
     def _perps_state(self) -> Any:
@@ -6876,6 +6878,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         or zusd_tau_wallet_enabled
         or zusd_monetary_wallet_enabled
         or autotrader_live_enabled
+        or autogov_live_apply_enabled
         or confidential_attestation_enabled
         or dex_enabled
     )
@@ -7097,6 +7100,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
         f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, "
         f"autotrader_live_api={autotrader_live_enabled}, "
+        f"autogov_live_apply_api={autogov_live_apply_enabled}, "
         f"confidential_attestation_api={confidential_attestation_enabled}, dex_api={dex_enabled}, "
         f"confidential_stage={confidential_feature_status.get('stage')}, "
         f"external_auth_enforced={external_auth_enforced}, "
