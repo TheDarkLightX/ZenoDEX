@@ -1,0 +1,32 @@
+{
+  "wave": 1,
+  "domain": "spot_settlement",
+  "timestamp": "2026-06-10T00:00:00Z",
+  "hypotheses": [
+    {
+      "id": "H-MD-SS-002",
+      "description": "Ceil-rounded exact-in fees are superadditive under order splitting in the bounded Wave 1 grid.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "Across all fee rates 0..10000 and every two-way partition of gross amounts 0..64, sum(split fees) >= one-shot fee; representative consensus-helper probes match the closed-form ceil formula.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave1_spot_settlement/test_spot_fee_arithmetic.py -q",
+      "obligation": "O-SS-02"
+    },
+    {
+      "id": "H-MD-SS-008",
+      "description": "Three-way fee dust-carry conserves value and leaves a tight dust bound below three fee units.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 2,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "For representative fee, dust, and routing-share cases, distributed + next dust equals fee + previous dust at each split, next dust equals the receipt dust, and dust_carried < 3; repeated splits conserve cumulative value.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave1_spot_settlement/test_spot_fee_arithmetic.py -q",
+      "obligation": "O-SS-07"
+    }
+  ],
+  "total_tests": 3,
+  "total_passed": 3,
+  "total_failed": 0
+}
