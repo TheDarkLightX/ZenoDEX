@@ -1,7 +1,36 @@
 from __future__ import annotations
 
-from src.core.routing import best_route_exact_in_2hop
+import ast
+from pathlib import Path
+
+import pytest
+
+import src.core.routing as routing
+import src.core.split_routing_dispatch as split_routing_dispatch
+from src.core.routing import (
+    best_route_exact_in_2hop,
+    best_route_exact_out_2hop,
+)
+from src.integration.exact_in_route_certificate import (
+    enumerate_route_candidates_exact_in_2hop,
+    exact_in_route_canonical_key,
+)
 from src.state.pools import PoolState, PoolStatus
+
+
+def test_routing_does_not_broadly_suppress_unexpected_exceptions() -> None:
+    modules = (routing, split_routing_dispatch)
+    broad_handlers: list[str] = []
+    for module in modules:
+        tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
+        broad_handlers.extend(
+            f"{module.__name__}:{node.lineno}"
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ExceptHandler)
+            and isinstance(node.type, ast.Name)
+            and node.type.id in {"Exception", "BaseException"}
+        )
+    assert broad_handlers == []
 
 
 def _pool(pid: str, a0: str, a1: str, r0: int, r1: int, fee_bps: int = 0) -> PoolState:
@@ -30,6 +59,30 @@ def test_best_route_picks_direct_if_best():
     assert len(q.legs) == 1
     assert len(q.legs[0].hops) == 1
     assert q.legs[0].hops[0].pool_id == "p_ab"
+
+
+def test_best_route_propagates_unexpected_quote_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 0),
+    }
+
+    def _boom(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("unexpected quote bug")
+
+    monkeypatch.setattr(routing, "swap_exact_in_for_pool", _boom)
+    with pytest.raises(RuntimeError, match="unexpected quote bug"):
+        best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10)
+
+
+def test_best_route_rejects_same_asset_round_trip_boundary():
+    # A same-asset request must not be "helpfully" converted into a pool round trip.
+    # That keeps quote search from inventing self-referential routes such as A->B->A.
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 0),
+    }
+
+    assert best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="A", amount_in=10) is None
+    assert best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="A", amount_out=10) is None
 
 
 def test_best_route_uses_2hop_when_better():
@@ -74,6 +127,37 @@ def test_best_route_can_split_across_parallel_pools():
     assert len(q.legs) == 2
     assert all(len(leg.hops) == 1 for leg in q.legs)
     assert q.amount_out > single.amount_out
+
+
+def test_exact_in_split_domain_errors_are_suppressed(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+
+    def infeasible_candidate(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("domain-infeasible candidate")
+
+    monkeypatch.setattr(routing, "best_split_many_pools_exact_in_for_pools", infeasible_candidate)
+
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=50)
+    assert q is not None
+    assert q.amount_out > 0
+
+
+def test_exact_in_split_runtime_errors_propagate(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+
+    def broken_candidate_generator(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("split generator bug")
+
+    monkeypatch.setattr(routing, "best_split_many_pools_exact_in_for_pools", broken_candidate_generator)
+
+    with pytest.raises(RuntimeError, match="split generator bug"):
+        best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=50)
 
 
 def test_best_route_can_split_direct_plus_twohop_when_enabled():
@@ -223,3 +307,35 @@ def test_best_route_default_split_profile_matches_dense24_on_known_gap_case():
     assert q_dense is not None
     assert q_default.amount_out == q_dense.amount_out
     assert q_default.amount_out == 143
+
+
+def test_exact_in_route_selector_matches_minimum_canonical_key() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 800, 0),
+        "p_ac": _pool("p_ac", "A", "C", 900, 900, 0),
+        "p_cb": _pool("p_cb", "C", "B", 900, 900, 0),
+        "p_ab2": _pool("p_ab2", "A", "B", 1000, 780, 0),
+    }
+
+    candidates = enumerate_route_candidates_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=100,
+        enable_mixed_direct_twohop_split=True,
+    )
+    assert candidates
+
+    selected = min(candidates, key=exact_in_route_canonical_key)
+    best = best_route_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=100,
+        enable_mixed_direct_twohop_split=True,
+    )
+
+    assert selected is not None
+    assert best is not None
+    assert selected == best
+    assert selected == min(candidates, key=exact_in_route_canonical_key)

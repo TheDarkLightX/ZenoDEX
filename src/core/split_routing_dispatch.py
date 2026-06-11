@@ -20,6 +20,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..kernels.python.exact_out_many_pool_canonical_domain_v1 import (
     DEFAULT_EXACT_OUT_MANY_POOL_MAX_ENUMERATED_CANDIDATES,
+)
+from ..kernels.python.exact_out_many_pool_canonical_domain_v1 import (
     build_exact_out_many_pool_selected_domain as _kernel_build_exact_out_many_pool_selected_domain,
 )
 from ..kernels.python.exact_out_many_pool_repaired_prefilter_v1 import (
@@ -28,7 +30,12 @@ from ..kernels.python.exact_out_many_pool_repaired_prefilter_v1 import (
 from ..state.balances import Amount, AssetId
 from ..state.pools import CURVE_TAG_CPMM, PoolState
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
-from .split_routing import PoolXY, best_split_two_pools_exact_in, exact_out_for_pool_exact_in, resolve_two_pool_split_search_params
+from .split_routing import (
+    PoolXY,
+    best_split_two_pools_exact_in,
+    exact_out_for_pool_exact_in,
+    resolve_two_pool_split_search_params,
+)
 
 
 @dataclass(frozen=True)
@@ -248,7 +255,7 @@ def _is_valid_exact_out(pool: PoolState, *, asset_in: AssetId, asset_out: AssetI
         return False
     try:
         _quote_exact_out(pool, asset_in=asset_in, asset_out=asset_out, amount_out=amount_out)
-    except Exception:
+    except ValueError:
         return False
     return True
 
@@ -258,7 +265,7 @@ def _is_valid(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_
         return False
     try:
         _quote_exact_in(pool, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in)
-    except Exception:
+    except ValueError:
         return False
     return True
 
@@ -314,7 +321,7 @@ def exact_out_capacity_guard_for_pools(
                 asset_out=asset_out,
                 amount_out=min(int(target_out), int(cap)),
             )
-        except Exception:
+        except ValueError:
             continue
         caps_by_pool.append((pool.pool_id, int(cap)))
     return _build_exact_out_capacity_guard(
@@ -357,7 +364,7 @@ def _brute_force_best_split(
         try:
             out0 = _quote_exact_in(pool0, asset_in=asset_in, asset_out=asset_out, amount_in=a) if a > 0 else 0
             out1 = _quote_exact_in(pool1, asset_in=asset_in, asset_out=asset_out, amount_in=b) if b > 0 else 0
-        except Exception:
+        except ValueError:
             continue
         total = int(out0 + out1)
         if best_out is None or total > best_out or (total == best_out and a < best_a):
@@ -399,7 +406,7 @@ def _generic_best_split_two_pools_exact_in(
         try:
             out0 = _quote_exact_in(pool0, asset_in=asset_in, asset_out=asset_out, amount_in=a) if a > 0 else 0
             out1 = _quote_exact_in(pool1, asset_in=asset_in, asset_out=asset_out, amount_in=b) if b > 0 else 0
-        except Exception:
+        except ValueError:
             return None
         return int(out0 + out1)
 
@@ -629,7 +636,7 @@ def best_split_two_pools_exact_out_for_pools(
         try:
             in0 = _quote_exact_out(p0, asset_in=asset_in, asset_out=asset_out, amount_out=int(q0)) if q0 > 0 else 0
             in1 = _quote_exact_out(p1, asset_in=asset_in, asset_out=asset_out, amount_out=int(q1)) if q1 > 0 else 0
-        except Exception:
+        except ValueError:
             return None
         return int(in0 + in1)
 
@@ -833,7 +840,7 @@ def best_split_many_pools_exact_in_for_pools(
     for p in feasible:
         try:
             out_full = _quote_exact_in(p, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in_total)
-        except Exception:
+        except ValueError:
             continue
         ranked.append((int(out_full), p))
     if not ranked:
@@ -1011,7 +1018,8 @@ def best_split_many_pools_exact_in_for_pools(
             break
         step = max(step_min, step // 2)
 
-    assert best_alloc is not None
+    if best_alloc is None:
+        raise RuntimeError("split allocation search produced no candidate")
     legs: List[SplitLegQuote] = []
     out_total = 0
     in_total = 0
@@ -1100,7 +1108,7 @@ def best_split_many_pools_exact_out_for_pools(
         out_i = min(int(Q), int(cap))
         try:
             in_i = _quote_exact_out(p, asset_in=asset_in, asset_out=asset_out, amount_out=int(out_i))
-        except Exception:
+        except ValueError:
             continue
         feasible.append((p, int(cap), int(in_i)))
 
@@ -1137,7 +1145,7 @@ def best_split_many_pools_exact_out_for_pools(
                     ),
                 )
             )
-        except Exception:
+        except ValueError:
             candidates = []
 
     if not candidates:

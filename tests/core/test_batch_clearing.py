@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import ast
 import inspect
 from dataclasses import replace
+from pathlib import Path
 
 import src.core.batch_clearing as batch_clearing_module
 from src.core.batch_clearing import (
@@ -14,6 +16,7 @@ from src.core.batch_clearing import (
     _apply_create_pool_to_locals,
     _apply_filled_intent_to_locals,
     _cow_pair_netting_exact_in_v1,
+    _eval_ordering_ab,
     _get_limit_price,
     _order_swaps_limit_price,
     _order_swaps_mci_ab,
@@ -37,6 +40,19 @@ from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
 from src.state.pools import PoolState, PoolStatus
+
+
+def test_batch_clearing_has_no_bare_broad_candidate_suppression() -> None:
+    tree = ast.parse(Path(batch_clearing_module.__file__).read_text(encoding="utf-8"))
+    broad_bare_handlers = [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ExceptHandler)
+        and isinstance(node.type, ast.Name)
+        and node.type.id in {"Exception", "BaseException"}
+        and node.name is None
+    ]
+    assert broad_bare_handlers == []
 
 
 def _iid(n: int) -> str:
@@ -1994,6 +2010,109 @@ def test_simulate_swap_reserves_and_ab_helpers_cover_fallbacks() -> None:
     assert key[2] == (reverse.intent_id,)
 
 
+def test_non_cpmm_swap_paths_cover_runtime_and_objective_fallbacks(monkeypatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    pool = replace(pool, curve_tag="CUBIC_SUM_V1", curve_params='{"p":1,"q":1}')
+    reserves = (pool.reserve0, pool.reserve1)
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000)
+    balances.set(pk, asset1, 10_000)
+
+    def _swap(intent_id: str, kind: IntentKind, fields: dict[str, object]) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=kind,
+            intent_id=intent_id,
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={"pool_id": pool_id, **fields},
+        )
+
+    exact_in_01 = _swap(
+        _iid(1133),
+        IntentKind.SWAP_EXACT_IN,
+        {"asset_in": asset0, "asset_out": asset1, "amount_in": 100, "min_amount_out": 10},
+    )
+    exact_out_01 = _swap(
+        _iid(1134),
+        IntentKind.SWAP_EXACT_OUT,
+        {"asset_in": asset0, "asset_out": asset1, "amount_out": 50, "max_amount_in": 500},
+    )
+    exact_in_10 = _swap(
+        _iid(1135),
+        IntentKind.SWAP_EXACT_IN,
+        {"asset_in": asset1, "asset_out": asset0, "amount_in": 120, "min_amount_out": 10},
+    )
+    exact_out_10 = _swap(
+        _iid(1136),
+        IntentKind.SWAP_EXACT_OUT,
+        {"asset_in": asset1, "asset_out": asset0, "amount_out": 60, "max_amount_in": 600},
+    )
+
+    calls: list[tuple[str, int, int, int]] = []
+
+    def _fake_swap_exact_in_for_pool(pool_state: PoolState, *, reserve_in: int, reserve_out: int, amount_in: int) -> tuple[int, tuple[int, int]]:
+        assert pool_state.curve_tag == "CUBIC_SUM_V1"
+        calls.append(("in", reserve_in, reserve_out, amount_in))
+        amount_out = max(1, amount_in - 7)
+        return amount_out, (reserve_in + amount_in, max(0, reserve_out - amount_out))
+
+    def _fake_swap_exact_out_for_pool(pool_state: PoolState, *, reserve_in: int, reserve_out: int, amount_out: int) -> tuple[int, tuple[int, int]]:
+        assert pool_state.curve_tag == "CUBIC_SUM_V1"
+        calls.append(("out", reserve_in, reserve_out, amount_out))
+        amount_in = amount_out + 5
+        return amount_in, (reserve_in + amount_in, max(0, reserve_out - amount_out))
+
+    monkeypatch.setattr(batch_clearing_module, "swap_exact_in_for_pool", _fake_swap_exact_in_for_pool)
+    monkeypatch.setattr(batch_clearing_module, "swap_exact_out_for_pool", _fake_swap_exact_out_for_pool)
+
+    fill = _process_swap_intent(exact_in_01, reserves, pool, balances)
+    assert fill.action == FillAction.FILL
+    assert fill.amount_out_filled == 93
+
+    fill = _process_swap_intent(exact_out_01, reserves, pool, balances)
+    assert fill.action == FillAction.FILL
+    assert fill.amount_in_filled == 55
+
+    amount_a, surplus_b, new_reserves = _simulate_swap_reserves(exact_in_10, pool, reserves)
+    assert amount_a == 120
+    assert surplus_b == 103
+    assert new_reserves == (1_999_887, 2_000_120)
+
+    fills = clear_batch_single_pool(
+        [exact_in_01, exact_out_01, exact_in_10, exact_out_10],
+        pool,
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+    assert [fill.action for fill in fills] == [FillAction.FILL] * 4
+
+    ab_exact_in = _eval_ordering_ab([exact_in_01], pool, reserves)
+    assert ab_exact_in == (100, 83)
+
+    optimal_exact_out = _order_swaps_optimal_ab_bounded(
+        [exact_out_01],
+        pool_state=pool,
+        balances=balances,
+        reserves=reserves,
+    )
+    assert [intent.intent_id for intent in optimal_exact_out] == [_iid(1134)]
+    assert any(tag == "in" for tag, *_rest in calls)
+    assert any(tag == "out" for tag, *_rest in calls)
+
+
 def test_order_swaps_mci_and_refinement_helpers(monkeypatch) -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
@@ -2229,6 +2348,91 @@ def test_order_swaps_optimal_ab_bounded_fallbacks_and_exact_out_path() -> None:
     assert sorted(it.intent_id for it in slippage_exact_out_result) == sorted(
         it.intent_id for it in slippage_exact_outs
     )
+
+
+def test_order_swaps_optimal_ab_bounded_non_cpmm_objective_paths(monkeypatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    _pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    pool = replace(pool, curve_tag="CUBIC_SUM_V1", curve_params='{"p":1,"q":1}')
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000)
+    balances.set(pk, asset1, 10_000)
+    reserves = (pool.reserve0, pool.reserve1)
+
+    exact_in = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(1332),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"asset_in": asset0, "asset_out": asset1, "amount_in": 100, "min_amount_out": 10},
+    )
+    exact_in_2 = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(1334),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"asset_in": asset0, "asset_out": asset1, "amount_in": 120, "min_amount_out": 20},
+    )
+    exact_out = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_OUT,
+        intent_id=_iid(1333),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"asset_in": asset0, "asset_out": asset1, "amount_out": 50, "max_amount_in": 500},
+    )
+    exact_out_2 = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_OUT,
+        intent_id=_iid(1335),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"asset_in": asset0, "asset_out": asset1, "amount_out": 60, "max_amount_in": 600},
+    )
+
+    monkeypatch.setattr(
+        batch_clearing_module,
+        "swap_exact_in_for_pool",
+        lambda *_args, **_kwargs: (93, (2_000_100, 1_999_907)),
+    )
+    result = _order_swaps_optimal_ab_bounded(
+        [exact_in, exact_in_2], pool_state=pool, balances=balances, reserves=reserves
+    )
+    assert sorted(it.intent_id for it in result) == sorted([exact_in.intent_id, exact_in_2.intent_id])
+
+    monkeypatch.setattr(
+        batch_clearing_module,
+        "swap_exact_out_for_pool",
+        lambda *_args, **_kwargs: (55, (2_000_055, 1_999_950)),
+    )
+    result = _order_swaps_optimal_ab_bounded(
+        [exact_out, exact_out_2], pool_state=pool, balances=balances, reserves=reserves
+    )
+    assert sorted(it.intent_id for it in result) == sorted([exact_out.intent_id, exact_out_2.intent_id])
+
+    def _boom(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("boom")
+
+    monkeypatch.setattr(batch_clearing_module, "swap_exact_out_for_pool", _boom)
+    result = _order_swaps_optimal_ab_bounded(
+        [exact_out, exact_out_2], pool_state=pool, balances=balances, reserves=reserves
+    )
+    assert sorted(it.intent_id for it in result) == sorted([exact_out.intent_id, exact_out_2.intent_id])
 
 
 def test_cow_pair_netting_direct_helper_fallbacks_and_clear_batch_mci_path() -> None:
