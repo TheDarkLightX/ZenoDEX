@@ -97,7 +97,7 @@ def inv_liquidation_ic_guard(s: PerpState) -> bool:
 
 
 def inv_funded_liquidation(s: PerpState) -> bool:
-    """Funded-liquidation parameter inequality.
+    """Funded-liquidation parameter inequality (ADVISORY checker).
 
     ``penalty * (BPS + m) <= BPS * (eff_maint - m)`` guarantees that after any
     single clamped oracle move the liquidation penalty priced at the post-move
@@ -109,6 +109,16 @@ def inv_funded_liquidation(s: PerpState) -> bool:
     Strictly stronger than ``inv_liquidation_ic_guard`` (which ignores the
     oracle clamp ``m``): with ``m = eff_maint`` the IC guard still passes
     while the penalty is unfunded at the clamp edge.
+
+    Deliberately NOT in ``INVARIANT_REGISTRY``: per-transition enforcement
+    would retroactively freeze any live market whose legacy parameters sit in
+    the unfunded region (every op would fail the registry check), and it
+    would make the defensive ``liq_penalty_capped`` branch unreachable for
+    the Rust-shadow parity suites that exercise it.  The enforcement point
+    for this inequality is parameter ADMISSION (market creation and
+    ``set_market_params``), which is a synchronized Python+Rust authority
+    surface with golden traces; see
+    ``docs/MECHANISM_DESIGN_IMPROVEMENT_ANALYSIS.md`` (R1).
     """
     eff_maint = s.maintenance_margin_bps + s.depeg_buffer_bps
     return (
@@ -154,7 +164,6 @@ INVARIANT_REGISTRY: dict[str, Callable[[PerpState], bool]] = {
     "inv_insurance_nonneg": inv_insurance_nonneg,
     "inv_insurance_conservation": inv_insurance_conservation,
     "inv_liquidation_ic_guard": inv_liquidation_ic_guard,
-    "inv_funded_liquidation": inv_funded_liquidation,
     "inv_funding_epoch_gated": inv_funding_epoch_gated,
     "inv_fee_pool_eq_fee_income": inv_fee_pool_eq_fee_income,
     "inv_phase_consistent": inv_phase_consistent,

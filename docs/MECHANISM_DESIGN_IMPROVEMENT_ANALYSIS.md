@@ -505,12 +505,27 @@ par strictly improves TCR whenever TCR > 100%.
 
 ### 7.1 Recommendations promoted from "recommended" to "done"
 
-- **R1 implemented.** `inv_funded_liquidation` is now in the runtime
-  invariant registry (`src/core/perp_v2/invariants.py`), with tests showing
-  the exact drift scenarios the old invariants miss: at
-  `max_oracle_move_bps = 548` (or `= 600`), `inv_margin_params_ordered` and
-  `inv_liquidation_ic_guard` both still pass while the penalty is unfunded —
-  only the new invariant trips.
+- **R1 shipped as an advisory checker; enforcement point corrected.**
+  `inv_funded_liquidation` is implemented in
+  `src/core/perp_v2/invariants.py` with tests showing the exact drift
+  scenarios the registered invariants miss: at `max_oracle_move_bps = 548`
+  (or `= 600`), `inv_margin_params_ordered` and `inv_liquidation_ic_guard`
+  both still pass while the penalty is unfunded — only the new checker
+  trips.  It is deliberately NOT in the always-enforced
+  `INVARIANT_REGISTRY`: a first enforcement attempt there was reverted
+  after CI demonstrated the failure mode predicted by the disaster
+  analysis — per-transition enforcement retroactively freezes any market
+  whose legacy parameters sit in the unfunded region (every operation
+  rejects), and it makes the defensive `liq_penalty_capped` branch
+  unreachable for the Rust-shadow parity suites that exist to cover it.
+  The correct enforcement point is parameter ADMISSION
+  (`set_market_params` / market creation in
+  `src/integration/perp_engine.py:380-415`), which is a synchronized
+  Python+Rust authority surface with golden traces
+  (`tests/runtime/test_perp_set_market_params_conformance.py`); adding the
+  inequality there requires the paired Rust-side rule and regenerated
+  golden traces in one change, which is scoped as the follow-up.  Current
+  production defaults pass the checker with ≈1.9× slack.
 - **R5 implemented.** `lean-mathlib/Proofs/EconomicSecurityEnvelope.lean`
   formalizes all three envelope laws (post-hoc slash deterrence, attack-cost
   floor, honest-reward floor) plus the detection-probability generalization
