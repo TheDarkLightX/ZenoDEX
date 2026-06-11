@@ -134,7 +134,7 @@ _LANE_REQUIREMENTS: Mapping[str, Mapping[str, Any]] = {
             "evidence_hash",
         ],
         "external_artifacts": [
-            "live proof wrapper status with zk_proof_verified=true",
+            "live proof wrapper status with zk_proof_verified=true and matching verifier/circuit artifact metadata plus binding hash",
             "circuit artifact, source, verification-key, and reproducible-build hashes",
             "soundness audit report hash",
             "sample accepted proof request/receipt hashes",

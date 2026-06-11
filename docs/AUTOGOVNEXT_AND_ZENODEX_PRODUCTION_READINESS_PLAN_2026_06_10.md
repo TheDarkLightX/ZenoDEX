@@ -595,7 +595,10 @@ Current checker hardening in this workstream:
   evidence and still does not clear the five external lanes.
 - `zk_wrapping` rejects hand-made live-wrapper JSON unless it has the expected
   wrapper schema, proof/verifier/artifact configuration, no wrapper error, and
-  matching sample proof request and receipt hashes.
+  matching sample proof request and receipt hashes. The lane also binds the
+  captured live wrapper verifier/circuit artifact metadata and artifact-binding
+  hash back to the evidence body so a sidecar from one circuit or verifier
+  cannot clear another circuit's production-promotion evidence.
 - `hardware_wallet` rejects stale device approvals rehashed with a fresh
   `issued_at`; the prompt and approval must remain close in time, and the
   approval itself must be fresh relative to evidence issuance.

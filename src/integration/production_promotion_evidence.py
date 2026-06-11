@@ -49,8 +49,10 @@ from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Final, Mapping, Sequence
 from urllib.parse import urlparse
 
+from src.integration.live_proof_wrapper import LIVE_PROOF_WRAPPER_ARTIFACT_BINDING_HASH_DOMAIN
 from src.integration.zeno_ledger_v0 import canonical_json_bytes_v0, hash_v0
 from src.state.app_root import APP_ROOT_LANE_KINDS
+from src.state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 
 try:
     from cryptography.exceptions import InvalidSignature
@@ -1632,7 +1634,11 @@ class _ZkWrappingLane(Lane):
         _bind_zk_to_live_wrapper(
             ctx.live_proof_wrapper_status,
             surface=surface,
+            artifact_id=artifact_id,
+            artifact_hash=artifact_hashes.get("artifact_hash"),
+            proof_system=proof_system,
             verifier_cmd_hash=verifier_cmd_hash,
+            verifier_binary_hash=verifier_binary_hash,
             sample_intent_hash=sample_intent,
             sample_request_hash=sample_request,
             gaps=gaps,
@@ -1811,7 +1817,11 @@ def _bind_zk_to_live_wrapper(
     live: Mapping[str, Any] | None,
     *,
     surface: str | None,
+    artifact_id: str | None,
+    artifact_hash: str | None,
+    proof_system: str | None,
     verifier_cmd_hash: str | None,
+    verifier_binary_hash: str | None,
     sample_intent_hash: str | None,
     sample_request_hash: str | None,
     gaps: _Gaps,
@@ -1824,7 +1834,15 @@ def _bind_zk_to_live_wrapper(
         gaps.add("live proof wrapper must show zk_proof_verified=true before production")
     if live.get("artifact_binding_complete") is not True:
         gaps.add("live proof wrapper must show artifact_binding_complete=true")
-    _bind_zk_artifact(live, verifier_cmd_hash=verifier_cmd_hash, gaps=gaps)
+    _bind_zk_artifact(
+        live,
+        artifact_id=artifact_id,
+        artifact_hash=artifact_hash,
+        proof_system=proof_system,
+        verifier_cmd_hash=verifier_cmd_hash,
+        verifier_binary_hash=verifier_binary_hash,
+        gaps=gaps,
+    )
     _bind_zk_surface(live, surface=surface, gaps=gaps)
     _bind_zk_sample_acceptance(
         live,
@@ -1866,13 +1884,26 @@ def _validate_live_wrapper_status_shape(live: Mapping[str, Any], *, gaps: _Gaps)
 def _bind_zk_artifact(
     live: Mapping[str, Any],
     *,
+    artifact_id: str | None,
+    artifact_hash: str | None,
+    proof_system: str | None,
     verifier_cmd_hash: str | None,
+    verifier_binary_hash: str | None,
     gaps: _Gaps,
 ) -> None:
     wrapper_artifact = live.get("artifact_binding")
     if not isinstance(wrapper_artifact, Mapping):
         gaps.add("live proof wrapper artifact_binding is required and must be an object")
         return
+    _bind_zk_live_artifact_binding_hash(wrapper_artifact, gaps=gaps)
+    _bind_zk_live_artifact_metadata(
+        wrapper_artifact,
+        artifact_id=artifact_id,
+        artifact_hash=artifact_hash,
+        proof_system=proof_system,
+        verifier_binary_hash=verifier_binary_hash,
+        gaps=gaps,
+    )
     wrapper_cmd_hash = _normalize_hash_token(wrapper_artifact.get("verifier_cmd_hash"))
     if wrapper_cmd_hash is None:
         gaps.add("live proof wrapper verifier_cmd_hash is required for binding")
@@ -1885,6 +1916,109 @@ def _bind_zk_artifact(
             gaps.add("live proof wrapper proof_verifier.cmd_hash is required for binding")
         elif verifier_cmd_hash is not None and verifier_status_hash != verifier_cmd_hash:
             gaps.add("live proof wrapper proof_verifier.cmd_hash does not match evidence verifier_cmd_hash")
+
+
+def _bind_zk_live_artifact_binding_hash(wrapper_artifact: Mapping[str, Any], *, gaps: _Gaps) -> None:
+    live_binding_hash = _normalize_hash_token(wrapper_artifact.get("binding_hash"))
+    if live_binding_hash is None:
+        gaps.add("live proof wrapper artifact_binding.binding_hash is required for binding")
+        return
+    binding_payload = {
+        "verifier_artifact": wrapper_artifact.get("verifier_artifact"),
+        "circuit_artifact": wrapper_artifact.get("circuit_artifact"),
+        "verifier_cmd_hash": wrapper_artifact.get("verifier_cmd_hash"),
+    }
+    expected_hash = _normalize_hash_token(
+        sha256_hex(
+            domain_sep_bytes(LIVE_PROOF_WRAPPER_ARTIFACT_BINDING_HASH_DOMAIN)
+            + canonical_json_bytes(binding_payload)
+        )
+    )
+    if expected_hash is not None and live_binding_hash != expected_hash:
+        gaps.add("live proof wrapper artifact_binding.binding_hash does not match artifact metadata")
+
+
+def _bind_zk_live_artifact_metadata(
+    wrapper_artifact: Mapping[str, Any],
+    *,
+    artifact_id: str | None,
+    artifact_hash: str | None,
+    proof_system: str | None,
+    verifier_binary_hash: str | None,
+    gaps: _Gaps,
+) -> None:
+    # The live proof wrapper hashes its verifier and circuit artifacts into the
+    # request sent to the verifier. Production-promotion evidence must therefore
+    # match those live artifact objects, not only reuse the verifier command
+    # hash and sample receipt hashes from a successful wrapper run.
+    if wrapper_artifact.get("verifier_artifact_ready") is not True:
+        gaps.add("live proof wrapper verifier_artifact_ready must be true")
+    if wrapper_artifact.get("circuit_artifact_ready") is not True:
+        gaps.add("live proof wrapper circuit_artifact_ready must be true")
+
+    verifier_artifact = wrapper_artifact.get("verifier_artifact")
+    if not isinstance(verifier_artifact, Mapping):
+        gaps.add("live proof wrapper verifier_artifact is required and must be an object")
+    else:
+        _bind_zk_live_verifier_artifact(
+            verifier_artifact,
+            verifier_binary_hash=verifier_binary_hash,
+            gaps=gaps,
+        )
+
+    circuit_artifact = wrapper_artifact.get("circuit_artifact")
+    if not isinstance(circuit_artifact, Mapping):
+        gaps.add("live proof wrapper circuit_artifact is required and must be an object")
+    else:
+        _bind_zk_live_circuit_artifact(
+            circuit_artifact,
+            artifact_id=artifact_id,
+            artifact_hash=artifact_hash,
+            proof_system=proof_system,
+            gaps=gaps,
+        )
+
+
+def _bind_zk_live_verifier_artifact(
+    verifier_artifact: Mapping[str, Any],
+    *,
+    verifier_binary_hash: str | None,
+    gaps: _Gaps,
+) -> None:
+    if not isinstance(verifier_artifact.get("artifact_id"), str) or not verifier_artifact.get("artifact_id"):
+        gaps.add("live proof wrapper verifier_artifact.artifact_id is required")
+    live_verifier_hash = _normalize_hash_token(verifier_artifact.get("artifact_hash"))
+    if live_verifier_hash is None:
+        gaps.add("live proof wrapper verifier_artifact.artifact_hash is required for binding")
+    elif verifier_binary_hash is not None and live_verifier_hash != verifier_binary_hash:
+        gaps.add("live proof wrapper verifier_artifact.artifact_hash does not match evidence verifier_binary_hash")
+
+
+def _bind_zk_live_circuit_artifact(
+    circuit_artifact: Mapping[str, Any],
+    *,
+    artifact_id: str | None,
+    artifact_hash: str | None,
+    proof_system: str | None,
+    gaps: _Gaps,
+) -> None:
+    live_artifact_id = circuit_artifact.get("artifact_id")
+    if not isinstance(live_artifact_id, str) or not live_artifact_id:
+        gaps.add("live proof wrapper circuit_artifact.artifact_id is required")
+    elif artifact_id is not None and live_artifact_id != artifact_id:
+        gaps.add("live proof wrapper circuit_artifact.artifact_id does not match evidence circuit_artifact.artifact_id")
+
+    live_artifact_hash = _normalize_hash_token(circuit_artifact.get("artifact_hash"))
+    if live_artifact_hash is None:
+        gaps.add("live proof wrapper circuit_artifact.artifact_hash is required for binding")
+    elif artifact_hash is not None and live_artifact_hash != artifact_hash:
+        gaps.add("live proof wrapper circuit_artifact.artifact_hash does not match evidence circuit_artifact.artifact_hash")
+
+    live_proof_system = circuit_artifact.get("proof_system")
+    if not isinstance(live_proof_system, str) or not live_proof_system:
+        gaps.add("live proof wrapper circuit_artifact.proof_system is required")
+    elif proof_system is not None and live_proof_system != proof_system:
+        gaps.add("live proof wrapper circuit_artifact.proof_system does not match evidence circuit_artifact.proof_system")
 
 
 def _normalize_hash_token(value: object) -> str | None:

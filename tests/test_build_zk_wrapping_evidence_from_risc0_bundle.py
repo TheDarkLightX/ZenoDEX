@@ -4,10 +4,14 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, cast
 
-from src.integration.live_proof_wrapper import LIVE_PROOF_WRAPPER_STATUS_SCHEMA
+from src.integration.live_proof_wrapper import (
+    LIVE_PROOF_WRAPPER_ARTIFACT_BINDING_HASH_DOMAIN,
+    LIVE_PROOF_WRAPPER_STATUS_SCHEMA,
+)
 from src.integration.production_promotion_evidence import (
     evaluate_production_zk_wrapping_evidence_v1,
 )
+from src.state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 from tests.test_check_zeno_ledger_risc0_real_proof_smoke_report import (
     _artifact_report as _spot_artifact_report,
 )
@@ -120,8 +124,35 @@ def _bundle_path(tmp_path: Path, *, broken: bool = False) -> Path:
 
 def _live_status_for_evidence(evidence: dict[str, object]) -> dict[str, object]:
     verifier_binding = cast(Mapping[str, Any], evidence["verifier_binding"])
+    circuit_artifact = cast(Mapping[str, Any], evidence["circuit_artifact"])
     sample = cast(Mapping[str, Any], evidence["sample_proof_acceptance"])
     verifier_hash = str(verifier_binding["verifier_cmd_hash"])
+    verifier_binary_hash = str(verifier_binding["verifier_binary_hash"])
+    circuit_hash = str(circuit_artifact["artifact_hash"])
+    artifact_binding = {
+        "verifier_artifact": {
+            "artifact_id": "risc0-verifier-v1",
+            "artifact_hash": "0x" + verifier_binary_hash,
+        },
+        "verifier_artifact_ready": True,
+        "circuit_artifact": {
+            "artifact_id": str(circuit_artifact["artifact_id"]),
+            "artifact_hash": "sha256:" + circuit_hash,
+            "proof_system": str(circuit_artifact["proof_system"]),
+        },
+        "circuit_artifact_ready": True,
+        "verifier_cmd_hash": "0x" + verifier_hash,
+    }
+    artifact_binding["binding_hash"] = sha256_hex(
+        domain_sep_bytes(LIVE_PROOF_WRAPPER_ARTIFACT_BINDING_HASH_DOMAIN)
+        + canonical_json_bytes(
+            {
+                "verifier_artifact": artifact_binding["verifier_artifact"],
+                "circuit_artifact": artifact_binding["circuit_artifact"],
+                "verifier_cmd_hash": artifact_binding["verifier_cmd_hash"],
+            }
+        )
+    )
     return {
         "schema": LIVE_PROOF_WRAPPER_STATUS_SCHEMA,
         "surface": "risc0.zenodex_public_surfaces.v1",
@@ -133,7 +164,7 @@ def _live_status_for_evidence(evidence: dict[str, object]) -> dict[str, object]:
         "verifier_request_hash": str(sample["verifier_request_hash"]),
         "artifact_binding_configured": True,
         "artifact_binding_complete": True,
-        "artifact_binding": {"verifier_cmd_hash": "0x" + verifier_hash},
+        "artifact_binding": artifact_binding,
         "proof_verifier": {"kind": "subprocess", "cmd_hash": "0x" + verifier_hash},
         "error": None,
     }
@@ -258,6 +289,95 @@ def test_zk_wrapping_evaluator_rejects_live_wrapper_error(
 
     assert lane["production_ready"] is False
     assert "live proof wrapper error must be null for production evidence" in lane["gaps"]
+
+
+def test_zk_wrapping_evaluator_rejects_live_circuit_artifact_hash_drift(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "lib.rs").write_text("pub fn checked() {}\n", encoding="utf-8")
+    out = tmp_path / "zk_wrapping.json"
+
+    assert builder.main([*_base_builder_args(tmp_path, out, source_dir), "--candidate-only"]) == 0
+    capsys.readouterr()
+    evidence = json.loads(out.read_text(encoding="utf-8"))
+    live_status = _live_status_for_evidence(evidence)
+    artifact_binding = cast(dict[str, Any], live_status["artifact_binding"])
+    circuit_artifact = cast(dict[str, Any], artifact_binding["circuit_artifact"])
+    circuit_artifact["artifact_hash"] = "0x" + "99" * 32
+
+    lane = evaluate_production_zk_wrapping_evidence_v1(
+        evidence,
+        live_proof_wrapper_status=live_status,
+        expected_surface="risc0.zenodex_public_surfaces.v1",
+        now=NOW,
+    )
+
+    assert lane["production_ready"] is False
+    assert (
+        "live proof wrapper circuit_artifact.artifact_hash does not match evidence circuit_artifact.artifact_hash"
+        in lane["gaps"]
+    )
+
+
+def test_zk_wrapping_evaluator_rejects_live_verifier_artifact_hash_drift(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "lib.rs").write_text("pub fn checked() {}\n", encoding="utf-8")
+    out = tmp_path / "zk_wrapping.json"
+
+    assert builder.main([*_base_builder_args(tmp_path, out, source_dir), "--candidate-only"]) == 0
+    capsys.readouterr()
+    evidence = json.loads(out.read_text(encoding="utf-8"))
+    live_status = _live_status_for_evidence(evidence)
+    artifact_binding = cast(dict[str, Any], live_status["artifact_binding"])
+    verifier_artifact = cast(dict[str, Any], artifact_binding["verifier_artifact"])
+    verifier_artifact["artifact_hash"] = "sha256:" + "88" * 32
+
+    lane = evaluate_production_zk_wrapping_evidence_v1(
+        evidence,
+        live_proof_wrapper_status=live_status,
+        expected_surface="risc0.zenodex_public_surfaces.v1",
+        now=NOW,
+    )
+
+    assert lane["production_ready"] is False
+    assert (
+        "live proof wrapper verifier_artifact.artifact_hash does not match evidence verifier_binary_hash"
+        in lane["gaps"]
+    )
+
+
+def test_zk_wrapping_evaluator_rejects_live_artifact_binding_hash_drift(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "lib.rs").write_text("pub fn checked() {}\n", encoding="utf-8")
+    out = tmp_path / "zk_wrapping.json"
+
+    assert builder.main([*_base_builder_args(tmp_path, out, source_dir), "--candidate-only"]) == 0
+    capsys.readouterr()
+    evidence = json.loads(out.read_text(encoding="utf-8"))
+    live_status = _live_status_for_evidence(evidence)
+    artifact_binding = cast(dict[str, Any], live_status["artifact_binding"])
+    artifact_binding["binding_hash"] = "0x" + "77" * 32
+
+    lane = evaluate_production_zk_wrapping_evidence_v1(
+        evidence,
+        live_proof_wrapper_status=live_status,
+        expected_surface="risc0.zenodex_public_surfaces.v1",
+        now=NOW,
+    )
+
+    assert lane["production_ready"] is False
+    assert "live proof wrapper artifact_binding.binding_hash does not match artifact metadata" in lane["gaps"]
 
 
 def test_zk_wrapping_builder_check_requires_external_live_wrapper_status(
