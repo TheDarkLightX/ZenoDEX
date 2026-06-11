@@ -16,9 +16,9 @@ built**. The distinction is load-bearing; do not let the vision blur it.
 | The existing **revision pipeline** it builds on (`docs/REVISION_PIPELINE.md` + the three `src/tau_specs/*_v1.tau` specs) | **Pre-existing** in the repo. |
 | The **oracle** the autonomous loop would read | **L2** (trust-minimized), per `docs/ORACLE_TRUST_POSTURE.md`. Not trustless. |
 | The **autonomous proposers** (PID controller, frozen Q-learning table) | **Reference implementation** — `src/tau_specs/governance/gov_proposers.py` (deterministic PI + frozen Q-table) for simulation/demonstration. NOT a production/live proposer. |
-| The **frozen Q/EBRM artifact runtime** | **Built as an offline, verifier-preserving artifact path** — `src/integration/autonomous_governance_q_policy.py`, `tools/autonomous_governance_policy_factory.py`, `tools/autonomous_governance_q_policy.py`, and `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`. It ranks proposals and emits receipts; exact gates still decide admission. |
+| The **frozen Q/EBRM artifact runtime** | **Built as an offline, verifier-preserving artifact path** — `src/integration/autonomous_governance_q_policy.py`, `src/integration/autonomous_governance_trajectory.py`, `tools/autonomous_governance_policy_factory.py`, `tools/autonomous_governance_q_policy.py`, and `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`. It ranks proposals, binds committed context hashes, runs/verifies multi-step trajectories, and emits receipts; exact gates still decide admission. |
 | The **autonomous loop** (proposer → gate → apply/no-op) | **Reference implementation** — `src/tau_specs/governance/gov_loop.py`; the safety property (the gate bounds a poisoned proposer) and `curr`-binding are empirically tested (`tests/tau_specs/governance/test_gov_loop.py`). NOT wired to a live governance flow. |
-| The **live autonomous loop** (the reference loop driving *committed on-chain* parameters from *attested* state) | **Not built.** This is the open **WS5** integration. |
+| The **live autonomous loop** (the reference loop driving *committed on-chain* parameters from *attested* state) | **Partially built in integration code.** The Q-policy step can require a committed-context hash and the trajectory runner threads state across epochs. The deployed node/apply flow that requires those artifacts is still open **WS5** work. |
 
 **No autonomous proposer is wired into any governance path today.** Default governance
 authority is unchanged. Nothing here is deployed or promoted. The PID/Q-table sections
@@ -215,10 +215,14 @@ Developer entry points:
   and replay interpretation.
 - `tools/autonomous_governance_policy_factory.py`: offline policy factory,
   residual EBRM lookup layer, replay reports, and artifact/promotion checks.
-- `tools/autonomous_governance_q_policy.py`: sample/evaluate/step CLI for the
-  frozen policy artifact.
+- `tools/autonomous_governance_q_policy.py`: sample/evaluate/step plus
+  trajectory-run/verify CLI for the frozen policy artifact.
+- `src/integration/autonomous_governance_trajectory.py`: deterministic
+  multi-step runner, receipt hash chain, and independent replay verifier.
 - `tests/integration/test_autonomous_governance_q_policy.py`: runtime behavior,
   exact-gate boundary, and selection-aware ranking tests.
+- `tests/integration/test_autonomous_governance_trajectory.py`: trajectory
+  threading, invariant tripwires, tamper matrix, and CLI verification tests.
 - `tests/tools/test_autonomous_governance_q_table_optimizer.py`: full factory,
   replay, artifact, and promotion-gate regression test.
 
@@ -294,8 +298,12 @@ can make an arbitrary jump look like a one-step move, or defeat the timelock.
 So the live runtime **MUST** bind `curr` and `current/proposal/last-update` epochs to the committed
 ledger state alongside the proposal — exactly the repo's **WS2 "right-statement-binding" / non-trust
 clause** (no proposer-asserted field is an accept input). **The spec bounds the delta; the runtime
-owns the anchor.** Until that binding is implemented, the step and timelock gates are vacuous
-against an attacker who also controls `curr`/epoch.
+owns the anchor.** The integration runtime now exposes
+`governance_surface_context_hash_v1` and optional
+`expected_committed_context_hash` checking on the surface evaluator/commit path.
+That closes the local artifact boundary when the expected hash comes from an
+attested committed-state source. The deployed node still has to make that source
+authoritative and mandatory.
 
 ## 6. The full autonomous loop (design)
 
@@ -364,14 +372,14 @@ bound attained at a concrete m=3, B=150 instance) is proved in Lean
 | Reviews | **Gemini A+, Codex Logic A / Correctness A−** (gate suite) |
 | Existing revision pipeline (timelock → policy → registry) | **Pre-existing** |
 | Committed/replayable Tau proof artifact (recorded verifier transcript) | **Open** |
-| `curr`/epoch binding to committed ledger state (the §5.2 precondition) | **Open** (WS2) |
+| `curr`/epoch binding to committed ledger state (the §5.2 precondition) | **Partially done** for the integration artifact path (`governance_surface_context_hash_v1`, `expected_committed_context_hash`, trajectory runner threading); deployed ledger-source wiring remains **Open** (WS5) |
 | PID + frozen-Q proposer **reference impls** (deterministic, no floats) | **Done** (`gov_proposers.py`) — simulation only |
 | **Layered (hierarchical) Q-tables** — regime layer → per-regime action table, one pin over the whole hierarchy, fail-closed at every layer | **Done** (`layered_q_propose`) — reference/simulation only |
 | **Frozen energy model** — pinned integer `E(c)` argmin over the bounded band, explicit tracking-vs-churn trade-off | **Done** (`energy_propose`) — reference/simulation only |
 | Reference **loop** + safety property (gate bounds a poisoned PI/Q-table/layered/energy proposer) + `curr`-binding | **Done** (`gov_loop.py`, `test_gov_loop.py`, `test_gov_proposers.py` — empirical) |
 | **Multi-surface revision step** — all-or-nothing across every touched surface (fee/funding/whale scalars, router shares as a unit, MCR/CCR as a unit); gates import-bound (no forged-wrapper surface); consumes the policy-factory action shape (`{surface: delta}`) directly — every action in the frozen `q_policy.v1` sample is gate-admissible and the factory's negative controls all reject (differential fixture) | **Done** (`gov_loop.multi_surface_revision_step`) — reference; live `curr`/epoch binding still **Open** (WS5) |
 | Q-table **hash-pinning** primitive (`table_hash` / `layered_table_hash` / `energy_model_hash`) | **Done** (reference); a live consensus-bound, hash-pinned decision runtime is **Open** |
-| Frozen Q/EBRM artifact evaluator, factory, CLI, replay reports, and selection-aware first-admissible ranking | **Done** (`src/integration/autonomous_governance_q_policy.py`, `tools/autonomous_governance_policy_factory.py`, `tools/autonomous_governance_q_policy.py`, `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`) — offline artifact/runtime path; live `curr`/epoch binding still **Open** (WS5) |
+| Frozen Q/EBRM artifact evaluator, factory, CLI, replay reports, selection-aware first-admissible ranking, context-hash binding, and multi-step trajectory runner/verifier | **Done** (`src/integration/autonomous_governance_q_policy.py`, `src/integration/autonomous_governance_trajectory.py`, `tools/autonomous_governance_policy_factory.py`, `tools/autonomous_governance_q_policy.py`, `docs/AUTONOMOUS_GOVERNANCE_Q_POLICY.md`) — offline/integration artifact path; deployed apply wiring still **Open** (WS5) |
 | **Trajectory-tier Tau specs** — `gov_drift_budget_v1` / `gov_cooldown_v1` / `gov_charter_v1` / `gov_epoch_budget_v1` (compile + non-vacuity + teeth incl. wrap probes, via the same bf-layer harness) | **Done** (`validate_governance_specs.py` `PURE_SPECS`) |
 | Trajectory-tier Python mirrors + Tau↔Python↔Rust differential parity (one shared boundary table, byte-pinned fixture) | **Done** (`gov_gate.py`, `test_gov_parity.py`) |
 | **Epoch machine** — charter (dead-man standing approval) / veto / freeze / cooldown / drift budgets / aggregate budget, stable receipt codes + params-digest no-op proofs, import-bound gates, no self-amendment | **Done** (`gov_epoch.py`, `test_gov_epoch.py`) — reference; live `now_epoch`/state binding still **Open** (WS5) |

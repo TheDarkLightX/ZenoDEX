@@ -13,6 +13,7 @@ from src.integration.autonomous_governance_q_policy import (
     commit_autonomous_governance_surface_q_policy_v1,
     evaluate_autonomous_governance_q_policy_v1,
     evaluate_autonomous_governance_surface_q_policy_v1,
+    governance_surface_context_hash_v1,
     policy_content_hash_v1,
     q_learning_update_fixed_point_v1,
     sample_autonomous_governance_q_policy_v1,
@@ -265,6 +266,156 @@ def test_surface_q_policy_uses_verified_governance_gates() -> None:
         "master": True,
     }
     assert result["governance_surface_all_gates_ok"] is True
+
+
+def test_surface_context_hash_binds_state_epochs_and_carry_state() -> None:
+    base = governance_surface_context_hash_v1(
+        surface_state=_surface_state(),
+        current_epoch=34,
+        proposal_epoch=10,
+        last_update_epoch=32,
+        previous_approved_deltas={"fee_bps": 10},
+        trajectory_used={"fee_bps": 20},
+    )
+
+    assert governance_surface_context_hash_v1(
+        surface_state=_surface_state(fee_bps=31),
+        current_epoch=34,
+        proposal_epoch=10,
+        last_update_epoch=32,
+        previous_approved_deltas={"fee_bps": 10},
+        trajectory_used={"fee_bps": 20},
+    ) != base
+    assert governance_surface_context_hash_v1(
+        surface_state=_surface_state(),
+        current_epoch=35,
+        proposal_epoch=10,
+        last_update_epoch=32,
+        previous_approved_deltas={"fee_bps": 10},
+        trajectory_used={"fee_bps": 20},
+    ) != base
+    assert governance_surface_context_hash_v1(
+        surface_state=_surface_state(),
+        current_epoch=34,
+        proposal_epoch=10,
+        last_update_epoch=32,
+        previous_approved_deltas={"fee_bps": -10},
+        trajectory_used={"fee_bps": 20},
+    ) != base
+    assert governance_surface_context_hash_v1(
+        surface_state=_surface_state(),
+        current_epoch=34,
+        proposal_epoch=10,
+        last_update_epoch=32,
+        previous_approved_deltas={"fee_bps": 10},
+        trajectory_used={"fee_bps": 21},
+    ) != base
+
+    with pytest.raises(ValueError):
+        governance_surface_context_hash_v1(
+            surface_state=_surface_state(fee_bps=True),  # type: ignore[arg-type]
+            current_epoch=34,
+            proposal_epoch=10,
+        )
+    with pytest.raises(ValueError):
+        governance_surface_context_hash_v1(
+            surface_state=_surface_state(),
+            current_epoch=34,
+            proposal_epoch=10,
+            previous_approved_deltas={"fee_bps": True},  # type: ignore[dict-item]
+        )
+
+
+def test_surface_q_policy_committed_context_hash_mismatch_fails_closed() -> None:
+    policy = sample_autonomous_governance_surface_q_policy_v1()
+    expected = governance_surface_context_hash_v1(
+        surface_state=_surface_state(),
+        current_epoch=34,
+        proposal_epoch=10,
+        last_update_epoch=32,
+    )
+
+    result = evaluate_autonomous_governance_surface_q_policy_v1(
+        policy=policy,
+        surface_state=_surface_state(fee_bps=31),
+        observation=_observation(),
+        current_epoch=34,
+        proposal_epoch=10,
+        last_update_epoch=32,
+        expected_policy_hash=policy["policy_hash"],
+        expected_committed_context_hash=expected,
+    )
+
+    assert result["ok"] is False
+    assert result["approved"] is False
+    assert "committed_context_hash_mismatch" in result["errors"]
+    assert result["committed_context_hash"] != expected
+    assert result["expected_committed_context_hash"] == expected
+
+
+def test_surface_q_policy_rejects_malformed_previous_approved_deltas() -> None:
+    policy = sample_autonomous_governance_surface_q_policy_v1()
+
+    result = evaluate_autonomous_governance_surface_q_policy_v1(
+        policy=policy,
+        surface_state=_surface_state(),
+        observation=_observation(),
+        current_epoch=34,
+        proposal_epoch=10,
+        last_update_epoch=32,
+        expected_policy_hash=policy["policy_hash"],
+        previous_approved_deltas={"fee_bps": True},  # type: ignore[dict-item]
+    )
+
+    assert result["ok"] is False
+    assert result["approved"] is False
+    assert "previous_approved_deltas.fee_bps must be an int" in result["errors"]
+
+
+def test_surface_q_policy_commit_checks_committed_context_hash_when_supplied() -> None:
+    policy = sample_autonomous_governance_surface_q_policy_v1()
+    initial = _surface_state()
+    expected = governance_surface_context_hash_v1(
+        surface_state=initial,
+        current_epoch=34,
+        proposal_epoch=10,
+        last_update_epoch=32,
+    )
+
+    admitted = commit_autonomous_governance_surface_q_policy_v1(
+        policy=policy,
+        surface_state=initial,
+        observation=_observation(),
+        current_epoch=34,
+        proposal_epoch=10,
+        last_update_epoch=32,
+        expected_policy_hash=policy["policy_hash"],
+        expected_committed_context_hash=expected,
+    )
+    assert admitted["admitted"] is True
+    assert admitted["receipt"]["committed_context_hash"] == expected
+
+    stale_expected = governance_surface_context_hash_v1(
+        surface_state=initial,
+        current_epoch=33,
+        proposal_epoch=10,
+        last_update_epoch=32,
+    )
+    rejected = commit_autonomous_governance_surface_q_policy_v1(
+        policy=policy,
+        surface_state=initial,
+        observation=_observation(),
+        current_epoch=34,
+        proposal_epoch=10,
+        last_update_epoch=32,
+        expected_policy_hash=policy["policy_hash"],
+        expected_committed_context_hash=stale_expected,
+    )
+    assert rejected["ok"] is True
+    assert rejected["admitted"] is False
+    assert rejected["reason"] == "receipt_rejected_noop"
+    assert rejected["applied_state"] == initial
+    assert "committed_context_hash_mismatch" in rejected["receipt"]["errors"]
 
 
 def test_surface_q_policy_commit_applies_only_after_gate_approval() -> None:
@@ -744,6 +895,8 @@ def test_autonomous_governance_q_policy_cli_surface_sample_and_evaluate(tmp_path
     )
     assert sample.returncode == 0, sample.stderr
     assert sample.stdout == ""
+    bundle_data = json.loads(bundle.read_text())
+    assert bundle_data["expected_committed_context_hash"]
 
     evaluate = subprocess.run(
         [sys.executable, "tools/autonomous_governance_q_policy.py", "evaluate", str(bundle)],
@@ -755,6 +908,10 @@ def test_autonomous_governance_q_policy_cli_surface_sample_and_evaluate(tmp_path
     result = json.loads(evaluate.stdout)
     assert result["ok"] is True
     assert result["action_id"] == "raise_fee_10_tighten_funding_5"
+    assert (
+        result["committed_context_hash"]
+        == bundle_data["expected_committed_context_hash"]
+    )
     assert result["governance_surface_gate_report"]["master"] is True
 
     step = subprocess.run(
@@ -768,3 +925,60 @@ def test_autonomous_governance_q_policy_cli_surface_sample_and_evaluate(tmp_path
     assert step_result["ok"] is True
     assert step_result["admitted"] is True
     assert step_result["applied_state"]["fee_bps"] == 40
+
+
+def test_autonomous_governance_q_policy_cli_trajectory_sample_run_and_verify(
+    tmp_path: Path,
+) -> None:
+    bundle = tmp_path / "trajectory-bundle.json"
+    sample = subprocess.run(
+        [
+            sys.executable,
+            "tools/autonomous_governance_q_policy.py",
+            "sample",
+            "--trajectory",
+            "--output",
+            str(bundle),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert sample.returncode == 0, sample.stderr
+
+    run = subprocess.run(
+        [sys.executable, "tools/autonomous_governance_q_policy.py", "trajectory", str(bundle)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert run.returncode == 0, run.stderr
+    receipt = json.loads(run.stdout)
+    assert receipt["ok"] is True
+    assert receipt["status"] == "completed"
+    assert receipt["steps"][0]["committed_context_hash"]
+
+    verify_bundle = tmp_path / "verify-trajectory-bundle.json"
+    bundle_data = json.loads(bundle.read_text())
+    verify_bundle.write_text(
+        json.dumps(
+            {"policy": bundle_data["policy"], "trajectory_receipt": receipt},
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    verify = subprocess.run(
+        [
+            sys.executable,
+            "tools/autonomous_governance_q_policy.py",
+            "verify-trajectory",
+            str(verify_bundle),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert verify.returncode == 0, verify.stderr
+    verification = json.loads(verify.stdout)
+    assert verification["ok"] is True
+    assert verification["checks"]["replay_matches"] is True
