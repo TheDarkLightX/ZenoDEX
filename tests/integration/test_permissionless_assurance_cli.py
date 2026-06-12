@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
@@ -43,11 +44,19 @@ def test_status_json_shape() -> None:
     assert isinstance(payload["public_scope_paths"], list)
 
 
-def test_stage_scope_includes_cli_when_modified() -> None:
-    proc = _run("stage-scope", "--format", "json")
-    assert proc.returncode == 0, proc.stderr
-    payload = json.loads(proc.stdout)
+def test_stage_scope_includes_cli_when_modified(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        assurance_cli,
+        "_git_status_paths",
+        lambda: ["tools/permissionless_assurance.py", "internal/example.json"],
+    )
+
+    rc = assurance_cli.cmd_stage_scope(argparse.Namespace(format="json"))
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
     assert "tools/permissionless_assurance.py" in payload["paths"]
+    assert "internal/example.json" not in payload["paths"]
 
 
 def test_leak_check_blocks_internal_markers() -> None:
@@ -91,3 +100,57 @@ def test_replay_missing_environment_fails_closed(monkeypatch) -> None:
 def test_external_esso_requirement_accepts_importable_module(monkeypatch) -> None:
     monkeypatch.setattr(assurance_cli, "_python_module_importable", lambda name: name == "ESSO")
     assert assurance_cli._environment_requirement_ready("external/ESSO") is True
+
+
+def test_replay_json_suppresses_successful_lane_stdout(monkeypatch, capsys) -> None:
+    lane = assurance_cli.Lane(
+        name="fake-json-success",
+        description="exercise JSON replay output purity",
+        commands=((sys.executable, "-c", "print('lane noise')"),),
+        required_files=(),
+        required_environment=(),
+        stars=0,
+    )
+    monkeypatch.setitem(assurance_cli.LANES, lane.name, lane)
+
+    rc = assurance_cli.cmd_replay(
+        argparse.Namespace(lanes=[lane.name], plan=False, keep_going=False, format="json")
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "lane noise" not in captured.out
+    payload = json.loads(captured.out)
+    assert payload["ok"] is True
+    assert payload["results"][0]["name"] == lane.name
+    assert "stdout_tail" not in payload["results"][0]
+
+
+def test_replay_json_captures_failure_tails(monkeypatch, capsys) -> None:
+    lane = assurance_cli.Lane(
+        name="fake-json-failure",
+        description="exercise JSON replay failure details",
+        commands=(
+            (
+                sys.executable,
+                "-c",
+                "import sys; print('stdout detail'); print('stderr detail', file=sys.stderr); sys.exit(7)",
+            ),
+        ),
+        required_files=(),
+        required_environment=(),
+        stars=0,
+    )
+    monkeypatch.setitem(assurance_cli.LANES, lane.name, lane)
+
+    rc = assurance_cli.cmd_replay(
+        argparse.Namespace(lanes=[lane.name], plan=False, keep_going=False, format="json")
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 1
+    assert payload["ok"] is False
+    result = payload["results"][0]
+    assert result["error"] == "command failed"
+    assert result["stdout_tail"].strip() == "stdout detail"
+    assert result["stderr_tail"].strip() == "stderr detail"
