@@ -30,6 +30,7 @@ python3 tools/build_production_promotion_evidence_manifest.py \
   --app-root-jmt /tmp/zenodex-promotion-evidence/app_root_jmt.json \
   --bounded-oracle-exercise-status /tmp/zenodex-promotion-evidence/bounded_oracle_exercise.json \
   --expected-chain-id tau-test-prod \
+  --now <unix-seconds> \
   --check-lane oracle_authority
 ```
 
@@ -49,6 +50,9 @@ PRODUCTION_PROMOTION_EVIDENCE_MANIFEST=/tmp/zenodex-promotion-evidence/productio
 The checker is intentionally fail-closed. Missing evidence, malformed JSON,
 unknown fields, stale timestamps, mismatched hashes, and unbound sidecar status
 files keep the promotion blocked.
+
+For reproducible archived bundles, pass explicit `--issued-at`, `--accepted-at`,
+`--now`, and `--check-now` values rather than relying on wall-clock defaults.
 
 Sidecar paths in manifest config, such as `bounded_oracle_exercise_status_path`
 and `live_proof_wrapper_status_path`, must be relative, must point to existing
@@ -72,7 +76,8 @@ Build the evidence body from the replayable root paths:
 
 ```bash
 python3 tools/build_app_root_jmt_evidence.py \
-  --out /tmp/app_root_jmt_evidence.json
+  --out /tmp/app_root_jmt_evidence.json \
+  --now <unix-seconds>
 ```
 
 Required evidence fields:
@@ -123,6 +128,8 @@ python3 tools/build_oracle_authority_evidence.py \
   --authority-attestation-signer-pubkey <64-hex-pubkey> \
   --expected-chain-id tau-test-prod \
   --expected-authority-signer-pubkey <64-hex-pubkey> \
+  --issued-at <unix-seconds> \
+  --check-now <unix-seconds> \
   --check
 ```
 
@@ -185,6 +192,8 @@ python3 tools/build_hardware_wallet_evidence.py \
   --approval-captured-at <unix-seconds> \
   --wallet-authority-profile-hash <active-wallet-authority-profile-hash> \
   --expected-device-pubkey <64-hex-device-pubkey> \
+  --issued-at <unix-seconds> \
+  --check-now <unix-seconds> \
   --check
 ```
 
@@ -230,6 +239,7 @@ python3 tools/build_zk_wrapping_evidence_from_risc0_bundle.py \
   --risc0-surface-bundle /path/to/risc0_surface_bundle.json \
   --out /tmp/zk_wrapping_evidence.json \
   --live-wrapper-status /path/to/live_proof_wrapper_status.json \
+  --live-wrapper-out /tmp/live_proof_wrapper_status.json \
   --surface risc0.zenodex_public_surfaces.v1 \
   --expected-surface risc0.zenodex_public_surfaces.v1 \
   --verifier-cmd-json '["r0vm","verify"]' \
@@ -237,7 +247,9 @@ python3 tools/build_zk_wrapping_evidence_from_risc0_bundle.py \
   --audit-report-hash <64-hex-audit-report-hash> \
   --auditor <auditor-id> \
   --audited-at <unix-seconds> \
+  --accepted-at <unix-seconds> \
   --issued-at <unix-seconds> \
+  --check-now <unix-seconds> \
   --check
 ```
 
@@ -322,6 +334,8 @@ python3 tools/build_autotrader_evidence.py \
   --config-max-actions-per-tick <count> \
   --config-max-runs-per-process <count> \
   --expected-chain-id tau-test-prod \
+  --issued-at <unix-seconds> \
+  --check-now <unix-seconds> \
   --check
 ```
 
@@ -388,6 +402,8 @@ python3 tools/build_confidential_runtime_evidence.py \
   --public-effect-digest <64-hex> \
   --approved-measurement <approved-tee-measurement> \
   --expected-extension-id confidential-ext-prod \
+  --issued-at <unix-seconds> \
+  --check-now <unix-seconds> \
   --check
 ```
 

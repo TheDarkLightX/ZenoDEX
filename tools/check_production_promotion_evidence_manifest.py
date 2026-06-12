@@ -258,6 +258,10 @@ _LANE_COLLECTION_COMMAND_TEMPLATES: Mapping[str, tuple[str, ...]] = {
         "EXPECTED_CHAIN_ID",
         "--expected-authority-signer-pubkey",
         "EXPECTED_ORACLE_AUTHORITY_SIGNER_PUBKEY",
+        "--issued-at",
+        "ISSUED_AT",
+        "--check-now",
+        "CHECK_NOW",
         "--check",
     ),
     "hardware_wallet": (
@@ -293,6 +297,10 @@ _LANE_COLLECTION_COMMAND_TEMPLATES: Mapping[str, tuple[str, ...]] = {
         "WALLET_AUTHORITY_PROFILE_HASH",
         "--expected-device-pubkey",
         "EXPECTED_DEVICE_PUBKEY",
+        "--issued-at",
+        "ISSUED_AT",
+        "--check-now",
+        "CHECK_NOW",
         "--check",
     ),
     "zk_wrapping": (
@@ -320,6 +328,12 @@ _LANE_COLLECTION_COMMAND_TEMPLATES: Mapping[str, tuple[str, ...]] = {
         "AUDITOR",
         "--audited-at",
         "AUDITED_AT",
+        "--accepted-at",
+        "ACCEPTED_AT",
+        "--issued-at",
+        "ISSUED_AT",
+        "--check-now",
+        "CHECK_NOW",
         "--check",
     ),
     "autotrader": (
@@ -363,6 +377,10 @@ _LANE_COLLECTION_COMMAND_TEMPLATES: Mapping[str, tuple[str, ...]] = {
         "EXPECTED_CHAIN_ID",
         "--expected-approval-signer-pubkeys-file",
         "runs/production_promotion/latest/autotrader_expected_approvers.json",
+        "--issued-at",
+        "ISSUED_AT",
+        "--check-now",
+        "CHECK_NOW",
         "--check",
     ),
     "confidential_runtime": (
@@ -416,6 +434,10 @@ _LANE_COLLECTION_COMMAND_TEMPLATES: Mapping[str, tuple[str, ...]] = {
         "APPROVED_MEASUREMENT",
         "--expected-extension-id",
         "EXPECTED_EXTENSION_ID",
+        "--issued-at",
+        "ISSUED_AT",
+        "--check-now",
+        "CHECK_NOW",
         "--check",
     ),
     "app_root_jmt": (
@@ -423,6 +445,8 @@ _LANE_COLLECTION_COMMAND_TEMPLATES: Mapping[str, tuple[str, ...]] = {
         "tools/build_app_root_jmt_evidence.py",
         "--out",
         "runs/production_promotion/latest/app_root_jmt.json",
+        "--now",
+        "APP_ROOT_CHECKED_AT",
     ),
 }
 
@@ -471,6 +495,8 @@ _MANIFEST_BUILDER_TEMPLATE: tuple[str, ...] = (
     "EXPECTED_EXTENSION_ID",
     "--expected-device-pubkey",
     "EXPECTED_DEVICE_PUBKEY",
+    "--now",
+    "CHECK_NOW",
     "--check",
     "--explain-missing",
 )

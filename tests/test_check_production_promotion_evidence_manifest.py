@@ -701,6 +701,24 @@ def test_manifest_checker_can_attach_collection_runbook_for_all_lanes(
         runbook["lanes"]["zk_wrapping"]["producer_command_template"]
     )
     assert "--expected-surface" in runbook["lanes"]["zk_wrapping"]["producer_command_template"]
+    for lane in [
+        "oracle_authority",
+        "hardware_wallet",
+        "zk_wrapping",
+        "autotrader",
+        "confidential_runtime",
+    ]:
+        command = runbook["lanes"][lane]["producer_command_template"]
+        assert "--issued-at" in command
+        assert "ISSUED_AT" in command
+        assert "--check-now" in command
+        assert "CHECK_NOW" in command
+    assert "--accepted-at" in runbook["lanes"]["zk_wrapping"]["producer_command_template"]
+    assert "ACCEPTED_AT" in runbook["lanes"]["zk_wrapping"]["producer_command_template"]
+    assert "--now" in runbook["lanes"]["app_root_jmt"]["producer_command_template"]
+    assert "APP_ROOT_CHECKED_AT" in runbook["lanes"]["app_root_jmt"]["producer_command_template"]
+    assert "--now" in runbook["manifest_command_template"]
+    assert "CHECK_NOW" in runbook["manifest_command_template"]
     assert "tools/build_production_promotion_evidence_manifest.py" in runbook["manifest_command_template"]
     assert "tools/run_production_promotion_evidence_gate.sh" in runbook["final_gate_command_template"]
     assert "--include-runbook" in runbook["final_gate_command_template"]
@@ -716,6 +734,11 @@ def test_production_promotion_requirements_doc_matches_external_lane_arguments()
         "--expected-surface",
         "expected_autotrader_approval_signer_pubkeys",
         "--expected-approval-signer-pubkeys-file",
+        "--issued-at",
+        "--check-now",
+        "--accepted-at",
+        "--now",
+        "--live-wrapper-out",
         "--runtime-receipt-hash",
         "--attestation-receipt-hash",
         "--request-id",
