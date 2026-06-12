@@ -582,10 +582,14 @@ theorem witness_nearly_certificate_grade_one :
     (f 2 ≤ f 3 ∧ f 4 ≤ f 3) ∧
     (∀ j : ℕ, j ≤ 5 →
       2 * (f j - f 3) ≤ |(j : ℤ) - 3| * (|(j : ℤ) - 3| - 1)) := by
-  refine ⟨fun i hi => ?_, by norm_num, fun j hj => ?_⟩
-  · have hi' : i ≤ 3 := by omega
+  constructor
+  · intro i hi
+    have hi' : i ≤ 3 := by omega
     interval_cases i <;> decide
-  · interval_cases j <;> decide
+  constructor
+  · norm_num
+  · intro j hj
+    interval_cases j <;> decide
 
 end GaloisSplitCertificate
 end Proofs
