@@ -26,7 +26,7 @@ the distance — because the neighbor check caps the concave envelope's slope at
 | 7 | `cpmm_split_sandwich` | Bridge | split objective is SandwichConcave 2 |
 | 8 | `cpmm_zero_fee_split_certificate_linear` | Main | f(j) ≤ f(a★) + 2·d + 2, ALL pools |
 | 9 | `cpmm_zero_fee_split_certificate_combined` | Main | error ≤ min(d·(d−1), 2·d+2) |
-| 10| `witness_linear_order_necessary` | Tightness | floor-of-concave can gain ~d: linear order is right |
+| 10| `witness_linear_scale_gap` | Witness | concrete floor-of-linear instance with distance-scale gain |
 
 The envelope `G(a) = y·a/(x+a)` is taken over ℚ with the junk value `0/0 = 0`
 at the single degenerate point `x = a = 0`, which keeps every statement
@@ -281,7 +281,8 @@ theorem cpmmOutQ_concave (x y D : ℕ) :
     pool configuration: each pool's floor costs at most one unit. -/
 theorem cpmm_split_sandwich (x₀ y₀ x₁ y₁ D : ℕ) :
     SandwichConcave 2 (cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D) D := by
-  refine ⟨fun a => cpmmOutQ x₀ y₀ a + cpmmOutQ x₁ y₁ (D - a), ?_, ?_⟩
+  use fun a => cpmmOutQ x₀ y₀ a + cpmmOutQ x₁ y₁ (D - a)
+  constructor
   · -- Sum of concave + reversed concave is concave.
     intro i hi
     have h0 := cpmmOutQ_concave x₀ y₀ D i hi
@@ -363,12 +364,11 @@ theorem cpmm_zero_fee_split_certificate_combined
   · rw [min_eq_left hmin]; linarith [hquad]
   · rw [min_eq_right hmin]; linarith [hlin]
 
-/-- **LINEAR ORDER IS NECESSARY**: a floor of a concave (here: linear)
-    envelope can gain ≈ d after a certified point, so no sub-linear error
-    bound holds for the sandwich class. f(a) = ⌊9a/10⌋ passes the certificate
-    at a★ = 0 (f(0) = f(1) = 0) yet f(20) = 18 = 0 + 18, against the linear
-    bound 1·(20+1) = 21 (δ = 1 for a single floor). -/
-theorem witness_linear_order_necessary :
+/-- **CONCRETE LINEAR-SCALE WITNESS**: for f(a) = ⌊9a/10⌋, the candidate
+    a★ = 0 has the neighbor tie f(0) = f(1) = 0 while f(20) = 18. This records
+    the distance-scale gap that motivates a linear sandwich certificate. -/
+theorem witness_linear_scale_gap :
+    (9 * 0 / 10 : ℕ) = 0 ∧
     (9 * 1 / 10 : ℕ) = 0 ∧
     (9 * 20 / 10 : ℕ) = 18 ∧
     18 ≤ 1 * (20 + 1) := by
