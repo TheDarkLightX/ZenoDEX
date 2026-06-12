@@ -125,8 +125,9 @@ def staircase_jump_best_split_two_pools_exact_in(
       level t is a_t = ceil(ceil(t*x0/(y0-t)) * B / (B - fee0)) - two
       ceiling divisions, no search.
 
-    Cost: one pool-0 + one pool-1 quote per DISTINCT out0 level in [lo, hi]
-    (= O(min(span, out0(hi)))), versus O(span) quote pairs for brute force.
+    Cost: one pool-0 quote to identify each next jump, then one pool-0 and one
+    pool-1 quote to score that candidate (= O(min(span, out0(hi)))) versus
+    O(span) quote pairs for brute force.
     """
     if amount_in <= 0:
         raise ValueError("amount_in must be positive")
@@ -623,8 +624,8 @@ def best_split_two_pools_exact_in(
     - "dense32": very dense deterministic coarse probes (32 bins) + local refinement.
     - "dgstr_v1": experimental discrete golden-section / ternary refinement with bounded rescue scans.
     - "staircase_v1": EXACT jump enumeration (Lean: Proofs/SplitRoutingStaircase.lean);
-      bit-identical to brute force including the leftmost tie-break, with one quote
-      pair per distinct pool-0 output level instead of per split point.
+      bit-identical to brute force including the leftmost tie-break, with O(1)
+      quote work per distinct pool-0 output level instead of per split point.
 
     This is intended to be iteratively improved with counterexample mining.
     """

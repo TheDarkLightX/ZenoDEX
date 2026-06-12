@@ -93,7 +93,7 @@ Two certificate surfaces are useful:
 The per-pool integer concavity bound (Theorem 4) does not imply the split
 objective is `DiscreteConcave` (Part I's certificate needs per-instance
 verification, and `witness_split_not_concave` exhibits a configuration where
-concavity genuinely fails). Part III resolves this: the graded certificate
+concavity genuinely fails). The graded certificate
 `cpmm_zero_fee_split_approx_certificate` applies to every pool configuration
 with no concavity hypothesis, at the cost of an explicit error term d·(d−1)
 that vanishes for adjacent candidates (d ≤ 1) and is provably unimprovable

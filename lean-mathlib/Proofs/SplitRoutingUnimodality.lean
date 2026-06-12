@@ -1,12 +1,13 @@
 import Proofs.GaloisSplitCertificate
 
 /-!
-# Split Routing Trisection (DTSSR) — Discrete Ternary Search Correctness
+# Split Routing Trisection (DTSSR): Local Discard Lemmas
 
 The mathematical foundation for the Discrete Ternary Search Split Router
-(DTSSR): for a **discretely concave** objective on `{0,...,D}`, each
-trisection step provably discards a third of the domain without discarding
-the global optimum.
+(DTSSR): for a **discretely concave** objective on `{0,...,D}`, the local
+discard lemmas show which side of two ordered probes is dominated. The file also
+records bounded-output sanity lemmas, a ±1 perturbation lemma, and an arithmetic
+step-budget fact. It does not prove an end-to-end trisection implementation.
 
 ## Key theorems
 
@@ -19,18 +20,20 @@ the global optimum.
 | 5 | `cpmm_output_bounded` / `split_objective_bounded` | Output ≤ reserves (sanity bounds) |
 | 6 | `near_unimodal_from_concave` | ±1-perturbations of unimodal values stay near-unimodal |
 | 7 | `dtssr_beats_single_pool` | DTSSR result ≥ both single-pool allocations |
-| 8 | `ternary_step_budget` | 2·(log₂ D + 1) trisection steps suffice: 3^k > D |
+| 8 | `ternary_step_budget` | arithmetic budget: 2·(log₂ D + 1) gives 3^k > D |
 
 Theorems 1–4 are the **trisection invariant**: at probe points m₁ < m₂,
 comparing f(m₁) with f(m₂) always identifies a third of the interval that
-cannot strictly contain the optimum. Iterating shrinks the interval
-geometrically; theorem 8 bounds the number of iterations.
+cannot strictly contain the optimum. Theorem 8 is the arithmetic half of the
+usual geometric-shrink analysis; the interval-update implementation is outside
+this Lean file.
 
-The exact invariant applies to discretely concave objectives. The integer
-CPMM split objective is only *nearly* concave (grade 2 — see
-`CPMMConcavity.cpmm_zero_fee_split_nearly_concave`), which is why the
-runtime DTSSR follows the ternary phase with a local polish; the
-unconditional 2-comparison envelope for the polished point is
+The exact invariant applies to discretely concave objectives. The integer CPMM
+split objective is only *nearly* concave (grade 2; see
+`CPMMConcavity.cpmm_zero_fee_split_nearly_concave`), and fee-aware split routing
+can be farther from a concave envelope. Runtime DTSSR-style profiles therefore
+remain heuristic unless compared against the exact staircase solver or a
+separate certificate. The unconditional 2-comparison zero-fee envelope is
 `CPMMConcavity.cpmm_zero_fee_split_approx_certificate`.
 -/
 
@@ -209,9 +212,11 @@ theorem near_unimodal_from_concave
 
 /-! ## Part 4: Step-count budget
 
-Each trisection step keeps at least a (1/3)-fraction shrink (theorems 1–4),
-so 3^k > D steps suffice to reduce {0,...,D} to a constant-size interval.
-`ternary_step_budget` shows k = 2·(log₂ D + 1) is always enough. -/
+The local discard lemmas provide the logical side of a ternary step. This
+section records the arithmetic side: if an implementation shrinks by a factor of
+three per step, then 3^k > D steps suffice to reduce {0,...,D} to a
+constant-size interval. `ternary_step_budget` shows
+k = 2·(log₂ D + 1) is always enough for that arithmetic condition. -/
 
 /-- Step budget: k = 2·(log₂ D + 1) trisection steps satisfy 3^k > D.
     (3^k ≥ 2^k and 2^(log₂ D + 1) > D.) -/
