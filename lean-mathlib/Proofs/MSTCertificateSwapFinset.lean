@@ -31,12 +31,13 @@ theorem card_insert_erase_eq
     have : uv ∈ S := Finset.mem_of_mem_erase h
     exact huv this
   -- insert adds exactly one element
-  have hcard_ins : (insert uv (S.erase e)).card = (S.erase e).card + 1 := Finset.card_insert_of_not_mem huv2
+  have hcard_ins : (insert uv (S.erase e)).card = (S.erase e).card + 1 :=
+    Finset.card_insert_of_notMem huv2
   -- combine
   -- (S.card - 1) + 1 = S.card
   have hcard_pos : 0 < S.card := Finset.card_pos.2 ⟨e, he⟩
   have hcard_one_le : 1 ≤ S.card := Nat.succ_le_of_lt hcard_pos
-  simpa [hcard_erase, hcard_ins, Nat.sub_add_cancel hcard_one_le]
+  simp [hcard_erase, hcard_ins, Nat.sub_add_cancel hcard_one_le]
 
 end MST
 end TauSwap
