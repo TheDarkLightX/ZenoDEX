@@ -1,0 +1,20 @@
+# CATEGORY: bounded request-rate window / quiet-period admission
+# CLAIM: admit a request bit only when the same projected stream was quiet for the previous two steps.
+# SECURITY NOTE: This spec is not nonce replay protection. It has no nonce,
+# sender, channel, signature, or persisted last-used state input, so it must
+# never be used to prove single-use nonce freshness for signed operations.
+#
+# Stream mapping:
+#   i1 = request observed
+#   o1 = admitted after two prior quiet rows
+#
+# Contract:
+#   o1[t] = i1[t] & ~i1[t-1] & ~i1[t-2]
+#
+# This is a bounded-history quiet-window gate. The first two output rows are
+# fail-closed warm-up rows because the full two-step prior window has not yet
+# been observed.
+set charvar off
+
+always
+  (o1[t]:sbf = (i1[t]:sbf & (i1[t-1]:sbf)' & (i1[t-2]:sbf)')).

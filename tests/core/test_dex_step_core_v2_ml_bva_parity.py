@@ -47,6 +47,12 @@ LOCK = "0x" + "00" * 48
 ASSET_A = "0x" + "01" * 32
 ASSET_B = "0x" + "02" * 32
 FEE_BPS = 30
+_REFERENCE_DEX_CONFIG = DexConfig(
+    settlement_validation="strong_replay",
+    reject_settlements_with_rejected_intents=False,
+    require_all_nonces=False,
+    allow_legacy_nonce_free_steps=True,
+)
 
 POOL_ID = compute_pool_id(ASSET_A, ASSET_B, FEE_BPS)
 
@@ -294,7 +300,7 @@ def test_dex_step_core_v2_ml_bva_cases_match_python_core() -> None:
 
         py_pre = _python_state_from_ref(ref_pre)
         py_intent = _intent_from_kernel_action(action=str(action), params=params, intent_id=_iid(10_000 + i))
-        py_out = dex_step(DexConfig(), py_pre, [py_intent])
+        py_out = dex_step(_REFERENCE_DEX_CONFIG, py_pre, [py_intent])
 
         assert py_out.ok, py_out.error
         assert py_out.state is not None

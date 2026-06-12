@@ -9,10 +9,11 @@ stream-9 TauToken operations.
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from typing import Any, Dict, Mapping, Optional, Tuple, cast
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from ..state.canonical import canonical_hex_fixed_allow_0x
 from .tau_net_client import TauNetTcpClient, TauNetTcpConfig, TauNetRpcError
@@ -39,36 +40,45 @@ def _env_bool(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
         return bool(default)
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(
+        f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
+    )
 
 
 def _env_float(name: str, default: float, *, lo: float, hi: float) -> float:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return float(default)
-    try:
-        value = float(raw.strip())
-    except Exception:
-        return float(default)
-    if value < lo:
-        return float(lo)
-    if value > hi:
-        return float(hi)
+        value = float(default)
+    else:
+        try:
+            value = float(raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{name} must be a finite float in [{lo}, {hi}]; got {raw!r}"
+            ) from exc
+    if not math.isfinite(value) or value < lo or value > hi:
+        raise ValueError(f"{name} must be finite and in [{lo}, {hi}]; got {value!r}")
     return float(value)
 
 
 def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return int(default)
-    try:
-        value = int(raw.strip())
-    except Exception:
-        return int(default)
-    if value < lo:
-        return int(lo)
-    if value > hi:
-        return int(hi)
+        value = int(default)
+    else:
+        try:
+            value = int(raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{name} must be an integer in [{lo}, {hi}]; got {raw!r}"
+            ) from exc
+    if value < lo or value > hi:
+        raise ValueError(f"{name} must be in [{lo}, {hi}]; got {value}")
     return int(value)
 
 
@@ -107,6 +117,19 @@ def _tau_verify_config() -> ZUSDTauTokenConfig:
 def _default_deadline() -> int:
     delta = _env_int("ZUSD_TAU_WALLET_DEFAULT_DEADLINE_S", 3600, lo=1, hi=86_400)
     return int(time.time()) + int(delta)
+
+
+def _query_first(query: str, key: str) -> str | None:
+    """Return the first value for ``key`` in a URL query string, or None.
+
+    Blank values are treated as absent so an empty ``?account=`` behaves like an
+    unauthenticated status request rather than a malformed account.
+    """
+    values = parse_qs(query).get(key)
+    if not values:
+        return None
+    first = values[0].strip()
+    return first or None
 
 
 def _canonical_pubkey(value: object, *, name: str) -> str:
@@ -257,6 +280,28 @@ def _request_int(body: Mapping[str, Any], *, name: str, default: Optional[int] =
     return int(value)
 
 
+def _return_signed_tau_tx_payload() -> bool:
+    """Default OFF: do not echo the signed Tau tx payload in API responses
+    (D-KEY-001). Clients submit via the server (`sendtx`)."""
+    return _env_bool("ZUSD_TAU_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False)
+
+
+def _redacted_tau_tx_payload(payload: Any) -> Any:
+    """Strip the BLS signature from the echoed Tau tx payload unless explicitly
+    opted in. The signature is the replay-capable authority artifact; without it
+    the echoed object cannot be replayed. Operations/metadata are preserved so
+    clients can still inspect the built tx. (Disaster class D-KEY-001.)"""
+    if payload is None:
+        return None
+    if _return_signed_tau_tx_payload():
+        return payload
+    if not isinstance(payload, Mapping):
+        return payload
+    redacted = {key: value for key, value in payload.items() if key != "signature"}
+    redacted["signature_redacted"] = True
+    return redacted
+
+
 def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dict[str, Any]:
     action = _request_action(body)
     amount = _request_int(body, name="amount", default=None)
@@ -355,7 +400,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
                 }
                 for receipt in report.tau_receipts
             ],
-            "tau_tx_payload": report.tau_tx_payload,
+            "tau_tx_payload": _redacted_tau_tx_payload(report.tau_tx_payload),
         },
     }
     if for_submit:
@@ -373,7 +418,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     return payload
 
 
-def _status_payload() -> Dict[str, Any]:
+def _status_payload(account: str | None = None) -> Dict[str, Any]:
     chain_id = _tau_chain_id()
     asset_id = derive_zusd_tau_asset_id(chain_id=chain_id)
     token_operator_pubkey = os.environ.get("TAU_DEX_TOKEN_OPERATOR_PUBKEY", "").strip() or None
@@ -395,7 +440,16 @@ def _status_payload() -> Dict[str, Any]:
         status["hello"] = hello
         status["app_hash"] = app_hash
         status["app_bridge_available"] = bool(app_state or app_hash)
-        status["holder_count"] = len(_balances_for_asset(app_state, asset_id=asset_id))
+        balances = _balances_for_asset(app_state, asset_id=asset_id)
+        status["holder_count"] = len(balances)
+        if account:
+            # Account-aware status: resolve the connected wallet's token balance for
+            # ?account=<pubkey> (mirrors the pool surface resolving balances).
+            status["account"] = account
+            status["account_view"] = {
+                "account": account,
+                "balance": int(balances.get(account.strip().lower(), 0)),
+            }
     except Exception as exc:
         status["node_reachable"] = False
         status["error"] = f"{type(exc).__name__}: {exc}"
@@ -411,7 +465,13 @@ def handle_zusd_tau_wallet_request(method: str, path: str, body: Optional[bytes]
     rest = segments[3:]
     try:
         if method == "GET" and rest == ["status"]:
-            return 200, {"ok": True, "status": _status_payload()}
+            # Account-aware status: resolve the connected wallet's token balance for
+            # ?account=<pubkey>. Fail closed on a malformed account.
+            account_param = _query_first(parsed_path.query, "account")
+            account: str | None = None
+            if account_param:
+                account = _canonical_pubkey(account_param, name="account")
+            return 200, {"ok": True, "status": _status_payload(account)}
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
         parsed, err = _parse_json_body(body)

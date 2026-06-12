@@ -73,6 +73,159 @@ def test_apply_app_tx_sync_only(monkeypatch):
     assert parsed.get("version") == DEX_SNAPSHOT_VERSION
 
 
+def test_apply_app_tx_rejects_malformed_consensus_boolean_env(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_REQUIRE_INTENT_SIGS", "maybe")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert "TAU_DEX_REQUIRE_INTENT_SIGS" in str(err)
+
+
+def test_apply_app_tx_rejects_unknown_wrapper_state_fields(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.dex_snapshot import snapshot_from_state
+    from src.core.dex import DexState
+    from src.state.balances import BalanceTable
+    from src.state.lp import LPTable
+
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+    app_state_json = json.dumps(
+        {
+            "schema": "zenodex/tau_app_state/v1",
+            "version": 1,
+            "dex_state": snapshot_from_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())).data,
+            "proof_mining": None,
+            "zusd_monetary": None,
+            "future_extension": {"drop": "me"},
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+    ok, state_out, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json=app_state_json,
+        chain_balances={},
+        operations={},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert state_out == app_state_json
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert "app_state unknown fields" in str(err)
+
+
+def test_apply_app_tx_rejects_malformed_proof_verifier_env(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP", "maybe")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={"5": []},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert "TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP" in str(err)
+
+
+def test_apply_app_tx_rejects_nonfinite_proof_verifier_timeout(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_TIMEOUT_S", "nan")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={"5": []},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert "TAU_DEX_PROOF_VERIFIER_TIMEOUT_S" in str(err)
+
+
+def test_apply_app_tx_rejects_malformed_perps_boolean_env(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "maybe")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={"8": []},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert "TAU_DEX_ALLOW_ISOLATED_PERPS" in str(err)
+
+
+def test_perp_engine_config_reads_isolated_settle_oracle_controls(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH", "1")
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH", "1")
+
+    cfg = plugin._build_perp_engine_config(chain_id="tau-local")
+
+    assert cfg.require_oracle_adapter_for_isolated_settle_epoch is True
+    assert cfg.require_oracle_authorization_for_isolated_settle_epoch is True
+
+
+def test_apply_app_tx_rejects_malformed_isolated_settle_authorization_env(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH", "maybe")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={"8": []},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH" in str(err)
+
+
 def test_apply_app_tx_create_pool_unsigned_intent(monkeypatch):
     from src.integration import tau_testnet_dex_plugin as plugin
 
@@ -127,6 +280,7 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
     from src.integration import tau_testnet_dex_plugin as plugin
 
     sender_pubkey = "00" * 48
+    sender_state_key = "0x" + sender_pubkey
     asset0 = "0x" + "11" * 32
     asset1 = "0x" + "22" * 32
 
@@ -173,8 +327,8 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
         for b in (parsed.get("balances") or [])
         if isinstance(b, dict)
     }
-    before_in = int(balances_before.get((sender_pubkey, asset0), 0))
-    before_out = int(balances_before.get((sender_pubkey, asset1), 0))
+    before_in = int(balances_before.get((sender_state_key, asset0), 0))
+    before_out = int(balances_before.get((sender_state_key, asset1), 0))
 
     swap_intent = {
         "module": "TauSwap",
@@ -207,8 +361,8 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
         for b in (parsed2.get("balances") or [])
         if isinstance(b, dict)
     }
-    after_in = int(balances_after.get((sender_pubkey, asset0), 0))
-    after_out = int(balances_after.get((sender_pubkey, asset1), 0))
+    after_in = int(balances_after.get((sender_state_key, asset0), 0))
+    after_out = int(balances_after.get((sender_state_key, asset1), 0))
 
     assert after_in < before_in
     assert after_out > before_out
@@ -219,6 +373,7 @@ def test_apply_app_tx_create_pool_with_native_asset_updates_chain_balance(monkey
     from src.state.balances import NATIVE_ASSET
 
     sender_pubkey = "00" * 48
+    sender_state_key = "0x" + sender_pubkey
     token = "0x" + "11" * 32
 
     monkeypatch.setenv("TAU_DEX_FAUCET", "1")
@@ -265,7 +420,7 @@ def test_apply_app_tx_create_pool_with_native_asset_updates_chain_balance(monkey
 
     parsed = json.loads(synced_json)
     balances = {(b.get("pubkey"), b.get("asset")): b.get("amount") for b in (parsed.get("balances") or []) if isinstance(b, dict)}
-    assert balances.get((sender_pubkey, NATIVE_ASSET)) == 9000
+    assert balances.get((sender_state_key, NATIVE_ASSET)) == 9000
 
 
 def test_apply_app_tx_routes_upstream_streams_to_internal_engines(monkeypatch):
@@ -315,6 +470,88 @@ def test_apply_app_tx_routes_upstream_streams_to_internal_engines(monkeypatch):
     assert captured["perp_ops"] == {
         "5": [{"module": "TauPerp", "action": "apply_funding_auto"}],
     }
+
+
+def test_apply_app_tx_decodes_list_wrapped_custom_stream_json(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_REQUIRE_INTENT_SIGS", "0")
+    monkeypatch.setenv("TAU_DEX_ALLOW_MISSING_SETTLEMENT", "1")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    captured = {"dex_ops": None}
+
+    class _Res:
+        def __init__(self, ok, state, error=None):
+            self.ok = ok
+            self.state = state
+            self.error = error
+
+    def _fake_apply_ops(*, config, state, operations, block_timestamp, tx_sender_pubkey):
+        captured["dex_ops"] = operations
+        return _Res(True, state)
+
+    monkeypatch.setattr(plugin, "apply_ops", _fake_apply_ops)
+
+    intent = {"module": "TauSwap", "kind": "CREATE_POOL"}
+    settlement = {"swaps": []}
+    ok, _app_state_json, _app_hash_hex, _balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={
+            "5": [json.dumps(intent, separators=(",", ":"))],
+            "6": json.dumps(settlement, separators=(",", ":")),
+        },
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is True
+    assert err is None
+    assert captured["dex_ops"] == {"2": [intent], "3": settlement}
+
+
+def test_apply_app_tx_rejects_unselected_reserved_stream_5(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={"5": [{"module": "TauToken", "action": "transfer"}]},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert err == "stream 5 must contain TauSwap intents or legacy TauPerp ops"
+
+
+def test_apply_app_tx_rejects_ambiguous_dex_intent_aliases(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={
+            "2": [{"module": "TauSwap", "kind": "CREATE_POOL"}],
+            "5": [{"module": "TauSwap", "kind": "SWAP_EXACT_IN"}],
+        },
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert err == "ambiguous DEX intent streams: both 2 and 5 are present"
 
 
 def test_apply_app_tx_legacy_stream_5_perps_fallback(monkeypatch):

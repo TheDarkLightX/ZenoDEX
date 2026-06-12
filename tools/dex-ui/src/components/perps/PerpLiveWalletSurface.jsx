@@ -4,11 +4,10 @@ import {
   apiGetPerpsWalletStatus,
   apiGetZenoOracleDashboard,
   apiInspectPerpsOracleBridge,
+  apiMintPerpsWalletTestnetFaucet,
   apiPreparePerpsWallet,
   apiSubmitPerpsWallet,
 } from '../../lib/api.js';
-
-const SETTLE_EPOCH_ACTION = 'settle_' + 'epoch';
 
 const EMPTY_FORM = {
   action: 'init_market_2p',
@@ -26,24 +25,36 @@ const EMPTY_FORM = {
   amount: '1000',
   delta: '1',
   price_e8: '100000000',
+  insurance_seed_e8: '0',
   oracle_adapter_bridge: '',
   signed_tau_tx_payload: '',
   new_position_base_a: '1',
   new_position_base_b: '-1',
+  target_base: '1',
+  limit_price_e8: '100000000',
+  min_fill_base: '0',
+  expiry_epoch: '',
+  funding_rate_bps: '0',
+  params_json: '',
   fraction_bps: '2500',
   tx_fee_limit: '0',
   deadline: '',
+  zk_proof_json: '',
   use_oracle_fixture: false,
 };
 
 const ACTIONS = [
   ['init_market_2p', 'Init 2P Market'],
+  ['init_market_np', 'Init NP Market'],
+  ['join_market', 'Join NP Market'],
   ['deposit_collateral', 'Deposit Collateral'],
   ['withdraw_collateral', 'Withdraw Collateral'],
+  ['submit_intent', 'Submit NP Intent'],
   ['set_position_pair', 'Set Position Pair'],
   ['advance_epoch', 'Advance Epoch'],
   ['publish_clearing_price', 'Publish Price'],
-  [SETTLE_EPOCH_ACTION, 'Prepare Epoch Close'],
+  ['run_epoch', 'Run NP Epoch'],
+  ['settle_epoch', 'Finalize Epoch'],
   ['partial_liquidate', 'Partial Liquidate'],
 ];
 
@@ -71,13 +82,21 @@ function readSmokeConfig() {
     amount: params.get('amount') || '1000',
     delta: params.get('delta') || '1',
     price_e8: params.get('priceE8') || params.get('price_e8') || '100000000',
+    insurance_seed_e8: params.get('insuranceSeedE8') || params.get('insurance_seed_e8') || '0',
     oracle_adapter_bridge: params.get('oracleAdapterBridge') || params.get('oracle_adapter_bridge') || '',
     signed_tau_tx_payload: params.get('signedTauTxPayload') || params.get('signed_tau_tx_payload') || '',
     new_position_base_a: params.get('positionA') || params.get('new_position_base_a') || '1',
     new_position_base_b: params.get('positionB') || params.get('new_position_base_b') || '-1',
+    target_base: params.get('targetBase') || params.get('target_base') || '1',
+    limit_price_e8: params.get('limitPriceE8') || params.get('limit_price_e8') || '100000000',
+    min_fill_base: params.get('minFillBase') || params.get('min_fill_base') || '0',
+    expiry_epoch: params.get('expiryEpoch') || params.get('expiry_epoch') || '',
+    funding_rate_bps: params.get('fundingRateBps') || params.get('funding_rate_bps') || '0',
+    params_json: params.get('perpsParamsJson') || params.get('params_json') || '',
     fraction_bps: params.get('fractionBps') || params.get('fraction_bps') || '2500',
     tx_fee_limit: params.get('perpsTxFeeLimit') || params.get('txFeeLimit') || params.get('tx_fee_limit') || '0',
     deadline: params.get('perpsDeadline') || params.get('deadline') || '',
+    zk_proof_json: params.get('perpsZkProofJson') || params.get('zkProofJson') || '',
     use_oracle_fixture: params.get('perpsUseOracleFixture') === '1'
       || params.get('useOracleFixture') === '1'
       || params.get('oracleFixture') === '1',
@@ -91,14 +110,39 @@ function parseIntOrNull(raw) {
   return Number.isFinite(value) ? value : null;
 }
 
+function parseJsonObject(raw, label) {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`${label}_must_be_object`);
+    }
+    return parsed;
+  } catch (err) {
+    throw new Error(`${label}_invalid_json: ${err?.message || err}`);
+  }
+}
+
 function actionSupportsOracleFixture(action) {
-  return action === 'settle_epoch' || action === 'partial_liquidate';
+  return action === 'run_epoch' || action === 'settle_epoch' || action === 'partial_liquidate';
 }
 
 function expectedOracleActionKind(action) {
-  if (action === 'settle_epoch') return 'settle_epoch';
+  if (action === 'run_epoch' || action === 'settle_epoch') return 'settle_epoch';
   if (action === 'partial_liquidate') return 'liquidate_account';
   return '';
+}
+
+function hasLocalSigningCredential(form) {
+  return Boolean(
+    form.signed_tau_tx_payload.trim() ||
+    form.account_a_privkey.trim() ||
+    form.account_b_privkey.trim() ||
+    form.account_privkey.trim() ||
+    form.operator_privkey.trim() ||
+    form.oracle_privkey.trim(),
+  );
 }
 
 function compactId(value) {
@@ -174,6 +218,10 @@ function buildPayload(form) {
   if (String(form.tx_fee_limit || '').trim()) {
     payload.tx_fee_limit = String(form.tx_fee_limit).trim();
   }
+  const zkProof = parseJsonObject(form.zk_proof_json, 'zk_proof_json');
+  if (zkProof) {
+    payload.zk_proof = zkProof;
+  }
   if (form.signed_tau_tx_payload.trim()) {
     payload.signed_tau_tx_payload = form.signed_tau_tx_payload.trim();
   }
@@ -183,13 +231,33 @@ function buildPayload(form) {
     if (form.account_a_privkey.trim()) payload.account_a_privkey = form.account_a_privkey.trim();
     if (form.account_b_privkey.trim()) payload.account_b_privkey = form.account_b_privkey.trim();
   }
-  if (action === 'init_market_2p' && form.quote_asset.trim()) {
+  if ((action === 'init_market_2p' || action === 'init_market_np') && form.quote_asset.trim()) {
     payload.quote_asset = form.quote_asset.trim();
+  }
+  if (action === 'init_market_np') {
+    payload.index_price_e8 = parseIntOrNull(form.price_e8) ?? 0;
+    payload.insurance_seed_e8 = parseIntOrNull(form.insurance_seed_e8) ?? 0;
+    const params = parseJsonObject(form.params_json, 'params_json');
+    if (params) payload.params = params;
+    if (form.operator_privkey.trim()) payload.operator_privkey = form.operator_privkey.trim();
+  }
+  if (action === 'join_market') {
+    if (form.account_pubkey.trim()) payload.account_pubkey = form.account_pubkey.trim();
+    if (form.account_privkey.trim()) payload.account_privkey = form.account_privkey.trim();
   }
   if (action === 'deposit_collateral' || action === 'withdraw_collateral') {
     if (form.account_pubkey.trim()) payload.account_pubkey = form.account_pubkey.trim();
     if (form.account_privkey.trim()) payload.account_privkey = form.account_privkey.trim();
     payload.amount = parseIntOrNull(form.amount) ?? 0;
+  }
+  if (action === 'submit_intent') {
+    if (form.account_pubkey.trim()) payload.account_pubkey = form.account_pubkey.trim();
+    if (form.account_privkey.trim()) payload.account_privkey = form.account_privkey.trim();
+    payload.target_base = parseIntOrNull(form.target_base) ?? 0;
+    payload.limit_price_e8 = parseIntOrNull(form.limit_price_e8) ?? 0;
+    payload.min_fill_base = parseIntOrNull(form.min_fill_base) ?? 0;
+    const expiry = parseIntOrNull(form.expiry_epoch);
+    if (expiry != null) payload.expiry_epoch = expiry;
   }
   if (action === 'partial_liquidate') {
     if (form.account_pubkey.trim()) payload.account_pubkey = form.account_pubkey.trim();
@@ -208,8 +276,11 @@ function buildPayload(form) {
     if (form.oracle_pubkey.trim()) payload.oracle_pubkey = form.oracle_pubkey.trim();
     if (form.oracle_privkey.trim()) payload.oracle_privkey = form.oracle_privkey.trim();
   }
-  if (action === 'settle_epoch') {
+  if (action === 'run_epoch' || action === 'settle_epoch') {
     if (form.operator_privkey.trim()) payload.operator_privkey = form.operator_privkey.trim();
+    if (action === 'run_epoch') {
+      payload.funding_rate_bps = parseIntOrNull(form.funding_rate_bps) ?? 0;
+    }
     if (form.oracle_adapter_bridge.trim()) {
       payload.oracle_adapter_bridge = form.oracle_adapter_bridge.trim();
     }
@@ -225,21 +296,31 @@ function PerpLiveWalletSurface() {
   const [status, setStatus] = useState(null);
   const [statusError, setStatusError] = useState('');
   const [form, setForm] = useState(() => readSmokeConfig() || EMPTY_FORM);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.__zenodex_perps_smoke_result || null;
+    }
+    return null;
+  });
   const [error, setError] = useState('');
   const [oracleFixture, setOracleFixture] = useState(null);
   const [oracleInspection, setOracleInspection] = useState(null);
   const [oracleEvidence, setOracleEvidence] = useState(null);
   const [selectedOracleEvidence, setSelectedOracleEvidence] = useState(null);
+  const [faucetResult, setFaucetResult] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [faucetBusy, setFaucetBusy] = useState(false);
   const smokeRan = useRef(false);
 
   const needsTwoParty = form.action === 'init_market_2p' || form.action === 'set_position_pair';
   const needsCollateral = form.action === 'deposit_collateral' || form.action === 'withdraw_collateral';
-  const needsAccountBound = needsCollateral || form.action === 'partial_liquidate';
+  const needsNpIntent = form.action === 'submit_intent';
+  const needsAccountBound = needsCollateral || form.action === 'join_market' || needsNpIntent || form.action === 'partial_liquidate';
   const needsPosition = form.action === 'set_position_pair';
-  const needsOperator = form.action === 'advance_epoch' || form.action === 'settle_epoch';
+  const needsOperator = form.action === 'init_market_np' || form.action === 'advance_epoch' || form.action === 'run_epoch' || form.action === 'settle_epoch';
   const needsOracle = form.action === 'publish_clearing_price';
+  const needsPrice = needsOracle || form.action === 'init_market_np';
+  const needsSettleBridge = form.action === 'run_epoch' || form.action === 'settle_epoch';
 
   async function loadStatus() {
     try {
@@ -282,6 +363,47 @@ function PerpLiveWalletSurface() {
       setError(err?.message || 'submit_failed');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleFundTestnetQuote() {
+    const targetPubkey = localFaucetTargetPubkey();
+    const quoteAsset = localFaucetQuoteAsset();
+    const signerPrivkey =
+      form.operator_privkey.trim() ||
+      form.account_privkey.trim() ||
+      form.account_a_privkey.trim() ||
+      form.account_b_privkey.trim();
+    if (!targetPubkey || !quoteAsset) {
+      setError('faucet_target_unavailable');
+      return;
+    }
+    if (!signerPrivkey) {
+      setError('faucet_signer_required');
+      return;
+    }
+    setFaucetBusy(true);
+    setError('');
+    try {
+      const amount = Math.max(parseIntOrNull(form.amount) ?? 0, 1000);
+      const payload = await apiMintPerpsWalletTestnetFaucet(
+        {
+          to_pubkey: targetPubkey,
+          asset: quoteAsset,
+          amount,
+          signer_privkey: signerPrivkey,
+          deadline: parseIntOrNull(form.deadline) || Math.floor(Date.now() / 1000) + 3600,
+          tx_fee_limit: form.tx_fee_limit || '0',
+        },
+        { timeoutMs: 15000 },
+      );
+      setFaucetResult(payload);
+      await loadStatus();
+    } catch (err) {
+      setFaucetResult(null);
+      setError(err?.message || 'faucet_failed');
+    } finally {
+      setFaucetBusy(false);
     }
   }
 
@@ -386,16 +508,16 @@ function PerpLiveWalletSurface() {
 
   useEffect(() => {
     const smoke = readSmokeConfig();
-    if (!smoke || smokeRan.current || busy) {
+    if (!smoke || smokeRan.current || busy || (typeof window !== 'undefined' && window.__zenodex_perps_smoke_ran)) {
       return;
     }
     if (status?.node_reachable !== true) {
       return;
     }
     smokeRan.current = true;
-    setForm((current) => ({ ...current, ...smoke }));
     async function runSmoke() {
       let nextForm = { ...EMPTY_FORM, ...smoke };
+      setForm((current) => ({ ...current, ...nextForm }));
       if (nextForm.load_oracle_evidence) {
         await loadOracleEvidenceCandidates(nextForm);
       }
@@ -404,7 +526,14 @@ function PerpLiveWalletSurface() {
       } else if (nextForm.oracle_adapter_bridge.trim()) {
         await inspectOracleBridgePayload(nextForm);
       }
+      if (!hasLocalSigningCredential(nextForm)) {
+        throw new Error('smoke signing credential required');
+      }
       const payload = await apiSubmitPerpsWallet(buildPayload(nextForm), { timeoutMs: 20000 });
+      if (typeof window !== 'undefined') {
+        window.__zenodex_perps_smoke_ran = true;
+        window.__zenodex_perps_smoke_result = payload;
+      }
       setResult(payload);
       setError('');
       await loadStatus();
@@ -420,8 +549,6 @@ function PerpLiveWalletSurface() {
         setResult(null);
         setError(err?.message || 'submit_failed');
       });
-    // URL-driven smoke runs once per page load; the guard refs make helper identity irrelevant.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, status]);
 
   const preflight = result?.report?.preflight;
@@ -459,12 +586,29 @@ function PerpLiveWalletSurface() {
     status?.require_oracle_adapter_for_clearinghouse_settle_epoch
     && status?.require_oracle_adapter_for_isolated_partial_liquidate
   )
-    ? 'epoch close+partial required'
+    ? 'settlement+partial required'
     : status?.require_oracle_adapter_for_clearinghouse_settle_epoch
-      ? 'epoch close required'
+      ? 'settlement required'
       : status?.require_oracle_adapter_for_isolated_partial_liquidate
         ? 'partial required'
         : 'optional';
+
+  function localFaucetQuoteAsset() {
+    return String(selectedMarket?.quote_asset || form.quote_asset || status?.quote_asset_default || '').trim();
+  }
+
+  function localFaucetTargetPubkey() {
+    return String(
+      form.account_pubkey
+      || selectedAccount?.account_pubkey
+      || selectedMarket?.account_a_pubkey
+      || form.account_a_pubkey
+      || '',
+    ).trim();
+  }
+
+  const localFaucetTarget = localFaucetTargetPubkey();
+  const localFaucetAsset = localFaucetQuoteAsset();
 
   return (
     <section className="perp-live-wallet panel" aria-label="Live perps wallet">
@@ -532,7 +676,7 @@ function PerpLiveWalletSurface() {
             placeholder="perp:ch2p:..."
           />
 
-          {form.action === 'init_market_2p' ? (
+          {form.action === 'init_market_2p' || form.action === 'init_market_np' ? (
             <>
               <label className="label" htmlFor="perps-wallet-quote">Quote Asset</label>
               <input
@@ -608,15 +752,38 @@ function PerpLiveWalletSurface() {
             </>
           ) : null}
 
-          {needsOracle ? (
+          {needsPrice ? (
             <>
-              <label className="label" htmlFor="perps-wallet-price">Price E8</label>
+              <label className="label" htmlFor="perps-wallet-price">
+                {form.action === 'init_market_np' ? 'Index Price E8' : 'Price E8'}
+              </label>
               <input
                 id="perps-wallet-price"
                 className="input"
                 inputMode="numeric"
                 value={form.price_e8}
                 onChange={(event) => setForm((current) => ({ ...current, price_e8: event.target.value }))}
+              />
+            </>
+          ) : null}
+
+          {form.action === 'init_market_np' ? (
+            <>
+              <label className="label" htmlFor="perps-wallet-insurance-seed">Insurance Seed E8</label>
+              <input
+                id="perps-wallet-insurance-seed"
+                className="input"
+                inputMode="numeric"
+                value={form.insurance_seed_e8}
+                onChange={(event) => setForm((current) => ({ ...current, insurance_seed_e8: event.target.value }))}
+              />
+              <label className="label" htmlFor="perps-wallet-params-json">Control Params JSON</label>
+              <textarea
+                id="perps-wallet-params-json"
+                className="input perp-live-wallet-textarea"
+                value={form.params_json}
+                onChange={(event) => setForm((current) => ({ ...current, params_json: event.target.value }))}
+                placeholder="optional JSON object"
               />
             </>
           ) : null}
@@ -705,8 +872,20 @@ function PerpLiveWalletSurface() {
             </div>
           </details>
 
-          {form.action === 'settle_epoch' ? (
+          {needsSettleBridge ? (
             <>
+              {form.action === 'run_epoch' ? (
+                <>
+                  <label className="label" htmlFor="perps-wallet-funding-rate">Funding Rate Bps</label>
+                  <input
+                    id="perps-wallet-funding-rate"
+                    className="input"
+                    inputMode="numeric"
+                    value={form.funding_rate_bps}
+                    onChange={(event) => setForm((current) => ({ ...current, funding_rate_bps: event.target.value }))}
+                  />
+                </>
+              ) : null}
               <label className="label" htmlFor="perps-wallet-oracle-bridge">Oracle Adapter Bridge</label>
               <textarea
                 id="perps-wallet-oracle-bridge"
@@ -732,6 +911,44 @@ function PerpLiveWalletSurface() {
                 Inspect Oracle Bridge
               </button>
             </>
+          ) : null}
+
+          {needsNpIntent ? (
+            <div className="perp-live-wallet-two">
+              <label className="label" htmlFor="perps-wallet-target-base">Target Base</label>
+              <input
+                id="perps-wallet-target-base"
+                className="input"
+                inputMode="numeric"
+                value={form.target_base}
+                onChange={(event) => setForm((current) => ({ ...current, target_base: event.target.value }))}
+              />
+              <label className="label" htmlFor="perps-wallet-limit-price">Limit Price E8</label>
+              <input
+                id="perps-wallet-limit-price"
+                className="input"
+                inputMode="numeric"
+                value={form.limit_price_e8}
+                onChange={(event) => setForm((current) => ({ ...current, limit_price_e8: event.target.value }))}
+              />
+              <label className="label" htmlFor="perps-wallet-min-fill">Min Fill Base</label>
+              <input
+                id="perps-wallet-min-fill"
+                className="input"
+                inputMode="numeric"
+                value={form.min_fill_base}
+                onChange={(event) => setForm((current) => ({ ...current, min_fill_base: event.target.value }))}
+              />
+              <label className="label" htmlFor="perps-wallet-expiry">Expiry Epoch</label>
+              <input
+                id="perps-wallet-expiry"
+                className="input"
+                inputMode="numeric"
+                value={form.expiry_epoch}
+                onChange={(event) => setForm((current) => ({ ...current, expiry_epoch: event.target.value }))}
+                placeholder="defaults to next epoch"
+              />
+            </div>
           ) : null}
 
           {needsPosition ? (
@@ -768,6 +985,14 @@ function PerpLiveWalletSurface() {
             <button className="btn btn-secondary" type="button" onClick={handleLoadOracleEvidence} disabled={busy}>
               Load Oracle Evidence
             </button>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={handleFundTestnetQuote}
+              disabled={busy || faucetBusy || !localFaucetTarget || !localFaucetAsset}
+            >
+              Fund {localFaucetAsset ? compactId(localFaucetAsset) : 'Quote'}
+            </button>
           </div>
         </div>
       </div>
@@ -779,6 +1004,8 @@ function PerpLiveWalletSurface() {
           <span>market {selectedMarket.market_id}</span>
           <span>quote A {valueOrNA(selectedMarket.account_a_quote_balance)}</span>
           <span>quote B {valueOrNA(selectedMarket.account_b_quote_balance)}</span>
+          <span>faucet target {compactId(localFaucetTarget)}</span>
+          <span>faucet asset {compactId(localFaucetAsset)}</span>
           <span>posted A {valueOrNA(selectedMarket.collateral_e8_a)}</span>
           <span>posted B {valueOrNA(selectedMarket.collateral_e8_b)}</span>
           {selectedMarket.account_count != null ? <span>accounts {selectedMarket.account_count}</span> : null}
@@ -787,6 +1014,13 @@ function PerpLiveWalletSurface() {
           {selectedAccount?.liquidated_this_step != null ? (
             <span>isolated liquidated {selectedAccount.liquidated_this_step ? 'yes' : 'no'}</span>
           ) : null}
+        </div>
+      ) : null}
+      {faucetResult ? (
+        <div className="perp-live-wallet-result" role="status">
+          <span>faucet accepted {faucetResult.ok ? 'yes' : 'no'}</span>
+          <span>height {faucetResult.height ?? 'pending'}</span>
+          <span>{faucetResult.tx_id || 'no tx id'}</span>
         </div>
       ) : null}
       {result ? (
@@ -857,9 +1091,9 @@ function PerpLiveWalletSurface() {
           ) : null}
           {walletHardwareCustody ? (
             <>
-              <span>hardware signer {walletHardwareCustody.hardware_custody_ready ? 'ready' : 'blocked'}</span>
+              <span>hardware device {walletHardwareCustody.hardware_custody_ready ? 'ready' : 'blocked'}</span>
               <span>hardware backend {walletHardwareCustody.backend_kind || 'unknown'}</span>
-              <span>hardware signer receipt {compactId(walletHardwareCustody.status_hash)}</span>
+              <span>hardware device receipt {compactId(walletHardwareCustody.status_hash)}</span>
             </>
           ) : null}
           <span>oracle authority {oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span>

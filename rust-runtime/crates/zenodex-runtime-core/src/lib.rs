@@ -2,11 +2,12 @@
 //! `zenodex-runtime-core` — deterministic, integer-only runtime kernels.
 //!
 //! This crate is the **production candidate** for ZenoDEX's runtime-critical
-//! transitions. It currently owns three surfaces: the protocol [`fee_router`],
-//! the [`replay_guard`] (idempotency / nonce), and the [`balance_kernel`]
-//! (multi-asset ledger). Each is built as a *shadow* of an authoritative Python
-//! runtime (`src/core/*.py`) and must agree with it bit-for-bit on every golden
-//! trace (see `docs/runtime/`).
+//! transitions. It currently shadows fee routing, replay/idempotency, balance
+//! accounting, zUSD, burn rails, CPMM settlement arithmetic, state roots,
+//! canonical encodings, receipt hashes, and stateless perps math. Each surface
+//! is built against an authoritative Python runtime or encoder and must agree
+//! with it bit-for-bit on every golden trace or vector corpus (see
+//! `docs/runtime/`).
 //!
 //! Design rules enforced here (see the migration "Hard Rules"):
 //!
@@ -24,9 +25,19 @@ pub mod arith;
 pub mod balance_kernel;
 pub mod burn_receipts;
 pub mod canonical;
+pub mod cpmm_swap;
 pub mod error;
 pub mod fee_router;
+pub mod perp_account_ops;
+pub mod perp_advance_epoch;
+pub mod perp_funding_auto;
+pub mod perp_math;
+pub mod perp_partial_liquidate;
+pub mod perp_publish_clearing_price;
+pub mod perp_set_market_params;
+pub mod perp_settle_epoch;
 pub mod replay_guard;
+pub mod state_root;
 pub mod zusd;
 
 pub use balance_kernel::{
@@ -34,6 +45,7 @@ pub use balance_kernel::{
     MAX_BALANCE,
 };
 pub use burn_receipts::{rail_receipt_hash, verify_rails, RailInputs};
+pub use cpmm_swap::{init_pool, swap_exact_in, swap_exact_out, Pool, SwapReceipt};
 pub use error::{DomainConstraint, RejectedReason};
 pub use fee_router::{
     canonical_split_table, route_fee, Accepted, Domain, FeeAccumulator, FeeReceipt, FeeSplitTable,

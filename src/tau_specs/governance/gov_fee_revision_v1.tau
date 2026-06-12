@@ -1,0 +1,37 @@
+# gov_fee_revision_v1.tau  --  ZenoDEX governance: swap-fee pointwise revision
+# MUTABILITY: UPDATABLE (this validates a fee-parameter revision; it is itself the gate)
+# SHAPE: factored bounds + bounded-drift step (the cheap, proven pattern)
+#
+# Inputs (governance envelope):
+#   i1 = approved      (sbf)     -- governance approval flag
+#   i2 = exec_req      (sbf)     -- execution requested (1 => the gate must hold)
+#   i3 = proposal_ts   (bv[16])  -- proposal timestamp
+#   i4 = current_ts    (bv[16])  -- current timestamp
+#   i5 = fee_curr_bps  (bv[16])  -- current swap fee in basis points
+#   i6 = fee_next_bps  (bv[16])  -- proposed next swap fee in basis points
+# Output:
+#   o1 = revision_ok   (sbf)     -- 1 iff the revision is admissible
+#
+# IMMUTABLE guardrails (constants; changeable only by a spec-version bump, NOT by pointwise
+# revision -- the safety boundary):
+#   FEE_MAX_BPS   = 1000   ({ #x03E8 })  -- hard cap 10% (prevents a confiscatory fee)
+#   FEE_STEP_BPS  = 50     ({ #x0032 })  -- max drift per revision 0.5% (anti-whiplash)
+#   MIN_DELAY     = 24     ({ #x0018 })  -- timelock units before execution
+# fee_next is bounded <= FEE_MAX_BPS, which (being << 2^16) also prevents modular wrap.
+# Timelock uses the subtraction-guard form (current >= proposal AND current - proposal >= MIN_DELAY)
+# so proposal_ts + MIN_DELAY cannot modular-wrap below current_ts (bv[16] is UNSIGNED; verified
+# wrap-safe -- the naive `current >= proposal + delay` form is bypassable when proposal is near 2^16).
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    ( (i2[t]:sbf = 0:sbf)
+      ||
+      ( (i1[t]:sbf = 1:sbf)
+        && (i4[t]:bv[16] >= i3[t]:bv[16])
+        && ((i4[t]:bv[16] - i3[t]:bv[16]) >= { #x0018 }:bv[16])
+        && (i6[t]:bv[16] <= { #x03E8 }:bv[16])
+        && ( ( (i5[t]:bv[16] >= i6[t]:bv[16]) && ((i5[t]:bv[16] - i6[t]:bv[16]) <= { #x0032 }:bv[16]) )
+             || ( (i6[t]:bv[16] > i5[t]:bv[16]) && ((i6[t]:bv[16] - i5[t]:bv[16]) <= { #x0032 }:bv[16]) ) )
+      )
+    )
+  ).

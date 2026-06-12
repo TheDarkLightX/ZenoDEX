@@ -607,6 +607,8 @@ def build_blast_radius_report(
             balances=state.balances,
             pools=state.pools,
             lp_balances=state.lp_balances,
+            nonces=state.nonces,
+            fee_accumulator=state.fee_accumulator,
         )
         support_root = compute_support_state_root(
             balances=state.balances,

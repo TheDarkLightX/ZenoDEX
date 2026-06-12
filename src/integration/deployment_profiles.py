@@ -65,8 +65,12 @@ def deployment_profile_ids() -> tuple[str, ...]:
 
 
 def _profile(profile_id: str) -> DeploymentProfile:
+    if not isinstance(profile_id, str):
+        raise TypeError(f"deployment profile id must be a string, got {type(profile_id).__name__}")
+    if profile_id != profile_id.strip() or not profile_id:
+        raise ValueError("deployment profile id must be non-empty and whitespace-trimmed")
     try:
-        return DEPLOYMENT_PROFILES[str(profile_id)]
+        return DEPLOYMENT_PROFILES[profile_id]
     except KeyError as exc:
         allowed = ", ".join(deployment_profile_ids())
         raise ValueError(f"unknown deployment profile: {profile_id!r}; expected one of: {allowed}") from exc
@@ -75,10 +79,11 @@ def _profile(profile_id: str) -> DeploymentProfile:
 def _safe_core_config(base: DexConfig) -> DexConfig:
     return replace(
         base,
-        require_all_nonces=True,
-        allow_legacy_nonce_free_steps=False,
         settlement_validation="strong_proof_carrying",
         allow_snapshot_bound_quote_bindings=False,
+        reject_settlements_with_rejected_intents=True,
+        require_all_nonces=True,
+        allow_legacy_nonce_free_steps=False,
     )
 
 

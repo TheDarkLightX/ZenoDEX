@@ -1,0 +1,280 @@
+{
+  "manifest_version": 1,
+  "notes": [
+    "Pinned, fail-closed assurance envelope for the proof-mining manager boundary lane.",
+    "Covers the bounded manager kernel, runtime wrapper, packet builder/apply CLI, and focused replayable regression net.",
+    "The manager assurance gate depends on the proof-mining slot-assignment, claim-identity, verification-flags, submit-command-args, and packet-envelope sub-gates and pins those lower-layer evidence surfaces explicitly."
+  ],
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/proof_mining_manager.py",
+      "sha256": "3330e6018f595964c69e9a43eef587d3196a8360b2ae18d6f5b9a3f8fb38bc9f"
+    },
+    {
+      "path": "src/core/proof_mining_slot_assignment_gate.py",
+      "sha256": "56e2e06cad986572be69befee88bfeec8079f60be74dbed843dff1781b3418ed"
+    },
+    {
+      "path": "src/core/proof_mining_manager_verification_flags_gate.py",
+      "sha256": "fd8a3fae331f4736a8699c7ae4d7d6cd9e66cf6812130fb81e0dbe3b52989e3f"
+    },
+    {
+      "path": "src/core/proof_mining_manager_submit_command_args_gate.py",
+      "sha256": "25111d8cb83c610bff77d3de38bdad4ed7ab530b9c70d47d93d03f1c0089e397"
+    },
+    {
+      "path": "src/core/proof_mining_manager_packet_envelope_gate.py",
+      "sha256": "7a9d70fde5afeb462959bd35b0e98b9af98218e72f0ded692ae80e959b40b0ac"
+    },
+    {
+      "path": "src/integration/proof_mining_runtime.py",
+      "sha256": "3f2876a8a177f549f4f443c6870b3db11a1d61ea111dc85acf27501a4566c0d6"
+    },
+    {
+      "path": "src/integration/proof_mining_context.py",
+      "sha256": "10bdbcbe86ead1ffb1c4e33e1da26ac509396f3619f04d2171a45f1d3440a382"
+    },
+    {
+      "path": "tools/permissionless_proof_mining_manager_packet.py",
+      "sha256": "547b719ad9f3fae8ac8c9b890fc664541d791b151c0427e7e94c3a7ec92fe5ad"
+    },
+    {
+      "path": "src/kernels/dex/proof_mining_manager_v1.yaml",
+      "sha256": "6ce57b03de4493b7c171a32f77d7e1722d3935221d31544febd70d118b9963be"
+    },
+    {
+      "path": "src/kernels/python/proof_mining_manager_v1_adapter.py",
+      "sha256": "f2f67dc2d75e8ba3bf11584ec5bfc100b322798b88de5970f6514633e7768af3"
+    },
+    {
+      "path": "tests/core/test_proof_mining_manager.py",
+      "sha256": "89340e367c4bedb1d6fb2f5ef60d15e5682023ef778f376233484db527c9e23f"
+    },
+    {
+      "path": "tests/core/test_proof_mining_manager_verification_flags_gate.py",
+      "sha256": "a19670ce42a279ec9a6248586f70ae49056a02a52c37dca534ebb7fd662a427b"
+    },
+    {
+      "path": "tests/core/test_proof_mining_manager_submit_command_args_gate.py",
+      "sha256": "83f7957c38e79379aea8dc722326ac7805cfffe1df4c6ab727f4c9ed9131971d"
+    },
+    {
+      "path": "tests/core/test_proof_mining_manager_packet_envelope_gate.py",
+      "sha256": "49031334749f0d288232bd48385b6ba8d96d1409746658175b5cb3544bab92ce"
+    },
+    {
+      "path": "tests/integration/test_proof_mining_runtime.py",
+      "sha256": "937827fc752a0e5ff10fc38b5465592c9084ecd970e75a9200209ad0615c3865"
+    },
+    {
+      "path": "tests/integration/test_proof_mining_context_edges.py",
+      "sha256": "952b67d9ca383f2b06c4f23ef4b3afc00275ee7517033a000f5fe1eab7c06470"
+    },
+    {
+      "path": "tests/kernels/test_proof_mining_manager_v1_adapter.py",
+      "sha256": "2244a7d5139fef5fa35fc26e3520e9956ade0debfc050495b392c3b9ee0416ca"
+    },
+    {
+      "path": "tests/tools/test_permissionless_proof_mining_manager_packet.py",
+      "sha256": "2aa6cac12430fe55d7b533a7899f35fd3bfc404880e3a8eafe9ec79aadb7f1f6"
+    },
+    {
+      "path": "tools/check_proof_mining_manager_assurance_manifest.py",
+      "sha256": "ae49a9aad886e88151040cc4406b77249e9d9b0c3238b1250ac2fa13b44653bd"
+    },
+    {
+      "path": "tools/run_proof_mining_manager_assurance_gate.sh",
+      "sha256": "e8d4f1f5a8f00fc85d47399f3cdaa9cb10d640c3375faba51299bd5a1660df1b"
+    },
+    {
+      "path": "tools/check_proof_mining_slot_assignment_gate_assurance_manifest.py",
+      "sha256": "e81635fe54f9446b7029c76443f61c5f1e415316b9e5be8c0198f4c893a7619a"
+    },
+    {
+      "path": "tools/proof_mining_slot_assignment_gate_assurance_manifest.json",
+      "sha256": "5318a0634c3a0c626fd7f78cc7f38461ec7c18d44c231daa84d54f5deb559c99"
+    },
+    {
+      "path": "tools/run_proof_mining_slot_assignment_gate_assurance_gate.sh",
+      "sha256": "acb6366e856ba2456fab78b97c925fc89ac83844f8a78e6e92f143ce789df85a"
+    },
+    {
+      "path": "src/core/proof_mining_claim_identity_gate.py",
+      "sha256": "356f97844e745618d4edcd670a9c4fa4858203efe6776680e2654be435ec0c33"
+    },
+    {
+      "path": "src/kernels/dex/proof_mining_claim_identity_gate_v1.yaml",
+      "sha256": "f7ced67f9e6767883485cfd95b6a398bb7bac2ac0db464a8ddf170aa2ceb4aa3"
+    },
+    {
+      "path": "src/kernels/python/proof_mining_claim_identity_gate_v1_native_adapter.py",
+      "sha256": "5008d7e9f8886cc6d728b5227d85d0f54947d766a44fb9ad75ec3ad06fd1b2ae"
+    },
+    {
+      "path": "tests/core/test_proof_mining_claim_identity_gate.py",
+      "sha256": "407c5f4c8de9b0f3391226e98e7e22ecc56060185c33fef678ca3634ea1e9403"
+    },
+    {
+      "path": "tests/kernels/test_proof_mining_claim_identity_gate_v1_native_adapter.py",
+      "sha256": "547079adbee71a001ec3268e38072a85abf4c15d0fa8991c8d139ce342f387cb"
+    },
+    {
+      "path": "tools/check_proof_mining_claim_identity_gate_assurance_manifest.py",
+      "sha256": "9b718fdbf86b8ccacf8bf00f0495fc754474cbae624dd376f1c4e76d4c375888"
+    },
+    {
+      "path": "tools/proof_mining_claim_identity_gate_assurance_manifest.json",
+      "sha256": "4b6cc4d7688b3542d584d71075c333f7abfa3101737161472c39319a8abae271"
+    },
+    {
+      "path": "tools/run_proof_mining_claim_identity_gate_assurance_gate.sh",
+      "sha256": "2cac561391ecb9540c78302af2badab98d53c6359d369506ec7d2a6096d2be57"
+    },
+    {
+      "path": "src/kernels/dex/proof_mining_manager_verification_flags_gate_v1.yaml",
+      "sha256": "be893dc915c5ea741e048cb3f03ee840fe1138d15f467aaef4482907ece7d386"
+    },
+    {
+      "path": "src/kernels/python/proof_mining_manager_verification_flags_gate_v1_native_adapter.py",
+      "sha256": "60234d3a9940ea9084ae6912efe9496f5b504a6c8ffeda79b8d87bf3c796b709"
+    },
+    {
+      "path": "tests/kernels/test_proof_mining_manager_verification_flags_gate_v1_native_adapter.py",
+      "sha256": "b709e2b6f63b0f1862db3e2b419fe6f68cf6d7210e34fb419f415ea3b1b1797a"
+    },
+    {
+      "path": "tools/check_proof_mining_manager_verification_flags_gate_assurance_manifest.py",
+      "sha256": "f5326370e6e94aade85affe44f8725d579a6ac8d76150c43bede0e06d299339c"
+    },
+    {
+      "path": "tools/proof_mining_manager_verification_flags_gate_assurance_manifest.json",
+      "sha256": "483fa6aab072411c714513ccda994ac225386a40d5a4e19de75ec295d86c7dc0"
+    },
+    {
+      "path": "tools/run_proof_mining_manager_verification_flags_gate_assurance_gate.sh",
+      "sha256": "9e7c7554edaa0b154ee2f6acfcebbe0693a65ee24d1c6b3b23c7197086f4116d"
+    },
+    {
+      "path": "src/kernels/dex/proof_mining_manager_submit_command_args_gate_v1.yaml",
+      "sha256": "70158d7e0b19540b8ac971793076e374b4c07cb33187c0e0a6e5797edcce7e9d"
+    },
+    {
+      "path": "src/kernels/python/proof_mining_manager_submit_command_args_gate_v1_native_adapter.py",
+      "sha256": "719658b8545ffefae89ab109f43e42e28bd3aaa3c8a1eb8c99286f7e07cce32e"
+    },
+    {
+      "path": "tests/kernels/test_proof_mining_manager_submit_command_args_gate_v1_native_adapter.py",
+      "sha256": "f2ba67881155162727f965ce25b61a0dda0ac68887fc79a1d9c5e6fbdf94f341"
+    },
+    {
+      "path": "tools/check_proof_mining_manager_submit_command_args_gate_assurance_manifest.py",
+      "sha256": "0627378e2648967adf6e19b06d92c37a875be2b9e6f4cfafde5f1abf43022fe3"
+    },
+    {
+      "path": "tools/proof_mining_manager_submit_command_args_gate_assurance_manifest.json",
+      "sha256": "64ac4c88eaf37f4bcb7769bdda083d8f667fc4443d779ddda1494830e58e930c"
+    },
+    {
+      "path": "tools/run_proof_mining_manager_submit_command_args_gate_assurance_gate.sh",
+      "sha256": "e801989edc2a84795f61512f8a7840080bf7fab95882e241eb5a696a49a67614"
+    },
+    {
+      "path": "src/kernels/dex/proof_mining_manager_packet_envelope_gate_v1.yaml",
+      "sha256": "fb1f00e249b15177a29889809b23e03b6215b7ddd9a14ed8dde10d20ae13df25"
+    },
+    {
+      "path": "src/kernels/python/proof_mining_manager_packet_envelope_gate_v1_native_adapter.py",
+      "sha256": "c6ff1b57805bc51c3231f17887648166a96fb05d1f7745d122345a0a45f0de2f"
+    },
+    {
+      "path": "tests/kernels/test_proof_mining_manager_packet_envelope_gate_v1_native_adapter.py",
+      "sha256": "e644d4cf81662fd475c9590d3447c932b9c9cf82ec1f9e2060feea7e04996b59"
+    },
+    {
+      "path": "tools/check_proof_mining_manager_packet_envelope_gate_assurance_manifest.py",
+      "sha256": "f01f3726206ac48aa480698309e610adda0fb8cdc61aa4b41e802400809af01a"
+    },
+    {
+      "path": "tools/proof_mining_manager_packet_envelope_gate_assurance_manifest.json",
+      "sha256": "32ff0e4ced7e08986e1885baec94f8fb6e1cd1454924923a7c18f8401ab0c8b2"
+    },
+    {
+      "path": "tools/run_proof_mining_manager_packet_envelope_gate_assurance_gate.sh",
+      "sha256": "31de23ce12a5fded840f0f8df5a94b7389e69d759ccbdddc9d20ba60f38884df"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/proof_mining_manager_v1/validate.json",
+    "model_path": "src/kernels/dex/proof_mining_manager_v1.yaml",
+    "ir_hash": "sha256:d7f4a186737212ed0673a5034f28286728a4aa914cf5bb7d8ff178f3342e1b9c"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/proof_mining_manager_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.proof_mining_manager_v1_adapter:make_adapter",
+    "ir_hash": "sha256:d7f4a186737212ed0673a5034f28286728a4aa914cf5bb7d8ff178f3342e1b9c",
+    "actions": [
+      "advance_epoch",
+      "submit_proof"
+    ],
+    "effects": [
+      "paid",
+      "proposal_slot",
+      "prover_id",
+      "reward_amount",
+      "reward_kind"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/proof_mining_manager_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/proof_mining_manager_v1.yaml",
+    "adapter_spec": "src.kernels.python.proof_mining_manager_v1_adapter:make_adapter",
+    "ir_hash": "sha256:d7f4a186737212ed0673a5034f28286728a4aa914cf5bb7d8ff178f3342e1b9c",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:70d8686e6ac5578e56d77c275d9b7a5f8ed52709138f8a5b56261333b31f789a"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/proof_mining_manager_v1/verification_report.json",
+    "model_id": "proof_mining_manager_v1",
+    "ir_hash_short": "d7f4a186737212ed",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 3,
+    "passed_queries": 3,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_proof_mining_manager.py",
+    "tests/integration/test_proof_mining_runtime.py",
+    "tests/integration/test_proof_mining_context_edges.py",
+    "tests/kernels/test_proof_mining_manager_v1_adapter.py",
+    "tests/tools/test_permissionless_proof_mining_manager_packet.py"
+  ]
+}

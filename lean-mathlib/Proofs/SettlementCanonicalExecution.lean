@@ -23,6 +23,10 @@ the executed settlement and objective.
 -/
 
 namespace TauSwap
+
+-- `TauSwap.Batch.key_le_components` (used below) lives in `BatchAuctionCanonical`
+-- next to the key definitions; `canonical_dominates` there is also derived from it.
+
 namespace SettlementCanonicalExecution
 
 open BatchCPMMUnification

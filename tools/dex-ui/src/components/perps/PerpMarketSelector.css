@@ -15,23 +15,23 @@
     min-width: 160px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all var(--transition-fast);
+    transition: border-color var(--transition-fast), background var(--transition-fast);
     text-align: left;
     font-family: var(--font-sans);
     color: var(--text-primary);
 }
 
 .perp-market-card:hover {
-    background: var(--bg-tertiary);
+    background: var(--bg-elev-1);
     border-color: var(--text-muted);
 }
 
 .perp-market-card.selected {
-    border-color: var(--accent-cyan);
-    background: rgba(76, 201, 240, 0.06);
-    box-shadow: 0 0 0 1px var(--accent-cyan);
+    border-color: var(--accent-signal);
+    background: var(--accent-signal-soft);
+    box-shadow: inset 3px 0 0 var(--accent-signal);
 }
 
 .perp-market-card-header {

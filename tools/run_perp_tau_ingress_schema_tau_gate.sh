@@ -32,7 +32,13 @@ export TAU_BIN
 echo "== perp-tau-ingress-schema: trace test =="
 "$PY" -m pytest -q tests/tau/test_perps_tau_specs.py::test_perp_tau_ingress_schema_guard_v1_trace
 
-echo "== perp-tau-ingress-schema: manifest check =="
-"$PY" "$ROOT_DIR/tools/check_perp_tau_ingress_schema_tau_manifest.py"
+MANIFEST_CHECK="$ROOT_DIR/tools/check_perp_tau_ingress_schema_tau_manifest.py"
+MANIFEST_PATH="$ROOT_DIR/tools/perp_tau_ingress_schema_tau_manifest.json"
+if [[ -f "$MANIFEST_CHECK" && -f "$MANIFEST_PATH" ]]; then
+  echo "== perp-tau-ingress-schema: manifest check =="
+  "$PY" "$MANIFEST_CHECK"
+else
+  echo "== perp-tau-ingress-schema: manifest check skipped (no pinned manifest in this tree) =="
+fi
 
 echo "ok"

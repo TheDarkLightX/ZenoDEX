@@ -2,8 +2,8 @@
 
 <!-- Generated from docs/claims_registry.yaml and formal/tla/*.cfg. -->
 
-- Supported TLA claims: `32`
-- Discovered TLC models: `32`
+- Supported TLA claims: `37`
+- Discovered TLC models: `37`
 - Batch checker: `python3 tools/run_tla_models.py --json`
 - Inventory guard: `pytest -q tests/formal/test_tla_claim_inventory.py tests/test_claims_registry.py`
 
@@ -71,6 +71,15 @@
 - Invariants: `TypeOK`, `AcceptedRequiresValidValidation`, `ExecutionVisibleOnlyIfAccepted`, `UnknownOrInvalidNeverVisible`, `RejectAndProposalFailClosed`
 - Properties: _none_
 - Statement: In the bounded TLA+ ZenoGraph host/local acceptance shadow model, accepted facts require valid local validation, execution-visible facts are visible only after local acceptance, and proposal/unknown/invalid/reject paths remain fail-closed.
+
+### `ZenoSdkWalletSyncCheckpoint`
+
+- Claim: `tla:zeno_sdk_wallet_sync_checkpoint:no_rollback_or_same_height_drift`
+- Module: `formal/tla/ZenoSdkWalletSyncCheckpoint.tla`
+- Config: `formal/tla/ZenoSdkWalletSyncCheckpoint.cfg`
+- Invariants: `TypeOK`, `RejectedDoesNotMutateState`, `AcceptedRequiresValidBundle`, `AcceptedRequiresValidPriorState`, `AcceptedNeverRollsBack`, `AcceptedKeepsChainStableAfterInitialSync`, `AcceptedSameHeightCannotDrift`, `AcceptedStateMatchesCandidate`
+- Properties: _none_
+- Statement: In the bounded TLA+ Zeno SDK wallet-sync checkpoint shadow model, accepted updates require a validated checkpoint bundle, accepted updates from an existing state require a valid current-state hash, checkpoint height never decreases, chain id cannot change after initial sync, same-height accepted updates cannot change app/checkpoint commitments, and rejected updates do not mutate wallet-sync state.
 
 ## Liveness
 
@@ -227,6 +236,24 @@
 - Properties: `FairImpliesSingleReorgEventuallyResolves`, `FairImpliesAdmissibleHeadEventuallyAccepts`, `FairImpliesAcceptedPendingEventuallyFinalizesOrRollsBack`, `FairImpliesInadmissibleHeadEventuallyRejects`
 - Statement: In the bounded TLA+ perps submission single-reorg queue model (`MAX_QUEUE = 5`, `ARRIVAL_BUDGET_MAX = 2`, `REORG_BUDGET_MAX = 1`), under strong fairness of non-target dequeue and weak fairness of accept/finalize/reject-at-head actions, a target submission with at most one post-accept rollback is eventually resolved; admissible head targets eventually accept, accepted submissions eventually either finalize or roll back for bounded re-resolution, and inadmissible head targets reject with reason.
 
+### `SettlementAttestationGovernance`
+
+- Claim: `tla:settlement_attestation_governance:governed_policy_activation`
+- Module: `formal/tla/SettlementAttestationGovernance.tla`
+- Config: `formal/tla/SettlementAttestationGovernance.cfg`
+- Invariants: `TypeOK`, `AcceptedSettlementRequiresActiveGovernedPolicy`, `RevokedPolicyRejectsFutureSettlement`, `NoRetroactiveEpochDriftOnAcceptedSettlement`
+- Properties: `FairImpliesApprovedPolicyEventuallyActivates`
+- Statement: In the bounded TLA+ settlement-attestation governance model (`SIGNERS = {0,1}`, `SOURCES = {0,1}`), accepted settlements require an active approved, timelocked, multisig-backed, non-revoked policy snapshot with enough observed signers and sources; revoked active policy blocks future settlement acceptance; accepted settlements cannot drift away from the active policy epoch; and under weak fairness, an approved pending policy with an elapsed timelock eventually activates.
+
+### `SettlementSignerRegistryTauBridge`
+
+- Claim: `tla:settlement_signer_registry_tau_bridge:bound_snapshot_and_anchor`
+- Module: `formal/tla/SettlementSignerRegistryTauBridge.tla`
+- Config: `formal/tla/SettlementSignerRegistryTauBridge.cfg`
+- Invariants: `TypeOK`, `AcceptedRequiresBoundSnapshot`, `DriftedSnapshotBlocksAcceptance`, `DriftedAnchorBlocksAcceptance`
+- Properties: `FairReadyRequestEventuallyAccepts`, `FairBindingMismatchEventuallyRejects`, `FairBridgeReadyEventuallyChecksPolicyBinding`, `FairPolicyBoundArtifactsEventuallyCheckProofPath`, `FairCleanArtifactsEventuallyCheckPolicyBinding`, `FairProofPathEventuallyResolves`
+- Statement: In the bounded TLA+ Tau-native settlement signer-registry bridge model, accepted requests require a request-bound registry snapshot and chain anchor, drifted snapshots or anchors block acceptance, and under weak fairness ready requests eventually accept while visible binding mismatches and unavailable proof paths eventually resolve by rejection or proof-path checks.
+
 ### `SettlementWitnessBoundedOpenIngress`
 
 - Claim: `tla:settlement_witness_bounded_open_ingress:fair_resolution`
@@ -298,6 +325,24 @@
 - Invariants: `TypeOK`, `QueueCoherent`
 - Properties: `FairImpliesSingleReorgEventuallyResolves`, `FairImpliesAdmissibleHeadEventuallyIncludes`, `FairImpliesIncludedPendingEventuallyFinalizesOrRollsBack`, `FairImpliesInadmissibleHeadEventuallyRejects`
 - Statement: In the bounded TLA+ settlement witness single-reorg queue model (`MAX_QUEUE = 5`, `ARRIVAL_BUDGET_MAX = 2`, `REORG_BUDGET_MAX = 1`), under strong fairness of non-target dequeue and weak fairness of include/finalize/reject-at-head actions, a target witness with at most one post-inclusion rollback is eventually resolved; admissible head targets eventually include, included targets eventually either finalize or roll back for bounded re-resolution, and inadmissible head targets reject with reason.
+
+### `TauStateAppHashProvenanceBridge`
+
+- Claim: `tla:tau_state_app_hash_provenance_bridge:loader_acceptance_binding`
+- Module: `formal/tla/TauStateAppHashProvenanceBridge.tla`
+- Config: `formal/tla/TauStateAppHashProvenanceBridge.cfg`
+- Invariants: `TypeOK`, `AcceptedStateRequiresLoaderOK`, `StrongBindingMismatchStateBlocksAcceptance`, `MissingTauTransportStateBlocksAcceptance`
+- Properties: `AcceptedRequiresLoaderOK`, `StrongBindingMismatchBlocksAcceptance`, `MissingTauTransportBlocksAcceptance`, `FairCleanReadyStateEventuallyAccepts`, `FairVisibleStrongBindingFailureEventuallyRejects`, `FairMissingTauTransportEventuallyRejects`
+- Statement: In the bounded TLA+ Tau-state/app-hash provenance bridge model, accepted loader requests require bridge payload checks, baseline provenance checks, state-proof error freedom, and the stronger Tau-state transport plus binding checks whenever strong binding is required; visible bridge, baseline, transport, or Tau-binding failures block acceptance and under weak fairness eventually resolve by rejection or acceptance when the clean ready state is reached.
+
+### `TauStateAppHashStableWindow`
+
+- Claim: `tla:tau_state_app_hash_stable_window:bounded_retry_resolution`
+- Module: `formal/tla/TauStateAppHashStableWindow.tla`
+- Config: `formal/tla/TauStateAppHashStableWindow.cfg`
+- Invariants: `TypeOK`, `ReturnedRequiresStableWindow`, `StableWindowFoundRequiresReturned`, `StrongBindingWithoutTauStabilityBlocksReturn`
+- Properties: `FairUnstabilizableWindowEventuallyRejects`
+- Statement: In the bounded TLA+ Tau-state app-hash stable-window model, returned loader output requires a stable proof/app window and, when strong binding is required, a stable Tau-state observation; finding a stable window implies a returned result; strong binding without Tau stability blocks return; and under weak fairness an unstabilizable window eventually rejects after the bounded retry budget is exhausted.
 
 ## Notes
 

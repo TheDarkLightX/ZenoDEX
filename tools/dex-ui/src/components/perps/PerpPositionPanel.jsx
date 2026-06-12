@@ -7,7 +7,7 @@ import './PerpPositionPanel.css';
  * Shows: side, size, entry price, unrealized PnL, margin health bar,
  * liquidation price, leverage.
  */
-function PerpPositionPanel({ market, position, derived }) {
+function PerpPositionPanel({ market, position, derived, isObserver = false }) {
     if (!market) {
         return (
             <div className="perp-position-panel perp-position-panel--empty">
@@ -25,7 +25,11 @@ function PerpPositionPanel({ market, position, derived }) {
                 <div className="perp-no-position">
                     <span className="perp-no-position-icon">--</span>
                     <p>No open position in {market.id}</p>
-                    <p className="perp-no-position-hint">Use the order form to open a position</p>
+                    <p className="perp-no-position-hint">
+                        {isObserver
+                            ? 'This is an operator-managed 2-party market — your wallet is an observer and cannot open a position.'
+                            : 'Use the order form to open a position'}
+                    </p>
                 </div>
             </div>
         );

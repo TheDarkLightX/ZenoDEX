@@ -1,0 +1,92 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the zUSD mint/borrow-fee micro-kernel. Update only alongside a successful run of tools/run_zusd_mint_assurance_gate.sh and tools/check_zusd_mint_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/zusd_mint_borrow_fee_v1.yaml",
+      "sha256": "76131174341b76b797c8a5093e30c5f1f15be194bf7a14d692c472d481a3c7d0"
+    },
+    {
+      "path": "src/kernels/python/zusd_mint_borrow_fee_v1_native_adapter.py",
+      "sha256": "86e3389c543cfec93f62e6a133b95ab0531e6782571081efe2f29ae261181bae"
+    },
+    {
+      "path": "tests/kernels/test_zusd_mint_borrow_fee_v1_native_adapter.py",
+      "sha256": "6cfd354ea7dfacd490517d31d64cb53517aad6f292b5ab1f229d8e32063dd0aa"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/zusd_mint_borrow_fee_v1/validate.json",
+    "model_path": "src/kernels/dex/zusd_mint_borrow_fee_v1.yaml",
+    "ir_hash": "sha256:13f07960142112df016410ce82160e64891ef1ea52e4e488c84020f3008c31a5"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/zusd_mint_borrow_fee_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.zusd_mint_borrow_fee_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:13f07960142112df016410ce82160e64891ef1ea52e4e488c84020f3008c31a5",
+    "actions": [
+      "apply_mint_borrow_fee"
+    ],
+    "effects": [
+      "base_rate_after_bps",
+      "base_rate_last_epoch_after",
+      "debt_after_e8",
+      "debt_delta_e8",
+      "decayed_base_rate_bps",
+      "free_debt_after_e8",
+      "mcr_post_ok",
+      "mint_fee_bps",
+      "mint_fee_e8",
+      "principal_e8"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/zusd_mint_borrow_fee_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/zusd_mint_borrow_fee_v1.yaml",
+    "adapter_spec": "src.kernels.python.zusd_mint_borrow_fee_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:13f07960142112df016410ce82160e64891ef1ea52e4e488c84020f3008c31a5",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:088842cc4d436a793fe00ddfd6cd867e4859f23fc2feea3cc7f98e1ac47db53b"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/zusd_mint_borrow_fee_v1/verification_report.json",
+    "model_id": "zusd_mint_borrow_fee_v1",
+    "ir_hash_short": "13f07960142112df",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/kernels/test_zusd_mint_borrow_fee_v1_native_adapter.py"
+  ]
+}

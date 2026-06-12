@@ -22,11 +22,40 @@ from ..core.settlement import (
     ReserveDelta,
     LPDelta,
 )
+from ..core.dex_intent_auth_message import canonicalize_dex_intent_identifier_if_decodable
 from ..state.intents import Intent, IntentKind
-from ..state.pools import normalize_curve_config
+from ..state.pools import normalize_curve_config, normalize_pool_asset_pair
 
 POOL_FEE_BPS_MIN = 0
 POOL_FEE_BPS_MAX = 10_000
+
+_CANONICAL_INTENT_FIELD_IDENTIFIERS = (
+    "recipient",
+    "asset0",
+    "asset1",
+    "asset_in",
+    "asset_out",
+    "pool_id",
+)
+
+
+def _canonicalize_decodable_intent_identifiers(intent: Intent) -> None:
+    """Normalize parser-admitted identifiers to match DEX intent auth hashing.
+
+    Design by Contract:
+    - Precondition: ``intent.fields`` is a mutable parser-owned dictionary.
+    - Invariant: State transitions consume the same canonical fixed-width hex
+      spellings that signature verification hashes.
+    - Postcondition: Non-decodable symbolic identifiers remain unchanged.
+    """
+    intent.sender_pubkey = canonicalize_dex_intent_identifier_if_decodable(
+        intent.sender_pubkey,
+        key="sender_pubkey",
+    )
+    fields = intent.fields or {}
+    for key in _CANONICAL_INTENT_FIELD_IDENTIFIERS:
+        if key in fields:
+            fields[key] = canonicalize_dex_intent_identifier_if_decodable(fields[key], key=key)
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
@@ -180,6 +209,11 @@ def _parse_fill(fill_data: Any) -> Fill:
             fill_data.get("amount_out_filled"), name="fill.amount_out_filled", non_negative=True
         ),
         fee_paid=_optional_int(fill_data.get("fee_paid"), name="fill.fee_paid", non_negative=True),
+        protocol_fee_paid=_optional_int(
+            fill_data.get("protocol_fee_paid"),
+            name="fill.protocol_fee_paid",
+            non_negative=True,
+        ),
         amount0_used=_optional_int(fill_data.get("amount0_used"), name="fill.amount0_used", non_negative=True),
         amount1_used=_optional_int(fill_data.get("amount1_used"), name="fill.amount1_used", non_negative=True),
         lp_minted=_optional_int(fill_data.get("lp_minted"), name="fill.lp_minted", non_negative=True),
@@ -418,6 +452,7 @@ def _parse_intent(intent_data: Dict[str, Any]) -> ValidatedIntent:
         salt=salt,
         fields=fields,
     )
+    _canonicalize_decodable_intent_identifiers(intent)
     _validate_intent_fields(intent)
     
     return intent
@@ -587,8 +622,12 @@ def _validate_create_pool_intent_fields(intent: Intent, fields: Dict[str, Any]) 
     kind = intent.kind
     asset0 = _require_field_str(fields, "asset0", intent_kind=kind)
     asset1 = _require_field_str(fields, "asset1", intent_kind=kind)
-    if asset0 >= asset1:
-        raise ValueError(f"intent assets must be in canonical order: {asset0} < {asset1}")
+    try:
+        asset0_norm, asset1_norm = normalize_pool_asset_pair(asset0, asset1)
+    except Exception as exc:
+        raise ValueError(f"intent assets must be in canonical order: {asset0} < {asset1}") from exc
+    fields["asset0"] = asset0_norm
+    fields["asset1"] = asset1_norm
     _require_field_int_range(
         fields,
         "fee_bps",
@@ -972,6 +1011,7 @@ def create_settlement_operation(settlement: Settlement) -> Dict[str, Any]:
                 "amount_in_filled": fill.amount_in_filled,
                 "amount_out_filled": fill.amount_out_filled,
                 "fee_paid": fill.fee_paid,
+                "protocol_fee_paid": fill.protocol_fee_paid,
                 "amount0_used": fill.amount0_used,
                 "amount1_used": fill.amount1_used,
                 "lp_minted": fill.lp_minted,

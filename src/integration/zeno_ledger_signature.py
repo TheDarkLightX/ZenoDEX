@@ -42,6 +42,7 @@ SUPPORTED_PAYLOAD_KINDS_V0 = frozenset(
         "perps_wallet_authority_profile",
         "perps_wallet_recovery_exercise",
         "perps_wallet_rotation_exercise",
+        "governance_action",
     }
 )
 
@@ -77,6 +78,13 @@ def _require_secret(secret_hex: str) -> bytes:
 def _require_bls() -> None:
     if not _BLS_AVAILABLE:
         raise RuntimeError("py_ecc.bls is required for BLS release signatures")
+
+
+def _require_bls_basic() -> Any:
+    _require_bls()
+    if G2Basic is None:
+        raise RuntimeError("py_ecc.bls is required for BLS release signatures")
+    return G2Basic
 
 
 def _require_bls_private_key(private_key_hex: str) -> int:
@@ -164,18 +172,16 @@ def _compute_signature(*, body: Mapping[str, Any], secret_hex: str) -> str:
 
 
 def _compute_bls_signature(*, body: Mapping[str, Any], private_key_hex: str) -> str:
-    _require_bls()
+    bls = _require_bls_basic()
     sk = _require_bls_private_key(private_key_hex)
-    assert G2Basic is not None
-    signature = G2Basic.Sign(sk, _signature_message_digest(body))
+    signature = bls.Sign(sk, _signature_message_digest(body))
     return "0x" + signature.hex()
 
 
 def bls_public_key_hex_from_private_key_v0(private_key_hex: str) -> str:
-    _require_bls()
+    bls = _require_bls_basic()
     sk = _require_bls_private_key(private_key_hex)
-    assert G2Basic is not None
-    return "0x" + G2Basic.SkToPk(sk).hex()
+    return "0x" + bls.SkToPk(sk).hex()
 
 
 def build_signed_artifact_envelope_v0(
@@ -266,10 +272,9 @@ def validate_bls_signed_artifact_envelope_v0(
     if str(obj.get("public_key")) != public_key:
         raise ValueError("signed artifact envelope public_key mismatch")
     signature = _require_bls_signature(_require_str(obj.get("signature"), name="envelope.signature"))
-    _require_bls()
-    assert G2Basic is not None
+    bls = _require_bls_basic()
     ok = bool(
-        G2Basic.Verify(
+        bls.Verify(
             hex_to_bytes_fixed(public_key, nbytes=48, name="public_key"),
             _signature_message_digest(body),
             hex_to_bytes_fixed(signature, nbytes=96, name="signature"),

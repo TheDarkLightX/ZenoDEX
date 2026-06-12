@@ -24,12 +24,15 @@ cd zk/state_proof_risc0
 cargo build --release --offline -p tau-state-proof-risc0-cli
 ```
 
-Real proofs require the Risc0 toolchain/guest target:
+Real proofs require the Risc0 components:
 
 ```bash
-rustup toolchain install risc0
-rustup target add riscv32im-risc0-zkvm-elf --toolchain risc0
+rzup install
+rzup show
 ```
+
+Set `RISC0_FORCE_BUILD=1` for fail-closed builds that must reject placeholder
+methods instead of silently embedding an empty guest ELF and all-zero image ID.
 
 ## Use with local Tau Testnet smoke
 

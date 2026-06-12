@@ -1,7 +1,7 @@
 /* PoolDashboard Styles */
 
 .pool-dashboard {
-    max-width: 1200px;
+    max-width: 1320px;
     margin: 0 auto;
 }
 
@@ -36,6 +36,69 @@
 
 .pool-stats {
     margin-bottom: var(--space-xl);
+}
+
+.pool-create-panel {
+    margin-bottom: var(--space-xl);
+}
+
+.pool-create-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-lg);
+    margin-bottom: var(--space-lg);
+}
+
+.pool-create-heading h3 {
+    margin: 0 0 var(--space-xs);
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+}
+
+.pool-create-heading p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.pool-create-check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+}
+
+.pool-create-grid {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.5fr) minmax(110px, 0.75fr) minmax(180px, 1.5fr) minmax(110px, 0.75fr) minmax(90px, 0.55fr) auto;
+    gap: var(--space-md);
+    align-items: end;
+}
+
+.pool-create-grid label {
+    display: grid;
+    gap: var(--space-xs);
+    min-width: 0;
+}
+
+.pool-create-grid label span {
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.pool-create-grid input[type="text"],
+.pool-create-grid input:not([type]) {
+    width: 100%;
+    min-width: 0;
+}
+
+.pool-create-grid .btn {
+    white-space: nowrap;
 }
 
 .pool-table {
@@ -98,13 +161,11 @@
 
 .pool-name {
     font-weight: 600;
+    white-space: nowrap;
 }
 
 .apy-cell {
-    background: linear-gradient(135deg, var(--accent-green), var(--accent-cyan));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--accent-green);
     font-weight: 700;
 }
 
@@ -115,6 +176,16 @@
 
 .no-position {
     color: var(--text-muted);
+}
+
+.pool-position {
+    display: grid;
+    gap: 2px;
+}
+
+.pool-position span:last-child {
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
 }
 
 .pool-actions {
@@ -141,3 +212,113 @@
     color: var(--text-muted);
     font-size: var(--font-size-sm);
 }
+
+@media (max-width: 960px) {
+    .pool-create-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .pool-header,
+    .pool-create-heading {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .pool-create-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Verified-pools KPI, per-row composition bar, and verification dot.
+ * Surfaces the per-pool curve + reserve balance on the existing
+ * pool table. Built on existing design-system tokens.
+ * ───────────────────────────────────────────────────────────────────── */
+.pool-stat-verified {
+    position: relative;
+}
+
+.pool-stat-sub {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* PulseX/Uniswap-Info-style search + sort toolbar */
+.pool-table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+    flex-wrap: wrap;
+}
+
+.pool-search {
+    max-width: 320px;
+    flex: 1 1 220px;
+}
+
+.pool-table-count {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.pool-th-sort {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.pool-th-sort:hover {
+    color: var(--text-primary);
+}
+
+.pool-pair-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.pool-reserves-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pool-comp-bar {
+    display: flex;
+    width: 120px;
+    max-width: 100%;
+    height: 6px;
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    background: var(--bg-tertiary);
+}
+
+.pool-comp-in { background: var(--accent-cyan); }
+.pool-comp-out { background: var(--accent-purple); }
+
+.pool-verify {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+}
+
+.pool-verify-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+}
+
+.pool-verify.is-verified { color: var(--accent-green); }
+.pool-verify.is-verified .pool-verify-dot { background: var(--accent-green); }
+.pool-verify.is-unverified { color: var(--text-muted); }
+.pool-verify.is-unverified .pool-verify-dot { background: var(--accent-warn); }

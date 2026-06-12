@@ -129,6 +129,64 @@ claims:
         - src/integration/dex_snapshot.py
         - generated/perp_python/perp_epoch_clearinghouse_3p_transfer_v0_1_ref.py
 
+  - id: risc0:perps_np_transition_v1:real_proof_smoke
+    status: supported
+    layer: assurance
+    statement: >
+      The scoped RISC0 proof surface `risc0.zenodex_perps_np_transition.v1`
+      proves a dynamic N-party perps epoch transition with at least four
+      participants in the positive smoke cases. The guest recomputes
+      settle-before-match, largest-remainder rationing, zero-sum position
+      conservation, insurance ledger identity, ADL/liquidation handling, and
+      journal bindings for chain, market, operation, state roots, state delta,
+      oracle binding, collateral binding, participant set, receipts root, and
+      nonzero RISC0 image ID. The strict verifier rejects wrong proof type,
+      image ID, chain, app hashes, state roots, operation hash, oracle binding
+      hash, participant-set hash, state-delta hash, and ledger-field tampering.
+      This is scoped transition evidence; it does not certify external oracle
+      truth, custody, production finality, or the full Python runtime.
+    evidence:
+      kind: risc0-smoke
+      check:
+        - cmd: python3 tools/zeno_ledger_perp_np_risc0_real_proof_smoke.py --case all --timeout 1800 --out-dir /tmp/zenodex_perps_np_risc0_smoke_all --target-dir /tmp/zenodex_perps_np_risc0_target
+      files:
+        - docs/zenodex_perps_np_state_proof_risc0_v1.md
+        - tools/zeno_ledger_perp_np_risc0_real_proof_smoke.py
+        - tools/proof_verifiers/risc0_perps_np_live_wrapper_v1.py
+        - zk/state_proof_risc0/cli/src/main.rs
+        - zk/state_proof_risc0/methods/guest/src/main.rs
+        - zk/state_proof_risc0/shared/src/lib.rs
+        - zk/state_proof_risc0/shared/src/surfaces.rs
+
+  - id: risc0:zusd_transition_v1:real_proof_smoke
+    status: supported
+    layer: assurance
+    statement: >
+      The scoped RISC0 proof surface `risc0.zenodex_zusd_transition.v1` proves
+      one zUSD collateral-deposit plus mint transition in the positive smoke
+      case. The guest binds chain, vault, owner, pre/post app hashes, pre/post
+      zUSD state roots, operation hash, oracle binding hash, state-delta hash,
+      vault root, wallet balance root, MCR checks, debt conservation, minted
+      balance, protocol revenue, and nonzero RISC0 image ID. The strict
+      verifier rejects wrong proof type, image ID, chain, app hashes, operation
+      hash, oracle binding hash, state-delta hash, zUSD balance root hash, and
+      zUSD vault root hash. This is scoped transition evidence; it does not
+      certify real oracle truth, custody, redemptions, repayments,
+      liquidations, multi-vault behavior, production finality, or the full
+      Python runtime.
+    evidence:
+      kind: risc0-smoke
+      check:
+        - cmd: python3 tools/zeno_ledger_zusd_risc0_real_proof_smoke.py --case all --timeout 1800 --out-dir /tmp/zenodex_zusd_risc0_smoke_all --target-dir /tmp/zenodex_zusd_risc0_target
+      files:
+        - docs/zenodex_zusd_state_proof_risc0_v1.md
+        - tools/zeno_ledger_zusd_risc0_real_proof_smoke.py
+        - tools/proof_verifiers/risc0_zusd_live_wrapper_v1.py
+        - zk/state_proof_risc0/cli/src/main.rs
+        - zk/state_proof_risc0/methods/guest/src/main.rs
+        - zk/state_proof_risc0/shared/src/lib.rs
+        - zk/state_proof_risc0/shared/src/surfaces.rs
+
   - id: smt:perp_epoch_isolated_v2:inductive_z3_cvc5
     status: supported
     layer: spec
@@ -1205,6 +1263,32 @@ claims:
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.md
         - docs/claims_registry.yaml
+
+  - id: py:zenodex:trust_minimization_target_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The ZenoDEX trust-minimization target treats the host as adversarial,
+      records Docker as packaging rather than a correctness boundary, and keeps
+      the lower-than-Uniswap trust claim disabled while required proof/replay
+      surfaces remain open. The checker accepts the target only when supported
+      surfaces point at the proof coverage matrix, open gaps point at matrix
+      gaps plus matching non-claims, the acceptance rule includes replay or
+      valid zk receipt verification, and achieved status is rejected while any
+      required surface is still open.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_zenodex_trust_minimization_target.py
+        - cmd: python3 -m py_compile tools/check_zenodex_trust_minimization_target.py tests/test_check_zenodex_trust_minimization_target.py
+        - cmd: pytest -q tests/test_check_zenodex_trust_minimization_target.py
+      files:
+        - tools/check_zenodex_trust_minimization_target.py
+        - tests/test_check_zenodex_trust_minimization_target.py
+        - docs/ZENODEX_TRUST_MINIMIZATION_TARGET_V0.json
+        - docs/ZENODEX_TRUST_MINIMIZATION_TARGET.md
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+        - tools/check_zeno_ledger_proof_coverage_matrix.py
 
   - id: smt:batch_auction_settler_v1:inductive_z3_cvc5
     status: supported
@@ -3152,3 +3236,154 @@ claims:
         - lean-mathlib/Proofs/PerpFundingRateSafety.lean
         - lean-mathlib/Proofs/PerpInsuranceSafety.lean
         - lean-mathlib/Proofs/PerpGameTheory.lean
+
+  - id: py:zenodex:host_independent_coverage_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The host-independent coverage manifest separates full-node host
+      independence from succinct proof coverage for every critical transition.
+      Covered full-node surfaces must use deterministic replay or valid zkVM
+      proof modes; metadata/report/checkpoint replay cannot count as transition
+      correctness; Docker cannot be used as a correctness boundary; and the
+      manifest must keep full-ZK execution for all value-moving surfaces open
+      while the proof matrix still lists real proof gaps. This is a scoped
+      coverage and claim-control gate. It does not add zkVM execution support
+      for the open proof-gap surfaces.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_zenodex_host_independent_coverage.py
+        - cmd: pytest -q tests/tools/test_check_zenodex_host_independent_coverage.py
+      files:
+        - tools/check_zenodex_host_independent_coverage.py
+        - tests/tools/test_check_zenodex_host_independent_coverage.py
+        - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
+        - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE.md
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+        - docs/claims_registry.yaml
+
+  - id: py:zenodex:zk_transition_coverage_performance_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The ZK transition coverage report counts the current real Risc0 spot v1
+      proof operation family, keeps uncovered operations explicit, counts
+      supported proof-matrix surfaces against proof gaps, and can consume
+      timed Risc0 smoke reports. The 2026-05-31 local snapshot records release
+      CLI samples on a private local developer workstation: proof generation
+      remains a prover workload, while proof verification is cheap in the
+      sampled release path. This is local performance evidence and coverage
+      accounting; it is not a production prover benchmark or a claim that all
+      ZenoDEX transitions have zkVM proof coverage.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/measure_zenodex_zk_transition_coverage.py
+        - cmd: pytest -q tests/tools/test_measure_zenodex_zk_transition_coverage.py
+      files:
+        - tools/measure_zenodex_zk_transition_coverage.py
+        - tests/tools/test_measure_zenodex_zk_transition_coverage.py
+        - docs/ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.json
+        - docs/ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.md
+        - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+
+  - id: tla:settlement_attestation_governance:governed_policy_activation
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ settlement-attestation governance model
+      (`SIGNERS = {0,1}`, `SOURCES = {0,1}`), accepted settlements require an
+      active approved, timelocked, multisig-backed, non-revoked policy snapshot
+      with enough observed signers and sources; revoked active policy blocks
+      future settlement acceptance; accepted settlements cannot drift away from
+      the active policy epoch; and under weak fairness, an approved pending
+      policy with an elapsed timelock eventually activates.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local settlement attestation
+        governance model. This is a control-flow claim about bounded signer and
+        source sets, not a proof of real-world signer independence, oracle
+        truth, BLS validity, bribery resistance, or on-chain governance
+        execution.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementAttestationGovernance.tla
+        - formal/tla/SettlementAttestationGovernance.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:settlement_signer_registry_tau_bridge:bound_snapshot_and_anchor
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ Tau-native settlement signer-registry bridge model,
+      accepted requests require a request-bound registry snapshot and chain
+      anchor, drifted snapshots or anchors block acceptance, and under weak
+      fairness ready requests eventually accept while visible binding mismatches
+      and unavailable proof paths eventually resolve by rejection or proof-path
+      checks.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local Tau bridge control model.
+        This models bridge sequencing and binding decisions, not Tau parser
+        soundness, cryptographic proof-path correctness, signer honesty, or
+        production chain finality.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementSignerRegistryTauBridge.tla
+        - formal/tla/SettlementSignerRegistryTauBridge.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:tau_state_app_hash_provenance_bridge:loader_acceptance_binding
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ Tau-state/app-hash provenance bridge model, accepted
+      loader requests require bridge payload checks, baseline provenance checks,
+      state-proof error freedom, and the stronger Tau-state transport plus
+      binding checks whenever strong binding is required; visible bridge,
+      baseline, transport, or Tau-binding failures block acceptance and under
+      weak fairness eventually resolve by rejection or acceptance when the clean
+      ready state is reached.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local Tau-state provenance bridge
+        control model. This is evidence for the bounded accept/reject sequencing
+        and binding flags, not a proof of Tau-state transport availability,
+        external chain data correctness, or host implementation bug freedom.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/TauStateAppHashProvenanceBridge.tla
+        - formal/tla/TauStateAppHashProvenanceBridge.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:tau_state_app_hash_stable_window:bounded_retry_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ Tau-state app-hash stable-window model, returned
+      loader output requires a stable proof/app window and, when strong binding
+      is required, a stable Tau-state observation; finding a stable window
+      implies a returned result; strong binding without Tau stability blocks
+      return; and under weak fairness an unstabilizable window eventually
+      rejects after the bounded retry budget is exhausted.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local stable-window control model
+        with three retry attempts. This does not prove live transport quality,
+        eventual network convergence, or correctness of bytes returned by an
+        external Tau node.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/TauStateAppHashStableWindow.tla
+        - formal/tla/TauStateAppHashStableWindow.cfg
+        - tools/run_tla_models.py

@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from src.core.cpmm import swap_exact_in
+from src.core.cpmm import swap_exact_in, swap_exact_in_with_protocol_fee
 
 
 def _import_kernel(module_name: str, rel_path: str) -> Any:
@@ -72,8 +72,7 @@ def test_cpmm_swap_v8_matches_python_core_for_protocol_share_0() -> None:
                     assert res.state.reserve_out == new_reserve_out
 
 
-def test_cpmm_swap_v8_protocol_fee_reduces_reserve_in_growth() -> None:
-    # This doesn't have a Python-core equivalent yet; just assert internal consistency.
+def test_cpmm_swap_v8_protocol_fee_matches_python_core_helper() -> None:
     reserve_in, reserve_out = 1_000_000, 1_000_000
     fee_bps = 100  # 1%
     protocol_share = 5000  # 50% of fee removed
@@ -104,3 +103,18 @@ def test_cpmm_swap_v8_protocol_fee_reduces_reserve_in_growth() -> None:
     assert bool(res.effects["fee_split_ok"]) is True
     assert bool(res.effects["net_ok"]) is True
     assert res.state.reserve_in == reserve_in + amount_in - protocol_fee
+
+    core = swap_exact_in_with_protocol_fee(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_in=amount_in,
+        fee_bps=fee_bps,
+        protocol_fee_share_bps=protocol_share,
+    )
+    assert int(res.effects["amount_out"]) == core.amount_out
+    assert fee_total == core.fee_total
+    assert protocol_fee == core.protocol_fee
+    assert lp_fee == core.lp_fee
+    assert net_in == core.net_in
+    assert res.state.reserve_in == core.new_reserve_in
+    assert res.state.reserve_out == core.new_reserve_out

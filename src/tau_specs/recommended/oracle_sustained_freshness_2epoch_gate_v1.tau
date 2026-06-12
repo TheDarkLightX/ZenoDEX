@@ -1,0 +1,31 @@
+# CATEGORY: oracle / sustained freshness
+# CLAIM: admit settlement only after request and oracle freshness both hold for two consecutive epochs.
+#
+# Stream mapping:
+#   i1 = current epoch       (bv[32])
+#   i2 = oracle quote epoch  (bv[32])
+#   i3 = max staleness       (bv[32])
+#   i4 = settle requested    (sbf)
+#   o1 = sustained settle admission
+#
+# Contract:
+#   o1[t] = req[t] & req[t-1] & fresh[t] & fresh[t-1]
+#
+# This is input-history only. A settle request at the stream boundary is
+# fail-closed until the second consecutive requested-and-fresh epoch.
+set charvar off
+
+quote_not_future(current_epoch : bv[32], quote_epoch : bv[32]) :=
+  quote_epoch <= current_epoch.
+
+fresh(current_epoch : bv[32], quote_epoch : bv[32], max_staleness : bv[32]) :=
+  quote_not_future(current_epoch, quote_epoch) &&
+  ((current_epoch - quote_epoch) <= max_staleness).
+
+always
+  (o1[t]:sbf = 1:sbf <-> (
+       (i4[t]:sbf = 1:sbf)
+    && (i4[t-1]:sbf = 1:sbf)
+    && fresh(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])
+    && fresh(i1[t-1]:bv[32], i2[t-1]:bv[32], i3[t-1]:bv[32])
+  )).

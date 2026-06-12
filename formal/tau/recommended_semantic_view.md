@@ -1,7 +1,10 @@
-# Tau Semantic View
+# Tau Structural-Semantic View
+
+This is a mechanical extraction of recommended Tau control surfaces and output equations.
+It is not a human-reviewed semantic contract or an exactness proof.
 
 Execution census: `formal/tau/recommended_execution_census_best.json`
-Spec count: `174`
+Spec count: `218`
 
 ## add_liquidity_apply_v1
 
@@ -61,6 +64,18 @@ Spec count: `174`
 - Data helpers: `le_pair`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> ((i5[t]:sbf = 1:sbf) && le_pair(i1[t]:bv[64], i2[t]:bv[32], i3[t]:bv[64], i4[t]:bv[32])))`
+
+## atomic_batch_commit_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `abort_containment_ok, all_modules_committed`
+- Data helpers: `aggregate_commit_consistent`
+- Equation surface: extractable `True`, equations `5`, covered outputs `o1, o2, o3, o4, o5`
+- Always: `(o1[t]:sbf = 1:sbf <-> all_modules_committed(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> aggregate_commit_consistent(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:s...`
 
 ## autotrader_budget_guard_v1
 
@@ -140,8 +155,8 @@ Spec count: `174`
 - Temporal: `False`
 - Execution: `ok` via `repl`
 - Observed output signatures: `00000000000`
-- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10`, bv inputs `(none)`, always clauses `1`
-- Equation surface: extractable `True`, equations `11`, covered outputs `o1, o2, o3, o4, o5, o6, o7, o8, o9, o10, o11`
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `12`, covered outputs `o1, o2, o3, o4, o5, o6, o7, o8, o9, o10, o11, o12`
 - Always: `(o1[t]:sbf = 1:sbf <-> (i1[t]:sbf = 1:sbf)) && (o2[t]:sbf = 1:sbf <-> (i2[t]:sbf = 1:sbf)) && (o3[t]:sbf = 1:sbf <-> (i3[t]:sbf = 1:sbf)) && (o4[t]:sbf = 1:sbf <-> (i4[t]:sbf = 1:sbf)) && (o5[t]:sbf = 1:sbf <-> (i5[t]...`
 
 ## autotrader_nonce_guard_v1
@@ -178,6 +193,16 @@ Spec count: `174`
 - Data helpers: `freshness_ok, quote_epoch_not_future`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> oracle_freshness_guard_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]))`
+
+## autotrader_route_economic_sanity_guard_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `autotrader_suite`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7`, bv inputs `i8, i9, i10, i11, i12, i13`, always clauses `1`
+- Equation surface: extractable `True`, equations `5`, covered outputs `o1, o2, o3, o4, o5`
+- Always: `( o1[t]:sbf = 1:sbf <-> ( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 0:sbf) ) ) && (o2[t]:sbf = 1:sbf <-> (i8...`
 
 ## autotrader_session_capability_binding_guard_v1
 
@@ -230,7 +255,7 @@ Spec count: `174`
 - Temporal: `False`
 - Execution: `ok` via `spec`
 - Observed output signatures: `001`
-- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18`, bv inputs `(none)`, always clauses `1`
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18, i19`, bv inputs `(none)`, always clauses `1`
 - Equation surface: extractable `True`, equations `3`, covered outputs `o1, o2, o3`
 - Always: `( o1[t]:sbf = 1:sbf <-> ( (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]...`
 
@@ -434,6 +459,17 @@ Spec count: `174`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[32], i2[t]:bv[32], i1[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> deviation_within_bounds(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> cooldown_ok(i4[t]:sbf)...`
 
+## commit_reveal_binding_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i3, i4, i5, i6`, bv inputs `i1, i2`, always clauses `1`
+- Control helpers: `before_deadline, digest_binds, inside_reveal_window, proof_gated_reveal_accepted, reveal_accepted`
+- Equation surface: extractable `True`, equations `5`, covered outputs `o1, o2, o3, o4, o5`
+- Always: `(o1[t]:sbf = 1:sbf <-> digest_binds(i1[t]:bv[256], i2[t]:bv[256])) && (o2[t]:sbf = 1:sbf <-> inside_reveal_window(i3[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> before_deadline(i4[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> reveal_acce...`
+
 ## concentrated_liquidity_range_v1
 
 - Profile: `exact_combinational_guard`
@@ -446,6 +482,16 @@ Spec count: `174`
 - Data helpers: `bounds_ordered, spacing_ok, tick_aligned, width_bounds_ok, width_ok`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> bounds_ok(i1[t]:bv[32], i2[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> ticks_aligned(i1[t]:bv...`
+
+## confidential_extension_live_admission_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> ( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) ))`
 
 ## cpmm_v1
 
@@ -485,6 +531,40 @@ Spec count: `174`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> create_pool_sqrt_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64]))`
 
+## cross_module_conservation_consistency_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `per_module_balanced`
+- Data helpers: `combined_witness_consistent`
+- Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
+- Always: `(o1[t]:sbf = 1:sbf <-> per_module_balanced(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> combined_witness_consistent(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i7[t]:sbf)) && (o3[t]:sbf = 1:s...`
+
+## disaster_axis_safe_noop_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `no_disaster_axis, safe_noop_valid`
+- Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
+- Always: `(o1[t]:sbf = 1:sbf <-> no_disaster_axis(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> safe_noop_valid(i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> ((i1[t]...`
+
+## dispute_window_finality_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `challenge_clear, dispute_window_ok, epoch_facts_ok`
+- Equation surface: extractable `True`, equations `5`, covered outputs `o1, o2, o3, o4, o5`
+- Always: `(o1[t]:sbf = 1:sbf <-> epoch_facts_ok(i2[t]:sbf, i5[t]:sbf, i6[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> dispute_window_ok(i3[t]:sbf, i7[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> challenge_clear(i4[t]:sbf, i8[t]:sbf)) && (o4[t]:sbf...`
+
 ## emergency_pause_v1
 
 - Profile: `stateful_policy_guard`
@@ -497,6 +577,16 @@ Spec count: `174`
 - Data helpers: `deviation_trigger, threshold_ok`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> auto_trigger_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:sbf, i4[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> manual_trigger_ok(i5[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> can_pause(i1[t]:bv[32], i2[t]:bv[32], i3[t]:s...`
+
+## epoch_monotonic_step_gate_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `governance_and_policy_suite`
+- Temporal: `True`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `(none)`, bv inputs `i1`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> ( ((i1[t-1]:bv[8] = { #x00 }:bv[8]) && (i1[t]:bv[8] = { #x01 }:bv[8])) || ((i1[t-1]:bv[8] = { #x01 }:bv[8]) && (i1[t]:bv[8] = { #x02 }:bv[8])) || ((i1[t-1]:bv[8] = { #x02 }:bv[8]) && (i1[t]:bv[8...`
 
 ## fee_accrual_proof_v1
 
@@ -524,17 +614,6 @@ Spec count: `174`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `((o1[t]:sbf = 1:sbf <-> split_math_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64])) && (o2[t]:sbf = 1:sbf <-> conservation_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64])) && (o3[t]:sbf = 1:sbf <...`
 
-## fhe_sealed_bid_alpha_guard_v1
-
-- Profile: `exact_combinational_guard`
-- Rule: `amm_and_orderflow_suite`
-- Temporal: `False`
-- Execution: `ok` via `repl`
-- Observed output signatures: `011000`
-- Control surface: sbf inputs `i5, i6, i7, i8`, bv inputs `i1, i2, i3, i4`, always clauses `1`
-- Equation surface: extractable `True`, equations `6`, covered outputs `o1, o2, o3, o4, o5, o6`
-- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[32] > { #x00000000 }:bv[32]) && (i1[t]:bv[32] <= { #x00000008 }:bv[32]))) && (o2[t]:sbf = 1:sbf <-> (i2[t]:bv[32] <= { #x01312D00 }:bv[32])) && (o3[t]:sbf = 1:sbf <-> (i3[t]:bv[32] <=...`
-
 ## flash_loan_guard_v1
 
 - Profile: `exact_combinational_guard`
@@ -546,6 +625,18 @@ Spec count: `174`
 - Control helpers: `borrow_repay_same, flash_loan_safe, flash_pattern_detected, trade_with_borrow`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> borrow_repay_same(i1[t]:sbf, i3[t]:sbf, i4[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> trade_with_borrow(i1[t]:sbf, i2[t]:sbf, i4[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> flash_pattern_detected(i1[t]:sbf, i2[t...`
+
+## governance_multisig_timelock_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `governance_and_policy_suite`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17`, bv inputs `i2, i3, i4, i5, i6, i7`, always clauses `1`
+- Control helpers: `action_one_hot_ok, governance_action_allowed, policy_binding_ok, proof_gated_governance_action_allowed`
+- Data helpers: `threshold_ok, timelock_ok`
+- Equation surface: extractable `True`, equations `6`, covered outputs `o1, o2, o3, o4, o5, o6`
+- Always: `(o1[t]:sbf = 1:sbf <-> threshold_ok(i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> timelock_ok(i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:sbf, i9[t]:sbf, i15[t]:sbf)) && (o3[t]:sbf = 1:sbf <...`
 
 ## governance_rate_limiter_v1
 
@@ -573,6 +664,28 @@ Spec count: `174`
 - Equation surface: extractable `True`, equations `8`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> delayelapsed(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> executionvalid(i1[t]...`
 
+## idempotency_window_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i3, i4, i5, i6, i7, i8`, bv inputs `i1, i2`, always clauses `1`
+- Control helpers: `fresh_or_idempotent_ok, prior_in_window, proof_gated_idempotency_ok, replay_digest_matches, same_tuple`
+- Equation surface: extractable `True`, equations `5`, covered outputs `o1, o2, o3, o4, o5`
+- Always: `(o1[t]:sbf = 1:sbf <-> same_tuple(i4[t]:sbf, i5[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> prior_in_window(i3[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> replay_digest_matches(i1[t]:bv[256], i2[t]:bv[256])) && (o4[t]:sbf = 1:sbf <-> f...`
+
+## incident_latch_reset_quorum_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `reset_authorized`
+- Equation surface: extractable `True`, equations `3`, covered outputs `o1, o2, o3`
+- Always: `(o1[t]:sbf = 1:sbf <-> reset_authorized(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> (((i1[t]:sbf = 1:sbf) || (i2[t]:sbf = 1:sbf)) && !reset_autho...`
+
 ## intent_expiry_guard_v1
 
 - Profile: `exact_combinational_guard`
@@ -585,6 +698,36 @@ Spec count: `174`
 - Data helpers: `not_expired, timestamps_ok, validity_bounds_ok, validity_in_range`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> params_ok(i5[t]:bv[32], i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> not_expired(i2[t]:bv[32], i1[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> validity_in_range(i5...`
+
+## intent_oneshot_admission_gate_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `governance_and_policy_suite`
+- Temporal: `True`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = (i1[t]:sbf & (i1[t-1]:sbf)'))`
+
+## isolated_margin_no_cascade_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `2`, covered outputs `o1, o2`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf))) && (o2[t]:sbf = 1:sbf <-> ((o1[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf)))`
+
+## key_rotation_admission_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `2`, covered outputs `o1, o2`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sb...`
 
 ## limit_order_bounds_v1
 
@@ -647,6 +790,16 @@ Spec count: `174`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> ((i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i1[t]:bv[32] > { #x00000000 }:bv[32]) && (i2[t]:bv[32] > { #x00000000 }:bv[32]) && (i3[t]:bv[32] > { #x00000000 }:bv[32]) && (i4[t]:bv[32] > { #x0...`
 
+## mev_batch_atomic_replay_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `2`, covered outputs `o1, o2`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sb...`
+
 ## mev_protection_v1
 
 - Profile: `exact_combinational_guard`
@@ -699,6 +852,62 @@ Spec count: `174`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> ((i7[t]:sbf = 1:sbf) && cert_ok(i1[t]:bv[32], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64], i5[t]:bv[64], i6[t]:bv[64])))`
 
+## optimizer_audited_bounds_liveness_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `audited_bounds_contract_ok, budget_facts_ok, public_outcome_explicit`
+- Equation surface: extractable `True`, equations `3`, covered outputs `o1, o2, o3`
+- Always: `(o1[t]:sbf = 1:sbf <-> budget_facts_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> public_outcome_explicit(i6[t]:sbf, i7[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> audited_bounds_contract...`
+
+## optimizer_audited_bounds_liveness_v2
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `adaptive_liveness_ok, budget_facts_ok, no_spurious_failure, outcome_total`
+- Data helpers: `attempt_order_ok, failure_total, success_replayable`
+- Equation surface: extractable `True`, equations `7`, covered outputs `o1, o2, o3, o4, o5, o6, o7`
+- Always: `(o1[t]:sbf = 1:sbf <-> budget_facts_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> attempt_order_ok(i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> outcome_...`
+
+## oracle_bounded_move_gate_v1
+
+- Profile: `exact_combinational_guard`
+- Rule: `amm_and_orderflow_suite`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `(none)`, bv inputs `i1, i2, i3`, always clauses `1`
+- Data helpers: `bounded_move`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> bounded_move(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]))`
+
+## oracle_committee_commit_admission_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i11, i12, i13, i14, i15, i16, i17`, bv inputs `i2, i3, i4, i5, i6, i7, i8, i9, i10`, always clauses `1`
+- Control helpers: `authority_ok, oracle_commit_admissible, proof_gated_oracle_commit_admissible`
+- Data helpers: `fault_budget_ok, price_envelope_ok, quorum_ok`
+- Equation surface: extractable `True`, equations `6`, covered outputs `o1, o2, o3, o4, o5, o6`
+- Always: `(o1[t]:sbf = 1:sbf <-> quorum_ok(i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> fault_budget_ok(i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> price_envelope_o...`
+
+## oracle_epoch_equivocation_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `2`, covered outputs `o1, o2`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sb...`
+
 ## oracle_freshness_v1
 
 - Profile: `exact_combinational_guard`
@@ -724,6 +933,27 @@ Spec count: `174`
 - Data helpers: `freshness_ok, jump_bounded, jump_ok, max_safe_32, monotonic_ok, order_ok, staleness_ok`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[32], i4[t]:bv[32], i1[t]:bv[32], i2[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> (params_ok(i3[t]:bv[32], i4[t]:bv[32], i1[t]:bv[32], i2[t]:bv[32]) && freshness_ok(i1[t]:bv[32], i2[t...`
+
+## oracle_sustained_freshness_2epoch_gate_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `governance_and_policy_suite`
+- Temporal: `True`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i4`, bv inputs `i1, i2, i3`, always clauses `1`
+- Data helpers: `fresh, quote_not_future`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> ( (i4[t]:sbf = 1:sbf) && (i4[t-1]:sbf = 1:sbf) && fresh(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]) && fresh(i1[t-1]:bv[32], i2[t-1]:bv[32], i3[t-1]:bv[32]) ))`
+
+## order_route_decision_table_v1
+
+- Profile: `exact_combinational_guard`
+- Rule: `amm_and_orderflow_suite`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `(none)`, bv inputs `i1`, always clauses `1`
+- Equation surface: extractable `True`, equations `5`, covered outputs `o1, o2, o3, o4, o5`
+- Always: `(o1[t]:sbf = 1:sbf <-> (i1[t]:bv[8] <= { #x03 }:bv[8])) && (o2[t]:sbf = 1:sbf <-> (i1[t]:bv[8] = { #x00 }:bv[8])) && (o3[t]:sbf = 1:sbf <-> (i1[t]:bv[8] = { #x01 }:bv[8])) && (o4[t]:sbf = 1:sbf <-> (i1[t]:bv[8] = { #x...`
 
 ## parameter_bounds_registry_v1
 
@@ -774,6 +1004,17 @@ Spec count: `174`
 - Data helpers: `fill_ok, max_safe_32, order_ok, rate_ok, remaining_ok, safe_ok`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> params_ok(i2[t]:bv[32], i3[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> fill_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> remaining_ok(i4[t]:bv[32], i5[t]:bv[32])) && (o4[t]:...`
+
+## payout_template_age_replay_envelope_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `age_window_ok, payout_binding_ok, replay_ok, timestamp_source_ok`
+- Equation surface: extractable `True`, equations `6`, covered outputs `o1, o2, o3, o4, o5, o6`
+- Always: `(o1[t]:sbf = 1:sbf <-> timestamp_source_ok(i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> (timestamp_source_ok(i2[t]:sbf, i3[t]:sbf) && (i4[t]:sbf = 1:sbf))) && (o3[t]:sbf = 1:sbf <-> replay_ok(i5[t]:sbf, i6[t]:sbf)...`
 
 ## perp_account_net_exposure_guard_v1
 
@@ -1090,6 +1331,17 @@ Spec count: `174`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> ((i4[t]:sbf = 1:sbf) && impact_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])))`
 
+## proof_mining_payout_replay_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `deterministic_generation_ok, historical_replay_ok, immediate_replay_ok, payout_allowed, proof_context_ok, replay_frontier_ok, reward_budget_ok`
+- Equation surface: extractable `True`, equations `7`, covered outputs `o1, o2, o3, o4, o5, o6, o7`
+- Always: `(o1[t]:sbf = 1:sbf <-> proof_context_ok(i2[t]:sbf, i3[t]:sbf, i6[t]:sbf, i7[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> replay_frontier_ok(i4[t]:sbf, i5[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> reward_budget_ok(i8[t]:sbf, i9[t]:sbf)...`
+
 ## proposal_lifecycle_v1
 
 - Profile: `stateful_policy_guard`
@@ -1141,6 +1393,17 @@ Spec count: `174`
 - Data helpers: `floor_bounds_ok, max_safe_64, rate_ok, safe_ok`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> protocol_fee_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64]))`
+
+## protocol_token_distribution_guard_v1
+
+- Profile: `exact_combinational_guard`
+- Rule: `token_and_protocol_suite`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `flag_ok`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> ( flag_ok(i1[t]:sbf) && flag_ok(i2[t]:sbf) && flag_ok(i3[t]:sbf) && flag_ok(i4[t]:sbf) && flag_ok(i5[t]:sbf) && flag_ok(i6[t]:sbf) && flag_ok(i7[t]:sbf) && flag_ok(i8[t]:sbf) && flag_ok(i9[t]:sb...`
 
 ## protocol_token_policy_v1
 
@@ -1205,6 +1468,27 @@ Spec count: `174`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> ( one_hot_3(i8[t]:sbf, i9[t]:sbf, i10[t]:sbf) && (i4[t]:bv[16] > { #x0000 }:bv[16]) && ((i8[t]:sbf = 0:sbf) || ( (i1[t]:bv[16] >= i4[t]:bv[16]) && (i5[t]:bv[16] = (i1[t]:bv[16] - i4[t]:bv[16])) ...`
 
+## public_testnet_node_admission_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `chain_binding_ok, peer_capability_subset_ok, runtime_profile_ok, service_identity_ok`
+- Equation surface: extractable `True`, equations `7`, covered outputs `o1, o2, o3, o4, o5, o6, o7`
+- Always: `(o1[t]:sbf = 1:sbf <-> chain_binding_ok(i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> runtime_profile_ok(i4[t]:sbf, i5[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> peer_capability_subset_ok(i6[t]:sbf, i7[t]:sbf)) && (o4[t]:s...`
+
+## quiet_window_request_gate_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `governance_and_policy_suite`
+- Temporal: `True`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = (i1[t]:sbf & (i1[t-1]:sbf)' & (i1[t-2]:sbf)'))`
+
 ## quorum_validator_v1
 
 - Profile: `stateful_policy_guard`
@@ -1230,6 +1514,17 @@ Spec count: `174`
 - Data helpers: `count_within_limit, limit_ok`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> limit_ok(i2[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> count_within_limit(i1[t]:bv[32], i2[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> window_reset(i3[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> rate_limit_satisfie...`
+
+## release_artifact_manifest_binding_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `artifact_hashes_bound, ci_evidence_ok, release_posture_ok`
+- Equation surface: extractable `True`, equations `5`, covered outputs `o1, o2, o3, o4, o5`
+- Always: `(o1[t]:sbf = 1:sbf <-> artifact_hashes_bound(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> ci_evidence_ok(i6[t]:sbf, i7[t]:sbf, i8[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> release_posture_ok(i9[t]:s...`
 
 ## remove_liquidity_apply_v1
 
@@ -1354,6 +1649,28 @@ Spec count: `174`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> hop_count_ok(i1[t]:bv[32], i2[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> path_ok(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) && (o4[t]:sbf = 1:s...`
 
+## routing_decision_tree_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i6, i7`, bv inputs `i1, i2, i3, i4, i5`, always clauses `1`
+- Control helpers: `proof_gated_decision_canonical`
+- Data helpers: `decision_canonical, route_kind_valid`
+- Equation surface: extractable `True`, equations `3`, covered outputs `o1, o2, o3`
+- Always: `(o1[t]:sbf = 1:sbf <-> route_kind_valid(i5[t]:bv[8])) && (o2[t]:sbf = 1:sbf <-> decision_canonical(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[8])) && (o3[t]:sbf = 1:sbf <-> proof_gated_decision_c...`
+
+## runtime_action_capability_envelope_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `6`, covered outputs `o1, o2, o3, o4, o5, o6`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf))) && (o2[t]:sbf = 1:sbf <-> ((i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf))) && (o3[t]:sbf = 1:sbf <-> ((i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf))) && (...`
+
 ## sandwich_detection_v1
 
 - Profile: `exact_combinational_guard`
@@ -1380,6 +1697,16 @@ Spec count: `174`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> pre_move_ok(i1[t]:bv[32], i2[t]:bv[32], i5[t]:bv[32])) && (o3[t]:sbf = 1:...`
 
+## secure_signer_operation_admission_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `6`, covered outputs `o1, o2, o3, o4, o5, o6`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf))) && (o2[t]:sbf = 1:sbf <-> ((i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf))) && (o3[t]:sbf = 1:sbf <-> ((i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8...`
+
 ## service_proof_registry_v1
 
 - Profile: `stateful_policy_guard`
@@ -1404,6 +1731,48 @@ Spec count: `174`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[16] < i2[t]:bv[16]) && (i2[t]:bv[16] < i3[t]:bv[16]) && (i3[t]:bv[16] < i4[t]:bv[16])))`
 
+## settlement_core_module_bundle_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `bundles_and_compositions`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf)))`
+
+## settlement_disaster_envelope_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `batching_and_settlement_suite`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18, i19, i20, i21, i22, i23, i24, i25`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `accounting_ok, deterministic_template_ok, identity_ok, market_data_ok, proof_gated_settlement_allowed, runtime_ok, settlement_preconditions_ok`
+- Equation surface: extractable `True`, equations `7`, covered outputs `o1, o2, o3, o4, o5, o6, o7`
+- Always: `(o1[t]:sbf = 1:sbf <-> identity_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> market_data_ok(i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) && (o3[t]:sbf =...`
+
+## settlement_feature_extension_bundle_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `bundles_and_compositions`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf)))`
+
+## settlement_master_admission_gate_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `batching_and_settlement_suite`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i9`, bv inputs `i1, i2, i3, i4, i5, i6, i7, i8`, always clauses `1`
+- Data helpers: `conservation_ok, leg_sum, non_wrapping_sum, oracle_fresh, partial_sum_ab, partial_sum_abc`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> ( (i9[t]:sbf = 1:sbf) && conservation_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32]) && oracle_fresh(i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32]) ))`
+
 ## settlement_module_flag_bundle_v1
 
 - Profile: `bundle_or_composition`
@@ -1411,9 +1780,9 @@ Spec count: `174`
 - Temporal: `False`
 - Execution: `ok` via `repl`
 - Observed output signatures: `0`
-- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9`, bv inputs `(none)`, always clauses `1`
+- Control surface: sbf inputs `i1, i2, i3`, bv inputs `(none)`, always clauses `1`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
-- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sb...`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf)))`
 
 ## settlement_no_sandwich_aligned_v1
 
@@ -1447,6 +1816,27 @@ Spec count: `174`
 - Control surface: sbf inputs `(none)`, bv inputs `i1, i2`, always clauses `1`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> (((i2[t]:bv[16] >= i1[t]:bv[16]) && (i2[t]:bv[16] - i1[t]:bv[16] < { #x0032 }:bv[16])) || ((i2[t]:bv[16] < i1[t]:bv[16]) && (i1[t]:bv[16] - i2[t]:bv[16] < { #x0032 }:bv[16]))))`
+
+## settlement_proof_binding_bundle_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `bundles_and_compositions`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf)))`
+
+## settlement_signer_registry_anchor_gate_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `batching_and_settlement_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `0000000`
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7`, bv inputs `i8, i9, i10, i11`, always clauses `1`
+- Equation surface: extractable `True`, equations `7`, covered outputs `o1, o2, o3, o4, o5, o6, o7`
+- Always: `(o1[t]:sbf = i1[t]:sbf & i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf & i6[t]:sbf & i7[t]:sbf) && (o2[t]:sbf = i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf) && (o3[t]:sbf = i6[t]:sbf & i7[t]:sbf) && (o4[t]:bv[16] = ...`
 
 ## settlement_v1_proof_gate
 
@@ -1520,6 +1910,18 @@ Spec count: `174`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> (((i1[t]:bv[16] < i2[t]:bv[16]) && (i2[t]:bv[16] < i3[t]:bv[16]) && (i3[t]:bv[16] < i4[t]:bv[16])) && ((((i5[t]:bv[16] <= i6[t]:bv[16]) && (i6[t]:bv[16] <= i7[t]:bv[16])) || ((i5[t]:bv[16] >= i6...`
 
+## settlement_witness_lifecycle_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `batching_and_settlement_suite`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `lifecycle_progress, outcome_total, settlement_witness_lifecycle_ok`
+- Data helpers: `rejection_total, settled_requires_witness, witness_coherent`
+- Equation surface: extractable `True`, equations `6`, covered outputs `o1, o2, o3, o4, o5, o6`
+- Always: `(o1[t]:sbf = 1:sbf <-> outcome_total(i5[t]:sbf, i6[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> witness_coherent(i1[t]:sbf, i2[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> settled_requires_witness(i5[t]:sbf, i2[t]:sbf, i4[t]:sbf)) && (o4...`
+
 ## slippage_bounds_v2
 
 - Profile: `exact_combinational_guard`
@@ -1533,6 +1935,18 @@ Spec count: `174`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> output_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) && (o3...`
 
+## slippage_floor_invariant_guard_v1
+
+- Profile: `exact_combinational_guard`
+- Rule: `amm_and_orderflow_suite`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i4, i5`, bv inputs `i1, i2, i3`, always clauses `1`
+- Control helpers: `floor_locked_and_honored, floor_unchanged, proof_gated_floor_locked_and_honored`
+- Data helpers: `floor_honored`
+- Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
+- Always: `(o1[t]:sbf = 1:sbf <-> floor_unchanged(i1[t]:bv[64], i2[t]:bv[64])) && (o2[t]:sbf = 1:sbf <-> floor_honored(i2[t]:bv[64], i3[t]:bv[64])) && (o3[t]:sbf = 1:sbf <-> floor_locked_and_honored(i1[t]:bv[64], i2[t]:bv[64], i...`
+
 ## slippage_protection_v1
 
 - Profile: `exact_combinational_guard`
@@ -1545,6 +1959,16 @@ Spec count: `174`
 - Data helpers: `expected_ok, max_amount_ok, max_safe_32, min_amount_ok, rate_ok, safe_range_ok`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> min_amount_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> max_amount_ok(i1[t]:bv[32], i2[t...`
+
+## sss_recovery_share_quorum_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `2`, covered outputs `o1, o2`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf))) && (o2[t]:...`
 
 ## supply_cap_v1
 
@@ -1588,9 +2012,9 @@ Spec count: `174`
 - Temporal: `False`
 - Execution: `ok` via `repl`
 - Observed output signatures: `0`
-- Control surface: sbf inputs `i9, i10`, bv inputs `i1, i2, i3, i4, i5, i6, i7, i8`, always clauses `1`
+- Control surface: sbf inputs `i9, i10, i11`, bv inputs `i1, i2, i3, i4, i5, i6, i7`, always clauses `1`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
-- Always: `(o1[t]:sbf = 1:sbf <-> ((i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf) && (i1[t]:bv[32] > { #x00000000 }:bv[32]) && (i2[t]:bv[32] > { #x00000000 }:bv[32]) && (i3[t]:bv[32] > { #x00000000 }:bv[32]) && (i6[t]:bv[32] > { #x...`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf) && (i11[t]:sbf = 1:sbf) && (i1[t]:bv[32] > { #x00000000 }:bv[32]) && (i2[t]:bv[32] > { #x00000000 }:bv[32]) && (i3[t]:bv[32] > { #x00000000 }:bv[32])...`
 
 ## swap_exact_in_protocol_fee_apply_v1
 
@@ -1634,9 +2058,9 @@ Spec count: `174`
 - Temporal: `False`
 - Execution: `ok` via `repl`
 - Observed output signatures: `0`
-- Control surface: sbf inputs `i9, i10`, bv inputs `i1, i2, i3, i4, i5, i6, i7, i8`, always clauses `1`
+- Control surface: sbf inputs `i9, i10, i11`, bv inputs `i1, i2, i3, i4, i5, i6, i7`, always clauses `1`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
-- Always: `(o1[t]:sbf = 1:sbf <-> ((i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf) && (i1[t]:bv[32] > { #x00000000 }:bv[32]) && (i2[t]:bv[32] > { #x00000000 }:bv[32]) && (i3[t]:bv[32] > { #x00000000 }:bv[32]) && (i6[t]:bv[32] > { #x...`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf) && (i11[t]:sbf = 1:sbf) && (i1[t]:bv[32] > { #x00000000 }:bv[32]) && (i2[t]:bv[32] > { #x00000000 }:bv[32]) && (i3[t]:bv[32] > { #x00000000 }:bv[32])...`
 
 ## swap_exact_out_protocol_fee_apply_v1
 
@@ -1686,6 +2110,17 @@ Spec count: `174`
 - Data helpers: `fee_bounds_ok, max_safe_64, rate_ok, safe_ok`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> fee_total_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64]))`
+
+## tau_policy_shadow_migration_gate_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `artifact_binding_ok, decision_equivalent, shadow_evidence_ok`
+- Equation surface: extractable `True`, equations `6`, covered outputs `o1, o2, o3, o4, o5, o6`
+- Always: `(o1[t]:sbf = 1:sbf <-> decision_equivalent(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> artifact_binding_ok(i6[t]:sbf, i7[t]:sbf, i8[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> shadow_evidence_ok(i5[t]:sbf, i9[t...`
 
 ## tdex_buyback_floor_fixedpoint_v2
 
@@ -1954,6 +2389,37 @@ Spec count: `174`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i4[t]:bv[32], i3[t]:bv[32], i5[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> multiplier_ok(i3[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> weight_math_ok(i1[t]:bv[32], i4[t]:bv[32], i3[...`
 
+## wallet_recovery_envelope_guard_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `frontier_backfill_stateful_gates`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `2`, covered outputs `o1, o2`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf))) && (o2[t]:...`
+
+## withdrawal_dispute_window_gate_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `governance_and_policy_suite`
+- Temporal: `True`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = (i1[t]:sbf & (i2[t-1]:sbf)' & (i2[t-2]:sbf)'))`
+
+## zusd_cross_module_oracle_sync_gate_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `zusd_suite`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `env_ok, sync_gate_ok`
+- Equation surface: extractable `True`, equations `2`, covered outputs `o1, o2`
+- Always: `(o1[t]:sbf = 1:sbf <-> env_ok(i1[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> sync_gate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))`
+
 ## zusd_deposit_sp_guard_v1
 
 - Profile: `stateful_policy_guard`
@@ -2028,6 +2494,17 @@ Spec count: `174`
 - Control helpers: `env_ok, oracle_commit_ok, policy_ok`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> env_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> policy_ok(i4[t]:sbf, i5[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> policy_ok(i4[t]:sbf, i5[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> oracle_co...`
+
+## zusd_oracle_recovery_lifecycle_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `zusd_suite`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `healthy_now, outcome_total, reenabled_requires_healthy, rejection_total, zusd_oracle_recovery_lifecycle_ok`
+- Equation surface: extractable `True`, equations `5`, covered outputs `o1, o2, o3, o4, o5`
+- Always: `(o1[t]:sbf = 1:sbf <-> healthy_now(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> reenabled_requires_healthy(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> ou...`
 
 ## zusd_recovery_mode_gate_v1
 

@@ -610,3 +610,151 @@ def test_support_root_changes_when_curve_configuration_changes() -> None:
         support=support,
     )
     assert root_a != root_b
+
+
+def test_large_mixed_batch_support_root_is_stable_and_sensitive_to_tracked_state() -> None:
+    pools: dict[str, PoolState] = {}
+    balances = BalanceTable()
+    lp = LPTable()
+    nonces = NonceTable()
+    intents: list[Intent] = []
+
+    assets = ["0x" + f"{i:064x}" for i in range(1, 25)]
+    senders = ["0x" + f"{i:096x}" for i in range(1, 33)]
+
+    for i in range(12):
+        asset0 = assets[2 * i]
+        asset1 = assets[2 * i + 1]
+        pool_id = compute_pool_id(asset0, asset1, 30 + i, curve_tag="CPMM", curve_params="")
+        pools[pool_id] = _pool(pool_id, asset0, asset1)
+
+        swap_sender = senders[i]
+        add_sender = senders[i + 12]
+        remove_sender = senders[i + 20]
+        recipient = senders[(i + 7) % len(senders)]
+
+        balances.set(swap_sender, asset0, 1_000_000 + i)
+        balances.set(add_sender, asset0, 2_000_000 + i)
+        balances.set(add_sender, asset1, 3_000_000 + i)
+        lp.set(remove_sender, pool_id, 10_000 + i)
+        lp.set(recipient, pool_id, 20_000 + i)
+        lp.set_last_mint_timestamp(recipient, pool_id, 1_000 + i)
+        lp.set_churn_tier(recipient, pool_id, i % 3)
+        nonces.set_last(swap_sender, i + 1)
+        nonces.set_last(add_sender, i + 2)
+        nonces.set_last(remove_sender, i + 3)
+
+        intents.extend(
+            [
+                Intent(
+                    module="TauSwap",
+                    version="0.1",
+                    kind=IntentKind.SWAP_EXACT_IN,
+                    intent_id=_iid(1_000 + i),
+                    sender_pubkey=swap_sender,
+                    deadline=9_999_999_999,
+                    fields={
+                        "pool_id": pool_id,
+                        "asset_in": asset0,
+                        "asset_out": asset1,
+                        "amount_in": 100 + i,
+                        "min_amount_out": 1,
+                    },
+                ),
+                Intent(
+                    module="TauSwap",
+                    version="0.1",
+                    kind=IntentKind.ADD_LIQUIDITY,
+                    intent_id=_iid(2_000 + i),
+                    sender_pubkey=add_sender,
+                    deadline=9_999_999_999,
+                    fields={
+                        "pool_id": pool_id,
+                        "recipient": recipient,
+                        "amount0_desired": 10 + i,
+                        "amount1_desired": 20 + i,
+                    },
+                ),
+                Intent(
+                    module="TauSwap",
+                    version="0.1",
+                    kind=IntentKind.REMOVE_LIQUIDITY,
+                    intent_id=_iid(3_000 + i),
+                    sender_pubkey=remove_sender,
+                    deadline=9_999_999_999,
+                    fields={"pool_id": pool_id, "lp_amount": 5 + i},
+                ),
+            ]
+        )
+
+    support = derive_batch_state_support(intents, pools=pools)
+    root = compute_support_state_root(
+        balances=balances,
+        pools=pools,
+        lp_balances=lp,
+        support=support,
+        nonces=nonces,
+    )
+
+    reversed_support = BatchStateSupport(
+        balance_keys=tuple(reversed(support.balance_keys)),
+        pool_ids=tuple(reversed(support.pool_ids)),
+        lp_keys=tuple(reversed(support.lp_keys)),
+        nonce_keys=tuple(reversed(support.nonce_keys)),
+    )
+    assert (
+        compute_support_state_root(
+            balances=balances,
+            pools=dict(reversed(list(pools.items()))),
+            lp_balances=lp,
+            support=reversed_support,
+            nonces=nonces,
+        )
+        == root
+    )
+
+    tracked_pubkey, tracked_asset = support.balance_keys[0]
+    changed_balances = BalanceTable()
+    for pubkey, asset in support.balance_keys:
+        changed_balances.set(pubkey, asset, balances.get(pubkey, asset))
+    changed_balances.set(tracked_pubkey, tracked_asset, balances.get(tracked_pubkey, tracked_asset) + 1)
+    assert (
+        compute_support_state_root(
+            balances=changed_balances,
+            pools=pools,
+            lp_balances=lp,
+            support=support,
+            nonces=nonces,
+        )
+        != root
+    )
+
+    untracked_balances = BalanceTable()
+    for pubkey, asset in support.balance_keys:
+        untracked_balances.set(pubkey, asset, balances.get(pubkey, asset))
+    untracked_balances.set("0x" + "ff" * 48, assets[0], 999)
+    assert (
+        compute_support_state_root(
+            balances=untracked_balances,
+            pools=pools,
+            lp_balances=lp,
+            support=support,
+            nonces=nonces,
+        )
+        == root
+    )
+
+    changed_nonces = NonceTable()
+    for pubkey in support.nonce_keys:
+        changed_nonces.set_last(pubkey, nonces.get_last(pubkey))
+    changed_nonces.set_last(support.nonce_keys[0], nonces.get_last(support.nonce_keys[0]) + 1)
+    assert (
+        compute_support_state_root(
+            balances=balances,
+            pools=pools,
+            lp_balances=lp,
+            support=support,
+            nonces=changed_nonces,
+        )
+        != root
+    )

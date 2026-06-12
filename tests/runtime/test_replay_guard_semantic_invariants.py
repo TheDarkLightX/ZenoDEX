@@ -11,6 +11,7 @@ See docs/runtime/SEMANTIC_DRIFT_CONTROLS.md.
 
 from __future__ import annotations
 
+import itertools
 import random
 from collections import defaultdict
 
@@ -18,6 +19,7 @@ from src.core.replay_guard import (
     AdmitAccepted,
     AdmitRejected,
     ReplayGuardState,
+    U32_MAX,
     admit,
 )
 
@@ -149,3 +151,86 @@ def test_final_state_independent_of_inter_sender_ordering():
 
     state_b, _ = _run(order)
     assert state_a.state_root() == state_b.state_root()
+
+
+def _state_with_last_nonces(last_by_sender: dict[str, int]) -> ReplayGuardState:
+    state = ReplayGuardState()
+    for sender, last_nonce in last_by_sender.items():
+        if last_nonce:
+            state = state.with_last(sender, last_nonce)
+    return state
+
+
+def _expected_replay_decision(
+    state: ReplayGuardState,
+    sender: str,
+    nonce: int,
+) -> tuple[bool, str | None]:
+    if sender not in SENDERS:
+        return False, "invalid_sender"
+    if not isinstance(nonce, int) or isinstance(nonce, bool) or not (1 <= nonce <= U32_MAX):
+        return False, "invalid_nonce"
+    last = state.last_for(sender)
+    if nonce == last:
+        return False, "duplicate_nonce"
+    if nonce < last:
+        return False, "stale_nonce"
+    if nonce > last + 1:
+        return False, "nonce_gap"
+    return True, None
+
+
+def test_exhaustive_replay_guard_nonce_boundary_lattice():
+    """Complete over a tiny two-sender prior-state x candidate-nonce lattice.
+
+    Prior last-nonce values cover empty, duplicate/stale/gap edges, and the u32
+    ceiling. Candidate nonces are generated relative to the addressed sender's
+    prior nonce so every stable replay-guard reason is reached."""
+    invalid_sender = "0xzz" + "11" * 47
+    last_values = (0, 1, 2, U32_MAX - 1, U32_MAX)
+    outcomes: dict[str, int] = {}
+    checked = 0
+
+    for last_a, last_b in itertools.product(last_values, repeat=2):
+        state = _state_with_last_nonces({SENDERS[0]: last_a, SENDERS[1]: last_b})
+        initial_root = state.state_root()
+        for sender in (SENDERS[0], SENDERS[1], invalid_sender):
+            last = state.last_for(sender)
+            nonce_values = {
+                0,
+                1,
+                2,
+                U32_MAX,
+                U32_MAX + 1,
+                last - 1,
+                last,
+                last + 1,
+                last + 2,
+            }
+            for nonce in nonce_values:
+                checked += 1
+                expected_accept, expected_reason = _expected_replay_decision(state, sender, nonce)
+                result = admit(state=state, sender=sender, nonce=nonce)
+                if expected_accept:
+                    assert isinstance(result, AdmitAccepted), (last_a, last_b, sender, nonce, result)
+                    assert result.receipt.prev_nonce == last
+                    assert result.receipt.nonce == nonce
+                    assert result.state.last_for(sender) == nonce
+                    other = SENDERS[1] if sender == SENDERS[0] else SENDERS[0]
+                    assert result.state.last_for(other) == state.last_for(other)
+                    outcomes["ok"] = outcomes.get("ok", 0) + 1
+                else:
+                    assert isinstance(result, AdmitRejected), (last_a, last_b, sender, nonce, result)
+                    assert result.reason == expected_reason
+                    assert state.state_root() == initial_root
+                    outcomes[result.reason] = outcomes.get(result.reason, 0) + 1
+
+    assert checked == 480
+    assert outcomes["ok"] > 0
+    assert {
+        "invalid_sender",
+        "invalid_nonce",
+        "duplicate_nonce",
+        "stale_nonce",
+        "nonce_gap",
+    } <= set(outcomes)

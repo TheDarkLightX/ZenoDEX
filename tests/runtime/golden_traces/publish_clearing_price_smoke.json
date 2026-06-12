@@ -1,0 +1,30 @@
+{
+  "kernel": "perp_publish_clearing_price",
+  "version": 1,
+  "cases": [
+    {"now_epoch": 5, "epoch_phase": 0, "clearing_price_seen": false, "clearing_price_epoch": 0, "clearing_price_e8": 0, "oracle_last_update_epoch": 4, "price_e8": 100000000},
+    {"now_epoch": 5, "epoch_phase": 0, "clearing_price_seen": false, "clearing_price_epoch": 0, "clearing_price_e8": 0, "oracle_last_update_epoch": 4, "price_e8": 1},
+    {"now_epoch": 5, "epoch_phase": 0, "clearing_price_seen": false, "clearing_price_epoch": 0, "clearing_price_e8": 0, "oracle_last_update_epoch": 4, "price_e8": 1000000000000},
+    {"now_epoch": 5, "epoch_phase": 0, "clearing_price_seen": false, "clearing_price_epoch": 0, "clearing_price_e8": 0, "oracle_last_update_epoch": 4, "price_e8": 0},
+    {"now_epoch": 5, "epoch_phase": 0, "clearing_price_seen": false, "clearing_price_epoch": 0, "clearing_price_e8": 0, "oracle_last_update_epoch": 4, "price_e8": -1},
+    {"now_epoch": 5, "epoch_phase": 0, "clearing_price_seen": false, "clearing_price_epoch": 0, "clearing_price_e8": 0, "oracle_last_update_epoch": 4, "price_e8": 1000000000001},
+    {"now_epoch": 0, "epoch_phase": 0, "clearing_price_seen": false, "clearing_price_epoch": 0, "clearing_price_e8": 0, "oracle_last_update_epoch": 0, "price_e8": 100000000},
+    {"now_epoch": 5, "epoch_phase": 1, "clearing_price_seen": true, "clearing_price_epoch": 5, "clearing_price_e8": 100000000, "oracle_last_update_epoch": 4, "price_e8": 100000000},
+    {"now_epoch": 5, "epoch_phase": 2, "clearing_price_seen": true, "clearing_price_epoch": 5, "clearing_price_e8": 100000000, "oracle_last_update_epoch": 5, "price_e8": 100000000},
+    {"now_epoch": 7, "epoch_phase": 0, "clearing_price_seen": true, "clearing_price_epoch": 6, "clearing_price_e8": 100000000, "oracle_last_update_epoch": 6, "price_e8": 100000000},
+    {"now_epoch": 5, "epoch_phase": 0, "clearing_price_seen": true, "clearing_price_epoch": 5, "clearing_price_e8": 100000000, "oracle_last_update_epoch": 4, "price_e8": 100000000}
+  ],
+  "expected": [
+    {"index": 0, "ok": true, "now_epoch": "5", "epoch_phase": "1", "clearing_price_seen": true, "clearing_price_epoch": "5", "clearing_price_e8": "100000000"},
+    {"index": 1, "ok": true, "now_epoch": "5", "epoch_phase": "1", "clearing_price_seen": true, "clearing_price_epoch": "5", "clearing_price_e8": "1"},
+    {"index": 2, "ok": true, "now_epoch": "5", "epoch_phase": "1", "clearing_price_seen": true, "clearing_price_epoch": "5", "clearing_price_e8": "1000000000000"},
+    {"index": 3, "ok": false, "code": "price_e8_not_positive"},
+    {"index": 4, "ok": false, "code": "price_e8_negative"},
+    {"index": 5, "ok": false, "code": "param_domain_price_e8"},
+    {"index": 6, "ok": false, "code": "publish_clearing_price_guard"},
+    {"index": 7, "ok": false, "code": "publish_clearing_price_guard"},
+    {"index": 8, "ok": false, "code": "publish_clearing_price_guard"},
+    {"index": 9, "ok": true, "now_epoch": "7", "epoch_phase": "1", "clearing_price_seen": true, "clearing_price_epoch": "7", "clearing_price_e8": "100000000"},
+    {"index": 10, "ok": false, "code": "publish_clearing_price_inconsistent_state"}
+  ]
+}

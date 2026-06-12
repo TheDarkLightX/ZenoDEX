@@ -79,6 +79,10 @@ echo "== release: ZenoLedger proof coverage matrix =="
 "$PY" "$ROOT_DIR/tools/check_zeno_ledger_proof_coverage_matrix.py"
 "$PY" -m pytest -q "$ROOT_DIR/tests/tools/test_check_zeno_ledger_proof_coverage_matrix.py"
 
+echo "== release: ZenoDEX trust minimization target =="
+"$PY" "$ROOT_DIR/tools/check_zenodex_trust_minimization_target.py"
+"$PY" -m pytest -q "$ROOT_DIR/tests/test_check_zenodex_trust_minimization_target.py"
+
 echo "== release: ZenoLedger two-machine evidence archive tooling =="
 "$PY" -m py_compile \
   "$ROOT_DIR/tools/build_zeno_ledger_two_machine_evidence.py" \
@@ -146,11 +150,16 @@ echo "== release: Risc0 proof metadata adapter =="
   "$ROOT_DIR/tools/zeno_ledger_risc0_proof_metadata.py" \
   "$ROOT_DIR/tools/zeno_ledger_risc0_real_proof_smoke.py" \
   "$ROOT_DIR/tools/check_zeno_ledger_risc0_real_proof_smoke_report.py" \
+  "$ROOT_DIR/tools/zeno_ledger_zusd_risc0_real_proof_smoke.py" \
+  "$ROOT_DIR/tools/zeno_ledger_perp_np_risc0_real_proof_smoke.py" \
+  "$ROOT_DIR/tools/check_zusd_perps_np_risc0_real_proof_smoke_report.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_risc0_proof_metadata.py" \
-  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py"
+  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py" \
+  "$ROOT_DIR/tests/test_check_zusd_perps_np_risc0_real_proof_smoke_report.py"
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_risc0_proof_metadata.py" \
-  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py"
+  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py" \
+  "$ROOT_DIR/tests/test_check_zusd_perps_np_risc0_real_proof_smoke_report.py"
 
 echo "== release: TEE proof metadata adapter =="
 cargo test --manifest-path "$ROOT_DIR/tools/confidential_attestation_verifier_rust/Cargo.toml"
@@ -184,6 +193,22 @@ echo "== release: ZenoCover attack queries =="
 
 echo "== release: production boundary =="
 "$PY" "$ROOT_DIR/tools/check_production_boundary.py"
+
+echo "== release: production key management =="
+"$PY" -m py_compile \
+  "$ROOT_DIR/src/integration/production_key_management_v0.py" \
+  "$ROOT_DIR/src/integration/zeno_ledger_production_key_gates_v0.py"
+"$PY" "$ROOT_DIR/tools/check_production_key_management_spec.py"
+"$PY" "$ROOT_DIR/tools/check_production_key_management_esso_equivalent.py"
+"$PY" "$ROOT_DIR/tools/check_production_key_management_bypasses.py"
+"$PY" "$ROOT_DIR/tools/check_production_key_material_absence.py"
+"$PY" "$ROOT_DIR/tools/check_production_key_management_completion.py"
+"$PY" -m pytest -q \
+  "$ROOT_DIR/tests/test_production_key_management_spec.py" \
+  "$ROOT_DIR/tests/test_check_production_key_management_esso_equivalent.py" \
+  "$ROOT_DIR/tests/test_check_production_key_material_absence.py" \
+  "$ROOT_DIR/tests/integration/test_production_key_management_v0.py" \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_production_key_gates_v0.py"
 
 echo "== release: candidate supported runtime path =="
 "$PY" "$ROOT_DIR/tools/render_rc1_supported_runtime_path.py" --check
@@ -258,5 +283,24 @@ echo "== release: dependency audit =="
 "$PY" -m pip_audit -r "$ROOT_DIR/requirements-core.lock.txt"
 "$PY" -m pip_audit -r "$ROOT_DIR/requirements-agents.lock.txt"
 "$PY" -m pip_audit -r "$ROOT_DIR/requirements-dev.lock.txt"
+
+# Production-claim status. The CBC matrix-closure gate reports the per-surface
+# production_security_claim computed from config/production/cbc_surface_evidence_v1.json.
+# Exit-code contract (must be distinguished — do NOT swallow all nonzero):
+#   0 = every in-scope surface clear (none today)              -> continue
+#   1 = blocked claim (surfaces unproven, the expected state)  -> ADVISORY, continue
+#   2+ = structural/infrastructure error (missing/corrupt registry, import, etc.)
+#                                                              -> FAIL CLOSED
+# Treating exit 2 like exit 1 would let the release reach `ok` with a missing or
+# corrupt registry — a fail-open hole. So only exit 1 is advisory here.
+echo "== release: CBC production-claim status =="
+cbc_status=0
+"$PY" "$ROOT_DIR/tools/gate_cbc_matrix_closure.py" || cbc_status=$?
+case "$cbc_status" in
+  0) ;;
+  1) echo "  (advisory: production_security_claim not yet cleared — see the matrix above)" ;;
+  *) echo "error: CBC gate infrastructure failure (exit $cbc_status) — e.g. missing/corrupt evidence registry; failing closed" >&2
+     exit "$cbc_status" ;;
+esac
 
 echo "ok"

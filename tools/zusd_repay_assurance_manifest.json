@@ -1,0 +1,87 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the zUSD repay micro-kernel. Update only alongside a successful run of tools/run_zusd_repay_assurance_gate.sh and tools/check_zusd_repay_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/zusd_repay_single_vault_v1.yaml",
+      "sha256": "4d8fdf350635c1cfae3f5028243eceb57a62205822dcdc4babfd17ce41d4c243"
+    },
+    {
+      "path": "src/kernels/python/zusd_repay_single_vault_v1_native_adapter.py",
+      "sha256": "e5ffcd51cc320be8cfedcaddc0f96acce1fad65c25cd541207b7f576fba6ecb5"
+    },
+    {
+      "path": "tests/kernels/test_zusd_repay_single_vault_v1_native_adapter.py",
+      "sha256": "41ce9f0c255b38f605f287d87fb7b47d07808c475c3823fd76e05c366516688a"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/zusd_repay_single_vault_v1/validate.json",
+    "model_path": "src/kernels/dex/zusd_repay_single_vault_v1.yaml",
+    "ir_hash": "sha256:5498426ee46b48456dad32174dfc063da51b0223b100db420c0e0d238994bc89"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/zusd_repay_single_vault_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.zusd_repay_single_vault_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:5498426ee46b48456dad32174dfc063da51b0223b100db420c0e0d238994bc89",
+    "actions": [
+      "apply_repay_single_vault"
+    ],
+    "effects": [
+      "debt_after_e8",
+      "debt_delta_e8",
+      "free_debt_after_e8",
+      "free_debt_delta_e8",
+      "repaid_zusd_e8"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/zusd_repay_single_vault_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/zusd_repay_single_vault_v1.yaml",
+    "adapter_spec": "src.kernels.python.zusd_repay_single_vault_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:5498426ee46b48456dad32174dfc063da51b0223b100db420c0e0d238994bc89",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:0726e606936df89f415220742938ad4dec8b53c0f45966b5034a6032b1e315f8"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/zusd_repay_single_vault_v1/verification_report.json",
+    "model_id": "zusd_repay_single_vault_v1",
+    "ir_hash_short": "5498426ee46b4845",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/kernels/test_zusd_repay_single_vault_v1_native_adapter.py"
+  ]
+}

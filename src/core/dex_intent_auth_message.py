@@ -4,7 +4,7 @@ import hashlib
 from enum import Enum
 from typing import Any, Dict, Mapping
 
-from ..state.canonical import canonical_json_bytes, domain_sep_bytes
+from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes
 from ..state.intents import Intent
 from .dex_intent_auth_shape_gate import (
     dex_intent_auth_shape_gate_error,
@@ -12,12 +12,60 @@ from .dex_intent_auth_shape_gate import (
 )
 
 _DEX_INTENT_COMMON_KEYS = {"module", "version", "kind", "intent_id", "sender_pubkey", "deadline", "salt", "fields"}
+_DEX_INTENT_AUTH_IDENTIFIER_WIDTHS = {
+    "sender_pubkey": 48,
+    "recipient": 48,
+    "asset0": 32,
+    "asset1": 32,
+    "asset_in": 32,
+    "asset_out": 32,
+    "pool_id": 32,
+}
 
 
 def _normalize_intent_kind(kind: Any) -> Any:
     if isinstance(kind, Enum):
         return kind.value
     return kind
+
+
+def canonicalize_dex_intent_identifier_if_decodable(value: Any, *, key: str) -> Any:
+    """Return the canonical representation for decodable DEX auth identifiers.
+
+    Design by Contract:
+    - Precondition: ``key`` names a DEX intent authorization field. Unknown keys
+      and non-string values are outside this helper's normalization domain.
+    - Invariant: Decodable fixed-width hex identifiers are represented as
+      lowercase ``0x``-prefixed strings everywhere they are signed or executed.
+    - Postcondition: Non-decodable symbolic identifiers are preserved byte-for-byte.
+    """
+    width = _DEX_INTENT_AUTH_IDENTIFIER_WIDTHS.get(key)
+    if width is None or not isinstance(value, str):
+        return value
+    try:
+        return canonical_hex_fixed_allow_0x(value, nbytes=width, name=key)
+    except (TypeError, ValueError):
+        return value
+
+
+def _canonicalize_auth_identifier_if_decodable(value: Any, *, key: str) -> Any:
+    return canonicalize_dex_intent_identifier_if_decodable(value, key=key)
+
+
+def canonicalize_dex_intent_signing_dict_v1(signing_dict: Mapping[str, Any]) -> Dict[str, Any]:
+    """Canonicalize fixed-width identifiers for DEX intent auth hashing only."""
+
+    out: Dict[str, Any] = dict(signing_dict)
+    if "sender_pubkey" in out:
+        out["sender_pubkey"] = _canonicalize_auth_identifier_if_decodable(out["sender_pubkey"], key="sender_pubkey")
+    fields = out.get("fields")
+    if isinstance(fields, Mapping):
+        normalized_fields = dict(fields)
+        for key in _DEX_INTENT_AUTH_IDENTIFIER_WIDTHS:
+            if key in normalized_fields:
+                normalized_fields[key] = _canonicalize_auth_identifier_if_decodable(normalized_fields[key], key=key)
+        out["fields"] = normalized_fields
+    return out
 
 
 def build_dex_intent_signing_dict_v1(intent: Intent | Mapping[str, Any]) -> Dict[str, Any]:
@@ -45,7 +93,7 @@ def build_dex_intent_signing_dict_v1(intent: Intent | Mapping[str, Any]) -> Dict
         }
         if shape.include_salt:
             signing_dict["salt"] = intent.salt
-        return signing_dict
+        return canonicalize_dex_intent_signing_dict_v1(signing_dict)
 
     if not isinstance(intent, Mapping):
         raise TypeError("intent must be an Intent or mapping")
@@ -80,7 +128,7 @@ def build_dex_intent_signing_dict_v1(intent: Intent | Mapping[str, Any]) -> Dict
     salt = intent.get("salt")
     if shape.include_salt:
         signing_dict["salt"] = salt
-    return signing_dict
+    return canonicalize_dex_intent_signing_dict_v1(signing_dict)
 
 
 def build_dex_intent_auth_message_v1(intent: Intent | Mapping[str, Any], *, chain_id: str) -> bytes:

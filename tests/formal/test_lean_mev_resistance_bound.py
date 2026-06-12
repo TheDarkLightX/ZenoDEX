@@ -11,6 +11,22 @@ import pytest
 TARGET = "Proofs.MEVResistanceBound"
 
 
+def _ensure_proofs_root_built(lake: str, lean_dir: Path) -> None:
+    try:
+        proc = subprocess.run(
+            [lake, "build", "Proofs"],
+            cwd=lean_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.skip(f"lake build Proofs timed out after {exc.timeout}s")
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
 def test_lean_mev_resistance_bound_builds_without_warnings() -> None:
     lake = shutil.which("lake")
     if not lake:
@@ -45,6 +61,8 @@ def test_lean_mev_resistance_bound_exported_via_proofs_root() -> None:
     lean_dir = root / "lean-mathlib"
     if not (root / "external" / "mathlib4").exists():
         pytest.skip("mathlib4 checkout missing")
+
+    _ensure_proofs_root_built(lake, lean_dir)
 
     smoke = "import Proofs\n#check Proofs.MEVResistanceBound.reduction_single\n"
     with tempfile.NamedTemporaryFile(

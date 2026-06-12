@@ -1,0 +1,32 @@
+# Runtime Disaster Hardening Campaign — Evidence Gates
+# Captured at CODE-COMPLETE HEAD: 467e5146 on branch claude/runtime-disaster-hardening-iso.
+# Base: 917d7b1e (= origin/main d1f9d493 + 2 concurrent-agent commits). Date: 2026-05-31.
+# Includes the continuation that RESOLVED the P0 pre-existing failures.
+# NOTE: any commit after this HEAD is documentation-only.
+
+## tools/check_deployment_profiles.py
+local-dev: ok
+production-strict: ok
+public-testnet: ok
+[exit 0]
+
+## pytest -q tests/runtime
+........................................................................ [ 93%]
+......................................                                   [100%]
+614 passed in 25.86s
+
+## pytest -q tests/core/test_batch_clearing.py
+............................................                             [100%]
+44 passed in 0.31s
+
+## pytest -q tests/integration/test_deployment_profiles.py (P0 RESOLVED: was 3 failed/8 passed at baseline)
+...........                                                              [100%]
+11 passed in 0.76s
+
+## rust: cargo fmt --check / test / clippy -D warnings
+[fmt exit 0]
+test result: ok. 73 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 170 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+[test exit 0]
+[clippy exit 0]

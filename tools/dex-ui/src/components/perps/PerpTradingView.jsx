@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePerps } from '../../lib/PerpContext.jsx';
 import PerpMarketSelector from './PerpMarketSelector.jsx';
 import PerpPriceTicker from './PerpPriceTicker.jsx';
@@ -13,7 +13,6 @@ import PerpInsuranceFundPanel from './PerpInsuranceFundPanel.jsx';
 import PerpTradeHistory from './PerpTradeHistory.jsx';
 import PerpLiveWalletSurface from './PerpLiveWalletSurface.jsx';
 import { useDemoMode } from '../../lib/DemoModeContext.jsx';
-import VerifiedBySpec from '../VerifiedBySpec.jsx';
 import './PerpTradingView.css';
 
 /**
@@ -47,8 +46,32 @@ function PerpTradingView({ wallet }) {
         withdrawCollateral,
     } = usePerps();
 
+    const friendlyError = (() => {
+        if (!error) return null;
+        const raw = String(error);
+        if (raw === 'timeout') {
+            return 'Perpetuals data took too long to load. The local Tau node may be busy — try again in a moment.';
+        }
+        if (raw === 'tau_node_unreachable') {
+            return 'The local Tau node is unreachable. Make sure the local-testnet stack is running, then retry.';
+        }
+        return `Could not load perpetuals data: ${raw}`;
+    })();
+
     const [showConfirmOrder, setShowConfirmOrder] = useState(null);
     const [showCollateralModal, setShowCollateralModal] = useState(false);
+
+    // The live 2-party clearinghouse market is operator-provisioned: only the two
+    // counterparty pubkeys (account A/B) can trade it. A normal connected wallet
+    // is an OBSERVER — surface that honestly instead of a silent dead-end CTA.
+    const isObserver = useMemo(() => {
+        if (demoMode || !wallet?.address || !selectedMarket) return false;
+        if (selectedMarket.kind !== 'clearinghouse_2p_v1') return false;
+        const norm = (v) => String(v || '').toLowerCase().replace(/^0x/, '');
+        const w = norm(wallet.address);
+        if (!w) return false;
+        return w !== norm(selectedMarket.accountAPubkey) && w !== norm(selectedMarket.accountBPubkey);
+    }, [demoMode, wallet, selectedMarket]);
 
     // Load markets on mount
     useEffect(() => {
@@ -72,24 +95,29 @@ function PerpTradingView({ wallet }) {
     // low-level operator console (Live Wallet). The trader surface is the
     // headline in both modes. The operator console only appears in live mode,
     // tucked behind a disclosure so it isn't mistaken for the trader UI.
+    const liveSurfaceLabel = selectedMarket?.kind === 'clearinghouse_np_v1'
+        ? 'multi-party stream-8'
+        : 'stream-8 wallet';
+    const riskKernelLabel = selectedMarket?.kind === 'clearinghouse_np_v1'
+        ? 'clearinghouse_np_v1'
+        : 'perp_epoch_isolated_v3';
     const previewLabel = demoMode
         ? 'Demo market replay'
         : writeEnabled
-            ? 'Live · writes enabled'
-            : 'Live · read-only';
+            ? `${liveSurfaceLabel} · writes enabled`
+            : `${liveSurfaceLabel} · signer required`;
     const previewDetail = demoMode
         ? 'Uses bundled market, position, and history data. Orders stay inside the UI state model.'
         : writeEnabled
-            ? 'Reads from the Tau node. Order writes still route through the operator console below.'
-            : 'Reads from the Tau node. Order writes are exposed in the Operator console disclosure below.';
+            ? 'Reads stream-8 state from the Tau node. Local-testnet wallet submits are enabled.'
+            : 'Reads stream-8 state from the Tau node. Submits require an external signer or local-testnet write mode.';
 
-    if (loading && markets.length === 0) {
-        return (
-            <div className="perp-trading-view">
-                <div className="perp-loading">Loading perpetuals data...</div>
-            </div>
-        );
-    }
+    // While the wallet status round-trip is in flight we used to early-return
+    // a full-page spinner, which left the user staring at a blank screen for
+    // ~3–6 s on local-testnet. Render the page layout immediately and show
+    // an inline loading hint instead; the form/panels handle the empty-market
+    // case on their own.
+    const showInlineLoading = loading && markets.length === 0;
 
     // Build the preview grid as a reusable fragment so it can either be
     // rendered as the main surface (demo mode) or tucked inside a
@@ -100,11 +128,15 @@ function PerpTradingView({ wallet }) {
                 <div className="perp-market-header">
                     <div className="perp-title-block">
                         <h2 className="perp-title">{demoMode ? 'Perpetuals (demo)' : 'Perpetuals'}</h2>
-                        <VerifiedBySpec
-                            spec="perp_epoch_isolated_v3"
-                            kind="esso"
-                            title="Perpetuals margin and epoch lifecycle are verified by ESSO state machine perp_epoch_isolated_v3 (Z3 + CVC5)."
-                        />
+                        <div className="perp-surface-badges" aria-label="Perpetuals surface scope">
+                            <span className="perp-surface-badge">Surface: {liveSurfaceLabel}</span>
+                            <span className="perp-surface-badge">Risk kernel: {riskKernelLabel}</span>
+                            {!demoMode && (
+                                <span className="perp-surface-badge perp-surface-badge-np">
+                                    NP proof evidence: separate release smoke
+                                </span>
+                            )}
+                        </div>
                         <p className="perp-subtitle">{previewDetail}</p>
                     </div>
                     <span className="perp-posture-chip">{previewLabel}</span>
@@ -118,16 +150,16 @@ function PerpTradingView({ wallet }) {
 
             {!demoMode && !writeEnabled && (
                 <div className="perp-preview-lock" role="status">
-                    <div className="perp-preview-lock-title">Preview writes disabled</div>
+                    <div className="perp-preview-lock-title">External signer required</div>
                     <p className="perp-preview-lock-text">{writeLockReason}</p>
                 </div>
             )}
 
             {!demoMode && writeEnabled && perpsPreviewWritesRequested && (
                 <div className="perp-preview-lock perp-preview-lock-open" role="status">
-                    <div className="perp-preview-lock-title">Local preview writes enabled</div>
+                    <div className="perp-preview-lock-title">Local-testnet writes enabled</div>
                     <p className="perp-preview-lock-text">
-                        This lane is for controlled local UI development. It does not prove authoritative perps settlement.
+                        Local-testnet wallet actions submit through the legacy two-party stream-8 API and are mined on the local Tau node.
                     </p>
                 </div>
             )}
@@ -153,12 +185,13 @@ function PerpTradingView({ wallet }) {
                             writeLockReason={writeLockReason}
                             onSubmit={handleOrderSubmit}
                             onShowConfirm={handleShowConfirm}
+                            isObserver={isObserver}
                         />
                     </div>
                     <button
                         className="btn btn-secondary perp-collateral-btn"
                         onClick={() => setShowCollateralModal(true)}
-                        disabled={!wallet || !writeEnabled}
+                        disabled={!wallet || isObserver || !writeEnabled}
                     >
                         Manage Collateral
                     </button>
@@ -184,6 +217,7 @@ function PerpTradingView({ wallet }) {
                             market={selectedMarket}
                             position={currentPosition}
                             derived={positionDerived}
+                            isObserver={isObserver}
                         />
                     </div>
                 </div>
@@ -204,9 +238,22 @@ function PerpTradingView({ wallet }) {
                 />
             )}
 
+            {showInlineLoading && (
+                <div className="perp-loading" role="status">Loading perpetuals data…</div>
+            )}
+
             {/* Error Banner */}
             {error && (
-                <div className="perp-error-banner">Error: {error}</div>
+                <div className="perp-error-banner" role="alert">
+                    <span className="perp-error-banner-text">{friendlyError}</span>
+                    <button
+                        type="button"
+                        className="perp-error-banner-retry"
+                        onClick={() => loadMarkets()}
+                    >
+                        Retry
+                    </button>
+                </div>
             )}
 
             {/* Headline in both modes: the trader-facing perps grid.

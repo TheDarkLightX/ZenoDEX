@@ -25,7 +25,9 @@ function PerpMarketSelector({ markets, selectedMarketId, onSelect }) {
 
 function MarketCard({ market, isSelected, onSelect }) {
     const price = useMemo(() => e8ToNumber(BigInt(market.indexPriceE8)), [market.indexPriceE8]);
-    const fundingRate = market.fundingRateBps;
+    const rawFundingRate = Number(market.fundingRateBps);
+    const hasFundingRate = Number.isFinite(rawFundingRate);
+    const fundingRate = hasFundingRate ? rawFundingRate : 0;
     const fundingPositive = fundingRate >= 0;
 
     return (
@@ -43,8 +45,8 @@ function MarketCard({ market, isSelected, onSelect }) {
             <div className="perp-market-card-price">
                 ${formatPrice(price)}
             </div>
-            <div className={`perp-market-card-funding ${fundingPositive ? 'positive' : 'negative'}`}>
-                FR: {fundingPositive ? '+' : ''}{bpsToPercent(fundingRate)}
+            <div className={`perp-market-card-funding ${hasFundingRate && !fundingPositive ? 'negative' : 'positive'}`}>
+                FR: {hasFundingRate ? `${fundingPositive ? '+' : ''}${bpsToPercent(fundingRate)}` : '—'}
             </div>
         </button>
     );

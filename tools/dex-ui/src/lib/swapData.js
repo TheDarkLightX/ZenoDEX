@@ -58,32 +58,62 @@ function normalizeSymbol(value) {
     return String(value ?? '').trim().toUpperCase();
 }
 
+export function isCanonicalAssetId(value) {
+    return /^0x[0-9a-f]{64}$/i.test(String(value || '').trim());
+}
+
+export function isCompactAssetLabel(value) {
+    return /^Asset [0-9a-f]{4}\.\.\.[0-9a-f]{4}$/i.test(String(value || '').trim());
+}
+
+export function compactAssetLabel(value) {
+    const text = String(value || '').trim();
+    if (!isCanonicalAssetId(text)) return normalizeSymbol(text);
+    return `Asset ${text.slice(2, 6).toUpperCase()}...${text.slice(-4).toUpperCase()}`;
+}
+
+export function displaySymbolForAsset(value) {
+    const text = String(value || '').trim();
+    if (isCanonicalAssetId(text)) return compactAssetLabel(text);
+    if (isCompactAssetLabel(text)) {
+        const match = /^Asset ([0-9a-f]{4})\.\.\.([0-9a-f]{4})$/i.exec(text);
+        return `Asset ${match[1].toUpperCase()}...${match[2].toUpperCase()}`;
+    }
+    return normalizeSymbol(text);
+}
+
 function defaultTokenForSymbol(symbol) {
-    const normalized = normalizeSymbol(symbol);
-    const known = FALLBACK_SWAP_TOKENS.find((token) => token.symbol === normalized);
+    const normalized = displaySymbolForAsset(symbol);
+    const known = FALLBACK_SWAP_TOKENS.find((token) => token.symbol.toUpperCase() === normalized.toUpperCase());
     if (known) return known;
     return {
         symbol: normalized,
         name: normalized,
-        icon: '◎',
+        icon: isCanonicalAssetId(symbol) || isCompactAssetLabel(normalized) ? '#' : '◎',
         decimals: 0,
     };
 }
 
 function normalizePoolEntry(entry) {
     if (!entry || typeof entry !== 'object') return null;
-    const token0 = normalizeSymbol(entry.token0 ?? entry.symbol0 ?? entry.base ?? entry.asset0);
-    const token1 = normalizeSymbol(entry.token1 ?? entry.symbol1 ?? entry.quote ?? entry.asset1);
     const rawAsset0 = String(entry.asset0 ?? entry.token0 ?? entry.base ?? '').trim();
     const rawAsset1 = String(entry.asset1 ?? entry.token1 ?? entry.quote ?? '').trim();
+    const token0 = displaySymbolForAsset(entry.token0 ?? entry.symbol0 ?? entry.base ?? entry.asset0);
+    const token1 = displaySymbolForAsset(entry.token1 ?? entry.symbol1 ?? entry.quote ?? entry.asset1);
     if (!token0 || !token1 || token0 === token1) return null;
     const reserve0 = toFiniteNumber(entry.reserve0 ?? entry.r0 ?? entry.baseReserve);
     const reserve1 = toFiniteNumber(entry.reserve1 ?? entry.r1 ?? entry.quoteReserve);
     if (!(reserve0 > 0) || !(reserve1 > 0)) return null;
     const feeRaw = toFiniteNumber(entry.feeBps ?? entry.fee_bps ?? entry.fee_bps_hint ?? 30);
     const feeBps = Number.isFinite(feeRaw) ? Math.max(0, Math.min(500, Math.round(feeRaw))) : 30;
+    const accountBalance0 = toFiniteNumber(entry.accountBalance0 ?? entry.account_balance0);
+    const accountBalance1 = toFiniteNumber(entry.accountBalance1 ?? entry.account_balance1);
     const [assetA, assetB] = [token0, token1].sort();
     const key = `${assetA}-${assetB}`;
+    // Canonicalize to sorted (token0 <= token1) order. When the source order is
+    // reversed we MUST swap the per-account balances alongside the reserves/assets,
+    // otherwise accountBalance0 ends up labelled with the wrong token and the Swap
+    // feed disagrees with the Pool surface (which reads the node order as-is).
     const aligned = token0 === assetA
         ? {
             reserve0,
@@ -92,6 +122,8 @@ function normalizePoolEntry(entry) {
             asset1: rawAsset1 || token1,
             token0,
             token1,
+            accountBalance0,
+            accountBalance1,
         }
         : {
             reserve0: reserve1,
@@ -100,6 +132,8 @@ function normalizePoolEntry(entry) {
             asset1: rawAsset0 || token0,
             token0: token1,
             token1: token0,
+            accountBalance0: accountBalance1,
+            accountBalance1: accountBalance0,
         };
     return {
         key,
@@ -115,6 +149,8 @@ function normalizePoolEntry(entry) {
         reserve0: aligned.reserve0,
         reserve1: aligned.reserve1,
         feeBps,
+        accountBalance0: aligned.accountBalance0,
+        accountBalance1: aligned.accountBalance1,
     };
 }
 
@@ -129,7 +165,7 @@ function normalizeTokens(payload, poolSymbols) {
         : [];
     for (const row of rows) {
         if (!row || typeof row !== 'object') continue;
-        const symbol = normalizeSymbol(row.symbol);
+        const symbol = displaySymbolForAsset(row.symbol);
         if (!symbol || !bySymbol.has(symbol)) continue;
         bySymbol.set(symbol, {
             ...defaultTokenForSymbol(symbol),
@@ -139,7 +175,13 @@ function normalizeTokens(payload, poolSymbols) {
             decimals: Number.isFinite(Number(row.decimals)) ? Number(row.decimals) : 0,
         });
     }
-    return Array.from(bySymbol.values()).sort((a, b) => a.symbol.localeCompare(b.symbol));
+    return Array.from(bySymbol.values()).sort((a, b) => {
+        const aIsUnhinted = a.symbol.startsWith('Asset ') || a.symbol.startsWith('0x');
+        const bIsUnhinted = b.symbol.startsWith('Asset ') || b.symbol.startsWith('0x');
+        if (aIsUnhinted && !bIsUnhinted) return 1;
+        if (!aIsUnhinted && bIsUnhinted) return -1;
+        return a.symbol.localeCompare(b.symbol);
+    });
 }
 
 function normalizePoolsPayload(payload) {
@@ -166,6 +208,8 @@ function normalizePoolsPayload(payload) {
                 reserve0: normalized.reserve0,
                 reserve1: normalized.reserve1,
                 feeBps: normalized.feeBps,
+                accountBalance0: normalized.accountBalance0,
+                accountBalance1: normalized.accountBalance1,
             };
         }
         const poolSymbols = Array.from(
@@ -201,17 +245,46 @@ function normalizePoolsPayload(payload) {
     return { pools: out, tokens: normalizeTokens(payload, poolSymbols) };
 }
 
-export async function loadSwapPools({ timeoutMs = 2500 } = {}) {
+function addAccountBalance(out, symbol, asset, value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return;
+    const keys = [
+        String(symbol || '').trim(),
+        displaySymbolForAsset(symbol),
+        String(asset || '').trim(),
+    ].filter(Boolean);
+    for (const key of keys) {
+        out[key] = Math.max(Number(out[key] || 0), n);
+    }
+}
+
+function accountBalancesFromPools(pools) {
+    const out = {};
+    for (const pool of Object.values(pools || {})) {
+        addAccountBalance(out, pool.token0, pool.asset0, pool.accountBalance0);
+        addAccountBalance(out, pool.token1, pool.asset1, pool.accountBalance1);
+    }
+    return out;
+}
+
+export async function loadSwapPools({ timeoutMs = 2500, account = '' } = {}) {
     try {
-        const payload = await apiFetchJson('/api/pools', { method: 'GET', timeoutMs });
+        const query = account ? `?account=${encodeURIComponent(account)}` : '';
+        const payload = await apiFetchJson(`/api/pools${query}`, { method: 'GET', timeoutMs });
         const { pools, tokens } = normalizePoolsPayload(payload);
         if (Object.keys(pools).length === 0) {
             throw new Error('empty_pool_set');
         }
+        const rawLastNonce = payload && Object.prototype.hasOwnProperty.call(payload, 'account_last_nonce')
+            ? Number(payload.account_last_nonce)
+            : NaN;
         return {
             source: 'api',
             pools,
             tokens,
+            account: payload?.account || null,
+            accountLastNonce: Number.isSafeInteger(rawLastNonce) ? rawLastNonce : null,
+            accountBalances: accountBalancesFromPools(pools),
             error: null,
         };
     } catch (err) {
@@ -219,6 +292,9 @@ export async function loadSwapPools({ timeoutMs = 2500 } = {}) {
             source: 'fallback',
             pools: clonePools(FALLBACK_SWAP_POOLS),
             tokens: [...FALLBACK_SWAP_TOKENS],
+            account: account || null,
+            accountLastNonce: null,
+            accountBalances: {},
             error: err?.message || 'pool_feed_unavailable',
         };
     }

@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import os
 import hashlib
+import math
 from dataclasses import replace
 from typing import Any, Dict, Mapping, Optional, Tuple
 
@@ -95,14 +96,34 @@ def _canonical_state_and_hash(
 
 def _bool_env(name: str, *, default: bool) -> bool:
     raw = os.environ.get(name)
-    if raw is None:
+    if raw is None or not raw.strip():
         return bool(default)
     v = raw.strip().lower()
     if v in {"1", "true", "yes", "on"}:
         return True
     if v in {"0", "false", "no", "off"}:
         return False
-    return bool(default)
+    raise ValueError(
+        f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
+    )
+
+
+def _float_env(name: str, *, default: float, minimum: float, maximum: float) -> float:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        out = float(default)
+    else:
+        try:
+            out = float(raw)
+        except ValueError as exc:
+            raise ValueError(f"{name} must be a finite float") from exc
+    if not math.isfinite(out):
+        raise ValueError(f"{name} must be finite")
+    if out < minimum:
+        raise ValueError(f"{name} must be >= {minimum}")
+    if out > maximum:
+        raise ValueError(f"{name} must be <= {maximum}")
+    return float(out)
 
 
 def _int_env(name: str, *, default: int, minimum: int = 0, maximum: Optional[int] = None) -> int:
@@ -132,6 +153,8 @@ def _maybe_decode_custom_stream_value(value: Any) -> Any:
     `str|int` (or lists thereof). Our client encodes structured ops as canonical
     JSON strings; this helper decodes those strings back to objects.
     """
+    if isinstance(value, list):
+        return [_maybe_decode_custom_stream_value(entry) for entry in value]
     if not isinstance(value, str):
         return value
     raw = value.strip()
@@ -168,6 +191,12 @@ def _require_mapping(value: Any, *, name: str) -> Mapping[str, Any]:
     return value
 
 
+def _reject_unknown_fields(obj: Mapping[str, Any], *, allowed: set[str], name: str) -> None:
+    extra = sorted(set(obj.keys()) - set(allowed))
+    if extra:
+        raise ValueError(f"{name} unknown fields: {extra}")
+
+
 def _parse_cmd_json_env(name: str) -> Optional[list[str]]:
     raw = os.environ.get(name, "").strip()
     if not raw:
@@ -185,10 +214,12 @@ def _parse_cmd_json_env(name: str) -> Optional[list[str]]:
 
 def _build_proof_verifier_config() -> ProofVerifierConfig:
     cmd = _parse_cmd_json_env("TAU_DEX_PROOF_VERIFIER_CMD_JSON")
-    timeout_raw = os.environ.get("TAU_DEX_PROOF_VERIFIER_TIMEOUT_S", "").strip()
-    timeout_s = 10.0
-    if timeout_raw:
-        timeout_s = float(timeout_raw)
+    timeout_s = _float_env(
+        "TAU_DEX_PROOF_VERIFIER_TIMEOUT_S",
+        default=10.0,
+        minimum=0.1,
+        maximum=120.0,
+    )
     allow_path_lookup = _bool_env("TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP", default=False)
     return ProofVerifierConfig(
         enabled=bool(cmd),
@@ -210,6 +241,11 @@ def _load_state(app_state_json: str) -> Tuple[DexState, Optional[ProofMiningRunt
         raise ValueError(f"invalid app_state_json: {exc}") from exc
     try:
         if isinstance(obj, Mapping) and any(key in obj for key in ("schema", "dex_state", "proof_mining")):
+            _reject_unknown_fields(
+                obj,
+                allowed={"schema", "version", "dex_state", "proof_mining", "zusd_monetary"},
+                name="app_state",
+            )
             schema = obj.get("schema")
             if schema != _APP_STATE_SCHEMA:
                 raise ValueError(f"unsupported app_state schema: {schema!r}")
@@ -257,12 +293,17 @@ def _parse_faucet_mint_entry(entry: Any, *, index: int) -> Tuple[Optional[Tuple[
         return None, f"faucet.mint[{index}] invalid pubkey"
     if not isinstance(asset, str) or not asset or len(asset) > 256:
         return None, f"faucet.mint[{index}] invalid asset"
-    if asset == NATIVE_ASSET:
-        return None, "faucet cannot mint native asset"
     if not isinstance(amount, int) or isinstance(amount, bool) or amount <= 0:
         return None, f"faucet.mint[{index}] amount must be a positive int"
+    try:
+        decoded_pk = _canonical_pubkey(pk, name=f"faucet.mint[{index}].pubkey")
+        decoded_asset = canonical_hex_fixed_allow_0x(asset, nbytes=32, name=f"faucet.mint[{index}].asset")
+    except Exception as exc:
+        return None, str(exc)
+    if decoded_asset == NATIVE_ASSET:
+        return None, "faucet cannot mint native asset"
 
-    return (pk, asset, int(amount)), None
+    return (decoded_pk, decoded_asset, int(amount)), None
 
 
 def _sync_native_balances(state: DexState, *, chain_balances: Dict[str, int]) -> DexState:
@@ -276,11 +317,12 @@ def _sync_native_balances(state: DexState, *, chain_balances: Dict[str, int]) ->
     for pk, amount in chain_balances.items():
         try:
             amt_i = int(amount)
+            canonical_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
         except Exception:
             continue
         if amt_i <= 0:
             continue
-        balances_copy.set(str(pk), NATIVE_ASSET, amt_i)
+        balances_copy.set(canonical_pk, NATIVE_ASSET, amt_i)
 
     return replace(state, balances=balances_copy)
 
@@ -319,15 +361,27 @@ def _apply_faucet(
 
 def _balances_patch_for_native(*, before: Dict[str, int], after_state: DexState) -> Dict[str, int]:
     out: Dict[str, int] = {}
+    external_key_by_canonical: Dict[str, str] = {}
+    for pk in before.keys():
+        try:
+            canonical_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
+        except Exception:
+            continue
+        external_key_by_canonical.setdefault(canonical_pk, pk)
+
     keys = set(before.keys())
     # Include any addresses that appear in the DEX snapshot (native).
     for (pk, asset), _amount in after_state.balances.get_all_balances().items():
         if asset == NATIVE_ASSET:
-            keys.add(pk)
+            keys.add(external_key_by_canonical.get(pk, pk))
 
     for pk in keys:
         old = int(before.get(pk, 0))
-        new = int(after_state.balances.get(pk, NATIVE_ASSET))
+        try:
+            lookup_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
+        except Exception:
+            lookup_pk = str(pk)
+        new = int(after_state.balances.get(lookup_pk, NATIVE_ASSET))
         if new != old:
             out[pk] = new
     return out
@@ -346,6 +400,12 @@ def _canonical_token_asset(value: Any, *, name: str) -> str:
     if asset == NATIVE_ASSET:
         raise ValueError("token stream does not support native asset")
     return asset
+
+
+def _canonical_tx_sender_pubkey_for_engine(value: Any) -> str:
+    if value == "":
+        return ""
+    return _canonical_pubkey(value, name="tx_sender_pubkey")
 
 
 def _require_u32_positive(value: Any, *, name: str) -> int:
@@ -638,6 +698,27 @@ def _select_zusd_monetary_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _reserved_stream_selection_error(operations: Mapping[str, Any]) -> Optional[str]:
+    if _LEGACY_DEX_INTENTS_KEY in operations and _DEX_INTENTS_KEY in operations:
+        if _looks_like_dex_intents(operations.get(_DEX_INTENTS_KEY)):
+            return "ambiguous DEX intent streams: both 2 and 5 are present"
+    if _LEGACY_DEX_SETTLEMENT_KEY in operations and _DEX_SETTLEMENT_KEY in operations:
+        return "ambiguous DEX settlement streams: both 3 and 6 are present"
+    if _LEGACY_DEX_FAUCET_KEY in operations and _DEX_FAUCET_KEY in operations:
+        return "ambiguous faucet streams: both 4 and 7 are present"
+
+    if _DEX_INTENTS_KEY not in operations:
+        return None
+    stream5 = operations.get(_DEX_INTENTS_KEY)
+    if _looks_like_dex_intents(stream5):
+        return None
+    if _looks_like_perp_ops(stream5):
+        if _LEGACY_DEX_INTENTS_KEY in operations and _PERP_OPS_KEY not in operations:
+            return "legacy stream 5 perps conflict with legacy DEX stream 2"
+        return None
+    return "stream 5 must contain TauSwap intents or legacy TauPerp ops"
+
+
 def _apply_proof_mining_op(
     *,
     state: DexState,
@@ -765,8 +846,20 @@ def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
             default=False,
         ),
+        require_oracle_authorization_for_clearinghouse_settle_epoch=_bool_env(
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+            default=False,
+        ),
+        require_oracle_adapter_for_isolated_settle_epoch=_bool_env(
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
+            default=False,
+        ),
         require_oracle_adapter_for_isolated_partial_liquidate=_bool_env(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            default=False,
+        ),
+        require_oracle_authorization_for_isolated_settle_epoch=_bool_env(
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH",
             default=False,
         ),
     )
@@ -815,12 +908,19 @@ def apply_app_tx(
             decoded_ops[key] = _maybe_decode_custom_stream_value(v)
     operations = decoded_ops
 
-    allow_faucet = _bool_env("TAU_DEX_FAUCET", default=False)
-    allow_missing_settlement = _bool_env("TAU_DEX_ALLOW_MISSING_SETTLEMENT", default=True)
-    require_intent_sigs = _bool_env("TAU_DEX_REQUIRE_INTENT_SIGS", default=True)
-    allow_external_tools = _bool_env("TAU_DEX_ALLOW_EXTERNAL_TOOLS", default=False)
-    consensus_mode = _bool_env("TAU_DEX_CONSENSUS_MODE", default=True)
+    try:
+        allow_faucet = _bool_env("TAU_DEX_FAUCET", default=False)
+        allow_missing_settlement = _bool_env("TAU_DEX_ALLOW_MISSING_SETTLEMENT", default=True)
+        require_intent_sigs = _bool_env("TAU_DEX_REQUIRE_INTENT_SIGS", default=True)
+        allow_external_tools = _bool_env("TAU_DEX_ALLOW_EXTERNAL_TOOLS", default=False)
+        consensus_mode = _bool_env("TAU_DEX_CONSENSUS_MODE", default=True)
+    except ValueError as exc:
+        return False, app_state_json, "", None, str(exc)
     chain_id = os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or os.environ.get("TAU_NETWORK_ID", "").strip() or "tau-local"
+
+    stream_selection_error = _reserved_stream_selection_error(operations)
+    if stream_selection_error is not None:
+        return False, app_state_json, "", None, stream_selection_error
 
     try:
         state, proof_mining_state, zusd_monetary_state = _load_state(app_state_json)
@@ -859,25 +959,33 @@ def apply_app_tx(
         )
         return True, canonical, app_hash, None, None
 
+    try:
+        canonical_tx_sender_pubkey = _canonical_tx_sender_pubkey_for_engine(tx_sender_pubkey)
+    except ValueError as exc:
+        return False, app_state_json, "", None, str(exc)
+
     next_state = state
     if token_ops:
         ok, next_state, token_err = _apply_token_ops(
             next_state,
             token_ops.get(_TOKEN_OPS_KEY),
-            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sender_pubkey=canonical_tx_sender_pubkey,
             block_timestamp=int(block_timestamp),
         )
         if not ok:
             return False, app_state_json, "", None, token_err or "token op rejected"
 
     if zusd_monetary_ops:
-        zusd_cfg = _build_zusd_monetary_config(chain_id=chain_id)
+        try:
+            zusd_cfg = _build_zusd_monetary_config(chain_id=chain_id)
+        except Exception as exc:
+            return False, app_state_json, "", None, str(exc)
         zusd_res = apply_zusd_monetary_ops(
             config=zusd_cfg,
             state=next_state,
             zusd_state=zusd_monetary_state,
             operations=zusd_monetary_ops.get(_ZUSD_MONETARY_OPS_KEY),
-            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sender_pubkey=canonical_tx_sender_pubkey,
             block_timestamp=int(block_timestamp),
         )
         if not zusd_res.ok or zusd_res.state is None or zusd_res.zusd_state is None:
@@ -905,7 +1013,7 @@ def apply_app_tx(
             state=next_state,
             operations=dex_ops,
             block_timestamp=int(block_timestamp),
-            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sender_pubkey=canonical_tx_sender_pubkey,
         )
         if not dex_result.ok or dex_result.state is None:
             return False, app_state_json, "", None, dex_result.error or "DEX rejected"
@@ -920,19 +1028,22 @@ def apply_app_tx(
             proof_mining_state=proof_mining_state,
             proof_mining_op=proof_mining_op,
             proof_mining_context=None if dex_result is None else dex_result.proof_mining_context,
-            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sender_pubkey=canonical_tx_sender_pubkey,
             chain_balances=chain_balances,
         )
         if not ok:
             return False, app_state_json, "", None, proof_err or "proof mining rejected"
 
     if perp_ops:
-        perp_cfg = _build_perp_engine_config(chain_id=chain_id)
+        try:
+            perp_cfg = _build_perp_engine_config(chain_id=chain_id)
+        except Exception as exc:
+            return False, app_state_json, "", None, str(exc)
         perp_res = apply_perp_ops(
             config=perp_cfg,
             state=next_state,
             operations=perp_ops,
-            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sender_pubkey=canonical_tx_sender_pubkey,
             block_timestamp=int(block_timestamp),
         )
         if not perp_res.ok or perp_res.state is None:

@@ -233,3 +233,93 @@ mod tests {
         assert_eq!(verify_rails(&r), Err(REJ_AMOUNT_GUARD_FAILED));
     }
 }
+
+// ---------------------------------------------------------------------------
+// CBC_CORE_V0 — Kani contracts on the ACTUAL runtime burn-rail core.
+//
+// `verify_rails` composes the four consensus rails that gate a burn-accounting
+// tuple after the Python envelope has extracted integer fields. The contract is
+// intentionally about the rail core, not the receipt JSON/canonical-hash shell:
+// TOTALITY holds over all `i64` inputs, and accept obligations state the exact
+// no-burn / burn conservation laws enforced by the running verifier. Rejection
+// order is checked by the ordinary unit and Python<->Rust differential tests.
+// Run: `cargo kani -p zenodex-runtime-core --harness burn_receipts::kani_contracts`.
+// ---------------------------------------------------------------------------
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    fn any_rails() -> RailInputs {
+        RailInputs {
+            do_burn: kani::any(),
+            receipt_bound: kani::any(),
+            nullifier_unused: kani::any(),
+            policy_ok: kani::any(),
+            burn_amount: kani::any(),
+            receipt_amount: kani::any(),
+            burn_budget: kani::any(),
+            supply_before: kani::any(),
+            supply_after: kani::any(),
+            batch_burn_sum_before: kani::any(),
+            batch_burn_sum_after: kani::any(),
+        }
+    }
+
+    /// TOTALITY. For arbitrary signed rail fields, the rail verifier never
+    /// panics or overflows. The only additions/subtractions are reached after
+    /// the small rail-domain checks have bounded the operands.
+    #[kani::proof]
+    fn verify_rails_is_total() {
+        let r = any_rails();
+        let _ = verify_rails(&r);
+    }
+
+    /// ACCEPT => EXACT RAIL SEMANTICS. Any accepted tuple is either a no-burn
+    /// no-op or a positive burn whose budget, receipt amount, supply delta, and
+    /// batch accumulator delta all agree exactly.
+    #[kani::proof]
+    fn accepted_rails_enforce_conservation() {
+        let r = any_rails();
+        if verify_rails(&r).is_ok() {
+            assert!(r.do_burn == 0 || r.do_burn == 1);
+            assert!((0..=AMOUNT_MAX).contains(&r.burn_amount));
+            assert!((0..=AMOUNT_MAX).contains(&r.receipt_amount));
+            assert!((0..=AMOUNT_MAX).contains(&r.burn_budget));
+            assert!((0..=SUPPLY_MAX).contains(&r.supply_before));
+            assert!((0..=SUPPLY_MAX).contains(&r.supply_after));
+            assert!((0..=AMOUNT_MAX).contains(&r.batch_burn_sum_before));
+            assert!((0..=SUPPLY_MAX).contains(&r.batch_burn_sum_after));
+
+            if r.do_burn == 0 {
+                assert_eq!(r.burn_amount, 0);
+                assert_eq!(r.receipt_amount, 0);
+                assert_eq!(r.supply_after, r.supply_before);
+                assert_eq!(r.batch_burn_sum_after, r.batch_burn_sum_before);
+            } else {
+                assert_eq!(r.receipt_bound, 1);
+                assert_eq!(r.nullifier_unused, 1);
+                assert_eq!(r.policy_ok, 1);
+                assert!(r.burn_amount > 0);
+                assert_eq!(r.receipt_amount, r.burn_amount);
+                assert!(r.burn_budget >= r.burn_amount);
+                assert!(r.supply_before >= r.burn_amount);
+                assert_eq!(r.supply_after, r.supply_before - r.burn_amount);
+                assert_eq!(
+                    r.batch_burn_sum_after,
+                    r.batch_burn_sum_before + r.burn_amount
+                );
+            }
+        }
+    }
+
+    /// NON-VACUITY. Kani must find accepted no-burn, accepted burn, and rejected
+    /// tuples. These covers make a constant-reject verifier fail this harness.
+    #[kani::proof]
+    fn covers_are_reachable() {
+        let r = any_rails();
+        let res = verify_rails(&r);
+        kani::cover!(res.is_ok() && r.do_burn == 0);
+        kani::cover!(res.is_ok() && r.do_burn == 1);
+        kani::cover!(res.is_err());
+    }
+}

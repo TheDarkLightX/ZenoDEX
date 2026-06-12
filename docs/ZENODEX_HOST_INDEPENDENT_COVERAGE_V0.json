@@ -1,0 +1,361 @@
+{
+  "schema": "zenodex.host_independent_coverage.v0",
+  "claim_boundary": {
+    "full_node_host_independence": "supported_scoped",
+    "succinct_everything_host_independence": "frontier_open",
+    "docker_is_correctness_boundary": false,
+    "host_adversary_model": "The host may be Byzantine. Correctness comes from deterministic replay, valid proof verification, or fail-closed rejection, not from Docker, process isolation, or operator honesty.",
+    "performance_posture": "Synchronous exchange admission uses deterministic replay. ZK proving is opt-in or asynchronous for the currently covered proof kernels until proof coverage and latency gates support mandatory production use.",
+    "lean_ethereum_design_lessons": [
+      "move from re-execution-only toward proof-backed verification per kernel",
+      "keep proof clients optional until production evidence supports mandatory use",
+      "prefer multiple independently implemented proof backends before treating proofs as consensus-critical",
+      "keep public data availability and replay artifacts sufficient for independent verification"
+    ]
+  },
+  "release_gates": [
+    "python3 tools/check_zenodex_host_independent_coverage.py",
+    "python3 tools/check_production_boundary.py",
+    "python3 tools/check_zeno_ledger_proof_coverage_matrix.py",
+    "python3 tools/check_zeno_ledger_proof_profiles.py",
+    "python3 tools/permissionless_assurance.py status"
+  ],
+  "critical_surfaces": [
+    {
+      "id": "spot_intent_admission_and_settlement",
+      "description": "Supported spot intent admission, nonce replay rejection, strong settlement validation, and direct-core ingress closure.",
+      "required_for": [
+        "full_node_host_independence"
+      ],
+      "coverage_status": "covered_scoped",
+      "verifier_mode": "deterministic_replay",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "counts_as_transition_coverage": true,
+      "claim_ids": [
+        "py:production_boundary:closure_audit_v0"
+      ],
+      "evidence_paths": [
+        "tools/check_production_boundary.py",
+        "tests/test_check_production_boundary.py",
+        "docs/RC1_SUPPORTED_RUNTIME_PATH.md",
+        "docs/RC1_VERIFIED_SURFACE_MATRIX.md"
+      ],
+      "checker_commands": [
+        "python3 tools/check_production_boundary.py",
+        "python3 tools/permissionless_assurance.py replay public"
+      ],
+      "limits": [
+        "bounded candidate surface only",
+        "broader API server surface remains excluded"
+      ]
+    },
+    {
+      "id": "spot_v1_risc0_supported_transition_kernel",
+      "description": "Current Risc0 spot v1 guest proof surface for supported operation families.",
+      "required_for": [
+        "succinct_everything_host_independence"
+      ],
+      "coverage_status": "covered_scoped",
+      "verifier_mode": "zkvm_proof",
+      "public_data_availability": "public_inputs_and_proof_artifacts",
+      "counts_as_transition_coverage": true,
+      "claim_ids": [
+        "py:zeno_ledger:risc0_proof_metadata_adapter_v0",
+        "rust_py:zeno_ledger:risc0_zenodex_spot_v1_fixture_equivalence_v0",
+        "rust:zeno_ledger:risc0_supported_transition_real_proof_smoke_v0"
+      ],
+      "proof_surface_ids": [
+        "risc0_spot_transition_metadata_adapter",
+        "risc0_spot_fixture_equivalence",
+        "risc0_supported_transition_real_proof_smoke"
+      ],
+      "covered_operations": [
+        "empty_transition",
+        "faucet_mint",
+        "create_pool",
+        "swap_exact_in",
+        "add_liquidity",
+        "remove_liquidity",
+        "liquidity_cycle_block"
+      ],
+      "not_covered_operations": [
+        "swap_exact_out",
+        "multi_hop",
+        "rejected_receipt_execution",
+        "native_asset_sync"
+      ],
+      "evidence_paths": [
+        "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json",
+        "tools/check_zeno_ledger_proof_coverage_matrix.py",
+        "tools/zeno_ledger_risc0_real_proof_smoke.py",
+        "tools/check_zeno_ledger_risc0_real_proof_smoke_report.py"
+      ],
+      "checker_commands": [
+        "python3 tools/check_zeno_ledger_proof_coverage_matrix.py",
+        "python3 tools/check_zeno_ledger_proof_profiles.py"
+      ],
+      "limits": [
+        "opt-in real proof smoke only",
+        "does not cover every ZenoDEX transition"
+      ]
+    },
+    {
+      "id": "upba_bounded_grid_and_exact_out_certificates",
+      "description": "UPBA certificate, bounded-grid optimality, deterministic admission, and exact-out runtime certificate replay.",
+      "required_for": [
+        "full_node_host_independence"
+      ],
+      "coverage_status": "covered_scoped",
+      "verifier_mode": "deterministic_replay",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "counts_as_transition_coverage": true,
+      "claim_ids": [
+        "py_lean:upba:bounded_price_grid_global_weak_optimality_v1",
+        "py:upba:deterministic_admission_certificate_v1",
+        "py:upba:exact_out_uniform_batch_certificate_v3",
+        "lean:upba:exact_out_fixed_price_minimal_input_v1",
+        "py:upba:exact_out_grid_audit_candidates_v1"
+      ],
+      "evidence_paths": [
+        "src/core/uniform_batch_clearing.py",
+        "src/core/uniform_batch_optimality.py",
+        "src/integration/dex_engine.py",
+        "tests/core/test_uniform_batch_optimality.py",
+        "tests/integration/test_dex_engine_uniform_batch_certificate.py"
+      ],
+      "checker_commands": [
+        "pytest -q tests/core/test_uniform_batch_optimality.py tests/integration/test_dex_engine_uniform_batch_certificate.py"
+      ],
+      "limits": [
+        "bounded grid only",
+        "no unbounded rational-price optimality",
+        "no fair inclusion claim"
+      ]
+    },
+    {
+      "id": "oracle_critical_action_authorization",
+      "description": "First-shell Oracle critical-action map for perps, zUSD, guarded routing, trigger execution, and typed DEX critical-settlement authorization.",
+      "required_for": [
+        "full_node_host_independence"
+      ],
+      "coverage_status": "covered_scoped",
+      "verifier_mode": "deterministic_replay",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "counts_as_transition_coverage": true,
+      "claim_ids": [
+        "py:zeno_oracle:first_shell_critical_action_map"
+      ],
+      "evidence_paths": [
+        "tools/check_zeno_oracle_critical_action_map.py",
+        "tests/test_zeno_oracle_critical_action_map.py",
+        "docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md"
+      ],
+      "checker_commands": [
+        "python3 tools/check_zeno_oracle_critical_action_map.py"
+      ],
+      "limits": [
+        "does not prove live oracle truth",
+        "future critical consumers require their own mapped profiles"
+      ]
+    },
+    {
+      "id": "perps_bounded_production_candidate_surface",
+      "description": "Current perps evidence runner and Oracle-bound isolated perps shell assurance lane.",
+      "required_for": [
+        "full_node_host_independence"
+      ],
+      "coverage_status": "covered_scoped",
+      "verifier_mode": "deterministic_replay",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "counts_as_transition_coverage": true,
+      "claim_ids": [
+        "py:perps:production_integration_evidence_gate_v1",
+        "shell:zeno_oracle:runtime_shell_oracle_bound_perps_settlement_v1"
+      ],
+      "evidence_paths": [
+        "tools/run_perps_evidence.sh",
+        "tools/runtime_shell_assurance_manifest.json",
+        "tools/check_runtime_shell_assurance_manifest.py"
+      ],
+      "checker_commands": [
+        "bash tools/run_perps_evidence.sh",
+        "bash tools/run_runtime_shell_assurance_gate.sh"
+      ],
+      "limits": [
+        "bounded production-candidate surface only",
+        "does not certify live oracle truth or governance"
+      ]
+    },
+    {
+      "id": "zusd_lifecycle_microgate_surface",
+      "description": "zUSD mint, redeem, repay, withdraw, liquidation, oracle-commit, and risky-operation assurance manifests.",
+      "required_for": [
+        "full_node_host_independence"
+      ],
+      "coverage_status": "covered_scoped",
+      "verifier_mode": "deterministic_replay",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "counts_as_transition_coverage": true,
+      "claim_ids": [
+        "py:zeno_oracle:first_shell_critical_action_map"
+      ],
+      "evidence_paths": [
+        "tools/zusd_mint_assurance_manifest.json",
+        "tools/zusd_redeem_assurance_manifest.json",
+        "tools/zusd_repay_assurance_manifest.json",
+        "tools/zusd_withdraw_collateral_assurance_manifest.json",
+        "tools/zusd_liquidation_assurance_manifest.json",
+        "tools/zusd_oracle_commit_assurance_manifest.json",
+        "tools/zusd_risky_ops_assurance_manifest.json"
+      ],
+      "checker_commands": [
+        "bash tools/run_zusd_mint_assurance_gate.sh",
+        "bash tools/run_zusd_redeem_assurance_gate.sh",
+        "bash tools/run_zusd_repay_assurance_gate.sh",
+        "bash tools/run_zusd_withdraw_collateral_assurance_gate.sh",
+        "bash tools/run_zusd_liquidation_assurance_gate.sh",
+        "bash tools/run_zusd_oracle_commit_assurance_gate.sh",
+        "bash tools/run_zusd_risky_ops_assurance_gate.sh"
+      ],
+      "limits": [
+        "microgate surface only",
+        "no zk proof-of-execution for zUSD lifecycle transitions"
+      ]
+    },
+    {
+      "id": "proof_mining_reward_and_claimability_surface",
+      "description": "Proof-mining manager, claimability, slot assignment, packet envelope, identity, and verification flag gates.",
+      "required_for": [
+        "full_node_host_independence"
+      ],
+      "coverage_status": "covered_scoped",
+      "verifier_mode": "deterministic_replay",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "counts_as_transition_coverage": true,
+      "claim_ids": [
+        "shell:zeno_oracle:runtime_shell_oracle_bound_perps_settlement_v1"
+      ],
+      "evidence_paths": [
+        "tools/proof_mining_claimability_assurance_manifest.json",
+        "tools/proof_mining_manager_assurance_manifest.json",
+        "tools/proof_mining_claim_gate_assurance_manifest.json",
+        "tools/proof_mining_claim_identity_gate_assurance_manifest.json",
+        "tools/proof_mining_slot_assignment_gate_assurance_manifest.json",
+        "tools/proof_mining_manager_verification_flags_gate_assurance_manifest.json"
+      ],
+      "checker_commands": [
+        "bash tools/run_proof_mining_claimability_assurance_gate.sh",
+        "bash tools/run_proof_mining_manager_assurance_gate.sh",
+        "bash tools/run_proof_mining_claim_gate_assurance_gate.sh",
+        "bash tools/run_proof_mining_claim_identity_gate_assurance_gate.sh",
+        "bash tools/run_proof_mining_slot_assignment_gate_assurance_gate.sh",
+        "bash tools/run_proof_mining_manager_verification_flags_gate_assurance_gate.sh"
+      ],
+      "limits": [
+        "assurance manifests and runtime-shell replay only",
+        "no zk proof-of-execution for proof-market reward bridge execution"
+      ]
+    },
+    {
+      "id": "zenoledger_block_peer_and_checkpoint_replay",
+      "description": "Local ZenoLedger header/body replay, validator-schedule boundary, peer admission, two-machine archive validation, and local checkpoint-quorum replay.",
+      "required_for": [
+        "ledger_replay_boundary"
+      ],
+      "coverage_status": "covered_scoped",
+      "verifier_mode": "checkpoint_quorum_replay",
+      "public_data_availability": "checkpoint_data_and_quorum_signature",
+      "counts_as_transition_coverage": false,
+      "claim_ids": [
+        "py:zeno_ledger:validator_schedule_equivocation_boundary_v0",
+        "py:zeno_ledger:two_machine_latest_main_evidence_archive_v0",
+        "py:zeno_ledger:peer_admission_pull_gate_v0",
+        "py:zeno_ledger:light_client_checkpoint_quorum_v0"
+      ],
+      "proof_surface_ids": [
+        "light_client_checkpoint_quorum"
+      ],
+      "evidence_paths": [
+        "tools/check_zeno_ledger_light_client_checkpoint.py",
+        "tools/check_zeno_ledger_two_machine_evidence.py",
+        "tools/zeno_ledger_node.py",
+        "tests/test_check_zeno_ledger_light_client_checkpoint.py"
+      ],
+      "checker_commands": [
+        "pytest -q tests/integration/test_zeno_ledger_v0.py",
+        "pytest -q tests/test_check_zeno_ledger_light_client_checkpoint.py"
+      ],
+      "limits": [
+        "local replay and checkpoint quorum only",
+        "production open-network finality remains open"
+      ]
+    },
+    {
+      "id": "proof_required_profile_metadata_and_report_replay",
+      "description": "Proof-required range verification and per-height proof-verification reports prevent metadata-only proof lanes from being accepted as verifier-backed replay.",
+      "required_for": [
+        "proof_required_path_closure"
+      ],
+      "coverage_status": "covered_scoped",
+      "verifier_mode": "proof_metadata_and_report_replay",
+      "public_data_availability": "metadata_only_non_transition",
+      "counts_as_transition_coverage": false,
+      "claim_ids": [
+        "py:zeno_ledger:proof_required_profile_metadata_replay_v0",
+        "py:zeno_ledger:proof_verification_report_replay_v0"
+      ],
+      "proof_surface_ids": [
+        "proof_required_range_replay",
+        "proof_verification_report_replay"
+      ],
+      "evidence_paths": [
+        "tools/zeno_ledger_verify.py",
+        "tests/integration/test_zeno_ledger_verify_cli.py"
+      ],
+      "checker_commands": [
+        "pytest -q tests/integration/test_zeno_ledger_verify_cli.py"
+      ],
+      "limits": [
+        "does not verify zkVM cryptography by itself",
+        "does not count as transition proof coverage"
+      ]
+    },
+    {
+      "id": "full_zk_execution_for_all_value_moving_surfaces",
+      "description": "Real zkVM proof-of-execution for UPBA, Oracle critical actions, zUSD, perps, proof-market rewards, recursive epochs, and production light-client finality.",
+      "required_for": [
+        "succinct_everything_host_independence"
+      ],
+      "coverage_status": "open",
+      "verifier_mode": "fail_closed_blocked",
+      "public_data_availability": "blocked_until_public_inputs_and_proofs",
+      "counts_as_transition_coverage": false,
+      "proof_gap_ids": [
+        "uniform_batch_upba_v2_v3_real_proof",
+        "oracle_critical_action_real_proof",
+        "zusd_lifecycle_real_proof",
+        "perps_settlement_real_proof",
+        "proof_market_reward_real_proof",
+        "recursive_epoch_real_proof",
+        "light_client_production_finality"
+      ],
+      "evidence_paths": [
+        "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json"
+      ],
+      "checker_commands": [
+        "python3 tools/check_zeno_ledger_proof_coverage_matrix.py"
+      ],
+      "limits": [
+        "frontier target only",
+        "must remain a non-claim until real proof coverage exists"
+      ]
+    }
+  ],
+  "non_claims": [
+    "does_not_claim_docker_removes_host_trust",
+    "does_not_claim_full_zk_execution_for_all_zenodex_surfaces",
+    "does_not_claim_metadata_only_is_transition_correctness",
+    "does_not_claim_uniswap_lower_trust_until_succinct_everything_or_equivalent_gate_is_green",
+    "does_not_claim_production_light_client_finality"
+  ]
+}

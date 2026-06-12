@@ -1,0 +1,62 @@
+name: native-launcher
+
+on:
+  pull_request:
+    paths:
+      - "rust-runtime/Cargo.toml"
+      - "rust-runtime/crates/zenodex-launcher/**"
+      - "config/tau_testnet.lock"
+      - "docs/NATIVE_INSTALLER_PLAN.md"
+      - ".github/workflows/native-launcher.yml"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "rust-runtime/Cargo.toml"
+      - "rust-runtime/crates/zenodex-launcher/**"
+      - "config/tau_testnet.lock"
+      - "docs/NATIVE_INSTALLER_PLAN.md"
+      - ".github/workflows/native-launcher.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-native-launcher:
+    name: Build native launcher (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    defaults:
+      run:
+        working-directory: rust-runtime
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain fingerprint
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Test launcher
+        run: cargo test -p zenodex-launcher
+
+      - name: Build release launcher
+        run: cargo build --release -p zenodex-launcher
+
+      - name: Upload launcher artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zenodex-launcher-${{ matrix.os }}
+          path: |
+            rust-runtime/target/release/zenodex
+            rust-runtime/target/release/zenodex.exe
+          if-no-files-found: error

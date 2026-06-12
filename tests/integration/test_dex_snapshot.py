@@ -21,6 +21,29 @@ from src.state.lp import LPTable
 from src.state.pools import PoolState, PoolStatus
 
 
+_PK = "0x" + "aa" * 48
+_PK_CASE = "0x" + "AA" * 48
+_ASSET0 = "0x" + "11" * 32
+_ASSET1 = "0x" + "22" * 32
+_POOL_ID = "0x" + "bb" * 32
+_POOL_ID_CASE = "0x" + "BB" * 32
+
+
+def _snapshot_base(**overrides: object) -> dict:
+    snap = {
+        "version": 1,
+        "balances": [],
+        "pools": [],
+        "lp_balances": [],
+        "nonces": [],
+        "fee_accumulator": {"dust": 0},
+        "vault": None,
+        "oracle": None,
+    }
+    snap.update(overrides)
+    return snap
+
+
 def test_snapshot_roundtrip_is_deterministic() -> None:
     balances = BalanceTable()
     lp = LPTable()
@@ -130,6 +153,96 @@ def test_state_from_snapshot_rejects_unknown_version() -> None:
         "oracle": None,
     }
     with pytest.raises(ValueError):
+        state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_decoded_duplicate_balances() -> None:
+    snap = _snapshot_base(
+        balances=[
+            {"pubkey": _PK, "asset": _ASSET0, "amount": 1},
+            {"pubkey": _PK_CASE, "asset": _ASSET0, "amount": 2},
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate decoded balance entry"):
+        state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_decoded_duplicate_pool_ids() -> None:
+    snap = _snapshot_base(
+        pools=[
+            {
+                "pool_id": _POOL_ID,
+                "asset0": _ASSET0,
+                "asset1": _ASSET1,
+                "fee_bps": 30,
+            },
+            {
+                "pool_id": _POOL_ID_CASE,
+                "asset0": _ASSET0,
+                "asset1": _ASSET1,
+                "fee_bps": 30,
+            },
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate decoded pool entry"):
+        state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_decoded_duplicate_lp_balances() -> None:
+    snap = _snapshot_base(
+        lp_balances=[
+            {"pubkey": _PK, "pool_id": _POOL_ID, "amount": 1},
+            {"pubkey": _PK_CASE, "pool_id": _POOL_ID, "amount": 2},
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate decoded lp entry"):
+        state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_decoded_duplicate_lp_mint_timestamps() -> None:
+    snap = _snapshot_base(
+        version=3,
+        perps=None,
+        lp_balances=[
+            {"pubkey": _PK, "pool_id": _POOL_ID, "amount": 1},
+        ],
+        lp_mint_timestamps=[
+            {"pubkey": _PK, "pool_id": _POOL_ID, "last_mint_timestamp": 1},
+            {"pubkey": _PK_CASE, "pool_id": _POOL_ID, "last_mint_timestamp": 2},
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate decoded lp_mint_timestamps entry"):
+        state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_decoded_duplicate_lp_duration_risk() -> None:
+    snap = _snapshot_base(
+        version=4,
+        perps=None,
+        lp_mint_timestamps=[],
+        lp_duration_risk=[
+            {"pubkey": _PK, "pool_id": _POOL_ID, "churn_tier": 1},
+            {"pubkey": _PK_CASE, "pool_id": _POOL_ID, "churn_tier": 2},
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate decoded lp_duration_risk entry"):
+        state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_decoded_duplicate_nonces() -> None:
+    snap = _snapshot_base(
+        nonces=[
+            {"pubkey": _PK, "last_nonce": 1},
+            {"pubkey": _PK_CASE, "last_nonce": 2},
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate decoded nonce entry"):
         state_from_snapshot(snap)
 
 

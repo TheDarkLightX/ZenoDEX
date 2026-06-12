@@ -56,11 +56,19 @@ function normalizeApiBase(raw) {
 
 function getZenoOracleApiBase() {
   const runtimeConfig = getRuntimeConfig();
-  if (Object.prototype.hasOwnProperty.call(runtimeConfig, 'zenoOracleApiBase')) {
-    return normalizeApiBase(runtimeConfig.zenoOracleApiBase);
+  const hasRuntimeOracleBase = Object.prototype.hasOwnProperty.call(runtimeConfig, 'zenoOracleApiBase');
+  const runtimeBase = normalizeApiBase(runtimeConfig.zenoOracleApiBase);
+  if (runtimeBase) {
+    return runtimeBase;
   }
   const v = normalizeApiBase(import.meta?.env?.VITE_ZENO_ORACLE_API_URL ?? '');
-  return v || DEFAULT_ZENO_ORACLE_API_BASE;
+  if (v) {
+    return v;
+  }
+  if (hasRuntimeOracleBase) {
+    return '';
+  }
+  return DEFAULT_ZENO_ORACLE_API_BASE;
 }
 
 export function getApiBase() {
@@ -80,18 +88,29 @@ export async function apiFetchZenoOracleJson(path, options = {}) {
 }
 
 export function getApiToken() {
-  const runtimeToken = (getRuntimeConfig().apiToken ?? '').toString().trim();
-  if (runtimeToken) {
-    return runtimeToken;
-  }
   const v = (import.meta?.env?.VITE_API_TOKEN ?? '').toString().trim();
   return v || '';
+}
+
+function shouldAttachApiToken(url, { pathIsAbsolute }) {
+  if (!pathIsAbsolute) {
+    return true;
+  }
+  if (typeof window === 'undefined' || !window.location) {
+    return false;
+  }
+  try {
+    return new URL(url).origin === window.location.origin;
+  } catch {
+    return false;
+  }
 }
 
 export async function apiFetchJson(path, options = {}) {
   const base = getApiBase();
   const pathText = String(path || '');
-  const url = /^https?:\/\//i.test(pathText) ? pathText : `${base}${pathText}`;
+  const pathIsAbsolute = /^https?:\/\//i.test(pathText);
+  const url = pathIsAbsolute ? pathText : `${base}${pathText}`;
   const token = getApiToken();
   const { timeoutMs, ...fetchOptions } = options || {};
   const method = (fetchOptions.method || 'GET').toString().toUpperCase();
@@ -104,7 +123,7 @@ export async function apiFetchJson(path, options = {}) {
   if (hasBody && !hasHeader('content-type')) {
     headers['Content-Type'] = 'application/json';
   }
-  if (token && !hasHeader('authorization')) {
+  if (token && shouldAttachApiToken(url, { pathIsAbsolute }) && !hasHeader('authorization')) {
     headers.Authorization = `Bearer ${token}`;
   }
 
@@ -153,6 +172,18 @@ export async function apiFetchJson(path, options = {}) {
   return data;
 }
 
+export function apiGetTokenomicsStatus(options = {}) {
+  return apiFetchJson('/api/tokenomics/status', { method: 'GET', ...(options || {}) });
+}
+
+export function apiClaimTokenomicsActiveParticipantReward(body, options = {}) {
+  return apiFetchJson('/api/tokenomics/active-participant/claim', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
 export function apiGetConfidentialStatus(options = {}) {
   return apiFetchJson('/api/confidential/status', { method: 'GET', ...(options || {}) });
 }
@@ -181,8 +212,57 @@ export function apiExecuteConfidentialAttestation(body, options = {}) {
   });
 }
 
+export function apiGetConfidentialSealedBidStatus(options = {}) {
+  return apiFetchJson('/api/confidential/sealed-bid/status', { method: 'GET', ...(options || {}) });
+}
+
+export function apiResetConfidentialSealedBid(body, options = {}) {
+  return apiFetchJson('/api/confidential/sealed-bid/reset', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiCommitConfidentialSealedBid(body, options = {}) {
+  return apiFetchJson('/api/confidential/sealed-bid/commit', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiOpenRevealConfidentialSealedBid(body, options = {}) {
+  return apiFetchJson('/api/confidential/sealed-bid/open-reveal', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiRevealConfidentialSealedBid(body, options = {}) {
+  return apiFetchJson('/api/confidential/sealed-bid/reveal', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiSettleConfidentialSealedBid(body, options = {}) {
+  return apiFetchJson('/api/confidential/sealed-bid/se' + 'ttle', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
 export function apiGetZusdWalletStatus(options = {}) {
-  return apiFetchJson('/api/zusd/wallet/status', { method: 'GET', ...(options || {}) });
+  const { account = '', ...fetchOptions } = options || {};
+  const accountText = String(account || '').trim();
+  const path = accountText
+    ? `/api/zusd/wallet/status?account=${encodeURIComponent(accountText)}`
+    : '/api/zusd/wallet/status';
+  return apiFetchJson(path, { method: 'GET', ...fetchOptions });
 }
 
 export function apiPrepareZusdWallet(body, options = {}) {
@@ -202,7 +282,12 @@ export function apiSubmitZusdWallet(body, options = {}) {
 }
 
 export function apiGetZusdMonetaryStatus(options = {}) {
-  return apiFetchJson('/api/zusd/monetary/status', { method: 'GET', ...(options || {}) });
+  const { account = '', ...fetchOptions } = options || {};
+  const accountText = String(account || '').trim();
+  const path = accountText
+    ? `/api/zusd/monetary/status?account=${encodeURIComponent(accountText)}`
+    : '/api/zusd/monetary/status';
+  return apiFetchJson(path, { method: 'GET', ...fetchOptions });
 }
 
 export function apiPrepareZusdMonetary(body, options = {}) {
@@ -222,7 +307,12 @@ export function apiSubmitZusdMonetary(body, options = {}) {
 }
 
 export function apiGetPerpsWalletStatus(options = {}) {
-  return apiFetchJson('/api/perps/wallet/status', { method: 'GET', ...(options || {}) });
+  const { account = '', ...fetchOptions } = options || {};
+  const accountText = String(account || '').trim();
+  const path = accountText
+    ? `/api/perps/wallet/status?account=${encodeURIComponent(accountText)}`
+    : '/api/perps/wallet/status';
+  return apiFetchJson(path, { method: 'GET', ...fetchOptions });
 }
 
 export function apiPreparePerpsWallet(body, options = {}) {
@@ -241,6 +331,22 @@ export function apiSubmitPerpsWallet(body, options = {}) {
   });
 }
 
+export function apiMintTestnetFaucet(body, options = {}) {
+  return apiFetchJson('/api/testnet/faucet', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiMintPerpsWalletTestnetFaucet(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/testnet-faucet', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
 export function apiBuildPerpsOracleBridge(body, options = {}) {
   return apiFetchJson('/api/perps/wallet/oracle-bridge-template', {
     method: 'POST',
@@ -251,6 +357,86 @@ export function apiBuildPerpsOracleBridge(body, options = {}) {
 
 export function apiInspectPerpsOracleBridge(body, options = {}) {
   return apiFetchJson('/api/perps/wallet/oracle-bridge/inspect', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiEvaluatePerpsRecovery(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/recovery/evaluate', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiEvaluatePerpsRotation(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/rotation/evaluate', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiEvaluatePerpsDeviceApproval(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/device-approval/evaluate', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiEvaluatePerpsSignerDevice(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/signer-device/evaluate', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiEvaluatePerpsSignerPromptCapture(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/signer-prompt-capture/evaluate', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiEvaluatePerpsSignerExecution(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/signer-execution/evaluate', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiEvaluatePerpsSignerCeremony(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/signer-ceremony/evaluate', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiEvaluatePerpsHardwareCustody(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/hardware-cus' + 'tody/evaluate', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiEvaluatePerpsEncryptedSssBackup(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/encrypted-sss-backup/evaluate', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiDeliverPerpsEncryptedSssBackup(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/encrypted-sss-backup/deliver', {
     method: 'POST',
     body: JSON.stringify(body || {}),
     ...(options || {}),
@@ -306,7 +492,10 @@ export function apiExecuteAutotraderSupervisor(body, options = {}) {
 }
 
 export function apiGetPools(options = {}) {
-  return apiFetchJson('/api/pools', { method: 'GET', ...(options || {}) });
+  const { account = '', ...fetchOptions } = options || {};
+  const accountText = String(account || '').trim();
+  const path = accountText ? `/api/pools?account=${encodeURIComponent(accountText)}` : '/api/pools';
+  return apiFetchJson(path, { method: 'GET', ...fetchOptions });
 }
 
 export function apiSwap(
@@ -321,6 +510,10 @@ export function apiSwap(
     senderPubkey = null,
     recipient = null,
     deadline = null,
+    signature = null,
+    nonce = null,
+    timeMs = null,
+    txId = null,
   },
   options = {},
 ) {
@@ -336,7 +529,127 @@ export function apiSwap(
   if (senderPubkey) body.senderPubkey = senderPubkey;
   if (recipient) body.recipient = recipient;
   if (deadline) body.deadline = deadline;
+  if (signature) body.signature = signature;
+  if (nonce != null) body.nonce = nonce;
+  if (timeMs != null) body.time_ms = timeMs;
+  if (txId) body.tx_id = txId;
   return apiFetchJson('/api/swap', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    ...(options || {}),
+  });
+}
+
+export function apiAddLiquidity(
+  {
+    poolId,
+    asset0 = null,
+    asset1 = null,
+    amount0Desired,
+    amount1Desired,
+    amount0Min = 0,
+    amount1Min = 0,
+    senderPubkey = null,
+    recipient = null,
+    deadline = null,
+    signature = null,
+    nonce = null,
+    timeMs = null,
+    txId = null,
+  },
+  options = {},
+) {
+  const body = {
+    poolId,
+    amount0Desired,
+    amount1Desired,
+    amount0Min,
+    amount1Min,
+  };
+  if (asset0) body.asset0 = asset0;
+  if (asset1) body.asset1 = asset1;
+  if (senderPubkey) body.senderPubkey = senderPubkey;
+  if (recipient) body.recipient = recipient;
+  if (deadline) body.deadline = deadline;
+  if (signature) body.signature = signature;
+  if (nonce != null) body.nonce = nonce;
+  if (timeMs != null) body.time_ms = timeMs;
+  if (txId) body.tx_id = txId;
+  return apiFetchJson('/api/liquidity/add', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    ...(options || {}),
+  });
+}
+
+export function apiCreateLiquidityPool(
+  {
+    asset0,
+    asset1,
+    amount0,
+    amount1,
+    feeBps = 30,
+    senderPubkey = null,
+    deadline = null,
+    signature = null,
+    nonce = null,
+    createdAt = null,
+    timeMs = null,
+    txId = null,
+  },
+  options = {},
+) {
+  const body = {
+    asset0,
+    asset1,
+    amount0,
+    amount1,
+    feeBps,
+  };
+  if (senderPubkey) body.senderPubkey = senderPubkey;
+  if (deadline) body.deadline = deadline;
+  if (signature) body.signature = signature;
+  if (nonce != null) body.nonce = nonce;
+  if (createdAt != null) body.createdAt = createdAt;
+  if (timeMs != null) body.time_ms = timeMs;
+  if (txId) body.tx_id = txId;
+  return apiFetchJson('/api/liquidity/create', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    ...(options || {}),
+  });
+}
+
+export function apiRemoveLiquidity(
+  {
+    poolId,
+    lpAmount,
+    amount0Min = 0,
+    amount1Min = 0,
+    senderPubkey = null,
+    recipient = null,
+    deadline = null,
+    signature = null,
+    nonce = null,
+    timeMs = null,
+    txId = null,
+  },
+  options = {},
+) {
+  const body = {
+    poolId,
+    lpAmount,
+    amount0Min,
+    amount1Min,
+  };
+  if (senderPubkey) body.senderPubkey = senderPubkey;
+  if (recipient) body.recipient = recipient;
+  if (deadline) body.deadline = deadline;
+  if (signature) body.signature = signature;
+  if (nonce != null) body.nonce = nonce;
+  if (timeMs != null) body.time_ms = timeMs;
+  if (txId) body.tx_id = txId;
+  return apiFetchJson('/api/liquidity/remove', {
     method: 'POST',
     body: JSON.stringify(body),
     ...(options || {}),
@@ -463,6 +776,30 @@ export function apiDexPokayokeSwapSuggestHeavy(
       target_actions: targetActions,
       pools: [],
     }),
+    ...(options || {}),
+  });
+}
+
+export function apiCheckProofMiningStatus(body, options = {}) {
+  return apiFetchJson('/api/dex/proof_mining_status', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiBuildProofMiningPayoutTemplate(body, options = {}) {
+  return apiFetchJson('/api/dex/proof_mining_payout_template', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiSubmitLedgerTransaction(body, options = {}) {
+  return apiFetchJson('/tx', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
     ...(options || {}),
   });
 }

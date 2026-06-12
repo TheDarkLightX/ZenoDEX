@@ -1,0 +1,14 @@
+# CATEGORY: recurrence-loops / unsafe output-feedback exemplar
+# CLAIM: this shape is intentionally NOT runtime-gate safe.
+#
+# It demonstrates the cardinality hazard found in output-feedback recurrence:
+# the expression runs on both Tau binaries, but some traces emit a shortened or
+# extended output stream. That means a runtime host cannot safely align verdicts
+# with input transitions.
+#
+# Keep this file as negative evidence. Do not promote it into recommended/.
+set charvar off
+
+always
+  (o1[t]:sbf = (o1[t-1]:sbf | i1[t]:sbf)).
+end

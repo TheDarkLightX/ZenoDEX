@@ -66,6 +66,12 @@ def _require_str(value: Any, *, name: str) -> str:
     return str(value)
 
 
+def _require_mapping(value: Any, *, name: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{name} must be an object")
+    return value
+
+
 def _require_bool(value: Any, *, name: str) -> bool:
     if not isinstance(value, bool):
         raise TypeError(f"{name} must be a bool")
@@ -110,6 +116,18 @@ def _validate_verification_flags(verification_flags: Mapping[str, Any]) -> dict[
         flag: _require_bool(verification_flags.get(flag), name=f"verification_flags.{flag}")
         for flag in PROOF_MINING_MANAGER_VERIFICATION_FLAG_NAMES
     }
+
+
+def _claim_committed_verification_flags(claim_artifact: Mapping[str, Any]) -> dict[str, bool]:
+    body = _require_mapping(claim_artifact.get("body"), name="claim.body")
+    raw_flags = _require_mapping(body.get("verification_flags"), name="claim.body.verification_flags")
+    out: dict[str, bool] = {}
+    for flag in PROOF_MINING_MANAGER_VERIFICATION_FLAG_NAMES:
+        raw = raw_flags.get(flag)
+        if not isinstance(raw, int) or isinstance(raw, bool) or raw not in (0, 1):
+            raise ValueError(f"claim.body.verification_flags.{flag} must be 0 or 1")
+        out[flag] = bool(raw)
+    return out
 
 
 def _validate_slot_registry(claimed_slots: Mapping[int, str]) -> dict[int, str]:
@@ -242,6 +260,8 @@ def build_submit_proof_packet(
     claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=True)
     state_before = snapshot_to_kernel_state(snapshot)
     flags = _validate_verification_flags(verification_flags)
+    if flags != _claim_committed_verification_flags(claim_artifact):
+        raise ValueError("verification_flags do not match claim-committed flags")
     if _require_int(claim.get("epoch"), name="claim.epoch") != _require_int(snapshot.epoch, name="snapshot.epoch"):
         raise ValueError("claim epoch does not match snapshot")
     if _require_int(claim.get("base_reward"), name="claim.base_reward") != _require_int(snapshot.base_reward, name="snapshot.base_reward"):

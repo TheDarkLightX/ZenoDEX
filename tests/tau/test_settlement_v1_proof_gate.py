@@ -18,12 +18,22 @@ def test_settlement_v1_proof_gate_trace() -> None:
 
     assert SPEC_PATH.exists(), f"missing spec: {SPEC_PATH}"
 
+    common = {
+        "i5": 10,
+        "i6": 11,
+        "i7": 12,
+        "i8": 1,
+        "i9": 1,
+        "i10": 1,
+        "i11": 1,
+        "i12": 1,
+    }
     steps = [
-        {"i1": 1, "i2": 1, "i3": 1, "i4": 1},
-        {"i1": 0, "i2": 1, "i3": 1, "i4": 1},
-        {"i1": 1, "i2": 0, "i3": 1, "i4": 1},
-        {"i1": 1, "i2": 1, "i3": 0, "i4": 1},
-        {"i1": 1, "i2": 1, "i3": 1, "i4": 0},
+        {"i1": 1, "i2": 2, "i3": 3, "i4": 4, **common},
+        {"i1": 1, "i2": 1, "i3": 3, "i4": 4, **common},
+        {"i1": 1, "i2": 2, "i3": 2, "i4": 4, **common},
+        {"i1": 1, "i2": 2, "i3": 3, "i4": 3, **common},
+        {"i1": 4, "i2": 3, "i3": 2, "i4": 1, **common},
     ]
     outputs = run_tau_spec_steps(
         tau_bin=tau_bin,
@@ -38,3 +48,4 @@ def test_settlement_v1_proof_gate_trace() -> None:
         assert actual_o1 == expected_o1, (
             f"settlement_v1_proof_gate.tau step {idx}: expected o1={expected_o1}, got {actual_o1}"
         )
+        assert outputs.get(idx, {}).get("o7") == expected_o1

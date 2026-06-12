@@ -1049,7 +1049,7 @@
     {
       "id": "swap_exact_in_v4",
       "path": "src/tau_specs/swap_exact_in_v4.tau",
-      "mode": "repl",
+      "mode": "native_mirror",
       "inputs": [
         {
           "i1": 100,
@@ -1092,12 +1092,13 @@
         {
           "o1": 0
         }
-      ]
+      ],
+      "native_mirror": "swap_exact_in_v4"
     },
     {
       "id": "swap_exact_out_v4",
       "path": "src/tau_specs/swap_exact_out_v4.tau",
-      "mode": "repl",
+      "mode": "native_mirror",
       "inputs": [
         {
           "i1": 100,
@@ -1140,12 +1141,13 @@
         {
           "o1": 0
         }
-      ]
+      ],
+      "native_mirror": "swap_exact_out_v4"
     },
     {
       "id": "swap_exact_in_v3",
       "path": "src/tau_specs/swap_exact_in_v3.tau",
-      "mode": "repl",
+      "mode": "native_mirror",
       "inputs": [
         {
           "i1": 1000000,
@@ -1179,12 +1181,13 @@
         {
           "o1": 0
         }
-      ]
+      ],
+      "native_mirror": "swap_exact_in_v3"
     },
     {
       "id": "swap_exact_out_v3",
       "path": "src/tau_specs/swap_exact_out_v3.tau",
-      "mode": "repl",
+      "mode": "native_mirror",
       "inputs": [
         {
           "i1": 1000000,
@@ -1218,7 +1221,8 @@
         {
           "o1": 0
         }
-      ]
+      ],
+      "native_mirror": "swap_exact_out_v3"
     },
     {
       "id": "swap_fee_total_ceil_v1",
@@ -1361,7 +1365,7 @@
     {
       "id": "swap_exact_in_fee_proof_gate_v1",
       "path": "src/tau_specs/recommended/swap_exact_in_fee_proof_gate_v1.tau",
-      "mode": "repl",
+      "mode": "native_mirror",
       "inputs": [
         {
           "i1": 1000000,
@@ -1484,12 +1488,13 @@
         {
           "o1": 0
         }
-      ]
+      ],
+      "native_mirror": "swap_exact_in_fee_proof_gate_v1"
     },
     {
       "id": "swap_exact_out_fee_proof_gate_v1",
       "path": "src/tau_specs/recommended/swap_exact_out_fee_proof_gate_v1.tau",
-      "mode": "repl",
+      "mode": "native_mirror",
       "inputs": [
         {
           "i1": 1000000,
@@ -1612,12 +1617,13 @@
         {
           "o1": 0
         }
-      ]
+      ],
+      "native_mirror": "swap_exact_out_fee_proof_gate_v1"
     },
     {
       "id": "swap_exact_in_protocol_fee_apply_v1",
       "path": "src/tau_specs/recommended/swap_exact_in_protocol_fee_apply_v1.tau",
-      "mode": "repl",
+      "mode": "native_mirror",
       "inputs": [
         {
           "i1": 1000000,
@@ -1792,12 +1798,13 @@
         {
           "o1": 0
         }
-      ]
+      ],
+      "native_mirror": "swap_exact_in_protocol_fee_apply_v1"
     },
     {
       "id": "swap_exact_out_protocol_fee_apply_v1",
       "path": "src/tau_specs/recommended/swap_exact_out_protocol_fee_apply_v1.tau",
-      "mode": "repl",
+      "mode": "native_mirror",
       "inputs": [
         {
           "i1": 1000000,
@@ -2010,12 +2017,13 @@
         {
           "o1": 0
         }
-      ]
+      ],
+      "native_mirror": "swap_exact_out_protocol_fee_apply_v1"
     },
     {
       "id": "add_liquidity_ratio_guard_v1",
       "path": "src/tau_specs/recommended/add_liquidity_ratio_guard_v1.tau",
-      "mode": "repl",
+      "mode": "native_mirror",
       "inputs": [
         {
           "i1": 1000,
@@ -2079,12 +2087,13 @@
         {
           "o1": 0
         }
-      ]
+      ],
+      "native_mirror": "add_liquidity_ratio_guard_v1"
     },
     {
       "id": "create_pool_apply_proof_gate_v1",
       "path": "src/tau_specs/recommended/create_pool_apply_proof_gate_v1.tau",
-      "mode": "repl",
+      "mode": "native_mirror",
       "inputs": [
         {
           "i1": 0,
@@ -2190,12 +2199,13 @@
         {
           "o1": 0
         }
-      ]
+      ],
+      "native_mirror": "create_pool_apply_proof_gate_v1"
     },
     {
       "id": "create_pool_initial_sqrt_guard_v1",
       "path": "src/tau_specs/recommended/create_pool_initial_sqrt_guard_v1.tau",
-      "mode": "repl",
+      "mode": "native_mirror",
       "inputs": [
         {
           "i1": 10000,
@@ -2262,12 +2272,13 @@
         {
           "o1": 0
         }
-      ]
+      ],
+      "native_mirror": "create_pool_initial_sqrt_guard_v1"
     },
     {
       "id": "add_liquidity_apply_v1",
       "path": "src/tau_specs/recommended/add_liquidity_apply_v1.tau",
-      "mode": "repl",
+      "mode": "native_mirror",
       "inputs": [
         {
           "i1": 1000,
@@ -2367,7 +2378,8 @@
         {
           "o1": 0
         }
-      ]
+      ],
+      "native_mirror": "add_liquidity_apply_v1"
     },
     {
       "id": "lp_mint_min_of_floors_guard_v1",
@@ -2485,7 +2497,7 @@
     {
       "id": "remove_liquidity_apply_v1",
       "path": "src/tau_specs/recommended/remove_liquidity_apply_v1.tau",
-      "mode": "repl",
+      "mode": "native_mirror",
       "inputs": [
         {
           "i1": 1000,
@@ -2585,7 +2597,8 @@
         {
           "o1": 0
         }
-      ]
+      ],
+      "native_mirror": "remove_liquidity_apply_v1"
     },
     {
       "id": "lp_burn_floor_math_guard_v1",

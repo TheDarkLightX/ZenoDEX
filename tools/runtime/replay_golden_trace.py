@@ -26,6 +26,7 @@ for _p in (str(_REPO), str(_HERE)):
 
 import balance_kernel_lib  # noqa: E402
 import burn_receipts_lib  # noqa: E402
+import cpmm_settlement_lib  # noqa: E402
 import golden_trace_lib  # noqa: E402
 import replay_guard_lib  # noqa: E402
 import zusd_kernel_lib  # noqa: E402
@@ -42,6 +43,10 @@ _REPLAYERS = {
     burn_receipts_lib.KERNEL: (
         burn_receipts_lib.replay_trace,
         burn_receipts_lib.ReplayMismatch,
+    ),
+    cpmm_settlement_lib.KERNEL: (
+        cpmm_settlement_lib.replay_trace,
+        cpmm_settlement_lib.ReplayMismatch,
     ),
 }
 

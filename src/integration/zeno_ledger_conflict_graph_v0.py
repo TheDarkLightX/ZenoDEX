@@ -47,11 +47,10 @@ def _add_liquidity_balance_cells(
     are known; otherwise the global cell is present so scheduling is conservative.
     """
 
-    before = len(cells)
     _add_if_present(cells, "balance", owner, asset0)
     _add_if_present(cells, "balance", owner, asset1)
-    if len(cells) == before + 2:
-        return
+    # Liquidity execution resolves real assets from pool state, not intent extras.
+    # Always include the global cell to prevent spoofed-asset underconflicts.
     cells.add(GLOBAL_DEX_CELL_V0)
 
 

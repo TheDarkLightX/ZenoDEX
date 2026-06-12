@@ -1,7 +1,12 @@
 {
+  "deployment": "local-testnet",
+  "chainId": "zeno-ledger-localtest-v0",
   "apiBase": "",
-  "apiToken": "",
-  "demoMode": null,
-  "perpsPreviewWrites": false,
+  "demoMode": false,
+  "allowDemoMode": false,
+  "allowBrowserKeyGeneration": true,
+  "allowDefaultExternalSigner": false,
+  "temporaryBrowserKeygenForTesting": true,
+  "temporaryBrowserKeygenExpires": "after Keys standalone app replaces browser signing",
   "zenoOracleApiBase": ""
 }

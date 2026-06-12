@@ -60,7 +60,7 @@ theorem exists_mem_eq_foldr_max_of_ne_nil (xs : List Nat) (hne : xs ≠ []) :
             (a :: tl).foldr Nat.max 0
                 = Nat.max a (tl.foldr Nat.max 0) := by simp
             _   = tl.foldr Nat.max 0 := by simp [Nat.max_eq_right ha']
-            _   = m := by simpa [hm_eq]
+            _   = m := by simp [hm_eq]
 
 
 /- Extract a heaviest edge on the unique `u-v` path in a tree, and bound it via the certificate. -/

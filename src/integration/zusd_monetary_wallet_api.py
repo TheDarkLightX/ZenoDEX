@@ -9,11 +9,13 @@ stability-pool, liquidation, and SP collateral-claim actions.
 from __future__ import annotations
 
 import json
+import hashlib
+import math
 import os
 import time
-from dataclasses import replace
+from dataclasses import asdict, replace
 from typing import Any, Dict, Mapping, Optional, Tuple, cast
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from ..core.dex import DexState
 from ..core.zusd import E8
@@ -39,11 +41,18 @@ from .zusd_monetary_bridge import (
     ZUSDMonetaryConfig,
     ZUSDMonetaryState,
     apply_zusd_monetary_ops,
+    init_monetary_state,
     stability_pool_pubkey,
     zusd_monetary_sender_nonce_key,
     zusd_monetary_state_from_obj,
+    zusd_monetary_state_to_obj,
 )
 from .zusd_tau_token import derive_zusd_tau_asset_id
+from .zeno_oracle_authorization import (
+    RuntimeActionFacts,
+    check_critical_consumer_authorization,
+    semantic_hash,
+)
 
 
 MAX_POST_BODY = 65_536
@@ -56,6 +65,21 @@ _ZUSD_PROOF_INTENT_SCHEMA = "zenodex/zusd_monetary_wallet/proof_intent_receipt/v
 _ZUSD_PROOF_INTENT_HASH_DOMAIN = "zenodex.zusd_monetary_wallet.proof_intent_receipt/v1"
 _ZUSD_ZK_PROOF_ENV_PREFIX = "ZUSD_MONETARY_WALLET"
 _ZUSD_ZK_PROOF_REQUIRED_ENV = "ZUSD_MONETARY_WALLET_REQUIRE_ZK_PROOF"
+_ORACLE_CONSUMER_PROFILE_SCHEMA = "zenodex.oracle.consumer_profile.v1"
+_ORACLE_ZUSD_COLLATERAL_QUERY_ID = (
+    "sha256:" + hashlib.sha256(b"zenodex.oracle.query.zusd.collateral_price_e8").hexdigest()
+)
+_ZUSD_ORACLE_ADAPTER_ACTIONS: Dict[str, str] = {
+    "mint_zusd": "mint",
+    "liquidate": "liquidate_vault",
+}
+_ZUSD_ORACLE_AUTH_ACTIONS = {
+    "bootstrap_oracle",
+    "oracle_report",
+    "oracle_commit",
+    "mint_zusd",
+    "liquidate",
+}
 _ACTIONS = {
     "advance_epoch",
     "bootstrap_oracle",
@@ -73,6 +97,28 @@ _ACTIONS = {
 }
 
 
+def _oracle_consumer_profile_id(*, action_kind: str, max_freshness_window_epochs: int) -> str:
+    payload = {
+        "schema": _ORACLE_CONSUMER_PROFILE_SCHEMA,
+        "consumer_module": "zenodex.zusd",
+        "action_kind": action_kind,
+        "query_id": _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
+        "required_evidence_floor": "O3",
+        "max_freshness_window_epochs": int(max_freshness_window_epochs),
+        "critical": True,
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+_ZUSD_ORACLE_CONSUMER_PROFILE_IDS: Dict[str, str] = {
+    "mint": _oracle_consumer_profile_id(action_kind="mint", max_freshness_window_epochs=2),
+    "liquidate_vault": _oracle_consumer_profile_id(
+        action_kind="liquidate_vault",
+        max_freshness_window_epochs=1,
+    ),
+}
+
+
 def _env_str(name: str, default: str) -> str:
     raw = os.environ.get(name)
     if raw is None:
@@ -85,29 +131,58 @@ def _env_bool(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
         return bool(default)
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(
+        f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
+    )
+
+
+def _env_bool_alias(primary: str, fallback: str, default: bool) -> bool:
+    if os.environ.get(primary, "").strip():
+        return _env_bool(primary, default)
+    return _env_bool(fallback, default)
 
 
 def _env_float(name: str, default: float, *, lo: float, hi: float) -> float:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return float(default)
-    try:
-        value = float(raw.strip())
-    except Exception:
-        return float(default)
-    return min(max(value, lo), hi)
+        value = float(default)
+    else:
+        try:
+            value = float(raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{name} must be a finite float in [{lo}, {hi}]; got {raw!r}"
+            ) from exc
+    if not math.isfinite(value) or value < lo or value > hi:
+        raise ValueError(f"{name} must be finite and in [{lo}, {hi}]; got {value!r}")
+    return float(value)
+
+
+def _env_float_alias(primary: str, fallback: str, default: float, *, lo: float, hi: float) -> float:
+    if os.environ.get(primary, "").strip():
+        return _env_float(primary, default, lo=lo, hi=hi)
+    return _env_float(fallback, default, lo=lo, hi=hi)
 
 
 def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return int(default)
-    try:
-        value = int(raw.strip())
-    except Exception:
-        return int(default)
-    return min(max(value, lo), hi)
+        value = int(default)
+    else:
+        try:
+            value = int(raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{name} must be an integer in [{lo}, {hi}]; got {raw!r}"
+            ) from exc
+    if value < lo or value > hi:
+        raise ValueError(f"{name} must be in [{lo}, {hi}]; got {value}")
+    return int(value)
 
 
 def _env_int_alias(primary: str, fallback: str, default: int, *, lo: int, hi: int) -> int:
@@ -118,6 +193,230 @@ def _env_int_alias(primary: str, fallback: str, default: int, *, lo: int, hi: in
 
 def _hash_payload(domain: str, payload: Mapping[str, Any]) -> str:
     return sha256_hex(domain_sep_bytes(domain) + canonical_json_bytes(dict(payload)))
+
+
+def _oracle_authorization_required() -> bool:
+    return _env_bool_alias(
+        "ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED",
+        "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+        False,
+    )
+
+
+def _operation_bound_args(operation: Mapping[str, Any]) -> Dict[str, Any]:
+    return {
+        str(key): value
+        for key, value in operation.items()
+        if key not in {"oracle_authorization", "oracle_adapter_bridge"}
+    }
+
+
+def _oracle_action_kind(action: str) -> str:
+    return _ZUSD_ORACLE_ADAPTER_ACTIONS.get(action, action)
+
+
+def _oracle_runtime_value_e8(zusd_state: ZUSDMonetaryState, *, action: str, operation: Mapping[str, Any]) -> int | None:
+    core = zusd_state.core
+    if action in {"bootstrap_oracle", "oracle_report"}:
+        value = operation.get("price_e8")
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            return int(value)
+        return None
+    if action == "oracle_commit":
+        return int(core.price_pending_e8) if int(core.price_pending_e8) > 0 else None
+    if action == "mint_zusd":
+        return int(core.price_e8) if int(core.price_e8) > 0 else None
+    if action == "liquidate":
+        return int(core.price_pending_e8) if int(core.price_pending_e8) > 0 else None
+    return None
+
+
+def _oracle_pre_state_hash(zusd_state: ZUSDMonetaryState) -> str:
+    return semantic_hash(
+        "zenodex.zusd_monetary.pre_state.v1",
+        {"state": zusd_monetary_state_to_obj(zusd_state)},
+    )
+
+
+def _oracle_action_facts_hash(
+    *,
+    zusd_state: ZUSDMonetaryState,
+    action: str,
+    action_kind: str,
+    operation: Mapping[str, Any],
+    query_id: str,
+    runtime_value_e8: int,
+) -> str:
+    core = zusd_state.core
+    return semantic_hash(
+        "zenodex.zusd_monetary.critical_action_facts.v1",
+        {
+            "action": action,
+            "action_kind": action_kind,
+            "operation": _operation_bound_args(operation),
+            "now_epoch": int(core.now_epoch),
+            "oracle_last_update_epoch": int(core.oracle_last_update_epoch),
+            "price_e8": int(core.price_e8),
+            "price_pending_e8": int(core.price_pending_e8),
+            "query_id": query_id,
+            "runtime_value_e8": int(runtime_value_e8),
+            "vault_owner_pubkey": zusd_state.vault_owner_pubkey,
+        },
+    )
+
+
+def _oracle_action_id(
+    *,
+    action_facts_hash: str,
+    pre_state_hash: str,
+    query_id: str,
+    runtime_value_e8: int,
+) -> str:
+    return semantic_hash(
+        "zenodex.zusd_monetary.action_id.v1",
+        {
+            "action_facts_hash": action_facts_hash,
+            "pre_state_hash": pre_state_hash,
+            "query_id": query_id,
+            "runtime_value_e8": int(runtime_value_e8),
+        },
+    )
+
+
+def _max_freshness_window_epochs_for_action(action_kind: str) -> int:
+    if action_kind == "liquidate_vault":
+        return 1
+    return 2
+
+
+def _oracle_profile_id_for_action(action_kind: str) -> str:
+    return _ZUSD_ORACLE_CONSUMER_PROFILE_IDS.get(action_kind, "critical-zusd-v1")
+
+
+def _zusd_state_for_runtime(app_state: Mapping[str, Any], *, config: ZUSDMonetaryConfig) -> ZUSDMonetaryState:
+    return _zusd_state_view(app_state) or init_monetary_state(config)
+
+
+def _oracle_runtime_facts(
+    *,
+    zusd_state: ZUSDMonetaryState,
+    action: str,
+    operation: Mapping[str, Any],
+) -> RuntimeActionFacts | None:
+    if action not in _ZUSD_ORACLE_AUTH_ACTIONS:
+        return None
+    runtime_value_e8 = _oracle_runtime_value_e8(zusd_state, action=action, operation=operation)
+    if runtime_value_e8 is None:
+        return None
+    action_kind = _oracle_action_kind(action)
+    query_id = _ORACLE_ZUSD_COLLATERAL_QUERY_ID
+    pre_state_hash = _oracle_pre_state_hash(zusd_state)
+    action_facts_hash = _oracle_action_facts_hash(
+        zusd_state=zusd_state,
+        action=action,
+        action_kind=action_kind,
+        operation=operation,
+        query_id=query_id,
+        runtime_value_e8=runtime_value_e8,
+    )
+    return RuntimeActionFacts(
+        consumer_module="zenodex.zusd",
+        action_kind=action_kind,
+        action_id=_oracle_action_id(
+            action_facts_hash=action_facts_hash,
+            pre_state_hash=pre_state_hash,
+            query_id=query_id,
+            runtime_value_e8=runtime_value_e8,
+        ),
+        action_facts_hash=action_facts_hash,
+        pre_state_hash=pre_state_hash,
+        profile_id=_oracle_profile_id_for_action(action_kind),
+        query_id=query_id,
+        runtime_value_e8=int(runtime_value_e8),
+        now_epoch=int(zusd_state.core.now_epoch),
+        max_freshness_window_epochs=_max_freshness_window_epochs_for_action(action_kind),
+    )
+
+
+def _oracle_runtime_report(
+    *,
+    runtime: RuntimeActionFacts | None,
+    auth_result: Mapping[str, Any] | None = None,
+) -> Dict[str, Any]:
+    if runtime is None:
+        return {
+            "required": False,
+            "consumer_module": "zenodex.zusd",
+            "query_id": _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
+            "runtime_action": None,
+            "authorization_check": None,
+        }
+    return {
+        "required": _oracle_authorization_required(),
+        "consumer_module": runtime.consumer_module,
+        "action_kind": runtime.action_kind,
+        "query_id": runtime.query_id,
+        "profile_id": runtime.profile_id,
+        "runtime_value_e8": int(runtime.runtime_value_e8),
+        "now_epoch": int(runtime.now_epoch),
+        "action_id": runtime.action_id,
+        "action_facts_hash": runtime.action_facts_hash,
+        "pre_state_hash": runtime.pre_state_hash,
+        "max_freshness_window_epochs": runtime.max_freshness_window_epochs,
+        "required_evidence_floor": "O3",
+        "runtime_action": asdict(runtime),
+        "authorization_check": dict(auth_result) if auth_result is not None else None,
+    }
+
+
+def _check_oracle_authorization(
+    *,
+    body: Mapping[str, Any],
+    runtime: RuntimeActionFacts | None,
+    enforce: bool,
+) -> tuple[str | None, Dict[str, Any]]:
+    if runtime is None:
+        return None, _oracle_runtime_report(runtime=None)
+    required = _oracle_authorization_required()
+    auth_obj = body.get("oracle_authorization")
+    if auth_obj is None:
+        if required and enforce:
+            return "oracle_authorization_required", _oracle_runtime_report(runtime=runtime)
+        return None, _oracle_runtime_report(runtime=runtime)
+    if not isinstance(auth_obj, Mapping):
+        if enforce:
+            return "oracle_authorization must be an object", _oracle_runtime_report(runtime=runtime)
+        return None, _oracle_runtime_report(runtime=runtime)
+    try:
+        result = check_critical_consumer_authorization(
+            auth_obj,
+            consumer_module=runtime.consumer_module,
+            action_kind=runtime.action_kind,
+            action_id=runtime.action_id,
+            action_facts_hash=runtime.action_facts_hash,
+            pre_state_hash=runtime.pre_state_hash,
+            profile_id=runtime.profile_id,
+            query_id=runtime.query_id,
+            runtime_value_e8=runtime.runtime_value_e8,
+            now_epoch=runtime.now_epoch,
+            runtime_notional_value_e8=runtime.runtime_notional_value_e8,
+            max_freshness_window_epochs=runtime.max_freshness_window_epochs,
+            require_receipt_graph=True,
+        )
+    except Exception as exc:
+        if enforce:
+            return f"oracle_authorization_rejected: {type(exc).__name__}: {exc}", _oracle_runtime_report(runtime=runtime)
+        return None, _oracle_runtime_report(runtime=runtime)
+    if result.get("typed_ok") is True:
+        return None, _oracle_runtime_report(runtime=runtime, auth_result=result)
+    errors = result.get("typed_errors")
+    if isinstance(errors, list) and errors:
+        detail = ",".join(str(error) for error in errors)
+    else:
+        detail = "typed authorization rejected"
+    if enforce:
+        return f"oracle_authorization_rejected:{detail}", _oracle_runtime_report(runtime=runtime, auth_result=result)
+    return None, _oracle_runtime_report(runtime=runtime, auth_result=result)
 
 
 def _zusd_proof_profile() -> dict[str, Any]:
@@ -239,15 +538,17 @@ def _tau_client() -> TauNetTcpClient:
     return TauNetTcpClient(
         TauNetTcpConfig(
             host=_env_str("ZUSD_MONETARY_WALLET_TAU_HOST", _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1")),
-            port=_env_int(
+            port=_env_int_alias(
                 "ZUSD_MONETARY_WALLET_TAU_PORT",
-                _env_int("ZUSD_TAU_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
+                "ZUSD_TAU_WALLET_TAU_PORT",
+                65432,
                 lo=1,
                 hi=65535,
             ),
-            timeout_s=_env_float(
+            timeout_s=_env_float_alias(
                 "ZUSD_MONETARY_WALLET_TAU_TIMEOUT_S",
-                _env_float("ZUSD_TAU_WALLET_TAU_TIMEOUT_S", 3.0, lo=0.1, hi=60.0),
+                "ZUSD_TAU_WALLET_TAU_TIMEOUT_S",
+                3.0,
                 lo=0.1,
                 hi=60.0,
             ),
@@ -260,16 +561,37 @@ def _tau_chain_id() -> str:
 
 
 def _allow_signing() -> bool:
-    return _env_bool("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", _env_bool("ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING", False))
+    return _env_bool_alias(
+        "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING",
+        "ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING",
+        False,
+    )
 
 
 def _auto_mine() -> bool:
-    return _env_bool("ZUSD_MONETARY_WALLET_AUTO_MINE", _env_bool("ZUSD_TAU_WALLET_AUTO_MINE", False))
+    return _env_bool_alias(
+        "ZUSD_MONETARY_WALLET_AUTO_MINE",
+        "ZUSD_TAU_WALLET_AUTO_MINE",
+        False,
+    )
 
 
 def _default_deadline() -> int:
     delta = _env_int("ZUSD_MONETARY_WALLET_DEFAULT_DEADLINE_S", 3600, lo=1, hi=86_400)
     return int(time.time()) + int(delta)
+
+
+def _query_first(query: str, key: str) -> str | None:
+    """Return the first value for ``key`` in a URL query string, or None.
+
+    Blank values are treated as absent so an empty ``?account=`` behaves like an
+    unauthenticated status request rather than a malformed account.
+    """
+    values = parse_qs(query).get(key)
+    if not values:
+        return None
+    first = values[0].strip()
+    return first or None
 
 
 def _canonical_pubkey(value: object, *, name: str) -> str:
@@ -612,7 +934,13 @@ def _preflight(
         return {"ok": False, "error": str(exc), "effects": []}
 
 
-def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dict[str, Any]:
+def _build_prepare_response(
+    body: Mapping[str, Any],
+    *,
+    for_submit: bool,
+    bind_zk: bool = True,
+    enforce_oracle_authorization: bool = True,
+) -> Dict[str, Any]:
     action = _request_action(body)
     actor_pubkey = _actor_pubkey_for_action(body, action=action)
     deadline = _request_u32(body, name="deadline", default=_default_deadline())
@@ -655,6 +983,19 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     fee_limit_posture = _fee_limit_posture(tx_fee_limit=tx_fee_limit, native_balance=native_balance)
     operation = _build_operation(body, action=action, actor_pubkey=actor_pubkey, nonce=nonce, deadline=deadline)
     operations = {_STREAM_KEY: [operation]}
+    zusd_runtime_state = _zusd_state_for_runtime(app_state, config=config)
+    oracle_runtime = _oracle_runtime_facts(
+        zusd_state=zusd_runtime_state,
+        action=action,
+        operation=operation,
+    )
+    oracle_error, oracle_report = _check_oracle_authorization(
+        body=body,
+        runtime=oracle_runtime,
+        enforce=enforce_oracle_authorization,
+    )
+    if oracle_error is not None:
+        raise ValueError(oracle_error)
     block_timestamp = int(body.get("block_timestamp") if isinstance(body.get("block_timestamp"), int) else int(time.time()))
     preflight = _preflight(
         app_state=app_state,
@@ -721,9 +1062,10 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "signing_mode": signing_mode,
             "auto_mine": _auto_mine(),
             "tau_host": _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1")),
-            "tau_port": _env_int(
+            "tau_port": _env_int_alias(
                 "ZUSD_MONETARY_WALLET_TAU_PORT",
-                _env_int("ZUSD_TAU_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
+                "ZUSD_TAU_WALLET_TAU_PORT",
+                65432,
                 lo=1,
                 hi=65535,
             ),
@@ -740,6 +1082,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "fee_limit": fee_limit_posture,
             "tau_tx_payload": tau_tx_payload,
         },
+        "oracle_runtime": oracle_report,
         "proof": {
             "profile": _zusd_proof_profile(),
             "intent_receipt": _zusd_proof_intent_receipt(
@@ -761,8 +1104,9 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             ),
         },
     }
-    zk_required = live_zk_proof_required(env_prefix=_ZUSD_ZK_PROOF_ENV_PREFIX)
-    payload = _bind_live_zk_wrapper(payload, body=body, required=zk_required)
+    if bind_zk:
+        zk_required = live_zk_proof_required(env_prefix=_ZUSD_ZK_PROOF_ENV_PREFIX)
+        payload = _bind_live_zk_wrapper(payload, body=body, required=zk_required)
     if for_submit:
         send_resp = client.sendtx(cast(Mapping[str, Any], tau_tx_payload))
         payload["submission"] = {"sendtx_response": send_resp}
@@ -791,11 +1135,12 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             signing_mode=signing_mode,
             tau_tx_payload=tau_tx_payload,
         )
-        payload = _bind_live_zk_wrapper(payload, body=body, required=False)
+        if bind_zk:
+            payload = _bind_live_zk_wrapper(payload, body=body, required=False)
     return payload
 
 
-def _status_payload() -> Dict[str, Any]:
+def _status_payload(account: str | None = None) -> Dict[str, Any]:
     chain_id = _tau_chain_id()
     asset_id = derive_zusd_tau_asset_id(chain_id=chain_id)
     sp_pubkey = stability_pool_pubkey(chain_id=chain_id)
@@ -818,9 +1163,10 @@ def _status_payload() -> Dict[str, Any]:
         "chain_id": chain_id,
         "asset_id": asset_id,
         "tau_host": _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1")),
-        "tau_port": _env_int(
+        "tau_port": _env_int_alias(
             "ZUSD_MONETARY_WALLET_TAU_PORT",
-            _env_int("ZUSD_TAU_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
+            "ZUSD_TAU_WALLET_TAU_PORT",
+            65432,
             lo=1,
             hi=65535,
         ),
@@ -833,6 +1179,14 @@ def _status_payload() -> Dict[str, Any]:
         "liquidation_gas_comp_fixed_collateral_e8": liquidation_fee_comp_fixed_collateral_e8,
         "liquidation_gas_comp_bps": liquidation_fee_comp_bps,
         "proof_profile": _zusd_proof_profile(),
+        "oracle_consumer": {
+            "authorization_required": _oracle_authorization_required(),
+            "consumer_module": "zenodex.zusd",
+            "query_id": _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
+            "required_evidence_floor": "O3",
+            "critical_actions": sorted(_ZUSD_ORACLE_AUTH_ACTIONS),
+            "profile_ids": dict(_ZUSD_ORACLE_CONSUMER_PROFILE_IDS),
+        },
     }
     try:
         client = _tau_client()
@@ -852,6 +1206,27 @@ def _status_payload() -> Dict[str, Any]:
             status["vault_owner_pubkey"] = zusd_state.vault_owner_pubkey
             status["sp_deposits_e8"] = dict(zusd_state.sp_deposits_e8 or {})
             status["sp_collateral_claims_e8"] = dict(zusd_state.sp_collateral_claims_e8 or {})
+        if account:
+            # Account-aware monetary view: the connected wallet's zUSD balance,
+            # stability-pool deposit/claim, and vault-owner flag (mirrors the pool
+            # surface resolving balances for the connected account).
+            account_key = account.strip().lower()
+            status["account"] = account
+            status["account_view"] = {
+                "account": account,
+                "zusd_balance": int(balances.get(account_key, 0)),
+                "sp_deposit_e8": int((zusd_state.sp_deposits_e8 or {}).get(account_key, 0))
+                if zusd_state is not None
+                else 0,
+                "sp_collateral_claim_e8": int((zusd_state.sp_collateral_claims_e8 or {}).get(account_key, 0))
+                if zusd_state is not None
+                else 0,
+                "is_vault_owner": bool(
+                    zusd_state is not None
+                    and isinstance(zusd_state.vault_owner_pubkey, str)
+                    and zusd_state.vault_owner_pubkey.strip().lower() == account_key
+                ),
+            }
     except Exception as exc:
         status["node_reachable"] = False
         status["error"] = f"{type(exc).__name__}: {exc}"
@@ -867,7 +1242,14 @@ def handle_zusd_monetary_wallet_request(method: str, path: str, body: Optional[b
     rest = segments[3:]
     try:
         if method == "GET" and rest == ["status"]:
-            return 200, {"ok": True, "status": _status_payload()}
+            # Account-aware status: resolve the connected wallet's zUSD balance and
+            # stability-pool position for ?account=<pubkey>. Fail closed on a
+            # malformed account rather than silently dropping it.
+            account_param = _query_first(parsed_path.query, "account")
+            account: str | None = None
+            if account_param:
+                account = _canonical_pubkey(account_param, name="account")
+            return 200, {"ok": True, "status": _status_payload(account)}
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
         parsed, err = _parse_json_body(body)
@@ -877,6 +1259,13 @@ def handle_zusd_monetary_wallet_request(method: str, path: str, body: Optional[b
             return 400, {"ok": False, "error": "bad_json"}
         if rest == ["prepare"]:
             return 200, _build_prepare_response(parsed, for_submit=False)
+        if rest == ["oracle-runtime"]:
+            return 200, _build_prepare_response(
+                parsed,
+                for_submit=False,
+                bind_zk=False,
+                enforce_oracle_authorization=False,
+            )
         if rest == ["submit"]:
             return 200, _build_prepare_response(parsed, for_submit=True)
         return 404, {"ok": False, "error": "not_found"}

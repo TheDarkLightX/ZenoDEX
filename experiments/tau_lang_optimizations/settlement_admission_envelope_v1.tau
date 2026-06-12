@@ -1,0 +1,57 @@
+# Experimental settlement admission envelope v1
+#
+# Purpose:
+# - compose high-level admission obligations before a settlement attempt;
+# - keep heavy checks in the host/verifier and pass Tau sbf flags;
+# - expose diagnostic outputs so operators can see which fiber failed.
+#
+# Stream mapping:
+# i1  = action_swap (sbf)
+# i2  = action_add_liquidity (sbf)
+# i3  = action_remove_liquidity (sbf)
+# i4  = action_cancel (sbf)
+# i5  = sender_auth_ok (sbf)
+# i6  = nonce_ok (sbf)
+# i7  = expiry_ok (sbf)
+# i8  = replay_not_seen_ok (sbf)
+# i9  = pause_clear (sbf)
+# i10 = oracle_fresh_ok (sbf)
+# i11 = settlement_window_ok (sbf)
+# i12 = route_ok (sbf)
+# i13 = quote_receipt_ok (sbf)
+# i14 = pool_snapshot_ok (sbf)
+# i15 = max_hops_ok (sbf)
+# i16 = slippage_ok (sbf)
+# i17 = fee_cap_ok (sbf)
+# i18 = amount_positive_ok (sbf)
+# i19 = liquidity_sufficient_ok (sbf)
+# i20 = risk_budget_ok (sbf)
+# i21 = proof_ok (sbf)
+# i22 = binding_ok (sbf)
+# i23 = balance_ok (sbf)
+# i24 = token_admitted_ok (sbf)
+#
+# o1 = action_shape_ok
+# o2 = identity_replay_ok
+# o3 = time_oracle_ok
+# o4 = route_quote_ok
+# o5 = economic_bounds_ok
+# o6 = proof_package_ok
+# o7 = asset_state_ok
+# o8 = settlement_admission_ok
+
+set charvar off
+
+on(x : sbf) := x = 1:sbf.
+off(x : sbf) := x = 0:sbf.
+one_hot_4(a : sbf, b : sbf, c : sbf, d : sbf) := (on(a) && off(b) && off(c) && off(d)) || (off(a) && on(b) && off(c) && off(d)) || (off(a) && off(b) && on(c) && off(d)) || (off(a) && off(b) && off(c) && on(d)).
+
+always
+  (o1[t]:sbf = 1:sbf <-> one_hot_4(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)) &&
+  (o2[t]:sbf = i5[t]:sbf & i6[t]:sbf & i8[t]:sbf) &&
+  (o3[t]:sbf = i7[t]:sbf & i10[t]:sbf & i11[t]:sbf) &&
+  (o4[t]:sbf = i12[t]:sbf & i13[t]:sbf & i14[t]:sbf & i15[t]:sbf) &&
+  (o5[t]:sbf = i16[t]:sbf & i17[t]:sbf & i18[t]:sbf & i19[t]:sbf & i20[t]:sbf) &&
+  (o6[t]:sbf = i21[t]:sbf & i22[t]:sbf) &&
+  (o7[t]:sbf = i23[t]:sbf & i24[t]:sbf) &&
+  (o8[t]:sbf = i9[t]:sbf & o1[t]:sbf & o2[t]:sbf & o3[t]:sbf & o4[t]:sbf & o5[t]:sbf & o6[t]:sbf & o7[t]:sbf).

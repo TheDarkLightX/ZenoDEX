@@ -1,0 +1,53 @@
+{
+  "schema": "zenodex/cbc-surface-evidence/v1",
+  "scope_id": "spot_dex",
+  "note": "HONEST work-tracker for the spot-DEX production-claim scope (Phase 0 of docs/PRODUCTION_PROMOTION_PLAN.md). Every column is verified:false until its artifact is GENUINELY checked and bound to the running implementation — refs below are CANDIDATE artifacts, not cleared evidence. The gate (tools/gate_cbc_matrix_closure.py) computes the per-surface and scope claims from this file; it fails closed while any column is unverified. Flip a column to verified:true ONLY when a replayable check proves it clears, per the per-surface promotion checklist. Do not hand-set verified:true.",
+  "surfaces": {
+    "cpmm_swap": {
+      "running_impl": {"ref": "src/core/cpmm.py", "verified": false, "note": "impl identified; needs documented authority-path entry + spec binding"},
+      "formal_spec": {"ref": "src/tau_specs/cpmm_v1.tau", "verified": false, "note": "Tau spec + src/kernels/dex/cpmm_output_amount_v2.yaml exist; not yet cross-checked as the authoritative spec"},
+      "proof_artifact": {"ref": "lean-mathlib/Proofs/CPMMInvariants.lean; src/kernels/dex/cpmm_output_amount_v2.synth.json", "verified": false, "note": "Lean theorems + Z3/CVC5 receipt exist but are NOT mechanically bound to the running cpmm.py (proven_refinement open)"},
+      "differential_tests": {"ref": "tests/runtime/test_cpmm_settlement_conformance.py", "verified": false, "note": "candidate; needs running-impl vs verified-spec differential on recorded blocks"},
+      "runtime_invariants": {"ref": "src/tau_specs/cpmm_v1.tau", "verified": false, "note": "needs enforced pre/post invariant checks in the authority path"},
+      "authority_mode": {"ref": "config/deploy/production-strict.yaml", "verified": false, "note": "default python_authority; authority_mode field not yet declared/flipped"},
+      "open_gaps_closed": false
+    },
+    "balances": {
+      "running_impl": {"ref": "src/state/balances.py; src/core/balance_kernel.py", "verified": false, "note": "impl identified"},
+      "formal_spec": {"ref": "experiments/cbc_core_v0/balance_kernel/", "verified": false, "note": "CBC core v0 spec exists; needs binding"},
+      "proof_artifact": {"ref": "experiments/cbc_core_v0/balance_kernel/ (Kani); Lean Σ-conservation", "verified": false, "note": "Kani harness + Lean exist; refinement binding to running code open"},
+      "differential_tests": {"ref": "tests/runtime/test_balance_kernel_conformance.py", "verified": false, "note": "candidate conformance/differential"},
+      "runtime_invariants": {"ref": "sum_balances_before(asset) == sum_balances_after(asset)", "verified": false, "note": "conservation invariant; needs enforced runtime check"},
+      "authority_mode": {"ref": "config/deploy/production-strict.yaml", "verified": false, "note": "default python_authority"},
+      "open_gaps_closed": false
+    },
+    "state_root": {
+      "running_impl": {"ref": "src/state/state_root.py", "verified": false, "note": "impl identified"},
+      "formal_spec": {"ref": "src/kernels/dex/ (state-root field-list spec, TBD)", "verified": false, "note": "ESSO spec for the full field list not yet authored"},
+      "proof_artifact": {"ref": "(TBD: Z3/CVC5 receipt for determinism + completeness)", "verified": false, "note": "no proof artifact yet"},
+      "differential_tests": {"ref": "tests/runtime/test_state_root_vectors.py", "verified": false, "note": "vectors exist; needs spec differential"},
+      "runtime_invariants": {"ref": "state_root(post_state) == receipt.post_state_root", "verified": false, "note": "needs enforced runtime check"},
+      "authority_mode": {"ref": "config/deploy/production-strict.yaml", "verified": false, "note": "default python_authority"},
+      "open_gaps_closed": false,
+      "blocking_gap": "D-CANON-002: state root omits fee_accumulator/oracle/vault/perps; must be closed before this surface can clear."
+    },
+    "nonces": {
+      "running_impl": {"ref": "src/state/nonces.py", "verified": false, "note": "impl identified"},
+      "formal_spec": {"ref": "(TBD: monotonic-increment ESSO spec)", "verified": false, "note": "spec not yet authored"},
+      "proof_artifact": {"ref": "(TBD)", "verified": false, "note": "no proof artifact yet"},
+      "differential_tests": {"ref": "(TBD)", "verified": false, "note": "candidate"},
+      "runtime_invariants": {"ref": "nonce_after(sender) == nonce_before(sender) + 1", "verified": false, "note": "needs enforced runtime check"},
+      "authority_mode": {"ref": "config/deploy/production-strict.yaml", "verified": false, "note": "default python_authority"},
+      "open_gaps_closed": false
+    },
+    "replay_guard": {
+      "running_impl": {"ref": "src/core/replay_guard.py", "verified": false, "note": "impl identified"},
+      "formal_spec": {"ref": "experiments/cbc_core_v0/replay_guard/", "verified": false, "note": "CBC core v0 spec exists; needs binding"},
+      "proof_artifact": {"ref": "experiments/cbc_core_v0/replay_guard/ (Kani 5/5)", "verified": false, "note": "Kani harness exists; refinement binding to running code open"},
+      "differential_tests": {"ref": "tests/runtime/test_replay_guard_conformance.py", "verified": false, "note": "candidate conformance/differential"},
+      "runtime_invariants": {"ref": "reject-is-no-op; replayed tx does not double-apply", "verified": false, "note": "needs enforced runtime check"},
+      "authority_mode": {"ref": "config/deploy/production-strict.yaml", "verified": false, "note": "default python_authority"},
+      "open_gaps_closed": false
+    }
+  }
+}

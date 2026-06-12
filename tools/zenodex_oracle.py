@@ -2495,6 +2495,136 @@ def _authorization_bundle_from_read(
     return bundle
 
 
+def _assert_public_oracle_authorization_bundle(bundle: Mapping[str, Any]) -> None:
+    if bundle.get("schema") != "zeno_oracle.oracle_authorization_bundle.v1":
+        raise SystemExit("oracle authorization bundle schema mismatch")
+    if not isinstance(bundle.get("authorization"), Mapping):
+        raise SystemExit("oracle authorization bundle missing authorization")
+    if not isinstance(bundle.get("runtime_action"), Mapping):
+        raise SystemExit("oracle authorization bundle missing runtime_action")
+    if not isinstance(bundle.get("receipt_graph"), Mapping):
+        raise SystemExit("oracle authorization bundle missing receipt_graph")
+    if not _is_hash(bundle.get("authorization_id")):
+        raise SystemExit("oracle authorization bundle authorization_id must be sha256")
+
+
+def _write_oracle_authorization_bundle(path: Path, bundle: Mapping[str, Any]) -> None:
+    _assert_public_oracle_authorization_bundle(bundle)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(bundle, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _append_oracle_authorization_bundle(path: Path, bundle: Mapping[str, Any]) -> None:
+    _assert_public_oracle_authorization_bundle(bundle)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(bundle, sort_keys=True, separators=(",", ":")))
+        handle.write("\n")
+
+
+def _emit_oracle_authorization_result(payload: Mapping[str, Any], *, json_out: bool) -> None:
+    if json_out:
+        print(json.dumps(payload, sort_keys=True, indent=2))
+        return
+    _emit(payload, json_out=False)
+
+
+def _nonnegative_int_field(obj: Mapping[str, Any], key: str) -> int:
+    value = obj.get(key)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise SystemExit(f"runtime_action {key} must be a non-negative integer")
+    return int(value)
+
+
+def _runtime_action_from_obj(value: object) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise SystemExit("runtime_action must be a JSON object")
+    runtime = dict(value)
+    required_text = (
+        "consumer_module",
+        "action_kind",
+        "action_id",
+        "action_facts_hash",
+        "pre_state_hash",
+        "profile_id",
+        "query_id",
+    )
+    for key in required_text:
+        if not isinstance(runtime.get(key), str) or not str(runtime[key]):
+            raise SystemExit(f"runtime_action {key} must be a non-empty string")
+    for key in ("action_id", "action_facts_hash", "pre_state_hash", "query_id"):
+        if not _is_hash(runtime[key]):
+            raise SystemExit(f"runtime_action {key} must be a sha256 reference")
+    runtime["runtime_value_e8"] = _nonnegative_int_field(runtime, "runtime_value_e8")
+    runtime["now_epoch"] = _nonnegative_int_field(runtime, "now_epoch")
+    return runtime
+
+
+def _runtime_action_from_args(args: argparse.Namespace) -> dict[str, Any]:
+    direct = getattr(args, "runtime_action", None)
+    if direct is not None:
+        return _runtime_action_from_obj(direct)
+    raw_json = getattr(args, "runtime_action_json", None)
+    raw_file = getattr(args, "runtime_action_file", None)
+    if raw_file:
+        return _runtime_action_from_obj(_load_json(Path(raw_file)))
+    if raw_json:
+        try:
+            return _runtime_action_from_obj(json.loads(raw_json))
+        except json.JSONDecodeError as exc:
+            raise SystemExit(f"runtime-action-json invalid: {exc.msg}") from exc
+    raise SystemExit("runtime_action is required")
+
+
+def _read_int_field(read: Mapping[str, Any], key: str) -> int | None:
+    value = read.get(key)
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return int(value)
+
+
+def _read_matches_runtime(read: Mapping[str, Any], runtime: Mapping[str, Any]) -> bool:
+    for key in ("consumer_module", "profile_id", "query_id"):
+        if str(read.get(key, "")) != str(runtime[key]):
+            return False
+    if _read_int_field(read, "value_e8") != int(runtime["runtime_value_e8"]):
+        return False
+    observed_epoch = _read_int_field(read, "observed_epoch")
+    expires_at_epoch = _read_int_field(read, "expires_at_epoch")
+    now_epoch = int(runtime["now_epoch"])
+    if observed_epoch is None or expires_at_epoch is None:
+        return False
+    if observed_epoch > now_epoch or expires_at_epoch < now_epoch:
+        return False
+    return True
+
+
+def _select_read_for_runtime(
+    *,
+    home: Path,
+    runtime: Mapping[str, Any],
+    read_id: str | None,
+) -> dict[str, Any]:
+    if read_id:
+        read = _reads_by_id(home).get(read_id)
+        if not isinstance(read, dict):
+            raise SystemExit(f"read_id not found: {read_id}")
+        if not _read_matches_runtime(read, runtime):
+            raise SystemExit("read_id does not match runtime_action")
+        return read
+    matches = [read for read in _iter_jsonl(_reads_log_path(home)) if _read_matches_runtime(read, runtime)]
+    if not matches:
+        raise SystemExit("no accepted read matches runtime_action")
+    return max(
+        matches,
+        key=lambda read: (
+            int(read.get("expires_at_epoch", 0)),
+            int(read.get("observed_epoch", 0)),
+            str(read.get("read_id", "")),
+        ),
+    )
+
+
 def cmd_authorization_build(args: argparse.Namespace) -> int:
     home = _home(args)
     read = _reads_by_id(home).get(args.read_id)
@@ -2522,9 +2652,9 @@ def cmd_authorization_build(args: argparse.Namespace) -> int:
     if semantic_check.get("typed_ok") is not True:
         raise SystemExit("generated OracleAuthorization failed semantic binding check")
     receipt_path = home / "receipts" / "authorizations" / f"{bundle['authorization_id'].replace(':', '_')}.json"
-    _write_json(receipt_path, bundle)
-    _append_jsonl(_authorizations_log_path(home), bundle)
-    _emit(
+    _write_oracle_authorization_bundle(receipt_path, bundle)
+    _append_oracle_authorization_bundle(_authorizations_log_path(home), bundle)
+    _emit_oracle_authorization_result(
         {
             "schema": SCHEMA,
             "ok": True,
@@ -2532,6 +2662,57 @@ def cmd_authorization_build(args: argparse.Namespace) -> int:
             "authorization_id": bundle["authorization_id"],
             "receipt_path": str(receipt_path),
             "authorization": bundle["authorization"],
+            "receipt_graph": bundle["receipt_graph"],
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_authorization_build_from_runtime(args: argparse.Namespace) -> int:
+    home = _home(args)
+    runtime = _runtime_action_from_args(args)
+    read = _select_read_for_runtime(
+        home=home,
+        runtime=runtime,
+        read_id=getattr(args, "read_id", None),
+    )
+    aggregate = _aggregates_by_id(home).get(str(read.get("aggregate_id")))
+    if _aggregate_has_disputed_reports(home, aggregate):
+        raise SystemExit("accepted read aggregate includes open or upheld disputed reports")
+    _require_evidence_at_least(
+        str(read.get("evidence_class", "")),
+        str(getattr(args, "min_evidence_class", "O3")),
+    )
+    bundle = _authorization_bundle_from_read(
+        home=home,
+        read=read,
+        action_kind=str(runtime["action_kind"]),
+        action_id=str(runtime["action_id"]),
+        action_facts_hash=str(runtime["action_facts_hash"]),
+        pre_state_hash=str(runtime["pre_state_hash"]),
+        now_epoch=int(runtime["now_epoch"]),
+        economic_envelope_id=str(getattr(args, "economic_envelope_id", "econ:local-dev-v1")),
+    )
+    from tools.check_oracle_authorization_semantic_binding import check_authorization_payload
+
+    semantic_check = check_authorization_payload(bundle)
+    bundle["semantic_check"] = semantic_check
+    if semantic_check.get("typed_ok") is not True:
+        raise SystemExit("generated OracleAuthorization failed semantic binding check")
+    receipt_path = home / "receipts" / "authorizations" / f"{bundle['authorization_id'].replace(':', '_')}.json"
+    _write_oracle_authorization_bundle(receipt_path, bundle)
+    _append_oracle_authorization_bundle(_authorizations_log_path(home), bundle)
+    _emit_oracle_authorization_result(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "authorization_id": bundle["authorization_id"],
+            "receipt_path": str(receipt_path),
+            "authorization": bundle["authorization"],
+            "runtime_action": bundle["runtime_action"],
             "receipt_graph": bundle["receipt_graph"],
             "production_authority": False,
         },
@@ -4615,6 +4796,20 @@ def _write_endpoint_payload(home: Path, path: str, body: Mapping[str, Any]) -> t
                 json=True,
             ),
         )
+    if path == "/api/oracle/authorization/build-from-runtime":
+        return _command_json(
+            cmd_authorization_build_from_runtime,
+            argparse.Namespace(
+                home=str(home),
+                read_id=body.get("read_id"),
+                runtime_action=body.get("runtime_action"),
+                runtime_action_file=None,
+                runtime_action_json=None,
+                min_evidence_class=str(body.get("min_evidence_class", "O3")),
+                economic_envelope_id=str(body.get("economic_envelope_id", "econ:local-dev-v1")),
+                json=True,
+            ),
+        )
     if path == "/api/oracle/report/submit":
         return _command_json(
             cmd_report_submit,
@@ -4650,6 +4845,7 @@ def _write_endpoint_payload(home: Path, path: str, body: Mapping[str, Any]) -> t
                 "/api/oracle/aggregate/build",
                 "/api/oracle/read/accept",
                 "/api/oracle/authorization/build",
+                "/api/oracle/authorization/build-from-runtime",
                 "/api/oracle/report/submit",
             ],
             "production_authority": False,
@@ -4824,6 +5020,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
             "/api/oracle/aggregate/build",
             "/api/oracle/read/accept",
             "/api/oracle/authorization/build",
+            "/api/oracle/authorization/build-from-runtime",
             "/api/oracle/report/submit",
         ] if args.allow_writes else [],
         "authority_status": authority_status,
@@ -5039,6 +5236,17 @@ def build_parser() -> argparse.ArgumentParser:
     authorization_build.add_argument("--min-evidence-class", default="O3")
     authorization_build.add_argument("--economic-envelope-id", default="econ:local-dev-v1")
     authorization_build.set_defaults(func=cmd_authorization_build)
+    authorization_build_runtime = authorization_sub.add_parser(
+        "build-from-runtime",
+        help="bind the latest matching accepted read to runtime_action facts",
+    )
+    authorization_build_runtime.add_argument("--home", default=str(DEFAULT_HOME))
+    authorization_build_runtime.add_argument("--read-id")
+    authorization_build_runtime.add_argument("--runtime-action-json")
+    authorization_build_runtime.add_argument("--runtime-action-file")
+    authorization_build_runtime.add_argument("--min-evidence-class", default="O3")
+    authorization_build_runtime.add_argument("--economic-envelope-id", default="econ:local-dev-v1")
+    authorization_build_runtime.set_defaults(func=cmd_authorization_build_from_runtime)
 
     rewards = sub.add_parser("rewards", help="inspect local reporter rewards")
     rewards_sub = rewards.add_subparsers(dest="rewards_cmd", required=True)

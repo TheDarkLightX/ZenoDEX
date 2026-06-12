@@ -57,6 +57,7 @@ def _make_single_swap_setup() -> tuple[DexState, list[Intent], str, str, str, st
                 "asset_out": asset1,
                 "amount_in": 1000,
                 "min_amount_out": 1,
+                "nonce": 1,
             },
         )
     ]
@@ -90,8 +91,8 @@ def _make_two_create_pool_setup(
                 "asset0": asset0,
                 "asset1": asset1,
                 "fee_bps": 30,
-                "amount0": 1000,
-                "amount1": 1000,
+                "amount0": 1001,
+                "amount1": 1001,
                 **({"nonce": int(nonce_a)} if nonce_a is not None else {}),
             },
         ),
@@ -106,8 +107,8 @@ def _make_two_create_pool_setup(
                 "asset0": asset2,
                 "asset1": asset3,
                 "fee_bps": 30,
-                "amount0": 1000,
-                "amount1": 1000,
+                "amount0": 1001,
+                "amount1": 1001,
                 **({"nonce": int(nonce_b)} if nonce_b is not None else {}),
             },
         ),
@@ -150,6 +151,7 @@ def _make_snapshot_bound_quote_setup() -> tuple[DexState, list[Intent]]:
     )
     intent.fields.pop("quote_receipt_hash", None)
     intent.fields.pop("quote_receipt_leg_index", None)
+    intent.set_field("nonce", 1)
 
     balances = BalanceTable()
     balances.set(sender, "A", 10_000)

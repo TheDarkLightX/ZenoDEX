@@ -1,9 +1,11 @@
 """
 Balance accounting kernel (deterministic, integer-only).
 
-Authoritative / reference implementation of multi-asset balance transitions for
-the Rust runtime migration (Phase 6, surface 2). It is the transition form of
-``src/state/balances.py`` (the ``BalanceTable``): balances are keyed by
+Python reference implementation of multi-asset balance transitions for the Rust
+runtime migration (Phase 6, surface 2). By default it is still the runtime
+authority; deployment profiles may promote the Rust transition with Python
+shadow checking. It is the transition form of ``src/state/balances.py`` (the
+``BalanceTable``): balances are keyed by
 ``(pubkey, asset)`` and are non-negative; this kernel exposes the two operations
 that compose from ``BalanceTable.add`` / ``.subtract``:
 
@@ -27,7 +29,7 @@ Design rules honored here (see the migration "Hard Rules"):
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Union
+from typing import Any, Union
 
 from ..state.canonical import (
     canonical_hex_fixed_allow_0x,
@@ -51,9 +53,12 @@ __all__ = [
     "BalanceAccepted",
     "BalanceRejected",
     "BalanceResult",
+    "BALANCE_SURFACE",
     "credit",
     "transfer",
 ]
+
+BALANCE_SURFACE = "balances"
 
 # Bound balances and amounts so the Rust shadow's u128 arithmetic never wraps;
 # matches the fee-router bound for a shared, documented rejection boundary.
@@ -209,13 +214,109 @@ class BalanceRejected:
 BalanceResult = Union[BalanceAccepted, BalanceRejected]
 
 
+def _state_entries_json(state: BalanceState) -> list[dict[str, Any]]:
+    return [{"pubkey": e.pubkey, "asset": e.asset, "amount": e.amount} for e in state.entries]
+
+
+def _result_to_authority_doc(pre_state: BalanceState, result: BalanceResult) -> dict[str, Any]:
+    pre_root = pre_state.state_root()
+    if isinstance(result, BalanceAccepted):
+        return {
+            "version": 1,
+            "kernel": BALANCE_SURFACE,
+            "accept": True,
+            "reject_reason": None,
+            "receipt_hash": result.receipt.receipt_hash(),
+            "receipt": {
+                "kind": result.receipt.kind,
+                "sender": result.receipt.sender,
+                "recipient": result.receipt.recipient,
+                "asset": result.receipt.asset,
+                "amount": str(result.receipt.amount),
+            },
+            "pre_state_root": pre_root,
+            "post_state_root": result.state.state_root(),
+            "post_state_entries": [
+                {"pubkey": e.pubkey, "asset": e.asset, "amount": str(e.amount)}
+                for e in result.state.entries
+            ],
+        }
+    return {
+        "version": 1,
+        "kernel": BALANCE_SURFACE,
+        "accept": False,
+        "reject_reason": result.reason,
+        "receipt_hash": None,
+        "receipt": None,
+        "pre_state_root": pre_root,
+        "post_state_root": pre_root,
+        "post_state_entries": [
+            {"pubkey": e.pubkey, "asset": e.asset, "amount": str(e.amount)}
+            for e in pre_state.entries
+        ],
+    }
+
+
+def _authority_doc_to_result(doc: dict[str, Any]) -> BalanceResult:
+    if bool(doc.get("accept")):
+        receipt_doc = doc.get("receipt")
+        if not isinstance(receipt_doc, dict):
+            raise ValueError("accepted balances authority doc missing receipt")
+        entries = tuple(
+            _Entry(str(entry["pubkey"]), str(entry["asset"]), int(entry["amount"]))
+            for entry in doc.get("post_state_entries", [])
+        )
+        state = BalanceState(entries=entries)
+        sender = receipt_doc.get("sender")
+        receipt = BalanceReceipt(
+            kind=str(receipt_doc["kind"]),
+            sender=None if sender is None else str(sender),
+            recipient=str(receipt_doc["recipient"]),
+            asset=str(receipt_doc["asset"]),
+            amount=int(receipt_doc["amount"]),
+        )
+        return BalanceAccepted(receipt=receipt, state=state)
+    reason = doc.get("reject_reason")
+    if not isinstance(reason, str):
+        raise ValueError("rejected balances authority doc missing reason")
+    return BalanceRejected(reason)
+
+
+def _decide_balance(
+    *,
+    state: BalanceState,
+    tx: dict[str, Any],
+    python_fn,
+) -> BalanceResult:
+    from src.runtime.authority import AuthorityMode, active_mode, decide
+    from src.runtime.rust_invoker import balance_op
+
+    mode = active_mode(BALANCE_SURFACE)
+    if mode is AuthorityMode.PYTHON_AUTHORITY:
+        return python_fn()
+
+    def python_doc() -> dict[str, Any]:
+        return _result_to_authority_doc(state, python_fn())
+
+    def rust_doc() -> dict[str, Any]:
+        return balance_op(state_entries=_state_entries_json(state), tx=tx)
+
+    decision = decide(
+        BALANCE_SURFACE,
+        mode,
+        python_fn=python_doc,
+        rust_fn=rust_doc,
+    )
+    return _authority_doc_to_result(decision.result)
+
+
 def _validate_amount(amount: object) -> Union[str, None]:
     if not _is_plain_int(amount) or amount < 1 or amount > MAX_BALANCE:
         return REJ_INVALID_AMOUNT
     return None
 
 
-def credit(
+def _credit_python(
     *, state: BalanceState, recipient: str, asset: str, amount: int
 ) -> BalanceResult:
     """Credit ``amount`` of ``asset`` to ``recipient`` (funding primitive)."""
@@ -241,7 +342,18 @@ def credit(
     return BalanceAccepted(receipt=receipt, state=new_state)
 
 
-def transfer(
+def credit(
+    *, state: BalanceState, recipient: str, asset: str, amount: int
+) -> BalanceResult:
+    """Authority-routed credit transition."""
+    return _decide_balance(
+        state=state,
+        tx={"kind": KIND_CREDIT, "recipient": recipient, "asset": asset, "amount": amount},
+        python_fn=lambda: _credit_python(state=state, recipient=recipient, asset=asset, amount=amount),
+    )
+
+
+def _transfer_python(
     *, state: BalanceState, sender: str, recipient: str, asset: str, amount: int
 ) -> BalanceResult:
     """
@@ -280,3 +392,26 @@ def transfer(
     new_state = state._set(snd, ast, sender_balance - amount)._set(rcp, ast, new_recipient)
     receipt = BalanceReceipt(KIND_TRANSFER, snd, rcp, ast, amount)
     return BalanceAccepted(receipt=receipt, state=new_state)
+
+
+def transfer(
+    *, state: BalanceState, sender: str, recipient: str, asset: str, amount: int
+) -> BalanceResult:
+    """Authority-routed transfer transition."""
+    return _decide_balance(
+        state=state,
+        tx={
+            "kind": KIND_TRANSFER,
+            "sender": sender,
+            "recipient": recipient,
+            "asset": asset,
+            "amount": amount,
+        },
+        python_fn=lambda: _transfer_python(
+            state=state,
+            sender=sender,
+            recipient=recipient,
+            asset=asset,
+            amount=amount,
+        ),
+    )

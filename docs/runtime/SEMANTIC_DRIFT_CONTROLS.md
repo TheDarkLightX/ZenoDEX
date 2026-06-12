@@ -93,3 +93,8 @@ These fail on the buggy global-state model and pass on the keyed model.
 | `balances` | `(pubkey, asset)` | ✅ Python + Rust | ✅ static + 400-case |
 | `zusd` | single vault (CDP) | ✅ Python (supply conservation, balance-sheet deltas, no bad debt) | ✅ static + 500-case incl. >u128 |
 | `burn_receipts` | stateless rail tuple | ✅ Python (budget floor, supply conservation, accumulator, replay gate) | ✅ static + 600-case |
+| `cpmm_settlement` | single pool (`reserve0`, `reserve1`) | ✅ Python (constant-product non-decreasing, in-domain reserves, slippage admission, no-op-on-reject, fee bounded) | ✅ golden trace + shadow |
+| `canonical` | per-value (stateless) | n/a (primitive vectors) | ✅ static + 3×400 randomized |
+| `state_root` | `(pubkey,asset)` / `pool_id` / `(pubkey,pool_id)` / `pubkey` | ✅ Python (determinism, order-independence, sensitivity, duplicate-key + bad-encoding rejection) | ✅ static + 4×250 randomized |
+| `tx_receipt_hash` | per-message (stateless) | ✅ Python (chain-id binding, field/body tamper sensitivity) | ✅ static + 3×300 randomized |
+| `perp_math` (E1) | per-call (stateless) | ✅ Python (PnL/funding sign symmetry, settle-clamp band non-zero) | ✅ static + 4×500 randomized |

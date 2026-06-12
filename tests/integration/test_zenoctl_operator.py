@@ -136,6 +136,55 @@ def test_deployment_profiles_reject_raw_keys_in_production() -> None:
     assert "production-strict must reject raw private key flags" in report["errors"]
 
 
+def test_deployment_profiles_reject_unknown_allowed_route() -> None:
+    profile = {
+        "schema": "zenodex/deployment_profile/v1",
+        "profile_id": "public-testnet",
+        "threat_model": "bad",
+        "allowed_routes": ["health", "local_demo_typo"],
+        "required_auth": {"write_api": "signed"},
+        "key_policy": {
+            "raw_private_key_flags_allowed": False,
+            "production_key_receipts_required": False,
+        },
+        "proof_policy": {"proof_metadata_required": True},
+        "upba_policy": "balanced",
+        "peer_policy": {"dynamic_peer_cap_required": True},
+        "gossip_policy": {"transport_auth_required": True},
+        "observability_policy": {"metrics_required": True},
+    }
+
+    report = validate_deployment_profile(profile)
+
+    assert report["ok"] is False
+    assert "allowed_routes contains unknown routes: ['local_demo_typo']" in report["errors"]
+
+
+def test_deployment_profiles_reject_unknown_top_level_key() -> None:
+    profile = {
+        "schema": "zenodex/deployment_profile/v1",
+        "profile_id": "public-testnet",
+        "threat_model": "bad",
+        "allowed_routes": ["health"],
+        "required_auth": {"write_api": "signed"},
+        "key_policy": {
+            "raw_private_key_flags_allowed": False,
+            "production_key_receipts_required": False,
+        },
+        "proof_policy": {"proof_metadata_required": True},
+        "upba_policy": "balanced",
+        "peer_policy": {"dynamic_peer_cap_required": True},
+        "gossip_policy": {"transport_auth_required": True},
+        "observability_policy": {"metrics_required": True},
+        "runtime_polciy": {"local_only_routes_allowed": False},
+    }
+
+    report = validate_deployment_profile(profile)
+
+    assert report["ok"] is False
+    assert "profile has unknown top-level keys: ['runtime_polciy']" in report["errors"]
+
+
 def test_zenoctl_testnet_init_dry_run(capsys) -> None:
     rc = zenoctl.main(
         [
@@ -261,6 +310,8 @@ def test_zenoctl_testnet_join_dry_run(capfd) -> None:
             "--data-dir",
             "/tmp/zenodex-node",
             "--serve",
+            "--write-auth-token-env",
+            "ZENO_TESTNET_WRITE_TOKEN",
             "--port",
             "8788",
             "--poll-seconds",
@@ -278,6 +329,26 @@ def test_zenoctl_testnet_join_dry_run(capfd) -> None:
     assert "--data-dir /tmp/zenodex-node" in output
     assert "--host 127.0.0.1" in output
     assert "--serve" in output
+    assert "--write-auth-token-env ZENO_TESTNET_WRITE_TOKEN" in output
+
+
+def test_zenoctl_testnet_join_serve_requires_write_auth_token_env(capfd) -> None:
+    rc = zenoctl.main(
+        [
+            "testnet",
+            "join",
+            "--config-url",
+            "https://example.test/public_network_config.json",
+            "--node-id",
+            "operator-laptop",
+            "--serve",
+            "--dry-run",
+        ]
+    )
+
+    assert rc == 2
+    stderr = capfd.readouterr().err
+    assert "--serve requires --write-auth-token-env" in stderr
 
 
 def test_zenoctl_testnet_publish_config_dry_run(capfd) -> None:

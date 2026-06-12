@@ -51,16 +51,17 @@ for _prewarm_module_name in (
 def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return int(default)
-    try:
-        v = int(raw.strip())
-    except Exception:
-        return int(default)
-    if v < lo:
-        return int(lo)
-    if v > hi:
-        return int(hi)
-    return int(v)
+        value = int(default)
+    else:
+        try:
+            value = int(raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{name} must be an integer in [{lo}, {hi}]; got {raw!r}"
+            ) from exc
+    if value < lo or value > hi:
+        raise ValueError(f"{name} must be in [{lo}, {hi}]; got {value}")
+    return int(value)
 
 
 def _env_str(name: str, default: str) -> str:
@@ -75,7 +76,14 @@ def _env_bool(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
         return bool(default)
-    return raw.strip().lower() in ("1", "true", "yes", "on")
+    value = raw.strip().lower()
+    if value in ("1", "true", "yes", "on"):
+        return True
+    if value in ("0", "false", "no", "off"):
+        return False
+    raise ValueError(
+        f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
+    )
 
 
 def _safe_http_header_value(value: object) -> Optional[str]:
@@ -974,6 +982,8 @@ class _Handler(BaseHTTPRequestHandler):
             return 96_000
         if path.startswith("/api/confidential/attestation/"):
             return 96_000
+        if path.startswith("/api/autogov/"):
+            return 8 * 1024 * 1024
         return 65_536
 
     def _perps_state(self) -> Any:
@@ -1015,7 +1025,24 @@ class _Handler(BaseHTTPRequestHandler):
             return True
         from src.integration.perps_wallet_api import handle_perps_wallet_request
 
-        status, resp = handle_perps_wallet_request(method, path, raw_body)
+        # Pass the query-bearing raw path so the handler can resolve ?account=.
+        status, resp = handle_perps_wallet_request(method, self.path or path, raw_body)
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
+    def _maybe_handle_autogov_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/autogov/"):
+            return False
+        if not getattr(self.server, "autogov_live_apply_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.autogov_live_apply_api import handle_autogov_request
+
+        status, resp = handle_autogov_request(method, path, raw_body)
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
@@ -1061,7 +1088,8 @@ class _Handler(BaseHTTPRequestHandler):
             return True
         from src.integration.zusd_tau_wallet_api import handle_zusd_tau_wallet_request
 
-        status, resp = handle_zusd_tau_wallet_request(method, path, raw_body)
+        # Pass the query-bearing raw path so the handler can resolve ?account=.
+        status, resp = handle_zusd_tau_wallet_request(method, self.path or path, raw_body)
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
@@ -1077,7 +1105,8 @@ class _Handler(BaseHTTPRequestHandler):
             return True
         from src.integration.zusd_monetary_wallet_api import handle_zusd_monetary_wallet_request
 
-        status, resp = handle_zusd_monetary_wallet_request(method, path, raw_body)
+        # Pass the query-bearing raw path so the handler can resolve ?account=.
+        status, resp = handle_zusd_monetary_wallet_request(method, self.path or path, raw_body)
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
@@ -6688,6 +6717,8 @@ class _Handler(BaseHTTPRequestHandler):
         # Demo/dev routes (gated by env vars in main()).
         if self._maybe_handle_perps_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
             return
+        if self._maybe_handle_autogov_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
+            return
         if self._maybe_handle_zusd_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
             return
         if self._maybe_handle_autotrader_live_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
@@ -6710,6 +6741,7 @@ class _Handler(BaseHTTPRequestHandler):
             path.startswith("/api/perps/")
             or path.startswith("/api/zusd/")
             or path.startswith("/api/dex/")
+            or path.startswith("/api/autogov/")
             or path.startswith("/api/strategy/autotrader/")
             or path.startswith("/api/confidential/attestation/")
         ):
@@ -6723,6 +6755,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._write_json(int(status), {"ok": False, "error": str(code)}, cors_origin=cors_origin)
                 return
         if self._maybe_handle_perps_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
+            return
+        if self._maybe_handle_autogov_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
         if self._maybe_handle_zusd_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
@@ -6801,24 +6835,39 @@ def _print_api_auth_posture_error(code: str) -> None:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     _ = argv
-    host = _env_str("API_HOST", "127.0.0.1")
-    port = _env_int("API_PORT", 8000, lo=1, hi=65535)
-    cors_origins = _parse_cors_origins(_env_str("CORS_ORIGINS", ""))
-    rpm = _env_int("RATE_LIMIT_RPM", 600, lo=0, hi=1_000_000)
-    max_buckets = _env_int("RATE_LIMIT_MAX_BUCKETS", 10_000, lo=1, hi=1_000_000)
+    from src.runtime.authority import reset_active_authority_policy  # pylint: disable=import-outside-toplevel
 
-    perps_enabled = _env_str("PERPS_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    perps_wallet_enabled = _env_str("PERPS_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    zusd_enabled = _env_str("ZUSD_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    zusd_tau_wallet_enabled = _env_str("ZUSD_TAU_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    zusd_monetary_wallet_enabled = _env_str("ZUSD_MONETARY_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    autotrader_live_enabled = _env_str("AUTOTRADER_LIVE_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    confidential_attestation_enabled = _env_str("CONFIDENTIAL_ATTESTATION_API_ENABLED", "false").lower() in (
-        "1",
-        "true",
-        "yes",
-    )
-    dex_enabled = _env_str("DEX_API_ENABLED", "false").lower() in ("1", "true", "yes")
+    reset_active_authority_policy()
+    host = _env_str("API_HOST", "127.0.0.1")
+    try:
+        port = _env_int("API_PORT", 8000, lo=1, hi=65535)
+        rpm = _env_int("RATE_LIMIT_RPM", 600, lo=0, hi=1_000_000)
+        max_buckets = _env_int("RATE_LIMIT_MAX_BUCKETS", 10_000, lo=1, hi=1_000_000)
+    except ValueError as exc:
+        print(f"Refusing to start: invalid integer environment variable: {exc}")
+        return 2
+    cors_origins = _parse_cors_origins(_env_str("CORS_ORIGINS", ""))
+
+    try:
+        perps_enabled = _env_bool("PERPS_API_ENABLED", False)
+        perps_wallet_enabled = _env_bool("PERPS_WALLET_API_ENABLED", False)
+        zusd_enabled = _env_bool("ZUSD_API_ENABLED", False)
+        zusd_tau_wallet_enabled = _env_bool("ZUSD_TAU_WALLET_API_ENABLED", False)
+        zusd_monetary_wallet_enabled = _env_bool("ZUSD_MONETARY_WALLET_API_ENABLED", False)
+        autotrader_live_enabled = _env_bool("AUTOTRADER_LIVE_API_ENABLED", False)
+        autogov_live_apply_enabled = _env_bool("AUTOGOV_LIVE_APPLY_API_ENABLED", False)
+        confidential_attestation_enabled = _env_bool(
+            "CONFIDENTIAL_ATTESTATION_API_ENABLED", False
+        )
+        dex_enabled = _env_bool("DEX_API_ENABLED", False)
+        external_auth_enforced = _env_bool("ZENODEX_EXTERNAL_AUTH_ENFORCED", False)
+        allow_demo_token_auth = _env_bool("ALLOW_DEMO_TOKEN_AUTH", False)
+        _routing_oracle_adapter_required = _env_bool(
+            "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", False
+        )
+    except ValueError as exc:
+        print(f"Refusing to start: invalid boolean environment variable: {exc}")
+        return 2
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
     confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
     from src.state.confidential_requests import ConfidentialRequestTable  # pylint: disable=import-outside-toplevel
@@ -6830,14 +6879,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         or zusd_tau_wallet_enabled
         or zusd_monetary_wallet_enabled
         or autotrader_live_enabled
+        or autogov_live_apply_enabled
         or confidential_attestation_enabled
         or dex_enabled
     )
     runtime_env = _env_str("ZENODEX_ENV", _env_str("APP_ENV", "production")).lower()
     production_mode = runtime_env not in ("dev", "development", "test", "local")
-    external_auth_enforced = _env_bool("ZENODEX_EXTERNAL_AUTH_ENFORCED", False)
-    allow_demo_token_auth = _env_bool("ALLOW_DEMO_TOKEN_AUTH", False)
-
     auth_error_code = _api_auth_posture_error_code(
         protected_api_enabled=sensitive_api_enabled,
         external_auth_enforced=external_auth_enforced,
@@ -6849,6 +6896,184 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         _print_api_auth_posture_error(auth_error_code)
         return 2
 
+    _deploy_profile_id = _env_str("ZENODEX_DEPLOY_PROFILE", "").strip()
+    if _deploy_profile_id:
+        from src.integration.deploy_profile import (  # pylint: disable=import-outside-toplevel
+            evaluate_deploy_profile_consistency,
+            load_deploy_profile,
+        )
+
+        try:
+            _deploy_profile = load_deploy_profile(_deploy_profile_id)
+            _deploy_conflicts = evaluate_deploy_profile_consistency(
+                _deploy_profile,
+                {
+                    "sensitive_api_enabled": sensitive_api_enabled,
+                    "external_auth_enforced": external_auth_enforced,
+                    "auth_bearer_token_set": _demo_auth_configured_from_env(),
+                    "allow_demo_token_auth": allow_demo_token_auth,
+                    "legacy_demo_token_active": _demo_auth_configured_from_env(),
+                    "confidential_sealed_bid_allow_in_memory_state": _env_bool(
+                        "CONFIDENTIAL_SEALED_BID_ALLOW_IN_MEMORY_STATE", False
+                    ),
+                    "confidential_sealed_bid_allow_fixture_settlement": _env_bool(
+                        "CONFIDENTIAL_SEALED_BID_ALLOW_FIXTURE_SETTLEMENT", False
+                    ),
+                    "confidential_sealed_bid_return_signed_tau_tx_payload": _env_bool(
+                        "CONFIDENTIAL_SEALED_BID_RETURN_SIGNED_TAU_TX_PAYLOAD", False
+                    ),
+                    "perps_wallet_allow_local_signing": _env_bool("PERPS_WALLET_ALLOW_LOCAL_SIGNING", False),
+                    "perps_wallet_return_signed_tau_tx_payload": _env_bool(
+                        "PERPS_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False
+                    ),
+                    "zusd_tau_wallet_allow_local_signing": _env_bool(
+                        "ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING", False
+                    ),
+                    "zusd_tau_wallet_return_signed_tau_tx_payload": _env_bool(
+                        "ZUSD_TAU_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False
+                    ),
+                    "zusd_monetary_wallet_allow_local_signing": _env_bool(
+                        "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING",
+                        _env_bool("ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING", False),
+                    ),
+                    "autotrader_live_allow_local_signing": _env_bool(
+                        "AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", False
+                    ),
+                    "dex_routing_oracle_adapter_required": _env_bool(
+                        "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", False
+                    ),
+                    "zusd_oracle_adapter_required": _env_bool("ZUSD_ORACLE_ADAPTER_REQUIRED", False),
+                    "zusd_oracle_authorization_required": _env_bool(
+                        "ZUSD_ORACLE_AUTHORIZATION_REQUIRED", False
+                    ),
+                    "zusd_monetary_wallet_oracle_authorization_required": _env_bool(
+                        "ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED",
+                        _env_bool("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", False),
+                    ),
+                    "perps_clearinghouse_settle_oracle_adapter_required": _env_bool(
+                        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", False
+                    ),
+                    "perps_clearinghouse_settle_oracle_authorization_required": _env_bool(
+                        "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH", False
+                    ),
+                    "perps_isolated_settle_oracle_adapter_required": _env_bool(
+                        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH", False
+                    ),
+                    "perps_isolated_partial_liquidate_oracle_adapter_required": _env_bool(
+                        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE", False
+                    ),
+                    "perps_isolated_settle_oracle_authorization_required": _env_bool(
+                        "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH", False
+                    ),
+                    "enabled_routes": tuple(
+                        route
+                        for route, enabled in (
+                            ("local_demo", bool(perps_enabled or perps_wallet_enabled)),
+                            (
+                                "local_demo",
+                                bool(zusd_enabled or zusd_tau_wallet_enabled or zusd_monetary_wallet_enabled),
+                            ),
+                            ("local_demo", bool(autotrader_live_enabled)),
+                            ("local_demo", bool(confidential_attestation_enabled)),
+                            ("signed_intents", bool(dex_enabled)),
+                        )
+                        if enabled
+                    ),
+                },
+            )
+        except (OSError, ValueError, TypeError) as exc:
+            print(f"Refusing to start: invalid ZENODEX_DEPLOY_PROFILE={_deploy_profile_id!r}: {exc}")
+            return 2
+        if _deploy_conflicts:
+            for _conflict in _deploy_conflicts:
+                print(f"Refusing to start: {_conflict}")
+            return 2
+
+        from src.runtime.authority import (  # pylint: disable=import-outside-toplevel
+            AuthorityError,
+            RUST_AUTHORITATIVE_MODES,
+            RustUnavailable,
+            load_authority_policy,
+            set_active_authority_policy,
+            validate_authority_policy,
+        )
+
+        try:
+            _authority_policy = load_authority_policy(_deploy_profile)
+            validate_authority_policy(_authority_policy, profile_id=_deploy_profile_id)
+        except (AuthorityError, ValueError, TypeError) as exc:
+            print(
+                f"Refusing to start: invalid runtime_authority_policy in "
+                f"{_deploy_profile_id!r}: {exc}"
+            )
+            return 2
+        if (
+            _authority_policy.default in RUST_AUTHORITATIVE_MODES
+            or any(mode in RUST_AUTHORITATIVE_MODES for mode in _authority_policy.per_surface.values())
+        ):
+            from src.runtime.rust_invoker import locate_runtime_binary  # pylint: disable=import-outside-toplevel
+
+            try:
+                locate_runtime_binary()
+            except RustUnavailable as exc:
+                _rust_error = (
+                    "Refusing to start: runtime_authority_policy in "
+                    f"{_deploy_profile_id!r} requires Rust authority but "
+                    f"zenodex-runtime is unavailable: {exc}"
+                )
+                print(
+                    _rust_error
+                )
+                return 2
+        set_active_authority_policy(_authority_policy)
+
+    # API-surface profile gate (D-CONFIG-002): the profiles in
+    # api_surface_profiles.py (e.g. production-strict forbids demo/value-moving
+    # routes) were defined but never enforced at startup, so a production-strict
+    # deployment could still serve perps/zUSD/DEX writer routes. Enforce the
+    # selected profile against the active runtime flags. Opt-in via
+    # ZENODEX_API_SURFACE_PROFILE (or the existing API_SURFACE_PROFILE alias);
+    # fail-closed on any violation, unknown id, or inconsistent aliases.
+    _api_surface_profile_id = _env_str("ZENODEX_API_SURFACE_PROFILE", "").strip()
+    _api_surface_profile_alias = _env_str("API_SURFACE_PROFILE", "").strip()
+    if (
+        _api_surface_profile_id
+        and _api_surface_profile_alias
+        and _api_surface_profile_id != _api_surface_profile_alias
+    ):
+        print(
+            "Refusing to start: inconsistent API surface profiles "
+            f"ZENODEX_API_SURFACE_PROFILE={_api_surface_profile_id!r} "
+            f"API_SURFACE_PROFILE={_api_surface_profile_alias!r}"
+        )
+        return 2
+    _api_surface_profile_id = _api_surface_profile_id or _api_surface_profile_alias
+    if _api_surface_profile_id:
+        from src.integration.api_surface_profiles import (  # pylint: disable=import-outside-toplevel
+            api_surface_profile_violations,
+        )
+
+        try:
+            _surface_violations = api_surface_profile_violations(
+                profile_id=_api_surface_profile_id,
+                demo_api_token=_env_str("DEMO_API_TOKEN", ""),
+                perps_enabled=bool(perps_enabled or perps_wallet_enabled or autotrader_live_enabled),
+                zusd_enabled=bool(
+                    zusd_enabled or zusd_tau_wallet_enabled or zusd_monetary_wallet_enabled
+                ),
+                dex_enabled=bool(dex_enabled),
+            )
+        except ValueError as exc:
+            print(
+                f"Refusing to start: invalid ZENODEX_API_SURFACE_PROFILE="
+                f"{_api_surface_profile_id!r}: {exc}"
+            )
+            return 2
+        if _surface_violations:
+            for _violation in _surface_violations:
+                print(f"Refusing to start: {_violation}")
+            return 2
+
     httpd = ThreadingHTTPServer((host, port), _Handler)
     # Attach config to server instance (used by handler).
     httpd.cors_origins = cors_origins  # type: ignore[attr-defined]
@@ -6858,6 +7083,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     httpd.zusd_api_enabled = zusd_enabled  # type: ignore[attr-defined]
     httpd.zusd_tau_wallet_api_enabled = zusd_tau_wallet_enabled  # type: ignore[attr-defined]
     httpd.zusd_monetary_wallet_api_enabled = zusd_monetary_wallet_enabled  # type: ignore[attr-defined]
+    httpd.autogov_live_apply_api_enabled = autogov_live_apply_enabled  # type: ignore[attr-defined]
     httpd.autotrader_live_api_enabled = autotrader_live_enabled  # type: ignore[attr-defined]
     httpd.autotrader_execution_keys = set()  # type: ignore[attr-defined]
     httpd.autotrader_supervisor_runs = {}  # type: ignore[attr-defined]
@@ -6875,6 +7101,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
         f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, "
         f"autotrader_live_api={autotrader_live_enabled}, "
+        f"autogov_live_apply_api={autogov_live_apply_enabled}, "
         f"confidential_attestation_api={confidential_attestation_enabled}, dex_api={dex_enabled}, "
         f"confidential_stage={confidential_feature_status.get('stage')}, "
         f"external_auth_enforced={external_auth_enforced}, "

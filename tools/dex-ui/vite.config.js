@@ -84,7 +84,8 @@ export function resolveApiProxyTarget({ command, env = process.env, execFile = e
   if (Object.prototype.hasOwnProperty.call(env, 'API_PROXY_TARGET')) {
     return normalizeProxyTarget(env.API_PROXY_TARGET);
   }
-  if (command !== 'build') {
+  const allowLocalTestnetDiscovery = env.API_PROXY_ALLOW_LOCAL_TESTNET_DISCOVERY === '1';
+  if (command === 'serve' && allowLocalTestnetDiscovery) {
     const localTestnetTarget = discoverLocalTestnetApiProxyTarget({ execFile });
     if (localTestnetTarget) {
       return localTestnetTarget;
@@ -95,11 +96,27 @@ export function resolveApiProxyTarget({ command, env = process.env, execFile = e
 
 export default defineConfig(({ command }) => {
   const apiTarget = resolveApiProxyTarget({ command });
+  const previewApiTarget = normalizeProxyTarget(process.env.API_PROXY_TARGET);
   const basePathRaw = (process.env.VITE_BASE_PATH || '/').toString().trim();
   const basePath = basePathRaw || '/';
   return {
     plugins: [react()],
     base: basePath,
+    build: {
+      rollupOptions: {
+        output: {
+          // Split heavy, rarely-changing vendor deps into their own long-cached
+          // chunks so app edits don't bust them and the React runtime loads
+          // separately from the noble crypto primitives.
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined;
+            if (id.includes('react-dom') || id.includes('/react/') || id.includes('scheduler')) return 'vendor-react';
+            if (id.includes('@noble') || id.includes('@scure')) return 'vendor-crypto';
+            return undefined;
+          },
+        },
+      },
+    },
     server: {
       proxy: apiTarget ? {
         '/api': {
@@ -109,9 +126,9 @@ export default defineConfig(({ command }) => {
       } : undefined,
     },
     preview: {
-      proxy: apiTarget ? {
+      proxy: previewApiTarget ? {
         '/api': {
-          target: apiTarget,
+          target: previewApiTarget,
           changeOrigin: true,
         },
       } : undefined,

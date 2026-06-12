@@ -25,9 +25,16 @@ _STATUS_HASH_DOMAIN_V1 = "zenodex.confidential_feature_status/v1"
 
 def _env_bool(name: str, default: bool) -> bool:
     raw = os.environ.get(name)
-    if raw is None:
+    if raw is None or not str(raw).strip():
         return bool(default)
-    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+    value = str(raw).strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(
+        f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
+    )
 
 
 def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
@@ -36,12 +43,12 @@ def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
         return int(default)
     try:
         value = int(str(raw).strip())
-    except Exception:
-        return int(default)
-    if value < lo:
-        return int(lo)
-    if value > hi:
-        return int(hi)
+    except ValueError as exc:
+        raise ValueError(
+            f"{name} must be an integer in [{lo}, {hi}]; got {raw!r}"
+        ) from exc
+    if value < lo or value > hi:
+        raise ValueError(f"{name} must be in [{lo}, {hi}]; got {value}")
     return int(value)
 
 

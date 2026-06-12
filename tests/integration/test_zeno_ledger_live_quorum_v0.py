@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from src.integration import zeno_ledger_signature
 from src.integration.zeno_ledger_live_quorum_v0 import (
     build_live_checkpoint_quorum_admission_v0,
     validate_live_checkpoint_quorum_admission_v0,
@@ -86,6 +87,14 @@ def _envelopes(header_hash: str) -> list[dict[str, object]]:
             private_key_hex=TEST_BLS_PRIVATE_KEY_B,
         ),
     ]
+
+
+def test_bls_release_signature_rejects_inconsistent_dependency_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(zeno_ledger_signature, "_BLS_AVAILABLE", True)
+    monkeypatch.setattr(zeno_ledger_signature, "G2Basic", None)
+
+    with pytest.raises(RuntimeError, match="py_ecc\\.bls is required for BLS release signatures"):
+        zeno_ledger_signature.bls_public_key_hex_from_private_key_v0(TEST_BLS_PRIVATE_KEY_A)
 
 
 def test_live_checkpoint_quorum_admission_accepts_threshold() -> None:

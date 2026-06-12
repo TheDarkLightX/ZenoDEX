@@ -9,6 +9,7 @@ import pytest
 
 from src.integration.tau_runner import find_tau_bin, run_tau_spec_steps
 from src.integration.tau_runner import run_tau_spec_steps_spec_mode
+from src.integration.tau_native_mirrors import run_native_tau_mirror
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -65,6 +66,12 @@ def test_tau_spec_registry_traces() -> None:
                     steps=[dict(step) for step in inputs],
                     timeout_s=float(entry.get("spec_timeout", 60.0)),
                 )
+            elif mode == "native_mirror":
+                mirror_id = entry.get("native_mirror")
+                if not isinstance(mirror_id, str) or mirror_id != spec_id:
+                    failures.append(f"{spec_id}: native_mirror mode requires native_mirror == id")
+                    continue
+                outputs = run_native_tau_mirror(spec_id=mirror_id, steps=[dict(step) for step in inputs])
             else:
                 outputs = run_tau_spec_steps(
                     tau_bin=tau_bin,
