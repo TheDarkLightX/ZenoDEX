@@ -20,8 +20,10 @@ import Proofs.ConstDenominatorSurrogateBounds
 import Proofs.CPMMConcavity
 import Proofs.CPMMEdgeRounding
 import Proofs.CPMMExactOutFeeInverse
+import Proofs.CPMMFeeAwareCertificate
 import Proofs.CPMMInvariants
 import Proofs.CPMMOutputMonotonicity
+import Proofs.CPMMSandwichCertificate
 import Proofs.CPMMSettlement
 import Proofs.CpmmSwapV8ExactInAdmissibility
 import Proofs.CpmmSwapV8ExactOutMinimality
@@ -249,10 +251,3 @@ import Proofs.ZUSDDualConservation
 import Proofs.ZUSDFeePipeline
 import Proofs.ZUSDMCRHeadroom
 import Proofs.ZUSDSPWholeVaultLiquidation
-
-/-!
-Proofs library root.
-
-This module exists so `lake build` compiles the full set of proof artifacts under `Proofs/`.
-The import list mirrors the `.lean` files actually present under `Proofs/`.
--/

@@ -166,8 +166,7 @@ theorem swap_exact_out_sufficient_and_minimal
         g < gross →
           let na : Nat := g - ((g * fee_bps) ⌈/⌉ BPS)
           (rout * na) / (rin + na) < aout := by
-    intro g hg
-    intro na
+    intro g hg na
     have hna : na = (g * fee_den) / BPS := by
       have : g - ((g * fee_bps) ⌈/⌉ BPS) = (g * (BPS - fee_bps)) / BPS :=
         net_actual_eq_floor_mul g fee_bps BPS hBPS
