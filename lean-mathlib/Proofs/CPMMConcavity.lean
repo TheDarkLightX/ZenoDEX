@@ -510,10 +510,15 @@ theorem witness_full_chain :
     f_witness 3 ≥ f_witness 2 ∧ f_witness 3 ≥ f_witness 4 ∧
     -- Global optimality (via cpmm_zero_fee_split_certificate_sound)
     (∀ j, j ≤ 6 → f_witness 3 ≥ f_witness j) := by
-  refine ⟨witness_split_concavity, ?_, ?_, ?_⟩
-  · simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]; decide
-  · simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]; decide
-  · -- Compose through theorem 6: only concavity + 2 neighbor checks
+  constructor
+  · exact witness_split_concavity
+  constructor
+  · simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]
+    decide
+  constructor
+  · simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]
+    decide
+  · -- Compose through theorem 6: only concavity + 2 neighbor checks.
     exact cpmm_zero_fee_split_certificate_sound 1 10000 1 10000 6 3
       (by omega)
       witness_split_concavity
@@ -628,8 +633,12 @@ theorem witness_approx_certificate :
       cpmmZeroFeeSplitObj 3 50 7 80 10 j ≤
         cpmmZeroFeeSplitObj 3 50 7 80 10 3
           + |(j : ℤ) - 3| * (|(j : ℤ) - 3| - 1)) := by
-  refine ⟨by decide, by decide, fun j hj => ?_⟩
-  interval_cases j <;> decide
+  constructor
+  · decide
+  constructor
+  · decide
+  · intro j hj
+    interval_cases j <;> decide
 
 /-- **GRADE-1 TIGHTNESS**: cpmmOut is NOT grade 0 in general.
     Pool (100, 1000) at a = 0 has second difference exactly 1,
