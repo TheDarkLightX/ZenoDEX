@@ -39,7 +39,7 @@ closed-form jump enumeration:
 | 6 | `le_feeOut_iff` | t ≤ out(a) ↔ a_t ≤ a (composed inversion, fee-aware) |
 | 7 | `two_pool_split_candidate_complete` | candidate set {lo} ∪ jumps is complete |
 | 8 | `jump_point_closed_form` | every jump point equals its closed form a_t |
-| 9 | `multi_pool_snap_dominates` | k pools: optimum attained with all non-absorber coordinates on jump grids |
+| 9 | `multi_pool_snap_dominates` | k pools: non-absorber coordinates snap to jump grids |
 
 `ceilDiv_le_iff` is the Galois-connection fact `⌈·/b⌉ ⊣ (b·)` making the
 inversions exact; `Nat.le_div_iff_mul_le` is its floor-side dual.

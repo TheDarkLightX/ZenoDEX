@@ -26,7 +26,7 @@ the distance — because the neighbor check caps the concave envelope's slope at
 | 7 | `cpmm_split_sandwich` | Bridge | split objective is SandwichConcave 2 |
 | 8 | `cpmm_zero_fee_split_certificate_linear` | Main | f(j) ≤ f(a★) + 2·d + 2, ALL pools |
 | 9 | `cpmm_zero_fee_split_certificate_combined` | Main | error ≤ min(d·(d−1), 2·d+2) |
-| 10| `witness_linear_scale_gap` | Witness | concrete floor-of-linear instance with distance-scale gain |
+| 10| `witness_linear_scale_gap` | Witness | floor-of-linear distance-scale gain |
 
 The envelope `G(a) = y·a/(x+a)` is taken over ℚ with the junk value `0/0 = 0`
 at the single degenerate point `x = a = 0`, which keeps every statement

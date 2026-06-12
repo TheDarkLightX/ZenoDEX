@@ -40,7 +40,7 @@ closeness hypothesis is satisfiable: the per-pool closeness constant is
 | 3 | `HenvQ_affine_concave` | Core | a ↦ Hᵉ(c·a) is discretely concave (all x, c ≥ 0) |
 | 4 | `cpmmOutFee_sandwich` | Main | per-pool sandwich with δ = 1 + y/(x+1) |
 | 5 | `cpmm_fee_split_sandwich` | Bridge | split objective is SandwichConcave Δ |
-| 6 | `cpmm_fee_split_certificate_linear` | Main | objFee(j) ≤ objFee(a★) + Δ·(d+1), ALL pools/fees |
+| 6 | `cpmm_fee_split_certificate_linear` | Main | error ≤ Δ·(d+1), all pools/fees |
 | 7 | `cpmm_fee_split_certificate_deep_pools` | Main | y ≤ x+1 both pools ⟹ ℤ bound 4·d + 4 |
 | 8 | `cpmmOutFee_zero_fee` | Bridge | fee = 0 recovers the zero-fee output |
 | 9 | `witness_fee_not_grade_one` | Witness | fee-adjusted output has second difference 500 |
