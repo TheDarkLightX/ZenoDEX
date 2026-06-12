@@ -56,7 +56,12 @@ def test_stage_scope_includes_cli_when_modified(monkeypatch, capsys) -> None:
         lambda: [
             "tools/permissionless_assurance.py",
             "tools/run_derivatives_evidence.sh",
+            "tools/check_claims_registry.py",
+            "tools/check_release_external_toolchains.py",
             "tests/core/test_funding_rate_decomposed_parity.py",
+            "tests/test_derivatives_evidence_script.py",
+            "tests/test_check_release_external_toolchains.py",
+            "tests/test_claims_registry_smt_evidence.py",
             "internal/example.json",
         ],
     )
@@ -67,7 +72,12 @@ def test_stage_scope_includes_cli_when_modified(monkeypatch, capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert "tools/permissionless_assurance.py" in payload["paths"]
     assert "tools/run_derivatives_evidence.sh" in payload["paths"]
+    assert "tools/check_claims_registry.py" in payload["paths"]
+    assert "tools/check_release_external_toolchains.py" in payload["paths"]
     assert "tests/core/test_funding_rate_decomposed_parity.py" in payload["paths"]
+    assert "tests/test_derivatives_evidence_script.py" in payload["paths"]
+    assert "tests/test_check_release_external_toolchains.py" in payload["paths"]
+    assert "tests/test_claims_registry_smt_evidence.py" in payload["paths"]
     assert "internal/example.json" not in payload["paths"]
 
 
@@ -105,6 +115,9 @@ def test_replay_plan_group_expansion() -> None:
         "lake",
         "external/mathlib4",
     ]
+    assert "tools/check_claims_registry.py" in plan_lanes["spot-evidence"]["required_files"]
+    assert "tools/check_claims_registry.py" in plan_lanes["derivatives"]["required_files"]
+    assert "tools/check_claims_registry.py" in plan_lanes["perps"]["required_files"]
     assert "tools/check_split_routing_staircase_runtime_evidence.py" in plan_lanes["spot-evidence"]["required_files"]
     assert "split-routing staircase evidence" in plan_lanes["spot-evidence"]["description"]
     assert "zusd" not in plan_lanes
