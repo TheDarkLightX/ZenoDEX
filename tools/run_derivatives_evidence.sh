@@ -24,8 +24,8 @@ else
 fi
 
 if [[ ! -d "$ROOT_DIR/external/ESSO" ]]; then
-  echo "error: missing external toolchain at $ROOT_DIR/external/ESSO" >&2
-  echo "hint: clone it into external/ (external/ is git-ignored by design)" >&2
+  echo "error: missing pinned ESSO checkout at $ROOT_DIR/external/ESSO" >&2
+  echo "hint: the derivatives evidence manifest pins the ESSO git hash; clone it into external/ (external/ is git-ignored by design)" >&2
   exit 2
 fi
 
@@ -40,6 +40,7 @@ echo "== derivatives: claims registry format check =="
 echo "== derivatives: pytest =="
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/core/test_derivatives_generated_refs.py" \
+  "$ROOT_DIR/tests/core/test_funding_rate_decomposed_parity.py" \
   "$ROOT_DIR/tests/core/test_funding_rate_market.py" \
   "$ROOT_DIR/tests/core/test_funding_rate_market_ref_parity.py" \
   "$ROOT_DIR/tests/core/test_funding_rate_settlement_runtime_v1_1.py" \
