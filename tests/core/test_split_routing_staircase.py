@@ -103,9 +103,9 @@ def test_staircase_quote_efficiency() -> None:
 
     expected = brute_force_best_split_two_pools_exact_in(pool0, pool1, d)
     assert got == expected
-    # out0 is bounded by y0 = 900, so levels <= 900 and quotes <= ~3*900 + 4;
+    # out0 is bounded by y0 = 900, so levels <= 900 and quotes <= ~2*900 + 4;
     # in practice far fewer levels are reachable within [lo, hi].
-    assert calls["n"] <= 3 * 900 + 4, calls["n"]
+    assert calls["n"] <= 2 * 900 + 4, calls["n"]
     assert calls["n"] < (d + 1), f"no better than brute force: {calls['n']}"
 
 
