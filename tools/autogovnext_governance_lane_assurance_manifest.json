@@ -32,7 +32,7 @@
     },
     {
       "path": "tools/zeno_ledger_node.py",
-      "sha256": "38987189508f52bcbe97f59e570df537d00b0b1419e4624777edf3f431f9e60b"
+      "sha256": "4588229fa25592363c922a275ad8e80f3c2d0d9483c96b7fd4cad1aaaa7670d5"
     },
     {
       "path": "tests/state/test_app_root.py",
@@ -48,7 +48,7 @@
     },
     {
       "path": "tests/integration/test_zeno_ledger_node_autogovnext.py",
-      "sha256": "f07ee23ab52ff60dd9ed9ee810bdb369048421e8b22a8bff820f3830f5b8f711"
+      "sha256": "b71b2b31e735730853c5b41200a880fcd2dbf5414ac0d88e17ae32bb879fd712"
     },
     {
       "path": ".github/workflows/ci.yml",

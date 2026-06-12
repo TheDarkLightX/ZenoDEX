@@ -1239,6 +1239,13 @@ def _autogovnext_tx_v1(request: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _autogovnext_request_from_submitted_tx_v1(tx: Mapping[str, Any]) -> dict[str, Any]:
+    # Shared by HTTP /tx and follower replay; malformed peer block bodies must
+    # not bypass the public AutoGovNEXT transaction envelope.
+    if "tx_id" not in tx:
+        raise ValueError("autogovnext tx_id invalid")
+    expected_keys = {"tx_id", "kind", "request"}
+    if set(tx.keys()) != expected_keys:
+        raise ValueError("autogovnext tx keys mismatch")
     if tx.get("kind") != AUTOGOVNEXT_ADMISSION_KIND:
         raise ValueError("tx is not an AutoGovNEXT admission")
     request = tx.get("request")
@@ -1246,7 +1253,12 @@ def _autogovnext_request_from_submitted_tx_v1(tx: Mapping[str, Any]) -> dict[str
         raise ValueError("autogovnext tx request must be an object")
     request_obj = _autogovnext_request_with_tx_id_v1(request)
     tx_id_raw = tx.get("tx_id")
-    if not isinstance(tx_id_raw, str) or not tx_id_raw.strip():
+    if (
+        not isinstance(tx_id_raw, str)
+        or not tx_id_raw.strip()
+        or len(tx_id_raw) > 128
+        or any(ord(ch) < 32 for ch in tx_id_raw)
+    ):
         raise ValueError("autogovnext tx_id invalid")
     if tx_id_raw.strip() != str(request_obj["tx_id"]):
         raise ValueError("autogovnext tx_id/request tx_id mismatch")
@@ -1261,11 +1273,7 @@ def _is_autogovnext_body_v1(body: Mapping[str, Any]) -> bool:
 
 
 def _autogovnext_admission_from_tx_v1(tx: Mapping[str, Any]) -> dict[str, Any]:
-    request = tx.get("request")
-    if not isinstance(request, Mapping):
-        raise ValueError("autogovnext tx request must be an object")
-    if str(tx.get("tx_id", "")) != str(request.get("tx_id", "")):
-        raise ValueError("autogovnext tx_id/request tx_id mismatch")
+    request = _autogovnext_request_from_submitted_tx_v1(tx)
     admission = admit_autonomous_governance_surface_request_v1(request)
     if admission.get("schema") != AUTONOMOUS_GOVERNANCE_SURFACE_ADMISSION_SCHEMA_V1:
         raise ValueError("autogovnext admission schema mismatch")

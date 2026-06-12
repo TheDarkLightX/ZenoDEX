@@ -21,6 +21,8 @@ from tools.zeno_ledger_make_testnet_bundle import DEFAULT_TIME_MS, build_testnet
 from tools.zeno_ledger_node import (
     AUTOGOVNEXT_ADMISSION_KIND,
     _autogovnext_governance_state_from_state_file_obj_v1,
+    _body_for_tx_v0,
+    _build_autogovnext_block_from_body_v1,
     append_autogovnext_admission_v1,
     load_node_status_v0,
     make_node_http_server_v0,
@@ -681,6 +683,53 @@ def test_autogovnext_tx_endpoint_rejects_non_string_outer_tx_id_without_tip_muta
     assert report["error"] == "autogovnext tx_id invalid"
     assert after_status["latest_height"] == before_status["latest_height"]
     assert not (writer_dir / "live_state.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("tx_overrides", "expected_error"),
+    [
+        ({"tx_id": 123}, "autogovnext tx_id invalid"),
+        ({"debug_receipt": {}}, "autogovnext tx keys mismatch"),
+    ],
+)
+def test_autogovnext_block_replay_rejects_malformed_tx_envelope_before_writing(
+    tmp_path: Path,
+    tx_overrides: dict[str, object],
+    expected_error: str,
+) -> None:
+    bundle_root, writer_dir = _make_bundle_and_writer(tmp_path, slug="replay-envelope")
+    node_status = load_node_status_v0(writer_dir)
+    bootstrap_manifest = _load_json(bundle_root / "bootstrap" / "manifest.json")
+    latest_height = int(node_status["latest_height"])
+    request = _autogovnext_request(tx_id="123")
+    tx = {
+        "tx_id": request["tx_id"],
+        "kind": AUTOGOVNEXT_ADMISSION_KIND,
+        "request": request,
+        **tx_overrides,
+    }
+    body = _body_for_tx_v0(
+        chain_id=str(node_status["chain_id"]),
+        height=latest_height + 1,
+        time_ms=DEFAULT_TIME_MS + 2_347_000,
+        sequencer_id=str(bootstrap_manifest["sequencer_id"]),
+        tx=tx,
+    )
+
+    with pytest.raises(ValueError, match=expected_error):
+        _build_autogovnext_block_from_body_v1(
+            data_dir=writer_dir,
+            body=body,
+            time_ms=DEFAULT_TIME_MS + 2_347_000,
+            prev_header_path=bundle_root / "bootstrap" / "ledger" / "headers" / f"{latest_height}.json",
+            pre_snapshot_path=bundle_root / "bootstrap" / "ledger" / "snapshots" / f"{latest_height}.json",
+            sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+            config_digest=str(bootstrap_manifest["config_digest"]),
+            module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+        )
+
+    assert not (writer_dir / "live_ledger" / "headers" / f"{latest_height + 1}.json").exists()
+    assert not (writer_dir / "live_ledger" / "bodies" / f"{latest_height + 1}.json").exists()
 
 
 def test_autogovnext_http_endpoint_requires_write_auth(tmp_path: Path) -> None:
