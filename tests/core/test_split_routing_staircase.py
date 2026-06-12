@@ -109,6 +109,28 @@ def test_staircase_quote_efficiency() -> None:
     assert calls["n"] < (d + 1), f"no better than brute force: {calls['n']}"
 
 
+def test_staircase_v1_profile_wiring() -> None:
+    """`search_profile="staircase_v1"` routes to the exact optimizer through the
+    standard entrypoint (and hence through the dispatch layer, which passes
+    non-adaptive profiles through unchanged)."""
+    from src.core.split_routing import best_split_two_pools_exact_in
+
+    for pool0, pool1, d in _random_cases(seed=777, n=60):
+        try:
+            expected = brute_force_best_split_two_pools_exact_in(pool0, pool1, d)
+            expected_err = None
+        except ValueError:
+            expected, expected_err = None, "err"
+        try:
+            got = best_split_two_pools_exact_in(
+                pool0, pool1, d, search_profile="staircase_v1"
+            )
+            got_err = None
+        except ValueError:
+            got, got_err = None, "err"
+        assert (expected, expected_err) == (got, got_err), (pool0, pool1, d)
+
+
 def test_staircase_single_pool_endpoints() -> None:
     """Cases where one pool is unusable must fall back to the endpoints."""
     # pool1 can never produce output (y=1, x>0): best split sends all to pool0.

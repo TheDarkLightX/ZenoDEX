@@ -39,6 +39,7 @@ closed-form jump enumeration:
 | 6 | `le_feeOut_iff` | t ≤ out(a) ↔ a_t ≤ a (composed inversion, fee-aware) |
 | 7 | `two_pool_split_candidate_complete` | candidate set {lo} ∪ jumps is complete |
 | 8 | `jump_point_closed_form` | every jump point equals its closed form a_t |
+| 9 | `multi_pool_snap_dominates` | k pools: optimum attained with all non-absorber coordinates on jump grids |
 
 `ceilDiv_le_iff` is the Galois-connection fact `⌈·/b⌉ ⊣ (b·)` making the
 inversions exact; `Nat.le_div_iff_mul_le` is its floor-side dual.
@@ -231,6 +232,85 @@ theorem jump_point_closed_form {x y f c : ℕ} (hx : 0 < x) (hf : f < 10000)
     have := (le_feeOut_iff hx hty hf).mpr hle
     omega
   omega
+
+/-! ## k-pool generalization: the snapping lemma
+
+The two-pool candidate theorem extends to any number of pools. Fix one
+"absorber" pool; every other pool's allocation can be snapped down to the
+left end of its output-level segment (a jump point or 0) and the freed
+budget handed to the absorber. Monotonicity makes this weakly improving,
+and the snapped coordinates all lie on the closed-form jump grids of
+`le_feeOut_iff`. This licenses exact k-pool optimizers that search jump
+grids (or run DP over output levels) instead of scanning the full
+allocation simplex. -/
+
+/-- Total output of an allocation: Σ uᵢ(aᵢ), pools paired positionally. -/
+def allocValue : List (ℕ → ℕ) → List ℕ → ℕ
+  | u :: us, a :: as => u a + allocValue us as
+  | _, _ => 0
+
+/-- **SNAPPING LEMMA (k pools)**: for monotone staircases `u₀, u₁, …, uₖ`
+    and any allocation `(a₀, as)`, there is an allocation `(b₀, bs)` with
+    the same total budget and weakly larger total output in which EVERY
+    non-absorber coordinate is 0 or a jump point of its own staircase.
+    Hence the optimum over the budget simplex is attained on the product of
+    closed-form jump grids (one coordinate absorbing the slack). -/
+theorem multi_pool_snap_dominates (u₀ : ℕ → ℕ) (hu₀ : Monotone u₀) :
+    ∀ us : List (ℕ → ℕ), (∀ u ∈ us, Monotone u) →
+    ∀ as : List ℕ, as.length = us.length → ∀ a₀ : ℕ,
+    ∃ (b₀ : ℕ) (bs : List ℕ),
+      bs.length = us.length ∧
+      b₀ + bs.sum = a₀ + as.sum ∧
+      (∀ p ∈ bs.zip us, p.1 = 0 ∨ p.2 (p.1 - 1) < p.2 p.1) ∧
+      u₀ a₀ + allocValue us as ≤ u₀ b₀ + allocValue us bs := by
+  intro us
+  induction us with
+  | nil =>
+    intro _ as hlen a₀
+    have has : as = [] := List.eq_nil_of_length_eq_zero (by simpa using hlen)
+    subst has
+    exact ⟨a₀, [], rfl, rfl, by simp, le_refl _⟩
+  | cons u us ih =>
+    intro hmono as hlen a₀
+    cases as with
+    | nil => simp at hlen
+    | cons a as' =>
+      have hu : Monotone u := hmono u List.mem_cons_self
+      have hmono' : ∀ v ∈ us, Monotone v := fun v hv => hmono v (List.mem_cons_of_mem _ hv)
+      have hlen' : as'.length = us.length := by simpa using hlen
+      -- Snap `a` to the left end of its u-level (two-pool lemma with v ≡ 0).
+      obtain ⟨c, -, hca, hcu, hjump, -⟩ :=
+        staircase_leftmost_dominates u (fun _ => 0) hu
+          (fun _ _ _ => le_refl 0) 0 a (Nat.zero_le a)
+      -- Recurse on the tail, absorbing the slack a − c into the head pool.
+      obtain ⟨b₀, bs, hlenb, hsum, hjumps, hval⟩ := ih hmono' as' hlen' (a₀ + (a - c))
+      refine ⟨b₀, c :: bs, by simpa using hlenb, ?_, ?_, ?_⟩
+      · -- budget: b₀ + (c + bs.sum) = a₀ + (a + as'.sum)
+        simp only [List.sum_cons]
+        omega
+      · -- every snapped coordinate is 0 or a jump point
+        intro p hp
+        rw [List.zip_cons_cons, List.mem_cons] at hp
+        rcases hp with rfl | hp
+        · exact hjump
+        · exact hjumps p hp
+      · -- value: monotone absorption beats the original
+        have habs : u₀ a₀ ≤ u₀ (a₀ + (a - c)) := hu₀ (Nat.le_add_right _ _)
+        simp only [allocValue]
+        rw [hcu]
+        omega
+
+/-- Witness (3 pools, zero fee, x=50, y=100): allocation (10, [33, 17])
+    snaps to (11, [32, 17]) — coordinate 33 sits inside the level segment
+    [32, 33] (out = 39), so it snaps to 32 and the absorber takes the
+    slack; 17 is already a jump point. Total output improves 80 → 82. -/
+theorem witness_multi_pool_snap :
+    feeOut 50 100 0 32 = feeOut 50 100 0 33 ∧
+    feeOut 50 100 0 16 < feeOut 50 100 0 17 ∧
+    10 + (33 + 17) = 11 + (32 + 17) ∧
+    feeOut 50 100 0 10 + (feeOut 50 100 0 33 + feeOut 50 100 0 17)
+      ≤ feeOut 50 100 0 11 + (feeOut 50 100 0 32 + feeOut 50 100 0 17) := by
+  decide
 
 /-! ## Non-vacuity witnesses -/
 
