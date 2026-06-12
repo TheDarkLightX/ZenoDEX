@@ -86,6 +86,103 @@ def brute_force_best_split_two_pools_exact_in(pool0: PoolXY, pool1: PoolXY, amou
     return best_out, best_a
 
 
+def _min_gross_for_output_level(pool: PoolXY, t: int) -> int | None:
+    """
+    Closed-form minimal gross input `a` with out(a) >= t under v8 semantics.
+
+    Proven exact (Lean: Proofs/SplitRoutingStaircase.lean, le_feeOut_iff):
+        t <= out(a)  <=>  a >= ceil( ceil(t*x/(y-t)) * B / (B - fee) )
+    for 0 < x, 0 < t < y, fee < B. Returns None when level t is unreachable.
+    """
+    t = int(t)
+    if t <= 0:
+        return None
+    x, y, fee = int(pool.x), int(pool.y), int(pool.fee_bps)
+    if x <= 0 or t >= y:
+        return None
+    alpha = BPS_DENOM - fee
+    if alpha <= 0:
+        return None
+    n_t = -((-t * x) // (y - t))  # ceil(t*x / (y-t))
+    a_t = -((-n_t * BPS_DENOM) // alpha)  # ceil(n_t * B / alpha)
+    return int(max(a_t, 1))
+
+
+def staircase_jump_best_split_two_pools_exact_in(
+    pool0: PoolXY,
+    pool1: PoolXY,
+    amount_in: int,
+) -> Tuple[int, int]:
+    """
+    EXACT optimal split via staircase jump enumeration (deterministic,
+    leftmost tie-break), bit-identical to brute force.
+
+    Mathematical basis (Lean: Proofs/SplitRoutingStaircase.lean):
+    - `two_pool_split_candidate_complete`: out0(a) is a monotone staircase
+      and out1(D-a) an antitone one, so the leftmost maximizer of their sum
+      over the both-valid interval [lo, hi] is `lo` or a jump point of out0.
+    - `le_feeOut_iff` / `jump_point_closed_form`: the jump point for output
+      level t is a_t = ceil(ceil(t*x0/(y0-t)) * B / (B - fee0)) - two
+      ceiling divisions, no search.
+
+    Cost: one pool-0 + one pool-1 quote per DISTINCT out0 level in [lo, hi]
+    (= O(min(span, out0(hi)))), versus O(span) quote pairs for brute force.
+    """
+    if amount_in <= 0:
+        raise ValueError("amount_in must be positive")
+    D = int(amount_in)
+
+    def total_out(a: int) -> int | None:
+        b = D - a
+        try:
+            out0 = exact_out_for_pool_exact_in(pool0, a) if a > 0 else 0
+            out1 = exact_out_for_pool_exact_in(pool1, b) if b > 0 else 0
+        except Exception:
+            return None
+        return int(out0 + out1)
+
+    best: tuple[int, int] | None = None
+
+    def consider(a: int) -> None:
+        nonlocal best
+        tot = total_out(int(a))
+        if tot is None:
+            return
+        cand = (int(tot), int(a))
+        if _is_better_candidate(cand, best):
+            best = cand
+
+    # Single-pool endpoints, as in the existing search.
+    consider(0)
+    consider(D)
+
+    # Both-valid interval [lo, hi]: closed-form minimal valid gross per pool
+    # (out >= 1 is exactly level t = 1; validity is monotone in the gross).
+    min0 = _min_gross_for_output_level(pool0, 1)
+    min1 = _min_gross_for_output_level(pool1, 1)
+    if min0 is not None and min1 is not None:
+        lo = int(min0)
+        hi = D - int(min1)
+        a = lo
+        # Walk jump points in ascending order: ascending visit order plus
+        # strict-improvement updates yields the global leftmost maximizer
+        # (every split is dominated by a candidate at or left of it).
+        while a <= hi:
+            try:
+                out0 = exact_out_for_pool_exact_in(pool0, a) if a > 0 else 0
+            except Exception:
+                break  # only possible if level 1 itself is infeasible
+            consider(a)
+            a_next = _min_gross_for_output_level(pool0, int(out0) + 1)
+            if a_next is None or int(a_next) <= a or int(a_next) > hi:
+                break
+            a = int(a_next)
+
+    if best is None:
+        raise ValueError("no feasible split")
+    return int(best[0]), int(best[1])
+
+
 def _derivative_gt(pool0: PoolXY, a0: int, pool1: PoolXY, a1: int) -> bool:
     """
     Compare continuous marginal outputs without floats.

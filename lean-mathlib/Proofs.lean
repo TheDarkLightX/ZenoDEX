@@ -119,6 +119,7 @@ import Proofs.SettlementCanonicalExecution
 import Proofs.SettlementMechanism
 import Proofs.SettlementNetting
 import Proofs.SplitRoutingArgmaxPlateau
+import Proofs.SplitRoutingStaircase
 import Proofs.SplitRoutingUnimodality
 import Proofs.StateRootFramingInjectivity
 import Proofs.SwapRouterBounds
