@@ -107,13 +107,12 @@ This should preferably be proved by reusing `rounding_gap_bound_general`, but
 theorem integer_route_rounding_envelope
     (gap : Nat → Int)
     (step : Int)
-    (hstep_pos : 1 ≤ step)
     (hbase : gap 1 ≤ 1)
     (hrec : ∀ k, 1 ≤ k → gap (k + 1) ≤ gap k + step)
     (k : Nat)
     (hk : 1 ≤ k) :
     gap k ≤ step * ↑k - (step - 1) := by
-  exact rounding_gap_bound_general gap step hstep_pos hbase hrec k hk
+  exact rounding_gap_bound_general gap step hbase hrec k hk
 
 /-- A sharper Lipschitz route envelope: when a composed quote path propagates
 prior rounding error with Lipschitz constant at most one, the accumulated integer

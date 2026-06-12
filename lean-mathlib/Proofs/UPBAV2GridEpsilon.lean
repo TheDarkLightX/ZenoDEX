@@ -56,16 +56,27 @@ theorem actual_partial_loss_plus_rounding_le_budget
   omega
 
 /--
-Relative-loss budgets are checked by cross multiplication in integer space.
-This theorem records the report interpretation exposed by the checker.
+Relative-loss budgets are checked by cross multiplication in integer space,
+once, against the MINIMUM notional. This theorem is the report interpretation
+exposed by the checker: the single checked inequality transfers to every
+actual execution — any combined loss below the absolute bound and any
+notional above the minimum satisfy the same ppm constraint
+`loss/notional ≤ maxRelativeLossPpm/ppmDenom` in cross-multiplied integer
+form, so no rational arithmetic is needed on-chain.
 -/
 theorem relative_loss_cross_mul_budget
     {absoluteLossBoundAtoms minNotionalOutputAtoms maxRelativeLossPpm ppmDenom : Nat}
     (hCross :
       absoluteLossBoundAtoms * ppmDenom ≤
-        maxRelativeLossPpm * minNotionalOutputAtoms) :
-    absoluteLossBoundAtoms * ppmDenom ≤
-      maxRelativeLossPpm * minNotionalOutputAtoms := hCross
+        maxRelativeLossPpm * minNotionalOutputAtoms)
+    {lossAtoms notionalOutputAtoms : Nat}
+    (hLoss : lossAtoms ≤ absoluteLossBoundAtoms)
+    (hNotional : minNotionalOutputAtoms ≤ notionalOutputAtoms) :
+    lossAtoms * ppmDenom ≤ maxRelativeLossPpm * notionalOutputAtoms :=
+  calc lossAtoms * ppmDenom
+      ≤ absoluteLossBoundAtoms * ppmDenom := Nat.mul_le_mul_right _ hLoss
+    _ ≤ maxRelativeLossPpm * minNotionalOutputAtoms := hCross
+    _ ≤ maxRelativeLossPpm * notionalOutputAtoms := Nat.mul_le_mul_left _ hNotional
 
 end UPBAV2GridEpsilon
 end Proofs
