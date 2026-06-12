@@ -11,6 +11,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -532,7 +533,21 @@ def _missing_environment(names: Sequence[str]) -> list[dict[str, str]]:
     ]
 
 
-def _run_lane(lane: Lane) -> dict[str, object]:
+def _tail_text(value: str, *, limit: int = 4000) -> str:
+    if len(value) <= limit:
+        return value
+    return value[-limit:]
+
+
+def _tail_file(handle, *, limit: int = 4000) -> str:
+    handle.flush()
+    end = handle.tell()
+    read_size = min(end, limit * 4)
+    handle.seek(max(0, end - read_size))
+    return _tail_text(handle.read().decode("utf-8", errors="replace"), limit=limit)
+
+
+def _run_lane(lane: Lane, *, stream_output: bool = True) -> dict[str, object]:
     missing_files = _missing_files(lane.required_files)
     if missing_files:
         return {
@@ -553,16 +568,29 @@ def _run_lane(lane: Lane) -> dict[str, object]:
         }
     started = time.monotonic()
     for command in lane.commands:
-        proc = subprocess.run(command, cwd=REPO_ROOT)
+        stdout_tail = ""
+        stderr_tail = ""
+        if stream_output:
+            proc = subprocess.run(command, cwd=REPO_ROOT)
+        else:
+            with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+                proc = subprocess.run(command, cwd=REPO_ROOT, stdout=stdout_file, stderr=stderr_file)
+                if proc.returncode != 0:
+                    stdout_tail = _tail_file(stdout_file)
+                    stderr_tail = _tail_file(stderr_file)
         if proc.returncode != 0:
             duration = time.monotonic() - started
-            return {
+            result: dict[str, object] = {
                 "name": lane.name,
                 "ok": False,
                 "duration_s": round(duration, 3),
                 "failed_command": list(command),
                 "error": "command failed",
             }
+            if not stream_output:
+                result["stdout_tail"] = stdout_tail
+                result["stderr_tail"] = stderr_tail
+            return result
     duration = time.monotonic() - started
     return {"name": lane.name, "ok": True, "duration_s": round(duration, 3)}
 
@@ -653,7 +681,7 @@ def cmd_replay(args: argparse.Namespace) -> int:
         lane = LANES[name]
         if args.format != "json":
             print(f"== assurance: {lane.name} ==")
-        result = _run_lane(lane)
+        result = _run_lane(lane, stream_output=args.format != "json")
         results.append(result)
         overall_ok = overall_ok and bool(result["ok"])
         if args.format != "json":
