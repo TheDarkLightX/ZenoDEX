@@ -19,6 +19,7 @@ import Proofs.CircuitBreakerWindowArithmetic
 import Proofs.ConstDenominatorSurrogateBounds
 import Proofs.CPMMConcavity
 import Proofs.CPMMEdgeRounding
+import Proofs.CPMMFeeAwareCertificate
 import Proofs.CPMMInvariants
 import Proofs.CPMMOutputMonotonicity
 import Proofs.CPMMSandwichCertificate
