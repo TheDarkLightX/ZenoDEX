@@ -622,6 +622,9 @@ def best_split_two_pools_exact_in(
     - "dense24": denser deterministic coarse probes (24 bins) + local refinement.
     - "dense32": very dense deterministic coarse probes (32 bins) + local refinement.
     - "dgstr_v1": experimental discrete golden-section / ternary refinement with bounded rescue scans.
+    - "staircase_v1": EXACT jump enumeration (Lean: Proofs/SplitRoutingStaircase.lean);
+      bit-identical to brute force including the leftmost tie-break, with one quote
+      pair per distinct pool-0 output level instead of per split point.
 
     This is intended to be iteratively improved with counterexample mining.
     """
@@ -640,6 +643,12 @@ def best_split_two_pools_exact_in(
             search_profile=profile,
             window=int(window),
         )
+
+    if profile == "staircase_v1":
+        # Proven-exact optimizer: candidate completeness and closed-form jump
+        # points are certified in Lean (two_pool_split_candidate_complete,
+        # le_feeOut_iff). No window/grid parameters apply.
+        return staircase_jump_best_split_two_pools_exact_in(pool0, pool1, amount_in)
 
     _profile, grid_n, force_dense_grid, left_sweep_k = _search_profile_params(profile)
 
