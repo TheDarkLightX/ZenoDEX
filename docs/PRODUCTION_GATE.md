@@ -44,6 +44,18 @@ artifacts are supplied:
   named `check_results` for kernel assurance, container hardening, Python tests,
   UI audit, production image build, and Trivy scan.
 
+Generate the release-gate report from a clean worktree with:
+
+```bash
+python3 tools/run_prod_gate_report.py \
+  --out runs/production_readiness/release_gate/prod_gate_report.json
+```
+
+The report producer archives stdout/stderr logs and their hashes beside the
+JSON report. The readiness checker accepts only the default full
+`bash tools/prod_gate.sh` run on a clean worktree; dirty or alternate-script
+reports remain diagnostic artifacts and do not clear production readiness.
+
 Missing artifacts are blockers, not passing evidence. The checker also keeps
 `production_security_claim=false`; it is a readiness dashboard and does not
 publish a production-security claim by itself.

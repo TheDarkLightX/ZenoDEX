@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -26,6 +27,7 @@ from tools.check_zeno_ledger_two_machine_evidence import (  # noqa: E402
 
 REPORT_SCHEMA = "zenodex.production_readiness_status.v1"
 RELEASE_GATE_REPORT_SCHEMA = "zenodex.release_gate_report.v1"
+_HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 REQUIRED_RELEASE_GATE_CHECKS = (
     "kernel_assurance",
     "container_hardening",
@@ -309,7 +311,7 @@ def _two_machine_lane(evidence_path: Path, *, expected_commit: str | None) -> di
 
 
 def _release_gate_lane(report_path: Path, *, expected_commit: str | None) -> dict[str, Any]:
-    command = ("bash", "tools/prod_gate.sh")
+    command = ("python3", "tools/run_prod_gate_report.py", "--out", _rel(report_path))
     if not report_path.is_file():
         return _blocked_lane(
             lane_id="full_release_gate_artifact",
@@ -334,10 +336,23 @@ def _release_gate_lane(report_path: Path, *, expected_commit: str | None) -> dic
         errors.append("release-gate report must have ok=true")
     if report.get("command") != "bash tools/prod_gate.sh":
         errors.append("release-gate report command must be bash tools/prod_gate.sh")
+    if report.get("command_argv") != ["bash", "tools/prod_gate.sh"]:
+        errors.append("release-gate report command_argv must be ['bash', 'tools/prod_gate.sh']")
     if expected_commit and report.get("commit_sha") != expected_commit:
         errors.append("release-gate report commit_sha must match expected_commit")
+    if report.get("git_dirty_before") is not False:
+        errors.append("release-gate report git_dirty_before must be false")
+    if report.get("allow_dirty") is not False:
+        errors.append("release-gate report allow_dirty must be false")
+    if report.get("returncode") != 0:
+        errors.append("release-gate report returncode must be 0")
+    if report.get("timed_out") is not False:
+        errors.append("release-gate report timed_out must be false")
     if not isinstance(report.get("completed_at"), str) or not str(report.get("completed_at")).strip():
         errors.append("release-gate report completed_at must be a non-empty string")
+    for field in ("prod_gate_sha256", "producer_sha256", "stdout_sha256", "stderr_sha256"):
+        if not isinstance(report.get(field), str) or _HEX64_RE.fullmatch(str(report.get(field))) is None:
+            errors.append(f"release-gate report {field} must be lowercase sha256 hex")
     check_results = report.get("check_results")
     if not isinstance(check_results, Mapping):
         errors.append("release-gate report check_results must be an object")

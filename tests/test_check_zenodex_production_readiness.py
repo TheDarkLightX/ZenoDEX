@@ -191,8 +191,17 @@ def test_external_evidence_lanes_accept_valid_archives_but_internal_skips_block(
             "schema": RELEASE_GATE_REPORT_SCHEMA,
             "ok": True,
             "command": "bash tools/prod_gate.sh",
+            "command_argv": ["bash", "tools/prod_gate.sh"],
             "commit_sha": COMMIT,
+            "git_dirty_before": False,
+            "allow_dirty": False,
             "completed_at": "2026-06-12T00:00:00Z",
+            "returncode": 0,
+            "timed_out": False,
+            "prod_gate_sha256": "a" * 64,
+            "producer_sha256": "b" * 64,
+            "stdout_sha256": "c" * 64,
+            "stderr_sha256": "d" * 64,
             "check_results": {
                 check_id: {"ok": True}
                 for check_id in REQUIRED_RELEASE_GATE_CHECKS
@@ -232,8 +241,49 @@ def test_release_gate_report_rejects_bare_ok_true(tmp_path: Path) -> None:
     assert lane["status"] == "rejected"
     assert f"schema must be {RELEASE_GATE_REPORT_SCHEMA}" in lane["errors"]
     assert "release-gate report command must be bash tools/prod_gate.sh" in lane["errors"]
+    assert "release-gate report git_dirty_before must be false" in lane["errors"]
     assert "release-gate report check_results must be an object" in lane["errors"]
     assert "release-gate check trivy_scan must have ok=true" in lane["errors"]
+
+
+def test_release_gate_report_rejects_dirty_allow_dirty_archive(tmp_path: Path) -> None:
+    release_gate = tmp_path / "prod_gate_report.json"
+    _write_json(
+        release_gate,
+        {
+            "schema": RELEASE_GATE_REPORT_SCHEMA,
+            "ok": True,
+            "command": "bash tools/prod_gate.sh",
+            "command_argv": ["bash", "tools/prod_gate.sh"],
+            "commit_sha": COMMIT,
+            "git_dirty_before": True,
+            "allow_dirty": True,
+            "completed_at": "2026-06-12T00:00:00Z",
+            "returncode": 0,
+            "timed_out": False,
+            "prod_gate_sha256": "a" * 64,
+            "producer_sha256": "b" * 64,
+            "stdout_sha256": "c" * 64,
+            "stderr_sha256": "d" * 64,
+            "check_results": {
+                check_id: {"ok": True}
+                for check_id in REQUIRED_RELEASE_GATE_CHECKS
+            },
+        },
+    )
+
+    report = build_readiness_status(
+        public_testnet_manifest=tmp_path / "missing-public.json",
+        two_machine_evidence=tmp_path / "missing-two-machine.json",
+        release_gate_report=release_gate,
+        expected_commit=COMMIT,
+        run_internal_gates=False,
+    )
+
+    lane = _lane(report, "full_release_gate_artifact")
+    assert lane["ok"] is False
+    assert "release-gate report git_dirty_before must be false" in lane["errors"]
+    assert "release-gate report allow_dirty must be false" in lane["errors"]
 
 
 def test_cli_default_emits_blocked_json_not_argparse_usage(
