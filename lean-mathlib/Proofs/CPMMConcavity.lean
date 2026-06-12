@@ -487,10 +487,15 @@ theorem witness_full_chain :
     f_witness 3 ≥ f_witness 2 ∧ f_witness 3 ≥ f_witness 4 ∧
     -- Global optimality (via cpmm_zero_fee_split_certificate_sound)
     (∀ j, j ≤ 6 → f_witness 3 ≥ f_witness j) := by
-  refine ⟨witness_split_concavity, ?_, ?_, ?_⟩
-  · simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]; native_decide
-  · simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]; native_decide
-  · -- Compose through theorem 6: only concavity + 2 neighbor checks
+  constructor
+  · exact witness_split_concavity
+  constructor
+  · simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]
+    native_decide
+  constructor
+  · simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]
+    native_decide
+  · -- Compose through theorem 6: only concavity + 2 neighbor checks.
     exact cpmm_zero_fee_split_certificate_sound 1 10000 1 10000 6 3
       (by omega)
       witness_split_concavity
