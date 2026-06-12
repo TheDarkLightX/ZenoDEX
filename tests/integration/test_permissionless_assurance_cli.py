@@ -36,7 +36,9 @@ def test_status_json_shape() -> None:
     assert payload["notes"][-1].startswith("public replay lanes may require external toolchains")
     kernel_lane = next(lane for lane in payload["lanes"] if lane["name"] == "kernel-assurance")
     assert kernel_lane["required_environment"] == ["external/ESSO"]
-    assert kernel_lane["environment_hints"]["external/ESSO"] == "clone or update external/ESSO"
+    assert kernel_lane["environment_hints"]["external/ESSO"] == (
+        "clone/update external/ESSO or make the ESSO module importable"
+    )
     assert isinstance(payload["public_refs"], list)
     assert isinstance(payload["public_scope_paths"], list)
 
@@ -82,5 +84,10 @@ def test_replay_missing_environment_fails_closed(monkeypatch) -> None:
     assert result["ok"] is False
     assert result["error"] == "missing required environment"
     assert result["missing_environment"] == [
-        {"name": "external/ESSO", "hint": "clone or update external/ESSO"}
+        {"name": "external/ESSO", "hint": "clone/update external/ESSO or make the ESSO module importable"}
     ]
+
+
+def test_external_esso_requirement_accepts_importable_module(monkeypatch) -> None:
+    monkeypatch.setattr(assurance_cli, "_python_module_importable", lambda name: name == "ESSO")
+    assert assurance_cli._environment_requirement_ready("external/ESSO") is True
