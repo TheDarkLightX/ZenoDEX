@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 from tools.check_split_routing_staircase_runtime_evidence import (
     SCHEMA,
@@ -42,6 +43,7 @@ def test_staircase_runtime_evidence_cli_writes_json(tmp_path) -> None:
             "1",
             "--min-cases",
             "10",
+            "--console-summary-only",
             "--output-json",
             str(output),
         ],
@@ -54,6 +56,16 @@ def test_staircase_runtime_evidence_cli_writes_json(tmp_path) -> None:
     console_payload = json.loads(proc.stdout)
     file_payload = json.loads(output.read_text(encoding="utf-8"))
     assert console_payload["schema"] == SCHEMA
+    assert "cases" not in console_payload
     assert file_payload["schema"] == SCHEMA
+    assert "cases" in file_payload
     assert file_payload["ok"] is True
     assert file_payload["summary"]["output_regression_cases"] == 0
+
+
+def test_spot_evidence_runner_replays_staircase_evidence() -> None:
+    text = Path("tools/run_spot_evidence.sh").read_text(encoding="utf-8")
+    assert "check_split_routing_staircase_runtime_evidence.py" in text
+    assert "tests/core/test_split_routing.py" in text
+    assert "tests/core/test_split_routing_staircase.py" in text
+    assert "tests/core/test_split_routing_dispatch.py" in text

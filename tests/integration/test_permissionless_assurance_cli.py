@@ -70,6 +70,8 @@ def test_replay_plan_group_expansion() -> None:
     assert "perps" in lane_names
     plan_lanes = {lane["name"]: lane for lane in payload["lanes"]}
     assert plan_lanes["kernel-assurance"]["required_environment"] == ["external/ESSO"]
+    assert "tools/check_split_routing_staircase_runtime_evidence.py" in plan_lanes["spot-evidence"]["required_files"]
+    assert "split-routing staircase evidence" in plan_lanes["spot-evidence"]["description"]
     assert "zusd" not in plan_lanes
 
 
