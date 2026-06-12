@@ -23,6 +23,31 @@ From repo root:
 bash tools/prod_gate.sh
 ```
 
+To see the current production-readiness posture across local gates and external
+evidence artifacts:
+
+```bash
+python3 tools/check_zenodex_production_readiness.py --json
+```
+
+This status checker is intentionally fail-closed. It reports
+`production_ready=false` until the internal gates pass and these real external
+artifacts are supplied:
+
+- `runs/production_readiness/public_testnet_v0_1_16/evidence_manifest.json`,
+  checked by `tools/check_public_testnet_v0_1_16_evidence.py`.
+- `runs/production_readiness/zeno_ledger_two_machine/two_machine_evidence.json`,
+  checked by `tools/check_zeno_ledger_two_machine_evidence.py` against the
+  expected commit.
+- `runs/production_readiness/release_gate/prod_gate_report.json`, a
+  `zenodex.release_gate_report.v1` record for `bash tools/prod_gate.sh` with
+  named `check_results` for kernel assurance, container hardening, Python tests,
+  UI audit, production image build, and Trivy scan.
+
+Missing artifacts are blockers, not passing evidence. The checker also keeps
+`production_security_claim=false`; it is a readiness dashboard and does not
+publish a production-security claim by itself.
+
 For the ZenoLedger public-testnet rehearsal lane, run:
 
 ```bash
