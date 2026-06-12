@@ -38,6 +38,7 @@ from src.integration.production_promotion_evidence import (  # noqa: E402
     _ALLOWED_OS_PROMPT_KINDS,
     _NEAR_AND_SAME_HOUR_SECONDS,
     HARDWARE_WALLET_EVIDENCE_SCHEMA_V1,
+    _is_template_placeholder,
     attach_production_hardware_wallet_hash_v1,
     evaluate_production_hardware_wallet_evidence_v1,
     production_hardware_wallet_approval_message_v1,
@@ -71,6 +72,14 @@ def _positive_int(value: int, *, label: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise ValueError(f"{label} must be a positive integer")
     return int(value)
+
+
+def _non_placeholder_str(value: object, *, label: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{label} must be a non-empty string")
+    if _is_template_placeholder(value):
+        raise ValueError(f"{label} placeholder value {value!r} must be replaced")
+    return value
 
 
 def _verify_ed25519_signature(*, pubkey: str, signature: str, message: bytes, label: str) -> None:
@@ -130,11 +139,20 @@ def build_hardware_wallet_evidence(args: argparse.Namespace) -> dict[str, object
         # time. Rejecting it here keeps the produced artifact aligned with the
         # verifier's same-hour custody rule before any evidence hash is minted.
         raise ValueError("OS prompt capture and approval must be captured within the same hour")
+    device_id = _non_placeholder_str(args.device_id, label="device_id")
+    firmware_version = _non_placeholder_str(
+        args.device_firmware_version,
+        label="device_firmware_version",
+    )
+    wallet_authority_profile_hash = _non_placeholder_str(
+        args.wallet_authority_profile_hash,
+        label="wallet_authority_profile_hash",
+    )
     evidence_body: dict[str, object] = {
         "schema": HARDWARE_WALLET_EVIDENCE_SCHEMA_V1,
-        "device_id": args.device_id,
+        "device_id": device_id,
         "device_model": device_model,
-        "device_firmware_version": args.device_firmware_version,
+        "device_firmware_version": firmware_version,
         "device_attestation": {
             "pubkey": device_pubkey,
             "challenge": attestation_challenge,
@@ -150,7 +168,7 @@ def build_hardware_wallet_evidence(args: argparse.Namespace) -> dict[str, object
             "approval_signature": approval_signature,
             "captured_at": approval_captured_at,
         },
-        "profile_wallet_authority_hash": args.wallet_authority_profile_hash,
+        "profile_wallet_authority_hash": wallet_authority_profile_hash,
         "issued_at": issued_at,
     }
     expected_challenge = production_hardware_wallet_attestation_challenge_v1(evidence_body)

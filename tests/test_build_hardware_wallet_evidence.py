@@ -189,6 +189,19 @@ def test_hardware_builder_rejects_missing_expected_device_pubkey(capsys, tmp_pat
     assert not out.exists()
 
 
+def test_hardware_builder_rejects_template_device_id_before_writing(capsys, tmp_path: Path) -> None:
+    out = tmp_path / "hardware_wallet.json"
+    args = _base_args(out)
+    args[args.index("--device-id") + 1] = "DEVICE_ID"
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "hardware_wallet_evidence_build_failed"
+    assert "device_id placeholder value 'DEVICE_ID' must be replaced" in payload["detail"]
+    assert not out.exists()
+
+
 def test_hardware_evaluator_requires_expected_device_pubkey(
     capsys,
     tmp_path: Path,
