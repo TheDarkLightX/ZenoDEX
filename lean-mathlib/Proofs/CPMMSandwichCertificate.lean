@@ -4,10 +4,10 @@ import Mathlib.Tactic
 /-!
 # Sandwich Certificate: Linear-Error Optimality for Floors of Concave Functions
 
-`CPMMConcavity` Part III proves the graded certificate: grade-k concavity plus
+`GaloisSplitCertificate` proves the graded certificate: grade-k concavity plus
 2 neighbor comparisons certify global optimality within `k·d·(d−1)/2` at
-distance `d` — and that quadratic error is TIGHT for the generic grade-k class
-(`approx_certificate_tight`).
+distance `d`, and that quadratic error is tight for the generic grade-k class
+(`witness_nearly_certificate_tight`).
 
 This file proves the CPMM split objective is not generic: it is a **floor of a
 discretely concave rational function** (one floor unit per pool). For that
@@ -102,9 +102,9 @@ def SandwichConcave (δ : ℚ) (f : ℕ → ℤ) (D : ℕ) : Prop :=
 
       (f j : ℚ) ≤ f a + δ * (|j − a| + 1).
 
-    Compare `CPMMConcavity.nearly_certificate_global_approx`: the graded bound
-    is quadratic in the distance and tight for generic grade-k functions; the
-    sandwich structure upgrades it to linear. -/
+    Compare `GaloisSplitCertificate.nearly_certificate_approx_global_max`: the
+    graded bound is quadratic in the distance and tight for generic grade-k
+    functions; the sandwich structure upgrades it to linear. -/
 theorem sandwich_certificate_linear (δ : ℚ) (f : ℕ → ℤ) (D a : ℕ)
     (ha : a ≤ D)
     (hsand : SandwichConcave δ f D)
@@ -311,9 +311,9 @@ theorem cpmm_split_sandwich (x₀ y₀ x₁ y₁ D : ℕ) :
 
       obj(j) ≤ obj(a★) + 2·d + 2,   d = |j − a★|.
 
-    This strictly improves the Part III quadratic bound `d·(d−1)` for d ≥ 4,
-    by exploiting that the objective is a floor of a concave envelope rather
-    than a generic grade-2 function. -/
+    This strictly improves the graded quadratic bound `d·(d−1)` for d ≥ 4 by
+    exploiting that the objective is a floor of a concave envelope rather than a
+    generic grade-2 function. -/
 theorem cpmm_zero_fee_split_certificate_linear
     (x₀ y₀ x₁ y₁ D a_star : ℕ) (ha : a_star ≤ D)
     (h_prev : 0 < a_star →
@@ -372,7 +372,7 @@ theorem witness_linear_scale_gap :
     (9 * 1 / 10 : ℕ) = 0 ∧
     (9 * 20 / 10 : ℕ) = 18 ∧
     18 ≤ 1 * (20 + 1) := by
-  native_decide
+  decide
 
 end CPMMSandwich
 end Proofs
