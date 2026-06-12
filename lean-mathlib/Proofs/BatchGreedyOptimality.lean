@@ -96,7 +96,7 @@ theorem witness_price_impact :
     intentOut x y j = 90 ∧
     intentOut (poolAfter x y i).1 (poolAfter x y i).2 j = 64 ∧
     intentOut (poolAfter x y i).1 (poolAfter x y i).2 j < intentOut x y j := by
-  native_decide
+  decide
 
 /-! ## Part 4: Satisfiability Transfer Lemmas
 
@@ -132,7 +132,7 @@ theorem witness_sat_transfer :
     satisfiable x y j ∧
     -- j NOT satisfiable after i (pool depleted too much)
     ¬ satisfiable (poolAfter x y i).1 (poolAfter x y i).2 j := by
-  native_decide
+  decide
 
 /-! ## Part 5: Output Decreases with Larger Prior Trade
 
@@ -149,8 +149,7 @@ the pool more. -/
     y' = y - out_i <= y - out_j (since out_i >= out_j by swapOut_mono_amount).
     Both effects reduce k's output via swapOut_joint_mono. -/
 theorem output_decreases_with_larger_prior (x y : ℕ) (i j k : Intent)
-    (h_input : i.input ≥ j.input)
-    (hpos : 0 < x + j.input) :
+    (h_input : i.input ≥ j.input) :
     intentOut (poolAfter x y i).1 (poolAfter x y i).2 k ≤
     intentOut (poolAfter x y j).1 (poolAfter x y j).2 k := by
   simp only [intentOut, poolAfter]
@@ -159,8 +158,6 @@ theorem output_decreases_with_larger_prior (x y : ℕ) (i j k : Intent)
     apply Nat.sub_le_sub_left
     exact swapOut_mono_amount x y j.input i.input h_input
   · -- x + j.input ≤ x + i.input
-    omega
-  · -- 0 < (x + j.input) + k.input
     omega
 
 /-- Non-vacuity: larger prior trade gives strictly less output. -/
@@ -175,7 +172,7 @@ theorem witness_larger_prior :
     -- Strict inequality
     intentOut (poolAfter x y big).1 (poolAfter x y big).2 k <
       intentOut (poolAfter x y small).1 (poolAfter x y small).2 k := by
-  native_decide
+  decide
 
 /-! ## Part 6: Greedy Volume Optimality (2-Intent Case)
 
@@ -224,7 +221,7 @@ theorem witness_both_feasible :
     let a : Intent := ⟨10, 5⟩; let b : Intent := ⟨20, 10⟩
     greedyVol x y a b = reverseVol x y a b ∧
     greedyVol x y a b = 30 := by
-  native_decide
+  decide
 
 /-! ## Part 7: Greedy Dominance — The Main Theorem
 
@@ -360,7 +357,7 @@ theorem witness_greedy_dominance :
     greedyVol x y a b = 200 ∧
     reverseVol x y a b = 100 ∧
     greedyVol x y a b > reverseVol x y a b := by
-  native_decide
+  decide
 
 /-- Non-vacuity: the equal_input_same_pool lemma produces identical pool states. -/
 theorem witness_equal_input_pool :
@@ -368,7 +365,7 @@ theorem witness_equal_input_pool :
     let a : Intent := ⟨100, 80⟩; let b : Intent := ⟨100, 50⟩
     poolAfter x y a = poolAfter x y b ∧
     poolAfter x y a = (1100, 910) := by
-  native_decide
+  decide
 
 /-! ## Part 8: Output Sum Invariance
 
@@ -414,7 +411,7 @@ theorem witness_output_invariant :
     intentOut x y a + intentOut (poolAfter x y a).1 (poolAfter x y a).2 b =
       intentOut x y b + intentOut (poolAfter x y b).1 (poolAfter x y b).2 a ∧
     intentOut x y a + intentOut (poolAfter x y a).1 (poolAfter x y a).2 b = 165 := by
-  native_decide
+  decide
 
 /-! ## Part 9: Sharpness — Equal Inputs are Necessary
 
@@ -439,7 +436,7 @@ theorem exchange_requires_equal_inputs :
     a.minOut ≥ b.minOut ∧ a.input ≠ b.input ∧
     satisfiable (poolAfter x y b).1 (poolAfter x y b).2 a ∧
     ¬ satisfiable (poolAfter x y a).1 (poolAfter x y a).2 b := by
-  native_decide
+  decide
 
 /-! ## Part 10: Multi-Position Output Monotonicity
 
@@ -487,7 +484,7 @@ theorem witness_position_outputs :
     outputAtN 1000 1000 100 2 = 64 ∧
     outputAtN 1000 1000 100 2 ≤ outputAtN 1000 1000 100 1 ∧
     outputAtN 1000 1000 100 1 ≤ outputAtN 1000 1000 100 0 := by
-  native_decide
+  decide
 
 /-- Pool state after 1 execution agrees with `poolAfter` for any intent
     with the matching input size. Bridges the k-intent framework to the

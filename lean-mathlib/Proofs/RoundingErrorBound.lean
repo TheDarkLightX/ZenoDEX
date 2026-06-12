@@ -225,14 +225,13 @@ a single parameterized family: if each hop adds at most C units of error,
 then `g(k) ≤ C·k - (C-1)`. This unification reveals the *linear* structure
 of rounding error propagation. -/
 
-/-- **GENERALIZED ROUNDING GAP BOUND**: for any step constant `C ≥ 1`,
-    if `g(1) ≤ 1` and `g(k+1) ≤ g(k) + C` for all `k ≥ 1`,
-    then `g(k) ≤ C·k - (C-1)`.
+/-- **GENERALIZED ROUNDING GAP BOUND**: for ANY step constant `C` (no
+    positivity needed), if `g(1) ≤ 1` and `g(k+1) ≤ g(k) + C` for all
+    `k ≥ 1`, then `g(k) ≤ C·k - (C-1)`.
 
     The conservative model (C=2, bound 2k-1) and Lipschitz model (C=1, bound k)
     are both special cases. -/
 theorem rounding_gap_bound_general (g : Nat → Int) (C : Int)
-    (_hC : 1 ≤ C)
     (h_base : g 1 ≤ 1)
     (h_step : ∀ k, 1 ≤ k → g (k + 1) ≤ g k + C)
     (k : Nat) (hk : 1 ≤ k) :
@@ -260,7 +259,7 @@ theorem conservative_is_general_C2 (g : Nat → Int)
     (h_step : ∀ k, 1 ≤ k → g (k + 1) ≤ g k + 2)
     (k : Nat) (hk : 1 ≤ k) :
     g k ≤ 2 * ↑k - 1 :=
-  rounding_gap_bound_general g 2 (by omega) h_base h_step k hk
+  rounding_gap_bound_general g 2 h_base h_step k hk
 
 /-- The Lipschitz bound `k` is the `C=1` specialization of the
     generalized bound `C·k - (C-1) = 1·k - 0 = k`. -/
@@ -269,16 +268,16 @@ theorem lipschitz_is_general_C1 (g : Nat → Int)
     (h_step : ∀ k, 1 ≤ k → g (k + 1) ≤ g k + 1)
     (k : Nat) (hk : 1 ≤ k) :
     g k ≤ ↑k := by
-  have h := rounding_gap_bound_general g 1 (by omega) h_base h_step k hk
+  have h := rounding_gap_bound_general g 1 h_base h_step k hk
   push_cast at *; omega
 
 /-! ### Tightness: bounds are optimal -/
 
-/-- **GENERALIZED BOUND IS TIGHT**: for any step constant `C ≥ 1`, the
-    sequence `g(k) = C·k - (C-1)` satisfies the recurrence and achieves
+/-- **GENERALIZED BOUND IS TIGHT**: for ANY step constant `C` and ANY `k`,
+    the sequence `g(k) = C·k - (C-1)` satisfies the recurrence and achieves
     the bound with equality. This subsumes both conservative and Lipschitz
     tightness as `C=2` and `C=1` cases. -/
-theorem general_bound_tight (C : Int) (_hC : 1 ≤ C) (k : Nat) (_hk : 1 ≤ k) :
+theorem general_bound_tight (C : Int) (k : Nat) :
     ∃ g : Nat → Int,
       g 1 ≤ 1 ∧
       (∀ j, 1 ≤ j → g (j + 1) ≤ g j + C) ∧
@@ -290,22 +289,22 @@ theorem general_bound_tight (C : Int) (_hC : 1 ≤ C) (k : Nat) (_hk : 1 ≤ k) 
 /-- **CONSERVATIVE BOUND IS TIGHT**: There exists a gap sequence satisfying
     the recurrence that achieves `g(k) = 2k - 1` (the upper bound) for any k.
     This proves the bound `2k - 1` cannot be improved. -/
-theorem conservative_bound_tight (k : Nat) (hk : 1 ≤ k) :
+theorem conservative_bound_tight (k : Nat) :
     ∃ g : Nat → Int,
       g 1 ≤ 1 ∧
       (∀ j, 1 ≤ j → g (j + 1) ≤ g j + 2) ∧
       g k = 2 * ↑k - 1 :=
-  general_bound_tight 2 (by omega) k hk
+  general_bound_tight 2 k
 
 /-- **LIPSCHITZ BOUND IS TIGHT**: There exists a gap sequence satisfying
     the Lipschitz recurrence that achieves `g(k) = k` for any k.
     This proves the bound `k` cannot be improved. -/
-theorem lipschitz_bound_tight (k : Nat) (hk : 1 ≤ k) :
+theorem lipschitz_bound_tight (k : Nat) :
     ∃ g : Nat → Int,
       g 1 ≤ 1 ∧
       (∀ j, 1 ≤ j → g (j + 1) ≤ g j + 1) ∧
       g k = ↑k := by
-  obtain ⟨g, hb, hs, hval⟩ := general_bound_tight 1 (by omega) k hk
+  obtain ⟨g, hb, hs, hval⟩ := general_bound_tight 1 k
   exact ⟨g, hb, hs, by push_cast at *; omega⟩
 
 /-- **LIPSCHITZ STRICTLY BETTER**: For k ≥ 2, the Lipschitz bound k is

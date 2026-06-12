@@ -45,12 +45,15 @@ These are general number theory results that teach the reviewer the
 
 /-- FLOOR DIVISION SUBADDITIVITY: ⌊(a+b)/d⌋ ≥ ⌊a/d⌋ + ⌊b/d⌋.
     Splitting a sum across two floor divisions loses the carry.
+    Holds unconditionally (at d = 0 both sides are 0).
 
     Proof: from a = d*(a/d) + a%d and b = d*(b/d) + b%d, we get
     (a+b) = d*(a/d + b/d) + (a%d + b%d), so
     (a+b)/d = (a/d + b/d) + (a%d + b%d)/d ≥ a/d + b/d. -/
-theorem floor_div_subadditive (a b d : ℕ) (hd : 0 < d) :
+theorem floor_div_subadditive (a b d : ℕ) :
     a / d + b / d ≤ (a + b) / d := by
+  rcases Nat.eq_zero_or_pos d with rfl | hd
+  · simp
   rw [show a / d + b / d = (a / d + b / d) * d / d from (Nat.mul_div_cancel _ hd).symm]
   apply Nat.div_le_div_right
   have ha := Nat.div_mul_le_self a d
@@ -62,11 +65,14 @@ theorem floor_div_subadditive (a b d : ℕ) (hd : 0 < d) :
     The remainder carry term captures the exact gap between joint and
     separate floor divisions — the discrete analogue of exactness in
     integration vs piecewise integration.
+    Holds unconditionally (at d = 0 all four quotients are 0).
 
     Proof: rewrite a = d*(a/d) + a%d and b = d*(b/d) + b%d, combine,
     and apply Nat.add_mul_div_left to extract the quotient sum. -/
-theorem floor_div_exact_decomposition (a b d : ℕ) (hd : 0 < d) :
+theorem floor_div_exact_decomposition (a b d : ℕ) :
     (a + b) / d = a / d + b / d + (a % d + b % d) / d := by
+  rcases Nat.eq_zero_or_pos d with rfl | hd
+  · simp
   have ha := (Nat.div_add_mod a d).symm
   have hb := (Nat.div_add_mod b d).symm
   have hdist : d * (a / d + b / d) = d * (a / d) + d * (b / d) := by ring
@@ -80,9 +86,12 @@ theorem floor_div_exact_decomposition (a b d : ℕ) (hd : 0 < d) :
 /-- CARRY BIT BOUND: ⌊(a%d + b%d)/d⌋ ≤ 1.
     Each remainder < d, so their sum < 2d, giving a quotient < 2.
     This proves the gap between joint and separate floor divisions
-    is EXACTLY 0 or 1 — the tightest possible bound. -/
-theorem floor_div_carry_le_one (a b d : ℕ) (hd : 0 < d) :
+    is EXACTLY 0 or 1 — the tightest possible bound.
+    Holds unconditionally (at d = 0 the quotient is 0). -/
+theorem floor_div_carry_le_one (a b d : ℕ) :
     (a % d + b % d) / d ≤ 1 := by
+  rcases Nat.eq_zero_or_pos d with rfl | hd
+  · simp
   have hma : a % d < d := Nat.mod_lt a hd
   have hmb : b % d < d := Nat.mod_lt b hd
   have hlt : a % d + b % d < 2 * d := by omega
@@ -98,7 +107,7 @@ theorem floor_div_carry_le_one (a b d : ℕ) (hd : 0 < d) :
     backward via Nat.div_le_div_right (monotonicity) + carry_le_one. -/
 theorem floor_div_gap_one_iff (a b d : ℕ) (hd : 0 < d) :
     (a + b) / d = a / d + b / d + 1 ↔ d ≤ a % d + b % d := by
-  rw [floor_div_exact_decomposition a b d hd]
+  rw [floor_div_exact_decomposition a b d]
   constructor
   · -- (a%d + b%d)/d = 1 → d ≤ a%d + b%d
     intro h
@@ -109,7 +118,7 @@ theorem floor_div_gap_one_iff (a b d : ℕ) (hd : 0 < d) :
     intro h
     have h1 : d / d ≤ (a % d + b % d) / d := Nat.div_le_div_right h
     rw [Nat.div_self hd] at h1
-    have h2 := floor_div_carry_le_one a b d hd
+    have h2 := floor_div_carry_le_one a b d
     omega
 
 /-! ## Lemma: swap output bounded by reserve -/
@@ -144,7 +153,7 @@ theorem witness_anti_fragmentation :
     swapOut 100 100 90 ≥ swapOut 100 100 45 + swapOut 145 (100 - swapOut 100 100 45) 45 ∧
     -- Asymmetric pool: pool (50,5000), split 20 into 10+10
     swapOut 50 5000 20 ≥ swapOut 50 5000 10 + swapOut 60 (5000 - swapOut 50 5000 10) 10 := by
-  native_decide
+  decide
 
 /-! ## The General Theorem
 
@@ -408,7 +417,7 @@ theorem witness_monotonicity :
     swapOut 1000 1000 100 < swapOut 1000 1000 200 ∧
     -- Non-strict: rounding can make equal outputs for different inputs
     swapOut 100 1 1 = swapOut 100 1 2 := by
-  native_decide
+  decide
 
 /-! ## K-Value Monotonicity
 
@@ -452,7 +461,7 @@ theorem witness_k_and_gap :
     swapOut 1000 1000 200 ≥ swapOut 1000 1000 50 +
       swapOut 1050 (1000 - swapOut 1000 1000 50) 50 +
       swapOut 1100 (1000 - swapOut 1000 1000 50 - swapOut 1050 (1000 - swapOut 1000 1000 50) 50) 100 := by
-  native_decide
+  decide
 
 /-! ## NONCOMMUTATIVITY (Promotion A3)
 
@@ -488,7 +497,7 @@ theorem witness_commutativity :
     -- Same direction: total outputs equal on large pool
     (swapOut 10000 10000 10 + swapOut 10010 (10000 - swapOut 10000 10000 10) 20) =
     (swapOut 10000 10000 20 + swapOut 10020 (10000 - swapOut 10000 10000 20) 10) := by
-  native_decide
+  decide
 
 /-! ## BRIDGE SECTION (depends on BatchCPMMUnification import)
 
@@ -583,7 +592,7 @@ and all code below. The core anti-fragmentation math above is self-contained. -/
     -- Same-direction order can differ on small pools
     swapOut 1 4 1 + swapOut 2 (4 - swapOut 1 4 1) 2 ≠
     swapOut 1 4 2 + swapOut 3 (4 - swapOut 1 4 2) 1 := by
-  native_decide
+  decide
 
 /-! ## Batch Gap Bound
 
@@ -629,6 +638,6 @@ Stated additively (single ≤ batch + (n-1)) to avoid ℕ subtraction. -/
     -- Large pool: gap=1, within bound
     batchGap 100 100 [10, 20, 30, 40] = 1 ∧
     batchGap 100 100 [10, 20, 30, 40] ≤ 3 := by
-  native_decide
+  decide
 
 end AntiFragmentation

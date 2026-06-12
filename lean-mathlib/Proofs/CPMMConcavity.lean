@@ -8,7 +8,8 @@ import Mathlib.Tactic
 Connects the abstract `GaloisSplitCertificate` to a zero-fee CPMM split objective.
 
 The CPMM output function `cpmmOut(x, y, a) = y * a / (x + a)` (floor division)
-has **nearly discretely concave** first differences in the trade amount `a`:
+has **nearly discretely concave** first differences in the trade amount `a`,
+unconditionally — for ALL natural pool parameters, including x = 0:
 
   cpmmOut(x, y, a+2) + cpmmOut(x, y, a) ≤ 2 * cpmmOut(x, y, a+1) + 1
 
@@ -23,7 +24,8 @@ The continuous function h(a) = y*a/(x+a) has second difference:
 Floor division can perturb each value by at most 1, but a clean contradiction
 argument shows the integer second difference is at most +1 (not +2):
 the assumption q₂+q₀ ≥ 2*q₁+2 forces q₁ ≥ y, contradicting the output-bounded-
-by-reserve property when x > 0.
+by-reserve property when x > 0; the degenerate pool x = 0 is exact division,
+where the second difference is ≤ 0 directly.
 
 ## Split routing connection
 
@@ -48,32 +50,35 @@ certificate to the concrete zero-fee split-routing problem.
 | 6 | `cpmm_zero_fee_split_certificate_sound` | Bridge | GaloisSplitCertificate for zero-fee split obj |
 | 7 | `witness_full_chain` | Witness | End-to-end: concavity + certificate + global optimality |
 
-## Part II: NearlyDiscreteConcave — Graded Concavity Defect
+## Part II: Graded Concavity of CPMM (instantiating GaloisSplitCertificate)
 
-New algebraic structure capturing the concavity defect as a graded invariant:
+The general graded theory — `NearlyDiscreteConcave`, its grade algebra
+(`nearly_sum`, `nearly_reverse`, `nearly_mono_grade`), the drift engine, and
+the approximate certificate `nearly_certificate_approx_global_max` — lives in
+`GaloisSplitCertificate.lean`. This file instantiates it for the CPMM:
 
 | # | Name | Kind | Statement |
 |---|------|------|-----------|
-| 8 | `nearly_zero_iff_concave` | Bridge | Grade 0 ↔ DiscreteConcave |
-| 9 | `nearly_sum` | Algebraic | Grade is additive under function sum |
-| 10| `nearly_reverse` | Algebraic | Grade is invariant under index reversal |
-| 11| `cpmmOut_nearly_concave` | Instantiation | CPMM output is grade 1 |
-| 12| `cpmm_zero_fee_split_nearly_concave` | Derived | Zero-fee split obj grade 2 |
-| 13| `nearly_right_delta_drift` | Novel | First-difference drift ≤ n*k per step |
-| 14| `nearly_right_quadratic_bound` | Novel | Cumulative drift ≤ n*(n-1)*k/2 |
+| 11| `cpmmOut_nearly_concave` | Instantiation | CPMM output is grade 1 (unconditional) |
+| 12| `cpmm_zero_fee_split_nearly_concave` | Derived | Zero-fee split obj grade 2 (unconditional) |
+| 13| `cpmm_zero_fee_split_approx_certificate` | **Main** | 2 neighbor checks → global approximate optimality, error ≤ d·(d−1) |
 | 15| `cpmmOut_defect_tight` | Tightness | Grade 1 is tight (grade 0 fails) |
 | 16| `cpmmOut_exact_concave_large` | Witness | High y/x pools achieve grade 0 |
 
-## Scope limitation
+## Exact vs approximate certificates
 
-The per-pool integer concavity bound (Theorem 4) does NOT directly imply
-that the zero-fee split objective is `DiscreteConcave`, because the split
-objective sums two nearly-concave functions going in opposite directions.
-Concavity of the split objective is verified computationally per-instance
-(bounded D) rather than proved in general. The `NearlyDiscreteConcave`
-structure (Part II) formalizes this gap: the zero-fee split objective has
-grade 2, meaning it deviates from exact concavity by at most 2 per
-second-difference step.
+The per-pool integer concavity bound (Theorem 4) does NOT imply that the
+zero-fee split objective is exactly `DiscreteConcave`: the split objective
+sums two grade-1 functions in opposite directions, so it is only grade 2.
+Two complementary certificates result:
+
+* **Exact** (`cpmm_zero_fee_split_certificate_sound`): when discrete
+  concavity is verified per-instance (bounded D), 2 neighbor checks give
+  exact global optimality.
+* **Approximate** (`cpmm_zero_fee_split_approx_certificate`): with NO
+  per-instance verification, the same 2 neighbor checks always certify
+  `obj(j) ≤ obj(a*) + d·(d−1)` for every j at distance d — an
+  unconditional optimality envelope derived from the grade-2 bound.
 
 This file does not model fee-adjusted runtime routing semantics. Any
 fee-aware split-routing correctness claim needs a separate theorem surface.
@@ -108,7 +113,7 @@ theorem witness_sq_neighbors :
     10 * 12 ≤ 11 * 11 ∧
     100 * 102 ≤ 101 * 101 ∧
     (11 * 11 - 10 * 12 = 1) := by
-  native_decide
+  decide
 
 /-! ## Theorem 2: cpmmOut monotone in trade amount
 
@@ -128,7 +133,7 @@ theorem witness_cpmmOut_mono :
     cpmmOut 1000 1000 50 ≤ cpmmOut 1000 1000 100 ∧
     cpmmOut 1000 1000 50 = 47 ∧
     cpmmOut 1000 1000 100 = 90 := by
-  native_decide
+  decide
 
 /-! ## Theorem 3: Continuous concavity (cross-multiplication form)
 
@@ -149,30 +154,50 @@ theorem cross_mul_concavity (x y a : ℕ) :
 
 /-! ## Theorem 4: Integer second difference ≤ 1
 
-The main technical theorem. For cpmmOut with x > 0:
+The main technical theorem, unconditional in all parameters:
 
   cpmmOut(x,y,a+2) + cpmmOut(x,y,a) ≤ 2*cpmmOut(x,y,a+1) + 1
 
-The proof is by contradiction: assuming the second difference ≥ 2 leads to
-q₁ ≥ y (via a chain of floor/ceil bounds and the sq_neighbors identity),
-which contradicts the output-bounded-by-reserve property (q₁ ≤ y) when x > 0.
+For x > 0 the proof is by contradiction: assuming the second difference ≥ 2
+leads to q₁ ≥ y (via a chain of floor/ceil bounds and the sq_neighbors
+identity), which contradicts the output-bounded-by-reserve property (q₁ ≤ y).
+For x = 0 the division is exact (output = y for any positive input), and the
+second difference is ≤ 0 directly.
 
 The bound +1 is tight: e.g., pool (100, 1000) at a=0 gives
   cpmmOut(100,1000,2) + cpmmOut(100,1000,0) = 19 + 0 = 19
   2*cpmmOut(100,1000,1) + 1 = 2*9 + 1 = 19. -/
 
-/-- **INTEGER SECOND DIFFERENCE BOUND**: `Δ²f(a) ≤ 1` for cpmmOut when x > 0.
+/-- **INTEGER SECOND DIFFERENCE BOUND**: `Δ²f(a) ≤ 1` for cpmmOut,
+    unconditionally (no positivity hypothesis on any parameter).
 
-    Proof idea: By contradiction. Assume q₂ + q₀ ≥ 2*q₁ + 2.
+    Proof idea for x > 0: By contradiction. Assume q₂ + q₀ ≥ 2*q₁ + 2.
     1. Floor bounds: (q₂+q₀)*(d₀*d₂) ≤ n₂*d₀ + n₀*d₂
     2. Exact algebra: n₂*d₀ + n₀*d₂ + 2y = 2*n₁*d₁
     3. Ceil bound: 2*n₁ < (2*q₁+2)*d₁
     4. sq_neighbors: d₁² = d₀*d₂ + 1
     Combining: 2y + d₁ ≤ 2*q₁ + 2, and d₁ ≥ 2 (from x ≥ 1),
     so y ≤ q₁. But q₁ ≤ y (output bound), giving q₁ = y.
-    Then y*d₁ ≤ y*(a+1), forcing d₁ ≤ a+1, i.e., x ≤ 0. Contradiction. -/
-theorem cpmmOut_second_diff_le_one (x y a : ℕ) (hx : 0 < x) :
+    Then y*d₁ ≤ y*(a+1), forcing d₁ ≤ a+1, i.e., x ≤ 0. Contradiction.
+    For x = 0: cpmmOut(0,y,n) = y for n ≥ 1 and 0 for n = 0 (exact division),
+    so the second difference is −y (at a = 0) or 0 (at a ≥ 1). -/
+theorem cpmmOut_second_diff_le_one (x y a : ℕ) :
     (cpmmOut x y (a + 2) : ℤ) + cpmmOut x y a ≤ 2 * cpmmOut x y (a + 1) + 1 := by
+  rcases Nat.eq_zero_or_pos x with rfl | hx
+  · -- x = 0: exact division, output = y for any positive input amount.
+    have h1 : cpmmOut 0 y (a + 1) = y := by
+      simp only [cpmmOut, Nat.zero_add]
+      exact Nat.mul_div_cancel y (by omega)
+    have h2 : cpmmOut 0 y (a + 2) = y := by
+      simp only [cpmmOut, Nat.zero_add]
+      exact Nat.mul_div_cancel y (by omega)
+    rcases Nat.eq_zero_or_pos a with rfl | ha
+    · have h0 : cpmmOut 0 y 0 = 0 := by simp [cpmmOut]
+      rw [h0, h1, h2]; omega
+    · have h0 : cpmmOut 0 y a = y := by
+        simp only [cpmmOut, Nat.zero_add]
+        exact Nat.mul_div_cancel y ha
+      rw [h0, h1, h2]; omega
   simp only [cpmmOut]
   set d₀ := x + a
   set d₁ := x + (a + 1)
@@ -241,14 +266,14 @@ theorem witness_second_diff_tight :
     cpmmOut 100 1000 2 = 19 ∧
     -- Second diff = 19 + 0 - 2*9 = 1 (tight!)
     (cpmmOut 100 1000 2 : ℤ) + cpmmOut 100 1000 0 = 2 * cpmmOut 100 1000 1 + 1 := by
-  native_decide
+  decide
 
 /-- For large pools, the second difference is typically 0 (exact concavity). -/
 theorem witness_second_diff_zero :
     -- Pool (10000, 10000), a = 5: second diff = 0
     (cpmmOut 10000 10000 7 : ℤ) + cpmmOut 10000 10000 5
       = 2 * cpmmOut 10000 10000 6 := by
-  native_decide
+  decide
 
 /-! ## Theorem 5: Sum of discretely concave functions is concave
 
@@ -272,7 +297,7 @@ theorem witness_sum_concave :
     (f 0 + g 0 = -58) ∧
     (f 5 + g 5 = -8) ∧
     (f 6 + g 6 - (f 5 + g 5) ≤ f 5 + g 5 - (f 4 + g 4)) := by
-  native_decide
+  decide
 
 /-! ## Theorem 5': Reversal preserves discrete concavity
 
@@ -320,7 +345,7 @@ theorem witness_split_objective_concave :
     let obj : ℕ → ℤ := fun a => f a + g (6 - a)
     obj 3 = -18 ∧ obj 0 = -36 ∧ obj 6 = -36 ∧
     obj 3 ≥ obj 0 ∧ obj 3 ≥ obj 6 := by
-  native_decide
+  decide
 
 /-! ## Zero-Fee CPMM Split Objective
 
@@ -341,21 +366,22 @@ second difference ≤ 2 (one from each pool). This partially bridges the
 scope limitation: the split objective is "nearly concave" with bounded error. -/
 
 /-- **CPMM SPLIT SECOND-DIFFERENCE BOUND**: The split objective
-    `cpmmOut₀(a) + cpmmOut₁(D-a)` has integer second difference ≤ 2.
+    `cpmmOut₀(a) + cpmmOut₁(D-a)` has integer second difference ≤ 2,
+    unconditionally.
 
     Each pool contributes at most +1 to the second difference
     (by `cpmmOut_second_diff_le_one`), giving +2 total.
     When both pools are large, the bound is typically 0 (exact concavity). -/
 theorem cpmm_zero_fee_split_second_diff_le_two (x₀ y₀ x₁ y₁ D : ℕ)
-    (hx₀ : 0 < x₀) (hx₁ : 0 < x₁) (i : ℕ) (hi : i + 2 ≤ D) :
+    (i : ℕ) (hi : i + 2 ≤ D) :
     cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D (i + 2) + cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D i ≤
       2 * cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D (i + 1) + 2 := by
   simp only [cpmmZeroFeeSplitObj]
-  have h0 := cpmmOut_second_diff_le_one x₀ y₀ i hx₀
+  have h0 := cpmmOut_second_diff_le_one x₀ y₀ i
   have hb : D - (i + 2) + 2 = D - i := by omega
   have hb1 : D - (i + 2) + 1 = D - (i + 1) := by omega
   rw [← hb, ← hb1]
-  have h1 := cpmmOut_second_diff_le_one x₁ y₁ (D - (i + 2)) hx₁
+  have h1 := cpmmOut_second_diff_le_one x₁ y₁ (D - (i + 2))
   linarith
 
 /-- Non-vacuity: the split second difference is -38 (strongly concave)
@@ -364,7 +390,7 @@ theorem cpmm_zero_fee_split_second_diff_le_two (x₀ y₀ x₁ y₁ D : ℕ)
 theorem witness_split_second_diff :
     cpmmZeroFeeSplitObj 1 100 1 100 4 2 + cpmmZeroFeeSplitObj 1 100 1 100 4 0 ≤
       2 * cpmmZeroFeeSplitObj 1 100 1 100 4 1 + 2 := by
-  native_decide
+  decide
 
 /-! ## Theorem 6: GaloisSplitCertificate for CPMM split routing
 
@@ -393,7 +419,7 @@ theorem cpmm_zero_fee_split_certificate_sound
 /-! ## Theorem 7: End-to-end witness
 
 Complete proof chain: two identical pools (1, 10000), D = 6.
-1. Verify discrete concavity by `interval_cases` + `native_decide`
+1. Verify discrete concavity by `interval_cases` + `decide`
 2. Certificate passes at a* = 3 (symmetric pools → split evenly)
 3. Global optimality follows from `cpmm_zero_fee_split_certificate_sound` -/
 
@@ -406,7 +432,7 @@ theorem witness_split_concavity :
   intro i hi
   have hi' : i ≤ 4 := by omega
   simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]
-  interval_cases i <;> native_decide
+  interval_cases i <;> decide
 
 /-- Certificate values at the optimal split a*=3. -/
 theorem witness_certificate_values :
@@ -420,13 +446,13 @@ theorem witness_certificate_values :
     f_witness 3 ≥ f_witness 0 ∧
     f_witness 3 ≥ f_witness 6 := by
   simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]
-  native_decide
+  decide
 
 /-- **FULL CHAIN WITNESS**: `cpmm_zero_fee_split_certificate_sound` applied to
     concrete zero-fee pools. Two identical pools `(1, 10000)`, `D = 6`.
     Composes through theorem 6:
     1. Verify discrete concavity (witness_split_concavity)
-    2. 2 neighbor checks at a* = 3 pass (native_decide)
+    2. 2 neighbor checks at a* = 3 pass (decide)
     3. Global optimality follows — boundary checks f(0), f(6) are derived, not assumed -/
 theorem witness_full_chain :
     -- Concavity
@@ -436,14 +462,14 @@ theorem witness_full_chain :
     -- Global optimality (via cpmm_zero_fee_split_certificate_sound)
     (∀ j, j ≤ 6 → f_witness 3 ≥ f_witness j) := by
   refine ⟨witness_split_concavity, ?_, ?_, ?_⟩
-  · simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]; native_decide
-  · simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]; native_decide
+  · simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]; decide
+  · simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]; decide
   · -- Compose through theorem 6: only concavity + 2 neighbor checks
     exact cpmm_zero_fee_split_certificate_sound 1 10000 1 10000 6 3
       (by omega)
       witness_split_concavity
-      (by simp only [cpmmZeroFeeSplitObj, cpmmOut]; intro; native_decide)
-      (by simp only [cpmmZeroFeeSplitObj, cpmmOut]; intro; native_decide)
+      (by simp only [cpmmZeroFeeSplitObj, cpmmOut]; intro; decide)
+      (by simp only [cpmmZeroFeeSplitObj, cpmmOut]; intro; decide)
 
 /-! ## Non-vacuity witnesses -/
 
@@ -464,89 +490,32 @@ theorem witness_large_pool :
     cpmmOut 10000 10000 100 = 99 ∧
     cpmmOut 10000 10000 1000 = 909 ∧
     cpmmOut 10000 10000 10000 = 5000 := by
-  native_decide
+  decide
 
-/-! ## Part II: NearlyDiscreteConcave — Graded Concavity Defect
+/-! ## Part II: Graded Concavity of CPMM
 
-CPMM output's integer second difference is bounded by 1, not 0. This
-"concavity defect" is a first-class algebraic invariant:
+The general graded theory (`NearlyDiscreteConcave`, grade algebra, drift
+engine, approximate certificate) lives in `GaloisSplitCertificate.lean`.
+Here we instantiate it for the CPMM output and the split objective. -/
 
-| Property | Statement |
-|----------|-----------|
-| Grading  | `NearlyDiscreteConcave k f D` ↔ `∀ i, Δ²f(i) ≤ k` |
-| Zero     | `NearlyDiscreteConcave 0` ↔ `DiscreteConcave` |
-| Sum      | `grade(f+g) ≤ grade(f) + grade(g)` |
-| Reversal | `grade(f ∘ rev) = grade(f)` |
-| Monotone | `k₁ ≤ k₂ → grade-k₁ ⊆ grade-k₂` |
+export GaloisSplitCertificate (NearlyDiscreteConcave nearly_zero_iff_concave
+  nearly_mono_grade nearly_sum nearly_reverse nearly_right_delta_drift
+  nearly_right_quadratic_bound nearly_left_delta_drift nearly_left_quadratic_bound)
 
-The main novel result is the **delta drift theorem**: under grade-k
-concavity with a non-positive initial delta, subsequent deltas grow by
-at most k per step. Combined with telescoping, this gives a tight
-quadratic bound on how far a nearly-concave function can deviate from
-the behavior of an exactly concave one.
--/
-
-/-- Graded discrete concavity with defect k. Second differences bounded by k.
-    Generalizes `DiscreteConcave` (k = 0) to capture floor-division errors.
-    Forms a graded monoid under function addition:
-    - Sum of grade-k₁ and grade-k₂ has grade k₁+k₂
-    - Reversal preserves grade
-    - k = 0 recovers exact discrete concavity -/
-def NearlyDiscreteConcave (k : ℤ) (f : ℕ → ℤ) (D : ℕ) : Prop :=
-  ∀ i, i + 2 ≤ D → f (i + 2) - f (i + 1) ≤ f (i + 1) - f i + k
-
-/-- **GRADE-0 BRIDGE**: `NearlyDiscreteConcave 0` is exactly `DiscreteConcave`.
-    Shows the graded structure is a genuine generalization: every theorem about
-    `DiscreteConcave` transfers to the grade-0 case and vice versa. -/
-theorem nearly_zero_iff_concave (f : ℕ → ℤ) (D : ℕ) :
-    NearlyDiscreteConcave 0 f D ↔ GaloisSplitCertificate.DiscreteConcave f D := by
-  simp only [NearlyDiscreteConcave, GaloisSplitCertificate.DiscreteConcave]
-  constructor <;> intro h i hi <;> linarith [h i hi]
-
-/-- **GRADE MONOTONICITY**: a tighter defect bound implies a looser one. -/
-theorem nearly_mono_grade {k₁ k₂ : ℤ} (hle : k₁ ≤ k₂) {f : ℕ → ℤ} {D : ℕ}
-    (h : NearlyDiscreteConcave k₁ f D) : NearlyDiscreteConcave k₂ f D :=
-  fun i hi => by linarith [h i hi]
-
-/-- **ADDITIVE COMPOSITION**: concavity defect is additive under function sum.
-    Each pool contributes its own defect independently, and the total defect
-    is their sum. This is the algebraic core of the split routing analysis.
-    Proof: add the second-difference inequalities for f and g. -/
-theorem nearly_sum (k₁ k₂ : ℤ) (f g : ℕ → ℤ) (D : ℕ)
-    (hf : NearlyDiscreteConcave k₁ f D)
-    (hg : NearlyDiscreteConcave k₂ g D) :
-    NearlyDiscreteConcave (k₁ + k₂) (fun i => f i + g i) D := by
-  intro i hi
-  have := hf i hi; have := hg i hi
-  show f (i + 2) + g (i + 2) - (f (i + 1) + g (i + 1)) ≤
-       f (i + 1) + g (i + 1) - (f i + g i) + (k₁ + k₂)
-  linarith
-
-/-- **REVERSAL INVARIANCE**: index reversal preserves the concavity defect.
-    Maps position i to j = D-i-2, reducing to the original condition at j.
-    Combined with `nearly_sum`, this explains why the split objective
-    `f(a) + g(D-a)` has defect = defect(f) + defect(g). -/
-theorem nearly_reverse (k : ℤ) (f : ℕ → ℤ) (D : ℕ)
-    (h : NearlyDiscreteConcave k f D) :
-    NearlyDiscreteConcave k (fun a => f (D - a)) D := by
-  intro i hi
-  show f (D - (i + 2)) - f (D - (i + 1)) ≤ f (D - (i + 1)) - f (D - i) + k
-  have eq1 : D - i = (D - (i + 2)) + 2 := by omega
-  have eq2 : D - (i + 1) = (D - (i + 2)) + 1 := by omega
-  rw [eq1, eq2]
-  linarith [h (D - (i + 2)) (by omega : D - (i + 2) + 2 ≤ D)]
-
-/-- **CPMM GRADE**: cpmmOut has concavity defect exactly 1 (grade 1).
-    Derived from `cpmmOut_second_diff_le_one` via the equivalence
+open GaloisSplitCertificate in
+/-- **CPMM GRADE**: cpmmOut has concavity defect exactly 1 (grade 1),
+    unconditionally in all pool parameters. Derived from
+    `cpmmOut_second_diff_le_one` via the equivalence
     `Δ²f(i) ≤ 1` ↔ `NearlyDiscreteConcave 1`. -/
-theorem cpmmOut_nearly_concave (x y D : ℕ) (hx : 0 < x) :
+theorem cpmmOut_nearly_concave (x y D : ℕ) :
     NearlyDiscreteConcave 1 (fun a => (cpmmOut x y a : ℤ)) D := by
   intro i hi
-  have := cpmmOut_second_diff_le_one x y i hx
+  have := cpmmOut_second_diff_le_one x y i
   linarith
 
+open GaloisSplitCertificate in
 /-- **SPLIT GRADE (COMPOSITIONAL)**: CPMM split objective has grade 2,
-    derived algebraically from per-pool grade-1 bounds.
+    derived algebraically from per-pool grade-1 bounds, unconditionally.
 
     Proof chain:
     1. `cpmmOut₀` is grade 1 (`cpmmOut_nearly_concave`)
@@ -558,76 +527,71 @@ theorem cpmmOut_nearly_concave (x y D : ℕ) (hx : 0 < x) :
     `cpmm_zero_fee_split_second_diff_le_two` with an algebraic derivation,
     showing the split bound of 2 is structurally inevitable (one
     defect unit per pool). -/
-theorem cpmm_zero_fee_split_nearly_concave (x₀ y₀ x₁ y₁ D : ℕ)
-    (hx₀ : 0 < x₀) (hx₁ : 0 < x₁) :
+theorem cpmm_zero_fee_split_nearly_concave (x₀ y₀ x₁ y₁ D : ℕ) :
     NearlyDiscreteConcave 2 (cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D) D := by
   intro i hi
   simp only [cpmmZeroFeeSplitObj]
   -- Pool 0 contributes defect 1
-  have h0 := (cpmmOut_nearly_concave x₀ y₀ D hx₀) i hi
+  have h0 := (cpmmOut_nearly_concave x₀ y₀ D) i hi
   -- Pool 1 (reversed) contributes defect 1
   have h1 := (nearly_reverse 1 (fun a => (cpmmOut x₁ y₁ a : ℤ)) D
-    (cpmmOut_nearly_concave x₁ y₁ D hx₁)) i hi
+    (cpmmOut_nearly_concave x₁ y₁ D)) i hi
   -- Total defect: 1 + 1 = 2
   linarith
 
-/-- **DELTA DRIFT THEOREM**: Under grade-k concavity, if the first difference
-    at position a is non-positive, then the first difference n steps later
-    is at most n*k.
+/-! ## Theorem 13: Unconditional approximate split-routing certificate
 
-    This quantifies how fast a nearly-concave function's first differences
-    can grow. For k = 0 (exact concavity), deltas stay non-positive forever,
-    recovering `GaloisSplitCertificate.right_delta_chain`.
+The split objective is grade 2, so `nearly_certificate_approx_global_max`
+applies with k = 2 and NO per-instance concavity verification: the same two
+neighbor comparisons used by the exact certificate always certify a global
+optimality envelope. This closes the gap between the exact certificate
+(which needs per-instance concavity) and the runtime reality (the split
+objective is only nearly concave). -/
 
-    Proof: induction on n. The concavity condition gives
-    Δf(a+n+1) ≤ Δf(a+n) + k, and the IH gives Δf(a+n) ≤ n*k,
-    so Δf(a+n+1) ≤ n*k + k = (n+1)*k. -/
-theorem nearly_right_delta_drift (k : ℤ) (f : ℕ → ℤ) (D a : ℕ)
-    (hconc : NearlyDiscreteConcave k f D)
-    (h_base : f (a + 1) ≤ f a)
-    (n : ℕ) (hn : a + n + 1 ≤ D) :
-    f (a + n + 1) - f (a + n) ≤ ↑n * k := by
-  induction n with
-  | zero => simp; linarith
-  | succ m ih =>
-    have ihm := ih (by omega)
-    have hc := hconc (a + m) (by omega)
-    have e1 : a + (m + 1) + 1 = (a + m) + 2 := by omega
-    have e2 : a + (m + 1) = (a + m) + 1 := by omega
-    rw [e1, e2]
-    push_cast
-    linarith
+open GaloisSplitCertificate in
+/-- **UNCONDITIONAL APPROXIMATE CERTIFICATE**: for ANY zero-fee pools and
+    budget D, if the 2 neighbor comparisons pass at `a_star`, then every
+    alternative split `j` at distance `d = |j − a_star|` satisfies
 
-/-- **QUADRATIC DRIFT BOUND**: Under grade-k concavity with non-positive
-    initial delta, the cumulative drift over n steps satisfies:
+      obj(j) ≤ obj(a_star) + d·(d−1).
 
-      2 * (f(a+n) - f(a)) ≤ n * (n-1) * k
+    In particular obj(a_star±1) gain nothing and obj(a_star±2) gain at most
+    2. No discrete-concavity check of the instance is required — the
+    envelope follows from the structural grade-2 bound
+    (`cpmm_zero_fee_split_nearly_concave`). -/
+theorem cpmm_zero_fee_split_approx_certificate
+    (x₀ y₀ x₁ y₁ D a_star : ℕ)
+    (ha : a_star ≤ D)
+    (h_prev : 0 < a_star →
+      cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star ≥
+        cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D (a_star - 1))
+    (h_next : a_star < D →
+      cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star ≥
+        cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D (a_star + 1))
+    (j : ℕ) (hj : j ≤ D) :
+    cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D j ≤
+      cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star
+        + |(j : ℤ) - a_star| * (|(j : ℤ) - a_star| - 1) := by
+  have h := nearly_certificate_approx_global_max 2
+    (cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D) D a_star ha
+    (cpmm_zero_fee_split_nearly_concave x₀ y₀ x₁ y₁ D) h_prev h_next j hj
+  -- 2·(obj j − obj a*) ≤ 2·d·(d−1)  ⟹  obj j ≤ obj a* + d·(d−1)
+  nlinarith [abs_nonneg ((j : ℤ) - a_star)]
 
-    For k = 0: f(a+n) ≤ f(a) (exact right monotonicity).
-    For k = 1: f(a+n) ≤ f(a) + n*(n-1)/2 (quadratic error).
-
-    The bound is tight: equality holds for f(i) = k*i*(i-1)/2.
-
-    Proof: induction + telescoping. The delta drift gives Δf(a+j) ≤ j*k,
-    and summing: f(a+n) - f(a) = Σ Δf(a+j) ≤ Σ j*k = k*n*(n-1)/2.
-    Multiplying by 2 avoids integer division. -/
-theorem nearly_right_quadratic_bound (k : ℤ) (f : ℕ → ℤ) (D a : ℕ)
-    (hconc : NearlyDiscreteConcave k f D)
-    (h_base : f (a + 1) ≤ f a)
-    (n : ℕ) (hn : a + n ≤ D) :
-    2 * (f (a + n) - f a) ≤ ↑n * (↑n - 1) * k := by
-  induction n with
-  | zero => simp
-  | succ m ih =>
-    have ihm := ih (by omega)
-    have hdrift := nearly_right_delta_drift k f D a hconc h_base m (by omega)
-    have e : a + (m + 1) = a + m + 1 := by omega
-    rw [e]
-    have hsplit : 2 * (f (a + m + 1) - f a) =
-        2 * (f (a + m + 1) - f (a + m)) + 2 * (f (a + m) - f a) := by ring
-    rw [hsplit]
-    push_cast
-    nlinarith
+/-- Approximate certificate witness: pools (3, 50) and (7, 80), D = 10.
+    The objective is NOT verified concave anywhere; the two neighbor checks
+    at a* = 3 nevertheless certify the global envelope at every j ≤ 10. -/
+theorem witness_approx_certificate :
+    -- the two neighbor checks at a* = 3
+    cpmmZeroFeeSplitObj 3 50 7 80 10 3 ≥ cpmmZeroFeeSplitObj 3 50 7 80 10 2 ∧
+    cpmmZeroFeeSplitObj 3 50 7 80 10 3 ≥ cpmmZeroFeeSplitObj 3 50 7 80 10 4 ∧
+    -- the certified envelope, checked exhaustively
+    (∀ j : ℕ, j ≤ 10 →
+      cpmmZeroFeeSplitObj 3 50 7 80 10 j ≤
+        cpmmZeroFeeSplitObj 3 50 7 80 10 3
+          + |(j : ℤ) - 3| * (|(j : ℤ) - 3| - 1)) := by
+  refine ⟨by decide, by decide, fun j hj => ?_⟩
+  interval_cases j <;> decide
 
 /-- **GRADE-1 TIGHTNESS**: cpmmOut is NOT grade 0 in general.
     Pool (100, 1000) at a = 0 has second difference exactly 1,
@@ -652,7 +616,7 @@ theorem cpmmOut_exact_concave_large :
   intro i hi
   have : i ≤ 3 := by omega
   simp only [cpmmOut]
-  interval_cases i <;> native_decide
+  interval_cases i <;> decide
 
 /-- Non-vacuity: the delta drift bound is achieved.
     For f(a) = a² (NearlyDiscreteConcave 2, second diff = 2),
@@ -668,7 +632,7 @@ theorem witness_delta_drift :
     -- delta drift at n=1: f(7)-f(6) = -4-(-1) = -3, bound = 1*(-2) = -2. Tight!
     let g : ℕ → ℤ := fun a => -((a : ℤ) - 5) ^ 2
     (g 6 ≤ g 5) ∧ (g 7 - g 6 = -3) := by
-  native_decide
+  decide
 
 /-- Non-vacuity: quadratic bound for concave function.
     For g(a) = -(a-5)² with g(6) ≤ g(5), the quadratic bound gives:
@@ -678,7 +642,7 @@ theorem witness_quadratic_bound :
     2 * (g 8 - g 5) ≤ 3 * (3 - 1) * (-2) ∧
     2 * (g 8 - g 5) = -18 ∧
     (3 : ℤ) * (3 - 1) * (-2) = -12 := by
-  native_decide
+  decide
 
 end CPMMConcavity
 end Proofs

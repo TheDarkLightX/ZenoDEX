@@ -2,28 +2,50 @@ import Mathlib.Data.Int.Basic
 import Mathlib.Tactic
 
 /-!
-# Discrete Concavity Certificate for Split Routing
+# Graded Discrete Concavity and Optimality Certificates for Split Routing
 
-An O(1) optimality certificate for integer-valued objectives on finite domains:
-if f : ℕ → ℤ is discretely concave on {0,...,D} and f(a) ≥ f(a±1) at a candidate
-point, then a is a global maximum.
+A unified theory of discrete concavity **with defect grading**, powering O(1)
+optimality certificates for integer-valued objectives on finite domains.
 
-The certificate requires only 2 local comparisons (left and right neighbors).
-Boundary comparisons are unnecessary — they follow from concavity + neighbor checks.
+`NearlyDiscreteConcave k f D` means all second differences of `f` on
+`{0,...,D}` are bounded by `k`. Grade `k = 0` is exact discrete concavity
+(`DiscreteConcave`). Floor-divided AMM outputs are grade 1; two-pool split
+objectives are grade 2 (see `CPMMConcavity.lean`).
+
+The theory is organized around two engine lemmas:
+
+* `nearly_delta_le` — **slope drift**: first differences grow by at most `k`
+  per step, `Δf(i+n) ≤ Δf(i) + n·k`;
+* `nearly_chord_le` — **chord bound**: telescoping the slope drift,
+  `2·(f(i+n) − f(i)) ≤ 2·n·Δf(i) + k·n·(n−1)`.
+
+Everything else is a corollary. In particular the **approximate certificate**
+`nearly_certificate_approx_global_max`: if `f` is grade-`k` and the two
+neighbor checks pass at `a`, then for every `j ≤ D`
+
+    2·(f(j) − f(a)) ≤ k·|j − a|·(|j − a| − 1).
+
+At `k = 0` this *is* the exact certificate `certificate_implies_global_max`:
+two local comparisons imply a global maximum. For `k > 0` it gives global
+approximate optimality from the same two comparisons — no per-instance
+concavity verification required.
 
 ## Key results
 
 | # | Name | Kind | Statement |
 |---|------|------|-----------|
-| 1 | `right_delta_chain` | Substantive | Non-positive deltas propagate rightward under concavity |
-| 2 | `right_mono` | Substantive | f(a) ≥ f(a+n) for all n (telescoping from right_delta_chain) |
-| 3 | `left_delta_chain` | Substantive | Non-negative deltas propagate leftward under concavity |
-| 4 | `left_mono` | Substantive | f(a) ≥ f(j) for all j ≤ a (telescoping from left_delta_chain) |
-| 5 | `certificate_implies_global_max` | Substantive | 2-check certificate → global maximum (main theorem) |
-| 6 | `necessity_right` | Substantive | f(a) < f(a+1) → a is NOT the global max |
-| 7 | `necessity_left` | Substantive | f(a) < f(a-1) → a is NOT the global max |
-| 8 | `strict_concave_maximizers_adjacent` | Substantive | Strictly concave → maximizers within distance 1 |
-| 9 | `maximizer_interval` | Substantive | Maximizer set is a contiguous interval |
+| 0 | `nearly_zero_iff_concave` | Bridge | Grade 0 ↔ `DiscreteConcave` |
+| 1 | `nearly_delta_le` | Engine | Slope drift: Δf(i+n) ≤ Δf(i) + n·k |
+| 2 | `nearly_chord_le` / `nearly_chord_le_rev` | Engine | Chord bound (left/right-anchored): 2·(f(i+n)−f(i)) ≤ 2·n·Δf(i) + k·n·(n−1) |
+| 3 | `nearly_sum` / `nearly_reverse` / `nearly_mono_grade` | Algebra | Grade is additive / reversal-invariant / monotone |
+| 4 | `nearly_right_delta_drift`, `nearly_right_quadratic_bound` | Derived | Right-side drift under a non-positive initial delta |
+| 5 | `nearly_left_delta_drift`, `nearly_left_quadratic_bound` | Derived | Left-side mirror (via `nearly_reverse`) |
+| 6 | `nearly_certificate_approx_global_max` | **Main** | 2-check certificate → global ε-optimality, ε = k·d·(d−1)/2 |
+| 7 | `right_delta_chain`, `right_mono`, `left_delta_chain`, `left_mono` | k = 0 | Exact monotone propagation (corollaries of 4–5) |
+| 8 | `certificate_implies_global_max` | k = 0 | 2-check certificate → global maximum (corollary of 6) |
+| 9 | `necessity_right` / `necessity_left` | Converse | Failed neighbor check → not a global max |
+| 10 | `strict_concave_maximizers_adjacent` | Structure | Strictly concave → maximizers within distance 1 |
+| 11 | `maximizer_interval` | Structure | Maximizer set is a contiguous interval |
 -/
 
 namespace Proofs
@@ -34,90 +56,314 @@ def DiscreteConcave (f : ℕ → ℤ) (D : ℕ) : Prop :=
   ∀ i, i + 2 ≤ D →
     f (i + 2) - f (i + 1) ≤ f (i + 1) - f i
 
-/-! ## Right side: all additions, no subtraction -/
+/-- Graded discrete concavity with defect `k`: second differences on
+    `{0,...,D}` are bounded by `k`. Generalizes `DiscreteConcave` (the
+    `k = 0` case) to capture floor-division rounding defects.
 
-/-- Under concavity, non-positive deltas propagate rightward. -/
+    The grade behaves like a (graded) monoid under pointwise addition:
+    - sum of grade-k₁ and grade-k₂ has grade k₁+k₂ (`nearly_sum`)
+    - index reversal preserves the grade (`nearly_reverse`)
+    - grades are upward-closed (`nearly_mono_grade`) -/
+def NearlyDiscreteConcave (k : ℤ) (f : ℕ → ℤ) (D : ℕ) : Prop :=
+  ∀ i, i + 2 ≤ D → f (i + 2) - f (i + 1) ≤ f (i + 1) - f i + k
+
+/-! ## Grade algebra -/
+
+/-- **GRADE-0 BRIDGE**: `NearlyDiscreteConcave 0` is exactly `DiscreteConcave`.
+    Every theorem below about grade-k functions specializes to the exact
+    theory at k = 0, and the exact certificate is recovered this way. -/
+theorem nearly_zero_iff_concave (f : ℕ → ℤ) (D : ℕ) :
+    NearlyDiscreteConcave 0 f D ↔ DiscreteConcave f D := by
+  simp only [NearlyDiscreteConcave, DiscreteConcave]
+  constructor <;> intro h i hi <;> linarith [h i hi]
+
+/-- **GRADE MONOTONICITY**: a tighter defect bound implies a looser one. -/
+theorem nearly_mono_grade {k₁ k₂ : ℤ} (hle : k₁ ≤ k₂) {f : ℕ → ℤ} {D : ℕ}
+    (h : NearlyDiscreteConcave k₁ f D) : NearlyDiscreteConcave k₂ f D :=
+  fun i hi => by linarith [h i hi]
+
+/-- **ADDITIVE COMPOSITION**: concavity defect is additive under function sum.
+    Each summand contributes its own defect independently. This is the
+    algebraic core of multi-pool split-routing analysis. -/
+theorem nearly_sum (k₁ k₂ : ℤ) (f g : ℕ → ℤ) (D : ℕ)
+    (hf : NearlyDiscreteConcave k₁ f D)
+    (hg : NearlyDiscreteConcave k₂ g D) :
+    NearlyDiscreteConcave (k₁ + k₂) (fun i => f i + g i) D := by
+  intro i hi
+  have := hf i hi; have := hg i hi
+  show f (i + 2) + g (i + 2) - (f (i + 1) + g (i + 1)) ≤
+       f (i + 1) + g (i + 1) - (f i + g i) + (k₁ + k₂)
+  linarith
+
+/-- **REVERSAL INVARIANCE**: index reversal `a ↦ f (D − a)` preserves the
+    concavity defect. The second-difference condition is symmetric under
+    `i ↦ D − i − 2`. Combined with `nearly_sum`, this is why a split
+    objective `f(a) + g(D−a)` has defect `grade(f) + grade(g)`. -/
+theorem nearly_reverse (k : ℤ) (f : ℕ → ℤ) (D : ℕ)
+    (h : NearlyDiscreteConcave k f D) :
+    NearlyDiscreteConcave k (fun a => f (D - a)) D := by
+  intro i hi
+  show f (D - (i + 2)) - f (D - (i + 1)) ≤ f (D - (i + 1)) - f (D - i) + k
+  have eq1 : D - i = (D - (i + 2)) + 2 := by omega
+  have eq2 : D - (i + 1) = (D - (i + 2)) + 1 := by omega
+  rw [eq1, eq2]
+  linarith [h (D - (i + 2)) (by omega : D - (i + 2) + 2 ≤ D)]
+
+/-! ## The drift engine
+
+Two lemmas carry the whole theory. Write `Δf(i) = f(i+1) − f(i)` for the
+first difference (the "slope" at `i`).
+
+* Slope drift: under grade-k concavity, slopes grow by at most `k` per
+  step — `Δf(i+n) ≤ Δf(i) + n·k`. At `k = 0` this says slopes are
+  non-increasing, the defining property of concavity.
+* Chord bound: telescoping the slope drift bounds the function itself —
+  `2·(f(i+n) − f(i)) ≤ 2·n·Δf(i) + k·n·(n−1)`. At `k = 0` this is the
+  discrete chord-below-tangent inequality `f(i+n) ≤ f(i) + n·Δf(i)`. -/
+
+/-- **SLOPE DRIFT (engine)**: under grade-k concavity, the first difference
+    `n` steps to the right of `i` exceeds the one at `i` by at most `n·k`:
+
+      f(i+n+1) − f(i+n) ≤ (f(i+1) − f(i)) + n·k.
+
+    At k = 0 this is antitonicity of first differences. -/
+theorem nearly_delta_le (k : ℤ) (f : ℕ → ℤ) (D : ℕ)
+    (hconc : NearlyDiscreteConcave k f D)
+    (i n : ℕ) (hn : i + n + 1 ≤ D) :
+    f (i + n + 1) - f (i + n) ≤ (f (i + 1) - f i) + n * k := by
+  induction n with
+  | zero => simp
+  | succ m ih =>
+    have ihm := ih (by omega)
+    have hc := hconc (i + m) (by omega)
+    have e1 : i + (m + 1) + 1 = (i + m) + 2 := by omega
+    have e2 : i + (m + 1) = (i + m) + 1 := by omega
+    rw [e1, e2]
+    push_cast
+    linarith
+
+/-- **CHORD BOUND (engine)**: telescoping the slope drift,
+
+      2·(f(i+n) − f(i)) ≤ 2·n·(f(i+1) − f(i)) + k·n·(n−1).
+
+    Stated with the factor 2 to avoid integer division by 2 on the
+    drift term `k·n·(n−1)/2`. At k = 0 this is the discrete
+    chord-below-tangent inequality. The bound is tight: equality holds
+    for `f(i) = k·i·(i−1)/2` (see `witness_nearly_certificate_tight`). -/
+theorem nearly_chord_le (k : ℤ) (f : ℕ → ℤ) (D : ℕ)
+    (hconc : NearlyDiscreteConcave k f D)
+    (i n : ℕ) (hn : i + n ≤ D) :
+    2 * (f (i + n) - f i) ≤ 2 * n * (f (i + 1) - f i) + k * n * (n - 1) := by
+  induction n with
+  | zero => simp
+  | succ m ih =>
+    have ihm := ih (by omega)
+    have hd := nearly_delta_le k f D hconc i m (by omega)
+    have e : i + (m + 1) = (i + m) + 1 := by omega
+    rw [e]
+    push_cast at ihm hd ⊢
+    nlinarith [ihm, hd]
+
+/-- **CHORD BOUND (right-anchored)**: the mirror of `nearly_chord_le`,
+    anchored at the right endpoint of the chord:
+
+      2·(f(i) − f(i+n)) ≤ 2·n·(f(i+n−1) − f(i+n)) + k·n·(n−1).
+
+    Derived from `nearly_chord_le` via `nearly_reverse` — no second
+    induction. At k = 0: walking left from i+n, the function gains at most
+    n times the (leftward) slope at the right endpoint. -/
+theorem nearly_chord_le_rev (k : ℤ) (f : ℕ → ℤ) (D : ℕ)
+    (hconc : NearlyDiscreteConcave k f D)
+    (i n : ℕ) (hin : i + n ≤ D) :
+    2 * (f i - f (i + n)) ≤ 2 * n * (f (i + n - 1) - f (i + n)) + k * n * (n - 1) := by
+  rcases Nat.eq_zero_or_pos n with rfl | hnpos
+  · simp
+  have hg := nearly_reverse k f D hconc
+  have h := nearly_chord_le k (fun a => f (D - a)) D hg (D - (i + n)) n (by omega)
+  simp only at h
+  rwa [show D - (D - (i + n) + n) = i by omega,
+       show D - (D - (i + n)) = i + n by omega,
+       show D - (D - (i + n) + 1) = i + n - 1 by omega] at h
+
+/-! ## Right-side drift under a non-positive initial slope -/
+
+/-- **DELTA DRIFT (right)**: under grade-k concavity, if the first difference
+    at `a` is non-positive, then the first difference `n` steps later is at
+    most `n·k`. For k = 0 deltas stay non-positive forever, recovering
+    `right_delta_chain`. -/
+theorem nearly_right_delta_drift (k : ℤ) (f : ℕ → ℤ) (D a : ℕ)
+    (hconc : NearlyDiscreteConcave k f D)
+    (h_base : f (a + 1) ≤ f a)
+    (n : ℕ) (hn : a + n + 1 ≤ D) :
+    f (a + n + 1) - f (a + n) ≤ ↑n * k := by
+  have h := nearly_delta_le k f D hconc a n hn
+  linarith
+
+/-- **QUADRATIC DRIFT BOUND (right)**: under grade-k concavity with a
+    non-positive initial delta, the cumulative drift over n steps satisfies
+
+      2·(f(a+n) − f(a)) ≤ n·(n−1)·k.
+
+    For k = 0: f(a+n) ≤ f(a) (exact right monotonicity).
+    For k = 1: f(a+n) ≤ f(a) + n·(n−1)/2 (quadratic error). -/
+theorem nearly_right_quadratic_bound (k : ℤ) (f : ℕ → ℤ) (D a : ℕ)
+    (hconc : NearlyDiscreteConcave k f D)
+    (h_base : f (a + 1) ≤ f a)
+    (n : ℕ) (hn : a + n ≤ D) :
+    2 * (f (a + n) - f a) ≤ ↑n * (↑n - 1) * k := by
+  have h := nearly_chord_le k f D hconc a n hn
+  have hn0 : (0 : ℤ) ≤ (n : ℤ) := Int.natCast_nonneg n
+  nlinarith [h, mul_nonneg hn0 (by linarith : (0:ℤ) ≤ f a - f (a + 1))]
+
+/-! ## Left-side mirror (via reversal)
+
+The left-side statements are *derived* from the right-side ones by the
+reversal symmetry `a ↦ f (D − a)` — no second induction is needed. -/
+
+/-- **DELTA DRIFT (left)**: mirror of `nearly_right_delta_drift`. If the
+    first difference into `a` is non-negative (`f(a−1) ≤ f(a)`), then `n`
+    steps to the left it has decreased by at most `n·k`:
+
+      f(a−n−1) − f(a−n) ≤ n·k. -/
+theorem nearly_left_delta_drift (k : ℤ) (f : ℕ → ℤ) (D a : ℕ)
+    (hconc : NearlyDiscreteConcave k f D) (haD : a ≤ D)
+    (h_base : f (a - 1) ≤ f a)
+    (n : ℕ) (hn : n + 1 ≤ a) :
+    f (a - n - 1) - f (a - n) ≤ ↑n * k := by
+  have hg := nearly_reverse k f D hconc
+  have hbase' : f (D - (D - a + 1)) ≤ f (D - (D - a)) := by
+    rw [show D - (D - a + 1) = a - 1 by omega, show D - (D - a) = a by omega]
+    exact h_base
+  have h := nearly_right_delta_drift k (fun i => f (D - i)) D (D - a) hg hbase' n (by omega)
+  simp only at h
+  rwa [show D - (D - a + n + 1) = a - n - 1 by omega,
+       show D - (D - a + n) = a - n by omega] at h
+
+/-- **QUADRATIC DRIFT BOUND (left)**: mirror of
+    `nearly_right_quadratic_bound`, derived via reversal:
+
+      2·(f(a−n) − f(a)) ≤ n·(n−1)·k. -/
+theorem nearly_left_quadratic_bound (k : ℤ) (f : ℕ → ℤ) (D a : ℕ)
+    (hconc : NearlyDiscreteConcave k f D) (haD : a ≤ D)
+    (h_base : f (a - 1) ≤ f a)
+    (n : ℕ) (hn : n ≤ a) :
+    2 * (f (a - n) - f a) ≤ ↑n * (↑n - 1) * k := by
+  have hg := nearly_reverse k f D hconc
+  have hbase' : f (D - (D - a + 1)) ≤ f (D - (D - a)) := by
+    rw [show D - (D - a + 1) = a - 1 by omega, show D - (D - a) = a by omega]
+    exact h_base
+  have h := nearly_right_quadratic_bound k (fun i => f (D - i)) D (D - a) hg hbase' n (by omega)
+  simp only at h
+  rwa [show D - (D - a + n) = a - n by omega,
+       show D - (D - a) = a by omega] at h
+
+/-! ## The approximate certificate (main theorem) -/
+
+/-- **APPROXIMATE CERTIFICATE**: for a grade-k nearly-concave function, the
+    same two neighbor comparisons that certify a global maximum in the exact
+    theory certify *global approximate optimality*: for every `j ≤ D`,
+
+      2·(f(j) − f(a)) ≤ k·d·(d−1),   where d = |j − a|.
+
+    Only 2 comparisons are needed, for any domain size D. At k = 0 the
+    right-hand side vanishes and this is exactly
+    `certificate_implies_global_max`. For floor-divided AMM objectives
+    (k = 1 per pool, k = 2 for a two-pool split) this gives an
+    unconditional O(1)-verifiable optimality envelope — no per-instance
+    concavity check required.
+
+    The bound is tight: `f(i) = k·i·(i−1)/2` achieves equality at every
+    point (see `witness_nearly_certificate_tight`). -/
+theorem nearly_certificate_approx_global_max (k : ℤ) (f : ℕ → ℤ) (D a : ℕ)
+    (ha : a ≤ D)
+    (hconc : NearlyDiscreteConcave k f D)
+    (h_prev : 0 < a → f a ≥ f (a - 1))
+    (h_next : a < D → f a ≥ f (a + 1))
+    (j : ℕ) (hj : j ≤ D) :
+    2 * (f j - f a) ≤ k * |(j : ℤ) - a| * (|(j : ℤ) - a| - 1) := by
+  by_cases hja : j ≤ a
+  · -- Left side: j ≤ a, distance d = a − j.
+    have habs : |(j : ℤ) - a| = ((a - j : ℕ) : ℤ) := by
+      rw [abs_sub_comm, abs_of_nonneg (by omega : (0:ℤ) ≤ (a : ℤ) - j)]
+      omega
+    rcases Nat.eq_zero_or_pos a with rfl | hapos
+    · -- a = 0 forces j = 0: both sides are 0.
+      have hj0 : j = 0 := by omega
+      subst hj0
+      simp
+    · have h := nearly_left_quadratic_bound k f D a hconc ha (h_prev hapos)
+        (a - j) (by omega)
+      rw [show a - (a - j) = j by omega] at h
+      rw [habs]
+      calc 2 * (f j - f a)
+          ≤ ((a - j : ℕ) : ℤ) * (((a - j : ℕ) : ℤ) - 1) * k := h
+        _ = k * ((a - j : ℕ) : ℤ) * (((a - j : ℕ) : ℤ) - 1) := by ring
+  · -- Right side: a < j ≤ D, distance d = j − a.
+    have haj : a < j := by omega
+    have habs : |(j : ℤ) - a| = ((j - a : ℕ) : ℤ) := by
+      rw [abs_of_nonneg (by omega : (0:ℤ) ≤ (j : ℤ) - a)]
+      omega
+    have h := nearly_right_quadratic_bound k f D a hconc (h_next (by omega))
+      (j - a) (by omega)
+    rw [show a + (j - a) = j by omega] at h
+    rw [habs]
+    calc 2 * (f j - f a)
+        ≤ ((j - a : ℕ) : ℤ) * (((j - a : ℕ) : ℤ) - 1) * k := h
+      _ = k * ((j - a : ℕ) : ℤ) * (((j - a : ℕ) : ℤ) - 1) := by ring
+
+/-! ## Exact theory (k = 0)
+
+All exact-concavity propagation lemmas and the exact certificate are
+corollaries of the graded theory at grade 0. -/
+
+/-- Under concavity, non-positive deltas propagate rightward.
+    (Grade-0 corollary of `nearly_right_delta_drift`.) -/
 theorem right_delta_chain (f : ℕ → ℤ) (D a : ℕ)
     (hconc : DiscreteConcave f D)
     (h_base : f (a + 1) ≤ f a)
     (n : ℕ) (hn : a + n + 1 ≤ D) :
     f (a + n + 1) ≤ f (a + n) := by
-  induction n with
-  | zero => simpa using h_base
-  | succ k ih =>
-    have h_ih := ih (by omega)
-    have hc := hconc (a + k) (by omega)
-    -- Unify Nat.succ forms with canonical a+k+_ forms
-    show f (a + k + 2) ≤ f (a + k + 1)
-    linarith
+  have h := nearly_right_delta_drift 0 f D a
+    ((nearly_zero_iff_concave f D).mpr hconc) h_base n hn
+  simp only [mul_zero] at h
+  linarith
 
-/-- f(a) ≥ f(a+n) for all n, from non-positive deltas (telescoping). -/
+/-- f(a) ≥ f(a+n) for all n, from a non-positive delta at a.
+    (Grade-0 corollary of `nearly_right_quadratic_bound`.) -/
 theorem right_mono (f : ℕ → ℤ) (D a : ℕ)
     (hconc : DiscreteConcave f D)
     (h_base : f (a + 1) ≤ f a)
     (n : ℕ) (hn : a + n ≤ D) :
     f a ≥ f (a + n) := by
-  induction n with
-  | zero => simp
-  | succ k ih =>
-    have h1 := ih (by omega)
-    have h2 := right_delta_chain f D a hconc h_base k (by omega)
-    -- h2 : f(a+k+1) ≤ f(a+k)
-    -- h1 : f(a) ≥ f(a+k)
-    -- Need: f(a) ≥ f(a+(k+1)) = f(a+k+1)
-    show f a ≥ f (a + (k + 1))
-    have : a + (k + 1) = a + k + 1 := by omega
-    rw [this]
-    linarith
+  have h := nearly_right_quadratic_bound 0 f D a
+    ((nearly_zero_iff_concave f D).mpr hconc) h_base n hn
+  simp only [mul_zero] at h
+  linarith
 
-/-! ## Left side: downward propagation using distance -/
-
-/-- Under concavity, non-negative deltas propagate leftward.
-    Expressed using distance d from a: f(a-d) ≥ f(a-d-1). -/
+/-- Under concavity, non-negative deltas propagate leftward, expressed
+    with the distance d from a. (Grade-0 corollary of `nearly_left_delta_drift`.) -/
 theorem left_delta_chain (f : ℕ → ℤ) (D a : ℕ)
     (hconc : DiscreteConcave f D) (haD : a ≤ D)
     (h_base : f a ≥ f (a - 1))
     (d : ℕ) (hd : d < a) :
     f (a - d) ≥ f (a - d - 1) := by
-  induction d with
-  | zero =>
-    -- a - 0 = a, a - 0 - 1 = a - 1
-    simp
-    exact h_base
-  | succ k ih =>
-    have h_ih := ih (by omega)
-    -- Concavity at position (a-k-2): need a-k-2+2 ≤ D
-    have pos_eq : a - k - 2 + 2 = a - k := by omega
-    have pos_eq2 : a - k - 2 + 1 = a - k - 1 := by omega
-    have hc := hconc (a - k - 2) (by omega)
-    rw [pos_eq, pos_eq2] at hc
-    -- hc : f(a-k) - f(a-k-1) ≤ f(a-k-1) - f(a-k-2)
-    -- Goal has a-(k+1) form; change to canonical a-k-1/a-k-2 form
-    show f (a - k - 1) ≥ f (a - k - 2)
-    linarith
+  have h := nearly_left_delta_drift 0 f D a
+    ((nearly_zero_iff_concave f D).mpr hconc) haD h_base d (by omega)
+  simp only [mul_zero] at h
+  linarith
 
-/-- f(a) ≥ f(j) for all j ≤ a (left monotonicity from concavity). -/
+/-- f(a) ≥ f(j) for all j ≤ a (left monotonicity from concavity).
+    (Grade-0 corollary of `nearly_left_quadratic_bound`.) -/
 theorem left_mono (f : ℕ → ℤ) (D a : ℕ)
     (hconc : DiscreteConcave f D) (haD : a ≤ D)
     (h_base : f a ≥ f (a - 1))
     (j : ℕ) (hj : j ≤ a) :
     f a ≥ f j := by
-  -- Prove via distance d = a - j, carrying d ≤ a bound
-  suffices h : ∀ d, d ≤ a → f a ≥ f (a - d) by
-    have hd := h (a - j) (by omega)
-    have heq : a - (a - j) = j := by omega
-    rw [heq] at hd; exact hd
-  intro d hda
-  induction d with
-  | zero => simp
-  | succ k ih =>
-    have h1 := ih (by omega)
-    have h2 := left_delta_chain f D a hconc haD h_base k (by omega)
-    have eq : a - k - 1 = a - (k + 1) := by omega
-    rw [eq] at h2
-    linarith
-
-/-! ## The certificate theorem -/
+  have h := nearly_left_quadratic_bound 0 f D a
+    ((nearly_zero_iff_concave f D).mpr hconc) haD h_base (a - j) (by omega)
+  rw [show a - (a - j) = j by omega] at h
+  simp only [mul_zero] at h
+  linarith
 
 /-- **Certificate Soundness**: If f is discretely concave on {0,...,D}
     and the 2-comparison certificate holds at a, then a is a global maximum.
@@ -127,8 +373,10 @@ theorem left_mono (f : ℕ → ℤ) (D a : ℕ)
     - f(a) ≥ f(a+1)   (right neighbor, vacuous when a=D)
 
     Boundary comparisons (f(a) ≥ f(0), f(a) ≥ f(D)) are NOT needed —
-    they follow from concavity + neighbor checks via left_mono/right_mono.
-    This strengthens the certificate from 4 checks to 2 checks. -/
+    they follow from concavity + neighbor checks.
+
+    This is the grade-0 instance of `nearly_certificate_approx_global_max`:
+    at k = 0 the approximation error k·d·(d−1)/2 vanishes identically. -/
 theorem certificate_implies_global_max (f : ℕ → ℤ) (D a : ℕ)
     (ha : a ≤ D)
     (hconc : DiscreteConcave f D)
@@ -136,24 +384,10 @@ theorem certificate_implies_global_max (f : ℕ → ℤ) (D a : ℕ)
     (h_next : a < D → f a ≥ f (a + 1))
     (j : ℕ) (hj : j ≤ D) :
     f a ≥ f j := by
-  by_cases hja : j ≤ a
-  · -- Left side: j ≤ a
-    rcases Nat.eq_or_lt_of_le (Nat.zero_le a) with ha0 | hapos
-    · -- a = 0, j ≤ 0, so j = 0
-      subst ha0
-      have hj0 : j = 0 := by omega
-      subst hj0
-      exact le_refl _
-    · exact left_mono f D a hconc ha (h_prev hapos) j hja
-  · -- Right side: j > a
-    push_neg at hja
-    rcases Nat.eq_or_lt_of_le ha with haD | haD'
-    · -- a = D, j > D, contradiction with j ≤ D
-      omega
-    · -- a < D: use right monotonicity
-      have h_drop : f (a + 1) ≤ f a := by linarith [h_next haD']
-      obtain ⟨n, rfl⟩ : ∃ n, j = a + n := ⟨j - a, by omega⟩
-      exact right_mono f D a hconc h_drop n (by omega)
+  have h := nearly_certificate_approx_global_max 0 f D a ha
+    ((nearly_zero_iff_concave f D).mpr hconc) h_prev h_next j hj
+  simp only [zero_mul] at h
+  linarith
 
 /-! ## Certificate necessity -/
 
@@ -322,7 +556,36 @@ theorem witness_adjacency :
 theorem witness_maximizer_interval :
     let f : ℕ → ℤ := fun x => min (x : ℤ) 3
     f 3 = 3 ∧ f 4 = 3 ∧ f 5 = 3 ∧ f 6 = 3 ∧ f 0 = 0 := by
-  native_decide
+  decide
+
+/-- **TIGHTNESS of the approximate certificate**: `f(i) = i·(i−1)` has grade
+    exactly 2 (constant second difference 2), passes both neighbor checks at
+    `a = 0`, and the bound `2·(f(j) − f(0)) ≤ 2·j·(j−1)` holds with EQUALITY
+    at every point j. No smaller envelope is valid for grade-2 functions. -/
+theorem witness_nearly_certificate_tight :
+    let f : ℕ → ℤ := fun i => (i : ℤ) * ((i : ℤ) - 1)
+    NearlyDiscreteConcave 2 f 5 ∧
+    (f 1 ≤ f 0) ∧
+    (∀ j : ℕ, j ≤ 5 → 2 * (f j - f 0) = 2 * (j : ℤ) * ((j : ℤ) - 1)) := by
+  refine ⟨fun i _ => by push_cast; ring_nf; omega, by norm_num, fun j hj => by push_cast; ring⟩
+
+/-- Approximate-certificate witness on a non-trivial grade-1 function:
+    f(x) = -(x-3)² + x·(x−1)/2-style mix would be overkill — instead check the
+    end-to-end inequality numerically for f(x) = -(x-3)² + 9 perturbed by a
+    grade-1 defect at one point: f = [0, 5, 8, 9, 9, 8] on {0,...,5}.
+    Second differences: -2, -2, -1, +1 ≤ 1 (grade 1); neighbor checks pass at
+    a = 3 (f(2)=8 ≤ 9, f(4)=9 ≤ 9); and every j satisfies the grade-1 envelope
+    2·(f(j) − f(3)) ≤ |j−3|·(|j−3|−1). -/
+theorem witness_nearly_certificate_grade_one :
+    let f : ℕ → ℤ := fun i => [0, 5, 8, 9, 9, 8].getD i 0
+    NearlyDiscreteConcave 1 f 5 ∧
+    (f 2 ≤ f 3 ∧ f 4 ≤ f 3) ∧
+    (∀ j : ℕ, j ≤ 5 →
+      2 * (f j - f 3) ≤ |(j : ℤ) - 3| * (|(j : ℤ) - 3| - 1)) := by
+  refine ⟨fun i hi => ?_, by norm_num, fun j hj => ?_⟩
+  · have hi' : i ≤ 3 := by omega
+    interval_cases i <;> decide
+  · interval_cases j <;> decide
 
 end GaloisSplitCertificate
 end Proofs

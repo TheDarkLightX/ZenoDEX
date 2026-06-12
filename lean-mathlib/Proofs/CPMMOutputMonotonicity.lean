@@ -96,13 +96,16 @@ The denominator of `swapOut(x, y, a) = y * a / (x + a)` increases with x.
 So more input reserve → smaller output (bigger denominator → smaller quotient). -/
 
 /-- INPUT RESERVE ANTI-MONOTONICITY: increasing the input reserve (x) decreases output.
+    Holds unconditionally (when x₁ + a = 0 both outputs are 0).
     Proof: bigger denominator with same numerator.
     Uses Nat.div_le_div_left: c ≤ b → 0 < c → a/b ≤ a/c. -/
-theorem swapOut_anti_x (y a : ℕ) {x₁ x₂ : ℕ} (h : x₁ ≤ x₂)
-    (hpos : 0 < x₁ + a) :
+theorem swapOut_anti_x (y a : ℕ) {x₁ x₂ : ℕ} (h : x₁ ≤ x₂) :
     swapOut x₂ y a ≤ swapOut x₁ y a := by
   simp only [swapOut]
-  exact Nat.div_le_div_left (by omega : x₁ + a ≤ x₂ + a) hpos
+  rcases Nat.eq_zero_or_pos (x₁ + a) with h0 | hpos
+  · obtain ⟨rfl, rfl⟩ : x₁ = 0 ∧ a = 0 := by omega
+    simp
+  · exact Nat.div_le_div_left (by omega : x₁ + a ≤ x₂ + a) hpos
 
 /-! ## Part 3: Joint Monotonicity
 
@@ -110,13 +113,14 @@ Combining both effects: bigger Y reserve AND smaller X reserve gives bigger outp
 This is the two-variable version used by the second-mover advantage. -/
 
 /-- JOINT MONOTONICITY: bigger numerator AND smaller denominator → bigger output.
-    This is the core engine behind the second-mover advantage. -/
+    Holds unconditionally. This is the core engine behind the second-mover
+    advantage. -/
 theorem swapOut_joint_mono {x₁ x₂ y₁ y₂ a : ℕ}
-    (hy : y₁ ≤ y₂) (hx : x₂ ≤ x₁) (hpos : 0 < x₂ + a) :
+    (hy : y₁ ≤ y₂) (hx : x₂ ≤ x₁) :
     swapOut x₁ y₁ a ≤ swapOut x₂ y₂ a := by
   calc swapOut x₁ y₁ a
       ≤ swapOut x₁ y₂ a := swapOut_mono_y x₁ a hy
-    _ ≤ swapOut x₂ y₂ a := swapOut_anti_x y₂ a hx hpos
+    _ ≤ swapOut x₂ y₂ a := swapOut_anti_x y₂ a hx
 
 /-! ## Part 4: Reserve Shift Bounds
 
@@ -125,24 +129,24 @@ both above and below by δ*a/(x+a) with ±1 rounding slack. -/
 
 /-- SHIFT LOWER BOUND: increasing Y by δ increases output by at least δ*a/(x+a).
     This is floor-division super-additivity applied to the numerator. -/
-theorem swapOut_shift_lower (x y a δ : ℕ) (hpos : 0 < x + a) :
+theorem swapOut_shift_lower (x y a δ : ℕ) :
     swapOut x y a + δ * a / (x + a) ≤ swapOut x (y + δ) a := by
   simp only [swapOut]
   have hmul : (y + δ) * a = y * a + δ * a := by ring
   rw [hmul]
-  exact floor_div_subadditive (y * a) (δ * a) (x + a) hpos
+  exact floor_div_subadditive (y * a) (δ * a) (x + a)
 
 /-- SHIFT UPPER BOUND: increasing Y by δ increases output by at most δ*a/(x+a) + 1.
     The +1 accounts for the carry from combining Euclidean remainders. -/
-theorem swapOut_shift_upper (x y a δ : ℕ) (hpos : 0 < x + a) :
+theorem swapOut_shift_upper (x y a δ : ℕ) :
     swapOut x (y + δ) a ≤ swapOut x y a + δ * a / (x + a) + 1 := by
   simp only [swapOut]
   have hmul : (y + δ) * a = y * a + δ * a := by ring
   rw [hmul]
-  have hcarry := floor_div_carry_le_one (y * a) (δ * a) (x + a) hpos
+  have hcarry := floor_div_carry_le_one (y * a) (δ * a) (x + a)
   -- From floor_div_exact_decomposition: (a+b)/d = a/d + b/d + carry, carry ≤ 1
   have hdecomp := AntiFragmentation.floor_div_exact_decomposition
-    (y * a) (δ * a) (x + a) hpos
+    (y * a) (δ * a) (x + a)
   omega
 
 /-! ## Part 5: Reserve Shift Exact Decomposition
@@ -159,11 +163,11 @@ where `carry ∈ {0, 1}`. This is the tightness proof. -/
     overflow when the numerator's mod terms combine.
 
     Proof: existence from shift_lower (carry ≥ 0) and shift_upper (carry ≤ 1). -/
-theorem swapOut_shift_exact (x y a δ : ℕ) (hpos : 0 < x + a) :
+theorem swapOut_shift_exact (x y a δ : ℕ) :
     ∃ carry : ℕ, carry ≤ 1 ∧
       swapOut x (y + δ) a = swapOut x y a + δ * a / (x + a) + carry := by
-  have hlower := swapOut_shift_lower x y a δ hpos
-  have hupper := swapOut_shift_upper x y a δ hpos
+  have hlower := swapOut_shift_lower x y a δ
+  have hupper := swapOut_shift_upper x y a δ
   exact ⟨swapOut x (y + δ) a - (swapOut x y a + δ * a / (x + a)), by omega, by omega⟩
 
 /-- SHIFT TIGHTNESS — carry = 0 case: for some pool configurations the carry
@@ -175,7 +179,7 @@ theorem witness_shift_carry_zero :
     swapOut 1000 1000 100 = 90 ∧
     swapOut 1000 2100 100 = 190 ∧
     1100 * 100 / 1100 = 100 := by
-  native_decide
+  decide
 
 /-- SHIFT TIGHTNESS — carry = 1 case: for some configurations the carry is 1. -/
 theorem witness_shift_carry_one :
@@ -185,7 +189,7 @@ theorem witness_shift_carry_one :
     swapOut 1000 1000 100 = 90 ∧
     swapOut 1000 1500 100 = 136 ∧
     500 * 100 / 1100 = 45 := by
-  native_decide
+  decide
 
 /-! ## Part 5b: Carry Characterization
 
@@ -205,14 +209,14 @@ This fully classifies the rounding behavior of the CPMM formula. -/
     where d = x + a. This is 1 when the remainders sum to ≥ d, and 0 otherwise.
     Proof: from `floor_div_exact_decomposition`, which gives the carry exactly,
     then rearrange via omega. -/
-theorem swapOut_shift_carry_formula (x y a δ : ℕ) (hpos : 0 < x + a) :
+theorem swapOut_shift_carry_formula (x y a δ : ℕ) :
     swapOut x (y + δ) a - (swapOut x y a + δ * a / (x + a)) =
       (y * a % (x + a) + δ * a % (x + a)) / (x + a) := by
   simp only [swapOut]
   have hmul : (y + δ) * a = y * a + δ * a := by ring
   rw [hmul]
-  have hdecomp := AntiFragmentation.floor_div_exact_decomposition (y * a) (δ * a) (x + a) hpos
-  have hle := AntiFragmentation.floor_div_subadditive (y * a) (δ * a) (x + a) hpos
+  have hdecomp := AntiFragmentation.floor_div_exact_decomposition (y * a) (δ * a) (x + a)
+  have hle := AntiFragmentation.floor_div_subadditive (y * a) (δ * a) (x + a)
   omega
 
 /-! ## Part 5c: Output Contraction (1-Lipschitz in Y)
@@ -252,7 +256,7 @@ theorem witness_contraction :
     -- Concrete values
     swapOut 1000 1000 100 = 90 ∧ swapOut 1000 1500 100 = 136 ∧
     swapOut 0 100 100 = 100 ∧ swapOut 0 101 100 = 101 := by
-  native_decide
+  decide
 
 /-- CONTRACTION TIGHTNESS: when x = 0, the contraction bound is achieved as
     EQUALITY: `swapOut(0, y+δ, a) = swapOut(0, y, a) + δ`. This proves the
@@ -297,16 +301,13 @@ theorem swapOut_monotone_y (x a : ℕ) : Monotone (fun y => swapOut x y a) :=
   fun _ _ h => swapOut_mono_y x a h
 
 /-- swapOut is Antitone in the input reserve (x): larger input reserve →
-    smaller output. Handles the edge case a=0 (output always 0) separately.
+    smaller output.
 
     Combined with `swapOut_monotone_y`, this gives: enriching the output reserve
     and depleting the input reserve both benefit the trader — the formal
     two-variable monotonicity that underlies second-mover advantage. -/
-theorem swapOut_antitone_x (y a : ℕ) : Antitone (fun x => swapOut x y a) := by
-  intro x₁ x₂ h
-  by_cases ha : a = 0
-  · subst ha; simp [swapOut]
-  · exact swapOut_anti_x y a h (by omega)
+theorem swapOut_antitone_x (y a : ℕ) : Antitone (fun x => swapOut x y a) :=
+  fun _ _ h => swapOut_anti_x y a h
 
 /-- The output-reserve sensitivity as a Mathlib OrderHom (order-preserving map).
     Packages monotonicity into a first-class composable algebraic structure.
@@ -357,7 +358,7 @@ theorem witness_multihop :
     swapOut 800 166 50 = 9 ∧
     swapOut 500 2000 100 = 333 ∧
     swapOut 800 333 50 = 19 := by
-  native_decide
+  decide
 
 /-! ## Part 7b: Approximate Additivity (Hyers–Ulam Stability)
 
@@ -383,7 +384,7 @@ This characterization is the algebraic dual of anti-fragmentation:
     Proof: unfold swapOut, factor the numerator `(y₁+y₂)*a = y₁*a + y₂*a`,
     then combine `floor_div_subadditive` (lower bound) with
     `floor_div_carry_le_one` (upper bound) to extract the carry. -/
-theorem swapOut_approx_additive (x y₁ y₂ a : ℕ) (hpos : 0 < x + a) :
+theorem swapOut_approx_additive (x y₁ y₂ a : ℕ) :
     ∃ carry : ℕ, carry ≤ 1 ∧
       swapOut x (y₁ + y₂) a = swapOut x y₁ a + swapOut x y₂ a + carry := by
   simp only [swapOut]
@@ -391,9 +392,9 @@ theorem swapOut_approx_additive (x y₁ y₂ a : ℕ) (hpos : 0 < x + a) :
   rw [hmul]
   -- floor_div_exact_decomposition: a/d + b/d + carry = (a+b)/d where carry = (a%d + b%d)/d
   have hdecomp := AntiFragmentation.floor_div_exact_decomposition
-    (y₁ * a) (y₂ * a) (x + a) hpos
+    (y₁ * a) (y₂ * a) (x + a)
   -- floor_div_carry_le_one: carry ≤ 1
-  have hcarry := floor_div_carry_le_one (y₁ * a) (y₂ * a) (x + a) hpos
+  have hcarry := floor_div_carry_le_one (y₁ * a) (y₂ * a) (x + a)
   exact ⟨(y₁ * a % (x + a) + y₂ * a % (x + a)) / (x + a), hcarry, hdecomp⟩
 
 /-- Approximate additivity tightness: both carry=0 and carry=1 are achievable,
@@ -408,7 +409,7 @@ theorem witness_approx_additive_tight :
     swapOut 1000 1000 100 = 90 ∧   -- 45 + 45 = 90, carry = 0
     swapOut 1000 501 100 = 45 ∧
     swapOut 1000 1002 100 = 91 := by -- 45 + 45 + 1 = 91, carry = 1
-  native_decide
+  decide
 
 /-! ## Part 7c: True Routing Monotonicity (Trade Amount)
 
@@ -446,7 +447,7 @@ theorem witness_route_mono :
     swapOut 800 1000 47 = 55 ∧
     swapOut 1000 1000 100 = 90 ∧
     swapOut 800 1000 90 = 101 := by
-  native_decide
+  decide
 
 /-! ## Part 7d: Diminishing Returns
 
@@ -467,11 +468,8 @@ gives less output than trading against the original pool. -/
     Proof: compose `swapOut_joint_mono` with the natural bounds
     `y − out₁ ≤ y` (numerator shrinks) and `x ≤ x + a₁` (denominator grows). -/
 theorem swapOut_diminishing_returns (x y a₁ a₂ : ℕ) :
-    swapOut (x + a₁) (y - swapOut x y a₁) a₂ ≤ swapOut x y a₂ := by
-  by_cases h : x + a₂ = 0
-  · have : a₂ = 0 := by omega
-    subst this; simp [swapOut]
-  · exact swapOut_joint_mono (Nat.sub_le _ _) (Nat.le_add_right _ _) (by omega)
+    swapOut (x + a₁) (y - swapOut x y a₁) a₂ ≤ swapOut x y a₂ :=
+  swapOut_joint_mono (Nat.sub_le _ _) (Nat.le_add_right _ _)
 
 /-- ROUTE OUTPUT CEILING: two-hop output is bounded by the second pool's
     output at the first pool's full reserve.
@@ -498,7 +496,7 @@ theorem witness_diminishing_returns :
     swapOut (x + a) (y - out₁) a = 75 ∧
     -- Formally: second < first
     swapOut (x + a) (y - out₁) a < swapOut x y a := by
-  native_decide
+  decide
 
 /-- Route ceiling witness: 2-hop route bounded by single-pool output. -/
 theorem witness_compose_upper :
@@ -508,7 +506,7 @@ theorem witness_compose_upper :
     swapOut 1000 1000 200 = 166 ∧
     swapOut 500 2000 166 = 498 ∧
     swapOut 500 2000 1000 = 1333 := by
-  native_decide
+  decide
 
 /-! ## Part 7e: Swap Output Positivity
 
@@ -545,7 +543,7 @@ theorem witness_positivity_threshold :
     swapOut 100 101 1 = 1 ∧
     -- Larger trade: y*a = 10*100 = 1000 ≥ 110 → output = 9
     0 < swapOut 100 10 100 := by
-  native_decide
+  decide
 
 /-- ZERO OUTPUT CHARACTERIZATION (iff): `swapOut = 0` precisely when the
     numerator `y*a` is sub-denominator. This combines `swapOut_eq_zero` (←)
@@ -574,7 +572,7 @@ theorem witness_zero_iff :
     swapOut 100 10 10 = 0 ∧
     -- At boundary: 11*10 = 110 ≥ 110 → output > 0
     0 < swapOut 100 11 10 := by
-  native_decide
+  decide
 
 /-! ## Part 7f: Sublinearity (Spot Price Bound)
 
@@ -601,7 +599,7 @@ theorem witness_sublinear :
     swapOut 10 1000 100 = 909 ∧ 1000 * 100 / 10 = 10000 ∧
     -- Small trade: pool (1000, 1000), a=1: output 0, spot estimate 1
     swapOut 1000 1000 1 = 0 ∧ 1000 * 1 / 1000 = 1 := by
-  native_decide
+  decide
 
 /-! ## Part 8: Fee Reduces Output -/
 
@@ -628,7 +626,7 @@ theorem witness_reserve_mono :
     swapOut 1000 2000 100 = 181 ∧
     swapOut 2000 1000 100 = 47 ∧
     swapOut 500 2000 100 = 333 := by
-  native_decide
+  decide
 
 /-- Shift bound witness: pool (1000, 1000), a=100, δ=500. -/
 theorem witness_shift_bound :
@@ -641,7 +639,7 @@ theorem witness_shift_bound :
     swapOut x y a = 90 ∧
     swapOut x (y + δ) a = 136 ∧
     δ * a / (x + a) = 45 := by
-  native_decide
+  decide
 
 /-- Fee reduces output witness: pool (1000, 1000), gross=100, 500bps fee. -/
 theorem witness_fee_reduces :
@@ -650,7 +648,7 @@ theorem witness_fee_reduces :
       swapOut x y gross ∧
     swapOut x y gross = 90 ∧
     swapOut x y (CPMMInvariants.netAmount gross bps) = 86 := by
-  native_decide
+  decide
 
 /-- Balanced pool no-free-tokens witness. -/
 theorem witness_no_free_tokens :
@@ -660,7 +658,7 @@ theorem witness_no_free_tokens :
     -- Unbalanced: output can exceed input
     swapOut 1 1000000 1 = 500000 ∧
     500000 > 1 := by
-  native_decide
+  decide
 
 /-- Strict monotonicity witness: gap ≥ denominator triggers strict increase. -/
 theorem witness_strict :
@@ -668,6 +666,6 @@ theorem witness_strict :
     swapOut 100 100 10 < swapOut 100 200 10 ∧
     swapOut 100 100 10 = 9 ∧
     swapOut 100 200 10 = 18 := by
-  native_decide
+  decide
 
 end CPMMOutputMonotonicity
