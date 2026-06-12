@@ -46,8 +46,13 @@ PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     "tests/core/test_batch_auction_settler_v1_witness.py",
     "tests/core/test_batch_clearing.py",
     "tests/core/test_settlement_swap_runtime_v1.py",
+    "tests/core/test_split_routing.py",
+    "tests/core/test_split_routing_staircase.py",
+    "tests/core/test_split_routing_dispatch.py",
+    "tests/tools/test_check_split_routing_staircase_runtime_evidence.py",
     "tests/integration/test_permissionless_assurance_cli.py",
     "tools/check_derivatives_evidence_manifest.py",
+    "tools/check_split_routing_staircase_runtime_evidence.py",
     "tools/check_spot_proof_assurance_manifest.py",
     "tools/dex_kernel_assurance.py",
     "tools/derivatives_evidence_manifest.json",
@@ -153,10 +158,14 @@ LANES: dict[str, Lane] = {
     ),
     "spot-evidence": Lane(
         name="spot-evidence",
-        description="Replay the spot functional-core tests and spot-kernel verify-multi checks.",
+        description=(
+            "Replay the spot functional-core tests, split-routing staircase evidence, "
+            "and spot-kernel verify-multi checks."
+        ),
         commands=(("bash", "tools/run_spot_evidence.sh"),),
         required_files=(
             "tools/run_spot_evidence.sh",
+            "tools/check_split_routing_staircase_runtime_evidence.py",
             "generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py",
         ),
         required_environment=("external/ESSO",),

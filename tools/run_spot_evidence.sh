@@ -55,6 +55,11 @@ require_file "batch auction exported ref" "$ROOT_DIR/generated/batch_auction_set
 echo "== spot: claims registry format check =="
 "$PY" "$ROOT_DIR/tools/check_claims_registry.py"
 
+echo "== spot: split-routing staircase runtime evidence =="
+"$PY" "$ROOT_DIR/tools/check_split_routing_staircase_runtime_evidence.py" \
+  --console-summary-only \
+  --output-json "$ROOT_DIR/internal/spot_evidence/split_routing_staircase_runtime_evidence.json"
+
 echo "== spot: pytest =="
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/core/test_cpmm.py" \
@@ -69,6 +74,9 @@ echo "== spot: pytest =="
   "$ROOT_DIR/tests/core/test_batch_mci.py" \
   "$ROOT_DIR/tests/core/test_batch_auction_settler_v1_ref_parity.py" \
   "$ROOT_DIR/tests/core/test_batch_auction_settler_v1_witness.py" \
+  "$ROOT_DIR/tests/core/test_split_routing.py" \
+  "$ROOT_DIR/tests/core/test_split_routing_staircase.py" \
+  "$ROOT_DIR/tests/core/test_split_routing_dispatch.py" \
   "$ROOT_DIR/tests/core/test_settlement_swap_runtime_v1.py" \
   "$ROOT_DIR/tests/core/test_settlement_normal_form.py" \
   "$ROOT_DIR/tests/core/test_settlement_strong_validator.py" \
@@ -76,7 +84,8 @@ echo "== spot: pytest =="
   "$ROOT_DIR/tests/core/test_dex_step_candidate_settlement.py" \
   "$ROOT_DIR/tests/core/test_dex_step_core_v2_ref_parity.py" \
   "$ROOT_DIR/tests/core/test_dex_step_core_v2_ml_bva_parity.py" \
-  "$ROOT_DIR/tests/core/test_vault_ref_parity.py"
+  "$ROOT_DIR/tests/core/test_vault_ref_parity.py" \
+  "$ROOT_DIR/tests/tools/test_check_split_routing_staircase_runtime_evidence.py"
 
 echo "== spot: kernel inductiveness (verify-multi) =="
 "$PY" -m ESSO verify-multi \

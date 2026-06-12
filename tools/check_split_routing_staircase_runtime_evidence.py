@@ -521,6 +521,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-fallback-result-mismatches", type=int, default=0)
     parser.add_argument("--max-fallback-call-overhead", type=int, default=2)
     parser.add_argument("--output-json", type=Path)
+    parser.add_argument(
+        "--console-summary-only",
+        action="store_true",
+        help="Print summary/checks to stdout while preserving full cases in --output-json.",
+    )
     args = parser.parse_args(argv)
 
     report = build_split_routing_staircase_runtime_evidence(
@@ -536,8 +541,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.output_json is not None:
         write_public_json(args.output_json, report)
-    emit_operator_json(report)
+    emit_operator_json(_summary_report(report) if args.console_summary_only else report)
     return 0 if report["ok"] else 1
+
+
+def _summary_report(report: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in report.items()
+        if key in {"schema", "ok", "git_commit", "claim_scope", "non_claims", "config", "summary", "checks"}
+    }
 
 
 if __name__ == "__main__":
