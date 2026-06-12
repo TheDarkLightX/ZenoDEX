@@ -47,6 +47,7 @@ PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     "tests/core/test_batch_auction_settler_v1_ref_parity.py",
     "tests/core/test_batch_auction_settler_v1_witness.py",
     "tests/core/test_batch_clearing.py",
+    "tests/core/test_funding_rate_decomposed_parity.py",
     "tests/core/test_settlement_swap_runtime_v1.py",
     "tests/core/test_split_routing.py",
     "tests/core/test_split_routing_staircase.py",
@@ -65,6 +66,7 @@ PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     "tools/render_assurance_release_snapshot.py",
     "tools/render_tla_claim_summary.py",
     "tools/run_critical_quality_gate.sh",
+    "tools/run_derivatives_evidence.sh",
     "tools/run_release_gate.sh",
     "tools/run_perps_evidence.sh",
     "tools/run_spot_evidence.sh",
@@ -130,7 +132,10 @@ def _python_bin() -> str:
 PY = _python_bin()
 
 ENVIRONMENT_REQUIREMENT_HINTS: dict[str, str] = {
-    "external/ESSO": "clone/update external/ESSO or make the ESSO module importable",
+    "external/ESSO": "clone/update the pinned ESSO checkout at external/ESSO",
+    "esso-toolchain": "clone/update external/ESSO or make the ESSO module importable",
+    "external/mathlib4": "provide the Lean mathlib dependency at external/mathlib4",
+    "lake": "put lake on PATH, set LAKE, or install it via elan",
     "tau-binary": "set TAU_BIN, put tau on PATH, or build external/tau-lang/build-*/tau",
 }
 
@@ -155,7 +160,7 @@ LANES: dict[str, Lane] = {
             "tools/check_spot_proof_assurance_manifest.py",
             "tools/spot_proof_assurance_manifest.json",
         ),
-        required_environment=("external/ESSO",),
+        required_environment=("esso-toolchain", "lake", "external/mathlib4"),
         stars=3,
     ),
     "spot-evidence": Lane(
@@ -170,7 +175,7 @@ LANES: dict[str, Lane] = {
             "tools/check_split_routing_staircase_runtime_evidence.py",
             "generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py",
         ),
-        required_environment=("external/ESSO",),
+        required_environment=("esso-toolchain",),
         stars=2,
     ),
     "derivatives": Lane(
@@ -193,7 +198,7 @@ LANES: dict[str, Lane] = {
         description="Replay the perps functional-core tests, micro-gate assurances, kernel verify-multi checks, and Lean safety proofs.",
         commands=(("bash", "tools/run_perps_evidence.sh"),),
         required_files=("tools/run_perps_evidence.sh",),
-        required_environment=("external/ESSO",),
+        required_environment=("esso-toolchain", "lake", "external/mathlib4"),
         stars=3,
     ),
     "critical": Lane(
@@ -209,7 +214,7 @@ LANES: dict[str, Lane] = {
         description="Run the full release gate, including Tau, proof, evidence, and audit lanes.",
         commands=(("bash", "tools/run_release_gate.sh"),),
         required_files=("tools/run_release_gate.sh",),
-        required_environment=("external/ESSO", "tau-binary"),
+        required_environment=("external/ESSO", "lake", "external/mathlib4", "tau-binary"),
         stars=4,
     ),
 }
@@ -312,6 +317,16 @@ def _tau_binary_ready() -> bool:
     return False
 
 
+def _lake_ready() -> bool:
+    lake_bin = os.environ.get("LAKE", "").strip()
+    if lake_bin:
+        return Path(lake_bin).is_file() and os.access(lake_bin, os.X_OK)
+    if shutil.which("lake"):
+        return True
+    candidate = Path.home() / ".elan" / "bin" / "lake"
+    return candidate.is_file() and os.access(candidate, os.X_OK)
+
+
 def _python_module_importable(name: str) -> bool:
     return importlib.util.find_spec(name) is not None
 
@@ -322,7 +337,13 @@ def _esso_toolchain_ready() -> bool:
 
 def _environment_requirement_ready(name: str) -> bool:
     if name == "external/ESSO":
+        return (REPO_ROOT / "external" / "ESSO").exists()
+    if name == "esso-toolchain":
         return _esso_toolchain_ready()
+    if name == "external/mathlib4":
+        return (REPO_ROOT / "external" / "mathlib4").exists()
+    if name == "lake":
+        return _lake_ready()
     if name == "tau-binary":
         return _tau_binary_ready()
     raise RuntimeError(f"unknown environment requirement: {name}")
@@ -436,7 +457,7 @@ def _status_payload() -> dict[str, object]:
         "notes": [
             "internal/ artifacts are intentionally not shipped; replay commands regenerate them locally",
             "public assurance claims should be backed by pinned manifests, tracked exported refs, and replayable gate scripts",
-            "public replay lanes may require external toolchains such as an external/ESSO checkout, an importable ESSO module, or a tau binary; status and replay should fail closed when those prerequisites are absent",
+            "public replay lanes may require external toolchains such as a pinned external/ESSO checkout, an importable ESSO module, lake/mathlib, or a tau binary; status and replay should fail closed when those prerequisites are absent",
         ],
     }
     return payload
