@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import importlib.util
 import json
 import os
 import shutil
@@ -128,7 +129,7 @@ def _python_bin() -> str:
 PY = _python_bin()
 
 ENVIRONMENT_REQUIREMENT_HINTS: dict[str, str] = {
-    "external/ESSO": "clone or update external/ESSO",
+    "external/ESSO": "clone/update external/ESSO or make the ESSO module importable",
     "tau-binary": "set TAU_BIN, put tau on PATH, or build external/tau-lang/build-*/tau",
 }
 
@@ -310,9 +311,17 @@ def _tau_binary_ready() -> bool:
     return False
 
 
+def _python_module_importable(name: str) -> bool:
+    return importlib.util.find_spec(name) is not None
+
+
+def _esso_toolchain_ready() -> bool:
+    return (REPO_ROOT / "external" / "ESSO").exists() or _python_module_importable("ESSO")
+
+
 def _environment_requirement_ready(name: str) -> bool:
     if name == "external/ESSO":
-        return (REPO_ROOT / "external" / "ESSO").exists()
+        return _esso_toolchain_ready()
     if name == "tau-binary":
         return _tau_binary_ready()
     raise RuntimeError(f"unknown environment requirement: {name}")
@@ -426,7 +435,7 @@ def _status_payload() -> dict[str, object]:
         "notes": [
             "internal/ artifacts are intentionally not shipped; replay commands regenerate them locally",
             "public assurance claims should be backed by pinned manifests, tracked exported refs, and replayable gate scripts",
-            "public replay lanes may require external toolchains such as external/ESSO or a tau binary; status and replay should fail closed when those prerequisites are absent",
+            "public replay lanes may require external toolchains such as an external/ESSO checkout, an importable ESSO module, or a tau binary; status and replay should fail closed when those prerequisites are absent",
         ],
     }
     return payload
