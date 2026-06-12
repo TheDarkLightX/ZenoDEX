@@ -10,7 +10,9 @@ use std::collections::BTreeMap;
 
 use thiserror::Error;
 
-use crate::canonical::{domain_sep_bytes, encode_bytes, encode_uvarint, sha256_hex};
+use crate::canonical::{
+    domain_sep_bytes, encode_bytes, encode_uvarint, hex_to_bytes_fixed, sha256_hex,
+};
 
 /// Largest admissible nonce (u32 range, matching `src/state/nonces.py`).
 pub const U32_MAX: u64 = 0xFFFF_FFFF;
@@ -51,10 +53,16 @@ impl ReplayRejectedReason {
     }
 }
 
+fn python_strip(value: &str) -> &str {
+    value.trim_matches(|c: char| {
+        c.is_whitespace() || matches!(c, '\u{001c}' | '\u{001d}' | '\u{001e}' | '\u{001f}')
+    })
+}
+
 /// Canonicalize a sender: raw or `0x`-prefixed 96 hex chars -> lowercase
 /// `0x`-prefixed form, else `None`. This matches `src.state.nonces.NonceTable`.
 pub fn canonical_sender(sender: &str) -> Option<String> {
-    let trimmed = sender.trim();
+    let trimmed = python_strip(sender);
     let body = trimmed
         .strip_prefix("0x")
         .or_else(|| trimmed.strip_prefix("0X"))
@@ -70,7 +78,7 @@ pub fn canonical_sender(sender: &str) -> Option<String> {
 
 fn sender_bytes(canonical: &str) -> Vec<u8> {
     // `canonical` is always a validated `0x` + 96 lowercase-hex string.
-    hex::decode(&canonical[2..]).expect("validated canonical sender hex")
+    hex_to_bytes_fixed(canonical, SENDER_NBYTES).expect("validated canonical sender hex")
 }
 
 /// Per-sender last-accepted-nonce table.
@@ -80,6 +88,38 @@ pub struct ReplayGuardState {
 }
 
 impl ReplayGuardState {
+    /// Build a state from explicit `(sender, last_nonce)` entries.
+    ///
+    /// This is used by the live authority bridge, which must evaluate one
+    /// transition from the current Python state without replaying the whole
+    /// sender history. Entries are canonicalized, duplicate decoded senders
+    /// reject, and stored nonces must be in `[1, U32_MAX]`.
+    pub fn from_entries<I, S>(entries: I) -> Result<ReplayGuardState, ReplayRejectedReason>
+    where
+        I: IntoIterator<Item = (S, u64)>,
+        S: AsRef<str>,
+    {
+        let mut last = BTreeMap::new();
+        for (sender, nonce) in entries {
+            let canonical =
+                canonical_sender(sender.as_ref()).ok_or(ReplayRejectedReason::InvalidSender)?;
+            if !(1..=U32_MAX).contains(&nonce) {
+                return Err(ReplayRejectedReason::InvalidNonce);
+            }
+            if last.insert(canonical, nonce).is_some() {
+                return Err(ReplayRejectedReason::DuplicateNonce);
+            }
+        }
+        Ok(ReplayGuardState { last })
+    }
+
+    /// Canonical state entries in root-encoding order.
+    pub fn entries(&self) -> impl Iterator<Item = (&str, u64)> {
+        self.last
+            .iter()
+            .map(|(sender, nonce)| (sender.as_str(), *nonce))
+    }
+
     /// Last accepted nonce for `sender` (0 if never seen / invalid).
     pub fn last_for(&self, sender: &str) -> u64 {
         match canonical_sender(sender) {
@@ -135,6 +175,33 @@ pub struct AdmitAccepted {
     pub state: ReplayGuardState,
 }
 
+/// Pure decision core of [`admit`]: classify a `sequence` against the sender's
+/// `last` accepted nonce, after the caller has canonicalized the sender and
+/// validated `sequence` in `[1, U32_MAX]`. `Ok(())` means `sequence` is the
+/// strict successor (`last + 1`); otherwise the typed reject in the Python
+/// reference's order (duplicate, then stale, then gap).
+///
+/// Total and panic-free for ANY `u64` inputs: the gap test runs only in the
+/// `sequence > last` branch and uses subtraction (`sequence - last`, no
+/// underflow), so it never computes `last + 1` and cannot overflow at
+/// `u64::MAX`. Machine-proved by `kani_contracts`; this is the consensus
+/// arithmetic of the running `admit`, isolated from the heap-heavy
+/// String/BTreeMap/sha2 layer so Kani can discharge it on the actual code.
+fn classify_sequence(last: u64, sequence: u64) -> Result<(), ReplayRejectedReason> {
+    if sequence == last {
+        return Err(ReplayRejectedReason::DuplicateNonce);
+    }
+    if sequence < last {
+        return Err(ReplayRejectedReason::StaleNonce);
+    }
+    // `sequence > last` here, so `sequence - last >= 1` (no underflow). The
+    // strict successor is `sequence - last == 1`; a gap is `sequence - last > 1`.
+    if sequence - last > 1 {
+        return Err(ReplayRejectedReason::NonceGap);
+    }
+    Ok(())
+}
+
 /// Admit `(sender, nonce)` under the strict-sequential per-sender policy.
 ///
 /// Validation order (mirrors the Python reference exactly): sender format, then
@@ -150,15 +217,7 @@ pub fn admit(
     }
 
     let last = *state.last.get(&canonical).unwrap_or(&0);
-    if sequence == last {
-        return Err(ReplayRejectedReason::DuplicateNonce);
-    }
-    if sequence < last {
-        return Err(ReplayRejectedReason::StaleNonce);
-    }
-    if sequence > last + 1 {
-        return Err(ReplayRejectedReason::NonceGap);
-    }
+    classify_sequence(last, sequence)?;
 
     let new_state = state.with_last(&canonical, sequence);
     Ok(AdmitAccepted {
@@ -244,20 +303,25 @@ mod tests {
         let raw = prefixed.strip_prefix("0x").unwrap();
         let upper = format!("0X{}", raw.to_ascii_uppercase());
         let spaced = format!("  {}  ", upper);
+        let info_sep_wrapped = format!("\u{001c}{}\u{001f}", upper);
         let first = sequence_values().next().unwrap();
         let a = admit(&ReplayGuardState::default(), &prefixed, first).unwrap();
         let b = admit(&ReplayGuardState::default(), raw, first).unwrap();
         let c = admit(&ReplayGuardState::default(), &upper, first).unwrap();
         let d = admit(&ReplayGuardState::default(), &spaced, first).unwrap();
+        let e = admit(&ReplayGuardState::default(), &info_sep_wrapped, first).unwrap();
         assert_eq!(b.receipt.sender, prefixed);
         assert_eq!(c.receipt.sender, prefixed);
         assert_eq!(d.receipt.sender, prefixed);
+        assert_eq!(e.receipt.sender, prefixed);
         assert_eq!(a.receipt.receipt_hash(), b.receipt.receipt_hash());
         assert_eq!(a.receipt.receipt_hash(), c.receipt.receipt_hash());
         assert_eq!(a.receipt.receipt_hash(), d.receipt.receipt_hash());
+        assert_eq!(a.receipt.receipt_hash(), e.receipt.receipt_hash());
         assert_eq!(a.state.state_root(), b.state.state_root());
         assert_eq!(a.state.state_root(), c.state.state_root());
         assert_eq!(a.state.state_root(), d.state.state_root());
+        assert_eq!(a.state.state_root(), e.state.state_root());
     }
 
     #[test]
@@ -274,6 +338,31 @@ mod tests {
         assert_eq!(
             admit(&state, &b, third),
             Err(ReplayRejectedReason::NonceGap)
+        );
+    }
+
+    #[test]
+    fn from_entries_canonicalizes_and_rejects_duplicate_decoded_senders() {
+        let a = sender(0x11);
+        let raw = a.strip_prefix("0x").unwrap().to_string();
+        let state = ReplayGuardState::from_entries([(raw.clone(), 3)]).unwrap();
+        assert_eq!(state.last_for(&a), 3);
+        assert_eq!(
+            ReplayGuardState::from_entries([(a.clone(), 1), (raw, 2)]),
+            Err(ReplayRejectedReason::DuplicateNonce)
+        );
+    }
+
+    #[test]
+    fn from_entries_rejects_invalid_stored_nonce() {
+        let a = sender(0x11);
+        assert_eq!(
+            ReplayGuardState::from_entries([(a.clone(), 0)]),
+            Err(ReplayRejectedReason::InvalidNonce)
+        );
+        assert_eq!(
+            ReplayGuardState::from_entries([(a, U32_MAX + 1)]),
+            Err(ReplayRejectedReason::InvalidNonce)
         );
     }
 
@@ -343,5 +432,94 @@ mod tests {
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CBC_CORE_V0 — Kani contracts on the ACTUAL runtime decision core.
+//
+// `classify_sequence` is the pure `(last, sequence) -> decision` core the
+// running `admit` calls after canonicalizing the sender and validating the
+// nonce range. It carries the consensus-critical anti-replay arithmetic
+// (duplicate / stale / gap / strict-successor accept). Kani discharges it fast
+// because it is heap-free (no String / BTreeMap / sha2): TOTALITY holds over ALL
+// u64 inputs; the accept/code obligations are unconditional on `(last, sequence)`.
+// The wrapper-level checks (sender canonicalization -> InvalidSender, nonce range
+// -> InvalidNonce) and the BTreeMap state-update / per-sender isolation (which
+// CBMC cannot model in bounded time) stay covered by the proptest invariants
+// above and the Python<->Rust differential (incl. the 5-code reject parity test).
+// Run: `cargo kani -p zenodex-runtime-core`.
+// ---------------------------------------------------------------------------
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    /// TOTALITY (absence of runtime errors). For ANY `u64` `last`/`sequence`,
+    /// `classify_sequence` never panics / overflows / underflows. (The gap test
+    /// subtracts only in the `sequence > last` branch; it never computes
+    /// `last + 1`, so there is no overflow at `u64::MAX`.)
+    #[kani::proof]
+    fn classify_is_total() {
+        let _ = classify_sequence(kani::any(), kani::any());
+    }
+
+    /// ACCEPT IFF STRICT SUCCESSOR. `classify_sequence` returns `Ok` iff
+    /// `sequence == last + 1`. Proving this on the core makes "an accepted
+    /// admission advances the sender's nonce by exactly one" an arithmetic fact
+    /// (the running `admit` sets `new_last = sequence`, so `new_last = last + 1`).
+    #[kani::proof]
+    fn classify_accept_iff_successor() {
+        let last: u64 = kani::any();
+        let sequence: u64 = kani::any();
+        match classify_sequence(last, sequence) {
+            Ok(()) => {
+                assert!(sequence > last);
+                assert_eq!(sequence - last, 1); // strict successor (== last + 1)
+            }
+            Err(_) => {
+                // reject => NOT the strict successor (short-circuits before the
+                // subtraction when sequence <= last, so no underflow).
+                assert!(!(sequence > last && sequence - last == 1));
+            }
+        }
+    }
+
+    /// REJECT CODES EXACT + PRECEDENCE. The core emits exactly `DuplicateNonce`
+    /// (`== last`), `StaleNonce` (`< last`), or `NonceGap` (`> last + 1`), in that
+    /// order, and nothing else; `Ok` is the strict successor. Mirrors the Python
+    /// reference order (duplicate -> stale -> gap). `InvalidSender`/`InvalidNonce`
+    /// are wrapper-level and validated before the core is reached.
+    #[kani::proof]
+    fn classify_reject_codes_exact() {
+        let last: u64 = kani::any();
+        let sequence: u64 = kani::any();
+        match classify_sequence(last, sequence) {
+            Ok(()) => {
+                assert!(sequence > last);
+                assert_eq!(sequence - last, 1);
+            }
+            Err(ReplayRejectedReason::DuplicateNonce) => assert_eq!(sequence, last),
+            Err(ReplayRejectedReason::StaleNonce) => assert!(sequence < last),
+            Err(ReplayRejectedReason::NonceGap) => {
+                assert!(sequence > last);
+                assert!(sequence - last > 1);
+            }
+            // The decision core can only emit duplicate/stale/gap; any other
+            // variant is dead (Kani proves this branch unreachable).
+            Err(_) => unreachable!("classify core emits only duplicate/stale/gap"),
+        }
+    }
+
+    /// NON-VACUITY. Accept, duplicate, stale, and gap are each reachable (Kani
+    /// fails an unsatisfiable cover), so the contracts above are not vacuous.
+    #[kani::proof]
+    fn covers_are_reachable() {
+        let last: u64 = kani::any();
+        let sequence: u64 = kani::any();
+        let res = classify_sequence(last, sequence);
+        kani::cover!(res.is_ok());
+        kani::cover!(res == Err(ReplayRejectedReason::DuplicateNonce));
+        kani::cover!(res == Err(ReplayRejectedReason::StaleNonce));
+        kani::cover!(res == Err(ReplayRejectedReason::NonceGap));
     }
 }

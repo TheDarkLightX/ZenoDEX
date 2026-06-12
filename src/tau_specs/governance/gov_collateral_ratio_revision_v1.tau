@@ -1,0 +1,38 @@
+# gov_collateral_ratio_revision_v1.tau  --  ZenoDEX governance: zUSD MCR/CCR revision
+# MUTABILITY: UPDATABLE (validates a collateral-ratio revision)
+# SHAPE: ordered tiers (MCR <= CCR) + bounds + bounded step
+#
+# Inputs:
+#   i1 = approved (sbf)   i2 = exec_req (sbf)
+#   i3 = proposal_ts (bv[16])  i4 = current_ts (bv[16])
+#   i5 = mcr_curr_bps (bv[16])  i6 = mcr_next_bps (bv[16])   -- min collateral ratio
+#   i7 = ccr_curr_bps (bv[16])  i8 = ccr_next_bps (bv[16])   -- critical collateral ratio
+# Output:
+#   o1 = revision_ok (sbf)
+#
+# IMMUTABLE guardrails:
+#   RATIO_MIN = 10000 ({ #x2710 })  -- 100% floor (under-collateralization forbidden)
+#   RATIO_MAX = 30000 ({ #x7530 })  -- 300% ceiling
+#   STEP      = 1000  ({ #x03E8 })  -- max drift per revision 10 percentage-points
+#   MIN_DELAY = 24    ({ #x0018 })  -- timelock
+# ORDER INVARIANT (immutable): mcr_next <= ccr_next  (the liquidation buffer must exist).
+# Timelock uses the wrap-safe subtraction-guard form (current >= proposal AND
+# current - proposal >= MIN_DELAY); bv[16] is UNSIGNED.
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    ( (i2[t]:sbf = 0:sbf)
+      ||
+      ( (i1[t]:sbf = 1:sbf)
+        && (i4[t]:bv[16] >= i3[t]:bv[16])
+        && ((i4[t]:bv[16] - i3[t]:bv[16]) >= { #x0018 }:bv[16])
+        && (i6[t]:bv[16] >= { #x2710 }:bv[16])
+        && (i8[t]:bv[16] <= { #x7530 }:bv[16])
+        && (i6[t]:bv[16] <= i8[t]:bv[16])
+        && ( ( (i5[t]:bv[16] >= i6[t]:bv[16]) && ((i5[t]:bv[16] - i6[t]:bv[16]) <= { #x03E8 }:bv[16]) )
+             || ( (i6[t]:bv[16] > i5[t]:bv[16]) && ((i6[t]:bv[16] - i5[t]:bv[16]) <= { #x03E8 }:bv[16]) ) )
+        && ( ( (i7[t]:bv[16] >= i8[t]:bv[16]) && ((i7[t]:bv[16] - i8[t]:bv[16]) <= { #x03E8 }:bv[16]) )
+             || ( (i8[t]:bv[16] > i7[t]:bv[16]) && ((i8[t]:bv[16] - i7[t]:bv[16]) <= { #x03E8 }:bv[16]) ) )
+      )
+    )
+  ).

@@ -25,7 +25,7 @@ namespace MST
 
 open SimpleGraph
 
-variable {V : Type} [DecidableEq V]
+variable {V : Type}
 
 variable (T : SimpleGraph V) (w : Sym2 V → Nat)
 

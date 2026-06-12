@@ -12,23 +12,16 @@ import './TokenSelectModal.css';
  * - Prevent selecting same token for both sides
  */
 
-// Default available tokens
+// Default tokens — matches the local testnet asset set.
+// Pool / asset IDs come from /api/pools at runtime, not from this list.
 const DEFAULT_TOKENS = [
-    { symbol: 'AGRS', name: 'Agoras', icon: '✦', decimals: 18, address: '0x0000...native' },
-    { symbol: 'USDC', name: 'USD Coin', icon: '💵', decimals: 6, address: '0x1234...5678' },
-    { symbol: 'WETH', name: 'Wrapped ETH', icon: '⟠', decimals: 18, address: '0x2345...6789' },
-    { symbol: 'ZDEX', name: 'ZenoDEX Token', icon: '⚡', decimals: 18, address: '0x3456...7890' },
-    { symbol: 'DAI', name: 'Dai Stablecoin', icon: '◈', decimals: 18, address: '0x5678...9012' },
+    { symbol: 'ZDEX', name: 'ZenoDEX', icon: '⚡', decimals: 18, address: 'native' },
+    { symbol: 'zUSD', name: 'ZenoUSD', icon: '◈', decimals: 18, address: 'native' },
+    { symbol: 'tAGRS', name: 'Test Agoras', icon: '✦', decimals: 18, address: 'native' },
+    { symbol: 'TASSET0', name: 'Test Asset 0', icon: 'T₀', decimals: 18, address: 'native' },
+    { symbol: 'TASSET1', name: 'Test Asset 1', icon: 'T₁', decimals: 18, address: 'native' },
+    { symbol: 'TZENO', name: 'Test Zeno', icon: 'TZ', decimals: 18, address: 'native' },
 ];
-
-// Mock balances (in production, fetch from wallet)
-const MOCK_BALANCES = {
-    'AGRS': 1234.56,
-    'USDC': 5000.00,
-    'WETH': 2.5,
-    'ZDEX': 10000,
-    'DAI': 2500,
-};
 
 function TokenSelectModal({
     isOpen,
@@ -36,18 +29,25 @@ function TokenSelectModal({
     onSelect,
     excludeToken,
     wallet,
+    availableTokens = null,
     customTokens = [],
-    onImportToken
+    onImportToken,
+    allowImportCustom = true,
+    importUnavailableText = 'Custom token import is unavailable in live mode. Create or fund a pool from the Liquidity tab with a canonical asset ID.'
 }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [importAddress, setImportAddress] = useState('');
     const [importError, setImportError] = useState('');
     const [showImport, setShowImport] = useState(false);
 
-    // Combine default and custom tokens
+    // Live mode passes the token list from /api/pools. Demo mode falls back to
+    // the local reference set and optional custom imports.
     const allTokens = useMemo(() => {
-        return [...DEFAULT_TOKENS, ...customTokens];
-    }, [customTokens]);
+        const base = Array.isArray(availableTokens) && availableTokens.length > 0
+            ? availableTokens
+            : DEFAULT_TOKENS;
+        return [...base, ...customTokens];
+    }, [availableTokens, customTokens]);
 
     // Filter tokens based on search query
     const filteredTokens = useMemo(() => {
@@ -55,16 +55,24 @@ function TokenSelectModal({
         if (!query) return allTokens;
 
         return allTokens.filter(token =>
-            token.symbol.toLowerCase().includes(query) ||
-            token.name.toLowerCase().includes(query) ||
-            token.address.toLowerCase().includes(query)
+            String(token.symbol || '').toLowerCase().includes(query) ||
+            String(token.name || '').toLowerCase().includes(query) ||
+            String(token.address || token.assetId || token.asset_id || '').toLowerCase().includes(query)
         );
     }, [allTokens, searchQuery]);
 
-    // Get balance for a token
+    // Get balance for a token from the connected wallet.
     const getBalance = (symbol) => {
         if (!wallet) return null;
-        return MOCK_BALANCES[symbol] ?? 0;
+        const balances = wallet.balance || {};
+        const candidates = [symbol, symbol?.toUpperCase?.(), symbol?.toLowerCase?.()];
+        for (const key of candidates) {
+            if (key && key in balances) {
+                const v = Number(balances[key]);
+                if (Number.isFinite(v)) return v;
+            }
+        }
+        return 0;
     };
 
     // Handle token selection
@@ -81,6 +89,10 @@ function TokenSelectModal({
             setImportError('Enter a contract address');
             return;
         }
+        if (!allowImportCustom) {
+            setImportError(importUnavailableText);
+            return;
+        }
 
         // Basic address validation (in production, validate on-chain)
         if (!/^0x[a-fA-F0-9]{40}$/.test(importAddress.trim()) &&
@@ -91,7 +103,7 @@ function TokenSelectModal({
 
         // Check if already exists
         const exists = allTokens.some(t =>
-            t.address.toLowerCase() === importAddress.toLowerCase()
+            String(t.address || t.assetId || t.asset_id || '').toLowerCase() === importAddress.toLowerCase()
         );
         if (exists) {
             setImportError('Token already in list');
@@ -150,10 +162,19 @@ function TokenSelectModal({
                             <span>No tokens found</span>
                             <button
                                 className="import-link"
-                                onClick={() => setShowImport(true)}
+                                onClick={() => {
+                                    if (allowImportCustom) {
+                                        setShowImport(true);
+                                    } else {
+                                        setImportError(importUnavailableText);
+                                    }
+                                }}
                             >
-                                Import custom token
+                                {allowImportCustom ? 'Import custom token' : 'Create pool in Liquidity'}
                             </button>
+                            {!allowImportCustom && importError && (
+                                <span className="import-error">{importError}</span>
+                            )}
                         </div>
                     ) : (
                         filteredTokens.map(token => {
@@ -192,7 +213,11 @@ function TokenSelectModal({
 
                 {/* Import Custom Token Section */}
                 <div className="token-import-section">
-                    {!showImport ? (
+                    {!allowImportCustom ? (
+                        <div className="token-import-unavailable" role="status">
+                            {importUnavailableText}
+                        </div>
+                    ) : !showImport ? (
                         <button
                             className="import-toggle-btn"
                             onClick={() => setShowImport(true)}

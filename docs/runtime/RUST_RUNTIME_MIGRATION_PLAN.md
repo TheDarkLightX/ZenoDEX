@@ -52,12 +52,57 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 1 | Golden trace corpus | ✅ format + exporter/replayer + `smoke.json` |
 | 2 | Rust workspace scaffold | ✅ `rust-runtime/` core + cli, checked arithmetic |
 | 3 | Minimal Rust transition kernel (fee router) | ✅ `route_fee` + Python/Rust conformance |
-| 4 | State root & canonical serialization | ◑ canonical primitives + fee receipt/accumulator roots done; full network state-encoder parity pending |
+| 4 | State root & canonical serialization | ✅ canonical primitives and state root v5 promoted to public-testnet `rust_authority_with_python_shadow` |
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
-| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, zUSD mint/redeem ✅, buyback burn rails ✅; next: batch clearing |
-| 7 | SPARK/Ada sidecar | ☐ spec drafted; toolchain (`gnatprove`) not available in this env |
-| 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (+ existing Tau/ESSO/Lean jobs) |
-| 9 | Promotion criteria | ☐ documented; not yet met for any surface |
+| 6 | Expand Rust surface | ✅ replay/idempotency guards, balance accounting, fee router, **zUSD full single-vault**, burn rails, **CPMM settlement**, **perp stateless math**, and stateful isolated perps are public-testnet Rust+Python shadow authority lanes |
+| 7 | SPARK/Ada sidecar | ☐ fee-router + burn-rail kernels drafted; toolchain (`gnatprove`) not available in this env → **advisory / vector-checked only** |
+| 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (Python + Rust + shadow + OCaml jobs; existing Tau/ESSO/Lean jobs untouched) |
+| 9 | Promotion criteria | ✅ canonical primitives, state root v5, replay/idempotency guard, balance accounting, fee router, zUSD single-vault, burn rails, CPMM per-pool settlement, perp stateless math, and stateful isolated perps promoted on public-testnet; the current trusted-core set is enforced by profile validation; remaining surfaces stay in evidence-gathering |
+| I | OCaml executable spec oracle | ◑ `ocaml-runtime/` — third independent impl of fee-router split + replay-guard nonce policy, driven by Python-derived TSV vectors; `dune build && dune test` green. Pure spec oracle, never a production path. More surfaces TBD |
+
+> The Phase 0–9 numbering above is the original internal milestone scheme. The
+> "remaining-phases" task (`internal/prompts/claude_complete_runtime_port_remaining_phases_2026_05_29.md`)
+> uses a parallel A–K lettering; the gap map below reconciles the two against
+> the actual tree state on `main` and is the authoritative status for that work.
+
+## Remaining-phases gap map (as of 2026-05-29, `main` @ `7b587cf2`)
+
+Each row is a runtime surface. `Rust` = shadow status; `GT` = golden trace;
+`Diff` = randomized Python/Rust differential; `Inv` = independent semantic
+invariants. SPARK/OCaml columns mark assurance-sidecar coverage.
+
+| Surface | Python authority | Rust | GT | Diff | Inv | SPARK | OCaml | Next action |
+|---------|------------------|------|----|----|-----|-------|-------|-------------|
+| Fee router (4-way + dust) | `src/core/fee_router.py` | ✅ | ✅ | ✅ 400 | ✅ | advisory ✅ | ✅ oracle | public-testnet promoted |
+| Replay/idempotency guard | `src/core/replay_guard.py` | ✅ | ✅ | ✅ 400 | ✅ | — | ✅ oracle | public-testnet promoted |
+| Balance accounting | `src/core/balance_kernel.py` | ✅ | ✅ | ✅ 400 | ✅ | — | — | public-testnet promoted |
+| zUSD single-vault (full) | `src/core/zusd.py` `step` | ✅ mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery | ✅ | ✅ 500 (>u128) | ✅ + `_reference` (13) | — | — | public-testnet promoted |
+| Buyback burn rails | `src/core/burn_receipts.py` | ✅ rails | ✅ | ✅ 600 | ✅ | advisory ✅ | — | public-testnet promoted |
+| Canonical primitives | `src/state/canonical.py` | ✅ uvarint/bytes/domain-sep/sha256 + `hex_to_bytes_fixed` + `canonical_json_bytes` | n/a | ✅ vectors | n/a | — | planned | — |
+| CPMM settlement (per-pool) | `src/kernels/python/settlement_swap_runtime_v1.py` | ✅ | ✅ `cpmm_smoke` | ✅ shadow | ✅ | — | — | public-testnet promoted; orchestration (multi-pool/CoW/ordering) deferred |
+| State root (network) | `src/state/state_root.py` | ✅ v5 | ✅ vectors | ✅ shadow | ✅ | — | — | promotion gate (fuzz) |
+| Perps math (stateless) | `src/core/perp_v2/math.py` | ✅ E1 (9 fns) | n/a | ✅ shadow | ✅ sign-sym | — | — | public-testnet promoted; stateful engine/lifecycle = E2 separate |
+| Stateful isolated perps (E2) | `src/integration/perp_engine.py` isolated handlers | ✅ public-testnet `rust_authority_with_python_shadow` | ✅ per op | ✅ shadow + live accepted-path tests | ✅ fuzz/disaster | Lean funding sink | — | public-testnet promoted with full Rust post-state/effects materialization; production remains Python; pure Rust remains blocked pending soak and future schema/sign-off |
+| Tx auth / receipt hash | `src/core/dex_intent_auth_message.py`, `src/core/burn_receipts.py` body | ✅ `domain_json_hash` op | n/a | ✅ vectors | ✅ sensitivity | — | — | shape-gate + BLS verify still out of scope |
+| Batch-clearing orchestration | `src/core/batch_clearing.py` (2129 ln) | ❌ | — | — | — | — | — | **OUT OF SCOPE** (multi-pool/CoW/ordering deferred) |
+| Revenue router (fine-source) | *(not on `main`)* | n/a | — | — | — | — | — | hybrid-economics branch only — separate prompt |
+
+### Reconciliation notes (corrections to the remaining-phases prompt's assumed map)
+
+* **zUSD is already a full single-vault shadow.** `zusd.rs` shadows `DepositSp`,
+  `WithdrawSp`, `RedeemZusd`, `Liquidate` and recovery-mode gating (`tcr_ok`,
+  `in_recovery_mode`, `risky_ops_allowed`). The remaining-phases "zUSD" work is a
+  **test-audit** (add the missing `_reference` + overflow tests), not new handlers.
+* **`revenue_router.py` does not exist on `main`.** Fee routing has a single
+  authority (`fee_router.py`); the fine-source revenue router lives only on the
+  hybrid-economics branch and is out of scope here. No router reconciliation code
+  is needed (Phase G is a one-paragraph decision in the boundary doc).
+* **Canonical-primitive prerequisite.** State-root parity (Phase C) needs
+  `hex_to_bytes_fixed`; tx/receipt hashing (Phase F) needs `canonical_json_bytes`.
+  Both are added first (Phase A.5) before the surfaces that consume them.
+* **Tooling on this host:** `cargo` 1.87.0 ✅; `gnatprove` ❌ (SPARK advisory only,
+  never claimed "proven"); `opam exec -- dune` ✅ (OCaml spec-oracle build/test
+  passes here).
 
 ## Phase 3 — fee router (delivered)
 
@@ -72,9 +117,11 @@ kernel, generalized from 3 to 4 buckets):
 amount + dust_in == buyburn + stakers + reserve + hosts + dust_out
 ```
 
-`dust_in` and `dust_out` are keyed by `(source, asset)`. Cumulative bucket
-balances are keyed by `asset`, so zUSD, AGRS, quote assets, and future bridge
-assets cannot be added into one untyped integer.
+`dust_in` and `dust_out` are keyed by `(source, asset)`, and each stream carries
+per-bucket scaled remainders so long-run allocation converges to the configured
+basis-point split even when fees arrive as repeated tiny events. Cumulative
+bucket balances are keyed by `asset`, so zUSD, AGRS, quote assets, and future
+bridge assets cannot be added into one untyped integer.
 
 Safety floors enforced as explicit rejections (Hard Rule #10):
 
@@ -174,6 +221,8 @@ differential deliberately includes amounts above `u128` to exercise this.
 * Rust shadow: `rust-runtime/crates/zenodex-runtime-core/src/zusd.rs`.
 * Golden trace: `tests/runtime/golden_traces/zusd_smoke.json`
   (`replay-zusd-trace` subcommand).
+* Live bridge: `zusd-op` from an explicit 32-field state object, wired through
+  `step` for `public-testnet` `rust_authority_with_python_shadow`.
 * Conformance + invariants: `test_zusd_conformance.py` (static + 500-case
   differential with bignum edges) and `test_zusd_semantic_invariants.py`
   (supply conservation, mint/repay/redeem balance-sheet deltas, no bad debt,
@@ -220,18 +269,64 @@ per-surface checklist.
 
 For each new surface: add the Rust implementation, add golden traces (happy +
 disaster), add Python/Rust differential + property + rejection tests, run fuzz,
-and update the boundary table. Recommended order: replay/idempotency guards →
-balance accounting → zUSD mint/redeem → buyback accumulator/burn floor → batch
-clearing admission → batch clearing settlement. **Do not move crypto first** —
-wrap established libraries behind a deterministic verification interface.
+and update the boundary table. The promoted public-testnet order so far is
+replay/idempotency guards → balance accounting → fee router → burn rails → CPMM
+per-pool settlement → perp stateless math → zUSD single-vault → stateful
+isolated perps. Stateful isolated perps now runs as
+`rust_authority_with_python_shadow` on public-testnet with full Rust
+post-market/effect materialization for all ten isolated ops. Production remains
+Python-authority, pure Rust remains blocked, and full batch-clearing
+orchestration stays deferred.
+**Do not move crypto first** — wrap established libraries behind a deterministic
+verification interface.
 
-### Phase 9 promotion criteria
+### Phase 9 / K promotion criteria
 
-A surface becomes Rust-authoritative only when **all** hold: (1) Python/Rust
-golden-trace equality, (2) property tests pass, (3) fuzzing has run for the
-module, (4) no `unsafe`, (5) no float use, (6) no nondeterministic iteration in
-canonical output, (7) the module's Tau/ESSO/Lean obligations still pass, and
-(8) the Python path remains available as a shadow checker.
+**Canonical primitives, state root v5, replay/idempotency guard, balance
+accounting, the fee router, zUSD single-vault, burn rails, CPMM per-pool
+settlement, perp stateless math, and stateful isolated perps are shadow-checked
+Rust-authority lanes on `public-testnet`.** Python remains the default authority,
+`production-strict` remains all-Python, and no surface runs pure
+`rust_authority`. Further promotions require explicit profile entries,
+replayable evidence, and human review.
+
+A surface is *eligible* for Rust authority only when **all** hold:
+
+```text
+1.  Python/Rust golden-trace equality
+2.  randomized differential tests pass
+3.  independent semantic invariants pass (per runtime, not a cross-impl diff)
+4.  state-root and receipt-hash parity
+5.  malformed-input rejection tests pass
+6.  no unsafe (#![forbid(unsafe_code)])
+7.  no floats / no nondeterministic iteration in canonical output
+8.  deterministic canonical encoding (explicit ordered byte encodings)
+9.  fuzz / stateful weird-machine test evidence
+10. Tau/ESSO/Lean obligations still green where applicable
+11. Python remains available as a shadow checker
+12. human review + explicit promotion decision
+```
+
+Per-surface status:
+
+| Surface | 1 trace | 2 diff | 3 inv | 4 root/receipt | 5 reject | 6–8 hygiene | 9 fuzz | 12 promoted |
+|---------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| fee_router | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| replay_guard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| balance_kernel | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| zusd (single-vault) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| burn_receipts rails | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| cpmm_settlement | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| state_root | ✅ vectors | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| tx/receipt hash | ✅ vectors | ✅ | ✅ | n/a | ✅ | ✅ | ☐ | ☐ |
+| perp_math (E1) | ✅ vectors | ✅ | ✅ | n/a | ✅ | ✅ | ✅ | ✅ |
+
+The remaining authoritative surfaces with no Rust shadow yet (full
+batch-clearing orchestration, multi-vault zUSD, the intent shape-gate, BLS
+verification) are tracked in the gap map above and are **not** eligible until
+shadowed. Stateful isolated perps has completed the public-testnet promotion gate
+for the isolated-op trusted-core surface; future work there is soak evidence,
+pure-Rust schema/sign-off, and any separately classified orchestration surface.
 
 ## How to run
 
@@ -249,4 +344,5 @@ python3 tools/runtime/rust_shadow_replay.py tests/runtime/golden_traces/smoke.js
 ```
 
 See also: `RUNTIME_TRUSTED_CORE_BOUNDARY.md`, `GOLDEN_TRACE_FORMAT.md`,
-`../../rust-runtime/README.md`, `../../spark-kernels/fee_router/README.md`.
+`../../rust-runtime/README.md`, `../../spark-kernels/fee_router/README.md`,
+`../../spark-kernels/burn_rails/README.md`.

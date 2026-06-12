@@ -52,6 +52,8 @@ def validate_operations(
     settlement_end_to_end_certificate_inputs: Optional[SettlementEndToEndCertificateInputs] = None,
     uniform_batch_certificate: Optional[Dict[str, object]] = None,
     allow_uniform_batch_partial_fill_certificate: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[str] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate ZenoDEX operations using Tau Language validation.
@@ -136,6 +138,8 @@ def validate_operations(
                 mode=str(settlement_validation),
                 allow_cow_netting=bool(allow_cow_netting),
                 allow_snapshot_bound_quote_bindings=bool(quote_bindings_validated),
+                protocol_fee_share_bps=int(protocol_fee_share_bps),
+                protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
             )
         if not is_valid:
             return False, error

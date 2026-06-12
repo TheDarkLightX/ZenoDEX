@@ -1,8 +1,8 @@
 """
 Protocol fee router (deterministic, integer-only) -- 4-way split with dust carry.
 
-This is the **reference / authoritative** implementation of ZenoDEX protocol-fee
-routing for the Rust runtime migration (see ``docs/runtime/``). It routes a
+This is the Python reference implementation of ZenoDEX protocol-fee routing for
+the Rust runtime migration (see ``docs/runtime/``). It routes a
 per-domain protocol fee into four buckets -- ``buyburn``, ``stakers``,
 ``reserve``, ``hosts`` -- carrying rounding dust forward per ``(source, asset)``
 stream so value is never stranded across repeated splits or mixed across token
@@ -35,7 +35,7 @@ When ``dust_in == 0`` this reduces to the task's literal statement
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Union
+from typing import Any, Union
 
 from ..state.canonical import (
     domain_sep_bytes,
@@ -54,9 +54,11 @@ __all__ = [
     "FeeAssetAmount",
     "FeeDustEntry",
     "FeeAccumulator",
+    "FEE_ROUTER_SURFACE",
     "RouteAccepted",
     "RouteRejected",
     "RouteResult",
+    "FeeRouterConservationError",
     "canonical_split_table",
     "route_fee",
     "RECEIPT_DOMAIN_SEP_LABEL",
@@ -88,7 +90,8 @@ DOMAINS: frozenset[str] = frozenset({DEX, PERPS, BORROW, REDEMPTION})
 RECEIPT_DOMAIN_SEP_LABEL = "fee_receipt"
 ACCUMULATOR_DOMAIN_SEP_LABEL = "fee_accumulator"
 RECEIPT_VERSION = 1
-ACCUMULATOR_VERSION = 1
+ACCUMULATOR_VERSION = 2
+FEE_ROUTER_SURFACE = "fee_router"
 
 # --- Stable rejection codes (must match Rust RejectedReason::code()) ----------
 REJ_NEGATIVE_AMOUNT = "negative_amount"
@@ -194,21 +197,61 @@ class FeeAssetAmount:
 
 @dataclass(frozen=True)
 class FeeDustEntry:
-    """Rounding dust carried for exactly one source/asset fee stream."""
+    """Per-bucket scaled remainders for one source/asset fee stream.
+
+    Design by Contract:
+    * Preconditions: all remainders are non-negative basis-point numerators.
+    * Invariant: ``amount`` is the whole-token dust represented by the sum of
+      bucket remainders divided by ``BPS_DENOM`` for entries produced by this
+      module. Legacy scalar-only entries are accepted and deterministically
+      expanded at route time using the active split table.
+    """
 
     source: Domain
     asset: str
     amount: int
+    buyburn_remainder: int = 0
+    stakers_remainder: int = 0
+    reserve_remainder: int = 0
+    hosts_remainder: int = 0
 
     def __post_init__(self) -> None:
         if not isinstance(self.source, str):
             raise TypeError("source must be a str")
         if not isinstance(self.asset, str):
             raise TypeError("asset must be a str")
-        if not _is_plain_int(self.amount):
-            raise TypeError("amount must be an int")
-        if self.amount < 0:
-            raise ValueError("amount must be non-negative")
+        for name, value in self._items():
+            if not _is_plain_int(value):
+                raise TypeError(f"{name} must be an int")
+            if value < 0:
+                raise ValueError(f"{name} must be non-negative")
+        self._check_remainder_invariant()
+
+    def _check_remainder_invariant(self) -> None:
+        remainders = self.remainders()
+        if remainders == (0, 0, 0, 0):
+            return
+        if any(remainder >= BPS_DENOM for remainder in remainders):
+            raise ValueError("dust remainders must be below BPS_DENOM")
+        if sum(remainders) != self.amount * BPS_DENOM:
+            raise ValueError("dust amount must equal scaled remainder sum")
+
+    def _items(self) -> tuple[tuple[str, int], ...]:
+        return (
+            ("amount", self.amount),
+            ("buyburn_remainder", self.buyburn_remainder),
+            ("stakers_remainder", self.stakers_remainder),
+            ("reserve_remainder", self.reserve_remainder),
+            ("hosts_remainder", self.hosts_remainder),
+        )
+
+    def remainders(self) -> tuple[int, int, int, int]:
+        return (
+            self.buyburn_remainder,
+            self.stakers_remainder,
+            self.reserve_remainder,
+            self.hosts_remainder,
+        )
 
 
 def _canonical_asset_amounts(entries: tuple[FeeAssetAmount, ...]) -> tuple[FeeAssetAmount, ...]:
@@ -242,11 +285,46 @@ def _asset_amount(entries: tuple[FeeAssetAmount, ...], asset: str) -> int:
     return 0
 
 
-def _dust_amount(entries: tuple[FeeDustEntry, ...], source: Domain, asset: str) -> int:
+def _dust_entry(
+    entries: tuple[FeeDustEntry, ...], source: Domain, asset: str
+) -> Union[FeeDustEntry, None]:
     for entry in entries:
         if entry.source == source and entry.asset == asset:
-            return entry.amount
-    return 0
+            return entry
+    return None
+
+
+def _dust_amount(entries: tuple[FeeDustEntry, ...], source: Domain, asset: str) -> int:
+    entry = _dust_entry(entries, source, asset)
+    if entry is None:
+        return 0
+    return entry.amount
+
+
+def _legacy_remainders(amount: int, table: FeeSplitTable) -> tuple[int, int, int, int]:
+    return (
+        amount * table.buyburn_bps,
+        amount * table.stakers_bps,
+        amount * table.reserve_bps,
+        amount * table.hosts_bps,
+    )
+
+
+def _entry_remainders(
+    entry: Union[FeeDustEntry, None], table: FeeSplitTable
+) -> tuple[int, int, int, int]:
+    if entry is None:
+        return (0, 0, 0, 0)
+    if entry.remainders() == (0, 0, 0, 0) and entry.amount != 0:
+        return _legacy_remainders(entry.amount, table)
+    return entry.remainders()
+
+
+def _dust_from_remainders(remainders: tuple[int, int, int, int]) -> int:
+    remainder_sum = sum(remainders)
+    if remainder_sum % BPS_DENOM != 0:
+        raise AssertionError("fee split produced fractional aggregate dust")
+    return remainder_sum // BPS_DENOM
 
 
 def _set_asset_amount(
@@ -258,14 +336,29 @@ def _set_asset_amount(
     return _canonical_asset_amounts(rest + (FeeAssetAmount(asset=asset, amount=amount),))
 
 
-def _set_dust_amount(
-    entries: tuple[FeeDustEntry, ...], source: Domain, asset: str, amount: int
+def _set_dust_entry(
+    entries: tuple[FeeDustEntry, ...],
+    source: Domain,
+    asset: str,
+    amount: int,
+    remainders: tuple[int, int, int, int],
 ) -> tuple[FeeDustEntry, ...]:
     rest = tuple(e for e in entries if not (e.source == source and e.asset == asset))
     if amount == 0:
         return rest
     return _canonical_dust_entries(
-        rest + (FeeDustEntry(source=source, asset=asset, amount=amount),)
+        rest
+        + (
+            FeeDustEntry(
+                source=source,
+                asset=asset,
+                amount=amount,
+                buyburn_remainder=remainders[0],
+                stakers_remainder=remainders[1],
+                reserve_remainder=remainders[2],
+                hosts_remainder=remainders[3],
+            ),
+        )
     )
 
 
@@ -283,6 +376,10 @@ def _encode_dust_entries(entries: tuple[FeeDustEntry, ...]) -> bytes:
         payload += b"SRC" + encode_bytes(entry.source.encode("ascii"))
         payload += b"AST" + encode_bytes(entry.asset.encode("utf-8"))
         payload += b"AMT" + encode_uvarint(entry.amount)
+        payload += b"BBR" + encode_uvarint(entry.buyburn_remainder)
+        payload += b"STR" + encode_uvarint(entry.stakers_remainder)
+        payload += b"RSR" + encode_uvarint(entry.reserve_remainder)
+        payload += b"HSR" + encode_uvarint(entry.hosts_remainder)
     return payload
 
 
@@ -329,9 +426,17 @@ class FeeAccumulator:
     def bucket_total(self, bucket: str, asset: str) -> int:
         return _asset_amount(getattr(self, bucket), asset)
 
-    def with_dust(self, source: Domain, asset: str, amount: int) -> "FeeAccumulator":
+    def with_dust(
+        self,
+        source: Domain,
+        asset: str,
+        amount: int,
+        remainders: tuple[int, int, int, int] = (0, 0, 0, 0),
+    ) -> "FeeAccumulator":
         return FeeAccumulator(
-            dust_by_stream=_set_dust_amount(self.dust_by_stream, source, asset, amount),
+            dust_by_stream=_set_dust_entry(
+                self.dust_by_stream, source, asset, amount, remainders
+            ),
             cum_buyburn=self.cum_buyburn,
             cum_stakers=self.cum_stakers,
             cum_reserve=self.cum_reserve,
@@ -395,6 +500,188 @@ class RouteRejected:
 RouteResult = Union[RouteAccepted, RouteRejected]
 
 
+def _reject_reason_str(rejected: RouteRejected) -> str:
+    if rejected.detail is None:
+        return rejected.reason
+    return f"{rejected.reason}:{rejected.detail}"
+
+
+def _accumulator_json(accumulator: FeeAccumulator) -> dict[str, list[dict[str, Any]]]:
+    return {
+        "dust_by_stream": [
+            {
+                "source": e.source,
+                "asset": e.asset,
+                "amount": e.amount,
+                "buyburn_remainder": e.buyburn_remainder,
+                "stakers_remainder": e.stakers_remainder,
+                "reserve_remainder": e.reserve_remainder,
+                "hosts_remainder": e.hosts_remainder,
+            }
+            for e in accumulator.dust_by_stream
+        ],
+        "cum_buyburn": [
+            {"asset": e.asset, "amount": e.amount} for e in accumulator.cum_buyburn
+        ],
+        "cum_stakers": [
+            {"asset": e.asset, "amount": e.amount} for e in accumulator.cum_stakers
+        ],
+        "cum_reserve": [
+            {"asset": e.asset, "amount": e.amount} for e in accumulator.cum_reserve
+        ],
+        "cum_hosts": [
+            {"asset": e.asset, "amount": e.amount} for e in accumulator.cum_hosts
+        ],
+    }
+
+
+def _accumulator_from_json(doc: dict[str, Any]) -> FeeAccumulator:
+    return FeeAccumulator(
+        dust_by_stream=tuple(
+            FeeDustEntry(
+                str(e["source"]),
+                str(e["asset"]),
+                int(e["amount"]),
+                int(e.get("buyburn_remainder", 0)),
+                int(e.get("stakers_remainder", 0)),
+                int(e.get("reserve_remainder", 0)),
+                int(e.get("hosts_remainder", 0)),
+            )
+            for e in doc.get("dust_by_stream", [])
+        ),
+        cum_buyburn=tuple(
+            FeeAssetAmount(str(e["asset"]), int(e["amount"]))
+            for e in doc.get("cum_buyburn", [])
+        ),
+        cum_stakers=tuple(
+            FeeAssetAmount(str(e["asset"]), int(e["amount"]))
+            for e in doc.get("cum_stakers", [])
+        ),
+        cum_reserve=tuple(
+            FeeAssetAmount(str(e["asset"]), int(e["amount"]))
+            for e in doc.get("cum_reserve", [])
+        ),
+        cum_hosts=tuple(
+            FeeAssetAmount(str(e["asset"]), int(e["amount"]))
+            for e in doc.get("cum_hosts", [])
+        ),
+    )
+
+
+def _split_table_json(table: FeeSplitTable) -> dict[str, int]:
+    return {
+        "buyburn_bps": table.buyburn_bps,
+        "stakers_bps": table.stakers_bps,
+        "reserve_bps": table.reserve_bps,
+        "hosts_bps": table.hosts_bps,
+    }
+
+
+def _tx_json(source: Domain, asset: str, amount: int, split_table: FeeSplitTable) -> dict[str, Any]:
+    return {
+        "kind": "route_fee",
+        "source": source,
+        "asset": asset,
+        "amount": amount,
+        "split_table": _split_table_json(split_table),
+    }
+
+
+def _receipt_json(receipt: FeeReceipt) -> dict[str, str]:
+    return {
+        "source": receipt.source,
+        "asset": receipt.asset,
+        "amount": str(receipt.amount),
+        "buyburn": str(receipt.buyburn),
+        "stakers": str(receipt.stakers),
+        "reserve": str(receipt.reserve),
+        "hosts": str(receipt.hosts),
+        "dust": str(receipt.dust),
+    }
+
+
+def _accumulator_doc_strings(accumulator: FeeAccumulator) -> dict[str, list[dict[str, str]]]:
+    return {
+        "dust_by_stream": [
+            {
+                "source": e.source,
+                "asset": e.asset,
+                "amount": str(e.amount),
+                "buyburn_remainder": str(e.buyburn_remainder),
+                "stakers_remainder": str(e.stakers_remainder),
+                "reserve_remainder": str(e.reserve_remainder),
+                "hosts_remainder": str(e.hosts_remainder),
+            }
+            for e in accumulator.dust_by_stream
+        ],
+        "cum_buyburn": [
+            {"asset": e.asset, "amount": str(e.amount)} for e in accumulator.cum_buyburn
+        ],
+        "cum_stakers": [
+            {"asset": e.asset, "amount": str(e.amount)} for e in accumulator.cum_stakers
+        ],
+        "cum_reserve": [
+            {"asset": e.asset, "amount": str(e.amount)} for e in accumulator.cum_reserve
+        ],
+        "cum_hosts": [
+            {"asset": e.asset, "amount": str(e.amount)} for e in accumulator.cum_hosts
+        ],
+    }
+
+
+def _result_to_authority_doc(pre_accumulator: FeeAccumulator, result: RouteResult) -> dict[str, Any]:
+    pre_root = pre_accumulator.state_root()
+    if isinstance(result, RouteAccepted):
+        return {
+            "version": 1,
+            "kernel": FEE_ROUTER_SURFACE,
+            "accept": True,
+            "reject_reason": None,
+            "receipt_hash": result.receipt.receipt_hash(),
+            "receipt": _receipt_json(result.receipt),
+            "pre_state_root": pre_root,
+            "post_state_root": result.accumulator.state_root(),
+            "post_accumulator": _accumulator_doc_strings(result.accumulator),
+        }
+    return {
+        "version": 1,
+        "kernel": FEE_ROUTER_SURFACE,
+        "accept": False,
+        "reject_reason": _reject_reason_str(result),
+        "receipt_hash": None,
+        "receipt": None,
+        "pre_state_root": pre_root,
+        "post_state_root": pre_root,
+        "post_accumulator": _accumulator_doc_strings(pre_accumulator),
+    }
+
+
+def _authority_doc_to_result(doc: dict[str, Any]) -> RouteResult:
+    if bool(doc.get("accept")):
+        receipt_doc = doc.get("receipt")
+        accumulator_doc = doc.get("post_accumulator")
+        if not isinstance(receipt_doc, dict) or not isinstance(accumulator_doc, dict):
+            raise ValueError("accepted fee_router authority doc missing receipt or accumulator")
+        receipt = FeeReceipt(
+            source=str(receipt_doc["source"]),
+            asset=str(receipt_doc["asset"]),
+            amount=int(receipt_doc["amount"]),
+            buyburn=int(receipt_doc["buyburn"]),
+            stakers=int(receipt_doc["stakers"]),
+            reserve=int(receipt_doc["reserve"]),
+            hosts=int(receipt_doc["hosts"]),
+            dust=int(receipt_doc["dust"]),
+        )
+        return RouteAccepted(receipt=receipt, accumulator=_accumulator_from_json(accumulator_doc))
+    reason = doc.get("reject_reason")
+    if not isinstance(reason, str):
+        raise ValueError("rejected fee_router authority doc missing reason")
+    if ":" in reason:
+        code, detail = reason.split(":", 1)
+        return RouteRejected(code, detail)
+    return RouteRejected(reason)
+
+
 # --- Canonical MVP split tables ----------------------------------------------
 # Expressed in basis points. See docs/runtime/RUST_RUNTIME_MIGRATION_PLAN.md and
 # the "Important Current Economics Context" in the migration task.
@@ -444,7 +731,18 @@ def _check_domain_constraints(
     return None
 
 
-def route_fee(
+class FeeRouterConservationError(RuntimeError):
+    """Fail-closed marker: an accepted fee split did not conserve value.
+
+    Raised when ``amount + dust_in != buyburn + stakers + reserve + hosts + dust_out``.
+    The split is conservation-exact by construction for every valid input (see
+    :func:`_conservation_holds`), so a violation indicates routing/accumulator
+    corruption and must hard-reject, never silently commit. Encoded as an explicit
+    raise rather than a bare ``assert`` (which ``python -O`` strips, failing open).
+    """
+
+
+def _route_fee_python(
     *,
     source: Domain,
     asset: str,
@@ -503,20 +801,22 @@ def route_fee(
     if domain_rej is not None:
         return domain_rej
 
-    # 6) Deterministic floor split with dust carry. Dust is carried only within
-    # the same source/asset stream, so token units and fee-policy streams cannot
-    # contaminate each other.
-    dust_in = accumulator.dust_for(source, asset)
-    total = amount + dust_in
-    buyburn = (total * split_table.buyburn_bps) // BPS_DENOM
-    stakers = (total * split_table.stakers_bps) // BPS_DENOM
-    reserve = (total * split_table.reserve_bps) // BPS_DENOM
-    hosts = (total * split_table.hosts_bps) // BPS_DENOM
-    distributed = buyburn + stakers + reserve + hosts
-    # Floor division guarantees distributed <= total; assert defends the invariant.
-    if distributed > total:
-        raise AssertionError("fee split over-distributed (unreachable)")
-    dust_out = total - distributed
+    # 6) Deterministic per-bucket remainder split. Each bucket carries only its
+    # own scaled fractional entitlement, so small-fee granularity cannot move
+    # reserve/host/staker value into a dominant bucket.
+    prev_remainders = _entry_remainders(
+        _dust_entry(accumulator.dust_by_stream, source, asset), split_table
+    )
+    buyburn_num = amount * split_table.buyburn_bps + prev_remainders[0]
+    stakers_num = amount * split_table.stakers_bps + prev_remainders[1]
+    reserve_num = amount * split_table.reserve_bps + prev_remainders[2]
+    hosts_num = amount * split_table.hosts_bps + prev_remainders[3]
+    buyburn, buyburn_rem = divmod(buyburn_num, BPS_DENOM)
+    stakers, stakers_rem = divmod(stakers_num, BPS_DENOM)
+    reserve, reserve_rem = divmod(reserve_num, BPS_DENOM)
+    hosts, hosts_rem = divmod(hosts_num, BPS_DENOM)
+    dust_remainders = (buyburn_rem, stakers_rem, reserve_rem, hosts_rem)
+    dust_out = _dust_from_remainders(dust_remainders)
 
     # 7) Accumulate (defensive overflow guard keeps parity with the u128 shadow).
     new_buyburn = accumulator.bucket_total("cum_buyburn", asset) + buyburn
@@ -527,7 +827,7 @@ def route_fee(
         if v > MAX_FEE_AMOUNT:
             return RouteRejected(REJ_ARITHMETIC_OVERFLOW)
     new_acc = (
-        accumulator.with_dust(source, asset, dust_out)
+        accumulator.with_dust(source, asset, dust_out, dust_remainders)
         .with_bucket_amount("cum_buyburn", asset, new_buyburn)
         .with_bucket_amount("cum_stakers", asset, new_stakers)
         .with_bucket_amount("cum_reserve", asset, new_reserve)
@@ -544,7 +844,79 @@ def route_fee(
         hosts=hosts,
         dust=dust_out,
     )
+    # Catastrophic invariant on the authority path. The accepted split must
+    # conserve value against the carried-in dust without relying on `assert`.
+    if not _conservation_holds(amount, accumulator.dust_for(source, asset), receipt):
+        raise FeeRouterConservationError(
+            f"fee split conservation violated: source={source!r} asset={asset!r} amount={amount}"
+        )
     return RouteAccepted(receipt=receipt, accumulator=new_acc)
+
+
+def route_fee(
+    *,
+    source: Domain,
+    asset: str,
+    amount: int,
+    split_table: FeeSplitTable,
+    accumulator: FeeAccumulator,
+) -> RouteResult:
+    """
+    Route ``amount`` of protocol fees through the active runtime authority
+    policy, carrying dust from / into ``accumulator``.
+
+    Python remains the default authority. A deployment profile can promote this
+    surface to Rust authority with Python shadow checking.
+    """
+    if not isinstance(source, str):
+        raise TypeError("source must be a str")
+    if not isinstance(asset, str):
+        raise TypeError("asset must be a str")
+    if not isinstance(split_table, FeeSplitTable):
+        raise TypeError("split_table must be a FeeSplitTable")
+    if not isinstance(accumulator, FeeAccumulator):
+        raise TypeError("accumulator must be a FeeAccumulator")
+    if not _is_plain_int(amount):
+        raise TypeError("amount must be an int")
+
+    from src.runtime.authority import AuthorityMode, active_mode, decide
+    from src.runtime.rust_invoker import fee_route
+
+    mode = active_mode(FEE_ROUTER_SURFACE)
+    if mode is AuthorityMode.PYTHON_AUTHORITY:
+        return _route_fee_python(
+            source=source,
+            asset=asset,
+            amount=amount,
+            split_table=split_table,
+            accumulator=accumulator,
+        )
+
+    def python_doc() -> dict[str, Any]:
+        return _result_to_authority_doc(
+            accumulator,
+            _route_fee_python(
+                source=source,
+                asset=asset,
+                amount=amount,
+                split_table=split_table,
+                accumulator=accumulator,
+            ),
+        )
+
+    def rust_doc() -> dict[str, Any]:
+        return fee_route(
+            accumulator=_accumulator_json(accumulator),
+            tx=_tx_json(source, asset, amount, split_table),
+        )
+
+    decision = decide(
+        FEE_ROUTER_SURFACE,
+        mode,
+        python_fn=python_doc,
+        rust_fn=rust_doc,
+    )
+    return _authority_doc_to_result(decision.result)
 
 
 def _conservation_holds(amount: int, dust_in: int, receipt: FeeReceipt) -> bool:
@@ -570,8 +942,14 @@ def apply_step(
         split_table=split_table,
         accumulator=accumulator,
     )
-    if isinstance(result, RouteAccepted):
-        assert _conservation_holds(amount, accumulator.dust_for(source, asset), result.receipt)
+    if isinstance(result, RouteAccepted) and not _conservation_holds(
+        amount, accumulator.dust_for(source, asset), result.receipt
+    ):
+        # Fail closed (and `-O`-safe): a bare `assert` here would be stripped under
+        # `python -O`, silently disabling this conservation guard in optimized runs.
+        raise FeeRouterConservationError(
+            f"fee split conservation violated (apply_step): source={source!r} asset={asset!r}"
+        )
     return result
 
 

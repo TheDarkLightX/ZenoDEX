@@ -25,7 +25,7 @@ function readSmokeConfig() {
     sender_pubkey: params.get('senderPubkey') || '',
     recipient_pubkey: params.get('recipientPubkey') || '',
     operator_pubkey: params.get('operatorPubkey') || '',
-    signer_privkey: params.get('signerPrivkey') || '',
+    signer_privkey: params.get('signerPrivkey') || params.get('smokeSignerPrivkey') || '',
     amount: params.get('zusdAmount') || '100',
     deadline: params.get('zusdDeadline') || '',
   };
@@ -54,10 +54,13 @@ function buildPayload(form) {
   return payload;
 }
 
-function ZUSDTauWalletSurface() {
+function ZUSDTauWalletSurface({ wallet = null }) {
+  const connectedAccount = (wallet?.address || '').trim();
   const [status, setStatus] = useState(null);
   const [statusError, setStatusError] = useState('');
-  const [form, setForm] = useState(() => readSmokeConfig() || EMPTY_FORM);
+  const [form, setForm] = useState(
+    () => readSmokeConfig() || { ...EMPTY_FORM, sender_pubkey: connectedAccount },
+  );
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -69,18 +72,47 @@ function ZUSDTauWalletSurface() {
 
   async function loadStatus() {
     try {
-      const payload = await apiGetZusdWalletStatus({ timeoutMs: 8000 });
+      const payload = await apiGetZusdWalletStatus({
+        account: form.sender_pubkey.trim() || '',
+        timeoutMs: 8000,
+      });
       setStatus(payload?.status || null);
       setStatusError('');
     } catch (err) {
       setStatus(null);
-      setStatusError(err?.message || 'status_unavailable');
+      setStatusError(err?.message === 'not_found' ? 'token wallet endpoint disabled' : (err?.message || 'status_unavailable'));
     }
   }
 
   useEffect(() => {
     loadStatus();
-  }, []);
+    // Refetch account-aware status when the sender (connected account) changes
+    // so the holder's token balance reflects THAT account.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.sender_pubkey]);
+
+  // Bind the account-aware status query to the CONNECTED wallet: when the wallet
+  // identity changes, set the sender field to it so the holder's token balance
+  // reflects THAT account (fixes "50k shows in Pool but not zUSD"). Manual edits
+  // between wallet switches are preserved — we only react to identity changes.
+  const prevWalletRef = useRef(connectedAccount);
+  useEffect(() => {
+    const previous = prevWalletRef.current;
+    if (connectedAccount && connectedAccount !== previous) {
+      prevWalletRef.current = connectedAccount;
+      // Connecting/switching a wallet is a deliberate action: the connected
+      // account always takes over the field — overriding empty or any stale
+      // prior value. The field stays editable for inspection while connected.
+      setForm((curr) => ({ ...curr, sender_pubkey: connectedAccount }));
+    } else if (!connectedAccount && previous) {
+      prevWalletRef.current = '';
+      // On disconnect, clear ONLY if the field still holds the disconnected
+      // wallet (so a manual edit survives).
+      setForm((curr) =>
+        curr.sender_pubkey === previous ? { ...curr, sender_pubkey: '' } : curr,
+      );
+    }
+  }, [connectedAccount]);
 
   const liveSummary = useMemo(() => {
     if (!result?.transport) return null;
@@ -124,8 +156,15 @@ function ZUSDTauWalletSurface() {
       return;
     }
     smokeRan.current = true;
-    setForm(smoke);
-    void apiSubmitZusdWallet(buildPayload(smoke), { timeoutMs: 20000 })
+    async function runSmoke() {
+      const nextSmoke = { ...smoke };
+      setForm(nextSmoke);
+      if (!nextSmoke.signer_privkey.trim() && !String(nextSmoke.signed_tau_tx_payload || '').trim()) {
+        throw new Error('smoke signer credential or signed payload required');
+      }
+      return apiSubmitZusdWallet(buildPayload(nextSmoke), { timeoutMs: 20000 });
+    }
+    void runSmoke()
       .then((payload) => {
         setResult(payload);
         setError('');
@@ -140,11 +179,10 @@ function ZUSDTauWalletSurface() {
     <section className="zusd-wallet-surface">
       <div className="zusd-hero panel panel-glass animate-fade-in">
         <div>
-          <p className="zusd-kicker">Tau testnet transport</p>
-          <h1>zUSD Wallet Transport</h1>
+          <p className="zusd-kicker">zUSD account operations</p>
+          <h1>zUSD Wallet</h1>
           <p className="zusd-subtitle">
-            This live surface targets the Tau-node-backed stream-9 TauToken path.
-            Use it next to the stream-11 monetary vault for transfer, mint, and burn transport checks.
+            Transfer zUSD, review account balances, and submit signed wallet transactions.
           </p>
         </div>
         <div className="zusd-hero-meta">
@@ -156,15 +194,15 @@ function ZUSDTauWalletSurface() {
       <div className="zusd-wallet-grid">
         <div className="panel zusd-wallet-card">
           <div className="zusd-section-header">
-            <h2>Transport Status</h2>
-            <span className="zusd-section-badge">Tau-backed</span>
+            <h2>Wallet Status</h2>
+            <span className="zusd-section-badge">Network-backed</span>
           </div>
           <div className="zusd-wallet-meta">
             <div className="zusd-wallet-kv"><span>Chain</span><span>{status?.chain_id || 'unknown'}</span></div>
             <div className="zusd-wallet-kv"><span>Asset ID</span><span className="zusd-mono">{status?.asset_id || 'unavailable'}</span></div>
-            <div className="zusd-wallet-kv"><span>Node</span><span>{status?.tau_host || '127.0.0.1'}:{status?.tau_port || 65432}</span></div>
-            <div className="zusd-wallet-kv"><span>App Bridge</span><span>{status?.app_bridge_available ? 'available' : 'not detected'}</span></div>
-            <div className="zusd-wallet-kv"><span>Signing</span><span>{status?.allow_local_signing ? 'enabled' : 'prepare only'}</span></div>
+            <div className="zusd-wallet-kv"><span>Endpoint</span><span>{status?.tau_host || 'network'}:{status?.tau_port || '-'}</span></div>
+            <div className="zusd-wallet-kv"><span>Bridge</span><span>{status?.app_bridge_available ? 'available' : 'not detected'}</span></div>
+            <div className="zusd-wallet-kv"><span>Signing</span><span>{status?.allow_local_signing ? 'Local signer' : 'External signer'}</span></div>
             <div className="zusd-wallet-kv"><span>Operator</span><span className="zusd-mono">{status?.token_operator_pubkey || 'not configured'}</span></div>
           </div>
           {statusError ? <p className="zusd-wallet-error">Status error: {statusError}</p> : null}
@@ -177,8 +215,8 @@ function ZUSDTauWalletSurface() {
 
         <div className="panel zusd-wallet-card">
           <div className="zusd-section-header">
-            <h2>Prepare Or Submit</h2>
-            <span className="zusd-section-badge">Stream 9</span>
+            <h2>Submit transfer</h2>
+            <span className="zusd-section-badge">Signed transaction</span>
           </div>
           <div className="zusd-wallet-form">
             <label className="label" htmlFor="zusd-action">Action</label>
@@ -255,7 +293,7 @@ function ZUSDTauWalletSurface() {
               placeholder="optional"
             />
 
-            <label className="label" htmlFor="zusd-signer">Signer Privkey (local test only)</label>
+            <label className="label" htmlFor="zusd-signer">Signer credential</label>
             <input
               id="zusd-signer"
               className="input"
@@ -269,7 +307,7 @@ function ZUSDTauWalletSurface() {
                 {busy ? 'Preparing...' : 'Prepare'}
               </button>
               <button className="btn btn-primary" type="button" onClick={handleSubmit} disabled={busy}>
-                {busy ? 'Submitting...' : 'Submit to Tau node'}
+                {busy ? 'Submitting...' : 'Submit transaction'}
               </button>
             </div>
             {error ? <p className="zusd-wallet-error">{error}</p> : null}
@@ -283,6 +321,18 @@ function ZUSDTauWalletSurface() {
             <h2>Live Context</h2>
             <span className="zusd-section-badge">Auto-derived</span>
           </div>
+          {status?.account_view ? (
+            <div className="zusd-wallet-meta">
+              <div className="zusd-wallet-kv">
+                <span>Connected Account</span>
+                <span className="zusd-mono">{status.account_view.account}</span>
+              </div>
+              <div className="zusd-wallet-kv">
+                <span>Account zUSD Balance</span>
+                <span>{status.account_view.balance}</span>
+              </div>
+            </div>
+          ) : null}
           {liveSummary ? (
             <div className="zusd-wallet-meta">
               <div className="zusd-wallet-kv"><span>App Hash</span><span className="zusd-mono">{liveSummary.app_hash || 'none'}</span></div>
@@ -294,7 +344,7 @@ function ZUSDTauWalletSurface() {
               <div className="zusd-wallet-kv"><span>Tx Sequence</span><span>{liveSummary.tx_sequence_number}</span></div>
             </div>
           ) : (
-            <p className="zusd-wallet-placeholder">Prepare or submit a request to load the current Tau-node context.</p>
+            <p className="zusd-wallet-placeholder">Prepare or submit a request to load the current network context.</p>
           )}
         </div>
 

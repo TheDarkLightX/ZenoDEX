@@ -12,6 +12,21 @@
     margin-bottom: var(--space-xl);
 }
 
+.stats-honesty-banner {
+    margin-bottom: var(--space-xl);
+    padding: var(--space-md);
+    border: 1px solid rgba(var(--accent-signal-rgb), 0.35);
+    background: rgba(var(--accent-signal-rgb), 0.07);
+    color: var(--text-secondary);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    line-height: 1.55;
+}
+
+.stats-honesty-banner strong {
+    color: var(--text-primary);
+}
+
 .stats-header h2 {
     display: flex;
     align-items: center;
@@ -33,7 +48,7 @@
     font-style: italic;
     border-radius: var(--radius-md);
     transform: skewX(-5deg);
-    box-shadow: 0 0 20px rgba(76, 201, 240, 0.4);
+    box-shadow: 0 0 20px rgba(var(--accent-signal-rgb), 0.4);
     position: relative;
     overflow: hidden;
 }
@@ -145,6 +160,7 @@
     margin-top: var(--space-md);
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
+    flex-wrap: wrap;
 }
 
 .legend-dot {
@@ -165,6 +181,158 @@
 
 .legend-dot.floor {
     background: var(--bg-tertiary);
+}
+
+.tokenomics-ledger {
+    margin-bottom: var(--space-xl);
+}
+
+.tokenomics-ledger-header {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-md);
+    align-items: center;
+    margin-bottom: var(--space-md);
+}
+
+.tokenomics-ledger-header h3 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+}
+
+.check-ok,
+.check-warn {
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0;
+}
+
+.check-ok {
+    color: var(--accent-green);
+}
+
+.check-warn {
+    color: var(--accent-orange);
+}
+
+.allocation-table {
+    display: grid;
+    gap: 1px;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--border-subtle);
+}
+
+.allocation-row {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.4fr) minmax(220px, 1.2fr) minmax(110px, 0.6fr) minmax(110px, 0.6fr);
+    gap: var(--space-md);
+    align-items: center;
+    min-height: 56px;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.allocation-row > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.allocation-row strong {
+    display: block;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.allocation-row small {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.allocation-head {
+    min-height: 40px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.program-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: var(--space-md);
+}
+
+.program-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-md);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+}
+
+.program-item span {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.program-item strong {
+    color: var(--accent-cyan);
+    font-size: var(--font-size-lg);
+}
+
+.program-item small {
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    line-height: 1.45;
+}
+
+.program-claim-line {
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.claim-button {
+    align-self: flex-start;
+    min-height: 34px;
+    padding: 0 var(--space-md);
+    border: 1px solid rgba(var(--accent-signal-rgb), 0.45);
+    border-radius: var(--radius-sm);
+    background: rgba(var(--accent-signal-rgb), 0.12);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.claim-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.claim-status {
+    margin-top: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+}
+
+.claim-ok {
+    border: 1px solid rgba(var(--accent-green-rgb), 0.35);
+    color: var(--accent-green);
+}
+
+.claim-error {
+    border: 1px solid rgba(var(--accent-red-rgb), 0.35);
+    color: var(--accent-red);
 }
 
 /* Burn Mechanics */
@@ -286,4 +454,51 @@
 .verified-badge {
     color: var(--accent-green);
     margin-right: var(--space-sm);
+}
+
+@media (max-width: 800px) {
+    .stats-header,
+    .progress-header,
+    .tokenomics-ledger-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .allocation-row {
+        grid-template-columns: 1fr;
+        gap: var(--space-xs);
+    }
+}
+
+/* Live supply-model parameters (replaces the demo transfer-tax formula) */
+.model-params {
+    margin: var(--space-sm) 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.model-param {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-md);
+    padding: var(--space-xs) 0;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.model-param:last-child {
+    border-bottom: none;
+}
+
+.model-param dt {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.model-param dd {
+    margin: 0;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: right;
 }

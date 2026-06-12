@@ -1,0 +1,5 @@
+(test
+ (name test_vectors)
+ (libraries runtime_spec)
+ (deps
+  (glob_files vectors/*.tsv)))

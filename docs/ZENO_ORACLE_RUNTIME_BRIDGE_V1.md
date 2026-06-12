@@ -76,6 +76,10 @@ without `oracle_adapter_bridge` is rejected on 2-party and 3-party clearinghouse
 perps. If the bridge is present but no verifier is configured, settlement is
 rejected even when the requirement flag is false.
 
+If `require_oracle_authorization_for_isolated_settle_epoch` is true, isolated
+settlement also requires typed `oracle_authorization` bound to the same perps
+settle action, query, pre-state hash, runtime oracle value, and epoch.
+
 This prevents the wired perps settlement paths from accepting a receipt minted
 for a different consumer, action, query, profile policy, market, market kind,
 participant set, epoch, clearing price, or oracle snapshot, or accepting a

@@ -1,0 +1,88 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the zUSD redeem fee/collateral micro-kernel. Update only alongside a successful run of tools/run_zusd_redeem_assurance_gate.sh and tools/check_zusd_redeem_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/zusd_redeem_fee_collateral_v1.yaml",
+      "sha256": "158bfa1f9dc18e15fa1fa04c0743c2871766758196fc004fc01d464273c038d0"
+    },
+    {
+      "path": "src/kernels/python/zusd_redeem_fee_collateral_v1_native_adapter.py",
+      "sha256": "97c45af5c4349ca73135c2cfe4b3544c77d311557c8c0fd79578ff68e7204c56"
+    },
+    {
+      "path": "tests/kernels/test_zusd_redeem_fee_collateral_v1_native_adapter.py",
+      "sha256": "b4fa6a7727ee49cdf07c8393b684f2efae051622078974ca6e92e44f661a183c"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/zusd_redeem_fee_collateral_v1/validate.json",
+    "model_path": "src/kernels/dex/zusd_redeem_fee_collateral_v1.yaml",
+    "ir_hash": "sha256:fd361c9dd8a00abb604ab78c2df921c2c085fd974b2feedb4996c91d61b154b0"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/zusd_redeem_fee_collateral_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.zusd_redeem_fee_collateral_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:fd361c9dd8a00abb604ab78c2df921c2c085fd974b2feedb4996c91d61b154b0",
+    "actions": [
+      "apply_redeem_fee_collateral"
+    ],
+    "effects": [
+      "mcr_post_ok",
+      "redeemed_collateral_gross_e8",
+      "redeemed_collateral_out_e8",
+      "redeemed_zusd_e8",
+      "redemption_fee_bps",
+      "redemption_fee_collateral_e8"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/zusd_redeem_fee_collateral_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/zusd_redeem_fee_collateral_v1.yaml",
+    "adapter_spec": "src.kernels.python.zusd_redeem_fee_collateral_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:fd361c9dd8a00abb604ab78c2df921c2c085fd974b2feedb4996c91d61b154b0",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:cd5e5f71be4cb6ece990c2ec8d6e15850c1e3b53e179c05cac0fb4cac166c8d2"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/zusd_redeem_fee_collateral_v1/verification_report.json",
+    "model_id": "zusd_redeem_fee_collateral_v1",
+    "ir_hash_short": "fd361c9dd8a00abb",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/kernels/test_zusd_redeem_fee_collateral_v1_native_adapter.py"
+  ]
+}

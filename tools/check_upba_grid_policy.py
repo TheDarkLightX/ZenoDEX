@@ -20,13 +20,14 @@ from src.core.uniform_batch_price_grid_table import (  # noqa: E402
     UPBA_PRICE_GRID_MAX_ROWS,
     UPBA_PRICE_GRID_SCORE_FUNCTION_ID_V1,
 )
-from src.state.pools import POOL_FEE_BPS_MAX, POOL_FEE_BPS_MIN  # noqa: E402
 
 POLICY_SCHEMA = "zenodex.upba.grid_economic_sufficiency_policy.v1"
 REPORT_SCHEMA = "zenodex.upba.grid_economic_sufficiency_check.v1"
 BPS_DENOM = 10_000
 PPM_DENOM = 1_000_000
 DECIMAL_MAX = 36
+POOL_FEE_BPS_MIN = 0
+POOL_FEE_BPS_MAX = BPS_DENOM
 
 REQUIRED_NOT_CLAIMS = {
     "does_not_claim_unbounded_rational_optimality",
@@ -42,6 +43,7 @@ TOP_LEVEL_KEYS = {
     "pool_id",
     "upba_policy_id",
     "score_function_id",
+    "trade_direction",
     "base_decimals",
     "quote_decimals",
     "reserve_base_atoms",
@@ -136,6 +138,7 @@ def sample_policy() -> dict[str, Any]:
         "pool_id": "pool_ab",
         "upba_policy_id": UNIFORM_BATCH_POLICY_V1_ID,
         "score_function_id": UPBA_PRICE_GRID_SCORE_FUNCTION_ID_V1,
+        "trade_direction": "base_to_quote",
         "base_decimals": 6,
         "quote_decimals": 6,
         "reserve_base_atoms": 1_000_000,
@@ -169,6 +172,7 @@ def check_policy(policy: Mapping[str, Any]) -> dict[str, Any]:
     pool_id = _str_field(policy, "pool_id", errors)
     upba_policy_id = _str_field(policy, "upba_policy_id", errors)
     score_function_id = _str_field(policy, "score_function_id", errors)
+    trade_direction = _str_field(policy, "trade_direction", errors)
     not_claimed = _not_claimed(policy, errors)
 
     if policy_id is not None and policy_id != policy_content_hash(policy):
@@ -177,6 +181,8 @@ def check_policy(policy: Mapping[str, Any]) -> dict[str, Any]:
         errors.append("unsupported_upba_policy_id")
     if score_function_id is not None and score_function_id != UPBA_PRICE_GRID_SCORE_FUNCTION_ID_V1:
         errors.append("unsupported_score_function_id")
+    if trade_direction is not None and trade_direction != "base_to_quote":
+        errors.append("unsupported_trade_direction")
 
     base_decimals = _int_field(policy, "base_decimals", errors, minimum=0, maximum=DECIMAL_MAX)
     quote_decimals = _int_field(policy, "quote_decimals", errors, minimum=0, maximum=DECIMAL_MAX)
@@ -231,6 +237,7 @@ def check_policy(policy: Mapping[str, Any]) -> dict[str, Any]:
         "policy_id": policy_id,
         "upba_policy_id": upba_policy_id,
         "score_function_id": score_function_id,
+        "trade_direction": trade_direction,
     }
 
     if grid_max_price_num is not None and grid_max_price_den is not None:

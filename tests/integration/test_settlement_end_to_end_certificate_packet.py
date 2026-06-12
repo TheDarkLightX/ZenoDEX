@@ -6,6 +6,7 @@ from src.core.settlement import LPDelta
 from src.integration.settlement_feature_extension_packet import SettlementFeatureExtensionInputs
 from src.integration.settlement_end_to_end_certificate_packet import (
     SETTLEMENT_END_TO_END_CERTIFICATE_PACKET_SCHEMA,
+    _assemble_packet,
     build_settlement_end_to_end_certificate_packet_from_price_attestation,
     build_settlement_end_to_end_certificate_packet_from_price_packet,
     verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation,
@@ -91,6 +92,23 @@ def _four_swap_context():
     ]
     settlement = compute_settlement(intents, {pool_id: pool}, balances, LPTable())
     return pk, asset0, asset1, pool_id, pool, settlement
+
+
+def test_assemble_packet_rejects_missing_endogenous_lp_value_packet() -> None:
+    try:
+        _assemble_packet(
+            price_input_kind="packet",
+            value_packet_kind="endogenous_lp_value",
+            strong_certificate=object(),  # type: ignore[arg-type]
+            strong_certificate_ok=True,
+            feature_extension_packet=object(),  # type: ignore[arg-type]
+            value_packet=None,
+            endogenous_lp_value_packet=None,
+        )
+    except ValueError as exc:
+        assert str(exc) == "endogenous_lp_value mode requires endogenous_lp_value_packet"
+    else:
+        assert False, "expected missing endogenous LP value packet to reject"
 
 
 def _feature_extension_inputs() -> SettlementFeatureExtensionInputs:

@@ -7,6 +7,7 @@ checks, then applies the in-repo deterministic receipt and allowlist gate.
 from __future__ import annotations
 
 import json
+import math
 import os
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
@@ -40,29 +41,46 @@ def _env_bool(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
         return bool(default)
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(
+        f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
+    )
 
 
 def _env_float(name: str, default: float, *, lo: float, hi: float) -> float:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return float(default)
-    try:
-        value = float(raw.strip())
-    except Exception:
-        return float(default)
-    return min(max(value, lo), hi)
+        value = float(default)
+    else:
+        try:
+            value = float(raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{name} must be a finite float in [{lo}, {hi}]; got {raw!r}"
+            ) from exc
+    if not math.isfinite(value) or value < lo or value > hi:
+        raise ValueError(f"{name} must be finite and in [{lo}, {hi}]; got {value!r}")
+    return float(value)
 
 
 def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return int(default)
-    try:
-        value = int(raw.strip())
-    except Exception:
-        return int(default)
-    return min(max(value, lo), hi)
+        value = int(default)
+    else:
+        try:
+            value = int(raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{name} must be an integer in [{lo}, {hi}]; got {raw!r}"
+            ) from exc
+    if value < lo or value > hi:
+        raise ValueError(f"{name} must be in [{lo}, {hi}]; got {value}")
+    return int(value)
 
 
 def _parse_json_body(body: Optional[bytes]) -> tuple[Optional[dict[str, Any]], Optional[str]]:
@@ -85,14 +103,18 @@ def _verifier_cmd_from_env() -> Sequence[str] | None:
         return None
     try:
         obj = json.loads(raw)
-    except Exception:
-        return None
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError(
+            "CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON must be valid JSON"
+        ) from exc
     if not isinstance(obj, list) or not obj:
-        return None
+        raise ValueError("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON must be a non-empty JSON array")
     out: list[str] = []
-    for item in obj:
+    for index, item in enumerate(obj):
         if not isinstance(item, str) or not item:
-            return None
+            raise ValueError(
+                f"CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON[{index}] must be a non-empty string"
+            )
         out.append(item)
     return tuple(out)
 
@@ -447,7 +469,14 @@ def handle_confidential_attestation_request(
     request_table: ConfidentialRequestTable | None = None,
 ) -> ResponseT:
     if method == "GET" and path == "/api/confidential/attestation/status":
-        return 200, {"ok": True, "status": _status_payload()}
+        try:
+            return 200, {"ok": True, "status": _status_payload()}
+        except ValueError as exc:
+            return 500, {
+                "ok": False,
+                "error": "invalid_confidential_attestation_config",
+                "detail": str(exc),
+            }
 
     if method == "POST" and path == "/api/confidential/attestation/verify":
         obj, err = _parse_json_body(raw_body)

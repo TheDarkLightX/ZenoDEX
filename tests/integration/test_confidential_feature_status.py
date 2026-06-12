@@ -68,6 +68,30 @@ def test_load_confidential_feature_status_invalid_stage_falls_back_to_beta(monke
     assert "feature stage is experimental, not beta/ga" in public["readiness_gaps"]
 
 
+def test_load_confidential_feature_status_malformed_bool_fails_closed(monkeypatch) -> None:
+    from src.integration.confidential_feature_status import load_confidential_feature_status_from_env
+
+    monkeypatch.setenv("CONFIDENTIAL_SEALED_BID_ENABLED", "maybe")
+
+    try:
+        load_confidential_feature_status_from_env()
+        assert False, "malformed boolean config must fail closed"
+    except ValueError as exc:
+        assert "CONFIDENTIAL_SEALED_BID_ENABLED" in str(exc)
+
+
+def test_load_confidential_feature_status_malformed_int_fails_closed(monkeypatch) -> None:
+    from src.integration.confidential_feature_status import load_confidential_feature_status_from_env
+
+    monkeypatch.setenv("CONFIDENTIAL_MAX_ATTESTATION_AGE_EPOCHS", "nan")
+
+    try:
+        load_confidential_feature_status_from_env()
+        assert False, "malformed integer config must fail closed"
+    except ValueError as exc:
+        assert "CONFIDENTIAL_MAX_ATTESTATION_AGE_EPOCHS" in str(exc)
+
+
 def test_load_confidential_feature_status_unreadable_measurement_file_fails_closed(monkeypatch, tmp_path) -> None:
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env
 
@@ -92,13 +116,36 @@ def test_confidential_feature_status_helpers_cover_env_and_file_edges(monkeypatc
     monkeypatch.setenv("UNIT_TEST_INT", " ")
     assert mod._env_int("UNIT_TEST_INT", 7, lo=1, hi=9) == 7
     monkeypatch.setenv("UNIT_TEST_INT", "oops")
-    assert mod._env_int("UNIT_TEST_INT", 7, lo=1, hi=9) == 7
+    try:
+        mod._env_int("UNIT_TEST_INT", 7, lo=1, hi=9)
+        assert False, "malformed integer config must fail closed"
+    except ValueError as exc:
+        assert "UNIT_TEST_INT" in str(exc)
     monkeypatch.setenv("UNIT_TEST_INT", "-5")
-    assert mod._env_int("UNIT_TEST_INT", 7, lo=1, hi=9) == 1
+    try:
+        mod._env_int("UNIT_TEST_INT", 7, lo=1, hi=9)
+        assert False, "out-of-range integer config must fail closed"
+    except ValueError as exc:
+        assert "UNIT_TEST_INT" in str(exc)
     monkeypatch.setenv("UNIT_TEST_INT", "15")
-    assert mod._env_int("UNIT_TEST_INT", 7, lo=1, hi=9) == 9
+    try:
+        mod._env_int("UNIT_TEST_INT", 7, lo=1, hi=9)
+        assert False, "out-of-range integer config must fail closed"
+    except ValueError as exc:
+        assert "UNIT_TEST_INT" in str(exc)
     monkeypatch.setenv("UNIT_TEST_INT", "5")
     assert mod._env_int("UNIT_TEST_INT", 7, lo=1, hi=9) == 5
+
+    monkeypatch.delenv("UNIT_TEST_BOOL", raising=False)
+    assert mod._env_bool("UNIT_TEST_BOOL", True) is True
+    monkeypatch.setenv("UNIT_TEST_BOOL", "off")
+    assert mod._env_bool("UNIT_TEST_BOOL", True) is False
+    monkeypatch.setenv("UNIT_TEST_BOOL", "maybe")
+    try:
+        mod._env_bool("UNIT_TEST_BOOL", False)
+        assert False, "malformed boolean config must fail closed"
+    except ValueError as exc:
+        assert "UNIT_TEST_BOOL" in str(exc)
 
     empty_path = tmp_path / "empty.txt"
     empty_path.write_text("   ", encoding="utf-8")

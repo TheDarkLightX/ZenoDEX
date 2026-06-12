@@ -1,0 +1,35 @@
+# gov_action_bound_v1.tau  --  ZenoDEX UNIVERSAL proposed-action gate
+# MUTABILITY: UPDATABLE (the gate logic; bounds are supplied per call)
+# SHAPE: factored bounds + bounded-drift step, PROPOSER-AGNOSTIC.
+#
+# This is the one verified envelope that gates EVERY autonomous proposer the same way
+# -- staker vote, PID controller, or a frozen Q-learning lookup table. The proposer
+# computes `next`; this gate admits it ONLY if it is governance-approved, past the
+# timelock, within [min,max], and within one bounded `step` of `curr`. A mis-trained /
+# poisoned / oracle-manipulated proposer can therefore never escape the band: the worst
+# it does is move the param by `step` per epoch inside [min,max]. The bound is the
+# safety, not trust in the proposer.
+#
+# Inputs (bounds are INPUTS here -> reusable for any param):
+#   i1 = approved    (sbf)     i2 = exec_req (sbf)
+#   i3 = proposal_ts (bv[16])  i4 = current_ts (bv[16])  i5 = min_delay (bv[16])
+#   i6 = curr (bv[16])  i7 = next (bv[16])  i8 = min (bv[16])  i9 = max (bv[16])  i10 = step (bv[16])
+# Output:
+#   o1 = admissible (sbf)
+# Timelock uses the wrap-safe subtraction-guard form (current >= proposal AND
+# current - proposal >= min_delay); bv[16] is UNSIGNED.
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    ( (i2[t]:sbf = 0:sbf)
+      ||
+      ( (i1[t]:sbf = 1:sbf)
+        && (i4[t]:bv[16] >= i3[t]:bv[16])
+        && ((i4[t]:bv[16] - i3[t]:bv[16]) >= i5[t]:bv[16])
+        && (i7[t]:bv[16] >= i8[t]:bv[16])
+        && (i7[t]:bv[16] <= i9[t]:bv[16])
+        && ( ( (i6[t]:bv[16] >= i7[t]:bv[16]) && ((i6[t]:bv[16] - i7[t]:bv[16]) <= i10[t]:bv[16]) )
+             || ( (i7[t]:bv[16] > i6[t]:bv[16]) && ((i7[t]:bv[16] - i6[t]:bv[16]) <= i10[t]:bv[16]) ) )
+      )
+    )
+  ).

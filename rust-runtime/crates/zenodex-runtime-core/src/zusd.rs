@@ -14,7 +14,7 @@
 
 use num_bigint::BigUint;
 
-use crate::canonical::{domain_sep_bytes, encode_bytes, encode_uvarint, sha256_hex};
+use crate::canonical::{domain_sep_bytes, encode_bytes, encode_uvarint, sha256_bytes, sha256_hex};
 
 pub const E8: u128 = 100_000_000;
 pub const BPS_SCALE: u128 = 10_000;
@@ -196,11 +196,15 @@ impl ZusdState {
     /// Canonical state root: `domain_sep("zusd_state", v1)` + every field as a
     /// uvarint, in declaration order.
     pub fn state_root(&self) -> String {
+        format!("0x{}", hex::encode(self.state_root_bytes()))
+    }
+
+    fn state_root_bytes(&self) -> [u8; 32] {
         let mut buf = domain_sep_bytes(STATE_LABEL, STATE_VERSION);
         for f in self.fields() {
             buf.extend(encode_uvarint(f));
         }
-        sha256_hex(&buf)
+        sha256_bytes(&buf)
     }
 }
 
@@ -213,14 +217,12 @@ pub struct ZusdAccepted {
     pub receipt_hash: String,
 }
 
-fn receipt_hash(tag: &str, post_root: &str) -> String {
-    // post_root is "0x" + 64 hex; commit to its raw 32 bytes.
-    let root_bytes = hex::decode(&post_root[2..]).expect("state root is valid hex");
+fn receipt_hash(tag: &str, post_root: &[u8; 32]) -> String {
     let mut buf = domain_sep_bytes(RECEIPT_LABEL, RECEIPT_VERSION);
     buf.extend_from_slice(b"TAG");
     buf.extend(encode_bytes(tag.as_bytes()));
     buf.extend_from_slice(b"RT");
-    buf.extend(encode_bytes(&root_bytes));
+    buf.extend(encode_bytes(post_root));
     sha256_hex(&buf)
 }
 
@@ -262,7 +264,7 @@ fn is_oracle_fresh(
     max_staleness: u128,
     seen: bool,
 ) -> bool {
-    seen && now_epoch - last_update_epoch <= max_staleness
+    seen && now_epoch >= last_update_epoch && now_epoch - last_update_epoch <= max_staleness
 }
 
 fn decayed_base_rate_bps(
@@ -278,7 +280,7 @@ fn decayed_base_rate_bps(
 }
 
 fn effective_fee_bps(decayed: u128, floor_bps: u128, max_bps: u128) -> u128 {
-    let mut fee = floor_bps + decayed;
+    let mut fee = floor_bps.saturating_add(decayed);
     if fee > max_bps {
         fee = max_bps;
     }
@@ -286,6 +288,23 @@ fn effective_fee_bps(decayed: u128, floor_bps: u128, max_bps: u128) -> u128 {
         fee = BPS_SCALE;
     }
     fee
+}
+
+fn liquidation_compensation_split(
+    liquidated_collateral_e8: u128,
+    fixed_compensation_e8: u128,
+    variable_comp_bps: u128,
+) -> Option<(u128, u128)> {
+    if variable_comp_bps > BPS_SCALE {
+        return None;
+    }
+    let variable_comp = liquidated_collateral_e8
+        .checked_mul(variable_comp_bps)?
+        .div_ceil(BPS_SCALE);
+    let requested = fixed_compensation_e8.checked_add(variable_comp)?;
+    let liquidator_compensation = liquidated_collateral_e8.min(requested);
+    let stability_pool_gain = liquidated_collateral_e8 - liquidator_compensation;
+    Some((liquidator_compensation, stability_pool_gain))
 }
 
 fn tcr_ok(state: &ZusdState, price_e8: u128) -> bool {
@@ -326,6 +345,12 @@ fn risky_ops_allowed(state: &ZusdState) -> bool {
 /// Mirrors `zusd.check_invariants`; returns the list of failed codes.
 pub fn check_invariants(state: &ZusdState) -> Vec<&'static str> {
     let mut failed = Vec::new();
+    if state.oracle_last_update_epoch > state.now_epoch {
+        failed.push("inv_oracle_update_not_future");
+    }
+    if state.base_rate_last_epoch > state.now_epoch {
+        failed.push("inv_base_rate_not_future");
+    }
     if state.oracle_seen && (state.price_e8 == 0 || state.price_pending_e8 == 0) {
         failed.push("inv_oracle_seen_positive_prices");
     }
@@ -359,6 +384,49 @@ pub fn check_invariants(state: &ZusdState) -> Vec<&'static str> {
 
 // --- arg parsing helpers ------------------------------------------------------
 
+fn validate_state_shape(state: &ZusdState) -> Result<(), &'static str> {
+    if state.fields().iter().any(|f| *f > MAX_AMOUNT_E8) {
+        return Err(REJ_BOUNDED_CHECK_FAILED);
+    }
+    if state.oracle_last_update_epoch > state.now_epoch
+        || state.base_rate_last_epoch > state.now_epoch
+    {
+        return Err(REJ_INVARIANT_VIOLATION);
+    }
+    if state.oracle_seen {
+        if state.price_e8 == 0
+            || state.price_pending_e8 == 0
+            || state.price_pending_e8 > state.price_e8
+        {
+            return Err(REJ_INVARIANT_VIOLATION);
+        }
+    } else if state.price_e8 != 0
+        || state.price_pending_e8 != 0
+        || state.oracle_last_update_epoch != 0
+    {
+        return Err(REJ_INVARIANT_VIOLATION);
+    }
+    if state.mcr_bps == 0 || state.mcr_bps > state.ccr_bps {
+        return Err(REJ_INVARIANT_VIOLATION);
+    }
+    if state.max_debt_e8 > state.max_debt_supply_e8 {
+        return Err(REJ_INVARIANT_VIOLATION);
+    }
+    if state.base_rate_bps > BPS_SCALE
+        || state.base_rate_decay_per_epoch_bps > BPS_SCALE
+        || state.base_rate_borrow_bump_bps > BPS_SCALE
+        || state.base_rate_redeem_bump_bps > BPS_SCALE
+        || state.borrow_fee_floor_bps > state.borrow_fee_max_bps
+        || state.borrow_fee_max_bps > BPS_SCALE
+        || state.redemption_fee_floor_bps > state.redemption_fee_max_bps
+        || state.redemption_fee_max_bps > BPS_SCALE
+        || state.liquidation_gas_comp_bps > BPS_SCALE
+    {
+        return Err(REJ_INVARIANT_VIOLATION);
+    }
+    Ok(())
+}
+
 /// `_require_pos_int`: the literal must be a positive integer. **No upper
 /// bound** — exactly like the authority, which rejects huge values only via
 /// downstream command logic. Returns the value as a `BigUint`.
@@ -387,8 +455,8 @@ fn finish(tag: &'static str, ns: ZusdState) -> Result<ZusdAccepted, &'static str
     if !check_invariants(&ns).is_empty() {
         return Err(REJ_INVARIANT_VIOLATION);
     }
-    let root = ns.state_root();
-    let rh = receipt_hash(tag, &root);
+    let root_bytes = ns.state_root_bytes();
+    let rh = receipt_hash(tag, &root_bytes);
     Ok(ZusdAccepted {
         tag,
         state: ns,
@@ -398,6 +466,7 @@ fn finish(tag: &'static str, ns: ZusdState) -> Result<ZusdAccepted, &'static str
 
 /// Apply one zUSD command (single-vault), mirroring `zusd.step`.
 pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'static str> {
+    validate_state_shape(state)?;
     match cmd {
         ZusdCommand::AdvanceEpoch { delta } => {
             let d = require_pos(delta)?;
@@ -694,14 +763,12 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
                 return Err("liquidate_sp_cannot_absorb");
             }
             let liquidated_coll = state.collateral_e8;
-            let variable_comp = to_u128(&mul_div_up(
-                &bu(liquidated_coll),
-                &bu(state.liquidation_gas_comp_bps),
-                BPS_SCALE,
-            ))?;
-            let requested = state.liquidation_gas_comp_fixed_collateral_e8 + variable_comp;
-            let liquidator_comp = liquidated_coll.min(requested);
-            let sp_gain = liquidated_coll - liquidator_comp;
+            let (liquidator_comp, sp_gain) = liquidation_compensation_split(
+                liquidated_coll,
+                state.liquidation_gas_comp_fixed_collateral_e8,
+                state.liquidation_gas_comp_bps,
+            )
+            .ok_or(REJ_BOUNDED_CHECK_FAILED)?;
             if state.sp_coll_e8 + sp_gain > state.max_sp_coll_e8 {
                 return Err("liquidate_sp_cap_exceeded");
             }
@@ -728,6 +795,16 @@ mod tests {
 
     fn amt(v: &str) -> Option<String> {
         Some(v.to_string())
+    }
+
+    #[test]
+    fn state_root_bytes_match_hex_root_without_reparse() {
+        let state = ZusdState::default();
+        let root = state.state_root();
+        assert_eq!(root, format!("0x{}", hex::encode(state.state_root_bytes())));
+        let receipt = receipt_hash("advance_epoch", &state.state_root_bytes());
+        assert!(receipt.starts_with("0x"));
+        assert_eq!(receipt.len(), 66);
     }
 
     fn bootstrap(state: &ZusdState, price: &str) -> ZusdState {
@@ -830,6 +907,52 @@ mod tests {
     }
 
     #[test]
+    fn oracle_freshness_future_update_fails_closed() {
+        assert!(!is_oracle_fresh(1, 2, 100, true));
+    }
+
+    #[test]
+    fn liquidation_compensation_split_caps_and_conserves() {
+        assert_eq!(
+            liquidation_compensation_split(1_000, 50, 100),
+            Some((60, 940))
+        );
+        assert_eq!(
+            liquidation_compensation_split(1_000, 2_000, 100),
+            Some((1_000, 0))
+        );
+        assert_eq!(
+            liquidation_compensation_split(1_000, 0, 0),
+            Some((0, 1_000))
+        );
+        assert_eq!(
+            liquidation_compensation_split(1_000, 0, BPS_SCALE + 1),
+            None
+        );
+    }
+
+    #[test]
+    fn malformed_pre_state_rejected_before_transition() {
+        let s = ZusdState {
+            now_epoch: 1,
+            oracle_seen: true,
+            oracle_last_update_epoch: 2,
+            price_e8: E8,
+            price_pending_e8: E8,
+            ..Default::default()
+        };
+        assert_eq!(
+            step(
+                &s,
+                &ZusdCommand::DepositCollateral {
+                    amount_e8: amt("1")
+                }
+            ),
+            Err(REJ_INVARIANT_VIOLATION)
+        );
+    }
+
+    #[test]
     fn state_root_changes_on_mint() {
         let s = bootstrap(&ZusdState::default(), "100000000");
         let s = step(
@@ -850,5 +973,101 @@ mod tests {
         .unwrap()
         .state;
         assert_ne!(before, after.state_root());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CBC_CORE_V0 — Kani contracts on BigInt-free zUSD risk helpers.
+//
+// The full zUSD transition intentionally uses BigUint for CDP ratio arithmetic
+// and remains differential/vector backed. These contracts prove scalar helper
+// behavior used by the running step before or around that BigUint boundary.
+// ---------------------------------------------------------------------------
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    #[kani::proof]
+    fn oracle_freshness_is_exact_and_total() {
+        let now_epoch: u128 = kani::any();
+        let last_update_epoch: u128 = kani::any();
+        let max_staleness: u128 = kani::any();
+        let seen: bool = kani::any();
+
+        let actual = is_oracle_fresh(now_epoch, last_update_epoch, max_staleness, seen);
+        if !seen || now_epoch < last_update_epoch {
+            assert!(!actual);
+        } else {
+            assert_eq!(actual, now_epoch - last_update_epoch <= max_staleness);
+        }
+    }
+
+    #[kani::proof]
+    fn decayed_base_rate_never_increases() {
+        let base_rate_bps: u128 = kani::any();
+        let now_epoch: u128 = kani::any();
+        let last_epoch: u128 = kani::any();
+        let decay_per_epoch_bps: u128 = kani::any();
+
+        let decayed =
+            decayed_base_rate_bps(base_rate_bps, now_epoch, last_epoch, decay_per_epoch_bps);
+        assert!(decayed <= base_rate_bps);
+        if now_epoch <= last_epoch || decay_per_epoch_bps == 0 {
+            assert_eq!(decayed, base_rate_bps);
+        }
+    }
+
+    #[kani::proof]
+    fn effective_fee_is_capped_and_respects_floor_when_ordered() {
+        let decayed: u128 = kani::any();
+        let floor_bps: u128 = kani::any();
+        let max_bps: u128 = kani::any();
+
+        let fee = effective_fee_bps(decayed, floor_bps, max_bps);
+        assert!(fee <= BPS_SCALE);
+        assert!(fee <= max_bps || max_bps > BPS_SCALE);
+        if floor_bps <= max_bps && max_bps <= BPS_SCALE {
+            assert!(fee >= floor_bps);
+        }
+    }
+
+    #[kani::proof]
+    fn debt_floor_guard_is_exact() {
+        let debt_e8: u128 = kani::any();
+        let min_debt_open_e8: u128 = kani::any();
+        assert_eq!(
+            debt_floor_ok(debt_e8, min_debt_open_e8),
+            debt_e8 == 0 || debt_e8 >= min_debt_open_e8
+        );
+    }
+
+    #[kani::proof]
+    fn liquidation_compensation_split_total_on_state_domain() {
+        let collateral_e8: u128 = kani::any();
+        let fixed_compensation_e8: u128 = kani::any();
+        let variable_comp_bps: u128 = kani::any();
+        kani::assume(collateral_e8 <= MAX_AMOUNT_E8);
+        kani::assume(fixed_compensation_e8 <= MAX_AMOUNT_E8);
+        kani::assume(variable_comp_bps <= BPS_SCALE);
+
+        let Some((liquidator_comp, stability_pool_gain)) =
+            liquidation_compensation_split(collateral_e8, fixed_compensation_e8, variable_comp_bps)
+        else {
+            unreachable!("state-domain liquidation compensation is total")
+        };
+
+        assert!(liquidator_comp <= collateral_e8);
+        assert_eq!(
+            liquidator_comp.checked_add(stability_pool_gain),
+            Some(collateral_e8)
+        );
+    }
+
+    #[kani::proof]
+    fn liquidation_compensation_split_covers_are_reachable() {
+        kani::cover!(liquidation_compensation_split(1_000, 50, 100) == Some((60, 940)));
+        kani::cover!(liquidation_compensation_split(1_000, 2_000, 100) == Some((1_000, 0)));
+        kani::cover!(liquidation_compensation_split(1_000, 0, 0) == Some((0, 1_000)));
+        kani::cover!(liquidation_compensation_split(1_000, 0, BPS_SCALE + 1).is_none());
     }
 }

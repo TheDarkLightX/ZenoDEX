@@ -26,6 +26,12 @@ REQUIRED_PROFILE_COVERAGE = {
     "ingress_v1": {"rejected_receipts", "production_admission_semantics"},
     "recursive_block_v1": {"transaction_proof_aggregation", "block_level_receipt"},
 }
+FORBIDDEN_PROFILE_COVERAGE = {
+    "spot_v1_single_pool_success": {"swap_exact_out"},
+}
+REQUIRED_PROFILE_NON_CLAIMS = {
+    "spot_v1_single_pool_success": {"does_not_claim_spot_v1_exact_out_zk_execution"},
+}
 
 
 def validate_proof_profiles_v1(registry: Any, *, repo_root: Path = ROOT) -> dict[str, Any]:
@@ -71,6 +77,12 @@ def validate_proof_profiles_v1(registry: Any, *, repo_root: Path = ROOT) -> dict
             missing = sorted(required - covered)
             if missing:
                 item_errors.append(f"missing required coverage: {','.join(missing)}")
+            forbidden = sorted(FORBIDDEN_PROFILE_COVERAGE.get(profile_id, set()) & covered)
+            if forbidden:
+                item_errors.append(f"forbidden coverage: {','.join(forbidden)}")
+            missing_non_claims = sorted(REQUIRED_PROFILE_NON_CLAIMS.get(profile_id, set()) - non_claims)
+            if missing_non_claims:
+                item_errors.append(f"missing required non-claims: {','.join(missing_non_claims)}")
         if not_covered and not non_claims:
             item_errors.append("profiles with not_covered entries must include non_claims")
         if covered & not_covered:

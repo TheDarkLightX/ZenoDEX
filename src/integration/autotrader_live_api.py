@@ -8,6 +8,7 @@ does not make unattended strategy execution a production claim.
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from typing import Any, Dict, Mapping, Optional, Tuple
@@ -56,29 +57,46 @@ def _env_bool(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
         return bool(default)
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(
+        f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
+    )
 
 
 def _env_float(name: str, default: float, *, lo: float, hi: float) -> float:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return float(default)
-    try:
-        value = float(raw.strip())
-    except Exception:
-        return float(default)
-    return min(max(value, lo), hi)
+        value = float(default)
+    else:
+        try:
+            value = float(raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{name} must be a finite float in [{lo}, {hi}]; got {raw!r}"
+            ) from exc
+    if not math.isfinite(value) or value < lo or value > hi:
+        raise ValueError(f"{name} must be finite and in [{lo}, {hi}]; got {value!r}")
+    return float(value)
 
 
 def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return int(default)
-    try:
-        value = int(raw.strip())
-    except Exception:
-        return int(default)
-    return min(max(value, lo), hi)
+        value = int(default)
+    else:
+        try:
+            value = int(raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{name} must be an integer in [{lo}, {hi}]; got {raw!r}"
+            ) from exc
+    if value < lo or value > hi:
+        raise ValueError(f"{name} must be in [{lo}, {hi}]; got {value}")
+    return int(value)
 
 
 def _allow_signing() -> bool:

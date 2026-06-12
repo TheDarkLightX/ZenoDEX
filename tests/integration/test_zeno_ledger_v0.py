@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from src.core.dex import DexState
+from src.integration.dex_engine import DexEngineConfig
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
     BODY_SCHEMA_V0,
@@ -11,6 +13,7 @@ from src.integration.zeno_ledger_v0 import (
     HEADER_SCHEMA_V0,
     INGRESS_RECEIPT_SCHEMA_V0,
     PROOF_METADATA_SCHEMA_V0,
+    VALIDATOR_SET_SCHEMA_V0,
     build_checkpoint_v0,
     build_header_v0,
     build_proof_metadata_v0,
@@ -20,17 +23,28 @@ from src.integration.zeno_ledger_v0 import (
     compute_evidence_root_v0,
     compute_ingress_root_v0,
     compute_tx_root_v0,
+    detect_header_equivocations_v0,
+    evaluate_header_fork_choice_v0,
     expected_header_roots_from_body_v0,
     hash_v0,
     merkle_root_v0,
     proof_metadata_hash_v0,
+    scheduled_validator_id_for_height_v0,
+    select_canonical_header_chain_v0,
+    apply_body_transactions_v0,
     validate_checkpoint_header_binding_v0,
     validate_body_v0,
+    validate_body_validator_schedule_v0,
     validate_header_body_roots_v0,
     validate_header_v0,
+    validate_header_validator_set_hash_v0,
     validate_proof_metadata_header_binding_v0,
     validate_proof_metadata_v0,
+    validate_validator_set_v0,
+    validator_set_hash_v0,
 )
+from src.state.balances import BalanceTable
+from src.state.lp import LPTable
 
 
 ZERO_ROOT = "0x" + "00" * 32
@@ -131,6 +145,8 @@ def _body(*, txs: list[object] | None = None, ingress: dict[str, object] | None 
 def _header(
     *,
     body: dict[str, object] | None = None,
+    height: int = 1,
+    prev_header_hash: str = ZERO_ROOT,
     ingress_root: str | None = None,
     tx_root: str | None = None,
     proof_journal_hash: str = ZERO_ROOT,
@@ -142,7 +158,7 @@ def _header(
     app_hash = compute_app_hash_v0(
         {
             "chain_id": "zeno-ledger-devnet-0",
-            "height": 1,
+            "height": height,
             "post_state_root": _root("post-state"),
             "evidence_root": evidence_root,
             "config_digest": _root("config"),
@@ -151,9 +167,9 @@ def _header(
     )
     return build_header_v0(
         chain_id="zeno-ledger-devnet-0",
-        height=1,
+        height=height,
         time_ms=1_778_730_000_000,
-        prev_header_hash=ZERO_ROOT,
+        prev_header_hash=prev_header_hash,
         sequencer_set_hash=_root("sequencer-set"),
         ingress_root=actual_ingress_root,
         tx_root=actual_tx_root,
@@ -168,6 +184,27 @@ def _header(
         module_versions_digest=_root("modules"),
         signature_set_root=ZERO_ROOT,
     )
+
+
+def _validator_set(*, validators: list[dict[str, object]] | None = None) -> dict[str, object]:
+    return {
+        "schema": VALIDATOR_SET_SCHEMA_V0,
+        "chain_id": "zeno-ledger-devnet-0",
+        "epoch": 0,
+        "validators": validators
+        or [
+            {
+                "validator_id": "sequencer-dev-0",
+                "public_key": "0x" + "aa" * 48,
+                "voting_power": 2,
+            },
+            {
+                "validator_id": "sequencer-dev-1",
+                "public_key": "0x" + "bb" * 48,
+                "voting_power": 1,
+            },
+        ],
+    }
 
 
 def _proof_metadata(*, header: dict[str, object], proof_kind: str = "risc0_zkvm_v0") -> dict[str, object]:
@@ -237,6 +274,24 @@ def test_body_ingress_evidence_and_header_mutations_change_roots() -> None:
     assert canonical_header_hash_v0(_header(tx_root=_root("different-tx-root"))) != base_header_hash
 
 
+def test_apply_body_transactions_recomputes_rejection_receipts() -> None:
+    body = _body(txs=[{"tx_id": "bad", "tx_sender_pubkey": "0x" + "aa" * 48}])
+    stale_receipt = {"receipt_root": _root("stale-peer-rejection")}
+    body["evidence"]["rejection_receipts"] = [stale_receipt]  # type: ignore[index]
+    pre_state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+
+    _post_state, executed_body, receipts = apply_body_transactions_v0(
+        state=pre_state,
+        body=body,
+        config=DexEngineConfig(chain_id="zeno-ledger-devnet-0"),
+    )
+
+    rejection_receipts = executed_body["evidence"]["rejection_receipts"]
+    assert len(rejection_receipts) == 1
+    assert rejection_receipts == receipts
+    assert stale_receipt not in rejection_receipts
+
+
 def test_header_body_root_verifier_accepts_matching_body() -> None:
     body = _body()
     header = _header(body=body)
@@ -287,6 +342,138 @@ def test_ingress_changes_header_hash_without_changing_app_hash() -> None:
     assert canonical_header_hash_v0(header_a) != canonical_header_hash_v0(header_b)
 
 
+def test_validator_set_hash_is_order_invariant_and_schedule_is_weighted() -> None:
+    validator_set = _validator_set()
+    reversed_set = _validator_set(validators=list(reversed(validator_set["validators"])))  # type: ignore[arg-type]
+
+    validate_validator_set_v0(validator_set)
+    assert validator_set_hash_v0(validator_set) == validator_set_hash_v0(reversed_set)
+    assert scheduled_validator_id_for_height_v0(validator_set, height=0) == "sequencer-dev-0"
+    assert scheduled_validator_id_for_height_v0(validator_set, height=1) == "sequencer-dev-0"
+    assert scheduled_validator_id_for_height_v0(validator_set, height=2) == "sequencer-dev-1"
+    assert scheduled_validator_id_for_height_v0(validator_set, height=3) == "sequencer-dev-0"
+
+
+def test_validator_set_rejects_duplicate_ids_and_zero_voting_power() -> None:
+    duplicate = _validator_set(
+        validators=[
+            {
+                "validator_id": "sequencer-dev-0",
+                "public_key": "0x" + "aa" * 48,
+                "voting_power": 1,
+            },
+            {
+                "validator_id": "sequencer-dev-0",
+                "public_key": "0x" + "bb" * 48,
+                "voting_power": 1,
+            },
+        ]
+    )
+    with pytest.raises(ValueError, match="duplicate validator_id"):
+        validate_validator_set_v0(duplicate)
+
+    zero_power = _validator_set(
+        validators=[
+            {
+                "validator_id": "sequencer-dev-0",
+                "public_key": "0x" + "aa" * 48,
+                "voting_power": 0,
+            }
+        ]
+    )
+    with pytest.raises(ValueError, match="voting_power must be positive"):
+        validate_validator_set_v0(zero_power)
+
+
+def test_header_and_body_validator_schedule_binding() -> None:
+    validator_set = _validator_set()
+    body = _body()
+    header = _header(body=body)
+    header["sequencer_set_hash"] = validator_set_hash_v0(validator_set)
+
+    validate_header_validator_set_hash_v0(header, validator_set)
+    validate_body_validator_schedule_v0(body, validator_set)
+
+
+def test_detect_header_equivocations_reports_conflicting_height() -> None:
+    header_a = _header()
+    header_b = _header(tx_root=_root("different-tx-root"))
+
+    conflicts = detect_header_equivocations_v0([header_a, header_b, header_a])
+
+    assert conflicts == [
+        {
+            "chain_id": "zeno-ledger-devnet-0",
+            "height": 1,
+            "header_hashes": sorted(
+                [
+                    canonical_header_hash_v0(header_a),
+                    canonical_header_hash_v0(header_b),
+                ]
+            ),
+        }
+    ]
+
+
+def test_header_fork_choice_selects_highest_anchored_tip() -> None:
+    header_1 = _header()
+    header_2a = _header(
+        height=2,
+        prev_header_hash=canonical_header_hash_v0(header_1),
+        tx_root=_root("fork-a-height-2"),
+    )
+    header_2b = _header(
+        height=2,
+        prev_header_hash=canonical_header_hash_v0(header_1),
+        tx_root=_root("fork-b-height-2"),
+    )
+    header_3b = _header(
+        height=3,
+        prev_header_hash=canonical_header_hash_v0(header_2b),
+        tx_root=_root("fork-b-height-3"),
+    )
+
+    report = evaluate_header_fork_choice_v0(
+        [header_2a, header_3b, header_1, header_2b],
+        expected_prev_header_hash=ZERO_ROOT,
+    )
+    selected = select_canonical_header_chain_v0(
+        [header_2a, header_3b, header_1, header_2b],
+        expected_prev_header_hash=ZERO_ROOT,
+    )
+
+    assert report["canonical_tip_hash"] == canonical_header_hash_v0(header_3b)
+    assert report["canonical_tip_height"] == 3
+    assert [canonical_header_hash_v0(header) for header in selected] == [
+        canonical_header_hash_v0(header_1),
+        canonical_header_hash_v0(header_2b),
+        canonical_header_hash_v0(header_3b),
+    ]
+
+
+def test_header_fork_choice_tie_breaks_by_lowest_tip_hash() -> None:
+    header_1 = _header()
+    header_2a = _header(
+        height=2,
+        prev_header_hash=canonical_header_hash_v0(header_1),
+        tx_root=_root("tie-a-height-2"),
+    )
+    header_2b = _header(
+        height=2,
+        prev_header_hash=canonical_header_hash_v0(header_1),
+        tx_root=_root("tie-b-height-2"),
+    )
+    expected_tip = min(canonical_header_hash_v0(header_2a), canonical_header_hash_v0(header_2b))
+
+    report = evaluate_header_fork_choice_v0(
+        [header_2b, header_1, header_2a],
+        expected_prev_header_hash=ZERO_ROOT,
+    )
+
+    assert report["canonical_tip_hash"] == expected_tip
+    assert report["anchored_chain_count"] == 3
+
+
 def test_validate_body_rejects_missing_batch_cutoff() -> None:
     body = _body()
     ingress = dict(body["ingress"])  # type: ignore[arg-type]
@@ -299,6 +486,50 @@ def test_validate_body_rejects_missing_batch_cutoff() -> None:
 def test_validate_body_rejects_unknown_ingress_status() -> None:
     body = _body(ingress=_ingress(receipt_status="unexpected"))
     with pytest.raises(ValueError, match="status is not allowed"):
+        validate_body_v0(body)
+
+
+def test_validate_body_rejects_batch_cutoff_chain_id_mismatch() -> None:
+    body = _body()
+    body["ingress"]["batch_cutoff"]["chain_id"] = "other-chain"  # type: ignore[index]
+
+    with pytest.raises(ValueError, match="batch_cutoff/body chain_id mismatch"):
+        validate_body_v0(body)
+
+
+def test_validate_body_rejects_batch_cutoff_height_mismatch() -> None:
+    body = _body()
+    body["ingress"]["batch_cutoff"]["height"] = 2  # type: ignore[index]
+
+    with pytest.raises(ValueError, match="batch_cutoff/body height mismatch"):
+        validate_body_v0(body)
+
+
+def test_validate_body_rejects_ingress_receipt_context_mismatch() -> None:
+    body = _body()
+    body["ingress"]["ingress_receipts"][0]["chain_id"] = "other-chain"  # type: ignore[index]
+
+    with pytest.raises(ValueError, match=r"ingress_receipts\[0\]/body chain_id mismatch"):
+        validate_body_v0(body)
+
+    body = _body()
+    body["ingress"]["ingress_receipts"][0]["height"] = 2  # type: ignore[index]
+
+    with pytest.raises(ValueError, match=r"ingress_receipts\[0\]/body height mismatch"):
+        validate_body_v0(body)
+
+
+def test_validate_body_rejects_forced_inclusion_chain_id_mismatch() -> None:
+    body = _body()
+    body["ingress"]["forced_inclusion_requests"][0]["chain_id"] = "other-chain"  # type: ignore[index]
+
+    with pytest.raises(ValueError, match=r"forced_inclusion_requests\[0\]/body chain_id mismatch"):
+        validate_body_v0(body)
+
+    body = _body()
+    body["ingress"]["forced_inclusion_decisions"][0]["chain_id"] = "other-chain"  # type: ignore[index]
+
+    with pytest.raises(ValueError, match=r"forced_inclusion_decisions\[0\]/body chain_id mismatch"):
         validate_body_v0(body)
 
 

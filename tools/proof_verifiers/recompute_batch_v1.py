@@ -171,6 +171,7 @@ def _verify(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
             pools=state.pools,
             lp_balances=state.lp_balances,
             nonces=state.nonces,
+            fee_accumulator=state.fee_accumulator,
         )
     except Exception as exc:
         return False, f"failed to compute state_root: {exc}"

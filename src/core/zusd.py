@@ -16,12 +16,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping, cast
 
+from ..state.canonical import domain_sep_bytes, encode_bytes, encode_uvarint, sha256_hex
 from .zusd_multi_oracle_commit_mcr import check_multi_oracle_commit_mcr
 from .zusd_multi_redeem_selector import select_multi_redeem_vault
 
 E8 = 100_000_000
 BPS_SCALE = 10_000
 MAX_AMOUNT_E8 = 10**30
+ZUSD_SURFACE = "zusd"
 
 ZUSDCommandTag = Literal[
     "advance_epoch",
@@ -241,6 +243,205 @@ class ZUSDStepResult:
     error: str | None = None
 
 
+ZUSD_STATE_FIELD_ORDER = (
+    "now_epoch",
+    "oracle_seen",
+    "oracle_last_update_epoch",
+    "price_e8",
+    "price_pending_e8",
+    "max_oracle_staleness_epochs",
+    "collateral_e8",
+    "debt_e8",
+    "free_debt_e8",
+    "sp_debt_e8",
+    "sp_coll_e8",
+    "protocol_collateral_e8",
+    "protocol_revenue_zusd_cum_e8",
+    "liquidator_compensation_collateral_cum_e8",
+    "mcr_bps",
+    "ccr_bps",
+    "min_debt_open_e8",
+    "max_debt_e8",
+    "max_debt_supply_e8",
+    "max_sp_coll_e8",
+    "max_protocol_coll_e8",
+    "base_rate_bps",
+    "base_rate_last_epoch",
+    "base_rate_decay_per_epoch_bps",
+    "base_rate_borrow_bump_bps",
+    "base_rate_redeem_bump_bps",
+    "borrow_fee_floor_bps",
+    "borrow_fee_max_bps",
+    "redemption_fee_floor_bps",
+    "redemption_fee_max_bps",
+    "liquidation_gas_comp_fixed_collateral_e8",
+    "liquidation_gas_comp_bps",
+)
+
+ZUSD_STATE_DOMAIN_SEP_LABEL = "zusd_state"
+ZUSD_RECEIPT_DOMAIN_SEP_LABEL = "zusd_receipt"
+ZUSD_STATE_VERSION = 1
+ZUSD_RECEIPT_VERSION = 1
+
+_ERROR_CODE = {
+    "oracle already bootstrapped": "oracle_already_bootstrapped",
+    "bootstrap_oracle requires auth_ok=true": "bootstrap_requires_auth",
+    "oracle not bootstrapped": "oracle_not_bootstrapped",
+    "oracle_report requires auth_ok=true": "report_requires_auth",
+    "oracle_report requires non-increasing pending price": "report_price_not_non_increasing",
+    "oracle_commit requires auth_ok=true": "commit_requires_auth",
+    "oracle_commit blocked: vault below MCR at pending price": "commit_below_mcr",
+    "insufficient collateral": "insufficient_collateral",
+    "withdraw blocked by oracle freeze/staleness/recovery mode": "withdraw_blocked_oracle",
+    "withdraw would violate MCR": "withdraw_violates_mcr",
+    "mint blocked by oracle freeze/staleness/recovery mode": "mint_blocked_oracle",
+    "mint below min_debt_open_e8": "mint_below_min_debt",
+    "mint exceeds per-vault max_debt_e8": "mint_exceeds_max_debt",
+    "mint exceeds max_debt_supply_e8": "mint_exceeds_max_supply",
+    "mint would violate MCR": "mint_violates_mcr",
+    "repay exceeds debt": "repay_exceeds_debt",
+    "repay exceeds free debt balance": "repay_exceeds_free_debt",
+    "repay would leave debt below min_debt_open_e8": "repay_below_min_debt",
+    "deposit_sp exceeds free debt balance": "deposit_sp_exceeds_free_debt",
+    "deposit_sp exceeds max_debt_supply_e8": "deposit_sp_exceeds_max_supply",
+    "withdraw_sp exceeds sp_debt": "withdraw_sp_exceeds_sp_debt",
+    "withdraw_sp blocked by oracle freeze/staleness/recovery mode": "withdraw_sp_blocked_oracle",
+    "withdraw_sp blocked: vault not at MCR": "withdraw_sp_below_mcr",
+    "redemption requires initialized oracle": "redeem_oracle_uninitialized",
+    "redemption blocked by oracle pending mismatch": "redeem_pending_mismatch",
+    "redemption blocked by stale oracle": "redeem_stale_oracle",
+    "redemption exceeds debt": "redeem_exceeds_debt",
+    "redemption exceeds free debt": "redeem_exceeds_free_debt",
+    "redemption amount too small at current price": "redeem_amount_too_small",
+    "insufficient vault collateral for redemption": "redeem_insufficient_collateral",
+    "redemption fee consumes all collateral": "redeem_fee_consumes_all",
+    "protocol collateral cap exceeded": "redeem_protocol_cap_exceeded",
+    "redemption would leave debt below min_debt_open_e8": "redeem_below_min_debt",
+    "redemption would violate MCR": "redeem_violates_mcr",
+    "liquidation requires initialized pending oracle price": "liquidate_oracle_uninitialized",
+    "no debt to liquidate": "liquidate_no_debt",
+    "vault not under MCR at pending price": "liquidate_not_under_mcr",
+    "stability pool cannot absorb debt": "liquidate_sp_cannot_absorb",
+    "stability pool collateral cap exceeded": "liquidate_sp_cap_exceeded",
+}
+
+
+def _error_to_code(error: str) -> str:
+    if error in _ERROR_CODE:
+        return _ERROR_CODE[error]
+    if error.endswith("must be a positive int"):
+        return "not_positive_int"
+    if error.endswith("exceeds MAX_AMOUNT_E8") or error.endswith("must be non-negative"):
+        return "bounded_check_failed"
+    if error.startswith("invariant violation:"):
+        return "invariant_violation"
+    if error.startswith("unknown action:"):
+        return "unknown_action"
+    return f"unmapped:{error}"
+
+
+def _state_root(state: ZUSDState) -> str:
+    payload = bytearray(domain_sep_bytes(ZUSD_STATE_DOMAIN_SEP_LABEL, version=ZUSD_STATE_VERSION))
+    for name in ZUSD_STATE_FIELD_ORDER:
+        value = getattr(state, name)
+        payload += encode_uvarint(1 if value is True else (0 if value is False else int(value)))
+    return sha256_hex(bytes(payload))
+
+
+def _receipt_hash(tag: str, post_state_root: str) -> str:
+    root_bytes = bytes.fromhex(post_state_root[2:])
+    payload = (
+        domain_sep_bytes(ZUSD_RECEIPT_DOMAIN_SEP_LABEL, version=ZUSD_RECEIPT_VERSION)
+        + b"TAG"
+        + encode_bytes(tag.encode("ascii"))
+        + b"RT"
+        + encode_bytes(root_bytes)
+    )
+    return sha256_hex(payload)
+
+
+def _state_json(state: ZUSDState) -> dict[str, Any]:
+    return {name: getattr(state, name) for name in ZUSD_STATE_FIELD_ORDER}
+
+
+def _tx_json(cmd: ZUSDCommand) -> dict[str, Any]:
+    return {"kind": str(cmd.tag), **dict(cmd.args)}
+
+
+def _state_from_doc(doc: Mapping[str, Any]) -> ZUSDState:
+    kwargs: dict[str, Any] = {}
+    for name in ZUSD_STATE_FIELD_ORDER:
+        if name == "oracle_seen":
+            if not isinstance(doc.get(name), bool):
+                raise ValueError("zusd authority doc has malformed oracle_seen")
+            kwargs[name] = bool(doc[name])
+        else:
+            kwargs[name] = int(doc[name])
+    return ZUSDState(**kwargs)
+
+
+def _result_to_authority_doc(state: ZUSDState, cmd: ZUSDCommand, result: ZUSDStepResult) -> dict[str, Any]:
+    pre_root = _state_root(state)
+    if result.ok:
+        if result.state is None:
+            raise ValueError("accepted zUSD result missing state")
+        post_root = _state_root(result.state)
+        return {
+            "version": 1,
+            "kernel": ZUSD_SURFACE,
+            "accept": True,
+            "reject_reason": None,
+            "receipt_hash": _receipt_hash(str(cmd.tag), post_root),
+            "receipt": {"tag": str(cmd.tag)},
+            "pre_state_root": pre_root,
+            "post_state_root": post_root,
+            "post_state": {k: (str(v) if k != "oracle_seen" else v) for k, v in _state_json(result.state).items()},
+        }
+    return {
+        "version": 1,
+        "kernel": ZUSD_SURFACE,
+        "accept": False,
+        "reject_reason": _error_to_code(result.error or ""),
+        "receipt_hash": None,
+        "receipt": None,
+        "pre_state_root": pre_root,
+        "post_state_root": pre_root,
+        "post_state": {k: (str(v) if k != "oracle_seen" else v) for k, v in _state_json(state).items()},
+    }
+
+
+def _authority_docs_agree(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    keys = (
+        "version",
+        "kernel",
+        "accept",
+        "reject_reason",
+        "receipt_hash",
+        "pre_state_root",
+        "post_state_root",
+        "post_state",
+    )
+    if any(left.get(k) != right.get(k) for k in keys):
+        return False
+    if bool(left.get("accept")):
+        return left.get("receipt") == right.get("receipt")
+    return True
+
+
+def _authority_doc_to_result(doc: dict[str, Any], *, python_shadow: ZUSDStepResult | None = None) -> ZUSDStepResult:
+    if bool(doc.get("accept")):
+        state_doc = doc.get("post_state")
+        if not isinstance(state_doc, Mapping):
+            raise ValueError("accepted zUSD authority doc missing post_state")
+        effects = python_shadow.effects if python_shadow is not None and python_shadow.ok else None
+        return ZUSDStepResult(ok=True, state=_state_from_doc(state_doc), effects=effects)
+    reason = doc.get("reject_reason")
+    if not isinstance(reason, str):
+        raise ValueError("rejected zUSD authority doc missing reason")
+    error = python_shadow.error if python_shadow is not None and not python_shadow.ok else reason
+    return ZUSDStepResult(ok=False, error=error)
+
+
 def init_state() -> ZUSDState:
     return ZUSDState()
 
@@ -299,7 +500,7 @@ def _risky_ops_allowed(state: ZUSDState) -> bool:
     return True
 
 
-def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
+def _step_python(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
     try:
         tag = str(cmd.tag)
         if tag == "advance_epoch":
@@ -611,6 +812,39 @@ def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
         return ZUSDStepResult(ok=True, state=ns, effects=eff)
     except Exception as exc:
         return ZUSDStepResult(ok=False, error=str(exc))
+
+
+def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
+    from src.runtime.authority import AuthorityMode, active_mode, decide
+    from src.runtime.rust_invoker import zusd_op
+
+    mode = active_mode(ZUSD_SURFACE)
+    if mode is AuthorityMode.PYTHON_AUTHORITY:
+        return _step_python(state, cmd)
+
+    python_shadow: ZUSDStepResult | None = None
+
+    def python_doc() -> dict[str, Any]:
+        nonlocal python_shadow
+        if python_shadow is None:
+            python_shadow = _step_python(state, cmd)
+        return _result_to_authority_doc(state, cmd, python_shadow)
+
+    def rust_doc() -> dict[str, Any]:
+        return zusd_op(state=_state_json(state), tx=_tx_json(cmd))
+
+    decision = decide(
+        ZUSD_SURFACE,
+        mode,
+        python_fn=python_doc,
+        rust_fn=rust_doc,
+        compare=_authority_docs_agree,
+    )
+    if mode is AuthorityMode.RUST_SHADOW:
+        if python_shadow is None:
+            python_shadow = _step_python(state, cmd)
+        return python_shadow
+    return _authority_doc_to_result(decision.result, python_shadow=python_shadow)
 
 
 # ---------------------------------------------------------------------------

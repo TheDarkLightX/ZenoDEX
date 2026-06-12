@@ -4,9 +4,18 @@ from dataclasses import replace
 
 from src.core.dex import DexState
 from src.core.perps import PerpClearinghouse3pTransferMarketState
+from src.integration.perp_engine import (
+    _ORACLE_PERPS_INDEX_QUERY_ID,
+    _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+    PerpEngineConfig,
+    _perps_clearinghouse_settle_oracle_runtime_facts,
+    apply_perp_ops,
+)
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
+from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
+from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
 _CHAIN_ID = "tau-test"
@@ -48,6 +57,23 @@ def _apply_result(
     cfg = PerpEngineConfig(chain_id=_CHAIN_ID, oracle_pubkey=_ORACLE_PUBKEY, operator_pubkey=operator_pubkey)
     return apply_perp_ops(
         config=cfg,
+        state=state,
+        operations={"5": ops},
+        tx_sender_pubkey=tx_sender_pubkey,
+        block_timestamp=int(block_timestamp),
+    )
+
+
+def _apply_result_with_config(
+    *,
+    state: DexState,
+    tx_sender_pubkey: str,
+    ops: list[dict[str, object]],
+    config: PerpEngineConfig,
+    block_timestamp: int = _BLOCK_TIMESTAMP,
+):
+    return apply_perp_ops(
+        config=config,
         state=state,
         operations={"5": ops},
         tx_sender_pubkey=tx_sender_pubkey,
@@ -142,6 +168,100 @@ def _signed_publish_price(*, market_id: str, price_e8: int, oracle_nonce: int, d
     )
     base["oracle_sig"] = _sign(base, signer_privkey=_ORACLE_SK, signer_pubkey=_ORACLE_PUBKEY, nonce=oracle_nonce)
     return base
+
+
+def _accepted_bridge_verifier(expected_action_id: str):
+    def _verifier(_bridge: object) -> dict[str, object]:
+        return {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            "action_id": expected_action_id,
+        }
+
+    return _verifier
+
+
+def _clearinghouse_authorization_for(runtime: dict[str, object], *, observed_epoch: int) -> dict[str, object]:
+    value = int(runtime["runtime_value_e8"])
+    query_id = str(runtime["query_id"])
+    auth = {
+        "consumer_module": "zenodex.perps",
+        "action_kind": "settle_epoch",
+        "action_id": str(runtime["action_id"]),
+        "action_facts_hash": str(runtime["action_facts_hash"]),
+        "pre_state_hash": str(runtime["pre_state_hash"]),
+        "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        "query_id": query_id,
+        "value_e8": value,
+        "value_hash": oracle_value_hash(query_id=query_id, value_e8=value, observed_epoch=observed_epoch),
+        "confidence_e8": 10_000,
+        "deviation_bps": 5,
+        "observed_epoch": int(observed_epoch),
+        "expires_at_epoch": int(runtime["now_epoch"]),
+        "feed_id": "feed:perps:index",
+        "feed_registry_root": semantic_hash("test.feed-root", {"surface": "perps-clearinghouse-3p"}),
+        "query_policy_root": semantic_hash("test.query-policy-root", {"surface": "perps-clearinghouse-3p"}),
+        "source_registry_root": semantic_hash("test.source-root", {"surface": "perps-clearinghouse-3p"}),
+        "reporter_registry_root": semantic_hash("test.reporter-root", {"surface": "perps-clearinghouse-3p"}),
+        "evidence_class": "O3",
+        "economic_envelope_id": "perps-clearinghouse-critical-envelope",
+        "receipt_graph_root": semantic_hash("test.receipt-graph-root", {"surface": "perps-clearinghouse-3p"}),
+    }
+    return authorization_bundle(auth)
+
+
+def _ready_ch3p_price_published_market() -> tuple[DexState, str, str]:
+    market_id = "perp:ch3p:oracle-auth"
+    quote_asset = "0x" + "91" * 32
+    relayer = "ff" * 48
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[
+            _signed_init_market_3p(
+                market_id=market_id,
+                quote_asset=quote_asset,
+                nonce_a=1,
+                nonce_b=1,
+                nonce_c=1,
+                deadline=_DEADLINE,
+            )
+        ],
+    )
+    state = _apply(state=state, tx_sender_pubkey=relayer, ops=[_op(market_id, "advance_epoch", version="1.1", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_signed_publish_price(market_id=market_id, price_e8=100_000_000, oracle_nonce=1, deadline=_DEADLINE)],
+    )
+    return state, market_id, relayer
+
+
+def _clearinghouse_authorized_config(state: DexState, market_id: str) -> tuple[PerpEngineConfig, dict[str, object]]:
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    assert isinstance(market, PerpClearinghouse3pTransferMarketState)
+    cfg = PerpEngineConfig(
+        chain_id=_CHAIN_ID,
+        oracle_pubkey=_ORACLE_PUBKEY,
+        require_oracle_adapter_for_clearinghouse_settle_epoch=True,
+        require_oracle_authorization_for_clearinghouse_settle_epoch=True,
+    )
+    runtime = _perps_clearinghouse_settle_oracle_runtime_facts(
+        cfg,
+        market_id=market_id,
+        market_kind="clearinghouse_3p_transfer_v1",
+        quote_asset=market.quote_asset,
+        state=market.state,
+        participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey, market.account_c_pubkey),
+    )
+    cfg = replace(cfg, oracle_adapter_bridge_verifier=_accepted_bridge_verifier(str(runtime["action_id"])))
+    return cfg, runtime
 
 
 def test_init_market_3p_is_strict_about_prefix_and_signatures() -> None:
@@ -426,6 +546,51 @@ def test_settle_epoch_3p_can_transfer_distressed_side_and_preserve_conservation(
         + int(m.state["fee_pool_e8"])
         == int(m.state["net_deposited_e8"])
     )
+
+
+def test_settle_epoch_3p_requires_typed_oracle_authorization_when_configured() -> None:
+    state, market_id, relayer = _ready_ch3p_price_published_market()
+    cfg, _runtime = _clearinghouse_authorized_config(state, market_id)
+
+    res = _apply_result_with_config(
+        state=state,
+        tx_sender_pubkey=relayer,
+        config=cfg,
+        ops=[
+            _op(
+                market_id,
+                "settle_epoch",
+                version="1.1",
+                oracle_adapter_bridge={"schema": "test"},
+            )
+        ],
+    )
+
+    assert res.ok is False
+    assert res.error == "clearinghouse_settle_oracle_authorization_required"
+
+
+def test_settle_epoch_3p_accepts_matching_typed_oracle_authorization() -> None:
+    state, market_id, relayer = _ready_ch3p_price_published_market()
+    cfg, runtime = _clearinghouse_authorized_config(state, market_id)
+    auth = _clearinghouse_authorization_for(runtime, observed_epoch=int(runtime["now_epoch"]))
+
+    res = _apply_result_with_config(
+        state=state,
+        tx_sender_pubkey=relayer,
+        config=cfg,
+        ops=[
+            _op(
+                market_id,
+                "settle_epoch",
+                version="1.1",
+                oracle_adapter_bridge={"schema": "test"},
+                oracle_authorization=auth,
+            )
+        ],
+    )
+
+    assert res.ok is True, res.error
 
 
 def test_set_market_params_3p_rejects_penalty_increase_with_open_positions() -> None:

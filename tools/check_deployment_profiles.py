@@ -5,16 +5,55 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any, Mapping
 
 import yaml  # type: ignore[import-untyped]
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.runtime.authority import (  # noqa: E402
+    AuthorityError,
+    load_authority_policy,
+    validate_authority_policy,
+)
+from src.integration.deploy_profile import ALLOWED_PROFILE_KEYS  # noqa: E402
 DEFAULT_PROFILE_DIR = ROOT / "config" / "deploy"
 SCHEMA = "zenodex/deployment_profile/v1"
 REPORT_SCHEMA = "zenodex/deployment_profiles_report/v1"
 REQUIRED_PROFILES = ("local-dev", "public-testnet", "production-strict")
+ALLOWED_PROFILE_KEYS = frozenset(
+    {
+        "schema",
+        "profile_id",
+        "threat_model",
+        "allowed_routes",
+        "required_auth",
+        "key_policy",
+        "proof_policy",
+        "upba_policy",
+        "peer_policy",
+        "gossip_policy",
+        "observability_policy",
+        "oracle_policy",
+        "runtime_policy",
+        "runtime_authority_policy",
+    }
+)
+KNOWN_ALLOWED_ROUTES = frozenset({"health", "local_demo", "signed_intents", "public_bundle", "peer_check"})
+ORACLE_POLICY_KEYS = (
+    "dex_routing_oracle_adapter_required",
+    "zusd_oracle_adapter_required",
+    "zusd_oracle_authorization_required",
+    "zusd_monetary_wallet_oracle_authorization_required",
+    "perps_clearinghouse_settle_oracle_adapter_required",
+    "perps_isolated_settle_oracle_adapter_required",
+    "perps_isolated_partial_liquidate_oracle_adapter_required",
+    "perps_isolated_settle_oracle_authorization_required",
+)
 
 
 def _mapping(value: Any, name: str, errors: list[str]) -> Mapping[str, Any]:
@@ -35,8 +74,18 @@ def _require_bool(obj: Mapping[str, Any], key: str, errors: list[str], prefix: s
 def validate_deployment_profile(profile: Any) -> dict[str, Any]:
     errors: list[str] = []
     obj = _mapping(profile, "profile", errors)
+    unknown_keys = sorted(set(obj.keys()) - ALLOWED_PROFILE_KEYS)
+    if unknown_keys:
+        errors.append(f"profile has unknown top-level keys: {unknown_keys}")
     if obj.get("schema") != SCHEMA:
         errors.append("schema mismatch")
+    # Mirror the runtime loader's fail-closed contract: an unknown top-level key
+    # (e.g. a mistyped policy block) must be rejected here too, so this CI gate
+    # cannot pass a profile the runtime loader would refuse. Shares the single
+    # ALLOWED_PROFILE_KEYS allowlist with src/integration/deploy_profile.py.
+    unknown = sorted(str(k) for k in obj if k not in ALLOWED_PROFILE_KEYS)
+    if unknown:
+        errors.append(f"unknown top-level keys: {unknown}")
     profile_id = obj.get("profile_id")
     if not isinstance(profile_id, str) or not profile_id:
         errors.append("profile_id must be a non-empty string")
@@ -46,8 +95,20 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
     routes = obj.get("allowed_routes")
     if not isinstance(routes, list) or not routes or not all(isinstance(item, str) and item for item in routes):
         errors.append("allowed_routes must be a non-empty string list")
+    else:
+        unknown_routes = sorted(set(routes) - KNOWN_ALLOWED_ROUTES)
+        if unknown_routes:
+            errors.append(f"allowed_routes contains unknown routes: {unknown_routes}")
 
-    for key in ("required_auth", "key_policy", "proof_policy", "peer_policy", "gossip_policy", "observability_policy"):
+    for key in (
+        "required_auth",
+        "key_policy",
+        "proof_policy",
+        "peer_policy",
+        "gossip_policy",
+        "observability_policy",
+        "oracle_policy",
+    ):
         _mapping(obj.get(key), key, errors)
 
     key_policy = _mapping(obj.get("key_policy"), "key_policy", errors)
@@ -55,6 +116,7 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
     peer_policy = _mapping(obj.get("peer_policy"), "peer_policy", errors)
     gossip_policy = _mapping(obj.get("gossip_policy"), "gossip_policy", errors)
     observability_policy = _mapping(obj.get("observability_policy"), "observability_policy", errors)
+    oracle_policy = _mapping(obj.get("oracle_policy"), "oracle_policy", errors)
 
     raw_keys = _require_bool(key_policy, "raw_private_key_flags_allowed", errors, "key_policy")
     key_receipts = _require_bool(key_policy, "production_key_receipts_required", errors, "key_policy")
@@ -62,6 +124,10 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
     dynamic_peer_cap = _require_bool(peer_policy, "dynamic_peer_cap_required", errors, "peer_policy")
     transport_auth = _require_bool(gossip_policy, "transport_auth_required", errors, "gossip_policy")
     metrics_required = _require_bool(observability_policy, "metrics_required", errors, "observability_policy")
+    oracle_flags = {
+        key: _require_bool(oracle_policy, key, errors, "oracle_policy")
+        for key in ORACLE_POLICY_KEYS
+    }
 
     upba_policy = obj.get("upba_policy")
     if upba_policy not in {"conservative", "balanced", "fast"}:
@@ -82,9 +148,26 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
             errors.append("production-strict must require metrics")
         if upba_policy != "conservative":
             errors.append("production-strict must use conservative UPBA policy")
+        for key, value in oracle_flags.items():
+            if value is not True:
+                errors.append(f"production-strict must require oracle_policy.{key}")
 
     if profile_id == "public-testnet" and raw_keys is not False:
         errors.append("public-testnet must reject raw private key flags")
+    if profile_id == "public-testnet":
+        for key, value in oracle_flags.items():
+            if value is not True:
+                errors.append(f"public-testnet must require oracle_policy.{key}")
+
+    # Runtime authority policy (optional section; absent => safe all-Python).
+    # A malformed policy, or a half-configured Rust authority under public
+    # testnet / production-strict, is a deployment-facts error.
+    if "runtime_authority_policy" in obj:
+        try:
+            policy = load_authority_policy(obj)
+            validate_authority_policy(policy, profile_id=profile_id or "")
+        except (AuthorityError, ValueError, TypeError) as exc:
+            errors.append(f"runtime_authority_policy: {exc}")
 
     return {
         "profile_id": profile_id,

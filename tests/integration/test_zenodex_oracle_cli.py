@@ -1067,6 +1067,7 @@ def test_local_api_write_endpoints_are_explicitly_enabled(tmp_path: Path) -> Non
         assert "/api/oracle/aggregate/build" in ready["write_paths"]
         assert "/api/oracle/read/accept" in ready["write_paths"]
         assert "/api/oracle/authorization/build" in ready["write_paths"]
+        assert "/api/oracle/authorization/build-from-runtime" in ready["write_paths"]
         assert "/api/oracle/dispute/open" in ready["write_paths"]
         assert "/api/oracle/dispute/resolve" in ready["write_paths"]
         assert "/api/oracle/query/fund" in ready["write_paths"]
@@ -1199,6 +1200,29 @@ def test_local_api_write_endpoints_are_explicitly_enabled(tmp_path: Path) -> Non
         assert verified["ok"] is True
         assert verified["receipt_check"]["receipt_kind"] == "oracle_authorization_bundle"
         assert verified["receipt_check"]["typed_ok"] is True
+        runtime_action = {
+            "consumer_module": "zenodex.zusd",
+            "action_kind": "mint",
+            "action_id": "sha256:" + "5" * 64,
+            "action_facts_hash": "sha256:" + "6" * 64,
+            "pre_state_hash": "sha256:" + "7" * 64,
+            "profile_id": "critical-zusd-v1",
+            "query_id": query_id,
+            "runtime_value_e8": 123456789,
+            "now_epoch": 12,
+        }
+        status, runtime_authorization = _http_post_json(
+            f"{base}/api/oracle/authorization/build-from-runtime",
+            {"runtime_action": runtime_action},
+        )
+        assert status == 200
+        assert runtime_authorization["authorization"]["value_e8"] == 123456789
+        assert runtime_authorization["runtime_action"] == runtime_action
+        runtime_verified = _http_json(
+            f"{base}/api/oracle/verify-receipt?id={urllib.parse.quote(runtime_authorization['authorization_id'])}"
+        )
+        assert runtime_verified["ok"] is True
+        assert runtime_verified["receipt_check"]["typed_ok"] is True
 
         status, paid = _http_post_json(f"{base}/api/oracle/rewards/pay", {"amount_e8": 5})
         assert status == 200
@@ -1217,7 +1241,7 @@ def test_local_api_write_endpoints_are_explicitly_enabled(tmp_path: Path) -> Non
         assert dashboard["summary"]["report_count"] == 1
         assert dashboard["summary"]["aggregate_count"] == 1
         assert dashboard["summary"]["accepted_read_count"] == 1
-        assert dashboard["summary"]["authorization_count"] == 1
+        assert dashboard["summary"]["authorization_count"] == 2
         assert dashboard["summary"]["pending_rewards_e8"] == 12
         assert dashboard["summary"]["paid_rewards_e8"] == 5
         assert dashboard["recent_reward_receipts"][-1]["reward_entry_id"] == paid["reward_receipt"]["reward_entry_id"]

@@ -134,6 +134,17 @@ def test_upba_grid_policy_rejects_unsupported_upba_policy() -> None:
     assert "unsupported_upba_policy_id" in result["errors"]
 
 
+
+def test_upba_grid_policy_rejects_unsupported_trade_direction() -> None:
+    policy = sample_policy()
+    policy["trade_direction"] = "quote_to_base"
+    policy = _with_fresh_id(policy)
+
+    result = check_policy(policy)
+
+    assert result["status"] == "rejected"
+    assert "unsupported_trade_direction" in result["errors"]
+
 def test_upba_grid_policy_cli_sample_and_verify(tmp_path: Path) -> None:
     policy_path = tmp_path / "upba-grid-policy.json"
 

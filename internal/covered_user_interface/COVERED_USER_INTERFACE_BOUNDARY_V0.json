@@ -1,0 +1,53 @@
+{
+  "activation_allowed": false,
+  "controls": [
+    "self_custody_wallet_signing",
+    "no_ui_investment_recommendations",
+    "objective_route_and_price_labels",
+    "no_specific_transaction_solicitation",
+    "no_custody_or_fund_control",
+    "no_order_flow_or_affiliate_bias",
+    "covered_ui_lint_strict",
+    "public_claim_scope_gate",
+    "counsel_review_required"
+  ],
+  "counsel_review_required": true,
+  "legal_review_complete": false,
+  "lint_policy": {
+    "max_findings": 0,
+    "required_rule_ids": [
+      "subjective_route_or_price_label",
+      "recommendation_language",
+      "execution_or_settlement_discretion_language",
+      "custody_or_control_language",
+      "order_flow_or_affiliate_bias_language"
+    ],
+    "strict": true
+  },
+  "non_claims": [
+    "broker_dealer_registration_clearance",
+    "securities_law_clearance",
+    "investment_advice",
+    "custody_or_fund_control",
+    "transaction_recommendations",
+    "public_launch_readiness"
+  ],
+  "promotion_boundary": {
+    "blockers": [
+      "external_counsel_review_not_complete",
+      "covered_ui_lint_must_remain_clean",
+      "public_claim_scope_must_remain_non_advisory"
+    ],
+    "claim_registry_entry_allowed": false,
+    "public_launch_allowed": false,
+    "requires_external_legal_review": true
+  },
+  "public_claims_allowed": false,
+  "schema": "zenodex.covered_user_interface_boundary.v0",
+  "status": "internal_boundary_only",
+  "ui_paths": [
+    "tools/dex-ui/src",
+    "tools/dex-ui/README.md",
+    "tools/dex-ui/index.html"
+  ]
+}

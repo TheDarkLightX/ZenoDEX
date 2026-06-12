@@ -90,6 +90,30 @@ migration plan and is **kernel-agnostic**.
 larger than `u64`). Tools must preserve integer precision (the Rust CLI enables
 `serde_json`'s `arbitrary_precision`).
 
+Replayed via `replay-fee-trace`. The live authority bridge uses `fee-route`,
+which takes an explicit accumulator plus one `tx` so Rust can evaluate the
+current route without reconstructing prior fee history. The accumulator shape is:
+
+```json
+{
+  "dust_by_stream": [
+    {
+      "source": "dex", "asset": "zUSD", "amount": 1,
+      "buyburn_remainder": 6000, "stakers_remainder": 0,
+      "reserve_remainder": 2000, "hosts_remainder": 2000
+    }
+  ],
+  "cum_buyburn": [{"asset": "zUSD", "amount": 10}],
+  "cum_stakers": [],
+  "cum_reserve": [],
+  "cum_hosts": []
+}
+```
+
+Accumulator input amounts and per-bucket scaled remainder numerators are JSON
+integers; bridge output values are decimal strings to preserve exact `u128` values
+across Python/Rust JSON tooling.
+
 ## `tx` kinds — `replay_guard`
 
 ```json
@@ -100,7 +124,10 @@ larger than `u64`). Tools must preserve integer precision (the Rust CLI enables
 }
 ```
 
-Replayed via the `replay-guard-trace` CLI subcommand. Reject codes:
+Replayed via the `replay-guard-trace` CLI subcommand for full traces. The live
+authority bridge uses `replay-guard-admit`, which takes explicit
+`state_entries` plus one `tx` so Rust can evaluate the current transition
+without replaying sender history. Reject codes:
 `malformed_tx`, `unknown_tx_kind`, `unknown_field:<name>` (structural), and
 `invalid_sender`, `invalid_nonce`, `duplicate_nonce` (`nonce == last`),
 `stale_nonce` (`nonce < last`), `nonce_gap` (`nonce > last + 1`) (semantic).
@@ -120,7 +147,10 @@ Sender canonicalization matches the runtime fixed-hex helper: raw hex, `0x` /
   "asset": "0x<64 hex>", "amount": N }
 ```
 
-Replayed via `replay-balance-trace`. `credit` funds `(recipient, asset)`;
+Replayed via `replay-balance-trace`. The live authority bridge uses
+`balance-op`, which takes explicit sparse `state_entries` plus one `tx` so Rust
+can evaluate the current credit/transfer without reconstructing history.
+`credit` funds `(recipient, asset)`;
 `transfer` moves `amount` of `asset` from `sender` to `recipient` and is
 supply-conserving. `amount` is an integer in `[1, MAX_BALANCE]`
 (`MAX_BALANCE = 2**112 - 1`). Reject codes: `malformed_tx`, `unknown_tx_kind`,
@@ -148,9 +178,11 @@ collapse to lowercase `0x...` form before hashing or state updates.
         | "deposit_sp" | "withdraw_sp" | "liquidate", ... }
 ```
 
-Replayed via `replay-zusd-trace`. The authority is `src/core/zusd.py`'s
-single-vault `step`; the Rust shadow mirrors it. Unknown fields are **ignored**
-(matching the authority). Amounts are arbitrary positive integers — the
+Replayed via `replay-zusd-trace`; live one-step authority uses `zusd-op` with
+the full 32-field state object plus one `tx`. The authority is
+`src/core/zusd.py`'s single-vault `step`; `_step_python` is the reference used by
+the shadow differential. Unknown fields are **ignored** (matching the
+authority). Amounts are arbitrary positive integers — the
 authority's `_require_pos_int` is unbounded and oversized values are rejected by
 command-specific logic, so the shadow uses bignum arithmetic. Reject reasons are
 stable codes mapped from the authority's prose (e.g. `mint_blocked_oracle`,
@@ -158,7 +190,10 @@ stable codes mapped from the authority's prose (e.g. `mint_blocked_oracle`,
 `not_positive_int`, `bounded_check_failed`, `invariant_violation`,
 `unknown_action`, ...); see `tools/runtime/zusd_kernel_lib.py`. State root is
 `domain_sep("zusd_state", v1)` over the 32 state fields as uvarints; the receipt
-hash commits to `(command_tag, post_state_root)`.
+hash commits to `(command_tag, post_state_root)`. In the public-testnet
+authority lane, Rust decides the post-state and Python verifies the same
+state-root, receipt hash, reject code, and post-state fields. Event/effect
+payloads remain Python-derived after agreement.
 
 ## `tx` kinds — `burn_receipts`
 
@@ -180,6 +215,70 @@ four rails (replay / amount-budget / supply / batch-sum). Reject codes
 `post_state_root` equals the `initial_state_root`; on accept the `receipt_hash`
 commits to the validated rail tuple. The receipt structural envelope (schema /
 canonical-JSON hash) of `verify_burn_receipt` is validated in Python only.
+The live authority bridge reuses `verify-burn-trace` with one step after Python
+has validated the envelope and coerced the host/accounting fields to integers.
+
+## `tx` kinds — `cpmm_settlement`
+
+A single constant-product pool threaded across the trace. Three kinds:
+
+```json
+{ "kind": "init_pool", "reserve0": 1000000, "reserve1": 2000000, "fee_bps": 30 }
+{ "kind": "swap_exact_in",  "zero_for_one": true,  "amount_in": 10000,  "min_amount_out": 0 }
+{ "kind": "swap_exact_out", "zero_for_one": false, "amount_out": 5000,  "max_amount_in": 1000000000,
+  "max_overdelivery_gap_bps": 200 }
+```
+
+Replayed via `settle-swap-trace`; the live one-step authority bridge uses
+`cpmm-op`. The authority is
+`src/kernels/python/settlement_swap_runtime_v1.py`
+(`quote_cpmm_swap_exact_in` / `quote_cpmm_swap_exact_out`); the Rust shadow is
+`zenodex-runtime-core::cpmm_swap`. Reserves/fee are domain-bounded
+(`reserve ∈ [1, DEX_POOL_RESERVE_MAX]`, `fee_bps ∈ [0, 10000]`); fee is ceil,
+exact-in output is floor, exact-out input is ceil. Exact-out also enforces the
+same overdelivery-gap cap as Python, default `200` bps. Reject codes:
+`unknown_tx_kind`, `unknown_field:<name>`, `already_initialized`,
+`invalid_reserve`, `invalid_fee_bps`, `pool_not_initialized`,
+`reserve_domain_exceeded`, `reserve_out_of_domain`, `amount_out_ge_reserve`,
+`overdelivery_gap`, `trade_too_small`, `slippage`. State root is
+`domain_sep("cpmm_pool", v1)` over `(initialized, reserve0, reserve1, fee_bps)`
+as uvarints. `cpmm-op` also returns `amount_out_quote`, `overdelivery_gap`, and
+`gap_bps` for exact-out shadow comparison; these fields are not part of the
+receipt hash. This is the per-pool settlement **primitive**; multi-pool
+aggregation, swap-ordering heuristics, CoW netting, and liquidity intents
+(`src/core/batch_clearing.py`) remain Python-only.
+
+## Non-trace differential subcommands
+
+Two surfaces are pure functions of a value rather than a state-threaded trace,
+so they use a `{ "cases": [ ... ] }` request shape (not the golden-trace schema)
+and emit `{ "version": 1, "results": [ ... ] }`:
+
+* **`canonical-hash`** — canonical-primitive vectors. Per-case ops:
+  `{"op":"json_bytes"|"json_hash","value":<any>}` (canonical JSON bytes / its
+  SHA-256), `{"op":"hex_to_bytes","hex":"0x..","nbytes":N}`, and
+  `{"op":"domain_json_hash","label":"..","version":1,"value":<any>}` =
+  `sha256(domain_sep(label,version) + canonical_json_bytes(value))`. The last op
+  shadows the DEX intent auth message hash (`label="dex_intent_sig:{chain_id}"`)
+  and the burn-receipt body hash (`label="zenodex.burn_receipt/v1"`). Floats and
+  malformed hex / domain labels reject with stable codes
+  (`float_not_allowed`, `bad_hex_format`, `bad_hex_chars`, `bad_domain_label`,
+  `bad_domain_version`).
+* **`verify-state-root`** — network state-root (v5). Each case is a full state
+  snapshot (`balances`/`pools`/`lp_balances`/`lp_duration_risk`/`nonces`/
+  `fee_accumulator`); the
+  result is `{"ok":true,"state_root":"0x.."}` or `{"ok":false,"code":".."}`.
+* **`perp-math`** — perp stateless risk math (`src/core/perp_v2/math.py`). Each
+  case is `{"op":<fn>, <args...>}` for one of `is_oracle_fresh`,
+  `oracle_move_violated`, `settle_price`, `notional_quote`, `maint_margin_req`,
+  `init_margin_req`, `pnl_quote`, `is_liquidatable`, `funding_payment`. Results
+  carry a `flag` (predicates) or a decimal-string `value` (signed `i128`).
+  Inputs are signed; magnitude args beyond ±1e18 or bps args beyond ±1e7 reject
+  with `out_of_domain` (the Python authority is unbounded — out-of-domain inputs
+  are not part of the differential). This subcommand is also the live one-step
+  authority bridge for the `public-testnet` `perp_math` surface; malformed bridge
+  shape or Python/Rust disagreement rejects under
+  `rust_authority_with_python_shadow`.
 
 ## Rejection codes (stable)
 
@@ -230,14 +329,17 @@ ordered byte pre-image built with the repo's canonical primitives
 `SRC`(source) `AST`(asset) `AMT`(amount) `BBN`(buyburn) `STK`(stakers)
 `RSV`(reserve) `HST`(hosts) `DST`(dust).
 
-**Accumulator root** (`domain_sep "fee_accumulator" v1`): `DST` encodes a
-sorted list of `(source, asset, amount)` dust entries. `CBB`, `CST`, `CRS`, and
+**Accumulator root** (`domain_sep "fee_accumulator" v2`): `DST` encodes a
+sorted list of `(source, asset, amount, buyburn_remainder, stakers_remainder,
+reserve_remainder, hosts_remainder)` dust entries. `CBB`, `CST`, `CRS`, and
 `CHS` each encode a sorted list of `(asset, amount)` bucket entries for
 buyburn, stakers, reserve, and hosts. Empty and zero entries are omitted.
 
-Dust is scoped by `(source, asset)`. Bucket totals are scoped by `asset`. This
-prevents a remainder or balance in one token unit from being consumed as another
-token unit.
+Dust is scoped by `(source, asset)` and its fractional entitlement is carried as
+per-bucket basis-point remainders, so one bucket cannot consume another bucket's
+rounding share across repeated tiny fees. Bucket totals are scoped by `asset`.
+This prevents a remainder or balance in one token unit from being consumed as
+another token unit.
 
 No floats appear anywhere in a pre-image; all numbers are LEB128-encoded
 integers. Output ordering is explicit (never map iteration).

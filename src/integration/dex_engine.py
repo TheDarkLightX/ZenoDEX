@@ -36,6 +36,7 @@ from ..core.uniform_batch_optimality import (
 from ..state.canonical import (
     CANONICAL_ENCODING_VERSION,
     bounded_json_utf8_size,
+    canonical_hex_fixed_allow_0x,
     canonical_json_bytes,
     domain_sep_bytes,
     sha256_hex,
@@ -383,16 +384,20 @@ def production_config_violations(
         reasons.append("consensus_mode must be true")
     if bool(config.enable_test_fault_injection) or config.fault_injection is not None:
         reasons.append("test fault injection must be disabled")
+    if bool(config.require_proof_when_present) and not bool(config.proof_config.enabled):
+        reasons.append("require_proof_when_present requires an enabled proof verifier")
 
     dex_config = config.dex_config
-    if not bool(dex_config.require_all_nonces):
-        reasons.append("dex_config.require_all_nonces must be true")
-    if bool(dex_config.allow_legacy_nonce_free_steps):
-        reasons.append("dex_config.allow_legacy_nonce_free_steps must be false")
     if dex_config.settlement_validation != "strong_proof_carrying":
         reasons.append("dex_config.settlement_validation must be strong_proof_carrying")
     if bool(dex_config.allow_snapshot_bound_quote_bindings):
         reasons.append("dex_config.allow_snapshot_bound_quote_bindings must be false")
+    if not bool(dex_config.reject_settlements_with_rejected_intents):
+        reasons.append("dex_config.reject_settlements_with_rejected_intents must be true")
+    if not bool(dex_config.require_all_nonces):
+        reasons.append("dex_config.require_all_nonces must be true")
+    if bool(dex_config.allow_legacy_nonce_free_steps):
+        reasons.append("dex_config.allow_legacy_nonce_free_steps must be false")
 
     if require_strict_upba:
         if not bool(config.allow_uniform_batch_certificate):
@@ -1067,6 +1072,7 @@ def _validate_critical_settlement_oracle_authorization(
             pools=state.pools,
             lp_balances=state.lp_balances,
             nonces=state.nonces,
+            fee_accumulator=state.fee_accumulator,
         )
     except Exception as exc:
         return f"critical_settlement_oracle_authorization_rejected: invalid pre-state root: {_clean_error(exc)}"
@@ -1083,6 +1089,56 @@ def _validate_critical_settlement_oracle_authorization(
     if not bool(result.get("typed_ok", False)):
         errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
         return "critical_settlement_oracle_authorization_rejected: " + "; ".join(str(err) for err in errors)
+    return None
+
+
+def _require_canonical_committed_identifiers(intents: List[Intent]) -> Optional[str]:
+    """Consensus-posture check: every identifier that becomes a committed state key
+    must be canonical fixed-length hex (accept ⊆ committable).
+
+    ``compute_state_root`` decodes balance pubkeys (48 bytes), assets/pool-ids (32
+    bytes) via ``hex_to_bytes_fixed`` and raises on any non-canonical value, so an
+    accepted transition whose post-state carries a raw/non-hex identifier is
+    un-committable (it would stall a block-producer that roots the post-state, and
+    splits snapshot-vs-root identity). Sender pubkeys are already constrained by
+    signature verification; the remaining ingress gaps are swap ``recipient`` (a
+    48-byte pubkey, validated as a non-empty string only) and create-pool
+    ``asset0``/``asset1`` (32-byte assets, validated for ordering/non-emptiness
+    only). Returns a stable reject string, or None when all identifiers are
+    canonical. Callers gate this on ``require_intent_signatures`` so the permissive
+    friendly-name dev/test regime is untouched.
+
+    The identifier must already EQUAL its canonical (``0x``-prefixed, lowercase)
+    form, not merely be decodable. ``hex_to_bytes_fixed`` decodes case-insensitively
+    and the root dedups on the decoded bytes, so a mixed-case or raw-form variant is
+    individually rootable yet collides with its lowercase twin, creating a per-pubkey
+    double-count and a "duplicate decoded" root failure (audit C-1b/C-2). Requiring
+    the exact canonical form closes both the non-hex (un-rootable) and case/format
+    variant (collision) gaps at once.
+    """
+
+    def _is_canonical(value: object, nbytes: int) -> bool:
+        if not isinstance(value, str):
+            return False
+        try:
+            return canonical_hex_fixed_allow_0x(value, nbytes=nbytes, name="id") == value
+        except (ValueError, TypeError):
+            return False
+
+    for intent in intents:
+        # sender_pubkey is decoded case-insensitively by signature verification
+        # (_hex_to_bytes_allow_0x accepts raw and mixed-case), yet it becomes a
+        # committed balance/LP key. The swap default recipient and the create-pool
+        # creator's minted LP both key on the sender, so it must be canonical too.
+        if not _is_canonical(intent.sender_pubkey, 48):
+            return "non-canonical sender_pubkey"
+        recipient = intent.get_field("recipient")
+        if recipient is not None and not _is_canonical(recipient, 48):
+            return "non-canonical recipient"
+        if intent.kind == IntentKind.CREATE_POOL:
+            for field_name in ("asset0", "asset1"):
+                if not _is_canonical(intent.get_field(field_name), 32):
+                    return "non-canonical pool asset"
     return None
 
 
@@ -1348,6 +1404,15 @@ def apply_ops(
                 return DexTxResult(ok=False, error=err or "nonce policy rejected")
         _fault_stage(config, "after_nonce_validation")
 
+        # Consensus posture (accept ⊆ committable): reject non-canonical committed
+        # identifiers AFTER nonce validation (so a nonce-replay still reports the
+        # nonce reject first, preserving pre-existing reject precedence) and before
+        # any settlement compute/apply (so a non-canonical tx never mutates state).
+        if config.require_intent_signatures:
+            err = _require_canonical_committed_identifiers(intents)
+            if err is not None:
+                return DexTxResult(ok=False, error=err)
+
         # Compute settlement deterministically and (optionally) require an exact match.
         computed_settlement: Optional[Settlement] = None
         if intents:
@@ -1481,6 +1546,8 @@ def apply_ops(
                     balances=state.balances,
                     lp_balances=state.lp_balances,
                     swap_ordering=str(config.swap_ordering),
+                    protocol_fee_share_bps=int(config.dex_config.protocol_fee_share_bps),
+                    protocol_fee_recipient_pubkey=config.dex_config.protocol_fee_recipient_pubkey,
                 )
 
             if settlement is None:
@@ -1554,6 +1621,7 @@ def apply_ops(
                         pools=state.pools,
                         lp_balances=state.lp_balances,
                         nonces=state.nonces,
+                        fee_accumulator=state.fee_accumulator,
                     )
             except Exception as exc:
                 return DexTxResult(ok=False, error=f"invalid state for commitment: {exc}")
@@ -1645,6 +1713,8 @@ def apply_ops(
             settlement_end_to_end_certificate_inputs=effective_settlement_end_to_end_inputs,
             uniform_batch_certificate=uniform_batch_certificate,
             allow_uniform_batch_partial_fill_certificate=config.allow_uniform_batch_partial_fill_certificate,
+            protocol_fee_share_bps=int(config.dex_config.protocol_fee_share_bps),
+            protocol_fee_recipient_pubkey=config.dex_config.protocol_fee_recipient_pubkey,
         )
         if not ok:
             return DexTxResult(ok=False, error=err or "operations invalid")

@@ -17,13 +17,14 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Dict, List, Optional, Tuple
 
+from ..kernels.python.settlement_swap_runtime_v1 import quote_cpmm_swap_exact_out
 from ..state.balances import AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
-from ..state.pools import PoolState, PoolStatus
+from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .batch_clearing import validate_settlement as validate_settlement_legacy
-from .cpmm import MIN_LP_LOCK, compute_fee_total
+from .cpmm import MIN_LP_LOCK, compute_fee_total, swap_exact_in_with_protocol_fee
 from .domain_limits import is_strict_int
 from .liquidity import add_liquidity, create_pool, remove_liquidity
 from .quote_receipts import pool_state_fingerprint
@@ -160,6 +161,8 @@ def validate_settlement_strong(
     mode: str = _MODE_STRONG_REPLAY,
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Fail-closed wrapper around the strong validator implementation.
@@ -177,6 +180,8 @@ def validate_settlement_strong(
             mode=mode,
             allow_cow_netting=allow_cow_netting,
             allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
         )
     except Exception as exc:
         detail = str(exc).strip()
@@ -199,6 +204,8 @@ def _validate_settlement_strong_impl(
     mode: str = _MODE_STRONG_REPLAY,
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Strong settlement validation.
@@ -207,6 +214,10 @@ def _validate_settlement_strong_impl(
     """
     if mode not in _VALIDATION_MODES:
         return False, f"unsupported validation mode: {mode!r}"
+    if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
+        return False, "protocol_fee_share_bps must be an int in [0, 10000]"
+    if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
+        return False, "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
 
     # Intents must have unique ids (otherwise settlement semantics are ambiguous).
     intent_ids = [it.intent_id for it in intents]
@@ -492,12 +503,28 @@ def _validate_settlement_strong_impl(
                     return fail(f"swap amount_in_filled mismatch for intent_id={intent_id}")
 
                 try:
-                    amount_out, (new_in, new_out) = swap_exact_in_for_pool(
-                        pool,
-                        reserve_in=int(reserve_in),
-                        reserve_out=int(reserve_out),
-                        amount_in=int(amount_in),
-                    )
+                    if int(protocol_fee_share_bps):
+                        if pool.curve_tag != CURVE_TAG_CPMM:
+                            return fail(f"protocol fee unsupported for curve intent_id={intent_id}")
+                        quote = swap_exact_in_with_protocol_fee(
+                            reserve_in=int(reserve_in),
+                            reserve_out=int(reserve_out),
+                            amount_in=int(amount_in),
+                            fee_bps=int(pool.fee_bps),
+                            protocol_fee_share_bps=int(protocol_fee_share_bps),
+                        )
+                        amount_out = int(quote.amount_out)
+                        new_in = int(quote.new_reserve_in)
+                        new_out = int(quote.new_reserve_out)
+                        protocol_fee = int(quote.protocol_fee)
+                    else:
+                        amount_out, (new_in, new_out) = swap_exact_in_for_pool(
+                            pool,
+                            reserve_in=int(reserve_in),
+                            reserve_out=int(reserve_out),
+                            amount_in=int(amount_in),
+                        )
+                        protocol_fee = 0
                 except Exception as exc:
                     return fail(f"swap_exact_in kernel error for intent_id={intent_id}: {exc}")
 
@@ -509,10 +536,15 @@ def _validate_settlement_strong_impl(
                 fee = compute_fee_total(int(amount_in), int(pool.fee_bps))
                 if int(f.fee_paid or 0) != int(fee):
                     return fail(f"swap fee_paid mismatch for intent_id={intent_id}")
+                if int(f.protocol_fee_paid or 0) != int(protocol_fee):
+                    return fail(f"swap protocol_fee_paid mismatch for intent_id={intent_id}")
 
                 try:
                     balances.subtract(sender, asset_in, int(amount_in))
                     balances.add(recipient, asset_out, int(amount_out))
+                    if protocol_fee:
+                        assert protocol_fee_recipient_pubkey is not None
+                        balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
                 except Exception as exc:
                     return fail(f"swap apply error for intent_id={intent_id}: {exc}")
 
@@ -526,7 +558,24 @@ def _validate_settlement_strong_impl(
 
                 bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
                 bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out), delta_sub=0))
-                res_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_in, delta_add=int(amount_in), delta_sub=0))
+                if protocol_fee:
+                    assert protocol_fee_recipient_pubkey is not None
+                    bal_deltas.append(
+                        BalanceDelta(
+                            pubkey=protocol_fee_recipient_pubkey,
+                            asset=asset_in,
+                            delta_add=int(protocol_fee),
+                            delta_sub=0,
+                        )
+                    )
+                res_deltas.append(
+                    ReserveDelta(
+                        pool_id=pool_id,
+                        asset=asset_in,
+                        delta_add=int(amount_in) - int(protocol_fee),
+                        delta_sub=0,
+                    )
+                )
                 res_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out)))
                 continue
 
@@ -542,12 +591,28 @@ def _validate_settlement_strong_impl(
                 return fail(f"swap amount_out_filled mismatch for intent_id={intent_id}")
 
             try:
-                amount_in_req, (new_in, new_out) = swap_exact_out_for_pool(
-                    pool,
-                    reserve_in=int(reserve_in),
-                    reserve_out=int(reserve_out),
-                    amount_out=int(amount_out_req),
-                )
+                if int(protocol_fee_share_bps):
+                    if pool.curve_tag != CURVE_TAG_CPMM:
+                        return fail(f"protocol fee unsupported for curve intent_id={intent_id}")
+                    quote = quote_cpmm_swap_exact_out(
+                        reserve_in=int(reserve_in),
+                        reserve_out=int(reserve_out),
+                        amount_out=int(amount_out_req),
+                        fee_bps=int(pool.fee_bps),
+                        protocol_fee_share_bps=int(protocol_fee_share_bps),
+                    )
+                    amount_in_req = int(quote.amount_in)
+                    new_in = int(quote.reserve_in_after)
+                    new_out = int(quote.reserve_out_after)
+                    protocol_fee = int(quote.protocol_fee_paid)
+                else:
+                    amount_in_req, (new_in, new_out) = swap_exact_out_for_pool(
+                        pool,
+                        reserve_in=int(reserve_in),
+                        reserve_out=int(reserve_out),
+                        amount_out=int(amount_out_req),
+                    )
+                    protocol_fee = 0
             except Exception as exc:
                 return fail(f"swap_exact_out kernel error for intent_id={intent_id}: {exc}")
 
@@ -559,10 +624,15 @@ def _validate_settlement_strong_impl(
             fee = compute_fee_total(int(amount_in_req), int(pool.fee_bps))
             if int(f.fee_paid or 0) != int(fee):
                 return fail(f"swap fee_paid mismatch for intent_id={intent_id}")
+            if int(f.protocol_fee_paid or 0) != int(protocol_fee):
+                return fail(f"swap protocol_fee_paid mismatch for intent_id={intent_id}")
 
             try:
                 balances.subtract(sender, asset_in, int(amount_in_req))
                 balances.add(recipient, asset_out, int(amount_out_req))
+                if protocol_fee:
+                    assert protocol_fee_recipient_pubkey is not None
+                    balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
             except Exception as exc:
                 return fail(f"swap apply error for intent_id={intent_id}: {exc}")
 
@@ -575,7 +645,24 @@ def _validate_settlement_strong_impl(
 
             bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in_req)))
             bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out_req), delta_sub=0))
-            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_in, delta_add=int(amount_in_req), delta_sub=0))
+            if protocol_fee:
+                assert protocol_fee_recipient_pubkey is not None
+                bal_deltas.append(
+                    BalanceDelta(
+                        pubkey=protocol_fee_recipient_pubkey,
+                        asset=asset_in,
+                        delta_add=int(protocol_fee),
+                        delta_sub=0,
+                    )
+                )
+            res_deltas.append(
+                ReserveDelta(
+                    pool_id=pool_id,
+                    asset=asset_in,
+                    delta_add=int(amount_in_req) - int(protocol_fee),
+                    delta_sub=0,
+                )
+            )
             res_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out_req)))
             continue
 

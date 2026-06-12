@@ -5,6 +5,8 @@ These pin the reference semantics that the Rust shadow must match bit-for-bit.
 
 from __future__ import annotations
 
+import itertools
+
 import pytest
 
 from src.core.fee_router import (
@@ -111,6 +113,26 @@ def test_dust_carry_conserves_across_steps():
     )
 
 
+def test_repeated_tiny_dex_fees_preserve_long_run_split():
+    acc = FeeAccumulator()
+    for _ in range(10):
+        res = route_fee(
+            source=DEX,
+            asset="zUSD",
+            amount=1,
+            split_table=canonical_split_table(DEX),
+            accumulator=acc,
+        )
+        assert isinstance(res, RouteAccepted)
+        acc = res.accumulator
+
+    assert acc.bucket_total("cum_buyburn", "zUSD") == 6
+    assert acc.bucket_total("cum_stakers", "zUSD") == 0
+    assert acc.bucket_total("cum_reserve", "zUSD") == 2
+    assert acc.bucket_total("cum_hosts", "zUSD") == 2
+    assert acc.dust_for(DEX, "zUSD") == 0
+
+
 def test_dust_is_scoped_by_source_and_asset():
     acc = FeeAccumulator()
     first = route_fee(
@@ -177,6 +199,84 @@ def test_accumulator_root_is_deterministic_and_sensitive():
     assert z0 == z1
     assert FeeAccumulator(cum_buyburn=(FeeAssetAmount("zUSD", 1),)).state_root() != z0
     assert FeeAccumulator(dust_by_stream=(FeeDustEntry(DEX, "zUSD", 1),)).state_root() != z0
+
+
+def _accumulator_from_identity(identity):
+    dust_entries, buckets = identity
+    bucket_entries = {
+        "cum_buyburn": (),
+        "cum_stakers": (),
+        "cum_reserve": (),
+        "cum_hosts": (),
+    }
+    for bucket, asset, amount in buckets:
+        bucket_entries[bucket] = bucket_entries[bucket] + (FeeAssetAmount(asset, amount),)
+    return FeeAccumulator(
+        dust_by_stream=tuple(
+            FeeDustEntry(source, asset, amount, *remainders)
+            for source, asset, amount, remainders in dust_entries
+        ),
+        **bucket_entries,
+    )
+
+
+def test_exhaustive_fee_accumulator_root_field_lattice_injective():
+    """Complete over a tiny accumulator-root lattice.
+
+    The domain includes empty state, each single dust stream, each single bucket
+    entry, and each dust+bucket pair for two sources, two assets, four buckets,
+    and boundary amounts. This pins the accumulator framing against stream,
+    asset, and bucket aliasing in a deterministic grid."""
+    sources = (DEX, REDEMPTION)
+    assets = ("zUSD", "AGRS")
+    dust_shapes = (
+        (1, (6_000, 0, 2_000, 2_000)),
+        (2, (9_000, 1_000, 5_000, 5_000)),
+    )
+    buckets = ("cum_buyburn", "cum_stakers", "cum_reserve", "cum_hosts")
+    bucket_amounts = (1, 128)
+
+    empty_root = FeeAccumulator().state_root()
+    assert FeeAccumulator(cum_buyburn=(FeeAssetAmount("zUSD", 0),)).state_root() == empty_root
+    assert FeeAccumulator(dust_by_stream=(FeeDustEntry(DEX, "zUSD", 0),)).state_root() == empty_root
+
+    dust_identities = tuple(
+        ((source, asset, amount, remainders),)
+        for source, asset, (amount, remainders) in itertools.product(sources, assets, dust_shapes)
+    )
+    bucket_identities = tuple(
+        ((bucket, asset, amount),)
+        for bucket, asset, amount in itertools.product(buckets, assets, bucket_amounts)
+    )
+
+    identities = {((), ())}
+    identities.update((dust, ()) for dust in dust_identities)
+    identities.update(((), bucket) for bucket in bucket_identities)
+    identities.update(
+        (dust, bucket) for dust, bucket in itertools.product(dust_identities, bucket_identities)
+    )
+
+    root_by_identity: dict[tuple, str] = {}
+    identity_by_root: dict[str, tuple] = {}
+    for identity in identities:
+        root = _accumulator_from_identity(identity).state_root()
+        assert root == _accumulator_from_identity(identity).state_root(), (
+            f"fee accumulator root not deterministic for {identity!r}"
+        )
+        if root in identity_by_root and identity_by_root[root] != identity:
+            raise AssertionError(
+                f"FEE ACCUMULATOR ROOT COLLISION: distinct identities "
+                f"{identity_by_root[root]!r} and {identity!r} share root {root}"
+            )
+        root_by_identity[identity] = root
+        identity_by_root[root] = identity
+
+    n = len(root_by_identity)
+    pairs = n * (n - 1) // 2
+    assert n == 1 + len(dust_identities) + len(bucket_identities) + (
+        len(dust_identities) * len(bucket_identities)
+    ) == 153
+    assert pairs == 153 * 152 // 2 == 11_628
 
 
 # --- Rejections (stable codes) ------------------------------------------------

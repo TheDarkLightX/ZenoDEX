@@ -9,6 +9,8 @@ Installs small command wrappers for this checkout:
   zenoctl                 -> tools/zenoctl.py
   zenodex-node            -> tools/zeno_ledger_node.py
   zenodex-local-testnet   -> tools/zenoctl.py testnet local
+  zenodex-public-testnet  -> tools/zenoctl.py testnet local public
+  zenodex-public-follower -> tools/zenodex_public_follower.py
 
 The script does not install system services, write secrets, or edit shell
 profiles. Add the chosen bin directory to PATH yourself if needed.
@@ -75,8 +77,12 @@ install_wrapper() {
 install_wrapper "zenoctl" python3 "${repo_dir}/tools/zenoctl.py"
 install_wrapper "zenodex-node" python3 "${repo_dir}/tools/zeno_ledger_node.py"
 install_wrapper "zenodex-local-testnet" python3 "${repo_dir}/tools/zenoctl.py" testnet local
+install_wrapper "zenodex-public-testnet" python3 "${repo_dir}/tools/zenoctl.py" testnet local public
+install_wrapper "zenodex-public-follower" python3 "${repo_dir}/tools/zenodex_public_follower.py"
 
 if [ "$dry_run" -eq 0 ]; then
   echo "run: ${bin_dir}/zenoctl doctor --engine none --strict"
   echo "run: ${bin_dir}/zenodex-local-testnet up --out-dir /tmp/zenodex-local"
+  echo "run: ${bin_dir}/zenodex-public-testnet"
+  echo "run: ${bin_dir}/zenodex-public-follower --config-url <public_network_config.json URL>"
 fi

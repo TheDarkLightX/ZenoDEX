@@ -1,0 +1,35 @@
+# gov_drift_budget_v1.tau  --  ZenoDEX governance: TRAJECTORY drift-budget bit (universal)
+# MUTABILITY: UPDATABLE (the gate logic; the budget/used pair is supplied per call)
+# SHAPE: pure trajectory bit -- NO approval/timelock/bounds here (those are the pointwise
+# revision gates' concerns; this bit is ANDed alongside them by the epoch machine, never
+# used instead of them). Factored one-concern-per-spec, the proven tractable pattern.
+#
+# WHY: the pointwise gates bound each revision to one `step`, but per-step safety is NOT
+# trajectory safety -- under standing (charter) approval a poisoned proposer could walk a
+# parameter from min to max at one legal step per revision. This bit bounds the WINDOW:
+# the sum of admitted |delta| within the current trajectory window (`used`, maintained by
+# the runtime from committed receipts) plus the new |next - curr| must stay within the
+# window `budget`. The runtime owns the accumulator the same way it owns `curr` (the WS2
+# binding clause): the spec bounds the relation, the runtime binds `used` to committed state.
+#
+# Inputs:
+#   i1 = curr   (bv[16])  -- committed current value
+#   i2 = next   (bv[16])  -- proposed next value
+#   i3 = used   (bv[16])  -- |delta| already consumed in the current window (committed)
+#   i4 = budget (bv[16])  -- window drift budget for this surface
+# Output:
+#   o1 = within_budget (sbf) -- 1 iff used <= budget AND |next - curr| <= budget - used
+#
+# Wrap-safety (bv[16] is UNSIGNED, arithmetic MODULAR): `used <= budget` makes
+# `budget - used` non-wrapping; each |delta| branch subtracts the smaller from the
+# larger, so neither side of the comparison can wrap.
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    ( (i3[t]:bv[16] <= i4[t]:bv[16])
+      && ( ( (i1[t]:bv[16] >= i2[t]:bv[16])
+             && ((i1[t]:bv[16] - i2[t]:bv[16]) <= (i4[t]:bv[16] - i3[t]:bv[16])) )
+           || ( (i2[t]:bv[16] > i1[t]:bv[16])
+                && ((i2[t]:bv[16] - i1[t]:bv[16]) <= (i4[t]:bv[16] - i3[t]:bv[16])) ) )
+    )
+  ).

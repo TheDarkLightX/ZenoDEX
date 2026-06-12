@@ -15,7 +15,7 @@ function PerpCollateralModal({ market, position, wallet, onDeposit, onWithdraw, 
     const collateral = position?.collateralQuote ?? 0;
     // Look up wallet balance using the market's quote asset (e.g. AGRS, ZDEX).
     const quoteAsset = market?.quoteAsset ?? '';
-    const walletBalance = (quoteAsset && wallet?.balance?.[quoteAsset]) ?? 0;
+    const walletBalance = position?.quoteBalance ?? ((quoteAsset && wallet?.balance?.[quoteAsset]) ?? 0);
 
     const parsedAmount = useMemo(() => {
         const n = parseInt(amount, 10);
@@ -147,7 +147,7 @@ function PerpCollateralModal({ market, position, wallet, onDeposit, onWithdraw, 
                         onClick={handleSubmit}
                         disabled={!wallet || !validation.ok}
                     >
-                        {!wallet ? 'Connect Wallet'
+                        {!wallet ? 'Connect wallet in header →'
                             : !amount ? 'Enter Amount'
                             : validation.error ? validation.error
                             : tab === 'deposit' ? 'Deposit' : 'Withdraw'}

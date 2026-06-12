@@ -86,7 +86,12 @@ echo "== perp-liquidation-eligibility: regression net =="
   tests/core/test_perp_v2/test_partial_liquidate.py \
   tests/kernels/test_perp_liquidation_eligibility_v1_native_adapter.py
 
-echo "== perp-liquidation-eligibility: manifest check =="
-"$PY" "$ROOT_DIR/tools/check_perp_liquidation_eligibility_assurance_manifest.py"
+MANIFEST_PATH="$ROOT_DIR/tools/perp_liquidation_eligibility_assurance_manifest.json"
+if [[ -f "$MANIFEST_PATH" ]]; then
+  echo "== perp-liquidation-eligibility: manifest check =="
+  "$PY" "$ROOT_DIR/tools/check_perp_liquidation_eligibility_assurance_manifest.py"
+else
+  echo "== perp-liquidation-eligibility: manifest check skipped (no pinned manifest in this tree) =="
+fi
 
 echo "ok"

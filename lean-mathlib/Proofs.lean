@@ -19,6 +19,7 @@ import Proofs.CircuitBreakerWindowArithmetic
 import Proofs.ConstDenominatorSurrogateBounds
 import Proofs.CPMMConcavity
 import Proofs.CPMMEdgeRounding
+import Proofs.CPMMExactOutFeeInverse
 import Proofs.CPMMFeeAwareCertificate
 import Proofs.CPMMInvariants
 import Proofs.CPMMOutputMonotonicity
@@ -40,6 +41,8 @@ import Proofs.DisasterAntichainBasis
 import Proofs.DisasterClassClosure
 import Proofs.DisasterPotentialSafety
 import Proofs.DisasterTraceDiscoveryChallenge
+import Proofs.DutchLiquidationAuction
+import Proofs.EconomicSecurityEnvelope
 import Proofs.ExactOutAdaptiveGate
 import Proofs.FeeAwareAntiFragmentation
 import Proofs.FeeAwareBatchKGap
@@ -58,6 +61,7 @@ import Proofs.ForbiddenTraceMinor
 import Proofs.FundingImbalanceEV
 import Proofs.FundingRateMarketSafety
 import Proofs.GaloisSplitCertificate
+import Proofs.GovTrajectoryBound
 import Proofs.HybridCurveProperties
 import Proofs.ILFuturesSafety
 import Proofs.ImpossibilityTheorem
@@ -84,11 +88,13 @@ import Proofs.MSTCertificateSwapFinset
 import Proofs.NoFreeResourceTraceLedger
 import Proofs.NoRisklessYieldLaw
 import Proofs.OppositeDirectionNoncommutativity
+import Proofs.OracleMedianRobustness
 import Proofs.PerpADLSybilBankruptcyClosure
 import Proofs.PerpCascadeSafety
 import Proofs.PerpEpochSafety
 import Proofs.PerpFundingAlgebra
 import Proofs.PerpFundingRateSafety
+import Proofs.PerpFundingSinkConservation
 import Proofs.PerpFundingSymmetry
 import Proofs.PerpGameTheory
 import Proofs.PerpInsuranceSafety
@@ -116,6 +122,7 @@ import Proofs.SettlementMechanism
 import Proofs.SettlementNetting
 import Proofs.SplitRoutingArgmaxPlateau
 import Proofs.SplitRoutingUnimodality
+import Proofs.StateRootFramingInjectivity
 import Proofs.SwapRouterBounds
 import Proofs.TauSafeMul32
 import Proofs.TokenomicsMechanismSafety
@@ -209,6 +216,7 @@ import Proofs.ZenoDEXSettlementGateBlockers
 import Proofs.ZenoDEXSettlementPriceHistoryCertificate
 import Proofs.ZenoDEXSettlementReplayContext
 import Proofs.ZenoDEXSettlementValuePacket
+import Proofs.ZenoDEXStakingShareSafety
 import Proofs.ZenoDEXSTierDisasterMath
 import Proofs.ZenoDEXTauStateAppHashComposition
 import Proofs.ZenoDEXTauStateAppHashProvenance
@@ -234,6 +242,7 @@ import Proofs.ZenoPayoffLanguage
 import Proofs.ZenoPayoffPortfolioFixedPointBridge
 import Proofs.ZenoShapeDiscovery
 import Proofs.ZPLPayoffCombinators
+import Proofs.ZUSDCDPThresholdGrid
 import Proofs.ZUSDCeilDivAlgebra
 import Proofs.ZUSDCollateralFlowAlgebra
 import Proofs.ZUSDDebtHomomorphism

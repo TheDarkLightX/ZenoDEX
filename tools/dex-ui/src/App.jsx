@@ -1,20 +1,49 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import './index.css';
-import SwapInterface from './components/SwapInterface';
-import PoolDashboard from './components/PoolDashboard';
-import TokenStats from './components/TokenStats';
-import PerpTradingView from './components/perps/PerpTradingView';
-import ConfidentialWorkbench from './components/ConfidentialWorkbench.jsx';
-import StrategyWorkbench from './components/StrategyWorkbench.jsx';
-import ZUSDWorkbench from './components/ZUSDWorkbench.jsx';
-import ZenoOracleDashboard from './components/ZenoOracleDashboard.jsx';
+// Per-surface code-splitting: each tab is a separate chunk loaded on demand, so
+// the initial bundle only carries the default (Swap) surface + shell. The other
+// nine surfaces (incl. the large Oracle/zUSD/Perps dashboards) load when first
+// opened, cutting first-paint JS substantially.
+// One importer per tab id, shared by both lazy() and the hover/focus prefetch
+// below so warming a chunk on hover resolves the SAME module the click renders.
+const SURFACE_IMPORTERS = {
+  swap: () => import('./components/SwapInterface'),
+  pools: () => import('./components/PoolDashboard'),
+  stats: () => import('./components/TokenStats'),
+  perps: () => import('./components/perps/PerpTradingView'),
+  strategy: () => import('./components/StrategyWorkbench.jsx'),
+  zusd: () => import('./components/ZUSDWorkbench.jsx'),
+  oracle: () => import('./components/ZenoOracleDashboard.jsx'),
+  confidential: () => import('./components/ConfidentialWorkbench.jsx'),
+  governance: () => import('./components/PerpsGovernanceSurface.jsx'),
+  proofs: () => import('./components/ProofMiningWorkbench.jsx'),
+};
+// Prefetch a surface chunk (idempotent — dynamic import() caches the request).
+function prefetchSurface(id) {
+  const load = SURFACE_IMPORTERS[id];
+  if (load) load().catch(() => { /* hover prefetch is best-effort */ });
+}
+const SwapInterface = lazy(SURFACE_IMPORTERS.swap);
+const PoolDashboard = lazy(SURFACE_IMPORTERS.pools);
+const TokenStats = lazy(SURFACE_IMPORTERS.stats);
+const PerpTradingView = lazy(SURFACE_IMPORTERS.perps);
+const ConfidentialWorkbench = lazy(SURFACE_IMPORTERS.confidential);
+const StrategyWorkbench = lazy(SURFACE_IMPORTERS.strategy);
+const ZUSDWorkbench = lazy(SURFACE_IMPORTERS.zusd);
+const ZenoOracleDashboard = lazy(SURFACE_IMPORTERS.oracle);
+const PerpsGovernanceSurface = lazy(SURFACE_IMPORTERS.governance);
+const ProofMiningWorkbench = lazy(SURFACE_IMPORTERS.proofs);
 import { PerpProvider } from './lib/PerpProvider.jsx';
 import { DemoModeProvider } from './lib/DemoModeProvider.jsx';
+import { ThemeProvider } from './lib/ThemeContext.jsx';
+import ThemeSwitcher from './components/ThemeSwitcher.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 import WalletConnect from './components/WalletConnect';
 import TransactionDrawer from './components/TransactionDrawer.jsx';
 import { useTransactionCenter } from './lib/TransactionCenterContext.jsx';
+import { getRuntimeConfig } from './lib/api.js';
 
-const APP_TABS = [
+const NAV_TABS = [
   { id: 'swap', label: 'Swap' },
   { id: 'pools', label: 'Pools' },
   { id: 'stats', label: 'ZDEX Stats' },
@@ -23,7 +52,10 @@ const APP_TABS = [
   { id: 'zusd', label: 'zUSD' },
   { id: 'oracle', label: 'Oracle' },
   { id: 'confidential', label: 'Confidential' },
+  { id: 'governance', label: 'Keys' },
 ];
+
+const ROUTE_TAB_IDS = new Set([...NAV_TABS.map((tab) => tab.id), 'proofs']);
 
 const ZENODEX_LOGO_ICON = `${import.meta.env.BASE_URL}branding/zenodex/zenodex_icon_256.png`;
 
@@ -32,7 +64,7 @@ function getInitialTab() {
     return 'swap';
   }
   const requested = new URLSearchParams(window.location.search).get('tab');
-  return APP_TABS.some((tab) => tab.id === requested) ? requested : 'swap';
+  return ROUTE_TAB_IDS.has(requested) ? requested : 'swap';
 }
 
 function getInitialWallet() {
@@ -40,7 +72,11 @@ function getInitialWallet() {
     return null;
   }
   const params = new URLSearchParams(window.location.search);
-  if (params.get('zenodexUiSmokeSwap') !== '1') {
+  if (
+    params.get('zenodexUiSmokeSwap') !== '1'
+    && params.get('zenodexUiSmokeLiquidity') !== '1'
+    && params.get('walletAddress') == null
+  ) {
     return null;
   }
   const rawAddress = String(params.get('walletAddress') || '').trim();
@@ -52,11 +88,11 @@ function getInitialWallet() {
     : `0x${rawAddress.toLowerCase()}`;
   return {
     address,
-    chainId: 'tau-alpha',
+    chainId: getRuntimeConfig().chainId || 'zeno-ledger-localtest-v0',
     balance: {
-      AGRS: 1_000_000,
       ZDEX: 1_000_000,
-      USD: 1_000_000,
+      zUSD: 0,
+      tAGRS: 1_000_000,
       TASSET0: 1_000_000,
       TASSET1: 1_000_000,
       TZENO: 1_000_000,
@@ -68,41 +104,53 @@ function App() {
   const [activeTab, setActiveTab] = useState(getInitialTab);
   const [wallet, setWallet] = useState(getInitialWallet);
   const { upsertTransaction } = useTransactionCenter();
+  const uiSurfaceVersion = getRuntimeConfig().uiSurfaceContractVersion || 'ui-unpinned';
 
   return (
-    <DemoModeProvider>
-      <div className={`app-container ${activeTab === 'oracle' ? 'app-container-oracle' : ''}`}>
-        {/* Header */}
-        <header className="header">
-          <div className="logo">
-            <img
-              className="logo-icon"
-              src={ZENODEX_LOGO_ICON}
-              alt="ZenoDEX"
-            />
-            <span className="logo-text">
-              Zeno<span className="logo-highlight">DEX</span>
-            </span>
-          </div>
+    <ThemeProvider>
+      <DemoModeProvider>
+        <div className={`app-container ${activeTab === 'oracle' ? 'app-container-oracle' : ''}`}>
+          {/* Header */}
+          <header className="header">
+            <div className="logo">
+              <img
+                className="logo-icon"
+                src={ZENODEX_LOGO_ICON}
+                alt="ZenoDEX"
+              />
+              <span className="logo-text">
+                Zeno<span className="logo-highlight">DEX</span>
+              </span>
+            </div>
 
-          <nav className="nav" aria-label="Product windows">
-            {APP_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                className={`nav-link ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
-                type="button"
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+            <nav className="nav" aria-label="Product windows">
+              {NAV_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  className={`nav-link ${activeTab === tab.id ? 'active' : ''}`}
+                  onClick={() => setActiveTab(tab.id)}
+                  onMouseEnter={() => prefetchSurface(tab.id)}
+                  onFocus={() => prefetchSurface(tab.id)}
+                  type="button"
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
 
-          <WalletConnect wallet={wallet} onConnect={setWallet} />
-        </header>
+            <div className="header-actions">
+              <ThemeSwitcher />
+              <WalletConnect wallet={wallet} onConnect={setWallet} />
+            </div>
+          </header>
 
         {/* Main Content */}
         <main className={`main ${activeTab === 'oracle' ? 'main-oracle' : ''}`}>
+          {/* Per-route fault isolation: a crash in one surface keeps the
+              header/nav/footer alive and lets the user switch tabs. Keying by
+              activeTab resets the boundary when the surface changes. */}
+          <ErrorBoundary key={activeTab}>
+          <Suspense fallback={<div className="surface-loading" role="status">Loading…</div>}>
           {activeTab === 'swap' && (
             <div className="swap-container animate-fade-in">
               <SwapInterface wallet={wallet} />
@@ -137,13 +185,13 @@ function App() {
 
           {activeTab === 'zusd' && (
             <div className="animate-fade-in">
-              <ZUSDWorkbench />
+              <ZUSDWorkbench wallet={wallet} />
             </div>
           )}
 
           {activeTab === 'oracle' && (
             <div className="animate-fade-in">
-              <ZenoOracleDashboard />
+              <ZenoOracleDashboard wallet={wallet} onConnect={setWallet} />
             </div>
           )}
 
@@ -152,6 +200,20 @@ function App() {
               <ConfidentialWorkbench />
             </div>
           )}
+
+          {activeTab === 'proofs' && (
+            <div className="animate-fade-in">
+              <ProofMiningWorkbench />
+            </div>
+          )}
+
+          {activeTab === 'governance' && (
+            <div className="animate-fade-in">
+              <PerpsGovernanceSurface />
+            </div>
+          )}
+          </Suspense>
+          </ErrorBoundary>
         </main>
 
         {/* Footer */}
@@ -161,14 +223,15 @@ function App() {
             <span className="footer-sep">•</span>
             Powered by <a href="https://tau.net" target="_blank" rel="noopener noreferrer">Tau Network</a>
             <span className="footer-sep">•</span>
-            <span className="footer-agrs">AGRS</span> Native Token
-            <span className="footer-version">v1.0.0-alpha</span>
+            <span className="footer-agrs">ZDEX</span> Utility Token
+            <span className="footer-version">{uiSurfaceVersion}</span>
           </p>
         </footer>
 
-        <TransactionDrawer />
-      </div>
-    </DemoModeProvider>
+          <TransactionDrawer />
+        </div>
+      </DemoModeProvider>
+    </ThemeProvider>
   );
 }
 

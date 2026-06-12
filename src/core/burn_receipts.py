@@ -16,11 +16,45 @@ from __future__ import annotations
 
 from typing import Any, Dict, Tuple
 
+from ..runtime.authority import AuthorityMode, active_mode, decide
+from ..runtime.rust_invoker import burn_rails_verify, canonical_domain_json_hash
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 
 
+_BURN_RECEIPT_HASH_LABEL = "zenodex.burn_receipt/v1"
+BURN_RECEIPTS_SURFACE = "burn_receipts"
+_BURN_RAIL_FIELDS = (
+    "do_burn",
+    "receipt_bound",
+    "nullifier_unused",
+    "policy_ok",
+    "burn_amount",
+    "receipt_amount",
+    "burn_budget",
+    "supply_before",
+    "supply_after",
+    "batch_burn_sum_before",
+    "batch_burn_sum_after",
+)
+
+
+def _burn_receipt_hash_python(receipt_body: Dict[str, Any]) -> str:
+    return sha256_hex(domain_sep_bytes(_BURN_RECEIPT_HASH_LABEL) + canonical_json_bytes(receipt_body))
+
+
 def burn_receipt_hash(receipt_body: Dict[str, Any]) -> str:
-    return sha256_hex(domain_sep_bytes("zenodex.burn_receipt/v1") + canonical_json_bytes(receipt_body))
+    """Authority-gated burn-receipt body hash using the canonical surface."""
+
+    mode = active_mode("canonical")
+    if mode is AuthorityMode.PYTHON_AUTHORITY:
+        return _burn_receipt_hash_python(receipt_body)
+    return decide(
+        "canonical",
+        mode,
+        python_fn=lambda: _burn_receipt_hash_python(receipt_body),
+        rust_fn=lambda: canonical_domain_json_hash(_BURN_RECEIPT_HASH_LABEL, receipt_body),
+        compare=lambda python_hash, rust_hash: python_hash == rust_hash,
+    ).result
 
 
 def _rail_replay_guard(*, do_burn: int, receipt_bound: int, nullifier_unused: int, policy_ok: int) -> bool:
@@ -63,6 +97,80 @@ def _rail_batch_sum_guard(*, do_burn: int, burn_amount: int, batch_burn_sum_befo
     if do_burn == 0:
         return batch_burn_sum_after == batch_burn_sum_before
     return bool(batch_burn_sum_after == batch_burn_sum_before + burn_amount)
+
+
+def _verify_burn_rails_python(**kwargs: int) -> Tuple[bool, str]:
+    if not _rail_replay_guard(
+        do_burn=kwargs["do_burn"],
+        receipt_bound=kwargs["receipt_bound"],
+        nullifier_unused=kwargs["nullifier_unused"],
+        policy_ok=kwargs["policy_ok"],
+    ):
+        return False, "replay_guard_failed"
+    if not _rail_amount_guard(
+        do_burn=kwargs["do_burn"],
+        burn_amount=kwargs["burn_amount"],
+        receipt_amount=kwargs["receipt_amount"],
+        burn_budget=kwargs["burn_budget"],
+    ):
+        return False, "amount_guard_failed"
+    if not _rail_supply_guard(
+        do_burn=kwargs["do_burn"],
+        burn_amount=kwargs["burn_amount"],
+        supply_before=kwargs["supply_before"],
+        supply_after=kwargs["supply_after"],
+    ):
+        return False, "supply_guard_failed"
+    if not _rail_batch_sum_guard(
+        do_burn=kwargs["do_burn"],
+        burn_amount=kwargs["burn_amount"],
+        batch_burn_sum_before=kwargs["batch_burn_sum_before"],
+        batch_burn_sum_after=kwargs["batch_burn_sum_after"],
+    ):
+        return False, "batch_sum_guard_failed"
+    return True, "ok"
+
+
+def _rail_result_doc(result: Tuple[bool, str]) -> Dict[str, Any]:
+    ok, reason = result
+    return {"accept": ok, "reason": "ok" if ok else reason}
+
+
+def _rust_rail_result_doc(tx: Dict[str, int]) -> Dict[str, Any]:
+    out = burn_rails_verify(tx=tx)
+    if (
+        out.get("version") != 1
+        or out.get("kernel") != BURN_RECEIPTS_SURFACE
+        or not isinstance(out.get("accept"), bool)
+        or not isinstance(out.get("pre_state_root"), str)
+        or not isinstance(out.get("post_state_root"), str)
+    ):
+        raise ValueError("malformed burn rail authority output")
+    if out["accept"]:
+        if not isinstance(out.get("receipt_hash"), str) or out.get("reject_reason") is not None:
+            raise ValueError("malformed accepted burn rail authority output")
+    elif not isinstance(out.get("reject_reason"), str) or out.get("receipt_hash") is not None:
+        raise ValueError("malformed rejected burn rail authority output")
+    return {
+        "accept": bool(out["accept"]),
+        "reason": "ok" if out["accept"] else str(out["reject_reason"]),
+    }
+
+
+def _verify_burn_rails_authority(**kwargs: int) -> Tuple[bool, str]:
+    mode = active_mode(BURN_RECEIPTS_SURFACE)
+    if mode is AuthorityMode.PYTHON_AUTHORITY:
+        return _verify_burn_rails_python(**kwargs)
+
+    tx = {field: kwargs[field] for field in _BURN_RAIL_FIELDS}
+    decision = decide(
+        BURN_RECEIPTS_SURFACE,
+        mode,
+        python_fn=lambda: _rail_result_doc(_verify_burn_rails_python(**kwargs)),
+        rust_fn=lambda: _rust_rail_result_doc(tx),
+    )
+    result = decision.result
+    return bool(result["accept"]), str(result["reason"])
 
 
 def make_burn_receipt(
@@ -152,32 +260,16 @@ def verify_burn_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
     except Exception:
         return False, "bad_numeric_field"
 
-    if not _rail_replay_guard(
+    return _verify_burn_rails_authority(
         do_burn=do_burn,
         receipt_bound=receipt_bound,
         nullifier_unused=nullifier_unused,
         policy_ok=policy_ok,
-    ):
-        return False, "replay_guard_failed"
-    if not _rail_amount_guard(
-        do_burn=do_burn,
         burn_amount=burn_amount,
         receipt_amount=receipt_amount,
         burn_budget=burn_budget,
-    ):
-        return False, "amount_guard_failed"
-    if not _rail_supply_guard(
-        do_burn=do_burn,
-        burn_amount=burn_amount,
         supply_before=supply_before,
         supply_after=supply_after,
-    ):
-        return False, "supply_guard_failed"
-    if not _rail_batch_sum_guard(
-        do_burn=do_burn,
-        burn_amount=burn_amount,
         batch_burn_sum_before=batch_burn_sum_before,
         batch_burn_sum_after=batch_burn_sum_after,
-    ):
-        return False, "batch_sum_guard_failed"
-    return True, "ok"
+    )

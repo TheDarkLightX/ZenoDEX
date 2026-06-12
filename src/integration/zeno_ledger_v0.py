@@ -257,6 +257,7 @@ def dex_state_root_v0(state: DexState) -> str:
         pools=state.pools,
         lp_balances=state.lp_balances,
         nonces=state.nonces,
+        fee_accumulator=state.fee_accumulator,
     )
 
 
@@ -442,6 +443,34 @@ def _extract_tx_operations_v0(tx: object, *, index: int) -> Mapping[str, Any]:
     return _require_mapping(operations, name=f"transactions[{index}].operations")
 
 
+def _looks_like_tauswap_intent_stream_v0(value: object) -> bool:
+    if not isinstance(value, list):
+        return False
+    if not value:
+        return True
+    first = value[0]
+    candidate: object = None
+    if isinstance(first, Mapping):
+        candidate = first
+    elif isinstance(first, (list, tuple)) and first and isinstance(first[0], Mapping):
+        candidate = first[0]
+    if not isinstance(candidate, Mapping):
+        return False
+    module = candidate.get("module")
+    if module is None:
+        return "kind" in candidate
+    return str(module) == "TauSwap"
+
+
+def _normalize_dex_operations_for_apply_v0(operations: Mapping[str, Any]) -> dict[str, Any]:
+    normalized = dict(operations)
+    if "2" not in normalized and _looks_like_tauswap_intent_stream_v0(normalized.get("5")):
+        normalized["2"] = normalized["5"]
+    if "3" not in normalized and "6" in normalized:
+        normalized["3"] = normalized["6"]
+    return normalized
+
+
 def _extract_tx_block_timestamp_v0(tx: object, *, index: int, default: int | None) -> int:
     obj = _require_mapping(tx, name=f"transactions[{index}]")
     value = obj.get("block_timestamp", default)
@@ -478,13 +507,14 @@ def apply_body_transactions_v0(
     working_state = state
     executed_body = deepcopy(body)
     receipts: list[dict[str, Any]] = []
+    executed_body["evidence"]["rejection_receipts"] = []
     rejection_receipts = executed_body["evidence"]["rejection_receipts"]
     height = _require_nonnegative_int(executed_body["height"], name="body.height")
 
     for index, tx in enumerate(executed_body["transactions"]):
         tx_hash = tx_hash_v0(tx)
         try:
-            operations = dict(_extract_tx_operations_v0(tx, index=index))
+            operations = _normalize_dex_operations_for_apply_v0(_extract_tx_operations_v0(tx, index=index))
             block_timestamp = _extract_tx_block_timestamp_v0(
                 tx,
                 index=index,
@@ -641,6 +671,35 @@ def validate_ingress_v0(ingress: dict[str, Any]) -> None:
         _validate_forced_inclusion_decision(decision, index=index)
 
 
+def _validate_ingress_body_context_v0(ingress: object, *, chain_id: str, height: int) -> None:
+    obj = _require_mapping(ingress, name="ingress")
+    batch_cutoff = _require_mapping(obj.get("batch_cutoff"), name="ingress.batch_cutoff")
+    if batch_cutoff.get("chain_id") != chain_id:
+        raise ValueError("batch_cutoff/body chain_id mismatch")
+    if batch_cutoff.get("height") != height:
+        raise ValueError("batch_cutoff/body height mismatch")
+
+    receipts = _require_list(obj.get("ingress_receipts"), name="ingress.ingress_receipts")
+    for index, raw_receipt in enumerate(receipts):
+        receipt = _require_mapping(raw_receipt, name=f"ingress.ingress_receipts[{index}]")
+        if receipt.get("chain_id") != chain_id:
+            raise ValueError(f"ingress_receipts[{index}]/body chain_id mismatch")
+        if receipt.get("height") != height:
+            raise ValueError(f"ingress_receipts[{index}]/body height mismatch")
+
+    requests = _require_list(obj.get("forced_inclusion_requests"), name="ingress.forced_inclusion_requests")
+    for index, raw_request in enumerate(requests):
+        request = _require_mapping(raw_request, name=f"ingress.forced_inclusion_requests[{index}]")
+        if request.get("chain_id") != chain_id:
+            raise ValueError(f"forced_inclusion_requests[{index}]/body chain_id mismatch")
+
+    decisions = _require_list(obj.get("forced_inclusion_decisions"), name="ingress.forced_inclusion_decisions")
+    for index, raw_decision in enumerate(decisions):
+        decision = _require_mapping(raw_decision, name=f"ingress.forced_inclusion_decisions[{index}]")
+        if decision.get("chain_id") != chain_id:
+            raise ValueError(f"forced_inclusion_decisions[{index}]/body chain_id mismatch")
+
+
 def compute_ingress_root_v0(ingress: dict[str, Any]) -> str:
     validate_ingress_v0(ingress)
     leaves: list[str] = [hash_v0("batch_cutoff_v0", ingress["batch_cutoff"])]
@@ -680,9 +739,10 @@ def validate_body_v0(body: dict[str, Any]) -> None:
         raise ValueError("body keys mismatch")
     if obj.get("schema") != BODY_SCHEMA_V0:
         raise ValueError("body schema mismatch")
-    _require_str(obj.get("chain_id"), name="body.chain_id")
-    _require_nonnegative_int(obj.get("height"), name="body.height")
+    chain_id = _require_str(obj.get("chain_id"), name="body.chain_id")
+    height = _require_nonnegative_int(obj.get("height"), name="body.height")
     validate_ingress_v0(obj["ingress"])
+    _validate_ingress_body_context_v0(obj["ingress"], chain_id=chain_id, height=height)
     _require_list(obj.get("transactions"), name="body.transactions")
     _require_list(obj.get("settlement_envelopes"), name="body.settlement_envelopes")
     _validate_evidence(obj.get("evidence"))
@@ -860,6 +920,23 @@ def validate_header_validator_set_hash_v0(
         raise ValueError("header sequencer_set_hash mismatch")
 
 
+def validate_body_validator_schedule_v0(
+    body: Mapping[str, Any],
+    validator_set: Mapping[str, Any],
+) -> None:
+    body_obj = dict(_require_mapping(body, name="body"))
+    validate_body_v0(body_obj)
+    validator_body = _normalized_validator_set_body_v0(validator_set)
+    if body_obj["chain_id"] != validator_body["chain_id"]:
+        raise ValueError("body/validator set chain_id mismatch")
+    ingress = _require_mapping(body_obj.get("ingress"), name="body.ingress")
+    batch_cutoff = _require_mapping(ingress.get("batch_cutoff"), name="body.ingress.batch_cutoff")
+    sequencer_id = _require_str(batch_cutoff.get("sequencer_id"), name="body.ingress.batch_cutoff.sequencer_id")
+    expected = scheduled_validator_id_for_height_v0(validator_body, height=int(body_obj["height"]))
+    if sequencer_id != expected:
+        raise ValueError("body sequencer_id does not match validator schedule")
+
+
 def validate_header_chain_linkage_v0(
     headers: Sequence[Mapping[str, Any]],
     *,
@@ -892,6 +969,33 @@ def validate_header_chain_linkage_v0(
         expected_prev = canonical_header_hash_v0(chain[index - 1])
         if chain[index]["prev_header_hash"] != expected_prev:
             raise ValueError("header prev_header_hash mismatch")
+
+
+def validate_header_chain_state_continuity_v0(
+    headers: Sequence[Mapping[str, Any]],
+) -> None:
+    """Fail closed unless each header's ``pre_state_root`` equals its parent's
+    ``post_state_root`` (committed-state continuity across the chain).
+
+    ``validate_header_chain_linkage_v0`` binds ``prev_header_hash`` + consecutive
+    heights, but NOT the STATE: a chain can be hash-linked yet have a state
+    discontinuity — block N+1 claiming a ``pre_state_root`` that is not block N's
+    ``post_state_root``. Validating that continuity makes the per-block
+    ``validate_block_state_transition_v0`` binding compose into an end-to-end
+    state-transition chain (parent.post == child.pre == child.post(re-executed)).
+    Kept as a separate opt-in validator so callers can compose it with the header
+    linkage / fork-choice checks.
+    """
+    if not isinstance(headers, Sequence) or isinstance(headers, (str, bytes, bytearray)):
+        raise TypeError("headers must be a sequence")
+    if not headers:
+        raise ValueError("header chain must be non-empty")
+    chain = [dict(_require_mapping(header, name=f"headers[{index}]")) for index, header in enumerate(headers)]
+    for header in chain:
+        validate_header_v0(header)
+    for index in range(1, len(chain)):
+        if chain[index]["pre_state_root"] != chain[index - 1]["post_state_root"]:
+            raise ValueError("header pre_state_root does not match parent post_state_root")
 
 
 def detect_header_equivocations_v0(
@@ -1052,6 +1156,79 @@ def validate_header_body_roots_v0(header: dict[str, Any], body: dict[str, Any]) 
     )
     if header["app_hash"] != expected_app_hash:
         raise ValueError("header app_hash mismatch")
+
+
+def validate_block_state_transition_v0(
+    *,
+    pre_state: DexState,
+    header: dict[str, Any],
+    body: dict[str, Any],
+    config: DexEngineConfig,
+    default_block_timestamp: int | None = None,
+) -> None:
+    """Fail closed unless ``header.post_state_root`` equals the committed state root
+    obtained by deterministically re-executing ``body.transactions`` against
+    ``pre_state``.
+
+    ``validate_header_body_roots_v0`` binds the header to the body's
+    tx/ingress/evidence/body roots and ``app_hash``, but NOT to the resulting STATE:
+    a header could carry any ``post_state_root`` and still pass. This re-executes the
+    body via ``apply_body_transactions_v0`` (deterministic functional core) and
+    recomputes ``compute_state_root`` on the result, rejecting a mismatch. An
+    un-rootable post-state (e.g. a non-canonical identifier ``compute_state_root``
+    cannot encode) is rejected fail-closed rather than crashing the validator. It
+    makes a block whose claimed pre/post state is wrong, or whose accepted body
+    yields an un-committable state, a deterministic REJECT instead of an unchecked
+    commit or a producer stall.
+
+    SCOPE — this binds ONLY the pre/post committed STATE ROOTS to the supplied
+    pre-state and the re-executed body. It is one piece of full block validation, not
+    the whole. It deliberately does NOT verify: the body's ``evidence`` /
+    ``rejection_receipts`` against re-execution (``apply_body_transactions_v0``
+    deep-copies the body and APPENDS to its existing rejection receipts, so a naive
+    re-executed-vs-supplied comparison would double-count — a correct evidence
+    binding must re-run from cleared evidence and is tracked separately), the proof
+    metadata / proof verification, the ``config_digest``->config binding, or the
+    validator set / signatures. Those are enforced by their own validators
+    (``validate_proof_metadata_header_binding_v0``, signature/validator-set checks).
+    Compose this with those for full block acceptance; on its own it closes the
+    state-root forgery / un-rootable-state class only.
+    """
+    if not isinstance(pre_state, DexState):
+        raise TypeError("pre_state must be a DexState")
+    if not isinstance(config, DexEngineConfig):
+        raise TypeError("config must be a DexEngineConfig")
+    # Structural header<->body binding first (tx/ingress/evidence/body roots + app_hash).
+    validate_header_body_roots_v0(header, body)
+    # Anchor the supplied pre-state to the header's claimed pre_state_root, so the
+    # transition is bound at BOTH ends (a caller cannot smuggle in a pre-state that
+    # does not match what the header commits to). An un-rootable pre-state fails
+    # closed rather than crashing.
+    try:
+        actual_pre_state_root = dex_state_root_v0(pre_state)
+    except Exception as exc:  # un-rootable pre-state -> fail closed
+        raise ValueError(
+            f"pre_state_root not computable (un-rootable pre-state): {exc}"
+        ) from exc
+    if header["pre_state_root"] != actual_pre_state_root:
+        raise ValueError("header pre_state_root does not match supplied pre_state")
+    # Re-execute the body deterministically; rejected txs become rejection receipts
+    # and do not advance the state, exactly as a producer would have committed it.
+    working_state, _executed_body, _receipts = apply_body_transactions_v0(
+        state=pre_state,
+        body=body,
+        config=config,
+        default_block_timestamp=default_block_timestamp,
+    )
+    try:
+        recomputed_post_state_root = dex_state_root_v0(working_state)
+    except Exception as exc:  # un-rootable post-state -> fail closed, never crash
+        raise ValueError(
+            f"post_state_root not computable from re-executed body "
+            f"(un-rootable post-state): {exc}"
+        ) from exc
+    if header["post_state_root"] != recomputed_post_state_root:
+        raise ValueError("header post_state_root does not match re-executed body state")
 
 
 def validate_proof_metadata_header_binding_v0(

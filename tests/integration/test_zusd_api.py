@@ -395,6 +395,25 @@ class TestOracleAdapterGate:
         assert body["error"] == "rejected"
         assert body["detail"] == "mint requires oracle_adapter_bridge"
 
+    def test_oracle_adapter_invalid_env_fails_closed(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_ORACLE_ADAPTER_REQUIRED", "maybe")
+
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "mint_zusd",
+                "args": {
+                    "amount_e8": 1,
+                },
+            },
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert "oracle_adapter_config_error" in body["detail"]
+        assert "ZUSD_ORACLE_ADAPTER_REQUIRED" in body["detail"]
+
 
 class TestMultiFlow:
     def test_multi_bootstrap_and_mint(self):
@@ -454,12 +473,52 @@ class TestPerpOracleSyncGate:
         assert body["error"] == "rejected"
         assert "oracle_sync_epoch_lag" in str(body.get("detail", ""))
 
+    def test_sync_gate_rejects_malformed_enabled_flag(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_ENABLED", "maybe")
+
+        status, body = _post(
+            "/api/zusd/step",
+            {"tag": "bootstrap_oracle", "args": {"price_e8": 50_000_000, "auth_ok": True}},
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert "oracle_sync_config_error" in str(body.get("detail", ""))
+        assert "ZUSD_PERP_ORACLE_SYNC_ENABLED" in str(body.get("detail", ""))
+
+    def test_sync_gate_rejects_malformed_divergence_bound(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_ENABLED", "1")
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_MARKET_ID", "TAU-USD")
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_MAX_DIVERGENCE_BPS", "nan")
+
+        status, body = _post(
+            "/api/zusd/step",
+            {"tag": "bootstrap_oracle", "args": {"price_e8": 50_000_000, "auth_ok": True}},
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert "oracle_sync_config_error" in str(body.get("detail", ""))
+        assert "ZUSD_PERP_ORACLE_SYNC_MAX_DIVERGENCE_BPS" in str(body.get("detail", ""))
+
 
 class TestTauGateWiring:
     def test_tau_gate_defaults_to_absolute_path_resolution(self, monkeypatch):
         monkeypatch.delenv("ZUSD_TAU_ALLOW_PATH_LOOKUP", raising=False)
         cfg = _tau_gate_config_from_env()
         assert cfg.allow_path_lookup is False
+
+    def test_tau_gate_rejects_nonfinite_timeout_env(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_TAU_GATE_TIMEOUT_S", "nan")
+
+        status, body = _post("/api/zusd/step", {"tag": "advance_epoch", "args": {"delta": 1}})
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "config_error"
+        assert "ZUSD_TAU_GATE_TIMEOUT_S" in body["detail"]
 
     def test_tau_gate_enabled_and_passing(self, monkeypatch):
         monkeypatch.setenv("ZUSD_TAU_GATE_ENABLED", "1")

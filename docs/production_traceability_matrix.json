@@ -360,7 +360,7 @@
         "python3 tools/check_production_key_management_esso_equivalent.py",
         "python3 tools/check_production_key_material_absence.py",
         "python3 tools/check_production_key_management_completion.py",
-        "/home/trevormoc/.elan/toolchains/leanprover--lean4---v4.27.0/bin/lean lean-mathlib/Proofs/ZenoLedgerProductionKeyManagement.lean",
+        "lake env lean lean-mathlib/Proofs/ZenoLedgerProductionKeyManagement.lean",
         "python3 -m pytest -q tests/test_production_key_management_spec.py tests/integration/test_production_key_management_v0.py tests/integration/test_zeno_ledger_production_key_gates_v0.py tests/test_check_production_key_management_config.py tests/test_check_production_key_management_esso_equivalent.py tests/test_check_production_key_material_absence.py tests/test_check_production_key_management_completion.py tests/test_security_posture_files.py"
       ],
       "residual_limits": "This is the pure admission, finite-model/property-checker, ESSO-equivalent model, config-validation, ZenoLedger production-gate, release-gate bypass-check, tracked-file secret-material scan, operator-runbook, and completion-audit layer. Real signature scheme adapters, hardware/HSM/MPC vendor assurance, and live operator ceremony evidence remain follow-up work."

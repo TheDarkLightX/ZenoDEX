@@ -21,7 +21,7 @@ from .batch_clearing import apply_settlement_pure, compute_settlement, validate_
 from .fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult, split_fee_with_dust_carry
 from .oracle import OracleState
 from .perps import PerpsState
-from .settlement import Settlement
+from .settlement import FillAction, Settlement
 from .settlement_strong_validator import validate_settlement_strong
 from .vault import VaultState
 
@@ -41,10 +41,34 @@ class DexConfig:
     # Quote-bound snapshot markers are only accepted after a higher layer
     # validates and strips raw receipt transport metadata.
     allow_snapshot_bound_quote_bindings: bool = False
-    # Legacy default preserves older nonce-free demos. Deployment profiles can
-    # require complete nonce coverage for public or production posture.
-    require_all_nonces: bool = False
-    allow_legacy_nonce_free_steps: bool = True
+    # A transaction-level DEX step is accepted only when every submitted intent is
+    # filled. Batch-clearing internals may represent unfillable intents as
+    # REJECT fills, but the public execution boundary fails closed on them.
+    reject_settlements_with_rejected_intents: bool = True
+    # Replay protection is a core-boundary invariant: every public intent must
+    # carry a valid nonce unless a caller deliberately enables the legacy
+    # nonce-free compatibility mode for closed test harnesses.
+    require_all_nonces: bool = True
+    allow_legacy_nonce_free_steps: bool = False
+    # Exact-in CPMM protocol-fee capture. A nonzero share removes that portion
+    # of the swap fee from pool reserves and credits `protocol_fee_recipient_pubkey`.
+    protocol_fee_share_bps: int = 0
+    protocol_fee_recipient_pubkey: Optional[str] = None
+
+    def requires_complete_nonce_coverage(self) -> bool:
+        """Return the fail-closed nonce policy for public core step calls.
+
+        Design by Contract:
+        - Precondition: compatibility callers must set both
+          `require_all_nonces=False` and `allow_legacy_nonce_free_steps=True`.
+        - Invariant: the default policy rejects nonce-free intents at the core
+          boundary, preventing signed-intent replay.
+        - Postcondition: an ambiguous config (`require_all_nonces=False` without
+          legacy opt-in) still fails closed.
+        """
+        if bool(self.require_all_nonces):
+            return True
+        return not bool(self.allow_legacy_nonce_free_steps)
 
 
 @dataclass(frozen=True)
@@ -102,9 +126,16 @@ def _validate_and_apply_settlement(
             mode=str(config.settlement_validation),
             allow_cow_netting=bool(allow_cow),
             allow_snapshot_bound_quote_bindings=bool(config.allow_snapshot_bound_quote_bindings),
+            protocol_fee_share_bps=config.protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=config.protocol_fee_recipient_pubkey,
         )
     if not ok:
         return DexStepResult(ok=False, error=err or "settlement invalid")
+
+    if config.reject_settlements_with_rejected_intents:
+        err = _first_rejected_settlement_intent_error(settlement)
+        if err is not None:
+            return DexStepResult(ok=False, error=err)
 
     next_balances, next_pools, next_lp = apply_settlement_pure(
         settlement=settlement,
@@ -146,6 +177,18 @@ def _validate_and_apply_settlement(
     )
 
 
+def _first_rejected_settlement_intent_error(settlement: Settlement) -> str | None:
+    fills_by_id = {fill.intent_id: fill for fill in settlement.fills}
+    for intent_id, action in settlement.included_intents:
+        if action == FillAction.FILL:
+            continue
+        fill = fills_by_id.get(intent_id)
+        action_value = action.value if isinstance(action, FillAction) else str(action)
+        reason = fill.reason if fill is not None and fill.reason else str(action_value)
+        return f"settlement rejected intent_id={intent_id}: {reason}"
+    return None
+
+
 def step_with_candidate_settlement(
     config: DexConfig,
     state: DexState,
@@ -158,7 +201,7 @@ def step_with_candidate_settlement(
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
             intents=intents,
-            require_all_nonces=bool(config.require_all_nonces),
+            require_all_nonces=config.requires_complete_nonce_coverage(),
         )
         if not ok:
             return DexStepResult(ok=False, error=err or "nonce policy rejected")
@@ -183,7 +226,7 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
             intents=intents,
-            require_all_nonces=bool(config.require_all_nonces),
+            require_all_nonces=config.requires_complete_nonce_coverage(),
         )
         if not ok:
             return DexStepResult(ok=False, error=err or "nonce policy rejected")
@@ -193,6 +236,8 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
             balances=state.balances,
             lp_balances=state.lp_balances,
             swap_ordering=str(config.swap_ordering),
+            protocol_fee_share_bps=config.protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=config.protocol_fee_recipient_pubkey,
         )
         return _validate_and_apply_settlement(
             config,

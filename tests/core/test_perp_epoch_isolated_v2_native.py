@@ -34,4 +34,7 @@ def test_perp_epoch_isolated_v2_native_deposit_insurance_matches_v2_ref_shape() 
 
 def test_perp_epoch_isolated_v3_native_initial_state_keeps_epoch_phase() -> None:
     native = dict(perp_epoch_isolated_v3_native_initial_state())
-    assert native["epoch_phase"] == "Open"
+    # v3 native kernel ABI encodes epoch_phase as an integer enum (Open=0,
+    # PricePublished=1, Settled=2); the initial state is Open. The string "Open"
+    # is the typed/human form; the native ABI is integer.
+    assert native["epoch_phase"] == 0

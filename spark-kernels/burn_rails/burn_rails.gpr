@@ -1,0 +1,14 @@
+--  GNAT project for the advisory SPARK burn-rail conservation kernel.
+--  Build:  gprbuild -P burn_rails.gpr
+--  Prove:  gnatprove -P burn_rails.gpr --level=2 --report=all
+project Burn_Rails is
+
+   for Source_Dirs use (".");
+   for Object_Dir use "obj";
+   for Main use ();
+
+   package Compiler is
+      for Default_Switches ("Ada") use ("-gnat2012", "-gnata", "-gnatwa");
+   end Compiler;
+
+end Burn_Rails;

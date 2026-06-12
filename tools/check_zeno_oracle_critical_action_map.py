@@ -133,6 +133,9 @@ def _check_fail_closed_config(runtime_surfaces: list[dict[str, Any]]) -> dict[st
         "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED": env.get("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED") == "1",
         "ZUSD_ORACLE_ADAPTER_REQUIRED": env.get("ZUSD_ORACLE_ADAPTER_REQUIRED") == "1",
         "ZUSD_ORACLE_AUTHORIZATION_REQUIRED": env.get("ZUSD_ORACLE_AUTHORIZATION_REQUIRED") == "1",
+        "ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED": (
+            env.get("ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED") == "1"
+        ),
         "require_oracle_authorization_for_protected_swaps": bool(
             dex_config.require_oracle_authorization_for_protected_swaps
         ),
@@ -150,6 +153,9 @@ def _check_fail_closed_config(runtime_surfaces: list[dict[str, Any]]) -> dict[st
         ),
         "require_oracle_authorization_for_isolated_settle": bool(
             perp_config.require_oracle_authorization_for_isolated_settle
+        ),
+        "require_oracle_authorization_for_isolated_settle_epoch": bool(
+            perp_config.require_oracle_authorization_for_isolated_settle_epoch
         ),
         "check_trigger_execute_oracle_adapter_bridge(required=True)": True,
         "check_trigger_execute_oracle_authorization": True,
@@ -196,6 +202,8 @@ def _check_perps_settle_epoch(profiles: Mapping[tuple[str, str], Mapping[str, An
         "expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(",
         "required=ctx.config.require_oracle_adapter_for_isolated_settle_epoch",
         "required=config.require_oracle_adapter_for_clearinghouse_settle_epoch",
+        "_check_isolated_settle_oracle_authorization(",
+        "check_critical_consumer_authorization(",
     ):
         _expect(needle in source, errors, f"perps_settle_missing_static_wiring:{needle}")
     return _runtime_surface(
@@ -208,6 +216,7 @@ def _check_perps_settle_epoch(profiles: Mapping[tuple[str, str], Mapping[str, An
             "required_controls": [
                 "require_oracle_adapter_for_isolated_settle_epoch",
                 "require_oracle_adapter_for_clearinghouse_settle_epoch",
+                "require_oracle_authorization_for_isolated_settle_epoch",
             ],
             "covered_runtime_actions": [
                 "isolated_settle_epoch",
@@ -270,8 +279,12 @@ def _check_zusd_action(
     key = ("zenodex.zusd", action_kind)
     profile = profiles[key]
     source = _source("src/integration/zusd_api.py")
+    monetary_source = _source("src/integration/zusd_monetary_wallet_api.py")
+    rust_source = _source("rust-runtime/crates/zenodex-runtime-cli/src/main.rs")
+    oracle_cli_source = _source("tools/zenodex_oracle.py")
 
     from src.integration import zusd_api  # pylint: disable=import-outside-toplevel
+    from src.integration import zusd_monetary_wallet_api  # pylint: disable=import-outside-toplevel
 
     _expect(
         str(profile["query_id"]) == zusd_api._ORACLE_ZUSD_COLLATERAL_QUERY_ID,  # noqa: SLF001
@@ -288,6 +301,21 @@ def _check_zusd_action(
         errors,
         f"zusd_{action_kind}_tag_mapping_missing",
     )
+    _expect(
+        str(profile["query_id"]) == zusd_monetary_wallet_api._ORACLE_ZUSD_COLLATERAL_QUERY_ID,  # noqa: SLF001
+        errors,
+        f"zusd_monetary_{action_kind}_query_id_drift",
+    )
+    _expect(
+        str(profile["profile_id"]) == zusd_monetary_wallet_api._ZUSD_ORACLE_CONSUMER_PROFILE_IDS[action_kind],  # noqa: SLF001
+        errors,
+        f"zusd_monetary_{action_kind}_profile_id_drift",
+    )
+    _expect(
+        zusd_monetary_wallet_api._ZUSD_ORACLE_ADAPTER_ACTIONS.get(expected_tag) == action_kind,  # noqa: SLF001
+        errors,
+        f"zusd_monetary_{action_kind}_tag_mapping_missing",
+    )
     for needle in (
         "_check_zusd_oracle_adapter_bridge(",
         "ZUSD_ORACLE_ADAPTER_REQUIRED",
@@ -303,18 +331,71 @@ def _check_zusd_action(
         "_zusd_runtime_oracle_action_id(",
     ):
         _expect(needle in source, errors, f"zusd_{action_kind}_missing_static_wiring:{needle}")
+    for needle in (
+        "_check_oracle_authorization(",
+        "ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED",
+        "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+        "check_critical_consumer_authorization(",
+        "_oracle_runtime_facts(",
+        "_oracle_action_facts_hash(",
+        "_oracle_action_id(",
+        'rest == ["oracle-runtime"]',
+        'consumer_module="zenodex.zusd"',
+        "profile_id=_oracle_profile_id_for_action(action_kind)",
+    ):
+        _expect(
+            needle in monetary_source,
+            errors,
+            f"zusd_monetary_{action_kind}_missing_static_wiring:{needle}",
+        )
+    for needle in (
+        "cmd_authorization_build_from_runtime",
+        "_select_read_for_runtime(",
+        '"/api/oracle/authorization/build-from-runtime"',
+        "runtime_action",
+    ):
+        _expect(
+            needle in oracle_cli_source,
+            errors,
+            f"zusd_oracle_runtime_authorization_missing_static_wiring:{needle}",
+        )
+    rust_expected_mapping = (
+        '"mint_zusd" => Some("mint")'
+        if action_kind == "mint"
+        else '"liquidate" => Some("liquidate_vault")'
+    )
+    for needle in (
+        "ZUSD_ORACLE_COLLATERAL_QUERY_ID",
+        "require_oracle_authorization",
+        "zusd_oracle_gate(",
+        "oracle_authorization_not_accepted",
+        "oracle_runtime_value_mismatch",
+        rust_expected_mapping,
+    ):
+        _expect(
+            needle in rust_source,
+            errors,
+            f"rust_zusd_{action_kind}_missing_static_wiring:{needle}",
+        )
     return _runtime_surface(
         consumer_module=key[0],
         action_kind=key[1],
-        path="src/integration/zusd_api.py",
+        path=(
+            "src/integration/zusd_api.py + src/integration/zusd_monetary_wallet_api.py + "
+            "tools/zenodex_oracle.py + rust-runtime/crates/zenodex-runtime-cli/src/main.rs"
+        ),
         details={
             "query_id": profile["query_id"],
             "profile_id": profile["profile_id"],
             "required_controls": [
                 "ZUSD_ORACLE_ADAPTER_REQUIRED",
                 "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+                "ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED",
             ],
             "runtime_tag": expected_tag,
+            "live_runtime_endpoint": "/api/zusd/monetary/oracle-runtime",
+            "oracle_authorization_endpoint": "/api/oracle/authorization/build-from-runtime",
+            "rust_runtime_request_control": "require_oracle_authorization",
         },
         errors=errors,
     )

@@ -43,6 +43,8 @@ INCLUDE_PATHS = (
     "generated/perp_python/perp_epoch_isolated_v2_ref.py",
     "generated/perp_python/perp_epoch_isolated_v3_ref.py",
     "packages/zeno-proof-client",
+    "rust-runtime",
+    "zk/state_proof_risc0",
     "requirements-core.lock.txt",
     "requirements-dev.lock.txt",
     "requirements-agents.lock.txt",
@@ -52,14 +54,21 @@ INCLUDE_PATHS = (
     "docs/DEPLOYMENT_QUICKSTART.md",
     "docs/DOCKER_HASHLOCKED_DEPLOYMENT.md",
     "docs/LOCAL_TESTNET_QUICKSTART.md",
+    "docs/NATIVE_INSTALLER_PLAN.md",
     "docs/LATEST_TESTNET_CHECKPOINT.md",
     "docs/PERMISSIONLESS_HOSTING.md",
+    "docs/PUBLIC_TESTNET_V0_1_16.md",
     "docs/PUBLIC_TESTNET_V0_1_16_PLAN.md",
+    "docs/RISC0_RELEASE_BINARY_ARTIFACTS_2026_06_02.md",
     "docs/KEYS_STANDALONE_APP_SPEC.md",
     "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json",
+    "docs/ZENODEX_TRUST_MINIMIZATION_TARGET.md",
+    "docs/ZENODEX_TRUST_MINIMIZATION_TARGET_V0.json",
     "docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md",
     "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
     "docs/ZENODEX_LOCAL_SIGNER_SECURITY_MODEL.md",
+    "docs/zenodex_perps_np_state_proof_risc0_v1.md",
+    "docs/zenodex_zusd_state_proof_risc0_v1.md",
     "docs/assurance",
     "docs/claims_registry.yaml",
     "docs/tau_supported_runtime_contract.json",
@@ -265,14 +274,23 @@ def _verify_archive_members(*, archive: Path, manifest: dict[str, Any]) -> list[
     expected = {str(item["path"]): item for item in manifest["files"]}
     prefix = f"zenodex-operator-{manifest.get('version')}/"
     with tarfile.open(archive, "r:gz") as tar:
-        members = [member for member in tar.getmembers() if member.isfile()]
+        members = tar.getmembers()
         observed: set[str] = set()
         for member in members:
             if not member.name.startswith(prefix):
                 errors.append(f"archive member outside bundle prefix: {member.name}")
                 continue
             relpath = member.name[len(prefix) :]
+            if not _is_safe_relative_path(relpath):
+                errors.append(f"archive member has unsafe path: {relpath}")
+                continue
+            if relpath in observed:
+                errors.append(f"archive contains duplicate path: {relpath}")
+                continue
             observed.add(relpath)
+            if not member.isfile():
+                errors.append(f"archive contains non-regular file: {relpath}")
+                continue
             expected_item = expected.get(relpath)
             if expected_item is None:
                 errors.append(f"archive contains unexpected file: {relpath}")

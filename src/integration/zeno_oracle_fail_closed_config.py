@@ -13,6 +13,12 @@ ZENO_ORACLE_FAIL_CLOSED_ENV: dict[str, str] = {
     "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED": "1",
     "ZUSD_ORACLE_ADAPTER_REQUIRED": "1",
     "ZUSD_ORACLE_AUTHORIZATION_REQUIRED": "1",
+    "ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED": "1",
+    "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH": "1",
+    "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH": "1",
+    "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE": "1",
+    "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH": "1",
+    "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH": "1",
 }
 
 ZENO_ORACLE_MIN_LP_POSITION_AGE_SECONDS = 300
@@ -76,5 +82,7 @@ def zeno_oracle_fail_closed_perp_config(
         require_oracle_adapter_for_isolated_settle_epoch=True,
         require_oracle_adapter_for_isolated_partial_liquidate=True,
         require_oracle_adapter_for_clearinghouse_settle_epoch=True,
+        require_oracle_authorization_for_clearinghouse_settle_epoch=True,
         require_oracle_authorization_for_isolated_settle=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
     )

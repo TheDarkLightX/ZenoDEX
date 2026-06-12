@@ -15,8 +15,8 @@ def test_build_tau_semantic_understanding_status() -> None:
     assert summary["confirmed_reviewed_spec_count"] == 11
     assert summary["lightweight_contract_count"] == 4
     assert summary["semantic_contract_count"] == 4
-    assert summary["formal_contract_count"] == 4
-    assert summary["formal_active_or_promoted_count"] == 4
+    assert summary["formal_contract_count"] == 6
+    assert summary["formal_active_or_promoted_count"] == 6
     assert summary["bounded_formal_seed_count"] == 4
 
     by_id = {entry["spec_id"]: entry for entry in entries}

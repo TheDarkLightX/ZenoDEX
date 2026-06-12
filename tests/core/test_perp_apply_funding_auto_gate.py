@@ -4,6 +4,7 @@ from src.core.perp_apply_funding_auto_gate import (
     evaluate_perp_apply_funding_auto_gate,
     perp_apply_funding_auto_gate_error,
 )
+from src.core.perp_v2.math import MAX_COLLATERAL
 
 
 def _base_kwargs() -> dict[str, object]:
@@ -20,6 +21,10 @@ def _base_kwargs() -> dict[str, object]:
         "funding_cap_bps": 100,
         "projected_net_funding_quote": 0,
         "any_funding_applied_this_epoch": False,
+        "net_position_base": 0,
+        "fee_pool_quote": 0,
+        "fee_income": 0,
+        "insurance_balance": 0,
     }
 
 
@@ -30,6 +35,7 @@ def test_perp_apply_funding_auto_gate_accepts_happy_path() -> None:
     assert outcome.oracle_fresh is True
     assert outcome.mark_price_e8 == 102_000_000
     assert outcome.funding_rate_bps == 100
+    assert outcome.sink_bounds_ok is True
     assert perp_apply_funding_auto_gate_error(outcome) is None
 
 
@@ -55,15 +61,75 @@ def test_perp_apply_funding_auto_gate_rejects_invalid_control_fields() -> None:
     assert perp_apply_funding_auto_gate_error(outcome) == "cannot apply funding: invalid funding_cap_bps"
 
 
-def test_perp_apply_funding_auto_gate_rejects_unbalanced_net_flow() -> None:
+def test_perp_apply_funding_auto_gate_allows_rounding_residual_on_zero_net_book() -> None:
     kwargs = _base_kwargs()
     kwargs["projected_net_funding_quote"] = 11
     outcome = evaluate_perp_apply_funding_auto_gate(**kwargs)
 
-    assert outcome.net_funding_balanced is False
+    assert outcome.net_position_base == 0
+    assert outcome.sink_bounds_ok is True
+    assert outcome.funding_auto_allowed is True
+    assert perp_apply_funding_auto_gate_error(outcome) is None
+
+
+def test_perp_apply_funding_auto_gate_allows_net_exposure_into_sink() -> None:
+    # Net base exposure is no longer rejected: the structural net flows into the
+    # bounded sink. Positive net always fits (sinks start at 0, grow).
+    kwargs = _base_kwargs()
+    kwargs["projected_net_funding_quote"] = 11
+    kwargs["net_position_base"] = 1
+    outcome = evaluate_perp_apply_funding_auto_gate(**kwargs)
+
+    assert outcome.net_position_base == 1
+    assert outcome.sink_bounds_ok is True
+    assert outcome.funding_auto_allowed is True
+    assert perp_apply_funding_auto_gate_error(outcome) is None
+
+
+def test_perp_apply_funding_auto_gate_rejects_negative_net_below_sink() -> None:
+    # Negative net (payees receive more than payers pay) that would drive a sink
+    # below zero must fail closed BEFORE any mutation.
+    kwargs = _base_kwargs()
+    kwargs["projected_net_funding_quote"] = -50
+    kwargs["fee_pool_quote"] = 10
+    kwargs["fee_income"] = 10
+    kwargs["insurance_balance"] = 10
+    outcome = evaluate_perp_apply_funding_auto_gate(**kwargs)
+
+    assert outcome.sink_bounds_ok is False
     assert outcome.funding_auto_allowed is False
     assert perp_apply_funding_auto_gate_error(outcome) == (
-        "apply_funding_auto would violate funding budget balance (net=11)"
+        "apply_funding_auto would drive a protocol sink out of bounds (net=-50)"
+    )
+
+
+def test_perp_apply_funding_auto_gate_allows_negative_net_within_sink() -> None:
+    # A prefunded sink absorbs a negative net.
+    kwargs = _base_kwargs()
+    kwargs["projected_net_funding_quote"] = -50
+    kwargs["fee_pool_quote"] = 100
+    kwargs["fee_income"] = 100
+    kwargs["insurance_balance"] = 100
+    outcome = evaluate_perp_apply_funding_auto_gate(**kwargs)
+
+    assert outcome.sink_bounds_ok is True
+    assert outcome.funding_auto_allowed is True
+    assert perp_apply_funding_auto_gate_error(outcome) is None
+
+
+def test_perp_apply_funding_auto_gate_rejects_sink_overflow() -> None:
+    # A positive net that would push a sink past the finite-domain max fails closed.
+    kwargs = _base_kwargs()
+    kwargs["fee_pool_quote"] = MAX_COLLATERAL
+    kwargs["fee_income"] = MAX_COLLATERAL
+    kwargs["insurance_balance"] = MAX_COLLATERAL
+    kwargs["projected_net_funding_quote"] = 1
+    outcome = evaluate_perp_apply_funding_auto_gate(**kwargs)
+
+    assert outcome.sink_bounds_ok is False
+    assert outcome.funding_auto_allowed is False
+    assert perp_apply_funding_auto_gate_error(outcome) == (
+        "apply_funding_auto would drive a protocol sink out of bounds (net=1)"
     )
 
 

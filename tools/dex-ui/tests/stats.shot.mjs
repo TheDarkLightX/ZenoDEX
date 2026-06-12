@@ -1,0 +1,18 @@
+import { chromium } from '@playwright/test';
+import { mkdirSync, readFileSync } from 'node:fs';
+const OUT='test-results/screens'; mkdirSync(OUT,{recursive:true});
+const TOK=JSON.parse(readFileSync('test-results/live-tokenomics.json','utf8'));
+const CFG={deployment:'local-testnet',apiBase:'',demoMode:false,allowDemoMode:false,localTestnetZkPosture:{zk_mode_effective:'strict',zk_required:true,proof_verifier_kind:'subprocess'}};
+const b=await chromium.launch();const p=await (await b.newContext({viewport:{width:1440,height:1300},deviceScaleFactor:2,colorScheme:'dark'})).newPage();
+const errs=[];p.on('pageerror',e=>errs.push(String(e)));p.on('console',m=>{if(m.type()==='error')errs.push('c:'+m.text().slice(0,90));});
+await p.route('**/zenodex-config.json',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(CFG)}));
+await p.route('**/api/tokenomics/status**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(TOK)}));
+await p.route('**/api/tokenomics/**',r=>r.request().url().includes('/status')?r.fallback():r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true})}));
+await p.goto('http://127.0.0.1:5180/?theme=dark',{waitUntil:'networkidle'});
+await p.getByRole('button',{name:'ZDEX Stats'}).first().click().catch(()=>{});
+await p.waitForTimeout(1500);
+await p.screenshot({path:`${OUT}/stats-AFTER.png`,fullPage:true});
+const t=await p.locator('body').innerText().catch(()=>'');
+console.log('has 0.5% per transfer:', t.includes('per transfer'), '| has Buyback share:', t.includes('Buyback share'), '| has 20.00%:', t.includes('20.00%'), '| host-computed:', t.includes('host-computed'));
+console.log('pageerrors=',errs.length, errs.slice(0,3).join(' | '));
+await b.close();

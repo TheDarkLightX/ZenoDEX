@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import io
 import json
 import tarfile
 from pathlib import Path
@@ -47,6 +49,7 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "docker-compose.multimachine.yml",
         "docker-compose.permissionless.yml",
         "docker-compose.testnet-demo.yml",
+        "config/tau_testnet.lock",
         "generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py",
         "generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py",
         "generated/perp_python/perp_epoch_clearinghouse_3p_transfer_v0_1_ref.py",
@@ -54,6 +57,20 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "generated/perp_python/perp_epoch_isolated_v3_ref.py",
         "packages/zeno-proof-client/package.json",
         "packages/zeno-proof-client/src/index.js",
+        "rust-runtime/Cargo.toml",
+        "rust-runtime/crates/zenodex-launcher/Cargo.toml",
+        "rust-runtime/crates/zenodex-launcher/src/main.rs",
+        "zk/state_proof_risc0/Cargo.toml",
+        "zk/state_proof_risc0/Cargo.lock",
+        "zk/state_proof_risc0/cli/Cargo.toml",
+        "zk/state_proof_risc0/cli/src/main.rs",
+        "zk/state_proof_risc0/methods/Cargo.toml",
+        "zk/state_proof_risc0/methods/build.rs",
+        "zk/state_proof_risc0/methods/guest/Cargo.toml",
+        "zk/state_proof_risc0/methods/guest/src/main.rs",
+        "zk/state_proof_risc0/shared/Cargo.toml",
+        "zk/state_proof_risc0/shared/src/lib.rs",
+        "zk/state_proof_risc0/shared/src/surfaces.rs",
         "requirements-core.lock.txt",
         "requirements-dev.lock.txt",
         "requirements-agents.lock.txt",
@@ -63,10 +80,21 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "docs/DEPLOYMENT_QUICKSTART.md",
         "docs/DOCKER_HASHLOCKED_DEPLOYMENT.md",
         "docs/LOCAL_TESTNET_QUICKSTART.md",
+        "docs/NATIVE_INSTALLER_PLAN.md",
+        "docs/PUBLIC_TESTNET_V0_1_16.md",
+        "docs/PUBLIC_TESTNET_V0_1_16_PLAN.md",
+        "docs/RISC0_RELEASE_BINARY_ARTIFACTS_2026_06_02.md",
         "docs/PERMISSIONLESS_HOSTING.md",
+        "docs/LATEST_TESTNET_CHECKPOINT.md",
+        "docs/KEYS_STANDALONE_APP_SPEC.md",
         "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json",
+        "docs/ZENODEX_TRUST_MINIMIZATION_TARGET.md",
+        "docs/ZENODEX_TRUST_MINIMIZATION_TARGET_V0.json",
         "docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md",
         "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
+        "docs/ZENODEX_LOCAL_SIGNER_SECURITY_MODEL.md",
+        "docs/zenodex_perps_np_state_proof_risc0_v1.md",
+        "docs/zenodex_zusd_state_proof_risc0_v1.md",
         "docs/assurance/README.md",
         "docs/claims_registry.yaml",
         "docs/tau_supported_runtime_contract.json",
@@ -105,8 +133,19 @@ def test_build_operator_release_bundle_writes_archive_and_manifest(tmp_path: Pat
     assert ".dockerignore" in paths
     assert "formal/property/production_key_management_v0.json" in paths
     assert "docker-compose.local-testnet.yml" in paths
+    assert "config/tau_testnet.lock" in paths
     assert "docs/LOCAL_TESTNET_QUICKSTART.md" in paths
+    assert "docs/NATIVE_INSTALLER_PLAN.md" in paths
+    assert "docs/PUBLIC_TESTNET_V0_1_16.md" in paths
+    assert "docs/RISC0_RELEASE_BINARY_ARTIFACTS_2026_06_02.md" in paths
+    assert "rust-runtime/crates/zenodex-launcher/src/main.rs" in paths
+    assert "zk/state_proof_risc0/Cargo.toml" in paths
+    assert "zk/state_proof_risc0/cli/src/main.rs" in paths
+    assert "zk/state_proof_risc0/methods/guest/src/main.rs" in paths
+    assert "zk/state_proof_risc0/shared/src/surfaces.rs" in paths
     assert "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json" in paths
+    assert "docs/ZENODEX_TRUST_MINIMIZATION_TARGET.md" in paths
+    assert "docs/ZENODEX_TRUST_MINIMIZATION_TARGET_V0.json" in paths
     assert "docs/claims_registry.yaml" in paths
     assert "packages/zeno-proof-client/package.json" in paths
     assert "generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py" in paths
@@ -182,3 +221,78 @@ def test_operator_release_bundle_rejects_unsafe_version(tmp_path: Path, capsys) 
 
     assert code != 0
     assert "version must contain only ASCII" in capsys.readouterr().err
+
+
+def _write_manifest(path: Path, *, archive_name: str, archive_sha256: str, version: str, files: list[dict[str, object]]) -> None:
+    manifest = {
+        "schema": "zenodex.operator_release_bundle.v0",
+        "version": version,
+        "archive_name": archive_name,
+        "archive_sha256": archive_sha256,
+        "generated_at": "2026-01-01T00:00:00Z",
+        "generator": "test",
+        "file_count": len(files),
+        "files": files,
+    }
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def test_verify_rejects_non_regular_archive_members(tmp_path: Path) -> None:
+    archive_path = tmp_path / "bundle.tar.gz"
+    payload = b"ok\n"
+    with tarfile.open(archive_path, "w:gz") as tar:
+        regular = tarfile.TarInfo("zenodex-operator-v1/bin/zenoctl")
+        regular.size = len(payload)
+        tar.addfile(regular, fileobj=io.BytesIO(payload))
+        link = tarfile.TarInfo("zenodex-operator-v1/escape")
+        link.type = tarfile.SYMTYPE
+        link.linkname = "../../outside"
+        tar.addfile(link)
+
+    manifest_path = tmp_path / "manifest.json"
+    _write_manifest(
+        manifest_path,
+        archive_name=archive_path.name,
+        archive_sha256=hashlib.sha256(archive_path.read_bytes()).hexdigest(),
+        version="v1",
+        files=[
+            {"path": "bin/zenoctl", "size_bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest()},
+        ],
+    )
+    verify = verify_operator_release_manifest(manifest_path=manifest_path)
+
+    assert verify["ok"] is False
+    assert "archive contains non-regular file: escape" in verify["errors"]
+
+
+def test_verify_rejects_duplicate_and_unsafe_member_paths(tmp_path: Path) -> None:
+    archive_path = tmp_path / "bundle.tar.gz"
+    payload = b"ok\n"
+    with tarfile.open(archive_path, "w:gz") as tar:
+        a = tarfile.TarInfo("zenodex-operator-v1/bin/zenoctl")
+        a.size = len(payload)
+        tar.addfile(a, fileobj=io.BytesIO(payload))
+
+        dup = tarfile.TarInfo("zenodex-operator-v1/bin/zenoctl")
+        dup.size = len(payload)
+        tar.addfile(dup, fileobj=io.BytesIO(payload))
+
+        bad = tarfile.TarInfo("zenodex-operator-v1/../evil.txt")
+        bad.size = len(payload)
+        tar.addfile(bad, fileobj=io.BytesIO(payload))
+
+    manifest_path = tmp_path / "manifest.json"
+    _write_manifest(
+        manifest_path,
+        archive_name=archive_path.name,
+        archive_sha256=hashlib.sha256(archive_path.read_bytes()).hexdigest(),
+        version="v1",
+        files=[
+            {"path": "bin/zenoctl", "size_bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest()},
+        ],
+    )
+    verify = verify_operator_release_manifest(manifest_path=manifest_path)
+
+    assert verify["ok"] is False
+    assert "archive contains duplicate path: bin/zenoctl" in verify["errors"]
+    assert "archive member has unsafe path: ../evil.txt" in verify["errors"]
