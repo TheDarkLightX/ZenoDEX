@@ -99,7 +99,14 @@ theorem staircase_leftmost_dominates (u v : ℕ → ℕ)
   have hp : ∃ n, lo ≤ n ∧ u n = u a := ⟨a, hla, rfl⟩
   obtain ⟨hlc, huc⟩ := Nat.find_spec hp
   have hca : Nat.find hp ≤ a := Nat.find_le ⟨hla, rfl⟩
-  refine ⟨Nat.find hp, hlc, hca, huc, ?_, ?_⟩
+  use Nat.find hp
+  constructor
+  · exact hlc
+  constructor
+  · exact hca
+  constructor
+  · exact huc
+  constructor
   · rcases Nat.eq_or_lt_of_le hlc with heq | hlt
     · exact Or.inl heq.symm
     · right
@@ -284,10 +291,15 @@ theorem multi_pool_snap_dominates (u₀ : ℕ → ℕ) (hu₀ : Monotone u₀) :
           (fun _ _ _ => le_refl 0) 0 a (Nat.zero_le a)
       -- Recurse on the tail, absorbing the slack a − c into the head pool.
       obtain ⟨b₀, bs, hlenb, hsum, hjumps, hval⟩ := ih hmono' as' hlen' (a₀ + (a - c))
-      refine ⟨b₀, c :: bs, by simpa using hlenb, ?_, ?_, ?_⟩
+      use b₀
+      use c :: bs
+      constructor
+      · simpa using hlenb
+      constructor
       · -- budget: b₀ + (c + bs.sum) = a₀ + (a + as'.sum)
         simp only [List.sum_cons]
         omega
+      constructor
       · -- every snapped coordinate is 0 or a jump point
         intro p hp
         rw [List.zip_cons_cons, List.mem_cons] at hp

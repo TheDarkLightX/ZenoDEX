@@ -156,13 +156,17 @@ theorem witness_trisection :
     (f 7 ≤ f 3 ∧ (∀ j, 6 ≤ j → j ≤ 10 → f j ≤ f 6)) ∧
     -- rising probe pair (1, 4): keep [2, 10], which contains a* = 5
     (f 1 < f 4 ∧ (∀ j, j ≤ 1 → f j < f 2)) := by
-  refine ⟨⟨by norm_num, ?_⟩, ⟨by norm_num, ?_⟩⟩
-  · intro j hj₁ hj₂
-    exact discard_right _ 10 3 7 witness_concave (by omega) (by omega)
-      (by norm_num) j hj₁ hj₂
-  · intro j hj
-    exact discard_left _ 10 1 4 witness_concave (by omega) (by omega)
-      (by norm_num) j hj
+  constructor
+  · constructor
+    · norm_num
+    · intro j hj₁ hj₂
+      exact discard_right _ 10 3 7 witness_concave (by omega) (by omega)
+        (by norm_num) j hj₁ hj₂
+  · constructor
+    · norm_num
+    · intro j hj
+      exact discard_left _ 10 1 4 witness_concave (by omega) (by omega)
+        (by norm_num) j hj
 
 /-! ## Part 2: Output sanity bounds -/
 
@@ -214,16 +218,19 @@ so 3^k > D steps suffice to reduce {0,...,D} to a constant-size interval.
 theorem ternary_step_budget
     (D : Nat) (_hD : D > 0) :
     ∃ k : Nat, k ≤ 2 * (Nat.log2 D + 1) ∧ 3 ^ k > D := by
-  refine ⟨2 * (Nat.log2 D + 1), Nat.le_refl _, ?_⟩
-  have h1 : D < 2 ^ (Nat.log2 D + 1) := Nat.lt_log2_self
-  have h2 : (2 : Nat) ≤ 3 := by omega
-  have h3 : 2 ^ (2 * (Nat.log2 D + 1)) ≤ 3 ^ (2 * (Nat.log2 D + 1)) :=
-    Nat.pow_le_pow_left h2 _
-  have h4 : 2 ^ (Nat.log2 D + 1) ≤ 2 ^ (2 * (Nat.log2 D + 1)) := by
-    apply Nat.pow_le_pow_right
-    · omega
-    · omega
-  omega
+  use 2 * (Nat.log2 D + 1)
+  constructor
+  · exact Nat.le_refl _
+  ·
+    have h1 : D < 2 ^ (Nat.log2 D + 1) := Nat.lt_log2_self
+    have h2 : (2 : Nat) ≤ 3 := by omega
+    have h3 : 2 ^ (2 * (Nat.log2 D + 1)) ≤ 3 ^ (2 * (Nat.log2 D + 1)) :=
+      Nat.pow_le_pow_left h2 _
+    have h4 : 2 ^ (Nat.log2 D + 1) ≤ 2 ^ (2 * (Nat.log2 D + 1)) := by
+      apply Nat.pow_le_pow_right
+      · omega
+      · omega
+    omega
 
 /-- Concrete step budgets: D = 10⁴, 10⁶, 10⁹ need at most 160, 184, 224
     total evaluations (2 per ternary step + polish + canonicalize). -/
