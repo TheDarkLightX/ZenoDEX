@@ -1,5 +1,4 @@
 import Proofs.GaloisSplitCertificate
-import Proofs.CPMMOutputMonotonicity
 import Mathlib.Tactic
 
 /-!
@@ -40,9 +39,9 @@ certificate to the concrete zero-fee split-routing problem.
 | # | Name | Kind | Statement |
 |---|------|------|-----------|
 | 1 | `sq_neighbors` | Core | n*(n+2) ≤ (n+1)^2 (algebraic core of concavity) |
-| 2 | `cpmmOut_mono` | Bridge | cpmmOut monotone (via swapOut_mono_amount) |
+| 2 | `cpmmOut_mono` | Core | cpmmOut monotone in the input amount |
 | 3 | `cross_mul_concavity` | Core | Continuous concavity after clearing denominators |
-| 4 | `cpmmOut_second_diff_le_one` | Main | Integer second difference ≤ 1 (0 < x) |
+| 4 | `cpmmOut_second_diff_le_one` | Main | Integer second difference ≤ 1 (unconditional) |
 | 5 | `split_concave_of_concave` | Core | Sum of DiscreteConcave functions is DiscreteConcave |
 | 5'| `discrete_concave_reverse` | Core | Reversal a ↦ f(D-a) preserves discrete concavity |
 | 5"| `split_objective_concave` | Bridge | f(a)+g(D-a) concave when both f,g concave |
@@ -65,20 +64,40 @@ the approximate certificate `nearly_certificate_approx_global_max` — lives in
 | 15| `cpmmOut_defect_tight` | Tightness | Grade 1 is tight (grade 0 fails) |
 | 16| `cpmmOut_exact_concave_large` | Witness | High y/x pools achieve grade 0 |
 
-## Exact vs approximate certificates
+## Exact and approximate certificates
 
-The per-pool integer concavity bound (Theorem 4) does NOT imply that the
-zero-fee split objective is exactly `DiscreteConcave`: the split objective
-sums two grade-1 functions in opposite directions, so it is only grade 2.
-Two complementary certificates result:
+The per-pool integer concavity bound (Theorem 4) does not imply exact
+`DiscreteConcave` for every split objective. A two-pool split adds two
+grade-1 floor defects in opposite directions, so the structural guarantee is
+grade 2. The generic graded certificate lives in
+`GaloisSplitCertificate.nearly_certificate_approx_global_max`; this file
+instantiates it for zero-fee CPMM splits.
+
+Two certificate surfaces are useful:
 
 * **Exact** (`cpmm_zero_fee_split_certificate_sound`): when discrete
-  concavity is verified per-instance (bounded D), 2 neighbor checks give
+  concavity is verified for the bounded instance, two neighbor checks give
   exact global optimality.
-* **Approximate** (`cpmm_zero_fee_split_approx_certificate`): with NO
-  per-instance verification, the same 2 neighbor checks always certify
-  `obj(j) ≤ obj(a*) + d·(d−1)` for every j at distance d — an
-  unconditional optimality envelope derived from the grade-2 bound.
+* **Approximate** (`cpmm_zero_fee_split_approx_certificate`): without a
+  per-instance concavity check, the same neighbor checks certify
+  `obj(j) ≤ obj(a*) + d·(d−1)` at distance `d`.
+
+| # | Name | Kind | Statement |
+|---|------|------|-----------|
+| 17| `cpmm_zero_fee_split_certificate_approx` | Compatibility | Same theorem under the PR #368 name |
+| 18| `witness_split_not_concave` | Witness | A pool pair where exact concavity fails |
+| 19| `witness_approx_certificate_beyond_concavity` | Witness | The graded certificate still certifies that instance |
+
+## Scope notes
+
+The per-pool integer concavity bound (Theorem 4) does not imply the split
+objective is `DiscreteConcave` (Part I's certificate needs per-instance
+verification, and `witness_split_not_concave` exhibits a configuration where
+concavity genuinely fails). Part III resolves this: the graded certificate
+`cpmm_zero_fee_split_approx_certificate` applies to every pool configuration
+with no concavity hypothesis, at the cost of an explicit error term d·(d−1)
+that vanishes for adjacent candidates (d ≤ 1) and is provably unimprovable
+(`GaloisSplitCertificate.witness_nearly_certificate_tight`).
 
 This file does not model fee-adjusted runtime routing semantics. Any
 fee-aware split-routing correctness claim needs a separate theorem surface.
@@ -87,16 +106,10 @@ fee-aware split-routing correctness claim needs a separate theorem surface.
 namespace Proofs
 namespace CPMMConcavity
 
-open AntiFragmentation (swapOut swapOut_mono_amount)
-
 /-! ## Definition -/
 
 /-- CPMM output: `y * a / (x + a)` using natural number floor division. -/
 def cpmmOut (x y a : ℕ) : ℕ := y * a / (x + a)
-
-/-- cpmmOut agrees with swapOut from AntiFragmentation. -/
-theorem cpmmOut_eq_swapOut (x y a : ℕ) : cpmmOut x y a = swapOut x y a := by
-  simp [cpmmOut, swapOut]
 
 /-! ## Theorem 1: n*(n+2) ≤ (n+1)^2
 
@@ -115,18 +128,58 @@ theorem witness_sq_neighbors :
     (11 * 11 - 10 * 12 = 1) := by
   decide
 
+/-! ## Basic bounds
+
+Two elementary facts used throughout: zero input yields zero output, and the
+output never exceeds the output reserve. -/
+
+/-- cpmmOut at a=0 is always 0. -/
+theorem cpmmOut_zero (x y : ℕ) : cpmmOut x y 0 = 0 := by
+  simp [cpmmOut]
+
+/-- cpmmOut is bounded by the output reserve. -/
+theorem cpmmOut_le_reserve (x y a : ℕ) : cpmmOut x y a ≤ y := by
+  simp only [cpmmOut]
+  apply Nat.div_le_of_le_mul
+  calc y * a ≤ y * (x + a) := Nat.mul_le_mul_left y (Nat.le_add_left a x)
+    _ = (x + a) * y := by ring
+
 /-! ## Theorem 2: cpmmOut monotone in trade amount
 
-cpmmOut = swapOut (by definition), so monotonicity follows directly from
-`swapOut_mono_amount` in AntiFragmentation.lean via the `cpmmOut_eq_swapOut` bridge. -/
+This proof stays local to avoid importing the batch/anti-fragmentation proof
+cluster. If `a₁ ≤ a₂`, the first quote `q = cpmmOut x y a₁` satisfies
+`q * (x + a₁) ≤ y * a₁` by floor division and `q ≤ y` by the reserve bound.
+Adding `q * (a₂ - a₁) ≤ y * (a₂ - a₁)` gives
+`q * (x + a₂) ≤ y * a₂`, which is exactly the floor-division threshold for
+`q ≤ cpmmOut x y a₂`. -/
 
 /-- **MONOTONICITY**: cpmmOut is non-decreasing in the trade amount `a`.
-    Derived from `swapOut_mono_amount` (AntiFragmentation.lean) via the
-    `cpmmOut = swapOut` definitional bridge. -/
+    The proof uses only local floor arithmetic and the reserve bound. -/
 theorem cpmmOut_mono (x y : ℕ) {a₁ a₂ : ℕ} (h : a₁ ≤ a₂) :
     cpmmOut x y a₁ ≤ cpmmOut x y a₂ := by
-  rw [cpmmOut_eq_swapOut, cpmmOut_eq_swapOut]
-  exact swapOut_mono_amount x y a₁ a₂ h
+  rcases Nat.eq_zero_or_pos (x + a₂) with hz | hpos
+  · have hx : x = 0 := by omega
+    have ha₂ : a₂ = 0 := by omega
+    have ha₁ : a₁ = 0 := by omega
+    subst hx; subst ha₂; subst ha₁
+    simp [cpmmOut]
+  · unfold cpmmOut
+    rw [Nat.le_div_iff_mul_le hpos]
+    set q := y * a₁ / (x + a₁)
+    have hfloor : q * (x + a₁) ≤ y * a₁ := by
+      simpa [q] using Nat.div_mul_le_self (y * a₁) (x + a₁)
+    have hq_le_y : q ≤ y := by
+      simpa [q, cpmmOut] using cpmmOut_le_reserve x y a₁
+    calc
+      q * (x + a₂) = q * (x + a₁ + (a₂ - a₁)) := by
+        congr 1
+        omega
+      _ = q * (x + a₁) + q * (a₂ - a₁) := by ring
+      _ ≤ y * a₁ + y * (a₂ - a₁) := by
+        exact Nat.add_le_add hfloor (Nat.mul_le_mul_right (a₂ - a₁) hq_le_y)
+      _ = y * a₂ := by
+        have : a₁ + (a₂ - a₁) = a₂ := by omega
+        nlinarith
 
 /-- Monotonicity witness. -/
 theorem witness_cpmmOut_mono :
@@ -169,7 +222,8 @@ The bound +1 is tight: e.g., pool (100, 1000) at a=0 gives
   2*cpmmOut(100,1000,1) + 1 = 2*9 + 1 = 19. -/
 
 /-- **INTEGER SECOND DIFFERENCE BOUND**: `Δ²f(a) ≤ 1` for cpmmOut,
-    unconditionally (no positivity hypothesis on any parameter).
+    unconditionally. The degenerate input-reserve case `x = 0` is handled
+    separately: the middle term already equals the output reserve.
 
     Proof idea for x > 0: By contradiction. Assume q₂ + q₀ ≥ 2*q₁ + 2.
     1. Floor bounds: (q₂+q₀)*(d₀*d₂) ≤ n₂*d₀ + n₀*d₂
@@ -179,25 +233,20 @@ The bound +1 is tight: e.g., pool (100, 1000) at a=0 gives
     Combining: 2y + d₁ ≤ 2*q₁ + 2, and d₁ ≥ 2 (from x ≥ 1),
     so y ≤ q₁. But q₁ ≤ y (output bound), giving q₁ = y.
     Then y*d₁ ≤ y*(a+1), forcing d₁ ≤ a+1, i.e., x ≤ 0. Contradiction.
-    For x = 0: cpmmOut(0,y,n) = y for n ≥ 1 and 0 for n = 0 (exact division),
-    so the second difference is −y (at a = 0) or 0 (at a ≥ 1). -/
+    For x = 0: cpmmOut 0 y (a+1) = y exactly, while both outer terms are
+    ≤ y by the reserve bound, so the second difference is ≤ 0 ≤ 1. -/
 theorem cpmmOut_second_diff_le_one (x y a : ℕ) :
     (cpmmOut x y (a + 2) : ℤ) + cpmmOut x y a ≤ 2 * cpmmOut x y (a + 1) + 1 := by
   rcases Nat.eq_zero_or_pos x with rfl | hx
-  · -- x = 0: exact division, output = y for any positive input amount.
+  · -- x = 0: the middle term equals y; both ends are ≤ y.
     have h1 : cpmmOut 0 y (a + 1) = y := by
-      simp only [cpmmOut, Nat.zero_add]
-      exact Nat.mul_div_cancel y (by omega)
-    have h2 : cpmmOut 0 y (a + 2) = y := by
-      simp only [cpmmOut, Nat.zero_add]
-      exact Nat.mul_div_cancel y (by omega)
-    rcases Nat.eq_zero_or_pos a with rfl | ha
-    · have h0 : cpmmOut 0 y 0 = 0 := by simp [cpmmOut]
-      rw [h0, h1, h2]; omega
-    · have h0 : cpmmOut 0 y a = y := by
-        simp only [cpmmOut, Nat.zero_add]
-        exact Nat.mul_div_cancel y ha
-      rw [h0, h1, h2]; omega
+      show y * (a + 1) / (0 + (a + 1)) = y
+      rw [Nat.zero_add]
+      exact Nat.mul_div_cancel y (Nat.succ_pos a)
+    have h2 : cpmmOut 0 y (a + 2) ≤ y := cpmmOut_le_reserve 0 y (a + 2)
+    have h0 : cpmmOut 0 y a ≤ y := cpmmOut_le_reserve 0 y a
+    rw [h1]
+    omega
   simp only [cpmmOut]
   set d₀ := x + a
   set d₁ := x + (a + 1)
@@ -473,17 +522,6 @@ theorem witness_full_chain :
 
 /-! ## Non-vacuity witnesses -/
 
-/-- cpmmOut at a=0 is always 0. -/
-theorem cpmmOut_zero (x y : ℕ) : cpmmOut x y 0 = 0 := by
-  simp [cpmmOut]
-
-/-- cpmmOut is bounded by the output reserve. -/
-theorem cpmmOut_le_reserve (x y a : ℕ) : cpmmOut x y a ≤ y := by
-  simp only [cpmmOut]
-  apply Nat.div_le_of_le_mul
-  calc y * a ≤ y * (x + a) := Nat.mul_le_mul_left y (Nat.le_add_left a x)
-    _ = (x + a) * y := by ring
-
 /-- Large pool witness: output values and concavity. -/
 theorem witness_large_pool :
     cpmmOut 10000 10000 0 = 0 ∧
@@ -643,6 +681,56 @@ theorem witness_quadratic_bound :
     2 * (g 8 - g 5) = -18 ∧
     (3 : ℤ) * (3 - 1) * (-2) = -12 := by
   decide
+
+/-! ## Compatibility and non-concavity witnesses -/
+
+/-- Compatibility name used by the sandwich-certificate layer. The proof
+    delegates to `cpmm_zero_fee_split_approx_certificate`, keeping the generic
+    graded-drift engine in `GaloisSplitCertificate` as the single source of
+    truth. -/
+theorem cpmm_zero_fee_split_certificate_approx
+    (x₀ y₀ x₁ y₁ D a_star : ℕ) (ha : a_star ≤ D)
+    (h_prev : 0 < a_star →
+      cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star ≥
+        cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D (a_star - 1))
+    (h_next : a_star < D →
+      cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star ≥
+        cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D (a_star + 1)) :
+    ∀ j, j ≤ D →
+      cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D j ≤
+        cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star
+          + |(j : ℤ) - (a_star : ℤ)| * (|(j : ℤ) - (a_star : ℤ)| - 1) := by
+  intro j hj
+  simpa using
+    cpmm_zero_fee_split_approx_certificate x₀ y₀ x₁ y₁ D a_star
+      ha h_prev h_next j hj
+
+/-- **EXACT CONCAVITY CAN FAIL**: for pools (1,100) and (100,1000) with D = 7,
+    the zero-fee split objective is not discretely concave: the second
+    difference at i = 5 is +1 (values: obj(5) = 102, obj(6) = 94, obj(7) = 87,
+    so Δ(6) = −7 > Δ(5) = −8). Part I's exact certificate is therefore
+    inapplicable to this configuration. -/
+theorem witness_split_not_concave :
+    ¬ GaloisSplitCertificate.DiscreteConcave (cpmmZeroFeeSplitObj 1 100 100 1000 7) 7 := by
+  intro h
+  have h5 := h 5 (by omega)
+  simp only [cpmmZeroFeeSplitObj, cpmmOut] at h5
+  norm_num at h5
+
+/-- **THE GRADED CERTIFICATE GOES BEYOND CONCAVITY**: on the very
+    configuration where exact concavity fails (`witness_split_not_concave`),
+    the graded certificate still certifies a★ = 2 (obj = 113, the global
+    maximum) within d·(d−1), using only the same two neighbor comparisons. -/
+theorem witness_approx_certificate_beyond_concavity :
+    ∀ j, j ≤ 7 →
+      cpmmZeroFeeSplitObj 1 100 100 1000 7 j ≤
+        cpmmZeroFeeSplitObj 1 100 100 1000 7 2
+          + |(j : ℤ) - (2 : ℤ)| * (|(j : ℤ) - (2 : ℤ)| - 1) := by
+  have h := cpmm_zero_fee_split_certificate_approx 1 100 100 1000 7 2 (by omega)
+    (by intro _; simp only [cpmmZeroFeeSplitObj, cpmmOut]; norm_num)
+    (by intro _; simp only [cpmmZeroFeeSplitObj, cpmmOut]; norm_num)
+  intro j hj
+  simpa using h j hj
 
 end CPMMConcavity
 end Proofs
