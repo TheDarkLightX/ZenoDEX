@@ -180,6 +180,13 @@ fn directed_reserves(pool: &Pool, zero_for_one: bool) -> Result<(u128, u128), &'
     Ok((r_in, r_out))
 }
 
+fn validate_pool_fee(pool: &Pool) -> Result<(), &'static str> {
+    if pool.fee_bps > BPS_DENOM {
+        return Err(REJ_INVALID_FEE_BPS);
+    }
+    Ok(())
+}
+
 fn pool_after(pool: &Pool, zero_for_one: bool, new_in: u128, new_out: u128) -> Pool {
     if zero_for_one {
         Pool {
@@ -206,6 +213,7 @@ pub fn swap_exact_in(
     if !pool.initialized {
         return Err(REJ_POOL_NOT_INITIALIZED);
     }
+    validate_pool_fee(pool)?;
     let (reserve_in, reserve_out) = directed_reserves(pool, zero_for_one)?;
     if !in_range(amount_in, 1, DEX_SWAP_AMOUNT_MAX) {
         return Err(REJ_INVALID_AMOUNT);
@@ -252,6 +260,7 @@ pub fn swap_exact_out(
     if !pool.initialized {
         return Err(REJ_POOL_NOT_INITIALIZED);
     }
+    validate_pool_fee(pool)?;
     let (reserve_in, reserve_out) = directed_reserves(pool, zero_for_one)?;
     if !in_range(amount_out, 1, DEX_SWAP_AMOUNT_MAX) {
         return Err(REJ_INVALID_AMOUNT);
@@ -355,5 +364,20 @@ mod tests {
         let p = init_pool(&Pool::default(), 1_000_000, 1, 0).unwrap().pool;
         // reserve_out == 1, a swap yields amount_out == 0 -> trade_too_small.
         assert_eq!(swap_exact_in(&p, true, 1, 0), Err(REJ_TRADE_TOO_SMALL));
+    }
+
+    #[test]
+    fn malformed_public_pool_fee_rejects_before_arithmetic() {
+        let p = Pool {
+            initialized: true,
+            reserve0: 1_000_000,
+            reserve1: 1_000_000,
+            fee_bps: u128::MAX,
+        };
+        assert_eq!(swap_exact_in(&p, true, 10_000, 0), Err(REJ_INVALID_FEE_BPS));
+        assert_eq!(
+            swap_exact_out(&p, true, 5_000, u128::MAX),
+            Err(REJ_INVALID_FEE_BPS)
+        );
     }
 }
