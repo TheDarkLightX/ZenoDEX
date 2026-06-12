@@ -982,6 +982,8 @@ class _Handler(BaseHTTPRequestHandler):
             return 96_000
         if path.startswith("/api/confidential/attestation/"):
             return 96_000
+        if path.startswith("/api/autogov/"):
+            return 8 * 1024 * 1024
         return 65_536
 
     def _perps_state(self) -> Any:
@@ -1025,6 +1027,22 @@ class _Handler(BaseHTTPRequestHandler):
 
         # Pass the query-bearing raw path so the handler can resolve ?account=.
         status, resp = handle_perps_wallet_request(method, self.path or path, raw_body)
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
+    def _maybe_handle_autogov_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/autogov/"):
+            return False
+        if not getattr(self.server, "autogov_live_apply_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.autogov_live_apply_api import handle_autogov_request
+
+        status, resp = handle_autogov_request(method, path, raw_body)
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
@@ -6986,6 +7004,8 @@ class _Handler(BaseHTTPRequestHandler):
         # Demo/dev routes (gated by env vars in main()).
         if self._maybe_handle_perps_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
             return
+        if self._maybe_handle_autogov_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
+            return
         if self._maybe_handle_zusd_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
             return
         if self._maybe_handle_autotrader_live_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
@@ -7008,6 +7028,7 @@ class _Handler(BaseHTTPRequestHandler):
             path.startswith("/api/perps/")
             or path.startswith("/api/zusd/")
             or path.startswith("/api/dex/")
+            or path.startswith("/api/autogov/")
             or path.startswith("/api/strategy/autotrader/")
             or path.startswith("/api/confidential/attestation/")
         ):
@@ -7021,6 +7042,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._write_json(int(status), {"ok": False, "error": str(code)}, cors_origin=cors_origin)
                 return
         if self._maybe_handle_perps_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
+            return
+        if self._maybe_handle_autogov_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
         if self._maybe_handle_zusd_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
@@ -7119,6 +7142,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         zusd_tau_wallet_enabled = _env_bool("ZUSD_TAU_WALLET_API_ENABLED", False)
         zusd_monetary_wallet_enabled = _env_bool("ZUSD_MONETARY_WALLET_API_ENABLED", False)
         autotrader_live_enabled = _env_bool("AUTOTRADER_LIVE_API_ENABLED", False)
+        autogov_live_apply_enabled = _env_bool("AUTOGOV_LIVE_APPLY_API_ENABLED", False)
         confidential_attestation_enabled = _env_bool(
             "CONFIDENTIAL_ATTESTATION_API_ENABLED", False
         )
@@ -7142,6 +7166,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         or zusd_tau_wallet_enabled
         or zusd_monetary_wallet_enabled
         or autotrader_live_enabled
+        or autogov_live_apply_enabled
         or confidential_attestation_enabled
         or dex_enabled
     )
@@ -7345,6 +7370,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     httpd.zusd_api_enabled = zusd_enabled  # type: ignore[attr-defined]
     httpd.zusd_tau_wallet_api_enabled = zusd_tau_wallet_enabled  # type: ignore[attr-defined]
     httpd.zusd_monetary_wallet_api_enabled = zusd_monetary_wallet_enabled  # type: ignore[attr-defined]
+    httpd.autogov_live_apply_api_enabled = autogov_live_apply_enabled  # type: ignore[attr-defined]
     httpd.autotrader_live_api_enabled = autotrader_live_enabled  # type: ignore[attr-defined]
     httpd.autotrader_execution_keys = set()  # type: ignore[attr-defined]
     httpd.autotrader_supervisor_runs = {}  # type: ignore[attr-defined]
@@ -7362,6 +7388,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
         f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, "
         f"autotrader_live_api={autotrader_live_enabled}, "
+        f"autogov_live_apply_api={autogov_live_apply_enabled}, "
         f"confidential_attestation_api={confidential_attestation_enabled}, dex_api={dex_enabled}, "
         f"confidential_stage={confidential_feature_status.get('stage')}, "
         f"external_auth_enforced={external_auth_enforced}, "

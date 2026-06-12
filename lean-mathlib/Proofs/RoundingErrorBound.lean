@@ -314,5 +314,58 @@ theorem lipschitz_strictly_better (k : Nat) (hk : 2 ≤ k) :
     (↑k : Int) < 2 * ↑k - 1 := by
   omega
 
+/-! ## CPMM hop bridge for the Lipschitz recurrence
+
+`rounding_gap_lipschitz_bound` leaves the per-hop Lipschitz condition as a
+caller obligation.  `cpmm_hop_lipschitz` discharges it for CPMM hops with
+`y ≤ x` (output reserve at most input reserve, i.e. spot price at most one
+output unit per input unit): perturbing the input of such a hop by `g`
+perturbs the floored output by at most `g`, so per-hop gap growth is at
+most one rounding unit and the `g(k) ≤ k` route bound applies on routes
+made of such hops — halving the conservative `2k − 1` bound.
+
+`witness_hop_not_lipschitz` shows the price bound is necessary: on an
+imbalanced pool (`y > x`) a one-unit input difference can move the floored
+output by hundreds of units, so the Lipschitz route bound must NOT be
+assumed on up-price hops. -/
+
+/-- CPMM floored output is 1-Lipschitz in the input on hops with `y ≤ x`:
+    `y·(z+g)/(x+z+g) ≤ y·z/(x+z) + g`. -/
+theorem cpmm_hop_lipschitz (x y z g : Nat) (hx : 0 < x) (hyx : y ≤ x) :
+    y * (z + g) / (x + (z + g)) ≤ y * z / (x + z) + g := by
+  have hxz : 0 < x + z := by omega
+  have hxzg : 0 < x + (z + g) := by omega
+  have hq : y * z < (y * z / (x + z) + 1) * (x + z) := by
+    have hdm : (x + z) * (y * z / (x + z)) + y * z % (x + z) = y * z :=
+      Nat.div_add_mod (y * z) (x + z)
+    have hmod : y * z % (x + z) < x + z := Nat.mod_lt _ hxz
+    have hexp : (y * z / (x + z) + 1) * (x + z)
+        = (x + z) * (y * z / (x + z)) + (x + z) := by ring
+    linarith
+  have hgoal : y * (z + g) < (y * z / (x + z) + g + 1) * (x + (z + g)) := by
+    have hexp : (y * z / (x + z) + g + 1) * (x + (z + g))
+        = (y * z / (x + z) + 1) * (x + z) + (y * z / (x + z) + 1) * g
+          + g * (x + (z + g)) := by ring
+    have hsplit : y * (z + g) = y * z + y * g := by ring
+    have hgx : y * g ≤ g * (x + (z + g)) := by
+      calc y * g ≤ (x + (z + g)) * g := Nat.mul_le_mul_right g (by omega)
+        _ = g * (x + (z + g)) := Nat.mul_comm _ _
+    omega
+  have hlt := (Nat.div_lt_iff_lt_mul hxzg).mpr hgoal
+  exact Nat.lt_succ_iff.mp hlt
+
+/-- Positive witness for the hop bridge: pool (100, 50) with `y ≤ x`,
+    inputs 10 and 17 (`g = 7`): outputs 4 and 7, difference 3 ≤ 7. -/
+theorem witness_hop_lipschitz :
+    50 * (10 + 7) / (100 + (10 + 7)) ≤ 50 * 10 / (100 + 10) + 7 := by
+  native_decide
+
+/-- Necessity of the price bound: on the imbalanced pool (1, 1000) the
+    outputs at inputs 0 and 1 are 0 and 500 — a one-unit input difference
+    moves the output by 500, so the Lipschitz hop bound fails when `y > x`. -/
+theorem witness_hop_not_lipschitz :
+    ¬ (1000 * (0 + 1) / (1 + (0 + 1)) ≤ 1000 * 0 / (1 + 0) + 1) := by
+  native_decide
+
 end RoundingErrorBound
 end Proofs

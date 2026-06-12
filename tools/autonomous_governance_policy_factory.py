@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate and replay an autonomous-governance Q-policy artifact.
 
-The factory is offline tooling. It may call Julia and EBRM-style optimizers, but
+The factory is offline tooling. It may call Julia and EBRM optimizers, but
 the runtime governance path consumes only the frozen policy JSON and rechecks it
 with deterministic Python/Tau governance gates.
 """
@@ -306,6 +306,13 @@ GENERATOR_FILES = (
     "src/integration/autonomous_governance_q_policy.py",
     "src/integration/autonomous_governance_trajectory.py",
     "src/integration/autonomous_governance_session.py",
+    "src/integration/autonomous_governance_policy_pin.py",
+    "src/integration/autonomous_governance_session_pin.py",
+    "src/integration/autonomous_governance_session_store.py",
+    "src/integration/autonomous_governance_session_store_file.py",
+    "src/integration/autonomous_governance_live_apply.py",
+    "src/integration/zeno_governance_authority.py",
+    "src/integration/zenodex_external_threshold_bls.py",
     "src/integration/autonomous_governance_hostile_input.py",
     "src/tau_specs/governance/gov_gate.py",
 )

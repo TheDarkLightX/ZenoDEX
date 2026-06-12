@@ -40,6 +40,30 @@ policy hash and one trajectory budget. That closes the operator reset path for
 `trajectory_used`, anti-oscillation history, cooldown state, and
 `previous_chain_head` inside the integration artifact path.
 
+The single-live-head store closes the next boundary. A verified session proves
+the receipt sequence it is shown; the store is the admission API that keeps one
+current head and advances it only through
+`admit_autonomous_governance_session_continuation_v1`. A forked continuation or
+rollback replay is refused against the current head and returns the store
+unchanged. Protecting and distributing that store state remains a deployment
+responsibility.
+
+`autonomous_governance_session_store_file.py` adds a local durable repository
+for that store. It persists the JSON store blob with atomic replacement, uses an
+exclusive `.lock` sidecar during writes, and can require an
+`expected_store_hash` on admission. A stale writer therefore receives
+`session_store_file_expected_hash_mismatch` before it can advance an old head.
+This is a local deployment guard; global ordering, data availability, and
+replicated custody remain outside this module.
+
+`autonomous_governance_live_apply.py` is the deployed-facing apply guard for
+this artifact path. It reads the persisted session-store head, requires the
+caller's committed surface state to equal that head, checks an
+`expected_live_context_hash`, verifies the trajectory from the current head, and
+then advances the file store. It returns the new `applied_state` only after that
+file-store admission succeeds; every refusal returns the committed state as the
+no-op result.
+
 Surface evaluation can also bind the committed-state context with
 `expected_committed_context_hash`. The hash covers the current surface state,
 `current_epoch`, `proposal_epoch`, optional `last_update_epoch`,
@@ -122,6 +146,47 @@ Generate a governance-surface sample bundle:
 ```bash
 python3 tools/autonomous_governance_q_policy.py sample --surface --output /tmp/autogov-surface-q-bundle.json
 ```
+
+Generate a deterministic frozen EBRM step bundle:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py sample --ebrm --output /tmp/autogov-ebrm-bundle.json
+```
+
+Generate the verifier-labeled synthetic EBRM corpus/evidence report:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py ebrm-evidence \
+  --output /tmp/autogov-ebrm-evidence.json \
+  --corpus-output /tmp/autogov-ebrm-corpus.json
+```
+
+Train and evaluate the deterministic integer EBRM ranker on that corpus:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py ebrm-train \
+  --output /tmp/autogov-ebrm-training-report.json \
+  --model-output /tmp/autogov-ebrm-trained-ranker.json
+```
+
+The EBRM evidence command enumerates bounded candidate revisions for fee,
+funding-cap, and staker-defense surfaces, labels each row with `gov_gate.py`,
+assigns deterministic group-level train/heldout splits, and compares a
+compositional integer energy scorer against a target-only baseline. The
+compositional scorer uses pre-label `model_features`, including structural
+guard pressure derived from immutable caps and step limits; it does not read
+`gate_admitted` or `gate_errors`.
+
+The `ebrm-train` command performs deterministic integer grid search on the
+train split and emits a hash-pinned linear energy ranker:
+
+```text
+E(context, candidate) = Σ_i weight_i * feature_i(context, candidate)
+```
+
+The learned ranker orders candidates only. `gov_gate.py` remains the labeler
+and the admission authority. Both reports are evaluation and training material:
+they keep `production_promotion_claim=false` and `promotion_ready=false`.
 
 Generate a multi-step trajectory bundle:
 
@@ -331,6 +396,12 @@ Evaluate and apply one governance-surface step:
 python3 tools/autonomous_governance_q_policy.py step /tmp/autogov-surface-q-bundle.json
 ```
 
+Evaluate one deterministic EBRM step:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py ebrm-step /tmp/autogov-ebrm-bundle.json
+```
+
 Run a multi-step trajectory and independently verify the receipt:
 
 ```bash
@@ -416,6 +487,50 @@ PY
 python3 tools/autonomous_governance_q_policy.py verify-session /tmp/autogov-session-verify-bundle.json
 ```
 
+Initialize and advance the single-live-head session store:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py init-session-store /tmp/autogov-session-store-init-bundle.json
+python3 tools/autonomous_governance_q_policy.py admit-session-continuation /tmp/autogov-session-store-admit-bundle.json
+python3 tools/autonomous_governance_q_policy.py verify-session-store /tmp/autogov-session-store-verify-bundle.json
+python3 tools/autonomous_governance_q_policy.py session-store-head /tmp/autogov-session-store-verify-bundle.json
+```
+
+The `init-session-store` bundle contains `policy`, `genesis_pin`, and
+`genesis_receipt`. The `admit-session-continuation` bundle contains `policy`,
+`store`, and `trajectory_receipt` (or `receipt`). The store archive includes the
+pin chain and one trajectory receipt per pin, so `verify-session-store` can run
+in receipts-replayed scope.
+
+Initialize and advance the file-backed session store:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py init-session-store-file /tmp/autogov-session-store-file-init-bundle.json
+python3 tools/autonomous_governance_q_policy.py admit-session-file-continuation /tmp/autogov-session-store-file-admit-bundle.json
+python3 tools/autonomous_governance_q_policy.py verify-session-store-file /tmp/autogov-session-store-file-verify-bundle.json
+python3 tools/autonomous_governance_q_policy.py session-store-file-head /tmp/autogov-session-store-file-verify-bundle.json
+```
+
+The file-backed init bundle contains `path`, `policy`, `genesis_pin`, and
+`genesis_receipt`. The admission bundle contains `path`, `policy`,
+`trajectory_receipt` (or `receipt`), and should carry `expected_store_hash` from
+the caller's last verified head. The file path stores the raw session-store JSON,
+so callers stop passing the whole store blob through every admission request.
+
+Admit a live autonomous-governance update through the file-backed store:
+
+```bash
+python3 tools/autonomous_governance_q_policy.py live-session-file-context /tmp/autogov-live-context-bundle.json
+python3 tools/autonomous_governance_q_policy.py admit-live-session-file-update /tmp/autogov-live-admit-bundle.json
+```
+
+The context bundle contains `path`, `trajectory_receipt`,
+`committed_surface_state`, and `expected_policy_hash`. The admit bundle contains
+those fields plus `policy`, `expected_store_hash`, and
+`expected_live_context_hash`. This is the node/apply-facing command shape: the
+submitted receipt must verify from the persisted head and the caller's committed
+state must match that head before the file store advances.
+
 Exit code `0` means the autonomous revision packet is approved. Exit code `2`
 means it was rejected fail-closed. Exit code `3` means the input could not be
 evaluated.
@@ -445,6 +560,16 @@ run. `verify_autonomous_governance_surface_session_v1` then checks the ordered
 receipt list independently, including fresh genesis, exact boundary carry,
 policy-hash consistency, budget consistency, strictly increasing boundary
 epochs, completed statuses, drift conservation, and monotone session usage.
+
+For live-head admission, use
+`initialize_autonomous_governance_session_store_v1` to bind a genesis pin,
+genesis receipt, and policy. Thereafter use
+`admit_autonomous_governance_session_continuation_v1` as the only state-moving
+entry point. It validates the existing store hash, verifies the presented
+continuation through the session-pin advance logic, appends the new pin and
+receipt on success, and returns the original store unchanged on refusal.
+`current_session_store_head_v1` is the read path for the current surface state;
+`verify_autonomous_governance_session_store_v1` is the archived-lineage audit.
 
 ## Design Notes
 
@@ -478,15 +603,43 @@ paths are:
   continuation and whole-session verification, so the movement budget and
   cooldown state cannot be reset at a receipt boundary inside the integration
   artifact path.
+- `src/integration/autonomous_governance_policy_pin.py`: quorum-gated frozen
+  policy pin lineage for which autonomous-governance brain is authorized.
+- `src/integration/autonomous_governance_session_pin.py`: session-head pin
+  lineage for verified genesis and continuation records.
+- `src/integration/autonomous_governance_session_store.py`: single-live-head
+  admission store that refuses forks, rollbacks, and malformed state blobs.
+- `src/integration/autonomous_governance_session_store_file.py`: file-backed
+  store repository with atomic replace, lock refusal, and expected-store-hash
+  stale-write checks.
+- `src/integration/autonomous_governance_live_apply.py`: deployed-facing
+  admission wrapper that binds committed surface state, live context hash,
+  trajectory verification, and file-backed store admission before returning an
+  applied state.
+- `src/integration/zeno_governance_authority.py`: governance action authority
+  gate for quorum, timelock, Tau receipt, and backend evidence.
 - `tools/autonomous_governance_policy_factory.py`: aggregates
   `selection_penalized_count_total` alongside exact gate checks and scanned
   candidates.
 - `tools/autonomous_governance_q_policy.py`: exposes `trajectory`,
   `continue-trajectory`, `verify-trajectory`, `admit-trajectory`, and
-  `verify-session` for replay and client admission checks.
+  `verify-session` for replay and client admission checks, plus
+  `init-session-store`, `admit-session-continuation`, `verify-session-store`,
+  `session-store-head`, `init-session-store-file`,
+  `admit-session-file-continuation`, `verify-session-store-file`, and
+  `session-store-file-head` for live-head store checks, plus
+  `live-session-file-context` and `admit-live-session-file-update` for the
+  node/apply-facing admission wrapper.
 - `tests/integration/test_autonomous_governance_q_policy.py`: checks that
   anti-oscillation and trajectory-budget blockers are penalized before gate
   scanning.
+- `tests/integration/test_autonomous_governance_session_store_file.py`: checks
+  file-backed initialization, expected-hash CAS refusal, fork/replay refusal,
+  malformed-file refusal, lock refusal, and CLI lifecycle commands.
+- `tests/integration/test_autonomous_governance_live_apply.py`: checks
+  successful live update admission, bad live-context refusal, committed-state
+  mismatch refusal, forged-receipt refusal, stale-store-hash refusal, and CLI
+  lifecycle commands.
 - `tests/tools/test_autonomous_governance_q_table_optimizer.py`: fixes the
   artifact-level replay expectations for the generated policy.
 
