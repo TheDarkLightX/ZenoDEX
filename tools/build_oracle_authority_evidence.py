@@ -35,6 +35,7 @@ except ImportError:  # pragma: no cover - dependency guard for fail-closed build
 
 from src.integration.production_promotion_evidence import (  # noqa: E402
     ORACLE_AUTHORITY_EVIDENCE_SCHEMA_V1,
+    _is_template_placeholder,
     _oracle_authority_attestation_message,
     attach_production_oracle_authority_hash_v1,
     evaluate_production_oracle_authority_evidence_v1,
@@ -59,6 +60,8 @@ def _required_str(obj: Mapping[str, Any], key: str, *, label: str) -> str:
     value = obj.get(key)
     if not isinstance(value, str) or not value:
         raise ValueError(f"{label}.{key} must be a non-empty string")
+    if _is_template_placeholder(value):
+        raise ValueError(f"{label}.{key} placeholder value {value!r} must be replaced")
     return value
 
 
@@ -73,6 +76,14 @@ def _positive_arg_int(value: int, *, label: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise ValueError(f"{label} must be a positive integer")
     return int(value)
+
+
+def _non_placeholder_str(value: object, *, label: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{label} must be a non-empty string")
+    if _is_template_placeholder(value):
+        raise ValueError(f"{label} placeholder value {value!r} must be replaced")
+    return value
 
 
 def _required_true(obj: Mapping[str, Any], key: str, *, label: str) -> None:
@@ -134,9 +145,9 @@ def build_oracle_authority_evidence(args: argparse.Namespace) -> tuple[dict[str,
         label="authority attestation signer pubkey",
         length=64,
     )
-    expected_chain_id = args.expected_chain_id
-    if not isinstance(expected_chain_id, str) or not expected_chain_id:
+    if not isinstance(args.expected_chain_id, str) or not args.expected_chain_id:
         raise ValueError("expected chain_id is required for oracle authority binding")
+    expected_chain_id = _non_placeholder_str(args.expected_chain_id, label="expected_chain_id")
     if _required_str(bounded, "chain_id", label="bounded oracle exercise status") != expected_chain_id:
         raise ValueError("bounded oracle exercise status.chain_id does not match expected chain_id")
     expected_signer_pubkey = (
@@ -159,9 +170,9 @@ def build_oracle_authority_evidence(args: argparse.Namespace) -> tuple[dict[str,
     )
     evidence_body = {
         "schema": ORACLE_AUTHORITY_EVIDENCE_SCHEMA_V1,
-        "authority_id": args.authority_id,
+        "authority_id": _non_placeholder_str(args.authority_id, label="authority_id"),
         "chain_id": expected_chain_id,
-        "target_network": args.target_network,
+        "target_network": _non_placeholder_str(args.target_network, label="target_network"),
         "exercise_hash": _required_str(bounded, "exercise_hash", label="bounded oracle exercise status"),
         "profile_authority_hash": _required_str(bounded, "authority_hash", label="bounded oracle exercise status"),
         "public_broadcast_height": broadcast_height,
@@ -176,8 +187,14 @@ def build_oracle_authority_evidence(args: argparse.Namespace) -> tuple[dict[str,
             label="public settlement block hash",
             length=64,
         ),
-        "public_broadcast_explorer_url": args.public_broadcast_explorer_url,
-        "public_settlement_explorer_url": args.public_settlement_explorer_url,
+        "public_broadcast_explorer_url": _non_placeholder_str(
+            args.public_broadcast_explorer_url,
+            label="public_broadcast_explorer_url",
+        ),
+        "public_settlement_explorer_url": _non_placeholder_str(
+            args.public_settlement_explorer_url,
+            label="public_settlement_explorer_url",
+        ),
         "authority_attestation_signature": authority_attestation_signature,
         "authority_attestation_signer_pubkey": signer_pubkey,
         "issued_at": issued_at,
@@ -191,13 +208,13 @@ def build_oracle_authority_evidence(args: argparse.Namespace) -> tuple[dict[str,
             target_network=str(evidence_body["target_network"]),
             exercise_hash=str(evidence_body["exercise_hash"]),
             profile_authority_hash=str(evidence_body["profile_authority_hash"]),
-            public_broadcast_height=int(evidence_body["public_broadcast_height"]),
-            public_settlement_height=int(evidence_body["public_settlement_height"]),
+            public_broadcast_height=broadcast_height,
+            public_settlement_height=settlement_height,
             public_broadcast_block_hash=str(evidence_body["public_broadcast_block_hash"]),
             public_settlement_block_hash=str(evidence_body["public_settlement_block_hash"]),
             public_broadcast_explorer_url=str(evidence_body["public_broadcast_explorer_url"]),
             public_settlement_explorer_url=str(evidence_body["public_settlement_explorer_url"]),
-            issued_at=int(evidence_body["issued_at"]),
+            issued_at=issued_at,
         ),
         label="authority attestation signature",
     )

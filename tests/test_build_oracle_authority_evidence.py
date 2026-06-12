@@ -223,6 +223,27 @@ def test_oracle_builder_rejects_missing_expected_chain_id_before_writing(
     assert not out.exists()
 
 
+def test_oracle_builder_rejects_template_chain_id_before_writing(
+    capsys,
+    tmp_path: Path,
+) -> None:
+    bounded_path = tmp_path / "bounded.json"
+    bounded_path.write_text(
+        json.dumps(dict(_bounded_oracle_exercise(), chain_id="EXPECTED_CHAIN_ID")),
+        encoding="utf-8",
+    )
+    out = tmp_path / "oracle_authority.json"
+    args = _base_args(tmp_path, bounded_path, out)
+    args[args.index("--expected-chain-id") + 1] = "EXPECTED_CHAIN_ID"
+
+    assert builder.main(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"] == "oracle_authority_evidence_build_failed"
+    assert "expected_chain_id placeholder value 'EXPECTED_CHAIN_ID' must be replaced" in payload["detail"]
+    assert not out.exists()
+
+
 def test_oracle_builder_rejects_expected_chain_id_mismatch_before_writing(
     capsys,
     tmp_path: Path,
