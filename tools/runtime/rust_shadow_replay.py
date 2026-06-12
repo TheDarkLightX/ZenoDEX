@@ -82,6 +82,7 @@ _SUBCOMMAND_BY_KERNEL = {
     "balances": "replay-balance-trace",
     "zusd": "replay-zusd-trace",
     "burn_receipts": "verify-burn-trace",
+    "cpmm_settlement": "settle-swap-trace",
 }
 
 

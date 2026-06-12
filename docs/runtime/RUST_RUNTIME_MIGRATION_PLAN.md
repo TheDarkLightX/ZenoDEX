@@ -54,7 +54,7 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 3 | Minimal Rust transition kernel (fee router) | ✅ `route_fee` + Python/Rust conformance |
 | 4 | State root & canonical serialization | ◑ canonical primitives + fee receipt/accumulator roots done; full network state-encoder parity pending |
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
-| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, zUSD mint/redeem ✅, buyback burn rails ✅; next: batch clearing |
+| 6 | Expand Rust surface | ✅ replay/idempotency guards, balance accounting, zUSD mint/redeem, buyback burn rails, batch-clearing settlement primitive (ordering/liquidity orchestration staged) |
 | 7 | SPARK/Ada sidecar | ☐ spec drafted; toolchain (`gnatprove`) not available in this env |
 | 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (+ existing Tau/ESSO/Lean jobs) |
 | 9 | Promotion criteria | ☐ documented; not yet met for any surface |
@@ -206,6 +206,34 @@ coercion) stays Python-only pending bit-exact canonical-JSON/coercion parity in
 Rust. Buyback **execution** (TWAP, pool depth, budget/slippage caps, wash-trade
 gates) is not implemented — accrual + rails are accounting only.
 
+## Phase 6 — batch-clearing settlement primitive (delivered)
+
+Fifth widening surface. `batch_clearing.py` is large (~2130 lines: seven swap-
+ordering strategies, CoW netting, liquidity, multi-pool aggregation). Its
+consensus-critical **arithmetic** core — shared by every ordering strategy — is
+the per-pool CPMM swap quote (`quote_cpmm_swap_exact_in/out` in
+`settlement_swap_runtime_v1.py`, backed by the v8 kernel). That primitive is the
+delivered surface; the Rust shadow `zenodex-runtime-core::cpmm_swap` threads a
+single pool's reserves across a batch order, mirroring the deterministic
+rounding (fee = ceil, exact-in out = floor, exact-out in = ceil) and domain
+bounds.
+
+* Authority: `settlement_swap_runtime_v1.py`; harness
+  `tools/runtime/cpmm_settlement_lib.py`.
+* Rust shadow: `rust-runtime/crates/zenodex-runtime-core/src/cpmm_swap.rs`.
+* Golden trace: `tests/runtime/golden_traces/cpmm_smoke.json`
+  (`settle-swap-trace` subcommand).
+* Conformance + invariants: `test_cpmm_settlement_conformance.py` (static +
+  500-case differential) and `test_cpmm_settlement_semantic_invariants.py`
+  (constant-product k non-decreasing, exact reserve conservation, slippage
+  admission, no-op-on-reject).
+
+**Staged (orchestration, not consensus arithmetic):** the swap-ordering
+heuristics (`optimal_ab_bounded`, `greedy_ab[_refined/_global]`,
+`mci_ab_global`, `cow_pair_netting`), multi-pool aggregation, and liquidity
+(create/add/remove) intents. The MEV-resistance of batch ordering is a property
+of those layers; the per-swap math shadowed here is what they all apply.
+
 ## Avoiding semantic drift (lesson learned)
 
 The fee router initially shipped a global accumulator that let dust cross token
@@ -232,6 +260,17 @@ golden-trace equality, (2) property tests pass, (3) fuzzing has run for the
 module, (4) no `unsafe`, (5) no float use, (6) no nondeterministic iteration in
 canonical output, (7) the module's Tau/ESSO/Lean obligations still pass, and
 (8) the Python path remains available as a shadow checker.
+
+Status against these criteria (all six kernels): (1) ✅ differential, (2) ✅
+proptest + semantic invariants, (4) ✅ `#![forbid(unsafe_code)]`, (5) ✅
+integer-only, (6) ✅ explicit ordered byte encodings, (8) ✅ Python is authority.
+For (3) fuzzing: the always-on **robustness harness**
+(`crates/zenodex-runtime-core/tests/robustness.rs`, ~4000 adversarial cases per
+kernel on the stable toolchain) runs in CI and asserts the no-panic / typed-
+`Result` / invariant property a fuzzer targets; the matching `cargo-fuzz`
+targets live in `fuzz/` and need a **bounded libFuzzer campaign on nightly**
+(unavailable in the authoring environment) to fully discharge (3). (7) is
+per-surface and tracked in the boundary table.
 
 ## How to run
 

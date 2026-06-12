@@ -181,6 +181,27 @@ four rails (replay / amount-budget / supply / batch-sum). Reject codes
 commits to the validated rail tuple. The receipt structural envelope (schema /
 canonical-JSON hash) of `verify_burn_receipt` is validated in Python only.
 
+## `tx` kinds — `cpmm_settlement`
+
+A single pool threaded across a batch order. `init_pool` (once) then swaps:
+
+```json
+{ "kind": "init_pool", "reserve0": 1000000, "reserve1": 1000000, "fee_bps": 30 }
+{ "kind": "swap_exact_in",  "zero_for_one": true, "amount_in": 10000, "min_amount_out": 0 }
+{ "kind": "swap_exact_out", "zero_for_one": true, "amount_out": 5000, "max_amount_in": 10000000 }
+```
+
+Replayed via `settle-swap-trace`. `zero_for_one=true` swaps asset0->asset1
+(`reserve_in=reserve0`). The authority is `quote_cpmm_swap_exact_in/out`
+(`settlement_swap_runtime_v1.py`). Reject codes: `malformed_tx`,
+`unknown_tx_kind`, `unknown_field:<name>`, `already_initialized`,
+`invalid_reserve`, `invalid_fee_bps`, `pool_not_initialized`,
+`reserve_out_of_domain`, `invalid_amount`, `reserve_domain_exceeded`,
+`trade_too_small`, `amount_out_ge_reserve`, `fee_full`,
+`overdelivery_gap_exceeded` (exact-out integer rounding overshoots the requested
+output beyond the 200-bps policy), `slippage`. State root is
+`domain_sep("cpmm_pool", v1)` over `(initialized, reserve0, reserve1, fee_bps)`.
+
 ## Rejection codes (stable)
 
 Every rejection carries a stable machine code. Domain-constraint rejections

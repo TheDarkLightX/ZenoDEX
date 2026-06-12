@@ -65,7 +65,8 @@ jobs:
             --ignore=tests/runtime/test_replay_guard_conformance.py \
             --ignore=tests/runtime/test_balance_kernel_conformance.py \
             --ignore=tests/runtime/test_zusd_conformance.py \
-            --ignore=tests/runtime/test_burn_receipts_conformance.py
+            --ignore=tests/runtime/test_burn_receipts_conformance.py \
+            --ignore=tests/runtime/test_cpmm_settlement_conformance.py
 
       - name: Golden traces export deterministically (byte-stable)
         run: |
@@ -79,6 +80,8 @@ jobs:
           diff -u tests/runtime/golden_traces/zusd_smoke.json /tmp/zusd.json
           python3 tools/runtime/export_golden_trace.py --scenario burn_smoke --out /tmp/burn.json
           diff -u tests/runtime/golden_traces/burn_smoke.json /tmp/burn.json
+          python3 tools/runtime/export_golden_trace.py --scenario cpmm_smoke --out /tmp/cpmm.json
+          diff -u tests/runtime/golden_traces/cpmm_smoke.json /tmp/cpmm.json
 
       - name: Golden traces replay cleanly
         run: |
@@ -87,6 +90,7 @@ jobs:
           python3 tools/runtime/replay_golden_trace.py tests/runtime/golden_traces/balance_smoke.json
           python3 tools/runtime/replay_golden_trace.py tests/runtime/golden_traces/zusd_smoke.json
           python3 tools/runtime/replay_golden_trace.py tests/runtime/golden_traces/burn_smoke.json
+          python3 tools/runtime/replay_golden_trace.py tests/runtime/golden_traces/cpmm_smoke.json
 
   rust-runtime:
     name: Rust core (test / clippy / fmt)
@@ -111,6 +115,9 @@ jobs:
 
       - name: cargo test
         run: cargo test
+
+      - name: Robustness harness (fuzz-grade, ~4000 cases/kernel)
+        run: cargo test --test robustness
 
   python-rust-shadow:
     name: Python/Rust shadow differential
@@ -137,7 +144,8 @@ jobs:
             tests/runtime/test_replay_guard_conformance.py \
             tests/runtime/test_balance_kernel_conformance.py \
             tests/runtime/test_zusd_conformance.py \
-            tests/runtime/test_burn_receipts_conformance.py -q
+            tests/runtime/test_burn_receipts_conformance.py \
+            tests/runtime/test_cpmm_settlement_conformance.py -q
 
       - name: Shadow replay (Rust must agree with Python)
         run: |
@@ -146,3 +154,4 @@ jobs:
           python3 tools/runtime/rust_shadow_replay.py tests/runtime/golden_traces/balance_smoke.json
           python3 tools/runtime/rust_shadow_replay.py tests/runtime/golden_traces/zusd_smoke.json
           python3 tools/runtime/rust_shadow_replay.py tests/runtime/golden_traces/burn_smoke.json
+          python3 tools/runtime/rust_shadow_replay.py tests/runtime/golden_traces/cpmm_smoke.json
