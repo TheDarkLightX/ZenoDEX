@@ -45,8 +45,8 @@ certificate to the concrete zero-fee split-routing problem.
 | 5 | `split_concave_of_concave` | Core | Sum of DiscreteConcave functions is DiscreteConcave |
 | 5'| `discrete_concave_reverse` | Core | Reversal a ↦ f(D-a) preserves discrete concavity |
 | 5"| `split_objective_concave` | Bridge | f(a)+g(D-a) concave when both f,g concave |
-| 5‴| `cpmm_zero_fee_split_second_diff_le_two` | Main | Zero-fee CPMM split obj Δ² ≤ 2 |
-| 6 | `cpmm_zero_fee_split_certificate_sound` | Bridge | GaloisSplitCertificate for zero-fee split obj |
+| 5‴| `cpmm_zero_fee_split_second_diff_le_two` | Main | Zero-fee split obj Δ² ≤ 2 |
+| 6 | `cpmm_zero_fee_split_certificate_sound` | Bridge | zero-fee split certificate |
 | 7 | `witness_full_chain` | Witness | End-to-end: concavity + certificate + global optimality |
 
 ## Part II: Graded Concavity of CPMM (instantiating GaloisSplitCertificate)
@@ -60,7 +60,7 @@ the approximate certificate `nearly_certificate_approx_global_max` — lives in
 |---|------|------|-----------|
 | 11| `cpmmOut_nearly_concave` | Instantiation | CPMM output is grade 1 (unconditional) |
 | 12| `cpmm_zero_fee_split_nearly_concave` | Derived | Zero-fee split obj grade 2 (unconditional) |
-| 13| `cpmm_zero_fee_split_approx_certificate` | **Main** | 2 neighbor checks → global approximate optimality, error ≤ d·(d−1) |
+| 13| `cpmm_zero_fee_split_approx_certificate` | **Main** | 2 checks → error ≤ d·(d−1) |
 | 15| `cpmmOut_defect_tight` | Tightness | Grade 1 is tight (grade 0 fails) |
 | 16| `cpmmOut_exact_concave_large` | Witness | High y/x pools achieve grade 0 |
 
@@ -84,9 +84,9 @@ Two certificate surfaces are useful:
 
 | # | Name | Kind | Statement |
 |---|------|------|-----------|
-| 17| `cpmm_zero_fee_split_certificate_approx` | Compatibility | Same theorem under the PR #368 name |
+| 17| `cpmm_zero_fee_split_certificate_approx` | Compatibility | PR #368 theorem name |
 | 18| `witness_split_not_concave` | Witness | A pool pair where exact concavity fails |
-| 19| `witness_approx_certificate_beyond_concavity` | Witness | The graded certificate still certifies that instance |
+| 19| `witness_approx_certificate_beyond_concavity` | Witness | graded certificate still applies |
 
 ## Scope notes
 
@@ -458,10 +458,20 @@ Boundary comparisons are unnecessary — they follow from concavity + neighbor c
 theorem cpmm_zero_fee_split_certificate_sound
     (x₀ y₀ x₁ y₁ D a_star : ℕ)
     (ha : a_star ≤ D)
-    (hconc : GaloisSplitCertificate.DiscreteConcave (cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D) D)
-    (h_prev : 0 < a_star → cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star ≥ cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D (a_star - 1))
-    (h_next : a_star < D → cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star ≥ cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D (a_star + 1)) :
-    ∀ j : ℕ, j ≤ D → cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star ≥ cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D j :=
+    (hconc :
+      GaloisSplitCertificate.DiscreteConcave
+        (cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D) D)
+    (h_prev :
+      0 < a_star →
+        cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star ≥
+          cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D (a_star - 1))
+    (h_next :
+      a_star < D →
+        cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star ≥
+          cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D (a_star + 1)) :
+    ∀ j : ℕ, j ≤ D →
+      cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star ≥
+        cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D j :=
   GaloisSplitCertificate.certificate_implies_global_max
     (cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D) D a_star ha hconc h_prev h_next
 

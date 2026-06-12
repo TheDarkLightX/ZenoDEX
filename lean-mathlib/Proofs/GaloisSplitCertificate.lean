@@ -36,15 +36,15 @@ concavity verification required.
 |---|------|------|-----------|
 | 0 | `nearly_zero_iff_concave` | Bridge | Grade 0 ↔ `DiscreteConcave` |
 | 1 | `nearly_delta_le` | Engine | Slope drift: Δf(i+n) ≤ Δf(i) + n·k |
-| 2 | `nearly_chord_le` / `nearly_chord_le_rev` | Engine | Chord bound (left/right-anchored): 2·(f(i+n)−f(i)) ≤ 2·n·Δf(i) + k·n·(n−1) |
-| 3 | `nearly_sum` / `nearly_reverse` / `nearly_mono_grade` | Algebra | Grade is additive / reversal-invariant / monotone |
-| 4 | `nearly_right_delta_drift`, `nearly_right_quadratic_bound` | Derived | Right-side drift under a non-positive initial delta |
-| 5 | `nearly_left_delta_drift`, `nearly_left_quadratic_bound` | Derived | Left-side mirror (via `nearly_reverse`) |
-| 6 | `nearly_certificate_approx_global_max` | **Main** | 2-check certificate → global ε-optimality, ε = k·d·(d−1)/2 |
-| 7 | `right_delta_chain`, `right_mono`, `left_delta_chain`, `left_mono` | k = 0 | Exact monotone propagation (corollaries of 4–5) |
-| 8 | `certificate_implies_global_max` | k = 0 | 2-check certificate → global maximum (corollary of 6) |
+| 2 | `nearly_chord_le` / `nearly_chord_le_rev` | Engine | chord bound |
+| 3 | `nearly_sum` / `nearly_reverse` / `nearly_mono_grade` | Algebra | grade algebra |
+| 4 | `nearly_right_delta_drift`, `nearly_right_quadratic_bound` | Derived | right-side drift |
+| 5 | `nearly_left_delta_drift`, `nearly_left_quadratic_bound` | Derived | left-side mirror |
+| 6 | `nearly_certificate_approx_global_max` | **Main** | error ≤ k·d·(d−1)/2 |
+| 7 | exact chain lemmas | k = 0 | exact propagation |
+| 8 | `certificate_implies_global_max` | k = 0 | 2-check global maximum |
 | 9 | `necessity_right` / `necessity_left` | Converse | Failed neighbor check → not a global max |
-| 10 | `strict_concave_maximizers_adjacent` | Structure | Strictly concave → maximizers within distance 1 |
+| 10 | `strict_concave_maximizers_adjacent` | Structure | adjacent maximizers |
 | 11 | `maximizer_interval` | Structure | Maximizer set is a contiguous interval |
 -/
 
