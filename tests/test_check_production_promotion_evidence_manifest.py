@@ -707,6 +707,25 @@ def test_manifest_checker_can_attach_collection_runbook_for_all_lanes(
     assert out["promotion_ready"] is False
 
 
+def test_production_promotion_requirements_doc_matches_external_lane_arguments() -> None:
+    docs = (ROOT / "docs/PRODUCTION_PROMOTION_EVIDENCE_REQUIREMENTS.md").read_text(
+        encoding="utf-8"
+    )
+
+    for token in [
+        "--expected-surface",
+        "expected_autotrader_approval_signer_pubkeys",
+        "--expected-approval-signer-pubkeys-file",
+        "--runtime-receipt-hash",
+        "--attestation-receipt-hash",
+        "--request-id",
+        "--attestation-epoch",
+        "--current-epoch",
+        "--units-charged",
+    ]:
+        assert token in docs
+
+
 def test_manifest_checker_can_attach_compact_readiness_plan(
     capsys,
     tmp_path: Path,
