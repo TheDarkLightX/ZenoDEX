@@ -14,6 +14,7 @@ import hmac
 import hashlib
 import json
 import os
+import re
 import shutil
 import tarfile
 from collections import OrderedDict
@@ -26,7 +27,7 @@ import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Mapping, NoReturn
+from typing import Any, Mapping, NoReturn, Sequence
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, unquote, urljoin, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
@@ -82,6 +83,8 @@ from src.integration.zeno_ledger_tokenomics import (
 from src.core.amm_dispatch import swap_exact_in_for_pool
 from src.core.dex import DexConfig
 from src.integration.dex_engine import DexEngineConfig, apply_ops
+from src.integration.zeno_ledger_block_gossip_v0 import validate_block_gossip_envelope_v0
+from src.integration.zeno_ledger_live_quorum_v0 import build_live_checkpoint_quorum_admission_v0
 from src.state.balances import NATIVE_ASSET
 from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
 from src.state.pools import compute_pool_id
@@ -4698,6 +4701,7 @@ def make_node_http_server_v0(
     enable_testnet_faucet: bool = False,
     expose_testnet_faucet_http: bool = False,
     allow_unauthenticated_testnet_writes: bool = False,
+    enable_block_gossip: bool = False,
     min_lp_position_age_seconds: int = 0,
     lp_duration_risk_policy: Any | None = None,
     submit_peer_url: str | None = None,
@@ -5129,6 +5133,19 @@ def make_node_http_server_v0(
                         )
                     self._send_json(report)
                     return
+                if request_path == "/gossip/block":
+                    if not enable_block_gossip:
+                        self._send_json({"ok": False, "error": "block_gossip_disabled"}, status=HTTPStatus.FORBIDDEN)
+                        return
+                    payload = _read_http_json_body(self)
+                    envelope = payload.get("envelope", payload)
+                    if not isinstance(envelope, Mapping):
+                        self._send_json({"ok": False, "error": "gossip_envelope_must_be_object"}, status=HTTPStatus.BAD_REQUEST)
+                        return
+                    with append_lock:
+                        report = accept_block_gossip_envelope_v0(data_dir=root, envelope=envelope)
+                    self._send_json(report)
+                    return
                 self._send_json({"ok": False, "error": "not_found"}, status=HTTPStatus.NOT_FOUND)
             except _HttpRejectedError as exc:
                 self._send_json(exc.report, status=exc.status)
@@ -5232,6 +5249,7 @@ def serve_node_v0(
     enable_testnet_faucet: bool = False,
     expose_testnet_faucet_http: bool = False,
     allow_unauthenticated_testnet_writes: bool = False,
+    enable_block_gossip: bool = False,
     min_lp_position_age_seconds: int = 0,
     lp_duration_risk_policy: Any | None = None,
     submit_peer_url: str | None = None,
@@ -5253,6 +5271,7 @@ def serve_node_v0(
         enable_testnet_faucet=enable_testnet_faucet,
         expose_testnet_faucet_http=expose_testnet_faucet_http,
         allow_unauthenticated_testnet_writes=allow_unauthenticated_testnet_writes,
+        enable_block_gossip=enable_block_gossip,
         min_lp_position_age_seconds=min_lp_position_age_seconds,
         lp_duration_risk_policy=lp_duration_risk_policy,
         submit_peer_url=submit_peer_url,
@@ -5276,6 +5295,7 @@ def serve_node_v0(
                 "testnet_intake_enabled": enable_testnet_intake,
                 "testnet_faucet_enabled": enable_testnet_faucet,
                 "testnet_faucet_http_exposed": expose_testnet_faucet_http,
+                "block_gossip_enabled": enable_block_gossip,
                 "write_auth_required": bool(
                     (enable_testnet_intake or enable_testnet_faucet)
                     and (write_auth_token is not None or not allow_unauthenticated_testnet_writes)
@@ -6039,6 +6059,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             enable_testnet_faucet=args.enable_testnet_faucet,
             expose_testnet_faucet_http=args.expose_testnet_faucet_http,
             allow_unauthenticated_testnet_writes=args.allow_unauthenticated_testnet_writes,
+            enable_block_gossip=args.enable_block_gossip,
             submit_peer_url=args.submit_peer_url,
             write_auth_token=_auth_token_from_env_name(args.write_auth_token_env, name="write_auth_token_env"),
             submit_peer_auth_token=_auth_token_from_env_name(args.submit_peer_auth_token_env, name="submit_peer_auth_token_env"),
@@ -6200,11 +6221,600 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         enable_testnet_faucet=args.enable_testnet_faucet,
         expose_testnet_faucet_http=args.expose_testnet_faucet_http,
         allow_unauthenticated_testnet_writes=args.allow_unauthenticated_testnet_writes,
+        enable_block_gossip=args.enable_block_gossip,
         submit_peer_url=args.submit_peer_url,
         write_auth_token=_auth_token_from_env_name(args.write_auth_token_env, name="write_auth_token_env"),
         submit_peer_auth_token=_auth_token_from_env_name(args.submit_peer_auth_token_env, name="submit_peer_auth_token_env"),
     )
     return 0
+
+
+NODE_GOSSIP_REPORT_SCHEMA = "zenodex.zeno_ledger.node_gossip_report.v0"
+
+
+NODE_GOSSIP_SEEN_SCHEMA = "zenodex.zeno_ledger.node_gossip_seen.v0"
+
+
+NODE_EVIDENCE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_evidence_report.v0"
+
+
+NODE_PEER_FOLLOW_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_follow_report.v0"
+
+
+MAX_GOSSIP_BODY_TRANSACTIONS = 1_000
+
+
+MAX_GOSSIP_SEEN_ENVELOPES = 2_048
+
+
+TESTNET_TOKEN_CREATE_KIND = "ZENODEX_TESTNET_TOKEN_CREATE"
+
+
+MAX_TESTNET_TOKEN_SYMBOL_LEN = 16
+
+
+MAX_TESTNET_TOKEN_NAME_LEN = 80
+
+
+_TESTNET_TOKEN_SYMBOL_RE = re.compile(r"^t[A-Z0-9][A-Z0-9_]{0,14}$")
+
+
+def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{name} must be a JSON object")
+    return value
+
+
+def _normalize_transport_auth_token_v0(value: object, *, name: str) -> str:
+    if not isinstance(value, str) or value == "":
+        raise ValueError(f"{name} must be a non-empty string")
+    if any(ord(ch) < 33 or ord(ch) > 126 for ch in value):
+        raise ValueError(f"{name} must be printable ASCII without whitespace")
+    return value
+
+
+def _read_transport_auth_token_file_v0(path: Path | None) -> str | None:
+    if path is None:
+        return None
+    token = path.read_text(encoding="utf-8").strip()
+    return _normalize_transport_auth_token_v0(token, name=str(path))
+
+
+def _state_hash(domain: str, state: Mapping[str, Any], *, hash_key: str) -> str:
+    body = {key: value for key, value in dict(state).items() if key != hash_key}
+    return hash_v0(domain, body)
+
+
+def _empty_gossip_seen_state_v0(*, network_id: str, chain_id: str) -> dict[str, Any]:
+    body = {
+        "schema": NODE_GOSSIP_SEEN_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "network_id": network_id,
+        "chain_id": chain_id,
+        "seen": [],
+        "seen_count": 0,
+    }
+    return {**body, "gossip_seen_hash": _state_hash("gossip_seen_state_v0", body, hash_key="gossip_seen_hash")}
+
+
+def _gossip_seen_path(data_dir: Path) -> Path:
+    return data_dir / "gossip_seen.json"
+
+
+def _load_gossip_seen_state_v0(*, data_dir: Path, network_id: str, chain_id: str) -> dict[str, Any]:
+    path = _gossip_seen_path(data_dir)
+    if not path.is_file():
+        return _empty_gossip_seen_state_v0(network_id=network_id, chain_id=chain_id)
+    state = dict(_load_json_object(path))
+    if state.get("schema") != NODE_GOSSIP_SEEN_SCHEMA:
+        raise ValueError("gossip seen state schema mismatch")
+    if state.get("network_id") != network_id or state.get("chain_id") != chain_id:
+        raise ValueError("gossip seen state network mismatch")
+    expected = _state_hash("gossip_seen_state_v0", state, hash_key="gossip_seen_hash")
+    if state.get("gossip_seen_hash") != expected:
+        raise ValueError("gossip seen state hash mismatch")
+    return state
+
+
+def _write_gossip_seen_state_v0(data_dir: Path, state: Mapping[str, Any]) -> None:
+    state_obj = dict(state)
+    state_obj["gossip_seen_hash"] = _state_hash("gossip_seen_state_v0", state_obj, hash_key="gossip_seen_hash")
+    _write_json(_gossip_seen_path(data_dir), state_obj)
+
+
+def _require_positive_int_v0(value: object, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+    return value
+
+
+def _testnet_token_registry_path(data_dir: Path) -> Path:
+    return data_dir / "testnet_token_registry.json"
+
+
+def _testnet_token_registry_hash_v0(registry: Mapping[str, Any]) -> str:
+    body = {key: value for key, value in dict(registry).items() if key != "token_registry_hash"}
+    return hash_v0("testnet_token_registry_v0", body)
+
+
+def _empty_testnet_token_registry_v0() -> dict[str, Any]:
+    body = {
+        "schema": "zenodex.zeno_ledger.testnet_token_registry.v0",
+        "tokens": [],
+    }
+    return {**body, "token_registry_hash": _testnet_token_registry_hash_v0(body)}
+
+
+def _load_testnet_token_registry_v0(data_dir: Path) -> dict[str, Any]:
+    path = _testnet_token_registry_path(data_dir)
+    if not path.is_file():
+        return _empty_testnet_token_registry_v0()
+    registry = dict(_load_json_object(path))
+    if registry.get("schema") != "zenodex.zeno_ledger.testnet_token_registry.v0":
+        raise ValueError("testnet token registry schema mismatch")
+    expected = _testnet_token_registry_hash_v0(registry)
+    if registry.get("token_registry_hash") != expected:
+        raise ValueError("testnet token registry hash mismatch")
+    tokens = registry.get("tokens")
+    if not isinstance(tokens, list):
+        raise ValueError("testnet token registry tokens must be a list")
+    return registry
+
+
+def _write_testnet_token_registry_v0(data_dir: Path, registry: Mapping[str, Any]) -> dict[str, Any]:
+    body = {key: value for key, value in dict(registry).items() if key != "token_registry_hash"}
+    out = {**body, "token_registry_hash": _testnet_token_registry_hash_v0(body)}
+    _write_json(_testnet_token_registry_path(data_dir), out)
+    return out
+
+
+def _require_token_symbol_v0(value: object) -> str:
+    if not isinstance(value, str):
+        raise ValueError("symbol must be a string")
+    raw = value.strip()
+    symbol = "t" + raw[1:].upper() if raw[:1].lower() == "t" else raw.upper()
+    if len(symbol) > MAX_TESTNET_TOKEN_SYMBOL_LEN or not _TESTNET_TOKEN_SYMBOL_RE.fullmatch(symbol):
+        raise ValueError("symbol must match t[A-Z0-9][A-Z0-9_]{0,14}")
+    return symbol
+
+
+def _require_token_name_v0(value: object) -> str:
+    if not isinstance(value, str):
+        raise ValueError("name must be a string")
+    name = " ".join(value.strip().split())
+    if not name or len(name) > MAX_TESTNET_TOKEN_NAME_LEN:
+        raise ValueError("name must be non-empty and at most 80 characters")
+    return name
+
+
+def _require_token_decimals_v0(value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > 18:
+        raise ValueError("decimals must be an int in [0, 18]")
+    return int(value)
+
+
+def _is_token_create_body_v0(body: Mapping[str, Any]) -> bool:
+    txs = body.get("transactions")
+    if not isinstance(txs, list) or len(txs) != 1 or not isinstance(txs[0], Mapping):
+        return False
+    return txs[0].get("kind") == TESTNET_TOKEN_CREATE_KIND
+
+
+def _token_registry_entry_from_tx_v0(*, tx: Mapping[str, Any], height: int) -> dict[str, Any]:
+    asset = _require_asset_v0(tx.get("asset"), name="token.asset")
+    symbol = _require_token_symbol_v0(tx.get("symbol"))
+    name = _require_token_name_v0(tx.get("name"))
+    decimals = _require_token_decimals_v0(tx.get("decimals"))
+    creator_pubkey = _require_pubkey_v0(tx.get("creator_pubkey"), name="token.creator_pubkey")
+    tx_id = str(tx.get("tx_id", ""))
+    if not tx_id:
+        raise ValueError("token.tx_id is required")
+    return {
+        "asset": asset,
+        "symbol": symbol,
+        "name": name,
+        "decimals": decimals,
+        "creator_pubkey": creator_pubkey,
+        "created_height": height,
+        "tx_id": tx_id,
+        "tx_hash": tx_hash_v0(dict(tx)),
+    }
+
+
+def _apply_token_create_to_registry_v0(*, data_dir: Path, body: Mapping[str, Any]) -> dict[str, Any]:
+    if not _is_token_create_body_v0(body):
+        raise ValueError("body is not a testnet token-create body")
+    tx = body["transactions"][0]
+    if not isinstance(tx, Mapping):
+        raise ValueError("token-create transaction must be an object")
+    entry = _token_registry_entry_from_tx_v0(tx=tx, height=int(body["height"]))
+    registry = _load_testnet_token_registry_v0(data_dir)
+    tokens = list(registry.get("tokens", []))
+    for existing in tokens:
+        if not isinstance(existing, Mapping):
+            raise ValueError("testnet token registry entry must be an object")
+        if existing.get("asset") == entry["asset"] or existing.get("symbol") == entry["symbol"]:
+            if dict(existing) == entry:
+                return registry
+            raise ValueError("testnet token asset or symbol already registered")
+    tokens.append(entry)
+    tokens.sort(key=lambda item: (str(item["symbol"]), str(item["asset"])))
+    return _write_testnet_token_registry_v0(data_dir, {**registry, "tokens": tokens})
+
+
+def _build_token_create_block_from_body_v0(
+    *,
+    data_dir: Path,
+    body: Mapping[str, Any],
+    time_ms: int,
+    prev_header_path: Path,
+    pre_snapshot_path: Path,
+    sequencer_set_hash: str,
+    config_digest: str,
+    module_versions_digest: str,
+) -> dict[str, Any]:
+    body_obj = dict(body)
+    validate_body_v0(body_obj)
+    if not _is_token_create_body_v0(body_obj):
+        raise ValueError("body is not a testnet token-create body")
+    tx = dict(body_obj["transactions"][0])
+    _token_registry_entry_from_tx_v0(tx=tx, height=int(body_obj["height"]))
+    pre_snapshot = _load_json_object(pre_snapshot_path)
+    pre_state = state_from_snapshot(pre_snapshot)
+    pre_state_root = dex_state_root_v0(pre_state)
+    post_state_root = pre_state_root
+    height = int(body_obj["height"])
+    chain_id = str(body_obj["chain_id"])
+    prev_header = dict(_load_json_object(prev_header_path))
+    prev_header_hash = canonical_header_hash_v0(prev_header)
+    evidence_root = compute_evidence_root_v0(body_obj["evidence"])  # type: ignore[arg-type]
+    app_hash = compute_app_hash_v0(
+        {
+            "chain_id": chain_id,
+            "height": height,
+            "post_state_root": post_state_root,
+            "evidence_root": evidence_root,
+            "config_digest": config_digest,
+            "module_versions_digest": module_versions_digest,
+        }
+    )
+    header = build_header_v0(
+        chain_id=chain_id,
+        height=height,
+        time_ms=time_ms,
+        prev_header_hash=prev_header_hash,
+        sequencer_set_hash=sequencer_set_hash,
+        ingress_root=compute_ingress_root_v0(body_obj["ingress"]),  # type: ignore[arg-type]
+        tx_root=compute_tx_root_v0(body_obj["transactions"]),  # type: ignore[arg-type]
+        pre_state_root=pre_state_root,
+        post_state_root=post_state_root,
+        app_hash=app_hash,
+        evidence_root=evidence_root,
+        body_root=canonical_body_root_v0(body_obj),
+        data_availability_root=ZERO_ROOT,
+        proof_journal_hash=ZERO_ROOT,
+        config_digest=config_digest,
+        module_versions_digest=module_versions_digest,
+        signature_set_root=ZERO_ROOT,
+    )
+    checkpoint = build_checkpoint_v0(header)
+    header_hash = canonical_header_hash_v0(header)
+    tx_hash = tx_hash_v0(tx)
+    receipt = build_tx_receipt_v0(
+        tx_hash=tx_hash,
+        height=height,
+        index=0,
+        accepted=True,
+        error_code=None,
+        state_changed=False,
+    )
+    live_ledger_dir = data_dir / "live_ledger"
+    header_path = live_ledger_dir / "headers" / f"{height}.json"
+    body_path = live_ledger_dir / "bodies" / f"{height}.json"
+    checkpoint_path = live_ledger_dir / "checkpoints" / f"{height}.json"
+    receipts_path = live_ledger_dir / "receipts" / f"{height}.json"
+    snapshot_path = live_ledger_dir / "snapshots" / f"{height}.json"
+    _write_json(header_path, header)
+    _write_json(body_path, body_obj)
+    _write_json(checkpoint_path, checkpoint)
+    _write_json(receipts_path, [receipt])
+    _write_json(snapshot_path, pre_snapshot)
+    registry = _apply_token_create_to_registry_v0(data_dir=data_dir, body=body_obj)
+    return {
+        "height": height,
+        "tx_hash": tx_hash,
+        "header_hash": header_hash,
+        "app_hash": app_hash,
+        "body_path": str(body_path),
+        "header_path": str(header_path),
+        "checkpoint_path": str(checkpoint_path),
+        "receipts_path": str(receipts_path),
+        "post_snapshot_path": str(snapshot_path),
+        "receipt": receipt,
+        "testnet_token_registry_hash": registry["token_registry_hash"],
+        "testnet_token": _token_registry_entry_from_tx_v0(tx=tx, height=height),
+    }
+
+
+def accept_block_gossip_envelope_v0(
+    *,
+    data_dir: Path,
+    envelope: Mapping[str, Any],
+    live_quorum_registry: Mapping[str, Any] | None = None,
+    live_quorum_envelopes: Sequence[Mapping[str, Any]] | None = None,
+    max_body_transactions: int = MAX_GOSSIP_BODY_TRANSACTIONS,
+    gossip_seen_limit: int = MAX_GOSSIP_SEEN_ENVELOPES,
+) -> dict[str, Any]:
+    """Accept one pushed gossip block only after local replay and binding checks."""
+
+    envelope_obj = dict(_require_mapping(envelope, name="block_gossip_envelope"))
+    validate_block_gossip_envelope_v0(envelope_obj)
+    header = dict(_require_mapping(envelope_obj["header"], name="block_gossip_envelope.header"))
+    body = dict(_require_mapping(envelope_obj["body"], name="block_gossip_envelope.body"))
+    checkpoint = dict(_require_mapping(envelope_obj["checkpoint"], name="block_gossip_envelope.checkpoint"))
+
+    node_status = load_node_status_v0(data_dir)
+    bundle_root = Path(str(node_status["bundle_root"]))
+    public_manifest = _read_public_manifest(bundle_root)
+    bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
+    base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
+    local_latest = int(base["latest_height"])
+    height = int(envelope_obj["height"])
+    if header["chain_id"] != node_status["chain_id"] or body["chain_id"] != node_status["chain_id"]:
+        raise ValueError("gossiped block chain_id does not match local node")
+    transactions = body.get("transactions")
+    if not isinstance(transactions, list):
+        raise ValueError("gossiped block transactions must be a list")
+    if len(transactions) > max_body_transactions:
+        raise ValueError("gossiped block transaction count exceeds maximum")
+    seen_limit = _require_positive_int_v0(gossip_seen_limit, name="gossip_seen_limit")
+    seen_state = _load_gossip_seen_state_v0(
+        data_dir=data_dir,
+        network_id=str(node_status["network_id"]),
+        chain_id=str(node_status["chain_id"]),
+    )
+    envelope_hash = str(envelope_obj["envelope_hash"])
+    if any(dict(entry).get("envelope_hash") == envelope_hash for entry in seen_state["seen"]):
+        raise ValueError("duplicate gossip envelope")
+    if height != local_latest + 1:
+        raise ValueError("gossiped block must extend local tip by exactly one height")
+    current_prev_header = dict(_load_json_object(Path(str(base["prev_header_path"]))))
+    current_prev_hash = canonical_header_hash_v0(current_prev_header)
+    if header["prev_header_hash"] != current_prev_hash:
+        raise ValueError("gossiped block prev_header_hash does not match local tip")
+
+    quorum_admission: dict[str, Any] | None = None
+    if live_quorum_registry is not None:
+        if live_quorum_envelopes is None:
+            raise ValueError("live quorum envelopes are required for gossiped block")
+        quorum_admission = build_live_checkpoint_quorum_admission_v0(
+            header=header,
+            checkpoint=checkpoint,
+            registry=live_quorum_registry,
+            envelopes=live_quorum_envelopes,
+        )
+
+    staging_parent = data_dir / "gossip_staging"
+    staging_parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f"height-{height}-", dir=str(staging_parent)) as tmp:
+        staging = Path(tmp)
+        registry_path = _testnet_token_registry_path(data_dir)
+        if registry_path.is_file():
+            shutil.copy2(registry_path, _testnet_token_registry_path(staging))
+        staging_live = staging / "live_ledger"
+        if _is_faucet_body_v0(body):
+            block_report = _build_faucet_block_from_body_v0(
+                data_dir=staging,
+                body=body,
+                time_ms=int(header["time_ms"]),
+                prev_header_path=Path(str(base["prev_header_path"])),
+                pre_snapshot_path=Path(str(base["pre_snapshot_path"])),
+                sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+                config_digest=str(bootstrap_manifest["config_digest"]),
+                module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+            )
+        elif _is_token_create_body_v0(body):
+            block_report = _build_token_create_block_from_body_v0(
+                data_dir=staging,
+                body=body,
+                time_ms=int(header["time_ms"]),
+                prev_header_path=Path(str(base["prev_header_path"])),
+                pre_snapshot_path=Path(str(base["pre_snapshot_path"])),
+                sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+                config_digest=str(bootstrap_manifest["config_digest"]),
+                module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+            )
+        else:
+            body_path = staging / "gossiped_bodies" / f"{height}.json"
+            _write_json(body_path, body)
+            block_report = build_local_block_v0(
+                body_path=body_path,
+                out_dir=staging_live,
+                time_ms=int(header["time_ms"]),
+                pre_snapshot_path=Path(str(base["pre_snapshot_path"])),
+                prev_header_path=Path(str(base["prev_header_path"])),
+                trusted_prev_header_hash=ZERO_ROOT,
+                sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+                data_availability_root=ZERO_ROOT,
+                proof_journal_hash=ZERO_ROOT,
+                config_digest=str(bootstrap_manifest["config_digest"]),
+                module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+                signature_set_root=ZERO_ROOT,
+                allow_missing_settlement=True,
+                require_intent_signatures=True,
+                allow_unsigned_intents_if_tx_sender_matches=False,
+            )
+
+        replayed_header = dict(_load_json_object(Path(str(block_report["header_path"]))))
+        replayed_checkpoint = dict(_load_json_object(Path(str(block_report["checkpoint_path"]))))
+        if replayed_header != header:
+            raise ValueError("gossiped block header does not match local replay")
+        if replayed_checkpoint != checkpoint:
+            raise ValueError("gossiped block checkpoint does not match local replay")
+
+        live_ledger_dir = data_dir / "live_ledger"
+        destinations = {
+            "header_path": live_ledger_dir / "headers" / f"{height}.json",
+            "body_path": live_ledger_dir / "bodies" / f"{height}.json",
+            "checkpoint_path": live_ledger_dir / "checkpoints" / f"{height}.json",
+            "receipts_path": live_ledger_dir / "receipts" / f"{height}.json",
+            "post_snapshot_path": live_ledger_dir / "snapshots" / f"{height}.json",
+        }
+        for key, destination in destinations.items():
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(Path(str(block_report[key])), destination)
+        staged_registry_path = _testnet_token_registry_path(staging)
+        if staged_registry_path.is_file():
+            shutil.copy2(staged_registry_path, _testnet_token_registry_path(data_dir))
+
+    header_hash = canonical_header_hash_v0(header)
+    _write_live_state(
+        data_dir=data_dir,
+        height=height,
+        header_path=str(destinations["header_path"]),
+        snapshot_path=str(destinations["post_snapshot_path"]),
+        header_hash=header_hash,
+        app_hash=str(header["app_hash"]),
+    )
+    report = {
+        "schema": NODE_GOSSIP_REPORT_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "node_id": node_status["node_id"],
+        "network_id": public_manifest["network_id"],
+        "chain_id": public_manifest["chain_id"],
+        "source_node_id": envelope_obj["source_node_id"],
+        "source_peer_url": envelope_obj["source_peer_url"],
+        "height": height,
+        "header_hash": header_hash,
+        "envelope_hash": envelope_obj["envelope_hash"],
+        "live_quorum_required": live_quorum_registry is not None,
+        "live_quorum_admission": quorum_admission,
+        "header_path": str(destinations["header_path"]),
+        "body_path": str(destinations["body_path"]),
+        "checkpoint_path": str(destinations["checkpoint_path"]),
+        "receipts_path": str(destinations["receipts_path"]),
+        "post_snapshot_path": str(destinations["post_snapshot_path"]),
+    }
+    seen_entries = [dict(entry) for entry in seen_state["seen"]]
+    seen_entries.append(
+        {
+            "envelope_hash": envelope_hash,
+            "height": height,
+            "header_hash": header_hash,
+            "source_node_id": envelope_obj["source_node_id"],
+            "source_peer_url": envelope_obj["source_peer_url"],
+        }
+    )
+    next_seen = {
+        **seen_state,
+        "seen": seen_entries[-seen_limit:],
+        "seen_count": min(len(seen_entries), seen_limit),
+    }
+    _write_gossip_seen_state_v0(data_dir, next_seen)
+    report_path = data_dir / "gossip_reports" / f"{height}.json"
+    _write_json(report_path, report)
+    return {**report, "gossip_report_path": str(report_path)}
+
+
+def poll_live_peers_once_v0(
+    *,
+    data_dir: Path,
+    peer_urls: list[str],
+    peer_auth_token: str | None = None,
+    live_quorum_registry: Mapping[str, Any] | None = None,
+    live_quorum_envelopes_by_height: Mapping[int, Sequence[Mapping[str, Any]]] | None = None,
+) -> dict[str, Any]:
+    """Poll all configured peers once and persist an operator-visible report."""
+
+    status = load_node_status_v0(data_dir)
+    peer_reports: list[dict[str, Any]] = []
+    for peer_url in peer_urls:
+        try:
+            pull_report = pull_live_from_peer_v0(
+                data_dir=data_dir,
+                peer_url=peer_url,
+                peer_auth_token=peer_auth_token,
+                live_quorum_registry=live_quorum_registry,
+                live_quorum_envelopes_by_height=live_quorum_envelopes_by_height,
+            )
+            peer_reports.append(
+                {
+                    "peer_url": peer_url,
+                    "ok": pull_report.get("ok") is True,
+                    "status": pull_report.get("status", "accepted"),
+                    "pulled_count": pull_report.get("pulled_count", 0),
+                    "local_latest_height": pull_report.get("local_latest_height"),
+                    "peer_latest_height": pull_report.get("peer_latest_height", pull_report.get("to_height")),
+                    "pull_report": pull_report,
+                }
+            )
+        except Exception as exc:
+            peer_reports.append(
+                {
+                    "peer_url": peer_url,
+                    "ok": False,
+                    "status": "rejected",
+                    "error": str(exc),
+                }
+            )
+    ok = all(report.get("ok") is True for report in peer_reports)
+    latest_tip = _local_tip_v0(data_dir=data_dir, node_status=status)
+    report = {
+        "schema": NODE_PEER_FOLLOW_REPORT_SCHEMA,
+        "ok": ok,
+        "status": "accepted" if ok else "rejected",
+        "node_id": status["node_id"],
+        "network_id": status["network_id"],
+        "chain_id": status["chain_id"],
+        "peer_count": len(peer_urls),
+        "local_tip": latest_tip,
+        "peers": peer_reports,
+    }
+    _write_json(data_dir / "peer_follow_state.json", report)
+    return report
+
+
+def build_node_evidence_report_v0(
+    *,
+    data_dir: Path,
+    peer_urls: list[str] | None = None,
+    peer_auth_token: str | None = None,
+) -> dict[str, Any]:
+    """Build a compact operator evidence report for a joined node."""
+
+    status = load_node_status_v0(data_dir)
+    token_registry = _load_testnet_token_registry_v0(data_dir)
+    local_tip = _local_tip_v0(data_dir=data_dir, node_status=status)
+    peer_check = (
+        check_peer_status_v0(data_dir=data_dir, peer_urls=list(peer_urls or []), peer_auth_token=peer_auth_token)
+        if peer_urls
+        else None
+    )
+    ok = (
+        status.get("ok") is True
+        and status.get("covered_feature_count") == len(status.get("required_features", []))
+        and (peer_check is None or peer_check.get("ok") is True)
+    )
+    return {
+        "schema": NODE_EVIDENCE_REPORT_SCHEMA,
+        "ok": ok,
+        "status": "accepted" if ok else "rejected",
+        "node_id": status["node_id"],
+        "network_id": status["network_id"],
+        "chain_id": status["chain_id"],
+        "node_status_hash": status["node_status_hash"],
+        "feature_suite_hash": status["feature_suite_hash"],
+        "covered_feature_count": status["covered_feature_count"],
+        "required_features": status["required_features"],
+        "local_tip": local_tip,
+        "testnet_token_catalog": status["test_token_catalog"],
+        "created_test_token_count": len(token_registry["tokens"]),
+        "created_test_tokens": token_registry["tokens"],
+        "testnet_token_registry_hash": token_registry["token_registry_hash"],
+        "peer_check": peer_check,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -6289,6 +6899,11 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--enable-testnet-intake", action="store_true")
     run.add_argument("--enable-testnet-faucet", action="store_true")
     run.add_argument(
+        "--enable-block-gossip",
+        action="store_true",
+        help="accept replay-validated POST /gossip/block envelopes from peers",
+    )
+    run.add_argument(
         "--expose-testnet-faucet-http",
         action="store_true",
         help="local fixture demos only: expose POST /faucet after explicit local_fixture_mode acknowledgement",
@@ -6336,6 +6951,11 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--poll-seconds", type=int, default=0)
     serve.add_argument("--enable-testnet-intake", action="store_true")
     serve.add_argument("--enable-testnet-faucet", action="store_true")
+    serve.add_argument(
+        "--enable-block-gossip",
+        action="store_true",
+        help="accept replay-validated POST /gossip/block envelopes from peers",
+    )
     serve.add_argument(
         "--expose-testnet-faucet-http",
         action="store_true",
