@@ -244,6 +244,30 @@ def cmd_up(opts: UpOptions) -> int:
         "hardwareCustody": signer_ceremony_fixture,
         "encryptedSssBackup": json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8")),
     }
+    perps_fixtures = {
+        "enabled": True,
+        "marketMode": "clearinghouse_2p_shared_fixture_v1",
+        "warning": (
+            "Fake-value shared test traders. Test Trader A and Test Trader B are "
+            "local-testnet fixture identities for the public rehearsal market only."
+        ),
+        "traders": [
+            {
+                "id": "alice",
+                "role": "alice",
+                "label": "Test Trader A",
+                "address": roles["alice"]["public_key"],
+                "privkey": roles["alice"]["privkey_hex"],
+            },
+            {
+                "id": "bob",
+                "role": "bob",
+                "label": "Test Trader B",
+                "address": roles["bob"]["public_key"],
+                "privkey": roles["bob"]["privkey_hex"],
+            },
+        ],
+    }
     paths.rendered_runtime_config.write_text(
         ng.render_runtime_config(
             demo_mode=False,
@@ -251,6 +275,7 @@ def cmd_up(opts: UpOptions) -> int:
                 "chainId": opts.chain_id,
                 "networkId": opts.network_id,
                 "localTestnetGovernanceFixtures": gov_fixtures,
+                "localTestnetPerpsFixtures": perps_fixtures,
                 "localTestnetZkPosture": zk_posture,
                 "localTestnetConfidentialFixture": confidential_fixture.to_runtime_config(),
             },

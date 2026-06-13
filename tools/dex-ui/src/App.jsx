@@ -172,7 +172,7 @@ function App() {
           {activeTab === 'perps' && (
             <div className="animate-fade-in">
               <PerpProvider wallet={wallet} onTransaction={upsertTransaction}>
-                <PerpTradingView wallet={wallet} />
+                <PerpTradingView wallet={wallet} onConnectWallet={setWallet} />
               </PerpProvider>
             </div>
           )}
