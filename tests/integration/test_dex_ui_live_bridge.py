@@ -13,10 +13,14 @@ from urllib.request import Request, urlopen
 
 import pytest
 
+from tests.integration.vite_test_server import vite_dev_command
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
-from tools.zeno_ledger_make_testnet_bundle import DEFAULT_ASSET0, DEFAULT_ASSET1, DEFAULT_BOOTSTRAP_SENDER
+from tools.zeno_ledger_make_testnet_bundle import (
+    DEFAULT_ASSET0,
+    DEFAULT_ASSET1,
+    DEFAULT_BOOTSTRAP_SENDER,
+)
 from tools.zeno_ledger_node import make_node_http_server_v0, run_node_once_v0
-
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -402,7 +406,7 @@ def test_dex_ui_smoke_submits_live_swap_through_browser(
         "VITE_DEMO_MODE": "false",
     }
     vite = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env=env,
         stdout=subprocess.DEVNULL,

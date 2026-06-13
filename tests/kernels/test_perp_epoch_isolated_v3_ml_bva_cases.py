@@ -5,16 +5,8 @@ from pathlib import Path
 
 import pytest
 import yaml
-from tools.esso_gpu_semantics import ensure_esso_on_path
 
-
-def _esso_available() -> bool:
-    try:
-        ensure_esso_on_path()
-        import ESSO.kernel.interpreter  # type: ignore  # noqa: F401
-    except ModuleNotFoundError:
-        return False
-    return True
+from tools.esso_gpu_semantics import esso_interpreter_available
 
 
 def _resolve_model_path(raw: str) -> Path:
@@ -39,10 +31,16 @@ def _resolve_model_path(raw: str) -> Path:
     raise FileNotFoundError(f"cannot resolve model_path from artifact: {raw!r}")
 
 
-@pytest.mark.skipif(not _esso_available(), reason="ESSO interpreter is not installed")
+@pytest.mark.skipif(not esso_interpreter_available(), reason="ESSO interpreter is not installed")
 def test_ml_bva_v3_cases_replay_and_native_parity() -> None:
     from ESSO.ir.schema import CandidateIR  # type: ignore
-    from ESSO.kernel.interpreter import Command, StepError, prepare_step_context, step_ctx  # type: ignore
+    from ESSO.kernel.interpreter import (  # type: ignore
+        Command,
+        StepError,
+        prepare_step_context,
+        step_ctx,
+    )
+
     from src.core.perp_epoch import perp_epoch_isolated_v3_native_apply
 
     cases_path = Path("tests/kernels/data/perp_epoch_isolated_v3_ml_bva_cases.json")

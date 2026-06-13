@@ -269,7 +269,7 @@ python3 tools/check_disaster_obligation_certificate.py \
 
 Current manifest scope:
 
-- `23` Oracle disaster axes;
+- `24` Oracle disaster axes;
 - `20` quotient classes;
 - `15` antichain representatives;
 - `9` selected guard families;

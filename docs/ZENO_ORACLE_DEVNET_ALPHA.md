@@ -170,7 +170,7 @@ python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_ora
 Current expected certificate receipt:
 
 ```text
-ok: axes=23 quotient=20 antichain=15 selected_guards=9 private_witnesses=9
+ok: axes=24 quotient=21 antichain=16 selected_guards=10 private_witnesses=10
 ```
 
 This is bounded devnet evidence. It does not claim a production oracle network

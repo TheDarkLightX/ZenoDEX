@@ -17,7 +17,7 @@ import pytest
 from src.integration.autotrader_live_api import handle_autotrader_live_request
 from src.integration.autotrader_supervisor_profile import build_autotrader_supervisor_profile_v1
 from src.integration.tau_net_client import build_signed_tau_transaction
-
+from tests.integration.vite_test_server import vite_dev_command
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -137,7 +137,7 @@ def test_autotrader_live_prepare_ui_smoke_through_browser(tmp_path: Path) -> Non
         "VITE_DEMO_MODE": "false",
     }
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env=vite_env,
         stdout=subprocess.DEVNULL,
@@ -268,7 +268,7 @@ def test_autotrader_live_submit_ui_smoke_through_browser(
         "VITE_DEMO_MODE": "false",
     }
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env=vite_env,
         stdout=subprocess.DEVNULL,
@@ -408,7 +408,7 @@ def test_autotrader_live_execute_once_ui_smoke_through_browser(
         "VITE_DEMO_MODE": "false",
     }
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env=vite_env,
         stdout=subprocess.DEVNULL,
@@ -546,7 +546,7 @@ def test_autotrader_live_supervisor_ui_smoke_through_browser(
         "VITE_DEMO_MODE": "false",
     }
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env=vite_env,
         stdout=subprocess.DEVNULL,

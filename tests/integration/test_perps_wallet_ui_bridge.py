@@ -9,8 +9,8 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from urllib.parse import urlencode
 from urllib.error import HTTPError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 import pytest
@@ -19,7 +19,11 @@ from src.core.dex import DexState
 from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
 from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.dex_snapshot import snapshot_from_state
-from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
+from src.integration.perp_engine import (
+    PerpEngineConfig,
+    _kernel_initial_global_state,
+    apply_perp_ops,
+)
 from src.integration.perps_wallet_authority import (
     PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
     PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1,
@@ -27,17 +31,21 @@ from src.integration.perps_wallet_authority import (
     PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
     PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
+    build_perps_wallet_authority_profile_v1,
     build_perps_wallet_device_approval_environment_policy_v1,
     build_perps_wallet_device_approval_exercise_v1,
-    build_perps_wallet_signer_device_integration_v1,
     build_perps_wallet_device_approval_use_policy_v1,
-    build_perps_wallet_authority_profile_v1,
+    build_perps_wallet_signer_device_integration_v1,
     perps_wallet_device_approval_exercise_hash_v1,
     perps_wallet_recovery_exercise_hash_v1,
     perps_wallet_rotation_exercise_hash_v1,
     perps_wallet_signer_device_integration_hash_v1,
 )
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
+from src.integration.tau_net_client import (
+    bls_pubkey_hex_from_privkey,
+    build_signed_tau_transaction,
+    sign_perp_op_for_engine,
+)
 from src.integration.zeno_key_manager import (
     KEY_ENVIRONMENT_LOCAL_PROCESS,
     KeyExecutionEnvironment,
@@ -46,9 +54,9 @@ from src.integration.zeno_key_manager import (
     SocialRecoveryPolicy,
     ZenoKeyManager,
 )
+from src.integration.zeno_key_manager_v0 import BACKEND_OS_KEYCHAIN, KeyBackendDescriptor
 from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
-from src.integration.zeno_key_manager_v0 import BACKEND_OS_KEYCHAIN, KeyBackendDescriptor
 from src.integration.zeno_oracle_authority import (
     ORACLE_AUTHORITY_PAYLOAD_KIND,
     build_oracle_authority_profile_v1,
@@ -63,7 +71,6 @@ from src.state import BalanceTable, LPTable
 from tests.chaos.conftest import requires_toxiproxy
 from tests.integration.tau_rpc_fault_proxy import TauRpcFaultProxy
 from tools.chaos.toxiproxy_harness import ToxiproxyHarness
-
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -512,6 +519,24 @@ def _chrome_binary() -> str | None:
         if path:
             return path
     return None
+
+
+def _vite_dev_command(port: int) -> list[str]:
+    return [
+        str(DEX_UI / "node_modules" / ".bin" / "vite"),
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+    ]
+
+
+def test_perps_wallet_ui_bridge_starts_vite_without_npm_wrapper() -> None:
+    argv = _vite_dev_command(12345)
+
+    assert Path(argv[0]).name == "vite"
+    assert argv[1:] == ["--host", "127.0.0.1", "--port", "12345"]
+    assert "npm" not in argv
 
 
 def _free_port() -> int:
@@ -1289,7 +1314,7 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        _vite_dev_command(vite_port),
         cwd=DEX_UI,
         env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
         stdout=subprocess.DEVNULL,
@@ -1462,7 +1487,7 @@ def test_perps_wallet_ui_accepts_external_signed_payload_without_local_signing(t
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        _vite_dev_command(vite_port),
         cwd=DEX_UI,
         env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
         stdout=subprocess.DEVNULL,
@@ -1621,7 +1646,7 @@ def test_perps_wallet_ui_succeeds_under_bounded_tau_send_jitter(tmp_path: Path) 
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        _vite_dev_command(vite_port),
         cwd=DEX_UI,
         env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
         stdout=subprocess.DEVNULL,
@@ -1778,7 +1803,7 @@ def test_perps_wallet_ui_fails_closed_on_tau_send_drop_before_response(tmp_path:
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        _vite_dev_command(vite_port),
         cwd=DEX_UI,
         env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
         stdout=subprocess.DEVNULL,
@@ -1960,7 +1985,7 @@ def test_perps_wallet_ui_fails_closed_on_truncated_proxy_sendtx_response(tmp_pat
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        _vite_dev_command(vite_port),
         cwd=DEX_UI,
         env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
         stdout=subprocess.DEVNULL,
@@ -2148,7 +2173,7 @@ def test_perps_wallet_ui_fails_closed_through_toxiproxy_limit_data(tmp_path: Pat
             vite_port = _free_port()
             vite_base = f"http://127.0.0.1:{vite_port}"
             vite_proc = subprocess.Popen(
-                ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+                _vite_dev_command(vite_port),
                 cwd=DEX_UI,
                 env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
                 stdout=subprocess.DEVNULL,
@@ -2314,7 +2339,7 @@ def test_perps_wallet_ui_fails_closed_on_partial_tau_send_timeout(tmp_path: Path
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        _vite_dev_command(vite_port),
         cwd=DEX_UI,
         env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
         stdout=subprocess.DEVNULL,
@@ -2469,7 +2494,7 @@ def test_perps_wallet_ui_publish_price_smoke_through_browser(tmp_path: Path) -> 
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        _vite_dev_command(vite_port),
         cwd=DEX_UI,
         env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
         stdout=subprocess.DEVNULL,
@@ -2656,7 +2681,7 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        _vite_dev_command(vite_port),
         cwd=DEX_UI,
         env={
             **os.environ,
@@ -2712,7 +2737,7 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
         assert result.returncode == 0, result.stderr[-2000:]
         dom = result.stdout
         assert "Live Perps Wallet" in dom
-        assert "Settle Epoch" in dom
+        assert "Finalize Epoch" in dom
         assert "submit accepted" in dom
         assert "preflight ok" in dom
         assert "oracle bridge sha256:" in dom
@@ -2876,7 +2901,7 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        _vite_dev_command(vite_port),
         cwd=DEX_UI,
         env={
             **os.environ,
@@ -3055,7 +3080,7 @@ def test_perps_wallet_ui_settle_epoch_reports_liquidation_evidence(tmp_path: Pat
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        _vite_dev_command(vite_port),
         cwd=DEX_UI,
         env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
         stdout=subprocess.DEVNULL,
@@ -3098,7 +3123,7 @@ def test_perps_wallet_ui_settle_epoch_reports_liquidation_evidence(tmp_path: Pat
         assert result.returncode == 0, result.stderr[-2000:]
         dom = result.stdout
         assert "Live Perps Wallet" in dom
-        assert "Settle Epoch" in dom
+        assert "Finalize Epoch" in dom
         assert "submit accepted" in dom
         assert "preflight ok" in dom
         assert "oracle bridge sha256:" in dom

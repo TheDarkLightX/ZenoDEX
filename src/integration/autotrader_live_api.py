@@ -19,10 +19,10 @@ from ..core.liquidity import create_pool
 from ..core.quote_receipts import make_route_quote_receipt
 from ..core.routing import best_route_exact_in_2hop
 from ..state.pools import PoolState, PoolStatus
-from .autotrader_supervisor_profile import evaluate_autotrader_supervisor_profile_v1
 from .autotrader_controller import AutoTraderControllerState
 from .autotrader_live import AutoTraderLiveReport, prepare_autotrader_live_quote_receipt
 from .autotrader_risk_disclosure import build_autotrader_risk_disclosure
+from .autotrader_supervisor_profile import evaluate_autotrader_supervisor_profile_v1
 from .tau_net_client import (
     TauNetTcpClient,
     TauNetTcpConfig,
@@ -31,7 +31,6 @@ from .tau_net_client import (
     verify_tau_transaction_payload_signature,
 )
 from .zeno_ledger_v0 import hash_v0
-
 
 MAX_POST_BODY = 96_000
 ResponseT = Tuple[int, Dict[str, Any]]
@@ -43,6 +42,8 @@ _AUTOTRADER_LIVE_NOT_CLAIMED = [
 ]
 _AUTOTRADER_SUPERVISOR_PREFLIGHT_SCHEMA = "zenodex/autotrader-supervisor-preflight/v1"
 _SUPERVISOR_RUN_COUNTERS: dict[str, int] = {}
+AUTOTRADER_LIVE_DEFAULT_ASSET0 = "0x" + "00" * 31 + "01"
+AUTOTRADER_LIVE_DEFAULT_ASSET1 = "0x" + "00" * 31 + "02"
 
 
 def _env_str(name: str, default: str) -> str:
@@ -307,7 +308,7 @@ def _default_fixture(*, signer_privkey: int, chain_id: str) -> dict[str, Any]:
         "owner_pubkey": owner,
         "policy_backend": "local",
         "template": "dca",
-        "asset_universe": ["A", "B"],
+        "asset_universe": [AUTOTRADER_LIVE_DEFAULT_ASSET0, AUTOTRADER_LIVE_DEFAULT_ASSET1],
         "allowed_actions": ["PLACE_SWAP_EXACT_IN"],
         "notional_caps": {
             "per_order_max": 100,
@@ -330,13 +331,13 @@ def _default_fixture(*, signer_privkey: int, chain_id: str) -> dict[str, Any]:
         "template_params": {
             "fixed_order_size": 100,
             "cadence_epochs": 4,
-            "asset_in": "A",
-            "asset_out": "B",
+            "asset_in": AUTOTRADER_LIVE_DEFAULT_ASSET0,
+            "asset_out": AUTOTRADER_LIVE_DEFAULT_ASSET1,
         },
     }
     _pool_id, pool, _lp_minted = create_pool(
-        asset0="A",
-        asset1="B",
+        asset0=AUTOTRADER_LIVE_DEFAULT_ASSET0,
+        asset1=AUTOTRADER_LIVE_DEFAULT_ASSET1,
         amount0=1_000,
         amount1=2_000,
         fee_bps=10,
@@ -344,7 +345,12 @@ def _default_fixture(*, signer_privkey: int, chain_id: str) -> dict[str, Any]:
         created_at=0,
     )
     pools = {pool.pool_id: pool}
-    quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=100)
+    quote = best_route_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in=AUTOTRADER_LIVE_DEFAULT_ASSET0,
+        asset_out=AUTOTRADER_LIVE_DEFAULT_ASSET1,
+        amount_in=100,
+    )
     if quote is None:
         raise ValueError("fixture quote unavailable")
     receipt = make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools, quote_epoch=5)

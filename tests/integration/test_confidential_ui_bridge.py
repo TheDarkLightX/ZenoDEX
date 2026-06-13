@@ -13,6 +13,7 @@ from urllib.request import urlopen
 
 import pytest
 
+from tests.integration.vite_test_server import vite_dev_command
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -94,7 +95,7 @@ def test_confidential_ui_loads_live_status_surface(tmp_path: Path) -> None:
         stderr=subprocess.DEVNULL,
     )
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env={
             **os.environ,
@@ -129,23 +130,22 @@ def test_confidential_ui_loads_live_status_surface(tmp_path: Path) -> None:
         )
         assert result.returncode == 0, result.stderr[-2000:]
         dom = result.stdout
-        assert "Confidential Extensions" in dom
-        assert "BETA" in dom
-        assert "Current support contact: https://ops.zenodex.test" in dom
-        assert "Assurance Surface" in dom
-        assert "Bounded evidence" in dom
-        assert "no in-repo proof of TEE hardware confidentiality" in dom
-        assert "Approved Measurements" in dom
-        assert "attestation accepted" in dom
-        assert "measurement nitro" in dom
+        assert "CONFIDENTIAL TRADING" in dom
+        assert "Hide large orders inside a trusted enclave" in dom
+        assert "stage · beta" in dom
+        assert "Operator details" in dom
+        assert "Approved measurements · operator contact · status" in dom
+        assert "Approved measurements" in dom
+        assert "Accepted" in dom
         assert "execution admitted" in dom
-        assert "request consumed" in dom
-        assert "runtime receipt ready" in dom
+        assert "Request" in dom
+        assert "consumed" in dom
+        assert "Ready" in dom
         assert "result redacted" in dom
-        assert "effect digest 0x" in dom
-        assert "status hash 0x" in dom
-        assert "allowlist hash 0x" in dom
-        assert "verifier binding 0x" in dom
+        assert "Public effect digest" in dom
+        assert "Operator status hash" in dom
+        assert "Allowlist hash" in dom
+        assert "Verifier binding" in dom
         assert NITRO_PCR0 not in dom
         assert NITRO_PCR8 not in dom
         assert POLICY_DIGEST not in dom

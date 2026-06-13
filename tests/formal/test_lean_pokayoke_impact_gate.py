@@ -49,22 +49,24 @@ def test_pokayoke_impact_gate_exported_from_proofs_root(tmp_path: Path) -> None:
         pytest.skip("mathlib4 checkout missing")
 
     snippet = lean_dir / "PokayokeImpactGateRootSmoke.lean"
-    snippet.write_text(
-        "\n".join(
-            [
-                "import Proofs",
-                "open Proofs.PokayokeImpactGate",
-                "",
-                "example : impactOnlyAction 500 = ImpactAction.typedConfirm := by",
-                "  exact impactOnlyAction_of_ge_500 500 (by native_decide)",
-                "",
-                "example : severity (impactOnlyAction 99) ≤ severity (impactOnlyAction 500) := by",
-                "  exact severity_impactOnlyAction_monotone 99 500 (by native_decide)",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    proc = _run([lake, "env", "lean", "-DwarningAsError=true", snippet.name], cwd=lean_dir)
+    try:
+        snippet.write_text(
+            "\n".join(
+                [
+                    "import Proofs",
+                    "open Proofs.PokayokeImpactGate",
+                    "",
+                    "example : impactOnlyAction 500 = ImpactAction.typedConfirm := by",
+                    "  exact impactOnlyAction_of_ge_500 500 (by native_decide)",
+                    "",
+                    "example : severity (impactOnlyAction 99) ≤ severity (impactOnlyAction 500) := by",
+                    "  exact severity_impactOnlyAction_monotone 99 500 (by native_decide)",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        proc = _run([lake, "env", "lean", "-DwarningAsError=true", snippet.name], cwd=lean_dir)
+    finally:
+        snippet.unlink(missing_ok=True)
     assert proc.returncode == 0, proc.stdout + proc.stderr

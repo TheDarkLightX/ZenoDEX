@@ -21,7 +21,7 @@ from src.integration.zeno_key_manager import KeyRef, ZenoKeyManager
 from src.integration.zeno_ledger_signature import bls_public_key_hex_from_private_key_v0
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zeno_oracle_authority import ORACLE_AUTHORITY_PAYLOAD_KIND
-
+from tests.integration.vite_test_server import vite_dev_command
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -223,7 +223,7 @@ def test_oracle_ui_smoke_loads_local_service(tmp_path: Path) -> None:
         _wait_for_http(f"http://127.0.0.1:{oracle_port}/api/oracle/health", timeout_s=30)
 
         vite_proc = subprocess.Popen(
-            ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+            vite_dev_command(DEX_UI, vite_port),
             cwd=DEX_UI,
             env=vite_env,
             stdout=subprocess.DEVNULL,
@@ -284,7 +284,7 @@ def test_oracle_ui_smoke_fails_closed_when_local_service_unreachable(tmp_path: P
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env={
             **os.environ,
@@ -347,7 +347,7 @@ def test_oracle_ui_smoke_fails_closed_on_malformed_dashboard_response(tmp_path: 
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env={
             **os.environ,
@@ -454,7 +454,7 @@ def test_oracle_ui_smoke_reports_ready_authority_profile(tmp_path: Path) -> None
         _wait_for_http(f"http://127.0.0.1:{oracle_port}/api/oracle/health", timeout_s=30)
 
         vite_proc = subprocess.Popen(
-            ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+            vite_dev_command(DEX_UI, vite_port),
             cwd=DEX_UI,
             env=vite_env,
             stdout=subprocess.DEVNULL,
@@ -566,7 +566,7 @@ def test_oracle_ui_smoke_runs_write_enabled_receipt_flow(tmp_path: Path) -> None
         _wait_for_http(f"http://127.0.0.1:{oracle_port}/api/oracle/health", timeout_s=30)
 
         vite_proc = subprocess.Popen(
-            ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+            vite_dev_command(DEX_UI, vite_port),
             cwd=DEX_UI,
             env=vite_env,
             stdout=subprocess.DEVNULL,
@@ -681,7 +681,7 @@ def test_oracle_ui_smoke_runs_authority_exercise_flow(tmp_path: Path) -> None:
         _wait_for_http(f"http://127.0.0.1:{oracle_port}/api/oracle/health", timeout_s=30)
 
         vite_proc = subprocess.Popen(
-            ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+            vite_dev_command(DEX_UI, vite_port),
             cwd=DEX_UI,
             env=vite_env,
             stdout=subprocess.DEVNULL,
@@ -799,7 +799,7 @@ def test_oracle_ui_smoke_reports_write_disabled_for_read_only_service(tmp_path: 
         _wait_for_http(f"http://127.0.0.1:{oracle_port}/api/oracle/health", timeout_s=30)
 
         vite_proc = subprocess.Popen(
-            ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+            vite_dev_command(DEX_UI, vite_port),
             cwd=DEX_UI,
             env=vite_env,
             stdout=subprocess.DEVNULL,

@@ -41,6 +41,7 @@ echo "== derivatives: pytest =="
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/core/test_derivatives_generated_refs.py" \
   "$ROOT_DIR/tests/core/test_funding_rate_market.py" \
+  "$ROOT_DIR/tests/core/test_funding_rate_decomposed_parity.py" \
   "$ROOT_DIR/tests/core/test_funding_rate_market_ref_parity.py" \
   "$ROOT_DIR/tests/core/test_funding_rate_settlement_runtime_v1_1.py" \
   "$ROOT_DIR/tests/core/test_il_futures.py" \

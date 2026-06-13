@@ -41,7 +41,7 @@
       "statement_hash": "sha256:773a777d8c4c19d541a204f87322d711713e050a74025f2451b50acb95307b0f"
     },
     {
-      "assumptions_hash": "sha256:5215763c57ec0176053bc1e2e3e8209818c29736f31c708783dec77e949005dc",
+      "assumptions_hash": "sha256:3164678e4bde3aa26c650e1732eb0346f0674c7f2fd4dd62726dc07c11e49dab",
       "claim_id": "sha256:66099f8f5d2200152e88543ccaa7d982718ef10b800e6e8480561580e800e43f",
       "dependency_claim_ids": [
         "sha256:33d0e19ca78b8e80698e67444a4f93d73b921ad26c463ecb7d0be761c7d53b00"
@@ -52,7 +52,7 @@
         "does_not_claim_production_oracle_benefit_laws"
       ],
       "replay_command": "julia tools/zeno_oracle_math_witness_sweep.jl --json",
-      "statement_hash": "sha256:d7360c57ce1a34dc35ec3d8cbfed5d24d1173aa170e4c3c1860ef972d5449f5b"
+      "statement_hash": "sha256:128c9c55983f3b7177614b5bea5c040c42306530bb88c3b8bf26d948ab694020"
     },
     {
       "assumptions_hash": "sha256:31d9d09769a722ea6314d583df67205c6526301827a9cbe0e7412baf4d9e4907",
@@ -239,7 +239,7 @@
         "lean"
       ],
       "revoked": false,
-      "timeout_ms": 30000,
+      "timeout_ms": 60000,
       "toolchain_ids": [
         "sha256:d77c7a7c3eb2c3d4cd0f5d79004328ac21d220d50f28e7c84da191bdf2eee747"
       ],

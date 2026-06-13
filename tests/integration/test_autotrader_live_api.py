@@ -902,8 +902,8 @@ def test_autotrader_live_prepared_default_payload_applies_to_tau_app_bridge(
         "sender_pubkey": signer_pubkey,
         "deadline": 9999999999,
         "nonce": 1,
-        "asset0": "A",
-        "asset1": "B",
+        "asset0": autotrader_live_api.AUTOTRADER_LIVE_DEFAULT_ASSET0,
+        "asset1": autotrader_live_api.AUTOTRADER_LIVE_DEFAULT_ASSET1,
         "fee_bps": 10,
         "amount0": 1000,
         "amount1": 2000,
@@ -912,7 +912,12 @@ def test_autotrader_live_prepared_default_payload_applies_to_tau_app_bridge(
         app_state_json="",
         chain_balances={signer_raw: 1},
         operations={
-            "7": {"mint": [[signer_pubkey, "A", 10_000], [signer_pubkey, "B", 10_000]]},
+            "7": {
+                "mint": [
+                    [signer_pubkey, autotrader_live_api.AUTOTRADER_LIVE_DEFAULT_ASSET0, 10_000],
+                    [signer_pubkey, autotrader_live_api.AUTOTRADER_LIVE_DEFAULT_ASSET1, 10_000],
+                ]
+            },
             "5": [create_pool_intent],
         },
         tx_sender_pubkey=signer_raw,
@@ -920,7 +925,11 @@ def test_autotrader_live_prepared_default_payload_applies_to_tau_app_bridge(
     )
     assert ok is True
     assert err is None
-    assert _balance(app_state_json, pubkey=signer_pubkey, asset="A") == 9000
+    assert _balance(
+        app_state_json,
+        pubkey=signer_pubkey,
+        asset=autotrader_live_api.AUTOTRADER_LIVE_DEFAULT_ASSET0,
+    ) == 9000
 
     status, payload = handle_autotrader_live_request(
         "POST",
@@ -948,4 +957,8 @@ def test_autotrader_live_prepared_default_payload_applies_to_tau_app_bridge(
     )
     assert ok is True
     assert err is None
-    assert _balance(next_app_state_json, pubkey=signer_pubkey, asset="A") == 8900
+    assert _balance(
+        next_app_state_json,
+        pubkey=signer_pubkey,
+        asset=autotrader_live_api.AUTOTRADER_LIVE_DEFAULT_ASSET0,
+    ) == 8900

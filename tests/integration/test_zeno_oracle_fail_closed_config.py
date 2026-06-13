@@ -19,6 +19,7 @@ def test_fail_closed_env_requires_api_oracle_gates() -> None:
         "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH": "1",
         "ZUSD_ORACLE_ADAPTER_REQUIRED": "1",
         "ZUSD_ORACLE_AUTHORIZATION_REQUIRED": "1",
+        "ZUSD_MONETARY_WALLET_ORACLE_AUTHORIZATION_REQUIRED": "1",
     }
 
 

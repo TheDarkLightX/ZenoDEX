@@ -20,18 +20,24 @@ import os
 import socket
 import subprocess
 import sys
-import yaml
 from contextlib import closing
 from pathlib import Path
 from typing import Mapping
 
 import pytest
-
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_OVERLAY = REPO_ROOT / "docker-compose.local-testnet.yml"
 COMPOSE_MULTIMACHINE = REPO_ROOT / "docker-compose.multimachine.yml"
 NGINX_TEMPLATE = REPO_ROOT / ".docker" / "nginx.local-testnet.conf.template"
+
+
+def _fake_tau_testnet_dir(tmp_path: Path) -> Path:
+    tau_dir = tmp_path / "tau-testnet"
+    tau_dir.mkdir()
+    (tau_dir / "server.py").write_text("# hermetic test Tau server marker\n", encoding="utf-8")
+    return tau_dir
 
 
 # ---------------------------------------------------------------------------
@@ -529,8 +535,9 @@ def test_fixture_bundle_writes_key_material_with_owner_only_mode(tmp_path: Path)
 
 
 def test_fixture_bundle_is_byte_identical_across_reruns(tmp_path: Path) -> None:
-    from tools.zenoctl_testnet_local import fixtures as fx
     import hashlib
+
+    from tools.zenoctl_testnet_local import fixtures as fx
 
     common_kwargs = dict(
         out_dir=tmp_path,
@@ -549,7 +556,9 @@ def test_fixture_bundle_is_byte_identical_across_reruns(tmp_path: Path) -> None:
 
 
 def test_fixture_profiles_pass_live_authority_evaluators(tmp_path: Path) -> None:
-    from src.integration.autotrader_supervisor_profile import evaluate_autotrader_supervisor_profile_v1
+    from src.integration.autotrader_supervisor_profile import (
+        evaluate_autotrader_supervisor_profile_v1,
+    )
     from src.integration.perps_wallet_authority import (
         evaluate_perps_wallet_authority_profile_v1,
         evaluate_perps_wallet_device_approval_exercise_v1,
@@ -823,7 +832,9 @@ def test_encrypted_sss_public_fields_do_not_recover_key_from_one_share(tmp_path:
 
 
 def test_encrypted_sss_backup_requires_trusted_replay_keys(tmp_path: Path) -> None:
-    from src.integration.perps_wallet_encrypted_sss_backup import evaluate_perps_wallet_encrypted_sss_backup_v1
+    from src.integration.perps_wallet_encrypted_sss_backup import (
+        evaluate_perps_wallet_encrypted_sss_backup_v1,
+    )
     from tools.zenoctl_testnet_local import fixtures as fx
 
     chain_id = "zeno-ledger-localtest-v0"
@@ -1372,16 +1383,18 @@ def test_nginx_listens_on_port_8080_only() -> None:
 
 
 def test_nginx_render_rejects_empty_token() -> None:
-    from tools.zenoctl_testnet_local import nginx as ng
     import dataclasses
+
+    from tools.zenoctl_testnet_local import nginx as ng
 
     with pytest.raises(ValueError, match="non-empty"):
         ng.render_nginx_conf(dataclasses.replace(_nginx_inputs(), writer_token=""))
 
 
 def test_nginx_render_rejects_malformed_upstream() -> None:
-    from tools.zenoctl_testnet_local import nginx as ng
     import dataclasses
+
+    from tools.zenoctl_testnet_local import nginx as ng
 
     with pytest.raises(ValueError, match="host:port"):
         ng.render_nginx_conf(dataclasses.replace(_nginx_inputs(), writer_upstream="no-port"))
@@ -1778,6 +1791,7 @@ def test_lifecycle_compose_env_generates_nonplaceholder_confidential_fixture(tmp
         roles=roles,
         zk_required=False,
         confidential_fixture=fixture,
+        tau_testnet_host_dir=_fake_tau_testnet_dir(tmp_path),
     )
 
     measurement = env["CONFIDENTIAL_APPROVED_MEASUREMENTS"]
@@ -1811,6 +1825,7 @@ def test_lifecycle_compose_env_wires_proof_mining_to_active_rewards_pool(tmp_pat
         stdlib_token="stdlib-token",
         roles=roles,
         zk_required=False,
+        tau_testnet_host_dir=_fake_tau_testnet_dir(tmp_path),
     )
 
     assert env["TAU_DEX_PROOF_MINING_POOL_PUBKEY"] == "guardian-two-pub"
@@ -1843,6 +1858,7 @@ def test_lifecycle_compose_env_sets_local_external_tool_posture_for_strict_zk(
         stdlib_token="stdlib-token",
         roles=roles,
         zk_required=True,
+        tau_testnet_host_dir=_fake_tau_testnet_dir(tmp_path),
     )
 
     assert env["TAU_DEX_ALLOW_EXTERNAL_TOOLS"] == "1"
@@ -2396,6 +2412,7 @@ def test_lifecycle_env_for_compose_returns_all_required_vars(tmp_path: Path) -> 
     from tools.zenoctl_testnet_local import manifest as mf
 
     body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["host_paths"]["tau_testnet_dir"] = str(_fake_tau_testnet_dir(tmp_path))
     paths = mf.ManifestPaths.from_out_dir(tmp_path)
     env = lc._lifecycle_env_for_compose(body, paths)
     for required in (
@@ -2427,6 +2444,7 @@ def test_lifecycle_env_does_not_leak_real_tokens(tmp_path: Path) -> None:
     from tools.zenoctl_testnet_local import manifest as mf
 
     body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["host_paths"]["tau_testnet_dir"] = str(_fake_tau_testnet_dir(tmp_path))
     paths = mf.ManifestPaths.from_out_dir(tmp_path)
     env = lc._lifecycle_env_for_compose(body, paths)
     # Manifest input used 'writer-secret-abc' as the raw token; the env
@@ -2675,6 +2693,7 @@ def test_runtime_env_for_existing_manifest_recovers_tokens_and_roles(tmp_path: P
             "writer_token": writer_token,
         }
     )
+    body["host_paths"]["tau_testnet_dir"] = str(_fake_tau_testnet_dir(tmp_path))
     env = lc._runtime_env_for_existing_manifest(manifest=body, paths=paths)
     role_pubkeys = json.loads(bundle.role_pubkeys.read_text(encoding="utf-8"))
 

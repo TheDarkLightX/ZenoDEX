@@ -3,6 +3,7 @@ health polling, Tau hello check."""
 
 from __future__ import annotations
 
+import errno
 import json
 import shutil
 import socket
@@ -14,7 +15,6 @@ from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
-
 
 DEFAULT_UI_PORT = 18080
 DEFAULT_HEALTH_TIMEOUT_S = 60.0
@@ -67,13 +67,25 @@ def check_host_port_free(port: int, *, host: str = "127.0.0.1") -> None:
     """Raise ValueError if `host:port` is already bound."""
     if not (1 <= port <= 65535):
         raise ValueError(f"port {port} out of range [1, 65535]")
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as probe:
+        probe.settimeout(0.25)
+        if probe.connect_ex((host, port)) == 0:
+            raise ValueError(
+                f"host port {host}:{port} is in use. "
+                "Pick a different --ui-port or stop the conflicting process."
+            )
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
         sock.settimeout(0.25)
+        # Treat TCP cleanup state from a recently closed local connection as
+        # reusable, while an actively bound listener still rejects the bind.
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             sock.bind((host, port))
         except OSError as exc:
+            if exc.errno == errno.EADDRINUSE:
+                return
             raise ValueError(
-                f"host port {host}:{port} is in use ({exc}). "
+                f"host port {host}:{port} is not bindable ({exc}). "
                 "Pick a different --ui-port or stop the conflicting process."
             ) from None
 

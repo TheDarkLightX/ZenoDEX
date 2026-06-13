@@ -11,6 +11,7 @@ from urllib.request import urlopen
 
 import pytest
 
+from tests.integration.vite_test_server import vite_dev_command
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -69,12 +70,13 @@ def test_perps_ui_defaults_to_read_only_preview_in_non_demo_mode(tmp_path: Path)
         stderr=subprocess.DEVNULL,
     )
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env={
             **os.environ,
             "API_PROXY_TARGET": f"http://127.0.0.1:{api_port}",
             "VITE_DEMO_MODE": "false",
+            "VITE_PERPS_PREVIEW_WRITES": "false",
         },
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -105,9 +107,8 @@ def test_perps_ui_defaults_to_read_only_preview_in_non_demo_mode(tmp_path: Path)
         assert result.returncode == 0, result.stderr[-2000:]
         dom = result.stdout
         assert "Perpetuals" in dom
-        assert "Read-only preview" in dom
-        assert "Preview writes disabled" in dom
-        assert "authoritative settlement-backed path is mounted" in dom
+        assert "External signer required" in dom
+        assert "Submits require an external signer or local-testnet write mode" in dom
     finally:
         vite_proc.terminate()
         api_proc.terminate()

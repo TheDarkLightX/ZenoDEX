@@ -7,6 +7,8 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
 
+from src.state.canonical import canonical_json_bytes
+
 SCHEMA = "zenodex/oracle-authorization-semantic-binding-check/v1"
 EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
 
@@ -166,7 +168,7 @@ class RuntimeActionFacts:
 
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return canonical_json_bytes(payload)
 
 
 def semantic_hash(domain: str, payload: Mapping[str, Any]) -> str:

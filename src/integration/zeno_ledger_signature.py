@@ -42,6 +42,7 @@ SUPPORTED_PAYLOAD_KINDS_V0 = frozenset(
         "perps_wallet_authority_profile",
         "perps_wallet_recovery_exercise",
         "perps_wallet_rotation_exercise",
+        "perps_wallet_encrypted_sss_audit_evidence",
         "governance_action",
     }
 )
@@ -307,4 +308,6 @@ def infer_artifact_hash_v0(*, artifact: Mapping[str, Any], payload_kind: str) ->
         return _require_root(obj.get("exercise_hash"), name="artifact.exercise_hash")
     if kind == "perps_wallet_rotation_exercise":
         return _require_root(obj.get("exercise_hash"), name="artifact.exercise_hash")
+    if kind == "perps_wallet_encrypted_sss_audit_evidence":
+        return _require_root(obj.get("audit_hash"), name="artifact.audit_hash")
     raise ValueError("payload_kind is not supported")

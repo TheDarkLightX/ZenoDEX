@@ -229,6 +229,16 @@ More detail:
 - [docs/claims_registry.yaml](docs/claims_registry.yaml)
 <!-- END GENERATED:ASSURANCE_RELEASE_SNAPSHOT -->
 
+Current disaster-hardness summary:
+
+```text
+DHAI = 81 / 100
+level = L3_STRONG_BOUNDED_DISASTER_HARDENING
+```
+
+The raw score and non-claims are tracked in
+[docs/DISASTER_HARDNESS_ASSURANCE_METRIC.md](docs/DISASTER_HARDNESS_ASSURANCE_METRIC.md).
+
 ## Design Principles
 
 **Invalid states must be unrepresentable. Correct-by-construction design

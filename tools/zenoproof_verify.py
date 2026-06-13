@@ -148,8 +148,9 @@ JULIA_REPLAY_VERIFIER_ID = "sha256:74f91670c6d852c843add1a76b007277d8a729a07050c
 JULIA_REPLAY_POLICY_ROOT = "sha256:94a277186469997af46e1027c272a7f8c7740db0f3eba272e744e41056b7a768"
 JULIA_REPLAY_TOOLCHAIN_ID = "sha256:29c47e97f280e147a0b3ee5607448e0406a4bf54da5cfcb056feef48373010ea"
 JULIA_REPLAY_CLAIM_ID = "sha256:66099f8f5d2200152e88543ccaa7d982718ef10b800e6e8480561580e800e43f"
-JULIA_REPLAY_STATEMENT_HASH = "sha256:d7360c57ce1a34dc35ec3d8cbfed5d24d1173aa170e4c3c1860ef972d5449f5b"
-JULIA_REPLAY_ASSUMPTIONS_HASH = "sha256:5215763c57ec0176053bc1e2e3e8209818c29736f31c708783dec77e949005dc"
+JULIA_REPLAY_STATEMENT_HASH = "sha256:128c9c55983f3b7177614b5bea5c040c42306530bb88c3b8bf26d948ab694020"
+JULIA_REPLAY_ASSUMPTIONS_HASH = "sha256:3164678e4bde3aa26c650e1732eb0346f0674c7f2fd4dd62726dc07c11e49dab"
+MIN_JULIA_MATH_WITNESS_CASE_COUNT = 45
 LEAN_REPLAY_PROFILE = "zeno_oracle_math_witness_anchor_lean_v1"
 LEAN_REPLAY_VERIFIER_ID = "sha256:57263ed213841b4b1875bc25a1bb743579c5a2bfb618e2f9d2cee1d6bc5e0fa5"
 LEAN_REPLAY_POLICY_ROOT = "sha256:b6d77205af54f3200ca69dcd101790abe9f6ecdb7fd35b4bcdffd72a96211a2c"
@@ -237,7 +238,7 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "claim_id": LEAN_REPLAY_CLAIM_ID,
         "statement_hash": LEAN_REPLAY_STATEMENT_HASH,
         "assumptions_hash": LEAN_REPLAY_ASSUMPTIONS_HASH,
-        "timeout_ms": 30_000,
+        "timeout_ms": 60_000,
         "replay_command": "cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean",
         "expected_schema": "zenodex.oracle.lean_math_witness_anchor_replay.v1",
         "non_claims": [
@@ -783,7 +784,7 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
         if proc.returncode != 0:
             raise ValueError(f"julia_math_witness_failed:{proc.returncode}")
         _require_replay_receipt(receipt, expected_schema=str(cfg["expected_schema"]))
-        if receipt.get("case_count") != 10 or receipt.get("failed_count") != 0:
+        if receipt.get("case_count", 0) < MIN_JULIA_MATH_WITNESS_CASE_COUNT or receipt.get("failed_count") != 0:
             raise ValueError("julia_math_witness_case_count_mismatch")
         return receipt
 

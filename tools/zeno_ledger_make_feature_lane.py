@@ -16,7 +16,6 @@ if str(ROOT) not in sys.path:
 from src.integration.zeno_ledger_profile import validate_zeno_ledger_profile_v0
 from src.integration.zeno_ledger_v0 import hash_v0, validate_body_v0
 
-
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_feature_lane_report.v0"
 MANIFEST_SCHEMA = "zenodex.zeno_ledger.testnet_bundle.v0"
 PATH_VALUE_FLAGS = {
@@ -181,6 +180,7 @@ def build_feature_lane_manifest_v0(
     module_versions_digest: str,
     allow_missing_settlement: bool,
     disable_intent_signatures: bool,
+    allow_unsigned_intents_if_tx_sender_matches: bool,
     feature_gate_commands: list[list[str]] | None = None,
 ) -> dict[str, Any]:
     profile = dict(_load_json_object(profile_path))
@@ -438,6 +438,8 @@ def build_feature_lane_manifest_v0(
             command.append("--allow-missing-settlement")
         if disable_intent_signatures:
             command.append("--disable-intent-signatures")
+        if allow_unsigned_intents_if_tx_sender_matches:
+            command.append("--allow-unsigned-intents-if-tx-sender-matches")
         run_commands.append(command)
         previous_height = height
 
@@ -599,6 +601,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--module-versions-digest", default=_default_module_versions_digest())
     parser.add_argument("--allow-missing-settlement", action="store_true")
     parser.add_argument("--disable-intent-signatures", action="store_true")
+    parser.add_argument("--allow-unsigned-intents-if-tx-sender-matches", action="store_true")
     parser.add_argument(
         "--feature-gate-command-json",
         action="append",
@@ -632,6 +635,9 @@ def main(argv: list[str] | None = None) -> int:
             module_versions_digest=args.module_versions_digest,
             allow_missing_settlement=bool(args.allow_missing_settlement),
             disable_intent_signatures=bool(args.disable_intent_signatures),
+            allow_unsigned_intents_if_tx_sender_matches=bool(
+                args.allow_unsigned_intents_if_tx_sender_matches
+            ),
             feature_gate_commands=feature_gate_commands,
         )
     except Exception as exc:

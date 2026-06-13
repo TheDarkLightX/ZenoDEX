@@ -2,19 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from tools.esso_gpu_semantics import ensure_esso_on_path
+from tools.esso_gpu_semantics import esso_interpreter_available
 
 
-def _esso_available() -> bool:
-    try:
-        ensure_esso_on_path()
-        import ESSO.kernel.interpreter  # type: ignore  # noqa: F401
-    except ModuleNotFoundError:
-        return False
-    return True
-
-
-@pytest.mark.skipif(not _esso_available(), reason="ESSO interpreter is not installed")
+@pytest.mark.skipif(not esso_interpreter_available(), reason="ESSO interpreter is not installed")
 def test_ml_bva_generation_is_deterministic_for_fixed_seed() -> None:
     from pathlib import Path
 
@@ -40,4 +31,3 @@ def test_ml_bva_generation_is_deterministic_for_fixed_seed() -> None:
     a = generate_ml_bva_suite(**kwargs)
     b = generate_ml_bva_suite(**kwargs)
     assert a == b
-

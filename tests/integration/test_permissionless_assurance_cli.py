@@ -4,9 +4,9 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 from tools import permissionless_assurance as assurance_cli
-
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "tools" / "permissionless_assurance.py"
@@ -41,11 +41,17 @@ def test_status_json_shape() -> None:
     assert isinstance(payload["public_scope_paths"], list)
 
 
-def test_stage_scope_includes_cli_when_modified() -> None:
-    proc = _run("stage-scope", "--format", "json")
-    assert proc.returncode == 0, proc.stderr
-    payload = json.loads(proc.stdout)
+def test_stage_scope_includes_cli_when_modified(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        assurance_cli,
+        "_git_status_paths",
+        lambda: ["tools/permissionless_assurance.py", "internal/private_note.md"],
+    )
+
+    assert assurance_cli.cmd_stage_scope(SimpleNamespace(format="json")) == 0
+    payload = json.loads(capsys.readouterr().out)
     assert "tools/permissionless_assurance.py" in payload["paths"]
+    assert "internal/private_note.md" not in payload["paths"]
 
 
 def test_leak_check_blocks_internal_markers() -> None:

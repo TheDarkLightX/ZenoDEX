@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
+import pytest
 
 MODEL = Path("src/kernels/dex/confidential_extension_receipt_gate_v1.yaml")
 ADAPTER = "src.kernels.python.confidential_extension_receipt_gate_v1_native_adapter:make_adapter"
+
+
+def _require_esso_cli() -> None:
+    if os.environ.get("ZENO_SKIP_ESSO") == "1" or importlib.util.find_spec("ESSO") is None:
+        pytest.skip("ESSO private toolchain is not installed")
 
 
 def _install_fake_interpreter(monkeypatch):
@@ -56,12 +64,13 @@ def _base_state() -> dict[str, int]:
 
 
 def test_confidential_extension_receipt_gate_v1_adapter_shell_lint_and_verify(tmp_path: Path) -> None:
+    _require_esso_cli()
     lint_path = tmp_path / "shell_lint.json"
     verify_path = tmp_path / "shell_verify.json"
 
     subprocess.check_call(
         [
-            "python3",
+            sys.executable,
             "-m",
             "ESSO",
             "shell-lint",
@@ -77,7 +86,7 @@ def test_confidential_extension_receipt_gate_v1_adapter_shell_lint_and_verify(tm
 
     subprocess.check_call(
         [
-            "python3",
+            sys.executable,
             "-m",
             "ESSO",
             "verify-shell",

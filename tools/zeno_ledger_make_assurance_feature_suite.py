@@ -32,7 +32,6 @@ from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_TIME_MS,
 )
 
-
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_assurance_feature_suite_report.v0"
 
 REPO_FEATURE_GATES: dict[str, list[list[str]]] = {
@@ -214,6 +213,7 @@ def build_assurance_feature_suite_v0(
             module_versions_digest=module_versions_digest,
             allow_missing_settlement=True,
             disable_intent_signatures=True,
+            allow_unsigned_intents_if_tx_sender_matches=True,
             feature_gate_commands=commands,
         )
         lane_paths.append((feature_id, Path(str(lane_report["manifest_path"]))))

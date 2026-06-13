@@ -9,8 +9,8 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from urllib.parse import urlencode
 from urllib.error import HTTPError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 import pytest
@@ -29,8 +29,8 @@ from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
 from tests.chaos.conftest import requires_toxiproxy
 from tests.integration.tau_rpc_fault_proxy import TauRpcFaultProxy
+from tests.integration.vite_test_server import vite_dev_command
 from tools.chaos.toxiproxy_harness import ToxiproxyHarness
-
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -442,7 +442,7 @@ def _run_zusd_browser_submit(
     assert result.returncode == 0, result.stderr[-2000:]
     dom = result.stdout
     assert "zUSD Monetary Vault" in dom, dom[-8000:]
-    assert "Tau node connected" in dom, dom[-8000:]
+    assert "Network connected" in dom, dom[-8000:]
     assert "SUCCESS tx accepted" in dom, dom[-8000:]
     assert "external_signed_payload" in dom, dom[-8000:]
     assert f'"action": "{action}"' in dom, dom[-8000:]
@@ -550,7 +550,7 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_partial_tau_send_timeout(t
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env={
             **os.environ,
@@ -624,7 +624,7 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_partial_tau_send_timeout(t
         assert result.returncode == 0, result.stderr[-2000:]
         dom = result.stdout
         assert "zUSD Monetary Vault" in dom
-        assert "Tau node connected" in dom
+        assert "Network connected" in dom
         assert "tau_rpc_error" in dom, dom[-8000:]
         assert "PARTIAL_PRIVATE_RESPONSE" not in dom
         assert _app_state_from_tau_server(tau_server) == state_before
@@ -691,7 +691,7 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_tau_send_drop_before_respo
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env={
             **os.environ,
@@ -768,7 +768,7 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_tau_send_drop_before_respo
         assert result.returncode == 0, result.stderr[-2000:]
         dom = result.stdout
         assert "zUSD Monetary Vault" in dom
-        assert "Tau node connected" in dom
+        assert "Network connected" in dom
         assert "tau_rpc_error" in dom, dom[-8000:]
         assert _app_state_from_tau_server(tau_server) == state_before
         assert rpc_state.pending_tx is None
@@ -839,7 +839,7 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_truncated_proxy_sendtx_res
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env={
             **os.environ,
@@ -915,7 +915,7 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_truncated_proxy_sendtx_res
         assert result.returncode == 0, result.stderr[-2000:]
         dom = result.stdout
         assert "zUSD Monetary Vault" in dom
-        assert "Tau node connected" in dom
+        assert "Network connected" in dom
         assert "tau_rpc_error" in dom, dom[-8000:]
         assert "SUCCESS tx accepted" not in dom
         assert _app_state_from_tau_server(tau_server) == state_before
@@ -993,7 +993,7 @@ def test_zusd_monetary_wallet_browser_fails_closed_through_toxiproxy_limit_data(
             vite_port = _free_port()
             vite_base = f"http://127.0.0.1:{vite_port}"
             vite_proc = subprocess.Popen(
-                ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+                vite_dev_command(DEX_UI, vite_port),
                 cwd=DEX_UI,
                 env={
                     **os.environ,
@@ -1058,7 +1058,7 @@ def test_zusd_monetary_wallet_browser_fails_closed_through_toxiproxy_limit_data(
             assert chrome_proc.returncode == 0, stderr[-2000:]
             dom = stdout
             assert "zUSD Monetary Vault" in dom
-            assert "Tau node connected" in dom
+            assert "Network connected" in dom
             assert "tau_rpc_error" in dom, dom[-8000:]
             assert "SUCCESS tx accepted" not in dom
             assert _app_state_from_tau_server(tau_server) == state_before
@@ -1131,7 +1131,7 @@ def test_zusd_monetary_wallet_browser_succeeds_under_bounded_tau_send_jitter(tmp
     vite_port = _free_port()
     vite_base = f"http://127.0.0.1:{vite_port}"
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env={
             **os.environ,
@@ -1234,7 +1234,7 @@ def test_zusd_monetary_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         "VITE_DEMO_MODE": "false",
     }
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env=vite_env,
         stdout=subprocess.DEVNULL,

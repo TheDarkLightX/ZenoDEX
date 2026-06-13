@@ -3,9 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
+from src.state.canonical import (
+    canonical_hex_fixed_allow_0x,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 
-from .settlement_price_provenance import SettlementSpotPricePacket, verify_settlement_spot_price_packet
+from .settlement_price_provenance import (
+    SettlementSpotPricePacket,
+    verify_settlement_spot_price_packet,
+)
 
 try:
     from py_ecc.bls import G2Basic
@@ -92,21 +100,24 @@ def build_settlement_spot_price_attestation(
     *,
     packet: SettlementSpotPricePacket,
     signer_privkey: str | int | bytes | bytearray,
+    attestation_policy: object | None = None,
 ) -> SettlementSpotPriceAttestation:
     ok, err = verify_settlement_spot_price_packet(packet=packet)
     if not ok:
         raise ValueError(f"invalid settlement spot price packet: {err}")
     if not packet.provenance_ok:
         raise ValueError("settlement spot price packet is not provenance_ok")
-    _require_bls()
     sk_int = _parse_privkey_to_int(signer_privkey)
-    signer_pubkey = canonical_hex_fixed_allow_0x(
-        "0x" + G2Basic.SkToPk(sk_int).hex(),
-        nbytes=48,
-        name="signer_pubkey",
-    )
+    signer_pubkey = settlement_spot_price_attestation_signer_pubkey_from_privkey(sk_int)
     signed_at_epoch = int(packet.now_epoch)
     packet_hash = _packet_hash_hex(packet)
+    if attestation_policy is not None:
+        _require_attestation_policy_allows_packet(
+            attestation_policy=attestation_policy,
+            signer_pubkey=signer_pubkey,
+            packet=packet,
+            signed_at_epoch=signed_at_epoch,
+        )
     unsigned = {
         "schema": SETTLEMENT_SPOT_PRICE_ATTESTATION_SCHEMA,
         "packet": packet.to_dict(),
@@ -121,6 +132,18 @@ def build_settlement_spot_price_attestation(
         signed_at_epoch=signed_at_epoch,
         packet_hash=packet_hash,
         signature=signature,
+    )
+
+
+def settlement_spot_price_attestation_signer_pubkey_from_privkey(
+    signer_privkey: str | int | bytes | bytearray,
+) -> str:
+    _require_bls()
+    sk_int = _parse_privkey_to_int(signer_privkey)
+    return canonical_hex_fixed_allow_0x(
+        "0x" + G2Basic.SkToPk(sk_int).hex(),
+        nbytes=48,
+        name="signer_pubkey",
     )
 
 
@@ -248,6 +271,30 @@ def _packet_hash_hex(packet: SettlementSpotPricePacket) -> str:
 
 def _packet_source_ids(packet: SettlementSpotPricePacket) -> tuple[str, ...]:
     return tuple(entry.source_id for entry in packet.entries)
+
+
+def _require_attestation_policy_allows_packet(
+    *,
+    attestation_policy: object,
+    signer_pubkey: str,
+    packet: SettlementSpotPricePacket,
+    signed_at_epoch: int,
+) -> None:
+    from .settlement_attestation_policy import (
+        check_settlement_attestation_policy,
+        coerce_settlement_attestation_policy,
+    )
+
+    policy = coerce_settlement_attestation_policy(attestation_policy)
+    result = check_settlement_attestation_policy(
+        policy=policy,
+        consumer_now_epoch=int(signed_at_epoch),
+        policy_reference_epoch=int(signed_at_epoch),
+        signer_pubkeys=(signer_pubkey,),
+        packet_source_ids=_packet_source_ids(packet),
+    )
+    if not result.ok:
+        raise ValueError(f"attestation_policy does not authorize signer and packet sources: {result.error}")
 
 
 def _attestation_message_bytes(unsigned_payload: Mapping[str, Any]) -> bytes:

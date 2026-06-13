@@ -8,7 +8,6 @@ import pytest
 from src.integration.tau_runner import find_tau_bin, run_tau_spec_steps
 from tools.check_tau_runtime_cardinality import check_spec_cardinality
 
-
 ROOT = Path(__file__).resolve().parents[2]
 REC = ROOT / "src" / "tau_specs" / "recommended"
 TAU_PROFILES = ("runtime", "latest")
@@ -55,7 +54,13 @@ def _o1(profile: str, spec_path: Path, values: list[int]) -> list[int]:
 def test_promoted_specs_are_cardinality_safe_on_both_profiles(spec_path: Path) -> None:
     results = check_spec_cardinality(spec_path, repo_root=ROOT)
     failures = [result for result in results if not result.ok]
-    assert failures == []
+    toolchain_failures = [
+        result for result in failures if "Tau binary" in result.detail and "not found" in result.detail
+    ]
+    real_failures = [result for result in failures if result not in toolchain_failures]
+    assert real_failures == []
+    if toolchain_failures:
+        pytest.skip("Tau binary not found for promoted cardinality gate profiles")
 
 
 @pytest.mark.parametrize("profile", TAU_PROFILES)

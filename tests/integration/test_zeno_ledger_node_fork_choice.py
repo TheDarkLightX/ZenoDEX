@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -11,9 +12,15 @@ from src.integration.zeno_ledger_signature import (
     build_bls_signed_artifact_envelope_v0,
 )
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
-from src.integration.zeno_ledger_v0 import build_checkpoint_v0, build_header_v0, canonical_header_hash_v0, hash_v0
+from src.integration.zeno_ledger_v0 import (
+    build_checkpoint_v0,
+    build_header_v0,
+    canonical_header_hash_v0,
+    compute_app_hash_v0,
+    hash_v0,
+)
+from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
 from tools.zeno_ledger_node import NODE_STATUS_SCHEMA, check_peer_status_v0, pull_live_from_peer_v0
-
 
 ZERO_ROOT = "0x" + "00" * 32
 TEST_BLS_PRIVATE_KEY_A = "0x" + "01" * 32
@@ -116,15 +123,57 @@ def _write_local_node(
     )
     _write_json(data_dir / "node_status.json", status)
     if live:
+        snapshot_path = data_dir / "live_ledger" / "snapshots" / f"{latest_height}.json"
+        header_path = data_dir / "live_ledger" / "headers" / f"{latest_height}.json"
+        snapshot = {
+            "schema": "zenodex/tau_app_state/v1",
+            "dex_state": {},
+            "test_label": f"local-live-{latest_height}",
+        }
+        post_state_root = canonical_hex_fixed_allow_0x(
+            hashlib.sha256(canonical_json_bytes(snapshot)).hexdigest(),
+            nbytes=32,
+            name="post_state_root",
+        )
+        header_fields = {
+            "chain_id": "zeno-ledger-peer-check-testnet-0",
+            "height": latest_height,
+            "post_state_root": post_state_root,
+            "evidence_root": _root(f"local-evidence-{latest_height}"),
+            "config_digest": _root("config"),
+            "module_versions_digest": _root("modules"),
+        }
+        app_hash = compute_app_hash_v0(header_fields)
+        header = build_header_v0(
+            chain_id="zeno-ledger-peer-check-testnet-0",
+            height=latest_height,
+            time_ms=1_778_730_000_000 + latest_height,
+            prev_header_hash=ZERO_ROOT,
+            sequencer_set_hash=sequencer_set_hash,
+            ingress_root=_root(f"local-ingress-{latest_height}"),
+            tx_root=_root(f"local-tx-{latest_height}"),
+            pre_state_root=_root(f"local-pre-{latest_height}"),
+            post_state_root=post_state_root,
+            app_hash=app_hash,
+            evidence_root=str(header_fields["evidence_root"]),
+            body_root=_root(f"local-body-{latest_height}"),
+            data_availability_root=_root(f"local-da-{latest_height}"),
+            proof_journal_hash=ZERO_ROOT,
+            config_digest=str(header_fields["config_digest"]),
+            module_versions_digest=str(header_fields["module_versions_digest"]),
+            signature_set_root=ZERO_ROOT,
+        )
+        _write_json(snapshot_path, snapshot)
+        _write_json(header_path, header)
         _write_json(
             data_dir / "live_state.json",
             {
                 "schema": "zenodex.zeno_ledger.node_live_state.v0",
                 "latest_height": latest_height,
-                "latest_header_path": str(data_dir / "live_ledger" / "headers" / f"{latest_height}.json"),
-                "latest_snapshot_path": str(data_dir / "live_ledger" / "snapshots" / f"{latest_height}.json"),
-                "latest_header_hash": latest_header_hash,
-                "latest_app_hash": _root(f"local-live-app-{latest_height}"),
+                "latest_header_path": str(header_path),
+                "latest_snapshot_path": str(snapshot_path),
+                "latest_header_hash": canonical_header_hash_v0(header),
+                "latest_app_hash": app_hash,
             },
         )
     return status

@@ -159,8 +159,8 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         anchors=(
             "ZUSDMonetarySurface",
             "ZUSDTauWalletSurface",
-            "<ZUSDMonetarySurface />",
-            "<ZUSDTauWalletSurface />",
+            "<ZUSDMonetarySurface wallet={wallet} />",
+            "<ZUSDTauWalletSurface wallet={wallet} />",
         ),
     ),
     AnchorCheck(
@@ -334,12 +334,12 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         path="tests/integration/test_confidential_ui_bridge.py",
         description="Mounted confidential browser smoke renders the bounded runtime receipt and its redaction markers.",
         anchors=(
-            "runtime receipt ready",
+            'assert "Ready" in dom',
             "result redacted",
-            "effect digest 0x",
-            "status hash 0x",
-            "allowlist hash 0x",
-            "verifier binding 0x",
+            "Public effect digest",
+            "Operator status hash",
+            "Allowlist hash",
+            "Verifier binding",
         ),
     ),
     AnchorCheck(

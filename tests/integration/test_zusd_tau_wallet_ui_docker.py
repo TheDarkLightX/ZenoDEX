@@ -12,9 +12,13 @@ from urllib.request import urlopen
 
 import pytest
 
-from src.integration.tau_net_client import TauNetTcpClient, TauNetTcpConfig, bls_pubkey_hex_from_privkey
+from src.integration.tau_net_client import (
+    TauNetTcpClient,
+    TauNetTcpConfig,
+    bls_pubkey_hex_from_privkey,
+)
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
-
+from tests.integration.vite_test_server import vite_dev_command
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -198,7 +202,7 @@ def test_zusd_tau_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -> Non
             "VITE_DEMO_MODE": "false",
         }
         vite_proc = subprocess.Popen(
-            ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+            vite_dev_command(DEX_UI, vite_port),
             cwd=DEX_UI,
             env=vite_env,
             stdout=subprocess.DEVNULL,

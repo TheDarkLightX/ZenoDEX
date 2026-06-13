@@ -9,12 +9,12 @@ model efficiently.
 
 from __future__ import annotations
 
+import importlib
 import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Optional, Sequence, Union
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ESSO_ROOT = REPO_ROOT / "external" / "ESSO"
@@ -31,6 +31,22 @@ def ensure_esso_on_path() -> None:
     esso_str = str(ESSO_ROOT)
     if esso_str not in sys.path:
         sys.path.insert(0, esso_str)
+
+
+def esso_interpreter_available() -> bool:
+    """Return whether the optional private ESSO interpreter can be imported.
+
+    Production gates can run without `external/ESSO` by validating committed
+    public receipts. Tests that exercise the private interpreter should skip
+    cleanly when that checkout is absent; they must not raise during pytest
+    collection and mask unrelated gate failures.
+    """
+    try:
+        ensure_esso_on_path()
+        importlib.import_module("ESSO.kernel.interpreter")
+    except (FileNotFoundError, ModuleNotFoundError):
+        return False
+    return True
 
 
 def load_yaml(path: Path) -> Any:
@@ -297,7 +313,12 @@ def rewrite_vars_to_params(expr: Any, *, param_ids: set[str]) -> Any:
 
 def parse_term_to_expr(*, model: Any, synth: Any, hole_id: str, term: str) -> Any:
     ensure_esso_on_path()
-    from ESSO.cgs.llm_hints import InfixParseError, SexpParseError, parse_infix, parse_one  # type: ignore
+    from ESSO.cgs.llm_hints import (  # type: ignore
+        InfixParseError,
+        SexpParseError,
+        parse_infix,
+        parse_one,
+    )
     from ESSO.cgs.sygus import _hole_arg_order, _parse_define_fun_solution  # type: ignore
 
     hole = next((h for h in synth.holes if h.hole_id == hole_id), None)
@@ -543,8 +564,8 @@ def semantic_check_single(
     self_check: bool = False,
 ) -> SemanticCheckResult:
     ensure_esso_on_path()
-    from ESSO.ir.schema import CandidateIR  # type: ignore
     from ESSO.cgs.schema import SynthIR  # type: ignore
+    from ESSO.ir.schema import CandidateIR  # type: ignore
 
     model = CandidateIR.from_json_dict(load_yaml(model_path)).canonicalized()
     synth = SynthIR.from_json_dict(load_json(synth_path))

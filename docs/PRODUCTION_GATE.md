@@ -10,7 +10,7 @@ This repo includes a single “production gate” script that runs the same chec
 
 - Kernel spec assurance (manifest-backed)
 - Container hardening artifact checks
-- Python unit tests
+- Python unit tests, run in deterministic groups with a per-group JSON report
 - UI dependency audit (`npm audit`)
 - Build the production container image
 - Scan the built artifact with Trivy (HIGH/CRITICAL with fixes)
@@ -52,7 +52,13 @@ python3 tools/run_prod_gate_report.py \
 ```
 
 The report producer archives stdout/stderr logs and their hashes beside the
-JSON report. The readiness checker accepts only the default full
+JSON report. During the pytest leg, `tools/run_release_pytest_groups.py` writes
+`runs/production_readiness/release_gate/pytest_groups_report.json` and sibling
+per-group logs after each bounded group completes. This does not relax the gate:
+every discovered `test*.py` file must still pass before the production gate can
+report `[gate] PASS`.
+
+The readiness checker accepts only the default full
 `bash tools/prod_gate.sh` run on a clean worktree; dirty or alternate-script
 reports remain diagnostic artifacts and do not clear production readiness.
 

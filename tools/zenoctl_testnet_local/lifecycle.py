@@ -45,7 +45,6 @@ from . import fixtures as fx
 from . import manifest as mf
 from . import nginx as ng
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILE = REPO_ROOT / "docker-compose.local-testnet.yml"
 NGINX_TEMPLATE = REPO_ROOT / ".docker" / "nginx.local-testnet.conf.template"
@@ -843,6 +842,7 @@ def _compose_env(
     zk_required: bool,
     expected_zk_posture: Mapping[str, Any] | None = None,
     confidential_fixture: ConfidentialLocalFixture | None = None,
+    tau_testnet_host_dir: Path | None = None,
 ) -> dict[str, str]:
     if zk_required:
         zk_env_gap = _strict_zk_env_gap(expected=expected_zk_posture)
@@ -855,7 +855,7 @@ def _compose_env(
         "RENDERED_RUNTIME_CONFIG_PATH": str(paths.rendered_runtime_config),
         "FIXTURES_DIR": str(paths.fixtures_dir),
         "SECRETS_DIR": str(paths.secrets_dir),
-        "TAU_TESTNET_DIR": str(_tau_testnet_host_dir()),
+        "TAU_TESTNET_DIR": str(tau_testnet_host_dir or _tau_testnet_host_dir()),
         "ORACLE_HOME_DIR": str(paths.oracle_home_dir),
         "HOST_UID": str(_host_uid()),
         "HOST_GID": str(_host_gid()),
@@ -1089,6 +1089,9 @@ def _runtime_env_for_existing_manifest(*, manifest: Mapping[str, Any], paths: mf
     key_bundle_path = Path(str(fixture_paths.get("key_bundle") or (paths.fixtures_dir / "keys.json")))
     key_bundle = _load_json_file(key_bundle_path, label="key bundle")
     roles = _role_materials(key_bundle)
+    host_paths = manifest.get("host_paths") if isinstance(manifest.get("host_paths"), Mapping) else {}
+    tau_testnet_host_dir_raw = host_paths.get("tau_testnet_dir")
+    tau_testnet_host_dir = Path(str(tau_testnet_host_dir_raw)) if tau_testnet_host_dir_raw else None
 
     return _compose_env(
         paths=paths,
@@ -1101,6 +1104,7 @@ def _runtime_env_for_existing_manifest(*, manifest: Mapping[str, Any], paths: mf
         zk_required=manifest.get("zk_required") is True,
         expected_zk_posture=_zk_posture_from_manifest(manifest),
         confidential_fixture=_confidential_local_fixture_from_manifest(manifest=manifest, paths=paths),
+        tau_testnet_host_dir=tau_testnet_host_dir,
     )
 
 
@@ -4349,7 +4353,8 @@ def _emit_status(report: dict[str, Any], *, as_json: bool) -> None:
 def _log(phase: str, msg: str) -> None:
     # Phase logs are bounded operator status strings; JSON reports are redacted separately.
     safe_phase = str(phase)[:80]
-    os.write(2, f"[testnet-local phase={safe_phase}] status update\n".encode("utf-8"))
+    safe_msg = _redact_failure_message(msg).replace("\n", " ")[:1000]
+    sys.stderr.write(f"[testnet-local phase={safe_phase}] {safe_msg}\n")
 
 
 _FAILURE_SECRET_RE = re.compile(

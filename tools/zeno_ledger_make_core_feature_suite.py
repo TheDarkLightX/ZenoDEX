@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.integration.zeno_ledger_feature_suite import build_feature_suite_manifest_v0
+from tools.operator_report_output import emit_operator_json, write_public_json
 from tools.zeno_ledger_make_feature_lane import build_feature_lane_manifest_v0
 from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_ASSET0,
@@ -24,9 +26,6 @@ from tools.zeno_ledger_make_testnet_bundle import (
     _root,
     build_testnet_bundle_v0,
 )
-from src.integration.zeno_ledger_feature_suite import build_feature_suite_manifest_v0
-from tools.operator_report_output import emit_operator_json, write_public_json
-
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_core_feature_suite_report.v0"
 PROOF_MINING_POOL_PUBKEY = "0x" + "11" * 48
@@ -314,6 +313,10 @@ def build_core_feature_suite_v0(
         bootstrap_manifest.get("profile_path"),
         name="bootstrap_manifest.profile_path",
     )
+    # The core feature-suite bodies are generated unsigned testnet fixtures.
+    # Admission still binds them to the transaction sender, matching the verifier
+    # fallback that production lanes must opt into explicitly.
+    allow_unsigned_fixture_sender_match = True
 
     tau_body_path = tau_app_dir / "source" / "tau_app_spot_body.json"
     tau_app_state_path = tau_app_dir / "source" / "app_state.json"
@@ -347,6 +350,7 @@ def build_core_feature_suite_v0(
         module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
         allow_missing_settlement=True,
         disable_intent_signatures=True,
+        allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_fixture_sender_match,
     )
     tau_manifest_path = Path(str(tau_lane_report["manifest_path"]))
 
@@ -418,6 +422,7 @@ def build_core_feature_suite_v0(
         module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
         allow_missing_settlement=True,
         disable_intent_signatures=True,
+        allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_fixture_sender_match,
     )
     zusd_manifest_path = Path(str(zusd_lane_report["manifest_path"]))
 
@@ -502,6 +507,7 @@ def build_core_feature_suite_v0(
         module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
         allow_missing_settlement=True,
         disable_intent_signatures=True,
+        allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_fixture_sender_match,
     )
     perp_manifest_path = Path(str(perp_lane_report["manifest_path"]))
 
@@ -564,6 +570,7 @@ def build_core_feature_suite_v0(
         module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
         allow_missing_settlement=True,
         disable_intent_signatures=True,
+        allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_fixture_sender_match,
     )
     oracle_manifest_path = Path(str(oracle_lane_report["manifest_path"]))
 
@@ -675,6 +682,7 @@ def build_core_feature_suite_v0(
         module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
         allow_missing_settlement=True,
         disable_intent_signatures=True,
+        allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_fixture_sender_match,
     )
     oracle_reporter_manifest_path = Path(str(oracle_reporter_lane_report["manifest_path"]))
 
@@ -806,6 +814,7 @@ def build_core_feature_suite_v0(
         module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
         allow_missing_settlement=True,
         disable_intent_signatures=True,
+        allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_fixture_sender_match,
     )
     upba_manifest_path = Path(str(upba_lane_report["manifest_path"]))
 
@@ -960,6 +969,7 @@ def build_core_feature_suite_v0(
         module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
         allow_missing_settlement=True,
         disable_intent_signatures=True,
+        allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_fixture_sender_match,
     )
     proof_mining_manifest_path = Path(str(proof_mining_lane_report["manifest_path"]))
 
@@ -1132,6 +1142,7 @@ def build_core_feature_suite_v0(
         module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
         allow_missing_settlement=True,
         disable_intent_signatures=True,
+        allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_fixture_sender_match,
     )
     autotrader_manifest_path = Path(str(autotrader_lane_report["manifest_path"]))
 
@@ -1267,6 +1278,7 @@ def build_core_feature_suite_v0(
         module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
         allow_missing_settlement=True,
         disable_intent_signatures=True,
+        allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_fixture_sender_match,
     )
     confidential_manifest_path = Path(str(confidential_lane_report["manifest_path"]))
 

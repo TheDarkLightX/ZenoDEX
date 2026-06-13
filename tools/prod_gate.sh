@@ -109,7 +109,8 @@ print("[gate] kernel assurance OK")
 PY
 
 echo "[gate] running pytest"
-pytest -q
+python tools/run_release_pytest_groups.py \
+  --out runs/production_readiness/release_gate/pytest_groups_report.json
 
 if [[ "$SKIP_UI" -eq 0 ]]; then
   if [[ -d tools/dex-ui ]]; then

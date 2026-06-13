@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "tools" / "check_tau_runtime_cardinality.py"
@@ -22,8 +23,17 @@ def _run_checker(spec_path: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _skip_if_only_missing_tau(proc: subprocess.CompletedProcess[str]) -> None:
+    lines = [line for line in (proc.stdout + proc.stderr).splitlines() if line.strip()]
+    if proc.returncode == 1 and lines and all(
+        "<missing-tau>" in line and "Tau binary" in line and "not found" in line for line in lines
+    ):
+        pytest.skip("Tau binary not found for runtime cardinality checker")
+
+
 def test_input_history_candidate_is_cardinality_safe() -> None:
     proc = _run_checker(SAFE_CANDIDATE)
+    _skip_if_only_missing_tau(proc)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "FAIL" not in proc.stdout
     assert proc.stdout.count("OK\t") == 10
@@ -31,6 +41,7 @@ def test_input_history_candidate_is_cardinality_safe() -> None:
 
 def test_output_feedback_latch_is_rejected_for_runtime_cardinality() -> None:
     proc = _run_checker(UNSAFE_FEEDBACK)
+    _skip_if_only_missing_tau(proc)
     assert proc.returncode == 1
     output = proc.stdout + proc.stderr
     assert "FAIL" in output

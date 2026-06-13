@@ -9,7 +9,6 @@ from tools.check_disaster_obligation_certificate import (
     evaluate_manifest,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "tools" / "zeno_oracle_disaster_obligation_certificate_manifest.json"
 
@@ -23,7 +22,7 @@ def test_zeno_oracle_obligation_certificate_passes() -> None:
     result = evaluate_manifest(manifest)
     check_result_against_manifest(result, manifest)
 
-    assert result["axis_count"] == 23
+    assert result["axis_count"] == 24
     assert "proof_independence" in result["required_obligations"]
     assert "proof_independence_gate" in result["selected_guard_set"]
     assert result["selected_guard_set_covers_required_obligations"] is True
@@ -32,12 +31,19 @@ def test_zeno_oracle_obligation_certificate_passes() -> None:
 
 def test_zeno_oracle_new_atom_probe_is_not_silently_covered() -> None:
     manifest = _load_manifest()
+    manifest["candidate_probes"].append(
+        {
+            "name": "external_data_availability_oracle_variant",
+            "obligations": ["critical_action_bound", "external_data_availability", "receipt_dag_closed"],
+            "expected_classification": "new_atom_required",
+        }
+    )
     result = evaluate_manifest(manifest)
     probes = {probe["name"]: probe for probe in result["candidate_probes"]}
 
-    finality = probes["cross_domain_finality_oracle_variant"]
-    assert finality["classification"] == "new_atom_required"
-    assert finality["missing_obligations"] == ["cross_domain_finality"]
+    availability = probes["external_data_availability_oracle_variant"]
+    assert availability["classification"] == "new_atom_required"
+    assert availability["missing_obligations"] == ["external_data_availability"]
 
 
 def test_zeno_oracle_certificate_detects_uncovered_new_obligation() -> None:
@@ -45,12 +51,12 @@ def test_zeno_oracle_certificate_detects_uncovered_new_obligation() -> None:
     manifest["axes"].append(
         {
             "name": "external_finality_reorg_feeds_oracle_read",
-            "obligations": ["critical_action_bound", "cross_domain_finality", "receipt_dag_closed"],
+            "obligations": ["critical_action_bound", "external_data_availability", "receipt_dag_closed"],
         }
     )
 
     result = evaluate_manifest(manifest)
-    assert "cross_domain_finality" in result["required_obligations"]
+    assert "external_data_availability" in result["required_obligations"]
     assert result["selected_guard_set_covers_required_obligations"] is False
 
     try:

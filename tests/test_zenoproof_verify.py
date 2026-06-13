@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import importlib.util
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -304,6 +304,18 @@ def test_registry_rejects_unsafe_verifier_governance_fields() -> None:
         allow_path_lookup=False,
     )
     assert f"verifier_command_must_be_absolute_when_path_lookup_disabled:{verifier_id}" in errors
+
+
+def test_lean_public_replay_timeout_has_release_gate_headroom() -> None:
+    assert int(zv.PUBLIC_REPLAY_PROFILE_CONFIGS[zv.LEAN_REPLAY_PROFILE]["timeout_ms"]) >= 60_000
+
+    registry = _manifest()
+    lean_verifier = next(
+        verifier
+        for verifier in registry["verifiers"]
+        if verifier["verifier_id"] == zv.LEAN_REPLAY_VERIFIER_ID
+    )
+    assert int(lean_verifier["timeout_ms"]) >= 60_000
 
 
 def test_reward_gate_rejects_duplicate_claim() -> None:

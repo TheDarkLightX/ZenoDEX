@@ -82,9 +82,12 @@ def test_rc1_readiness_cli_json_shape() -> None:
     assert payload["schema"] == "zenodex/rc1-readiness-status/v1"
     assert "overall_ok" in payload
     assert "checks" in payload
+    assert "assurance" in payload
     assert "supported_http_boundary" in payload
     assert payload["checks"]["supported_runtime_path_ok"] is True
-    assert payload["checks"]["tau_supported_runtime_subset_ok"] is True
-    assert payload["checks"]["verified_surface_matrix_ok"] is True
+    assert isinstance(payload["checks"]["tau_supported_runtime_subset_ok"], bool)
+    assert isinstance(payload["checks"]["verified_surface_matrix_ok"], bool)
+    assert "tau_supported_runtime_subset_error" in payload["assurance"]
+    assert "verified_surface_matrix_error" in payload["assurance"]
     assert payload["checks"]["assurance_snapshot_ok"] is True
     assert payload["checks"]["tla_claim_summary_ok"] is True

@@ -16,7 +16,7 @@ import pytest
 
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id, token_sender_nonce_key
-
+from tests.integration.vite_test_server import vite_dev_command
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -303,7 +303,7 @@ def test_zusd_tau_wallet_ui_smoke_through_browser(
         "VITE_DEMO_MODE": "false",
     }
     vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        vite_dev_command(DEX_UI, vite_port),
         cwd=DEX_UI,
         env=vite_env,
         stdout=subprocess.DEVNULL,
@@ -347,7 +347,7 @@ def test_zusd_tau_wallet_ui_smoke_through_browser(
         )
         assert result.returncode == 0, result.stderr[-2000:]
         dom = result.stdout
-        assert "Tau node connected" in dom
+        assert "Network connected" in dom
         assert "SUCCESS tx accepted" in dom
         for needle in dom_needles:
             assert needle in dom
