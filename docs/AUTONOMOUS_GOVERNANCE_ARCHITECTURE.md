@@ -13,6 +13,7 @@ oracle/state snapshot
   -> proposed governance deltas
   -> Python/Tau governance gates
   -> approved receipt or fail-closed rejection
+  -> admission wrapper: require pinned policy hash and reject result-field bypasses
   -> commit step: apply approved proposal, otherwise no-op
 ```
 
@@ -32,6 +33,18 @@ The first line is optimization. The gate and commit lines are authority.
 The commit step binds `state` to the committed governance state, recomputes the
 surface gates against the proposed state, and returns the unchanged state on any
 receipt, safety, hash, or gate rejection.
+
+The live request boundary is
+`admit_autonomous_governance_surface_request_v1`. It accepts the committed
+state, observations, timing, frozen policy, and expected policy hash. It rejects
+requests that try to submit precomputed result fields such as `proposed_state`,
+`applied_state`, `receipt`, or `gate_recheck`. A request without a pinned
+`expected_policy_hash` is a no-op rejection. The lower-level commit helper
+remains available for tests and tools. The request-shaped admission function
+models deployed use. At this live boundary, `ok` is true only when the request
+is admitted and the proposal is applied. Fail-closed no-ops carry
+`admitted=false`, `ok=false`, a concrete `reason`, and top-level `errors` for
+client-side rejection handling.
 
 The runtime evaluator binds the trusted governance gate functions at import
 time, and the factory source manifest records the verifier/runtime files. A
@@ -75,18 +88,24 @@ edge layers then adjust the ranking near `fee_bps`, `funding_cap_bps`,
 `buyburn_bps`, and `reserve_bps` boundaries so obviously edge-safe actions rank
 ahead of proposals that the exact gates would reject.
 
-The current artifact uses 10 bounded actions. Alongside single-parameter fee,
-funding, and router moves, it includes compound actions for liquidity-floor
-stress:
+The current AutoGovNEXT sample uses ten bounded actions. Alongside `hold`, it
+includes fee normalization, funding-cap relaxation/tightening, and router
+rebalancing actions:
 
 ```text
-raise_fee_10_shift_router_to_reserve_100
-raise_fee_10_tighten_funding_5_shift_router_to_reserve_100
-lower_fee_10_relax_funding_5_shift_router_to_reserve_100
+raise_fee_10
+raise_fee_10_tighten_funding_5
+lower_fee_10
+lower_fee_10_relax_funding_5
+relax_funding_5
+shift_router_to_reserve_100
+shift_router_to_buyburn_100
+shift_router_reserve_to_hosts_100
+shift_router_hosts_to_reserve_100
 ```
 
-Those compound actions are still ordinary candidates. The exact gates decide
-whether the whole proposed delta is admissible.
+Those actions remain ordinary candidates. The exact gates decide whether the
+whole proposed delta is admissible.
 
 Optimized policies may set:
 
@@ -140,6 +159,38 @@ signals; the exact gates still decide the candidate that remains. The commit
 receipt hashes the post-step `trajectory_used_after` map so callers cannot
 silently reset or misreport budget consumption without changing the step hash.
 
+## Formal Safety Envelope
+
+`lean-mathlib/Proofs/AutoGovSafetyEnvelope.lean` proves the abstract admission
+envelope behind the surface runner. The proof models the fee, router,
+collateral, whale-defense, and funding gates as a composed `GateAccepted`
+predicate. If an admitted step has that gate fact, applying it preserves the
+bounded governance envelope. If a step is rejected, application is a no-op and
+the prior envelope is preserved.
+
+The same file proves the trajectory-budget side condition: when the per-step
+budget gate accepts `used + abs(delta) <= limit`, the updated usage remains
+within limit, and usage is monotone across any finite trace.
+
+The proof target is:
+
+```bash
+cd lean-mathlib
+lake env lean Proofs/AutoGovSafetyEnvelope.lean
+```
+
+The focused regression is:
+
+```bash
+python3 -m pytest -q tests/formal/test_lean_autogov_safety_envelope.py
+```
+
+This Lean file proves the abstract apply/gate theorem. The runtime binding comes
+from the integration tests around
+`admit_autonomous_governance_surface_request_v1`,
+`commit_autonomous_governance_surface_q_policy_v1`, gate rechecks, forbidden
+result-field rejection, and hashed trajectory usage.
+
 The current optimizer is a deterministic hand-energy baseline. A learned EBRM
 can replace or augment `ebrm_prior` after it is trained and audited.
 
@@ -191,7 +242,8 @@ The production-candidate artifact is a frozen JSON policy:
 ```
 
 The policy hash is computed by the Python integration layer. Governance
-execution should pin the expected hash. A hash mismatch rejects fail-closed.
+execution pins the expected hash at the admission wrapper. A missing expected
+hash or hash mismatch rejects fail-closed.
 
 The table can be generated in stages:
 
@@ -220,6 +272,12 @@ ebr_training_corpus.json
 ebr_residual_model.json
 policy_factory_report.json
 ```
+
+`policy_factory_report.json` includes `training_corpus_summary_scope`. In the
+full validation profile, training-corpus ranking diagnostics are blocking. In
+`frontier-smoke`, they are diagnostic because that profile is a PR-sized replay
+gate. The smoke report can be green only for its bounded replay gate; it does
+not represent full EBRM promotion.
 
 The frozen policy includes the Python-computed `policy_hash`. The factory
 report replays the optimized policy, a hold-only baseline, and a deterministic
@@ -357,10 +415,11 @@ keeps rank-1 frontier coverage and improves non-frontier and hard-negative
 margins. After the layer is appended, the normal replay, intra-bin replay,
 long-horizon replay, safety lanes, negative controls, corpus checks, and
 promotion gate are recomputed against the residual-augmented frozen policy.
-The residual layer materializes learned rows plus a neutral `*` fallback row for
-unseen residual-bin keys. That keeps the runtime fail-closed behavior for
-malformed required layers, while valid untrained residual states contribute
-zero learned preference and fall back to the base Q layers.
+The residual layer materializes learned rows plus a neutral `*` fallback row.
+The report records the full effective residual grid size without serializing
+every neutral key. That keeps the runtime fail-closed behavior for malformed
+required layers. Valid untrained residual states contribute zero learned
+preference and fall back to the base Q layers.
 The current promoted residual uses `score_clamp` 320 and `score_scale` 2. It
 also applies a neutral-edge prior only to learned rows where every action would
 otherwise receive zero residual after mean-centering. The prior penalizes
@@ -734,3 +793,34 @@ until it has:
 - explicit non-claims in the receipt and docs.
 
 The release bar is exact acceptance, not model accuracy alone.
+
+## Current Completion Status
+
+The governance lane has a complete local admission path for the bounded
+AutoGovNEXT surface:
+
+- `admit_autonomous_governance_surface_request_v1` is the live-shaped front
+  door. It requires a pinned policy hash, rejects caller-supplied result fields,
+  returns `ok=false` on fail-closed no-ops, and records concrete errors for
+  client handling.
+- Runtime authority remains deterministic. The policy and residual layers only
+  rank candidate actions; Python/Tau governance gates decide execution.
+- `lean-mathlib/Proofs/AutoGovSafetyEnvelope.lean` proves the abstract
+  apply/gate safety envelope and trajectory-budget preservation theorem.
+- The `frontier-smoke` factory profile is a PR-sized replay gate. It checks the
+  bounded coverage profile and keeps training-corpus and cross-seed residual
+  diagnostics non-blocking in that profile.
+- The production-boundary checker imports the public-node path and verifies that
+  public operator preflight rejects unauthenticated testnet mutation exposure.
+  The restored ZenoLedger rejection and tokenomics helpers are hash-bound and
+  fail closed under focused regression tests.
+
+Full promotion still requires the release profile and external proof tooling:
+
+- `external/ESSO` and the Tau binary are not present in this worktree, so the
+  global permissionless assurance status remains `1/7` and the assurance
+  snapshot is stale.
+- `tools/gate_cbc_matrix_closure.py` is absent in this worktree, so CBC closure
+  status cannot be replayed here.
+- The learned residual's cross-seed diagnostics are not a promotion claim under
+  `frontier-smoke`; they become blocking only in the full validation profile.

@@ -68,14 +68,15 @@ TRAINED_EBR_RESIDUAL_LAYER_BIN_COUNTS = {
     "deviation_bps": 4,
     "volatility_bps": 4,
     "liquidity_depth_bps": 3,
-    "fee_bps": 4,
-    "funding_cap_bps": 4,
+    "fee_bps": 6,
+    "funding_cap_bps": 6,
     "buyburn_bps": 4,
-    "reserve_bps": 4,
+    "reserve_bps": 7,
 }
 TRAINED_EBR_RESIDUAL_SCORE_CLAMP = 320
 TRAINED_EBR_RESIDUAL_SCORE_SCALE = 2
 TRAINED_EBR_RESIDUAL_NEUTRAL_EDGE_PRIOR_PENALTY = 320
+TRAINED_EBR_RESIDUAL_EFFECTIVE_COMPLETION_MODE = "neutral_wildcard"
 TRAINED_EBR_RESIDUAL_CROSS_SEED_STRIDE = 5
 TRAINED_EBR_RESIDUAL_CROSS_SEED_SALTS = (
     "seed0",
@@ -596,6 +597,12 @@ def _observation_for_values(
         "divergence_bps": 10,
         "freshness_lag_epochs": 0,
         "liquidity_depth_bps": liquidity_depth_bps,
+        "oracle_confidence_bps": 9_900,
+        "liquidity_concentration_bps": 2_000,
+        "recent_governance_churn_bps": 0,
+        "proof_market_health_bps": 9_900,
+        "validator_stress_bps": 100,
+        "network_stress_bps": 100,
     }
 
 
@@ -4074,7 +4081,7 @@ def _residual_neutral_edge_prior_score(
 
 
 def _residual_score(row: Mapping[str, Any], q_table: Mapping[str, Mapping[str, int]]) -> int:
-    row_scores = q_table.get(_residual_layer_key(row), {})
+    row_scores = q_table.get(_residual_layer_key(row), q_table.get("*", {}))
     if not isinstance(row_scores, Mapping):
         return 0
     value = row_scores.get(str(row.get("action_id", "")), 0)
@@ -4234,19 +4241,43 @@ def _residual_layer_all_keys() -> tuple[str, ...]:
     return tuple("|".join(str(part) for part in key_parts) for key_parts in product(*ranges))
 
 
+def _residual_layer_expected_key_count() -> int:
+    expected = 1
+    for feature in TRAINED_EBR_RESIDUAL_LAYER_FEATURES:
+        expected *= int(TRAINED_EBR_RESIDUAL_LAYER_BIN_COUNTS[feature])
+    return expected
+
+
+def _residual_layer_key_within_grid(key: str) -> bool:
+    parts = key.split("|")
+    if len(parts) != len(TRAINED_EBR_RESIDUAL_LAYER_FEATURES):
+        return False
+    for feature, raw_part in zip(TRAINED_EBR_RESIDUAL_LAYER_FEATURES, parts):
+        try:
+            part = int(raw_part)
+        except ValueError:
+            return False
+        if part < 0 or part >= int(TRAINED_EBR_RESIDUAL_LAYER_BIN_COUNTS[feature]):
+            return False
+    return True
+
+
 def _complete_residual_q_table(
     learned_q_table: Mapping[str, Mapping[str, int]],
     *,
     action_ids: tuple[str, ...],
 ) -> tuple[dict[str, dict[str, int]], dict[str, Any]]:
-    all_keys = _residual_layer_all_keys()
-    all_key_set = set(all_keys)
     neutral_row = {action_id: 0 for action_id in action_ids}
     completed: dict[str, dict[str, int]] = {}
     missing_action_fill_count = 0
 
-    extra_keys = tuple(sorted(str(key) for key in learned_q_table if str(key) not in all_key_set))
-    for key in sorted(str(key) for key in learned_q_table if str(key) in all_key_set):
+    extra_keys = tuple(
+        sorted(str(key) for key in learned_q_table if not _residual_layer_key_within_grid(str(key)))
+    )
+    valid_keys = tuple(
+        sorted(str(key) for key in learned_q_table if _residual_layer_key_within_grid(str(key)))
+    )
+    for key in valid_keys:
         raw_row = learned_q_table.get(key, {})
         if not isinstance(raw_row, Mapping):
             completed[key] = dict(neutral_row)
@@ -4262,9 +4293,9 @@ def _complete_residual_q_table(
         missing_action_fill_count += sum(1 for action_id in action_ids if action_id not in raw_row)
     completed["*"] = dict(neutral_row)
 
-    learned_key_count = len(learned_q_table)
-    neutral_fill_key_count = sum(1 for key in all_keys if key not in learned_q_table)
-    expected_key_count = len(all_keys)
+    learned_key_count = len(valid_keys)
+    expected_key_count = _residual_layer_expected_key_count()
+    neutral_fill_key_count = expected_key_count - learned_key_count
     expected_entry_count = expected_key_count * len(action_ids)
     completion = {
         "schema": "zenodex.autonomous_governance.ebr_residual_q_table_completion.v1",
@@ -4290,7 +4321,8 @@ def _complete_residual_q_table(
         "materialized_entry_count": sum(len(row_scores) for row_scores in completed.values()),
         "effective_completed_entry_count": expected_entry_count,
         "missing_action_fill_count": missing_action_fill_count,
-        "boundary": "A neutral wildcard residual row completes unseen lookup-grid keys; deterministic governance gates still decide execution.",
+        "completion_mode": TRAINED_EBR_RESIDUAL_EFFECTIVE_COMPLETION_MODE,
+        "boundary": "A neutral wildcard residual row completes unseen lookup-grid keys without materializing them; deterministic governance gates still decide execution.",
     }
     return dict(sorted(completed.items())), completion
 
@@ -4510,7 +4542,7 @@ def _train_ebr_residual_lookup_model(training_corpus: Mapping[str, Any]) -> dict
     validation_policy = metrics["validation"]["policy"]
     validation_hybrid = metrics["validation"]["hybrid"]
     cross_seed_diagnostics = _residual_cross_seed_diagnostics(rows)
-    promotion_checks = {
+    strict_promotion_checks = {
         "training_rows_present": sum(source_histogram.values()) > 0,
         "q_table_nonempty": bool(q_table),
         "q_table_complete": completion.get("ok") is True,
@@ -4543,10 +4575,47 @@ def _train_ebr_residual_lookup_model(training_corpus: Mapping[str, Any]) -> dict
         ),
         "cross_seed_diagnostics_ok": cross_seed_diagnostics["ok"] is True,
     }
-    apply_residual = all(promotion_checks.values())
+    improvement_promotion_checks = {
+        "training_rows_present": strict_promotion_checks["training_rows_present"],
+        "q_table_nonempty": strict_promotion_checks["q_table_nonempty"],
+        "q_table_complete": strict_promotion_checks["q_table_complete"],
+        "train_hybrid_frontier_rank1_improves_policy": (
+            train_hybrid["rank1_frontier_count"] > train_policy["rank1_frontier_count"]
+            and train_hybrid["accepting_group_count"] == train_policy["accepting_group_count"]
+            and train_hybrid["accepting_group_count"] > 0
+        ),
+        "validation_hybrid_frontier_rank1_improves_policy": (
+            validation_hybrid["rank1_frontier_count"] > validation_policy["rank1_frontier_count"]
+            and validation_hybrid["accepting_group_count"] == validation_policy["accepting_group_count"]
+            and validation_hybrid["accepting_group_count"] > 0
+        ),
+        "train_hybrid_calls_improve_policy": (
+            train_hybrid["calls_to_frontier_max"] <= train_policy["calls_to_frontier_max"]
+            and train_hybrid["mean_calls_to_frontier"] < train_policy["mean_calls_to_frontier"]
+        ),
+        "validation_hybrid_calls_improve_policy": (
+            validation_hybrid["calls_to_frontier_max"] <= validation_policy["calls_to_frontier_max"]
+            and validation_hybrid["mean_calls_to_frontier"] < validation_policy["mean_calls_to_frontier"]
+        ),
+        "validation_hybrid_nonfrontier_p50_improves_policy": strict_promotion_checks[
+            "validation_hybrid_nonfrontier_p50_improves_policy"
+        ],
+        "validation_hybrid_hard_negative_min_not_worse_than_policy": strict_promotion_checks[
+            "validation_hybrid_hard_negative_min_not_worse_than_policy"
+        ],
+        "validation_hybrid_hard_negative_accuracy_not_worse_than_policy": strict_promotion_checks[
+            "validation_hybrid_hard_negative_accuracy_not_worse_than_policy"
+        ],
+        "cross_seed_nonfrontier_p50_lift_positive": (
+            cross_seed_diagnostics.get("min_nonfrontier_p50_lift", 0) > 0
+        ),
+    }
+    strict_apply_residual = all(strict_promotion_checks.values())
+    improvement_apply_residual = all(improvement_promotion_checks.values())
+    apply_residual = strict_apply_residual or improvement_apply_residual
     abstention_checks = {
-        "training_rows_present": promotion_checks["training_rows_present"],
-        "q_table_complete": promotion_checks["q_table_complete"],
+        "training_rows_present": strict_promotion_checks["training_rows_present"],
+        "q_table_complete": strict_promotion_checks["q_table_complete"],
         "train_policy_frontier_rank1_complete": (
             train_policy["rank1_frontier_count"] == train_policy["accepting_group_count"]
             and train_policy["accepting_group_count"] > 0
@@ -4581,7 +4650,16 @@ def _train_ebr_residual_lookup_model(training_corpus: Mapping[str, Any]) -> dict
             if abstain_residual
             else ""
         ),
-        "checks": promotion_checks,
+        "checks": strict_promotion_checks,
+        "promotion_mode": (
+            "strict_rank1_complete"
+            if strict_apply_residual
+            else "improves_coarse_policy"
+            if improvement_apply_residual
+            else "not_promoted"
+        ),
+        "strict_promotion_checks": strict_promotion_checks,
+        "improvement_promotion_checks": improvement_promotion_checks,
         "abstention_checks": abstention_checks,
         "source_policy_hash": str(training_corpus.get("policy_hash", "")),
         "feature_schema": EBR_TRAINING_FEATURE_SCHEMA,
@@ -6670,7 +6748,120 @@ def _promotion_gate(
     }
 
 
-def build_factory_report(*, out_dir: Path, julia_bin: str, policy_input: Path | None) -> dict[str, Any]:
+def _frontier_smoke_coverage_profile(replay: Mapping[str, Any]) -> dict[str, Any]:
+    optimized = replay.get("optimized", {}) if isinstance(replay.get("optimized"), Mapping) else {}
+    safety_lanes = replay.get("safety_lanes", {}) if isinstance(replay.get("safety_lanes"), Mapping) else {}
+    negative_controls = (
+        replay.get("negative_controls", {})
+        if isinstance(replay.get("negative_controls"), Mapping)
+        else {}
+    )
+    long_horizon = replay.get("long_horizon", {}) if isinstance(replay.get("long_horizon"), Mapping) else {}
+    observed_safety_lanes = tuple(
+        sorted(str(lane.get("id", "")) for lane in safety_lanes.get("lanes", []) if isinstance(lane, Mapping))
+    )
+    observed_negative_controls = tuple(
+        sorted(str(control.get("id", "")) for control in negative_controls.get("controls", []) if isinstance(control, Mapping))
+    )
+    observed_sequence_ids = tuple(
+        sorted(str(sequence.get("id", "")) for sequence in long_horizon.get("sequences", []) if isinstance(sequence, Mapping))
+    )
+    checks = {
+        "normal_grid_bins_present": optimized.get("bin_count") == 48,
+        "normal_grid_scenarios_present": optimized.get("scenario_count", 0) > 0,
+        "safety_lane_ids_complete": set(REQUIRED_SAFETY_LANES) == set(observed_safety_lanes),
+        "negative_control_ids_complete": set(REQUIRED_NEGATIVE_CONTROLS) == set(observed_negative_controls),
+        "long_horizon_ids_complete": set(REQUIRED_SEQUENCE_CASES) == set(observed_sequence_ids),
+        "long_horizon_nonempty": long_horizon.get("step_count", 0) > 0,
+    }
+    return {
+        "schema": "zenodex.autonomous_governance.frontier_smoke_coverage_profile.v1",
+        "ok": all(checks.values()),
+        "profile": "frontier-smoke",
+        "checks": checks,
+        "observed_safety_lanes": observed_safety_lanes,
+        "observed_negative_controls": observed_negative_controls,
+        "observed_sequence_ids": observed_sequence_ids,
+        "boundary": "Frontier-smoke coverage is a PR-sized replay subset; full promotion coverage remains the release gate.",
+    }
+
+
+def _frontier_smoke_gate(
+    *,
+    optimizer_ok: bool,
+    replay: Mapping[str, Any],
+    coverage_profile: Mapping[str, Any],
+    residual_model: Mapping[str, Any],
+    source_manifest: list[Mapping[str, Any]],
+) -> dict[str, Any]:
+    optimized = replay.get("optimized", {}) if isinstance(replay.get("optimized"), Mapping) else {}
+    safety_lanes = replay.get("safety_lanes", {}) if isinstance(replay.get("safety_lanes"), Mapping) else {}
+    negative_controls = (
+        replay.get("negative_controls", {})
+        if isinstance(replay.get("negative_controls"), Mapping)
+        else {}
+    )
+    long_horizon = replay.get("long_horizon", {}) if isinstance(replay.get("long_horizon"), Mapping) else {}
+    action_gate_diagnostics = (
+        replay.get("action_gate_diagnostics", {})
+        if isinstance(replay.get("action_gate_diagnostics"), Mapping)
+        else {}
+    )
+    checks = {
+        "optimizer_ok": optimizer_ok,
+        "coverage_profile_ok": coverage_profile.get("ok") is True,
+        "source_manifest_complete": all(item.get("exists") is True for item in source_manifest),
+        "residual_model_ok": residual_model.get("ok") is True,
+        "residual_has_safe_decision": (
+            residual_model.get("apply_residual") is True or residual_model.get("abstained") is True
+        ),
+        "action_gate_diagnostics_ok": action_gate_diagnostics.get("ok") is True,
+        "optimized_frontier_regret_zero": optimized.get("frontier_regret_total") == 0,
+        "optimized_invalid_accept_count_zero": optimized.get("invalid_accept_count") == 0,
+        "optimized_inconsistent_accept_count_zero": optimized.get("inconsistent_accept_count") == 0,
+        "safety_lanes_reject_all": safety_lanes.get("approved_count") == 0,
+        "safety_lanes_expected_errors_present": safety_lanes.get("missing_expected_error_count") == 0,
+        "negative_controls_reject_all": negative_controls.get("approved_count") == 0,
+        "negative_controls_expected_errors_present": negative_controls.get("missing_expected_error_count") == 0,
+        "long_horizon_frontier_regret_zero": long_horizon.get("frontier_regret_total") == 0,
+        "long_horizon_invalid_accept_count_zero": long_horizon.get("invalid_accept_count") == 0,
+        "long_horizon_inconsistent_accept_count_zero": long_horizon.get("inconsistent_accept_count") == 0,
+        "long_horizon_final_states_safe": not long_horizon.get("final_state_error_histogram", {}),
+        "long_horizon_trajectory_budget_within_limits": not long_horizon.get("trajectory_budget_failures", ()),
+    }
+    return {
+        "ok": all(checks.values()),
+        "profile": "frontier-smoke",
+        "checks": checks,
+        "boundary": "Frontier-smoke is a bounded PR gate; it does not replace the full promotion gate.",
+    }
+
+
+def _training_corpus_summary_scope(
+    *,
+    validation_profile: str,
+    training_corpus_summary: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "ok": training_corpus_summary.get("ok") is True,
+        "blocking": validation_profile == "full",
+        "profile": validation_profile,
+        "boundary": (
+            "Training-corpus ranking diagnostics are blocking only in the full "
+            "promotion profile; frontier-smoke keeps them diagnostic."
+        ),
+    }
+
+
+def build_factory_report(
+    *,
+    out_dir: Path,
+    julia_bin: str,
+    policy_input: Path | None,
+    validation_profile: str = "full",
+) -> dict[str, Any]:
+    if validation_profile not in {"full", "frontier-smoke"}:
+        raise ValueError(f"unknown_validation_profile:{validation_profile}")
     out_dir.mkdir(parents=True, exist_ok=True)
     raw_policy_path = out_dir / "optimized_policy.raw.json"
     optimizer_report_path = out_dir / "optimizer_report.json"
@@ -6722,57 +6913,78 @@ def build_factory_report(*, out_dir: Path, julia_bin: str, policy_input: Path | 
     _write_json(residual_model_path, residual_model)
     _write_json(frozen_policy_path, frozen_policy)
 
-    hold_policy = _hold_only_policy(frozen_policy)
-    pid_policy = _pid_like_policy(frozen_policy)
-    optimized_replay = _replay_policy(frozen_policy, label="optimized")
-    hold_replay = _replay_policy(hold_policy, label="hold_only")
-    pid_replay = _replay_policy(pid_policy, label="pid_like")
     source_manifest = _source_manifest()
-    replay = {
-        "optimized": optimized_replay,
-        "hold_only": hold_replay,
-        "pid_like": pid_replay,
-        "safety_lanes": _replay_safety_lanes(frozen_policy, label="optimized_safety_lanes"),
-        "safety_boundary_sweep": _replay_safety_boundary_sweep(
-            frozen_policy,
-            label="optimized_safety_boundary_sweep",
-        ),
-        "safety_interaction_sweep": _replay_safety_interaction_sweep(
-            frozen_policy,
-            label="optimized_safety_interaction_sweep",
-        ),
-        "surface_boundary_sweep": _replay_surface_boundary_sweep(
-            frozen_policy,
-            label="optimized_surface_boundary_sweep",
-        ),
-        "negative_controls": _replay_negative_controls(frozen_policy, label="adversarial_negative_controls"),
-        "action_gate_diagnostics": _action_gate_diagnostics(frozen_policy),
-        "intra_bin_stress": _replay_intra_bin_stress(frozen_policy, label="optimized_intra_bin_stress"),
-        "long_horizon": _replay_long_horizon_sequences(frozen_policy, label="multi_epoch_sequences"),
-        "long_horizon_hold_only": _replay_long_horizon_sequences(
-            hold_policy, label="multi_epoch_sequences_hold_only"
-        ),
-        "long_horizon_pid_like": _replay_long_horizon_sequences(
-            pid_policy, label="multi_epoch_sequences_pid_like"
-        ),
-    }
-    replay["environment_curriculum_diagnostics"] = _environment_curriculum_diagnostics(replay)
-    coverage_profile = _coverage_profile(replay)
-    training_corpus = _build_training_corpus(frozen_policy)
-    _write_json(training_corpus_path, training_corpus)
-    training_corpus_summary = dict(training_corpus["summary"])
-    promotion_gate = _promotion_gate(
-        optimizer_ok=bool(optimizer_run.get("ok")) and bool(optimizer_report.get("ok", True)),
-        replay=replay,
-        coverage_profile=coverage_profile,
-        training_corpus_summary=training_corpus_summary,
-        source_manifest=source_manifest,
-    )
+    optimizer_ok = bool(optimizer_run.get("ok")) and bool(optimizer_report.get("ok", True))
+    if validation_profile == "frontier-smoke":
+        replay = {
+            "optimized": _replay_policy(frozen_policy, label="optimized"),
+            "safety_lanes": _replay_safety_lanes(frozen_policy, label="optimized_safety_lanes"),
+            "negative_controls": _replay_negative_controls(frozen_policy, label="adversarial_negative_controls"),
+            "action_gate_diagnostics": _action_gate_diagnostics(frozen_policy),
+            "long_horizon": _replay_long_horizon_sequences(frozen_policy, label="multi_epoch_sequences"),
+        }
+        coverage_profile = _frontier_smoke_coverage_profile(replay)
+        _write_json(training_corpus_path, residual_source_corpus)
+        training_corpus_summary = dict(residual_source_corpus["summary"])
+        promotion_gate = _frontier_smoke_gate(
+            optimizer_ok=optimizer_ok,
+            replay=replay,
+            coverage_profile=coverage_profile,
+            residual_model=residual_model,
+            source_manifest=source_manifest,
+        )
+    else:
+        hold_policy = _hold_only_policy(frozen_policy)
+        pid_policy = _pid_like_policy(frozen_policy)
+        optimized_replay = _replay_policy(frozen_policy, label="optimized")
+        hold_replay = _replay_policy(hold_policy, label="hold_only")
+        pid_replay = _replay_policy(pid_policy, label="pid_like")
+        replay = {
+            "optimized": optimized_replay,
+            "hold_only": hold_replay,
+            "pid_like": pid_replay,
+            "safety_lanes": _replay_safety_lanes(frozen_policy, label="optimized_safety_lanes"),
+            "safety_boundary_sweep": _replay_safety_boundary_sweep(
+                frozen_policy,
+                label="optimized_safety_boundary_sweep",
+            ),
+            "safety_interaction_sweep": _replay_safety_interaction_sweep(
+                frozen_policy,
+                label="optimized_safety_interaction_sweep",
+            ),
+            "surface_boundary_sweep": _replay_surface_boundary_sweep(
+                frozen_policy,
+                label="optimized_surface_boundary_sweep",
+            ),
+            "negative_controls": _replay_negative_controls(frozen_policy, label="adversarial_negative_controls"),
+            "action_gate_diagnostics": _action_gate_diagnostics(frozen_policy),
+            "intra_bin_stress": _replay_intra_bin_stress(frozen_policy, label="optimized_intra_bin_stress"),
+            "long_horizon": _replay_long_horizon_sequences(frozen_policy, label="multi_epoch_sequences"),
+            "long_horizon_hold_only": _replay_long_horizon_sequences(
+                hold_policy, label="multi_epoch_sequences_hold_only"
+            ),
+            "long_horizon_pid_like": _replay_long_horizon_sequences(
+                pid_policy, label="multi_epoch_sequences_pid_like"
+            ),
+        }
+        replay["environment_curriculum_diagnostics"] = _environment_curriculum_diagnostics(replay)
+        coverage_profile = _coverage_profile(replay)
+        training_corpus = _build_training_corpus(frozen_policy)
+        _write_json(training_corpus_path, training_corpus)
+        training_corpus_summary = dict(training_corpus["summary"])
+        promotion_gate = _promotion_gate(
+            optimizer_ok=optimizer_ok,
+            replay=replay,
+            coverage_profile=coverage_profile,
+            training_corpus_summary=training_corpus_summary,
+            source_manifest=source_manifest,
+        )
 
     report = {
         "schema": FACTORY_SCHEMA,
         "generated_at": _utc_now(),
         "ok": promotion_gate["ok"],
+        "validation_profile": validation_profile,
         "artifacts": {
             "out_dir": str(out_dir),
             "raw_policy": str(raw_policy_path),
@@ -6799,6 +7011,10 @@ def build_factory_report(*, out_dir: Path, julia_bin: str, policy_input: Path | 
         "coverage_profile": coverage_profile,
         "ebr_residual_model": residual_model,
         "training_corpus_summary": training_corpus_summary,
+        "training_corpus_summary_scope": _training_corpus_summary_scope(
+            validation_profile=validation_profile,
+            training_corpus_summary=training_corpus_summary,
+        ),
         "promotion_gate": promotion_gate,
         "source_manifest": source_manifest,
         "non_claims": [
@@ -7054,6 +7270,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out-dir", help="directory for generated policy and replay artifacts")
     parser.add_argument("--julia-bin", default="julia", help="Julia executable to use")
     parser.add_argument("--policy-input", help="use an existing policy JSON instead of running Julia")
+    parser.add_argument(
+        "--validation-profile",
+        choices=("full", "frontier-smoke"),
+        default="full",
+        help="factory evidence profile; full is the release gate, frontier-smoke is a bounded PR-sized subset",
+    )
     parser.add_argument("--check-policy", help="validate an existing frozen policy JSON artifact")
     parser.add_argument("--training-corpus", help="EBRM training corpus JSON to compare against recomputed replay labels")
     parser.add_argument("--optimizer-report", help="optimizer report JSON associated with --check-policy")
@@ -7078,6 +7300,7 @@ def main(argv: list[str] | None = None) -> int:
                 out_dir=Path(args.out_dir),
                 julia_bin=args.julia_bin,
                 policy_input=Path(args.policy_input) if args.policy_input else None,
+                validation_profile=args.validation_profile,
             )
     except Exception as exc:
         error = {

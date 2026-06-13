@@ -6,6 +6,7 @@ table, but runtime evaluation is a pure lookup plus bounded revision check.
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
@@ -17,6 +18,19 @@ from src.tau_specs.governance import gov_gate
 AUTONOMOUS_GOVERNANCE_Q_POLICY_SCHEMA_V1 = "zenodex.autonomous_governance.q_policy.v1"
 AUTONOMOUS_GOVERNANCE_Q_RECEIPT_SCHEMA_V1 = "zenodex.autonomous_governance.q_receipt.v1"
 AUTONOMOUS_GOVERNANCE_SURFACE_STEP_SCHEMA_V1 = "zenodex.autonomous_governance.q_surface_step.v1"
+AUTONOMOUS_GOVERNANCE_SURFACE_ADMISSION_SCHEMA_V1 = "zenodex.autonomous_governance.q_surface_admission.v1"
+FORBIDDEN_SURFACE_ADMISSION_RESULT_FIELDS_V1 = frozenset(
+    {
+        "action_id",
+        "applied_state",
+        "gate_recheck",
+        "proposed",
+        "proposed_state",
+        "receipt",
+        "step",
+        "step_hash",
+    }
+)
 
 PARAMETER_NAMES_V1 = (
     "fee",
@@ -52,6 +66,12 @@ OBSERVATION_FIELDS_V1 = frozenset(
         "divergence_bps",
         "freshness_lag_epochs",
         "liquidity_depth_bps",
+        "oracle_confidence_bps",
+        "liquidity_concentration_bps",
+        "recent_governance_churn_bps",
+        "proof_market_health_bps",
+        "validator_stress_bps",
+        "network_stress_bps",
     }
 )
 
@@ -556,6 +576,245 @@ def sample_autonomous_governance_surface_q_policy_v1() -> dict[str, Any]:
     return {**policy, "policy_hash": policy_content_hash_v1(policy)}
 
 
+def sample_autonomous_governance_next_policy_v1() -> dict[str, Any]:
+    """Return the broader AutoGovNEXT policy candidate.
+
+    AutoGovNEXT keeps the same frozen policy schema and runtime gate path as the
+    surface policy. It expands only the advisory proposal vocabulary and the
+    observation/state bins used to order already gate-checkable candidates.
+    """
+
+    policy = copy.deepcopy(sample_autonomous_governance_surface_q_policy_v1())
+    policy.pop("policy_hash", None)
+    policy["policy_id"] = "sample_autogovnext_governance_surface_q_policy_v1"
+    policy["version"] = 2
+    policy["safety"] = {
+        **dict(policy["safety"]),
+        "min_oracle_confidence_bps": 7_000,
+        "max_liquidity_concentration_bps": 9_500,
+        "max_recent_governance_churn_bps": 8,
+        "min_proof_market_health_bps": 1_000,
+        "max_validator_stress_bps": 8_000,
+        "max_network_stress_bps": 8_000,
+    }
+    policy["selection"] = {
+        **dict(policy["selection"]),
+        "anti_oscillation": {
+            "enabled": True,
+            "parameters": [
+                "fee_bps",
+                "funding_cap_bps",
+                "buyburn_bps",
+                "reserve_bps",
+                "hosts_bps",
+            ],
+        },
+    }
+    policy["state_bins"] = {
+        **dict(policy["state_bins"]),
+        "fee_bps": [50, 200, 500, 990, 1_000],
+        "funding_cap_bps": [0, 5, 120, 190, 200],
+        "reserve_bps": [0, 2_500, 7_500, 9_000, 9_900, 10_000],
+        "hosts_bps": [0, 500, 2_500, 5_000, 10_000],
+        "oracle_confidence_bps": [7_000, 9_000, 9_800],
+        "liquidity_concentration_bps": [2_500, 5_000, 7_500, 9_500],
+        "recent_governance_churn_bps": [0, 2, 5, 8],
+        "proof_market_health_bps": [1_000, 5_000, 8_000, 9_500],
+        "validator_stress_bps": [500, 2_000, 5_000, 8_000],
+        "network_stress_bps": [500, 2_000, 5_000, 8_000],
+    }
+    policy["actions"] = [
+        *list(policy["actions"]),
+        {"id": "lower_fee_10", "deltas": {"fee_bps": -10}},
+        {
+            "id": "lower_fee_10_relax_funding_5",
+            "deltas": {"fee_bps": -10, "funding_cap_bps": 5},
+        },
+        {"id": "relax_funding_5", "deltas": {"funding_cap_bps": 5}},
+        {
+            "id": "shift_router_reserve_to_hosts_100",
+            "deltas": {"reserve_bps": -100, "hosts_bps": 100},
+        },
+        {
+            "id": "shift_router_hosts_to_reserve_100",
+            "deltas": {"hosts_bps": -100, "reserve_bps": 100},
+        },
+    ]
+    policy["q_layers"] = [
+        *list(policy["q_layers"]),
+        {
+            "id": "autogovnext_calm_fee_normalization_v1",
+            "features": [
+                "deviation_bps",
+                "volatility_bps",
+                "liquidity_depth_bps",
+                "oracle_confidence_bps",
+                "proof_market_health_bps",
+                "validator_stress_bps",
+                "network_stress_bps",
+                "recent_governance_churn_bps",
+                "fee_bps",
+                "funding_cap_bps",
+            ],
+            "q_table": {
+                "*": {},
+                "0|0|2|3|4|0|0|0|2|3": {
+                    "lower_fee_10_relax_funding_5": 120,
+                    "lower_fee_10": 80,
+                    "relax_funding_5": 35,
+                    "hold": -20,
+                },
+                "0|0|2|3|4|0|0|0|2|4": {
+                    "lower_fee_10_relax_funding_5": 120,
+                    "lower_fee_10": 80,
+                    "relax_funding_5": 35,
+                    "hold": -20,
+                },
+                "0|0|2|3|4|0|0|0|1|1": {
+                    "relax_funding_5": 55,
+                    "hold": 10,
+                },
+            },
+        },
+        {
+            "id": "autogovnext_calm_general_recovery_v1",
+            "features": [
+                "deviation_bps",
+                "volatility_bps",
+                "liquidity_depth_bps",
+                "oracle_confidence_bps",
+                "proof_market_health_bps",
+                "validator_stress_bps",
+                "network_stress_bps",
+                "recent_governance_churn_bps",
+            ],
+            "q_table": {
+                "*": {},
+                **{
+                    f"0|0|{liquidity_bin}|3|4|0|0|0": {
+                        "lower_fee_10_relax_funding_5": 70,
+                        "lower_fee_10": 45,
+                        "relax_funding_5": 30,
+                        "hold": -20,
+                    }
+                    for liquidity_bin in range(3)
+                },
+            },
+        },
+        {
+            "id": "autogovnext_proof_market_router_rebalance_v1",
+            "features": ["proof_market_health_bps", "reserve_bps", "hosts_bps"],
+            "q_table": {
+                "*": {},
+                "4|5|0": {
+                    "shift_router_to_buyburn_100": 170,
+                    "shift_router_reserve_to_hosts_100": 20,
+                    "hold": -20,
+                },
+                "4|4|0": {
+                    "shift_router_to_buyburn_100": 120,
+                    "shift_router_reserve_to_hosts_100": 20,
+                    "hold": -10,
+                },
+                "1|4|0": {
+                    "shift_router_reserve_to_hosts_100": 170,
+                    "shift_router_to_buyburn_100": -35,
+                    "hold": -10,
+                },
+                "0|4|0": {
+                    "shift_router_reserve_to_hosts_100": 130,
+                    "shift_router_to_buyburn_100": -35,
+                },
+                "4|1|3": {
+                    "shift_router_hosts_to_reserve_100": 70,
+                    "hold": 10,
+                },
+            },
+        },
+        {
+            "id": "autogovnext_concentration_reserve_bias_v1",
+            "features": ["liquidity_concentration_bps", "liquidity_depth_bps"],
+            "q_table": {
+                "*": {},
+                "3|0": {
+                    "shift_router_to_reserve_100": 80,
+                    "hold": -10,
+                },
+                "4|0": {
+                    "shift_router_to_reserve_100": 100,
+                    "hold": -20,
+                },
+            },
+        },
+        {
+            "id": "autogovnext_high_deviation_fee_only_recovery_v1",
+            "features": [
+                "deviation_bps",
+                "volatility_bps",
+                "liquidity_depth_bps",
+                "funding_cap_bps",
+            ],
+            "q_table": {
+                "*": {},
+                **{
+                    f"3|{volatility_bin}|2|{funding_bin}": {
+                        "raise_fee_10": 150,
+                        "raise_fee_10_tighten_funding_5": -80,
+                        "hold": -20,
+                    }
+                    for volatility_bin in (1, 2, 3)
+                    for funding_bin in (0, 1)
+                },
+            },
+        },
+        {
+            "id": "autogovnext_low_liquidity_router_reserve_continuation_v1",
+            "features": [
+                "deviation_bps",
+                "volatility_bps",
+                "liquidity_depth_bps",
+                "reserve_bps",
+                "buyburn_bps",
+            ],
+            "q_table": {
+                "*": {},
+                **{
+                    f"0|{volatility_bin}|0|2|1": {
+                        "shift_router_to_reserve_100": 760,
+                        "hold": -40,
+                    }
+                    for volatility_bin in (1, 2)
+                },
+            },
+        },
+        {
+            "id": "autogovnext_stress_freeze_v1",
+            "features": [
+                "validator_stress_bps",
+                "network_stress_bps",
+                "recent_governance_churn_bps",
+            ],
+            "q_table": {
+                "*": {},
+                **{
+                    f"{validator_bin}|{network_bin}|{churn_bin}": {
+                        "hold": 220,
+                        "raise_fee_10": -40,
+                        "raise_fee_10_tighten_funding_5": -60,
+                        "lower_fee_10": -60,
+                        "lower_fee_10_relax_funding_5": -80,
+                        "relax_funding_5": -80,
+                    }
+                    for validator_bin in (2, 3)
+                    for network_bin in (2, 3)
+                    for churn_bin in range(5)
+                },
+            },
+        },
+    ]
+    return {**policy, "policy_hash": policy_content_hash_v1(policy)}
+
+
 def evaluate_autonomous_governance_surface_q_policy_v1(
     *,
     policy: Mapping[str, Any],
@@ -765,7 +1024,11 @@ def commit_autonomous_governance_surface_q_policy_v1(
     gate_recheck = _governance_surface_gate_report(
         current=committed,
         proposed=proposed,
-        proposal_epoch=proposal_epoch if isinstance(proposal_epoch, int) and not isinstance(proposal_epoch, bool) else 0,
+        proposal_epoch=(
+            proposal_epoch
+            if isinstance(proposal_epoch, int) and not isinstance(proposal_epoch, bool)
+            else 0
+        ),
         current_epoch=current_epoch if isinstance(current_epoch, int) and not isinstance(current_epoch, bool) else 0,
     )
 
@@ -822,6 +1085,104 @@ def commit_autonomous_governance_surface_q_policy_v1(
         ),
     }
     return {**body, "step_hash": hash_v0("autonomous_governance_q_surface_step_v1", body)}
+
+
+def admit_autonomous_governance_surface_request_v1(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Fail-closed request boundary for live autonomous governance admission.
+
+    Callers submit the committed state, observations, timing, frozen policy, and
+    pinned expected policy hash. They do not submit proposed or applied states.
+    Those values are recomputed by the policy runner and deterministic gates.
+    """
+
+    request_obj = request if isinstance(request, Mapping) else {}
+    raw_state = request_obj.get("surface_state", {})
+    committed, committed_errors = _normalize_surface_state(raw_state if isinstance(raw_state, Mapping) else {})
+    errors = [f"committed_{error}" for error in committed_errors]
+    expected_policy_hash = request_obj.get("expected_policy_hash")
+    if type(expected_policy_hash) is not str or not expected_policy_hash:
+        errors.append("expected_policy_hash_required")
+    forbidden_fields = tuple(
+        sorted(field for field in FORBIDDEN_SURFACE_ADMISSION_RESULT_FIELDS_V1 if field in request_obj)
+    )
+    errors.extend(f"direct_result_field_forbidden:{field}" for field in forbidden_fields)
+
+    if errors:
+        body = {
+            "schema": AUTONOMOUS_GOVERNANCE_SURFACE_ADMISSION_SCHEMA_V1,
+            "step": {},
+            "receipt": {},
+            "receipt_hash": "",
+            "step_hash": "",
+            "committed_state": committed,
+            "proposed_state": committed,
+            "applied_state": committed,
+            "gate_recheck": {},
+            "trajectory_used_after": _normalize_trajectory_used(
+                request_obj.get("trajectory_used")
+            )[0],
+            "admitted": False,
+            "reason": "admission_rejected_noop",
+            "ok": False,
+            "errors": tuple(errors),
+            "forbidden_fields": forbidden_fields,
+            "not_claimed": (
+                "does_not_authorize_settlement",
+                "does_not_change_immutable_rules",
+                "does_not_claim_oracle_truth",
+                "does_not_train_q_table_online",
+            ),
+        }
+        return {**body, "admission_hash": hash_v0("autonomous_governance_q_surface_admission_v1", body)}
+
+    step = commit_autonomous_governance_surface_q_policy_v1(
+        policy=request_obj.get("policy", {}),
+        surface_state=request_obj.get("surface_state", {}),
+        observation=request_obj.get("observation", {}),
+        current_epoch=request_obj.get("current_epoch"),
+        proposal_epoch=request_obj.get("proposal_epoch"),
+        last_update_epoch=request_obj.get("last_update_epoch"),
+        expected_policy_hash=expected_policy_hash,
+        previous_approved_deltas=request_obj.get("previous_approved_deltas"),
+        trajectory_budget=request_obj.get("trajectory_budget"),
+        trajectory_used=request_obj.get("trajectory_used"),
+    )
+    admitted = step.get("admitted") is True
+    receipt = step.get("receipt", {})
+    step_errors = tuple(str(error) for error in step.get("errors", ()))
+    receipt_errors = (
+        tuple(str(error) for error in receipt.get("errors", ()))
+        if isinstance(receipt, Mapping)
+        else ()
+    )
+    admission_errors = step_errors if admitted else step_errors + receipt_errors
+    body = {
+        "schema": AUTONOMOUS_GOVERNANCE_SURFACE_ADMISSION_SCHEMA_V1,
+        "step": step,
+        "receipt": receipt,
+        "receipt_hash": step.get("receipt_hash", ""),
+        "step_hash": step.get("step_hash", ""),
+        "committed_state": step.get("committed_state", committed),
+        "proposed_state": step.get("proposed_state", committed),
+        "applied_state": step.get("applied_state", committed),
+        "gate_recheck": step.get("gate_recheck", {}),
+        "trajectory_used_after": step.get("trajectory_used_after", {}),
+        "admitted": admitted,
+        "reason": step.get("reason", "commit_rejected_noop"),
+        # Live admission is successful only when the proposal is actually
+        # admitted and applied. A receipt-rejected no-op is safe, but callers
+        # must observe it as a rejected admission.
+        "ok": step.get("ok") is True and admitted,
+        "errors": admission_errors,
+        "forbidden_fields": (),
+        "not_claimed": (
+            "does_not_authorize_settlement",
+            "does_not_change_immutable_rules",
+            "does_not_claim_oracle_truth",
+            "does_not_train_q_table_online",
+        ),
+    }
+    return {**body, "admission_hash": hash_v0("autonomous_governance_q_surface_admission_v1", body)}
 
 
 def _advance_trajectory_used_after_step(
@@ -1523,6 +1884,20 @@ def _normalize_observation(raw: Mapping[str, Any]) -> tuple[dict[str, int], list
             obs[field] = _require_nonnegative_int(raw.get(field), name=field)
         except ValueError as exc:
             errors.append(str(exc))
+    for field in (
+        "oracle_confidence_bps",
+        "liquidity_concentration_bps",
+        "recent_governance_churn_bps",
+        "proof_market_health_bps",
+        "validator_stress_bps",
+        "network_stress_bps",
+    ):
+        if field not in raw:
+            continue
+        try:
+            obs[field] = _require_nonnegative_int(raw.get(field), name=field)
+        except ValueError as exc:
+            errors.append(str(exc))
     if "deviation_bps" in raw:
         try:
             explicit = _require_nonnegative_int(raw.get("deviation_bps"), name="deviation_bps")
@@ -1551,6 +1926,30 @@ def _safety_errors(
     _check_max(observation, safety, errors, field="freshness_lag_epochs", setting="max_freshness_lag_epochs")
     _check_max(observation, safety, errors, field="divergence_bps", setting="max_divergence_bps")
     _check_max(observation, safety, errors, field="volatility_bps", setting="max_volatility_bps")
+    _check_min(observation, safety, errors, field="oracle_confidence_bps", setting="min_oracle_confidence_bps")
+    _check_max(
+        observation,
+        safety,
+        errors,
+        field="liquidity_concentration_bps",
+        setting="max_liquidity_concentration_bps",
+    )
+    _check_max(
+        observation,
+        safety,
+        errors,
+        field="recent_governance_churn_bps",
+        setting="max_recent_governance_churn_bps",
+    )
+    _check_min(
+        observation,
+        safety,
+        errors,
+        field="proof_market_health_bps",
+        setting="min_proof_market_health_bps",
+    )
+    _check_max(observation, safety, errors, field="validator_stress_bps", setting="max_validator_stress_bps")
+    _check_max(observation, safety, errors, field="network_stress_bps", setting="max_network_stress_bps")
     try:
         min_liquidity = _require_nonnegative_int(
             safety.get("min_liquidity_depth_bps", 0), name="min_liquidity_depth_bps"
@@ -1584,6 +1983,24 @@ def _check_max(
         maximum = _require_nonnegative_int(safety.get(setting), name=setting)
         if observation.get(field, 0) > maximum:
             errors.append(f"{field}_exceeds_{setting}")
+    except ValueError as exc:
+        errors.append(str(exc))
+
+
+def _check_min(
+    observation: Mapping[str, int],
+    safety: Mapping[str, Any],
+    errors: list[str],
+    *,
+    field: str,
+    setting: str,
+) -> None:
+    if setting not in safety:
+        return
+    try:
+        minimum = _require_nonnegative_int(safety.get(setting), name=setting)
+        if observation.get(field, 0) < minimum:
+            errors.append(f"{field}_below_{setting}")
     except ValueError as exc:
         errors.append(str(exc))
 

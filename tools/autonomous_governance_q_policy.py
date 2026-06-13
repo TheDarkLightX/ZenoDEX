@@ -14,9 +14,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.integration.autonomous_governance_q_policy import (  # noqa: E402
+    admit_autonomous_governance_surface_request_v1,
     commit_autonomous_governance_surface_q_policy_v1,
     evaluate_autonomous_governance_q_policy_v1,
     evaluate_autonomous_governance_surface_q_policy_v1,
+    sample_autonomous_governance_next_policy_v1,
     sample_autonomous_governance_q_policy_v1,
     sample_autonomous_governance_surface_q_policy_v1,
 )
@@ -58,8 +60,12 @@ def _sample_bundle() -> dict[str, Any]:
     }
 
 
-def _sample_surface_bundle() -> dict[str, Any]:
-    policy = sample_autonomous_governance_surface_q_policy_v1()
+def _sample_surface_bundle(*, next_policy: bool = False) -> dict[str, Any]:
+    policy = (
+        sample_autonomous_governance_next_policy_v1()
+        if next_policy
+        else sample_autonomous_governance_surface_q_policy_v1()
+    )
     return {
         "schema": "zenodex.autonomous_governance.q_surface_policy_eval_bundle.v1",
         "policy": policy,
@@ -82,6 +88,18 @@ def _sample_surface_bundle() -> dict[str, Any]:
             "divergence_bps": 10,
             "freshness_lag_epochs": 0,
             "liquidity_depth_bps": 5_000,
+            **(
+                {
+                    "oracle_confidence_bps": 9_900,
+                    "liquidity_concentration_bps": 2_000,
+                    "recent_governance_churn_bps": 0,
+                    "proof_market_health_bps": 9_900,
+                    "validator_stress_bps": 100,
+                    "network_stress_bps": 100,
+                }
+                if next_policy
+                else {}
+            ),
         },
         "current_epoch": 34,
         "proposal_epoch": 10,
@@ -99,7 +117,7 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 
 def _cmd_sample(args: argparse.Namespace) -> int:
-    bundle = _sample_surface_bundle() if args.surface else _sample_bundle()
+    bundle = _sample_surface_bundle(next_policy=args.next) if args.surface else _sample_bundle()
     text = json.dumps(bundle, indent=2, sort_keys=True) + "\n"
     if args.output:
         Path(args.output).write_text(text, encoding="utf-8")
@@ -174,6 +192,26 @@ def _cmd_step(args: argparse.Namespace) -> int:
     return 0 if result.get("ok") is True else 2
 
 
+def _cmd_admit(args: argparse.Namespace) -> int:
+    try:
+        bundle = _load_json(Path(args.bundle))
+        if "surface_state" not in bundle:
+            raise ValueError("admit_requires_governance_surface_bundle")
+        result = admit_autonomous_governance_surface_request_v1(bundle)
+    except Exception as exc:
+        result = {
+            "schema": "zenodex.autonomous_governance.q_policy_eval_error.v1",
+            "ok": False,
+            "status": "inconclusive",
+            "errors": [f"admit_failed:{exc}"],
+        }
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 3
+
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if result.get("ok") is True else 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -181,6 +219,11 @@ def main(argv: list[str] | None = None) -> int:
     sample = sub.add_parser("sample", help="write a sample evaluation bundle")
     sample.add_argument("--output", help="path to write; stdout when omitted")
     sample.add_argument("--surface", action="store_true", help="sample the governance-surface bundle")
+    sample.add_argument(
+        "--next",
+        action="store_true",
+        help="sample the broader AutoGovNEXT governance-surface policy; requires --surface",
+    )
     sample.set_defaults(func=_cmd_sample)
 
     evaluate = sub.add_parser("evaluate", help="evaluate a policy bundle")
@@ -190,6 +233,10 @@ def main(argv: list[str] | None = None) -> int:
     step = sub.add_parser("step", help="evaluate and apply one governance-surface policy step")
     step.add_argument("bundle", help="path to surface evaluation bundle JSON")
     step.set_defaults(func=_cmd_step)
+
+    admit = sub.add_parser("admit", help="fail-closed live admission for a governance-surface bundle")
+    admit.add_argument("bundle", help="path to surface admission bundle JSON")
+    admit.set_defaults(func=_cmd_admit)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

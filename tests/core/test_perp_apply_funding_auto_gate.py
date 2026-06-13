@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from src.core.perp_apply_funding_auto_gate import (
+    MARK_PRICE_SOURCE_EXTERNAL_MEDIAN,
+    MARK_PRICE_SOURCE_UNKNOWN,
     evaluate_perp_apply_funding_auto_gate,
+    is_derivatives_safe_mark_price_source,
     perp_apply_funding_auto_gate_error,
 )
 
@@ -82,3 +85,13 @@ def test_perp_apply_funding_auto_gate_allows_empty_open_interest_projection() ->
 
     assert outcome.projected_net_funding_quote == 0
     assert outcome.funding_auto_allowed is True
+
+
+def test_derivatives_mark_price_source_allowlist_is_exact_int() -> None:
+    class WeirdInt(int):
+        pass
+
+    assert is_derivatives_safe_mark_price_source(MARK_PRICE_SOURCE_EXTERNAL_MEDIAN) is True
+    assert is_derivatives_safe_mark_price_source(MARK_PRICE_SOURCE_UNKNOWN) is False
+    assert is_derivatives_safe_mark_price_source(True) is False
+    assert is_derivatives_safe_mark_price_source(WeirdInt(MARK_PRICE_SOURCE_EXTERNAL_MEDIAN)) is False

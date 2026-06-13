@@ -805,6 +805,44 @@ def test_publish_clearing_price_rejects_zero_price() -> None:
     assert res.error == "publish_clearing_price requires price_e8 > 0"
 
 
+def test_publish_clearing_price_rejects_unsafe_mark_price_source() -> None:
+    from src.core.perp_apply_funding_auto_gate import MARK_PRICE_SOURCE_UNKNOWN
+
+    market_id = "perp:unsafe-mark-source"
+    quote_asset = "0x" + "57" * 32
+    operator = "00" * 48
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[
+            _op(
+                market_id,
+                "publish_clearing_price",
+                price_e8=100_000_000,
+                mark_price_source_kind=MARK_PRICE_SOURCE_UNKNOWN,
+            )
+        ],
+    )
+    assert res.ok is False
+    assert res.error == "publish_clearing_price requires derivatives-safe mark_price_source_kind"
+
+
 def test_apply_funding_auto_applies_to_all_open_positions() -> None:
     market_id = "perp:funding"
     quote_asset = "0x" + "66" * 32

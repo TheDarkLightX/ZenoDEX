@@ -26,6 +26,7 @@ import Proofs.ArbitrageCertificate
 import Proofs.AsynchronousIntentSettlement
 import Proofs.AtomicCrossMarginHealth
 import Proofs.AutotraderControllerPolicyClosure
+import Proofs.AutoGovSafetyEnvelope
 import Proofs.BatchApproximation
 import Proofs.BatchAuctionCanonical
 import Proofs.BatchCPMMUnification

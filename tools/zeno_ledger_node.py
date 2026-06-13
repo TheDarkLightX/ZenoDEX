@@ -16,6 +16,7 @@ import json
 import os
 from collections import OrderedDict
 from contextlib import contextmanager
+from dataclasses import dataclass
 import socket
 import sys
 import tempfile
@@ -74,6 +75,7 @@ from src.integration.zeno_ledger_tokenomics import (
 )
 from src.core.amm_dispatch import swap_exact_in_for_pool
 from src.core.dex import DexConfig
+from src.core.fees import FeeSplitParams
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.state.balances import NATIVE_ASSET
 from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
@@ -107,6 +109,13 @@ TOKENOMICS_REWARD_CLAIM_KIND = "ZENODEX_ACTIVE_PARTICIPANT_REWARD_CLAIM"
 TOKENOMICS_BUYBACK_BURN_OP_STREAM = "12"
 TOKENOMICS_BUYBACK_BURN_OP_KIND = "ZENODEX_TOKENOMICS_BUYBACK_BURN"
 PEER_FOLLOW_ERROR_LOG_CAP_PER_PEER = 64
+
+
+@dataclass(frozen=True)
+class _TokenomicsDexConfigV0:
+    dex_config: DexConfig
+    protocol_fee_share_bps: int
+    protocol_fee_recipient_pubkey: str | None
 
 
 class _HttpRejectedError(ValueError):
@@ -1415,14 +1424,27 @@ def _tokenomics_buyback_source_pubkey_v0(distribution: Mapping[str, Any]) -> str
     raise ValueError("buyback source allocation missing")
 
 
-def _local_testnet_tokenomics_dex_config_v0(node_status: Mapping[str, Any]) -> DexConfig:
+def _local_testnet_tokenomics_dex_config_v0(node_status: Mapping[str, Any]) -> _TokenomicsDexConfigV0:
     distribution = node_status.get("token_distribution")
     if not isinstance(distribution, Mapping) or not distribution:
-        return DexConfig()
+        return _TokenomicsDexConfigV0(
+            dex_config=DexConfig(),
+            protocol_fee_share_bps=0,
+            protocol_fee_recipient_pubkey=None,
+        )
     distribution_obj = dict(distribution)
     validate_protocol_token_distribution_v0(distribution_obj)
     source_pubkey = _tokenomics_buyback_source_pubkey_v0(distribution_obj)
-    return DexConfig(
+    # The core migrated protocol-fee accounting into FeeSplitParams. Keep the
+    # public-testnet node's legacy metadata fields local to the node wrapper.
+    return _TokenomicsDexConfigV0(
+        dex_config=DexConfig(
+            fee_split_params=FeeSplitParams(
+                buyback_bps=LOCAL_TESTNET_BUYBACK_SHARE_BPS,
+                treasury_bps=10_000 - LOCAL_TESTNET_BUYBACK_SHARE_BPS,
+                rewards_bps=0,
+            ),
+        ),
         protocol_fee_share_bps=LOCAL_TESTNET_BUYBACK_SHARE_BPS,
         protocol_fee_recipient_pubkey=source_pubkey,
     )
@@ -1465,7 +1487,7 @@ def _compute_dex_result_for_tokenomics_tx_v0(
     pre_snapshot: Mapping[str, Any],
     tx: Mapping[str, Any],
     chain_id: str,
-    dex_config: DexConfig,
+    dex_config: _TokenomicsDexConfigV0,
     min_lp_position_age_seconds: int,
     lp_duration_risk_policy: Any | None,
 ) -> Any | None:
@@ -1478,7 +1500,7 @@ def _compute_dex_result_for_tokenomics_tx_v0(
             require_intent_signatures=True,
             allow_unsigned_intents_if_tx_sender_matches=False,
             chain_id=chain_id,
-            dex_config=dex_config,
+            dex_config=dex_config.dex_config,
             min_lp_position_age_seconds=min_lp_position_age_seconds,
             lp_duration_risk_policy=lp_duration_risk_policy,
         ),

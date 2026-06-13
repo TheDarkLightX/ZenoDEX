@@ -7,6 +7,22 @@ from .perp_v2.funding_rule import compute_funding_rate_bps
 from .perp_v2.math import BPS_SCALE, is_oracle_fresh, settle_price
 
 
+MARK_PRICE_SOURCE_UNKNOWN = 0
+MARK_PRICE_SOURCE_EXTERNAL_MEDIAN = 1
+DERIVATIVES_SAFE_MARK_PRICE_SOURCES = frozenset({MARK_PRICE_SOURCE_EXTERNAL_MEDIAN})
+
+
+def is_derivatives_safe_mark_price_source(value: Any) -> bool:
+    """Return whether a clearing mark-price source is admitted for derivatives.
+
+    The source kind is consensus input. Keep this exact-int and allowlist based:
+    unknown/advisory/debug sources must fail before a clearing price can anchor
+    funding or margin state.
+    """
+
+    return type(value) is int and int(value) in DERIVATIVES_SAFE_MARK_PRICE_SOURCES
+
+
 @dataclass(frozen=True)
 class PerpApplyFundingAutoGateOutcome:
     now_epoch: int
