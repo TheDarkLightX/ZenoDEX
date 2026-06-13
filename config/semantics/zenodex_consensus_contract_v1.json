@@ -49,11 +49,39 @@
         "envelope_binding": "live_replay_guard_admit_strict_sequential",
         "live_equivalence_claim_level": "live_replay_authority_equivalent"
       }
+    },
+    "clob.place_limit_order": {
+      "core": {
+        "live_authority_ref": "src/core/clob_matching.py::apply_order",
+        "book_root_ref": "src/state/clob_book.py::ClobBook.state_root",
+        "scope": "single incoming CLOB order after API admission/enrichment",
+        "claim_level": "core_equivalent"
+      },
+      "api": {
+        "live_authority_ref": "src/integration/orderbook_api.py::handle_orderbook_request",
+        "stage": "stage0_in_memory_non_persistent",
+        "proof_invocation": "none_stage0",
+        "status_on_accept": "executed",
+        "proof_status_on_accept": "proof_pending",
+        "latest_proven_height_on_accept": null,
+        "cryptographic_signature_verification": "not_implemented_shape_only"
+      },
+      "guest": {
+        "proof_type": "risc0.zenodex_clob_transition.v1",
+        "guest_dispatch_ref": "zk/state_proof_risc0/methods/guest/src/main.rs",
+        "shared_kernel_ref": "zk/state_proof_risc0/shared/src/clob.rs::execute_clob_transition_v1",
+        "matching_core_ref": "src/core/clob_matching.py::apply_order",
+        "live_equivalence_claim_level": "core_equivalent",
+        "deployed_api_admission_binding_status": "not_bound_stage0_api_does_not_invoke_guest",
+        "strongest_allowed_claim": "core_equivalent",
+        "note": "The RISC0 CLOB guest proves the matching/book-root transition for already-admitted inputs. The deployed Stage-0 orderbook API applies src.core.clob_matching.apply_order directly and labels responses proof_pending; it does not invoke or require the guest proof."
+      }
     }
   },
   "bdd": {
     "feature_files": [
-      "docs/semantics/perps_np_deposit_collateral.feature"
+      "docs/semantics/perps_np_deposit_collateral.feature",
+      "docs/semantics/clob_orderbook_guest.feature"
     ],
     "required_scenarios": {
       "perps_np.deposit_collateral.core.zero_deposit_joins_account": {
@@ -75,6 +103,10 @@
       "perps_np.deposit_collateral.envelope.duplicate_tx_rejects_before_core": {
         "layer": "tx_envelope",
         "status": "executable"
+      },
+      "clob.place_limit_order.guest.claim_scoped_to_matching_core": {
+        "layer": "guest_differential",
+        "status": "executable"
       }
     }
   },
@@ -90,6 +122,18 @@
         "replay_guard",
         "strict-sequential",
         "chain tx_sequence"
+      ]
+    },
+    {
+      "path": "src/integration/orderbook_api.py",
+      "forbidden_tokens": [
+        "ProofStatus.PROOF_VERIFIED.value"
+      ],
+      "required_tokens": [
+        "No proof",
+        "proof_pending",
+        "latest_proven_height",
+        "Stage 0"
       ]
     }
   ]

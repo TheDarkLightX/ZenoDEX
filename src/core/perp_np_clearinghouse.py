@@ -37,8 +37,8 @@ from src.core.perp_np_matching import (
     Intent,
     MatchParams,
     MatchResult,
-    match_intents,
     _ration,
+    match_intents,
 )
 
 # Liquidation outcome marker (fail-closed).
@@ -256,9 +256,9 @@ def apply_match(state: MarketState, intents: Sequence[Intent]) -> tuple[MarketSt
     # advance each acting account's nonce to the chosen intent's nonce
     for r in result.receipts:
         if r.status == "filled":
-            a = accts.get(r.pubkey)
-            if a is not None and r.nonce > a.nonce:
-                accts[r.pubkey] = replace(a, nonce=r.nonce)
+            existing = accts.get(r.pubkey)
+            if existing is not None and r.nonce > existing.nonce:
+                accts[r.pubkey] = replace(existing, nonce=r.nonce)
     return state.with_accounts(accts), result
 
 

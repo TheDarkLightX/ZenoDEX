@@ -42,7 +42,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Union
+from typing import TypeGuard, Union
 
 from .canonical import (
     canonical_hex_fixed_allow_0x,
@@ -118,8 +118,10 @@ REJ_UNKNOWN_ORDER = "unknown_order"
 REJ_NOT_OWNER = "not_owner"
 
 
-def _is_plain_int(v: object) -> bool:
+def _is_plain_int(v: object) -> TypeGuard[int]:
     """True for a genuine int (bool is NOT accepted as int)."""
+    # REVIEW [B+ -> A-]: field validation was runtime-correct, but static
+    # checking could not see that successful validation narrows object -> int.
     return isinstance(v, int) and not isinstance(v, bool)
 
 

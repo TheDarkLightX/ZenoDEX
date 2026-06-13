@@ -29,6 +29,7 @@ DEFAULT_CONTRACT = REPO / "config" / "semantics" / "zenodex_consensus_contract_v
 # review 2026-06-06, finding #2.)
 V1_REQUIRED_SCENARIO_IDS = frozenset(
     {
+        "clob.place_limit_order.guest.claim_scoped_to_matching_core",
         "perps_np.deposit_collateral.core.zero_deposit_joins_account",
         "perps_np.deposit_collateral.core.deposit_does_not_consume_nonce",
         "perps_np.deposit_collateral.core.negative_rejects_without_mutation",
@@ -114,7 +115,16 @@ def _validate_contract_shape(contract: Mapping[str, Any]) -> list[str]:
             errors.append(f"missing top-level key {key!r}")
     claim_levels = contract.get("claim_levels")
     if isinstance(claim_levels, Mapping):
-        for required in ("core_equivalent", "modeled_envelope_equivalent", "live_equivalent"):
+        # REVIEW(Codex 2026-06-06, grade A after fix): the P0-3b contract added a
+        # scoped replay-authority claim level, but the shape gate still required
+        # only the older levels. That let the new level be removed while downstream
+        # fields continued to cite it. Keep the claim vocabulary itself load-bearing.
+        for required in (
+            "core_equivalent",
+            "modeled_envelope_equivalent",
+            "live_replay_authority_equivalent",
+            "live_equivalent",
+        ):
             if required not in claim_levels:
                 errors.append(f"claim_levels missing {required}")
     else:
@@ -240,6 +250,84 @@ def _validate_deposit_contract(contract: Mapping[str, Any]) -> list[str]:
     return errors
 
 
+def _validate_clob_contract(contract: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
+    operations = contract.get("operations")
+    if not isinstance(operations, Mapping):
+        return []  # shape error reported by _validate_deposit_contract
+    op = operations.get("clob.place_limit_order")
+    if not isinstance(op, Mapping):
+        return ["operations missing clob.place_limit_order"]
+    core = op.get("core")
+    api = op.get("api")
+    guest = op.get("guest")
+    if not isinstance(core, Mapping):
+        errors.append("clob.place_limit_order.core must be an object")
+    else:
+        if core.get("live_authority_ref") != "src/core/clob_matching.py::apply_order":
+            errors.append("CLOB core live_authority_ref must be clob_matching.apply_order")
+        if core.get("claim_level") != "core_equivalent":
+            errors.append("CLOB core claim_level must be core_equivalent")
+    if not isinstance(api, Mapping):
+        errors.append("clob.place_limit_order.api must be an object")
+    else:
+        if api.get("live_authority_ref") != "src/integration/orderbook_api.py::handle_orderbook_request":
+            errors.append("CLOB API live_authority_ref must be orderbook_api.handle_orderbook_request")
+        if api.get("proof_invocation") != "none_stage0":
+            errors.append("CLOB API proof_invocation must be none_stage0")
+        if api.get("proof_status_on_accept") != "proof_pending":
+            errors.append("CLOB API proof_status_on_accept must be proof_pending")
+        if api.get("latest_proven_height_on_accept") is not None:
+            errors.append("CLOB API latest_proven_height_on_accept must be null")
+    if not isinstance(guest, Mapping):
+        errors.append("clob.place_limit_order.guest must be an object")
+    else:
+        # REVIEW(Codex 2026-06-07, grade A after fix): the CLOB RISC0 guest is a
+        # real matching-core proof surface, but the deployed Stage-0 API does not
+        # invoke it. Keep the strongest claim at core_equivalent until the live
+        # admission path is proof-gated.
+        if guest.get("proof_type") != "risc0.zenodex_clob_transition.v1":
+            errors.append("CLOB guest proof_type must be risc0.zenodex_clob_transition.v1")
+        if guest.get("live_equivalence_claim_level") != "core_equivalent":
+            errors.append("CLOB guest live_equivalence_claim_level must be core_equivalent")
+        if guest.get("strongest_allowed_claim") != "core_equivalent":
+            errors.append("CLOB guest strongest_allowed_claim must be core_equivalent")
+        if (
+            guest.get("deployed_api_admission_binding_status")
+            != "not_bound_stage0_api_does_not_invoke_guest"
+        ):
+            errors.append("CLOB guest must record that Stage-0 API admission is not guest-bound")
+    errors.extend(_validate_orderbook_api_stage0_proof_boundary())
+    return errors
+
+
+def _validate_orderbook_api_stage0_proof_boundary() -> list[str]:
+    path = REPO / "src" / "integration" / "orderbook_api.py"
+    text = path.read_text(encoding="utf-8")
+    errors: list[str] = []
+    forbidden_tokens = (
+        "execute_clob_transition_v1",
+        "ZenoProofInputV1",
+        "tau-state-proof-risc0-cli",
+        "default_prover",
+        "ProofStatus.PROOF_VERIFIED.value",
+    )
+    for token in forbidden_tokens:
+        if token in text:
+            errors.append(f"orderbook_api Stage-0 proof boundary: forbidden token {token!r}")
+    required_tokens = (
+        "apply_order(book, built.order)",
+        "proof_status=ProofStatus.PROOF_PENDING.value",
+        '"latest_proven_height": None',
+        '"proof_mode": "pending"',
+        '"accepted_verifier_ids": []',
+    )
+    for token in required_tokens:
+        if token not in text:
+            errors.append(f"orderbook_api Stage-0 proof boundary missing {token!r}")
+    return errors
+
+
 def _validate_v1_floor(scenarios: Sequence[Scenario]) -> list[str]:
     """Independent backstop: every v1-required scenario id must be present in the
     parsed feature files. Unlike _validate_bdd (which compares the contract's own
@@ -359,6 +447,7 @@ def validate(contract_path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:
     errors.extend(bdd_errors)
     errors.extend(_validate_v1_floor(scenarios))
     errors.extend(_validate_deposit_contract(contract))
+    errors.extend(_validate_clob_contract(contract))
     errors.extend(_validate_obligation_coupling(contract, scenarios))
     errors.extend(_validate_overclaim_guards(contract))
     return {

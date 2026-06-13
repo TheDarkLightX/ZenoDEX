@@ -64,7 +64,6 @@ from ..state.clob_book import (
     OWNER_NBYTES,
     ClobBook,
     ClobOrder,
-    ClobSide,
 )
 from .clob_matching import (
     ClobCancelAccepted,
@@ -453,9 +452,12 @@ def _apply_event(book: ClobBook, event: OrderEvent) -> Tuple[ClobBook, PerEventR
             return book, record
         raise TypeError("unexpected match result")  # pragma: no cover
     if isinstance(event, CancelEvent):
-        res = apply_cancel(book, order_id=event.order_id, requester=event.requester)
-        if isinstance(res, ClobCancelAccepted):
-            post = res.book
+        # REVIEW [B -> A-]: reuse of ``res`` across place/cancel branches made
+        # the accepted result type harder for mypy to track. Separate names keep
+        # the typed event state machine local.
+        cancel_res = apply_cancel(book, order_id=event.order_id, requester=event.requester)
+        if isinstance(cancel_res, ClobCancelAccepted):
+            post = cancel_res.book
             record = PerEventResult(
                 pre_book_root=pre_root,
                 post_book_root=post.state_root(),
@@ -464,12 +466,12 @@ def _apply_event(book: ClobBook, event: OrderEvent) -> Tuple[ClobBook, PerEventR
                 fills=(),
             )
             return post, record
-        if isinstance(res, ClobCancelRejected):
+        if isinstance(cancel_res, ClobCancelRejected):
             record = PerEventResult(
                 pre_book_root=pre_root,
                 post_book_root=pre_root,
                 accepted=False,
-                reject_code=res.reason,
+                reject_code=cancel_res.reason,
                 fills=(),
             )
             return book, record
@@ -602,7 +604,7 @@ def _verify_per_event(
         return REJ_POST_ROOT_MISMATCH
     if len(claimed.fills) != len(recomputed.fills):
         return REJ_FILL_COUNT_MISMATCH
-    for cf, rf in zip(claimed.fills, recomputed.fills):
+    for cf, rf in zip(claimed.fills, recomputed.fills, strict=True):
         # rf is itself a recomputed FillRecord (with its own canonical hash).
         if (
             cf.base != rf.base
@@ -620,7 +622,7 @@ def _verify_per_event(
     return None
 
 
-def verify_replay(claimed_receipt: ReplayReceipt) -> Tuple[bool, Optional[str]]:
+def verify_replay(claimed_receipt: object) -> Tuple[bool, Optional[str]]:
     """
     Re-execute a claimed replay from scratch and compare BIT-FOR-BIT.
 
@@ -668,11 +670,11 @@ def verify_replay(claimed_receipt: ReplayReceipt) -> Tuple[bool, Optional[str]]:
     # claim's events in THAT canonical order. We pair the claim's per_event with
     # the claim's events as stored, then sort both by event sequence so a claim
     # that mismatched per_event-to-event ordering surfaces as a root/fill diff.
-    claimed_pairs = list(zip(claimed_receipt.events, claimed_receipt.per_event))
+    claimed_pairs = list(zip(claimed_receipt.events, claimed_receipt.per_event, strict=True))
     claimed_pairs.sort(key=lambda pe: pe[0].sequence)
 
     for (claimed_evt, claimed_pe), recomputed_pe, recomputed_evt in zip(
-        claimed_pairs, recomputed.per_event, recomputed.events
+        claimed_pairs, recomputed.per_event, recomputed.events, strict=True
     ):
         # Defensive: the canonical event itself must match (same sequence/shape).
         if claimed_evt.sequence != recomputed_evt.sequence:

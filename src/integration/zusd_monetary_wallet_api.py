@@ -8,8 +8,8 @@ stability-pool, liquidation, and SP collateral-claim actions.
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import math
 import os
 import time
@@ -19,9 +19,14 @@ from urllib.parse import parse_qs, urlsplit
 
 from ..core.dex import DexState
 from ..core.zusd import E8
+from ..state.balances import NATIVE_ASSET, BalanceTable
+from ..state.canonical import (
+    canonical_hex_fixed_allow_0x,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 from .dex_snapshot import state_from_snapshot
-from ..state.balances import BalanceTable, NATIVE_ASSET
-from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
 from .live_proof_wrapper import (
     live_zk_proof_required,
     proof_from_request,
@@ -37,6 +42,11 @@ from .tau_net_client import (
     encode_tau_operations_for_wire,
     verify_tau_transaction_payload_signature,
 )
+from .zeno_oracle_authorization import (
+    RuntimeActionFacts,
+    check_critical_consumer_authorization,
+    semantic_hash,
+)
 from .zusd_monetary_bridge import (
     ZUSDMonetaryConfig,
     ZUSDMonetaryState,
@@ -48,12 +58,6 @@ from .zusd_monetary_bridge import (
     zusd_monetary_state_to_obj,
 )
 from .zusd_tau_token import derive_zusd_tau_asset_id
-from .zeno_oracle_authorization import (
-    RuntimeActionFacts,
-    check_critical_consumer_authorization,
-    semantic_hash,
-)
-
 
 MAX_POST_BODY = 65_536
 ResponseT = Tuple[int, Dict[str, Any]]
@@ -996,7 +1000,12 @@ def _build_prepare_response(
     )
     if oracle_error is not None:
         raise ValueError(oracle_error)
-    block_timestamp = int(body.get("block_timestamp") if isinstance(body.get("block_timestamp"), int) else int(time.time()))
+    raw_block_timestamp = body.get("block_timestamp")
+    block_timestamp = (
+        raw_block_timestamp
+        if isinstance(raw_block_timestamp, int) and not isinstance(raw_block_timestamp, bool)
+        else int(time.time())
+    )
     preflight = _preflight(
         app_state=app_state,
         config=config,

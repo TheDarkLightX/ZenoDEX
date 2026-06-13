@@ -77,10 +77,12 @@ from dataclasses import dataclass
 from typing import List, Sequence, Tuple, Union
 
 from ..state.balances import AssetId
+from ..state.canonical import canonical_hex_fixed_allow_0x
 from ..state.clob_book import (
     MAX_BASE_QTY,
     MAX_BOOK_ORDERS,
     MAX_PRICE_Q_PER_BASE,
+    OWNER_NBYTES,
     PRICE_SCALE,
     REJ_BAD_ORDER_ID,
     REJ_BAD_OWNER,
@@ -93,13 +95,11 @@ from ..state.clob_book import (
     REJ_NOT_OWNER,
     REJ_SELF_TRADE,
     REJ_UNKNOWN_ORDER,
-    OWNER_NBYTES,
     ClobBook,
     ClobOrder,
     ClobSide,
     validate_order_fields,
 )
-from ..state.canonical import canonical_hex_fixed_allow_0x
 from .balance_kernel import (
     BalanceAccepted,
     BalanceRejected,
@@ -215,7 +215,7 @@ def _buyer_seller(taker: ClobOrder, maker: ClobOrder) -> Tuple[str, str]:
     return maker.owner, taker.owner  # maker buys base, taker sells base
 
 
-def apply_order(book: ClobBook, taker: ClobOrder) -> ClobMatchResult:
+def apply_order(book: ClobBook, taker: object) -> ClobMatchResult:
     """
     Apply a single incoming ``taker`` order to ``book`` (continuous match).
 
@@ -490,14 +490,21 @@ def settle_fills(
     cur = state
     for idx, f in enumerate(fills):
         if f.quote > 0:
-            r1 = transfer(state=cur, sender=f.buyer, recipient=f.seller, asset=quote_asset, amount=f.quote)
+            # REVIEW [B+ -> A-]: keep the authority result as ``object`` at this
+            # boundary so malformed shadow/authority responses still hit the
+            # defensive fail-closed branch instead of becoming statically dead.
+            r1: object = transfer(
+                state=cur, sender=f.buyer, recipient=f.seller, asset=quote_asset, amount=f.quote
+            )
             if isinstance(r1, BalanceRejected):
                 return ClobSettlementRejected(r1.reason, state, idx)
             if not isinstance(r1, BalanceAccepted):
                 return ClobSettlementRejected("unexpected_balance_result", state, idx)
             cur = r1.state
         if f.base > 0:
-            r2 = transfer(state=cur, sender=f.seller, recipient=f.buyer, asset=base_asset, amount=f.base)
+            r2: object = transfer(
+                state=cur, sender=f.seller, recipient=f.buyer, asset=base_asset, amount=f.base
+            )
             if isinstance(r2, BalanceRejected):
                 # Roll back to the ORIGINAL pre-settlement state (no-op on reject).
                 return ClobSettlementRejected(r2.reason, state, idx)

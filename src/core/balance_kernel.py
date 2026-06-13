@@ -29,7 +29,7 @@ Design rules honored here (see the migration "Hard Rules"):
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Union
+from typing import Any, TypeGuard, Union
 
 from ..state.canonical import (
     canonical_hex_fixed_allow_0x,
@@ -83,7 +83,10 @@ REJ_BALANCE_OVERFLOW = "balance_overflow"
 KIND_CREDIT = "credit"
 KIND_TRANSFER = "transfer"
 
-def _is_plain_int(v: object) -> bool:
+def _is_plain_int(v: object) -> TypeGuard[int]:
+    # REVIEW [B+ -> A-]: this boundary already rejected bool at runtime, but the
+    # plain bool return hid the narrowing from mypy. TypeGuard keeps the
+    # consensus integer contract visible to static checks.
     return isinstance(v, int) and not isinstance(v, bool)
 
 

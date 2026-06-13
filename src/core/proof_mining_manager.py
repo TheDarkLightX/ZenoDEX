@@ -10,7 +10,6 @@ import yaml
 
 from .proof_mining_claims import validate_proof_mining_claim_artifact
 
-
 _PROOF_MINING_MANAGER_MODEL = Path(__file__).resolve().parents[1].joinpath("kernels", "dex", "proof_mining_manager_v1.yaml")
 _MAX_SLOT = 7
 _MAX_BASE_REWARD = 128
@@ -200,7 +199,7 @@ def snapshot_to_kernel_state(snapshot: ProofMiningManagerSnapshot) -> dict[str, 
 
 
 def load_proof_mining_manager_ir() -> Any:
-    from ESSO.ir.schema import CandidateIR  # type: ignore
+    from ESSO.ir.schema import CandidateIR
 
     obj = yaml.safe_load(_PROOF_MINING_MANAGER_MODEL.read_text(encoding="utf-8"))
     if not isinstance(obj, Mapping):
@@ -354,7 +353,7 @@ def apply_submit_proof_packet(
             claimed_slots_after=claimed_after,
         )
 
-    from ESSO.kernel.runner import Command, prepare_step_context, step_ctx  # type: ignore
+    from ESSO.kernel.runner import Command, prepare_step_context, step_ctx
 
     ctx = prepare_step_context(ir)
     if getattr(ctx, "code", None) is not None and getattr(ctx, "message", None) is not None:
