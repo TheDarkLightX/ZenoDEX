@@ -356,37 +356,49 @@ def _near_equal_bps(*, a: int, b: int, tol_bps: int) -> bool:
     return abs(int(a) - int(b)) * 10_000 <= int(tol_bps) * int(mn)
 
 
-def resolve_two_pool_split_search_params(
+_ADAPTIVE_PROFILES = frozenset(
+    {
+        "adaptive_v1",
+        "adaptive_v2",
+        "adaptive_v3",
+        "adaptive_v4",
+        "adaptive_v5",
+        "adaptive_v6",
+        "adaptive_v7",
+    }
+)
+
+
+@dataclass(frozen=True)
+class _SplitSearchSignals:
+    """
+    Deterministic hardness/scale signals derived from a two-pool split request.
+
+    All fields are computed unconditionally from ``(pool0, pool1, amount_in)``;
+    the per-version resolvers below consume them without recomputation. This is a
+    pure projection — no rounding or state changes — so the boolean groupings and
+    integer thresholds must be preserved verbatim by any refactor.
+    """
+
+    min_y: int
+    fee_gap: int
+    fee_max: int
+    near_sym: bool
+    prefer_canon: bool
+    amt_med: bool
+    amt_hi: bool
+    amt_very_hi: bool
+    imbalance_hi: bool
+    high: bool
+    med: bool
+
+
+def _compute_split_search_signals(
     pool0: PoolXY,
     pool1: PoolXY,
     amount_in: int,
-    *,
-    search_profile: str,
-    window: int,
-) -> tuple[int, str]:
-    """
-    Resolve higher-level split search policies into concrete `(window, profile)` pairs.
-
-    This is an algorithm-invention hook: it lets the router request an adaptive policy
-    without hardcoding it into the routing hot path.
-
-    Currently supported policies:
-    - baseline/dense24/dense32: identity
-    - adaptive_v1: choose between (baseline,w64), (dense24,w64), (dense24,w96)
-    - adaptive_v2: choose between (baseline_canon16,w64), (dense24,w64), (dense24,w96)
-    - adaptive_v3: choose between (baseline,w64)/(baseline_canon16,w64), (dense24,w64), (dense24,w96)
-    - adaptive_v4: choose between (baseline_canon16,w64) and (dense24,w96) with stricter escalation
-    - adaptive_v5: adaptive_v4 + high-fee/high-pressure escalation to dense32 tiers
-    - adaptive_v6: tighter adaptive_v5 thresholds tuned to cut default-call cost while preserving stress quality
-    - adaptive_v7: adaptive_v6 hard-regime tiers, but route easy manifolds to experimental dgstr_v1
-    """
-    prof = str(search_profile).strip().lower()
-    if prof not in {"adaptive_v1", "adaptive_v2", "adaptive_v3", "adaptive_v4", "adaptive_v5", "adaptive_v6", "adaptive_v7"}:
-        return int(window), str(search_profile)
-
-    if amount_in <= 0:
-        return int(window), "baseline"
-
+) -> _SplitSearchSignals:
+    """Compute the deterministic split-search signals (see ``_SplitSearchSignals``)."""
     x0, y0, f0 = int(pool0.x), int(pool0.y), int(pool0.fee_bps)
     x1, y1, f1 = int(pool1.x), int(pool1.y), int(pool1.fee_bps)
     D = int(amount_in)
@@ -421,88 +433,158 @@ def resolve_two_pool_split_search_params(
     high = bool(amt_med or fee_gap >= 60 or x_ratio_hi or y_ratio_hi or near_sym)
     med = bool(high or fee_gap >= 30)
 
-    if prof == "adaptive_v2":
-        if high:
-            return 96, "dense24"
-        if med:
-            return 64, "dense24"
-        return 64, "baseline_canon16"
+    return _SplitSearchSignals(
+        min_y=min_y,
+        fee_gap=fee_gap,
+        fee_max=fee_max,
+        near_sym=near_sym,
+        prefer_canon=prefer_canon,
+        amt_med=amt_med,
+        amt_hi=amt_hi,
+        amt_very_hi=amt_very_hi,
+        imbalance_hi=imbalance_hi,
+        high=high,
+        med=med,
+    )
 
-    if prof == "adaptive_v3":
-        if high:
-            return 96, "dense24"
-        if med:
-            return 64, "dense24"
-        return (64, "baseline_canon16") if prefer_canon else (64, "baseline")
 
-    if prof == "adaptive_v4":
-        # Stricter escalation than v3:
-        # - Default to baseline_canon16_w64 (strong quality/call-cost tradeoff).
-        # - Escalate only for clearly hard regimes to dense24_w96.
-        high4 = bool(amt_hi or fee_gap >= 90 or imbalance_hi or (near_sym and fee_gap >= 40))
-        if high4:
-            return 96, "dense24"
-        return 64, "baseline_canon16"
-
-    if prof == "adaptive_v5":
-        # v5 keeps v4's cheap default posture but escalates in a stricter
-        # high-fee/high-pressure manifold where dense24 can miss oracle optima.
-        high4 = bool(amt_hi or fee_gap >= 90 or imbalance_hi or (near_sym and fee_gap >= 40))
-        thin_out = bool(min_y <= 80)
-        hard5 = bool(
-            (amt_hi and fee_max >= 120)
-            or (amt_very_hi and fee_gap >= 50)
-            or (thin_out and amt_med and fee_max >= 120)
-            or (amt_hi and min_y <= 64)
-            or (imbalance_hi and fee_max >= 90)
-        )
-        extreme5 = bool(
-            (amt_very_hi and fee_max >= 180)
-            or (thin_out and amt_hi and fee_max >= 180)
-            or (amt_very_hi and min_y <= 48)
-        )
-        if extreme5:
-            return 128, "dense32"
-        if hard5:
-            return 96, "dense32"
-        if high4:
-            return 96, "dense24"
-        return 64, "baseline_canon16"
-
-    if prof in {"adaptive_v6", "adaptive_v7"}:
-        # v6 retunes v5 thresholds using supervised stress-holdout evidence:
-        # - keep dense32 escalation for the stress miss manifold,
-        # - reduce unnecessary dense32 activation on default regimes.
-        high6 = bool(amt_hi or fee_gap >= 110 or imbalance_hi or (near_sym and fee_gap >= 40))
-        thin_out = bool(min_y <= 80)
-        hard6 = bool(
-            (amt_hi and fee_max >= 145)
-            or (amt_very_hi and fee_gap >= 80)
-            or (thin_out and amt_med and fee_max >= 145)
-            or (amt_hi and min_y <= 44)
-            or (imbalance_hi and fee_max >= 100)
-        )
-        extreme6 = bool(
-            (amt_very_hi and fee_max >= 195)
-            or (thin_out and amt_hi and fee_max >= 195)
-            or (amt_very_hi and min_y <= 32)
-        )
-        if extreme6:
-            return 128, "dense32"
-        if hard6:
-            return 96, "dense32"
-        if high6:
-            return 96, "dense24"
-        if prof == "adaptive_v7":
-            return 64, "dgstr_v1"
-        return 64, "baseline_canon16"
-
+def _resolve_adaptive_v1(sig: _SplitSearchSignals) -> tuple[int, str]:
     # adaptive_v1 (legacy)
-    if high:
+    if sig.high:
         return 96, "dense24"
-    if med:
+    if sig.med:
         return 64, "dense24"
     return 64, "baseline"
+
+
+def _resolve_adaptive_v2(sig: _SplitSearchSignals) -> tuple[int, str]:
+    if sig.high:
+        return 96, "dense24"
+    if sig.med:
+        return 64, "dense24"
+    return 64, "baseline_canon16"
+
+
+def _resolve_adaptive_v3(sig: _SplitSearchSignals) -> tuple[int, str]:
+    if sig.high:
+        return 96, "dense24"
+    if sig.med:
+        return 64, "dense24"
+    return (64, "baseline_canon16") if sig.prefer_canon else (64, "baseline")
+
+
+def _resolve_adaptive_v4(sig: _SplitSearchSignals) -> tuple[int, str]:
+    # Stricter escalation than v3:
+    # - Default to baseline_canon16_w64 (strong quality/call-cost tradeoff).
+    # - Escalate only for clearly hard regimes to dense24_w96.
+    high4 = bool(sig.amt_hi or sig.fee_gap >= 90 or sig.imbalance_hi or (sig.near_sym and sig.fee_gap >= 40))
+    if high4:
+        return 96, "dense24"
+    return 64, "baseline_canon16"
+
+
+def _resolve_adaptive_v5(sig: _SplitSearchSignals) -> tuple[int, str]:
+    # v5 keeps v4's cheap default posture but escalates in a stricter
+    # high-fee/high-pressure manifold where dense24 can miss oracle optima.
+    high4 = bool(sig.amt_hi or sig.fee_gap >= 90 or sig.imbalance_hi or (sig.near_sym and sig.fee_gap >= 40))
+    thin_out = bool(sig.min_y <= 80)
+    hard5 = bool(
+        (sig.amt_hi and sig.fee_max >= 120)
+        or (sig.amt_very_hi and sig.fee_gap >= 50)
+        or (thin_out and sig.amt_med and sig.fee_max >= 120)
+        or (sig.amt_hi and sig.min_y <= 64)
+        or (sig.imbalance_hi and sig.fee_max >= 90)
+    )
+    extreme5 = bool(
+        (sig.amt_very_hi and sig.fee_max >= 180)
+        or (thin_out and sig.amt_hi and sig.fee_max >= 180)
+        or (sig.amt_very_hi and sig.min_y <= 48)
+    )
+    if extreme5:
+        return 128, "dense32"
+    if hard5:
+        return 96, "dense32"
+    if high4:
+        return 96, "dense24"
+    return 64, "baseline_canon16"
+
+
+def _resolve_adaptive_v6_v7(sig: _SplitSearchSignals, *, profile: str) -> tuple[int, str]:
+    # v6 retunes v5 thresholds using supervised stress-holdout evidence:
+    # - keep dense32 escalation for the stress miss manifold,
+    # - reduce unnecessary dense32 activation on default regimes.
+    # v7 is identical to v6 except the default tier routes to experimental dgstr_v1.
+    high6 = bool(sig.amt_hi or sig.fee_gap >= 110 or sig.imbalance_hi or (sig.near_sym and sig.fee_gap >= 40))
+    thin_out = bool(sig.min_y <= 80)
+    hard6 = bool(
+        (sig.amt_hi and sig.fee_max >= 145)
+        or (sig.amt_very_hi and sig.fee_gap >= 80)
+        or (thin_out and sig.amt_med and sig.fee_max >= 145)
+        or (sig.amt_hi and sig.min_y <= 44)
+        or (sig.imbalance_hi and sig.fee_max >= 100)
+    )
+    extreme6 = bool(
+        (sig.amt_very_hi and sig.fee_max >= 195)
+        or (thin_out and sig.amt_hi and sig.fee_max >= 195)
+        or (sig.amt_very_hi and sig.min_y <= 32)
+    )
+    if extreme6:
+        return 128, "dense32"
+    if hard6:
+        return 96, "dense32"
+    if high6:
+        return 96, "dense24"
+    if profile == "adaptive_v7":
+        return 64, "dgstr_v1"
+    return 64, "baseline_canon16"
+
+
+def resolve_two_pool_split_search_params(
+    pool0: PoolXY,
+    pool1: PoolXY,
+    amount_in: int,
+    *,
+    search_profile: str,
+    window: int,
+) -> tuple[int, str]:
+    """
+    Resolve higher-level split search policies into concrete `(window, profile)` pairs.
+
+    This is an algorithm-invention hook: it lets the router request an adaptive policy
+    without hardcoding it into the routing hot path.
+
+    Currently supported policies:
+    - baseline/dense24/dense32: identity
+    - adaptive_v1: choose between (baseline,w64), (dense24,w64), (dense24,w96)
+    - adaptive_v2: choose between (baseline_canon16,w64), (dense24,w64), (dense24,w96)
+    - adaptive_v3: choose between (baseline,w64)/(baseline_canon16,w64), (dense24,w64), (dense24,w96)
+    - adaptive_v4: choose between (baseline_canon16,w64) and (dense24,w96) with stricter escalation
+    - adaptive_v5: adaptive_v4 + high-fee/high-pressure escalation to dense32 tiers
+    - adaptive_v6: tighter adaptive_v5 thresholds tuned to cut default-call cost while preserving stress quality
+    - adaptive_v7: adaptive_v6 hard-regime tiers, but route easy manifolds to experimental dgstr_v1
+    """
+    prof = str(search_profile).strip().lower()
+    if prof not in _ADAPTIVE_PROFILES:
+        # Non-adaptive profiles pass through with the RAW (un-normalized) name and window.
+        return int(window), str(search_profile)
+
+    if amount_in <= 0:
+        return int(window), "baseline"
+
+    sig = _compute_split_search_signals(pool0, pool1, amount_in)
+
+    if prof == "adaptive_v2":
+        return _resolve_adaptive_v2(sig)
+    if prof == "adaptive_v3":
+        return _resolve_adaptive_v3(sig)
+    if prof == "adaptive_v4":
+        return _resolve_adaptive_v4(sig)
+    if prof == "adaptive_v5":
+        return _resolve_adaptive_v5(sig)
+    if prof in {"adaptive_v6", "adaptive_v7"}:
+        return _resolve_adaptive_v6_v7(sig, profile=prof)
+    # adaptive_v1 (legacy) — fall-through.
+    return _resolve_adaptive_v1(sig)
 
 
 def best_split_two_pools_exact_in(

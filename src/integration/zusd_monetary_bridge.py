@@ -30,6 +30,7 @@ ZUSD_MONETARY_SCHEMA = "zenodex/zusd_monetary_state/v1"
 ZUSD_MONETARY_MODULE = "ZUSDFinance"
 ZUSD_MONETARY_VERSION = "0.1"
 
+_UNSET = object()  # sentinel distinguishing "owner unchanged" from "owner=None"
 _U32_MAX = 0xFFFFFFFF
 _MAX_OPS = 128
 _MAX_OP_BYTES = 64_000
@@ -245,6 +246,268 @@ def apply_zusd_monetary_ops(
         return ZUSDMonetaryTxResult(ok=False, error=_safe_error_str(exc))
 
 
+@dataclass(frozen=True)
+class _ApplyCtx:
+    """Immutable per-operation dispatch context for a single zUSD op.
+
+    Holds everything a ``_apply_<op>`` handler needs. The handlers mutate the
+    shared ``balances`` table in place and build a fresh ``ZUSDMonetaryState``;
+    the no-op-on-reject guarantee is enforced by the caller
+    (``apply_zusd_monetary_ops``), which works on private copies of the balance
+    and nonce tables and discards them on any raised exception.
+    """
+
+    config: ZUSDMonetaryConfig
+    balances: BalanceTable
+    op: Mapping[str, Any]
+    action: str
+    sender: str
+    native_sender: str
+    zusd_asset: str
+    sp_pubkey: str
+    core: ZUSDState
+    owner: Optional[str]
+    deposits: dict[str, int]
+    claims: dict[str, int]
+
+    def state_from(
+        self,
+        *,
+        core: ZUSDState,
+        owner: Optional[str] | object = _UNSET,
+        deposits: Mapping[str, int] | None = None,
+        claims: Mapping[str, int] | None = None,
+    ) -> ZUSDMonetaryState:
+        next_state = ZUSDMonetaryState(
+            core=core,
+            vault_owner_pubkey=self.owner if owner is _UNSET else owner,  # type: ignore[arg-type]
+            sp_deposits_e8=self.deposits if deposits is None else deposits,
+            sp_collateral_claims_e8=self.claims if claims is None else claims,
+        )
+        _raise_if_bad_state(next_state)
+        return next_state
+
+
+def _resolve_vault_owner(ctx: _ApplyCtx) -> Optional[str]:
+    """Shared owner-resolution for {deposit,withdraw}_collateral / {mint,repay}_zusd.
+
+    Runs BEFORE per-op amount validation, exactly as the original inline block:
+    rejects an owner_pubkey/sender mismatch, lazily initializes the owner on the
+    first ``deposit_collateral``, and rejects all other ops on an uninitialized
+    vault or an owner mismatch.
+    """
+    op_owner = _canonical_pubkey(ctx.op.get("owner_pubkey", ctx.sender), name=f"{ctx.action}.owner_pubkey")
+    if op_owner != ctx.sender:
+        raise ValueError("owner_pubkey mismatch")
+    owner = ctx.owner
+    if owner is None:
+        if ctx.action not in {"deposit_collateral"}:
+            raise ValueError("vault owner not initialized")
+        owner = ctx.sender
+    elif owner != ctx.sender:
+        raise ValueError("vault owner mismatch")
+    return owner
+
+
+def _apply_oracle(ctx: _ApplyCtx) -> tuple[ZUSDMonetaryState, dict[str, Any]]:
+    action = ctx.action
+    _require_oracle_sender(ctx.config, sender=ctx.sender)
+    args: dict[str, Any] = {"auth_ok": True}
+    if action in {"bootstrap_oracle", "oracle_report"}:
+        args["price_e8"] = _require_int(ctx.op.get("price_e8"), name=f"{action}.price_e8", minimum=1)
+    result = step(ctx.core, ZUSDCommand(tag=action, args=args))
+    if not result.ok or result.state is None:
+        raise ValueError(result.error or f"{action} rejected")
+    next_state = ctx.state_from(core=result.state)
+    return next_state, dict(result.effects or {})
+
+
+def _apply_advance_epoch(ctx: _ApplyCtx) -> tuple[ZUSDMonetaryState, dict[str, Any]]:
+    delta = _require_int(ctx.op.get("delta"), name="advance_epoch.delta", minimum=1)
+    result = step(ctx.core, ZUSDCommand(tag="advance_epoch", args={"delta": delta}))
+    if not result.ok or result.state is None:
+        raise ValueError(result.error or "advance_epoch rejected")
+    next_state = ctx.state_from(core=result.state)
+    return next_state, dict(result.effects or {})
+
+
+def _apply_deposit_collateral(ctx: _ApplyCtx) -> tuple[ZUSDMonetaryState, dict[str, Any]]:
+    owner = _resolve_vault_owner(ctx)
+    amount_e8 = _require_int(ctx.op.get("amount_e8"), name="deposit_collateral.amount_e8", minimum=1)
+    if ctx.balances.get(ctx.native_sender, NATIVE_ASSET) < amount_e8:
+        raise ValueError("insufficient native collateral balance")
+    result = step(ctx.core, ZUSDCommand(tag="deposit_collateral", args={"amount_e8": amount_e8}))
+    if not result.ok or result.state is None:
+        raise ValueError(result.error or "deposit_collateral rejected")
+    ctx.balances.subtract(ctx.native_sender, NATIVE_ASSET, amount_e8)
+    next_state = ctx.state_from(core=result.state, owner=owner)
+    return next_state, {**dict(result.effects or {}), "native_balance_delta_e8": -amount_e8}
+
+
+def _apply_withdraw_collateral(ctx: _ApplyCtx) -> tuple[ZUSDMonetaryState, dict[str, Any]]:
+    owner = _resolve_vault_owner(ctx)
+    amount_e8 = _require_int(ctx.op.get("amount_e8"), name="withdraw_collateral.amount_e8", minimum=1)
+    result = step(ctx.core, ZUSDCommand(tag="withdraw_collateral", args={"amount_e8": amount_e8}))
+    if not result.ok or result.state is None:
+        raise ValueError(result.error or "withdraw_collateral rejected")
+    ctx.balances.add(ctx.native_sender, NATIVE_ASSET, amount_e8)
+    next_state = ctx.state_from(core=result.state, owner=owner)
+    return next_state, {**dict(result.effects or {}), "native_balance_delta_e8": amount_e8}
+
+
+def _apply_mint_zusd(ctx: _ApplyCtx) -> tuple[ZUSDMonetaryState, dict[str, Any]]:
+    owner = _resolve_vault_owner(ctx)
+    amount_e8 = _require_whole_zusd_amount(ctx.op.get("amount_e8"), name="mint_zusd.amount_e8")
+    result = step(ctx.core, ZUSDCommand(tag="mint_zusd", args={"amount_e8": amount_e8}))
+    if not result.ok or result.state is None:
+        raise ValueError(result.error or "mint_zusd rejected")
+    minted_units = _e8_to_whole_units(int((result.effects or {}).get("principal_e8", amount_e8)), name="mint_zusd.principal_e8")
+    ctx.balances.add(ctx.sender, ctx.zusd_asset, minted_units)
+    next_state = ctx.state_from(core=result.state, owner=owner)
+    return next_state, {**dict(result.effects or {}), "zusd_balance_delta": minted_units}
+
+
+def _apply_repay_zusd(ctx: _ApplyCtx) -> tuple[ZUSDMonetaryState, dict[str, Any]]:
+    owner = _resolve_vault_owner(ctx)
+    amount_e8 = _require_whole_zusd_amount(ctx.op.get("amount_e8"), name="repay_zusd.amount_e8")
+    units = _e8_to_whole_units(amount_e8, name="repay_zusd.amount_e8")
+    if ctx.balances.get(ctx.sender, ctx.zusd_asset) < units:
+        raise ValueError("insufficient zUSD balance")
+    result = step(ctx.core, ZUSDCommand(tag="repay_zusd", args={"amount_e8": amount_e8}))
+    if not result.ok or result.state is None:
+        raise ValueError(result.error or "repay_zusd rejected")
+    ctx.balances.subtract(ctx.sender, ctx.zusd_asset, units)
+    next_state = ctx.state_from(core=result.state, owner=owner)
+    return next_state, {**dict(result.effects or {}), "zusd_balance_delta": -units}
+
+
+def _apply_deposit_sp(ctx: _ApplyCtx) -> tuple[ZUSDMonetaryState, dict[str, Any]]:
+    account = _sender_account(ctx.op, sender=ctx.sender, action="deposit_sp")
+    amount_e8 = _require_whole_zusd_amount(ctx.op.get("amount_e8"), name="deposit_sp.amount_e8")
+    units = _e8_to_whole_units(amount_e8, name="deposit_sp.amount_e8")
+    if ctx.balances.get(account, ctx.zusd_asset) < units:
+        raise ValueError("insufficient zUSD balance")
+    result = step(ctx.core, ZUSDCommand(tag="deposit_sp", args={"amount_e8": amount_e8}))
+    if not result.ok or result.state is None:
+        raise ValueError(result.error or "deposit_sp rejected")
+    ctx.balances.subtract(account, ctx.zusd_asset, units)
+    ctx.balances.add(ctx.sp_pubkey, ctx.zusd_asset, units)
+    deposits = dict(ctx.deposits)
+    deposits[account] = int(deposits.get(account, 0)) + amount_e8
+    next_state = ctx.state_from(core=result.state, deposits=deposits)
+    return next_state, {**dict(result.effects or {}), "zusd_balance_delta": -units, "sp_escrow_delta": units}
+
+
+def _apply_withdraw_sp(ctx: _ApplyCtx) -> tuple[ZUSDMonetaryState, dict[str, Any]]:
+    account = _sender_account(ctx.op, sender=ctx.sender, action="withdraw_sp")
+    amount_e8 = _require_whole_zusd_amount(ctx.op.get("amount_e8"), name="withdraw_sp.amount_e8")
+    current = int(ctx.deposits.get(account, 0))
+    if amount_e8 > current:
+        raise ValueError("withdraw_sp exceeds account deposit")
+    units = _e8_to_whole_units(amount_e8, name="withdraw_sp.amount_e8")
+    if ctx.balances.get(ctx.sp_pubkey, ctx.zusd_asset) < units:
+        raise ValueError("stability pool escrow balance too low")
+    result = step(ctx.core, ZUSDCommand(tag="withdraw_sp", args={"amount_e8": amount_e8}))
+    if not result.ok or result.state is None:
+        raise ValueError(result.error or "withdraw_sp rejected")
+    ctx.balances.subtract(ctx.sp_pubkey, ctx.zusd_asset, units)
+    ctx.balances.add(account, ctx.zusd_asset, units)
+    deposits = _set_or_drop(ctx.deposits, account, current - amount_e8)
+    next_state = ctx.state_from(core=result.state, deposits=deposits)
+    return next_state, {**dict(result.effects or {}), "zusd_balance_delta": units, "sp_escrow_delta": -units}
+
+
+def _apply_redeem_zusd(ctx: _ApplyCtx) -> tuple[ZUSDMonetaryState, dict[str, Any]]:
+    account = _sender_account(ctx.op, sender=ctx.sender, action="redeem_zusd")
+    amount_e8 = _require_whole_zusd_amount(ctx.op.get("amount_e8"), name="redeem_zusd.amount_e8")
+    units = _e8_to_whole_units(amount_e8, name="redeem_zusd.amount_e8")
+    if ctx.balances.get(account, ctx.zusd_asset) < units:
+        raise ValueError("insufficient zUSD balance")
+    result = step(ctx.core, ZUSDCommand(tag="redeem_zusd", args={"amount_e8": amount_e8}))
+    if not result.ok or result.state is None or result.effects is None:
+        raise ValueError(result.error or "redeem_zusd rejected")
+    collateral_out = _require_int(result.effects.get("redeemed_collateral_out_e8"), name="redeemed_collateral_out_e8", minimum=0)
+    ctx.balances.subtract(account, ctx.zusd_asset, units)
+    native_account = ctx.native_sender if account == ctx.sender else account
+    ctx.balances.add(native_account, NATIVE_ASSET, collateral_out)
+    next_state = ctx.state_from(core=result.state)
+    return next_state, {**dict(result.effects or {}), "zusd_balance_delta": -units, "native_balance_delta_e8": collateral_out}
+
+
+def _apply_liquidate(ctx: _ApplyCtx) -> tuple[ZUSDMonetaryState, dict[str, Any]]:
+    pre_deposits = dict(ctx.deposits)
+    result = step(ctx.core, ZUSDCommand(tag="liquidate", args={}))
+    if not result.ok or result.state is None or result.effects is None:
+        raise ValueError(result.error or "liquidate rejected")
+    liquidated_debt = _require_whole_zusd_amount(result.effects.get("liquidated_debt_e8"), name="liquidated_debt_e8")
+    liquidated_coll = _require_int(
+        result.effects.get("sp_collateral_gain_e8", result.effects.get("liquidated_collateral_e8")),
+        name="sp_collateral_gain_e8",
+        minimum=0,
+    )
+    liquidator_comp = _require_int(
+        result.effects.get("liquidator_compensation_collateral_e8", 0),
+        name="liquidator_compensation_collateral_e8",
+        minimum=0,
+    )
+    debt_units = _e8_to_whole_units(liquidated_debt, name="liquidated_debt_e8")
+    if ctx.balances.get(ctx.sp_pubkey, ctx.zusd_asset) < debt_units:
+        raise ValueError("stability pool escrow balance too low")
+    ctx.balances.subtract(ctx.sp_pubkey, ctx.zusd_asset, debt_units)
+    if liquidator_comp > 0:
+        ctx.balances.add(ctx.native_sender, NATIVE_ASSET, liquidator_comp)
+    deposits, coll_gains = _allocate_liquidation(pre_deposits, debt_e8=liquidated_debt, collateral_e8=liquidated_coll)
+    claims = dict(ctx.claims)
+    for pk, gain in coll_gains.items():
+        claims[pk] = int(claims.get(pk, 0)) + int(gain)
+    next_state = ctx.state_from(core=result.state, deposits=deposits, claims=claims)
+    return next_state, {
+        **dict(result.effects or {}),
+        "sp_escrow_delta": -debt_units,
+        "native_balance_delta_e8": liquidator_comp,
+        "sp_collateral_claims_e8": coll_gains,
+    }
+
+
+def _apply_claim_sp_collateral(ctx: _ApplyCtx) -> tuple[ZUSDMonetaryState, dict[str, Any]]:
+    account = _sender_account(ctx.op, sender=ctx.sender, action="claim_sp_collateral")
+    amount_e8 = _require_int(ctx.op.get("amount_e8"), name="claim_sp_collateral.amount_e8", minimum=1)
+    current = int(ctx.claims.get(account, 0))
+    if amount_e8 > current:
+        raise ValueError("claim exceeds account collateral gain")
+    if amount_e8 > ctx.core.sp_coll_e8:
+        raise ValueError("claim exceeds stability-pool collateral")
+    next_core = ZUSDState(**{**ctx.core.__dict__, "sp_coll_e8": int(ctx.core.sp_coll_e8) - amount_e8})
+    failures = check_invariants(next_core)
+    if failures:
+        raise ValueError(f"invariant violation: {','.join(failures)}")
+    native_account = ctx.native_sender if account == ctx.sender else account
+    ctx.balances.add(native_account, NATIVE_ASSET, amount_e8)
+    claims = _set_or_drop(ctx.claims, account, current - amount_e8)
+    next_state = ctx.state_from(core=next_core, claims=claims)
+    return next_state, {"event": "sp_collateral_claimed", "amount_e8": amount_e8, "native_balance_delta_e8": amount_e8}
+
+
+# Total dispatch table: every supported action maps to exactly one handler.
+# The action set here MUST stay in sync with `_require_action`; an action that
+# reaches `_apply_one` but is missing here is rejected ("unknown action").
+_APPLY_DISPATCH = {
+    "bootstrap_oracle": _apply_oracle,
+    "oracle_report": _apply_oracle,
+    "oracle_commit": _apply_oracle,
+    "advance_epoch": _apply_advance_epoch,
+    "deposit_collateral": _apply_deposit_collateral,
+    "withdraw_collateral": _apply_withdraw_collateral,
+    "mint_zusd": _apply_mint_zusd,
+    "repay_zusd": _apply_repay_zusd,
+    "deposit_sp": _apply_deposit_sp,
+    "withdraw_sp": _apply_withdraw_sp,
+    "redeem_zusd": _apply_redeem_zusd,
+    "liquidate": _apply_liquidate,
+    "claim_sp_collateral": _apply_claim_sp_collateral,
+}
+
+
 def _apply_one(
     *,
     config: ZUSDMonetaryConfig,
@@ -257,195 +520,24 @@ def _apply_one(
     zusd_asset: str,
     sp_pubkey: str,
 ) -> tuple[ZUSDMonetaryState, dict[str, Any]]:
-    core = monetary_state.core
-    owner = monetary_state.vault_owner_pubkey
-    deposits = dict(monetary_state.sp_deposits_e8 or {})
-    claims = dict(monetary_state.sp_collateral_claims_e8 or {})
-
-    if action in {"bootstrap_oracle", "oracle_report", "oracle_commit"}:
-        _require_oracle_sender(config, sender=sender)
-        args: dict[str, Any] = {"auth_ok": True}
-        if action in {"bootstrap_oracle", "oracle_report"}:
-            args["price_e8"] = _require_int(op.get("price_e8"), name=f"{action}.price_e8", minimum=1)
-        result = step(core, ZUSDCommand(tag=action, args=args))
-        if not result.ok or result.state is None:
-            raise ValueError(result.error or f"{action} rejected")
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
-        _raise_if_bad_state(next_state)
-        return next_state, dict(result.effects or {})
-
-    if action == "advance_epoch":
-        delta = _require_int(op.get("delta"), name="advance_epoch.delta", minimum=1)
-        result = step(core, ZUSDCommand(tag=action, args={"delta": delta}))
-        if not result.ok or result.state is None:
-            raise ValueError(result.error or "advance_epoch rejected")
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
-        _raise_if_bad_state(next_state)
-        return next_state, dict(result.effects or {})
-
-    if action in {"deposit_collateral", "withdraw_collateral", "mint_zusd", "repay_zusd"}:
-        op_owner = _canonical_pubkey(op.get("owner_pubkey", sender), name=f"{action}.owner_pubkey")
-        if op_owner != sender:
-            raise ValueError("owner_pubkey mismatch")
-        if owner is None:
-            if action not in {"deposit_collateral"}:
-                raise ValueError("vault owner not initialized")
-            owner = sender
-        elif owner != sender:
-            raise ValueError("vault owner mismatch")
-
-    if action == "deposit_collateral":
-        amount_e8 = _require_int(op.get("amount_e8"), name="deposit_collateral.amount_e8", minimum=1)
-        if balances.get(native_sender, NATIVE_ASSET) < amount_e8:
-            raise ValueError("insufficient native collateral balance")
-        result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
-        if not result.ok or result.state is None:
-            raise ValueError(result.error or "deposit_collateral rejected")
-        balances.subtract(native_sender, NATIVE_ASSET, amount_e8)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
-        _raise_if_bad_state(next_state)
-        return next_state, {**dict(result.effects or {}), "native_balance_delta_e8": -amount_e8}
-
-    if action == "withdraw_collateral":
-        amount_e8 = _require_int(op.get("amount_e8"), name="withdraw_collateral.amount_e8", minimum=1)
-        result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
-        if not result.ok or result.state is None:
-            raise ValueError(result.error or "withdraw_collateral rejected")
-        balances.add(native_sender, NATIVE_ASSET, amount_e8)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
-        _raise_if_bad_state(next_state)
-        return next_state, {**dict(result.effects or {}), "native_balance_delta_e8": amount_e8}
-
-    if action == "mint_zusd":
-        amount_e8 = _require_whole_zusd_amount(op.get("amount_e8"), name="mint_zusd.amount_e8")
-        result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
-        if not result.ok or result.state is None:
-            raise ValueError(result.error or "mint_zusd rejected")
-        minted_units = _e8_to_whole_units(int((result.effects or {}).get("principal_e8", amount_e8)), name="mint_zusd.principal_e8")
-        balances.add(sender, zusd_asset, minted_units)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
-        _raise_if_bad_state(next_state)
-        return next_state, {**dict(result.effects or {}), "zusd_balance_delta": minted_units}
-
-    if action == "repay_zusd":
-        amount_e8 = _require_whole_zusd_amount(op.get("amount_e8"), name="repay_zusd.amount_e8")
-        units = _e8_to_whole_units(amount_e8, name="repay_zusd.amount_e8")
-        if balances.get(sender, zusd_asset) < units:
-            raise ValueError("insufficient zUSD balance")
-        result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
-        if not result.ok or result.state is None:
-            raise ValueError(result.error or "repay_zusd rejected")
-        balances.subtract(sender, zusd_asset, units)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
-        _raise_if_bad_state(next_state)
-        return next_state, {**dict(result.effects or {}), "zusd_balance_delta": -units}
-
-    if action == "deposit_sp":
-        account = _sender_account(op, sender=sender, action=action)
-        amount_e8 = _require_whole_zusd_amount(op.get("amount_e8"), name="deposit_sp.amount_e8")
-        units = _e8_to_whole_units(amount_e8, name="deposit_sp.amount_e8")
-        if balances.get(account, zusd_asset) < units:
-            raise ValueError("insufficient zUSD balance")
-        result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
-        if not result.ok or result.state is None:
-            raise ValueError(result.error or "deposit_sp rejected")
-        balances.subtract(account, zusd_asset, units)
-        balances.add(sp_pubkey, zusd_asset, units)
-        deposits[account] = int(deposits.get(account, 0)) + amount_e8
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
-        _raise_if_bad_state(next_state)
-        return next_state, {**dict(result.effects or {}), "zusd_balance_delta": -units, "sp_escrow_delta": units}
-
-    if action == "withdraw_sp":
-        account = _sender_account(op, sender=sender, action=action)
-        amount_e8 = _require_whole_zusd_amount(op.get("amount_e8"), name="withdraw_sp.amount_e8")
-        current = int(deposits.get(account, 0))
-        if amount_e8 > current:
-            raise ValueError("withdraw_sp exceeds account deposit")
-        units = _e8_to_whole_units(amount_e8, name="withdraw_sp.amount_e8")
-        if balances.get(sp_pubkey, zusd_asset) < units:
-            raise ValueError("stability pool escrow balance too low")
-        result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
-        if not result.ok or result.state is None:
-            raise ValueError(result.error or "withdraw_sp rejected")
-        balances.subtract(sp_pubkey, zusd_asset, units)
-        balances.add(account, zusd_asset, units)
-        deposits = _set_or_drop(deposits, account, current - amount_e8)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
-        _raise_if_bad_state(next_state)
-        return next_state, {**dict(result.effects or {}), "zusd_balance_delta": units, "sp_escrow_delta": -units}
-
-    if action == "redeem_zusd":
-        account = _sender_account(op, sender=sender, action=action)
-        amount_e8 = _require_whole_zusd_amount(op.get("amount_e8"), name="redeem_zusd.amount_e8")
-        units = _e8_to_whole_units(amount_e8, name="redeem_zusd.amount_e8")
-        if balances.get(account, zusd_asset) < units:
-            raise ValueError("insufficient zUSD balance")
-        result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
-        if not result.ok or result.state is None or result.effects is None:
-            raise ValueError(result.error or "redeem_zusd rejected")
-        collateral_out = _require_int(result.effects.get("redeemed_collateral_out_e8"), name="redeemed_collateral_out_e8", minimum=0)
-        balances.subtract(account, zusd_asset, units)
-        native_account = native_sender if account == sender else account
-        balances.add(native_account, NATIVE_ASSET, collateral_out)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
-        _raise_if_bad_state(next_state)
-        return next_state, {**dict(result.effects or {}), "zusd_balance_delta": -units, "native_balance_delta_e8": collateral_out}
-
-    if action == "liquidate":
-        pre_deposits = dict(deposits)
-        result = step(core, ZUSDCommand(tag=action, args={}))
-        if not result.ok or result.state is None or result.effects is None:
-            raise ValueError(result.error or "liquidate rejected")
-        liquidated_debt = _require_whole_zusd_amount(result.effects.get("liquidated_debt_e8"), name="liquidated_debt_e8")
-        liquidated_coll = _require_int(
-            result.effects.get("sp_collateral_gain_e8", result.effects.get("liquidated_collateral_e8")),
-            name="sp_collateral_gain_e8",
-            minimum=0,
-        )
-        liquidator_comp = _require_int(
-            result.effects.get("liquidator_compensation_collateral_e8", 0),
-            name="liquidator_compensation_collateral_e8",
-            minimum=0,
-        )
-        debt_units = _e8_to_whole_units(liquidated_debt, name="liquidated_debt_e8")
-        if balances.get(sp_pubkey, zusd_asset) < debt_units:
-            raise ValueError("stability pool escrow balance too low")
-        balances.subtract(sp_pubkey, zusd_asset, debt_units)
-        if liquidator_comp > 0:
-            balances.add(native_sender, NATIVE_ASSET, liquidator_comp)
-        deposits, coll_gains = _allocate_liquidation(pre_deposits, debt_e8=liquidated_debt, collateral_e8=liquidated_coll)
-        for pk, gain in coll_gains.items():
-            claims[pk] = int(claims.get(pk, 0)) + int(gain)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
-        _raise_if_bad_state(next_state)
-        return next_state, {
-            **dict(result.effects or {}),
-            "sp_escrow_delta": -debt_units,
-            "native_balance_delta_e8": liquidator_comp,
-            "sp_collateral_claims_e8": coll_gains,
-        }
-
-    if action == "claim_sp_collateral":
-        account = _sender_account(op, sender=sender, action=action)
-        amount_e8 = _require_int(op.get("amount_e8"), name="claim_sp_collateral.amount_e8", minimum=1)
-        current = int(claims.get(account, 0))
-        if amount_e8 > current:
-            raise ValueError("claim exceeds account collateral gain")
-        if amount_e8 > core.sp_coll_e8:
-            raise ValueError("claim exceeds stability-pool collateral")
-        next_core = ZUSDState(**{**core.__dict__, "sp_coll_e8": int(core.sp_coll_e8) - amount_e8})
-        failures = check_invariants(next_core)
-        if failures:
-            raise ValueError(f"invariant violation: {','.join(failures)}")
-        native_account = native_sender if account == sender else account
-        balances.add(native_account, NATIVE_ASSET, amount_e8)
-        claims = _set_or_drop(claims, account, current - amount_e8)
-        next_state = ZUSDMonetaryState(core=next_core, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
-        _raise_if_bad_state(next_state)
-        return next_state, {"event": "sp_collateral_claimed", "amount_e8": amount_e8, "native_balance_delta_e8": amount_e8}
-
-    raise ValueError(f"unknown action: {action}")
+    handler = _APPLY_DISPATCH.get(action)
+    if handler is None:
+        raise ValueError(f"unknown action: {action}")
+    ctx = _ApplyCtx(
+        config=config,
+        balances=balances,
+        op=op,
+        action=action,
+        sender=sender,
+        native_sender=native_sender,
+        zusd_asset=zusd_asset,
+        sp_pubkey=sp_pubkey,
+        core=monetary_state.core,
+        owner=monetary_state.vault_owner_pubkey,
+        deposits=dict(monetary_state.sp_deposits_e8 or {}),
+        claims=dict(monetary_state.sp_collateral_claims_e8 or {}),
+    )
+    return handler(ctx)
 
 
 def _parse_ops(raw_ops: Any) -> list[Mapping[str, Any]]:

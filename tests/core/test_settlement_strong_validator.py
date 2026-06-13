@@ -3403,3 +3403,688 @@ def test_strong_validator_rejects_unsupported_intent_kind() -> None:
     )
     assert ok is False
     assert err == "unsupported intent kind for strong validation: MYSTERY_KIND"
+
+
+# ---------------------------------------------------------------------------
+# [TESTER] v2 — Golden characterization + precedence + no-op-on-reject suite
+# for the strict behavior-preserving refactor of
+# `_validate_settlement_strong_impl`.
+#
+# These pin the CURRENT observable behavior of the strong validator: the EXACT
+# reject code/message per rule, the ORDER (precedence) in which rules fire when
+# an input violates two rules at once, and that a rejected input leaves the
+# replay state (balances / pools / lp) unchanged. They are the oracle: they must
+# remain identically green after the refactor. Any drift = the refactor is wrong.
+# ---------------------------------------------------------------------------
+
+
+def _snapshot_balances(balances: BalanceTable) -> dict:
+    return dict(balances.get_all_balances())
+
+
+def _snapshot_lp(lp: LPTable) -> dict:
+    return dict(lp.get_all_balances())
+
+
+def _snapshot_pools(pools: dict) -> dict:
+    # Capture the reserves/supply that the replay would mutate in place.
+    return {
+        pid: (int(p.reserve0), int(p.reserve1), int(p.lp_supply))
+        for pid, p in pools.items()
+    }
+
+
+# --- GOLDEN: a passing (accepted) settlement for each supported intent kind ---
+
+
+def test_golden_accepts_passing_swap_exact_in() -> None:
+    _pk, _a0, _a1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is True
+    assert err is None
+
+
+def test_golden_accepts_passing_swap_exact_out() -> None:
+    _pk, _a0, _a1, pool_id, pool, balances, intent, settlement = _setup_swap_exact_out_context()
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is True
+    assert err is None
+
+
+def test_golden_accepts_passing_create_pool() -> None:
+    _pk, _a0, _a1, balances, intent, settlement = _setup_create_pool_context()
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is True
+    assert err is None
+
+
+def test_golden_accepts_passing_add_liquidity() -> None:
+    _pk, _a0, _a1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is True
+    assert err is None
+
+
+def test_golden_accepts_passing_remove_liquidity() -> None:
+    _pk, _a0, _a1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_remove_liquidity_context()
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is True
+    assert err is None
+
+
+# --- PRECEDENCE: top-level rule ordering (which rule fires first) ---
+
+
+def test_precedence_mode_check_before_fee_params() -> None:
+    # Bad mode AND bad protocol_fee_share_bps. Mode check (first) must win.
+    # MUTATION CAUGHT: moving the protocol_fee_share_bps check above the mode check.
+    _pk, _a0, _a1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="bogus_mode",
+        protocol_fee_share_bps=99999,  # also invalid
+    )
+    assert ok is False
+    assert err == "unsupported validation mode: 'bogus_mode'"
+
+
+def test_precedence_fee_bps_range_before_recipient_required() -> None:
+    # Out-of-range fee bps AND missing recipient pubkey. Range check fires first.
+    # MUTATION CAUGHT: reordering the recipient-required check above the bps-range check.
+    _pk, _a0, _a1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=20000,  # out of [0,10000] AND >0 with no recipient
+        protocol_fee_recipient_pubkey=None,
+    )
+    assert ok is False
+    assert err == "protocol_fee_share_bps must be an int in [0, 10000]"
+
+
+def test_precedence_duplicate_intent_id_before_included_mismatch() -> None:
+    # Duplicate input intent ids AND included_intents mismatch. Dup check is first.
+    # MUTATION CAUGHT: reordering the included-intents-mismatch check above duplicate-intent-id.
+    _pk, _a0, _a1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    settlement.included_intents = [(_iid(123456), FillAction.REJECT)]  # also mismatched
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent, intent],  # duplicate
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "duplicate intent_id in input intents"
+
+
+def test_precedence_included_mismatch_before_duplicate_included() -> None:
+    # included_intents set-mismatch AND contains a duplicate id. Set-mismatch fires first.
+    # MUTATION CAUGHT: reordering the duplicate-included-entries check above set-mismatch.
+    _pk, _a0, _a1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    # Two copies of a WRONG id => set mismatch (missing real id, extra wrong id) AND duplicates.
+    settlement.included_intents = [
+        (_iid(777), FillAction.REJECT),
+        (_iid(777), FillAction.REJECT),
+    ]
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"settlement included_intents mismatch: missing=['{intent.intent_id}'] extra=['{_iid(777)}']"
+
+
+def test_precedence_duplicate_fill_before_extra_fill() -> None:
+    # fills has a duplicated id AND an extra (not-in-intents) id. Duplicate check is first.
+    # MUTATION CAUGHT: reordering the extra-fill-id check above duplicate-fill-id.
+    _pk, _a0, _a1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    extra = Fill(
+        intent_id=_iid(888),
+        action=FillAction.REJECT,
+        reason="UNSUPPORTED",
+        amount_in_filled=0,
+        amount_out_filled=0,
+        fee_paid=0,
+    )
+    # Duplicate the legitimate fill AND append an unknown one.
+    settlement.fills = [settlement.fills[0], settlement.fills[0], extra]
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "settlement fills contains duplicate intent_id entries"
+
+
+def test_precedence_cow_pair_index_before_per_intent_replay() -> None:
+    # The up-front _validate_cow_pair_index runs before the per-intent replay loop.
+    # A COW_NETTED fill with allow_cow_netting=False is rejected by the up-front index
+    # check, NOT by the in-loop COW check. Both emit the same string but the up-front
+    # one fires first (proven because no replay/recipient errors surface).
+    # MUTATION CAUGHT: moving the _validate_cow_pair_index call below the replay loop.
+    _pk, _a0, _a1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    settlement.fills[0].reason = "COW_NETTED"
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=False,
+    )
+    assert ok is False
+    assert err == f"COW_NETTED not allowed for intent_id={intent.intent_id}"
+
+
+def test_precedence_quote_binding_runs_before_reject_skip() -> None:
+    # Quote-binding checks run for EVERY included intent, BEFORE the action==REJECT skip.
+    # A REJECT-action intent carrying a quote_receipt_leg_index still fails on the binding.
+    # MUTATION CAUGHT: moving the action==REJECT early-continue above the quote-binding block.
+    _pk, _a0, _a1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    intent.fields["quote_receipt_leg_index"] = 0
+    settlement.included_intents = [(intent.intent_id, FillAction.REJECT)]
+    settlement.fills = [
+        Fill(
+            intent_id=intent.intent_id,
+            action=FillAction.REJECT,
+            reason="UNSUPPORTED",
+            amount_in_filled=0,
+            amount_out_filled=0,
+            fee_paid=0,
+        )
+    ]
+    # Make deltas/events empty so a (wrong) post-loop path could not mask this.
+    settlement.balance_deltas = []
+    settlement.reserve_deltas = []
+    settlement.lp_deltas = []
+    settlement.events = None
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    # The leg-index format check passes (0 is valid), then the unconditional
+    # "transport metadata requires validated engine witness" reject fires.
+    assert err is not None
+    assert err.startswith("quote receipt transport metadata requires validated engine witness")
+
+
+def test_precedence_leg_index_format_before_engine_witness() -> None:
+    # Within the leg-index block: the format-validity check (negative => invalid) fires
+    # BEFORE the unconditional engine-witness reject.
+    # MUTATION CAUGHT: dropping/reordering the leg-index format check vs the witness reject.
+    _pk, _a0, _a1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    intent.fields["quote_receipt_leg_index"] = -1  # invalid format
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith("invalid quote_receipt_leg_index")
+
+
+def test_precedence_recipient_validated_before_create_pool_body() -> None:
+    # recipient validation (332-335) runs for CREATE_POOL too, BEFORE the CREATE_POOL body.
+    # An invalid recipient rejects with the recipient message, not a CREATE_POOL field error.
+    # MUTATION CAUGHT: moving the recipient check after the per-kind dispatch.
+    _pk, _a0, _a1, balances, intent, settlement = _setup_create_pool_context()
+    intent.fields["recipient"] = ""  # invalid
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid recipient for intent_id={intent.intent_id}"
+
+
+def test_precedence_create_pool_dispatched_before_shared_pool_lookup() -> None:
+    # CREATE_POOL is dispatched BEFORE the shared `pool_id not in pools` lookup, so a
+    # CREATE_POOL intent (which has no pre-existing pool) never trips pool-not-found.
+    # A CREATE_POOL with a bad fill is rejected by the CREATE_POOL body, proving the
+    # create branch was taken instead of the generic pool lookup.
+    # MUTATION CAUGHT: moving the CREATE_POOL branch below the shared pool lookup.
+    _pk, _a0, _a1, balances, intent, settlement = _setup_create_pool_context()
+    settlement.fills[0].amount0_used = 999999  # mismatch vs kernel
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"CREATE_POOL fill.amount0_used mismatch for intent_id={intent.intent_id}"
+
+
+def test_precedence_canonical_deltas_before_balance_mismatch() -> None:
+    # Post-loop: _check_canonical_deltas runs BEFORE the balance_deltas-vs-replay compare.
+    # A settlement whose balance_deltas are both non-canonical (zero entry) is rejected
+    # by the canonical check, not the replay-mismatch check.
+    # MUTATION CAUGHT: reordering the balance_deltas replay compare above _check_canonical_deltas.
+    _pk, asset0, _a1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    # Inject a zero-valued balance delta (non-canonical) at the front.
+    settlement.balance_deltas = [
+        BalanceDelta(pubkey="0x" + "11" * 48, asset=asset0, delta_add=0, delta_sub=0)
+    ] + list(settlement.balance_deltas)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "balance_deltas contains a zero entry"
+
+
+def test_precedence_balance_mismatch_before_events_mismatch() -> None:
+    # Post-loop compare order: balance_deltas mismatch is reported BEFORE events mismatch.
+    # MUTATION CAUGHT: reordering the events compare above the balance_deltas compare.
+    _pk, _a0, _a1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    # Corrupt balance_deltas (drop one) AND corrupt events simultaneously.
+    settlement.balance_deltas = list(settlement.balance_deltas)[:-1]
+    settlement.events = [{"type": "BOGUS"}]
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "balance_deltas mismatch vs replay"
+
+
+def test_precedence_reserve_mismatch_before_lp_mismatch() -> None:
+    # Post-loop compare: reserve_deltas mismatch is reported BEFORE lp_deltas mismatch.
+    # add_liquidity touches BOTH reserves and lp, so corrupting both is meaningful.
+    # MUTATION CAUGHT: reordering the lp_deltas compare above the reserve_deltas compare.
+    _pk, _a0, _a1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    # Drop a reserve delta AND drop an lp delta.
+    settlement.reserve_deltas = list(settlement.reserve_deltas)[:-1]
+    settlement.lp_deltas = []
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "reserve_deltas mismatch vs replay"
+
+
+def test_precedence_lp_mismatch_before_events_mismatch() -> None:
+    # Post-loop compare: lp_deltas mismatch is reported BEFORE events mismatch.
+    # MUTATION CAUGHT: reordering the events compare above the lp_deltas compare.
+    _pk, _a0, _a1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    settlement.lp_deltas = []  # mismatch vs replay
+    settlement.events = [{"type": "BOGUS"}]  # also mismatch
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "lp_deltas mismatch vs replay"
+
+
+# --- NO-OP ON REJECT: a rejected input must not mutate replay state ---
+# The impl operates on local copies (pre_balances / pre_pools / pre_lp_balances
+# are deep-copied before replay). These tests pin that the ORIGINAL caller-owned
+# state objects are never mutated, even when replay partially applies before the
+# reject fires. MUTATION CAUGHT (all three): replaying against the originals
+# instead of copies (dropping _copy_balance_table / replace(pool) / _copy_lp_table).
+
+
+def test_no_op_on_reject_swap_does_not_mutate_inputs() -> None:
+    _pk, _a0, _a1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    bal_before = _snapshot_balances(balances)
+    pools_before = _snapshot_pools({pool_id: pool})
+    # Corrupt the fee so the swap applies balances+reserves locally then rejects on
+    # the fee_paid mismatch — a path that partially mutates the LOCAL copies.
+    settlement.fills[0].fee_paid = (settlement.fills[0].fee_paid or 0) + 1
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap fee_paid mismatch for intent_id={intent.intent_id}"
+    assert _snapshot_balances(balances) == bal_before
+    assert _snapshot_pools({pool_id: pool}) == pools_before
+
+
+def test_no_op_on_reject_add_liquidity_does_not_mutate_inputs() -> None:
+    _pk, _a0, _a1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    bal_before = _snapshot_balances(balances)
+    pools_before = _snapshot_pools({pool_id: pool})
+    lp_before = _snapshot_lp(lp_balances)
+    # Corrupt events so replay fully applies (mutating local copies) then rejects post-loop.
+    settlement.events = [{"type": "BOGUS"}]
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert _snapshot_balances(balances) == bal_before
+    assert _snapshot_pools({pool_id: pool}) == pools_before
+    assert _snapshot_lp(lp_balances) == lp_before
+
+
+def test_no_op_on_reject_remove_liquidity_does_not_mutate_inputs() -> None:
+    _pk, _a0, _a1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_remove_liquidity_context()
+    bal_before = _snapshot_balances(balances)
+    pools_before = _snapshot_pools({pool_id: pool})
+    lp_before = _snapshot_lp(lp_balances)
+    settlement.events = [{"type": "BOGUS"}]
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert _snapshot_balances(balances) == bal_before
+    assert _snapshot_pools({pool_id: pool}) == pools_before
+    assert _snapshot_lp(lp_balances) == lp_before
+
+
+def test_no_op_on_accept_does_not_mutate_inputs() -> None:
+    # Even on the ACCEPT path the caller-owned inputs must be untouched (replay uses copies).
+    # MUTATION CAUGHT: replaying against the originals (would mutate on accept too).
+    _pk, _a0, _a1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    bal_before = _snapshot_balances(balances)
+    pools_before = _snapshot_pools({pool_id: pool})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is True
+    assert err is None
+    assert _snapshot_balances(balances) == bal_before
+    assert _snapshot_pools({pool_id: pool}) == pools_before
+
+
+# --- MULTI-INTENT: cross-intent state threading + interleaved precedence ---
+# These witness the two properties single-intent tests are blind to: sequential
+# pool-reserve visibility (intent[1] reads intent[0]'s mutation) + per-intent
+# delta accumulation, and per-intent interleaved reject precedence.
+
+
+def _setup_two_swap_same_pool_context() -> tuple[str, str, str, str, PoolState, BalanceTable, Intent, Intent, Settlement]:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000_000)
+    balances.set(pk, asset1, 10_000_000)
+
+    def _mk(n: int) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(n),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": asset0,
+                "asset_out": asset1,
+                "amount_in": 1_000,
+                "min_amount_out": 1,
+            },
+        )
+
+    i0 = _mk(800)
+    i1 = _mk(801)
+    settlement = compute_settlement([i0, i1], {pool_id: pool}, balances, LPTable())
+    return pk, asset0, asset1, pool_id, pool, balances, i0, i1, settlement
+
+
+def test_golden_accepts_two_sequential_swaps_same_pool() -> None:
+    # HIGHEST-VALUE multi-intent probe. intent[1]'s expected amount_out is derived
+    # from the pool reserves AFTER intent[0]'s swap; the two fills carry different
+    # outputs (996 vs 995). Accepting this requires the replay to thread the pool
+    # mutation between iterations AND aggregate per-intent balance/reserve deltas.
+    # MUTATION CAUGHT: per-intent context reset (loses pool mutation), or accumulator
+    # lists not shared by reference (loses cross-intent delta aggregation).
+    _pk, _a0, _a1, pool_id, pool, balances, i0, i1, settlement = _setup_two_swap_same_pool_context()
+    out_values = sorted(int(f.amount_out_filled or 0) for f in settlement.fills)
+    assert out_values[0] != out_values[1]  # proves sequential reserve dependence
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[i0, i1],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is True
+    assert err is None
+
+
+def test_precedence_first_intent_reject_wins_over_second_intent_reject() -> None:
+    # Two intents BOTH defective: intent[0] has a fee_paid mismatch (in-loop replay
+    # reject), intent[1] has a bad quote binding (in-loop preamble reject). The loop
+    # processes intents in included order and short-circuits on the FIRST, so the
+    # error is intent[0]'s replay reject — proving per-intent checks stay interleaved
+    # in a single pass (not split into separate all-intent pre-passes that reorder).
+    # MUTATION CAUGHT: hoisting quote-binding (or any pre-rule) into its own pass over
+    # all intents ahead of the replay loop — would surface intent[1]'s error first.
+    _pk, _a0, _a1, pool_id, pool, balances, i0, i1, settlement = _setup_two_swap_same_pool_context()
+    # Defect intent[1]: add a quote binding (engine-witness reject).
+    i1.fields["quote_receipt_leg_index"] = 0
+    # Defect intent[0]: corrupt its fee_paid so replay rejects.
+    fill_by_id = {f.intent_id: f for f in settlement.fills}
+    fill_by_id[i0.intent_id].fee_paid = (fill_by_id[i0.intent_id].fee_paid or 0) + 1
+    # Force included order so intent[0] is processed first.
+    settlement.included_intents = [
+        (i0.intent_id, FillAction.FILL),
+        (i1.intent_id, FillAction.FILL),
+    ]
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[i0, i1],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap fee_paid mismatch for intent_id={i0.intent_id}"
+
+
+def test_golden_accepts_swap_with_nonzero_protocol_fee() -> None:
+    # Accept-path coverage for the protocol-fee swap branch (protocol_fee_share_bps>0):
+    # exercises swap_exact_in_with_protocol_fee + the protocol-fee balance/reserve
+    # deltas. A regression in this branch fails ONLY by over-rejecting a valid
+    # settlement, which reject-path tests cannot catch.
+    # MUTATION CAUGHT: dropping/altering the protocol-fee delta or fee computation
+    # in the SWAP_EXACT_IN protocol-fee branch.
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    fee_pk = "0x" + "77" * 48
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000_000)
+    balances.set(pk, asset1, 10_000_000)
+
+    from src.core.cpmm import compute_fee_total, swap_exact_in_with_protocol_fee
+
+    amount_in = 10_000
+    quote = swap_exact_in_with_protocol_fee(
+        reserve_in=2_000_000,
+        reserve_out=2_000_000,
+        amount_in=amount_in,
+        fee_bps=30,
+        protocol_fee_share_bps=2000,
+    )
+    fee = compute_fee_total(amount_in, 30)
+    assert int(quote.protocol_fee) > 0  # the branch is actually exercised
+
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(820),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": amount_in,
+            "min_amount_out": 1,
+        },
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.FILL)],
+        fills=[
+            Fill(
+                intent_id=intent.intent_id,
+                action=FillAction.FILL,
+                reason="FILLED",
+                amount_in_filled=amount_in,
+                amount_out_filled=int(quote.amount_out),
+                fee_paid=int(fee),
+                protocol_fee_paid=int(quote.protocol_fee),
+            )
+        ],
+        balance_deltas=sorted(
+            [
+                BalanceDelta(pubkey=pk, asset=asset0, delta_add=0, delta_sub=amount_in),
+                BalanceDelta(pubkey=pk, asset=asset1, delta_add=int(quote.amount_out), delta_sub=0),
+                BalanceDelta(pubkey=fee_pk, asset=asset0, delta_add=int(quote.protocol_fee), delta_sub=0),
+            ],
+            key=lambda d: (d.pubkey, d.asset),
+        ),
+        reserve_deltas=sorted(
+            [
+                ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=amount_in - int(quote.protocol_fee), delta_sub=0),
+                ReserveDelta(pool_id=pool_id, asset=asset1, delta_add=0, delta_sub=int(quote.amount_out)),
+            ],
+            key=lambda d: (d.pool_id, d.asset),
+        ),
+        lp_deltas=[],
+        events=None,
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=2000,
+        protocol_fee_recipient_pubkey=fee_pk,
+    )
+    assert ok is True
+    assert err is None

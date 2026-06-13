@@ -1,0 +1,416 @@
+{
+  "schema": "zenodex/fhe_sealed_bid_alpha_characterization/v1",
+  "target": "src.core.fhe_sealed_bid_alpha.verify_fhe_sealed_bid_alpha_plan",
+  "description": "Locked (ok, error) outcomes and first-failure ordering for the fail-closed FHE sealed-bid alpha-plan verifier.",
+  "case_count": 68,
+  "records": [
+    {
+      "name": "ok_valid",
+      "ok": true,
+      "error": "ok",
+      "raised": null
+    },
+    {
+      "name": "bad_receipt_type__not_dict",
+      "ok": false,
+      "error": "bad_receipt_type",
+      "raised": null
+    },
+    {
+      "name": "missing_body__no_body",
+      "ok": false,
+      "error": "missing_body",
+      "raised": null
+    },
+    {
+      "name": "missing_body__body_not_dict",
+      "ok": false,
+      "error": "missing_body",
+      "raised": null
+    },
+    {
+      "name": "bad_schema__wrong",
+      "ok": false,
+      "error": "bad_schema",
+      "raised": null
+    },
+    {
+      "name": "missing_receipt_hash__deleted",
+      "ok": false,
+      "error": "missing_receipt_hash",
+      "raised": null
+    },
+    {
+      "name": "missing_receipt_hash__empty",
+      "ok": false,
+      "error": "missing_receipt_hash",
+      "raised": null
+    },
+    {
+      "name": "missing_receipt_hash__not_str",
+      "ok": false,
+      "error": "missing_receipt_hash",
+      "raised": null
+    },
+    {
+      "name": "hash_mismatch__body_tampered",
+      "ok": false,
+      "error": "hash_mismatch",
+      "raised": null
+    },
+    {
+      "name": "hash_mismatch__hash_corrupted",
+      "ok": false,
+      "error": "hash_mismatch",
+      "raised": null
+    },
+    {
+      "name": "bad_scheme__wrong",
+      "ok": false,
+      "error": "bad_scheme",
+      "raised": null
+    },
+    {
+      "name": "bad_oracle_mode__wrong",
+      "ok": false,
+      "error": "bad_oracle_mode",
+      "raised": null
+    },
+    {
+      "name": "bad_fallback_policy__wrong",
+      "ok": false,
+      "error": "bad_fallback_policy",
+      "raised": null
+    },
+    {
+      "name": "bad_result_verification_mode__wrong",
+      "ok": false,
+      "error": "bad_result_verification_mode",
+      "raised": null
+    },
+    {
+      "name": "bad_auction_id__empty",
+      "ok": false,
+      "error": "bad_auction_id",
+      "raised": null
+    },
+    {
+      "name": "bad_auction_id__not_str",
+      "ok": false,
+      "error": "bad_auction_id",
+      "raised": null
+    },
+    {
+      "name": "bad_key_id__empty",
+      "ok": false,
+      "error": "bad_key_id",
+      "raised": null
+    },
+    {
+      "name": "bad_key_id__not_str",
+      "ok": false,
+      "error": "bad_key_id",
+      "raised": null
+    },
+    {
+      "name": "key_not_approved__unknown_key",
+      "ok": false,
+      "error": "key_not_approved",
+      "raised": null
+    },
+    {
+      "name": "key_not_approved__empty_set",
+      "ok": false,
+      "error": "key_not_approved",
+      "raised": null
+    },
+    {
+      "name": "bad_cipher_bids__not_list",
+      "ok": false,
+      "error": "bad_cipher_bids",
+      "raised": null
+    },
+    {
+      "name": "cipher_validate__empty_bidder_id",
+      "ok": false,
+      "error": "bidder_id must be non-empty",
+      "raised": null
+    },
+    {
+      "name": "cipher_validate__empty_commitment",
+      "ok": false,
+      "error": "commitment must be non-empty",
+      "raised": null
+    },
+    {
+      "name": "cipher_validate__empty_quantity_handle",
+      "ok": false,
+      "error": "quantity_handle must be non-empty",
+      "raised": null
+    },
+    {
+      "name": "cipher_validate__empty_price_handle",
+      "ok": false,
+      "error": "price_handle must be non-empty",
+      "raised": null
+    },
+    {
+      "name": "cipher_validate__duplicate_handle",
+      "ok": false,
+      "error": "duplicate_cipher_handle",
+      "raised": null
+    },
+    {
+      "name": "cipher_validate__duplicate_commit_key",
+      "ok": false,
+      "error": "duplicate_commit_key",
+      "raised": null
+    },
+    {
+      "name": "bad_budget__not_dict",
+      "ok": false,
+      "error": "bad_budget",
+      "raised": null
+    },
+    {
+      "name": "bad_budget_numeric__non_numeric",
+      "ok": false,
+      "error": "bad_budget_numeric",
+      "raised": null
+    },
+    {
+      "name": "budget_bid_count_mismatch__too_low",
+      "ok": false,
+      "error": "budget_bid_count_mismatch",
+      "raised": null
+    },
+    {
+      "name": "compare_ops_mismatch__off_by_one",
+      "ok": false,
+      "error": "compare_ops_mismatch",
+      "raised": null
+    },
+    {
+      "name": "select_ops_mismatch__off_by_one",
+      "ok": false,
+      "error": "select_ops_mismatch",
+      "raised": null
+    },
+    {
+      "name": "add_ops_mismatch__off_by_one",
+      "ok": false,
+      "error": "add_ops_mismatch",
+      "raised": null
+    },
+    {
+      "name": "sort_layers_mismatch__off_by_one",
+      "ok": false,
+      "error": "sort_layers_mismatch",
+      "raised": null
+    },
+    {
+      "name": "estimated_hcu_mismatch__off_by_one",
+      "ok": false,
+      "error": "estimated_hcu_mismatch",
+      "raised": null
+    },
+    {
+      "name": "estimated_depth_mismatch__off_by_one",
+      "ok": false,
+      "error": "estimated_depth_mismatch",
+      "raised": null
+    },
+    {
+      "name": "estimator_decrypt_outputs_out_of_range",
+      "ok": false,
+      "error": "decrypt_outputs out of range",
+      "raised": null
+    },
+    {
+      "name": "bad_public_result__not_dict",
+      "ok": false,
+      "error": "bad_public_result",
+      "raised": null
+    },
+    {
+      "name": "bad_public_result_numeric__non_numeric",
+      "ok": false,
+      "error": "bad_public_result_numeric",
+      "raised": null
+    },
+    {
+      "name": "units_for_sale_out_of_range__zero",
+      "ok": false,
+      "error": "units_for_sale_out_of_range",
+      "raised": null
+    },
+    {
+      "name": "clearing_price_out_of_range__negative",
+      "ok": false,
+      "error": "clearing_price_out_of_range",
+      "raised": null
+    },
+    {
+      "name": "total_filled_out_of_range__over_units",
+      "ok": false,
+      "error": "total_filled_out_of_range",
+      "raised": null
+    },
+    {
+      "name": "fill_count_out_of_range__over_bid_count",
+      "ok": false,
+      "error": "fill_count_out_of_range",
+      "raised": null
+    },
+    {
+      "name": "bad_fills__not_list",
+      "ok": false,
+      "error": "bad_fills",
+      "raised": null
+    },
+    {
+      "name": "fill_count_mismatch__short_fills",
+      "ok": false,
+      "error": "fill_count_mismatch",
+      "raised": null
+    },
+    {
+      "name": "bad_fill__not_dict",
+      "ok": false,
+      "error": "bad_fill",
+      "raised": null
+    },
+    {
+      "name": "bad_fill_bidder_id__empty",
+      "ok": false,
+      "error": "bad_fill_bidder_id",
+      "raised": null
+    },
+    {
+      "name": "bad_fill_commitment__empty",
+      "ok": false,
+      "error": "bad_fill_commitment",
+      "raised": null
+    },
+    {
+      "name": "duplicate_fill_key__second_equals_first",
+      "ok": false,
+      "error": "duplicate_fill_key",
+      "raised": null
+    },
+    {
+      "name": "fill_without_cipher_bid__unknown_key",
+      "ok": false,
+      "error": "fill_without_cipher_bid",
+      "raised": null
+    },
+    {
+      "name": "bad_fill_numeric__non_numeric_qty",
+      "ok": false,
+      "error": "bad_fill_numeric",
+      "raised": null
+    },
+    {
+      "name": "filled_quantity_out_of_range__zero",
+      "ok": false,
+      "error": "filled_quantity_out_of_range",
+      "raised": null
+    },
+    {
+      "name": "paid_price_mismatch__not_clearing",
+      "ok": false,
+      "error": "paid_price_mismatch",
+      "raised": null
+    },
+    {
+      "name": "unauthenticated_public_result__none",
+      "ok": false,
+      "error": "unauthenticated_public_result",
+      "raised": null
+    },
+    {
+      "name": "trusted_plain_bid_count_mismatch__short",
+      "ok": false,
+      "error": "trusted_plain_bid_count_mismatch",
+      "raised": null
+    },
+    {
+      "name": "trusted_plain_surface_mismatch__rename",
+      "ok": false,
+      "error": "trusted_plain_surface_mismatch",
+      "raised": null
+    },
+    {
+      "name": "cipher_bid_count_out_of_range__nine_bids",
+      "ok": false,
+      "error": "cipher_bid_count_out_of_range",
+      "raised": null
+    },
+    {
+      "name": "decrypt_output_mismatch__in_range_off",
+      "ok": false,
+      "error": "decrypt_output_mismatch",
+      "raised": null
+    },
+    {
+      "name": "filled_sum_mismatch__total_below_sum",
+      "ok": false,
+      "error": "filled_sum_mismatch",
+      "raised": null
+    },
+    {
+      "name": "trusted_plain_quantity_out_of_range__zero",
+      "ok": false,
+      "error": "trusted_plain_quantity_out_of_range",
+      "raised": null
+    },
+    {
+      "name": "trusted_plain_price_out_of_range__zero",
+      "ok": false,
+      "error": "trusted_plain_price_out_of_range",
+      "raised": null
+    },
+    {
+      "name": "bad_trusted_plain_bids__not_iterable",
+      "ok": false,
+      "error": "bad_trusted_plain_bids",
+      "raised": null
+    },
+    {
+      "name": "public_result_mismatch__altered_quantities",
+      "ok": false,
+      "error": "public_result_mismatch",
+      "raised": null
+    },
+    {
+      "name": "precedence__schema_before_hash_before_oracle",
+      "ok": false,
+      "error": "bad_schema",
+      "raised": null
+    },
+    {
+      "name": "precedence__oracle_before_key",
+      "ok": false,
+      "error": "bad_oracle_mode",
+      "raised": null
+    },
+    {
+      "name": "precedence__budget_before_public_result",
+      "ok": false,
+      "error": "compare_ops_mismatch",
+      "raised": null
+    },
+    {
+      "name": "precedence__fillloop_dupkey_before_numeric",
+      "ok": false,
+      "error": "duplicate_fill_key",
+      "raised": null
+    },
+    {
+      "name": "precedence__publicresult_before_trusted",
+      "ok": false,
+      "error": "clearing_price_out_of_range",
+      "raised": null
+    }
+  ]
+}

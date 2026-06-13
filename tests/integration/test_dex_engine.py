@@ -1453,3 +1453,543 @@ def test_engine_rejects_oversized_proof_payload_before_verifier() -> None:
     assert not res.ok
     assert res.error is not None
     assert "proof payload too large" in res.error
+
+
+# ---------------------------------------------------------------------------
+# Characterization (golden) tests for apply_ops orchestration.
+#
+# apply_ops is a single ~118-complexity validate -> compute -> apply pipeline.
+# These tests pin its CURRENT externally observable behavior so a
+# behavior-preserving complexity refactor can be verified bit-identically:
+#   * a successful multi-op application (resulting state + event/effect order),
+#   * one rejecting case per extracted block with the EXACT reject string,
+#   * the documented reject PRECEDENCE between guards,
+#   * an unknown / malformed op,
+#   * no-op-on-reject (a rejected batch leaves state byte-for-byte unchanged).
+#
+# The uniform-batch fixtures below are deliberately self-contained replicas of
+# the ones in test_dex_engine_uniform_batch_certificate.py so this file is its
+# own oracle for the uniform-batch + cross-check + settlement-match blocks.
+# ---------------------------------------------------------------------------
+
+from hashlib import sha256 as _gold_sha256
+
+_GOLD_SENDER = "0x" + "aa" * 48
+
+
+def _gold_intent_id(label: str) -> str:
+    return "0x" + _gold_sha256(label.encode("utf-8")).hexdigest()
+
+
+def _gold_pool() -> PoolState:
+    return PoolState(
+        pool_id="pool_ab",
+        asset0="A",
+        asset1="B",
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=0,
+        lp_supply=1_000,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+
+
+def _gold_state() -> DexState:
+    balances = BalanceTable()
+    balances.set(_GOLD_SENDER, "A", 1_000)
+    balances.set(_GOLD_SENDER, "B", 1_000)
+    return DexState(balances=balances, pools={"pool_ab": _gold_pool()}, lp_balances=LPTable())
+
+
+def _gold_swap_dict(*, label: str, asset_in: str, asset_out: str, nonce: int) -> dict:
+    return {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "SWAP_EXACT_IN",
+        "intent_id": _gold_intent_id(label),
+        "sender_pubkey": _GOLD_SENDER,
+        "deadline": 999_999_999,
+        "nonce": nonce,
+        "pool_id": "pool_ab",
+        "asset_in": asset_in,
+        "asset_out": asset_out,
+        "amount_in": 100,
+        "min_amount_out": 90,
+    }
+
+
+def _gold_intent(*, label: str, asset_in: str, asset_out: str, nonce: int):
+    from src.state.intents import Intent, IntentKind
+
+    return Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_gold_intent_id(label),
+        sender_pubkey=_GOLD_SENDER,
+        deadline=999_999_999,
+        fields={
+            "nonce": nonce,
+            "pool_id": "pool_ab",
+            "asset_in": asset_in,
+            "asset_out": asset_out,
+            "amount_in": 100,
+            "min_amount_out": 90,
+        },
+    )
+
+
+def _gold_intents() -> list:
+    return [
+        _gold_intent(label="a-to-b", asset_in="A", asset_out="B", nonce=1),
+        _gold_intent(label="b-to-a", asset_in="B", asset_out="A", nonce=2),
+    ]
+
+
+def _gold_intent_ops() -> list:
+    return [
+        _gold_swap_dict(label="a-to-b", asset_in="A", asset_out="B", nonce=1),
+        _gold_swap_dict(label="b-to-a", asset_in="B", asset_out="A", nonce=2),
+    ]
+
+
+def _gold_certificate(intents: list):
+    from src.core.uniform_batch_clearing import (
+        UniformBatchCertificateV1,
+        UniformBatchFillV1,
+        uniform_batch_intent_set_hash,
+        uniform_batch_pool_state_hash,
+    )
+
+    return UniformBatchCertificateV1(
+        pool_id="pool_ab",
+        base_asset="A",
+        quote_asset="B",
+        pool_state_hash=uniform_batch_pool_state_hash(_gold_pool()),
+        intent_set_hash=uniform_batch_intent_set_hash(intents),
+        price_num=1,
+        price_den=1,
+        fills=tuple(
+            UniformBatchFillV1(intent_id=i.intent_id, executed_in=100, executed_out=100)
+            for i in sorted(intents, key=lambda item: item.intent_id)
+        ),
+    )
+
+
+def _gold_ops_with_uniform_certificate(*, tamper_settlement: bool = False) -> dict:
+    from src.core.uniform_batch_clearing import build_uniform_batch_settlement_v1
+
+    state = _gold_state()
+    intents = _gold_intents()
+    cert = _gold_certificate(intents)
+    settlement = build_uniform_batch_settlement_v1(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        balances=state.balances,
+        certificate=cert,
+    )
+    if tamper_settlement:
+        settlement.fills[0].amount_out_filled = 99
+    settlement_op = create_settlement_operation(settlement)["3"]
+    settlement_op["uniform_batch_certificate"] = cert.to_dict()
+    return {"2": _gold_intent_ops(), "3": settlement_op}
+
+
+def _state_fingerprint(state: DexState) -> tuple:
+    """Cheap deterministic snapshot of mutable DexState used for no-op checks."""
+    bal = state.balances
+    return (
+        bal.get(_GOLD_SENDER, "A"),
+        bal.get(_GOLD_SENDER, "B"),
+        state.nonces.get_last(_GOLD_SENDER),
+        tuple(
+            (pid, p.reserve0, p.reserve1, p.lp_supply)
+            for pid, p in sorted(state.pools.items())
+        ),
+    )
+
+
+# --- GOLDEN: successful multi-op application (state + event ordering) -------
+
+
+def test_golden_apply_ops_accepts_plain_two_swap_batch_state_and_events() -> None:
+    state = _gold_state()
+    res = apply_ops(
+        config=DexEngineConfig(allow_missing_settlement=True, require_intent_signatures=False),
+        state=state,
+        operations={"2": _gold_intent_ops()},
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok, res.error
+    assert res.state is not None
+    # Pin the EXACT current greedy-AB settlement outcome for this two-swap batch
+    # (sender nets +8 A / -10 B; this is the characterized behavior, not identity).
+    assert res.state.balances.get(_GOLD_SENDER, "A") == 1_008
+    assert res.state.balances.get(_GOLD_SENDER, "B") == 990
+    assert res.state.pools["pool_ab"].reserve0 == 992
+    assert res.state.pools["pool_ab"].reserve1 == 1_010
+    # Both nonces consumed, in order.
+    assert res.state.nonces.get_last(_GOLD_SENDER) == 2
+    assert res.settlement is not None
+    # Plain compute path emits no events; fill ordering is deterministic (by id).
+    assert res.settlement.events is None
+    fill_ids = [f.intent_id for f in res.settlement.fills]
+    assert fill_ids == sorted(fill_ids)
+
+
+def test_golden_apply_ops_accepts_uniform_batch_certificate_state_and_event_order() -> None:
+    from src.core.uniform_batch_clearing import (
+        UNIFORM_BATCH_POLICY_ID,
+        UNIFORM_BATCH_PRICE_OBJECTIVE_ID,
+    )
+
+    state = _gold_state()
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=state,
+        operations=_gold_ops_with_uniform_certificate(),
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok, res.error
+    assert res.state is not None
+    assert res.state.balances.get(_GOLD_SENDER, "A") == 1_000
+    assert res.state.balances.get(_GOLD_SENDER, "B") == 1_000
+    assert res.state.nonces.get_last(_GOLD_SENDER) == 2
+    assert res.settlement is not None
+    # Exact event payload + ordering pinned (single clearing event).
+    assert res.settlement.events == [
+        {
+            "type": "UNIFORM_BATCH_CLEARING_V1",
+            "pool_id": "pool_ab",
+            "policy_id": UNIFORM_BATCH_POLICY_ID,
+            "price_objective_id": UNIFORM_BATCH_PRICE_OBJECTIVE_ID,
+            "certificate_hash": _gold_certificate(_gold_intents()).hash(),
+        }
+    ]
+
+
+# --- GOLDEN: one reject per extracted block (exact strings) ------------------
+
+
+def test_golden_reject_uniform_batch_certificate_not_enabled() -> None:
+    # Entry guard of the uniform-batch settlement block (extracted helper).
+    res = apply_ops(
+        config=DexEngineConfig(require_intent_signatures=False),
+        state=_gold_state(),
+        operations=_gold_ops_with_uniform_certificate(),
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    assert res.error == "uniform batch certificate not enabled"
+
+
+def test_golden_reject_uniform_batch_settlement_match_mismatch() -> None:
+    # require_settlement_match path inside the uniform-batch block.
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_gold_state(),
+        operations=_gold_ops_with_uniform_certificate(tamper_settlement=True),
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    assert res.error == "settlement mismatch"
+
+
+def test_golden_reject_proof_payload_too_large_before_commitment_block() -> None:
+    # Proof size guard fires at parse time (before the commitment block).
+    state = _gold_state()
+    ops = _gold_ops_with_uniform_certificate()
+    del ops["3"]["uniform_batch_certificate"]
+    intents = parse_intents({"2": _gold_intent_ops()})
+    settlement = compute_settlement(
+        intents=intents, pools=state.pools, balances=state.balances, lp_balances=state.lp_balances
+    )
+    settlement_op = create_settlement_operation(settlement)["3"]
+    settlement_op["proof"] = {"scheme": "dummy", "blob": "x" * 512}
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=False,
+            require_intent_signatures=False,
+            proof_config=ProofVerifierConfig(max_proof_bytes=128),
+        ),
+        state=state,
+        operations={"2": _gold_intent_ops(), "3": settlement_op},
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    assert res.error is not None
+    assert "proof payload too large" in res.error
+
+
+# --- GOLDEN: cross-check (evidence-consistency) rejects, incl. missing cov ---
+
+
+def test_golden_reject_optimality_certificate_requires_uniform_batch_certificate() -> None:
+    state = _gold_state()
+    ops = _gold_ops_with_uniform_certificate()
+    # Optimality evidence present but no uniform batch certificate.
+    del ops["3"]["uniform_batch_certificate"]
+    ops["3"]["uniform_batch_optimality_certificate"] = {"winner_id": "0x00"}
+    res = apply_ops(
+        config=DexEngineConfig(allow_uniform_batch_certificate=True, require_intent_signatures=False),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    assert res.error == "uniform batch optimality certificate requires uniform batch certificate"
+
+
+def test_golden_reject_v2_bounded_grid_requires_uniform_batch_certificate() -> None:
+    # Pins line 1314 (v2 bounded-grid evidence without uniform batch certificate).
+    state = _gold_state()
+    ops = _gold_ops_with_uniform_certificate()
+    del ops["3"]["uniform_batch_certificate"]
+    ops["3"]["uniform_batch_v2_bounded_grid"] = {"max_price_num": 1, "max_price_den": 1, "fill_vectors": []}
+    res = apply_ops(
+        config=DexEngineConfig(allow_uniform_batch_certificate=True, require_intent_signatures=False),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    assert res.error == "uniform batch v2 bounded-grid evidence requires uniform batch certificate"
+
+
+def test_golden_reject_v3_exact_out_grid_requires_uniform_batch_certificate() -> None:
+    # Pins line 1319 (v3 exact-out grid evidence without uniform batch certificate).
+    state = _gold_state()
+    ops = _gold_ops_with_uniform_certificate()
+    del ops["3"]["uniform_batch_certificate"]
+    ops["3"]["uniform_batch_v3_exact_out_grid"] = {"max_price_num": 1, "max_price_den": 1}
+    res = apply_ops(
+        config=DexEngineConfig(allow_uniform_batch_certificate=True, require_intent_signatures=False),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    assert res.error == "uniform batch v3 exact-out grid evidence requires uniform batch certificate"
+
+
+def test_golden_reject_v2_bounded_grid_requires_optimality_certificate() -> None:
+    # Pins line 1324 (v2 bounded-grid evidence with cert but no optimality cert).
+    state = _gold_state()
+    ops = _gold_ops_with_uniform_certificate()
+    ops["3"]["uniform_batch_v2_bounded_grid"] = {"max_price_num": 1, "max_price_den": 1, "fill_vectors": []}
+    res = apply_ops(
+        config=DexEngineConfig(allow_uniform_batch_certificate=True, require_intent_signatures=False),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    assert res.error == "uniform batch v2 bounded-grid evidence requires optimality certificate"
+
+
+def test_golden_reject_v3_exact_out_grid_requires_optimality_certificate() -> None:
+    # Pins line 1329 (v3 exact-out grid evidence with cert but no optimality cert).
+    state = _gold_state()
+    ops = _gold_ops_with_uniform_certificate()
+    ops["3"]["uniform_batch_v3_exact_out_grid"] = {"max_price_num": 1, "max_price_den": 1}
+    res = apply_ops(
+        config=DexEngineConfig(allow_uniform_batch_certificate=True, require_intent_signatures=False),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    assert res.error == "uniform batch v3 exact-out grid evidence requires optimality certificate"
+
+
+def test_golden_reject_bounded_grid_evidence_provided_twice() -> None:
+    state = _gold_state()
+    ops = _gold_ops_with_uniform_certificate()
+    ops["3"]["uniform_batch_optimality_certificate"] = {"winner_id": "0x00"}
+    ops["3"]["uniform_batch_v2_bounded_grid"] = {"max_price_num": 1, "max_price_den": 1, "fill_vectors": []}
+    ops["3"]["uniform_batch_v3_exact_out_grid"] = {"max_price_num": 1, "max_price_den": 1}
+    res = apply_ops(
+        config=DexEngineConfig(allow_uniform_batch_certificate=True, require_intent_signatures=False),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    assert res.error == "uniform batch bounded-grid evidence provided twice"
+
+
+# --- GOLDEN: unknown / malformed op ------------------------------------------
+
+
+def test_golden_unknown_op_keys_are_ignored_not_applied() -> None:
+    # Only "2"/"3" are recognized. Unknown numeric keys must not change behavior.
+    state = _gold_state()
+    ops = {"2": _gold_intent_ops(), "7": [{"junk": True}], "totally_unknown": 1}
+    res = apply_ops(
+        config=DexEngineConfig(allow_missing_settlement=True, require_intent_signatures=False),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    # Behaves exactly like the plain two-swap batch (unknown keys are inert).
+    assert res.ok, res.error
+    assert res.state is not None
+    assert res.state.nonces.get_last(_GOLD_SENDER) == 2
+
+
+def test_golden_malformed_intent_op_rejects_with_invalid_intents() -> None:
+    state = _gold_state()
+    before = _state_fingerprint(state)
+    res = apply_ops(
+        config=DexEngineConfig(require_intent_signatures=False),
+        state=state,
+        operations={"2": "not-a-list"},
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    assert res.error is not None
+    assert res.error.startswith("invalid intents")
+    # No-op on reject.
+    assert _state_fingerprint(state) == before
+
+
+# --- GOLDEN: no-op-on-reject -------------------------------------------------
+
+
+def test_golden_no_op_on_reject_uniform_batch_not_enabled() -> None:
+    state = _gold_state()
+    before = _state_fingerprint(state)
+    res = apply_ops(
+        config=DexEngineConfig(require_intent_signatures=False),
+        state=state,
+        operations=_gold_ops_with_uniform_certificate(),
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    # Rejected batch leaves the input state byte-for-byte unchanged.
+    assert _state_fingerprint(state) == before
+
+
+def test_golden_no_op_on_reject_settlement_mismatch() -> None:
+    state = _gold_state()
+    before = _state_fingerprint(state)
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=state,
+        operations=_gold_ops_with_uniform_certificate(tamper_settlement=True),
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    assert _state_fingerprint(state) == before
+
+
+# --- TEETH: mutation-style tests that fail if a guard/precedence regresses ---
+
+
+def test_teeth_reject_precedence_optimality_consistency_before_entry_guard() -> None:
+    # MUTATION CAUGHT: reordering the evidence-consistency cross-checks AFTER the
+    # uniform-batch entry "not enabled" guard. Here UPBA is disabled AND optimality
+    # evidence is present without a uniform certificate. The consistency cross-check
+    # (earlier in apply_ops) must win over the "not enabled" entry guard.
+    state = _gold_state()
+    ops = _gold_ops_with_uniform_certificate()
+    del ops["3"]["uniform_batch_certificate"]
+    ops["3"]["uniform_batch_optimality_certificate"] = {"winner_id": "0x00"}
+    res = apply_ops(
+        config=DexEngineConfig(require_intent_signatures=False),  # UPBA NOT enabled
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    # Cross-check precedence: this exact string (not "uniform batch certificate not enabled").
+    assert res.error == "uniform batch optimality certificate requires uniform batch certificate"
+
+
+def test_teeth_nonce_replay_reject_precedes_settlement_compute() -> None:
+    # MUTATION CAUGHT: dropping/moving the nonce guard so a replayed batch reaches
+    # settlement compute/apply. A pre-consumed nonce must reject (no-op) regardless
+    # of an otherwise-valid uniform-batch certificate.
+    state = _gold_state()
+    state.nonces.set_last(_GOLD_SENDER, 5)  # both intent nonces (1,2) are stale
+    before = _state_fingerprint(state)
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=state,
+        operations=_gold_ops_with_uniform_certificate(),
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    assert res.error is not None
+    # Nonce policy reject, and state untouched (no settlement applied).
+    assert _state_fingerprint(state) == before
+
+
+def test_teeth_uniform_batch_dispatch_entry_guard_present() -> None:
+    # MUTATION CAUGHT: removing the uniform-batch settlement compute branch entirely
+    # (so a cert-bearing op silently falls through to the plain compute path). With
+    # UPBA enabled, a cert-bearing batch produces the UNIFORM_BATCH_CLEARING_V1 event;
+    # a plain compute_settlement would NOT emit that event type.
+    state = _gold_state()
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=state,
+        operations=_gold_ops_with_uniform_certificate(),
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok, res.error
+    assert res.settlement is not None
+    assert res.settlement.events is not None
+    assert res.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V1"
+
+
+def test_teeth_settlement_match_guard_present() -> None:
+    # MUTATION CAUGHT: dropping the require_settlement_match comparison (so a tampered
+    # settlement is accepted). A settlement whose fill output was altered must reject.
+    state = _gold_state()
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=state,
+        operations=_gold_ops_with_uniform_certificate(tamper_settlement=True),
+        block_timestamp=0,
+        tx_sender_pubkey=_GOLD_SENDER,
+    )
+    assert res.ok is False
+    assert res.error == "settlement mismatch"

@@ -175,6 +175,313 @@ def _quote_key(q: RouteQuote) -> Tuple[int, int, str, str, str]:
     return (int(hop_count), int(leg_count), pool_seq, mid, str(q.asset_out))
 
 
+def _exact_out_prefer(
+    cand_amount_in: int,
+    cand_key: Tuple[int, int, str, str, str],
+    cur_amount_in: Optional[int],
+    cur_key: Optional[Tuple[int, int, str, str, str]],
+) -> bool:
+    """
+    Exact-out candidate selection predicate (lower input wins; tie-break on key).
+
+    Returns True iff the candidate (cand_amount_in, cand_key) should replace the
+    current best (cur_amount_in, cur_key). Mirrors the original inline rule
+    exactly:
+        best is None
+        or cand.amount_in < best.amount_in
+        or (cand.amount_in == best.amount_in and (best_key is None or cand_key < best_key))
+
+    Operating on scalars (not RouteQuotes) so it serves both the quote-based
+    selection sites and the micro inner loop, which tracks a raw amount_in and a
+    `_quote_key_for` key.
+    """
+    if cur_amount_in is None:
+        return True
+    if int(cand_amount_in) < int(cur_amount_in):
+        return True
+    if int(cand_amount_in) == int(cur_amount_in) and (cur_key is None or cand_key < cur_key):
+        return True
+    return False
+
+
+def _onehop_quote(
+    *,
+    pool_id: str,
+    asset_in: AssetId,
+    asset_out: AssetId,
+    amount_in: int,
+    amount_out: int,
+) -> RouteQuote:
+    """Single direct 1-hop RouteQuote (one leg, one hop)."""
+    hop = RouteHop(str(pool_id), asset_in, asset_out, int(amount_in), int(amount_out))
+    return RouteQuote(
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_in=int(amount_in),
+        amount_out=int(amount_out),
+        legs=(RouteLeg(hops=(hop,), amount_in=int(amount_in), amount_out=int(amount_out)),),
+    )
+
+
+def _twohop_quote(
+    *,
+    asset_in: AssetId,
+    mid: AssetId,
+    asset_out: AssetId,
+    p1_id: str,
+    p2_id: str,
+    amount_in: int,
+    mid_amount: int,
+    amount_out: int,
+) -> RouteQuote:
+    """Single 2-hop RouteQuote (one leg, two hops asset_in -> mid -> asset_out)."""
+    hop1 = RouteHop(str(p1_id), asset_in, mid, int(amount_in), int(mid_amount))
+    hop2 = RouteHop(str(p2_id), mid, asset_out, int(mid_amount), int(amount_out))
+    return RouteQuote(
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_in=int(amount_in),
+        amount_out=int(amount_out),
+        legs=(RouteLeg(hops=(hop1, hop2), amount_in=int(amount_in), amount_out=int(amount_out)),),
+    )
+
+
+# Candidate tuple emitted by the float-ranking enumerator:
+#   (approx_in, route_key, p1_id, p2_id, mid)
+_ExactOutCandidate = Tuple[float, Tuple[str, str, str], str, str, AssetId]
+
+# Discriminated outcomes for the micro exact-out enumeration step.
+#   _MICRO_ABORT       -> caller must `return None` (fail-closed; oversized mid)
+#   _MICRO_FALLTHROUGH -> search space too large for micro; use the float path
+#   _MICRO_RETURN      -> micro produced the final answer; caller returns `best`
+_MICRO_ABORT = "abort"
+_MICRO_FALLTHROUGH = "fallthrough"
+_MICRO_RETURN = "return"
+
+
+def _enumerate_exact_out_2hop_union(
+    np,  # numpy module (kept lazy: the module must work when numpy is absent)
+    *,
+    prepared: "_PreparedPair",
+    amount_out: int,
+    kmax: int,
+    max_pairs_mid: int,
+    max_union: int,
+) -> Optional[List[_ExactOutCandidate]]:
+    """
+    Float-ranking candidate enumeration for exact-out 2-hop routing.
+
+    Returns the list of ranked candidates (possibly empty), or ``None`` to signal
+    a FAIL-CLOSED abort that the caller MUST propagate as ``return None`` from the
+    quote. The two abort conditions preserved verbatim from the original loop:
+      - a single mid would require more than ``max_pairs_mid`` (m*n) pairs;
+      - the accumulated union exceeds ``max_union`` candidates.
+    An empty list (no finite candidates) is distinct from an abort and lets the
+    caller fall through to whatever ``best`` it already has.
+
+    The numpy arithmetic below is byte-for-byte identical to the inline version;
+    do not "simplify" the masked ``np.divide(..., out=full(inf), where=ok)`` or
+    the ``argpartition`` ordering, which determine ranking and tie-breaks.
+    """
+    union: List[_ExactOutCandidate] = []
+    per_mid_t = int(kmax) + 1
+
+    bps = float(BPS_DENOM)
+    qf = float(amount_out)
+
+    for mid in prepared.mids:
+        arr = prepared.by_mid.get(mid)
+        if arr is None:
+            continue
+        ins_ids = arr.ins_ids
+        outs_ids = arr.outs_ids
+        m = int(len(ins_ids))
+        n = int(len(outs_ids))
+        if m <= 0 or n <= 0:
+            continue
+        pairs = int(m * n)
+        if pairs > int(max_pairs_mid):
+            return None
+
+        # Hop2: mid -> asset_out exact-out approx input (mid required).
+        # net2 = rin2 * q / (rout2 - q)
+        den2 = arr.r2_out - qf
+        ok2 = den2 > 0.0
+        fee2 = arr.f2.astype(np.float64)
+        fee2_den = bps - fee2
+        ok_fee2 = fee2_den > 0.0
+        ok2 = ok2 & ok_fee2
+        net2 = np.full_like(arr.r2_in, np.inf, dtype=np.float64)
+        # Use np.divide(..., where=...) to avoid spurious divide-by-zero warnings.
+        np.divide(arr.r2_in * qf, den2, out=net2, where=ok2)
+        mid_in = np.full_like(net2, np.inf, dtype=np.float64)
+        np.divide(net2 * bps, fee2_den, out=mid_in, where=ok2)  # (n,)
+
+        mid_in_mat = mid_in.reshape((1, n))
+
+        # Hop1: asset_in -> mid exact-out approx input for each needed mid_in.
+        den1 = arr.r1_out.reshape((m, 1)) - mid_in_mat
+        ok1 = den1 > 0.0
+        fee1 = arr.f1.astype(np.float64).reshape((m, 1))
+        fee1_den = bps - fee1
+        ok_fee1 = fee1_den > 0.0
+        ok1 = ok1 & ok_fee1 & np.isfinite(mid_in_mat)
+        net1 = np.full((m, n), np.inf, dtype=np.float64)
+        np.divide(arr.r1_in.reshape((m, 1)) * mid_in_mat, den1, out=net1, where=ok1)
+        approx_in = np.full((m, n), np.inf, dtype=np.float64)
+        np.divide(net1 * bps, fee1_den, out=approx_in, where=ok1)  # (m,n)
+
+        flat = approx_in.reshape((m * n,))
+        finite_mask = np.isfinite(flat)
+        if not bool(np.any(finite_mask)):
+            continue
+
+        t = int(min(int(per_mid_t), int(m * n)))
+        if t <= 0:
+            continue
+        if t < int(m * n):
+            top = np.argpartition(flat, kth=t - 1)[:t]  # smallest approx_in
+        else:
+            top = np.arange(int(m * n), dtype=np.int64)
+
+        for flat_k in top.tolist():
+            a = float(flat[int(flat_k)])
+            if not (a >= 0.0) or not float(a) < float("inf"):
+                continue
+            ii = int(flat_k) // int(n)
+            jj = int(flat_k) % int(n)
+            p1_id = str(ins_ids[ii])
+            p2_id = str(outs_ids[jj])
+            rkey = (p1_id, p2_id, str(mid))
+            union.append((a, rkey, p1_id, p2_id, mid))
+            if len(union) > int(max_union):
+                return None
+
+    return union
+
+
+def _micro_exact_out_2hop(
+    *,
+    pools_by_id: Dict[str, PoolState],
+    prepared: "_PreparedPair",
+    asset_in: AssetId,
+    asset_out: AssetId,
+    amount_out: int,
+    max_pairs_mid: int,
+    best: Optional[RouteQuote],
+    best_key: Optional[Tuple[int, int, str, str, str]],
+) -> Tuple[str, Optional[RouteQuote], Optional[Tuple[int, int, str, str, str]]]:
+    """
+    Bounded exact (no float ranking) 2-hop enumeration for tiny ``amount_out``.
+
+    Returns ``(action, best, best_key)`` where ``action`` is one of the three
+    ``_MICRO_*`` discriminants. The caller MUST honor them exactly:
+      - ``_MICRO_ABORT``: a single mid exceeds ``max_pairs_mid`` -> ``return None``.
+      - ``_MICRO_FALLTHROUGH``: total pairs exceed
+        ``EXACT_OUT_MICRO_MAX_TOTAL_PAIRS`` -> fall through to the float-ranking
+        path (``best``/``best_key`` are returned unchanged).
+      - ``_MICRO_RETURN``: enumeration ran; the returned ``best`` is final.
+
+    This mirrors the original inline control flow, where the ``pairs >
+    max_pairs_mid`` check aborts the whole quote while the ``total_pairs`` check
+    only declines the micro regime. Candidates are keyed with ``_quote_key_for``
+    (scalar route identity), matching the original.
+    """
+    total_pairs = 0
+    for mid in prepared.mids:
+        arr = prepared.by_mid.get(mid)
+        if arr is None:
+            continue
+        m = int(len(arr.ins_ids))
+        n = int(len(arr.outs_ids))
+        if m <= 0 or n <= 0:
+            continue
+        pairs = int(m * n)
+        if pairs > int(max_pairs_mid):
+            return (_MICRO_ABORT, best, best_key)
+        total_pairs += int(pairs)
+        if total_pairs > int(EXACT_OUT_MICRO_MAX_TOTAL_PAIRS):
+            break
+
+    if total_pairs > int(EXACT_OUT_MICRO_MAX_TOTAL_PAIRS):
+        return (_MICRO_FALLTHROUGH, best, best_key)
+
+    best2_amt_in: Optional[int] = None
+    best2_mid_in: Optional[int] = None
+    best2_p1_id: Optional[str] = None
+    best2_p2_id: Optional[str] = None
+    best2_mid: Optional[AssetId] = None
+    best2_key: Optional[Tuple[int, int, str, str, str]] = None
+
+    for mid in prepared.mids:
+        arr = prepared.by_mid.get(mid)
+        if arr is None:
+            continue
+        ins_ids = arr.ins_ids
+        outs_ids = arr.outs_ids
+        if not ins_ids or not outs_ids:
+            continue
+        for p1_id in ins_ids:
+            p1 = pools_by_id.get(str(p1_id))
+            if p1 is None:
+                continue
+            for p2_id in outs_ids:
+                p2 = pools_by_id.get(str(p2_id))
+                if p2 is None:
+                    continue
+                quoted = _quote_exact_out_twohop(
+                    p1,
+                    p2,
+                    asset_in=asset_in,
+                    mid=mid,
+                    asset_out=asset_out,
+                    amount_out=int(amount_out),
+                )
+                if quoted is None:
+                    continue
+                amt_in, mid_in_int = quoted
+                # Micro path keys candidates with `_quote_key_for` (scalar route
+                # identity), not `_quote_key`; the two agree for the 2-hop case.
+                k = _quote_key_for(
+                    hop_count=2,
+                    pool_ids=(str(p1_id), str(p2_id)),
+                    mid=str(mid),
+                    asset_out=asset_out,
+                )
+                if _exact_out_prefer(int(amt_in), k, best2_amt_in, best2_key):
+                    best2_amt_in = int(amt_in)
+                    best2_mid_in = int(mid_in_int)
+                    best2_p1_id = str(p1_id)
+                    best2_p2_id = str(p2_id)
+                    best2_mid = mid
+                    best2_key = k
+
+    if (
+        best2_amt_in is not None
+        and best2_mid_in is not None
+        and best2_p1_id is not None
+        and best2_p2_id is not None
+        and best2_mid is not None
+    ):
+        mid_asset = str(best2_mid)
+        q2 = _twohop_quote(
+            asset_in=asset_in,
+            mid=mid_asset,
+            asset_out=asset_out,
+            p1_id=best2_p1_id,
+            p2_id=best2_p2_id,
+            amount_in=int(best2_amt_in),
+            mid_amount=int(best2_mid_in),
+            amount_out=int(amount_out),
+        )
+        k2 = best2_key or _quote_key(q2)
+        if _exact_out_prefer(q2.amount_in, k2, None if best is None else best.amount_in, best_key):
+            best = q2
+            best_key = k2
+
+    return (_MICRO_RETURN, best, best_key)
+
+
 def _snapshot_digest_for_sorted_pools(pools_sorted: Sequence[PoolState]) -> str:
     # Cache key only (not a consensus hash). Keep it deterministic and cheap.
     h = hashlib.sha256()
@@ -710,20 +1017,22 @@ class FastQuoteRouterV1:
             inn = _quote_exact_out_onehop(p, asset_in=asset_in, asset_out=asset_out, amount_out=int(Q))
             if inn is None:
                 continue
-            hop = RouteHop(pid, asset_in, asset_out, int(inn), int(Q))
-            q = RouteQuote(
+            q = _onehop_quote(
+                pool_id=pid,
                 asset_in=asset_in,
                 asset_out=asset_out,
                 amount_in=int(inn),
                 amount_out=int(Q),
-                legs=(RouteLeg(hops=(hop,), amount_in=int(inn), amount_out=int(Q)),),
             )
             k = _quote_key(q)
-            if best is None or q.amount_in < best.amount_in or (q.amount_in == best.amount_in and (best_key is None or k < best_key)):
+            if _exact_out_prefer(q.amount_in, k, None if best is None else best.amount_in, best_key):
                 best = q
                 best_key = k
-            if best_direct is None or q.amount_in < best_direct.amount_in or (
-                q.amount_in == best_direct.amount_in and _quote_key(q) < _quote_key(best_direct)
+            if _exact_out_prefer(
+                q.amount_in,
+                k,
+                None if best_direct is None else best_direct.amount_in,
+                None if best_direct is None else _quote_key(best_direct),
             ):
                 best_direct = q
                 best_direct_reserve_out = int(rout)
@@ -775,7 +1084,7 @@ class FastQuoteRouterV1:
                         legs=(leg0, leg1),
                     )
                     k = _quote_key(q)
-                    if best is None or q.amount_in < best.amount_in or (q.amount_in == best.amount_in and (best_key is None or k < best_key)):
+                    if _exact_out_prefer(q.amount_in, k, None if best is None else best.amount_in, best_key):
                         best = q
                         best_key = k
 
@@ -795,176 +1104,35 @@ class FastQuoteRouterV1:
         # Micro exact-out regime: if the 2-hop search space is small enough, enumerate all pairs
         # exactly (no float ranking) to avoid ceil-cascade misranking for tiny amount_out.
         if int(Q) <= int(EXACT_OUT_MICRO_AMOUNT_OUT_MAX):
-            total_pairs = 0
-            for mid in prepared.mids:
-                arr = prepared.by_mid.get(mid)
-                if arr is None:
-                    continue
-                m = int(len(arr.ins_ids))
-                n = int(len(arr.outs_ids))
-                if m <= 0 or n <= 0:
-                    continue
-                pairs = int(m * n)
-                if pairs > int(max_pairs_mid):
-                    return None
-                total_pairs += int(pairs)
-                if total_pairs > int(EXACT_OUT_MICRO_MAX_TOTAL_PAIRS):
-                    break
-
-            if total_pairs <= int(EXACT_OUT_MICRO_MAX_TOTAL_PAIRS):
-                best2_amt_in: Optional[int] = None
-                best2_mid_in: Optional[int] = None
-                best2_p1_id: Optional[str] = None
-                best2_p2_id: Optional[str] = None
-                best2_mid: Optional[AssetId] = None
-                best2_key: Optional[Tuple[int, int, str, str, str]] = None
-
-                for mid in prepared.mids:
-                    arr = prepared.by_mid.get(mid)
-                    if arr is None:
-                        continue
-                    ins_ids = arr.ins_ids
-                    outs_ids = arr.outs_ids
-                    if not ins_ids or not outs_ids:
-                        continue
-                    for p1_id in ins_ids:
-                        p1 = pools_by_id.get(str(p1_id))
-                        if p1 is None:
-                            continue
-                        for p2_id in outs_ids:
-                            p2 = pools_by_id.get(str(p2_id))
-                            if p2 is None:
-                                continue
-                            quoted = _quote_exact_out_twohop(
-                                p1,
-                                p2,
-                                asset_in=asset_in,
-                                mid=mid,
-                                asset_out=asset_out,
-                                amount_out=int(Q),
-                            )
-                            if quoted is None:
-                                continue
-                            amt_in, mid_in_int = quoted
-                            k = _quote_key_for(
-                                hop_count=2,
-                                pool_ids=(str(p1_id), str(p2_id)),
-                                mid=str(mid),
-                                asset_out=asset_out,
-                            )
-                            if best2_amt_in is None or int(amt_in) < int(best2_amt_in) or (
-                                int(amt_in) == int(best2_amt_in) and (best2_key is None or k < best2_key)
-                            ):
-                                best2_amt_in = int(amt_in)
-                                best2_mid_in = int(mid_in_int)
-                                best2_p1_id = str(p1_id)
-                                best2_p2_id = str(p2_id)
-                                best2_mid = mid
-                                best2_key = k
-
-                if (
-                    best2_amt_in is not None
-                    and best2_mid_in is not None
-                    and best2_p1_id is not None
-                    and best2_p2_id is not None
-                    and best2_mid is not None
-                ):
-                    mid_asset = str(best2_mid)
-                    hop1 = RouteHop(best2_p1_id, asset_in, mid_asset, int(best2_amt_in), int(best2_mid_in))
-                    hop2 = RouteHop(best2_p2_id, mid_asset, asset_out, int(best2_mid_in), int(Q))
-                    q2 = RouteQuote(
-                        asset_in=asset_in,
-                        asset_out=asset_out,
-                        amount_in=int(best2_amt_in),
-                        amount_out=int(Q),
-                        legs=(RouteLeg(hops=(hop1, hop2), amount_in=int(best2_amt_in), amount_out=int(Q)),),
-                    )
-                    k2 = best2_key or _quote_key(q2)
-                    if best is None or q2.amount_in < best.amount_in or (
-                        q2.amount_in == best.amount_in and (best_key is None or k2 < best_key)
-                    ):
-                        best = q2
-                        best_key = k2
-
+            action, best, best_key = _micro_exact_out_2hop(
+                pools_by_id=pools_by_id,
+                prepared=prepared,
+                asset_in=asset_in,
+                asset_out=asset_out,
+                amount_out=int(Q),
+                max_pairs_mid=int(max_pairs_mid),
+                best=best,
+                best_key=best_key,
+            )
+            if action == _MICRO_ABORT:
+                return None
+            if action == _MICRO_RETURN:
                 return best
+            # _MICRO_FALLTHROUGH: search space too large for micro; use the float path below.
 
         # 2-hop candidates via per-mid union selection (float ranking + exact replay).
-        union: List[Tuple[float, Tuple[str, str, str], str, str, AssetId]] = []
-        per_mid_t = int(kmax) + 1
-        searched_pairs = 0
-
-        # Helpers: approximate CPMM exact-out input.
-        bps = float(BPS_DENOM)
-        qf = float(Q)
-
-        for mid in prepared.mids:
-            arr = prepared.by_mid.get(mid)
-            if arr is None:
-                continue
-            ins_ids = arr.ins_ids
-            outs_ids = arr.outs_ids
-            m = int(len(ins_ids))
-            n = int(len(outs_ids))
-            if m <= 0 or n <= 0:
-                continue
-            pairs = int(m * n)
-            if pairs > int(max_pairs_mid):
-                return None
-            searched_pairs += int(pairs)
-
-            # Hop2: mid -> asset_out exact-out approx input (mid required).
-            # net2 = rin2 * q / (rout2 - q)
-            den2 = arr.r2_out - qf
-            ok2 = den2 > 0.0
-            fee2 = arr.f2.astype(np.float64)
-            fee2_den = bps - fee2
-            ok_fee2 = fee2_den > 0.0
-            ok2 = ok2 & ok_fee2
-            net2 = np.full_like(arr.r2_in, np.inf, dtype=np.float64)
-            # Use np.divide(..., where=...) to avoid spurious divide-by-zero warnings.
-            np.divide(arr.r2_in * qf, den2, out=net2, where=ok2)
-            mid_in = np.full_like(net2, np.inf, dtype=np.float64)
-            np.divide(net2 * bps, fee2_den, out=mid_in, where=ok2)  # (n,)
-
-            mid_in_mat = mid_in.reshape((1, n))
-
-            # Hop1: asset_in -> mid exact-out approx input for each needed mid_in.
-            den1 = arr.r1_out.reshape((m, 1)) - mid_in_mat
-            ok1 = den1 > 0.0
-            fee1 = arr.f1.astype(np.float64).reshape((m, 1))
-            fee1_den = bps - fee1
-            ok_fee1 = fee1_den > 0.0
-            ok1 = ok1 & ok_fee1 & np.isfinite(mid_in_mat)
-            net1 = np.full((m, n), np.inf, dtype=np.float64)
-            np.divide(arr.r1_in.reshape((m, 1)) * mid_in_mat, den1, out=net1, where=ok1)
-            approx_in = np.full((m, n), np.inf, dtype=np.float64)
-            np.divide(net1 * bps, fee1_den, out=approx_in, where=ok1)  # (m,n)
-
-            flat = approx_in.reshape((m * n,))
-            finite_mask = np.isfinite(flat)
-            if not bool(np.any(finite_mask)):
-                continue
-
-            t = int(min(int(per_mid_t), int(m * n)))
-            if t <= 0:
-                continue
-            if t < int(m * n):
-                top = np.argpartition(flat, kth=t - 1)[:t]  # smallest approx_in
-            else:
-                top = np.arange(int(m * n), dtype=np.int64)
-
-            for flat_k in top.tolist():
-                a = float(flat[int(flat_k)])
-                if not (a >= 0.0) or not float(a) < float("inf"):
-                    continue
-                ii = int(flat_k) // int(n)
-                jj = int(flat_k) % int(n)
-                p1_id = str(ins_ids[ii])
-                p2_id = str(outs_ids[jj])
-                rkey = (p1_id, p2_id, str(mid))
-                union.append((a, rkey, p1_id, p2_id, mid))
-                if len(union) > int(max_union):
-                    return None
+        # The enumerator returns None to mean FAIL-CLOSED abort (oversized search);
+        # an empty list means "no finite candidates" and falls through to `best`.
+        union = _enumerate_exact_out_2hop_union(
+            np,
+            prepared=prepared,
+            amount_out=int(Q),
+            kmax=int(kmax),
+            max_pairs_mid=int(max_pairs_mid),
+            max_union=int(max_union),
+        )
+        if union is None:
+            return None
 
         if union:
             union.sort(key=lambda x: (float(x[0]), x[1]))
@@ -979,29 +1147,25 @@ class FastQuoteRouterV1:
                 if quoted is None:
                     continue
                 amt_in, mid_in_int = quoted
-                hop1 = RouteHop(p1_id, asset_in, mid, int(amt_in), int(mid_in_int))
-                hop2 = RouteHop(p2_id, mid, asset_out, int(mid_in_int), int(Q))
-                q = RouteQuote(
+                q = _twohop_quote(
                     asset_in=asset_in,
+                    mid=mid,
                     asset_out=asset_out,
+                    p1_id=p1_id,
+                    p2_id=p2_id,
                     amount_in=int(amt_in),
+                    mid_amount=int(mid_in_int),
                     amount_out=int(Q),
-                    legs=(RouteLeg(hops=(hop1, hop2), amount_in=int(amt_in), amount_out=int(Q)),),
                 )
                 kq = _quote_key(q)
-                if best2 is None or q.amount_in < best2.amount_in or (
-                    q.amount_in == best2.amount_in and (best2_key is None or kq < best2_key)
-                ):
+                if _exact_out_prefer(q.amount_in, kq, None if best2 is None else best2.amount_in, best2_key):
                     best2 = q
                     best2_key = kq
 
             if best2 is not None:
                 k2 = _quote_key(best2)
-                if best is None or best2.amount_in < best.amount_in or (
-                    best2.amount_in == best.amount_in and (best_key is None or k2 < best_key)
-                ):
+                if _exact_out_prefer(best2.amount_in, k2, None if best is None else best.amount_in, best_key):
                     best = best2
                     best_key = k2
 
-        _ = searched_pairs
         return best

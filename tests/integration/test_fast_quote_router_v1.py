@@ -76,6 +76,25 @@ def _quote_to_key(q) -> tuple:
     return (len(hops), tuple(hops), int(q.amount_out))
 
 
+def _quote_golden_key(q) -> tuple:
+    """
+    Fully-pinned characterization key for exact-out behavior.
+
+    Unlike ``_quote_to_key`` this preserves leg grouping (so a single 2-hop leg
+    is distinguished from two parallel 1-hop legs) and the top-level
+    (amount_in, amount_out) chosen by the router. Two RouteQuotes with this key
+    equal are byte-for-byte identical for routing purposes.
+    """
+    legs = tuple(
+        tuple(
+            (h.pool_id, h.asset_in, h.asset_out, int(h.amount_in), int(h.amount_out))
+            for h in leg.hops
+        )
+        for leg in q.legs
+    )
+    return (legs, int(q.amount_in), int(q.amount_out))
+
+
 def test_fast_v1_quote_receipt_verifies_and_is_deterministic() -> None:
     pytest.importorskip("numpy")
     pools_by_id = _build_market(seed=1, n_mid=20, pools_per_mid_side=10, direct_pools=3)
@@ -544,3 +563,238 @@ def test_fast_v1_tiny_trade_amount_in_2_integer_fee_ranking_regression() -> None
     receipt = make_route_quote_receipt(kind="exact_in", quote=q_fast, pools_by_id=pools_by_id)
     ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools_by_id)
     assert ok, err
+
+
+# ---------------------------------------------------------------------------
+# Characterization (golden) tests for quote_exact_out_2hop_fast_v1.
+#
+# These pin the EXACT route the current code selects (every pool_id, mid, leg
+# grouping, and integer hop amount) for each distinct code path through the
+# exact-out router. They are the behavior baseline for the complexity refactor:
+# any change to candidate enumeration, scoring/tie-break, rounding, or bounds
+# that alters the selected route will flip one of these tuples and fail.
+#
+# NOTE: paths A/D/E rank candidates with a float64 heuristic the module itself
+# documents as "not guaranteed to find the global best route". Their pinned
+# tuples are therefore environment-pinned characterization values: a numpy/BLAS
+# change that shifts float ranking should be triaged as "re-characterize"
+# (recompute the expected tuple), not necessarily a correctness regression. The
+# final hop AMOUNTS are always exact integer replay; only which candidate ranks
+# first is float-sensitive. Paths B/C do not depend on float ranking.
+#
+# Paths covered:
+#   A: float-ranking 2-hop union selection (large Q)
+#   B: apply_two_hop_gate=True -> gate suppresses 2-hop, direct-split wins
+#   C: micro exact-out enumeration (Q <= EXACT_OUT_MICRO_AMOUNT_OUT_MAX)
+#   D: float path just above the micro boundary
+#   E: market with two parallel direct pools (direct-split candidate path)
+# ---------------------------------------------------------------------------
+
+
+def _build_exact_out_small_market() -> dict[str, PoolState]:
+    return {
+        p.pool_id: p
+        for p in [
+            _mk_pool(pool_id="P0", a0="A_IN", a1="A_OUT", r0=2_000_000, r1=2_000_000, fee_bps=30),
+            _mk_pool(pool_id="P1", a0="A_IN", a1="M0", r0=1_000_000, r1=3_000_000, fee_bps=10),
+            _mk_pool(pool_id="P2", a0="M0", a1="A_OUT", r0=3_000_000, r1=1_000_000, fee_bps=10),
+            _mk_pool(pool_id="P3", a0="A_IN", a1="M0", r0=2_000_000, r1=4_000_000, fee_bps=20),
+            _mk_pool(pool_id="P4", a0="M0", a1="A_OUT", r0=4_000_000, r1=2_000_000, fee_bps=20),
+        ]
+    }
+
+
+def test_fast_v1_exact_out_golden_float_rank_2hop() -> None:
+    """Path A: large-Q float-ranking union selection pins one 2-hop route."""
+    pytest.importorskip("numpy")
+    pools_by_id = _build_market(seed=2, n_mid=20, pools_per_mid_side=10, direct_pools=3)
+    router = FastQuoteRouterV1(max_cache_pairs=8)
+    q = router.quote_exact_out_2hop_fast_v1(
+        pools_by_id=pools_by_id,
+        asset_in="A_IN",
+        asset_out="A_OUT",
+        amount_out=250_000,
+        topk_max=64,
+        apply_two_hop_gate=False,
+    )
+    assert q is not None
+    assert _quote_golden_key(q) == (
+        ((("P63", "A_IN", "M3", 1573, 15217), ("P76", "M3", "A_OUT", 15217, 250000)),),
+        1573,
+        250000,
+    )
+
+
+def test_fast_v1_exact_out_golden_two_hop_gate_true_directsplit() -> None:
+    """Path B: with apply_two_hop_gate=True the gate suppresses 2-hop and a 2-leg direct split wins."""
+    pytest.importorskip("numpy")
+    pools_by_id = _build_market(seed=2, n_mid=20, pools_per_mid_side=10, direct_pools=3)
+    router = FastQuoteRouterV1(max_cache_pairs=8)
+    q = router.quote_exact_out_2hop_fast_v1(
+        pools_by_id=pools_by_id,
+        asset_in="A_IN",
+        asset_out="A_OUT",
+        amount_out=250_000,
+        topk_max=64,
+        apply_two_hop_gate=True,
+    )
+    assert q is not None
+    # Two parallel 1-hop legs (direct split), not a single 2-hop leg.
+    assert len(q.legs) == 2
+    assert all(len(leg.hops) == 1 for leg in q.legs)
+    assert _quote_golden_key(q) == (
+        (
+            (("P0", "A_IN", "A_OUT", 222251, 235458),),
+            (("P2", "A_IN", "A_OUT", 16764, 14542),),
+        ),
+        239015,
+        250000,
+    )
+
+
+def test_fast_v1_exact_out_golden_micro_enumeration() -> None:
+    """Path C: micro exact-out enumeration pins the exact (already==oracle) route."""
+    pytest.importorskip("numpy")
+    pools_by_id = _build_market(seed=1, n_mid=40, pools_per_mid_side=15, direct_pools=3)
+    router = FastQuoteRouterV1(max_cache_pairs=8)
+    q = router.quote_exact_out_2hop_fast_v1(
+        pools_by_id=pools_by_id,
+        asset_in="A_IN",
+        asset_out="A_OUT",
+        amount_out=10,
+        topk_max=8,
+        apply_two_hop_gate=False,
+    )
+    assert q is not None
+    assert _quote_golden_key(q) == (
+        ((("P1037", "A_IN", "M34", 2, 4), ("P1048", "M34", "A_OUT", 4, 10)),),
+        2,
+        10,
+    )
+
+
+def test_fast_v1_exact_out_golden_float_path_above_micro_boundary() -> None:
+    """Path D: just above the micro boundary the float-ranking path is taken; pin its route."""
+    pytest.importorskip("numpy")
+    pools_by_id = _build_exact_out_small_market()
+    router = FastQuoteRouterV1(max_cache_pairs=8)
+    q = router.quote_exact_out_2hop_fast_v1(
+        pools_by_id=pools_by_id,
+        asset_in="A_IN",
+        asset_out="A_OUT",
+        amount_out=101,
+        topk_max=8,
+        apply_two_hop_gate=False,
+    )
+    assert q is not None
+    assert _quote_golden_key(q) == (
+        ((("P1", "A_IN", "M0", 70, 204), ("P4", "M0", "A_OUT", 204, 101)),),
+        70,
+        101,
+    )
+
+
+def test_fast_v1_exact_out_golden_two_direct_pools() -> None:
+    """Path E: market with two parallel direct pools (exercises direct + direct-split candidate logic)."""
+    pytest.importorskip("numpy")
+    pools_by_id = dict(_build_exact_out_small_market())
+    pools_by_id["P5"] = _mk_pool(pool_id="P5", a0="A_IN", a1="A_OUT", r0=1_500_000, r1=1_500_000, fee_bps=5)
+    router = FastQuoteRouterV1(max_cache_pairs=8)
+    q = router.quote_exact_out_2hop_fast_v1(
+        pools_by_id=pools_by_id,
+        asset_in="A_IN",
+        asset_out="A_OUT",
+        amount_out=300_000,
+        topk_max=8,
+        apply_two_hop_gate=False,
+    )
+    assert q is not None
+    assert _quote_golden_key(q) == (
+        ((("P1", "A_IN", "M0", 308809, 707298), ("P4", "M0", "A_OUT", 707298, 300000)),),
+        308809,
+        300000,
+    )
+
+
+def test_fast_v1_exact_out_two_hop_tie_break_lexicographic_pool_seq() -> None:
+    """
+    Teeth: constructed tie pins the exact-out candidate tie-break.
+
+    Two identical hop-1 pools (``PA``, ``PB``) feed the same intermediate ``M0``
+    and share a single hop-2 pool ``PC``. The two 2-hop routes therefore produce
+    an IDENTICAL ``amount_in`` (a true tie). The deterministic tie-break must pick
+    the lexicographically-smaller ``pool_seq`` -> ``PA`` (``"PA,PC" < "PB,PC"``).
+
+    This fails if the candidate-scoring predicate reverses its tie-break key
+    comparison (``cand_key < cur_key`` -> ``>``, which would select PB), drops the
+    key tie-break entirely, or changes rounding/bounds so the two routes stop
+    tying on ``amount_in``. It exercises BOTH selection paths with their two
+    distinct key functions: the float-ranking path (large Q, ``_quote_key``) and
+    the micro-enumeration path (Q <= EXACT_OUT_MICRO_AMOUNT_OUT_MAX,
+    ``_quote_key_for``). Verified to flip PA->PB under the reversed-key mutation
+    on both paths.
+    """
+    pytest.importorskip("numpy")
+    asset_in = "A_IN"
+    asset_out = "A_OUT"
+    mid = "M0"
+
+    # --- Float-ranking path: Q above the micro boundary. ---
+    pa = _mk_pool(pool_id="PA", a0=asset_in, a1=mid, r0=1_000_000, r1=2_000_000, fee_bps=10)
+    pb = _mk_pool(pool_id="PB", a0=asset_in, a1=mid, r0=1_000_000, r1=2_000_000, fee_bps=10)
+    pc = _mk_pool(pool_id="PC", a0=mid, a1=asset_out, r0=2_000_000, r1=1_000_000, fee_bps=10)
+    pools_float = {p.pool_id: p for p in [pa, pb, pc]}
+
+    from src.integration.fast_quote_router_v1 import _quote_exact_out_twohop
+
+    # Sanity: the two routes really tie on amount_in (otherwise the test proves nothing).
+    via_pa = _quote_exact_out_twohop(pa, pc, asset_in=asset_in, mid=mid, asset_out=asset_out, amount_out=50_000)
+    via_pb = _quote_exact_out_twohop(pb, pc, asset_in=asset_in, mid=mid, asset_out=asset_out, amount_out=50_000)
+    assert via_pa is not None and via_pb is not None
+    assert int(via_pa[0]) == int(via_pb[0])  # true tie on amount_in
+
+    router = FastQuoteRouterV1(max_cache_pairs=8)
+    q_float = router.quote_exact_out_2hop_fast_v1(
+        pools_by_id=pools_float,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out=50_000,
+        topk_max=8,
+        apply_two_hop_gate=False,
+    )
+    assert q_float is not None
+    # Lexicographically-smaller pool_seq wins the tie: PA, not PB.
+    assert q_float.legs[0].hops[0].pool_id == "PA"
+    assert _quote_golden_key(q_float) == (
+        ((("PA", "A_IN", "M0", 55672, 105370), ("PC", "M0", "A_OUT", 105370, 50000)),),
+        55672,
+        50000,
+    )
+
+    # --- Micro-enumeration path: Q <= EXACT_OUT_MICRO_AMOUNT_OUT_MAX, feasible market. ---
+    pa2 = _mk_pool(pool_id="PA", a0=asset_in, a1=mid, r0=8_000_000, r1=8_000_000, fee_bps=0)
+    pb2 = _mk_pool(pool_id="PB", a0=asset_in, a1=mid, r0=8_000_000, r1=8_000_000, fee_bps=0)
+    pc2 = _mk_pool(pool_id="PC", a0=mid, a1=asset_out, r0=8_000_000, r1=8_000_000, fee_bps=0)
+    pools_micro = {p.pool_id: p for p in [pa2, pb2, pc2]}
+
+    via_pa_m = _quote_exact_out_twohop(pa2, pc2, asset_in=asset_in, mid=mid, asset_out=asset_out, amount_out=10)
+    via_pb_m = _quote_exact_out_twohop(pb2, pc2, asset_in=asset_in, mid=mid, asset_out=asset_out, amount_out=10)
+    assert via_pa_m is not None and via_pb_m is not None
+    assert int(via_pa_m[0]) == int(via_pb_m[0])  # true tie on amount_in (micro)
+
+    router_m = FastQuoteRouterV1(max_cache_pairs=8)
+    q_micro = router_m.quote_exact_out_2hop_fast_v1(
+        pools_by_id=pools_micro,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out=10,
+        topk_max=8,
+        apply_two_hop_gate=False,
+    )
+    assert q_micro is not None
+    assert q_micro.legs[0].hops[0].pool_id == "PA"
+    assert _quote_golden_key(q_micro) == (
+        ((("PA", "A_IN", "M0", 12, 11), ("PC", "M0", "A_OUT", 11, 10)),),
+        12,
+        10,
+    )
