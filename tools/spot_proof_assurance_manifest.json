@@ -20,7 +20,7 @@
     },
     {
       "path": "lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean",
-      "sha256": "d1e5a9a5f9d849f9573702718fc3e2dd9bb4d1583615307fe045af193b254b2f"
+      "sha256": "ec286008f028ba9ea447ba1e0769a79f8ef243d9fa353200411be1e326b06ed9"
     },
     {
       "path": "lean-mathlib/Proofs/CPMMSettlement.lean",
@@ -28,7 +28,7 @@
     },
     {
       "path": "lean-mathlib/Proofs/BatchAuctionCanonical.lean",
-      "sha256": "c9dee8240ae79f0286d0f3f75fee1f7b488a6f7a4dcf6da667deb3e064f5b19e"
+      "sha256": "e7df6e425bb6fe2ad6309d7d60320664d92821fba74eb65d480337f4036bbb67"
     },
     {
       "path": "lean-mathlib/Proofs/CPMMInvariants.lean",
@@ -99,7 +99,7 @@
       "toolchain": {
         "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
         "solvers": {
-          "z3": "4.16.0",
+          "z3": "4.15.4",
           "cvc5": "This is cvc5 version 1.1.2"
         }
       }
@@ -115,7 +115,7 @@
       "toolchain": {
         "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
         "solvers": {
-          "z3": "4.16.0",
+          "z3": "4.15.4",
           "cvc5": "This is cvc5 version 1.1.2"
         }
       }
@@ -131,7 +131,7 @@
       "toolchain": {
         "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
         "solvers": {
-          "z3": "4.16.0",
+          "z3": "4.15.4",
           "cvc5": "This is cvc5 version 1.1.2"
         }
       }
@@ -147,7 +147,7 @@
       "toolchain": {
         "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
         "solvers": {
-          "z3": "4.16.0",
+          "z3": "4.15.4",
           "cvc5": "This is cvc5 version 1.1.2"
         }
       }
@@ -163,7 +163,7 @@
       "toolchain": {
         "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
         "solvers": {
-          "z3": "4.16.0",
+          "z3": "4.15.4",
           "cvc5": "This is cvc5 version 1.1.2"
         }
       }
@@ -179,7 +179,7 @@
       "toolchain": {
         "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
         "solvers": {
-          "z3": "4.16.0",
+          "z3": "4.15.4",
           "cvc5": "This is cvc5 version 1.1.2"
         }
       }
