@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.sealed_bid_auction import (
     RevealedSealedBid,
     make_sealed_bid_commit_receipt,
@@ -8,6 +10,11 @@ from src.core.sealed_bid_auction import (
     settle_uniform_price_sealed_bids,
     verify_commit_receipt,
 )
+
+
+class _ExplodingInt(int):
+    def __int__(self) -> int:
+        raise RuntimeError("sealed bid numeric conversion fault")
 
 
 def test_commit_receipt_hides_private_fields() -> None:
@@ -31,6 +38,53 @@ def test_reveal_matches_commitment_and_rejects_mismatch() -> None:
     commitment = sealed_bid_reveal_hash(quantity=4, limit_price=105, nonce="n1")
     assert reveal_matches_commitment(commitment=commitment, quantity=4, limit_price=105, nonce="n1")
     assert not reveal_matches_commitment(commitment=commitment, quantity=5, limit_price=105, nonce="n1")
+    assert not reveal_matches_commitment(commitment=commitment, quantity=0, limit_price=105, nonce="n1")
+
+
+def test_commit_receipt_rejects_expected_numeric_conversion_failure() -> None:
+    commitment = sealed_bid_reveal_hash(quantity=4, limit_price=105, nonce="n1")
+    receipt = make_sealed_bid_commit_receipt(
+        batch_id="b1",
+        bidder_id="alice",
+        commitment=commitment,
+        commit_epoch=1,
+        reveal_deadline_epoch=2,
+        units_for_sale=10,
+    )
+    receipt["body"]["commit_epoch"] = None
+
+    ok, err = verify_commit_receipt(receipt)
+
+    assert not ok
+    assert err == "bad_numeric_field"
+
+
+def test_commit_receipt_propagates_unexpected_numeric_conversion_fault() -> None:
+    commitment = sealed_bid_reveal_hash(quantity=4, limit_price=105, nonce="n1")
+    receipt = make_sealed_bid_commit_receipt(
+        batch_id="b1",
+        bidder_id="alice",
+        commitment=commitment,
+        commit_epoch=1,
+        reveal_deadline_epoch=2,
+        units_for_sale=10,
+    )
+    receipt["body"]["commit_epoch"] = _ExplodingInt(1)
+
+    with pytest.raises(RuntimeError, match="sealed bid numeric conversion fault"):
+        verify_commit_receipt(receipt)
+
+
+def test_reveal_match_propagates_unexpected_hash_input_fault() -> None:
+    commitment = sealed_bid_reveal_hash(quantity=4, limit_price=105, nonce="n1")
+
+    with pytest.raises(RuntimeError, match="sealed bid numeric conversion fault"):
+        reveal_matches_commitment(
+            commitment=commitment,
+            quantity=_ExplodingInt(4),
+            limit_price=105,
+            nonce="n1",
+        )
 
 
 def test_uniform_price_settlement_is_deterministic_under_reordering() -> None:
