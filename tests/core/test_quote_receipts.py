@@ -5,6 +5,7 @@ from typing import Any, Callable
 
 import pytest
 
+import src.core.quote_receipts as quote_receipts
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.quote_receipts import (
     QUOTE_RECEIPT_CERTIFICATE_AMOUNT_OUT_MISMATCH,
@@ -420,6 +421,65 @@ def test_quote_receipt_verifier_rejects_repeated_pool_split_with_stale_second_le
     ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
     assert not ok
     assert err == "hop_quote_mismatch"
+
+
+def test_quote_receipt_hop_replay_returns_quote_error_for_domain_reject() -> None:
+    pool = _pool("p_ab", "A", "B", 0, 1000, 0)
+
+    ok, err, updated = _replay_and_apply_hop(
+        pool=pool,
+        kind="exact_in",
+        asset_in="A",
+        asset_out="B",
+        amount_in=10,
+        amount_out=1,
+    )
+
+    assert ok is False
+    assert err == "hop_quote_error"
+    assert updated is None
+
+
+def test_quote_receipt_hop_replay_propagates_unexpected_exact_in_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = _pool("p_ab", "A", "B", 1000, 1000, 0)
+
+    def broken_exact_in(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("exact-in replay fault")
+
+    monkeypatch.setattr(quote_receipts, "swap_exact_in_for_pool", broken_exact_in)
+
+    with pytest.raises(RuntimeError, match="exact-in replay fault"):
+        _replay_and_apply_hop(
+            pool=pool,
+            kind="exact_in",
+            asset_in="A",
+            asset_out="B",
+            amount_in=10,
+            amount_out=1,
+        )
+
+
+def test_quote_receipt_hop_replay_propagates_unexpected_exact_out_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = _pool("p_ab", "A", "B", 1000, 1000, 0)
+
+    def broken_exact_out(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("exact-out replay fault")
+
+    monkeypatch.setattr(quote_receipts, "swap_exact_out_for_pool", broken_exact_out)
+
+    with pytest.raises(RuntimeError, match="exact-out replay fault"):
+        _replay_and_apply_hop(
+            pool=pool,
+            kind="exact_out",
+            asset_in="A",
+            asset_out="B",
+            amount_in=10,
+            amount_out=1,
+        )
 
 
 def test_quote_receipt_verifier_accepts_repeated_pool_split_with_stateful_legs() -> None:
