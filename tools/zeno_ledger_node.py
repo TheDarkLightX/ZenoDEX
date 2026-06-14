@@ -4445,6 +4445,7 @@ def pull_live_from_peer_v0(
     *,
     data_dir: Path,
     peer_url: str,
+    peer_auth_token: str | None = None,
     min_lp_position_age_seconds: int = 0,
     lp_duration_risk_policy: Any | None = None,
     live_quorum_registry: Mapping[str, Any] | None = None,
@@ -4456,6 +4457,7 @@ def pull_live_from_peer_v0(
         return _pull_live_from_peer_v0_locked(
             data_dir=data_dir,
             peer_url=peer_url,
+            peer_auth_token=peer_auth_token,
             min_lp_position_age_seconds=min_lp_position_age_seconds,
             lp_duration_risk_policy=lp_duration_risk_policy,
             live_quorum_registry=live_quorum_registry,
@@ -4467,12 +4469,13 @@ def _pull_live_from_peer_v0_locked(
     *,
     data_dir: Path,
     peer_url: str,
+    peer_auth_token: str | None,
     min_lp_position_age_seconds: int,
     lp_duration_risk_policy: Any | None,
     live_quorum_registry: Mapping[str, Any] | None,
     live_quorum_envelopes_by_height: Mapping[int, Sequence[Mapping[str, Any]]] | None,
 ) -> dict[str, Any]:
-    peer_admission = check_peer_status_v0(data_dir=data_dir, peer_urls=[peer_url])
+    peer_admission = check_peer_status_v0(data_dir=data_dir, peer_urls=[peer_url], peer_auth_token=peer_auth_token)
     if peer_admission.get("ok") is not True:
         # Surface enough detail for the follower poll loop to distinguish a
         # fork ("common_header_match" false) from a down peer ("error"
@@ -4512,7 +4515,7 @@ def _pull_live_from_peer_v0_locked(
     if not isinstance(local_tip, Mapping):
         raise ValueError("peer admission local_tip must be an object")
     local_latest = int(local_tip["height"])
-    peer_live = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", "live"))
+    peer_live = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", "live"), bearer_token=peer_auth_token)
     if peer_live.get("ok") is not True or peer_live.get("live") is not True:
         return {
             "schema": NODE_PULL_REPORT_SCHEMA,
@@ -4546,7 +4549,10 @@ def _pull_live_from_peer_v0_locked(
     if live_quorum_registry is not None:
         envelopes_by_height = live_quorum_envelopes_by_height or {}
         for height in range(local_latest + 1, peer_latest + 1):
-            peer_header = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"))
+            peer_header = _fetch_json_url(
+                urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"),
+                bearer_token=peer_auth_token,
+            )
             envelopes = envelopes_by_height.get(height)
             if envelopes is None:
                 return {
@@ -4563,7 +4569,8 @@ def _pull_live_from_peer_v0_locked(
                     "errors": [f"missing live quorum envelopes for height {height}"],
                 }
             peer_checkpoint = _fetch_json_url(
-                urljoin(peer_url.rstrip("/") + "/", f"live/checkpoint/{height}")
+                urljoin(peer_url.rstrip("/") + "/", f"live/checkpoint/{height}"),
+                bearer_token=peer_auth_token,
             )
             try:
                 live_quorum_admissions[height] = build_live_checkpoint_quorum_admission_v0(
@@ -4597,9 +4604,15 @@ def _pull_live_from_peer_v0_locked(
     current_pre_snapshot = Path(str(base["pre_snapshot_path"]))
     live_ledger_dir = data_dir / "live_ledger"
     for height in range(local_latest + 1, peer_latest + 1):
-        peer_header = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"))
+        peer_header = _fetch_json_url(
+            urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"),
+            bearer_token=peer_auth_token,
+        )
         live_quorum_admission = live_quorum_admissions.get(height)
-        peer_body = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/body/{height}"))
+        peer_body = _fetch_json_url(
+            urljoin(peer_url.rstrip("/") + "/", f"live/body/{height}"),
+            bearer_token=peer_auth_token,
+        )
         if _is_faucet_body_v0(peer_body):
             block_report = _build_faucet_block_from_body_v0(
                 data_dir=data_dir,
@@ -4922,7 +4935,11 @@ def build_node_evidence_report_v0(
     """Build the portable Machine B evidence report from current node state."""
 
     node_status = load_node_status_v0(data_dir)
-    peer_check = check_peer_status_v0(data_dir=data_dir, peer_urls=list(peer_urls or []))
+    peer_check = check_peer_status_v0(
+        data_dir=data_dir,
+        peer_urls=list(peer_urls or []),
+        peer_auth_token=peer_auth_token,
+    )
     created_tokens = _created_test_tokens_v0(data_dir)
     required_features = list(node_status.get("required_features", []))
     covered_features = list(node_status.get("covered_features", []))
@@ -4971,6 +4988,7 @@ def poll_live_peers_once_v0(
             report = pull_live_from_peer_v0(
                 data_dir=data_dir,
                 peer_url=peer_url,
+                peer_auth_token=peer_auth_token,
                 min_lp_position_age_seconds=min_lp_position_age_seconds,
                 lp_duration_risk_policy=lp_duration_risk_policy,
             )
@@ -5105,6 +5123,7 @@ def make_node_http_server_v0(
     write_auth_token: str | None = None,
     submit_peer_auth_token: str | None = None,
     node_auth_token: str | None = None,
+    peer_auth_token: str | None = None,
     peer_urls: list[str] | None = None,
     enable_dynamic_peer_exchange: bool = False,
     max_dynamic_peer_count: int = 16,
@@ -5414,7 +5433,11 @@ def make_node_http_server_v0(
                         candidate_peer_urls=[peer_url],
                         observed_at_height=int(local_tip["height"]),
                     )
-                    peer_check = check_peer_status_v0(data_dir=root, peer_urls=[peer_url])
+                    peer_check = check_peer_status_v0(
+                        data_dir=root,
+                        peer_urls=[peer_url],
+                        peer_auth_token=peer_auth_token,
+                    )
                     admission = build_dynamic_peer_admission_v0(
                         current_peer_urls=dynamic_peer_urls,
                         candidate=candidate,
@@ -5676,6 +5699,7 @@ def _start_peer_follow_loop(
     data_dir: Path,
     peer_urls: list[str],
     poll_seconds: int,
+    peer_auth_token: str | None = None,
     min_lp_position_age_seconds: int = 0,
     lp_duration_risk_policy: Any | None = None,
 ) -> None:
@@ -5693,6 +5717,7 @@ def _start_peer_follow_loop(
                     pull_live_from_peer_v0(
                         data_dir=data_dir,
                         peer_url=peer_url,
+                        peer_auth_token=peer_auth_token,
                         min_lp_position_age_seconds=min_lp_position_age_seconds,
                         lp_duration_risk_policy=lp_duration_risk_policy,
                     )
@@ -5743,12 +5768,15 @@ def serve_node_v0(
     submit_peer_url: str | None = None,
     write_auth_token: str | None = None,
     submit_peer_auth_token: str | None = None,
+    node_auth_token: str | None = None,
+    peer_auth_token: str | None = None,
     enable_block_gossip: bool = False,
 ) -> None:
     _start_peer_follow_loop(
         data_dir=data_dir,
         peer_urls=list(peer_urls or []),
         poll_seconds=poll_seconds,
+        peer_auth_token=peer_auth_token,
         min_lp_position_age_seconds=min_lp_position_age_seconds,
         lp_duration_risk_policy=lp_duration_risk_policy,
     )
@@ -5765,6 +5793,8 @@ def serve_node_v0(
         submit_peer_url=submit_peer_url,
         write_auth_token=write_auth_token,
         submit_peer_auth_token=submit_peer_auth_token,
+        node_auth_token=node_auth_token,
+        peer_auth_token=peer_auth_token,
         peer_urls=list(peer_urls or []),
         enable_block_gossip=enable_block_gossip,
     )
@@ -5781,6 +5811,8 @@ def serve_node_v0(
                 "port": actual_port,
                 "peer_count": len(peer_urls or []),
                 "poll_seconds": poll_seconds,
+                "node_auth_configured": node_auth_token is not None,
+                "peer_auth_configured": peer_auth_token is not None,
                 "testnet_intake_enabled": enable_testnet_intake,
                 "testnet_faucet_enabled": enable_testnet_faucet,
                 "testnet_faucet_http_exposed": expose_testnet_faucet_http,
@@ -5892,6 +5924,8 @@ def preflight_node_join_config_v0(
 
     write_auth_inline = config.get("write_auth_token") is not None
     submit_peer_auth_inline = config.get("submit_peer_auth_token") is not None
+    node_auth_inline = config.get("node_auth_token") is not None
+    peer_auth_inline = config.get("peer_auth_token") is not None
     write_auth_env_configured = (
         isinstance(config.get("write_auth_token_env"), str)
         and config.get("write_auth_token_env") != ""
@@ -5899,6 +5933,14 @@ def preflight_node_join_config_v0(
     submit_peer_auth_env_configured = (
         isinstance(config.get("submit_peer_auth_token_env"), str)
         and config.get("submit_peer_auth_token_env") != ""
+    )
+    node_auth_env_configured = (
+        isinstance(config.get("node_auth_token_env"), str)
+        and config.get("node_auth_token_env") != ""
+    )
+    peer_auth_env_configured = (
+        isinstance(config.get("peer_auth_token_env"), str)
+        and config.get("peer_auth_token_env") != ""
     )
     try:
         write_auth_token = _auth_token_from_config(
@@ -5918,10 +5960,34 @@ def preflight_node_join_config_v0(
     except Exception as exc:
         errors.append(str(exc))
         submit_peer_auth_token = None
+    try:
+        node_auth_token = _auth_token_from_config(
+            config,
+            token_key="node_auth_token",
+            env_key="node_auth_token_env",
+        )
+    except Exception as exc:
+        errors.append(str(exc))
+        node_auth_token = None
+    try:
+        peer_auth_token = _auth_token_from_config(
+            config,
+            token_key="peer_auth_token",
+            env_key="peer_auth_token_env",
+        )
+    except Exception as exc:
+        errors.append(str(exc))
+        peer_auth_token = None
     checks["write_auth"] = write_auth_token is not None
     checks["submit_peer_auth"] = submit_peer_url is None or submit_peer_auth_token is not None
-    checks["inline_auth_tokens_absent"] = not (write_auth_inline or submit_peer_auth_inline)
-    if write_auth_inline or submit_peer_auth_inline:
+    checks["node_auth"] = node_auth_token is not None
+    checks["peer_auth"] = not peer_urls or peer_auth_token is not None
+    checks["node_auth_env_configured"] = node_auth_env_configured
+    checks["peer_auth_env_configured"] = not peer_urls or peer_auth_env_configured
+    checks["inline_auth_tokens_absent"] = not (
+        write_auth_inline or submit_peer_auth_inline or node_auth_inline or peer_auth_inline
+    )
+    if write_auth_inline or submit_peer_auth_inline or node_auth_inline or peer_auth_inline:
         warnings.append("inline auth tokens are present in the config; prefer *_auth_token_env for operator configs")
 
     serve = config.get("serve") is True
@@ -6009,7 +6075,7 @@ def preflight_node_join_config_v0(
         warnings.append("faucet is enabled while testnet intake is disabled; faucet requests will not be useful")
 
     checks["public_operator_bind"] = not public_operator or not public_bind
-    checks["public_operator_inline_auth"] = not public_operator or not (write_auth_inline or submit_peer_auth_inline)
+    checks["public_operator_inline_auth"] = not public_operator or checks["inline_auth_tokens_absent"]
     checks["public_operator_write_auth_env"] = (
         not public_operator
         or not testnet_mutation_enabled
@@ -6027,7 +6093,7 @@ def preflight_node_join_config_v0(
                 errors.append("public_operator: public binds must not expose testnet faucet or intake endpoints")
             if expose_testnet_faucet_http:
                 errors.append("public_operator: public binds must not expose HTTP testnet faucet")
-        if write_auth_inline or submit_peer_auth_inline:
+        if not checks["inline_auth_tokens_absent"]:
             errors.append("public_operator: inline auth tokens are forbidden; use *_auth_token_env")
         if testnet_mutation_enabled and not write_auth_env_configured:
             errors.append("public_operator: enabled mutation endpoints require write_auth_token_env")
@@ -6107,7 +6173,16 @@ def join_public_node_from_config_v0(*, config_path: Path) -> dict[str, Any]:
         peer_watcher_attestation_paths=peer_watcher_attestations,
     )
     peer_urls = _as_string_list(config.get("peer_urls"), name="peer_urls")
-    peer_check = check_peer_status_v0(data_dir=data_dir, peer_urls=peer_urls) if peer_urls else None
+    peer_auth_token = _auth_token_from_config(
+        config,
+        token_key="peer_auth_token",
+        env_key="peer_auth_token_env",
+    )
+    peer_check = (
+        check_peer_status_v0(data_dir=data_dir, peer_urls=peer_urls, peer_auth_token=peer_auth_token)
+        if peer_urls
+        else None
+    )
     ok = (
         run_report.get("ok") is True
         and (sync_report is None or sync_report.get("ok") is True)
@@ -6410,6 +6485,8 @@ def join_public_node_from_network_config_url_v0(
     serve: bool,
     write_auth_token_env: str | None = None,
     submit_peer_auth_token_env: str | None = None,
+    node_auth_token_env: str | None = None,
+    peer_auth_token_env: str | None = None,
     require_network_config_quorum: bool = False,
     expected_config_signer_registry_hash: str | None = None,
     require_production_key_admission: bool = False,
@@ -6434,6 +6511,10 @@ def join_public_node_from_network_config_url_v0(
         join_config["write_auth_token_env"] = write_auth_token_env
     if submit_peer_auth_token_env:
         join_config["submit_peer_auth_token_env"] = submit_peer_auth_token_env
+    if node_auth_token_env:
+        join_config["node_auth_token_env"] = node_auth_token_env
+    if peer_auth_token_env:
+        join_config["peer_auth_token_env"] = peer_auth_token_env
     data_dir.mkdir(parents=True, exist_ok=True)
     network_config_path = data_dir / "public_network_config.json"
     join_config_path = data_dir / "node_join_config.json"
@@ -6552,6 +6633,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
             submit_peer_url=args.submit_peer_url,
             write_auth_token=_auth_token_from_env_name(args.write_auth_token_env, name="write_auth_token_env"),
             submit_peer_auth_token=_auth_token_from_env_name(args.submit_peer_auth_token_env, name="submit_peer_auth_token_env"),
+            node_auth_token=_auth_token_from_env_name(args.node_auth_token_env, name="node_auth_token_env"),
+            peer_auth_token=_auth_token_from_env_name(args.peer_auth_token_env, name="peer_auth_token_env"),
             enable_block_gossip=args.enable_block_gossip,
         )
     return 0
@@ -6576,6 +6659,7 @@ def _cmd_pull_live(args: argparse.Namespace) -> int:
         report = pull_live_from_peer_v0(
             data_dir=args.data_dir,
             peer_url=args.peer_url,
+            peer_auth_token=_read_transport_auth_token_file_v0(args.peer_auth_token_file),
         )
     except Exception as exc:
         report = {"schema": NODE_PULL_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
@@ -6588,6 +6672,7 @@ def _cmd_check_peers(args: argparse.Namespace) -> int:
         report = check_peer_status_v0(
             data_dir=args.data_dir,
             peer_urls=list(args.peer_url),
+            peer_auth_token=_read_transport_auth_token_file_v0(args.peer_auth_token_file),
         )
     except Exception as exc:
         report = {"schema": NODE_PEER_CHECK_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
@@ -6627,6 +6712,16 @@ def _cmd_join(args: argparse.Namespace) -> int:
                 token_key="submit_peer_auth_token",
                 env_key="submit_peer_auth_token_env",
             ),
+            node_auth_token=_auth_token_from_config(
+                config,
+                token_key="node_auth_token",
+                env_key="node_auth_token_env",
+            ),
+            peer_auth_token=_auth_token_from_config(
+                config,
+                token_key="peer_auth_token",
+                env_key="peer_auth_token_env",
+            ),
         )
     return 0
 
@@ -6644,6 +6739,8 @@ def _cmd_join_network(args: argparse.Namespace) -> int:
             serve=args.serve,
             write_auth_token_env=args.write_auth_token_env,
             submit_peer_auth_token_env=args.submit_peer_auth_token_env,
+            node_auth_token_env=args.node_auth_token_env,
+            peer_auth_token_env=args.peer_auth_token_env,
             require_network_config_quorum=args.require_network_config_quorum,
             expected_config_signer_registry_hash=args.expected_config_signer_registry_hash,
             require_production_key_admission=args.require_production_key_admission,
@@ -6680,6 +6777,16 @@ def _cmd_join_network(args: argparse.Namespace) -> int:
                 join_config,
                 token_key="submit_peer_auth_token",
                 env_key="submit_peer_auth_token_env",
+            ),
+            node_auth_token=_auth_token_from_config(
+                join_config,
+                token_key="node_auth_token",
+                env_key="node_auth_token_env",
+            ),
+            peer_auth_token=_auth_token_from_config(
+                join_config,
+                token_key="peer_auth_token",
+                env_key="peer_auth_token_env",
             ),
         )
     return 0
@@ -6732,6 +6839,8 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         submit_peer_url=args.submit_peer_url,
         write_auth_token=_auth_token_from_env_name(args.write_auth_token_env, name="write_auth_token_env"),
         submit_peer_auth_token=_auth_token_from_env_name(args.submit_peer_auth_token_env, name="submit_peer_auth_token_env"),
+        node_auth_token=_auth_token_from_env_name(args.node_auth_token_env, name="node_auth_token_env"),
+        peer_auth_token=_auth_token_from_env_name(args.peer_auth_token_env, name="peer_auth_token_env"),
         enable_block_gossip=args.enable_block_gossip,
     )
     return 0
@@ -6800,6 +6909,8 @@ def main(argv: list[str] | None = None) -> int:
     join_network.add_argument("--poll-seconds", type=int)
     join_network.add_argument("--write-auth-token-env")
     join_network.add_argument("--submit-peer-auth-token-env")
+    join_network.add_argument("--node-auth-token-env")
+    join_network.add_argument("--peer-auth-token-env")
     join_network.add_argument("--require-network-config-quorum", action="store_true")
     join_network.add_argument("--expected-config-signer-registry-hash")
     join_network.add_argument("--require-production-key-admission", action="store_true")
@@ -6832,6 +6943,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--submit-peer-url")
     run.add_argument("--write-auth-token-env")
     run.add_argument("--submit-peer-auth-token-env")
+    run.add_argument("--node-auth-token-env")
+    run.add_argument("--peer-auth-token-env")
     run.set_defaults(func=_cmd_run)
 
     append = sub.add_parser("append", help="append one testnet DEX transaction to a node-local live ledger")
@@ -6843,11 +6956,13 @@ def main(argv: list[str] | None = None) -> int:
     pull_live = sub.add_parser("pull-live", help="pull and replay live blocks from a peer node")
     pull_live.add_argument("--data-dir", required=True, type=Path)
     pull_live.add_argument("--peer-url", required=True)
+    pull_live.add_argument("--peer-auth-token-file", type=Path)
     pull_live.set_defaults(func=_cmd_pull_live)
 
     check_peers = sub.add_parser("check-peers", help="check peer compatibility and common header prefixes")
     check_peers.add_argument("--data-dir", required=True, type=Path)
     check_peers.add_argument("--peer-url", action="append", required=True)
+    check_peers.add_argument("--peer-auth-token-file", type=Path)
     check_peers.set_defaults(func=_cmd_check_peers)
 
     evidence = sub.add_parser("evidence", help="build a portable node evidence report")
@@ -6888,6 +7003,8 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--submit-peer-url")
     serve.add_argument("--write-auth-token-env")
     serve.add_argument("--submit-peer-auth-token-env")
+    serve.add_argument("--node-auth-token-env")
+    serve.add_argument("--peer-auth-token-env")
     serve.set_defaults(func=_cmd_serve)
 
     args = parser.parse_args(argv)

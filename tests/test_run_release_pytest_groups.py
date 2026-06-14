@@ -64,6 +64,59 @@ def test_discover_pytest_groups_isolates_formal_tests_by_default(tmp_path: Path)
     assert len(core_groups[0].test_files) == 2
 
 
+def test_discover_pytest_groups_splits_slow_marked_files_by_nodeid(tmp_path: Path) -> None:
+    tests_root = tmp_path / "tests"
+    _write(tests_root / "integration" / "test_fast.py")
+    slow_file = tests_root / "integration" / "test_slow.py"
+    slow_file.parent.mkdir(parents=True, exist_ok=True)
+    slow_file.write_text(
+        "\n".join(
+            [
+                "import pytest",
+                "",
+                "@pytest.mark.slow",
+                "def test_slow_a():",
+                "    assert True",
+                "",
+                "def test_slow_b():",
+                "    assert True",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    groups = discover_pytest_groups(tests_root)
+
+    assert [group.group_id for group in groups] == [
+        "dir_integration",
+        "dir_integration_test_slow_slow_001",
+        "dir_integration_test_slow_slow_002",
+    ]
+    assert groups[0].targets == (str((tests_root / "integration" / "test_fast.py").resolve()),)
+    assert groups[1].targets == (f"{slow_file.resolve()}::test_slow_a",)
+    assert groups[2].targets == (f"{slow_file.resolve()}::test_slow_b",)
+    assert groups[1].test_files == (slow_file.resolve(),)
+    assert groups[2].test_files == (slow_file.resolve(),)
+
+    def runner(
+        argv: list[str],
+        stdout_path: Path,
+        stderr_path: Path,
+        timeout_sec: int | None,
+    ) -> tuple[int | None, bool]:
+        stdout_path.write_text("passed\n", encoding="utf-8")
+        stderr_path.write_text("", encoding="utf-8")
+        return 0, False
+
+    report = run_pytest_groups(
+        report_path=tmp_path / "pytest_groups.json",
+        tests_root=tests_root,
+        runner=runner,
+    )
+    assert report["all_test_file_count"] == 2
+
+
 def test_run_pytest_groups_accepts_only_when_every_group_passes(tmp_path: Path) -> None:
     tests_root = tmp_path / "tests"
     _write(tests_root / "test_root.py")
@@ -283,6 +336,75 @@ def test_run_pytest_groups_resumes_accepted_current_commit_prefix(
     assert report["groups"][0]["group_id"] == "root_test_files"
     assert report["groups"][0]["resumed_from_previous_report"] is True
     assert report["groups"][1]["group_id"] == "dir_integration"
+    assert report["groups"][1]["resumed_from_previous_report"] is False
+
+
+def test_run_pytest_groups_resumes_prefix_from_rejected_timeout_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tests_root = tmp_path / "tests"
+    _write(tests_root / "test_root.py")
+    _write(tests_root / "integration" / "test_integration.py")
+    report_path = tmp_path / "pytest_groups.json"
+    first_run_calls = 0
+
+    monkeypatch.setattr(pytest_groups, "_git_head", lambda: "commit-a")
+    monkeypatch.setattr(pytest_groups, "_git_dirty", lambda: False)
+
+    def first_runner(
+        argv: list[str],
+        stdout_path: Path,
+        stderr_path: Path,
+        timeout_sec: int | None,
+    ) -> tuple[int | None, bool]:
+        nonlocal first_run_calls
+        first_run_calls += 1
+        if first_run_calls == 1:
+            stdout_path.write_text("passed\n", encoding="utf-8")
+            stderr_path.write_text("", encoding="utf-8")
+            return 0, False
+        stdout_path.write_text("still running\n", encoding="utf-8")
+        stderr_path.write_text("", encoding="utf-8")
+        return None, True
+
+    first_report = run_pytest_groups(
+        report_path=report_path,
+        tests_root=tests_root,
+        runner=first_runner,
+    )
+
+    assert first_report["ok"] is False
+    assert first_report["status"] == "rejected"
+    assert len(first_report["groups"]) == 2
+    assert first_report["groups"][0]["status"] == "accepted"
+    assert first_report["groups"][1]["timed_out"] is True
+
+    resumed_calls: list[list[str]] = []
+
+    def resumed_runner(
+        argv: list[str],
+        stdout_path: Path,
+        stderr_path: Path,
+        timeout_sec: int | None,
+    ) -> tuple[int | None, bool]:
+        resumed_calls.append(argv)
+        stdout_path.write_text("passed\n", encoding="utf-8")
+        stderr_path.write_text("", encoding="utf-8")
+        return 0, False
+
+    report = run_pytest_groups(
+        report_path=report_path,
+        tests_root=tests_root,
+        resume=True,
+        runner=resumed_runner,
+    )
+
+    assert report["ok"] is True
+    assert report["resumed_group_count"] == 1
+    assert report["resume_rejected_reasons"] == []
+    assert len(resumed_calls) == 1
+    assert report["groups"][0]["resumed_from_previous_report"] is True
     assert report["groups"][1]["resumed_from_previous_report"] is False
 
 

@@ -59,11 +59,12 @@ def test_prod_gate_report_rejects_failed_gate(tmp_path: Path) -> None:
     assert report["ok"] is False
     assert report["returncode"] == 7
     assert "prod_gate_returncode:7" in report["incomplete_reasons"]
-    assert any(
+    assert not any(
         reason.startswith("release_gate_checks_not_accepted:")
         for reason in report["incomplete_reasons"]
     )
-    assert all(item["ok"] is False for item in report["check_results"].values())
+    assert all(item["ok"] is True for item in report["check_results"].values())
+    assert all(item["gate_returncode_ok"] is False for item in report["check_results"].values())
 
 
 def test_prod_gate_report_rejects_missing_stage_markers(tmp_path: Path) -> None:

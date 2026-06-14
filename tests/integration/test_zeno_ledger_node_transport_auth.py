@@ -8,9 +8,18 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from src.integration.zeno_ledger_v0 import hash_v0
-from tools.zeno_ledger_node import NODE_STATUS_SCHEMA, _post_json_url, check_peer_status_v0, make_node_http_server_v0
+import pytest
 
+from src.integration.zeno_ledger_v0 import hash_v0
+from tools import zeno_ledger_node
+from tools.zeno_ledger_node import (
+    NODE_STATUS_SCHEMA,
+    _post_json_url,
+    build_node_evidence_report_v0,
+    check_peer_status_v0,
+    main,
+    make_node_http_server_v0,
+)
 
 AUTH_TOKEN = "test-node-auth-token-v0"
 
@@ -69,6 +78,16 @@ def _write_node_status(
     status = {**body, "node_status_hash": _node_status_hash(body)}
     _write_json(data_dir / "node_status.json", status)
     return status
+
+
+def _write_covered_feature(status_path: Path, feature: str) -> None:
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    status["required_features"] = [feature]
+    status["covered_features"] = [feature]
+    status["covered_feature_count"] = 1
+    status = {**{key: value for key, value in status.items() if key != "node_status_hash"}}
+    status["node_status_hash"] = _node_status_hash(status)
+    _write_json(status_path, status)
 
 
 def _request_json(url: str, *, token: str | None = None, method: str = "GET") -> tuple[dict[str, object], int]:
@@ -158,6 +177,127 @@ def test_peer_status_check_uses_bearer_auth_token(tmp_path: Path) -> None:
     assert accepted["ok"] is True
     assert accepted["peers"][0]["status"] == "accepted"
     assert accepted["peers"][0]["height_relation"] == "same_height"
+
+
+def test_node_evidence_report_uses_peer_bearer_auth_token(tmp_path: Path) -> None:
+    common_hash = _root("common-5")
+    local_dir = tmp_path / "local"
+    peer_dir = tmp_path / "peer"
+    _write_node_status(
+        data_dir=local_dir,
+        node_id="local-evidence-auth-check",
+        latest_height=5,
+        last_header_hash=common_hash,
+    )
+    _write_covered_feature(local_dir / "node_status.json", "transport-auth-evidence")
+    _write_node_status(
+        data_dir=peer_dir,
+        node_id="peer-evidence-auth-check",
+        latest_height=5,
+        last_header_hash=common_hash,
+    )
+    server, url = _start_auth_node(peer_dir)
+    try:
+        rejected = build_node_evidence_report_v0(data_dir=local_dir, peer_urls=[url])
+        accepted = build_node_evidence_report_v0(
+            data_dir=local_dir,
+            peer_urls=[url],
+            peer_auth_token=AUTH_TOKEN,
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert rejected["ok"] is False
+    assert rejected["peer_check"]["peers"][0]["status"] == "rejected"
+    assert accepted["ok"] is True
+    assert accepted["peer_auth_configured"] is True
+    assert accepted["peer_check"]["peers"][0]["status"] == "accepted"
+
+
+def test_check_peers_cli_uses_peer_auth_token_file(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    common_hash = _root("common-5")
+    local_dir = tmp_path / "local"
+    peer_dir = tmp_path / "peer"
+    token_file = tmp_path / "peer-token.txt"
+    token_file.write_text(f"{AUTH_TOKEN}\n", encoding="utf-8")
+    _write_node_status(
+        data_dir=local_dir,
+        node_id="local-cli-auth-check",
+        latest_height=5,
+        last_header_hash=common_hash,
+    )
+    _write_node_status(
+        data_dir=peer_dir,
+        node_id="peer-cli-auth-check",
+        latest_height=5,
+        last_header_hash=common_hash,
+    )
+    server, url = _start_auth_node(peer_dir)
+    try:
+        rc = main(
+            [
+                "check-peers",
+                "--data-dir",
+                str(local_dir),
+                "--peer-url",
+                url,
+                "--peer-auth-token-file",
+                str(token_file),
+            ]
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    stdout = capsys.readouterr().out
+    report = json.loads(stdout)
+    assert rc == 0
+    assert report["ok"] is True
+    assert report["peers"][0]["status"] == "accepted"
+
+
+def test_serve_cli_wires_node_and_peer_auth_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data_dir = tmp_path / "node"
+    _write_node_status(
+        data_dir=data_dir,
+        node_id="serve-cli-auth",
+        latest_height=5,
+        last_header_hash=_root("common-5"),
+    )
+    monkeypatch.setenv("ZENO_NODE_TOKEN", "node-token")
+    monkeypatch.setenv("ZENO_PEER_TOKEN", "peer-token")
+    captured: dict[str, object] = {}
+
+    def fake_serve_node_v0(**kwargs: object) -> None:
+        captured.update(kwargs)
+
+    monkeypatch.setattr(zeno_ledger_node, "serve_node_v0", fake_serve_node_v0)
+
+    rc = main(
+        [
+            "serve",
+            "--data-dir",
+            str(data_dir),
+            "--peer-url",
+            "http://127.0.0.1:8787",
+            "--node-auth-token-env",
+            "ZENO_NODE_TOKEN",
+            "--peer-auth-token-env",
+            "ZENO_PEER_TOKEN",
+        ]
+    )
+
+    assert rc == 0
+    assert captured["node_auth_token"] == "node-token"
+    assert captured["peer_auth_token"] == "peer-token"
+    assert captured["peer_urls"] == ["http://127.0.0.1:8787"]
 
 
 def test_post_json_url_rejects_redirect_when_bearer_token_present() -> None:

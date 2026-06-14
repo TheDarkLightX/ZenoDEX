@@ -125,12 +125,13 @@ def _check_results(*, stdout: str, stderr: str, returncode: int | None) -> dict[
     for check_id in REQUIRED_RELEASE_GATE_CHECKS:
         marker = STAGE_MARKERS[check_id]
         marker_seen = marker in combined
-        ok = returncode == 0 and marker_seen
+        ok = marker_seen
         results[check_id] = {
             "ok": ok,
             "status": "accepted" if ok else "rejected",
             "marker": marker,
             "marker_seen": marker_seen,
+            "gate_returncode_ok": returncode == 0,
         }
     return results
 

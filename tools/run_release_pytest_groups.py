@@ -9,6 +9,7 @@ long or interrupted gate leaves evidence about the exact group in progress.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import shutil
 import subprocess
@@ -28,7 +29,7 @@ DEFAULT_FORMAL_MAX_FILES_PER_GROUP = 1
 @dataclass(frozen=True)
 class PytestGroup:
     group_id: str
-    targets: tuple[Path, ...]
+    targets: tuple[str, ...]
     test_files: tuple[Path, ...]
 
 
@@ -71,7 +72,7 @@ def discover_pytest_groups(
     groups: list[PytestGroup] = []
     root_files = tuple(sorted(tests_root.glob("test*.py")))
     if root_files:
-        groups.extend(_chunked_groups("root_test_files", root_files, max_files_per_group))
+        groups.extend(_group_test_files("root_test_files", root_files, max_files_per_group))
 
     for child in sorted(path for path in tests_root.iterdir() if path.is_dir()):
         if child.name == "__pycache__":
@@ -80,7 +81,7 @@ def discover_pytest_groups(
         if not test_files:
             continue
         group_size = formal_max_files_per_group if child.name == "formal" else max_files_per_group
-        groups.extend(_chunked_groups(f"dir_{child.name}", test_files, group_size))
+        groups.extend(_group_test_files(f"dir_{child.name}", test_files, group_size))
 
     covered = {path.resolve() for group in groups for path in group.test_files}
     all_tests = {path.resolve() for path in tests_root.rglob("test*.py")}
@@ -198,7 +199,7 @@ def _new_running_report(
         "max_files_per_group": context.max_files_per_group,
         "formal_max_files_per_group": context.formal_max_files_per_group,
         "group_count": len(context.groups),
-        "all_test_file_count": sum(len(group.test_files) for group in context.groups),
+        "all_test_file_count": _unique_test_file_count(context.groups),
         "log_dir": _rel(context.log_dir),
         "resume_requested": resume_requested,
         "resume_source_report": resume_prefix.source_report,
@@ -223,7 +224,7 @@ def _run_one_group(
         "-m",
         "pytest",
         "-q",
-        *(_rel(target) for target in group.targets),
+        *group.targets,
     ]
     group_started_at = _utc_now()
     group_start_ns = time.monotonic_ns()
@@ -253,7 +254,7 @@ def _run_one_group(
         "skip_only": skip_only,
         "target_count": len(group.targets),
         "test_file_count": len(group.test_files),
-        "targets": [_rel(target) for target in group.targets],
+        "targets": list(group.targets),
         "stdout_path": _rel(stdout_path),
         "stderr_path": _rel(stderr_path),
         "stdout_tail": _tail(stdout_path),
@@ -378,7 +379,7 @@ def _resume_report_rejection_reason(
 ) -> str | None:
     if previous.get("schema") != "zenodex.release_pytest_groups.v1":
         return "resume_schema_mismatch"
-    if previous.get("status") not in {"running", "accepted"}:
+    if previous.get("status") not in {"running", "accepted", "rejected"}:
         return "resume_status_not_resumable"
     if previous.get("commit_sha") != context.commit_sha:
         return "resume_commit_mismatch"
@@ -392,7 +393,7 @@ def _resume_report_rejection_reason(
         return "resume_formal_max_files_per_group_mismatch"
     if previous.get("group_count") != len(context.groups):
         return "resume_group_count_mismatch"
-    all_test_file_count = sum(len(group.test_files) for group in context.groups)
+    all_test_file_count = _unique_test_file_count(context.groups)
     if previous.get("all_test_file_count") != all_test_file_count:
         return "resume_test_file_count_mismatch"
     if previous.get("log_dir") != _rel(context.log_dir):
@@ -416,7 +417,7 @@ def _resume_group_rejection_reason(
         return "resume_group_target_count_mismatch"
     if previous_group.get("test_file_count") != len(current_group.test_files):
         return "resume_group_test_file_count_mismatch"
-    if previous_group.get("targets") != [_rel(target) for target in current_group.targets]:
+    if previous_group.get("targets") != list(current_group.targets):
         return "resume_group_targets_mismatch"
     if previous_group.get("stdout_path") != _rel(expected_stdout):
         return "resume_group_stdout_path_mismatch"
@@ -453,6 +454,23 @@ def _is_skip_only_pytest_exit(
     return not any(marker in combined for marker in (" failed", " error", " errors"))
 
 
+def _group_test_files(
+    base_id: str,
+    test_files: tuple[Path, ...],
+    max_files_per_group: int,
+) -> tuple[PytestGroup, ...]:
+    normal_files = tuple(path for path in test_files if not _has_slow_marker(path))
+    slow_files = tuple(path for path in test_files if _has_slow_marker(path))
+    groups = list(_chunked_groups(base_id, normal_files, max_files_per_group)) if normal_files else []
+    for path in slow_files:
+        groups.extend(_slow_nodeid_groups(base_id=base_id, path=path))
+    return tuple(groups)
+
+
+def _unique_test_file_count(groups: tuple[PytestGroup, ...]) -> int:
+    return len({path.resolve() for group in groups for path in group.test_files})
+
+
 def _chunked_groups(
     base_id: str,
     test_files: tuple[Path, ...],
@@ -466,17 +484,58 @@ def _chunked_groups(
         return (
             PytestGroup(
                 group_id=base_id,
-                targets=chunks[0],
+                targets=tuple(_rel(path) for path in chunks[0]),
                 test_files=chunks[0],
             ),
         )
     return tuple(
         PytestGroup(
             group_id=f"{base_id}_{index:03d}",
-            targets=chunk,
+            targets=tuple(_rel(path) for path in chunk),
             test_files=chunk,
         )
         for index, chunk in enumerate(chunks, start=1)
+    )
+
+
+def _has_slow_marker(path: Path) -> bool:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return "@pytest.mark.slow" in text or "@mark.slow" in text
+
+
+def _slow_nodeid_groups(*, base_id: str, path: Path) -> tuple[PytestGroup, ...]:
+    test_names = _top_level_test_function_names(path)
+    if not test_names:
+        return (
+            PytestGroup(
+                group_id=f"{base_id}_{path.stem}_slow",
+                targets=(_rel(path),),
+                test_files=(path,),
+            ),
+        )
+    file_target = _rel(path)
+    return tuple(
+        PytestGroup(
+            group_id=f"{base_id}_{path.stem}_slow_{index:03d}",
+            targets=(f"{file_target}::{test_name}",),
+            test_files=(path,),
+        )
+        for index, test_name in enumerate(test_names, start=1)
+    )
+
+
+def _top_level_test_function_names(path: Path) -> tuple[str, ...]:
+    try:
+        module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, SyntaxError):
+        return ()
+    return tuple(
+        node.name
+        for node in module.body
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name.startswith("test_")
     )
 
 

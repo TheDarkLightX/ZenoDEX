@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import shutil
 import tarfile
 import threading
 from functools import partial
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Mapping
 from urllib.error import HTTPError
@@ -19,9 +18,12 @@ import pytest
 from src.core.dex import DexState
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.integration.tau_net_client import sign_dex_intent_for_engine
-from src.integration.zeno_ledger_tokenomics import build_protocol_token_distribution_v0
 from src.integration.zeno_ledger_mirror import build_mirror_index_v0
-from src.integration.zeno_ledger_signature import _BLS_AVAILABLE, bls_public_key_hex_from_private_key_v0
+from src.integration.zeno_ledger_signature import (
+    _BLS_AVAILABLE,
+    bls_public_key_hex_from_private_key_v0,
+)
+from src.integration.zeno_ledger_tokenomics import build_protocol_token_distribution_v0
 from src.integration.zeno_ledger_v0 import (
     build_header_v0,
     canonical_header_hash_v0,
@@ -31,10 +33,13 @@ from src.integration.zeno_ledger_v0 import (
 from src.kernels.python.settlement_swap_runtime_v1 import quote_cpmm_swap_exact_out
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
-from src.state.pools import PoolState, PoolStatus
-from src.state.pools import compute_pool_id
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
-from tools.zeno_ledger_make_testnet_bundle import DEFAULT_ASSET0, DEFAULT_ASSET1, DEFAULT_BOOTSTRAP_SENDER
+from tools.zeno_ledger_make_testnet_bundle import (
+    DEFAULT_ASSET0,
+    DEFAULT_ASSET1,
+    DEFAULT_BOOTSTRAP_SENDER,
+)
 from tools.zeno_ledger_node import (
     NODE_JOIN_CONFIG_SCHEMA,
     NODE_LIVE_STATE_SCHEMA,
@@ -57,8 +62,8 @@ from tools.zeno_ledger_node import (
     append_testnet_faucet_v0,
     build_public_network_config_v0,
     check_peer_status_v0,
-    join_public_node_from_network_config_url_v0,
     join_public_node_from_config_v0,
+    join_public_node_from_network_config_url_v0,
     load_node_status_v0,
     make_node_http_server_v0,
     preflight_node_join_config_v0,
@@ -2200,6 +2205,8 @@ def test_zeno_ledger_node_public_operator_rejects_inline_auth_tokens(tmp_path: P
                 "enable_testnet_intake": True,
                 "write_auth_token": "inline-follower-token",
                 "submit_peer_auth_token": "inline-writer-token",
+                "node_auth_token": "inline-node-token",
+                "peer_auth_token": "inline-peer-token",
             },
             sort_keys=True,
         ),
