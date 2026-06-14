@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.integration import zeno_key_manager
+from src.integration import zeno_key_manager, zenodex_external_threshold_bls
 from src.integration.zeno_key_manager import (
     KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
     KEY_ENVIRONMENT_TEE_ATTESTED,
@@ -27,7 +27,6 @@ from src.integration.zeno_key_manager import (
     import_tau_net_key_ref_with_evidence,
     validate_tau_bls_public_key,
 )
-
 
 PUBKEY_A = "0x" + "11" * 48
 PUBKEY_B = "0x" + "22" * 48
@@ -316,6 +315,23 @@ def test_local_signer_rejects_inconsistent_bls_dependency_state(monkeypatch: pyt
             key_id="local-bls-1",
             private_key_hex="0x" + ("00" * 31) + "01",
         )
+
+
+def test_external_threshold_receipt_rejects_inconsistent_bls_dependency_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(zenodex_external_threshold_bls, "_BLS_AVAILABLE", True)
+    monkeypatch.setattr(zenodex_external_threshold_bls, "G2Basic", None)
+
+    ok, err = zenodex_external_threshold_bls.verify_external_threshold_bls_signature_receipt_v0(
+        receipt={},
+        payload={},
+        evidence={},
+    )
+
+    assert ok is False
+    assert err is not None
+    assert "py_ecc.bls is required to verify external threshold BLS receipts" in err
 
 
 @pytest.mark.skipif(not zeno_key_manager._BLS_AVAILABLE, reason="py_ecc not installed")

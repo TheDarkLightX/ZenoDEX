@@ -88,7 +88,7 @@ _SIGNATURE_RECEIPT_KEYS_V0 = frozenset(
 
 
 def _require_bls() -> None:
-    if not _BLS_AVAILABLE:
+    if not _BLS_AVAILABLE or G2Basic is None:
         raise RuntimeError("py_ecc.bls is required to verify external threshold BLS receipts")
 
 
@@ -444,7 +444,6 @@ def verify_external_threshold_bls_signature_receipt_v0(
         if not hmac.compare_digest(_require_root(obj.get("receipt_hash"), name="receipt_hash"), expected):
             return False, "external threshold BLS receipt_hash mismatch"
         signature = _require_signature(obj.get("signature"), name="signature")
-        assert G2Basic is not None
         ok = bool(
             G2Basic.Verify(
                 hex_to_bytes_fixed(str(evidence["public_key"]), nbytes=48, name="public_key"),
