@@ -488,6 +488,71 @@ def _replay_add_liquidity_fill(
     return True, None
 
 
+def _replay_remove_liquidity_fill(
+    *,
+    intent: Intent,
+    amounts: _FillAmounts,
+    pool_id: str,
+    pool: PoolState,
+    balances: BalanceTable,
+    lp: LPTable,
+    recipient: PubKey,
+    balance_deltas: List[BalanceDelta],
+    reserve_deltas: List[ReserveDelta],
+    lp_deltas: List[LPDelta],
+) -> Tuple[bool, Optional[str]]:
+    intent_id = intent.intent_id
+    sender = intent.sender_pubkey
+    if pool.status != PoolStatus.ACTIVE:
+        return False, f"pool not active for intent_id={intent_id}: {pool.status}"
+    lp_amount = intent.get_field("lp_amount")
+    amount0_min = intent.get_field("amount0_min", 0)
+    amount1_min = intent.get_field("amount1_min", 0)
+    if lp_amount is None:
+        return False, f"missing REMOVE_LIQUIDITY lp_amount for intent_id={intent_id}"
+    if not is_strict_int(lp_amount) or lp_amount <= 0:
+        return False, f"invalid lp_amount for intent_id={intent_id}"
+    if not is_strict_int(amount0_min) or amount0_min < 0:
+        return False, f"invalid amount0_min for intent_id={intent_id}"
+    if not is_strict_int(amount1_min) or amount1_min < 0:
+        return False, f"invalid amount1_min for intent_id={intent_id}"
+
+    try:
+        amount0_out, amount1_out = remove_liquidity(
+            pool_state=pool,
+            lp_amount=lp_amount,
+            amount0_min=amount0_min,
+            amount1_min=amount1_min,
+        )
+    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
+        return False, f"REMOVE_LIQUIDITY computation error for intent_id={intent_id}: {exc}"
+
+    if amounts.lp_burned != int(lp_amount):
+        return False, f"REMOVE_LIQUIDITY fill.lp_burned mismatch for intent_id={intent_id}"
+    if amounts.amount0_out != int(amount0_out):
+        return False, f"REMOVE_LIQUIDITY fill.amount0_out mismatch for intent_id={intent_id}"
+    if amounts.amount1_out != int(amount1_out):
+        return False, f"REMOVE_LIQUIDITY fill.amount1_out mismatch for intent_id={intent_id}"
+
+    try:
+        lp.subtract(sender, pool_id, int(lp_amount))
+        balances.add(recipient, pool.asset0, int(amount0_out))
+        balances.add(recipient, pool.asset1, int(amount1_out))
+    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
+        return False, f"REMOVE_LIQUIDITY apply error for intent_id={intent_id}: {exc}"
+
+    pool.reserve0 -= int(amount0_out)
+    pool.reserve1 -= int(amount1_out)
+    pool.lp_supply -= int(lp_amount)
+
+    lp_deltas.append(LPDelta(pubkey=sender, pool_id=pool_id, delta_add=0, delta_sub=int(lp_amount)))
+    balance_deltas.append(BalanceDelta(pubkey=recipient, asset=pool.asset0, delta_add=int(amount0_out), delta_sub=0))
+    balance_deltas.append(BalanceDelta(pubkey=recipient, asset=pool.asset1, delta_add=int(amount1_out), delta_sub=0))
+    reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=pool.asset0, delta_add=0, delta_sub=int(amount0_out)))
+    reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=pool.asset1, delta_add=0, delta_sub=int(amount1_out)))
+    return True, None
+
+
 def _replay_swap_fill(
     *,
     intent: Intent,
@@ -1038,53 +1103,20 @@ def _validate_settlement_strong_impl(
             continue
 
         if it.kind == IntentKind.REMOVE_LIQUIDITY:
-            if pool.status != PoolStatus.ACTIVE:
-                return fail(f"pool not active for intent_id={intent_id}: {pool.status}")
-            lp_amount = it.get_field("lp_amount")
-            amount0_min = it.get_field("amount0_min", 0)
-            amount1_min = it.get_field("amount1_min", 0)
-            if lp_amount is None:
-                return fail(f"missing REMOVE_LIQUIDITY lp_amount for intent_id={intent_id}")
-            if not is_strict_int(lp_amount) or lp_amount <= 0:
-                return fail(f"invalid lp_amount for intent_id={intent_id}")
-            if not is_strict_int(amount0_min) or amount0_min < 0:
-                return fail(f"invalid amount0_min for intent_id={intent_id}")
-            if not is_strict_int(amount1_min) or amount1_min < 0:
-                return fail(f"invalid amount1_min for intent_id={intent_id}")
-
-            try:
-                amount0_out, amount1_out = remove_liquidity(
-                    pool_state=pool,
-                    lp_amount=lp_amount,
-                    amount0_min=amount0_min,
-                    amount1_min=amount1_min,
-                )
-            except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
-                return fail(f"REMOVE_LIQUIDITY computation error for intent_id={intent_id}: {exc}")
-
-            if amounts.lp_burned != int(lp_amount):
-                return fail(f"REMOVE_LIQUIDITY fill.lp_burned mismatch for intent_id={intent_id}")
-            if amounts.amount0_out != int(amount0_out):
-                return fail(f"REMOVE_LIQUIDITY fill.amount0_out mismatch for intent_id={intent_id}")
-            if amounts.amount1_out != int(amount1_out):
-                return fail(f"REMOVE_LIQUIDITY fill.amount1_out mismatch for intent_id={intent_id}")
-
-            try:
-                lp.subtract(sender, pool_id, int(lp_amount))
-                balances.add(recipient, pool.asset0, int(amount0_out))
-                balances.add(recipient, pool.asset1, int(amount1_out))
-            except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
-                return fail(f"REMOVE_LIQUIDITY apply error for intent_id={intent_id}: {exc}")
-
-            pool.reserve0 -= int(amount0_out)
-            pool.reserve1 -= int(amount1_out)
-            pool.lp_supply -= int(lp_amount)
-
-            lp_deltas.append(LPDelta(pubkey=sender, pool_id=pool_id, delta_add=0, delta_sub=int(lp_amount)))
-            bal_deltas.append(BalanceDelta(pubkey=recipient, asset=pool.asset0, delta_add=int(amount0_out), delta_sub=0))
-            bal_deltas.append(BalanceDelta(pubkey=recipient, asset=pool.asset1, delta_add=int(amount1_out), delta_sub=0))
-            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=pool.asset0, delta_add=0, delta_sub=int(amount0_out)))
-            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=pool.asset1, delta_add=0, delta_sub=int(amount1_out)))
+            ok_remove, err_remove = _replay_remove_liquidity_fill(
+                intent=it,
+                amounts=amounts,
+                pool_id=pool_id,
+                pool=pool,
+                balances=balances,
+                lp=lp,
+                recipient=recipient,
+                balance_deltas=bal_deltas,
+                reserve_deltas=res_deltas,
+                lp_deltas=lp_deltas,
+            )
+            if not ok_remove:
+                return fail(str(err_remove))
             continue
 
         return fail(f"unsupported intent kind for strong validation: {it.kind}")
