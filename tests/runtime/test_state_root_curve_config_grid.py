@@ -8,6 +8,7 @@ contracts so the boundary is explicit and replayable.
 
 from __future__ import annotations
 
+import ast
 import sys
 from pathlib import Path
 
@@ -23,6 +24,19 @@ from tools.runtime import state_root_lib as lib  # noqa: E402
 
 ASSET0 = "0x" + "01" * 32
 ASSET1 = "0x" + "02" * 32
+
+
+def test_pool_state_has_no_broad_exception_handlers():
+    source_path = REPO / "src/state/pools.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+
+    assert not [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ExceptHandler)
+        and isinstance(node.type, ast.Name)
+        and node.type.id == "Exception"
+    ]
 
 
 def _id(byte: int) -> str:
