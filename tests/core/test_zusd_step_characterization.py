@@ -129,6 +129,103 @@ def test_step_is_total_deterministic_and_fail_closed_over_corpus():
     assert not missing_reject, f"tags never rejected (vacuous coverage): {missing_reject}"
 
 
+# --------------------------------------------------------------------------------
+# step_multi (two-vault) -- same dispatch-table refactor, same structural guards.
+# --------------------------------------------------------------------------------
+_PER_VAULT_TAGS = {"deposit_collateral", "withdraw_collateral", "mint_zusd", "repay_zusd", "liquidate"}
+
+
+def _ready_multi() -> "Z.ZUSDMultiState":
+    return Z.ZUSDMultiState(
+        now_epoch=5, oracle_seen=True, oracle_last_update_epoch=5,
+        price_e8=100 * E8, price_pending_e8=100 * E8,
+        vault_a=Z.ZUSDVault(collateral_e8=10000 * E8, debt_e8=1000 * E8),
+        vault_b=Z.ZUSDVault(collateral_e8=8000 * E8, debt_e8=500 * E8),
+        free_debt_e8=1000 * E8, sp_debt_e8=500 * E8,  # free + sp == total vault debt (1500)
+        base_rate_bps=200, base_rate_borrow_bump_bps=50,
+        base_rate_redeem_bump_bps=50, borrow_fee_max_bps=500, redemption_fee_max_bps=500,
+    )
+
+
+def _liq_multi(which: str) -> "Z.ZUSDMultiState":
+    va = Z.ZUSDVault(100 * E8, 1000 * E8) if which == "a" else Z.ZUSDVault(10000 * E8, 0)
+    vb = Z.ZUSDVault(100 * E8, 1000 * E8) if which == "b" else Z.ZUSDVault(10000 * E8, 0)
+    return Z.ZUSDMultiState(
+        now_epoch=5, oracle_seen=True, oracle_last_update_epoch=5,
+        price_e8=100 * E8, price_pending_e8=10 * E8, vault_a=va, vault_b=vb,
+        free_debt_e8=0, sp_debt_e8=1000 * E8, max_sp_coll_e8=10 ** 30,
+    )
+
+
+def _rand_multi_args(rng: random.Random, tag: str) -> dict:
+    if tag == "advance_epoch":
+        return {"delta": rng.choice([0, 1, 5, -1, 200])}
+    if tag in ("bootstrap_oracle", "oracle_report"):
+        return {"auth_ok": rng.choice([True, False]),
+                "price_e8": rng.choice([0, -1, 100 * E8, 90 * E8, 50 * E8])}
+    if tag == "oracle_commit":
+        return {"auth_ok": rng.choice([True, False])}
+    a: dict = {}
+    if tag in _PER_VAULT_TAGS:
+        a["vault"] = rng.choice(["a", "b", "bad", None])
+    if tag == "redeem_zusd":
+        a["vault"] = rng.choice(["a", "b", None, "bad"])
+    if tag != "liquidate":
+        a["amount_e8"] = rng.choice([0, -1, 1, 100 * E8, 500 * E8, 1000 * E8, 10 ** 9])
+    return a
+
+
+def _multi_corpus():
+    rng = random.Random(20260614)
+    bases = [Z.ZUSDMultiState(), _ready_multi(), _liq_multi("a"), _liq_multi("b")]
+    items = []
+    for base in bases:
+        for tag in sorted(_KNOWN_TAGS):
+            for _ in range(6):
+                items.append((base, Z.ZUSDMultiCommand(tag=tag, args=_rand_multi_args(rng, tag))))
+    for _ in range(300):
+        s = rng.choice([Z.ZUSDMultiState(), _ready_multi()])
+        for _ in range(rng.randint(1, 8)):
+            tag = rng.choice(sorted(_KNOWN_TAGS))
+            cmd = Z.ZUSDMultiCommand(tag=tag, args=_rand_multi_args(rng, tag))
+            items.append((s, cmd))
+            r = Z.step_multi(s, cmd)
+            if r.ok and r.state is not None:
+                s = r.state
+    return items
+
+
+def test_multi_dispatch_table_is_total_and_matches_known_commands():
+    assert set(Z._ZUSD_MULTI_STEP_HANDLERS.keys()) == _KNOWN_TAGS
+
+
+def test_multi_unknown_tag_is_rejected_fail_closed():
+    r = Z.step_multi(Z.ZUSDMultiState(), Z.ZUSDMultiCommand(tag="nope", args={}))
+    assert r.ok is False and r.state is None and "unknown action" in (r.error or "")
+
+
+def test_multi_step_is_total_deterministic_and_fail_closed_over_corpus():
+    """Two-vault analogue: total/deterministic/fail-closed; accepts are invariant-clean;
+    every tag exercised on accept AND reject (incl. per-vault liquidation accept)."""
+    accept_tags: Counter = Counter()
+    reject_tags: Counter = Counter()
+    for state, cmd in _multi_corpus():
+        r1 = Z.step_multi(state, cmd)
+        r2 = Z.step_multi(state, cmd)
+        assert (r1.ok, r1.error, r1.effects) == (r2.ok, r2.error, r2.effects)
+        assert isinstance(r1, Z.ZUSDMultiStepResult)
+        tag = str(cmd.tag)
+        if r1.ok:
+            assert r1.state is not None
+            assert Z.check_multi_invariants(r1.state) == [], f"accept must be invariant-clean ({tag})"
+            accept_tags[tag] += 1
+        else:
+            assert r1.state is None, f"reject must not leak state ({tag})"
+            reject_tags[tag] += 1
+    assert not (_KNOWN_TAGS - set(accept_tags)), f"tags never accepted: {_KNOWN_TAGS - set(accept_tags)}"
+    assert not (_KNOWN_TAGS - set(reject_tags)), f"tags never rejected: {_KNOWN_TAGS - set(reject_tags)}"
+
+
 def test_handlers_return_tuple_or_reject_when_they_return():
     """Each handler's contract: when it RETURNS (rather than raising on malformed
     input, which the dispatcher's `except` wrapper catches), it returns either
