@@ -136,6 +136,16 @@ def test_invalid_sender_rejected(bad_sender):
     assert result.reason == "invalid_sender"
 
 
+def test_admit_does_not_swallow_unexpected_canonicalizer_fault(monkeypatch):
+    def broken_canonicalizer(*_args, **_kwargs):
+        raise RuntimeError("canonicalizer implementation fault")
+
+    monkeypatch.setattr("src.core.replay_guard.canonical_hex_fixed_allow_0x", broken_canonicalizer)
+
+    with pytest.raises(RuntimeError, match="canonicalizer implementation fault"):
+        admit(state=ReplayGuardState(), sender=A, nonce=1)
+
+
 @pytest.mark.parametrize("bad_nonce", [0, -1, U32_MAX + 1, True, 1.0, "1"])
 def test_invalid_nonce_rejected(bad_nonce):
     result = admit(state=ReplayGuardState(), sender=A, nonce=bad_nonce)

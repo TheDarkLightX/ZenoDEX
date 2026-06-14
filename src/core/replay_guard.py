@@ -83,7 +83,7 @@ def _canonical_sender(sender: object) -> Union[str, None]:
         return None
     try:
         return canonical_hex_fixed_allow_0x(sender, nbytes=SENDER_NBYTES, name="sender")
-    except Exception:
+    except (TypeError, ValueError):
         return None
 
 
