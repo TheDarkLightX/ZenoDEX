@@ -327,6 +327,375 @@ def _build_validated_intent_index(
     return True, _SettlementIntentIndex(intents_by_id=intents_by_id, fill_by_id=fill_by_id), None
 
 
+def _replay_swap_fill(
+    *,
+    intent: Intent,
+    fill: Fill,
+    amounts: _FillAmounts,
+    pool_id: str,
+    pool: PoolState,
+    balances: BalanceTable,
+    recipient: PubKey,
+    balance_deltas: List[BalanceDelta],
+    reserve_deltas: List[ReserveDelta],
+    mode: str,
+    allow_cow_netting: bool,
+    quote_pool_fp: Optional[str],
+    protocol_fee_share_bps: int,
+    protocol_fee_recipient_pubkey: Optional[PubKey],
+) -> Tuple[bool, Optional[str]]:
+    intent_id = intent.intent_id
+    asset_in = intent.get_field("asset_in")
+    asset_out = intent.get_field("asset_out")
+    if not isinstance(asset_in, str) or not isinstance(asset_out, str):
+        return False, f"invalid asset_in/out for intent_id={intent_id}"
+    if pool.status != PoolStatus.ACTIVE:
+        return False, f"pool not active for intent_id={intent_id}: {pool.status}"
+    if {asset_in, asset_out} != {pool.asset0, pool.asset1} or asset_in == asset_out:
+        return False, f"swap asset mismatch for intent_id={intent_id}"
+    if quote_pool_fp is not None:
+        actual_pool_fp = pool_state_fingerprint(pool)
+        if actual_pool_fp != quote_pool_fp:
+            return (
+                False,
+                _quote_binding_error(
+                    "quote receipt pool snapshot mismatch",
+                    **_quote_binding_context(intent),
+                    actual_pool_fingerprint=actual_pool_fp,
+                ),
+            )
+
+    if fill.reason == "COW_NETTED":
+        return _replay_cow_netted_swap_fill(
+            intent=intent,
+            amounts=amounts,
+            balances=balances,
+            recipient=recipient,
+            balance_deltas=balance_deltas,
+            allow_cow_netting=allow_cow_netting,
+            asset_in=asset_in,
+            asset_out=asset_out,
+        )
+
+    if asset_in == pool.asset0 and asset_out == pool.asset1:
+        reserve_in = int(pool.reserve0)
+        reserve_out = int(pool.reserve1)
+        dir_is_0_to_1 = True
+    else:
+        reserve_in = int(pool.reserve1)
+        reserve_out = int(pool.reserve0)
+        dir_is_0_to_1 = False
+
+    if mode == _MODE_STRONG_PROOF_CARRYING:
+        if fill.reserve_in_before is None or fill.reserve_out_before is None:
+            return False, f"missing swap witness reserves for intent_id={intent_id}"
+        if amounts.reserve_in_before != int(reserve_in) or amounts.reserve_out_before != int(reserve_out):
+            return False, f"swap witness reserve mismatch for intent_id={intent_id}"
+
+    if intent.kind == IntentKind.SWAP_EXACT_IN:
+        return _replay_swap_exact_in_fill(
+            intent=intent,
+            amounts=amounts,
+            pool_id=pool_id,
+            pool=pool,
+            balances=balances,
+            recipient=recipient,
+            balance_deltas=balance_deltas,
+            reserve_deltas=reserve_deltas,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            dir_is_0_to_1=dir_is_0_to_1,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+        )
+
+    return _replay_swap_exact_out_fill(
+        intent=intent,
+        amounts=amounts,
+        pool_id=pool_id,
+        pool=pool,
+        balances=balances,
+        recipient=recipient,
+        balance_deltas=balance_deltas,
+        reserve_deltas=reserve_deltas,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        dir_is_0_to_1=dir_is_0_to_1,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+    )
+
+
+def _replay_cow_netted_swap_fill(
+    *,
+    intent: Intent,
+    amounts: _FillAmounts,
+    balances: BalanceTable,
+    recipient: PubKey,
+    balance_deltas: List[BalanceDelta],
+    allow_cow_netting: bool,
+    asset_in: AssetId,
+    asset_out: AssetId,
+) -> Tuple[bool, Optional[str]]:
+    intent_id = intent.intent_id
+    if not allow_cow_netting:
+        return False, f"COW_NETTED not allowed for intent_id={intent_id}"
+    if intent.kind != IntentKind.SWAP_EXACT_IN:
+        return False, f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={intent_id}"
+    amount_in = intent.get_field("amount_in")
+    min_out = intent.get_field("min_amount_out", 0)
+    if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
+        return False, f"invalid amount_in for intent_id={intent_id}"
+    if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
+        return False, f"invalid min_amount_out for intent_id={intent_id}"
+    if amounts.fee_paid != 0:
+        return False, f"COW_NETTED fee_paid must be 0: intent_id={intent_id}"
+    if amounts.amount_in_filled != int(amount_in):
+        return False, f"COW_NETTED amount_in_filled mismatch: intent_id={intent_id}"
+    out_amt = amounts.amount_out_filled
+    if out_amt < int(min_out):
+        return False, f"COW_NETTED slippage: intent_id={intent_id}"
+    try:
+        balances.subtract(intent.sender_pubkey, asset_in, int(amount_in))
+        balances.add(recipient, asset_out, out_amt)
+    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
+        return False, f"COW_NETTED apply error for intent_id={intent_id}: {exc}"
+
+    balance_deltas.append(BalanceDelta(pubkey=intent.sender_pubkey, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
+    balance_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=out_amt, delta_sub=0))
+    return True, None
+
+
+def _replay_swap_exact_in_fill(
+    *,
+    intent: Intent,
+    amounts: _FillAmounts,
+    pool_id: str,
+    pool: PoolState,
+    balances: BalanceTable,
+    recipient: PubKey,
+    balance_deltas: List[BalanceDelta],
+    reserve_deltas: List[ReserveDelta],
+    asset_in: AssetId,
+    asset_out: AssetId,
+    reserve_in: int,
+    reserve_out: int,
+    dir_is_0_to_1: bool,
+    protocol_fee_share_bps: int,
+    protocol_fee_recipient_pubkey: Optional[PubKey],
+) -> Tuple[bool, Optional[str]]:
+    intent_id = intent.intent_id
+    sender = intent.sender_pubkey
+    amount_in = intent.get_field("amount_in")
+    min_out = intent.get_field("min_amount_out", 0)
+    if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
+        return False, f"invalid amount_in for intent_id={intent_id}"
+    if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
+        return False, f"invalid min_amount_out for intent_id={intent_id}"
+
+    if amounts.amount_in_filled != int(amount_in):
+        return False, f"swap amount_in_filled mismatch for intent_id={intent_id}"
+
+    try:
+        if int(protocol_fee_share_bps):
+            if pool.curve_tag != CURVE_TAG_CPMM:
+                return False, f"protocol fee unsupported for curve intent_id={intent_id}"
+            quote = swap_exact_in_with_protocol_fee(
+                reserve_in=int(reserve_in),
+                reserve_out=int(reserve_out),
+                amount_in=int(amount_in),
+                fee_bps=int(pool.fee_bps),
+                protocol_fee_share_bps=int(protocol_fee_share_bps),
+            )
+            amount_out = int(quote.amount_out)
+            new_in = int(quote.new_reserve_in)
+            new_out = int(quote.new_reserve_out)
+            protocol_fee = int(quote.protocol_fee)
+        else:
+            amount_out, (new_in, new_out) = swap_exact_in_for_pool(
+                pool,
+                reserve_in=int(reserve_in),
+                reserve_out=int(reserve_out),
+                amount_in=int(amount_in),
+            )
+            protocol_fee = 0
+    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
+        return False, f"swap_exact_in kernel error for intent_id={intent_id}: {exc}"
+
+    if amounts.amount_out_filled != int(amount_out):
+        return False, f"swap amount_out_filled mismatch for intent_id={intent_id}"
+    if int(amount_out) < int(min_out):
+        return False, f"swap slippage for intent_id={intent_id}"
+
+    fee = compute_fee_total(int(amount_in), int(pool.fee_bps))
+    if amounts.fee_paid != int(fee):
+        return False, f"swap fee_paid mismatch for intent_id={intent_id}"
+    if amounts.protocol_fee_paid != int(protocol_fee):
+        return False, f"swap protocol_fee_paid mismatch for intent_id={intent_id}"
+
+    try:
+        balances.subtract(sender, asset_in, int(amount_in))
+        balances.add(recipient, asset_out, int(amount_out))
+        if protocol_fee:
+            if not protocol_fee_recipient_pubkey:
+                return False, f"protocol fee recipient missing after validation for intent_id={intent_id}"
+            balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
+    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
+        return False, f"swap apply error for intent_id={intent_id}: {exc}"
+
+    if dir_is_0_to_1:
+        pool.reserve0 = int(new_in)
+        pool.reserve1 = int(new_out)
+    else:
+        pool.reserve1 = int(new_in)
+        pool.reserve0 = int(new_out)
+
+    balance_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
+    balance_deltas.append(
+        BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out), delta_sub=0)
+    )
+    if protocol_fee:
+        if not protocol_fee_recipient_pubkey:
+            return False, f"protocol fee recipient missing after validation for intent_id={intent_id}"
+        balance_deltas.append(
+            BalanceDelta(
+                pubkey=protocol_fee_recipient_pubkey,
+                asset=asset_in,
+                delta_add=int(protocol_fee),
+                delta_sub=0,
+            )
+        )
+    reserve_deltas.append(
+        ReserveDelta(
+            pool_id=pool_id,
+            asset=asset_in,
+            delta_add=int(amount_in) - int(protocol_fee),
+            delta_sub=0,
+        )
+    )
+    reserve_deltas.append(
+        ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out))
+    )
+    return True, None
+
+
+def _replay_swap_exact_out_fill(
+    *,
+    intent: Intent,
+    amounts: _FillAmounts,
+    pool_id: str,
+    pool: PoolState,
+    balances: BalanceTable,
+    recipient: PubKey,
+    balance_deltas: List[BalanceDelta],
+    reserve_deltas: List[ReserveDelta],
+    asset_in: AssetId,
+    asset_out: AssetId,
+    reserve_in: int,
+    reserve_out: int,
+    dir_is_0_to_1: bool,
+    protocol_fee_share_bps: int,
+    protocol_fee_recipient_pubkey: Optional[PubKey],
+) -> Tuple[bool, Optional[str]]:
+    intent_id = intent.intent_id
+    sender = intent.sender_pubkey
+    amount_out_req = intent.get_field("amount_out")
+    max_in = intent.get_field("max_amount_in")
+    if not isinstance(amount_out_req, int) or isinstance(amount_out_req, bool) or amount_out_req <= 0:
+        return False, f"invalid amount_out for intent_id={intent_id}"
+    if not isinstance(max_in, int) or isinstance(max_in, bool) or max_in < 0:
+        return False, f"invalid max_amount_in for intent_id={intent_id}"
+
+    if amounts.amount_out_filled != int(amount_out_req):
+        return False, f"swap amount_out_filled mismatch for intent_id={intent_id}"
+
+    try:
+        if int(protocol_fee_share_bps):
+            if pool.curve_tag != CURVE_TAG_CPMM:
+                return False, f"protocol fee unsupported for curve intent_id={intent_id}"
+            quote = quote_cpmm_swap_exact_out(
+                reserve_in=int(reserve_in),
+                reserve_out=int(reserve_out),
+                amount_out=int(amount_out_req),
+                fee_bps=int(pool.fee_bps),
+                protocol_fee_share_bps=int(protocol_fee_share_bps),
+            )
+            amount_in_req = int(quote.amount_in)
+            new_in = int(quote.reserve_in_after)
+            new_out = int(quote.reserve_out_after)
+            protocol_fee = int(quote.protocol_fee_paid)
+        else:
+            amount_in_req, (new_in, new_out) = swap_exact_out_for_pool(
+                pool,
+                reserve_in=int(reserve_in),
+                reserve_out=int(reserve_out),
+                amount_out=int(amount_out_req),
+            )
+            protocol_fee = 0
+    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
+        return False, f"swap_exact_out kernel error for intent_id={intent_id}: {exc}"
+
+    if amounts.amount_in_filled != int(amount_in_req):
+        return False, f"swap amount_in_filled mismatch for intent_id={intent_id}"
+    if int(amount_in_req) > int(max_in):
+        return False, f"swap slippage for intent_id={intent_id}"
+
+    fee = compute_fee_total(int(amount_in_req), int(pool.fee_bps))
+    if amounts.fee_paid != int(fee):
+        return False, f"swap fee_paid mismatch for intent_id={intent_id}"
+    if amounts.protocol_fee_paid != int(protocol_fee):
+        return False, f"swap protocol_fee_paid mismatch for intent_id={intent_id}"
+
+    try:
+        balances.subtract(sender, asset_in, int(amount_in_req))
+        balances.add(recipient, asset_out, int(amount_out_req))
+        if protocol_fee:
+            if not protocol_fee_recipient_pubkey:
+                return False, f"protocol fee recipient missing after validation for intent_id={intent_id}"
+            balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
+    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
+        return False, f"swap apply error for intent_id={intent_id}: {exc}"
+
+    if dir_is_0_to_1:
+        pool.reserve0 = int(new_in)
+        pool.reserve1 = int(new_out)
+    else:
+        pool.reserve1 = int(new_in)
+        pool.reserve0 = int(new_out)
+
+    balance_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in_req)))
+    balance_deltas.append(
+        BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out_req), delta_sub=0)
+    )
+    if protocol_fee:
+        if not protocol_fee_recipient_pubkey:
+            return False, f"protocol fee recipient missing after validation for intent_id={intent_id}"
+        balance_deltas.append(
+            BalanceDelta(
+                pubkey=protocol_fee_recipient_pubkey,
+                asset=asset_in,
+                delta_add=int(protocol_fee),
+                delta_sub=0,
+            )
+        )
+    reserve_deltas.append(
+        ReserveDelta(
+            pool_id=pool_id,
+            asset=asset_in,
+            delta_add=int(amount_in_req) - int(protocol_fee),
+            delta_sub=0,
+        )
+    )
+    reserve_deltas.append(
+        ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out_req))
+    )
+    return True, None
+
+
 def validate_settlement_strong(
     *,
     settlement: Settlement,
@@ -540,246 +909,24 @@ def _validate_settlement_strong_impl(
         pool = pools[pool_id]
 
         if it.kind in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
-            asset_in = it.get_field("asset_in")
-            asset_out = it.get_field("asset_out")
-            if not isinstance(asset_in, str) or not isinstance(asset_out, str):
-                return fail(f"invalid asset_in/out for intent_id={intent_id}")
-            if pool.status != PoolStatus.ACTIVE:
-                return fail(f"pool not active for intent_id={intent_id}: {pool.status}")
-            if {asset_in, asset_out} != {pool.asset0, pool.asset1} or asset_in == asset_out:
-                return fail(f"swap asset mismatch for intent_id={intent_id}")
-            if quote_pool_fp is not None:
-                actual_pool_fp = pool_state_fingerprint(pool)
-                if actual_pool_fp != quote_pool_fp:
-                    return fail(
-                        _quote_binding_error(
-                            "quote receipt pool snapshot mismatch",
-                            **_quote_binding_context(it),
-                            actual_pool_fingerprint=actual_pool_fp,
-                        )
-                    )
-
-            # CoW netting semantics (optional): direct user-to-user swap, no pool reserve changes.
-            if f.reason == "COW_NETTED":
-                if not allow_cow_netting:
-                    return fail(f"COW_NETTED not allowed for intent_id={intent_id}")
-                if it.kind != IntentKind.SWAP_EXACT_IN:
-                    return fail(f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={intent_id}")
-                amount_in = it.get_field("amount_in")
-                min_out = it.get_field("min_amount_out", 0)
-                if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-                    return fail(f"invalid amount_in for intent_id={intent_id}")
-                if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
-                    return fail(f"invalid min_amount_out for intent_id={intent_id}")
-                if amounts.fee_paid != 0:
-                    return fail(f"COW_NETTED fee_paid must be 0: intent_id={intent_id}")
-                if amounts.amount_in_filled != int(amount_in):
-                    return fail(f"COW_NETTED amount_in_filled mismatch: intent_id={intent_id}")
-                out_amt = amounts.amount_out_filled
-                if out_amt < int(min_out):
-                    return fail(f"COW_NETTED slippage: intent_id={intent_id}")
-                try:
-                    balances.subtract(sender, asset_in, int(amount_in))
-                    balances.add(recipient, asset_out, out_amt)
-                except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
-                    return fail(f"COW_NETTED apply error for intent_id={intent_id}: {exc}")
-
-                bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
-                bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=out_amt, delta_sub=0))
-                continue
-
-            if asset_in == pool.asset0 and asset_out == pool.asset1:
-                reserve_in = int(pool.reserve0)
-                reserve_out = int(pool.reserve1)
-                dir_is_0_to_1 = True
-            else:
-                reserve_in = int(pool.reserve1)
-                reserve_out = int(pool.reserve0)
-                dir_is_0_to_1 = False
-
-            if mode == _MODE_STRONG_PROOF_CARRYING:
-                if f.reserve_in_before is None or f.reserve_out_before is None:
-                    return fail(f"missing swap witness reserves for intent_id={intent_id}")
-                if amounts.reserve_in_before != int(reserve_in) or amounts.reserve_out_before != int(reserve_out):
-                    return fail(f"swap witness reserve mismatch for intent_id={intent_id}")
-
-            if it.kind == IntentKind.SWAP_EXACT_IN:
-                amount_in = it.get_field("amount_in")
-                min_out = it.get_field("min_amount_out", 0)
-                if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-                    return fail(f"invalid amount_in for intent_id={intent_id}")
-                if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
-                    return fail(f"invalid min_amount_out for intent_id={intent_id}")
-
-                if amounts.amount_in_filled != int(amount_in):
-                    return fail(f"swap amount_in_filled mismatch for intent_id={intent_id}")
-
-                try:
-                    if int(protocol_fee_share_bps):
-                        if pool.curve_tag != CURVE_TAG_CPMM:
-                            return fail(f"protocol fee unsupported for curve intent_id={intent_id}")
-                        quote = swap_exact_in_with_protocol_fee(
-                            reserve_in=int(reserve_in),
-                            reserve_out=int(reserve_out),
-                            amount_in=int(amount_in),
-                            fee_bps=int(pool.fee_bps),
-                            protocol_fee_share_bps=int(protocol_fee_share_bps),
-                        )
-                        amount_out = int(quote.amount_out)
-                        new_in = int(quote.new_reserve_in)
-                        new_out = int(quote.new_reserve_out)
-                        protocol_fee = int(quote.protocol_fee)
-                    else:
-                        amount_out, (new_in, new_out) = swap_exact_in_for_pool(
-                            pool,
-                            reserve_in=int(reserve_in),
-                            reserve_out=int(reserve_out),
-                            amount_in=int(amount_in),
-                        )
-                        protocol_fee = 0
-                except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
-                    return fail(f"swap_exact_in kernel error for intent_id={intent_id}: {exc}")
-
-                if amounts.amount_out_filled != int(amount_out):
-                    return fail(f"swap amount_out_filled mismatch for intent_id={intent_id}")
-                if int(amount_out) < int(min_out):
-                    return fail(f"swap slippage for intent_id={intent_id}")
-
-                fee = compute_fee_total(int(amount_in), int(pool.fee_bps))
-                if amounts.fee_paid != int(fee):
-                    return fail(f"swap fee_paid mismatch for intent_id={intent_id}")
-                if amounts.protocol_fee_paid != int(protocol_fee):
-                    return fail(f"swap protocol_fee_paid mismatch for intent_id={intent_id}")
-
-                try:
-                    balances.subtract(sender, asset_in, int(amount_in))
-                    balances.add(recipient, asset_out, int(amount_out))
-                    if protocol_fee:
-                        if not protocol_fee_recipient_pubkey:
-                            return fail(f"protocol fee recipient missing after validation for intent_id={intent_id}")
-                        balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
-                except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
-                    return fail(f"swap apply error for intent_id={intent_id}: {exc}")
-
-                # Apply reserve updates.
-                if dir_is_0_to_1:
-                    pool.reserve0 = int(new_in)
-                    pool.reserve1 = int(new_out)
-                else:
-                    pool.reserve1 = int(new_in)
-                    pool.reserve0 = int(new_out)
-
-                bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
-                bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out), delta_sub=0))
-                if protocol_fee:
-                    if not protocol_fee_recipient_pubkey:
-                        return fail(f"protocol fee recipient missing after validation for intent_id={intent_id}")
-                    bal_deltas.append(
-                        BalanceDelta(
-                            pubkey=protocol_fee_recipient_pubkey,
-                            asset=asset_in,
-                            delta_add=int(protocol_fee),
-                            delta_sub=0,
-                        )
-                    )
-                res_deltas.append(
-                    ReserveDelta(
-                        pool_id=pool_id,
-                        asset=asset_in,
-                        delta_add=int(amount_in) - int(protocol_fee),
-                        delta_sub=0,
-                    )
-                )
-                res_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out)))
-                continue
-
-            # SWAP_EXACT_OUT
-            amount_out_req = it.get_field("amount_out")
-            max_in = it.get_field("max_amount_in")
-            if not isinstance(amount_out_req, int) or isinstance(amount_out_req, bool) or amount_out_req <= 0:
-                return fail(f"invalid amount_out for intent_id={intent_id}")
-            if not isinstance(max_in, int) or isinstance(max_in, bool) or max_in < 0:
-                return fail(f"invalid max_amount_in for intent_id={intent_id}")
-
-            if amounts.amount_out_filled != int(amount_out_req):
-                return fail(f"swap amount_out_filled mismatch for intent_id={intent_id}")
-
-            try:
-                if int(protocol_fee_share_bps):
-                    if pool.curve_tag != CURVE_TAG_CPMM:
-                        return fail(f"protocol fee unsupported for curve intent_id={intent_id}")
-                    quote = quote_cpmm_swap_exact_out(
-                        reserve_in=int(reserve_in),
-                        reserve_out=int(reserve_out),
-                        amount_out=int(amount_out_req),
-                        fee_bps=int(pool.fee_bps),
-                        protocol_fee_share_bps=int(protocol_fee_share_bps),
-                    )
-                    amount_in_req = int(quote.amount_in)
-                    new_in = int(quote.reserve_in_after)
-                    new_out = int(quote.reserve_out_after)
-                    protocol_fee = int(quote.protocol_fee_paid)
-                else:
-                    amount_in_req, (new_in, new_out) = swap_exact_out_for_pool(
-                        pool,
-                        reserve_in=int(reserve_in),
-                        reserve_out=int(reserve_out),
-                        amount_out=int(amount_out_req),
-                    )
-                    protocol_fee = 0
-            except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
-                return fail(f"swap_exact_out kernel error for intent_id={intent_id}: {exc}")
-
-            if amounts.amount_in_filled != int(amount_in_req):
-                return fail(f"swap amount_in_filled mismatch for intent_id={intent_id}")
-            if int(amount_in_req) > int(max_in):
-                return fail(f"swap slippage for intent_id={intent_id}")
-
-            fee = compute_fee_total(int(amount_in_req), int(pool.fee_bps))
-            if amounts.fee_paid != int(fee):
-                return fail(f"swap fee_paid mismatch for intent_id={intent_id}")
-            if amounts.protocol_fee_paid != int(protocol_fee):
-                return fail(f"swap protocol_fee_paid mismatch for intent_id={intent_id}")
-
-            try:
-                balances.subtract(sender, asset_in, int(amount_in_req))
-                balances.add(recipient, asset_out, int(amount_out_req))
-                if protocol_fee:
-                    if not protocol_fee_recipient_pubkey:
-                        return fail(f"protocol fee recipient missing after validation for intent_id={intent_id}")
-                    balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
-            except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
-                return fail(f"swap apply error for intent_id={intent_id}: {exc}")
-
-            if dir_is_0_to_1:
-                pool.reserve0 = int(new_in)
-                pool.reserve1 = int(new_out)
-            else:
-                pool.reserve1 = int(new_in)
-                pool.reserve0 = int(new_out)
-
-            bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in_req)))
-            bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out_req), delta_sub=0))
-            if protocol_fee:
-                if not protocol_fee_recipient_pubkey:
-                    return fail(f"protocol fee recipient missing after validation for intent_id={intent_id}")
-                bal_deltas.append(
-                    BalanceDelta(
-                        pubkey=protocol_fee_recipient_pubkey,
-                        asset=asset_in,
-                        delta_add=int(protocol_fee),
-                        delta_sub=0,
-                    )
-                )
-            res_deltas.append(
-                ReserveDelta(
-                    pool_id=pool_id,
-                    asset=asset_in,
-                    delta_add=int(amount_in_req) - int(protocol_fee),
-                    delta_sub=0,
-                )
+            ok_swap, err_swap = _replay_swap_fill(
+                intent=it,
+                fill=f,
+                amounts=amounts,
+                pool_id=pool_id,
+                pool=pool,
+                balances=balances,
+                recipient=recipient,
+                balance_deltas=bal_deltas,
+                reserve_deltas=res_deltas,
+                mode=mode,
+                allow_cow_netting=allow_cow_netting,
+                quote_pool_fp=quote_pool_fp,
+                protocol_fee_share_bps=protocol_fee_share_bps,
+                protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
             )
-            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out_req)))
+            if not ok_swap:
+                return fail(str(err_swap))
             continue
 
         if it.kind == IntentKind.ADD_LIQUIDITY:
