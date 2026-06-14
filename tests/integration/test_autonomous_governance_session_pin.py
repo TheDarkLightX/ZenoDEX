@@ -616,6 +616,48 @@ def test_advance_refuses_epoch_replay_and_budget_swap() -> None:
     assert "advance_budget_mismatch" in result["errors"]
 
 
+def test_advance_refuses_current_head_budget_above_policy_limit() -> None:
+    policy = _policy()
+    inflated_budget = {**dict(_BUDGET), "fee_bps": 5_000}
+    genesis_receipt = run_autonomous_governance_surface_trajectory_v1(
+        policy=policy,
+        initial_surface_state=_surface_state(),
+        steps=_steps(20, 100),
+        expected_policy_hash=str(policy["policy_hash"]),
+        trajectory_budget=inflated_budget,
+    )
+    assert genesis_receipt["trajectory_used_final"]["fee_bps"] > _BUDGET["fee_bps"]
+    head = _synthetic_genesis_pin(policy, genesis_receipt)
+    continuation = run_autonomous_governance_surface_trajectory_v1(
+        policy=policy,
+        initial_surface_state=dict(genesis_receipt["final_state"]),
+        steps=_steps(2, 120),
+        expected_policy_hash=str(policy["policy_hash"]),
+        last_update_epoch=genesis_receipt["last_update_epoch_final"],
+        trajectory_budget=inflated_budget,
+        trajectory_used=dict(genesis_receipt["trajectory_used_final"]),
+        previous_approved_deltas=dict(genesis_receipt["previous_approved_deltas_final"]),
+        previous_chain_head=str(genesis_receipt["chain_head"]),
+    )
+
+    result = advance_autonomous_governance_session_v1(
+        current_pin=head,
+        receipt=continuation,
+        policy=policy,
+    )
+
+    assert result["ok"] is False
+    assert "current_trajectory_budget_policy_mismatch" in result["errors"]
+
+    replayed = verify_session_pin_chain_v1(
+        [head],
+        policy=policy,
+        receipts=[genesis_receipt],
+    )
+    assert replayed["ok"] is False
+    assert "pin[0]_trajectory_budget_policy_mismatch" in replayed["errors"]
+
+
 def test_advance_refuses_wrong_policy_and_tampered_pin() -> None:
     policy = _policy()
     other = _policy("session_pin_policy_b")

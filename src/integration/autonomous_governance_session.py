@@ -97,6 +97,33 @@ def _is_plain_int(value: object) -> TypeGuard[int]:
     return type(value) is int
 
 
+def _policy_budget_binding_errors(
+    *,
+    policy: object,
+    receipt_budget: object,
+    prefix: str,
+) -> tuple[dict[str, int], list[str]]:
+    """Bind a receipt/pin budget to the canonical policy-derived budget.
+
+    Receipt budgets are replay data, not authority. The live admission path must
+    derive the budget from the pinned policy and reject any receipt or pin that
+    carries a larger or otherwise different budget.
+    """
+
+    policy_budget, policy_budget_errors = _normalize_trajectory_budget(
+        None, policy=policy if isinstance(policy, Mapping) else {}
+    )
+    errors = [
+        f"{prefix}_policy_trajectory_budget_invalid:{error}"
+        for error in policy_budget_errors
+    ]
+    if policy_budget_errors:
+        return {}, errors
+    if not isinstance(receipt_budget, Mapping) or dict(receipt_budget) != policy_budget:
+        errors.append(f"{prefix}_trajectory_budget_policy_mismatch")
+    return dict(policy_budget), errors
+
+
 def _last_input_epoch(receipt: Mapping[str, Any]) -> int | None:
     """Largest validated step epoch of a runner-produced receipt.
 
@@ -210,6 +237,13 @@ def continue_autonomous_governance_surface_trajectory_v1(
     if expected_policy_hash and parent.get("policy_hash") != expected_policy_hash:
         structural_errors.append("session_policy_hash_mismatch")
 
+    policy_budget, policy_budget_errors = _policy_budget_binding_errors(
+        policy=policy_for_hash,
+        receipt_budget=parent.get("trajectory_budget"),
+        prefix="session",
+    )
+    structural_errors.extend(policy_budget_errors)
+
     parent_last_epoch = _last_input_epoch(parent)
     if parent_last_epoch is None:
         structural_errors.append("session_parent_epochs_unreadable")
@@ -239,7 +273,7 @@ def continue_autonomous_governance_surface_trajectory_v1(
         last_update_epoch=(
             int(last_update_epoch) if _is_plain_int(last_update_epoch) else None
         ),
-        trajectory_budget=dict(parent["trajectory_budget"]),
+        trajectory_budget=dict(policy_budget),
         trajectory_used=dict(parent["trajectory_used_final"]),
         previous_approved_deltas=dict(parent["previous_approved_deltas_final"]),
         previous_chain_head=str(chain_head),
@@ -446,17 +480,13 @@ def verify_autonomous_governance_surface_session_v1(
         errors.append("session_trajectory_budget_inconsistent")
     checks["budget_consistent_ok"] = budget_ok
 
-    policy_budget, policy_budget_errors = _normalize_trajectory_budget(
-        None, policy=policy if isinstance(policy, Mapping) else {}
+    policy_budget, policy_budget_errors = _policy_budget_binding_errors(
+        policy=policy,
+        receipt_budget=budgets[0],
+        prefix="session",
     )
-    budget_policy_bound_ok = not policy_budget_errors and budgets[0] == policy_budget
-    if policy_budget_errors:
-        errors.extend(
-            f"session_policy_trajectory_budget_invalid:{error}"
-            for error in policy_budget_errors
-        )
-    if not budget_policy_bound_ok and not policy_budget_errors:
-        errors.append("session_trajectory_budget_policy_mismatch")
+    budget_policy_bound_ok = not policy_budget_errors
+    errors.extend(policy_budget_errors)
     checks["budget_policy_bound_ok"] = budget_policy_bound_ok
     budget = policy_budget if budget_policy_bound_ok else budgets[0]
 

@@ -206,6 +206,31 @@ def test_initialize_refuses_unbound_pin_and_wrong_policy() -> None:
     assert junk["store"] == {}
 
 
+def test_initialize_refuses_genesis_budget_above_policy_limit() -> None:
+    policy = _policy()
+    inflated_budget = {**dict(_BUDGET), "fee_bps": 5_000}
+    receipt = run_autonomous_governance_surface_trajectory_v1(
+        policy=policy,
+        initial_surface_state=_surface_state(),
+        steps=_steps(20, 100),
+        expected_policy_hash=str(policy["policy_hash"]),
+        trajectory_budget=inflated_budget,
+    )
+    assert receipt["trajectory_budget"]["fee_bps"] == 5_000
+    assert receipt["trajectory_used_final"]["fee_bps"] > _BUDGET["fee_bps"]
+    pin = _genesis_pin(policy, receipt)
+
+    init = initialize_autonomous_governance_session_store_v1(
+        genesis_pin=pin,
+        genesis_receipt=receipt,
+        policy=policy,
+    )
+
+    assert init["ok"] is False
+    assert init["store"] == {}
+    assert "session_store_genesis_trajectory_budget_policy_mismatch" in init["errors"]
+
+
 def test_admission_moves_the_head_and_only_forward() -> None:
     policy = _policy()
     store, genesis_receipt = _store(policy)

@@ -68,6 +68,7 @@ from src.integration.autonomous_governance_q_policy import (
 from src.integration.autonomous_governance_session import (
     _first_step_epoch,
     _last_input_epoch,
+    _policy_budget_binding_errors,
 )
 from src.integration.autonomous_governance_trajectory import (
     STATUS_COMPLETED,
@@ -557,6 +558,12 @@ def open_autonomous_governance_session_v1(
     elif isinstance(genesis_receipt, Mapping):
         summary = _receipt_summary(genesis_receipt, errors, prefix="session_genesis")
         errors.extend(_genesis_freshness_errors(genesis_receipt))
+        _, budget_errors = _policy_budget_binding_errors(
+            policy=policy_for_hash,
+            receipt_budget=summary.get("trajectory_budget"),
+            prefix="session_genesis",
+        )
+        errors.extend(budget_errors)
 
     registry_hash = ""
     try:
@@ -671,6 +678,13 @@ def advance_autonomous_governance_session_v1(
     policy_hash = _policy_content_hash_for_receipt(policy_for_hash, errors)
     if head and policy_hash and policy_hash != head.get("policy_hash"):
         errors.append("advance_policy_hash_mismatch")
+    if head:
+        _, budget_errors = _policy_budget_binding_errors(
+            policy=policy_for_hash,
+            receipt_budget=head.get("trajectory_budget"),
+            prefix="current",
+        )
+        errors.extend(budget_errors)
 
     receipt_verification = _VERIFY_TRAJECTORY(receipt=receipt, policy=policy_for_hash)
     summary: dict[str, Any] = {}
@@ -682,6 +696,12 @@ def advance_autonomous_governance_session_v1(
         )
     elif isinstance(receipt, Mapping):
         summary = _receipt_summary(receipt, errors, prefix="advance")
+        _, budget_errors = _policy_budget_binding_errors(
+            policy=policy_for_hash,
+            receipt_budget=summary.get("trajectory_budget"),
+            prefix="advance",
+        )
+        errors.extend(budget_errors)
 
     if head and summary and isinstance(receipt, Mapping):
         errors.extend(
@@ -887,6 +907,15 @@ def verify_session_pin_chain_v1(
         if expected_policy_hash and normalized["policy_hash"] != expected_policy_hash:
             errors.append(f"pin[{index}]:session_policy_hash_mismatch")
             break
+        if policy is not None:
+            _, budget_errors = _policy_budget_binding_errors(
+                policy=policy,
+                receipt_budget=normalized["trajectory_budget"],
+                prefix=f"pin[{index}]",
+            )
+            errors.extend(budget_errors)
+            if errors:
+                break
         errors.extend(
             _session_accounting_errors(
                 session_initial_state=dict(normalized["session_initial_state"]),

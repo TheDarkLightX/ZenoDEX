@@ -19,7 +19,6 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -583,10 +582,11 @@ def test_session_verifier_refuses_genesis_budget_above_policy_limit() -> None:
     )
 
     child = _continue(policy, genesis, _pressure_steps(2, 120))
-    assert child["trajectory_budget"] == genesis["trajectory_budget"]
+    assert child["status"] == STATUS_REJECTED_STRUCTURAL
+    assert "session_trajectory_budget_policy_mismatch" in child["errors"]
 
     verification = verify_autonomous_governance_surface_session_v1(
-        receipts=[genesis, child], policy=policy
+        receipts=[genesis], policy=policy
     )
     assert verification["ok"] is False
     assert verification["checks"]["budget_consistent_ok"] is True

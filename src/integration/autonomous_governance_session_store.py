@@ -53,6 +53,9 @@ from src.integration.autonomous_governance_hostile_input import (
 from src.integration.autonomous_governance_q_policy import (
     _policy_content_hash_for_receipt,
 )
+from src.integration.autonomous_governance_session import (
+    _policy_budget_binding_errors,
+)
 from src.integration.autonomous_governance_session_pin import (
     PIN_KIND_GENESIS,
     _genesis_freshness_errors,
@@ -291,6 +294,12 @@ def initialize_autonomous_governance_session_store_v1(
                 _pin_receipt_binding_errors(pin, summary, prefix="session_store_genesis")
             )
         errors.extend(_genesis_freshness_errors(genesis_receipt))
+        _, budget_errors = _policy_budget_binding_errors(
+            policy=policy,
+            receipt_budget=genesis_receipt.get("trajectory_budget"),
+            prefix="session_store_genesis",
+        )
+        errors.extend(budget_errors)
 
     store: dict[str, Any] = {}
     if not errors and isinstance(genesis_receipt, Mapping):
