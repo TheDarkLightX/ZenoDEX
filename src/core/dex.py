@@ -25,6 +25,8 @@ from .settlement import FillAction, Settlement
 from .settlement_strong_validator import validate_settlement_strong
 from .vault import VaultState
 
+_DEX_STEP_DOMAIN_ERRORS = (ArithmeticError, TypeError, ValueError)
+
 
 @dataclass(frozen=True)
 class DexConfig:
@@ -196,7 +198,12 @@ def step_with_candidate_settlement(
     *,
     candidate_settlement: Settlement,
 ) -> DexStepResult:
-    """Verifier path: accept an externally proposed settlement (proof-carrying friendly)."""
+    """Verifier path: accept an externally proposed settlement (proof-carrying friendly).
+
+    Expected malformed input/domain failures return `DexStepResult(ok=False)`.
+    Unexpected implementation faults propagate so tests and operators do not
+    mistake a hidden bug for an ordinary settlement rejection.
+    """
     try:
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
@@ -212,7 +219,7 @@ def step_with_candidate_settlement(
             candidate_settlement,
             next_nonces or state.nonces,
         )
-    except Exception as exc:
+    except _DEX_STEP_DOMAIN_ERRORS as exc:
         return DexStepResult(ok=False, error=str(exc))
 
 
@@ -221,6 +228,8 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
     Execute one DEX step over a batch of intents.
 
     This function is pure: it returns a new DexState and structured effects.
+    Expected malformed input/domain failures return `DexStepResult(ok=False)`.
+    Unexpected implementation faults propagate.
     """
     try:
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
@@ -246,5 +255,5 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
             settlement,
             next_nonces or state.nonces,
         )
-    except Exception as exc:
+    except _DEX_STEP_DOMAIN_ERRORS as exc:
         return DexStepResult(ok=False, error=str(exc))
