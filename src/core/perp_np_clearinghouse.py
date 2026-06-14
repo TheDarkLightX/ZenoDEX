@@ -153,8 +153,29 @@ def _validate_market_params_for_admission(params: MarketParams) -> None:
     """Admission-only parameter guard.
 
     Existing snapshots remain loadable for repair. New market creation must not
-    admit the unfunded-liquidation region.
+    admit malformed control params or the unfunded-liquidation region.
     """
+    if params.max_oracle_move_bps < 0:
+        raise ValueError("invalid params: require max_oracle_move_bps >= 0")
+    if params.initial_margin_bps < 0:
+        raise ValueError("invalid params: require initial_margin_bps >= 0")
+    if params.maintenance_margin_bps < 0:
+        raise ValueError("invalid params: require maintenance_margin_bps >= 0")
+    if params.depeg_buffer_bps <= 0:
+        raise ValueError("invalid params: require depeg_buffer_bps > 0")
+    if params.liquidation_penalty_bps <= 0:
+        raise ValueError("invalid params: require liquidation_penalty_bps > 0")
+    if params.funding_cap_bps <= 0:
+        raise ValueError("invalid params: require funding_cap_bps > 0")
+    if params.max_position_abs <= 0:
+        raise ValueError("invalid params: require max_position_abs > 0")
+    if params.min_notional_for_bounty_e8 < 0:
+        raise ValueError("invalid params: require min_notional_for_bounty_e8 >= 0")
+    eff_maint_bps = params.maintenance_margin_bps + params.depeg_buffer_bps
+    if params.max_oracle_move_bps > eff_maint_bps or eff_maint_bps > params.initial_margin_bps:
+        raise ValueError("invalid params: require max_oracle_move_bps <= maintenance_margin_bps + depeg_buffer_bps <= initial_margin_bps")
+    if params.liquidation_penalty_bps >= eff_maint_bps:
+        raise ValueError("invalid params: require liquidation_penalty_bps < maintenance_margin_bps + depeg_buffer_bps")
     if not funded_liquidation_params_ok(params):
         raise ValueError("invalid params: require funded liquidation after max_oracle_move_bps")
 

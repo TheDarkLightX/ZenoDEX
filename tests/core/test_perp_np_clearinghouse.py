@@ -75,6 +75,23 @@ def test_init_market_rejects_unfunded_liquidation_params():
         C.init_market(100 * E8, params=C.MarketParams(max_oracle_move_bps=548))
 
 
+@pytest.mark.parametrize(
+    ("params", "reason"),
+    [
+        (C.MarketParams(liquidation_penalty_bps=-1, max_oracle_move_bps=0), "liquidation_penalty_bps > 0"),
+        (C.MarketParams(liquidation_penalty_bps=0, max_oracle_move_bps=0), "liquidation_penalty_bps > 0"),
+        (C.MarketParams(depeg_buffer_bps=-100, max_oracle_move_bps=0), "depeg_buffer_bps > 0"),
+        (C.MarketParams(funding_cap_bps=0), "funding_cap_bps > 0"),
+        (C.MarketParams(max_position_abs=0), "max_position_abs > 0"),
+        (C.MarketParams(min_notional_for_bounty_e8=-1), "min_notional_for_bounty_e8 >= 0"),
+        (C.MarketParams(initial_margin_bps=500), "max_oracle_move_bps <= maintenance_margin_bps"),
+    ],
+)
+def test_init_market_rejects_malformed_control_params(params, reason):
+    with pytest.raises(ValueError, match=reason):
+        C.init_market(100 * E8, params=params)
+
+
 def test_run_epoch_settles_zero_sum_against_index():
     m = C.init_market(100 * E8)
     for pk in ("aa", "bb", "cc"):
