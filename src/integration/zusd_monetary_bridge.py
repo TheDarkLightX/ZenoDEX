@@ -16,15 +16,14 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, replace
-from typing import Any, Mapping, Optional, Tuple
+from typing import Any, Mapping, Optional
 
 from ..core.dex import DexState
 from ..core.zusd import BPS_SCALE, E8, ZUSDCommand, ZUSDState, check_invariants, init_state, step
-from ..state.balances import BalanceTable, NATIVE_ASSET
+from ..state.balances import NATIVE_ASSET, BalanceTable
 from ..state.canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x
 from ..state.nonces import NonceTable
 from .zusd_tau_token import derive_zusd_tau_asset_id
-
 
 ZUSD_MONETARY_SCHEMA = "zenodex/zusd_monetary_state/v1"
 ZUSD_MONETARY_MODULE = "ZUSDFinance"
@@ -34,6 +33,7 @@ _U32_MAX = 0xFFFFFFFF
 _MAX_OPS = 128
 _MAX_OP_BYTES = 64_000
 _MAX_TOTAL_OPS_BYTES = 512_000
+_ZUSD_MONETARY_DOMAIN_ERRORS = (ArithmeticError, KeyError, TypeError, ValueError)
 
 
 @dataclass(frozen=True)
@@ -231,7 +231,7 @@ def apply_zusd_monetary_ops(
                     zusd_asset=zusd_asset,
                     sp_pubkey=sp_pubkey,
                 )
-            except Exception as exc:
+            except _ZUSD_MONETARY_DOMAIN_ERRORS as exc:
                 return ZUSDMonetaryTxResult(ok=False, error=f"zusd op[{i}] {exc}")
 
             nonces.set_last(nonce_key, nonce)
@@ -241,7 +241,7 @@ def apply_zusd_monetary_ops(
 
         next_state = replace(state, balances=balances, nonces=nonces)
         return ZUSDMonetaryTxResult(ok=True, state=next_state, zusd_state=working, effects=effects)
-    except Exception as exc:
+    except _ZUSD_MONETARY_DOMAIN_ERRORS as exc:
         return ZUSDMonetaryTxResult(ok=False, error=_safe_error_str(exc))
 
 
