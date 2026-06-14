@@ -8,9 +8,9 @@ This is a pure state machine intended for the functional core:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, Mapping
-
+from typing import Any, Literal
 
 ACC_SCALE = 1_000_000
 
@@ -68,6 +68,10 @@ def init_vault_state() -> VaultState:
 
 def step(state: VaultState, cmd: VaultCommand) -> VaultStepResult:
     """Execute a vault command."""
+    input_error = _validate_step_inputs(state, cmd)
+    if input_error is not None:
+        return VaultStepResult(ok=False, error=input_error)
+
     try:
         if cmd.tag == "deposit_rewards":
             return _deposit_rewards(state, cmd.args)
@@ -78,8 +82,19 @@ def step(state: VaultState, cmd: VaultCommand) -> VaultStepResult:
         if cmd.tag == "unstake":
             return _unstake(state, cmd.args)
         return VaultStepResult(ok=False, error=f"unknown action: {cmd.tag}")
-    except Exception as exc:
+    except (ArithmeticError, TypeError, ValueError) as exc:
         return VaultStepResult(ok=False, error=str(exc))
+
+
+def _validate_step_inputs(state: VaultState, cmd: VaultCommand) -> str | None:
+    """Reject malformed state-machine envelopes before dispatching the command."""
+    if not isinstance(state, VaultState):
+        return "invalid state"
+    if not isinstance(cmd, VaultCommand):
+        return "invalid command"
+    if not isinstance(cmd.args, Mapping):
+        return "invalid command args"
+    return None
 
 
 def _deposit_rewards(state: VaultState, args: Mapping[str, Any]) -> VaultStepResult:
@@ -202,4 +217,3 @@ def _unstake(state: VaultState, args: Mapping[str, Any]) -> VaultStepResult:
         staked_lp_shares=state.staked_lp_shares - amount,
     )
     return VaultStepResult(ok=True, state=new_state, effects={"delta_acc": 0, "harvested_reward": 0})
-
