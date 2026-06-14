@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from src.core import confidential_extension_receipts as receipts_mod
 from src.core.confidential_extension_receipts import (
     confidential_extension_receipt_hash,
     make_confidential_extension_receipt,
@@ -162,6 +165,19 @@ def test_confidential_extension_receipt_rejects_noncanonical_policy_digest() -> 
     assert err == "bad_policy_digest"
 
 
+def test_confidential_extension_receipt_does_not_swallow_policy_digest_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken_policy_digest(_value: object) -> str:
+        raise RuntimeError("synthetic receipt policy digest fault")
+
+    receipt = _valid_receipt()
+    monkeypatch.setattr(receipts_mod, "_require_policy_digest", broken_policy_digest)
+
+    with pytest.raises(RuntimeError, match="synthetic receipt policy digest fault"):
+        verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
+
+
 def test_confidential_extension_receipt_hash_mismatch_precedes_later_header_failures() -> None:
     receipt = _valid_receipt()
     receipt["body"]["policy_digest"] = "0x1"
@@ -177,6 +193,19 @@ def test_confidential_extension_receipt_rejects_bad_do_execute_flag_after_numeri
     ok, err = verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
     assert not ok
     assert err == "bad_do_execute"
+
+
+def test_confidential_extension_receipt_does_not_swallow_numeric_field_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken_int_field(_mapping: dict[str, object], _key: str) -> int:
+        raise RuntimeError("synthetic receipt numeric fault")
+
+    receipt = _valid_receipt()
+    monkeypatch.setattr(receipts_mod, "_require_int_field", broken_int_field)
+
+    with pytest.raises(RuntimeError, match="synthetic receipt numeric fault"):
+        verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
 
 
 def test_confidential_extension_receipt_rejects_bad_policy_ok_flag_after_do_execute() -> None:
