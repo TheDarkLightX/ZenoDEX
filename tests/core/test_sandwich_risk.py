@@ -4,6 +4,7 @@ import random
 
 import pytest
 
+import src.core.sandwich_risk as sandwich_risk
 from src.core.cpmm import swap_exact_in
 from src.core.sandwich_risk import (
     SandwichRisk,
@@ -56,6 +57,23 @@ def test_known_profitable_sandwich_case_is_detected() -> None:
     assert res.status == "ok"
     assert res.max_profit == 1
     assert 0 < res.attacker_amount_in <= res.scanned_max_attacker_amount_in
+
+
+def test_static_sandwich_risk_propagates_unexpected_swap_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken_swap_exact_in(*_args: object, **_kwargs: object):
+        raise RuntimeError("simulated kernel fault")
+
+    monkeypatch.setattr(sandwich_risk, "swap_exact_in", broken_swap_exact_in)
+
+    with pytest.raises(RuntimeError, match="simulated kernel fault"):
+        sandwich_profit_exact_in_cpmm(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps=0,
+            victim_amount_in=50,
+            victim_min_out=46,
+            attacker_amount_in=1,
+        )
 
 
 def test_bounded_search_matches_reference_scan() -> None:

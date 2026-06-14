@@ -6,6 +6,7 @@ from src.core.dynamic_fee_policy import StressFeePolicy, fee_bps_from_stress_pol
 from src.core.sandwich_risk import (
     max_sandwich_profit_exact_in_cpmm_bounded,
     max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee,
+    sandwich_profit_exact_in_cpmm_dynamic_fee,
 )
 
 
@@ -69,3 +70,43 @@ def test_dynamic_fee_can_reduce_max_sandwich_profit_on_witness() -> None:
     assert dyn.status == "inconclusive"  # no analytic cutoff for dynamic fees yet
     assert dyn.max_profit <= static.max_profit
 
+
+def test_dynamic_fee_sandwich_risk_rejects_expected_fee_domain_errors() -> None:
+    def malformed_fee(_res_in: int, _res_out: int, _amount_in: int) -> str:
+        return "not-an-int"
+
+    profit = sandwich_profit_exact_in_cpmm_dynamic_fee(
+        reserve_in=1000,
+        reserve_out=1000,
+        fee_bps_fn=malformed_fee,
+        victim_amount_in=50,
+        victim_min_out=46,
+        attacker_amount_in=1,
+    )
+
+    assert profit is None
+
+
+def test_dynamic_fee_sandwich_risk_propagates_unexpected_fee_fault() -> None:
+    def broken_fee(_res_in: int, _res_out: int, _amount_in: int) -> int:
+        raise RuntimeError("simulated fee bug")
+
+    with pytest.raises(RuntimeError, match="simulated fee bug"):
+        sandwich_profit_exact_in_cpmm_dynamic_fee(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps_fn=broken_fee,
+            victim_amount_in=50,
+            victim_min_out=46,
+            attacker_amount_in=1,
+        )
+
+    with pytest.raises(RuntimeError, match="simulated fee bug"):
+        max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps_fn=broken_fee,
+            victim_amount_in=50,
+            victim_min_out=46,
+            max_attacker_amount_in=2,
+        )
