@@ -748,7 +748,12 @@ def best_split_two_pools_exact_in(
                             total_out=total_out,
                         )
                         if _is_better_candidate(cand, (int(refine_out), int(refine_a))):
-                            assert cand is not None
+                            # Invariant: _is_better_candidate(None, _) is False, so cand is
+                            # non-None inside this branch. Explicit guard (not `assert`) so
+                            # it survives `python -O`.
+                            if cand is None:
+                                raise AssertionError(
+                                    "internal: _is_better_candidate accepted a None candidate")
                             refine_out, refine_a = cand
                         r_lo = max(lo_both, refine_a - half)
                         r_hi = min(hi_both, refine_a + half)

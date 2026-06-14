@@ -543,7 +543,12 @@ def _validate_settlement_strong_impl(
                     balances.subtract(sender, asset_in, int(amount_in))
                     balances.add(recipient, asset_out, int(amount_out))
                     if protocol_fee:
-                        assert protocol_fee_recipient_pubkey is not None
+                        # Invariant: protocol_fee>0 only when protocol_fee_share_bps>0, which
+                        # requires a recipient (validated at function entry). Explicit
+                        # fail-closed guard rather than `assert` so the check survives
+                        # `python -O` and any future regression of that invariant.
+                        if protocol_fee_recipient_pubkey is None:
+                            return fail(f"protocol_fee present without recipient for intent_id={intent_id}")
                         balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
                 except Exception as exc:
                     return fail(f"swap apply error for intent_id={intent_id}: {exc}")
@@ -559,7 +564,8 @@ def _validate_settlement_strong_impl(
                 bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
                 bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out), delta_sub=0))
                 if protocol_fee:
-                    assert protocol_fee_recipient_pubkey is not None
+                    if protocol_fee_recipient_pubkey is None:
+                        return fail(f"protocol_fee present without recipient for intent_id={intent_id}")
                     bal_deltas.append(
                         BalanceDelta(
                             pubkey=protocol_fee_recipient_pubkey,
@@ -631,7 +637,8 @@ def _validate_settlement_strong_impl(
                 balances.subtract(sender, asset_in, int(amount_in_req))
                 balances.add(recipient, asset_out, int(amount_out_req))
                 if protocol_fee:
-                    assert protocol_fee_recipient_pubkey is not None
+                    if protocol_fee_recipient_pubkey is None:
+                        return fail(f"protocol_fee present without recipient for intent_id={intent_id}")
                     balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
             except Exception as exc:
                 return fail(f"swap apply error for intent_id={intent_id}: {exc}")
@@ -646,7 +653,8 @@ def _validate_settlement_strong_impl(
             bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in_req)))
             bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out_req), delta_sub=0))
             if protocol_fee:
-                assert protocol_fee_recipient_pubkey is not None
+                if protocol_fee_recipient_pubkey is None:
+                    return fail(f"protocol_fee present without recipient for intent_id={intent_id}")
                 bal_deltas.append(
                     BalanceDelta(
                         pubkey=protocol_fee_recipient_pubkey,

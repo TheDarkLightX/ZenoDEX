@@ -1011,7 +1011,10 @@ def best_split_many_pools_exact_in_for_pools(
             break
         step = max(step_min, step // 2)
 
-    assert best_alloc is not None
+    # Invariant: the first while-pass has total_out >= 0 > best_out (-1), so best_alloc
+    # is set on iteration 1. Explicit guard (not `assert`) so it survives `python -O`.
+    if best_alloc is None:
+        raise AssertionError("internal: grid search left best_alloc unset")
     legs: List[SplitLegQuote] = []
     out_total = 0
     in_total = 0
