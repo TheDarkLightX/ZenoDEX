@@ -159,7 +159,12 @@ def compute_settlement(
         if fill.action != FillAction.FILL:
             continue
 
-        assert pool_id is not None and created_pool is not None
+        # Invariant: _try_create_pool returns a FILL only on success, which sets both
+        # pool_id and created_pool. Explicit fail-closed check (not `assert`) so it
+        # survives `python -O` and any future regression of that contract.
+        if pool_id is None or created_pool is None:
+            raise AssertionError(
+                "internal: _try_create_pool returned FILL without pool_id/created_pool")
         _apply_create_pool_to_locals(
             intent=intent,
             pool_id=pool_id,
@@ -2077,7 +2082,12 @@ def _order_swaps_mci_ab(
                     best_idx = rem_idx
                     best_order = trial
                     best_key = trial_key
-        assert best_order is not None and best_idx >= 0
+        # Invariant: `remaining` is non-empty (while guard) so the inner loops run at
+        # least once and the first iteration sets best_order/best_idx. Explicit guard
+        # (not `assert`) so it survives `python -O`.
+        if best_order is None or best_idx < 0:
+            raise AssertionError(
+                "internal: ab-ordering search left best_order unset on a non-empty set")
         ordered = best_order
         remaining.pop(best_idx)
 

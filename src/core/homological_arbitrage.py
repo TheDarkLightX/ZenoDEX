@@ -176,7 +176,10 @@ def find_marginal_arbitrage_cycle(edges: Sequence[MarginalEdge]) -> Optional[Mar
             return None
 
     # Improvement on the V-th iteration implies a profitable cycle exists.
-    assert improved is not None
+    # Invariant: the loop returns None whenever `improved` is None, so reaching here
+    # means it is set. Explicit guard (not `assert`) so it survives `python -O`.
+    if improved is None:
+        raise AssertionError("internal: improved is None past the early-return guard")
     x = improved
     for _ in range(len(nodes)):
         p = pred.get(x)
