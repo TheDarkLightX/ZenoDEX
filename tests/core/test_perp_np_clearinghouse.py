@@ -92,6 +92,31 @@ def test_init_market_rejects_malformed_control_params(params, reason):
         C.init_market(100 * E8, params=params)
 
 
+@pytest.mark.parametrize(
+    "field_name",
+    [
+        "initial_margin_bps",
+        "maintenance_margin_bps",
+        "depeg_buffer_bps",
+        "liquidation_penalty_bps",
+        "max_oracle_move_bps",
+        "funding_cap_bps",
+        "max_position_abs",
+        "min_notional_for_bounty_e8",
+    ],
+)
+def test_init_market_rejects_bool_control_params(field_name):
+    params = C.MarketParams(**{field_name: True})
+    with pytest.raises(ValueError, match=f"{field_name} be an integer"):
+        C.init_market(100 * E8, params=params)
+
+
+def test_init_market_rejects_out_of_i128_control_params():
+    params = C.MarketParams(max_position_abs=C.I128_MAX + 1)
+    with pytest.raises(OverflowError, match="operand exceeds i128 bound"):
+        C.init_market(100 * E8, params=params)
+
+
 def test_run_epoch_settles_zero_sum_against_index():
     m = C.init_market(100 * E8)
     for pk in ("aa", "bb", "cc"):

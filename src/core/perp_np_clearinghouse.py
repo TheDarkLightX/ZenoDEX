@@ -140,6 +140,18 @@ class MarketParams:
         return MatchParams(self.initial_margin_bps, self.max_position_abs)
 
 
+_MARKET_PARAM_INT_FIELDS = (
+    "initial_margin_bps",
+    "maintenance_margin_bps",
+    "depeg_buffer_bps",
+    "liquidation_penalty_bps",
+    "max_oracle_move_bps",
+    "funding_cap_bps",
+    "max_position_abs",
+    "min_notional_for_bounty_e8",
+)
+
+
 def funded_liquidation_params_ok(params: MarketParams) -> bool:
     """True when the liquidation penalty is funded after one clamped oracle move."""
     eff_maint_bps = params.maintenance_margin_bps + params.depeg_buffer_bps
@@ -155,6 +167,11 @@ def _validate_market_params_for_admission(params: MarketParams) -> None:
     Existing snapshots remain loadable for repair. New market creation must not
     admit malformed control params or the unfunded-liquidation region.
     """
+    for field_name in _MARKET_PARAM_INT_FIELDS:
+        value = getattr(params, field_name)
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ValueError(f"invalid params: require {field_name} be an integer")
+        _guard(abs(value))
     if params.max_oracle_move_bps < 0:
         raise ValueError("invalid params: require max_oracle_move_bps >= 0")
     if params.initial_margin_bps < 0:
