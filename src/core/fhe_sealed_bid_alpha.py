@@ -26,7 +26,6 @@ from .sealed_bid_auction import (
     settle_uniform_price_sealed_bids,
 )
 
-
 MAX_ALPHA_BIDS = 8
 MAX_ALPHA_UNITS = 63
 MAX_ALPHA_DECRYPT_OUTPUTS = MAX_ALPHA_BIDS + 2
@@ -311,14 +310,14 @@ def verify_fhe_sealed_bid_alpha_plan(
         sort_layers = int(budget.get("sort_layers"))
         estimated_hcu = int(budget.get("estimated_hcu"))
         estimated_depth_hcu = int(budget.get("estimated_depth_hcu"))
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return False, "bad_budget_numeric"
 
     if bid_count != len(cipher_bids):
         return False, "budget_bid_count_mismatch"
     try:
         expected = estimate_fhe_uniform_price_ops(bid_count=bid_count, decrypt_outputs=decrypt_outputs)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     if compare_ops != expected.compare_ops:
         return False, "compare_ops_mismatch"
@@ -345,7 +344,7 @@ def verify_fhe_sealed_bid_alpha_plan(
         clearing_price = int(result.get("clearing_price"))
         total_filled = int(result.get("total_filled"))
         fill_count = int(result.get("fill_count"))
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return False, "bad_public_result_numeric"
     if units_for_sale <= 0 or units_for_sale > MAX_ALPHA_UNITS:
         return False, "units_for_sale_out_of_range"
@@ -383,7 +382,7 @@ def verify_fhe_sealed_bid_alpha_plan(
         try:
             filled_quantity = int(fill.get("filled_quantity"))
             paid_price = int(fill.get("paid_price"))
-        except Exception:
+        except (TypeError, ValueError, OverflowError):
             return False, "bad_fill_numeric"
         if filled_quantity <= 0 or filled_quantity > MAX_ALPHA_UNITS:
             return False, "filled_quantity_out_of_range"
