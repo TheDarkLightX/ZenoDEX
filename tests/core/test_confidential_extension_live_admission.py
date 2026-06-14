@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-from src.core.confidential_extension_live_admission import validate_confidential_extension_live_admission
+import pytest
+
+import src.core.confidential_extension_live_admission as live_admission
+from src.core.confidential_extension_live_admission import (
+    validate_confidential_extension_live_admission,
+)
 from src.core.confidential_extension_receipts import make_confidential_extension_receipt
 from src.integration.confidential_attestation import (
     VerifiedConfidentialAttestation,
     make_confidential_extension_receipt_from_verified_attestation,
 )
 from src.state.confidential_requests import ConfidentialRequestKey, ConfidentialRequestTable
-
 
 NITRO_PCR0 = "a" * 96
 NITRO_PCR8 = "b" * 96
@@ -75,6 +79,36 @@ def test_confidential_extension_live_admission_rejects_policy_digest_mismatch() 
     assert ok is False
     assert err == "policy_digest_mismatch"
     assert updated is None
+
+
+def test_confidential_extension_live_admission_rejects_malformed_expected_policy_digest() -> None:
+    ok, err, updated = validate_confidential_extension_live_admission(
+        receipt=_receipt(),
+        approved_measurements=APPROVED,
+        expected_policy_digest="not-hex",
+        request_table=ConfidentialRequestTable(),
+    )
+
+    assert ok is False
+    assert err == "bad_expected_policy_digest"
+    assert updated is None
+
+
+def test_confidential_extension_live_admission_propagates_policy_canonicalizer_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken_canonicalizer(*_args: object, **_kwargs: object) -> str:
+        raise RuntimeError("policy canonicalizer fault")
+
+    monkeypatch.setattr(live_admission, "canonical_hex_fixed_allow_0x", broken_canonicalizer)
+
+    with pytest.raises(RuntimeError, match="policy canonicalizer fault"):
+        validate_confidential_extension_live_admission(
+            receipt=_receipt(),
+            approved_measurements=APPROVED,
+            expected_policy_digest=POLICY_DIGEST,
+            request_table=ConfidentialRequestTable(),
+        )
 
 
 def test_confidential_extension_live_admission_rejects_request_replay() -> None:
