@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from src.core import routing as routing_mod
 from src.core.routing import best_route_exact_in_2hop
 from src.state.pools import PoolState, PoolStatus
 
@@ -223,3 +226,81 @@ def test_best_route_default_split_profile_matches_dense24_on_known_gap_case():
     assert q_dense is not None
     assert q_default.amount_out == q_dense.amount_out
     assert q_default.amount_out == 143
+
+
+def test_best_route_exact_in_propagates_quote_runtime_fault(monkeypatch) -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 0),
+    }
+
+    def _runtime_fault(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("injected exact-in quote fault")
+
+    monkeypatch.setattr(routing_mod, "swap_exact_in_for_pool", _runtime_fault)
+
+    with pytest.raises(RuntimeError, match="injected exact-in quote fault"):
+        best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10)
+
+
+def test_best_route_exact_in_propagates_invariant_quote_fault(monkeypatch) -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 0),
+    }
+
+    def _invariant_fault(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("Invariant violation: injected")
+
+    monkeypatch.setattr(routing_mod, "swap_exact_in_for_pool", _invariant_fault)
+
+    with pytest.raises(ValueError, match="Invariant violation"):
+        best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10)
+
+
+def test_best_route_exact_in_keeps_infeasible_split_candidate_local(monkeypatch) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+    direct = best_route_exact_in_2hop(pools_by_id={"p1": pools["p1"]}, asset_in="A", asset_out="B", amount_in=10)
+    assert direct is not None
+
+    def _no_feasible_split(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("no feasible split")
+
+    monkeypatch.setattr(routing_mod, "best_split_many_pools_exact_in_for_pools", _no_feasible_split)
+    monkeypatch.setattr(routing_mod, "best_split_two_pools_exact_in_for_pools", _no_feasible_split)
+
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10)
+
+    assert q is not None
+    assert len(q.legs) == 1
+
+
+def test_best_route_exact_in_propagates_split_runtime_fault(monkeypatch) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+
+    def _runtime_fault(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("injected split runtime fault")
+
+    monkeypatch.setattr(routing_mod, "best_split_many_pools_exact_in_for_pools", _runtime_fault)
+
+    with pytest.raises(RuntimeError, match="injected split runtime fault"):
+        best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10)
+
+
+def test_best_route_exact_in_propagates_unexpected_split_value_error(monkeypatch) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+
+    def _unexpected_fault(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("no feasible allocation step (unexpected)")
+
+    monkeypatch.setattr(routing_mod, "best_split_many_pools_exact_in_for_pools", _unexpected_fault)
+
+    with pytest.raises(ValueError, match="unexpected"):
+        best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10)

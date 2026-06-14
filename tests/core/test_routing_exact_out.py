@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import random
 
+import pytest
+
+from src.core import routing as routing_mod
 from src.core.amm_dispatch import swap_exact_out_for_pool
 from src.core.routing import (
     ExactOutTwoHopGateConfig,
@@ -358,6 +361,52 @@ def test_best_route_exact_out_matches_bruteforce_on_small_random_domain() -> Non
             assert _quote_key(q2) == _quote_key(q)
 
     assert feasible >= 40
+
+
+def test_best_route_exact_out_propagates_quote_runtime_fault(monkeypatch) -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 0),
+    }
+
+    def _runtime_fault(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("injected exact-out quote fault")
+
+    monkeypatch.setattr(routing_mod, "swap_exact_out_for_pool", _runtime_fault)
+
+    with pytest.raises(RuntimeError, match="injected exact-out quote fault"):
+        best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_out=10)
+
+
+def test_best_route_exact_out_keeps_infeasible_split_candidate_local(monkeypatch) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+
+    def _no_feasible_split(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("no feasible split for desired amount_out_total")
+
+    monkeypatch.setattr(routing_mod, "best_split_two_pools_exact_out_for_pools", _no_feasible_split)
+
+    q = best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_out=10)
+
+    assert q is not None
+    assert len(q.legs) == 1
+
+
+def test_best_route_exact_out_propagates_split_runtime_fault(monkeypatch) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+
+    def _runtime_fault(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("injected exact-out split fault")
+
+    monkeypatch.setattr(routing_mod, "best_split_two_pools_exact_out_for_pools", _runtime_fault)
+
+    with pytest.raises(RuntimeError, match="injected exact-out split fault"):
+        best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_out=10)
 
 
 def test_exact_out_split_cpmm_has_bounded_quote_calls() -> None:

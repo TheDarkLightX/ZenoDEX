@@ -269,6 +269,21 @@ def should_consider_exact_out_two_hop(
     ).consider_two_hop
 
 
+def _is_candidate_value_error(exc: ValueError) -> bool:
+    """Return whether a quote/split ValueError is a local candidate rejection.
+
+    Routing explores many candidate pools and split shapes. Ordinary domain
+    misses such as unsupported direction, no feasible split, or a trade that
+    would drain a reserve should only remove that candidate. Errors that name an
+    internal invariant, malformed quote, or unexpected allocation state are
+    implementation faults and must escape the router.
+    """
+
+    msg = str(exc).lower()
+    fatal_markers = ("unexpected", "invariant violation", "malformed")
+    return not any(marker in msg for marker in fatal_markers)
+
+
 def _pool_quote_exact_in(
     pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_in: Amount
 ) -> Optional[Tuple[Amount, str]]:
@@ -285,7 +300,9 @@ def _pool_quote_exact_in(
         return None
     try:
         amount_out, _ = swap_exact_in_for_pool(pool, reserve_in=rin, reserve_out=rout, amount_in=amount_in)
-    except Exception:
+    except ValueError as exc:
+        if not _is_candidate_value_error(exc):
+            raise
         return None
     return amount_out, pool.pool_id
 
@@ -311,7 +328,9 @@ def _pool_quote_exact_out(
         return None
     try:
         amount_in, _ = swap_exact_out_for_pool(pool, reserve_in=rin, reserve_out=rout, amount_out=amount_out)
-    except Exception:
+    except ValueError as exc:
+        if not _is_candidate_value_error(exc):
+            raise
         return None
     return amount_in, pool.pool_id, rout
 
@@ -483,7 +502,9 @@ def best_route_exact_in_2hop(
                 max_candidates=k,
                 max_iters=4096,
             )
-        except Exception:
+        except ValueError as exc:
+            if not _is_candidate_value_error(exc):
+                raise
             splitN = None
         if splitN is not None and splitN.amount_out_total > 0:
             legs: List[RouteLeg] = []
@@ -523,7 +544,9 @@ def best_route_exact_in_2hop(
                         amount_in_total=amount_in,
                         search_profile=str(split_search_profile),
                     )
-                except Exception:
+                except ValueError as exc:
+                    if not _is_candidate_value_error(exc):
+                        raise
                     continue
                 if split.amount_out_total <= 0:
                     continue
@@ -834,7 +857,9 @@ def best_route_exact_out_2hop(
                         asset_out=asset_out,
                         amount_out_total=amount_out,
                     )
-                except Exception:
+                except ValueError as exc:
+                    if not _is_candidate_value_error(exc):
+                        raise
                     continue
                 if split.amount_in_total <= 0:
                     continue
