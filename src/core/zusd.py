@@ -500,312 +500,354 @@ def _risky_ops_allowed(state: ZUSDState) -> bool:
     return True
 
 
+_ZUSDHandlerResult = object  # tuple[ZUSDState, dict] on success, or ZUSDStepResult on reject
+
+
+def _zusd_h_advance_epoch(state: ZUSDState, cmd: ZUSDCommand):
+    delta = _require_pos_int(cmd.args.get("delta"), name="delta")
+    ns = ZUSDState(**{**state.__dict__, "now_epoch": _bounded_add(state.now_epoch, delta, name="now_epoch")})
+    return ns, {"event": "epoch_advanced", "delta": delta}
+
+
+def _zusd_h_bootstrap_oracle(state: ZUSDState, cmd: ZUSDCommand):
+    if state.oracle_seen:
+        return ZUSDStepResult(ok=False, error="oracle already bootstrapped")
+    if not bool(cmd.args.get("auth_ok", False)):
+        return ZUSDStepResult(ok=False, error="bootstrap_oracle requires auth_ok=true")
+    p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
+    ns = ZUSDState(
+        **{
+            **state.__dict__,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": state.now_epoch,
+            "price_e8": p,
+            "price_pending_e8": p,
+        }
+    )
+    return ns, {"event": "oracle_bootstrapped", "price_e8": p}
+
+
+def _zusd_h_oracle_report(state: ZUSDState, cmd: ZUSDCommand):
+    if not state.oracle_seen:
+        return ZUSDStepResult(ok=False, error="oracle not bootstrapped")
+    if not bool(cmd.args.get("auth_ok", False)):
+        return ZUSDStepResult(ok=False, error="oracle_report requires auth_ok=true")
+    p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
+    if p > state.price_pending_e8:
+        return ZUSDStepResult(ok=False, error="oracle_report requires non-increasing pending price")
+    ns = ZUSDState(**{**state.__dict__, "price_pending_e8": p})
+    return ns, {"event": "oracle_reported", "price_pending_e8": p}
+
+
+def _zusd_h_oracle_commit(state: ZUSDState, cmd: ZUSDCommand):
+    if not state.oracle_seen:
+        return ZUSDStepResult(ok=False, error="oracle not bootstrapped")
+    if not bool(cmd.args.get("auth_ok", False)):
+        return ZUSDStepResult(ok=False, error="oracle_commit requires auth_ok=true")
+    # Commit only when vault remains above MCR at pending price.
+    if not _mcr_ok(
+        collateral_e8=state.collateral_e8,
+        debt_e8=state.debt_e8,
+        price_e8=state.price_pending_e8,
+        mcr_bps=state.mcr_bps,
+    ):
+        return ZUSDStepResult(ok=False, error="oracle_commit blocked: vault below MCR at pending price")
+    ns = ZUSDState(
+        **{
+            **state.__dict__,
+            "price_e8": state.price_pending_e8,
+            "oracle_last_update_epoch": state.now_epoch,
+        }
+    )
+    return ns, {"event": "oracle_committed", "price_e8": state.price_pending_e8}
+
+
+def _zusd_h_deposit_collateral(state: ZUSDState, cmd: ZUSDCommand):
+    amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
+    ns = ZUSDState(**{**state.__dict__, "collateral_e8": _bounded_add(state.collateral_e8, amt, name="collateral_e8")})
+    return ns, {"event": "collateral_deposited", "amount_e8": amt}
+
+
+def _zusd_h_withdraw_collateral(state: ZUSDState, cmd: ZUSDCommand):
+    amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
+    if amt > state.collateral_e8:
+        return ZUSDStepResult(ok=False, error="insufficient collateral")
+    if state.debt_e8 > 0 and not _risky_ops_allowed(state):
+        return ZUSDStepResult(ok=False, error="withdraw blocked by oracle freeze/staleness/recovery mode")
+    post_coll = state.collateral_e8 - amt
+    if not _mcr_ok(
+        collateral_e8=post_coll,
+        debt_e8=state.debt_e8,
+        price_e8=state.price_e8,
+        mcr_bps=state.mcr_bps,
+    ):
+        return ZUSDStepResult(ok=False, error="withdraw would violate MCR")
+    ns = ZUSDState(**{**state.__dict__, "collateral_e8": post_coll})
+    return ns, {"event": "collateral_withdrawn", "amount_e8": amt}
+
+
+def _zusd_h_mint_zusd(state: ZUSDState, cmd: ZUSDCommand):
+    amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
+    if not _risky_ops_allowed(state):
+        return ZUSDStepResult(ok=False, error="mint blocked by oracle freeze/staleness/recovery mode")
+    if state.debt_e8 == 0 and amt < state.min_debt_open_e8:
+        return ZUSDStepResult(ok=False, error="mint below min_debt_open_e8")
+    decayed_base_rate = _decayed_base_rate_bps(
+        base_rate_bps=state.base_rate_bps,
+        now_epoch=state.now_epoch,
+        last_epoch=state.base_rate_last_epoch,
+        decay_per_epoch_bps=state.base_rate_decay_per_epoch_bps,
+    )
+    fee_bps = _effective_fee_bps(
+        decayed_base_rate_bps=decayed_base_rate,
+        floor_bps=state.borrow_fee_floor_bps,
+        max_bps=state.borrow_fee_max_bps,
+    )
+    fee_e8 = _mul_div_up(amt, fee_bps, BPS_SCALE)
+    debt_delta = amt + fee_e8
+    new_debt = state.debt_e8 + debt_delta
+    if new_debt > state.max_debt_e8:
+        return ZUSDStepResult(ok=False, error="mint exceeds per-vault max_debt_e8")
+    if (state.free_debt_e8 + debt_delta) > state.max_debt_supply_e8:
+        return ZUSDStepResult(ok=False, error="mint exceeds max_debt_supply_e8")
+    if not _mcr_ok(
+        collateral_e8=state.collateral_e8,
+        debt_e8=new_debt,
+        price_e8=state.price_e8,
+        mcr_bps=state.mcr_bps,
+    ):
+        return ZUSDStepResult(ok=False, error="mint would violate MCR")
+    ns = ZUSDState(
+        **{
+            **state.__dict__,
+            "debt_e8": new_debt,
+            "free_debt_e8": state.free_debt_e8 + debt_delta,
+            "protocol_revenue_zusd_cum_e8": state.protocol_revenue_zusd_cum_e8 + fee_e8,
+            "base_rate_bps": min(BPS_SCALE, decayed_base_rate + state.base_rate_borrow_bump_bps),
+            "base_rate_last_epoch": state.now_epoch,
+        }
+    )
+    return ns, {
+        "event": "zusd_minted",
+        "principal_e8": amt,
+        "mint_fee_e8": fee_e8,
+        "mint_fee_bps": fee_bps,
+        "debt_delta_e8": debt_delta,
+    }
+
+
+def _zusd_h_repay_zusd(state: ZUSDState, cmd: ZUSDCommand):
+    amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
+    if amt > state.debt_e8:
+        return ZUSDStepResult(ok=False, error="repay exceeds debt")
+    if amt > state.free_debt_e8:
+        return ZUSDStepResult(ok=False, error="repay exceeds free debt balance")
+    post_debt = state.debt_e8 - amt
+    if not _debt_floor_ok(debt_e8=post_debt, min_debt_open_e8=state.min_debt_open_e8):
+        return ZUSDStepResult(ok=False, error="repay would leave debt below min_debt_open_e8")
+    ns = ZUSDState(
+        **{
+            **state.__dict__,
+            "debt_e8": post_debt,
+            "free_debt_e8": state.free_debt_e8 - amt,
+        }
+    )
+    return ns, {"event": "zusd_repaid", "amount_e8": amt}
+
+
+def _zusd_h_deposit_sp(state: ZUSDState, cmd: ZUSDCommand):
+    amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
+    if amt > state.free_debt_e8:
+        return ZUSDStepResult(ok=False, error="deposit_sp exceeds free debt balance")
+    if (state.sp_debt_e8 + amt) > state.max_debt_supply_e8:
+        return ZUSDStepResult(ok=False, error="deposit_sp exceeds max_debt_supply_e8")
+    ns = ZUSDState(
+        **{
+            **state.__dict__,
+            "free_debt_e8": state.free_debt_e8 - amt,
+            "sp_debt_e8": state.sp_debt_e8 + amt,
+        }
+    )
+    return ns, {"event": "sp_deposited", "amount_e8": amt}
+
+
+def _zusd_h_withdraw_sp(state: ZUSDState, cmd: ZUSDCommand):
+    amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
+    if amt > state.sp_debt_e8:
+        return ZUSDStepResult(ok=False, error="withdraw_sp exceeds sp_debt")
+    if not _risky_ops_allowed(state):
+        return ZUSDStepResult(ok=False, error="withdraw_sp blocked by oracle freeze/staleness/recovery mode")
+    if not _mcr_ok(
+        collateral_e8=state.collateral_e8,
+        debt_e8=state.debt_e8,
+        price_e8=state.price_e8,
+        mcr_bps=state.mcr_bps,
+    ):
+        return ZUSDStepResult(ok=False, error="withdraw_sp blocked: vault not at MCR")
+    ns = ZUSDState(
+        **{
+            **state.__dict__,
+            "sp_debt_e8": state.sp_debt_e8 - amt,
+            "free_debt_e8": state.free_debt_e8 + amt,
+        }
+    )
+    return ns, {"event": "sp_withdrawn", "amount_e8": amt}
+
+
+def _zusd_h_redeem_zusd(state: ZUSDState, cmd: ZUSDCommand):
+    amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
+    if not state.oracle_seen or state.price_e8 <= 0 or state.price_pending_e8 <= 0:
+        return ZUSDStepResult(ok=False, error="redemption requires initialized oracle")
+    if state.price_pending_e8 != state.price_e8:
+        return ZUSDStepResult(ok=False, error="redemption blocked by oracle pending mismatch")
+    if not _is_oracle_fresh(
+        now_epoch=state.now_epoch,
+        last_update_epoch=state.oracle_last_update_epoch,
+        max_staleness_epochs=state.max_oracle_staleness_epochs,
+        oracle_seen=state.oracle_seen,
+    ):
+        return ZUSDStepResult(ok=False, error="redemption blocked by stale oracle")
+    if amt > state.debt_e8:
+        return ZUSDStepResult(ok=False, error="redemption exceeds debt")
+    if amt > state.free_debt_e8:
+        return ZUSDStepResult(ok=False, error="redemption exceeds free debt")
+
+    gross_collateral_e8 = (amt * E8) // state.price_e8
+    if gross_collateral_e8 <= 0:
+        return ZUSDStepResult(ok=False, error="redemption amount too small at current price")
+    if gross_collateral_e8 > state.collateral_e8:
+        return ZUSDStepResult(ok=False, error="insufficient vault collateral for redemption")
+
+    decayed_base_rate = _decayed_base_rate_bps(
+        base_rate_bps=state.base_rate_bps,
+        now_epoch=state.now_epoch,
+        last_epoch=state.base_rate_last_epoch,
+        decay_per_epoch_bps=state.base_rate_decay_per_epoch_bps,
+    )
+    fee_bps = _effective_fee_bps(
+        decayed_base_rate_bps=decayed_base_rate,
+        floor_bps=state.redemption_fee_floor_bps,
+        max_bps=state.redemption_fee_max_bps,
+    )
+    redemption_fee_coll_e8 = _mul_div_up(gross_collateral_e8, fee_bps, BPS_SCALE)
+    if redemption_fee_coll_e8 >= gross_collateral_e8:
+        return ZUSDStepResult(ok=False, error="redemption fee consumes all collateral")
+    if (state.protocol_collateral_e8 + redemption_fee_coll_e8) > state.max_protocol_coll_e8:
+        return ZUSDStepResult(ok=False, error="protocol collateral cap exceeded")
+
+    collateral_out_e8 = gross_collateral_e8 - redemption_fee_coll_e8
+    post_debt = state.debt_e8 - amt
+    post_collateral = state.collateral_e8 - gross_collateral_e8
+    if not _debt_floor_ok(debt_e8=post_debt, min_debt_open_e8=state.min_debt_open_e8):
+        return ZUSDStepResult(ok=False, error="redemption would leave debt below min_debt_open_e8")
+    if not _mcr_ok(
+        collateral_e8=post_collateral,
+        debt_e8=post_debt,
+        price_e8=state.price_e8,
+        mcr_bps=state.mcr_bps,
+    ):
+        return ZUSDStepResult(ok=False, error="redemption would violate MCR")
+
+    ns = ZUSDState(
+        **{
+            **state.__dict__,
+            "debt_e8": post_debt,
+            "free_debt_e8": state.free_debt_e8 - amt,
+            "collateral_e8": post_collateral,
+            "protocol_collateral_e8": state.protocol_collateral_e8 + redemption_fee_coll_e8,
+            "base_rate_bps": min(BPS_SCALE, decayed_base_rate + state.base_rate_redeem_bump_bps),
+            "base_rate_last_epoch": state.now_epoch,
+        }
+    )
+    return ns, {
+        "event": "zusd_redeemed",
+        "redeemed_zusd_e8": amt,
+        "redeemed_collateral_gross_e8": gross_collateral_e8,
+        "redeemed_collateral_out_e8": collateral_out_e8,
+        "redemption_fee_collateral_e8": redemption_fee_coll_e8,
+        "redemption_fee_bps": fee_bps,
+    }
+
+
+def _zusd_h_liquidate(state: ZUSDState, cmd: ZUSDCommand):
+    if not state.oracle_seen or state.price_pending_e8 <= 0:
+        return ZUSDStepResult(ok=False, error="liquidation requires initialized pending oracle price")
+    if state.debt_e8 <= 0:
+        return ZUSDStepResult(ok=False, error="no debt to liquidate")
+    under_mcr = not _mcr_ok(
+        collateral_e8=state.collateral_e8,
+        debt_e8=state.debt_e8,
+        price_e8=state.price_pending_e8,
+        mcr_bps=state.mcr_bps,
+    )
+    if not under_mcr:
+        return ZUSDStepResult(ok=False, error="vault not under MCR at pending price")
+    if state.debt_e8 > state.sp_debt_e8:
+        return ZUSDStepResult(ok=False, error="stability pool cannot absorb debt")
+    liquidated_debt = state.debt_e8
+    liquidated_coll = state.collateral_e8
+    variable_comp = _mul_div_up(liquidated_coll, state.liquidation_gas_comp_bps, BPS_SCALE)
+    requested_comp = state.liquidation_gas_comp_fixed_collateral_e8 + variable_comp
+    liquidator_comp = min(liquidated_coll, requested_comp)
+    sp_collateral_gain = liquidated_coll - liquidator_comp
+    if (state.sp_coll_e8 + sp_collateral_gain) > state.max_sp_coll_e8:
+        return ZUSDStepResult(ok=False, error="stability pool collateral cap exceeded")
+    ns = ZUSDState(
+        **{
+            **state.__dict__,
+            "debt_e8": 0,
+            "collateral_e8": 0,
+            "sp_debt_e8": state.sp_debt_e8 - liquidated_debt,
+            "sp_coll_e8": state.sp_coll_e8 + sp_collateral_gain,
+            "liquidator_compensation_collateral_cum_e8": (
+                state.liquidator_compensation_collateral_cum_e8 + liquidator_comp
+            ),
+        }
+    )
+    return ns, {
+        "event": "liquidated",
+        "liquidated_debt_e8": liquidated_debt,
+        "liquidated_collateral_e8": liquidated_coll,
+        "sp_collateral_gain_e8": sp_collateral_gain,
+        "liquidator_compensation_collateral_e8": liquidator_comp,
+        "liquidation_gas_comp_fixed_collateral_e8": state.liquidation_gas_comp_fixed_collateral_e8,
+        "liquidation_gas_comp_bps": state.liquidation_gas_comp_bps,
+    }
+
+
+# Total command dispatch table (CBC: a finite, tested, total enum->handler map).
+_ZUSD_STEP_HANDLERS = {
+    "advance_epoch": _zusd_h_advance_epoch,
+    "bootstrap_oracle": _zusd_h_bootstrap_oracle,
+    "oracle_report": _zusd_h_oracle_report,
+    "oracle_commit": _zusd_h_oracle_commit,
+    "deposit_collateral": _zusd_h_deposit_collateral,
+    "withdraw_collateral": _zusd_h_withdraw_collateral,
+    "mint_zusd": _zusd_h_mint_zusd,
+    "repay_zusd": _zusd_h_repay_zusd,
+    "deposit_sp": _zusd_h_deposit_sp,
+    "withdraw_sp": _zusd_h_withdraw_sp,
+    "redeem_zusd": _zusd_h_redeem_zusd,
+    "liquidate": _zusd_h_liquidate,
+}
+
+
 def _step_python(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
+    """Pure-Python step. Dispatch-table refactor of the prior monolithic if/elif
+    chain: each command tag is handled by a small `_zusd_h_*` function returning
+    either ``(new_state, effects)`` on success or a reject ``ZUSDStepResult``. The
+    shared tail (post-state invariant check + accept) and the fail-closed
+    ``except`` wrapper are applied here once. Behaviour is identical to the prior
+    implementation (locked by the golden characterization corpus)."""
     try:
         tag = str(cmd.tag)
-        if tag == "advance_epoch":
-            delta = _require_pos_int(cmd.args.get("delta"), name="delta")
-            ns = ZUSDState(**{**state.__dict__, "now_epoch": _bounded_add(state.now_epoch, delta, name="now_epoch")})
-            eff = {"event": "epoch_advanced", "delta": delta}
-
-        elif tag == "bootstrap_oracle":
-            if state.oracle_seen:
-                return ZUSDStepResult(ok=False, error="oracle already bootstrapped")
-            if not bool(cmd.args.get("auth_ok", False)):
-                return ZUSDStepResult(ok=False, error="bootstrap_oracle requires auth_ok=true")
-            p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
-            ns = ZUSDState(
-                **{
-                    **state.__dict__,
-                    "oracle_seen": True,
-                    "oracle_last_update_epoch": state.now_epoch,
-                    "price_e8": p,
-                    "price_pending_e8": p,
-                }
-            )
-            eff = {"event": "oracle_bootstrapped", "price_e8": p}
-
-        elif tag == "oracle_report":
-            if not state.oracle_seen:
-                return ZUSDStepResult(ok=False, error="oracle not bootstrapped")
-            if not bool(cmd.args.get("auth_ok", False)):
-                return ZUSDStepResult(ok=False, error="oracle_report requires auth_ok=true")
-            p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
-            if p > state.price_pending_e8:
-                return ZUSDStepResult(ok=False, error="oracle_report requires non-increasing pending price")
-            ns = ZUSDState(**{**state.__dict__, "price_pending_e8": p})
-            eff = {"event": "oracle_reported", "price_pending_e8": p}
-
-        elif tag == "oracle_commit":
-            if not state.oracle_seen:
-                return ZUSDStepResult(ok=False, error="oracle not bootstrapped")
-            if not bool(cmd.args.get("auth_ok", False)):
-                return ZUSDStepResult(ok=False, error="oracle_commit requires auth_ok=true")
-            # Commit only when vault remains above MCR at pending price.
-            if not _mcr_ok(
-                collateral_e8=state.collateral_e8,
-                debt_e8=state.debt_e8,
-                price_e8=state.price_pending_e8,
-                mcr_bps=state.mcr_bps,
-            ):
-                return ZUSDStepResult(ok=False, error="oracle_commit blocked: vault below MCR at pending price")
-            ns = ZUSDState(
-                **{
-                    **state.__dict__,
-                    "price_e8": state.price_pending_e8,
-                    "oracle_last_update_epoch": state.now_epoch,
-                }
-            )
-            eff = {"event": "oracle_committed", "price_e8": state.price_pending_e8}
-
-        elif tag == "deposit_collateral":
-            amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-            ns = ZUSDState(**{**state.__dict__, "collateral_e8": _bounded_add(state.collateral_e8, amt, name="collateral_e8")})
-            eff = {"event": "collateral_deposited", "amount_e8": amt}
-
-        elif tag == "withdraw_collateral":
-            amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-            if amt > state.collateral_e8:
-                return ZUSDStepResult(ok=False, error="insufficient collateral")
-            if state.debt_e8 > 0 and not _risky_ops_allowed(state):
-                return ZUSDStepResult(ok=False, error="withdraw blocked by oracle freeze/staleness/recovery mode")
-            post_coll = state.collateral_e8 - amt
-            if not _mcr_ok(
-                collateral_e8=post_coll,
-                debt_e8=state.debt_e8,
-                price_e8=state.price_e8,
-                mcr_bps=state.mcr_bps,
-            ):
-                return ZUSDStepResult(ok=False, error="withdraw would violate MCR")
-            ns = ZUSDState(**{**state.__dict__, "collateral_e8": post_coll})
-            eff = {"event": "collateral_withdrawn", "amount_e8": amt}
-
-        elif tag == "mint_zusd":
-            amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-            if not _risky_ops_allowed(state):
-                return ZUSDStepResult(ok=False, error="mint blocked by oracle freeze/staleness/recovery mode")
-            if state.debt_e8 == 0 and amt < state.min_debt_open_e8:
-                return ZUSDStepResult(ok=False, error="mint below min_debt_open_e8")
-            decayed_base_rate = _decayed_base_rate_bps(
-                base_rate_bps=state.base_rate_bps,
-                now_epoch=state.now_epoch,
-                last_epoch=state.base_rate_last_epoch,
-                decay_per_epoch_bps=state.base_rate_decay_per_epoch_bps,
-            )
-            fee_bps = _effective_fee_bps(
-                decayed_base_rate_bps=decayed_base_rate,
-                floor_bps=state.borrow_fee_floor_bps,
-                max_bps=state.borrow_fee_max_bps,
-            )
-            fee_e8 = _mul_div_up(amt, fee_bps, BPS_SCALE)
-            debt_delta = amt + fee_e8
-            new_debt = state.debt_e8 + debt_delta
-            if new_debt > state.max_debt_e8:
-                return ZUSDStepResult(ok=False, error="mint exceeds per-vault max_debt_e8")
-            if (state.free_debt_e8 + debt_delta) > state.max_debt_supply_e8:
-                return ZUSDStepResult(ok=False, error="mint exceeds max_debt_supply_e8")
-            if not _mcr_ok(
-                collateral_e8=state.collateral_e8,
-                debt_e8=new_debt,
-                price_e8=state.price_e8,
-                mcr_bps=state.mcr_bps,
-            ):
-                return ZUSDStepResult(ok=False, error="mint would violate MCR")
-            ns = ZUSDState(
-                **{
-                    **state.__dict__,
-                    "debt_e8": new_debt,
-                    "free_debt_e8": state.free_debt_e8 + debt_delta,
-                    "protocol_revenue_zusd_cum_e8": state.protocol_revenue_zusd_cum_e8 + fee_e8,
-                    "base_rate_bps": min(BPS_SCALE, decayed_base_rate + state.base_rate_borrow_bump_bps),
-                    "base_rate_last_epoch": state.now_epoch,
-                }
-            )
-            eff = {
-                "event": "zusd_minted",
-                "principal_e8": amt,
-                "mint_fee_e8": fee_e8,
-                "mint_fee_bps": fee_bps,
-                "debt_delta_e8": debt_delta,
-            }
-
-        elif tag == "repay_zusd":
-            amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-            if amt > state.debt_e8:
-                return ZUSDStepResult(ok=False, error="repay exceeds debt")
-            if amt > state.free_debt_e8:
-                return ZUSDStepResult(ok=False, error="repay exceeds free debt balance")
-            post_debt = state.debt_e8 - amt
-            if not _debt_floor_ok(debt_e8=post_debt, min_debt_open_e8=state.min_debt_open_e8):
-                return ZUSDStepResult(ok=False, error="repay would leave debt below min_debt_open_e8")
-            ns = ZUSDState(
-                **{
-                    **state.__dict__,
-                    "debt_e8": post_debt,
-                    "free_debt_e8": state.free_debt_e8 - amt,
-                }
-            )
-            eff = {"event": "zusd_repaid", "amount_e8": amt}
-
-        elif tag == "deposit_sp":
-            amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-            if amt > state.free_debt_e8:
-                return ZUSDStepResult(ok=False, error="deposit_sp exceeds free debt balance")
-            if (state.sp_debt_e8 + amt) > state.max_debt_supply_e8:
-                return ZUSDStepResult(ok=False, error="deposit_sp exceeds max_debt_supply_e8")
-            ns = ZUSDState(
-                **{
-                    **state.__dict__,
-                    "free_debt_e8": state.free_debt_e8 - amt,
-                    "sp_debt_e8": state.sp_debt_e8 + amt,
-                }
-            )
-            eff = {"event": "sp_deposited", "amount_e8": amt}
-
-        elif tag == "withdraw_sp":
-            amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-            if amt > state.sp_debt_e8:
-                return ZUSDStepResult(ok=False, error="withdraw_sp exceeds sp_debt")
-            if not _risky_ops_allowed(state):
-                return ZUSDStepResult(ok=False, error="withdraw_sp blocked by oracle freeze/staleness/recovery mode")
-            if not _mcr_ok(
-                collateral_e8=state.collateral_e8,
-                debt_e8=state.debt_e8,
-                price_e8=state.price_e8,
-                mcr_bps=state.mcr_bps,
-            ):
-                return ZUSDStepResult(ok=False, error="withdraw_sp blocked: vault not at MCR")
-            ns = ZUSDState(
-                **{
-                    **state.__dict__,
-                    "sp_debt_e8": state.sp_debt_e8 - amt,
-                    "free_debt_e8": state.free_debt_e8 + amt,
-                }
-            )
-            eff = {"event": "sp_withdrawn", "amount_e8": amt}
-
-        elif tag == "redeem_zusd":
-            amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-            if not state.oracle_seen or state.price_e8 <= 0 or state.price_pending_e8 <= 0:
-                return ZUSDStepResult(ok=False, error="redemption requires initialized oracle")
-            if state.price_pending_e8 != state.price_e8:
-                return ZUSDStepResult(ok=False, error="redemption blocked by oracle pending mismatch")
-            if not _is_oracle_fresh(
-                now_epoch=state.now_epoch,
-                last_update_epoch=state.oracle_last_update_epoch,
-                max_staleness_epochs=state.max_oracle_staleness_epochs,
-                oracle_seen=state.oracle_seen,
-            ):
-                return ZUSDStepResult(ok=False, error="redemption blocked by stale oracle")
-            if amt > state.debt_e8:
-                return ZUSDStepResult(ok=False, error="redemption exceeds debt")
-            if amt > state.free_debt_e8:
-                return ZUSDStepResult(ok=False, error="redemption exceeds free debt")
-
-            gross_collateral_e8 = (amt * E8) // state.price_e8
-            if gross_collateral_e8 <= 0:
-                return ZUSDStepResult(ok=False, error="redemption amount too small at current price")
-            if gross_collateral_e8 > state.collateral_e8:
-                return ZUSDStepResult(ok=False, error="insufficient vault collateral for redemption")
-
-            decayed_base_rate = _decayed_base_rate_bps(
-                base_rate_bps=state.base_rate_bps,
-                now_epoch=state.now_epoch,
-                last_epoch=state.base_rate_last_epoch,
-                decay_per_epoch_bps=state.base_rate_decay_per_epoch_bps,
-            )
-            fee_bps = _effective_fee_bps(
-                decayed_base_rate_bps=decayed_base_rate,
-                floor_bps=state.redemption_fee_floor_bps,
-                max_bps=state.redemption_fee_max_bps,
-            )
-            redemption_fee_coll_e8 = _mul_div_up(gross_collateral_e8, fee_bps, BPS_SCALE)
-            if redemption_fee_coll_e8 >= gross_collateral_e8:
-                return ZUSDStepResult(ok=False, error="redemption fee consumes all collateral")
-            if (state.protocol_collateral_e8 + redemption_fee_coll_e8) > state.max_protocol_coll_e8:
-                return ZUSDStepResult(ok=False, error="protocol collateral cap exceeded")
-
-            collateral_out_e8 = gross_collateral_e8 - redemption_fee_coll_e8
-            post_debt = state.debt_e8 - amt
-            post_collateral = state.collateral_e8 - gross_collateral_e8
-            if not _debt_floor_ok(debt_e8=post_debt, min_debt_open_e8=state.min_debt_open_e8):
-                return ZUSDStepResult(ok=False, error="redemption would leave debt below min_debt_open_e8")
-            if not _mcr_ok(
-                collateral_e8=post_collateral,
-                debt_e8=post_debt,
-                price_e8=state.price_e8,
-                mcr_bps=state.mcr_bps,
-            ):
-                return ZUSDStepResult(ok=False, error="redemption would violate MCR")
-
-            ns = ZUSDState(
-                **{
-                    **state.__dict__,
-                    "debt_e8": post_debt,
-                    "free_debt_e8": state.free_debt_e8 - amt,
-                    "collateral_e8": post_collateral,
-                    "protocol_collateral_e8": state.protocol_collateral_e8 + redemption_fee_coll_e8,
-                    "base_rate_bps": min(BPS_SCALE, decayed_base_rate + state.base_rate_redeem_bump_bps),
-                    "base_rate_last_epoch": state.now_epoch,
-                }
-            )
-            eff = {
-                "event": "zusd_redeemed",
-                "redeemed_zusd_e8": amt,
-                "redeemed_collateral_gross_e8": gross_collateral_e8,
-                "redeemed_collateral_out_e8": collateral_out_e8,
-                "redemption_fee_collateral_e8": redemption_fee_coll_e8,
-                "redemption_fee_bps": fee_bps,
-            }
-
-        elif tag == "liquidate":
-            if not state.oracle_seen or state.price_pending_e8 <= 0:
-                return ZUSDStepResult(ok=False, error="liquidation requires initialized pending oracle price")
-            if state.debt_e8 <= 0:
-                return ZUSDStepResult(ok=False, error="no debt to liquidate")
-            under_mcr = not _mcr_ok(
-                collateral_e8=state.collateral_e8,
-                debt_e8=state.debt_e8,
-                price_e8=state.price_pending_e8,
-                mcr_bps=state.mcr_bps,
-            )
-            if not under_mcr:
-                return ZUSDStepResult(ok=False, error="vault not under MCR at pending price")
-            if state.debt_e8 > state.sp_debt_e8:
-                return ZUSDStepResult(ok=False, error="stability pool cannot absorb debt")
-            liquidated_debt = state.debt_e8
-            liquidated_coll = state.collateral_e8
-            variable_comp = _mul_div_up(liquidated_coll, state.liquidation_gas_comp_bps, BPS_SCALE)
-            requested_comp = state.liquidation_gas_comp_fixed_collateral_e8 + variable_comp
-            liquidator_comp = min(liquidated_coll, requested_comp)
-            sp_collateral_gain = liquidated_coll - liquidator_comp
-            if (state.sp_coll_e8 + sp_collateral_gain) > state.max_sp_coll_e8:
-                return ZUSDStepResult(ok=False, error="stability pool collateral cap exceeded")
-            ns = ZUSDState(
-                **{
-                    **state.__dict__,
-                    "debt_e8": 0,
-                    "collateral_e8": 0,
-                    "sp_debt_e8": state.sp_debt_e8 - liquidated_debt,
-                    "sp_coll_e8": state.sp_coll_e8 + sp_collateral_gain,
-                    "liquidator_compensation_collateral_cum_e8": (
-                        state.liquidator_compensation_collateral_cum_e8 + liquidator_comp
-                    ),
-                }
-            )
-            eff = {
-                "event": "liquidated",
-                "liquidated_debt_e8": liquidated_debt,
-                "liquidated_collateral_e8": liquidated_coll,
-                "sp_collateral_gain_e8": sp_collateral_gain,
-                "liquidator_compensation_collateral_e8": liquidator_comp,
-                "liquidation_gas_comp_fixed_collateral_e8": state.liquidation_gas_comp_fixed_collateral_e8,
-                "liquidation_gas_comp_bps": state.liquidation_gas_comp_bps,
-            }
-
-        else:
+        handler = _ZUSD_STEP_HANDLERS.get(tag)
+        if handler is None:
             return ZUSDStepResult(ok=False, error=f"unknown action: {tag}")
-
+        result = handler(state, cmd)
+        if isinstance(result, ZUSDStepResult):
+            return result
+        ns, eff = result
         failed = check_invariants(ns)
         if failed:
             return ZUSDStepResult(ok=False, error=f"invariant violation: {','.join(failed)}")
