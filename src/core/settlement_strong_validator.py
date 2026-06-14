@@ -126,6 +126,15 @@ class _CowPairEntry:
 
 
 @dataclass(frozen=True)
+class _CowIntentFields:
+    pool_id: str
+    asset_in: AssetId
+    asset_out: AssetId
+    amount_in: int
+    min_out: int
+
+
+@dataclass(frozen=True)
 class _FillAmounts:
     amount_in_filled: int
     amount_out_filled: int
@@ -197,6 +206,130 @@ def _validate_strong_config(
     return None
 
 
+def _validate_cow_fill_shape(fill: Fill, intent_id: str) -> Tuple[bool, Optional[_FillAmounts], Optional[str]]:
+    ok_amounts, amounts, err_amounts = _validate_fill_amount_fields(fill, intent_id)
+    if not ok_amounts:
+        return False, None, err_amounts
+    if amounts is None:
+        return False, None, f"invalid fill amounts for intent_id={intent_id}"
+    if fill.action != FillAction.FILL:
+        return False, None, f"COW_NETTED requires filled action: intent_id={intent_id}"
+    return True, amounts, None
+
+
+def _validate_cow_pool_id(intent_id: str, intent: Intent) -> Tuple[bool, Optional[str], Optional[str]]:
+    pool_id = intent.get_field("pool_id")
+    if not isinstance(pool_id, str) or not pool_id:
+        return False, None, f"missing pool_id for intent_id={intent_id}"
+    return True, pool_id, None
+
+
+def _validate_cow_asset_pair(intent_id: str, intent: Intent) -> Tuple[bool, Optional[Tuple[AssetId, AssetId]], Optional[str]]:
+    asset_in = intent.get_field("asset_in")
+    asset_out = intent.get_field("asset_out")
+    if not isinstance(asset_in, str) or not isinstance(asset_out, str):
+        return False, None, f"invalid asset_in/out for intent_id={intent_id}"
+    return True, (asset_in, asset_out), None
+
+
+def _validate_cow_intent_amounts(intent_id: str, intent: Intent) -> Tuple[bool, Optional[Tuple[int, int]], Optional[str]]:
+    amount_in = intent.get_field("amount_in")
+    min_out = intent.get_field("min_amount_out", 0)
+    if not is_strict_int(amount_in) or int(amount_in) <= 0:
+        return False, None, f"invalid amount_in for intent_id={intent_id}"
+    if not is_strict_int(min_out) or int(min_out) < 0:
+        return False, None, f"invalid min_amount_out for intent_id={intent_id}"
+    return True, (int(amount_in), int(min_out)), None
+
+
+def _validate_cow_intent_fields(
+    *,
+    intent_id: str,
+    intent: Intent,
+) -> Tuple[bool, Optional[_CowIntentFields], Optional[str]]:
+    if intent.kind != IntentKind.SWAP_EXACT_IN:
+        return False, None, f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={intent_id}"
+    ok_pool, pool_id, err_pool = _validate_cow_pool_id(intent_id, intent)
+    if not ok_pool:
+        return False, None, err_pool
+    ok_assets, assets, err_assets = _validate_cow_asset_pair(intent_id, intent)
+    if not ok_assets:
+        return False, None, err_assets
+    ok_amounts, amounts, err_amounts = _validate_cow_intent_amounts(intent_id, intent)
+    if not ok_amounts:
+        return False, None, err_amounts
+    if pool_id is None or assets is None or amounts is None:
+        return False, None, f"invalid COW_NETTED intent fields for intent_id={intent_id}"
+    asset_in, asset_out = assets
+    amount_in, min_out = amounts
+    return True, _CowIntentFields(pool_id, asset_in, asset_out, amount_in, min_out), None
+
+
+def _validated_cow_pair_entry(
+    *,
+    intent_id: str,
+    intent: Intent,
+    fill: Fill,
+) -> Tuple[bool, Optional[_CowPairEntry], Optional[str]]:
+    ok_amounts, amounts, err_amounts = _validate_cow_fill_shape(fill, intent_id)
+    if not ok_amounts:
+        return False, None, err_amounts
+    ok_fields, fields, err_fields = _validate_cow_intent_fields(intent_id=intent_id, intent=intent)
+    if not ok_fields:
+        return False, None, err_fields
+    if amounts is None or fields is None:
+        return False, None, f"invalid COW_NETTED entry for intent_id={intent_id}"
+    if amounts.fee_paid != 0:
+        return False, None, f"COW_NETTED fee_paid must be 0: intent_id={intent_id}"
+    if amounts.amount_in_filled != fields.amount_in:
+        return False, None, f"COW_NETTED amount_in_filled mismatch: intent_id={intent_id}"
+    out_amt = amounts.amount_out_filled
+    if out_amt < fields.min_out:
+        return False, None, f"COW_NETTED slippage: intent_id={intent_id}"
+    return (
+        True,
+        _CowPairEntry(
+            intent_id=intent_id,
+            pool_id=fields.pool_id,
+            asset_in=fields.asset_in,
+            asset_out=fields.asset_out,
+            amount_in_filled=amounts.amount_in_filled,
+            amount_out_filled=out_amt,
+        ),
+        None,
+    )
+
+
+def _cow_reciprocal_matches(intent_id: str, entry: _CowPairEntry, entries: Dict[str, _CowPairEntry]) -> List[str]:
+    return [
+        other_id
+        for other_id, other in entries.items()
+        if other_id != intent_id
+        and other.pool_id == entry.pool_id
+        and other.asset_in == entry.asset_out
+        and other.asset_out == entry.asset_in
+        and other.amount_in_filled == entry.amount_out_filled
+        and other.amount_out_filled == entry.amount_in_filled
+    ]
+
+
+def _validate_cow_reciprocal_pairs(entries: Dict[str, _CowPairEntry]) -> Tuple[bool, Optional[str]]:
+    pair_for: Dict[str, str] = {}
+    for intent_id, entry in entries.items():
+        matches = _cow_reciprocal_matches(intent_id, entry, entries)
+        if len(matches) != 1:
+            return (
+                False,
+                f"COW_NETTED fill requires exactly one reciprocal counterparty: intent_id={intent_id} matches={matches}",
+            )
+        pair_for[intent_id] = matches[0]
+
+    for intent_id, counterparty_id in pair_for.items():
+        if pair_for.get(counterparty_id) != intent_id:
+            return False, f"COW_NETTED reciprocal pair is not symmetric: intent_id={intent_id}"
+    return True, None
+
+
 def _validate_cow_pair_index(
     *,
     settlement: Settlement,
@@ -212,70 +345,17 @@ def _validate_cow_pair_index(
 
     entries: Dict[str, _CowPairEntry] = {}
     for intent_id in cow_ids:
-        it = intents_by_id[intent_id]
-        f = fill_by_id[intent_id]
-        ok_amounts, amounts, err_amounts = _validate_fill_amount_fields(f, intent_id)
-        if not ok_amounts:
-            return False, err_amounts
-        if amounts is None:
-            return False, f"invalid fill amounts for intent_id={intent_id}"
-        if f.action != FillAction.FILL:
-            return False, f"COW_NETTED requires filled action: intent_id={intent_id}"
-        if it.kind != IntentKind.SWAP_EXACT_IN:
-            return False, f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={intent_id}"
-
-        pool_id = it.get_field("pool_id")
-        if not isinstance(pool_id, str) or not pool_id:
-            return False, f"missing pool_id for intent_id={intent_id}"
-        asset_in = it.get_field("asset_in")
-        asset_out = it.get_field("asset_out")
-        if not isinstance(asset_in, str) or not isinstance(asset_out, str):
-            return False, f"invalid asset_in/out for intent_id={intent_id}"
-        amount_in = it.get_field("amount_in")
-        min_out = it.get_field("min_amount_out", 0)
-        if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-            return False, f"invalid amount_in for intent_id={intent_id}"
-        if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
-            return False, f"invalid min_amount_out for intent_id={intent_id}"
-        if amounts.fee_paid != 0:
-            return False, f"COW_NETTED fee_paid must be 0: intent_id={intent_id}"
-        if amounts.amount_in_filled != int(amount_in):
-            return False, f"COW_NETTED amount_in_filled mismatch: intent_id={intent_id}"
-        out_amt = amounts.amount_out_filled
-        if out_amt < int(min_out):
-            return False, f"COW_NETTED slippage: intent_id={intent_id}"
-        entries[intent_id] = _CowPairEntry(
+        ok, entry, err = _validated_cow_pair_entry(
             intent_id=intent_id,
-            pool_id=pool_id,
-            asset_in=asset_in,
-            asset_out=asset_out,
-            amount_in_filled=amounts.amount_in_filled,
-            amount_out_filled=out_amt,
+            intent=intents_by_id[intent_id],
+            fill=fill_by_id[intent_id],
         )
-
-    pair_for: Dict[str, str] = {}
-    for intent_id, entry in entries.items():
-        matches = [
-            other_id
-            for other_id, other in entries.items()
-            if other_id != intent_id
-            and other.pool_id == entry.pool_id
-            and other.asset_in == entry.asset_out
-            and other.asset_out == entry.asset_in
-            and other.amount_in_filled == entry.amount_out_filled
-            and other.amount_out_filled == entry.amount_in_filled
-        ]
-        if len(matches) != 1:
-            return (
-                False,
-                f"COW_NETTED fill requires exactly one reciprocal counterparty: intent_id={intent_id} matches={matches}",
-            )
-        pair_for[intent_id] = matches[0]
-
-    for intent_id, counterparty_id in pair_for.items():
-        if pair_for.get(counterparty_id) != intent_id:
-            return False, f"COW_NETTED reciprocal pair is not symmetric: intent_id={intent_id}"
-    return True, None
+        if not ok:
+            return False, err
+        if entry is None:
+            return False, f"invalid COW_NETTED entry for intent_id={intent_id}"
+        entries[intent_id] = entry
+    return _validate_cow_reciprocal_pairs(entries)
 
 
 def _build_validated_intent_index(
