@@ -78,6 +78,11 @@ _SWAP_ORDERING_CHOICES = frozenset({
 # Bounded brute-force safety cap for AB-optimal ordering.
 # For N > this limit, greedy_ab should be used instead.
 _MAX_SWAP_ORDERING_BRUTE_FORCE_N = 12
+
+# Candidate construction can reject malformed or infeasible user inputs, but
+# implementation defects must stay loud. The called kernels use ValueError for
+# domain failures and TypeError for strict-type violations.
+_EXPECTED_CANDIDATE_ERROR = (ValueError, TypeError)
 # Global pair-swap refinement can be expensive; cap intent count for this mode.
 _MAX_SWAP_ORDERING_GLOBAL_REFINE_N = 24
 # MCI insertion is heavier than greedy seeding; keep it opt-in and bounded.
@@ -463,7 +468,7 @@ def _try_create_pool(
             curve_tag=curve_tag,
             curve_params=curve_params,
         )
-    except Exception as exc:
+    except _EXPECTED_CANDIDATE_ERROR as exc:
         return (
             Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason=f"COMPUTATION_ERROR: {exc}"),
             None,
@@ -1017,7 +1022,7 @@ def _order_swaps_optimal_ab_bounded(
                             reserve_out=r_out,
                             amount_in=amount_in,
                         )
-                except Exception:
+                except _EXPECTED_CANDIDATE_ERROR:
                     continue
                 if amount_out < min_amount_out:
                     continue
@@ -1052,7 +1057,7 @@ def _order_swaps_optimal_ab_bounded(
                             reserve_out=r_out,
                             amount_out=amount_out,
                         )
-                except Exception:
+                except _EXPECTED_CANDIDATE_ERROR:
                     continue
                 if amount_in > max_amount_in:
                     continue
@@ -1619,7 +1624,7 @@ def validate_settlement(
                     curve_tag=str(curve_tag),
                     curve_params=str(curve_params),
                 )
-            except Exception as exc:
+            except _EXPECTED_CANDIDATE_ERROR as exc:
                 return False, f"Invalid CREATE_POOL event for pool {pool_id}: {exc}"
 
     pools_view: Dict[str, PoolState] = {**pre_pools, **created_pools}
@@ -1857,7 +1862,7 @@ def _simulate_swap_reserves(
                 reserve_out=reserve_out,
                 amount_in=amount_in,
             )
-    except Exception:
+    except _EXPECTED_CANDIDATE_ERROR:
         return 0, 0, reserves
 
     if amount_out < min_amount_out:
