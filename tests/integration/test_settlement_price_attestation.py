@@ -10,11 +10,10 @@ from src.integration.settlement_price_attestation import (
     verify_settlement_spot_price_attestation_payload,
 )
 from src.integration.settlement_price_provenance import (
-    SettlementSpotPricePacket,
     SettlementSpotPriceEntry,
+    SettlementSpotPricePacket,
     build_settlement_spot_price_packet,
 )
-
 
 pytestmark = pytest.mark.skipif(importlib.util.find_spec("py_ecc") is None, reason="py_ecc is not available")
 

@@ -4,8 +4,6 @@ import importlib.util
 
 import pytest
 
-from tests.integration._attestation_policy_helper import build_policy_bound_attestation, make_attestation_policy
-
 from src.integration.settlement_attestation_policy import (
     SettlementAttestationPolicy,
     check_settlement_attestation_policy,
@@ -15,7 +13,10 @@ from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
     build_settlement_spot_price_packet,
 )
-
+from tests.integration._attestation_policy_helper import (
+    build_policy_bound_attestation,
+    make_attestation_policy,
+)
 
 pytestmark = pytest.mark.skipif(importlib.util.find_spec("py_ecc") is None, reason="py_ecc is not available")
 

@@ -5,8 +5,8 @@ import importlib.util
 
 import pytest
 
-import src.integration.tau_net_client as tau_net_client
 import src.integration.settlement_signer_registry as registry_mod
+import src.integration.tau_net_client as tau_net_client
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
     build_settlement_spot_price_packet,
