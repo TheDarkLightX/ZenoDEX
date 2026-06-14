@@ -4154,6 +4154,87 @@ def test_isolated_market_account_view_surfaces_quote_balance(monkeypatch) -> Non
     assert int(isolated[0]["quote_balance"]) == 5_000
 
 
+def test_status_indexes_balances_once_for_isolated_market_accounts(monkeypatch) -> None:
+    # Security regression guard: status must not do one linear balance scan per
+    # isolated perp account. Build a valid large state and assert the request path
+    # creates exactly one reusable balance index for all account quote lookups.
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    state = _state_with_isolated_liquidatable_account(quote_asset=quote_asset)
+    assert state.perps is not None
+    market = state.perps.markets[ISOLATED_MARKET_ID]
+    assert isinstance(market, PerpMarketState)
+    account_pubkeys = [
+        "0x" + bls_pubkey_hex_from_privkey(200 + index) for index in range(12)
+    ]
+    for index, pubkey in enumerate(account_pubkeys):
+        market.accounts[pubkey] = PerpAccountState(
+            position_base=index + 1,
+            entry_price_e8=10_000_000_000,
+            collateral_quote=300,
+            funding_paid_cumulative=0,
+            funding_last_applied_epoch=0,
+            liquidated_this_step=False,
+        )
+        state.balances.set(pubkey, quote_asset, 1_000 + index)
+    _FakeClient.app_state = _wrapped_app_state(state)
+    _FakeClient.sent = []
+    index_calls = 0
+    original_balance_index = perps_wallet_api._balance_index
+
+    def counting_balance_index(app_state: Mapping[str, object]) -> dict[tuple[str, str], int]:
+        nonlocal index_calls
+        index_calls += 1
+        return original_balance_index(app_state)
+
+    def forbidden_linear_lookup(*_args: object, **_kwargs: object) -> int:
+        raise AssertionError("market summaries must use the precomputed balance index")
+
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "1")
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+    monkeypatch.setattr(perps_wallet_api, "_balance_index", counting_balance_index)
+    monkeypatch.setattr(perps_wallet_api, "_balance_for_asset", forbidden_linear_lookup)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "GET",
+        f"/api/perps/wallet/status?account={account_pubkeys[-1]}",
+        None,
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert index_calls == 1
+    isolated_positions = [
+        position
+        for position in payload["status"]["account_view"]["positions"]
+        if position["market_id"] == ISOLATED_MARKET_ID
+    ]
+    assert isolated_positions
+    assert int(isolated_positions[0]["quote_balance"]) == 1_000 + len(account_pubkeys) - 1
+
+
+def test_balance_index_preserves_linear_lookup_semantics_for_duplicate_keys() -> None:
+    app_state = {
+        "balances": [
+            {"pubkey": " Alice ", "asset": " Quote ", "amount": 7},
+            {"pubkey": "alice", "asset": "quote", "amount": 11},
+        ]
+    }
+
+    balance_index = perps_wallet_api._balance_index(app_state)
+
+    assert perps_wallet_api._indexed_balance_for_asset(
+        balance_index,
+        pubkey="ALICE",
+        asset_id="QUOTE",
+    ) == 7
+    assert perps_wallet_api._indexed_balance_for_asset(
+        balance_index,
+        pubkey="missing",
+        asset_id="QUOTE",
+    ) == 0
+
+
 def test_status_without_account_omits_account_view(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))
