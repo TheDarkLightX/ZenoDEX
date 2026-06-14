@@ -24,9 +24,20 @@
       "key_finding": "For representative fee, dust, and routing-share cases, distributed + next dust equals fee + previous dust at each split, next dust equals the receipt dust, and dust_carried < 3; repeated splits conserve cumulative value.",
       "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave1_spot_settlement/test_spot_fee_arithmetic.py -q",
       "obligation": "O-SS-07"
+    },
+    {
+      "id": "H-MD-SS-007",
+      "description": "CoW self-netting capture: when an actor supplies a counter-intent that CoW-nets against a pool-bound trade (config-gated swap_ordering cow_pair_netting_v1), the matched pair is filled peer-to-peer at fee_paid=0, reason COW_NETTED, with no pool interaction (reserve_deltas==[]). The UNIVERSAL capture is on the LP side: routing the same pair through the pool in one batch earns LPs the full fee + spread, while CoW earns them nothing. Party-level gains are asymmetric: the min-out-binding initiator strictly gains, but the counter-supplier beats only its isolated single-trade pool quote (a same-batch pool routing can give it more than CoW).",
+      "verdict": "SUPPORTED",
+      "tests_passed": 3,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "Through the REAL compute_settlement (src/core/batch_clearing.py _cow_pair_netting_exact_in_v1): routing the pair {T(100_000 a0->a1), A(95_000 a1->a0)} through the pool in ONE batch earns LPs the full fee 585 (300+285) and moves reserves; CoW-netting the SAME pair (swap_ordering=cow_pair_netting_v1) earns LPs 0 (fee_paid sum 0, reserve_deltas==[]) — the whole batch fee+spread is captured from LPs, with NO per-party counterfactual needed. Party-level gains are ASYMMETRIC: the min-out-binding initiator T strictly gains (CoW 95_000 > both its isolated 90_661 and same-batch pool outputs), but the counter-supplier A beats only its ISOLATED quote (100_000 > 86_520) and is WORSE than same-batch pool routing (100_000 < 103_765) — so the universal capture is the LP side, not a universal per-party profit. Bounded/non-vacuous: the capture requires a min_out-feasible counter-intent, else netting does not fire and T falls back to the pool paying the fee. Research evidence only; charging a netting fee is an untested design question, not claimed.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave1_spot_settlement/test_cow_self_netting_capture.py -q",
+      "obligation": "O-SS-06"
     }
   ],
-  "total_tests": 3,
-  "total_passed": 3,
+  "total_tests": 6,
+  "total_passed": 6,
   "total_failed": 0
 }
