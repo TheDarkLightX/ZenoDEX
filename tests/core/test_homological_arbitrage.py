@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import ast
 from fractions import Fraction
+from pathlib import Path
 
 import pytest
 
+import src.core.homological_arbitrage as homological_arbitrage
 from src.core.homological_arbitrage import (
     cpmm_marginal_rate,
     find_cpmm_marginal_arbitrage_cycle,
@@ -183,3 +186,9 @@ def test_marginal_arbitrage_detector_handles_zero_reserve_pools_fail_closed() ->
     cyc = find_cpmm_marginal_arbitrage_cycle(pools_by_id=pools)
     assert cyc is None
 
+
+def test_homological_arbitrage_core_has_no_strippable_assert_guards() -> None:
+    source = Path(homological_arbitrage.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    assert [node.lineno for node in ast.walk(tree) if isinstance(node, ast.Assert)] == []
