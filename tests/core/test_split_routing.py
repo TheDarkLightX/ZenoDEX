@@ -130,6 +130,49 @@ def test_unknown_search_profile_rejected():
         assert False, "expected ValueError for unknown search profile"
 
 
+def test_bruteforce_suppresses_domain_rejects_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    p0 = PoolXY(x=1000, y=1000, fee_bps=0)
+    p1 = PoolXY(x=1000, y=1000, fee_bps=0)
+
+    def broken_quote(_pool: PoolXY, _amount: int) -> int:
+        raise RuntimeError("quote kernel bug")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", broken_quote)
+
+    with pytest.raises(RuntimeError, match="quote kernel bug"):
+        brute_force_best_split_two_pools_exact_in(p0, p1, 2)
+
+
+def test_large_split_total_out_suppresses_domain_rejects_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    p0 = PoolXY(x=20_000, y=20_000, fee_bps=30)
+    p1 = PoolXY(x=24_000, y=18_000, fee_bps=30)
+
+    def broken_quote(pool: PoolXY, amount: int) -> int:
+        if amount == 20_000:
+            raise RuntimeError("endpoint quote bug")
+        return exact_out_for_pool_exact_in(pool, amount)
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", broken_quote)
+
+    with pytest.raises(RuntimeError, match="endpoint quote bug"):
+        best_split_two_pools_exact_in(p0, p1, 20_000, search_profile="baseline")
+
+
+def test_large_split_min_valid_search_suppresses_domain_rejects_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    p0 = PoolXY(x=20_000, y=20_000, fee_bps=30)
+    p1 = PoolXY(x=24_000, y=18_000, fee_bps=30)
+
+    def broken_quote(pool: PoolXY, amount: int) -> int:
+        if amount == 10_000:
+            raise RuntimeError("min-valid quote bug")
+        return exact_out_for_pool_exact_in(pool, amount)
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", broken_quote)
+
+    with pytest.raises(RuntimeError, match="min-valid quote bug"):
+        best_split_two_pools_exact_in(p0, p1, 20_000, search_profile="baseline")
+
+
 def test_adaptive_v1_resolves_to_expected_hardness_tier_on_known_hard_cases():
     # Adaptive policy is a heuristic; this test only checks the deterministic tier selection,
     # not global optimality.

@@ -76,7 +76,7 @@ def brute_force_best_split_two_pools_exact_in(pool0: PoolXY, pool1: PoolXY, amou
         try:
             out0 = exact_out_for_pool_exact_in(pool0, a) if a > 0 else 0
             out1 = exact_out_for_pool_exact_in(pool1, b) if b > 0 else 0
-        except Exception:
+        except ValueError:
             continue
         total = out0 + out1
         if best_out is None or total > best_out or (total == best_out and a < best_a):
@@ -360,7 +360,7 @@ def _min_valid_amount_for_pool(
             return False
         try:
             exact_out_for_pool_exact_in(pool, int(a))
-        except Exception:
+        except ValueError:
             return False
         return True
 
@@ -724,7 +724,7 @@ def best_split_two_pools_exact_in(
         try:
             out0 = exact_out_for_pool_exact_in(pool0, a) if a > 0 else 0
             out1 = exact_out_for_pool_exact_in(pool1, b) if b > 0 else 0
-        except Exception:
+        except ValueError:
             tot_cache[a] = None
             return None
         tot = int(out0 + out1)
