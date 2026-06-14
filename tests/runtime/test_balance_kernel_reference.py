@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+import src.core.balance_kernel as balance_kernel
 from src.core.balance_kernel import (
     MAX_BALANCE,
     BalanceAccepted,
@@ -73,6 +76,16 @@ def test_credit_rejections():
     assert _credit(BalanceState(), A, "0x" + "aa" * 48, 100).reason == "invalid_asset"
     for bad in (0, -1, MAX_BALANCE + 1, True, 1.5):
         assert _credit(BalanceState(), A, X, bad).reason == "invalid_amount"
+
+
+def test_canonicalizer_faults_are_not_swallowed(monkeypatch):
+    def broken_canonicalizer(*_args, **_kwargs):
+        raise RuntimeError("injected canonicalizer fault")
+
+    monkeypatch.setattr(balance_kernel, "canonical_hex_fixed_allow_0x", broken_canonicalizer)
+
+    with pytest.raises(RuntimeError, match="injected canonicalizer fault"):
+        _credit(BalanceState(), A, X, 100)
 
 
 def test_credit_overflow():
