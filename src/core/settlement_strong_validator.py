@@ -141,6 +141,12 @@ class _FillAmounts:
     reserve_out_before: int
 
 
+@dataclass(frozen=True)
+class _SettlementIntentIndex:
+    intents_by_id: Dict[str, Intent]
+    fill_by_id: Dict[str, Fill]
+
+
 _FILL_AMOUNT_FIELDS = (
     "amount_in_filled",
     "amount_out_filled",
@@ -174,6 +180,21 @@ def _validate_fill_amount_fields(fill: Fill, intent_id: str) -> Tuple[bool, Opti
             return False, None, f"invalid fill.{field_name} for intent_id={intent_id}"
         values[field_name] = int(value)
     return True, _FillAmounts(**values), None
+
+
+def _validate_strong_config(
+    *,
+    mode: str,
+    protocol_fee_share_bps: int,
+    protocol_fee_recipient_pubkey: Optional[PubKey],
+) -> Optional[str]:
+    if mode not in _VALIDATION_MODES:
+        return f"unsupported validation mode: {mode!r}"
+    if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
+        return "protocol_fee_share_bps must be an int in [0, 10000]"
+    if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
+        return "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
+    return None
 
 
 def _validate_cow_pair_index(
@@ -257,6 +278,55 @@ def _validate_cow_pair_index(
     return True, None
 
 
+def _build_validated_intent_index(
+    *,
+    settlement: Settlement,
+    intents: List[Intent],
+    allow_cow_netting: bool,
+) -> Tuple[bool, Optional[_SettlementIntentIndex], Optional[str]]:
+    intent_ids = [it.intent_id for it in intents]
+    if len(intent_ids) != len(set(intent_ids)):
+        return False, None, "duplicate intent_id in input intents"
+
+    intents_by_id: Dict[str, Intent] = {it.intent_id: it for it in intents}
+
+    included_ids = [intent_id for intent_id, _action in settlement.included_intents]
+    if set(included_ids) != set(intent_ids):
+        missing = sorted(set(intent_ids) - set(included_ids))
+        extra = sorted(set(included_ids) - set(intent_ids))
+        return False, None, f"settlement included_intents mismatch: missing={missing} extra={extra}"
+    if len(included_ids) != len(set(included_ids)):
+        return False, None, "settlement included_intents contains duplicate intent_id entries"
+
+    fill_ids = [f.intent_id for f in settlement.fills]
+    if len(fill_ids) != len(set(fill_ids)):
+        return False, None, "settlement fills contains duplicate intent_id entries"
+    extra_fill_ids = sorted(set(fill_ids) - set(intent_ids))
+    if extra_fill_ids:
+        return False, None, f"settlement fills contains intent_ids not in input intents: {extra_fill_ids}"
+    fill_by_id: Dict[str, Fill] = {f.intent_id: f for f in settlement.fills}
+
+    for intent_id, action in settlement.included_intents:
+        fill = fill_by_id.get(intent_id)
+        if fill is None:
+            if action == FillAction.FILL:
+                return False, None, f"missing Fill for filled intent_id: {intent_id}"
+            continue
+        if fill.action != action:
+            return False, None, f"Fill.action mismatch for intent_id={intent_id}: {fill.action} != {action}"
+
+    ok_cow, err_cow = _validate_cow_pair_index(
+        settlement=settlement,
+        intents_by_id=intents_by_id,
+        fill_by_id=fill_by_id,
+        allow_cow_netting=allow_cow_netting,
+    )
+    if not ok_cow:
+        return False, None, err_cow
+
+    return True, _SettlementIntentIndex(intents_by_id=intents_by_id, fill_by_id=fill_by_id), None
+
+
 def validate_settlement_strong(
     *,
     settlement: Settlement,
@@ -318,53 +388,25 @@ def _validate_settlement_strong_impl(
 
     This is intended to be used in `dex.step` as a fail-closed acceptance gate.
     """
-    if mode not in _VALIDATION_MODES:
-        return False, f"unsupported validation mode: {mode!r}"
-    if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
-        return False, "protocol_fee_share_bps must be an int in [0, 10000]"
-    if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
-        return False, "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
-
-    # Intents must have unique ids (otherwise settlement semantics are ambiguous).
-    intent_ids = [it.intent_id for it in intents]
-    if len(intent_ids) != len(set(intent_ids)):
-        return False, "duplicate intent_id in input intents"
-
-    intents_by_id: Dict[str, Intent] = {it.intent_id: it for it in intents}
-
-    included_ids = [intent_id for intent_id, _action in settlement.included_intents]
-    if set(included_ids) != set(intent_ids):
-        missing = sorted(set(intent_ids) - set(included_ids))
-        extra = sorted(set(included_ids) - set(intent_ids))
-        return False, f"settlement included_intents mismatch: missing={missing} extra={extra}"
-    if len(included_ids) != len(set(included_ids)):
-        return False, "settlement included_intents contains duplicate intent_id entries"
-
-    # Build fill map. NOTE: Reject actions are allowed to omit fill details.
-    fill_ids = [f.intent_id for f in settlement.fills]
-    if len(fill_ids) != len(set(fill_ids)):
-        return False, "settlement fills contains duplicate intent_id entries"
-    extra_fill_ids = sorted(set(fill_ids) - set(intent_ids))
-    if extra_fill_ids:
-        return False, f"settlement fills contains intent_ids not in input intents: {extra_fill_ids}"
-    fill_by_id: Dict[str, Fill] = {f.intent_id: f for f in settlement.fills}
-    for intent_id, action in settlement.included_intents:
-        f = fill_by_id.get(intent_id)
-        if f is None:
-            if action == FillAction.FILL:
-                return False, f"missing Fill for filled intent_id: {intent_id}"
-            continue
-        if f.action != action:
-            return False, f"Fill.action mismatch for intent_id={intent_id}: {f.action} != {action}"
-
-    ok_cow, err_cow = _validate_cow_pair_index(
-        settlement=settlement,
-        intents_by_id=intents_by_id,
-        fill_by_id=fill_by_id,
-        allow_cow_netting=allow_cow_netting,
+    config_err = _validate_strong_config(
+        mode=mode,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
-    if not ok_cow:
-        return False, err_cow
+    if config_err is not None:
+        return False, config_err
+
+    ok_index, intent_index, err_index = _build_validated_intent_index(
+        settlement=settlement,
+        allow_cow_netting=allow_cow_netting,
+        intents=intents,
+    )
+    if not ok_index:
+        return False, err_index
+    if intent_index is None:
+        raise RuntimeError("validated settlement intent index missing")
+    intents_by_id = intent_index.intents_by_id
+    fill_by_id = intent_index.fill_by_id
 
     # Replay state (pure local copies).
     balances = _copy_balance_table(pre_balances)
