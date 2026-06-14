@@ -45,6 +45,9 @@ def _perp_math_docs_agree(left: dict[str, Any], right: dict[str, Any]) -> bool:
 
 
 def _python_doc(fn, *args: Any) -> dict[str, Any]:
+    # In dual-authority modes this document is compared against the Rust result.
+    # Python-authority mode calls the function directly, so unexpected runtime
+    # faults still propagate on the authoritative path.
     try:
         value = fn(*args)
     except Exception as exc:

@@ -1,5 +1,6 @@
 """Tests for src/core/perp_v2/math.py — pure arithmetic functions."""
 
+from src.core.perp_v2 import math as m
 from src.core.perp_v2.math import (
     PRICE_SCALE,
     abs_val,
@@ -21,7 +22,6 @@ from src.core.perp_v2.math import (
     settle_price,
 )
 
-
 # ---------------------------------------------------------------------------
 # abs_val
 # ---------------------------------------------------------------------------
@@ -35,6 +35,13 @@ class TestAbsVal:
 
     def test_zero(self):
         assert abs_val(0) == 0
+
+
+def test_python_doc_records_exception_for_authority_comparison():
+    def broken():
+        raise RuntimeError("unexpected helper fault")
+
+    assert m._python_doc(broken) == {"ok": False, "code": "python_error:RuntimeError"}
 
 
 # ---------------------------------------------------------------------------
