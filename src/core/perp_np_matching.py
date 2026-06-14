@@ -25,7 +25,8 @@ import argparse
 import json
 import sys
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from itertools import product
+from typing import Iterator, Mapping, Sequence
 
 # --- Stable reject codes (consensus behaviour; tested for precedence) ----------
 REJ_EXPIRED = "REJ_EXPIRED"          # expiry_epoch < now_epoch
@@ -322,10 +323,23 @@ def _validate_intent(
 
 
 # --- Deterministic self-test CLI ----------------------------------------------
+def _selftest_desired_vectors() -> Iterator[tuple[int, ...]]:
+    """Exhaustive bounded vector battery for the matcher CLI self-test.
+
+    This intentionally avoids seeded randomness inside the core module. The wide
+    small-domain sweep covers all sign, zero, and remainder-shape combinations up
+    to length four; the longer narrow sweeps exercise multi-party rationing paths
+    without turning the self-test into a slow fuzz job.
+    """
+    for n in range(5):
+        yield from product(range(-5, 6), repeat=n)
+    yield from product(range(-2, 3), repeat=5)
+    for n in range(6, 8):
+        yield from product(range(-1, 2), repeat=n)
+
+
 def _selftest() -> dict:
     """Deterministic battery: assert net-zero, sign-consistency, |delta|<=|desired|."""
-    import random
-
     failures: list[str] = []
     checked = 0
 
@@ -361,12 +375,8 @@ def _selftest() -> dict:
     ):
         check_ration(list(case))
 
-    # Seeded random battery (reproducible: fixed seed, no wall-clock).
-    rng = random.Random(20260601)
-    for _ in range(20000):
-        n = rng.randint(0, 8)
-        desired = [rng.randint(-50, 50) for _ in range(n)]
-        check_ration(desired)
+    for case in _selftest_desired_vectors():
+        check_ration(list(case))
 
     # End-to-end match_intents: net-zero + min-fill respected.
     params = MatchParams(initial_margin_bps=1000, max_position_abs=1_000_000)

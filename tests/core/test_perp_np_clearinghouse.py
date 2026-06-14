@@ -21,6 +21,7 @@ from src.core.perp_np_matching import (  # noqa: E402
     E8,
     Intent,
     MatchParams,
+    _selftest,
     match_intents,
     ration_net_zero,
 )
@@ -95,6 +96,13 @@ def test_matcher_rations_heavy_side_largest_remainder():
     assert sum(out) == 0
     assert out[0] == 7
     assert sorted(out[1:]) == [-3, -2, -2]              # 7 rationed across 3 by largest remainder
+
+
+def test_matcher_selftest_uses_nontrivial_deterministic_battery():
+    result = _selftest()
+    assert result["ok"] is True
+    assert result["failures"] == []
+    assert result["checked"] > 20_000
 
 
 # --- persistent market state type (snapshot-grade, fail-closed) -------------
