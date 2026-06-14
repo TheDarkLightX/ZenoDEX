@@ -4,6 +4,7 @@ from pathlib import Path
 
 from tools.zeno_ledger_loopback_machine_b import (
     DEFAULT_HOST_ALIAS,
+    _container_script,
     _display_command,
     _docker_command,
 )
@@ -37,3 +38,18 @@ def test_docker_command_mounts_repo_and_output_with_host_gateway(tmp_path: Path)
     assert f"{tmp_path.resolve()}:/out" in command
     assert "ZENO_LEDGER_WRITER_TOKEN" in command
     assert all("secret-token" not in item for item in command)
+
+
+def test_container_script_exposes_testnet_faucet_for_local_loopback_only() -> None:
+    script = _container_script(
+        config_url="http://host.docker.internal:1000/public_network_config.json",
+        peer_url="http://host.docker.internal:2000",
+        commit_sha="a" * 40,
+    )
+
+    assert "--enable-testnet-faucet" in script
+    assert "--expose-testnet-faucet-http" in script
+    assert "--write-auth-token-env ZENO_LEDGER_WRITER_TOKEN" in script
+    assert 'import os' in script
+    assert '"Authorization": "Bearer " + os.environ["ZENO_LEDGER_WRITER_TOKEN"]' in script
+    assert '"local_fixture_mode": True' in script

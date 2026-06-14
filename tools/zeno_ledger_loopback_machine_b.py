@@ -33,10 +33,8 @@ if str(ROOT) not in sys.path:
 from tools.zeno_ledger_make_testnet_bundle import (  # noqa: E402
     DEFAULT_ASSET0,
     DEFAULT_BOOTSTRAP_SENDER,
-    DEFAULT_CHAIN_ID,
     DEFAULT_TIME_MS,
 )
-
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.loopback_machine_b_report.v0"
 DEFAULT_DOCKER_IMAGE = "python:3.12-slim"
@@ -230,6 +228,8 @@ def _container_script(
           --port 8788 \\
           --enable-testnet-intake \\
           --enable-testnet-faucet \\
+          --expose-testnet-faucet-http \\
+          --write-auth-token-env ZENO_LEDGER_WRITER_TOKEN \\
           --submit-peer-url {shlex.quote(peer_url)} \\
           --submit-peer-auth-token-env ZENO_LEDGER_WRITER_TOKEN \\
           > /out/logs/machine_b_serve.log 2>&1 &
@@ -258,6 +258,7 @@ def _container_script(
 
         "$PYTHON" - <<'PY' > /out/evidence/machine_b_forwarded_faucet.json
         import json
+        import os
         from urllib.request import Request, urlopen
 
         payload = {{
@@ -266,11 +267,15 @@ def _container_script(
             "amount": 77,
             "time_ms": {DEFAULT_TIME_MS + 1_001_000},
             "tx_id": "loopback-machine-b-forwarded-faucet-v0",
+            "local_fixture_mode": True,
         }}
         request = Request(
             "http://127.0.0.1:8788/faucet",
             data=json.dumps(payload, sort_keys=True).encode("utf-8"),
-            headers={{"Content-Type": "application/json"}},
+            headers={{
+                "Authorization": "Bearer " + os.environ["ZENO_LEDGER_WRITER_TOKEN"],
+                "Content-Type": "application/json",
+            }},
             method="POST",
         )
         with urlopen(request, timeout=30) as response:
@@ -451,6 +456,7 @@ def run_loopback_machine_b_v0(
                 str(node_port),
                 "--enable-testnet-intake",
                 "--enable-testnet-faucet",
+                "--expose-testnet-faucet-http",
                 "--write-auth-token-env",
                 "ZENO_LEDGER_WRITER_TOKEN",
             ],
@@ -468,6 +474,7 @@ def run_loopback_machine_b_v0(
                 "amount": 123,
                 "time_ms": DEFAULT_TIME_MS + 1_000_000,
                 "tx_id": "loopback-machine-a-host-faucet-v0",
+                "local_fixture_mode": True,
             },
             bearer_token=writer_token,
         )
