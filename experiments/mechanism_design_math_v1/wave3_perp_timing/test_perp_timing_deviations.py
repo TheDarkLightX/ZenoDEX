@@ -11,6 +11,18 @@ nothing. So funding is NOT timing-neutral: the intra-epoch round-trip strictly
 avoids a positive funding payment. The avoided amount equals funding_magnitude
 and is bounded by floor(notional * cap / 10_000) per epoch, tight at the cap.
 
+SCHEDULER SCOPE (model-honest): the deviation holds under the standard funding-
+scheduler assumption — funding is applied once per epoch at a single scheduled
+snapshot, with no per-account retry after re-entry. The single-account engine
+gate does not BY ITSELF mandate that snapshot: a REJECTED flat apply_funding
+does not consume the epoch's funding slot (funding_last_applied_epoch is only
+advanced by a SUCCESSFUL apply), so a trader who closes before the funding
+attempt and reopens in the same epoch can still be debited by a later
+apply_funding (test_..._reentry_exposes_later_same_epoch_funding). The straddle
+escapes funding precisely when the trader is flat at the one scheduled snapshot;
+a naive retry-until-success keeper would re-expose a re-entrant. (Model-scope
+characterization only — no keeper-policy remedy is claimed.)
+
 Verdict polarity (charter): hypotheses are phrased "deviation exists", so a
 PASSING test == SUPPORTED — the timing deviation is demonstrated.
 Research evidence only; no production change, no remedy claim.
@@ -135,11 +147,15 @@ def test_h_md_pt_001_funding_charges_holders_not_the_flat_straddler_at_guard() -
     accepted (and debits collateral by funding_magnitude) for a position-holder
     reached via the guarded set_position action, but is REJECTED for a flat
     account. So in this single-account model funding is conditioned on holding
-    exposure at the funding moment — a trader who is flat then is never charged,
-    which is exactly the timing lever the straddle exploits. (apply_funding-while-
-    flat is not even a legal action here, so the deviation lives at the
-    holds-or-not boundary, demonstrated through the real guards rather than a
-    hand-built state.)"""
+    exposure at the funding moment — a trader who is flat at that funding attempt
+    is NOT debited by it, which is the timing lever the straddle exploits.
+    (apply_funding-while-flat is not even a legal action here, so the deviation
+    lives at the holds-or-not boundary, demonstrated through the real guards
+    rather than a hand-built state.) Scope: this proves "not charged by THIS
+    funding attempt"; escaping the epoch's funding entirely additionally needs
+    the once-per-snapshot scheduler assumption — see
+    test_h_md_pt_001_reentry_exposes_later_same_epoch_funding for the realizable
+    re-entry trace that a retry keeper could exploit."""
     q = 100
     index = 50_000 * 10**8
     cap = 100
@@ -160,7 +176,7 @@ def test_h_md_pt_001_funding_charges_holders_not_the_flat_straddler_at_guard() -
 
     assert holder_funded.accepted, holder_funded.rejection           # holder: funding applies
     assert holder_funded.state.collateral_quote == collateral - funding_magnitude(q, index, rate)
-    assert not flat_funded.accepted                                  # flat straddler: never charged
+    assert not flat_funded.accepted                                  # flat straddler: not charged by this attempt
     assert flat_funded.rejection == "guard"
 
     # Pin the rejection REASON to the position-open condition (not phase / oracle /
@@ -185,3 +201,47 @@ def test_h_md_pt_001_funding_charges_holders_not_the_flat_straddler_at_guard() -
     assert not flat_gate.position_open_ok                  # the ONLY failing condition
     assert flat_gate.phase_allows_funding and flat_gate.oracle_fresh and flat_gate.rate_within_cap
     assert perp_funding_apply_gate_error(flat_gate) == "apply_funding requires non-zero position"
+
+
+def test_h_md_pt_001_reentry_exposes_later_same_epoch_funding() -> None:
+    """Model-scope honesty: the straddle is NOT unconditional. A REJECTED flat
+    apply_funding does NOT consume the epoch's funding slot — funding_last_applied_epoch
+    is advanced only by a SUCCESSFUL apply — so the full guarded trace
+    SET_POSITION(q) -> SET_POSITION(0) -> APPLY_FUNDING(rejected) -> SET_POSITION(q)
+    -> APPLY_FUNDING(accepted, debits) is realizable: a trader who closes before
+    the funding attempt and reopens in the SAME epoch can still be debited by a
+    later apply_funding. Hence the funding-straddle escape requires the standard
+    scheduler assumption (funding applied once per epoch at a single scheduled
+    snapshot, no per-account retry); without it a retry-until-success keeper
+    re-exposes a re-entrant. This scopes H-MD-PT-001 precisely and is a
+    model-scope characterization only — no keeper-policy remedy is claimed."""
+    q = 100
+    index = 50_000 * 10**8
+    cap = 100
+    collateral = 10**12
+    rate = cap
+    flat0 = _open_market(collateral=collateral, index=index, cap=cap)
+
+    # Open, then close within the same OPEN epoch.
+    opened = step(flat0, ActionParams(action=Action.SET_POSITION, new_position_base=q, auth_ok=True))
+    assert opened.accepted, opened.rejection
+    closed = step(opened.state, ActionParams(action=Action.SET_POSITION, new_position_base=0, auth_ok=True))
+    assert closed.accepted, closed.rejection
+    assert closed.state.position_base == 0
+    # Epoch funding slot is still open (no successful apply yet).
+    assert closed.state.funding_last_applied_epoch < closed.state.now_epoch
+
+    # Flat apply is rejected and produces NO state -> the funding slot is not consumed.
+    flat_apply = step(closed.state, ActionParams(action=Action.APPLY_FUNDING, new_rate_bps=rate, auth_ok=True))
+    assert not flat_apply.accepted
+    assert flat_apply.state is None
+
+    # Re-open from the unchanged closed state; a LATER same-epoch apply now succeeds
+    # and debits, BECAUSE the rejected flat call never advanced funding_last_applied_epoch.
+    reopened = step(closed.state, ActionParams(action=Action.SET_POSITION, new_position_base=q, auth_ok=True))
+    assert reopened.accepted, reopened.rejection
+    assert reopened.state.funding_last_applied_epoch < reopened.state.now_epoch  # slot still open
+    later_apply = step(reopened.state, ActionParams(action=Action.APPLY_FUNDING, new_rate_bps=rate, auth_ok=True))
+    assert later_apply.accepted, later_apply.rejection
+    assert later_apply.state.collateral_quote == collateral - funding_magnitude(q, index, rate)
+    assert later_apply.state.funding_last_applied_epoch == reopened.state.now_epoch  # NOW consumed

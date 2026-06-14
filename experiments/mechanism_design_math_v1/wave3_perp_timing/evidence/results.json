@@ -5,12 +5,12 @@
   "hypotheses": [
     {
       "id": "H-MD-PT-001",
-      "description": "Funding is not timing-neutral: holding a position through the once-per-epoch apply_funding debits collateral by the funding payment, while an intra-epoch straddler (no position during the funding event) is debited nothing.",
+      "description": "Funding is not timing-neutral: holding a position through the once-per-epoch apply_funding debits collateral by the funding payment, while an intra-epoch straddler (no position at the scheduled funding event) is debited nothing. Scoped to the standard funding-scheduler assumption: funding is applied once per epoch at a single scheduled snapshot with no per-account retry after re-entry.",
       "verdict": "SUPPORTED",
-      "tests_passed": 3,
+      "tests_passed": 4,
       "tests_failed": 0,
       "confidence": 0.9,
-      "key_finding": "Through the REAL reducer apply_funding (perp_v2/updates.py): a long base=100 at index $50k under a +cap (100 bps) rate has collateral_quote debited by funding_magnitude; a base=0 straddler is debited 0, so the intra-epoch round-trip strictly avoids a positive funding payment. The deviation is one-sided: the payer (long under +cap) loses and would straddle, the payee (short) receives a credit and would not. Confirmed through the real GUARDED engine.step: apply_funding is accepted and debits funding_magnitude for a position-holder reached via the guarded set_position action, but the guard REJECTS apply_funding on a flat account with the exact reason 'apply_funding requires non-zero position' (position_open_ok is the only failing gate condition) — so funding is conditioned on holding exposure at the funding moment, the precise timing lever.",
+      "key_finding": "Through the REAL reducer apply_funding (perp_v2/updates.py): a long base=100 at index $50k under a +cap (100 bps) rate has collateral_quote debited by funding_magnitude; a base=0 straddler is debited 0, so the intra-epoch round-trip strictly avoids a positive funding payment. The deviation is one-sided: the payer (long under +cap) loses and would straddle, the payee (short) receives a credit and would not. Confirmed through the real GUARDED engine.step: apply_funding is accepted and debits funding_magnitude for a position-holder reached via the guarded set_position action, but the guard REJECTS apply_funding on a flat account with the exact reason 'apply_funding requires non-zero position' (position_open_ok is the only failing gate condition) — so funding is conditioned on holding exposure at the funding moment, the precise timing lever. SCHEDULER SCOPE (model-honest): the escape is NOT unconditional. A rejected flat apply does not consume the epoch's funding slot (funding_last_applied_epoch advances only on a SUCCESSFUL apply), so the realizable guarded trace set_position(q) -> set_position(0) -> apply_funding(rejected) -> set_position(q) -> apply_funding(accepted, debits funding_magnitude) shows a re-entrant can still be charged later in the same epoch. The straddle escapes funding precisely when the trader is flat at the one scheduled snapshot; a retry-until-success keeper would re-expose a re-entrant. Model-scope characterization only; no keeper-policy remedy claimed.",
       "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave3_perp_timing/test_perp_timing_deviations.py -q",
       "obligation": "O-PT-01"
     },
@@ -26,7 +26,7 @@
       "obligation": "O-PT-01"
     }
   ],
-  "total_tests": 4,
-  "total_passed": 4,
+  "total_tests": 5,
+  "total_passed": 5,
   "total_failed": 0
 }
