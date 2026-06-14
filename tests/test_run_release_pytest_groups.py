@@ -119,6 +119,38 @@ def test_run_pytest_groups_stops_at_first_failed_group(tmp_path: Path) -> None:
     assert report["groups"][0]["returncode"] == 7
 
 
+def test_run_pytest_groups_stops_at_first_timed_out_group(tmp_path: Path) -> None:
+    tests_root = tmp_path / "tests"
+    _write(tests_root / "test_root.py")
+    _write(tests_root / "integration" / "test_integration.py")
+    report_path = tmp_path / "pytest_groups.json"
+
+    def runner(
+        argv: list[str],
+        stdout_path: Path,
+        stderr_path: Path,
+        timeout_sec: int | None,
+    ) -> tuple[int | None, bool]:
+        stdout_path.write_text("still running\n", encoding="utf-8")
+        stderr_path.write_text("", encoding="utf-8")
+        assert timeout_sec == 3
+        return None, True
+
+    report = run_pytest_groups(
+        report_path=report_path,
+        tests_root=tests_root,
+        timeout_sec_per_group=3,
+        runner=runner,
+    )
+
+    assert report["ok"] is False
+    assert report["status"] == "rejected"
+    assert report["incomplete_reasons"] == ["pytest_group_failed:root_test_files"]
+    assert len(report["groups"]) == 1
+    assert report["groups"][0]["returncode"] is None
+    assert report["groups"][0]["timed_out"] is True
+
+
 def test_run_pytest_groups_accepts_skip_only_optional_tool_group(tmp_path: Path) -> None:
     tests_root = tmp_path / "tests"
     _write(tests_root / "formal" / "test_optional_tool.py")
@@ -195,4 +227,6 @@ def test_prod_gate_uses_grouped_pytest_artifact() -> None:
     gate = (ROOT / "tools" / "prod_gate.sh").read_text(encoding="utf-8")
 
     assert "tools/run_release_pytest_groups.py" in gate
+    assert "PYTEST_GROUP_TIMEOUT_SEC" in gate
+    assert "--timeout-sec-per-group \"$PYTEST_GROUP_TIMEOUT_SEC\"" in gate
     assert "pytest -q\n" not in gate
