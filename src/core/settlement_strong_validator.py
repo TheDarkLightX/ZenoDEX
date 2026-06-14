@@ -67,51 +67,95 @@ def _quote_binding_context(intent: Intent) -> dict[str, object]:
     }
 
 
-def _validate_quote_binding_for_intent(
+@dataclass(frozen=True)
+class _QuoteBindingFields:
+    quote_receipt_hash: object
+    quote_pool_fingerprint: object
+    quote_receipt_leg_index: object
+
+
+def _quote_binding_fields(intent: Intent) -> _QuoteBindingFields:
+    return _QuoteBindingFields(
+        quote_receipt_hash=intent.get_field("quote_receipt_hash"),
+        quote_pool_fingerprint=intent.get_field("quote_pool_fingerprint"),
+        quote_receipt_leg_index=intent.get_field("quote_receipt_leg_index"),
+    )
+
+
+def _has_quote_binding(binding: _QuoteBindingFields) -> bool:
+    return (
+        binding.quote_receipt_hash is not None
+        or binding.quote_pool_fingerprint is not None
+        or binding.quote_receipt_leg_index is not None
+    )
+
+
+def _quote_transport_metadata_error(intent: Intent) -> str:
+    return _quote_binding_error(
+        "quote receipt transport metadata requires validated engine witness",
+        **_quote_binding_context(intent),
+        guidance="strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation",
+    )
+
+
+def _validate_quote_leg_index(intent: Intent, quote_leg_index: object) -> Optional[str]:
+    if quote_leg_index is None:
+        return None
+    if not is_strict_int(quote_leg_index) or int(quote_leg_index) < 0:
+        return _quote_binding_error("invalid quote_receipt_leg_index", **_quote_binding_context(intent))
+    return _quote_transport_metadata_error(intent)
+
+
+def _validate_quote_receipt_hash(intent: Intent, quote_receipt_hash: object) -> Optional[str]:
+    if quote_receipt_hash is None:
+        return None
+    if not isinstance(quote_receipt_hash, str) or not quote_receipt_hash:
+        return _quote_binding_error("invalid quote_receipt_hash", **_quote_binding_context(intent))
+    return _quote_transport_metadata_error(intent)
+
+
+def _validate_quote_pool_fingerprint(
     intent: Intent,
     *,
+    quote_pool_fingerprint: object,
     allow_snapshot_bound_quote_bindings: bool,
 ) -> Optional[str]:
-    quote_receipt_hash = intent.get_field("quote_receipt_hash")
-    quote_pool_fp = intent.get_field("quote_pool_fingerprint")
-    quote_leg_index = intent.get_field("quote_receipt_leg_index")
-    has_quote_binding = (
-        quote_receipt_hash is not None
-        or quote_pool_fp is not None
-        or quote_leg_index is not None
-    )
-    if has_quote_binding and intent.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
-        return _quote_binding_error(
-            "quote receipt binding only supported for swap intents",
-            **_quote_binding_context(intent),
-            intent_kind=intent.kind.value,
-        )
-    if quote_leg_index is not None and (
-        not is_strict_int(quote_leg_index) or int(quote_leg_index) < 0
-    ):
-        return _quote_binding_error("invalid quote_receipt_leg_index", **_quote_binding_context(intent))
-    if quote_leg_index is not None:
-        return _quote_binding_error(
-            "quote receipt transport metadata requires validated engine witness",
-            **_quote_binding_context(intent),
-            guidance="strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation",
-        )
-    if quote_receipt_hash is not None:
-        if not isinstance(quote_receipt_hash, str) or not quote_receipt_hash:
-            return _quote_binding_error("invalid quote_receipt_hash", **_quote_binding_context(intent))
-        return _quote_binding_error(
-            "quote receipt transport metadata requires validated engine witness",
-            **_quote_binding_context(intent),
-            guidance="strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation",
-        )
-    if quote_pool_fp is not None and (not isinstance(quote_pool_fp, str) or not quote_pool_fp):
+    if quote_pool_fingerprint is None:
+        return None
+    if not isinstance(quote_pool_fingerprint, str) or not quote_pool_fingerprint:
         return _quote_binding_error("missing quote_pool_fingerprint", **_quote_binding_context(intent))
-    if quote_pool_fp is not None and not allow_snapshot_bound_quote_bindings:
+    if not allow_snapshot_bound_quote_bindings:
         return _quote_binding_error(
             "quote receipt snapshot binding requires validated engine witness",
             **_quote_binding_context(intent),
             guidance="only pass sanitized quote_pool_fingerprint through the validated engine path",
         )
+    return None
+
+
+def _validate_quote_binding_for_intent(
+    intent: Intent,
+    *,
+    allow_snapshot_bound_quote_bindings: bool,
+) -> Optional[str]:
+    binding = _quote_binding_fields(intent)
+    if _has_quote_binding(binding) and intent.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
+        return _quote_binding_error(
+            "quote receipt binding only supported for swap intents",
+            **_quote_binding_context(intent),
+            intent_kind=intent.kind.value,
+        )
+    for err in (
+        _validate_quote_leg_index(intent, binding.quote_receipt_leg_index),
+        _validate_quote_receipt_hash(intent, binding.quote_receipt_hash),
+        _validate_quote_pool_fingerprint(
+            intent,
+            quote_pool_fingerprint=binding.quote_pool_fingerprint,
+            allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        ),
+    ):
+        if err is not None:
+            return err
     return None
 
 
