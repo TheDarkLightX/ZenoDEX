@@ -67,6 +67,23 @@ def test_adapter_hash_pin_rejects_mismatch(monkeypatch: pytest.MonkeyPatch) -> N
         )
 
 
+@pytest.mark.parametrize("bad_hash", [None, "", 123])
+def test_adapter_hash_pin_rejects_missing_or_invalid_hash(
+    monkeypatch: pytest.MonkeyPatch,
+    bad_hash: object,
+) -> None:
+    class _Adapter:
+        IR_HASH = bad_hash
+
+    monkeypatch.setattr(perp_epoch_module.importlib, "import_module", lambda _module_name: _Adapter)
+
+    with pytest.raises(RuntimeError, match="adapter missing IR_HASH"):
+        perp_epoch_module._verify_adapter_ir_hash(
+            adapter_module="src.kernels.python.perp_epoch_isolated_v2_adapter",
+            actual_hash="actual",
+        )
+
+
 def test_adapter_hash_pin_propagates_adapter_import_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     def _broken_adapter(_module_name: str):
         raise ModuleNotFoundError("internal dependency absent", name="missing_dependency")

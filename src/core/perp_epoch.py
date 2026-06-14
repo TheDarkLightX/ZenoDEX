@@ -98,7 +98,9 @@ def _verify_adapter_ir_hash(*, adapter_module: str, actual_hash: str) -> None:
         raise
 
     expected_hash = getattr(module, "IR_HASH", None)
-    if isinstance(expected_hash, str) and expected_hash and expected_hash != actual_hash:
+    if not isinstance(expected_hash, str) or not expected_hash:
+        raise RuntimeError(f"perp kernel adapter missing IR_HASH: adapter={adapter_module}")
+    if expected_hash != actual_hash:
         raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={actual_hash}")
 
 

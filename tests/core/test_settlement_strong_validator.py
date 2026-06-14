@@ -1381,6 +1381,89 @@ def test_strong_validator_accepts_multiple_disjoint_cow_netted_pairs() -> None:
     assert err is None
 
 
+def test_strong_validator_accepts_live_cow_batch_with_identical_reciprocal_pairs() -> None:
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    pool_state = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        curve_tag="CPMM",
+        curve_params="",
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+    intents: list[Intent] = []
+
+    for n in (940, 941):
+        sender = "0x" + f"{n:096x}"
+        balances.set(sender, asset0, 100)
+        intents.append(
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.SWAP_EXACT_IN,
+                intent_id=_iid(n),
+                sender_pubkey=sender,
+                deadline=9999999999,
+                fields={
+                    "pool_id": pool_id,
+                    "asset_in": asset0,
+                    "asset_out": asset1,
+                    "amount_in": 100,
+                    "min_amount_out": 0,
+                },
+            )
+        )
+    for n in (942, 943):
+        sender = "0x" + f"{n:096x}"
+        balances.set(sender, asset1, 100)
+        intents.append(
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.SWAP_EXACT_IN,
+                intent_id=_iid(n),
+                sender_pubkey=sender,
+                deadline=9999999999,
+                fields={
+                    "pool_id": pool_id,
+                    "asset_in": asset1,
+                    "asset_out": asset0,
+                    "amount_in": 100,
+                    "min_amount_out": 0,
+                },
+            )
+        )
+
+    settlement = compute_settlement(
+        intents,
+        {pool_id: pool_state},
+        balances,
+        LPTable(),
+        swap_ordering="cow_pair_netting_v1",
+    )
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=intents,
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+
+    assert ok is True, err
+    assert err is None
+
+
 def test_strong_validator_rejects_ambiguous_and_nonreciprocal_cow_pairs() -> None:
     pk0 = "0x" + "11" * 48
     pk1 = "0x" + "22" * 48
@@ -1470,7 +1553,7 @@ def test_strong_validator_rejects_ambiguous_and_nonreciprocal_cow_pairs() -> Non
         allow_cow_netting=True,
     )
     assert ok is False
-    assert err is not None and "exactly one reciprocal counterparty" in err
+    assert err is not None and "reciprocal multiset mismatch" in err
 
     cross_pool = [
         (_intent(932, pk0, pool_id, asset0, asset1, 100, 50), 100, 50),
@@ -1486,7 +1569,7 @@ def test_strong_validator_rejects_ambiguous_and_nonreciprocal_cow_pairs() -> Non
         allow_cow_netting=True,
     )
     assert ok is False
-    assert err is not None and "exactly one reciprocal counterparty" in err
+    assert err is not None and "reciprocal multiset mismatch" in err
 
     mismatched = [
         (_intent(934, pk0, pool_id, asset0, asset1, 100, 40), 100, 49),
@@ -1502,7 +1585,7 @@ def test_strong_validator_rejects_ambiguous_and_nonreciprocal_cow_pairs() -> Non
         allow_cow_netting=True,
     )
     assert ok is False
-    assert err is not None and "exactly one reciprocal counterparty" in err
+    assert err is not None and "reciprocal multiset mismatch" in err
 
     ambiguous = [
         (_intent(936, pk0, pool_id, asset0, asset1, 100, 50), 100, 50),
@@ -1519,7 +1602,7 @@ def test_strong_validator_rejects_ambiguous_and_nonreciprocal_cow_pairs() -> Non
         allow_cow_netting=True,
     )
     assert ok is False
-    assert err is not None and "matches=[" in err
+    assert err is not None and "reciprocal multiset mismatch" in err
 
 
 def test_strong_validator_rejects_stale_quote_receipt_pool_fingerprint() -> None:
@@ -3067,9 +3150,7 @@ def test_strong_validator_rejects_cow_netted_variants_and_legacy_failure() -> No
     )
     assert ok is False
     assert err is not None
-    assert err.startswith(
-        f"COW_NETTED fill requires exactly one reciprocal counterparty: intent_id={exact_in_intent.intent_id}"
-    )
+    assert err.startswith(f"COW_NETTED reciprocal multiset mismatch: intent_id={exact_in_intent.intent_id}")
 
 
 def test_strong_validator_rejects_quote_hash_and_snapshot_binding_without_engine_witness() -> None:
