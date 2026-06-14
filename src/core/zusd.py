@@ -1120,348 +1120,388 @@ def _multi_risky_ops_allowed(state: ZUSDMultiState) -> bool:
     return True
 
 
+def _zusd_mh_advance_epoch(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
+    delta = _require_pos_int(cmd.args.get("delta"), name="delta")
+    ns = ZUSDMultiState(**{**state.__dict__, "now_epoch": _bounded_add(state.now_epoch, delta, name="now_epoch")})
+    return ns, {"event": "epoch_advanced", "delta": delta}
+
+
+def _zusd_mh_bootstrap_oracle(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
+    if state.oracle_seen:
+        return ZUSDMultiStepResult(ok=False, error="oracle already bootstrapped")
+    if not bool(cmd.args.get("auth_ok", False)):
+        return ZUSDMultiStepResult(ok=False, error="bootstrap_oracle requires auth_ok=true")
+    p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
+    ns = ZUSDMultiState(
+        **{
+            **state.__dict__,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": state.now_epoch,
+            "price_e8": p,
+            "price_pending_e8": p,
+        }
+    )
+    return ns, {"event": "oracle_bootstrapped", "price_e8": p}
+
+
+def _zusd_mh_oracle_report(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
+    if not state.oracle_seen:
+        return ZUSDMultiStepResult(ok=False, error="oracle not bootstrapped")
+    if not bool(cmd.args.get("auth_ok", False)):
+        return ZUSDMultiStepResult(ok=False, error="oracle_report requires auth_ok=true")
+    p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
+    if p > state.price_pending_e8:
+        return ZUSDMultiStepResult(ok=False, error="oracle_report requires non-increasing pending price")
+    ns = ZUSDMultiState(**{**state.__dict__, "price_pending_e8": p})
+    return ns, {"event": "oracle_reported", "price_pending_e8": p}
+
+
+def _zusd_mh_oracle_commit(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
+    if not state.oracle_seen:
+        return ZUSDMultiStepResult(ok=False, error="oracle not bootstrapped")
+    if not bool(cmd.args.get("auth_ok", False)):
+        return ZUSDMultiStepResult(ok=False, error="oracle_commit requires auth_ok=true")
+    mcr_pending = check_multi_oracle_commit_mcr(
+        price_pending_e8=state.price_pending_e8,
+        mcr_bps=state.mcr_bps,
+        vault_a_collateral_e8=state.vault_a.collateral_e8,
+        vault_a_debt_e8=state.vault_a.debt_e8,
+        vault_b_collateral_e8=state.vault_b.collateral_e8,
+        vault_b_debt_e8=state.vault_b.debt_e8,
+    )
+    if not mcr_pending.vault_a_mcr_ok:
+        return ZUSDMultiStepResult(ok=False, error="oracle_commit blocked: vault a below MCR at pending price")
+    if not mcr_pending.vault_b_mcr_ok:
+        return ZUSDMultiStepResult(ok=False, error="oracle_commit blocked: vault b below MCR at pending price")
+    ns = ZUSDMultiState(
+        **{
+            **state.__dict__,
+            "price_e8": state.price_pending_e8,
+            "oracle_last_update_epoch": state.now_epoch,
+        }
+    )
+    return ns, {"event": "oracle_committed", "price_e8": state.price_pending_e8}
+
+
+def _zusd_mh_deposit_collateral(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
+    amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
+    vid = _parse_vault_id(cmd.args)
+    v = _get_vault(state, vid)
+    nv = ZUSDVault(collateral_e8=_bounded_add(v.collateral_e8, amt, name="vault.collateral_e8"), debt_e8=v.debt_e8)
+    ns = _set_vault(state, vid, nv)
+    return ns, {"event": "collateral_deposited", "vault": vid, "amount_e8": amt}
+
+
+def _zusd_mh_withdraw_collateral(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
+    amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
+    vid = _parse_vault_id(cmd.args)
+    v = _get_vault(state, vid)
+    if amt > v.collateral_e8:
+        return ZUSDMultiStepResult(ok=False, error="insufficient collateral")
+    if v.debt_e8 > 0 and not _multi_risky_ops_allowed(state):
+        return ZUSDMultiStepResult(ok=False, error="withdraw blocked by oracle freeze/staleness/recovery mode")
+    new_coll = v.collateral_e8 - amt
+    if not _mcr_ok(
+        collateral_e8=new_coll,
+        debt_e8=v.debt_e8,
+        price_e8=state.price_e8,
+        mcr_bps=state.mcr_bps,
+    ):
+        return ZUSDMultiStepResult(ok=False, error="withdraw would violate MCR")
+    ns = _set_vault(state, vid, ZUSDVault(collateral_e8=new_coll, debt_e8=v.debt_e8))
+    return ns, {"event": "collateral_withdrawn", "vault": vid, "amount_e8": amt}
+
+
+def _zusd_mh_mint_zusd(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
+    amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
+    vid = _parse_vault_id(cmd.args)
+    v = _get_vault(state, vid)
+    if not _multi_risky_ops_allowed(state):
+        return ZUSDMultiStepResult(ok=False, error="mint blocked by oracle freeze/staleness/recovery mode")
+    if v.debt_e8 == 0 and amt < state.min_debt_open_e8:
+        return ZUSDMultiStepResult(ok=False, error="mint below min_debt_open_e8")
+    decayed_base_rate = _decayed_base_rate_bps(
+        base_rate_bps=state.base_rate_bps,
+        now_epoch=state.now_epoch,
+        last_epoch=state.base_rate_last_epoch,
+        decay_per_epoch_bps=state.base_rate_decay_per_epoch_bps,
+    )
+    fee_bps = _effective_fee_bps(
+        decayed_base_rate_bps=decayed_base_rate,
+        floor_bps=state.borrow_fee_floor_bps,
+        max_bps=state.borrow_fee_max_bps,
+    )
+    fee_e8 = _mul_div_up(amt, fee_bps, BPS_SCALE)
+    debt_delta = amt + fee_e8
+    new_debt = v.debt_e8 + debt_delta
+    if new_debt > state.max_debt_e8:
+        return ZUSDMultiStepResult(ok=False, error="mint exceeds per-vault max_debt_e8")
+    if (state.free_debt_e8 + debt_delta) > state.max_debt_supply_e8:
+        return ZUSDMultiStepResult(ok=False, error="mint exceeds max_debt_supply_e8")
+    if not _mcr_ok(
+        collateral_e8=v.collateral_e8,
+        debt_e8=new_debt,
+        price_e8=state.price_e8,
+        mcr_bps=state.mcr_bps,
+    ):
+        return ZUSDMultiStepResult(ok=False, error="mint would violate MCR")
+    ns0 = _set_vault(state, vid, ZUSDVault(collateral_e8=v.collateral_e8, debt_e8=new_debt))
+    ns = ZUSDMultiState(
+        **{
+            **ns0.__dict__,
+            "free_debt_e8": state.free_debt_e8 + debt_delta,
+            "protocol_revenue_zusd_cum_e8": state.protocol_revenue_zusd_cum_e8 + fee_e8,
+            "base_rate_bps": min(BPS_SCALE, decayed_base_rate + state.base_rate_borrow_bump_bps),
+            "base_rate_last_epoch": state.now_epoch,
+        }
+    )
+    return ns, {
+        "event": "zusd_minted",
+        "vault": vid,
+        "principal_e8": amt,
+        "mint_fee_e8": fee_e8,
+        "mint_fee_bps": fee_bps,
+        "debt_delta_e8": debt_delta,
+    }
+
+
+def _zusd_mh_repay_zusd(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
+    amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
+    vid = _parse_vault_id(cmd.args)
+    v = _get_vault(state, vid)
+    if amt > v.debt_e8:
+        return ZUSDMultiStepResult(ok=False, error="repay exceeds vault debt")
+    if amt > state.free_debt_e8:
+        return ZUSDMultiStepResult(ok=False, error="repay exceeds free debt balance")
+    post_debt = v.debt_e8 - amt
+    if not _debt_floor_ok(debt_e8=post_debt, min_debt_open_e8=state.min_debt_open_e8):
+        return ZUSDMultiStepResult(ok=False, error="repay would leave vault debt below min_debt_open_e8")
+    ns0 = _set_vault(state, vid, ZUSDVault(collateral_e8=v.collateral_e8, debt_e8=post_debt))
+    ns = ZUSDMultiState(**{**ns0.__dict__, "free_debt_e8": state.free_debt_e8 - amt})
+    return ns, {"event": "zusd_repaid", "vault": vid, "amount_e8": amt}
+
+
+def _zusd_mh_deposit_sp(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
+    amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
+    if amt > state.free_debt_e8:
+        return ZUSDMultiStepResult(ok=False, error="deposit_sp exceeds free debt balance")
+    if (state.sp_debt_e8 + amt) > state.max_debt_supply_e8:
+        return ZUSDMultiStepResult(ok=False, error="deposit_sp exceeds max_debt_supply_e8")
+    ns = ZUSDMultiState(
+        **{
+            **state.__dict__,
+            "free_debt_e8": state.free_debt_e8 - amt,
+            "sp_debt_e8": state.sp_debt_e8 + amt,
+        }
+    )
+    return ns, {"event": "sp_deposited", "amount_e8": amt}
+
+
+def _zusd_mh_withdraw_sp(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
+    amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
+    if amt > state.sp_debt_e8:
+        return ZUSDMultiStepResult(ok=False, error="withdraw_sp exceeds sp_debt")
+    if not _multi_risky_ops_allowed(state):
+        return ZUSDMultiStepResult(ok=False, error="withdraw_sp blocked by oracle freeze/staleness/recovery mode")
+    if not _mcr_ok(
+        collateral_e8=state.vault_a.collateral_e8,
+        debt_e8=state.vault_a.debt_e8,
+        price_e8=state.price_e8,
+        mcr_bps=state.mcr_bps,
+    ):
+        return ZUSDMultiStepResult(ok=False, error="withdraw_sp blocked: vault a not at MCR")
+    if not _mcr_ok(
+        collateral_e8=state.vault_b.collateral_e8,
+        debt_e8=state.vault_b.debt_e8,
+        price_e8=state.price_e8,
+        mcr_bps=state.mcr_bps,
+    ):
+        return ZUSDMultiStepResult(ok=False, error="withdraw_sp blocked: vault b not at MCR")
+    ns = ZUSDMultiState(
+        **{
+            **state.__dict__,
+            "sp_debt_e8": state.sp_debt_e8 - amt,
+            "free_debt_e8": state.free_debt_e8 + amt,
+        }
+    )
+    return ns, {"event": "sp_withdrawn", "amount_e8": amt}
+
+
+def _zusd_mh_redeem_zusd(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
+    amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
+    if not state.oracle_seen or state.price_e8 <= 0 or state.price_pending_e8 <= 0:
+        return ZUSDMultiStepResult(ok=False, error="redemption requires initialized oracle")
+    if state.price_pending_e8 != state.price_e8:
+        return ZUSDMultiStepResult(ok=False, error="redemption blocked by oracle pending mismatch")
+    if not _is_oracle_fresh(
+        now_epoch=state.now_epoch,
+        last_update_epoch=state.oracle_last_update_epoch,
+        max_staleness_epochs=state.max_oracle_staleness_epochs,
+        oracle_seen=state.oracle_seen,
+    ):
+        return ZUSDMultiStepResult(ok=False, error="redemption blocked by stale oracle")
+    if amt > state.free_debt_e8:
+        return ZUSDMultiStepResult(ok=False, error="redemption exceeds free debt")
+
+    gross_collateral_e8 = (amt * E8) // state.price_e8
+    if gross_collateral_e8 <= 0:
+        return ZUSDMultiStepResult(ok=False, error="redemption amount too small at current price")
+
+    decayed_base_rate = _decayed_base_rate_bps(
+        base_rate_bps=state.base_rate_bps,
+        now_epoch=state.now_epoch,
+        last_epoch=state.base_rate_last_epoch,
+        decay_per_epoch_bps=state.base_rate_decay_per_epoch_bps,
+    )
+    fee_bps = _effective_fee_bps(
+        decayed_base_rate_bps=decayed_base_rate,
+        floor_bps=state.redemption_fee_floor_bps,
+        max_bps=state.redemption_fee_max_bps,
+    )
+    redemption_fee_coll_e8 = _mul_div_up(gross_collateral_e8, fee_bps, BPS_SCALE)
+    if redemption_fee_coll_e8 >= gross_collateral_e8:
+        return ZUSDMultiStepResult(ok=False, error="redemption fee consumes all collateral")
+    if (state.protocol_collateral_e8 + redemption_fee_coll_e8) > state.max_protocol_coll_e8:
+        return ZUSDMultiStepResult(ok=False, error="protocol collateral cap exceeded")
+
+    explicit_vault = cmd.args.get("vault")
+    auto_selected = explicit_vault is None
+    if explicit_vault in ("a", "b"):
+        vid = explicit_vault
+        v = _get_vault(state, vid)
+        if amt > v.debt_e8:
+            return ZUSDMultiStepResult(ok=False, error="redemption exceeds vault debt")
+        if gross_collateral_e8 > v.collateral_e8:
+            return ZUSDMultiStepResult(ok=False, error="insufficient vault collateral for redemption")
+        post_debt = v.debt_e8 - amt
+        post_collateral = v.collateral_e8 - gross_collateral_e8
+        if not _mcr_ok(
+            collateral_e8=post_collateral,
+            debt_e8=post_debt,
+            price_e8=state.price_e8,
+            mcr_bps=state.mcr_bps,
+        ):
+            return ZUSDMultiStepResult(ok=False, error="redemption would violate MCR")
+    elif explicit_vault is None:
+        selection = select_multi_redeem_vault(
+            amount_e8=amt,
+            price_e8=state.price_e8,
+            mcr_bps=state.mcr_bps,
+            vault_a_collateral_e8=state.vault_a.collateral_e8,
+            vault_a_debt_e8=state.vault_a.debt_e8,
+            vault_b_collateral_e8=state.vault_b.collateral_e8,
+            vault_b_debt_e8=state.vault_b.debt_e8,
+            min_debt_open_e8=state.min_debt_open_e8,
+        )
+        if selection.selected_vault is None:
+            return ZUSDMultiStepResult(ok=False, error="no redeemable vault for amount under policy")
+        vid = selection.selected_vault
+        if selection.selected_post_collateral_e8 is None or selection.selected_post_debt_e8 is None:
+            return ZUSDMultiStepResult(ok=False, error="redeem selection missing post-state")
+        post_collateral = int(selection.selected_post_collateral_e8)
+        post_debt = int(selection.selected_post_debt_e8)
+    else:
+        return ZUSDMultiStepResult(ok=False, error="vault must be 'a' or 'b'")
+
+    if not _debt_floor_ok(debt_e8=post_debt, min_debt_open_e8=state.min_debt_open_e8):
+        return ZUSDMultiStepResult(ok=False, error="redemption would leave vault debt below min_debt_open_e8")
+
+    collateral_out_e8 = gross_collateral_e8 - redemption_fee_coll_e8
+
+    ns0 = _set_vault(state, vid, ZUSDVault(collateral_e8=post_collateral, debt_e8=post_debt))
+    ns = ZUSDMultiState(
+        **{
+            **ns0.__dict__,
+            "free_debt_e8": state.free_debt_e8 - amt,
+            "protocol_collateral_e8": state.protocol_collateral_e8 + redemption_fee_coll_e8,
+            "base_rate_bps": min(BPS_SCALE, decayed_base_rate + state.base_rate_redeem_bump_bps),
+            "base_rate_last_epoch": state.now_epoch,
+        }
+    )
+    return ns, {
+        "event": "zusd_redeemed",
+        "vault": vid,
+        "redeemed_zusd_e8": amt,
+        "redeemed_collateral_gross_e8": gross_collateral_e8,
+        "redeemed_collateral_out_e8": collateral_out_e8,
+        "redemption_fee_collateral_e8": redemption_fee_coll_e8,
+        "redemption_fee_bps": fee_bps,
+        "selection_policy": "closest_to_mcr" if auto_selected else "explicit_vault",
+    }
+
+
+def _zusd_mh_liquidate(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
+    if not state.oracle_seen or state.price_pending_e8 <= 0:
+        return ZUSDMultiStepResult(ok=False, error="liquidation requires initialized pending oracle price")
+    vid = _parse_vault_id(cmd.args)
+    v = _get_vault(state, vid)
+    if v.debt_e8 <= 0:
+        return ZUSDMultiStepResult(ok=False, error="no vault debt to liquidate")
+    under_mcr = not _mcr_ok(
+        collateral_e8=v.collateral_e8,
+        debt_e8=v.debt_e8,
+        price_e8=state.price_pending_e8,
+        mcr_bps=state.mcr_bps,
+    )
+    if not under_mcr:
+        return ZUSDMultiStepResult(ok=False, error="vault not under MCR at pending price")
+    if v.debt_e8 > state.sp_debt_e8:
+        return ZUSDMultiStepResult(ok=False, error="stability pool cannot absorb debt")
+    if (state.sp_coll_e8 + v.collateral_e8) > state.max_sp_coll_e8:
+        return ZUSDMultiStepResult(ok=False, error="stability pool collateral cap exceeded")
+    ns0 = _set_vault(state, vid, ZUSDVault(collateral_e8=0, debt_e8=0))
+    ns = ZUSDMultiState(
+        **{
+            **ns0.__dict__,
+            "sp_debt_e8": state.sp_debt_e8 - v.debt_e8,
+            "sp_coll_e8": state.sp_coll_e8 + v.collateral_e8,
+        }
+    )
+    return ns, {
+        "event": "liquidated",
+        "vault": vid,
+        "liquidated_debt_e8": v.debt_e8,
+        "liquidated_collateral_e8": v.collateral_e8,
+    }
+
+
+# Total command dispatch table for the two-vault state machine.
+_ZUSD_MULTI_STEP_HANDLERS = {
+    "advance_epoch": _zusd_mh_advance_epoch,
+    "bootstrap_oracle": _zusd_mh_bootstrap_oracle,
+    "oracle_report": _zusd_mh_oracle_report,
+    "oracle_commit": _zusd_mh_oracle_commit,
+    "deposit_collateral": _zusd_mh_deposit_collateral,
+    "withdraw_collateral": _zusd_mh_withdraw_collateral,
+    "mint_zusd": _zusd_mh_mint_zusd,
+    "repay_zusd": _zusd_mh_repay_zusd,
+    "deposit_sp": _zusd_mh_deposit_sp,
+    "withdraw_sp": _zusd_mh_withdraw_sp,
+    "redeem_zusd": _zusd_mh_redeem_zusd,
+    "liquidate": _zusd_mh_liquidate,
+}
+
+
 def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepResult:
+    """Two-vault step. Dispatch-table refactor of the prior monolithic if/elif chain
+    (mirrors the single-vault ``_step_python`` refactor): each tag is handled by a
+    ``_zusd_mh_*`` function returning ``(new_state, effects)`` on success or a reject
+    ``ZUSDMultiStepResult``. The shared post-state invariant tail and the fail-closed
+    ``except`` wrapper run once here. Behaviour is identical to the prior monolith
+    (locked by the golden characterization corpus)."""
     try:
         tag = str(cmd.tag)
-        if tag == "advance_epoch":
-            delta = _require_pos_int(cmd.args.get("delta"), name="delta")
-            ns = ZUSDMultiState(**{**state.__dict__, "now_epoch": _bounded_add(state.now_epoch, delta, name="now_epoch")})
-            eff = {"event": "epoch_advanced", "delta": delta}
-
-        elif tag == "bootstrap_oracle":
-            if state.oracle_seen:
-                return ZUSDMultiStepResult(ok=False, error="oracle already bootstrapped")
-            if not bool(cmd.args.get("auth_ok", False)):
-                return ZUSDMultiStepResult(ok=False, error="bootstrap_oracle requires auth_ok=true")
-            p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
-            ns = ZUSDMultiState(
-                **{
-                    **state.__dict__,
-                    "oracle_seen": True,
-                    "oracle_last_update_epoch": state.now_epoch,
-                    "price_e8": p,
-                    "price_pending_e8": p,
-                }
-            )
-            eff = {"event": "oracle_bootstrapped", "price_e8": p}
-
-        elif tag == "oracle_report":
-            if not state.oracle_seen:
-                return ZUSDMultiStepResult(ok=False, error="oracle not bootstrapped")
-            if not bool(cmd.args.get("auth_ok", False)):
-                return ZUSDMultiStepResult(ok=False, error="oracle_report requires auth_ok=true")
-            p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
-            if p > state.price_pending_e8:
-                return ZUSDMultiStepResult(ok=False, error="oracle_report requires non-increasing pending price")
-            ns = ZUSDMultiState(**{**state.__dict__, "price_pending_e8": p})
-            eff = {"event": "oracle_reported", "price_pending_e8": p}
-
-        elif tag == "oracle_commit":
-            if not state.oracle_seen:
-                return ZUSDMultiStepResult(ok=False, error="oracle not bootstrapped")
-            if not bool(cmd.args.get("auth_ok", False)):
-                return ZUSDMultiStepResult(ok=False, error="oracle_commit requires auth_ok=true")
-            mcr_pending = check_multi_oracle_commit_mcr(
-                price_pending_e8=state.price_pending_e8,
-                mcr_bps=state.mcr_bps,
-                vault_a_collateral_e8=state.vault_a.collateral_e8,
-                vault_a_debt_e8=state.vault_a.debt_e8,
-                vault_b_collateral_e8=state.vault_b.collateral_e8,
-                vault_b_debt_e8=state.vault_b.debt_e8,
-            )
-            if not mcr_pending.vault_a_mcr_ok:
-                return ZUSDMultiStepResult(ok=False, error="oracle_commit blocked: vault a below MCR at pending price")
-            if not mcr_pending.vault_b_mcr_ok:
-                return ZUSDMultiStepResult(ok=False, error="oracle_commit blocked: vault b below MCR at pending price")
-            ns = ZUSDMultiState(
-                **{
-                    **state.__dict__,
-                    "price_e8": state.price_pending_e8,
-                    "oracle_last_update_epoch": state.now_epoch,
-                }
-            )
-            eff = {"event": "oracle_committed", "price_e8": state.price_pending_e8}
-
-        elif tag == "deposit_collateral":
-            amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-            vid = _parse_vault_id(cmd.args)
-            v = _get_vault(state, vid)
-            nv = ZUSDVault(collateral_e8=_bounded_add(v.collateral_e8, amt, name="vault.collateral_e8"), debt_e8=v.debt_e8)
-            ns = _set_vault(state, vid, nv)
-            eff = {"event": "collateral_deposited", "vault": vid, "amount_e8": amt}
-
-        elif tag == "withdraw_collateral":
-            amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-            vid = _parse_vault_id(cmd.args)
-            v = _get_vault(state, vid)
-            if amt > v.collateral_e8:
-                return ZUSDMultiStepResult(ok=False, error="insufficient collateral")
-            if v.debt_e8 > 0 and not _multi_risky_ops_allowed(state):
-                return ZUSDMultiStepResult(ok=False, error="withdraw blocked by oracle freeze/staleness/recovery mode")
-            new_coll = v.collateral_e8 - amt
-            if not _mcr_ok(
-                collateral_e8=new_coll,
-                debt_e8=v.debt_e8,
-                price_e8=state.price_e8,
-                mcr_bps=state.mcr_bps,
-            ):
-                return ZUSDMultiStepResult(ok=False, error="withdraw would violate MCR")
-            ns = _set_vault(state, vid, ZUSDVault(collateral_e8=new_coll, debt_e8=v.debt_e8))
-            eff = {"event": "collateral_withdrawn", "vault": vid, "amount_e8": amt}
-
-        elif tag == "mint_zusd":
-            amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-            vid = _parse_vault_id(cmd.args)
-            v = _get_vault(state, vid)
-            if not _multi_risky_ops_allowed(state):
-                return ZUSDMultiStepResult(ok=False, error="mint blocked by oracle freeze/staleness/recovery mode")
-            if v.debt_e8 == 0 and amt < state.min_debt_open_e8:
-                return ZUSDMultiStepResult(ok=False, error="mint below min_debt_open_e8")
-            decayed_base_rate = _decayed_base_rate_bps(
-                base_rate_bps=state.base_rate_bps,
-                now_epoch=state.now_epoch,
-                last_epoch=state.base_rate_last_epoch,
-                decay_per_epoch_bps=state.base_rate_decay_per_epoch_bps,
-            )
-            fee_bps = _effective_fee_bps(
-                decayed_base_rate_bps=decayed_base_rate,
-                floor_bps=state.borrow_fee_floor_bps,
-                max_bps=state.borrow_fee_max_bps,
-            )
-            fee_e8 = _mul_div_up(amt, fee_bps, BPS_SCALE)
-            debt_delta = amt + fee_e8
-            new_debt = v.debt_e8 + debt_delta
-            if new_debt > state.max_debt_e8:
-                return ZUSDMultiStepResult(ok=False, error="mint exceeds per-vault max_debt_e8")
-            if (state.free_debt_e8 + debt_delta) > state.max_debt_supply_e8:
-                return ZUSDMultiStepResult(ok=False, error="mint exceeds max_debt_supply_e8")
-            if not _mcr_ok(
-                collateral_e8=v.collateral_e8,
-                debt_e8=new_debt,
-                price_e8=state.price_e8,
-                mcr_bps=state.mcr_bps,
-            ):
-                return ZUSDMultiStepResult(ok=False, error="mint would violate MCR")
-            ns0 = _set_vault(state, vid, ZUSDVault(collateral_e8=v.collateral_e8, debt_e8=new_debt))
-            ns = ZUSDMultiState(
-                **{
-                    **ns0.__dict__,
-                    "free_debt_e8": state.free_debt_e8 + debt_delta,
-                    "protocol_revenue_zusd_cum_e8": state.protocol_revenue_zusd_cum_e8 + fee_e8,
-                    "base_rate_bps": min(BPS_SCALE, decayed_base_rate + state.base_rate_borrow_bump_bps),
-                    "base_rate_last_epoch": state.now_epoch,
-                }
-            )
-            eff = {
-                "event": "zusd_minted",
-                "vault": vid,
-                "principal_e8": amt,
-                "mint_fee_e8": fee_e8,
-                "mint_fee_bps": fee_bps,
-                "debt_delta_e8": debt_delta,
-            }
-
-        elif tag == "repay_zusd":
-            amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-            vid = _parse_vault_id(cmd.args)
-            v = _get_vault(state, vid)
-            if amt > v.debt_e8:
-                return ZUSDMultiStepResult(ok=False, error="repay exceeds vault debt")
-            if amt > state.free_debt_e8:
-                return ZUSDMultiStepResult(ok=False, error="repay exceeds free debt balance")
-            post_debt = v.debt_e8 - amt
-            if not _debt_floor_ok(debt_e8=post_debt, min_debt_open_e8=state.min_debt_open_e8):
-                return ZUSDMultiStepResult(ok=False, error="repay would leave vault debt below min_debt_open_e8")
-            ns0 = _set_vault(state, vid, ZUSDVault(collateral_e8=v.collateral_e8, debt_e8=post_debt))
-            ns = ZUSDMultiState(**{**ns0.__dict__, "free_debt_e8": state.free_debt_e8 - amt})
-            eff = {"event": "zusd_repaid", "vault": vid, "amount_e8": amt}
-
-        elif tag == "deposit_sp":
-            amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-            if amt > state.free_debt_e8:
-                return ZUSDMultiStepResult(ok=False, error="deposit_sp exceeds free debt balance")
-            if (state.sp_debt_e8 + amt) > state.max_debt_supply_e8:
-                return ZUSDMultiStepResult(ok=False, error="deposit_sp exceeds max_debt_supply_e8")
-            ns = ZUSDMultiState(
-                **{
-                    **state.__dict__,
-                    "free_debt_e8": state.free_debt_e8 - amt,
-                    "sp_debt_e8": state.sp_debt_e8 + amt,
-                }
-            )
-            eff = {"event": "sp_deposited", "amount_e8": amt}
-
-        elif tag == "withdraw_sp":
-            amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-            if amt > state.sp_debt_e8:
-                return ZUSDMultiStepResult(ok=False, error="withdraw_sp exceeds sp_debt")
-            if not _multi_risky_ops_allowed(state):
-                return ZUSDMultiStepResult(ok=False, error="withdraw_sp blocked by oracle freeze/staleness/recovery mode")
-            if not _mcr_ok(
-                collateral_e8=state.vault_a.collateral_e8,
-                debt_e8=state.vault_a.debt_e8,
-                price_e8=state.price_e8,
-                mcr_bps=state.mcr_bps,
-            ):
-                return ZUSDMultiStepResult(ok=False, error="withdraw_sp blocked: vault a not at MCR")
-            if not _mcr_ok(
-                collateral_e8=state.vault_b.collateral_e8,
-                debt_e8=state.vault_b.debt_e8,
-                price_e8=state.price_e8,
-                mcr_bps=state.mcr_bps,
-            ):
-                return ZUSDMultiStepResult(ok=False, error="withdraw_sp blocked: vault b not at MCR")
-            ns = ZUSDMultiState(
-                **{
-                    **state.__dict__,
-                    "sp_debt_e8": state.sp_debt_e8 - amt,
-                    "free_debt_e8": state.free_debt_e8 + amt,
-                }
-            )
-            eff = {"event": "sp_withdrawn", "amount_e8": amt}
-
-        elif tag == "redeem_zusd":
-            amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-            if not state.oracle_seen or state.price_e8 <= 0 or state.price_pending_e8 <= 0:
-                return ZUSDMultiStepResult(ok=False, error="redemption requires initialized oracle")
-            if state.price_pending_e8 != state.price_e8:
-                return ZUSDMultiStepResult(ok=False, error="redemption blocked by oracle pending mismatch")
-            if not _is_oracle_fresh(
-                now_epoch=state.now_epoch,
-                last_update_epoch=state.oracle_last_update_epoch,
-                max_staleness_epochs=state.max_oracle_staleness_epochs,
-                oracle_seen=state.oracle_seen,
-            ):
-                return ZUSDMultiStepResult(ok=False, error="redemption blocked by stale oracle")
-            if amt > state.free_debt_e8:
-                return ZUSDMultiStepResult(ok=False, error="redemption exceeds free debt")
-
-            gross_collateral_e8 = (amt * E8) // state.price_e8
-            if gross_collateral_e8 <= 0:
-                return ZUSDMultiStepResult(ok=False, error="redemption amount too small at current price")
-
-            decayed_base_rate = _decayed_base_rate_bps(
-                base_rate_bps=state.base_rate_bps,
-                now_epoch=state.now_epoch,
-                last_epoch=state.base_rate_last_epoch,
-                decay_per_epoch_bps=state.base_rate_decay_per_epoch_bps,
-            )
-            fee_bps = _effective_fee_bps(
-                decayed_base_rate_bps=decayed_base_rate,
-                floor_bps=state.redemption_fee_floor_bps,
-                max_bps=state.redemption_fee_max_bps,
-            )
-            redemption_fee_coll_e8 = _mul_div_up(gross_collateral_e8, fee_bps, BPS_SCALE)
-            if redemption_fee_coll_e8 >= gross_collateral_e8:
-                return ZUSDMultiStepResult(ok=False, error="redemption fee consumes all collateral")
-            if (state.protocol_collateral_e8 + redemption_fee_coll_e8) > state.max_protocol_coll_e8:
-                return ZUSDMultiStepResult(ok=False, error="protocol collateral cap exceeded")
-
-            explicit_vault = cmd.args.get("vault")
-            auto_selected = explicit_vault is None
-            if explicit_vault in ("a", "b"):
-                vid = explicit_vault
-                v = _get_vault(state, vid)
-                if amt > v.debt_e8:
-                    return ZUSDMultiStepResult(ok=False, error="redemption exceeds vault debt")
-                if gross_collateral_e8 > v.collateral_e8:
-                    return ZUSDMultiStepResult(ok=False, error="insufficient vault collateral for redemption")
-                post_debt = v.debt_e8 - amt
-                post_collateral = v.collateral_e8 - gross_collateral_e8
-                if not _mcr_ok(
-                    collateral_e8=post_collateral,
-                    debt_e8=post_debt,
-                    price_e8=state.price_e8,
-                    mcr_bps=state.mcr_bps,
-                ):
-                    return ZUSDMultiStepResult(ok=False, error="redemption would violate MCR")
-            elif explicit_vault is None:
-                selection = select_multi_redeem_vault(
-                    amount_e8=amt,
-                    price_e8=state.price_e8,
-                    mcr_bps=state.mcr_bps,
-                    vault_a_collateral_e8=state.vault_a.collateral_e8,
-                    vault_a_debt_e8=state.vault_a.debt_e8,
-                    vault_b_collateral_e8=state.vault_b.collateral_e8,
-                    vault_b_debt_e8=state.vault_b.debt_e8,
-                    min_debt_open_e8=state.min_debt_open_e8,
-                )
-                if selection.selected_vault is None:
-                    return ZUSDMultiStepResult(ok=False, error="no redeemable vault for amount under policy")
-                vid = selection.selected_vault
-                if selection.selected_post_collateral_e8 is None or selection.selected_post_debt_e8 is None:
-                    return ZUSDMultiStepResult(ok=False, error="redeem selection missing post-state")
-                post_collateral = int(selection.selected_post_collateral_e8)
-                post_debt = int(selection.selected_post_debt_e8)
-            else:
-                return ZUSDMultiStepResult(ok=False, error="vault must be 'a' or 'b'")
-
-            if not _debt_floor_ok(debt_e8=post_debt, min_debt_open_e8=state.min_debt_open_e8):
-                return ZUSDMultiStepResult(ok=False, error="redemption would leave vault debt below min_debt_open_e8")
-
-            collateral_out_e8 = gross_collateral_e8 - redemption_fee_coll_e8
-
-            ns0 = _set_vault(state, vid, ZUSDVault(collateral_e8=post_collateral, debt_e8=post_debt))
-            ns = ZUSDMultiState(
-                **{
-                    **ns0.__dict__,
-                    "free_debt_e8": state.free_debt_e8 - amt,
-                    "protocol_collateral_e8": state.protocol_collateral_e8 + redemption_fee_coll_e8,
-                    "base_rate_bps": min(BPS_SCALE, decayed_base_rate + state.base_rate_redeem_bump_bps),
-                    "base_rate_last_epoch": state.now_epoch,
-                }
-            )
-            eff = {
-                "event": "zusd_redeemed",
-                "vault": vid,
-                "redeemed_zusd_e8": amt,
-                "redeemed_collateral_gross_e8": gross_collateral_e8,
-                "redeemed_collateral_out_e8": collateral_out_e8,
-                "redemption_fee_collateral_e8": redemption_fee_coll_e8,
-                "redemption_fee_bps": fee_bps,
-                "selection_policy": "closest_to_mcr" if auto_selected else "explicit_vault",
-            }
-
-        elif tag == "liquidate":
-            if not state.oracle_seen or state.price_pending_e8 <= 0:
-                return ZUSDMultiStepResult(ok=False, error="liquidation requires initialized pending oracle price")
-            vid = _parse_vault_id(cmd.args)
-            v = _get_vault(state, vid)
-            if v.debt_e8 <= 0:
-                return ZUSDMultiStepResult(ok=False, error="no vault debt to liquidate")
-            under_mcr = not _mcr_ok(
-                collateral_e8=v.collateral_e8,
-                debt_e8=v.debt_e8,
-                price_e8=state.price_pending_e8,
-                mcr_bps=state.mcr_bps,
-            )
-            if not under_mcr:
-                return ZUSDMultiStepResult(ok=False, error="vault not under MCR at pending price")
-            if v.debt_e8 > state.sp_debt_e8:
-                return ZUSDMultiStepResult(ok=False, error="stability pool cannot absorb debt")
-            if (state.sp_coll_e8 + v.collateral_e8) > state.max_sp_coll_e8:
-                return ZUSDMultiStepResult(ok=False, error="stability pool collateral cap exceeded")
-            ns0 = _set_vault(state, vid, ZUSDVault(collateral_e8=0, debt_e8=0))
-            ns = ZUSDMultiState(
-                **{
-                    **ns0.__dict__,
-                    "sp_debt_e8": state.sp_debt_e8 - v.debt_e8,
-                    "sp_coll_e8": state.sp_coll_e8 + v.collateral_e8,
-                }
-            )
-            eff = {
-                "event": "liquidated",
-                "vault": vid,
-                "liquidated_debt_e8": v.debt_e8,
-                "liquidated_collateral_e8": v.collateral_e8,
-            }
-
-        else:
+        handler = _ZUSD_MULTI_STEP_HANDLERS.get(tag)
+        if handler is None:
             return ZUSDMultiStepResult(ok=False, error=f"unknown action: {tag}")
-
+        result = handler(state, cmd)
+        if isinstance(result, ZUSDMultiStepResult):
+            return result
+        ns, eff = result
         failed = check_multi_invariants(ns)
         if failed:
             return ZUSDMultiStepResult(ok=False, error=f"invariant violation: {','.join(failed)}")
         return ZUSDMultiStepResult(ok=True, state=ns, effects=eff)
     except Exception as exc:
         return ZUSDMultiStepResult(ok=False, error=str(exc))
+
