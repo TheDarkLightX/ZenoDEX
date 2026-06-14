@@ -35,9 +35,20 @@
       "key_finding": "Witness through the REAL guard_partial_liquidate + apply_partial_liquidate: a long base=1e6 at index $1.00 with collateral 45_000 (< maint_req 50_000, > full penalty 20_000) is liquidatable. The auto-minimum fraction is 1667 bps (tight: 1666 bps leaves collateral non-negative at 41_668 but is GUARD-REJECTED because the residual fails maintenance margin, mreq 41_670 > 41_668 — so the guard enforces residual margin, lines 307-314), penalty 3_334, leaving a margin-compliant residual (coll 41_666 >= mreq 41_665). Full close (10_000 bps) is ALSO guard-legal, penalty 20_000. The liquidator's size choice extracts pen_full - pen_min = 16_666 extra, transferred from liquidatee collateral into fee_pool/fee_income (conservation: collateral loss == fee_pool gain). Exhaustive sweep over the whole legal range [1667, 10000] confirms every fraction is accepted and penalty is non-decreasing (strict between adjacent fractions). So the lever is 'oversize above the minimum sufficient fraction', not 'any fraction'. Research evidence only; the minimal-fraction enforcement remedy is an untested candidate, not claimed.",
       "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave3_perp_timing/test_perp_liquidation_size_lever.py -q",
       "obligation": "O-PT-05"
+    },
+    {
+      "id": "H-MD-PT-002",
+      "description": "Settlement-boundary airtightness, VERIFIED not assumed (threat: free-look / settlement avoidance on the published clearing price). Split result. In-phase: no PRICE_PUBLISHED-phase-preserving action changes position_base (the only position-writing updates are set_position/partial_liquidate, both OPEN-gated, and settle_epoch, which exits to SETTLED). BUT the unconditional 'no reachable sequence' claim is FALSE: guard_advance_epoch checks only the epoch bound (no phase, no auth, no prior-settlement), so advance_epoch from PRICE_PUBLISHED skips settlement and reaches OPEN where set_position repositions — a reachable settlement bypass.",
+      "verdict": "PARTIALLY_FALSIFIED",
+      "tests_passed": 5,
+      "tests_failed": 0,
+      "confidence": 0.7,
+      "key_finding": "Through the REAL engine.step + guards over a reachable PRICE_PUBLISHED state (reached via PUBLISH_CLEARING_PRICE). SUPPORTED in-phase part: set_position is guard-REJECTED for every target {0,500,999,1001,2000,-1000,-2000} in PRICE_PUBLISHED but ACCEPTED+effective in OPEN (guard_set_position requires OPEN, guards.py:150); over a broad action x param sweep from several reachable in-phase states, every phase-PRESERVING accepted transition leaves position_base unchanged (3-step trace confirms end-to-end); settle_epoch ignores any new_position_base (identical settled state for 7777 vs 0) and only deterministically zeroes a liquidatable position. FALSIFYING counterexample: guard_advance_epoch (guards.py:34) returns now_epoch+delta<=MAX_EPOCH only; apply_advance_epoch resets to OPEN WITHOUT settling, so a long at a 5% adverse clearing price who would lose 50_000 on settle_epoch instead ADVANCES (collateral 10_000_000 intact, epoch+1, OPEN) and closes via set_position(0) — avoiding exactly 50_000. So airtightness is CONDITIONAL on settle-before-advance lifecycle discipline that the pure-core guard does not enforce (cf. O-PT-01 scheduler scope). Property of perp_v2 pure-core guards; engine-shell gating not assessed. Research evidence only; gating advance on SETTLED is an untested candidate, not claimed.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave3_perp_timing/test_settlement_boundary_airtight.py -q",
+      "obligation": "O-PT-02"
     }
   ],
-  "total_tests": 9,
-  "total_passed": 9,
+  "total_tests": 14,
+  "total_passed": 14,
   "total_failed": 0
 }

@@ -20,7 +20,7 @@ artifact status.
 | `O-SB-05` | `H-MD-SB-005` | sealed bid | `wave2_sealed_bid/test_sealed_bid_deviations.py`; supported |
 | `O-SB-06` | `H-MD-SB-006` | sealed bid | `wave2_sealed_bid/test_sealed_bid_deviations.py`; supported |
 | `O-PT-01` | `H-MD-PT-001`, `H-MD-PT-005` | perps timing | `wave3_perp_timing/test_perp_timing_deviations.py`; supported |
-| `O-PT-02` | `H-MD-PT-002` | perps timing | queued |
+| `O-PT-02` | `H-MD-PT-002` | perps timing | `wave3_perp_timing/test_settlement_boundary_airtight.py`; partially_falsified (in-phase airtight; advance_epoch settlement-bypass) |
 | `O-PT-03` | `H-MD-PT-003` | perps timing | queued |
 | `O-PT-04` | `H-MD-PT-004` | perps timing | queued |
 | `O-PT-05` | `H-MD-PT-006` | perps timing | `wave3_perp_timing/test_perp_liquidation_size_lever.py`; supported |
