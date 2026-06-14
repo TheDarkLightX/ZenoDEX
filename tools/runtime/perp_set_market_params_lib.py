@@ -16,7 +16,6 @@ from dataclasses import replace
 from pathlib import Path
 
 from src.core.dex import DexState  # noqa: F401
-
 from tools.runtime import perp_funding_auto_lib as fa
 
 _HERE = Path(__file__).resolve().parent
@@ -199,7 +198,7 @@ def diff_results(py: list[dict], rs: list[dict]) -> list[str]:
     if len(py) != len(rs):
         return [f"length mismatch: python {len(py)} vs rust {len(rs)}"]
     fields = list(_CONTROL_PARAMS) + ["funding_rate_bps"]
-    for i, (p, r) in enumerate(zip(py, rs)):
+    for i, (p, r) in enumerate(zip(py, rs, strict=True)):
         if bool(p["ok"]) != bool(r["ok"]):
             problems.append(f"case {i}: ok python={p['ok']} rust={r['ok']} (rust code={r.get('code')})")
             continue

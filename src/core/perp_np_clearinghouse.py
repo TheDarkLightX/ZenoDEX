@@ -30,8 +30,8 @@ from src.core.perp_np_matching import (
     Intent,
     MatchParams,
     MatchResult,
-    match_intents,
     _ration,
+    match_intents,
 )
 
 # Liquidation outcome marker (fail-closed).

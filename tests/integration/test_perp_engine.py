@@ -111,7 +111,6 @@ def _perps_oracle_authorization_bundle(config: object, state: DexState, market_i
     market = state.perps.markets[market_id]
     runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
     observed_epoch = int(market.global_state.get("oracle_last_update_epoch", 0))
-    now_epoch = int(market.global_state.get("now_epoch", 0))
     authorized_value_e8 = int(market.global_state.get("index_price_e8", 0) if value_e8 is None else value_e8)
     authorization = OracleAuthorization(
         consumer_module="zenodex.perps",

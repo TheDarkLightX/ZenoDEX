@@ -19,13 +19,13 @@ for _p in (str(_REPO), str(_TOOLS_RUNTIME)):
 from rust_shadow_replay import ShadowError, locate_or_build_cli  # noqa: E402
 
 from src.core.perps import PerpAccountState  # noqa: E402
-from src.state.balances import BalanceTable  # noqa: E402
 from src.runtime.authority import (  # noqa: E402
     AuthorityMode,
     AuthorityPolicy,
     reset_active_authority_policy,
     set_active_authority_policy,
 )
+from src.state.balances import BalanceTable  # noqa: E402
 from tools.runtime import perp_funding_auto_lib as fa  # noqa: E402
 
 OPERATOR = fa.OPERATOR
