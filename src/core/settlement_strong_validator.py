@@ -888,11 +888,29 @@ def _validate_settlement_strong_impl(
 
         return fail(f"unsupported intent kind for strong validation: {it.kind}")
 
-    # Canonicalize and compare the settlement payloads.
-    expected_balance = _aggregate_balance_deltas(bal_deltas)
-    expected_reserve = _aggregate_reserve_deltas(res_deltas)
-    expected_lp = _aggregate_lp_deltas(lp_deltas)
+    return _validate_replay_payload(
+        settlement=settlement,
+        expected_balance=_aggregate_balance_deltas(bal_deltas),
+        expected_reserve=_aggregate_reserve_deltas(res_deltas),
+        expected_lp=_aggregate_lp_deltas(lp_deltas),
+        expected_events=expected_events,
+        pre_balances=pre_balances,
+        pre_pools=pre_pools,
+        pre_lp_balances=pre_lp_balances,
+    )
 
+
+def _validate_replay_payload(
+    *,
+    settlement: Settlement,
+    expected_balance: List[BalanceDelta],
+    expected_reserve: List[ReserveDelta],
+    expected_lp: List[LPDelta],
+    expected_events: List[dict],
+    pre_balances: BalanceTable,
+    pre_pools: Dict[str, PoolState],
+    pre_lp_balances: Optional[LPTable],
+) -> Tuple[bool, Optional[str]]:
     ok, err = _check_canonical_deltas(settlement)
     if not ok:
         return False, err
@@ -904,14 +922,11 @@ def _validate_settlement_strong_impl(
     if settlement.lp_deltas != expected_lp:
         return False, "lp_deltas mismatch vs replay"
 
-    exp_events_norm = expected_events
-    got_events_norm = settlement.events or []
-    if got_events_norm != exp_events_norm:
+    if (settlement.events or []) != expected_events:
         return False, "events mismatch vs replay"
 
-    # Defense-in-depth: ensure basic conservation/non-negativity in addition to replay checks.
-    # This is essential when a fill type does not touch pool reserves (e.g. COW_NETTED),
-    # where conservation must be enforced globally across balance deltas.
+    # Defense-in-depth for fill types that do not touch pool reserves, such as
+    # COW_NETTED, where conservation must be enforced across balance deltas.
     ok_legacy, err_legacy = validate_settlement_legacy(
         settlement=settlement,
         pre_balances=pre_balances,
