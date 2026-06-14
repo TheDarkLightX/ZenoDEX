@@ -5,6 +5,7 @@ from typing import Any, Callable
 
 import pytest
 
+from src.core import quote_receipts as quote_mod
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.quote_receipts import (
     QUOTE_RECEIPT_CERTIFICATE_AMOUNT_OUT_MISMATCH,
@@ -713,6 +714,43 @@ def test_replay_and_apply_hop_exact_out_reverse_direction_and_mismatch() -> None
     assert next_pool is not None
     assert int(next_pool.reserve0) == int(next_rout)
     assert int(next_pool.reserve1) == int(next_rin)
+
+
+def test_replay_and_apply_hop_rejects_expected_swap_validation_errors() -> None:
+    pool = _pool("p_ab", "A", "B", 1000, 2000, 0)
+
+    ok, err, next_pool = _replay_and_apply_hop(
+        pool=pool,
+        kind="exact_out",
+        asset_in="A",
+        asset_out="B",
+        amount_in=1,
+        amount_out=int(pool.reserve1),
+    )
+
+    assert not ok
+    assert err == "hop_quote_error"
+    assert next_pool is None
+
+
+def test_replay_and_apply_hop_does_not_swallow_unexpected_swap_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken_swap_exact_in_for_pool(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("synthetic quote replay fault")
+
+    monkeypatch.setattr(quote_mod, "swap_exact_in_for_pool", broken_swap_exact_in_for_pool)
+    pool = _pool("p_ab", "A", "B", 1000, 2000, 0)
+
+    with pytest.raises(RuntimeError, match="synthetic quote replay fault"):
+        _replay_and_apply_hop(
+            pool=pool,
+            kind="exact_in",
+            asset_in="A",
+            asset_out="B",
+            amount_in=10,
+            amount_out=1,
+        )
 
 
 def test_make_route_quote_receipt_rejects_invalid_kind() -> None:
