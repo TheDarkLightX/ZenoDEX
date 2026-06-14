@@ -2151,6 +2151,75 @@ def test_strong_validator_rejects_stringly_typed_remove_liquidity_amounts() -> N
     assert err == f"invalid lp_amount for intent_id={valid_intent.intent_id}"
 
 
+def test_strong_validator_rejects_stringly_typed_fill_amounts() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    settlement.fills[0].amount_in_filled = str(settlement.fills[0].amount_in_filled)  # type: ignore[assignment]
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+
+    assert ok is False
+    assert err == f"invalid fill.amount_in_filled for intent_id={intent.intent_id}"
+
+
+def test_strong_validator_rejects_bool_fill_amounts() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_exact_out_context()
+    settlement.fills[0].amount_out_filled = True  # type: ignore[assignment]
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+
+    assert ok is False
+    assert err == f"invalid fill.amount_out_filled for intent_id={intent.intent_id}"
+
+
+def test_strong_validator_rejects_stringly_typed_liquidity_fill_amounts() -> None:
+    _pk, _asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
+    settlement.fills[0].lp_minted = str(settlement.fills[0].lp_minted)  # type: ignore[assignment]
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+
+    assert ok is False
+    assert err == f"invalid fill.lp_minted for intent_id={intent.intent_id}"
+
+
+def test_strong_validator_rejects_stringly_typed_swap_witness_reserves() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    settlement.fills[0].reserve_in_before = str(pool.reserve0)  # type: ignore[assignment]
+    settlement.fills[0].reserve_out_before = pool.reserve1
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_proof_carrying",
+    )
+
+    assert ok is False
+    assert err == f"invalid fill.reserve_in_before for intent_id={intent.intent_id}"
+
+
 def test_strong_validator_rejects_duplicate_reserve_delta_keys() -> None:
     pk, asset0, asset1, pool_id, pool, balances, lp_balances = _setup_liquidity_context()
     del asset0

@@ -73,6 +73,57 @@ class _CowPairEntry:
     amount_out_filled: int
 
 
+@dataclass(frozen=True)
+class _FillAmounts:
+    amount_in_filled: int
+    amount_out_filled: int
+    fee_paid: int
+    protocol_fee_paid: int
+    amount0_used: int
+    amount1_used: int
+    lp_minted: int
+    amount0_out: int
+    amount1_out: int
+    lp_burned: int
+    reserve_in_before: int
+    reserve_out_before: int
+
+
+_FILL_AMOUNT_FIELDS = (
+    "amount_in_filled",
+    "amount_out_filled",
+    "fee_paid",
+    "protocol_fee_paid",
+    "amount0_used",
+    "amount1_used",
+    "lp_minted",
+    "amount0_out",
+    "amount1_out",
+    "lp_burned",
+    "reserve_in_before",
+    "reserve_out_before",
+)
+
+
+def _validate_fill_amount_fields(fill: Fill, intent_id: str) -> Tuple[bool, Optional[_FillAmounts], Optional[str]]:
+    """Reject untrusted fill amounts that rely on Python coercion.
+
+    Strong settlement validation replays certificate fields from an untrusted
+    proposal. Numeric-looking strings and bools must not satisfy the replay by
+    passing through ``int(...)`` at the comparison site.
+    """
+    values: dict[str, int] = {}
+    for field_name in _FILL_AMOUNT_FIELDS:
+        value = getattr(fill, field_name)
+        if value is None:
+            values[field_name] = 0
+            continue
+        if not is_strict_int(value) or int(value) < 0:
+            return False, None, f"invalid fill.{field_name} for intent_id={intent_id}"
+        values[field_name] = int(value)
+    return True, _FillAmounts(**values), None
+
+
 def _validate_cow_pair_index(
     *,
     settlement: Settlement,
@@ -90,6 +141,11 @@ def _validate_cow_pair_index(
     for intent_id in cow_ids:
         it = intents_by_id[intent_id]
         f = fill_by_id[intent_id]
+        ok_amounts, amounts, err_amounts = _validate_fill_amount_fields(f, intent_id)
+        if not ok_amounts:
+            return False, err_amounts
+        if amounts is None:
+            return False, f"invalid fill amounts for intent_id={intent_id}"
         if f.action != FillAction.FILL:
             return False, f"COW_NETTED requires filled action: intent_id={intent_id}"
         if it.kind != IntentKind.SWAP_EXACT_IN:
@@ -108,13 +164,11 @@ def _validate_cow_pair_index(
             return False, f"invalid amount_in for intent_id={intent_id}"
         if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
             return False, f"invalid min_amount_out for intent_id={intent_id}"
-        if int(f.fee_paid or 0) != 0:
+        if amounts.fee_paid != 0:
             return False, f"COW_NETTED fee_paid must be 0: intent_id={intent_id}"
-        if not is_strict_int(f.amount_in_filled) or int(f.amount_in_filled or 0) != int(amount_in):
+        if amounts.amount_in_filled != int(amount_in):
             return False, f"COW_NETTED amount_in_filled mismatch: intent_id={intent_id}"
-        if not is_strict_int(f.amount_out_filled):
-            return False, f"COW_NETTED amount_out_filled invalid: intent_id={intent_id}"
-        out_amt = int(f.amount_out_filled or 0)
+        out_amt = amounts.amount_out_filled
         if out_amt < int(min_out):
             return False, f"COW_NETTED slippage: intent_id={intent_id}"
         entries[intent_id] = _CowPairEntry(
@@ -122,7 +176,7 @@ def _validate_cow_pair_index(
             pool_id=pool_id,
             asset_in=asset_in,
             asset_out=asset_out,
-            amount_in_filled=int(f.amount_in_filled or 0),
+            amount_in_filled=amounts.amount_in_filled,
             amount_out_filled=out_amt,
         )
 
@@ -328,6 +382,11 @@ def _validate_settlement_strong_impl(
             continue
 
         f = fill_by_id[intent_id]
+        ok_amounts, amounts, err_amounts = _validate_fill_amount_fields(f, intent_id)
+        if not ok_amounts:
+            return fail(str(err_amounts))
+        if amounts is None:
+            return fail(f"invalid fill amounts for intent_id={intent_id}")
 
         sender: PubKey = it.sender_pubkey
         recipient: PubKey = it.get_field("recipient", sender)
@@ -376,11 +435,11 @@ def _validate_settlement_strong_impl(
                 return fail(f"CREATE_POOL duplicates existing pool_id={pool_id}")
 
             # Fill must match the create_pool kernel.
-            if int(f.amount0_used or 0) != int(amount0):
+            if amounts.amount0_used != int(amount0):
                 return fail(f"CREATE_POOL fill.amount0_used mismatch for intent_id={intent_id}")
-            if int(f.amount1_used or 0) != int(amount1):
+            if amounts.amount1_used != int(amount1):
                 return fail(f"CREATE_POOL fill.amount1_used mismatch for intent_id={intent_id}")
-            if int(f.lp_minted or 0) != int(lp_minted):
+            if amounts.lp_minted != int(lp_minted):
                 return fail(f"CREATE_POOL fill.lp_minted mismatch for intent_id={intent_id}")
 
             # Apply semantics.
@@ -459,11 +518,11 @@ def _validate_settlement_strong_impl(
                     return fail(f"invalid amount_in for intent_id={intent_id}")
                 if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
                     return fail(f"invalid min_amount_out for intent_id={intent_id}")
-                if int(f.fee_paid or 0) != 0:
+                if amounts.fee_paid != 0:
                     return fail(f"COW_NETTED fee_paid must be 0: intent_id={intent_id}")
-                if int(f.amount_in_filled or 0) != int(amount_in):
+                if amounts.amount_in_filled != int(amount_in):
                     return fail(f"COW_NETTED amount_in_filled mismatch: intent_id={intent_id}")
-                out_amt = int(f.amount_out_filled or 0)
+                out_amt = amounts.amount_out_filled
                 if out_amt < int(min_out):
                     return fail(f"COW_NETTED slippage: intent_id={intent_id}")
                 try:
@@ -488,7 +547,7 @@ def _validate_settlement_strong_impl(
             if mode == _MODE_STRONG_PROOF_CARRYING:
                 if f.reserve_in_before is None or f.reserve_out_before is None:
                     return fail(f"missing swap witness reserves for intent_id={intent_id}")
-                if int(f.reserve_in_before) != int(reserve_in) or int(f.reserve_out_before) != int(reserve_out):
+                if amounts.reserve_in_before != int(reserve_in) or amounts.reserve_out_before != int(reserve_out):
                     return fail(f"swap witness reserve mismatch for intent_id={intent_id}")
 
             if it.kind == IntentKind.SWAP_EXACT_IN:
@@ -499,7 +558,7 @@ def _validate_settlement_strong_impl(
                 if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
                     return fail(f"invalid min_amount_out for intent_id={intent_id}")
 
-                if int(f.amount_in_filled or 0) != int(amount_in):
+                if amounts.amount_in_filled != int(amount_in):
                     return fail(f"swap amount_in_filled mismatch for intent_id={intent_id}")
 
                 try:
@@ -528,15 +587,15 @@ def _validate_settlement_strong_impl(
                 except Exception as exc:
                     return fail(f"swap_exact_in kernel error for intent_id={intent_id}: {exc}")
 
-                if int(f.amount_out_filled or 0) != int(amount_out):
+                if amounts.amount_out_filled != int(amount_out):
                     return fail(f"swap amount_out_filled mismatch for intent_id={intent_id}")
                 if int(amount_out) < int(min_out):
                     return fail(f"swap slippage for intent_id={intent_id}")
 
                 fee = compute_fee_total(int(amount_in), int(pool.fee_bps))
-                if int(f.fee_paid or 0) != int(fee):
+                if amounts.fee_paid != int(fee):
                     return fail(f"swap fee_paid mismatch for intent_id={intent_id}")
-                if int(f.protocol_fee_paid or 0) != int(protocol_fee):
+                if amounts.protocol_fee_paid != int(protocol_fee):
                     return fail(f"swap protocol_fee_paid mismatch for intent_id={intent_id}")
 
                 try:
@@ -589,7 +648,7 @@ def _validate_settlement_strong_impl(
             if not isinstance(max_in, int) or isinstance(max_in, bool) or max_in < 0:
                 return fail(f"invalid max_amount_in for intent_id={intent_id}")
 
-            if int(f.amount_out_filled or 0) != int(amount_out_req):
+            if amounts.amount_out_filled != int(amount_out_req):
                 return fail(f"swap amount_out_filled mismatch for intent_id={intent_id}")
 
             try:
@@ -618,15 +677,15 @@ def _validate_settlement_strong_impl(
             except Exception as exc:
                 return fail(f"swap_exact_out kernel error for intent_id={intent_id}: {exc}")
 
-            if int(f.amount_in_filled or 0) != int(amount_in_req):
+            if amounts.amount_in_filled != int(amount_in_req):
                 return fail(f"swap amount_in_filled mismatch for intent_id={intent_id}")
             if int(amount_in_req) > int(max_in):
                 return fail(f"swap slippage for intent_id={intent_id}")
 
             fee = compute_fee_total(int(amount_in_req), int(pool.fee_bps))
-            if int(f.fee_paid or 0) != int(fee):
+            if amounts.fee_paid != int(fee):
                 return fail(f"swap fee_paid mismatch for intent_id={intent_id}")
-            if int(f.protocol_fee_paid or 0) != int(protocol_fee):
+            if amounts.protocol_fee_paid != int(protocol_fee):
                 return fail(f"swap protocol_fee_paid mismatch for intent_id={intent_id}")
 
             try:
@@ -699,11 +758,11 @@ def _validate_settlement_strong_impl(
             except Exception as exc:
                 return fail(f"ADD_LIQUIDITY computation error for intent_id={intent_id}: {exc}")
 
-            if int(f.amount0_used or 0) != int(amount0_used):
+            if amounts.amount0_used != int(amount0_used):
                 return fail(f"ADD_LIQUIDITY fill.amount0_used mismatch for intent_id={intent_id}")
-            if int(f.amount1_used or 0) != int(amount1_used):
+            if amounts.amount1_used != int(amount1_used):
                 return fail(f"ADD_LIQUIDITY fill.amount1_used mismatch for intent_id={intent_id}")
-            if int(f.lp_minted or 0) != int(lp_minted):
+            if amounts.lp_minted != int(lp_minted):
                 return fail(f"ADD_LIQUIDITY fill.lp_minted mismatch for intent_id={intent_id}")
 
             try:
@@ -749,11 +808,11 @@ def _validate_settlement_strong_impl(
             except Exception as exc:
                 return fail(f"REMOVE_LIQUIDITY computation error for intent_id={intent_id}: {exc}")
 
-            if int(f.lp_burned or 0) != int(lp_amount):
+            if amounts.lp_burned != int(lp_amount):
                 return fail(f"REMOVE_LIQUIDITY fill.lp_burned mismatch for intent_id={intent_id}")
-            if int(f.amount0_out or 0) != int(amount0_out):
+            if amounts.amount0_out != int(amount0_out):
                 return fail(f"REMOVE_LIQUIDITY fill.amount0_out mismatch for intent_id={intent_id}")
-            if int(f.amount1_out or 0) != int(amount1_out):
+            if amounts.amount1_out != int(amount1_out):
                 return fail(f"REMOVE_LIQUIDITY fill.amount1_out mismatch for intent_id={intent_id}")
 
             try:
