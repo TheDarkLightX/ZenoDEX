@@ -194,6 +194,33 @@ def test_derive_batch_state_support_ignores_invalid_create_pool_fields_fail_clos
     assert support == BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=(pk,))
 
 
+def test_derive_batch_state_support_does_not_swallow_unexpected_pool_id_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pk = "0x" + "11" * 48
+    create = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(2),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "asset0": "0x" + "01" * 32,
+            "asset1": "0x" + "02" * 32,
+            "fee_bps": 30,
+        },
+    )
+
+    def broken_compute_pool_id(*_args: object, **_kwargs: object) -> str:
+        raise RuntimeError("pool-id implementation fault")
+
+    monkeypatch.setattr("src.state.support_root.compute_pool_id", broken_compute_pool_id)
+
+    with pytest.raises(RuntimeError, match="pool-id implementation fault"):
+        derive_batch_state_support([create], pools={})
+
+
 def test_compute_support_state_root_rejects_wrong_table_types() -> None:
     with pytest.raises(TypeError, match="balances must be a BalanceTable"):
         compute_support_state_root(  # type: ignore[arg-type]
