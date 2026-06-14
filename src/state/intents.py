@@ -137,7 +137,7 @@ class CreatePoolIntent(Intent):
         
         try:
             asset0_norm, asset1_norm = normalize_pool_asset_pair(asset0, asset1)
-        except Exception:
+        except (TypeError, ValueError):
             raise ValueError(f"Assets must be in canonical order: {asset0} < {asset1}") from None
         if self.fields is not None:
             self.fields["asset0"] = asset0_norm

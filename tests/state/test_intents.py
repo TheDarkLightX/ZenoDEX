@@ -349,6 +349,32 @@ def test_create_pool_intent_rejects_non_canonical_assets() -> None:
         )
 
 
+def test_create_pool_intent_does_not_swallow_unexpected_asset_normalizer_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken_normalizer(_asset0: object, _asset1: object) -> tuple[str, str]:
+        raise RuntimeError("normalizer implementation fault")
+
+    monkeypatch.setattr("src.state.intents.normalize_pool_asset_pair", broken_normalizer)
+
+    with pytest.raises(RuntimeError, match="normalizer implementation fault"):
+        CreatePoolIntent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.CREATE_POOL,
+            intent_id=_hex32("1"),
+            sender_pubkey=_pubkey("a"),
+            deadline=123,
+            fields={
+                "asset0": _hex32("0"),
+                "asset1": _hex32("f"),
+                "fee_bps": 30,
+                "amount0": 10,
+                "amount1": 20,
+            },
+        )
+
+
 @pytest.mark.parametrize("fee_bps", [None, -1, 10001])
 def test_create_pool_intent_rejects_fee_bounds(fee_bps: object) -> None:
     with pytest.raises(ValueError, match="fee_bps must be in \\[0, 10000\\]"):
