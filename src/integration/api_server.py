@@ -146,6 +146,7 @@ from src.integration.api_server_settlement_parsers import (
     _parse_settlement_feature_extension_inputs_payload,
     _parse_settlement_proof_flags_payload,
 )
+from src.integration.api_server_dex_boundary import parse_dex_api_pools, route_quote_to_public_dict
 from src.state.canonical import canonical_json_bytes
 
 
@@ -1651,74 +1652,11 @@ class _Handler(BaseHTTPRequestHandler):
                 )
                 return True
 
-        def _parse_pools() -> dict[str, Any]:
-            from src.state.pools import PoolState, PoolStatus  # pylint: disable=import-outside-toplevel
+        def _parse_pools() -> Mapping[str, Any]:
+            return parse_dex_api_pools(obj.get("pools"))
 
-            pools_raw = obj.get("pools")
-            if not isinstance(pools_raw, list) or not pools_raw:
-                raise ValueError("pools must be a non-empty list")
-            pools_by_id: dict[str, PoolState] = {}
-            for row in pools_raw:
-                if not isinstance(row, dict):
-                    raise ValueError("pool must be an object")
-                pid = row.get("pool_id")
-                if not isinstance(pid, str) or not pid:
-                    raise ValueError("pool_id must be a non-empty string")
-                if pid in pools_by_id:
-                    raise ValueError(f"duplicate pool_id: {pid}")
-                st_raw = str(row.get("status", "ACTIVE")).strip().upper()
-                try:
-                    st = PoolStatus[st_raw]
-                except Exception as exc:
-                    raise ValueError(f"bad pool status: {st_raw}") from exc
-                pools_by_id[pid] = PoolState(
-                    pool_id=pid,
-                    asset0=str(row.get("asset0", "")),
-                    asset1=str(row.get("asset1", "")),
-                    reserve0=int(row.get("reserve0", 0)),
-                    reserve1=int(row.get("reserve1", 0)),
-                    fee_bps=int(row.get("fee_bps", 0)),
-                    lp_supply=int(row.get("lp_supply", 1)),
-                    status=st,
-                    created_at=int(row.get("created_at", 0)),
-                    curve_tag=str(row.get("curve_tag", "CPMM")),
-                    curve_params=row.get("curve_params", ""),
-                )
-            return pools_by_id
-
-        def _quote_to_dict(q: object) -> dict[str, object]:
-            # Minimal JSON shape for UI consumption.
-            from src.core.routing import RouteQuote  # pylint: disable=import-outside-toplevel
-
-            if not isinstance(q, RouteQuote):
-                return {}
-            legs_out = []
-            for leg in q.legs:
-                hops_out = []
-                for hop in leg.hops:
-                    hops_out.append(
-                        {
-                            "pool_id": hop.pool_id,
-                            "asset_in": hop.asset_in,
-                            "asset_out": hop.asset_out,
-                            "amount_in": int(hop.amount_in),
-                            "amount_out": int(hop.amount_out),
-                        }
-                    )
-                legs_out.append(
-                    {
-                        "amount_in": int(leg.amount_in),
-                        "amount_out": int(leg.amount_out),
-                        "hops": hops_out,
-                    }
-                )
-            return {
-                "asset_in": q.asset_in,
-                "asset_out": q.asset_out,
-                "amount_in": int(q.amount_in),
-                "amount_out": int(q.amount_out),
-                "legs": legs_out,
-            }
+        def _quote_to_dict(q: object) -> Mapping[str, object]:
+            return route_quote_to_public_dict(q)
 
         def _exact_out_split_quote_from_dict(payload: object):
             from src.core.split_routing_dispatch import (  # pylint: disable=import-outside-toplevel
