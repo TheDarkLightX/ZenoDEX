@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import pytest
 
+from src.core import sandwich_risk as risk_mod
 from src.core.dynamic_fee_policy import StressFeePolicy, fee_bps_from_stress_policy
 from src.core.sandwich_risk import (
     max_sandwich_profit_exact_in_cpmm_bounded,
     max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee,
+    sandwich_profit_exact_in_cpmm_dynamic_fee,
 )
 
 
@@ -69,3 +71,74 @@ def test_dynamic_fee_can_reduce_max_sandwich_profit_on_witness() -> None:
     assert dyn.status == "inconclusive"  # no analytic cutoff for dynamic fees yet
     assert dyn.max_profit <= static.max_profit
 
+
+def test_dynamic_fee_value_error_is_invalid_candidate() -> None:
+    def fee_fn(_res_in: int, _res_out: int, _amt_in: int) -> int:
+        raise ValueError("bad dynamic fee")
+
+    assert (
+        sandwich_profit_exact_in_cpmm_dynamic_fee(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps_fn=fee_fn,
+            victim_amount_in=50,
+            victim_min_out=1,
+            attacker_amount_in=1,
+        )
+        is None
+    )
+
+    res = max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
+        reserve_in=1000,
+        reserve_out=1000,
+        fee_bps_fn=fee_fn,
+        victim_amount_in=50,
+        victim_min_out=1,
+        max_attacker_amount_in=10,
+    )
+    assert res.status == "victim_reverts"
+
+
+def test_dynamic_fee_runtime_error_propagates() -> None:
+    def fee_fn(_res_in: int, _res_out: int, _amt_in: int) -> int:
+        raise RuntimeError("injected dynamic fee fault")
+
+    with pytest.raises(RuntimeError, match="injected dynamic fee fault"):
+        sandwich_profit_exact_in_cpmm_dynamic_fee(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps_fn=fee_fn,
+            victim_amount_in=50,
+            victim_min_out=1,
+            attacker_amount_in=1,
+        )
+
+    with pytest.raises(RuntimeError, match="injected dynamic fee fault"):
+        max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps_fn=fee_fn,
+            victim_amount_in=50,
+            victim_min_out=1,
+            max_attacker_amount_in=10,
+        )
+
+
+def test_dynamic_fee_propagates_runtime_swap_fault(monkeypatch) -> None:
+    def _runtime_fault(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("injected dynamic sandwich swap fault")
+
+    monkeypatch.setattr(risk_mod, "swap_exact_in", _runtime_fault)
+
+    def fee_fn(_res_in: int, _res_out: int, _amt_in: int) -> int:
+        return 0
+
+    with pytest.raises(RuntimeError, match="injected dynamic sandwich swap fault"):
+        max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps_fn=fee_fn,
+            victim_amount_in=50,
+            victim_min_out=1,
+            max_attacker_amount_in=10,
+        )

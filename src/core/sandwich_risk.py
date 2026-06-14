@@ -97,6 +97,19 @@ def attacker_amount_in_cutoff_upper_bound_cpmm_exact_in(
     return int(gap) // int(victim_min_out) + 1
 
 
+def _is_candidate_value_error(exc: ValueError) -> bool:
+    """Return whether a ValueError means an infeasible sandwich candidate.
+
+    Risk scoring should treat ordinary quote-domain failures as non-executable
+    candidates. Invariant, malformed, or unexpected errors indicate a bug in the
+    quoted kernel or caller contract and must not be hidden as "no risk".
+    """
+
+    msg = str(exc).lower()
+    fatal_markers = ("unexpected", "invariant violation", "malformed")
+    return not any(marker in msg for marker in fatal_markers)
+
+
 def _try_swap_exact_in(
     *, reserve_in: int, reserve_out: int, amount_in: int, fee_bps: int
 ) -> tuple[int, tuple[int, int]] | None:
@@ -107,7 +120,9 @@ def _try_swap_exact_in(
             amount_in=int(amount_in),
             fee_bps=int(fee_bps),
         )
-    except Exception:
+    except ValueError as exc:
+        if not _is_candidate_value_error(exc):
+            raise
         return None
     return int(out), (int(new_rin), int(new_rout))
 
@@ -311,7 +326,7 @@ def sandwich_profit_exact_in_cpmm_dynamic_fee(
     def _try_dyn(res_in: int, res_out: int, amt_in: int) -> tuple[int, tuple[int, int]] | None:
         try:
             fee_bps = int(fee_bps_fn(int(res_in), int(res_out), int(amt_in)))
-        except Exception:
+        except (TypeError, ValueError):
             return None
         if fee_bps < 0 or fee_bps > 10_000:
             return None
@@ -374,7 +389,7 @@ def max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
         )
         if iso is not None:
             victim_iso_out, _ = iso
-    except Exception:
+    except (TypeError, ValueError):
         victim_iso_out = 0
 
     # If victim cannot execute at a=0, mark victim_reverts.
@@ -395,7 +410,7 @@ def max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
     def _try_dyn(res_in: int, res_out: int, amt_in: int) -> tuple[int, tuple[int, int]] | None:
         try:
             fee_bps = int(fee_bps_fn(int(res_in), int(res_out), int(amt_in)))
-        except Exception:
+        except (TypeError, ValueError):
             return None
         if fee_bps < 0 or fee_bps > 10_000:
             return None

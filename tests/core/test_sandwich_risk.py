@@ -4,6 +4,7 @@ import random
 
 import pytest
 
+from src.core import sandwich_risk as risk_mod
 from src.core.cpmm import swap_exact_in
 from src.core.sandwich_risk import (
     SandwichRisk,
@@ -256,6 +257,59 @@ def test_sandwich_risk_bva_cap_boundary(
     )
     assert res.status == str(expected_status)
     assert res.scanned_max_attacker_amount_in == int(expected_scanned_max)
+
+
+def test_static_sandwich_risk_keeps_domain_swap_failure_candidate_local(monkeypatch) -> None:
+    def _domain_reject(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("amount_in must be positive")
+
+    monkeypatch.setattr(risk_mod, "swap_exact_in", _domain_reject)
+
+    res = max_sandwich_profit_exact_in_cpmm_bounded(
+        reserve_in=1000,
+        reserve_out=1000,
+        fee_bps=0,
+        victim_amount_in=50,
+        victim_min_out=1,
+        max_attacker_amount_in=10,
+    )
+
+    assert res.status == "victim_reverts"
+    assert res.max_profit == 0
+
+
+def test_static_sandwich_risk_propagates_runtime_swap_fault(monkeypatch) -> None:
+    def _runtime_fault(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("injected sandwich quote fault")
+
+    monkeypatch.setattr(risk_mod, "swap_exact_in", _runtime_fault)
+
+    with pytest.raises(RuntimeError, match="injected sandwich quote fault"):
+        max_sandwich_profit_exact_in_cpmm_bounded(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps=0,
+            victim_amount_in=50,
+            victim_min_out=1,
+            max_attacker_amount_in=10,
+        )
+
+
+def test_static_sandwich_risk_propagates_invariant_swap_fault(monkeypatch) -> None:
+    def _invariant_fault(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("Invariant violation: injected")
+
+    monkeypatch.setattr(risk_mod, "swap_exact_in", _invariant_fault)
+
+    with pytest.raises(ValueError, match="Invariant violation"):
+        sandwich_profit_exact_in_cpmm(
+            reserve_in=1000,
+            reserve_out=1000,
+            fee_bps=0,
+            victim_amount_in=50,
+            victim_min_out=1,
+            attacker_amount_in=1,
+        )
 
 
 @pytest.mark.parametrize(
