@@ -27,6 +27,8 @@ from math import comb
 from typing import Any, Mapping, Optional, Sequence, Set
 from urllib.parse import urlsplit
 
+_DEX_API_COERCION_ERRORS = (TypeError, ValueError, OverflowError)
+
 # Prewarm the expensive attestation / LP-aware settlement modules at server
 # startup so their first request does not pay import latency inside the 2s API
 # timeout budget used by the focused regression suite.
@@ -44,7 +46,7 @@ for _prewarm_module_name in (
 ):  # pragma: no cover - import latency hygiene only
     try:
         __import__(_prewarm_module_name)
-    except Exception:
+    except ImportError:
         pass
 
 
@@ -1202,7 +1204,7 @@ class _Handler(BaseHTTPRequestHandler):
 
         try:
             obj = json.loads(raw_body)
-        except Exception:
+        except ValueError:
             self._write_json(400, {"ok": False, "error": "bad_json"}, cors_origin=cors_origin)
             return True
         if not isinstance(obj, dict):
@@ -1292,7 +1294,7 @@ class _Handler(BaseHTTPRequestHandler):
                     for x in raw_opts:
                         try:
                             slippage_options_bps.append(int(x))
-                        except Exception:
+                        except _DEX_API_COERCION_ERRORS:
                             continue
                 else:
                     slippage_options_bps = None
@@ -1416,7 +1418,7 @@ class _Handler(BaseHTTPRequestHandler):
                     for x in raw_opts:
                         try:
                             v = int(x)
-                        except Exception:
+                        except _DEX_API_COERCION_ERRORS:
                             continue
                         if v < 0 or v > 10_000:
                             continue
@@ -1529,7 +1531,7 @@ class _Handler(BaseHTTPRequestHandler):
                     for x in raw_opts:
                         try:
                             v = int(x)
-                        except Exception:
+                        except _DEX_API_COERCION_ERRORS:
                             continue
                         if v < 0 or v > 10_000:
                             continue
@@ -1835,7 +1837,7 @@ class _Handler(BaseHTTPRequestHandler):
                                     asset_out=asset_out,
                                     amount_in=amt,
                                 )
-                        except Exception:
+                        except (ImportError, ValueError, OverflowError):
                             routing_mode_used = "exact"
                             q = best_route_exact_in_2hop(
                                 pools_by_id=pools_by_id,
@@ -1878,7 +1880,7 @@ class _Handler(BaseHTTPRequestHandler):
                                     amount_out=amt,
                                     apply_two_hop_gate=bool(obj.get("apply_two_hop_gate", False)),
                                 )
-                        except Exception:
+                        except (ImportError, ValueError, OverflowError):
                             routing_mode_used = "exact"
                             q = best_route_exact_out_2hop(
                                 pools_by_id=pools_by_id,

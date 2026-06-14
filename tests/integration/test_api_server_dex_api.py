@@ -492,6 +492,79 @@ def test_api_server_dex_quote_exact_out_fast_v1_roundtrip() -> None:
         _stop_test_server(httpd, t)
 
 
+def test_api_server_dex_quote_exact_in_fast_v1_runtime_bug_is_not_silent_fallback() -> None:
+    class BrokenFastRouter:
+        def quote_exact_in_2hop_fast_v1(self, **_kwargs):
+            raise RuntimeError("fast exact-in router bug")
+
+    httpd, t, host, port = _start_test_server()
+    httpd.fast_quote_router_v1 = BrokenFastRouter()  # type: ignore[attr-defined]
+    try:
+        pools = [
+            _pool_dict(pid="p1", a0="A", a1="B", r0=1000, r1=1000, fee_bps=0),
+            _pool_dict(pid="p2", a0="A", a1="B", r0=1000, r1=1000, fee_bps=0),
+        ]
+        req = {
+            "kind": "exact_in",
+            "routing_mode": "fast_v1",
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_in": 100,
+            "pools": pools,
+        }
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/quote",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 400
+        assert body["ok"] is False
+        assert body["error"] == "quote_error"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_dex_quote_exact_out_fast_v1_runtime_bug_is_not_silent_fallback() -> None:
+    class BrokenFastRouter:
+        def quote_exact_out_2hop_fast_v1(self, **_kwargs):
+            raise RuntimeError("fast exact-out router bug")
+
+    httpd, t, host, port = _start_test_server()
+    httpd.fast_quote_router_v1 = BrokenFastRouter()  # type: ignore[attr-defined]
+    try:
+        pools = [
+            _pool_dict(pid="p1", a0="A", a1="B", r0=1000, r1=1000, fee_bps=0),
+            _pool_dict(pid="p2", a0="A", a1="B", r0=1000, r1=1000, fee_bps=0),
+        ]
+        req = {
+            "kind": "exact_out",
+            "routing_mode": "fast_v1",
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_out": 100,
+            "apply_two_hop_gate": False,
+            "pools": pools,
+        }
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/quote",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 400
+        assert body["ok"] is False
+        assert body["error"] == "quote_error"
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def test_api_server_build_and_verify_exact_in_route_oracle_contract() -> None:
     httpd, t, host, port = _start_test_server()
     try:
