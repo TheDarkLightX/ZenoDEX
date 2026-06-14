@@ -26,6 +26,7 @@ from src.core.perp_np_matching import (  # noqa: E402
     ration_net_zero,
 )
 import src.core.perp_np_clearinghouse as C  # noqa: E402
+import src.core.perps as perps_state  # noqa: E402
 from src.core.perps import (  # noqa: E402
     PerpClearinghouseNpAccount,
     PerpClearinghouseNpMarketState,
@@ -117,6 +118,24 @@ def test_state_type_valid_three_party_market():
     assert len(m.accounts) == 3
     assert m.role_for_pubkey(_pk("22")) == _pk("22")    # member resolves own account
     assert m.role_for_pubkey(_pk("99")) is None         # non-member: no observer trap
+
+
+def test_role_lookup_does_not_swallow_canonicalizer_fault(monkeypatch):
+    accts = (
+        PerpClearinghouseNpAccount(_pk("11"), 10, 100 * E8, 10 ** 15),
+        PerpClearinghouseNpAccount(_pk("22"), -6, 100 * E8, 10 ** 15),
+        PerpClearinghouseNpAccount(_pk("33"), -4, 100 * E8, 10 ** 15),
+    )
+    m = PerpClearinghouseNpMarketState(
+        quote_asset="zUSD", global_state=_global_state(3 * 10 ** 15), accounts=accts)
+
+    def broken_canonicalizer(*_args, **_kwargs):
+        raise RuntimeError("injected perps canonicalizer fault")
+
+    monkeypatch.setattr(perps_state, "canonical_hex_fixed_allow_0x", broken_canonicalizer)
+
+    with pytest.raises(RuntimeError, match="injected perps canonicalizer fault"):
+        m.role_for_pubkey(_pk("22"))
 
 
 def test_state_type_rejects_net_zero_violation():
