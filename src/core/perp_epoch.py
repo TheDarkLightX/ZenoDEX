@@ -23,6 +23,7 @@ Default posture: v3 native.
 
 from __future__ import annotations
 
+import importlib
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -33,7 +34,7 @@ try:
     import yaml  # type: ignore
 
     _YAML_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency in some environments
+except ImportError:  # pragma: no cover - optional dependency in some environments
     yaml = None  # type: ignore[assignment]
     _YAML_AVAILABLE = False
 
@@ -83,6 +84,25 @@ def _load_yaml_model(path: Path):
     return CandidateIR.from_json_dict(obj).canonicalized()
 
 
+def _assert_adapter_ir_hash_matches(*, adapter_module: str, actual_ir_hash: str) -> None:
+    """Fail closed when a committed adapter drifts from its YAML kernel.
+
+    The spec-interpreter backend is optional, so a missing adapter module remains
+    non-fatal for old or partial checkouts. A present adapter with an `IR_HASH`
+    mismatch is evidence drift and must not be downgraded to best-effort.
+    """
+
+    try:
+        adapter = importlib.import_module(adapter_module)
+    except ModuleNotFoundError as exc:  # pragma: no cover - compatibility path
+        if exc.name == adapter_module:
+            return
+        raise
+    expected_hash = getattr(adapter, "IR_HASH", None)
+    if isinstance(expected_hash, str) and expected_hash and expected_hash != actual_ir_hash:
+        raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={actual_ir_hash}")
+
+
 @lru_cache(maxsize=1)
 def _kernel_ctx_v1():
     from ESSO.evolve import ir_hash  # type: ignore
@@ -94,16 +114,10 @@ def _kernel_ctx_v1():
     if isinstance(ctx, StepError):
         raise RuntimeError(f"perp kernel invalid: {ctx.code}: {ctx.message}")
 
-    # Adapters pin the expected spec hash so regenerated artifacts cannot drift
-    # silently from the checked/verified model.
-    try:
-        from ..kernels.python.perp_epoch_isolated_v1_adapter import IR_HASH as expected_hash
-
-        if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
-            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
-    except Exception:
-        # Best-effort only; runtime can still operate with the loaded IR.
-        pass
+    _assert_adapter_ir_hash_matches(
+        adapter_module="src.kernels.python.perp_epoch_isolated_v1_adapter",
+        actual_ir_hash=ir_hash(ir),
+    )
 
     return ir, ctx
 
@@ -158,13 +172,10 @@ def _kernel_ctx_v1_1():
     if isinstance(ctx, StepError):
         raise RuntimeError(f"perp kernel invalid: {ctx.code}: {ctx.message}")
 
-    try:
-        from ..kernels.python.perp_epoch_isolated_v1_1_adapter import IR_HASH as expected_hash
-
-        if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
-            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
-    except Exception:
-        pass
+    _assert_adapter_ir_hash_matches(
+        adapter_module="src.kernels.python.perp_epoch_isolated_v1_1_adapter",
+        actual_ir_hash=ir_hash(ir),
+    )
 
     return ir, ctx
 
@@ -205,13 +216,10 @@ def _kernel_ctx_v2():
     if isinstance(ctx, StepError):
         raise RuntimeError(f"perp kernel invalid: {ctx.code}: {ctx.message}")
 
-    try:
-        from ..kernels.python.perp_epoch_isolated_v2_adapter import IR_HASH as expected_hash
-
-        if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
-            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
-    except Exception:
-        pass
+    _assert_adapter_ir_hash_matches(
+        adapter_module="src.kernels.python.perp_epoch_isolated_v2_adapter",
+        actual_ir_hash=ir_hash(ir),
+    )
 
     return ir, ctx
 
@@ -252,13 +260,10 @@ def _kernel_ctx_v3():
     if isinstance(ctx, StepError):
         raise RuntimeError(f"perp kernel invalid: {ctx.code}: {ctx.message}")
 
-    try:
-        from ..kernels.python.perp_epoch_isolated_v3_adapter import IR_HASH as expected_hash
-
-        if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
-            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
-    except Exception:
-        pass
+    _assert_adapter_ir_hash_matches(
+        adapter_module="src.kernels.python.perp_epoch_isolated_v3_adapter",
+        actual_ir_hash=ir_hash(ir),
+    )
 
     return ir, ctx
 
