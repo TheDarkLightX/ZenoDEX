@@ -101,6 +101,19 @@ fn ceil_div(a: i128, b: i128) -> i128 {
     (a + b - 1) / b
 }
 
+/// DbC invariant: liquidation penalty remains funded after one clamped oracle move.
+#[inline]
+fn funded_liquidation_params_ok(
+    maintenance_margin_bps: i128,
+    depeg_buffer_bps: i128,
+    max_oracle_move_bps: i128,
+    liquidation_penalty_bps: i128,
+) -> bool {
+    let eff_maint_bps = maintenance_margin_bps + depeg_buffer_bps;
+    liquidation_penalty_bps * (BPS_SCALE + max_oracle_move_bps)
+        <= BPS_SCALE * (eff_maint_bps - max_oracle_move_bps)
+}
+
 /// Validate one requested update against its bound (mirrors `_validated_control_params`:
 /// `_require_int(non_negative)` then range). Returns the merged value.
 fn merge_checked(cur: i128, upd: Option<i128>, bound: (i128, i128)) -> Result<i128, &'static str> {
@@ -224,6 +237,12 @@ pub fn set_market_params(
         || eff_maint_bps > initial_margin_bps
         || liquidation_penalty_bps >= eff_maint_bps
         || liquidation_penalty_bps <= 0
+        || !funded_liquidation_params_ok(
+            maintenance_margin_bps,
+            depeg_buffer_bps,
+            max_oracle_move_bps,
+            liquidation_penalty_bps,
+        )
     {
         return Err(REJ_ORDERING);
     }
@@ -358,6 +377,14 @@ mod tests {
         let mut inp = base();
         // maint+depeg = 9000+100 > initial 1000 -> ordering.
         inp.upd_maintenance_margin_bps = Some(9000);
+        assert_eq!(set_market_params(&inp).unwrap_err(), REJ_ORDERING);
+    }
+
+    #[test]
+    fn funded_liquidation_violation_rejects_ordering() {
+        let mut inp = base();
+        // 50 * (10000 + 548) > 10000 * ((500 + 100) - 548).
+        inp.upd_max_oracle_move_bps = Some(548);
         assert_eq!(set_market_params(&inp).unwrap_err(), REJ_ORDERING);
     }
 

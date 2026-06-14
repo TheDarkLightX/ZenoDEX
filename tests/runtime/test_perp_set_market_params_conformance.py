@@ -25,6 +25,7 @@ def static_cases() -> list[dict]:
         {"params": {"maintenance_margin_bps": 9000}},
         {"params": {"depeg_buffer_bps": 6000}},
         {"params": {"max_oracle_move_bps": -1}},
+        {"params": {"max_oracle_move_bps": 548}},
         {"params": {"min_notional_for_bounty": 100}},
         {"params": {"liquidation_penalty_bps": 80}, "positions": [(pk, 500_000)]},
         {"params": {"max_position_abs": 100_000}, "positions": [(pk, 500_000)]},
@@ -54,10 +55,11 @@ def test_rust_matches_python_static(rust_bin):
     assert py[1]["ok"] and py[1]["maintenance_margin_bps"] == 600
     assert py[2]["reason"] == "set_market_params_ordering"
     assert py[3]["reason"] == "set_market_params_param_domain"
-    assert py[5]["reason"] == "set_market_params_min_notional"
-    assert py[6]["reason"] == "set_market_params_anti_farming"
-    assert py[7]["reason"] == "set_market_params_account_unsafe"
-    assert py[8]["ok"] and py[8]["funding_rate_bps"] == 50
+    assert py[5]["reason"] == "set_market_params_ordering"
+    assert py[6]["reason"] == "set_market_params_min_notional"
+    assert py[7]["reason"] == "set_market_params_anti_farming"
+    assert py[8]["reason"] == "set_market_params_account_unsafe"
+    assert py[9]["ok"] and py[9]["funding_rate_bps"] == 50
 
 
 def test_rust_matches_golden_trace(rust_bin):

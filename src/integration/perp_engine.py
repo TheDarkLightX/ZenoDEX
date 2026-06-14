@@ -192,6 +192,20 @@ _BPS_SCALE = 10_000
 OracleAdapterBridgeVerifier = Callable[[Mapping[str, Any]], Any]
 
 
+def _funded_liquidation_params_ok(
+    *,
+    maintenance_margin_bps: int,
+    depeg_buffer_bps: int,
+    max_oracle_move_bps: int,
+    liquidation_penalty_bps: int,
+) -> bool:
+    """DbC invariant: liquidation penalty remains funded after one clamped oracle move."""
+    eff_maint_bps = int(maintenance_margin_bps) + int(depeg_buffer_bps)
+    return int(liquidation_penalty_bps) * (_BPS_SCALE + int(max_oracle_move_bps)) <= _BPS_SCALE * (
+        eff_maint_bps - int(max_oracle_move_bps)
+    )
+
+
 def _safe_error_str(exc: Exception) -> str:
     """Convert an exception to a stable, single-line error string.
 
@@ -388,6 +402,13 @@ def _apply_isolated_market_params(
         raise ValueError("invalid params: require liquidation_penalty_bps < maintenance_margin_bps + depeg_buffer_bps")
     if liquidation_penalty_bps <= 0:
         raise ValueError("invalid params: require liquidation_penalty_bps > 0")
+    if not _funded_liquidation_params_ok(
+        maintenance_margin_bps=maintenance_margin_bps,
+        depeg_buffer_bps=depeg_buffer_bps,
+        max_oracle_move_bps=max_oracle_move_bps,
+        liquidation_penalty_bps=liquidation_penalty_bps,
+    ):
+        raise ValueError("invalid params: require funded liquidation after max_oracle_move_bps")
 
     # Scientist-driven anti-farming guard:
     # if a liquidation is eligible for bounty accounting, the notional threshold must be

@@ -1838,6 +1838,16 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     assert res_zero_penalty.ok is False
     assert res_zero_penalty.error is not None and "liquidation_penalty_bps > 0" in res_zero_penalty.error
 
+    # Hardening: funded-liquidation admission rejects the reported counterexample.
+    res_unfunded_liquidation = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "set_market_params", params={"max_oracle_move_bps": 548})],
+    )
+    assert res_unfunded_liquidation.ok is False
+    assert res_unfunded_liquidation.error is not None and "funded liquidation" in res_unfunded_liquidation.error
+
     # Hardening: depeg buffer must remain positive (fail-closed against disabling buffer).
     res_zero_depeg = _apply_result(
         state=state,
