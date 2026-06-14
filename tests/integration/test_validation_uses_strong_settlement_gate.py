@@ -195,6 +195,26 @@ def test_validate_operations_accepts_cow_netted_settlement_when_swap_ordering_ma
     assert ok_cow is True
     assert err_cow is None
 
+    settlement_v2 = compute_settlement(
+        intents,
+        pools,
+        balances,
+        LPTable(),
+        swap_ordering="cow_pair_netting_exact_uncoupled_v2",
+    )
+    ok_cow_v2, err_cow_v2 = validate_operations(
+        intents=intents,
+        settlement=settlement_v2,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_validation="strong_replay",
+        swap_ordering="cow_pair_netting_exact_uncoupled_v2",
+    )
+    assert ok_cow_v2 is True
+    assert err_cow_v2 is None
+
 
 def test_validate_operations_accepts_empty_batch_without_settlement() -> None:
     ok, err = validate_operations(

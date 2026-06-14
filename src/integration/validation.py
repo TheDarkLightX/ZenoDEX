@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
-from ..core.batch_clearing import apply_settlement
+from ..core.batch_clearing import apply_settlement, is_cow_pair_netting_ordering
 from ..core.settlement import Settlement
 from ..core.settlement_strong_validator import validate_settlement_strong
 from ..core.uniform_batch_clearing import (
@@ -84,7 +84,7 @@ def validate_operations(
     
     # Check that settlement covers all intents
     if settlement:
-        allow_cow_netting = str(swap_ordering) == "cow_pair_netting_v1"
+        allow_cow_netting = is_cow_pair_netting_ordering(str(swap_ordering))
         use_end_to_end_certificate = bool(
             require_settlement_end_to_end_certificate or require_settlement_certificate
         )

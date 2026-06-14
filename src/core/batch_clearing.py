@@ -33,7 +33,7 @@ from __future__ import annotations
 import itertools
 from collections import defaultdict
 from dataclasses import dataclass, replace
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from ..kernels.python.settlement_swap_runtime_v1 import (
     quote_cpmm_swap_exact_in,
@@ -65,6 +65,7 @@ _SWAP_ORDERING_GREEDY_AB_REFINED = "greedy_ab_refined"
 _SWAP_ORDERING_GREEDY_AB_GLOBAL = "greedy_ab_global"
 _SWAP_ORDERING_MCI_AB_GLOBAL = "mci_ab_global"
 _SWAP_ORDERING_COW_PAIR_NETTING_V1 = "cow_pair_netting_v1"
+_SWAP_ORDERING_COW_PAIR_NETTING_EXACT_UNCOUPLED_V2 = "cow_pair_netting_exact_uncoupled_v2"
 _SWAP_ORDERING_CHOICES = frozenset({
     _SWAP_ORDERING_LIMIT_PRICE,
     _SWAP_ORDERING_OPTIMAL_AB_BOUNDED,
@@ -73,6 +74,14 @@ _SWAP_ORDERING_CHOICES = frozenset({
     _SWAP_ORDERING_GREEDY_AB_GLOBAL,
     _SWAP_ORDERING_MCI_AB_GLOBAL,
     _SWAP_ORDERING_COW_PAIR_NETTING_V1,
+    _SWAP_ORDERING_COW_PAIR_NETTING_EXACT_UNCOUPLED_V2,
+})
+_CowPairNettingProfile = Literal["legacy_v1", "exact_uncoupled_v2"]
+_COW_PAIR_NETTING_MATCH_LEGACY_V1: _CowPairNettingProfile = "legacy_v1"
+_COW_PAIR_NETTING_MATCH_EXACT_UNCOUPLED_V2: _CowPairNettingProfile = "exact_uncoupled_v2"
+_COW_PAIR_NETTING_MATCH_CHOICES = frozenset({
+    _COW_PAIR_NETTING_MATCH_LEGACY_V1,
+    _COW_PAIR_NETTING_MATCH_EXACT_UNCOUPLED_V2,
 })
 
 # Bounded brute-force safety cap for AB-optimal ordering.
@@ -89,6 +98,14 @@ _MAX_COW_EXACT_MATCH_TOTAL_CANDIDATES = 32
 _MAX_COW_EXACT_MATCH_FEASIBLE_EDGES = 256
 # Chunk size for settlement delta aggregation (invariant chunking promotion).
 _DELTA_AGG_CHUNK_SIZE = 128
+
+
+def is_cow_pair_netting_ordering(swap_ordering: str) -> bool:
+    """Return true for profiles whose settlements may contain COW_NETTED fills."""
+    return str(swap_ordering) in {
+        _SWAP_ORDERING_COW_PAIR_NETTING_V1,
+        _SWAP_ORDERING_COW_PAIR_NETTING_EXACT_UNCOUPLED_V2,
+    }
 
 
 def compute_settlement(
@@ -717,11 +734,17 @@ def clear_batch_single_pool(
     # This is *not* a lattice/LLL solver; it is a deterministic, certificate-friendly
     # primitive that can be extended later.
     post_swap_ordering = swap_ordering
-    if swap_ordering == _SWAP_ORDERING_COW_PAIR_NETTING_V1:
+    if is_cow_pair_netting_ordering(swap_ordering):
+        matching_profile = (
+            _COW_PAIR_NETTING_MATCH_EXACT_UNCOUPLED_V2
+            if swap_ordering == _SWAP_ORDERING_COW_PAIR_NETTING_EXACT_UNCOUPLED_V2
+            else _COW_PAIR_NETTING_MATCH_LEGACY_V1
+        )
         netted_fills, remaining_swaps = _cow_pair_netting_exact_in_v1(
             swap_intents,
             pool_state=pool_state,
             balances=balances_scratch,
+            matching_profile=matching_profile,
         )
         fills.extend(netted_fills)
         swap_intents = remaining_swaps
@@ -1473,6 +1496,7 @@ def _cow_pair_netting_exact_in_v1(
     *,
     pool_state: PoolState,
     balances: BalanceTable,
+    matching_profile: Literal["legacy_v1", "exact_uncoupled_v2"] = _COW_PAIR_NETTING_MATCH_LEGACY_V1,
 ) -> tuple[List[Fill], List[Intent]]:
     """Try to net opposite-direction exact-in swaps directly between users.
 
@@ -1489,6 +1513,9 @@ def _cow_pair_netting_exact_in_v1(
     This is an experimental, certificate-friendly primitive; it is *not* intended
     to be AB-optimal globally.
     """
+    if matching_profile not in _COW_PAIR_NETTING_MATCH_CHOICES:
+        raise ValueError(f"unsupported CoW matching_profile: {matching_profile!r}")
+
     a0 = pool_state.asset0
     a1 = pool_state.asset1
 
@@ -1560,11 +1587,15 @@ def _cow_pair_netting_exact_in_v1(
     best_pairs: List[tuple[_CowCandidateExactIn, _CowCandidateExactIn]] = []
     best_key: tuple[int, int, Tuple[Tuple[str, str], ...]] | None = None
 
-    if _cow_exact_match_work_within_cap(side_01, side_10) and _cow_uncoupled(side_01, side_10, balances, a0, a1):
+    use_exact_uncoupled = (
+        matching_profile == _COW_PAIR_NETTING_MATCH_EXACT_UNCOUPLED_V2
+        and _cow_exact_match_work_within_cap(side_01, side_10)
+        and _cow_uncoupled(side_01, side_10, balances, a0, a1)
+    )
+    if use_exact_uncoupled:
         # Uncoupled => the per-sender balance constraint cannot bind, so the matching is
-        # an unconstrained max-weight bipartite matching. Use the exact solver only
-        # while its lex tie-break work is bounded; larger batches keep the prior
-        # deterministic greedy fallback rather than risking settlement stalls.
+        # an unconstrained max-weight bipartite matching. This is a versioned profile:
+        # `cow_pair_netting_v1` keeps its legacy greedy fallback for replay stability.
         best_pairs = _cow_exact_match_uncoupled(side_01, side_10)
     elif use_bruteforce:
         # Track per-sender debit feasibility in the recursion to prune.
