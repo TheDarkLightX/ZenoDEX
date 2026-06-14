@@ -26,6 +26,7 @@ from typing import Callable, Tuple
 from ..kernels.python.cpmm_swap_v8 import compute_fee_total as _fee_total_v8
 
 BPS_DENOM = 10_000
+_ADAPTIVE_V6_STAIRCASE_MAX_OUTPUT_LEVELS = 4096
 
 
 @dataclass(frozen=True)
@@ -108,6 +109,30 @@ def _min_gross_for_output_level(pool: PoolXY, t: int) -> int | None:
     return int(max(a_t, 1))
 
 
+def _staircase_v1_output_level_budget(pool0: PoolXY, pool1: PoolXY, amount_in: int) -> int | None:
+    """
+    Upper-bound the number of pool-0 output levels visited by staircase_v1.
+
+    A return value of 0 means the both-valid interval is empty, so the exact
+    solver only checks single-pool endpoints. None means the bound could not be
+    established from valid pool-0/pool-1 inputs.
+    """
+    D = int(amount_in)
+    if D <= 0:
+        return None
+    min0 = _min_gross_for_output_level(pool0, 1)
+    min1 = _min_gross_for_output_level(pool1, 1)
+    if min0 is None or min1 is None:
+        return 0
+    hi = D - int(min1)
+    if int(min0) > int(hi):
+        return 0
+    try:
+        return int(exact_out_for_pool_exact_in(pool0, int(hi)))
+    except ValueError:
+        return None
+
+
 def staircase_jump_best_split_two_pools_exact_in(
     pool0: PoolXY,
     pool1: PoolXY,
@@ -125,19 +150,44 @@ def staircase_jump_best_split_two_pools_exact_in(
       level t is a_t = ceil(ceil(t*x0/(y0-t)) * B / (B - fee0)) - two
       ceiling divisions, no search.
 
-    Cost: one pool-0 + one pool-1 quote per DISTINCT out0 level in [lo, hi]
-    (= O(min(span, out0(hi)))), versus O(span) quote pairs for brute force.
+    Cost: one cached pool-0 quote to identify each next jump, plus one pool-1
+    quote to score that candidate (= O(min(span, out0(hi)))) versus O(span)
+    quote pairs for brute force.
     """
     if amount_in <= 0:
         raise ValueError("amount_in must be positive")
     D = int(amount_in)
 
+    out0_cache: dict[int, int | None] = {}
+    out1_cache: dict[int, int | None] = {}
+
+    def quote0(a: int) -> int | None:
+        a = int(a)
+        if a <= 0:
+            return 0
+        if a not in out0_cache:
+            try:
+                out0_cache[a] = int(exact_out_for_pool_exact_in(pool0, a))
+            except ValueError:
+                out0_cache[a] = None
+        return out0_cache[a]
+
+    def quote1(b: int) -> int | None:
+        b = int(b)
+        if b <= 0:
+            return 0
+        if b not in out1_cache:
+            try:
+                out1_cache[b] = int(exact_out_for_pool_exact_in(pool1, b))
+            except ValueError:
+                out1_cache[b] = None
+        return out1_cache[b]
+
     def total_out(a: int) -> int | None:
         b = D - a
-        try:
-            out0 = exact_out_for_pool_exact_in(pool0, a) if a > 0 else 0
-            out1 = exact_out_for_pool_exact_in(pool1, b) if b > 0 else 0
-        except Exception:
+        out0 = quote0(int(a))
+        out1 = quote1(int(b))
+        if out0 is None or out1 is None:
             return None
         return int(out0 + out1)
 
@@ -168,9 +218,8 @@ def staircase_jump_best_split_two_pools_exact_in(
         # strict-improvement updates yields the global leftmost maximizer
         # (every split is dominated by a candidate at or left of it).
         while a <= hi:
-            try:
-                out0 = exact_out_for_pool_exact_in(pool0, a) if a > 0 else 0
-            except Exception:
+            out0 = quote0(int(a))
+            if out0 is None:
                 break  # only possible if level 1 itself is infeasible
             consider(a)
             a_next = _min_gross_for_output_level(pool0, int(out0) + 1)
@@ -474,7 +523,8 @@ def resolve_two_pool_split_search_params(
     - adaptive_v3: choose between (baseline,w64)/(baseline_canon16,w64), (dense24,w64), (dense24,w96)
     - adaptive_v4: choose between (baseline_canon16,w64) and (dense24,w96) with stricter escalation
     - adaptive_v5: adaptive_v4 + high-fee/high-pressure escalation to dense32 tiers
-    - adaptive_v6: tighter adaptive_v5 thresholds tuned to cut default-call cost while preserving stress quality
+    - adaptive_v6: use exact staircase_v1 when its output-level budget is bounded,
+      otherwise use tighter adaptive_v5 thresholds
     - adaptive_v7: adaptive_v6 hard-regime tiers, but route easy manifolds to experimental dgstr_v1
     """
     prof = str(search_profile).strip().lower()
@@ -570,6 +620,13 @@ def resolve_two_pool_split_search_params(
         # v6 retunes v5 thresholds using supervised stress-holdout evidence:
         # - keep dense32 escalation for the stress miss manifold,
         # - reduce unnecessary dense32 activation on default regimes.
+        if prof == "adaptive_v6":
+            staircase_budget = _staircase_v1_output_level_budget(pool0, pool1, D)
+            if (
+                staircase_budget is not None
+                and int(staircase_budget) <= _ADAPTIVE_V6_STAIRCASE_MAX_OUTPUT_LEVELS
+            ):
+                return 0, "staircase_v1"
         high6 = bool(amt_hi or fee_gap >= 110 or imbalance_hi or (near_sym and fee_gap >= 40))
         thin_out = bool(min_y <= 80)
         hard6 = bool(
@@ -623,8 +680,8 @@ def best_split_two_pools_exact_in(
     - "dense32": very dense deterministic coarse probes (32 bins) + local refinement.
     - "dgstr_v1": experimental discrete golden-section / ternary refinement with bounded rescue scans.
     - "staircase_v1": EXACT jump enumeration (Lean: Proofs/SplitRoutingStaircase.lean);
-      bit-identical to brute force including the leftmost tie-break, with one quote
-      pair per distinct pool-0 output level instead of per split point.
+      bit-identical to brute force including the leftmost tie-break, with O(1)
+      quote work per distinct pool-0 output level instead of per split point.
 
     This is intended to be iteratively improved with counterexample mining.
     """

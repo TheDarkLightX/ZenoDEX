@@ -51,7 +51,7 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
   - `spot-proof`: READY
     Rebuild the spot proof artifacts, then pin-check the manifest.
   - `spot-evidence`: READY
-    Replay the spot functional-core tests and spot-kernel verify-multi checks.
+    Replay the spot functional-core tests, split-routing staircase evidence, and spot-kernel verify-multi checks.
   - `tau-runtime`
   - `critical`: READY
     Run the publishable critical quality gate with branch coverage and static checks.
@@ -90,7 +90,7 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
   - `spot-proof`: READY
     Rebuild the spot proof artifacts, then pin-check the manifest.
   - `spot-evidence`: READY
-    Replay the spot functional-core tests and spot-kernel verify-multi checks.
+    Replay the spot functional-core tests, split-routing staircase evidence, and spot-kernel verify-multi checks.
   - `derivatives`: READY
     Rebuild the derivatives evidence lane, then pin-check the manifest.
   - `perps`: READY
@@ -228,4 +228,3 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
 - `python3 tools/render_rc1_verified_surface_matrix.py --check`
 
 These checks are intentionally narrower than the full repo. They exist to keep the RC2 claim specific and auditable.
-

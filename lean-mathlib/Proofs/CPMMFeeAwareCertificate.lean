@@ -5,8 +5,9 @@ import Mathlib.Tactic
 /-!
 # Fee-Aware Sandwich Certificate for CPMM Split Routing
 
-`CPMMConcavity` and `CPMMSandwichCertificate` treat the ZERO-FEE objective and
-explicitly disclaim fee-adjusted routing. This file closes that gap.
+`CPMMConcavity` and `CPMMSandwichCertificate` treat the zero-fee objective and
+explicitly disclaim fee-adjusted routing. This file supplies a fee-aware
+envelope certificate for that surface.
 
 The fee-adjusted output is `f(a) = cpmmOut x y (net a)` with
 `net a = a − ⌈a·fee/10⁴⌉ = ⌊a·ψ/10⁴⌋`, `ψ = 10⁴ − fee` (the second equality is
@@ -14,7 +15,7 @@ the runtime identity proved in `CpmmSwapV8ExactOutMinimality`).
 
 **The fee-adjusted output is NOT grade-O(1)** (`witness_fee_not_grade_one`:
 when the net staircase steps, the output jumps by the local envelope slope —
-up to 500 for pool (1, 1000) at 50% fee). So neither Part III's graded
+up to 500 for pool (1, 1000) at 50% fee). So neither the graded
 certificate nor a constant-δ sandwich applies naively. The honest structure:
 
   f is sandwiched within `δ = 1 + y/(x+1)` below the concave envelope
@@ -22,16 +23,19 @@ certificate nor a constant-δ sandwich applies naively. The honest structure:
 
 because `y/(x+1)` is the GLOBAL slope cap of `Hᵉ` on `t ≥ 0`. Composing two
 pools gives `SandwichConcave Δ` with `Δ = 2 + y₀/(x₀+1) + y₁/(x₁+1)`, and
-`sandwich_certificate_linear` yields, for every pool configuration and fee:
+`sandwich_certificate_linear` yields a coarse, hypothesis-light bound for every
+pool configuration and fee:
 
   objFee(j) ≤ objFee(a★) + Δ·(d+1),   d = |j − a★|.
 
 For deep pools (`yᵢ ≤ xᵢ + 1`) this collapses to the integer bound
 `objFee(j) ≤ objFee(a★) + 4·d + 4`.
 
-This also makes precise exactly when `SplitRoutingUnimodality`'s assumed
-closeness hypothesis is satisfiable: the per-pool closeness constant is
-`1 + y/(x+1)`, small iff the pool is deep relative to its output reserve.
+This is not the authoritative exact-routing proof; exact fee-aware two-pool
+routing is covered by `SplitRoutingStaircase`. The bound here is useful as a
+portable envelope and as a warning about when unimodality-style approximations
+are weak: the per-pool closeness constant is `1 + y/(x+1)`, small iff the pool
+is deep relative to its output reserve.
 
 | # | Name | Kind | Statement |
 |---|------|------|-----------|
@@ -40,7 +44,7 @@ closeness hypothesis is satisfiable: the per-pool closeness constant is
 | 3 | `HenvQ_affine_concave` | Core | a ↦ Hᵉ(c·a) is discretely concave (all x, c ≥ 0) |
 | 4 | `cpmmOutFee_sandwich` | Main | per-pool sandwich with δ = 1 + y/(x+1) |
 | 5 | `cpmm_fee_split_sandwich` | Bridge | split objective is SandwichConcave Δ |
-| 6 | `cpmm_fee_split_certificate_linear` | Main | error ≤ Δ·(d+1), all pools/fees |
+| 6 | `cpmm_fee_split_certificate_linear` | Main | coarse error ≤ Δ·(d+1), all pools/fees |
 | 7 | `cpmm_fee_split_certificate_deep_pools` | Main | y ≤ x+1 both pools ⟹ ℤ bound 4·d + 4 |
 | 8 | `cpmmOutFee_zero_fee` | Bridge | fee = 0 recovers the zero-fee output |
 | 9 | `witness_fee_not_grade_one` | Witness | fee-adjusted output has second difference 500 |
@@ -292,15 +296,16 @@ theorem cpmm_fee_split_sandwich (x₀ y₀ fee₀ x₁ y₁ fee₁ D : ℕ) :
       push_cast at u0 u1
       linarith
 
-/-- **FEE-AWARE LINEAR CERTIFICATE** (every pool configuration, every fee):
+/-- **FEE-AWARE LINEAR ENVELOPE CERTIFICATE** (every pool configuration, every fee):
     the 2-comparison certificate at `a★` bounds every competitor by
 
       objFee(j) ≤ objFee(a★) + Δ·(d+1),
       Δ = 2 + y₀/(x₀+1) + y₁/(x₁+1),  d = |j − a★|.
 
-    Δ is small exactly when the pools are deep relative to their output
-    reserves — the quantitative content behind `SplitRoutingUnimodality`'s
-    assumed closeness hypothesis. -/
+    This is a coarse sandwich-derived envelope. It is intentionally
+    hypothesis-light, but it should not be read as a tight optimizer certificate
+    for shallow or highly asymmetric pools. Δ is small exactly when the pools
+    are deep relative to their output reserves. -/
 theorem cpmm_fee_split_certificate_linear
     (x₀ y₀ fee₀ x₁ y₁ fee₁ D a_star : ℕ) (ha : a_star ≤ D)
     (h_prev : 0 < a_star →
@@ -350,7 +355,7 @@ theorem cpmm_fee_split_certificate_deep_pools
   exact_mod_cast hZ
 
 /-- **THE FEE-ADJUSTED OUTPUT IS NOT GRADE-1** (why a fee-aware certificate
-    cannot reuse Part III's constants): pool (1, 1000) at 50% fee has
+    cannot reuse the zero-fee graded constants): pool (1, 1000) at 50% fee has
     net(0..3) = 0,0,1,1 and outputs 0,0,500,500 — a second difference of 500.
     The sandwich constant 1 + y/(x+1) = 501 absorbs exactly this jump. -/
 theorem witness_fee_not_grade_one :
@@ -360,7 +365,7 @@ theorem witness_fee_not_grade_one :
     cpmmOutFee 1 1000 5000 2 = 500 ∧
     ¬ ((cpmmOutFee 1 1000 5000 2 : ℤ) + cpmmOutFee 1 1000 5000 0 ≤
         2 * cpmmOutFee 1 1000 5000 1 + 1) := by
-  native_decide
+  decide
 
 end CPMMFeeAware
 end Proofs

@@ -140,6 +140,34 @@ def test_exact_in_route_certificate_matches_best_route_for_pools() -> None:
     assert ok, err
 
 
+def test_exact_in_route_candidates_drop_zero_endpoint_split_legs() -> None:
+    pools = {
+        "p0": _pool("p0", "A", "B", 1000, 1000, 0),
+        "p1": _pool("p1", "A", "B", 1000, 2, 0),
+    }
+
+    certificate = build_exact_in_route_canonical_certificate_for_pools(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=5000,
+    )
+
+    assert certificate is not None
+    assert any(len(candidate.quote.legs) == 1 for candidate in certificate.candidates)
+    for candidate in certificate.candidates:
+        for leg in candidate.quote.legs:
+            assert leg.amount_in > 0
+            assert leg.amount_out > 0
+            for hop in leg.hops:
+                assert hop.amount_in > 0
+                assert hop.amount_out > 0
+
+    quotes = [candidate.quote for candidate in certificate.candidates]
+    ok, err = verify_exact_in_route_canonical_certificate(quotes, certificate=certificate)
+    assert ok, err
+
+
 def test_exact_in_route_certificate_tau_steps_verify_when_tau_is_available() -> None:
     tau_bin = find_tau_bin()
     if not tau_bin:
