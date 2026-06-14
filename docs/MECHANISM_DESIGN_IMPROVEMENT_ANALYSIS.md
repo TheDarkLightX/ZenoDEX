@@ -538,6 +538,23 @@ par strictly improves TCR whenever TCR > 100%.
   specialization recovering `1/n` exactly
   (`weightedExposure_equal_sizes`), and the whale witness (96% retention in
   a batch of 5).
+- **R7c shipped as an advisory monitor.** `src/core/zusd_sp_coverage.py`
+  projects any `ZUSDState` onto the stability-pool absorption-coverage axis: it
+  classifies the §6.2 disaster precursor (`liquidation_blocked` — under MCR with
+  `sp_debt < debt`) and exposes the absorption shortfall, which by supply
+  conservation equals the uninsured (free) debt. The monitor is the zUSD twin of
+  R1's `inv_funded_liquidation`: read-only and deliberately NOT in
+  `zusd.check_invariants` / the `step` settlement path (per-transition coverage
+  enforcement would freeze every vault carrying ordinary free debt, since
+  coverage holds only when the entire vault is stability-pool backed). Its
+  faithfulness is gated by `tools/check_zusd_sp_absorption_coverage.py`, which
+  proves the monitor's `coverage_ok` prediction equals the real kernel
+  liquidation-refusal decision (`_step_python` on `liquidate`) across the bounded
+  scenario corpus (`tests/core/test_zusd_sp_coverage.py`,
+  `tests/tools/test_check_zusd_sp_absorption_coverage.py`). The cooldown (R7a)
+  and partial-absorption (R7b) fixes remain open: both are paired Python+Rust
+  settlement changes (the zUSD kernel is a synchronized authority surface), the
+  same cross-language follow-up class as R1's parameter-admission enforcement.
 
 ### 7.2 New theorems beyond the round-2 surface
 
@@ -612,7 +629,7 @@ mathematically weak spots, in priority order:
 | 7 | Funding dust | bounded leak, destination unspecified | exact conservation with insurance sink | Partially present (sink matches Lean); per-epoch assertion recommended |
 | 8 | Tokenomics | emission lane outside proven guard | instantiate `RewardControllerGuard` | Recommended |
 | 9 | zUSD redemption | zero default fee ⇒ free oracle-lag arbitrage | fee floor ≥ staleness drift budget; non-zero redeem bump | Recommended (R6) |
-| 10 | zUSD stability pool | proven cooldown unimplemented; all-or-nothing absorption ⇒ exit spiral | cooldown + partial liquidation + SP-coverage axis | Recommended (R7) |
+| 10 | zUSD stability pool | proven cooldown unimplemented; all-or-nothing absorption ⇒ exit spiral | cooldown + partial liquidation + SP-coverage axis | **SP-coverage axis shipped** (advisory monitor `zusd_sp_coverage`, kernel-faithful via `check_zusd_sp_absorption_coverage`); cooldown + partial liquidation **Recommended (R7a/R7b)** |
 | 11 | Perp ADL | proven haircut unimplemented; bankruptcies fail-closed into freeze | implement Lean-modeled ADL | Recommended (R8) |
 | 12 | Liquidation latency | doc-only compounding arithmetic | two-epoch + L-epoch envelopes; short/long tail asymmetry | **Proven in Lean** (`two_epoch_move_bound`, `clamped_path_*`, tail lemmas) |
 | 13 | Keeper race | 1-player model ignores competition | rent dissipation: equilibrium gas ∈ `(R−c, R]`, unique count | **Proven in Lean** (Tier 6); penalty sizing + batch assignment recommended |
