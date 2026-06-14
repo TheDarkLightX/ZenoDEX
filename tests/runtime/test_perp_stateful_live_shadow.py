@@ -34,6 +34,15 @@ PK_B = "bb" * 48
 QUOTE = "0x" + "51" * 32
 
 
+def _make_synthetic_liquidation_params_funded(gs: dict, *, penalty_bps: int) -> None:
+    # These fixtures bypass set_market_params admission to exercise Rust-only
+    # liquidation branches. Keep the hand-built snapshots inside the same
+    # funded-liquidation domain that real governance updates must satisfy.
+    gs["min_notional_for_bounty"] = 0
+    gs["max_oracle_move_bps"] = 50
+    gs["liquidation_penalty_bps"] = int(penalty_bps)
+
+
 def _policy(mode: AuthorityMode) -> AuthorityPolicy:
     return AuthorityPolicy(
         default=AuthorityMode.PYTHON_AUTHORITY,
@@ -715,8 +724,7 @@ def test_rust_authority_commits_settle_epoch_liquidation_without_python_handler(
     )
     market = state.perps.markets[market_id]
     gs = dict(market.global_state)
-    gs["min_notional_for_bounty"] = 0
-    gs["liquidation_penalty_bps"] = 200
+    _make_synthetic_liquidation_params_funded(gs, penalty_bps=200)
     accts = dict(market.accounts)
     accts[PK_A] = replace(accts[PK_A], collateral_quote=1)
     markets = dict(state.perps.markets)
@@ -767,8 +775,7 @@ def test_rust_authority_commits_partial_liquidate_without_python_handler(rust_en
     )
     market = state.perps.markets[market_id]
     gs = dict(market.global_state)
-    gs["min_notional_for_bounty"] = 0
-    gs["liquidation_penalty_bps"] = 500
+    _make_synthetic_liquidation_params_funded(gs, penalty_bps=500)
     accts = dict(market.accounts)
     accts[PK_A] = replace(accts[PK_A], collateral_quote=25_000)
     markets = dict(state.perps.markets)
@@ -816,8 +823,7 @@ def test_rust_authority_rejects_partial_liquidate_unknown_fields(rust_env):
     )
     market = state.perps.markets[market_id]
     gs = dict(market.global_state)
-    gs["min_notional_for_bounty"] = 0
-    gs["liquidation_penalty_bps"] = 500
+    _make_synthetic_liquidation_params_funded(gs, penalty_bps=500)
     accts = dict(market.accounts)
     accts[PK_A] = replace(accts[PK_A], collateral_quote=25_000)
     markets = dict(state.perps.markets)
@@ -974,8 +980,7 @@ def test_rust_shadow_settle_liquidation_parity(rust_env):
     )  # PricePublished
     market = state.perps.markets[market_id]
     gs = dict(market.global_state)
-    gs["min_notional_for_bounty"] = 0
-    gs["liquidation_penalty_bps"] = 200
+    _make_synthetic_liquidation_params_funded(gs, penalty_bps=200)
     accts = dict(market.accounts)
     accts[PK_A] = replace(accts[PK_A], collateral_quote=1)  # make it liquidatable
     markets = dict(state.perps.markets)
@@ -1399,8 +1404,7 @@ def test_rust_shadow_deposit_resets_liquidated_flag(rust_env):
     )  # PricePublished
     market = state.perps.markets[market_id]
     gs = dict(market.global_state)
-    gs["min_notional_for_bounty"] = 0
-    gs["liquidation_penalty_bps"] = 200
+    _make_synthetic_liquidation_params_funded(gs, penalty_bps=200)
     accts = dict(market.accounts)
     accts[PK_A] = replace(accts[PK_A], collateral_quote=1)  # liquidatable
     markets = dict(state.perps.markets)
@@ -1607,8 +1611,8 @@ def test_rust_shadow_partial_liquidate_nonzero_penalty_parity(rust_env):
     )
     market = state.perps.markets[market_id]
     gs = dict(market.global_state)
-    gs["min_notional_for_bounty"] = 0
-    gs["liquidation_penalty_bps"] = 500  # 5% -> sizable penalty
+    # 5% -> sizable penalty.
+    _make_synthetic_liquidation_params_funded(gs, penalty_bps=500)
     accts = dict(market.accounts)
     accts[PK_A] = replace(accts[PK_A], collateral_quote=25_000)  # underwater (maint 30000)
     markets = dict(state.perps.markets)
