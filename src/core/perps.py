@@ -17,7 +17,7 @@ Units note:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Literal, Mapping, Tuple
+from typing import Any, Dict, Literal, Mapping, NoReturn, Tuple
 
 from ..state.canonical import canonical_hex_fixed_allow_0x
 from .perp_apply_funding_auto_gate import (
@@ -32,6 +32,43 @@ Value = bool | int | str
 PERPS_STATE_VERSION_V4 = 4
 PERPS_STATE_VERSION_V5 = 5
 PERPS_STATE_VERSION = PERPS_STATE_VERSION_V5
+
+
+class _FrozenDict(dict[str, int]):
+    """Dict-compatible immutable snapshot map.
+
+    ``dict`` compatibility keeps existing canonical encoders and ``dict(...)``
+    copies working, while blocking normal post-construction mutation of validated
+    snapshot state.
+    """
+
+    @staticmethod
+    def _reject_mutation() -> NoReturn:
+        raise TypeError("validated snapshot map is immutable")
+
+    def __setitem__(self, key: str, value: int) -> None:
+        self._reject_mutation()
+
+    def __delitem__(self, key: str) -> None:
+        self._reject_mutation()
+
+    def clear(self) -> None:
+        self._reject_mutation()
+
+    def pop(self, key: str, default: Any = None, /) -> Any:
+        self._reject_mutation()
+
+    def popitem(self) -> tuple[str, int]:
+        self._reject_mutation()
+
+    def setdefault(self, key: str, default: int = 0) -> int:
+        self._reject_mutation()
+
+    def update(self, *args: Any, **kwargs: Any) -> None:
+        self._reject_mutation()
+
+    def __ior__(self, other: Any, /) -> "_FrozenDict":  # type: ignore[misc,override]
+        self._reject_mutation()
 
 
 def _pubkey_bytes48(pubkey: str, *, name: str) -> bytes:
@@ -709,6 +746,42 @@ _PERP_CLEARINGHOUSE_NP_PARAM_BOUNDS: dict[str, tuple[int, int]] = {
     "min_notional_for_bounty_e8": (0, 1_000_000_000_000 * 100_000_000),
 }
 
+
+def validate_clearinghouse_np_params(params: Mapping[str, Any]) -> None:
+    """Fail closed on live N-party clearinghouse parameter relationships.
+
+    The pure N-party kernel accepts raw ``MarketParams`` so tests can drive
+    stress states. Protocol snapshots and engine admission must enforce the live
+    margin contract here:
+    ``max_oracle_move <= maintenance+depeg <= initial`` and
+    ``0 < liquidation_penalty < maintenance+depeg``. If a liquidation is
+    bounty-eligible, the threshold must also be high enough that integer
+    rounding cannot produce a zero quote-e8 penalty.
+    """
+
+    eff_maint = int(params["maintenance_margin_bps"]) + int(params["depeg_buffer_bps"])
+    if int(params["depeg_buffer_bps"]) <= 0:
+        raise ValueError("clearinghouse_np invalid depeg_buffer_bps (must be > 0)")
+    if not (int(params["max_oracle_move_bps"]) <= eff_maint <= int(params["initial_margin_bps"])):
+        raise ValueError(
+            "clearinghouse_np invalid margin params ordering "
+            "(max_oracle_move_bps <= maintenance+depeg <= initial_margin_bps)"
+        )
+    if not (0 < int(params["liquidation_penalty_bps"]) < eff_maint):
+        raise ValueError(
+            "clearinghouse_np invalid liquidation_penalty_bps "
+            "(0 < liquidation_penalty_bps < maintenance_margin_bps + depeg_buffer_bps)"
+        )
+    penalty_bps = int(params["liquidation_penalty_bps"])
+    min_notional_e8 = int(params["min_notional_for_bounty_e8"])
+    min_notional_for_positive_penalty_e8 = (10_000 + penalty_bps - 1) // penalty_bps
+    if min_notional_e8 < min_notional_for_positive_penalty_e8:
+        raise ValueError(
+            "clearinghouse_np invalid min_notional_for_bounty_e8 "
+            "(must be >= ceil(10000 / liquidation_penalty_bps))"
+        )
+
+
 PERP_CLEARINGHOUSE_NP_ACCOUNT_KEYS: set[str] = {
     "pubkey",
     "position_base",
@@ -808,23 +881,24 @@ class PerpClearinghouseNpMarketState:
             raise TypeError("quote_asset must be a non-empty string")
         if not isinstance(self.global_state, dict):
             raise TypeError("global_state must be a dict")
+        global_state = dict(self.global_state)
         for k, v in _PERP_CLEARINGHOUSE_NP_GLOBAL_DEFAULTS.items():
-            self.global_state.setdefault(k, v)
-        keys = set(self.global_state.keys())
+            global_state.setdefault(k, v)
+        keys = set(global_state.keys())
         extra = keys - PERP_CLEARINGHOUSE_NP_GLOBAL_KEYS
         missing = PERP_CLEARINGHOUSE_NP_GLOBAL_KEYS - keys
         if extra:
             raise ValueError(f"global_state has unknown keys: {sorted(extra)[:8]}")
         if missing:
             raise ValueError(f"global_state missing required keys: {sorted(missing)[:8]}")
-        for k, v in self.global_state.items():
+        for k, v in global_state.items():
             if not isinstance(v, int) or isinstance(v, bool):
                 raise TypeError(f"global_state[{k!r}] must be an int")
         for k in _PERP_CLEARINGHOUSE_NP_NONNEGATIVE_GLOBAL_KEYS:
-            if int(self.global_state[k]) < 0:
+            if int(global_state[k]) < 0:
                 raise ValueError(f"global_state[{k!r}] must be non-negative")
         for k, (lo, hi) in _PERP_CLEARINGHOUSE_NP_PARAM_BOUNDS.items():
-            value = int(self.global_state[k])
+            value = int(global_state[k])
             if value < lo or value > hi:
                 raise ValueError(f"global_state[{k!r}] out of range: {value} not in [{lo}, {hi}]")
 
@@ -838,17 +912,8 @@ class PerpClearinghouseNpMarketState:
         # ADL branch is defense-in-depth). Fail-closed here rather than relying on
         # that downstream branch -- and reject forged/corrupt snapshots at the
         # boundary.
-        eff_maint = (int(self.global_state["maintenance_margin_bps"])
-                     + int(self.global_state["depeg_buffer_bps"]))
-        if not (int(self.global_state["max_oracle_move_bps"])
-                <= eff_maint <= int(self.global_state["initial_margin_bps"])):
-            raise ValueError(
-                "clearinghouse_np invalid margin params ordering "
-                "(max_oracle_move_bps <= maintenance+depeg <= initial_margin_bps)")
-        if int(self.global_state["liquidation_penalty_bps"]) >= eff_maint:
-            raise ValueError(
-                "clearinghouse_np invalid liquidation_penalty_bps "
-                "(must be < maintenance_margin_bps + depeg_buffer_bps)")
+        validate_clearinghouse_np_params(global_state)
+        object.__setattr__(self, "global_state", _FrozenDict(global_state))
 
         if not isinstance(self.accounts, tuple):
             raise TypeError("accounts must be a tuple")

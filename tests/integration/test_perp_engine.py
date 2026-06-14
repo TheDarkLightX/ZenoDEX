@@ -1986,6 +1986,91 @@ def test_clearinghouse_np_settle_insolvent_rejects_without_state_commit() -> Non
     assert pre.perps.markets[market_id] == market
 
 
+def test_init_market_np_rejects_zero_live_safety_params() -> None:
+    operator = "00" * 48
+    quote_asset = "0x" + "77" * 32
+
+    for field in ("depeg_buffer_bps", "liquidation_penalty_bps", "min_notional_for_bounty_e8"):
+        state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+        res = _apply_result(
+            state=state,
+            tx_sender_pubkey=operator,
+            operator_pubkey=operator,
+            ops=[
+                _op(
+                    f"perp:chnp:{field}",
+                    "init_market_np",
+                    version="1.2",
+                    quote_asset=quote_asset,
+                    index_price_e8=100_000_000,
+                    params={field: 0},
+                )
+            ],
+        )
+        assert res.ok is False
+        assert res.error is not None and field in res.error
+
+
+def test_clearinghouse_np_runtime_revalidates_mutated_global_params() -> None:
+    from src.core.perp_np_matching import E8
+    from src.core.perps import (
+        PERPS_STATE_VERSION,
+        PerpClearinghouseNpMarketState,
+        PerpsState,
+    )
+
+    operator = "00" * 48
+    market_id = "perp:chnp:mutated-params"
+    quote_asset = "0x" + "77" * 32
+
+    for field in ("depeg_buffer_bps", "liquidation_penalty_bps", "min_notional_for_bounty_e8"):
+        market = PerpClearinghouseNpMarketState(
+            quote_asset=quote_asset,
+            global_state={
+                "now_epoch": 0,
+                "index_price_e8": 100 * E8,
+                "clearing_price_seen": 0,
+                "clearing_price_epoch": 0,
+                "clearing_price_e8": 0,
+                "fee_pool_e8": 0,
+                "insurance_e8": 0,
+                "insurance_ext_e8": 0,
+                "claims_paid_e8": 0,
+                "net_deposited_e8": 0,
+                "initial_margin_bps": 1000,
+                "maintenance_margin_bps": 500,
+                "depeg_buffer_bps": 100,
+                "liquidation_penalty_bps": 50,
+                "max_oracle_move_bps": 500,
+                "funding_cap_bps": 100,
+                "max_position_abs": 1_000_000,
+                "min_notional_for_bounty_e8": 100 * E8,
+            },
+        )
+        corrupted_global_state = dict(market.global_state)
+        corrupted_global_state[field] = 0
+        object.__setattr__(market, "global_state", corrupted_global_state)
+        pre = DexState(
+            balances=BalanceTable(),
+            pools={},
+            lp_balances=LPTable(),
+            perps=PerpsState(version=PERPS_STATE_VERSION, markets={market_id: market}),
+        )
+
+        res = _apply_result(
+            state=pre,
+            tx_sender_pubkey=operator,
+            operator_pubkey=operator,
+            ops=[_op(market_id, "advance_epoch", version="1.2")],
+        )
+
+        assert res.ok is False
+        assert res.state is None
+        assert res.error is not None and field in res.error
+        assert pre.perps is not None
+        assert pre.perps.markets[market_id].global_state[field] == 0
+
+
 def test_rust_shadow_unauthorized_settle_epoch_does_not_run_oracle_bridge_verifier() -> None:
     from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 

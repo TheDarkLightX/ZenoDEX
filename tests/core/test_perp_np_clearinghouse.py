@@ -183,6 +183,45 @@ def test_state_type_rejects_penalty_at_or_above_maintenance_buffer():
         PerpClearinghouseNpMarketState(quote_asset="zUSD", global_state=gs, accounts=())
 
 
+@pytest.mark.parametrize(
+    ("field", "message"),
+    [
+        ("depeg_buffer_bps", "depeg_buffer_bps"),
+        ("liquidation_penalty_bps", "liquidation_penalty_bps"),
+    ],
+)
+def test_state_type_rejects_zero_live_np_safety_params(field, message):
+    """Snapshot admission mirrors live NP market admission for non-zero safety knobs."""
+    gs = _global_state(0)
+    gs[field] = 0
+    with pytest.raises(ValueError, match=message):
+        PerpClearinghouseNpMarketState(quote_asset="zUSD", global_state=gs, accounts=())
+
+
+def test_state_type_rejects_np_bounty_threshold_with_zero_rounded_penalty():
+    """Bounty-eligible NP liquidations must collect a non-zero quote-e8 penalty."""
+    gs = _global_state(0)
+    gs["min_notional_for_bounty_e8"] = 0
+    with pytest.raises(ValueError, match="min_notional_for_bounty_e8"):
+        PerpClearinghouseNpMarketState(quote_asset="zUSD", global_state=gs, accounts=())
+
+
+def test_state_type_freezes_np_global_state_after_validation():
+    """Validated NP snapshots copy input state and block ordinary mutation."""
+    gs = _global_state(0)
+    market = PerpClearinghouseNpMarketState(quote_asset="zUSD", global_state=gs, accounts=())
+
+    gs["depeg_buffer_bps"] = 0
+    assert int(market.global_state["depeg_buffer_bps"]) == 100
+
+    with pytest.raises(TypeError, match="immutable"):
+        market.global_state["depeg_buffer_bps"] = 0
+
+    with pytest.raises(TypeError, match="immutable"):
+        market.global_state |= {"depeg_buffer_bps": 0}
+    assert int(market.global_state["depeg_buffer_bps"]) == 100
+
+
 def test_state_type_accepts_valid_boundary_margin_ordering():
     """Equality boundaries are valid: max_move == maint+depeg == initial_margin and
     penalty == maint+depeg-1 are all accepted (regression guard against an

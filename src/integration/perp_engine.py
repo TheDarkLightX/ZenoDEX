@@ -87,6 +87,7 @@ from ..core.perps import (
     PerpClearinghouseNpPendingIntent as _NpPendingIntent,
     PerpMarketState,
     PerpsState,
+    validate_clearinghouse_np_params,
 )
 from ..core.perp_market_version_prefix_guard import (
     REJECT_CH2P_PREFIX_MISMATCH,
@@ -4381,6 +4382,7 @@ _CHNP_PARAM_KEYS = (
 
 def _chnp_market_to_core(market: _NpMarketState) -> Any:
     gs = market.global_state
+    validate_clearinghouse_np_params(gs)
     params = _np_core.MarketParams(**{k: int(gs[k]) for k in _CHNP_PARAM_KEYS})
     accounts = tuple(
         _np_core.Account(
@@ -5201,9 +5203,11 @@ def apply_perp_ops(
                         bounds=_CLEARINGHOUSE_NP_CONTROL_PARAM_BOUNDS,
                         name="params",
                     )
+                    np_params = _np_core.MarketParams(**param_overrides)
+                    validate_clearinghouse_np_params({k: getattr(np_params, k) for k in _CHNP_PARAM_KEYS})
                     init_ms = _np_core.init_market(
                         index_price_e8,
-                        params=_np_core.MarketParams(**param_overrides),
+                        params=np_params,
                         insurance_seed_e8=insurance_seed_e8,
                     )
                     next_market = _chnp_core_to_market(quote_asset, init_ms, pending_intents=())
