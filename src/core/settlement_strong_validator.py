@@ -268,6 +268,12 @@ class _SwapExactInFields:
 
 
 @dataclass(frozen=True)
+class _SwapExactOutFields:
+    amount_out: int
+    max_in: int
+
+
+@dataclass(frozen=True)
 class _SwapKernelResult:
     amount_in: int
     amount_out: int
@@ -1617,6 +1623,17 @@ def _parse_swap_exact_in_fields(intent: Intent) -> Tuple[Optional[_SwapExactInFi
     return _SwapExactInFields(amount_in=int(amount_in), min_out=int(min_out)), None
 
 
+def _parse_swap_exact_out_fields(intent: Intent) -> Tuple[Optional[_SwapExactOutFields], Optional[str]]:
+    intent_id = intent.intent_id
+    amount_out = intent.get_field("amount_out")
+    max_in = intent.get_field("max_amount_in")
+    if _invalid_swap_int(amount_out, positive=True):
+        return None, f"invalid amount_out for intent_id={intent_id}"
+    if _invalid_swap_int(max_in, positive=False):
+        return None, f"invalid max_amount_in for intent_id={intent_id}"
+    return _SwapExactOutFields(amount_out=int(amount_out), max_in=int(max_in)), None
+
+
 def _compute_swap_exact_in_result(
     *,
     intent_id: str,
@@ -1667,6 +1684,56 @@ def _compute_swap_exact_in_result(
         return None, f"swap_exact_in kernel error for intent_id={intent_id}: {exc}"
 
 
+def _compute_swap_exact_out_result(
+    *,
+    intent_id: str,
+    pool: PoolState,
+    reserve_in: int,
+    reserve_out: int,
+    fields: _SwapExactOutFields,
+    protocol_fee_share_bps: int,
+) -> Tuple[Optional[_SwapKernelResult], Optional[str]]:
+    try:
+        if int(protocol_fee_share_bps):
+            if pool.curve_tag != CURVE_TAG_CPMM:
+                return None, f"protocol fee unsupported for curve intent_id={intent_id}"
+            quote = quote_cpmm_swap_exact_out(
+                reserve_in=int(reserve_in),
+                reserve_out=int(reserve_out),
+                amount_out=fields.amount_out,
+                fee_bps=int(pool.fee_bps),
+                protocol_fee_share_bps=int(protocol_fee_share_bps),
+            )
+            return (
+                _SwapKernelResult(
+                    amount_in=int(quote.amount_in),
+                    amount_out=fields.amount_out,
+                    new_reserve_in=int(quote.reserve_in_after),
+                    new_reserve_out=int(quote.reserve_out_after),
+                    protocol_fee=int(quote.protocol_fee_paid),
+                ),
+                None,
+            )
+        amount_in, (new_in, new_out) = swap_exact_out_for_pool(
+            pool,
+            reserve_in=int(reserve_in),
+            reserve_out=int(reserve_out),
+            amount_out=fields.amount_out,
+        )
+        return (
+            _SwapKernelResult(
+                amount_in=int(amount_in),
+                amount_out=fields.amount_out,
+                new_reserve_in=int(new_in),
+                new_reserve_out=int(new_out),
+                protocol_fee=0,
+            ),
+            None,
+        )
+    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
+        return None, f"swap_exact_out kernel error for intent_id={intent_id}: {exc}"
+
+
 def _validate_swap_exact_in_fill_amounts(
     *,
     intent_id: str,
@@ -1675,11 +1742,30 @@ def _validate_swap_exact_in_fill_amounts(
     result: _SwapKernelResult,
     pool: PoolState,
 ) -> Optional[str]:
-    if amounts.amount_in_filled != fields.amount_in:
-        return f"swap amount_in_filled mismatch for intent_id={intent_id}"
     if amounts.amount_out_filled != result.amount_out:
         return f"swap amount_out_filled mismatch for intent_id={intent_id}"
     if result.amount_out < fields.min_out:
+        return f"swap slippage for intent_id={intent_id}"
+    return _validate_swap_fee_fields(
+        intent_id=intent_id,
+        amounts=amounts,
+        amount_in=result.amount_in,
+        protocol_fee=result.protocol_fee,
+        pool=pool,
+    )
+
+
+def _validate_swap_exact_out_fill_amounts(
+    *,
+    intent_id: str,
+    amounts: _FillAmounts,
+    fields: _SwapExactOutFields,
+    result: _SwapKernelResult,
+    pool: PoolState,
+) -> Optional[str]:
+    if amounts.amount_in_filled != result.amount_in:
+        return f"swap amount_in_filled mismatch for intent_id={intent_id}"
+    if result.amount_in > fields.max_in:
         return f"swap slippage for intent_id={intent_id}"
     return _validate_swap_fee_fields(
         intent_id=intent_id,
@@ -1706,6 +1792,22 @@ def _validate_swap_fee_fields(
     return None
 
 
+def _validate_swap_exact_out_pre_kernel_amounts(
+    *, intent_id: str, amounts: _FillAmounts, fields: _SwapExactOutFields
+) -> Optional[str]:
+    if amounts.amount_out_filled != fields.amount_out:
+        return f"swap amount_out_filled mismatch for intent_id={intent_id}"
+    return None
+
+
+def _validate_swap_exact_in_pre_kernel_amounts(
+    *, intent_id: str, amounts: _FillAmounts, fields: _SwapExactInFields
+) -> Optional[str]:
+    if amounts.amount_in_filled != fields.amount_in:
+        return f"swap amount_in_filled mismatch for intent_id={intent_id}"
+    return None
+
+
 def _prepare_swap_exact_in_replay_result(
     *,
     intent: Intent,
@@ -1720,6 +1822,13 @@ def _prepare_swap_exact_in_replay_result(
     if fields_err is not None:
         return None, fields_err
     fields_value = cast(_SwapExactInFields, fields)
+    pre_kernel_err = _validate_swap_exact_in_pre_kernel_amounts(
+        intent_id=intent_id,
+        amounts=amounts,
+        fields=fields_value,
+    )
+    if pre_kernel_err is not None:
+        return None, pre_kernel_err
     result, result_err = _compute_swap_exact_in_result(
         intent_id=intent_id,
         pool=pool,
@@ -1732,6 +1841,50 @@ def _prepare_swap_exact_in_replay_result(
         return None, result_err
     result_value = cast(_SwapKernelResult, result)
     fill_err = _validate_swap_exact_in_fill_amounts(
+        intent_id=intent_id,
+        amounts=amounts,
+        fields=fields_value,
+        result=result_value,
+        pool=pool,
+    )
+    if fill_err is not None:
+        return None, fill_err
+    return result_value, None
+
+
+def _prepare_swap_exact_out_replay_result(
+    *,
+    intent: Intent,
+    amounts: _FillAmounts,
+    pool: PoolState,
+    reserve_in: int,
+    reserve_out: int,
+    protocol_fee_share_bps: int,
+) -> Tuple[Optional[_SwapKernelResult], Optional[str]]:
+    intent_id = intent.intent_id
+    fields, fields_err = _parse_swap_exact_out_fields(intent)
+    if fields_err is not None:
+        return None, fields_err
+    fields_value = cast(_SwapExactOutFields, fields)
+    pre_kernel_err = _validate_swap_exact_out_pre_kernel_amounts(
+        intent_id=intent_id,
+        amounts=amounts,
+        fields=fields_value,
+    )
+    if pre_kernel_err is not None:
+        return None, pre_kernel_err
+    result, result_err = _compute_swap_exact_out_result(
+        intent_id=intent_id,
+        pool=pool,
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        fields=fields_value,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+    )
+    if result_err is not None:
+        return None, result_err
+    result_value = cast(_SwapKernelResult, result)
+    fill_err = _validate_swap_exact_out_fill_amounts(
         intent_id=intent_id,
         amounts=amounts,
         fields=fields_value,
@@ -1815,53 +1968,17 @@ def _replay_swap_exact_out_fill(
 ) -> Tuple[bool, Optional[str]]:
     intent_id = intent.intent_id
     sender = intent.sender_pubkey
-    amount_out_req = intent.get_field("amount_out")
-    max_in = intent.get_field("max_amount_in")
-    if not isinstance(amount_out_req, int) or isinstance(amount_out_req, bool) or amount_out_req <= 0:
-        return False, f"invalid amount_out for intent_id={intent_id}"
-    if not isinstance(max_in, int) or isinstance(max_in, bool) or max_in < 0:
-        return False, f"invalid max_amount_in for intent_id={intent_id}"
-
-    if amounts.amount_out_filled != int(amount_out_req):
-        return False, f"swap amount_out_filled mismatch for intent_id={intent_id}"
-
-    try:
-        if int(protocol_fee_share_bps):
-            if pool.curve_tag != CURVE_TAG_CPMM:
-                return False, f"protocol fee unsupported for curve intent_id={intent_id}"
-            quote = quote_cpmm_swap_exact_out(
-                reserve_in=int(reserve_in),
-                reserve_out=int(reserve_out),
-                amount_out=int(amount_out_req),
-                fee_bps=int(pool.fee_bps),
-                protocol_fee_share_bps=int(protocol_fee_share_bps),
-            )
-            amount_in_req = int(quote.amount_in)
-            new_in = int(quote.reserve_in_after)
-            new_out = int(quote.reserve_out_after)
-            protocol_fee = int(quote.protocol_fee_paid)
-        else:
-            amount_in_req, (new_in, new_out) = swap_exact_out_for_pool(
-                pool,
-                reserve_in=int(reserve_in),
-                reserve_out=int(reserve_out),
-                amount_out=int(amount_out_req),
-            )
-            protocol_fee = 0
-    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
-        return False, f"swap_exact_out kernel error for intent_id={intent_id}: {exc}"
-
-    if amounts.amount_in_filled != int(amount_in_req):
-        return False, f"swap amount_in_filled mismatch for intent_id={intent_id}"
-    if int(amount_in_req) > int(max_in):
-        return False, f"swap slippage for intent_id={intent_id}"
-
-    fee = compute_fee_total(int(amount_in_req), int(pool.fee_bps))
-    if amounts.fee_paid != int(fee):
-        return False, f"swap fee_paid mismatch for intent_id={intent_id}"
-    if amounts.protocol_fee_paid != int(protocol_fee):
-        return False, f"swap protocol_fee_paid mismatch for intent_id={intent_id}"
-
+    result, result_err = _prepare_swap_exact_out_replay_result(
+        intent=intent,
+        amounts=amounts,
+        pool=pool,
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+    )
+    if result_err is not None:
+        return False, result_err
+    result_value = cast(_SwapKernelResult, result)
     return _apply_swap_replay_effects(
         intent_id=intent_id,
         sender=sender,
@@ -1873,12 +1990,12 @@ def _replay_swap_exact_out_fill(
         reserve_deltas=reserve_deltas,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_in=int(amount_in_req),
-        amount_out=int(amount_out_req),
-        new_reserve_in=int(new_in),
-        new_reserve_out=int(new_out),
+        amount_in=result_value.amount_in,
+        amount_out=result_value.amount_out,
+        new_reserve_in=result_value.new_reserve_in,
+        new_reserve_out=result_value.new_reserve_out,
         dir_is_0_to_1=dir_is_0_to_1,
-        protocol_fee=int(protocol_fee),
+        protocol_fee=result_value.protocol_fee,
         protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
 
