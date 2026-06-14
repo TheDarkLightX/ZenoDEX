@@ -2,12 +2,28 @@
 
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
 import pytest
 
 from src.state.intents import Intent, IntentKind
 from src.state.nonces import NonceTable, copy_nonce_table, validate_and_apply_intent_nonce_batch
 
 PK_48B = "0x" + "11" * 48
+
+
+def test_nonce_state_has_no_broad_exception_handlers() -> None:
+    source_path = Path(__file__).resolve().parents[2] / "src/state/nonces.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+
+    assert not [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ExceptHandler)
+        and isinstance(node.type, ast.Name)
+        and node.type.id == "Exception"
+    ]
 
 
 def _intent(*, sender: str = PK_48B, nonce: int | None) -> Intent:
