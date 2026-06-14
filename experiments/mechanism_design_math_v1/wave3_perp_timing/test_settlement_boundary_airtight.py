@@ -25,10 +25,17 @@ yields a SPLIT result:
 
 Net verdict: PARTIALLY_FALSIFIED — airtightness holds within the phase but is
 CONDITIONAL on settle-before-advance lifecycle discipline that the pure-core guard
-does not enforce (analogous to the O-PT-01 scheduler scope). This is a property of
-the perp_v2 pure-core guards; whether the production engine shell additionally
-gates advance_epoch is not assessed here. Research evidence only; a candidate
-remedy (gate advance_epoch on SETTLED phase) is UNTESTED and not claimed.
+does not enforce (analogous to the O-PT-01 scheduler scope). SEVERITY BOUND
+(verified): the bypass is NOT live-exploitable. The engine shell
+(apply_perp_ops -> perp_runtime_risk_gate, src/core/perp_runtime_risk_gate.py:180)
+explicitly REJECTS advance_epoch before settlement with
+"cannot advance epoch before settling current epoch" — demonstrated end to end in
+test_h_md_pt_002_engine_shell_blocks_the_advance_bypass. So the settle-before-
+advance invariant lives in the SHELL/runtime-risk-gate, and the permissive
+guard_advance_epoch is a pure-core DEFENSE-IN-DEPTH gap only (the core relies on
+the shell to enforce it). Research evidence only; a candidate remedy (also gate
+advance_epoch on SETTLED in the pure core, for defense in depth) is UNTESTED and
+not claimed.
 """
 
 from __future__ import annotations
@@ -213,3 +220,52 @@ def test_h_md_pt_002_advance_epoch_reachable_settlement_bypass_falsifies_uncondi
     assert avoided > 0                                            # strictly cheaper to advance
     assert avoided == pp.collateral_quote - settled.state.collateral_quote
     assert avoided == 50_000                                      # exact avoided loss on this witness
+
+
+def test_h_md_pt_002_engine_shell_blocks_the_advance_bypass() -> None:
+    """SEVERITY BOUND: the core-guard bypass is NOT live-exploitable. The engine
+    shell (apply_perp_ops -> perp_runtime_risk_gate) REJECTS advance_epoch before
+    settlement with an explicit error, and allows it only after settle_epoch. So
+    the settle-before-advance invariant is enforced at the shell/runtime-risk-gate
+    layer; the permissive pure-core guard_advance_epoch is a defense-in-depth gap
+    only. Driven end to end through the real shell entry apply_perp_ops."""
+    from src.core.dex import DexState
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+    from src.state.balances import BalanceTable
+    from src.state.lp import LPTable
+
+    mid = "perp:opt02-shell"
+    quote = "0x" + "44" * 32
+    operator = "00" * 48
+
+    def _op(action, **kw):
+        o = {"module": "TauPerp", "version": "0.1", "market_id": mid, "action": action}
+        o.update(kw)
+        return o
+
+    def _apply(state, ops):
+        cfg = PerpEngineConfig(operator_pubkey=operator, allow_isolated_markets=True)
+        return apply_perp_ops(
+            config=cfg, state=state, operations={"5": ops},
+            tx_sender_pubkey=operator, block_timestamp=0)
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(state, [_op("init_market", quote_asset=quote)]).state
+    state = _apply(state, [_op("advance_epoch", delta=1)]).state          # epoch 0 -> 1
+    gs = state.perps.markets[mid].global_state
+    gs["oracle_seen"] = True
+    gs["oracle_last_update_epoch"] = 0                                    # last < now (=1)
+    gs["index_price_e8"] = 100_000_000
+    state = _apply(state, [_op("publish_clearing_price", price_e8=100_000_000)]).state
+    assert int(state.perps.markets[mid].global_state.get("epoch_phase", -1)) == 1   # PRICE_PUBLISHED
+
+    # The core bypass attempted through the SHELL: advance before settle is REJECTED.
+    r_bypass = _apply(state, [_op("advance_epoch", delta=1)])
+    assert not r_bypass.ok
+    assert r_bypass.error == "cannot advance epoch before settling current epoch"
+
+    # Settle first, then advance is allowed -> the enforced order is settle-before-advance.
+    r_settle = _apply(state, [_op("settle_epoch")])
+    assert r_settle.ok, r_settle.error
+    r_adv = _apply(r_settle.state, [_op("advance_epoch", delta=1)])
+    assert r_adv.ok, r_adv.error
