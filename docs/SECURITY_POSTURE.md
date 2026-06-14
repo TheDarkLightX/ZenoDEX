@@ -1,3 +1,9 @@
+---
+title: SECURITY_POSTURE
+type: note
+permalink: autonomous-tau-dex-review/docs/security-posture
+---
+
 # Security Posture
 
 This document records a few intentional hardening choices in the runtime and why
@@ -72,12 +78,41 @@ The repo now splits:
 - `requirements-core.txt` for production/runtime
 - `requirements-agents.txt` for optional agent/orchestration features
 - `requirements.txt` as a convenience umbrella for local checkouts
+- `requirements-core.lock.txt`, `requirements-agents.lock.txt`, and
+  `requirements-dev.lock.txt` for hash-locked installs
 
 Reasoning:
 - The production image should not pull in agent/LLM packages unless an operator
   explicitly opts into them.
 - Smaller runtime dependency sets reduce both supply-chain exposure and operator
   confusion about what is actually needed in production.
+
+### Python install surfaces are hash-locked or explicitly classified
+
+`tools/check_python_hash_locks.py` verifies that the three root lockfiles are
+flattened, hash-complete, and generated with `pip-compile --generate-hashes`.
+It also scans supported install surfaces for Python package installation
+commands. Root repo dependencies must install a root lockfile with
+`--require-hashes`, and unlocked root manifests are rejected.
+
+The audit records the remaining unhashed Python install commands as named
+exceptions in its JSON report. Current exceptions are optional local Tau Testnet
+checkout dependencies, optional GPU backend recommendations, the remote ESSO
+experiment bootstrap, and the optional PyInstaller native-oracle bundle builder.
+These exceptions are outside the production image and release gate.
+
+### Proof metadata binds proof toolchain lock state
+
+ZenoLedger proof metadata includes `toolchain_lock_hash`. By default, local
+metadata builders compute it from a repo manifest that hashes the Python
+lockfiles, Docker build files, Lean toolchain/lake manifests, Risc0 Cargo
+workspace locks, and Rust TEE verifier locks.
+
+Reasoning:
+- A proof receipt should carry the replay/toolchain lock posture that shaped the
+  verifier and public-input environment.
+- The hash is a file-manifest commitment. Live external binaries and services
+  still need their own attestation or operator approval.
 
 ### Tau transaction envelopes reject malformed numeric metadata
 
@@ -105,9 +140,52 @@ Reasoning:
 - Duplicate or incomplete bindings must remain deterministic rejections even if
   the implementation is simplified internally.
 
+### Mechanism-design findings are contained in the production posture
+
+The mechanism-design evidence program
+(`experiments/mechanism_design_math_v1/`, research-only) surfaced three economic
+deviations. Each was traced to its production exposure; all three are contained.
+Evidence per finding is named below: the config-gated CoW containment is
+regression-tested, while the perp bypass (shell gate) and the tie-break
+(off-chain tooling) are established by the shell's existing runtime-gate tests
+and by code inspection respectively.
+
+- **Perp settlement bypass via `advance_epoch` (O-PT-02 / H-MD-PT-002).** The
+  pure-core `guard_advance_epoch` (`src/core/perp_v2/guards.py`) checks only the
+  epoch bound, so in the *pure core* a trader could advance past an unfavorable
+  settlement. This is **not live-exploitable**: the engine shell
+  (`apply_perp_ops` → `perp_runtime_risk_gate`,
+  `src/core/perp_runtime_risk_gate.py`) rejects advance-before-settle with
+  `cannot advance epoch before settling current epoch`. The settle-before-advance
+  invariant lives in the shell; the permissive core guard is a **defense-in-depth
+  gap only**. Hardening the pure-core guard to mirror the shell's
+  `epoch_settled_ok` is a candidate left for human review (consensus-critical
+  core; not changed autonomously).
+- **CoW self-netting LP fee+spread capture (O-SS-06 / H-MD-SS-007).** The
+  experimental `swap_ordering == "cow_pair_netting_v1"` fills matched pairs at
+  `fee_paid = 0` with no pool interaction, diverting fee+spread from LPs. CoW is
+  **opt-in and disabled in production**: both authority configs (`DexConfig`,
+  `DexEngineConfig`) default to `greedy_ab_refined`, and no shipped deploy config
+  selects CoW. Containment is locked in behaviorally by
+  `tests/integration/test_production_settlement_ordering_containment.py` (a pair
+  that would CoW-net is routed through the pool under the default ordering, LPs
+  earn the fee).
+- **Improvement-bounty tie-break selectability (O-VM-03 / H-MD-VM-003).** Ties in
+  the route-improvement bounty resolve by a submitter-chosen `miner_id`, so tie
+  wins are costlessly selectable. The tie-break selector lives in **off-chain
+  tooling** (`tools/gpu_jobs/improvement_bounty_round_route_v1.py`); it is not
+  imported by, or reachable from, the spot/perp authority settlement computation
+  or validation path. (Consensus code in `src/` does consume proof-mining claim
+  artifacts under the same round schema, but not this winner-selection tie-break.)
+  So it is a tooling-fairness consideration, not a consensus security exposure.
+
 ## Operator Notes
 
-- Production/container builds should use `requirements-core.txt`.
-- Local development can continue to use `requirements.txt`.
-- If demo APIs are exposed beyond loopback, set `DEMO_API_TOKEN`.
+- Production/container builds should install with
+  `python3 -m pip install --require-hashes -r requirements-core.lock.txt`.
+- Local development should install with
+  `python3 -m pip install --require-hashes -r requirements-dev.lock.txt`.
+- For sensitive APIs, use `ZENODEX_EXTERNAL_AUTH_ENFORCED=1` for a real gateway
+  or `ZENODEX_API_BEARER_TOKEN` for controlled local/testnet operators.
+  `DEMO_API_TOKEN` plus `ALLOW_DEMO_TOKEN_AUTH=1` is only for controlled legacy demos.
 - If Tau-backed gates are enabled in production, prefer absolute binary paths.
