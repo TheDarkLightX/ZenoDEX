@@ -12,10 +12,12 @@ from __future__ import annotations
 
 import pytest
 
+from src.core import split_routing_dispatch as dispatch_mod
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.split_routing_dispatch import (
     SplitLegExactOutQuote,
     SplitManyPoolsExactOutQuote,
+    best_split_many_pools_exact_in_for_pools,
     best_split_many_pools_exact_out_for_pools,
     best_split_two_pools_exact_in_for_pools,
     best_split_two_pools_exact_out_for_pools,
@@ -189,6 +191,75 @@ class TestSplitRoutingDispatch:
         assert q.amount_out_1 == out1
         assert q.amount_out_total == out0 + out1
 
+    def test_exact_in_split_propagates_quote_runtime_fault(self, monkeypatch) -> None:
+        p0 = _mk_pool(
+            pool_id="pool_a",
+            curve_tag=CURVE_TAG_CPMM,
+            reserve0=10_000,
+            reserve1=10_000,
+            fee_bps=0,
+        )
+        p1 = _mk_pool(
+            pool_id="pool_b",
+            curve_tag=CURVE_TAG_CUBIC_SUM_V1,
+            reserve0=10_000,
+            reserve1=10_000,
+            fee_bps=0,
+            curve_params={"p": 1, "q": 1},
+        )
+
+        def _runtime_fault(*_args: object, **_kwargs: object) -> object:
+            raise RuntimeError("injected exact-in split quote fault")
+
+        monkeypatch.setattr(dispatch_mod, "swap_exact_in_for_pool", _runtime_fault)
+
+        with pytest.raises(RuntimeError, match="injected exact-in split quote fault"):
+            best_split_two_pools_exact_in_for_pools(
+                p0,
+                p1,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_in_total=10,
+            )
+
+    def test_exact_in_many_pool_keeps_domain_quote_failure_local(self, monkeypatch) -> None:
+        pools = (
+            _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=10_000, reserve1=10_000, fee_bps=0),
+            _mk_pool(pool_id="pool_b", curve_tag=CURVE_TAG_CPMM, reserve0=10_000, reserve1=10_000, fee_bps=0),
+        )
+
+        def _domain_reject(*_args: object, **_kwargs: object) -> object:
+            raise ValueError("cannot drain full reserve_out")
+
+        monkeypatch.setattr(dispatch_mod, "swap_exact_in_for_pool", _domain_reject)
+
+        with pytest.raises(ValueError, match="no feasible pools for split"):
+            best_split_many_pools_exact_in_for_pools(
+                pools,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_in_total=10,
+            )
+
+    def test_exact_in_many_pool_propagates_unexpected_quote_value_error(self, monkeypatch) -> None:
+        pools = (
+            _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=10_000, reserve1=10_000, fee_bps=0),
+            _mk_pool(pool_id="pool_b", curve_tag=CURVE_TAG_CPMM, reserve0=10_000, reserve1=10_000, fee_bps=0),
+        )
+
+        def _unexpected_fault(*_args: object, **_kwargs: object) -> object:
+            raise ValueError("no feasible allocation step (unexpected)")
+
+        monkeypatch.setattr(dispatch_mod, "swap_exact_in_for_pool", _unexpected_fault)
+
+        with pytest.raises(ValueError, match="unexpected"):
+            best_split_many_pools_exact_in_for_pools(
+                pools,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_in_total=10,
+            )
+
     @pytest.mark.parametrize(
         "amount_out_total,reason",
         [
@@ -285,6 +356,25 @@ class TestSplitRoutingDispatch:
         assert guard.capacity_upper_bound == 8
         assert guard.top_caps == (("pool_a", 4), ("pool_b", 4))
 
+    def test_exact_out_capacity_guard_propagates_quote_runtime_fault(self, monkeypatch) -> None:
+        pools = (
+            _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=5, fee_bps=0),
+        )
+
+        def _runtime_fault(*_args: object, **_kwargs: object) -> object:
+            raise RuntimeError("injected exact-out guard quote fault")
+
+        monkeypatch.setattr(dispatch_mod, "swap_exact_out_for_pool", _runtime_fault)
+
+        with pytest.raises(RuntimeError, match="injected exact-out guard quote fault"):
+            exact_out_capacity_guard_for_pools(
+                pools,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_out_total=2,
+                max_legs=1,
+            )
+
     def test_exact_out_many_pool_rejects_infeasible_max_legs_request(self) -> None:
         pools = (
             _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=5, fee_bps=0),
@@ -377,6 +467,54 @@ class TestSplitRoutingDispatch:
             SplitLegExactOutQuote(pool_id="p0", amount_out=2, amount_in=5),
             SplitLegExactOutQuote(pool_id="p1", amount_out=2, amount_in=5),
         )
+
+    def test_exact_out_many_pool_falls_back_on_candidate_prefilter_reject(self, monkeypatch) -> None:
+        pools = (
+            _mk_pool(pool_id="p0", curve_tag=CURVE_TAG_CPMM, reserve0=20, reserve1=10, fee_bps=0),
+            _mk_pool(pool_id="p1", curve_tag=CURVE_TAG_CPMM, reserve0=20, reserve1=10, fee_bps=0),
+        )
+
+        def _candidate_reject(*_args: object, **_kwargs: object) -> object:
+            raise ValueError("no feasible candidates for exact-out split")
+
+        monkeypatch.setattr(dispatch_mod, "_kernel_select_many_pool_repaired_prefilter_candidates", _candidate_reject)
+
+        quote = best_split_many_pools_exact_out_for_pools(
+            pools,
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            amount_out_total=2,
+            max_legs=2,
+            max_candidates=2,
+            max_iters=128,
+            max_full_domain_pools=4,
+        )
+
+        assert quote.amount_out_total == 2
+        assert quote.amount_in_total > 0
+
+    def test_exact_out_many_pool_propagates_unexpected_prefilter_value_error(self, monkeypatch) -> None:
+        pools = (
+            _mk_pool(pool_id="p0", curve_tag=CURVE_TAG_CPMM, reserve0=20, reserve1=10, fee_bps=0),
+            _mk_pool(pool_id="p1", curve_tag=CURVE_TAG_CPMM, reserve0=20, reserve1=10, fee_bps=0),
+        )
+
+        def _unexpected_fault(*_args: object, **_kwargs: object) -> object:
+            raise ValueError("malformed selected exact-out domain")
+
+        monkeypatch.setattr(dispatch_mod, "_kernel_select_many_pool_repaired_prefilter_candidates", _unexpected_fault)
+
+        with pytest.raises(ValueError, match="malformed"):
+            best_split_many_pools_exact_out_for_pools(
+                pools,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_out_total=2,
+                max_legs=2,
+                max_candidates=2,
+                max_iters=128,
+                max_full_domain_pools=4,
+            )
 
     def test_exact_out_many_pool_falls_back_outside_audited_bound(self) -> None:
         pools = (
