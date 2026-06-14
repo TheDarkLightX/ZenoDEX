@@ -1,0 +1,21 @@
+{
+  "wave": 4,
+  "domain": "verification_markets",
+  "timestamp": "2026-06-14T00:00:00Z",
+  "hypotheses": [
+    {
+      "id": "H-MD-VM-003",
+      "description": "Improvement-bounty tie-break selectability: ties resolve by _route_tiebreak_key=(hop_count, pool_ids, intermediate_asset, miner_id), whose final component is the submitter-chosen miner_id. _select_winner takes the max improvement, breaking ties by the smallest tiebreak_key, so among equally-good proposals on the same route the winner is whoever chose the lexicographically smallest miner_id — a tie win is costlessly selectable.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 3,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "Through the REAL _route_tiebreak_key + _select_winner (tools/gpu_jobs/improvement_bounty_round_route_v1.py): for equal improvement on the same 2-hop route the tie-break keys differ only in the miner_id slot and the smaller miner_id wins, order-independently. An attacker tying the honest miner's improvement guarantees the win by choosing a smaller miner_id (e.g. '0' < 'honest_miner') costlessly — no bond, extra work, or better proposal. Bounded/non-vacuous: a strictly larger improvement_u64 wins regardless of miner_id (empty-string minimal id at improvement 1000 loses to a large id at 1001), so the lever decides only genuine ties, never a better proposal. The miner_id is a free-form submitter field, not a witness hash or bonded value. Research evidence only; binding the tie-break to a committed/bonded value is an untested design question, not claimed.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave4_verification_markets/test_route_improvement_tiebreak_selectability.py -q",
+      "obligation": "O-VM-03"
+    }
+  ],
+  "total_tests": 3,
+  "total_passed": 3,
+  "total_failed": 0
+}
