@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from src.core import cpmm as cpmm_mod
+from src.core import swap_preflight as preflight_mod
 from src.core.amm_dispatch import CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT
 from src.core.amm_dispatch import swap_exact_out_for_pool
 from src.core.swap_preflight import preflight_swap_exact_in, preflight_swap_exact_out
@@ -141,3 +143,53 @@ def test_preflight_exact_out_validates_slippage_bps() -> None:
             max_amount_in=10,
             suggested_slippage_bps=10_001,
         )
+
+
+def test_preflight_exact_in_returns_swap_error_for_candidate_value_error(monkeypatch) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def _candidate_reject(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("Cannot drain full reserve")
+
+    monkeypatch.setattr(preflight_mod, "swap_exact_in_for_pool", _candidate_reject)
+
+    res = preflight_swap_exact_in(pool=p, asset_in="A", asset_out="B", amount_in=10, min_amount_out=0)
+
+    assert res.ok is False
+    assert res.reason == "swap_error"
+
+
+def test_preflight_exact_in_propagates_runtime_quote_fault(monkeypatch) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def _runtime_fault(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("injected exact-in preflight fault")
+
+    monkeypatch.setattr(preflight_mod, "swap_exact_in_for_pool", _runtime_fault)
+
+    with pytest.raises(RuntimeError, match="injected exact-in preflight fault"):
+        preflight_swap_exact_in(pool=p, asset_in="A", asset_out="B", amount_in=10, min_amount_out=0)
+
+
+def test_preflight_exact_out_propagates_gap_analysis_runtime_fault(monkeypatch) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def _runtime_fault(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("injected gap analysis fault")
+
+    monkeypatch.setattr(preflight_mod, "_cpmm_exact_out_kernel_v8", _runtime_fault)
+
+    with pytest.raises(RuntimeError, match="injected gap analysis fault"):
+        preflight_swap_exact_out(pool=p, asset_in="A", asset_out="B", amount_out=10, max_amount_in=10_000)
+
+
+def test_preflight_exact_out_propagates_invariant_quote_fault(monkeypatch) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def _invariant_fault(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("Invariant violation: injected")
+
+    monkeypatch.setattr(cpmm_mod, "swap_exact_out", _invariant_fault)
+
+    with pytest.raises(ValueError, match="Invariant violation"):
+        preflight_swap_exact_out(pool=p, asset_in="A", asset_out="B", amount_out=10, max_amount_in=10_000)
