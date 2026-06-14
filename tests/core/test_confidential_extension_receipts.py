@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import pytest
+
+import src.core.confidential_extension_receipts as confidential_receipts
 from src.core.confidential_extension_receipts import (
     confidential_extension_receipt_hash,
     make_confidential_extension_receipt,
     verify_confidential_extension_receipt,
 )
+
+
+class _ExplodingGetDict(dict):
+    def get(self, key: object, default: object = None) -> object:
+        if key == "do_execute":
+            raise RuntimeError("confidential receipt numeric extraction fault")
+        return super().get(key, default)
 
 
 NITRO_PCR0 = "a" * 96
@@ -144,6 +154,8 @@ def test_confidential_extension_receipt_rejects_out_of_range_numeric_field_fail_
     ok, err = verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
     assert not ok
     assert err == "bad_numeric_field"
+
+
 def test_confidential_extension_receipt_rejects_noncanonical_numeric_encoding() -> None:
     receipt = _valid_receipt()
     receipt["body"]["host"]["policy_ok"] = "1"
@@ -160,6 +172,29 @@ def test_confidential_extension_receipt_rejects_noncanonical_policy_digest() -> 
     ok, err = verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
     assert not ok
     assert err == "bad_policy_digest"
+
+
+def test_confidential_extension_receipt_propagates_policy_digest_canonicalizer_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt = _valid_receipt()
+
+    def broken_canonicalizer(*_args: object, **_kwargs: object) -> str:
+        raise RuntimeError("confidential receipt policy canonicalizer fault")
+
+    monkeypatch.setattr(confidential_receipts, "canonical_hex_fixed_allow_0x", broken_canonicalizer)
+
+    with pytest.raises(RuntimeError, match="confidential receipt policy canonicalizer fault"):
+        verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
+
+
+def test_confidential_extension_receipt_propagates_numeric_extraction_fault() -> None:
+    receipt = _valid_receipt()
+    receipt["body"]["host"] = _ExplodingGetDict(receipt["body"]["host"])
+    receipt["receipt_hash"] = confidential_extension_receipt_hash(receipt["body"])
+
+    with pytest.raises(RuntimeError, match="confidential receipt numeric extraction fault"):
+        verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
 
 
 def test_confidential_extension_receipt_hash_mismatch_precedes_later_header_failures() -> None:
