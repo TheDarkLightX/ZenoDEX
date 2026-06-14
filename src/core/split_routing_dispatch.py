@@ -1020,7 +1020,8 @@ def best_split_many_pools_exact_in_for_pools(
             break
         step = max(step_min, step // 2)
 
-    assert best_alloc is not None
+    if best_alloc is None:
+        raise RuntimeError("split routing allocation search finished without a candidate")
     legs: List[SplitLegQuote] = []
     out_total = 0
     in_total = 0

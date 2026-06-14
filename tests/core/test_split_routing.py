@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
 import pytest
 
 from src.core import split_routing as split_routing_mod
@@ -11,6 +14,18 @@ from src.core.split_routing import (
     resolve_two_pool_split_search_params,
 )
 from tools.metamuse_split_routing_lane import DGSTR_CURATED_CASES
+
+
+def test_routing_modules_do_not_use_bare_assert_runtime_guards() -> None:
+    root = Path(__file__).resolve().parents[2]
+    for rel_path in (
+        "src/core/routing.py",
+        "src/core/split_routing.py",
+        "src/core/split_routing_dispatch.py",
+    ):
+        tree = ast.parse((root / rel_path).read_text(encoding="utf-8"))
+        asserts = [node.lineno for node in ast.walk(tree) if isinstance(node, ast.Assert)]
+        assert asserts == [], f"{rel_path} contains bare assert statements at lines {asserts}"
 
 
 def _count_profile_calls(
