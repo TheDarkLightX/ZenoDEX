@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from src.core import burn_receipts as burn_mod
 from src.core.burn_receipts import burn_receipt_hash, make_burn_receipt, verify_burn_receipt
 
 
@@ -56,6 +59,27 @@ def test_burn_receipt_amount_mismatch_rejected_after_rehash() -> None:
     ok, err = verify_burn_receipt(receipt)
     assert not ok
     assert err == "amount_guard_failed"
+
+
+def test_burn_receipt_rejects_expected_numeric_parse_errors() -> None:
+    receipt = _make_valid_receipt()
+    receipt["body"]["accounting"]["burn_amount"] = None
+    receipt["receipt_hash"] = burn_receipt_hash(receipt["body"])
+
+    assert verify_burn_receipt(receipt) == (False, "bad_numeric_field")
+
+
+def test_burn_receipt_does_not_swallow_unexpected_numeric_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    class ExplodingInt:
+        def __int__(self) -> int:
+            raise RuntimeError("synthetic burn numeric fault")
+
+    receipt = _make_valid_receipt()
+    receipt["body"]["accounting"]["burn_amount"] = ExplodingInt()
+    monkeypatch.setattr(burn_mod, "burn_receipt_hash", lambda _body: receipt["receipt_hash"])
+
+    with pytest.raises(RuntimeError, match="synthetic burn numeric fault"):
+        verify_burn_receipt(receipt)
 
 
 def test_burn_receipt_no_burn_path_preserves_state() -> None:
