@@ -836,28 +836,66 @@ def _replay_cow_netted_swap_fill(
     intent_id = intent.intent_id
     if not allow_cow_netting:
         return False, f"COW_NETTED not allowed for intent_id={intent_id}"
+    ok_amounts, amount_in, out_amt, err_amounts = _validate_cow_replay_amounts(intent=intent, amounts=amounts)
+    if not ok_amounts:
+        return False, err_amounts
+    if amount_in is None or out_amt is None:
+        return False, f"invalid COW_NETTED replay amounts for intent_id={intent_id}"
+    return _apply_cow_netted_balance_effects(
+        intent=intent,
+        balances=balances,
+        recipient=recipient,
+        balance_deltas=balance_deltas,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_in=amount_in,
+        out_amt=out_amt,
+    )
+
+
+def _validate_cow_replay_amounts(
+    *,
+    intent: Intent,
+    amounts: _FillAmounts,
+) -> Tuple[bool, Optional[int], Optional[int], Optional[str]]:
+    intent_id = intent.intent_id
     if intent.kind != IntentKind.SWAP_EXACT_IN:
-        return False, f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={intent_id}"
-    amount_in = intent.get_field("amount_in")
-    min_out = intent.get_field("min_amount_out", 0)
-    if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-        return False, f"invalid amount_in for intent_id={intent_id}"
-    if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
-        return False, f"invalid min_amount_out for intent_id={intent_id}"
+        return False, None, None, f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={intent_id}"
+    ok_intent_amounts, intent_amounts, err_intent_amounts = _validate_cow_intent_amounts(intent_id, intent)
+    if not ok_intent_amounts:
+        return False, None, None, err_intent_amounts
+    if intent_amounts is None:
+        return False, None, None, f"invalid COW_NETTED replay amounts for intent_id={intent_id}"
+    amount_in, min_out = intent_amounts
     if amounts.fee_paid != 0:
-        return False, f"COW_NETTED fee_paid must be 0: intent_id={intent_id}"
-    if amounts.amount_in_filled != int(amount_in):
-        return False, f"COW_NETTED amount_in_filled mismatch: intent_id={intent_id}"
+        return False, None, None, f"COW_NETTED fee_paid must be 0: intent_id={intent_id}"
+    if amounts.amount_in_filled != amount_in:
+        return False, None, None, f"COW_NETTED amount_in_filled mismatch: intent_id={intent_id}"
     out_amt = amounts.amount_out_filled
-    if out_amt < int(min_out):
-        return False, f"COW_NETTED slippage: intent_id={intent_id}"
+    if out_amt < min_out:
+        return False, None, None, f"COW_NETTED slippage: intent_id={intent_id}"
+    return True, amount_in, out_amt, None
+
+
+def _apply_cow_netted_balance_effects(
+    *,
+    intent: Intent,
+    balances: BalanceTable,
+    recipient: PubKey,
+    balance_deltas: List[BalanceDelta],
+    asset_in: AssetId,
+    asset_out: AssetId,
+    amount_in: int,
+    out_amt: int,
+) -> Tuple[bool, Optional[str]]:
+    intent_id = intent.intent_id
     try:
-        balances.subtract(intent.sender_pubkey, asset_in, int(amount_in))
+        balances.subtract(intent.sender_pubkey, asset_in, amount_in)
         balances.add(recipient, asset_out, out_amt)
     except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
         return False, f"COW_NETTED apply error for intent_id={intent_id}: {exc}"
 
-    balance_deltas.append(BalanceDelta(pubkey=intent.sender_pubkey, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
+    balance_deltas.append(BalanceDelta(pubkey=intent.sender_pubkey, asset=asset_in, delta_add=0, delta_sub=amount_in))
     balance_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=out_amt, delta_sub=0))
     return True, None
 
