@@ -24,9 +24,20 @@
       "key_finding": "avoided = funding_magnitude(base, index, rate) <= floor(notional_quote(base, index) * funding_cap_bps / 10_000) over a witness family base in {1,7,100,9999} x cap in {1,25,100,500}, with equality exactly when the rate equals the cap. The bound follows from the real rate rule compute_funding_rate_bps saturating |rate| at funding_cap_bps and floor-division monotonicity.",
       "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave3_perp_timing/test_perp_timing_deviations.py -q",
       "obligation": "O-PT-01"
+    },
+    {
+      "id": "H-MD-PT-006",
+      "description": "Liquidation-size choice is not neutral: for an underwater position the partial-liquidation guard requires non-negative post-penalty collateral AND (when the residual is non-flat) that the residual restores maintenance margin, but it does NOT require the minimal sufficient fraction. The legal set is [f_min, BPS_SCALE]; a liquidator can full-close (max penalty) when a strictly smaller legal fraction already restores margin. The penalty scales with the closed notional and is transferred from the liquidatee into fee_pool/insurance.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 4,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "Witness through the REAL guard_partial_liquidate + apply_partial_liquidate: a long base=1e6 at index $1.00 with collateral 45_000 (< maint_req 50_000, > full penalty 20_000) is liquidatable. The auto-minimum fraction is 1667 bps (tight: 1666 bps leaves collateral non-negative at 41_668 but is GUARD-REJECTED because the residual fails maintenance margin, mreq 41_670 > 41_668 — so the guard enforces residual margin, lines 307-314), penalty 3_334, leaving a margin-compliant residual (coll 41_666 >= mreq 41_665). Full close (10_000 bps) is ALSO guard-legal, penalty 20_000. The liquidator's size choice extracts pen_full - pen_min = 16_666 extra, transferred from liquidatee collateral into fee_pool/fee_income (conservation: collateral loss == fee_pool gain). Exhaustive sweep over the whole legal range [1667, 10000] confirms every fraction is accepted and penalty is non-decreasing (strict between adjacent fractions). So the lever is 'oversize above the minimum sufficient fraction', not 'any fraction'. Research evidence only; the minimal-fraction enforcement remedy is an untested candidate, not claimed.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave3_perp_timing/test_perp_liquidation_size_lever.py -q",
+      "obligation": "O-PT-05"
     }
   ],
-  "total_tests": 5,
-  "total_passed": 5,
+  "total_tests": 9,
+  "total_passed": 9,
   "total_failed": 0
 }

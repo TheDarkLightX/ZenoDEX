@@ -23,7 +23,7 @@ artifact status.
 | `O-PT-02` | `H-MD-PT-002` | perps timing | queued |
 | `O-PT-03` | `H-MD-PT-003` | perps timing | queued |
 | `O-PT-04` | `H-MD-PT-004` | perps timing | queued |
-| `O-PT-05` | `H-MD-PT-006` | perps timing | queued |
+| `O-PT-05` | `H-MD-PT-006` | perps timing | `wave3_perp_timing/test_perp_liquidation_size_lever.py`; supported |
 | `O-VM-01` | `H-MD-VM-001` | verification markets | queued |
 | `O-VM-02` | `H-MD-VM-002` | verification markets | queued |
 | `O-VM-03` | `H-MD-VM-003` | verification markets | queued |
