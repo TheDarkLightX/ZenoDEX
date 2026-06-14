@@ -1,0 +1,32 @@
+{
+  "wave": 3,
+  "domain": "perp_timing",
+  "timestamp": "2026-06-13T00:00:00Z",
+  "hypotheses": [
+    {
+      "id": "H-MD-PT-001",
+      "description": "Funding is not timing-neutral: holding a position through the once-per-epoch apply_funding debits collateral by the funding payment, while an intra-epoch straddler (no position during the funding event) is debited nothing.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 3,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "Through the REAL reducer apply_funding (perp_v2/updates.py): a long base=100 at index $50k under a +cap (100 bps) rate has collateral_quote debited by funding_magnitude; a base=0 straddler is debited 0, so the intra-epoch round-trip strictly avoids a positive funding payment. The deviation is one-sided: the payer (long under +cap) loses and would straddle, the payee (short) receives a credit and would not. Confirmed through the real GUARDED engine.step: apply_funding is accepted and debits funding_magnitude for a position-holder reached via the guarded set_position action, but the guard REJECTS apply_funding on a flat account with the exact reason 'apply_funding requires non-zero position' (position_open_ok is the only failing gate condition) — so funding is conditioned on holding exposure at the funding moment, the precise timing lever.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave3_perp_timing/test_perp_timing_deviations.py -q",
+      "obligation": "O-PT-01"
+    },
+    {
+      "id": "H-MD-PT-005",
+      "description": "The funding-straddle residual is bounded: the per-epoch avoided amount equals funding_magnitude and is at most floor(notional * cap / 10_000), tight when the funding rate sits at the cap.",
+      "verdict": "SUPPORTED",
+      "tests_passed": 1,
+      "tests_failed": 0,
+      "confidence": 0.9,
+      "key_finding": "avoided = funding_magnitude(base, index, rate) <= floor(notional_quote(base, index) * funding_cap_bps / 10_000) over a witness family base in {1,7,100,9999} x cap in {1,25,100,500}, with equality exactly when the rate equals the cap. The bound follows from the real rate rule compute_funding_rate_bps saturating |rate| at funding_cap_bps and floor-division monotonicity.",
+      "reproduction": "python3 -m pytest experiments/mechanism_design_math_v1/wave3_perp_timing/test_perp_timing_deviations.py -q",
+      "obligation": "O-PT-01"
+    }
+  ],
+  "total_tests": 4,
+  "total_passed": 4,
+  "total_failed": 0
+}
