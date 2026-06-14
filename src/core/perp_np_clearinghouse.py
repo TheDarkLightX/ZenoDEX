@@ -140,6 +140,25 @@ class MarketParams:
         return MatchParams(self.initial_margin_bps, self.max_position_abs)
 
 
+def funded_liquidation_params_ok(params: MarketParams) -> bool:
+    """True when the liquidation penalty is funded after one clamped oracle move."""
+    eff_maint_bps = params.maintenance_margin_bps + params.depeg_buffer_bps
+    return (
+        params.liquidation_penalty_bps * (BPS_SCALE + params.max_oracle_move_bps)
+        <= BPS_SCALE * (eff_maint_bps - params.max_oracle_move_bps)
+    )
+
+
+def _validate_market_params_for_admission(params: MarketParams) -> None:
+    """Admission-only parameter guard.
+
+    Existing snapshots remain loadable for repair. New market creation must not
+    admit the unfunded-liquidation region.
+    """
+    if not funded_liquidation_params_ok(params):
+        raise ValueError("invalid params: require funded liquidation after max_oracle_move_bps")
+
+
 @dataclass(frozen=True)
 class MarketState:
     index_price_e8: int                       # the common current mark
@@ -168,6 +187,7 @@ def init_market(index_price_e8: int, params: MarketParams | None = None,
     if insurance_seed_e8 < 0:
         raise ValueError("insurance seed must be non-negative")
     p = params or MarketParams()
+    _validate_market_params_for_admission(p)
     return MarketState(
         index_price_e8=index_price_e8,
         params=p,

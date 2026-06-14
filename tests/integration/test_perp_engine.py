@@ -363,6 +363,38 @@ def test_publish_clearing_price_rejects_reward_subsidy_without_oracle_signer() -
     assert res.error == "oracle reward posture unsafe: require oracle_pubkey when oracle_spot_reward_bps > 0"
 
 
+def test_init_market_np_rejects_unfunded_liquidation_params() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:chnp:unfunded-liq"
+    quote_asset = "0x" + "54" * 32
+    operator = "00" * 48
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+
+    res = apply_perp_ops(
+        config=PerpEngineConfig(operator_pubkey=operator),
+        state=state,
+        operations={
+            "5": [
+                {
+                    "module": "TauPerp",
+                    "version": "1.2",
+                    "market_id": market_id,
+                    "action": "init_market_np",
+                    "quote_asset": quote_asset,
+                    "index_price_e8": 100_000_000,
+                    "params": {"max_oracle_move_bps": 548},
+                }
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+
+    assert res.ok is False
+    assert res.error is not None and "funded liquidation" in res.error
+
+
 def test_set_market_params_enforces_collectible_penalty_floor() -> None:
     from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 

@@ -70,6 +70,11 @@ def test_three_independent_wallets_match_net_zero():
     assert C.check_invariants(m2) == []
 
 
+def test_init_market_rejects_unfunded_liquidation_params():
+    with pytest.raises(ValueError, match="funded liquidation"):
+        C.init_market(100 * E8, params=C.MarketParams(max_oracle_move_bps=548))
+
+
 def test_run_epoch_settles_zero_sum_against_index():
     m = C.init_market(100 * E8)
     for pk in ("aa", "bb", "cc"):
