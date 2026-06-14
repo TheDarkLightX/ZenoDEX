@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
+from src.core.batch_clearing import is_cow_pair_netting_ordering
 from src.core.settlement import Settlement
 from src.core.settlement_strong_validator import validate_settlement_strong
 from src.state.balances import BalanceTable
@@ -23,7 +24,6 @@ from .settlement_end_to_end_certificate_packet import (
     build_settlement_end_to_end_certificate_packet_from_price_attestation,
     build_settlement_end_to_end_certificate_packet_from_price_packet,
 )
-
 
 SETTLEMENT_WITNESS_LIFECYCLE_PACKET_SCHEMA = "zenodex/settlement-witness-lifecycle-packet/v1"
 
@@ -167,7 +167,7 @@ def build_settlement_witness_lifecycle_packet(
 
     min_deadline = min(int(intent.deadline) for intent in intents)
     before_expiry = bool(int(block_timestamp) <= int(min_deadline))
-    allow_cow_netting = str(swap_ordering) == "cow_pair_netting_v1"
+    allow_cow_netting = is_cow_pair_netting_ordering(str(swap_ordering))
 
     ok, error = validate_settlement_strong(
         settlement=settlement,

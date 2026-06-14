@@ -17,7 +17,12 @@ from ..state.intents import Intent
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from ..state.pools import PoolState
-from .batch_clearing import apply_settlement_pure, compute_settlement, validate_settlement
+from .batch_clearing import (
+    apply_settlement_pure,
+    compute_settlement,
+    is_cow_pair_netting_ordering,
+    validate_settlement,
+)
 from .fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult, split_fee_with_dust_carry
 from .oracle import OracleState
 from .perps import PerpsState
@@ -116,7 +121,7 @@ def _validate_and_apply_settlement(
             pre_lp_balances=state.lp_balances,
         )
     else:
-        allow_cow = str(config.swap_ordering) == "cow_pair_netting_v1"
+        allow_cow = is_cow_pair_netting_ordering(str(config.swap_ordering))
         ok, err = validate_settlement_strong(
             settlement=settlement,
             intents=intents,

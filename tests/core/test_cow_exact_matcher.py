@@ -1,11 +1,13 @@
 """Correctness lock for the polynomial exact CoW matcher.
 
-`_cow_pair_netting_exact_in_v1` previously matched opposite-direction swaps with a
+`_cow_pair_netting_exact_in_v1` matched opposite-direction swaps with a
 super-exponential brute force CAPPED at 8 candidates, falling back to a NON-optimal
-O(n^2) greedy beyond the cap. `_cow_exact_match_uncoupled` replaces both for the
-uncoupled case (no per-sender balance constraint binds) with a polynomial exact
-solver: max-weight bipartite matching (Kuhn-Munkres, O(n^3)) for the (A, B) optimum,
-plus an ascending-ban pass for the lex-max-of-ascending-pair-ids tie-break.
+O(n^2) greedy beyond the cap. The versioned exact profile uses
+`_cow_exact_match_uncoupled` for the uncoupled case (no per-sender balance constraint
+binds): max-weight bipartite matching (Kuhn-Munkres, O(n^3)) for the (A, B) optimum,
+plus an ascending-ban pass for the lex-max-of-ascending-pair-ids tie-break. The
+legacy `cow_pair_netting_v1` profile keeps its prior fallback semantics for replay
+stability.
 
 This module proves it (a) is BIT-IDENTICAL to the brute-force objective on inputs
 within the brute-verifiable range, and (b) beyond the cap is a VALID matching whose
@@ -28,6 +30,7 @@ sys.path.insert(0, str(ROOT))
 
 import src.core.batch_clearing as batch_clearing_module  # noqa: E402
 from src.core.batch_clearing import (  # noqa: E402
+    _COW_PAIR_NETTING_MATCH_EXACT_UNCOUPLED_V2,
     _MAX_COW_EXACT_MATCH_TOTAL_CANDIDATES,
     _cow_exact_match_uncoupled,
     _cow_exact_match_work_within_cap,
@@ -55,6 +58,10 @@ def _cand(cid: str, amount_in: int, min_out: int, sender: str) -> _CowCandidateE
 
 def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
+
+
+def _pk(n: int) -> str:
+    return "0x" + f"{n:096x}"
 
 
 def _brute(s01, s10):
@@ -129,6 +136,90 @@ def _random_sides(rng, n0, n1):
     s01 = [_cand(f"a{i:02d}", rng.randint(1, big), rng.randint(0, big), f"s01_{i}") for i in range(n0)]
     s10 = [_cand(f"b{i:02d}", rng.randint(1, big), rng.randint(0, big), f"s10_{i}") for i in range(n1)]
     return s01, s10
+
+
+def _divergent_pair_netting_case():
+    """Case found during review: exact uncoupled improves the objective, so it must
+    stay behind a versioned profile and must not silently change cow_pair_netting_v1."""
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "aa" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000_000_000,
+        reserve1=1_000_000_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    side_01 = [
+        ("a00", 1_635_320_117, 859_317_502),
+        ("a01", 2_574_571_356, 767_950_141),
+        ("a02", 988_970_881, 1_067_004_398),
+        ("a03", 572_280_321, 371_851_742),
+        ("a04", 1_078_685_360, 1_645_262_724),
+    ]
+    side_10 = [
+        ("b00", 2_279_822_771, 2_939_083_229),
+        ("b01", 2_313_394_523, 385_843_939),
+        ("b02", 2_679_714_517, 2_101_419_947),
+        ("b03", 856_709_067, 1_810_926_946),
+        ("b04", 2_633_742_916, 2_527_189_548),
+    ]
+    labels: dict[str, str] = {}
+    intents: list[Intent] = []
+    balances = BalanceTable()
+    for offset, (label, amount_in, min_out) in enumerate(side_01, start=1):
+        intent_id = _iid(offset)
+        sender = _pk(offset)
+        labels[label] = intent_id
+        balances.set(sender, asset0, amount_in)
+        intents.append(
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.SWAP_EXACT_IN,
+                intent_id=intent_id,
+                sender_pubkey=sender,
+                deadline=9999999999,
+                fields={
+                    "pool_id": pool.pool_id,
+                    "asset_in": asset0,
+                    "asset_out": asset1,
+                    "amount_in": amount_in,
+                    "min_amount_out": min_out,
+                },
+            )
+        )
+    for offset, (label, amount_in, min_out) in enumerate(side_10, start=101):
+        intent_id = _iid(offset)
+        sender = _pk(offset)
+        labels[label] = intent_id
+        balances.set(sender, asset1, amount_in)
+        intents.append(
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.SWAP_EXACT_IN,
+                intent_id=intent_id,
+                sender_pubkey=sender,
+                deadline=9999999999,
+                fields={
+                    "pool_id": pool.pool_id,
+                    "asset_in": asset1,
+                    "asset_out": asset0,
+                    "amount_in": amount_in,
+                    "min_amount_out": min_out,
+                },
+            )
+        )
+    return pool, balances, intents, labels
+
+
+def _filled_ids(fills):
+    return {fill.intent_id for fill in fills}
 
 
 def test_exact_matcher_work_cap_rejects_large_uncoupled_batches():
@@ -211,6 +302,37 @@ def test_pair_netting_falls_back_when_exact_uncoupled_work_is_over_cap(monkeypat
     assert not remaining
     assert len(fills) == 2 * n
     assert all(fill.reason == "COW_NETTED" for fill in fills)
+
+
+def test_cow_v1_keeps_legacy_greedy_fallback_and_v2_uses_exact_profile():
+    pool, balances, intents, labels = _divergent_pair_netting_case()
+    legacy_fills, legacy_remaining = _cow_pair_netting_exact_in_v1(
+        intents,
+        pool_state=pool,
+        balances=balances,
+    )
+    assert _filled_ids(legacy_fills) == {
+        labels["a01"],
+        labels["b03"],
+        labels["a04"],
+        labels["b01"],
+    }
+    assert _filled_ids(legacy_fills).isdisjoint({it.intent_id for it in legacy_remaining})
+
+    pool, balances, intents, labels = _divergent_pair_netting_case()
+    exact_fills, exact_remaining = _cow_pair_netting_exact_in_v1(
+        intents,
+        pool_state=pool,
+        balances=balances,
+        matching_profile=_COW_PAIR_NETTING_MATCH_EXACT_UNCOUPLED_V2,
+    )
+    assert _filled_ids(exact_fills) == {
+        labels["a00"],
+        labels["b01"],
+        labels["a01"],
+        labels["b02"],
+    }
+    assert _filled_ids(exact_fills).isdisjoint({it.intent_id for it in exact_remaining})
 
 
 def test_exact_matcher_large_value_overflow_regression():
