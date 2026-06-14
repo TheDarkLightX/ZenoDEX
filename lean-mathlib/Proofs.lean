@@ -102,6 +102,7 @@ import Proofs.PerpIntegerBridge
 import Proofs.PerpLiquidationInsuranceBound
 import Proofs.PerpLiveRiskParamMonotonicity
 import Proofs.PerpMechanismDesign
+import Proofs.PerpNpNoInsolvencyBudget
 import Proofs.PerpOracleGuard
 import Proofs.PerpProtocolSafety
 import Proofs.PiecewiseEnvelopeNoOverdelivery
