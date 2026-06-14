@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ast
 from dataclasses import replace
+from pathlib import Path
 
 import src.core.settlement_strong_validator as strong_validator
 from src.core.batch_clearing import compute_settlement, validate_settlement
@@ -201,6 +203,14 @@ def _setup_remove_liquidity_context() -> tuple[str, str, str, str, PoolState, Ba
     )
     settlement = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
     return pk, asset0, asset1, pool_id, pool, balances, lp_balances, intent, settlement
+
+
+def test_strong_validator_has_no_bare_assert_runtime_guards() -> None:
+    root = Path(__file__).resolve().parents[2]
+    rel_path = Path("src/core/settlement_strong_validator.py")
+    tree = ast.parse((root / rel_path).read_text(encoding="utf-8"))
+    asserts = [node.lineno for node in ast.walk(tree) if isinstance(node, ast.Assert)]
+    assert asserts == [], f"{rel_path} contains bare assert statements at lines {asserts}"
 
 
 def test_quote_binding_error_without_context_returns_reason() -> None:
