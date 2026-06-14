@@ -20,7 +20,6 @@ from ..runtime.authority import AuthorityMode, active_mode, decide
 from ..runtime.rust_invoker import burn_rails_verify, canonical_domain_json_hash
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 
-
 _BURN_RECEIPT_HASH_LABEL = "zenodex.burn_receipt/v1"
 BURN_RECEIPTS_SURFACE = "burn_receipts"
 _BURN_RAIL_FIELDS = (
@@ -257,7 +256,7 @@ def verify_burn_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
         supply_after = int(accounting.get("supply_after"))
         batch_burn_sum_before = int(accounting.get("batch_burn_sum_before"))
         batch_burn_sum_after = int(accounting.get("batch_burn_sum_after"))
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return False, "bad_numeric_field"
 
     return _verify_burn_rails_authority(

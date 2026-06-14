@@ -1,6 +1,13 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.burn_receipts import burn_receipt_hash, make_burn_receipt, verify_burn_receipt
+
+
+class _ExplodingInt(int):
+    def __int__(self) -> int:
+        raise RuntimeError("numeric conversion fault")
 
 
 def _make_valid_receipt() -> dict:
@@ -56,6 +63,26 @@ def test_burn_receipt_amount_mismatch_rejected_after_rehash() -> None:
     ok, err = verify_burn_receipt(receipt)
     assert not ok
     assert err == "amount_guard_failed"
+
+
+def test_burn_receipt_rejects_expected_numeric_conversion_failure() -> None:
+    receipt = _make_valid_receipt()
+    receipt["body"]["accounting"]["burn_amount"] = None
+    receipt["receipt_hash"] = burn_receipt_hash(receipt["body"])
+
+    ok, err = verify_burn_receipt(receipt)
+
+    assert not ok
+    assert err == "bad_numeric_field"
+
+
+def test_burn_receipt_propagates_unexpected_numeric_conversion_fault() -> None:
+    receipt = _make_valid_receipt()
+    receipt["body"]["host"]["do_burn"] = _ExplodingInt(1)
+    receipt["receipt_hash"] = burn_receipt_hash(receipt["body"])
+
+    with pytest.raises(RuntimeError, match="numeric conversion fault"):
+        verify_burn_receipt(receipt)
 
 
 def test_burn_receipt_no_burn_path_preserves_state() -> None:
