@@ -15,6 +15,9 @@ import itertools
 import random
 from collections import defaultdict
 
+import pytest
+
+import src.core.replay_guard as replay_guard
 from src.core.replay_guard import (
     AdmitAccepted,
     AdmitRejected,
@@ -121,6 +124,16 @@ def test_rejected_admissions_never_change_state():
         assert isinstance(result, AdmitRejected)
         # The caller keeps the prior state; its root is unchanged.
         assert state.state_root() == root
+
+
+def test_canonicalizer_faults_are_not_swallowed(monkeypatch):
+    def broken_canonicalizer(*_args, **_kwargs):
+        raise RuntimeError("injected replay canonicalizer fault")
+
+    monkeypatch.setattr(replay_guard, "canonical_hex_fixed_allow_0x", broken_canonicalizer)
+
+    with pytest.raises(RuntimeError, match="injected replay canonicalizer fault"):
+        admit(state=ReplayGuardState(), sender=SENDERS[0], nonce=1)
 
 
 # --- I5: order independence of the final state across distinct senders --------
