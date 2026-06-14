@@ -29,11 +29,16 @@ from typing import Dict, List, Optional, Tuple
 from ..core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from ..core.split_routing_dispatch import (
     best_split_many_pools_exact_in_for_pools,
-    best_split_two_pools_exact_out_for_pools,
     best_split_two_pools_exact_in_for_pools,
+    best_split_two_pools_exact_out_for_pools,
 )
 from ..state.balances import Amount, AssetId
 from ..state.pools import PoolState
+
+# Quote helpers use ValueError for ordinary domain infeasibility, for example
+# too much exact-out demand. Other exceptions indicate a bug or corrupted state
+# and must not silently shrink the candidate set.
+_CANDIDATE_INFEASIBLE_ERRORS = (ValueError,)
 
 
 @dataclass(frozen=True)
@@ -285,7 +290,7 @@ def _pool_quote_exact_in(
         return None
     try:
         amount_out, _ = swap_exact_in_for_pool(pool, reserve_in=rin, reserve_out=rout, amount_in=amount_in)
-    except Exception:
+    except _CANDIDATE_INFEASIBLE_ERRORS:
         return None
     return amount_out, pool.pool_id
 
@@ -311,7 +316,7 @@ def _pool_quote_exact_out(
         return None
     try:
         amount_in, _ = swap_exact_out_for_pool(pool, reserve_in=rin, reserve_out=rout, amount_out=amount_out)
-    except Exception:
+    except _CANDIDATE_INFEASIBLE_ERRORS:
         return None
     return amount_in, pool.pool_id, rout
 
@@ -483,7 +488,7 @@ def best_route_exact_in_2hop(
                 max_candidates=k,
                 max_iters=4096,
             )
-        except Exception:
+        except _CANDIDATE_INFEASIBLE_ERRORS:
             splitN = None
         if splitN is not None and splitN.amount_out_total > 0:
             legs: List[RouteLeg] = []
@@ -523,7 +528,7 @@ def best_route_exact_in_2hop(
                         amount_in_total=amount_in,
                         search_profile=str(split_search_profile),
                     )
-                except Exception:
+                except _CANDIDATE_INFEASIBLE_ERRORS:
                     continue
                 if split.amount_out_total <= 0:
                     continue
@@ -571,7 +576,7 @@ def best_route_exact_in_2hop(
             # Deterministic cap: consider only the top-K 2-hop routes by full-amount quote.
             twohop_candidates.sort(key=lambda t: (-int(t[0].amount_out), _quote_key(t[0])))
             K = min(4, len(twohop_candidates))
-            for q2, p1, p2, mid in twohop_candidates[:K]:
+            for _q2, p1, p2, mid in twohop_candidates[:K]:
                 mixed = _best_split_direct_vs_twohop_exact_in(
                     direct_pool=direct_pool,
                     hop1_pool=p1,
@@ -834,7 +839,7 @@ def best_route_exact_out_2hop(
                         asset_out=asset_out,
                         amount_out_total=amount_out,
                     )
-                except Exception:
+                except _CANDIDATE_INFEASIBLE_ERRORS:
                     continue
                 if split.amount_in_total <= 0:
                     continue

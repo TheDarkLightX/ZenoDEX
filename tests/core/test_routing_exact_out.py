@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import random
 
+import pytest
+
 from src.core.amm_dispatch import swap_exact_out_for_pool
 from src.core.routing import (
     ExactOutTwoHopGateConfig,
@@ -311,6 +313,31 @@ def test_best_route_exact_out_tie_break_is_deterministic() -> None:
     assert q.legs[0].hops[0].pool_id == "p1"
 
 
+def test_exact_out_quote_value_error_marks_candidate_infeasible(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.core import routing as routing_mod
+
+    def infeasible_quote(*_args, **_kwargs):
+        raise ValueError("candidate infeasible")
+
+    monkeypatch.setattr(routing_mod, "swap_exact_out_for_pool", infeasible_quote)
+    pools = {"p_ab": _pool("p_ab", "A", "B", 1000, 1000, 0)}
+
+    assert best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_out=10) is None
+
+
+def test_exact_out_quote_unexpected_fault_is_not_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.core import routing as routing_mod
+
+    def broken_quote(*_args, **_kwargs):
+        raise RuntimeError("quote kernel bug")
+
+    monkeypatch.setattr(routing_mod, "swap_exact_out_for_pool", broken_quote)
+    pools = {"p_ab": _pool("p_ab", "A", "B", 1000, 1000, 0)}
+
+    with pytest.raises(RuntimeError, match="quote kernel bug"):
+        best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_out=10)
+
+
 def test_best_route_exact_out_can_split_across_parallel_pools() -> None:
     pools = {
         "p2": _pool("p2", "A", "B", 1000, 1000, 0),
@@ -322,6 +349,22 @@ def test_best_route_exact_out_can_split_across_parallel_pools() -> None:
     assert q is not None
     assert q.amount_in < single.amount_in
     assert len(q.legs) == 2
+
+
+def test_exact_out_split_unexpected_fault_is_not_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.core import routing as routing_mod
+
+    def broken_split(*_args, **_kwargs):
+        raise RuntimeError("split optimizer bug")
+
+    monkeypatch.setattr(routing_mod, "best_split_two_pools_exact_out_for_pools", broken_split)
+    pools = {
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+    }
+
+    with pytest.raises(RuntimeError, match="split optimizer bug"):
+        best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_out=600)
 
 
 def test_best_route_exact_out_matches_bruteforce_on_small_random_domain() -> None:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.routing import best_route_exact_in_2hop
 from src.state.pools import PoolState, PoolStatus
 
@@ -60,6 +62,31 @@ def test_tie_break_is_deterministic():
     assert q.legs[0].hops[0].pool_id == "p1"
 
 
+def test_exact_in_quote_value_error_marks_candidate_infeasible(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.core import routing as routing_mod
+
+    def infeasible_quote(*_args, **_kwargs):
+        raise ValueError("candidate infeasible")
+
+    monkeypatch.setattr(routing_mod, "swap_exact_in_for_pool", infeasible_quote)
+    pools = {"p_ab": _pool("p_ab", "A", "B", 1000, 1000, 0)}
+
+    assert best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10) is None
+
+
+def test_exact_in_quote_unexpected_fault_is_not_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.core import routing as routing_mod
+
+    def broken_quote(*_args, **_kwargs):
+        raise RuntimeError("quote kernel bug")
+
+    monkeypatch.setattr(routing_mod, "swap_exact_in_for_pool", broken_quote)
+    pools = {"p_ab": _pool("p_ab", "A", "B", 1000, 1000, 0)}
+
+    with pytest.raises(RuntimeError, match="quote kernel bug"):
+        best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10)
+
+
 def test_best_route_can_split_across_parallel_pools():
     # Two identical pools: splitting strictly improves output vs using only one pool.
     pools = {
@@ -74,6 +101,22 @@ def test_best_route_can_split_across_parallel_pools():
     assert len(q.legs) == 2
     assert all(len(leg.hops) == 1 for leg in q.legs)
     assert q.amount_out > single.amount_out
+
+
+def test_exact_in_split_unexpected_fault_is_not_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.core import routing as routing_mod
+
+    def broken_split(*_args, **_kwargs):
+        raise RuntimeError("split optimizer bug")
+
+    monkeypatch.setattr(routing_mod, "best_split_many_pools_exact_in_for_pools", broken_split)
+    pools = {
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+    }
+
+    with pytest.raises(RuntimeError, match="split optimizer bug"):
+        best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=500)
 
 
 def test_best_route_can_split_direct_plus_twohop_when_enabled():
