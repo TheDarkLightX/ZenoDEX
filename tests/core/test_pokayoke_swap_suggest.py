@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import pytest
 
+import src.core.pokayoke_swap_suggest as pokayoke_swap_suggest
 from src.core.pokayoke_swap_suggest import (
+    suggest_amount_in_exact_in_cpmm,
     suggest_amount_in_for_impact_lt_bps,
     suggest_amount_in_for_required_slippage_le_bps,
-    suggest_amount_in_exact_in_cpmm,
 )
 from src.core.price_impact_preview import price_impact_preview
 
@@ -159,3 +160,34 @@ def test_suggest_amount_in_exact_in_cpmm_bva_max_evals_boundary() -> None:
     assert s2[0].suggested_action == "confirm"
     assert s2[0].suggested_reasons is not None
     assert "mev_conflict" not in set(s2[0].suggested_reasons)
+
+
+def test_suggest_amount_in_exact_in_cpmm_propagates_unexpected_eval_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_eval_amount = pokayoke_swap_suggest._eval_amount
+    calls = 0
+
+    def broken_after_baseline(**kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return real_eval_amount(**kwargs)
+        raise RuntimeError("unexpected evaluator fault")
+
+    monkeypatch.setattr(pokayoke_swap_suggest, "_eval_amount", broken_after_baseline)
+
+    with pytest.raises(RuntimeError, match="unexpected evaluator fault"):
+        suggest_amount_in_exact_in_cpmm(
+            reserve_in=20_000,
+            reserve_out=20_000,
+            fee_bps=0,
+            amount_in=101,
+            pending_volume_same_direction=0,
+            confidence_bps=9500,
+            slippage_options_bps=[10, 50, 100, 300],
+            max_attacker_amount_in=500,
+            user_slippage_bps=10,
+            max_evals=2,
+            target_actions=("confirm",),
+        )
