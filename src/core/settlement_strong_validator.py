@@ -73,6 +73,12 @@ class _CowPairEntry:
     amount_out_filled: int
 
 
+@dataclass(frozen=True)
+class _SettlementIndex:
+    intents_by_id: Dict[str, Intent]
+    fill_by_id: Dict[str, Fill]
+
+
 def _validate_cow_pair_index(
     *,
     settlement: Settlement,
@@ -151,6 +157,113 @@ def _validate_cow_pair_index(
     return True, None
 
 
+def _build_settlement_index(
+    *,
+    settlement: Settlement,
+    intents: List[Intent],
+    allow_cow_netting: bool,
+) -> Tuple[bool, Optional[str], Optional[_SettlementIndex]]:
+    """Validate intent/fill membership and build replay lookup tables.
+
+    This is the validator's front-door shape check. It does no state replay; it
+    only proves that every later lookup by `intent_id` is total and unambiguous.
+    """
+    intent_ids = [it.intent_id for it in intents]
+    if len(intent_ids) != len(set(intent_ids)):
+        return False, "duplicate intent_id in input intents", None
+
+    intents_by_id: Dict[str, Intent] = {it.intent_id: it for it in intents}
+
+    included_ids = [intent_id for intent_id, _action in settlement.included_intents]
+    if set(included_ids) != set(intent_ids):
+        missing = sorted(set(intent_ids) - set(included_ids))
+        extra = sorted(set(included_ids) - set(intent_ids))
+        return False, f"settlement included_intents mismatch: missing={missing} extra={extra}", None
+    if len(included_ids) != len(set(included_ids)):
+        return False, "settlement included_intents contains duplicate intent_id entries", None
+
+    fill_ids = [f.intent_id for f in settlement.fills]
+    if len(fill_ids) != len(set(fill_ids)):
+        return False, "settlement fills contains duplicate intent_id entries", None
+    extra_fill_ids = sorted(set(fill_ids) - set(intent_ids))
+    if extra_fill_ids:
+        return False, f"settlement fills contains intent_ids not in input intents: {extra_fill_ids}", None
+
+    fill_by_id: Dict[str, Fill] = {f.intent_id: f for f in settlement.fills}
+    for intent_id, action in settlement.included_intents:
+        f = fill_by_id.get(intent_id)
+        if f is None:
+            if action == FillAction.FILL:
+                return False, f"missing Fill for filled intent_id: {intent_id}", None
+            continue
+        if f.action != action:
+            return False, f"Fill.action mismatch for intent_id={intent_id}: {f.action} != {action}", None
+
+    ok_cow, err_cow = _validate_cow_pair_index(
+        settlement=settlement,
+        intents_by_id=intents_by_id,
+        fill_by_id=fill_by_id,
+        allow_cow_netting=allow_cow_netting,
+    )
+    if not ok_cow:
+        return False, err_cow, None
+
+    return True, None, _SettlementIndex(intents_by_id=intents_by_id, fill_by_id=fill_by_id)
+
+
+def _validate_quote_binding_metadata(
+    intent: Intent,
+    *,
+    allow_snapshot_bound_quote_bindings: bool,
+) -> Optional[str]:
+    """Validate transport-level quote metadata before replaying an intent.
+
+    The strong validator only accepts sanitized pool-snapshot fingerprints here.
+    Receipt hashes and leg indexes must be discharged by the engine witness path.
+    """
+    quote_receipt_hash = intent.get_field("quote_receipt_hash")
+    quote_pool_fp = intent.get_field("quote_pool_fingerprint")
+    quote_leg_index = intent.get_field("quote_receipt_leg_index")
+    has_quote_binding = (
+        quote_receipt_hash is not None
+        or quote_pool_fp is not None
+        or quote_leg_index is not None
+    )
+    if has_quote_binding and intent.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
+        return _quote_binding_error(
+            "quote receipt binding only supported for swap intents",
+            **_quote_binding_context(intent),
+            intent_kind=intent.kind.value,
+        )
+    if quote_leg_index is not None and (
+        not is_strict_int(quote_leg_index) or int(quote_leg_index) < 0
+    ):
+        return _quote_binding_error("invalid quote_receipt_leg_index", **_quote_binding_context(intent))
+    if quote_leg_index is not None:
+        return _quote_binding_error(
+            "quote receipt transport metadata requires validated engine witness",
+            **_quote_binding_context(intent),
+            guidance="strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation",
+        )
+    if quote_receipt_hash is not None:
+        if not isinstance(quote_receipt_hash, str) or not quote_receipt_hash:
+            return _quote_binding_error("invalid quote_receipt_hash", **_quote_binding_context(intent))
+        return _quote_binding_error(
+            "quote receipt transport metadata requires validated engine witness",
+            **_quote_binding_context(intent),
+            guidance="strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation",
+        )
+    if quote_pool_fp is not None and (not isinstance(quote_pool_fp, str) or not quote_pool_fp):
+        return _quote_binding_error("missing quote_pool_fingerprint", **_quote_binding_context(intent))
+    if quote_pool_fp is not None and not allow_snapshot_bound_quote_bindings:
+        return _quote_binding_error(
+            "quote receipt snapshot binding requires validated engine witness",
+            **_quote_binding_context(intent),
+            guidance="only pass sanitized quote_pool_fingerprint through the validated engine path",
+        )
+    return None
+
+
 def validate_settlement_strong(
     *,
     settlement: Settlement,
@@ -219,46 +332,15 @@ def _validate_settlement_strong_impl(
     if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
         return False, "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
 
-    # Intents must have unique ids (otherwise settlement semantics are ambiguous).
-    intent_ids = [it.intent_id for it in intents]
-    if len(intent_ids) != len(set(intent_ids)):
-        return False, "duplicate intent_id in input intents"
-
-    intents_by_id: Dict[str, Intent] = {it.intent_id: it for it in intents}
-
-    included_ids = [intent_id for intent_id, _action in settlement.included_intents]
-    if set(included_ids) != set(intent_ids):
-        missing = sorted(set(intent_ids) - set(included_ids))
-        extra = sorted(set(included_ids) - set(intent_ids))
-        return False, f"settlement included_intents mismatch: missing={missing} extra={extra}"
-    if len(included_ids) != len(set(included_ids)):
-        return False, "settlement included_intents contains duplicate intent_id entries"
-
-    # Build fill map. NOTE: Reject actions are allowed to omit fill details.
-    fill_ids = [f.intent_id for f in settlement.fills]
-    if len(fill_ids) != len(set(fill_ids)):
-        return False, "settlement fills contains duplicate intent_id entries"
-    extra_fill_ids = sorted(set(fill_ids) - set(intent_ids))
-    if extra_fill_ids:
-        return False, f"settlement fills contains intent_ids not in input intents: {extra_fill_ids}"
-    fill_by_id: Dict[str, Fill] = {f.intent_id: f for f in settlement.fills}
-    for intent_id, action in settlement.included_intents:
-        f = fill_by_id.get(intent_id)
-        if f is None:
-            if action == FillAction.FILL:
-                return False, f"missing Fill for filled intent_id: {intent_id}"
-            continue
-        if f.action != action:
-            return False, f"Fill.action mismatch for intent_id={intent_id}: {f.action} != {action}"
-
-    ok_cow, err_cow = _validate_cow_pair_index(
+    ok_index, err_index, settlement_index = _build_settlement_index(
         settlement=settlement,
-        intents_by_id=intents_by_id,
-        fill_by_id=fill_by_id,
         allow_cow_netting=allow_cow_netting,
+        intents=intents,
     )
-    if not ok_cow:
-        return False, err_cow
+    if not ok_index or settlement_index is None:
+        return False, err_index
+    intents_by_id = settlement_index.intents_by_id
+    fill_by_id = settlement_index.fill_by_id
 
     # Replay state (pure local copies).
     balances = _copy_balance_table(pre_balances)
@@ -275,54 +357,13 @@ def _validate_settlement_strong_impl(
 
     for intent_id, action in settlement.included_intents:
         it = intents_by_id[intent_id]
-        quote_receipt_hash = it.get_field("quote_receipt_hash")
-        quote_pool_fp = it.get_field("quote_pool_fingerprint")
-        quote_leg_index = it.get_field("quote_receipt_leg_index")
-        has_quote_binding = (
-            quote_receipt_hash is not None
-            or quote_pool_fp is not None
-            or quote_leg_index is not None
+        quote_binding_error = _validate_quote_binding_metadata(
+            it,
+            allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
         )
-        if has_quote_binding and it.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
-            return fail(
-                _quote_binding_error(
-                    "quote receipt binding only supported for swap intents",
-                    **_quote_binding_context(it),
-                    intent_kind=it.kind.value,
-                )
-            )
-        if quote_leg_index is not None and (
-            not is_strict_int(quote_leg_index) or int(quote_leg_index) < 0
-        ):
-            return fail(_quote_binding_error("invalid quote_receipt_leg_index", **_quote_binding_context(it)))
-        if quote_leg_index is not None:
-            return fail(
-                _quote_binding_error(
-                    "quote receipt transport metadata requires validated engine witness",
-                    **_quote_binding_context(it),
-                    guidance="strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation",
-                )
-            )
-        if quote_receipt_hash is not None:
-            if not isinstance(quote_receipt_hash, str) or not quote_receipt_hash:
-                return fail(_quote_binding_error("invalid quote_receipt_hash", **_quote_binding_context(it)))
-            return fail(
-                _quote_binding_error(
-                    "quote receipt transport metadata requires validated engine witness",
-                    **_quote_binding_context(it),
-                    guidance="strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation",
-                )
-            )
-        if quote_pool_fp is not None and (not isinstance(quote_pool_fp, str) or not quote_pool_fp):
-            return fail(_quote_binding_error("missing quote_pool_fingerprint", **_quote_binding_context(it)))
-        if quote_pool_fp is not None and not allow_snapshot_bound_quote_bindings:
-            return fail(
-                _quote_binding_error(
-                    "quote receipt snapshot binding requires validated engine witness",
-                    **_quote_binding_context(it),
-                    guidance="only pass sanitized quote_pool_fingerprint through the validated engine path",
-                )
-            )
+        if quote_binding_error is not None:
+            return fail(quote_binding_error)
+        quote_pool_fp = it.get_field("quote_pool_fingerprint")
 
         if action == FillAction.REJECT:
             continue
