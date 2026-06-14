@@ -100,16 +100,23 @@ def test_dense_profile_recovers_known_gap_case():
     assert dense_a == best_a_bf
 
 
-def test_default_adaptive_v6_recovers_known_gap_case():
-    # Default profile should resolve this case to a high-coverage search and match oracle.
+def test_default_adaptive_v6_uses_budgeted_staircase_on_known_gap_case():
+    # Default profile should use the Lean-backed exact optimizer when the
+    # output-level budget is small enough for production routing.
     p0 = PoolXY(x=87, y=80, fee_bps=75)
     p1 = PoolXY(x=46, y=66, fee_bps=11)
     amt = 6539
     best_out_bf, best_a_bf = brute_force_best_split_two_pools_exact_in(p0, p1, amt)
 
-    default_out, default_a = best_split_two_pools_exact_in(p0, p1, amt, window=64)
+    win, prof = resolve_two_pool_split_search_params(p0, p1, amt, search_profile="adaptive_v6", window=96)
+    assert (win, prof) == (0, "staircase_v1")
+
+    (default_out, default_a), default_calls = _count_profile_calls(p0, p1, amt, search_profile="adaptive_v6")
+    (dense_out, dense_a), dense_calls = _count_profile_calls(p0, p1, amt, search_profile="dense32")
     assert default_out == best_out_bf
     assert default_a == best_a_bf
+    assert (dense_out, dense_a) == (best_out_bf, best_a_bf)
+    assert default_calls < dense_calls
 
 
 def test_unknown_search_profile_rejected():
@@ -151,19 +158,29 @@ def test_adaptive_v4_resolves_to_strict_escalation_tiers():
     assert (win, prof) == (64, "baseline_canon16")
 
 
-def test_adaptive_v6_escalates_to_dense32_in_high_pressure_small_out_regime():
-    # Stress witness family where dense24 can miss by 1; v6 escalates to dense32.
+def test_adaptive_v6_uses_staircase_in_high_pressure_small_out_regime():
+    # Stress witness family where dense24 can miss by 1; v6 now uses the exact
+    # staircase path because the output-level budget is small.
     p0 = PoolXY(x=108, y=48, fee_bps=85)
     p1 = PoolXY(x=83, y=41, fee_bps=35)
     win, prof = resolve_two_pool_split_search_params(p0, p1, 8533, search_profile="adaptive_v6", window=96)
-    assert (win, prof) == (96, "dense32")
+    assert (win, prof) == (0, "staircase_v1")
 
 
-def test_adaptive_v6_extreme_regime_escalates_to_dense32_w128():
+def test_adaptive_v6_extreme_regime_uses_staircase_when_budgeted():
     p0 = PoolXY(x=102, y=31, fee_bps=193)
     p1 = PoolXY(x=132, y=92, fee_bps=177)
     win, prof = resolve_two_pool_split_search_params(p0, p1, 13704, search_profile="adaptive_v6", window=96)
-    assert (win, prof) == (128, "dense32")
+    assert (win, prof) == (0, "staircase_v1")
+
+
+def test_adaptive_v6_keeps_heuristic_when_staircase_budget_is_large():
+    # Deep, high-output pools would make jump enumeration too expensive; keep
+    # the bounded heuristic in that regime.
+    p0 = PoolXY(x=20_000, y=20_000, fee_bps=30)
+    p1 = PoolXY(x=24_000, y=18_000, fee_bps=30)
+    win, prof = resolve_two_pool_split_search_params(p0, p1, 20_000, search_profile="adaptive_v6", window=96)
+    assert (win, prof) == (64, "baseline_canon16")
 
 
 @pytest.mark.parametrize(

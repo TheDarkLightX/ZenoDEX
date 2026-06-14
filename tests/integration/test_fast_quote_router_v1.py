@@ -212,9 +212,9 @@ def test_fast_v1_micro_exact_out_amount_out_10_regression_seed1() -> None:
     assert ok, err
 
 
-def test_fast_v1_amount_in_int64_fee_boundary_values() -> None:
+def test_fast_v1_amount_in_kernel_domain_boundary_values() -> None:
     pytest.importorskip("numpy")
-    # BVA for SAFE_GROSS_FOR_INT64_FEE (routing ranking switches int64-exact fee => float approximation).
+    from src.core.domain_limits import DEX_POOL_RESERVE_MAX
     from src.integration.fast_quote_router_v1 import SAFE_GROSS_FOR_INT64_FEE
 
     asset_in = "A_IN"
@@ -230,8 +230,11 @@ def test_fast_v1_amount_in_int64_fee_boundary_values() -> None:
     pools_by_id = {p.pool_id: p for p in pools}
 
     router = FastQuoteRouterV1(max_cache_pairs=8)
-    # just below / exactly at / just above
-    for amount_in in [int(SAFE_GROSS_FOR_INT64_FEE) - 1, int(SAFE_GROSS_FOR_INT64_FEE), int(SAFE_GROSS_FOR_INT64_FEE) + 1]:
+    max_valid_amount_in = int(DEX_POOL_RESERVE_MAX) - 1_000_000
+    assert int(SAFE_GROSS_FOR_INT64_FEE) > max_valid_amount_in
+
+    # just below / exactly at the CPMM reserve-growth boundary
+    for amount_in in [max_valid_amount_in - 1, max_valid_amount_in]:
         q = router.quote_exact_in_2hop_fast_v1(
             pools_by_id=pools_by_id,
             asset_in=asset_in,
@@ -243,6 +246,15 @@ def test_fast_v1_amount_in_int64_fee_boundary_values() -> None:
         receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools_by_id)
         ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools_by_id)
         assert ok, err
+
+    q = router.quote_exact_in_2hop_fast_v1(
+        pools_by_id=pools_by_id,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_in=max_valid_amount_in + 1,
+        topk_max=8,
+    )
+    assert q is None
 
 
 def test_fast_v1_exact_out_micro_amount_out_boundary_values() -> None:

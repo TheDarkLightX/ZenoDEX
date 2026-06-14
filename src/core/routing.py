@@ -527,22 +527,31 @@ def best_route_exact_in_2hop(
                     continue
                 if split.amount_out_total <= 0:
                     continue
-                leg0 = RouteLeg(
-                    hops=(RouteHop(split.pool0_id, asset_in, asset_out, split.amount_in_0, split.amount_out_0),),
-                    amount_in=split.amount_in_0,
-                    amount_out=split.amount_out_0,
-                )
-                leg1 = RouteLeg(
-                    hops=(RouteHop(split.pool1_id, asset_in, asset_out, split.amount_in_1, split.amount_out_1),),
-                    amount_in=split.amount_in_1,
-                    amount_out=split.amount_out_1,
-                )
+                legs = []
+                if split.amount_in_0 > 0:
+                    legs.append(
+                        RouteLeg(
+                            hops=(RouteHop(split.pool0_id, asset_in, asset_out, split.amount_in_0, split.amount_out_0),),
+                            amount_in=split.amount_in_0,
+                            amount_out=split.amount_out_0,
+                        )
+                    )
+                if split.amount_in_1 > 0:
+                    legs.append(
+                        RouteLeg(
+                            hops=(RouteHop(split.pool1_id, asset_in, asset_out, split.amount_in_1, split.amount_out_1),),
+                            amount_in=split.amount_in_1,
+                            amount_out=split.amount_out_1,
+                        )
+                    )
+                if not legs:
+                    continue
                 q = RouteQuote(
                     asset_in=asset_in,
                     asset_out=asset_out,
                     amount_in=amount_in,
                     amount_out=split.amount_out_total,
-                    legs=(leg0, leg1),
+                    legs=tuple(legs),
                 )
                 if best is None or (q.amount_out > best.amount_out) or (
                     q.amount_out == best.amount_out and _quote_key(q) < _quote_key(best)

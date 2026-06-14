@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import importlib.util
 import json
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,9 +47,20 @@ PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     "tests/core/test_batch_auction_settler_v1_ref_parity.py",
     "tests/core/test_batch_auction_settler_v1_witness.py",
     "tests/core/test_batch_clearing.py",
+    "tests/core/test_funding_rate_decomposed_parity.py",
     "tests/core/test_settlement_swap_runtime_v1.py",
+    "tests/core/test_split_routing.py",
+    "tests/core/test_split_routing_staircase.py",
+    "tests/core/test_split_routing_dispatch.py",
+    "tests/test_check_release_external_toolchains.py",
+    "tests/test_claims_registry_smt_evidence.py",
+    "tests/test_derivatives_evidence_script.py",
+    "tests/tools/test_check_split_routing_staircase_runtime_evidence.py",
     "tests/integration/test_permissionless_assurance_cli.py",
+    "tools/check_claims_registry.py",
     "tools/check_derivatives_evidence_manifest.py",
+    "tools/check_release_external_toolchains.py",
+    "tools/check_split_routing_staircase_runtime_evidence.py",
     "tools/check_spot_proof_assurance_manifest.py",
     "tools/dex_kernel_assurance.py",
     "tools/derivatives_evidence_manifest.json",
@@ -58,6 +71,7 @@ PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     "tools/render_assurance_release_snapshot.py",
     "tools/render_tla_claim_summary.py",
     "tools/run_critical_quality_gate.sh",
+    "tools/run_derivatives_evidence.sh",
     "tools/run_release_gate.sh",
     "tools/run_perps_evidence.sh",
     "tools/run_spot_evidence.sh",
@@ -123,7 +137,10 @@ def _python_bin() -> str:
 PY = _python_bin()
 
 ENVIRONMENT_REQUIREMENT_HINTS: dict[str, str] = {
-    "external/ESSO": "clone or update external/ESSO",
+    "external/ESSO": "clone/update the pinned ESSO checkout at external/ESSO",
+    "esso-toolchain": "clone/update external/ESSO or make the ESSO module importable",
+    "external/mathlib4": "provide the Lean mathlib dependency at external/mathlib4",
+    "lake": "put lake on PATH, set LAKE, or install it via elan",
     "tau-binary": "set TAU_BIN, put tau on PATH, or build external/tau-lang/build-*/tau",
 }
 
@@ -148,18 +165,23 @@ LANES: dict[str, Lane] = {
             "tools/check_spot_proof_assurance_manifest.py",
             "tools/spot_proof_assurance_manifest.json",
         ),
-        required_environment=("external/ESSO",),
+        required_environment=("esso-toolchain", "lake", "external/mathlib4"),
         stars=3,
     ),
     "spot-evidence": Lane(
         name="spot-evidence",
-        description="Replay the spot functional-core tests and spot-kernel verify-multi checks.",
+        description=(
+            "Replay the spot functional-core tests, split-routing staircase evidence, "
+            "and spot-kernel verify-multi checks."
+        ),
         commands=(("bash", "tools/run_spot_evidence.sh"),),
         required_files=(
             "tools/run_spot_evidence.sh",
+            "tools/check_claims_registry.py",
+            "tools/check_split_routing_staircase_runtime_evidence.py",
             "generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py",
         ),
-        required_environment=("external/ESSO",),
+        required_environment=("esso-toolchain",),
         stars=2,
     ),
     "derivatives": Lane(
@@ -171,6 +193,7 @@ LANES: dict[str, Lane] = {
         ),
         required_files=(
             "tools/run_derivatives_evidence.sh",
+            "tools/check_claims_registry.py",
             "tools/check_derivatives_evidence_manifest.py",
             "tools/derivatives_evidence_manifest.json",
         ),
@@ -181,8 +204,8 @@ LANES: dict[str, Lane] = {
         name="perps",
         description="Replay the perps functional-core tests, micro-gate assurances, kernel verify-multi checks, and Lean safety proofs.",
         commands=(("bash", "tools/run_perps_evidence.sh"),),
-        required_files=("tools/run_perps_evidence.sh",),
-        required_environment=("external/ESSO",),
+        required_files=("tools/run_perps_evidence.sh", "tools/check_claims_registry.py"),
+        required_environment=("esso-toolchain", "lake", "external/mathlib4"),
         stars=3,
     ),
     "critical": Lane(
@@ -198,7 +221,7 @@ LANES: dict[str, Lane] = {
         description="Run the full release gate, including Tau, proof, evidence, and audit lanes.",
         commands=(("bash", "tools/run_release_gate.sh"),),
         required_files=("tools/run_release_gate.sh",),
-        required_environment=("external/ESSO", "tau-binary"),
+        required_environment=("external/ESSO", "lake", "external/mathlib4", "tau-binary"),
         stars=4,
     ),
 }
@@ -301,9 +324,33 @@ def _tau_binary_ready() -> bool:
     return False
 
 
+def _lake_ready() -> bool:
+    lake_bin = os.environ.get("LAKE", "").strip()
+    if lake_bin:
+        return Path(lake_bin).is_file() and os.access(lake_bin, os.X_OK)
+    if shutil.which("lake"):
+        return True
+    candidate = Path.home() / ".elan" / "bin" / "lake"
+    return candidate.is_file() and os.access(candidate, os.X_OK)
+
+
+def _python_module_importable(name: str) -> bool:
+    return importlib.util.find_spec(name) is not None
+
+
+def _esso_toolchain_ready() -> bool:
+    return (REPO_ROOT / "external" / "ESSO").exists() or _python_module_importable("ESSO")
+
+
 def _environment_requirement_ready(name: str) -> bool:
     if name == "external/ESSO":
         return (REPO_ROOT / "external" / "ESSO").exists()
+    if name == "esso-toolchain":
+        return _esso_toolchain_ready()
+    if name == "external/mathlib4":
+        return (REPO_ROOT / "external" / "mathlib4").exists()
+    if name == "lake":
+        return _lake_ready()
     if name == "tau-binary":
         return _tau_binary_ready()
     raise RuntimeError(f"unknown environment requirement: {name}")
@@ -417,7 +464,7 @@ def _status_payload() -> dict[str, object]:
         "notes": [
             "internal/ artifacts are intentionally not shipped; replay commands regenerate them locally",
             "public assurance claims should be backed by pinned manifests, tracked exported refs, and replayable gate scripts",
-            "public replay lanes may require external toolchains such as external/ESSO or a tau binary; status and replay should fail closed when those prerequisites are absent",
+            "public replay lanes may require external toolchains such as a pinned external/ESSO checkout, an importable ESSO module, lake/mathlib, or a tau binary; status and replay should fail closed when those prerequisites are absent",
         ],
     }
     return payload
@@ -514,7 +561,21 @@ def _missing_environment(names: Sequence[str]) -> list[dict[str, str]]:
     ]
 
 
-def _run_lane(lane: Lane) -> dict[str, object]:
+def _tail_text(value: str, *, limit: int = 4000) -> str:
+    if len(value) <= limit:
+        return value
+    return value[-limit:]
+
+
+def _tail_file(handle, *, limit: int = 4000) -> str:
+    handle.flush()
+    end = handle.tell()
+    read_size = min(end, limit * 4)
+    handle.seek(max(0, end - read_size))
+    return _tail_text(handle.read().decode("utf-8", errors="replace"), limit=limit)
+
+
+def _run_lane(lane: Lane, *, stream_output: bool = True) -> dict[str, object]:
     missing_files = _missing_files(lane.required_files)
     if missing_files:
         return {
@@ -535,16 +596,29 @@ def _run_lane(lane: Lane) -> dict[str, object]:
         }
     started = time.monotonic()
     for command in lane.commands:
-        proc = subprocess.run(command, cwd=REPO_ROOT)
+        stdout_tail = ""
+        stderr_tail = ""
+        if stream_output:
+            proc = subprocess.run(command, cwd=REPO_ROOT)
+        else:
+            with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+                proc = subprocess.run(command, cwd=REPO_ROOT, stdout=stdout_file, stderr=stderr_file)
+                if proc.returncode != 0:
+                    stdout_tail = _tail_file(stdout_file)
+                    stderr_tail = _tail_file(stderr_file)
         if proc.returncode != 0:
             duration = time.monotonic() - started
-            return {
+            result: dict[str, object] = {
                 "name": lane.name,
                 "ok": False,
                 "duration_s": round(duration, 3),
                 "failed_command": list(command),
                 "error": "command failed",
             }
+            if not stream_output:
+                result["stdout_tail"] = stdout_tail
+                result["stderr_tail"] = stderr_tail
+            return result
     duration = time.monotonic() - started
     return {"name": lane.name, "ok": True, "duration_s": round(duration, 3)}
 
@@ -635,7 +709,7 @@ def cmd_replay(args: argparse.Namespace) -> int:
         lane = LANES[name]
         if args.format != "json":
             print(f"== assurance: {lane.name} ==")
-        result = _run_lane(lane)
+        result = _run_lane(lane, stream_output=args.format != "json")
         results.append(result)
         overall_ok = overall_ok and bool(result["ok"])
         if args.format != "json":

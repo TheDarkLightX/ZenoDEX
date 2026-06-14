@@ -6,8 +6,8 @@ Mathematical basis: lean-mathlib/Proofs/SplitRoutingStaircase.lean
 - `two_pool_split_candidate_complete` (candidate-set completeness)
 - `le_feeOut_iff` (closed-form jump points)
 
-The optimizer must be bit-identical to the brute-force reference (including
-the leftmost tie-break) while evaluating only one quote pair per distinct
+The optimizer must be bit-identical to the brute-force reference, including
+the leftmost tie-break, while evaluating only O(1) quote work per distinct
 pool-0 output level.
 """
 
@@ -52,8 +52,8 @@ def _random_cases(seed: int, n: int) -> list[tuple[PoolXY, PoolXY, int]]:
             x0, y0 = rng.randint(1, 12), rng.randint(1, 12)
             x1, y1 = rng.randint(1, 12), rng.randint(1, 12)
             d = rng.randint(1, 40)
-        f0 = rng.choice([0, 1, 5, 30, 100, 250, 999, 2500])
-        f1 = rng.choice([0, 1, 5, 30, 100, 250, 999, 2500])
+        f0 = rng.choice([0, 1, 5, 30, 100, 250, 999, 2500, 5000, 9000, 9970, 9999])
+        f1 = rng.choice([0, 1, 5, 30, 100, 250, 999, 2500, 5000, 9000, 9970, 9999])
         cases.append((PoolXY(x0, y0, f0), PoolXY(x1, y1, f1), d))
     return cases
 
@@ -80,7 +80,7 @@ def test_staircase_matches_brute_force_exactly() -> None:
 def test_staircase_quote_efficiency() -> None:
     """The staircase optimizer issues far fewer quotes than brute force.
 
-    Quote count is bounded by ~2 per distinct pool-0 output level; in the
+    Quote count is bounded by O(1) per distinct pool-0 output level; in the
     deep-amount regime (D >> reserves) this is a large reduction versus the
     O(D) brute-force scan.
     """
@@ -144,3 +144,64 @@ def test_staircase_single_pool_endpoints() -> None:
     pool0_dead = PoolXY(x=100, y=1000, fee_bps=10_000)
     assert staircase_jump_best_split_two_pools_exact_in(pool0_dead, pool0, d) == \
         brute_force_best_split_two_pools_exact_in(pool0_dead, pool0, d)
+
+
+def test_staircase_high_fee_plateaus_match_brute_force() -> None:
+    """High fees create long net-amount plateaus; closed-form jumps still match brute force."""
+    fees = [5000, 9000, 9970, 9999]
+    pools = [
+        (PoolXY(x=3, y=500, fee_bps=fees[0]), PoolXY(x=7, y=800, fee_bps=fees[1]), 1200),
+        (PoolXY(x=45, y=12, fee_bps=fees[2]), PoolXY(x=18, y=4000, fee_bps=fees[3]), 2500),
+        (PoolXY(x=1, y=1000, fee_bps=fees[3]), PoolXY(x=2, y=999, fee_bps=fees[2]), 20_000),
+    ]
+    for pool0, pool1, d in pools:
+        assert staircase_jump_best_split_two_pools_exact_in(pool0, pool1, d) == \
+            brute_force_best_split_two_pools_exact_in(pool0, pool1, d)
+
+
+def test_staircase_no_feasible_split_matches_brute_force_error() -> None:
+    """Both pools can be unusable; staircase and brute force must fail the same way."""
+    dead0 = PoolXY(x=100, y=1000, fee_bps=10_000)
+    dead1 = PoolXY(x=250, y=500, fee_bps=10_000)
+    high_fee0 = PoolXY(x=1, y=1000, fee_bps=9999)
+    high_fee1 = PoolXY(x=2, y=999, fee_bps=9970)
+    for pool0, pool1, d in ((dead0, dead1, 1000), (high_fee0, high_fee1, 300)):
+        for solver in (brute_force_best_split_two_pools_exact_in, staircase_jump_best_split_two_pools_exact_in):
+            try:
+                solver(pool0, pool1, d)
+            except ValueError as exc:
+                assert "no feasible split" in str(exc)
+            else:
+                raise AssertionError("expected no feasible split")
+
+
+def test_staircase_tiny_reserve_sweep_matches_brute_force() -> None:
+    """Sweep tiny x/y domains where endpoint and jump guards are most likely to diverge."""
+    for x0 in range(1, 4):
+        for y0 in range(1, 4):
+            for x1 in range(1, 4):
+                for y1 in range(1, 4):
+                    for fee0 in (0, 9999, 10_000):
+                        for fee1 in (0, 9999, 10_000):
+                            pool0 = PoolXY(x=x0, y=y0, fee_bps=fee0)
+                            pool1 = PoolXY(x=x1, y=y1, fee_bps=fee1)
+                            for d in range(1, 8):
+                                try:
+                                    expected = brute_force_best_split_two_pools_exact_in(pool0, pool1, d)
+                                    expected_err = None
+                                except ValueError as exc:
+                                    expected, expected_err = None, str(exc)
+                                try:
+                                    got = staircase_jump_best_split_two_pools_exact_in(pool0, pool1, d)
+                                    got_err = None
+                                except ValueError as exc:
+                                    got, got_err = None, str(exc)
+                                assert (got, got_err is None) == (expected, expected_err is None), (
+                                    pool0,
+                                    pool1,
+                                    d,
+                                    expected,
+                                    expected_err,
+                                    got,
+                                    got_err,
+                                )
