@@ -340,6 +340,31 @@ def quote_cpmm_swap_exact_in_for_ordering_simulation(
     )
 
 
+def quote_cpmm_swap_exact_out_for_ordering_simulation(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_out: int,
+    fee_bps: int,
+    max_overdelivery_gap_bps: int = CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+) -> SettlementSwapExactOutQuote:
+    """Return a deterministic, side-effect-free CPMM exact-out quote for ordering simulation.
+
+    Ordering exploration is candidate scoring, not authority selection. It must
+    use the same Python arithmetic as settlement while staying inside the local
+    process so active Rust-authority policies cannot turn every candidate quote
+    into a subprocess call.
+    """
+
+    return _quote_cpmm_swap_exact_out_python(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_out=amount_out,
+        fee_bps=fee_bps,
+        max_overdelivery_gap_bps=max_overdelivery_gap_bps,
+    )
+
+
 def quote_cpmm_swap_exact_in(
     *,
     reserve_in: int,

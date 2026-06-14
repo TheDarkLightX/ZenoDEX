@@ -37,7 +37,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..kernels.python.settlement_swap_runtime_v1 import (
     quote_cpmm_swap_exact_in,
+    quote_cpmm_swap_exact_in_for_ordering_simulation,
     quote_cpmm_swap_exact_out,
+    quote_cpmm_swap_exact_out_for_ordering_simulation,
 )
 from ..state.balances import Amount, AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
@@ -1002,7 +1004,7 @@ def _order_swaps_optimal_ab_bounded(
                     continue
                 try:
                     if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_in(
+                        quote = quote_cpmm_swap_exact_in_for_ordering_simulation(
                             reserve_in=r_in,
                             reserve_out=r_out,
                             amount_in=amount_in,
@@ -1017,7 +1019,7 @@ def _order_swaps_optimal_ab_bounded(
                             reserve_out=r_out,
                             amount_in=amount_in,
                         )
-                except Exception:
+                except (TypeError, ValueError):
                     continue
                 if amount_out < min_amount_out:
                     continue
@@ -1037,7 +1039,7 @@ def _order_swaps_optimal_ab_bounded(
                     continue
                 try:
                     if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_out(
+                        quote = quote_cpmm_swap_exact_out_for_ordering_simulation(
                             reserve_in=r_in,
                             reserve_out=r_out,
                             amount_out=amount_out,
@@ -1052,7 +1054,7 @@ def _order_swaps_optimal_ab_bounded(
                             reserve_out=r_out,
                             amount_out=amount_out,
                         )
-                except Exception:
+                except (TypeError, ValueError):
                     continue
                 if amount_in > max_amount_in:
                     continue
@@ -1842,7 +1844,7 @@ def _simulate_swap_reserves(
 
     try:
         if pool_state.curve_tag == CURVE_TAG_CPMM:
-            quote = quote_cpmm_swap_exact_in(
+            quote = quote_cpmm_swap_exact_in_for_ordering_simulation(
                 reserve_in=reserve_in,
                 reserve_out=reserve_out,
                 amount_in=amount_in,
@@ -1857,7 +1859,7 @@ def _simulate_swap_reserves(
                 reserve_out=reserve_out,
                 amount_in=amount_in,
             )
-    except Exception:
+    except (TypeError, ValueError):
         return 0, 0, reserves
 
     if amount_out < min_amount_out:
