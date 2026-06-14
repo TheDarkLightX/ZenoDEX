@@ -1848,6 +1848,35 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     assert res_unfunded_liquidation.ok is False
     assert res_unfunded_liquidation.error is not None and "funded liquidation" in res_unfunded_liquidation.error
 
+    # Recovery path: legacy snapshots may already contain the old accepted
+    # unfunded parameter tuple. State materialization must not freeze the market
+    # before governance can submit the lowering update that restores the funded
+    # liquidation inequality.
+    assert state.perps is not None
+    legacy_market = state.perps.markets[market_id]
+    legacy_global = dict(legacy_market.global_state)
+    legacy_global["max_oracle_move_bps"] = 548
+    legacy_markets = dict(state.perps.markets)
+    legacy_markets[market_id] = type(legacy_market)(
+        quote_asset=legacy_market.quote_asset,
+        global_state=legacy_global,
+        accounts=dict(legacy_market.accounts),
+    )
+    legacy_state = replace(
+        state,
+        perps=type(state.perps)(version=state.perps.version, markets=legacy_markets),
+    )
+    repair = _apply_result(
+        state=legacy_state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "set_market_params", params={"max_oracle_move_bps": 500})],
+    )
+    assert repair.ok is True
+    assert repair.state is not None
+    repaired_market = repair.state.perps.markets[market_id]
+    assert int(repaired_market.global_state["max_oracle_move_bps"]) == 500
+
     # Hardening: depeg buffer must remain positive (fail-closed against disabling buffer).
     res_zero_depeg = _apply_result(
         state=state,
