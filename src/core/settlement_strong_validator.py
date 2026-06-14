@@ -15,7 +15,7 @@ recomputes canonical deltas/events and requires exact match.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 from ..kernels.python.settlement_swap_runtime_v1 import quote_cpmm_swap_exact_out
 from ..state.balances import AssetId, BalanceTable, PubKey
@@ -176,6 +176,51 @@ class _CowIntentFields:
     asset_out: AssetId
     amount_in: int
     min_out: int
+
+
+@dataclass(frozen=True)
+class _CreatePoolFields:
+    asset0: AssetId
+    asset1: AssetId
+    fee_bps: int
+    amount0: int
+    amount1: int
+    created_at: int
+    curve_tag: Any
+    curve_params: Any
+
+
+@dataclass(frozen=True)
+class _CreatePoolRawFields:
+    asset0: Any
+    asset1: Any
+    fee_bps: Any
+    amount0: Any
+    amount1: Any
+    created_at: Any
+    curve_tag: Any
+    curve_params: Any
+
+
+@dataclass(frozen=True)
+class _CreatePoolNumericFields:
+    fee_bps: int
+    amount0: int
+    amount1: int
+    created_at: int
+
+
+@dataclass(frozen=True)
+class _CreatePoolArtifacts:
+    pool_id: str
+    created_pool: PoolState
+    lp_minted: int
+
+
+@dataclass(frozen=True)
+class _CreatePoolReplayPlan:
+    fields: _CreatePoolFields
+    artifacts: _CreatePoolArtifacts
 
 
 @dataclass(frozen=True)
@@ -493,6 +538,269 @@ def _build_validated_intent_index(
     return True, _SettlementIntentIndex(intents_by_id=intents_by_id, fill_by_id=fill_by_id), None
 
 
+def _create_pool_raw_fields(intent: Intent) -> _CreatePoolRawFields:
+    return _CreatePoolRawFields(
+        asset0=intent.get_field("asset0"),
+        asset1=intent.get_field("asset1"),
+        fee_bps=intent.get_field("fee_bps"),
+        amount0=intent.get_field("amount0"),
+        amount1=intent.get_field("amount1"),
+        created_at=intent.get_field("created_at", 0),
+        curve_tag=intent.get_field("curve_tag", None),
+        curve_params=intent.get_field("curve_params", None),
+    )
+
+
+def _create_pool_missing_fields_error(intent_id: str, raw: _CreatePoolRawFields) -> Optional[str]:
+    if any(v is None for v in (raw.asset0, raw.asset1, raw.fee_bps, raw.amount0, raw.amount1)):
+        return f"missing CREATE_POOL fields for intent_id={intent_id}"
+    return None
+
+
+def _parse_create_pool_assets(
+    *, intent_id: str, raw: _CreatePoolRawFields
+) -> Tuple[Optional[Tuple[AssetId, AssetId]], Optional[str]]:
+    if not isinstance(raw.asset0, str) or not isinstance(raw.asset1, str):
+        return None, f"invalid CREATE_POOL asset ids for intent_id={intent_id}"
+    return (raw.asset0, raw.asset1), None
+
+
+def _parse_create_pool_fee_bps(*, intent_id: str, raw_fee_bps: Any) -> Tuple[Optional[int], Optional[str]]:
+    if not is_strict_int(raw_fee_bps) or not (0 <= raw_fee_bps <= 10000):
+        return None, f"invalid CREATE_POOL fee_bps for intent_id={intent_id}"
+    return int(raw_fee_bps), None
+
+
+def _parse_create_pool_positive_amount(
+    *, intent_id: str, field_name: str, raw_amount: Any
+) -> Tuple[Optional[int], Optional[str]]:
+    if not is_strict_int(raw_amount) or raw_amount <= 0:
+        return None, f"invalid CREATE_POOL {field_name} for intent_id={intent_id}"
+    return int(raw_amount), None
+
+
+def _parse_create_pool_created_at(*, intent_id: str, raw_created_at: Any) -> Tuple[Optional[int], Optional[str]]:
+    if raw_created_at is not None and (not is_strict_int(raw_created_at) or raw_created_at < 0):
+        return None, f"invalid CREATE_POOL created_at for intent_id={intent_id}"
+    return (0 if raw_created_at is None else int(raw_created_at)), None
+
+
+def _parse_create_pool_numeric_fields(
+    *, intent_id: str, raw: _CreatePoolRawFields
+) -> Tuple[Optional[_CreatePoolNumericFields], Optional[str]]:
+    parsed = (
+        ("fee_bps", _parse_create_pool_fee_bps(intent_id=intent_id, raw_fee_bps=raw.fee_bps)),
+        (
+            "amount0",
+            _parse_create_pool_positive_amount(intent_id=intent_id, field_name="amount0", raw_amount=raw.amount0),
+        ),
+        (
+            "amount1",
+            _parse_create_pool_positive_amount(intent_id=intent_id, field_name="amount1", raw_amount=raw.amount1),
+        ),
+        (
+            "created_at",
+            _parse_create_pool_created_at(intent_id=intent_id, raw_created_at=raw.created_at),
+        ),
+    )
+    values: dict[str, int] = {}
+    for name, (value, err) in parsed:
+        if err is not None:
+            return None, err
+        if value is None:
+            return None, f"invalid CREATE_POOL {name} for intent_id={intent_id}"
+        values[name] = value
+    return _CreatePoolNumericFields(**values), None
+
+
+def _validate_create_pool_fields(intent: Intent) -> Tuple[Optional[_CreatePoolFields], Optional[str]]:
+    intent_id = intent.intent_id
+    raw = _create_pool_raw_fields(intent)
+    missing_err = _create_pool_missing_fields_error(intent_id, raw)
+    if missing_err is not None:
+        return None, missing_err
+    assets, assets_err = _parse_create_pool_assets(intent_id=intent_id, raw=raw)
+    if assets_err is not None:
+        return None, assets_err
+    numeric, numeric_err = _parse_create_pool_numeric_fields(intent_id=intent_id, raw=raw)
+    if numeric_err is not None:
+        return None, numeric_err
+    asset0, asset1 = cast(Tuple[AssetId, AssetId], assets)
+    numeric_fields = cast(_CreatePoolNumericFields, numeric)
+    return _CreatePoolFields(
+        asset0=asset0,
+        asset1=asset1,
+        fee_bps=numeric_fields.fee_bps,
+        amount0=numeric_fields.amount0,
+        amount1=numeric_fields.amount1,
+        created_at=numeric_fields.created_at,
+        curve_tag=raw.curve_tag,
+        curve_params=raw.curve_params,
+    ), None
+
+
+def _create_pool_fields_or_error(intent: Intent) -> Tuple[Optional[_CreatePoolFields], Optional[str]]:
+    fields, err = _validate_create_pool_fields(intent)
+    if err is not None:
+        return None, err
+    if fields is None:
+        return None, f"invalid CREATE_POOL fields for intent_id={intent.intent_id}"
+    return fields, None
+
+
+def _create_pool_artifacts_or_error(
+    *, intent_id: str, sender: PubKey, fields: _CreatePoolFields
+) -> Tuple[Optional[_CreatePoolArtifacts], Optional[str]]:
+    ok, artifacts, err = _compute_create_pool_artifacts(intent_id=intent_id, sender=sender, fields=fields)
+    if not ok:
+        return None, err
+    if artifacts is None:
+        return None, f"missing CREATE_POOL artifacts for intent_id={intent_id}"
+    return artifacts, None
+
+
+def _validate_create_pool_plan_bindings(
+    *,
+    intent_id: str,
+    amounts: _FillAmounts,
+    pools: Dict[str, PoolState],
+    fields: _CreatePoolFields,
+    artifacts: _CreatePoolArtifacts,
+) -> Optional[str]:
+    if artifacts.pool_id in pools:
+        return f"CREATE_POOL duplicates existing pool_id={artifacts.pool_id}"
+    return _validate_create_pool_fill_amounts(
+        intent_id=intent_id,
+        amounts=amounts,
+        fields=fields,
+        artifacts=artifacts,
+    )
+
+
+def _prepare_create_pool_replay_plan(
+    *,
+    intent: Intent,
+    amounts: _FillAmounts,
+    pools: Dict[str, PoolState],
+) -> Tuple[Optional[_CreatePoolReplayPlan], Optional[str]]:
+    intent_id = intent.intent_id
+    fields, fields_err = _create_pool_fields_or_error(intent)
+    if fields_err is not None:
+        return None, fields_err
+    fields_value = cast(_CreatePoolFields, fields)
+    artifacts, artifacts_err = _create_pool_artifacts_or_error(
+        intent_id=intent_id,
+        sender=intent.sender_pubkey,
+        fields=fields_value,
+    )
+    if artifacts_err is not None:
+        return None, artifacts_err
+    artifacts_value = cast(_CreatePoolArtifacts, artifacts)
+    plan_err = _validate_create_pool_plan_bindings(
+        intent_id=intent_id,
+        amounts=amounts,
+        pools=pools,
+        fields=fields_value,
+        artifacts=artifacts_value,
+    )
+    if plan_err is not None:
+        return None, plan_err
+    return _CreatePoolReplayPlan(fields=fields_value, artifacts=artifacts_value), None
+
+
+def _compute_create_pool_artifacts(
+    *,
+    intent_id: str,
+    sender: PubKey,
+    fields: _CreatePoolFields,
+) -> Tuple[bool, Optional[_CreatePoolArtifacts], Optional[str]]:
+    try:
+        pool_id, created_pool, lp_minted = create_pool(
+            asset0=fields.asset0,
+            asset1=fields.asset1,
+            amount0=fields.amount0,
+            amount1=fields.amount1,
+            fee_bps=fields.fee_bps,
+            creator_pubkey=sender,
+            created_at=fields.created_at,
+            curve_tag=fields.curve_tag,
+            curve_params=fields.curve_params,
+        )
+    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
+        return False, None, f"CREATE_POOL computation error for intent_id={intent_id}: {exc}"
+    return True, _CreatePoolArtifacts(pool_id=pool_id, created_pool=created_pool, lp_minted=int(lp_minted)), None
+
+
+def _validate_create_pool_fill_amounts(
+    *,
+    intent_id: str,
+    amounts: _FillAmounts,
+    fields: _CreatePoolFields,
+    artifacts: _CreatePoolArtifacts,
+) -> Optional[str]:
+    if amounts.amount0_used != fields.amount0:
+        return f"CREATE_POOL fill.amount0_used mismatch for intent_id={intent_id}"
+    if amounts.amount1_used != fields.amount1:
+        return f"CREATE_POOL fill.amount1_used mismatch for intent_id={intent_id}"
+    if amounts.lp_minted != artifacts.lp_minted:
+        return f"CREATE_POOL fill.lp_minted mismatch for intent_id={intent_id}"
+    return None
+
+
+def _apply_create_pool_state_effects(
+    *,
+    intent_id: str,
+    sender: PubKey,
+    fields: _CreatePoolFields,
+    artifacts: _CreatePoolArtifacts,
+    pools: Dict[str, PoolState],
+    balances: BalanceTable,
+    lp: LPTable,
+) -> Tuple[bool, Optional[str]]:
+    try:
+        balances.subtract(sender, fields.asset0, fields.amount0)
+        balances.subtract(sender, fields.asset1, fields.amount1)
+        lp.add(sender, artifacts.pool_id, artifacts.lp_minted)
+        lp.add(LP_LOCK_PUBKEY, artifacts.pool_id, int(MIN_LP_LOCK))
+    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
+        return False, f"CREATE_POOL balance/LP apply error for intent_id={intent_id}: {exc}"
+    pools[artifacts.pool_id] = artifacts.created_pool
+    return True, None
+
+
+def _emit_create_pool_replay_effects(
+    *,
+    sender: PubKey,
+    fields: _CreatePoolFields,
+    artifacts: _CreatePoolArtifacts,
+    expected_events: List[dict],
+    balance_deltas: List[BalanceDelta],
+    reserve_deltas: List[ReserveDelta],
+    lp_deltas: List[LPDelta],
+) -> None:
+    pool_id = artifacts.pool_id
+    created_pool = artifacts.created_pool
+    expected_events.append(
+        {
+            "type": "CREATE_POOL",
+            "pool_id": pool_id,
+            "asset0": fields.asset0,
+            "asset1": fields.asset1,
+            "fee_bps": fields.fee_bps,
+            "curve_tag": created_pool.curve_tag,
+            "curve_params": created_pool.curve_params,
+            "status": PoolStatus.ACTIVE.value,
+            "created_at": int(created_pool.created_at),
+        }
+    )
+    balance_deltas.append(BalanceDelta(pubkey=sender, asset=fields.asset0, delta_add=0, delta_sub=fields.amount0))
+    balance_deltas.append(BalanceDelta(pubkey=sender, asset=fields.asset1, delta_add=0, delta_sub=fields.amount1))
+    reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=fields.asset0, delta_add=fields.amount0, delta_sub=0))
+    reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=fields.asset1, delta_add=fields.amount1, delta_sub=0))
+    lp_deltas.append(LPDelta(pubkey=sender, pool_id=pool_id, delta_add=artifacts.lp_minted, delta_sub=0))
+    lp_deltas.append(LPDelta(pubkey=LP_LOCK_PUBKEY, pool_id=pool_id, delta_add=int(MIN_LP_LOCK), delta_sub=0))
+
+
 def _replay_create_pool_fill(
     *,
     intent: Intent,
@@ -507,81 +815,31 @@ def _replay_create_pool_fill(
 ) -> Tuple[bool, Optional[str]]:
     intent_id = intent.intent_id
     sender = intent.sender_pubkey
-    asset0 = intent.get_field("asset0")
-    asset1 = intent.get_field("asset1")
-    fee_bps = intent.get_field("fee_bps")
-    amount0 = intent.get_field("amount0")
-    amount1 = intent.get_field("amount1")
-    created_at = intent.get_field("created_at", 0)
-    curve_tag = intent.get_field("curve_tag", None)
-    curve_params = intent.get_field("curve_params", None)
-    if any(v is None for v in (asset0, asset1, fee_bps, amount0, amount1)):
-        return False, f"missing CREATE_POOL fields for intent_id={intent_id}"
-    if not isinstance(asset0, str) or not isinstance(asset1, str):
-        return False, f"invalid CREATE_POOL asset ids for intent_id={intent_id}"
-    if not is_strict_int(fee_bps) or not (0 <= fee_bps <= 10000):
-        return False, f"invalid CREATE_POOL fee_bps for intent_id={intent_id}"
-    if not is_strict_int(amount0) or amount0 <= 0:
-        return False, f"invalid CREATE_POOL amount0 for intent_id={intent_id}"
-    if not is_strict_int(amount1) or amount1 <= 0:
-        return False, f"invalid CREATE_POOL amount1 for intent_id={intent_id}"
-    if created_at is not None and (not is_strict_int(created_at) or created_at < 0):
-        return False, f"invalid CREATE_POOL created_at for intent_id={intent_id}"
-    created_at_value = 0 if created_at is None else created_at
-
-    try:
-        pool_id, created_pool, lp_minted = create_pool(
-            asset0=asset0,
-            asset1=asset1,
-            amount0=amount0,
-            amount1=amount1,
-            fee_bps=fee_bps,
-            creator_pubkey=sender,
-            created_at=created_at_value,
-            curve_tag=curve_tag,
-            curve_params=curve_params,
-        )
-    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
-        return False, f"CREATE_POOL computation error for intent_id={intent_id}: {exc}"
-
-    if pool_id in pools:
-        return False, f"CREATE_POOL duplicates existing pool_id={pool_id}"
-
-    if amounts.amount0_used != int(amount0):
-        return False, f"CREATE_POOL fill.amount0_used mismatch for intent_id={intent_id}"
-    if amounts.amount1_used != int(amount1):
-        return False, f"CREATE_POOL fill.amount1_used mismatch for intent_id={intent_id}"
-    if amounts.lp_minted != int(lp_minted):
-        return False, f"CREATE_POOL fill.lp_minted mismatch for intent_id={intent_id}"
-
-    try:
-        balances.subtract(sender, asset0, int(amount0))
-        balances.subtract(sender, asset1, int(amount1))
-        lp.add(sender, pool_id, int(lp_minted))
-        lp.add(LP_LOCK_PUBKEY, pool_id, int(MIN_LP_LOCK))
-    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
-        return False, f"CREATE_POOL balance/LP apply error for intent_id={intent_id}: {exc}"
-
-    pools[pool_id] = created_pool
-    expected_events.append(
-        {
-            "type": "CREATE_POOL",
-            "pool_id": pool_id,
-            "asset0": asset0,
-            "asset1": asset1,
-            "fee_bps": int(fee_bps),
-            "curve_tag": created_pool.curve_tag,
-            "curve_params": created_pool.curve_params,
-            "status": PoolStatus.ACTIVE.value,
-            "created_at": int(created_pool.created_at),
-        }
+    plan, plan_err = _prepare_create_pool_replay_plan(intent=intent, amounts=amounts, pools=pools)
+    if plan_err is not None:
+        return False, plan_err
+    if plan is None:
+        return False, f"invalid CREATE_POOL replay plan for intent_id={intent_id}"
+    ok_apply, err_apply = _apply_create_pool_state_effects(
+        intent_id=intent_id,
+        sender=sender,
+        fields=plan.fields,
+        artifacts=plan.artifacts,
+        pools=pools,
+        balances=balances,
+        lp=lp,
     )
-    balance_deltas.append(BalanceDelta(pubkey=sender, asset=asset0, delta_add=0, delta_sub=int(amount0)))
-    balance_deltas.append(BalanceDelta(pubkey=sender, asset=asset1, delta_add=0, delta_sub=int(amount1)))
-    reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=int(amount0), delta_sub=0))
-    reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset1, delta_add=int(amount1), delta_sub=0))
-    lp_deltas.append(LPDelta(pubkey=sender, pool_id=pool_id, delta_add=int(lp_minted), delta_sub=0))
-    lp_deltas.append(LPDelta(pubkey=LP_LOCK_PUBKEY, pool_id=pool_id, delta_add=int(MIN_LP_LOCK), delta_sub=0))
+    if not ok_apply:
+        return False, err_apply
+    _emit_create_pool_replay_effects(
+        sender=sender,
+        fields=plan.fields,
+        artifacts=plan.artifacts,
+        expected_events=expected_events,
+        balance_deltas=balance_deltas,
+        reserve_deltas=reserve_deltas,
+        lp_deltas=lp_deltas,
+    )
     return True, None
 
 
