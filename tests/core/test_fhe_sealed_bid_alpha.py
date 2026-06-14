@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+import src.core.fhe_sealed_bid_alpha as fhe_alpha
 from src.core.fhe_sealed_bid_alpha import (
     FHECipherBid,
     compile_fhe_sealed_bid_alpha_plan,
@@ -118,6 +119,39 @@ def test_fhe_alpha_plan_propagates_unexpected_fill_numeric_fault() -> None:
     _rehash(receipt)
 
     with pytest.raises(RuntimeError, match="fhe alpha numeric conversion fault"):
+        verify_fhe_sealed_bid_alpha_plan(
+            receipt,
+            approved_key_ids={"fhe-key-1"},
+            trusted_plain_bids=_plain_bids(),
+        )
+
+
+def test_fhe_alpha_plan_rejects_malformed_cipher_bid_entry_stably() -> None:
+    receipt = _plan()
+    receipt["body"]["cipher_bids"][0] = 123
+    _rehash(receipt)
+
+    ok, err = verify_fhe_sealed_bid_alpha_plan(
+        receipt,
+        approved_key_ids={"fhe-key-1"},
+        trusted_plain_bids=_plain_bids(),
+    )
+
+    assert ok is False
+    assert err == "bad_cipher_bid"
+
+
+def test_fhe_alpha_plan_propagates_unexpected_settlement_replay_fault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt = _plan()
+
+    def broken_settlement(**_kwargs):
+        raise RuntimeError("unexpected settlement replay fault")
+
+    monkeypatch.setattr(fhe_alpha, "settle_uniform_price_sealed_bids", broken_settlement)
+
+    with pytest.raises(RuntimeError, match="unexpected settlement replay fault"):
         verify_fhe_sealed_bid_alpha_plan(
             receipt,
             approved_key_ids={"fhe-key-1"},

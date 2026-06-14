@@ -283,17 +283,21 @@ def verify_fhe_sealed_bid_alpha_plan(
     cipher_bids_raw = body.get("cipher_bids")
     if not isinstance(cipher_bids_raw, list):
         return False, "bad_cipher_bids"
-    try:
-        cipher_bids = _validate_cipher_bids(
+    cipher_bid_items: list[FHECipherBid] = []
+    for item in cipher_bids_raw:
+        if not isinstance(item, dict):
+            return False, "bad_cipher_bid"
+        cipher_bid_items.append(
             FHECipherBid(
                 bidder_id=item.get("bidder_id"),
                 commitment=item.get("commitment"),
                 quantity_handle=item.get("quantity_handle"),
                 price_handle=item.get("price_handle"),
             )
-            for item in cipher_bids_raw
         )
-    except Exception as exc:
+    try:
+        cipher_bids = _validate_cipher_bids(cipher_bid_items)
+    except (TypeError, ValueError) as exc:
         return False, str(exc)
     if len(cipher_bids) == 0 or len(cipher_bids) > MAX_ALPHA_BIDS:
         return False, "cipher_bid_count_out_of_range"
@@ -395,6 +399,8 @@ def verify_fhe_sealed_bid_alpha_plan(
     if trusted_plain_bids is None:
         return False, "unauthenticated_public_result"
     try:
+        # Caller-provided trusted replay data is external verifier input. Treat
+        # malformed or non-iterable replay payloads as an authentication failure.
         plain_bids = tuple(trusted_plain_bids)
     except Exception:
         return False, "bad_trusted_plain_bids"
@@ -410,7 +416,7 @@ def verify_fhe_sealed_bid_alpha_plan(
             if not isinstance(bid.limit_price, int) or isinstance(bid.limit_price, bool) or bid.limit_price <= 0 or bid.limit_price > MAX_PRICE:
                 return False, "trusted_plain_price_out_of_range"
         expected_settlement = settle_uniform_price_sealed_bids(units_for_sale=units_for_sale, bids=plain_bids)
-    except Exception:
+    except (ArithmeticError, TypeError, ValueError):
         return False, "bad_trusted_plain_bids"
     expected_public_result = _settlement_to_public_result(
         settlement=expected_settlement,
