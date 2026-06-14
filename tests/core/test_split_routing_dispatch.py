@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 
+from src.core import split_routing_dispatch as dispatch_mod
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.split_routing_dispatch import (
     SplitLegExactOutQuote,
@@ -29,7 +30,6 @@ from src.state.pools import (
     PoolState,
     PoolStatus,
 )
-
 
 ASSET0 = "0x" + "01" * 32
 ASSET1 = "0x" + "02" * 32
@@ -189,6 +189,30 @@ class TestSplitRoutingDispatch:
         assert q.amount_out_1 == out1
         assert q.amount_out_total == out0 + out1
 
+    def test_exact_in_unexpected_quote_fault_is_not_swallowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def broken_quote(*_args, **_kwargs) -> int:
+            raise RuntimeError("dispatch exact-in quote bug")
+
+        monkeypatch.setattr(dispatch_mod, "_quote_exact_in", broken_quote)
+        p0 = _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=10_000, reserve1=10_000, fee_bps=0)
+        p1 = _mk_pool(
+            pool_id="pool_b",
+            curve_tag=CURVE_TAG_CUBIC_SUM_V1,
+            reserve0=10_000,
+            reserve1=10_000,
+            fee_bps=0,
+            curve_params={"p": 1, "q": 1},
+        )
+
+        with pytest.raises(RuntimeError, match="dispatch exact-in quote bug"):
+            best_split_two_pools_exact_in_for_pools(
+                p0,
+                p1,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_in_total=50,
+            )
+
     @pytest.mark.parametrize(
         "amount_out_total,reason",
         [
@@ -234,6 +258,23 @@ class TestSplitRoutingDispatch:
         assert q.amount_in_total == best_in_bf
         assert q.amount_out_0 == best_q0_bf
         assert q.amount_out_0 + q.amount_out_1 == Q
+
+    def test_exact_out_unexpected_quote_fault_is_not_swallowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def broken_quote(*_args, **_kwargs) -> int:
+            raise RuntimeError("dispatch exact-out quote bug")
+
+        monkeypatch.setattr(dispatch_mod, "_quote_exact_out", broken_quote)
+        p0 = _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=10_000, reserve1=10_000, fee_bps=0)
+        p1 = _mk_pool(pool_id="pool_b", curve_tag=CURVE_TAG_CPMM, reserve0=10_000, reserve1=10_000, fee_bps=0)
+
+        with pytest.raises(RuntimeError, match="dispatch exact-out quote bug"):
+            best_split_two_pools_exact_out_for_pools(
+                p0,
+                p1,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_out_total=50,
+            )
 
     def test_exact_out_tie_break_uses_full_canonical_key_on_symmetric_plateau(self) -> None:
         pool_a = _mk_pool(

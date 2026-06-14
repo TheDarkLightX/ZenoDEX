@@ -130,6 +130,30 @@ def test_unknown_search_profile_rejected():
         assert False, "expected ValueError for unknown search profile"
 
 
+def test_bruteforce_split_unexpected_quote_fault_is_not_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken_quote(_pool: PoolXY, _amount: int) -> int:
+        raise RuntimeError("cpmm split quote bug")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", broken_quote)
+    p0 = PoolXY(x=1000, y=1000, fee_bps=0)
+    p1 = PoolXY(x=1000, y=1000, fee_bps=0)
+
+    with pytest.raises(RuntimeError, match="cpmm split quote bug"):
+        brute_force_best_split_two_pools_exact_in(p0, p1, 10)
+
+
+def test_large_split_unexpected_quote_fault_is_not_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken_quote(_pool: PoolXY, _amount: int) -> int:
+        raise RuntimeError("cpmm split quote bug")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", broken_quote)
+    p0 = PoolXY(x=1000, y=1000, fee_bps=0)
+    p1 = PoolXY(x=1000, y=1000, fee_bps=0)
+
+    with pytest.raises(RuntimeError, match="cpmm split quote bug"):
+        best_split_two_pools_exact_in(p0, p1, 4097, search_profile="baseline")
+
+
 def test_adaptive_v1_resolves_to_expected_hardness_tier_on_known_hard_cases():
     # Adaptive policy is a heuristic; this test only checks the deterministic tier selection,
     # not global optimality.
