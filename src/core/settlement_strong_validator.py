@@ -253,6 +253,15 @@ class _RemoveLiquidityAmounts:
 
 
 @dataclass(frozen=True)
+class _SwapReplayContext:
+    asset_in: AssetId
+    asset_out: AssetId
+    reserve_in: int
+    reserve_out: int
+    dir_is_0_to_1: bool
+
+
+@dataclass(frozen=True)
 class _FillAmounts:
     amount_in_filled: int
     amount_out_filled: int
@@ -1261,6 +1270,98 @@ def _replay_remove_liquidity_fill(
     return True, None
 
 
+def _parse_swap_assets(intent: Intent) -> Tuple[Optional[Tuple[AssetId, AssetId]], Optional[str]]:
+    intent_id = intent.intent_id
+    asset_in = intent.get_field("asset_in")
+    asset_out = intent.get_field("asset_out")
+    if not isinstance(asset_in, str) or not isinstance(asset_out, str):
+        return None, f"invalid asset_in/out for intent_id={intent_id}"
+    return (asset_in, asset_out), None
+
+
+def _validate_swap_pool_membership(
+    *, intent_id: str, asset_in: AssetId, asset_out: AssetId, pool: PoolState
+) -> Optional[str]:
+    if pool.status != PoolStatus.ACTIVE:
+        return f"pool not active for intent_id={intent_id}: {pool.status}"
+    if {asset_in, asset_out} != {pool.asset0, pool.asset1} or asset_in == asset_out:
+        return f"swap asset mismatch for intent_id={intent_id}"
+    return None
+
+
+def _validate_quote_pool_snapshot(intent: Intent, pool: PoolState, quote_pool_fp: Optional[str]) -> Optional[str]:
+    if quote_pool_fp is None:
+        return None
+    actual_pool_fp = pool_state_fingerprint(pool)
+    if actual_pool_fp == quote_pool_fp:
+        return None
+    return _quote_binding_error(
+        "quote receipt pool snapshot mismatch",
+        **_quote_binding_context(intent),
+        actual_pool_fingerprint=actual_pool_fp,
+    )
+
+
+def _swap_replay_direction_context(*, asset_in: AssetId, asset_out: AssetId, pool: PoolState) -> _SwapReplayContext:
+    if asset_in == pool.asset0 and asset_out == pool.asset1:
+        return _SwapReplayContext(
+            asset_in=asset_in,
+            asset_out=asset_out,
+            reserve_in=int(pool.reserve0),
+            reserve_out=int(pool.reserve1),
+            dir_is_0_to_1=True,
+        )
+    return _SwapReplayContext(
+        asset_in=asset_in,
+        asset_out=asset_out,
+        reserve_in=int(pool.reserve1),
+        reserve_out=int(pool.reserve0),
+        dir_is_0_to_1=False,
+    )
+
+
+def _prepare_swap_replay_context(
+    *, intent: Intent, pool: PoolState, quote_pool_fp: Optional[str]
+) -> Tuple[Optional[_SwapReplayContext], Optional[str]]:
+    intent_id = intent.intent_id
+    assets, assets_err = _parse_swap_assets(intent)
+    if assets_err is not None:
+        return None, assets_err
+    asset_in, asset_out = cast(Tuple[AssetId, AssetId], assets)
+    membership_err = _validate_swap_pool_membership(
+        intent_id=intent_id,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        pool=pool,
+    )
+    if membership_err is not None:
+        return None, membership_err
+    quote_err = _validate_quote_pool_snapshot(intent, pool, quote_pool_fp)
+    if quote_err is not None:
+        return None, quote_err
+    return _swap_replay_direction_context(asset_in=asset_in, asset_out=asset_out, pool=pool), None
+
+
+def _swap_witness_reserves_missing(fill: Fill) -> bool:
+    return fill.reserve_in_before is None or fill.reserve_out_before is None
+
+
+def _swap_witness_reserves_mismatch(amounts: _FillAmounts, context: _SwapReplayContext) -> bool:
+    return amounts.reserve_in_before != context.reserve_in or amounts.reserve_out_before != context.reserve_out
+
+
+def _validate_swap_witness_reserves(
+    *, intent_id: str, fill: Fill, amounts: _FillAmounts, context: _SwapReplayContext, mode: str
+) -> Optional[str]:
+    if mode != _MODE_STRONG_PROOF_CARRYING:
+        return None
+    if _swap_witness_reserves_missing(fill):
+        return f"missing swap witness reserves for intent_id={intent_id}"
+    if _swap_witness_reserves_mismatch(amounts, context):
+        return f"swap witness reserve mismatch for intent_id={intent_id}"
+    return None
+
+
 def _replay_swap_fill(
     *,
     intent: Intent,
@@ -1279,25 +1380,10 @@ def _replay_swap_fill(
     protocol_fee_recipient_pubkey: Optional[PubKey],
 ) -> Tuple[bool, Optional[str]]:
     intent_id = intent.intent_id
-    asset_in = intent.get_field("asset_in")
-    asset_out = intent.get_field("asset_out")
-    if not isinstance(asset_in, str) or not isinstance(asset_out, str):
-        return False, f"invalid asset_in/out for intent_id={intent_id}"
-    if pool.status != PoolStatus.ACTIVE:
-        return False, f"pool not active for intent_id={intent_id}: {pool.status}"
-    if {asset_in, asset_out} != {pool.asset0, pool.asset1} or asset_in == asset_out:
-        return False, f"swap asset mismatch for intent_id={intent_id}"
-    if quote_pool_fp is not None:
-        actual_pool_fp = pool_state_fingerprint(pool)
-        if actual_pool_fp != quote_pool_fp:
-            return (
-                False,
-                _quote_binding_error(
-                    "quote receipt pool snapshot mismatch",
-                    **_quote_binding_context(intent),
-                    actual_pool_fingerprint=actual_pool_fp,
-                ),
-            )
+    context, context_err = _prepare_swap_replay_context(intent=intent, pool=pool, quote_pool_fp=quote_pool_fp)
+    if context_err is not None:
+        return False, context_err
+    context_value = cast(_SwapReplayContext, context)
 
     if fill.reason == "COW_NETTED":
         return _replay_cow_netted_swap_fill(
@@ -1307,24 +1393,19 @@ def _replay_swap_fill(
             recipient=recipient,
             balance_deltas=balance_deltas,
             allow_cow_netting=allow_cow_netting,
-            asset_in=asset_in,
-            asset_out=asset_out,
+            asset_in=context_value.asset_in,
+            asset_out=context_value.asset_out,
         )
 
-    if asset_in == pool.asset0 and asset_out == pool.asset1:
-        reserve_in = int(pool.reserve0)
-        reserve_out = int(pool.reserve1)
-        dir_is_0_to_1 = True
-    else:
-        reserve_in = int(pool.reserve1)
-        reserve_out = int(pool.reserve0)
-        dir_is_0_to_1 = False
-
-    if mode == _MODE_STRONG_PROOF_CARRYING:
-        if fill.reserve_in_before is None or fill.reserve_out_before is None:
-            return False, f"missing swap witness reserves for intent_id={intent_id}"
-        if amounts.reserve_in_before != int(reserve_in) or amounts.reserve_out_before != int(reserve_out):
-            return False, f"swap witness reserve mismatch for intent_id={intent_id}"
+    witness_err = _validate_swap_witness_reserves(
+        intent_id=intent_id,
+        fill=fill,
+        amounts=amounts,
+        context=context_value,
+        mode=mode,
+    )
+    if witness_err is not None:
+        return False, witness_err
 
     if intent.kind == IntentKind.SWAP_EXACT_IN:
         return _replay_swap_exact_in_fill(
@@ -1336,11 +1417,11 @@ def _replay_swap_fill(
             recipient=recipient,
             balance_deltas=balance_deltas,
             reserve_deltas=reserve_deltas,
-            asset_in=asset_in,
-            asset_out=asset_out,
-            reserve_in=reserve_in,
-            reserve_out=reserve_out,
-            dir_is_0_to_1=dir_is_0_to_1,
+            asset_in=context_value.asset_in,
+            asset_out=context_value.asset_out,
+            reserve_in=context_value.reserve_in,
+            reserve_out=context_value.reserve_out,
+            dir_is_0_to_1=context_value.dir_is_0_to_1,
             protocol_fee_share_bps=protocol_fee_share_bps,
             protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
         )
@@ -1354,11 +1435,11 @@ def _replay_swap_fill(
         recipient=recipient,
         balance_deltas=balance_deltas,
         reserve_deltas=reserve_deltas,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        reserve_in=reserve_in,
-        reserve_out=reserve_out,
-        dir_is_0_to_1=dir_is_0_to_1,
+        asset_in=context_value.asset_in,
+        asset_out=context_value.asset_out,
+        reserve_in=context_value.reserve_in,
+        reserve_out=context_value.reserve_out,
+        dir_is_0_to_1=context_value.dir_is_0_to_1,
         protocol_fee_share_bps=protocol_fee_share_bps,
         protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
