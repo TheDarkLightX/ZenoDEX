@@ -64,6 +64,7 @@ from src.integration.autonomous_governance_hostile_input import (
 )
 from src.integration.autonomous_governance_q_policy import (
     SURFACE_PARAMETER_NAMES_V1,
+    _normalize_trajectory_budget,
     _policy_content_hash_for_receipt,
 )
 from src.integration.autonomous_governance_trajectory import (
@@ -316,6 +317,7 @@ def verify_autonomous_governance_surface_session_v1(
         "boundary_carry_ok": False,
         "policy_hash_consistent_ok": False,
         "budget_consistent_ok": False,
+        "budget_policy_bound_ok": False,
         "epochs_strictly_increasing_ok": False,
         "statuses_ok": False,
         "session_accounting_ok": False,
@@ -443,7 +445,20 @@ def verify_autonomous_governance_surface_session_v1(
     if not budget_ok:
         errors.append("session_trajectory_budget_inconsistent")
     checks["budget_consistent_ok"] = budget_ok
-    budget = budgets[0]
+
+    policy_budget, policy_budget_errors = _normalize_trajectory_budget(
+        None, policy=policy if isinstance(policy, Mapping) else {}
+    )
+    budget_policy_bound_ok = not policy_budget_errors and budgets[0] == policy_budget
+    if policy_budget_errors:
+        errors.extend(
+            f"session_policy_trajectory_budget_invalid:{error}"
+            for error in policy_budget_errors
+        )
+    if not budget_policy_bound_ok and not policy_budget_errors:
+        errors.append("session_trajectory_budget_policy_mismatch")
+    checks["budget_policy_bound_ok"] = budget_policy_bound_ok
+    budget = policy_budget if budget_policy_bound_ok else budgets[0]
 
     statuses_ok = all(
         record.get("status") == STATUS_COMPLETED and record.get("ok") is True
