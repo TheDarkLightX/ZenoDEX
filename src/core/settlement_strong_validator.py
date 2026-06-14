@@ -402,42 +402,84 @@ def _validate_cow_pair_index(
     return _validate_cow_reciprocal_pairs(entries)
 
 
+def _build_input_intent_index(intents: List[Intent]) -> Tuple[bool, Optional[Dict[str, Intent]], Optional[str]]:
+    intent_ids = [it.intent_id for it in intents]
+    if len(intent_ids) != len(set(intent_ids)):
+        return False, None, "duplicate intent_id in input intents"
+    return True, {it.intent_id: it for it in intents}, None
+
+
+def _validate_included_intent_ids(
+    *,
+    included_ids: List[str],
+    intent_ids: List[str],
+) -> Optional[str]:
+    if set(included_ids) != set(intent_ids):
+        missing = sorted(set(intent_ids) - set(included_ids))
+        extra = sorted(set(included_ids) - set(intent_ids))
+        return f"settlement included_intents mismatch: missing={missing} extra={extra}"
+    if len(included_ids) != len(set(included_ids)):
+        return "settlement included_intents contains duplicate intent_id entries"
+    return None
+
+
+def _build_fill_index(
+    *,
+    settlement: Settlement,
+    intent_ids: List[str],
+) -> Tuple[bool, Optional[Dict[str, Fill]], Optional[str]]:
+    fill_ids = [fill.intent_id for fill in settlement.fills]
+    if len(fill_ids) != len(set(fill_ids)):
+        return False, None, "settlement fills contains duplicate intent_id entries"
+    extra_fill_ids = sorted(set(fill_ids) - set(intent_ids))
+    if extra_fill_ids:
+        return False, None, f"settlement fills contains intent_ids not in input intents: {extra_fill_ids}"
+    return True, {fill.intent_id: fill for fill in settlement.fills}, None
+
+
+def _validate_included_fill_actions(
+    *,
+    settlement: Settlement,
+    fill_by_id: Dict[str, Fill],
+) -> Optional[str]:
+    for intent_id, action in settlement.included_intents:
+        fill = fill_by_id.get(intent_id)
+        if fill is None:
+            if action == FillAction.FILL:
+                return f"missing Fill for filled intent_id: {intent_id}"
+            continue
+        if fill.action != action:
+            return f"Fill.action mismatch for intent_id={intent_id}: {fill.action} != {action}"
+    return None
+
+
 def _build_validated_intent_index(
     *,
     settlement: Settlement,
     intents: List[Intent],
     allow_cow_netting: bool,
 ) -> Tuple[bool, Optional[_SettlementIntentIndex], Optional[str]]:
-    intent_ids = [it.intent_id for it in intents]
-    if len(intent_ids) != len(set(intent_ids)):
-        return False, None, "duplicate intent_id in input intents"
-
-    intents_by_id: Dict[str, Intent] = {it.intent_id: it for it in intents}
+    ok_intents, intents_by_id, err_intents = _build_input_intent_index(intents)
+    if not ok_intents:
+        return False, None, err_intents
+    if intents_by_id is None:
+        return False, None, "validated input intent index missing"
+    intent_ids = list(intents_by_id)
 
     included_ids = [intent_id for intent_id, _action in settlement.included_intents]
-    if set(included_ids) != set(intent_ids):
-        missing = sorted(set(intent_ids) - set(included_ids))
-        extra = sorted(set(included_ids) - set(intent_ids))
-        return False, None, f"settlement included_intents mismatch: missing={missing} extra={extra}"
-    if len(included_ids) != len(set(included_ids)):
-        return False, None, "settlement included_intents contains duplicate intent_id entries"
+    err_included = _validate_included_intent_ids(included_ids=included_ids, intent_ids=intent_ids)
+    if err_included is not None:
+        return False, None, err_included
 
-    fill_ids = [f.intent_id for f in settlement.fills]
-    if len(fill_ids) != len(set(fill_ids)):
-        return False, None, "settlement fills contains duplicate intent_id entries"
-    extra_fill_ids = sorted(set(fill_ids) - set(intent_ids))
-    if extra_fill_ids:
-        return False, None, f"settlement fills contains intent_ids not in input intents: {extra_fill_ids}"
-    fill_by_id: Dict[str, Fill] = {f.intent_id: f for f in settlement.fills}
+    ok_fills, fill_by_id, err_fills = _build_fill_index(settlement=settlement, intent_ids=intent_ids)
+    if not ok_fills:
+        return False, None, err_fills
+    if fill_by_id is None:
+        return False, None, "validated settlement fill index missing"
 
-    for intent_id, action in settlement.included_intents:
-        fill = fill_by_id.get(intent_id)
-        if fill is None:
-            if action == FillAction.FILL:
-                return False, None, f"missing Fill for filled intent_id: {intent_id}"
-            continue
-        if fill.action != action:
-            return False, None, f"Fill.action mismatch for intent_id={intent_id}: {fill.action} != {action}"
+    err_actions = _validate_included_fill_actions(settlement=settlement, fill_by_id=fill_by_id)
+    if err_actions is not None:
+        return False, None, err_actions
 
     ok_cow, err_cow = _validate_cow_pair_index(
         settlement=settlement,
