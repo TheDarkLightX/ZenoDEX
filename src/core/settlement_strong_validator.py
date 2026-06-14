@@ -1544,6 +1544,86 @@ def _apply_cow_netted_balance_effects(
     return True, None
 
 
+def _apply_swap_balance_transfers(
+    *,
+    intent_id: str,
+    balances: BalanceTable,
+    sender: PubKey,
+    recipient: PubKey,
+    asset_in: AssetId,
+    asset_out: AssetId,
+    amount_in: int,
+    amount_out: int,
+    protocol_fee: int,
+    protocol_fee_recipient_pubkey: Optional[PubKey],
+) -> Optional[str]:
+    try:
+        balances.subtract(sender, asset_in, int(amount_in))
+        balances.add(recipient, asset_out, int(amount_out))
+        if protocol_fee:
+            if not protocol_fee_recipient_pubkey:
+                return f"protocol fee recipient missing after validation for intent_id={intent_id}"
+            balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
+    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
+        return f"swap apply error for intent_id={intent_id}: {exc}"
+    return None
+
+
+def _commit_swap_pool_reserves(
+    *,
+    pool: PoolState,
+    new_reserve_in: int,
+    new_reserve_out: int,
+    dir_is_0_to_1: bool,
+) -> None:
+    if dir_is_0_to_1:
+        pool.reserve0 = int(new_reserve_in)
+        pool.reserve1 = int(new_reserve_out)
+    else:
+        pool.reserve1 = int(new_reserve_in)
+        pool.reserve0 = int(new_reserve_out)
+
+
+def _append_swap_replay_deltas(
+    *,
+    intent_id: str,
+    sender: PubKey,
+    pool_id: str,
+    recipient: PubKey,
+    balance_deltas: List[BalanceDelta],
+    reserve_deltas: List[ReserveDelta],
+    asset_in: AssetId,
+    asset_out: AssetId,
+    amount_in: int,
+    amount_out: int,
+    protocol_fee: int,
+    protocol_fee_recipient_pubkey: Optional[PubKey],
+) -> Optional[str]:
+    balance_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
+    balance_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out), delta_sub=0))
+    if protocol_fee:
+        if not protocol_fee_recipient_pubkey:
+            return f"protocol fee recipient missing after validation for intent_id={intent_id}"
+        balance_deltas.append(
+            BalanceDelta(
+                pubkey=protocol_fee_recipient_pubkey,
+                asset=asset_in,
+                delta_add=int(protocol_fee),
+                delta_sub=0,
+            )
+        )
+    reserve_deltas.append(
+        ReserveDelta(
+            pool_id=pool_id,
+            asset=asset_in,
+            delta_add=int(amount_in) - int(protocol_fee),
+            delta_sub=0,
+        )
+    )
+    reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out)))
+    return None
+
+
 def _apply_swap_replay_effects(
     *,
     intent_id: str,
@@ -1564,45 +1644,42 @@ def _apply_swap_replay_effects(
     protocol_fee: int,
     protocol_fee_recipient_pubkey: Optional[PubKey],
 ) -> Tuple[bool, Optional[str]]:
-    try:
-        balances.subtract(sender, asset_in, int(amount_in))
-        balances.add(recipient, asset_out, int(amount_out))
-        if protocol_fee:
-            if not protocol_fee_recipient_pubkey:
-                return False, f"protocol fee recipient missing after validation for intent_id={intent_id}"
-            balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
-    except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
-        return False, f"swap apply error for intent_id={intent_id}: {exc}"
-
-    if dir_is_0_to_1:
-        pool.reserve0 = int(new_reserve_in)
-        pool.reserve1 = int(new_reserve_out)
-    else:
-        pool.reserve1 = int(new_reserve_in)
-        pool.reserve0 = int(new_reserve_out)
-
-    balance_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
-    balance_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out), delta_sub=0))
-    if protocol_fee:
-        if not protocol_fee_recipient_pubkey:
-            return False, f"protocol fee recipient missing after validation for intent_id={intent_id}"
-        balance_deltas.append(
-            BalanceDelta(
-                pubkey=protocol_fee_recipient_pubkey,
-                asset=asset_in,
-                delta_add=int(protocol_fee),
-                delta_sub=0,
-            )
-        )
-    reserve_deltas.append(
-        ReserveDelta(
-            pool_id=pool_id,
-            asset=asset_in,
-            delta_add=int(amount_in) - int(protocol_fee),
-            delta_sub=0,
-        )
+    balance_err = _apply_swap_balance_transfers(
+        intent_id=intent_id,
+        balances=balances,
+        sender=sender,
+        recipient=recipient,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_in=amount_in,
+        amount_out=amount_out,
+        protocol_fee=protocol_fee,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
-    reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out)))
+    if balance_err is not None:
+        return False, balance_err
+    _commit_swap_pool_reserves(
+        pool=pool,
+        new_reserve_in=new_reserve_in,
+        new_reserve_out=new_reserve_out,
+        dir_is_0_to_1=dir_is_0_to_1,
+    )
+    delta_err = _append_swap_replay_deltas(
+        intent_id=intent_id,
+        sender=sender,
+        pool_id=pool_id,
+        recipient=recipient,
+        balance_deltas=balance_deltas,
+        reserve_deltas=reserve_deltas,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_in=amount_in,
+        amount_out=amount_out,
+        protocol_fee=protocol_fee,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+    )
+    if delta_err is not None:
+        return False, delta_err
     return True, None
 
 
