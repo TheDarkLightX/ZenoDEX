@@ -156,6 +156,54 @@ def test_state_type_rejects_np_param_values_outside_engine_bounds():
         PerpClearinghouseNpMarketState(quote_asset="zUSD", global_state=gs, accounts=())
 
 
+def test_state_type_rejects_invalid_margin_params_ordering():
+    """The Np snapshot type must reject margin-tier orderings that the isolated_v2
+    market already forbids: max_oracle_move <= maintenance+depeg <= initial_margin.
+    Per-key range bounds permit each value individually; only the ordering check
+    rejects the dangerous RELATIONSHIP (which would make single-epoch bad-debt
+    reachable). Fail-closed at the boundary -- also guards forged snapshots."""
+    # max_oracle_move (700) > maintenance+depeg (600): a clamped move could outrun
+    # the maintenance buffer, so liquidation could miss bad-debt. Must reject.
+    gs = _global_state(0)
+    gs["max_oracle_move_bps"] = 700
+    with pytest.raises(ValueError, match="margin params ordering"):
+        PerpClearinghouseNpMarketState(quote_asset="zUSD", global_state=gs, accounts=())
+
+    # maintenance+depeg (600) > initial_margin (550): liquidation threshold above the
+    # entry-margin floor. Must reject.
+    gs = _global_state(0)
+    gs["initial_margin_bps"] = 550
+    with pytest.raises(ValueError, match="margin params ordering"):
+        PerpClearinghouseNpMarketState(quote_asset="zUSD", global_state=gs, accounts=())
+
+
+def test_state_type_rejects_penalty_at_or_above_maintenance_buffer():
+    """liquidation_penalty_bps must be strictly below maintenance+depeg, else the
+    penalty alone could drive a just-liquidatable account underwater."""
+    gs = _global_state(0)
+    gs["liquidation_penalty_bps"] = 600          # == maintenance(500)+depeg(100)
+    with pytest.raises(ValueError, match="liquidation_penalty_bps"):
+        PerpClearinghouseNpMarketState(quote_asset="zUSD", global_state=gs, accounts=())
+
+
+def test_state_type_accepts_valid_boundary_margin_ordering():
+    """Equality boundaries are valid: max_move == maint+depeg == initial_margin and
+    penalty == maint+depeg-1 are all accepted (regression guard against an
+    over-strict ordering check)."""
+    gs = _global_state(3 * 10 ** 15)
+    gs["max_oracle_move_bps"] = 600              # == maintenance+depeg
+    gs["initial_margin_bps"] = 600               # == maintenance+depeg
+    gs["liquidation_penalty_bps"] = 599          # < maintenance+depeg
+    accts = (
+        PerpClearinghouseNpAccount(_pk("11"), 10, 100 * E8, 10 ** 15),
+        PerpClearinghouseNpAccount(_pk("22"), -6, 100 * E8, 10 ** 15),
+        PerpClearinghouseNpAccount(_pk("33"), -4, 100 * E8, 10 ** 15),
+    )
+    m = PerpClearinghouseNpMarketState(
+        quote_asset="zUSD", global_state=gs, accounts=accts)
+    assert len(m.accounts) == 3
+
+
 def test_state_type_rejects_duplicate_members():
     accts = (
         PerpClearinghouseNpAccount(_pk("11"), 10, 100 * E8, 10 ** 15),

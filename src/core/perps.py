@@ -778,6 +778,29 @@ class PerpClearinghouseNpMarketState:
             value = int(self.global_state[k])
             if value < lo or value > hi:
                 raise ValueError(f"global_state[{k!r}] out of range: {value} not in [{lo}, {hi}]")
+
+        # Parameter ordering invariants (mirror the isolated_v2 market). The per-key
+        # range bounds above do NOT constrain the RELATIONSHIP between the margin
+        # tiers. This ordering is load-bearing: because a clamped oracle move can
+        # never exceed the maintenance buffer (max_oracle_move <= maint+depeg), the
+        # settlement's liquidation step always catches an account while its
+        # collateral is still non-negative, so single-epoch bad debt is unreachable
+        # on the valid-param transition path (the insurance-draw / winner-haircut
+        # ADL branch is defense-in-depth). Fail-closed here rather than relying on
+        # that downstream branch -- and reject forged/corrupt snapshots at the
+        # boundary.
+        eff_maint = (int(self.global_state["maintenance_margin_bps"])
+                     + int(self.global_state["depeg_buffer_bps"]))
+        if not (int(self.global_state["max_oracle_move_bps"])
+                <= eff_maint <= int(self.global_state["initial_margin_bps"])):
+            raise ValueError(
+                "clearinghouse_np invalid margin params ordering "
+                "(max_oracle_move_bps <= maintenance+depeg <= initial_margin_bps)")
+        if int(self.global_state["liquidation_penalty_bps"]) >= eff_maint:
+            raise ValueError(
+                "clearinghouse_np invalid liquidation_penalty_bps "
+                "(must be < maintenance_margin_bps + depeg_buffer_bps)")
+
         if not isinstance(self.accounts, tuple):
             raise TypeError("accounts must be a tuple")
         for acct in self.accounts:
