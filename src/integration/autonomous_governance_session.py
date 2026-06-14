@@ -330,13 +330,14 @@ def verify_autonomous_governance_surface_session_v1(
        trajectory_used_final, previous_approved_deltas == parent
        previous_approved_deltas_final, last_update_epoch == parent
        last_update_epoch_final;
-    5. one policy hash and one trajectory budget across the whole session
-       (and the caller's expected_policy_hash, when pinned);
+    5. one policy hash and one policy-derived trajectory budget across the
+       whole session (and the caller's expected_policy_hash, when pinned);
     6. epochs strictly increase across boundaries;
     7. every receipt is a completed, ok trajectory;
     8. independently re-derived session accounting: per-parameter session
        drift equals the sum of per-receipt drifts, |session drift| <=
-       session used <= budget, and used is monotone across receipts.
+       session used <= policy-derived budget, and used is monotone across
+       receipts.
 
     Verification proves the session is exactly the deterministic outcome of
     its pinned inputs under one budget. It does not prove the session shown is
