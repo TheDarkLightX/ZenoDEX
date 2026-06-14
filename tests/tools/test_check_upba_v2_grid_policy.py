@@ -8,7 +8,6 @@ from pathlib import Path
 
 from tools.check_upba_v2_grid_policy import check_policy, policy_content_hash, sample_policy
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -24,13 +23,13 @@ def test_upba_v2_grid_policy_accepts_sample_candidate() -> None:
     assert result["schema"] == "zenodex.upba.v2.grid_economic_sufficiency_check.v1"
     assert result["status"] == "accepted"
     assert result["error_count"] == 0
-    assert result["derived"]["absolute_loss_bound_atoms"] == 704
-    assert result["derived"]["relative_loss_ppm"] == 234_667
-    assert result["derived"]["raw_price_grid_row_count"] == 441
+    assert result["derived"]["absolute_loss_bound_atoms"] == 2_254
+    assert result["derived"]["relative_loss_ppm"] == 322_000
+    assert result["derived"]["raw_price_grid_row_count"] == 1_071
     assert result["derived"]["computed_fill_levels_per_intent"] == 5
     assert result["derived"]["fill_vector_count"] == 625
-    assert result["derived"]["candidate_evaluation_count"] == 275_625
-    assert result["derived"]["min_fee_adjusted_notional_output_atoms"] == 3_190
+    assert result["derived"]["candidate_evaluation_count"] == 669_375
+    assert result["derived"]["min_fee_adjusted_notional_output_atoms"] == 7_976
 
 
 def test_upba_v2_grid_policy_rejects_unknown_field_and_policy_id_drift() -> None:
@@ -79,7 +78,7 @@ def test_upba_v2_grid_policy_rejects_fill_vector_cap_too_small() -> None:
 
 def test_upba_v2_grid_policy_rejects_candidate_evaluation_cap_too_small() -> None:
     policy = sample_policy()
-    policy["max_candidate_evaluations"] = 275_624
+    policy["max_candidate_evaluations"] = 669_374
     policy = _with_fresh_id(policy)
 
     result = check_policy(policy)
@@ -114,8 +113,8 @@ def test_upba_v2_grid_policy_rejects_trade_size_above_reserve_fraction() -> None
 
 def test_upba_v2_grid_policy_rejects_absolute_and_relative_loss_budget_breach() -> None:
     policy = sample_policy()
-    policy["max_absolute_loss_atoms"] = 703
-    policy["max_relative_loss_ppm"] = 234_000
+    policy["max_absolute_loss_atoms"] = 2_253
+    policy["max_relative_loss_ppm"] = 321_999
     policy = _with_fresh_id(policy)
 
     result = check_policy(policy)
@@ -127,7 +126,7 @@ def test_upba_v2_grid_policy_rejects_absolute_and_relative_loss_budget_breach() 
 
 def test_upba_v2_grid_policy_rejects_min_notional_above_fee_adjusted_floor() -> None:
     policy = sample_policy()
-    policy["min_notional_output_atoms"] = 3_191
+    policy["min_notional_output_atoms"] = 7_977
     policy = _with_fresh_id(policy)
 
     result = check_policy(policy)

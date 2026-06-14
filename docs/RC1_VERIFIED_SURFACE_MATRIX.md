@@ -24,12 +24,12 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
 
 | Surface | Authority | Backing lanes | Primary check |
 | --- | --- | --- | --- |
-| Core spot DEX path | `consensus/runtime` | `kernel-assurance` (READY)<br>`spot-proof` (READY)<br>`spot-evidence` (READY)<br>`tau-runtime`<br>`critical` (READY)<br>`release` (READY) | `python3 tools/permissionless_assurance.py replay public` |
-| Public assurance and release replay surface | `release/replay` | `kernel-assurance` (READY)<br>`spot-proof` (READY)<br>`spot-evidence` (READY)<br>`derivatives` (READY)<br>`perps` (READY)<br>`tau-runtime`<br>`zusd`<br>`critical` (READY)<br>`release` (READY) | `python3 tools/permissionless_assurance.py status` |
-| Bounded TLA claim surface | `public formal claim` | `release` (READY) | `python3 tools/run_tla_models.py --json` |
-| Supported HTTP boundary | `runtime ingress` | `critical` (READY)<br>`release` (READY) | `python3 tools/rc1_readiness.py` |
-| zUSD Tau wallet and transport replay lane | `wallet/transport` | `zusd`<br>`release` (READY) | `python3 tools/permissionless_assurance.py replay zusd` |
-| Tau wallet veto / O5 policy guard | `bounded control-plane guard` | `zusd`<br>`release` (READY) | `python3 tools/permissionless_assurance.py replay zusd` |
+| Core spot DEX path | `consensus/runtime` | `kernel-assurance` (MISSING)<br>`spot-proof` (MISSING)<br>`spot-evidence` (MISSING)<br>`tau-runtime`<br>`critical` (READY)<br>`release` (MISSING) | `python3 tools/permissionless_assurance.py replay public` |
+| Public assurance and release replay surface | `release/replay` | `kernel-assurance` (MISSING)<br>`spot-proof` (MISSING)<br>`spot-evidence` (MISSING)<br>`derivatives` (MISSING)<br>`perps` (MISSING)<br>`tau-runtime`<br>`zusd`<br>`critical` (READY)<br>`release` (MISSING) | `python3 tools/permissionless_assurance.py status` |
+| Bounded TLA claim surface | `public formal claim` | `release` (MISSING) | `python3 tools/run_tla_models.py --json` |
+| Supported HTTP boundary | `runtime ingress` | `critical` (READY)<br>`release` (MISSING) | `python3 tools/rc1_readiness.py` |
+| zUSD Tau wallet and transport replay lane | `wallet/transport` | `zusd`<br>`release` (MISSING) | `python3 tools/permissionless_assurance.py replay zusd` |
+| Tau wallet veto / O5 policy guard | `bounded control-plane guard` | `zusd`<br>`release` (MISSING) | `python3 tools/permissionless_assurance.py replay zusd` |
 
 ## Surface Details
 
@@ -46,16 +46,16 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
   - `src/core/batch_clearing.py`
   - `generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py`
 - Backing lanes:
-  - `kernel-assurance`: READY
+  - `kernel-assurance`: MISSING
     Re-run the manifest-backed kernel assurance corpus and solver checks.
-  - `spot-proof`: READY
+  - `spot-proof`: MISSING
     Rebuild the spot proof artifacts, then pin-check the manifest.
-  - `spot-evidence`: READY
+  - `spot-evidence`: MISSING
     Replay the spot functional-core tests and spot-kernel verify-multi checks.
   - `tau-runtime`
   - `critical`: READY
     Run the publishable critical quality gate with branch coverage and static checks.
-  - `release`: READY
+  - `release`: MISSING
     Run the full release gate, including Tau, proof, evidence, and audit lanes.
 - Primary commands:
   - `python3 tools/permissionless_assurance.py replay public`
@@ -85,21 +85,21 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
   - `tools/run_perps_evidence.sh`
   - `tools/run_zusd_evidence.sh`
 - Backing lanes:
-  - `kernel-assurance`: READY
+  - `kernel-assurance`: MISSING
     Re-run the manifest-backed kernel assurance corpus and solver checks.
-  - `spot-proof`: READY
+  - `spot-proof`: MISSING
     Rebuild the spot proof artifacts, then pin-check the manifest.
-  - `spot-evidence`: READY
+  - `spot-evidence`: MISSING
     Replay the spot functional-core tests and spot-kernel verify-multi checks.
-  - `derivatives`: READY
+  - `derivatives`: MISSING
     Rebuild the derivatives evidence lane, then pin-check the manifest.
-  - `perps`: READY
+  - `perps`: MISSING
     Replay the perps functional-core tests, micro-gate assurances, kernel verify-multi checks, and Lean safety proofs.
   - `tau-runtime`
   - `zusd`
   - `critical`: READY
     Run the publishable critical quality gate with branch coverage and static checks.
-  - `release`: READY
+  - `release`: MISSING
     Run the full release gate, including Tau, proof, evidence, and audit lanes.
 - Primary commands:
   - `python3 tools/permissionless_assurance.py status`
@@ -124,7 +124,7 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
   - `tools/run_tla_models.py`
   - `tools/render_tla_claim_summary.py`
 - Backing lanes:
-  - `release`: READY
+  - `release`: MISSING
     Run the full release gate, including Tau, proof, evidence, and audit lanes.
 - Primary commands:
   - `python3 tools/run_tla_models.py --json`
@@ -151,7 +151,7 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
 - Backing lanes:
   - `critical`: READY
     Run the publishable critical quality gate with branch coverage and static checks.
-  - `release`: READY
+  - `release`: MISSING
     Run the full release gate, including Tau, proof, evidence, and audit lanes.
 - Primary commands:
   - `python3 tools/rc1_readiness.py`
@@ -174,7 +174,7 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
   - `src/tau_specs/recommended/zusd_transfer_guard_v1.tau`
 - Backing lanes:
   - `zusd`
-  - `release`: READY
+  - `release`: MISSING
     Run the full release gate, including Tau, proof, evidence, and audit lanes.
 - Primary commands:
   - `python3 tools/permissionless_assurance.py replay zusd`
@@ -195,7 +195,7 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
   - `docs/TAU_WALLET_O5_GUARD.md`
 - Backing lanes:
   - `zusd`
-  - `release`: READY
+  - `release`: MISSING
     Run the full release gate, including Tau, proof, evidence, and audit lanes.
 - Primary commands:
   - `python3 tools/permissionless_assurance.py replay zusd`

@@ -5,7 +5,6 @@ import os
 import subprocess
 import sys
 import threading
-from http.client import HTTPConnection
 from pathlib import Path
 
 from src.integration.proof_mining_context import ProofMiningContext, proof_mining_context_to_obj
@@ -191,7 +190,7 @@ def test_permissionless_proof_mining_status_cli_local_rejected_claim_returns_non
     assert body["status"]["error"] == "proof mining claim proposal_hash mismatch"
 
 
-def test_permissionless_proof_mining_status_cli_api_mode(tmp_path: Path, monkeypatch) -> None:
+def test_permissionless_proof_mining_status_cli_api_mode_rejects_client_context(tmp_path: Path, monkeypatch) -> None:
     sender = "0x" + "33" * 48
     reward_pool = "0x" + "77" * 48
     claim = _claim(miner_id=sender, reward_pool_before=20)
@@ -228,10 +227,9 @@ def test_permissionless_proof_mining_status_cli_api_mode(tmp_path: Path, monkeyp
             capture_output=True,
             text=True,
         )
-        assert proc.returncode == 0, proc.stderr
+        assert proc.returncode == 1
         body = json.loads(proc.stdout)
-        assert body["ok"] is True
-        assert body["status"]["claimable"] is True
+        assert body == {"ok": False, "error": "proof_mining_context_not_accepted"}
     finally:
         _stop_test_server(httpd, thread)
 

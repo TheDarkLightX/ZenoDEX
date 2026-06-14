@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -87,7 +86,7 @@ def _export_ref(model_path: str) -> Path:
     with tempfile.TemporaryDirectory(prefix="sealed_bid_catalog_") as tmp_dir:
         out_dir = Path(tmp_dir)
         cmd = [
-            "python3",
+            sys.executable,
             "-m",
             "ESSO",
             "export-python",

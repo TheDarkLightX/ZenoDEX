@@ -9,12 +9,12 @@ from tools.zenodex_autonomous_checks import (
     _check_batch_mci_vs_greedy,
     _check_burn_receipt_accounting_model,
     _check_burn_receipt_replay_rejected,
+    _check_dgstr_eval_count,
+    _check_dgstr_exact_match,
     _check_sealed_bid_bond_exhaustive_small,
     _check_sealed_bid_bond_surface_safe,
     _check_sealed_bid_private_state_surface_safe,
     _check_sealed_bid_uniform_price_model,
-    _check_dgstr_eval_count,
-    _check_dgstr_exact_match,
 )
 
 ROOT = Path(__file__).resolve().parents[2]

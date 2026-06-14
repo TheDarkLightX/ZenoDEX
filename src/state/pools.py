@@ -4,21 +4,21 @@ Pool state management for DEX pools.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Tuple
 
-import hashlib
-
-from .balances import AssetId, Amount
+from .balances import Amount, AssetId
 from .canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
-
 
 CURVE_TAG_CPMM = "CPMM"
 CURVE_TAG_CUBIC_SUM_V1 = "CUBIC_SUM_V1"
 CURVE_TAG_SUM_BOOST_V1 = "SUM_BOOST_V1"
 CURVE_TAG_QUARTIC_BLEND_V1 = "QUARTIC_BLEND_V1"
 CURVE_TAG_QUINTIC_BLEND_V1 = "QUINTIC_BLEND_V1"
+POOL_FEE_BPS_MIN = 0
+POOL_FEE_BPS_MAX = 10_000
 
 
 def _canonical_asset_id_if_hex(asset: AssetId, *, name: str) -> AssetId:
@@ -312,8 +312,8 @@ def compute_pool_id(
     Matches the formula described in `src/core/liquidity.py`.
     """
     asset0, asset1 = normalize_pool_asset_pair(asset0, asset1)
-    if not (0 <= fee_bps <= 10000):
-        raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")
+    if not (POOL_FEE_BPS_MIN <= fee_bps <= POOL_FEE_BPS_MAX):
+        raise ValueError(f"fee_bps must be in [{POOL_FEE_BPS_MIN}, {POOL_FEE_BPS_MAX}]: {fee_bps}")
     if not isinstance(curve_tag, str) or not curve_tag:
         raise ValueError("curve_tag must be a non-empty string")
     if not isinstance(curve_params, str):
@@ -365,8 +365,8 @@ class PoolState:
         self.asset0, self.asset1 = normalize_pool_asset_pair(self.asset0, self.asset1)
         
         # Validate fee_bps
-        if not (0 <= self.fee_bps <= 10000):
-            raise ValueError(f"fee_bps must be in [0, 10000]: {self.fee_bps}")
+        if not (POOL_FEE_BPS_MIN <= self.fee_bps <= POOL_FEE_BPS_MAX):
+            raise ValueError(f"fee_bps must be in [{POOL_FEE_BPS_MIN}, {POOL_FEE_BPS_MAX}]: {self.fee_bps}")
 
         # Normalize curve config (fail-closed on unknown curves).
         tag, params = normalize_curve_config(curve_tag=self.curve_tag, curve_params=self.curve_params)

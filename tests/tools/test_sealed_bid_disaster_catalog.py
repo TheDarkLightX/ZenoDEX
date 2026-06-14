@@ -7,14 +7,16 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from tools.sealed_bid_disaster_catalog import generate_catalog
 
-
 ROOT = Path(__file__).resolve().parents[2]
+pytestmark = pytest.mark.skipif(importlib.util.find_spec("ESSO") is None, reason="ESSO is not installed")
 
 
 def _export_ref(model_path: str, tmp_path: Path) -> Any:
-    cmd = ["python3", "-m", "ESSO", "export-python", model_path, "--output", str(tmp_path)]
+    cmd = [sys.executable, "-m", "ESSO", "export-python", model_path, "--output", str(tmp_path)]
     proc = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, check=True)
     payload = json.loads(proc.stdout.strip())
     ref_path = ROOT / payload["files"]["model"]
