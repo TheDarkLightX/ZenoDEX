@@ -1247,6 +1247,191 @@ class _CowCandidateExactIn:
     asset_out: AssetId
 
 
+def _cow_feasible(x: "_CowCandidateExactIn", y: "_CowCandidateExactIn") -> bool:
+    return y.amount_in >= x.min_amount_out and x.amount_in >= y.min_amount_out
+
+
+def _cow_pair_ab(x: "_CowCandidateExactIn", y: "_CowCandidateExactIn") -> tuple[int, int]:
+    """(A, B) contribution of matching pair (x, y). B >= 0 by feasibility."""
+    a = int(x.amount_in + y.amount_in)
+    b = int((y.amount_in - x.min_amount_out) + (x.amount_in - y.min_amount_out))
+    return a, b
+
+
+def _cow_max_weight_assignment(w: List[List[int]]) -> List[int]:
+    """Max-weight perfect assignment on a square integer matrix, via Kuhn-Munkres on
+    negated weights (O(n^3), deterministic). Returns ``match[i] = j``."""
+    n = len(w)
+    if n == 0:
+        return []
+    cost = [[-w[i][j] for j in range(n)] for i in range(n)]  # minimize -w  <=>  maximize w
+    # INF must exceed any reduced cost the algorithm forms. Python ints are unbounded,
+    # so derive it from the actual weights (a fixed 1<<62 overflows for large amounts).
+    INF = 1 + sum(abs(cost[i][j]) for i in range(n) for j in range(n))
+    u = [0] * (n + 1)
+    v = [0] * (n + 1)
+    p = [0] * (n + 1)
+    way = [0] * (n + 1)
+    for i in range(1, n + 1):
+        p[0] = i
+        j0 = 0
+        minv = [INF] * (n + 1)
+        used = [False] * (n + 1)
+        while True:
+            used[j0] = True
+            i0 = p[j0]
+            delta = INF
+            j1 = -1
+            for j in range(1, n + 1):
+                if not used[j]:
+                    cur = cost[i0 - 1][j - 1] - u[i0] - v[j]
+                    if cur < minv[j]:
+                        minv[j] = cur
+                        way[j] = j0
+                    if minv[j] < delta:
+                        delta = minv[j]
+                        j1 = j
+            for j in range(n + 1):
+                if used[j]:
+                    u[p[j]] += delta
+                    v[j] -= delta
+                else:
+                    minv[j] -= delta
+            j0 = j1
+            if p[j0] == 0:
+                break
+        while True:
+            j1 = way[j0]
+            p[j0] = p[j1]
+            j0 = j1
+            if j0 == 0:
+                break
+    match = [-1] * n
+    for j in range(1, n + 1):
+        if p[j] != 0:
+            match[p[j] - 1] = j - 1
+    return match
+
+
+def _cow_max_weight_pairs(
+    side_01: List["_CowCandidateExactIn"],
+    side_10: List["_CowCandidateExactIn"],
+    scale: int,
+    *,
+    forced: set,
+    banned: set,
+) -> tuple[int, set] | None:
+    """Max total ``A*scale + B`` feasible matching that includes ``forced`` and excludes
+    ``banned``. Returns ``(weight, pairs)`` or ``None`` if ``forced`` cannot be realized."""
+    n0, n1 = len(side_01), len(side_10)
+    n = max(n0, n1)
+    if n == 0:
+        return 0, set()
+    # Dynamic sentinels (Python ints are unbounded -> no fixed-width overflow): `big`
+    # exceeds any matching's total real weight, so an infeasible/banned cell is never
+    # chosen over leaving a row unmatched, and each forced edge's bonus dominates.
+    big = 1
+    for i in range(n0):
+        for j in range(n1):
+            if (i, j) not in banned and _cow_feasible(side_01[i], side_10[j]):
+                a, b = _cow_pair_ab(side_01[i], side_10[j])
+                big += a * scale + b
+    w = [[0] * n for _ in range(n)]
+    for i in range(n0):
+        for j in range(n1):
+            if (i, j) in banned or not _cow_feasible(side_01[i], side_10[j]):
+                w[i][j] = -big
+            else:
+                a, b = _cow_pair_ab(side_01[i], side_10[j])
+                w[i][j] = a * scale + b
+    for (i, j) in forced:
+        w[i][j] += big
+    match = _cow_max_weight_assignment(w)
+    pairs: set = set()
+    real = 0
+    for i in range(n):
+        j = match[i]
+        if j < 0 or i >= n0 or j >= n1 or w[i][j] < 0:  # skip dummy / infeasible / banned
+            continue
+        pairs.add((i, j))
+        a, b = _cow_pair_ab(side_01[i], side_10[j])
+        real += a * scale + b
+    if not forced.issubset(pairs):
+        return None
+    return real, pairs
+
+
+def _cow_exact_match_uncoupled(
+    side_01: List["_CowCandidateExactIn"],
+    side_10: List["_CowCandidateExactIn"],
+) -> List[tuple["_CowCandidateExactIn", "_CowCandidateExactIn"]]:
+    """Exact ``(A, B, lex-max-of-ascending-pair-ids)`` matching for the uncoupled case,
+    in polynomial time. Bit-identical to the capped brute force where they overlap; for
+    larger batches it returns the true optimum (which the greedy fallback does not)."""
+    scale = 1
+    for x in side_01:
+        for y in side_10:
+            if _cow_feasible(x, y):
+                _, b = _cow_pair_ab(x, y)
+                scale += max(0, b)
+    base = _cow_max_weight_pairs(side_01, side_10, scale, forced=set(), banned=set())
+    if base is None or not base[1]:
+        return []
+    max_w = base[0]
+    # lex-max of the ASCENDING-sorted pair-id tuple == maximize the smallest pair, then
+    # the next, ...  Greedy: process candidate pairs ascending by (x_id, y_id); BAN each
+    # if the optimum is still reachable without it (pushing the min pair up); else force it.
+    edges = sorted(
+        (
+            (side_01[i].intent.intent_id, side_10[j].intent.intent_id, i, j)
+            for i in range(len(side_01))
+            for j in range(len(side_10))
+            if _cow_feasible(side_01[i], side_10[j])
+        ),
+        key=lambda t: (t[0], t[1]),
+    )
+    banned: set = set()
+    forced: set = set()
+    used_i: set = set()
+    used_j: set = set()
+    for (_xid, _yid, i, j) in edges:
+        if (i, j) in banned or i in used_i or j in used_j:
+            continue
+        res = _cow_max_weight_pairs(side_01, side_10, scale, forced=forced, banned=banned | {(i, j)})
+        if res is not None and res[0] == max_w:
+            banned = banned | {(i, j)}
+        else:
+            forced = forced | {(i, j)}
+            used_i.add(i)
+            used_j.add(j)
+    return [(side_01[i], side_10[j]) for (i, j) in forced]
+
+
+def _cow_uncoupled(
+    side_01: List["_CowCandidateExactIn"],
+    side_10: List["_CowCandidateExactIn"],
+    balances: BalanceTable,
+    a0: AssetId,
+    a1: AssetId,
+) -> bool:
+    """True when no per-sender balance constraint can bind: for every sender, the sum of
+    ALL their candidate debits (on each side) is within their balance. Then the matching
+    is an unconstrained max-weight bipartite matching and the exact poly matcher applies."""
+    need0: Dict[PubKey, int] = defaultdict(int)
+    need1: Dict[PubKey, int] = defaultdict(int)
+    for c in side_01:
+        need0[c.sender] += int(c.amount_in)
+    for c in side_10:
+        need1[c.sender] += int(c.amount_in)
+    for sender, need in need0.items():
+        if need > int(balances.get(sender, a0)):
+            return False
+    for sender, need in need1.items():
+        if need > int(balances.get(sender, a1)):
+            return False
+    return True
+
+
 def _cow_pair_netting_exact_in_v1(
     swap_intents: List[Intent],
     *,
@@ -1339,7 +1524,14 @@ def _cow_pair_netting_exact_in_v1(
     best_pairs: List[tuple[_CowCandidateExactIn, _CowCandidateExactIn]] = []
     best_key: tuple[int, int, Tuple[Tuple[str, str], ...]] | None = None
 
-    if use_bruteforce:
+    if _cow_uncoupled(side_01, side_10, balances, a0, a1):
+        # Uncoupled => the per-sender balance constraint cannot bind, so the matching is
+        # an unconstrained max-weight bipartite matching: solve it EXACTLY in polynomial
+        # time. The brute force below is capped at 8 candidates and the greedy fallback is
+        # non-optimal; this exact matcher is bit-identical to the brute where they overlap
+        # and yields the true (A,B,lex) optimum at any size.
+        best_pairs = _cow_exact_match_uncoupled(side_01, side_10)
+    elif use_bruteforce:
         # Track per-sender debit feasibility in the recursion to prune.
         bal0: Dict[PubKey, int] = {}
         bal1: Dict[PubKey, int] = {}
