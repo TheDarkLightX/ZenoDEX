@@ -2421,6 +2421,22 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     assert err.startswith(f"swap_exact_in kernel error for intent_id={intent.intent_id}:")
     monkeypatch.undo()
 
+    def _fault_exact_in(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("implementation fault")
+
+    monkeypatch.setattr(strong_validator, "swap_exact_in_for_pool", _fault_exact_in)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "strong validator crashed: RuntimeError: implementation fault"
+    monkeypatch.undo()
+
     amount_out_mismatch = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
     amount_out_mismatch.fills[0].amount_out_filled += 1
     ok, err = validate_settlement_strong(

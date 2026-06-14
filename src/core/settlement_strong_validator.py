@@ -35,6 +35,10 @@ LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 _MODE_STRONG_REPLAY = "strong_replay"
 _MODE_STRONG_PROOF_CARRYING = "strong_proof_carrying"
 _VALIDATION_MODES = frozenset({_MODE_STRONG_REPLAY, _MODE_STRONG_PROOF_CARRYING})
+# Inner replay catches are for malformed certificates and bounded arithmetic
+# rejects. Unexpected implementation faults fall through to the public
+# fail-closed crash wrapper with their exception class preserved.
+_STRONG_REPLAY_DOMAIN_ERRORS = (ArithmeticError, TypeError, ValueError)
 
 
 def _format_error_details(**kwargs: object) -> str:
@@ -428,7 +432,7 @@ def _validate_settlement_strong_impl(
                     curve_tag=curve_tag,
                     curve_params=curve_params,
                 )
-            except Exception as exc:
+            except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
                 return fail(f"CREATE_POOL computation error for intent_id={intent_id}: {exc}")
 
             if pool_id in pools:
@@ -449,7 +453,7 @@ def _validate_settlement_strong_impl(
                 # LP mint to creator, plus lock.
                 lp.add(sender, pool_id, int(lp_minted))
                 lp.add(LP_LOCK_PUBKEY, pool_id, int(MIN_LP_LOCK))
-            except Exception as exc:
+            except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
                 return fail(f"CREATE_POOL balance/LP apply error for intent_id={intent_id}: {exc}")
 
             pools[pool_id] = created_pool
@@ -528,7 +532,7 @@ def _validate_settlement_strong_impl(
                 try:
                     balances.subtract(sender, asset_in, int(amount_in))
                     balances.add(recipient, asset_out, out_amt)
-                except Exception as exc:
+                except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
                     return fail(f"COW_NETTED apply error for intent_id={intent_id}: {exc}")
 
                 bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
@@ -584,7 +588,7 @@ def _validate_settlement_strong_impl(
                             amount_in=int(amount_in),
                         )
                         protocol_fee = 0
-                except Exception as exc:
+                except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
                     return fail(f"swap_exact_in kernel error for intent_id={intent_id}: {exc}")
 
                 if amounts.amount_out_filled != int(amount_out):
@@ -605,7 +609,7 @@ def _validate_settlement_strong_impl(
                         if not protocol_fee_recipient_pubkey:
                             return fail(f"protocol fee recipient missing after validation for intent_id={intent_id}")
                         balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
-                except Exception as exc:
+                except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
                     return fail(f"swap apply error for intent_id={intent_id}: {exc}")
 
                 # Apply reserve updates.
@@ -674,7 +678,7 @@ def _validate_settlement_strong_impl(
                         amount_out=int(amount_out_req),
                     )
                     protocol_fee = 0
-            except Exception as exc:
+            except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
                 return fail(f"swap_exact_out kernel error for intent_id={intent_id}: {exc}")
 
             if amounts.amount_in_filled != int(amount_in_req):
@@ -695,7 +699,7 @@ def _validate_settlement_strong_impl(
                     if not protocol_fee_recipient_pubkey:
                         return fail(f"protocol fee recipient missing after validation for intent_id={intent_id}")
                     balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
-            except Exception as exc:
+            except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
                 return fail(f"swap apply error for intent_id={intent_id}: {exc}")
 
             if dir_is_0_to_1:
@@ -755,7 +759,7 @@ def _validate_settlement_strong_impl(
                     amount0_min=amount0_min,
                     amount1_min=amount1_min,
                 )
-            except Exception as exc:
+            except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
                 return fail(f"ADD_LIQUIDITY computation error for intent_id={intent_id}: {exc}")
 
             if amounts.amount0_used != int(amount0_used):
@@ -769,7 +773,7 @@ def _validate_settlement_strong_impl(
                 balances.subtract(sender, pool.asset0, int(amount0_used))
                 balances.subtract(sender, pool.asset1, int(amount1_used))
                 lp.add(recipient, pool_id, int(lp_minted))
-            except Exception as exc:
+            except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
                 return fail(f"ADD_LIQUIDITY apply error for intent_id={intent_id}: {exc}")
 
             pool.reserve0 += int(amount0_used)
@@ -805,7 +809,7 @@ def _validate_settlement_strong_impl(
                     amount0_min=amount0_min,
                     amount1_min=amount1_min,
                 )
-            except Exception as exc:
+            except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
                 return fail(f"REMOVE_LIQUIDITY computation error for intent_id={intent_id}: {exc}")
 
             if amounts.lp_burned != int(lp_amount):
@@ -819,7 +823,7 @@ def _validate_settlement_strong_impl(
                 lp.subtract(sender, pool_id, int(lp_amount))
                 balances.add(recipient, pool.asset0, int(amount0_out))
                 balances.add(recipient, pool.asset1, int(amount1_out))
-            except Exception as exc:
+            except _STRONG_REPLAY_DOMAIN_ERRORS as exc:
                 return fail(f"REMOVE_LIQUIDITY apply error for intent_id={intent_id}: {exc}")
 
             pool.reserve0 -= int(amount0_out)
