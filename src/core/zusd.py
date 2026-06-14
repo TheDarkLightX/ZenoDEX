@@ -243,6 +243,17 @@ class ZUSDStepResult:
     error: str | None = None
 
 
+_ZUSD_STEP_DOMAIN_ERRORS = (ArithmeticError, TypeError, ValueError)
+
+
+def _require_command_args_mapping(args: object) -> Mapping[str, Any]:
+    """Validate the typed command envelope before reading action arguments."""
+
+    if not isinstance(args, Mapping):
+        raise TypeError("command args must be a mapping")
+    return args
+
+
 ZUSD_STATE_FIELD_ORDER = (
     "now_epoch",
     "oracle_seen",
@@ -502,6 +513,7 @@ def _risky_ops_allowed(state: ZUSDState) -> bool:
 
 def _step_python(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
     try:
+        _require_command_args_mapping(cmd.args)
         tag = str(cmd.tag)
         if tag == "advance_epoch":
             delta = _require_pos_int(cmd.args.get("delta"), name="delta")
@@ -810,7 +822,7 @@ def _step_python(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
         if failed:
             return ZUSDStepResult(ok=False, error=f"invariant violation: {','.join(failed)}")
         return ZUSDStepResult(ok=True, state=ns, effects=eff)
-    except Exception as exc:
+    except _ZUSD_STEP_DOMAIN_ERRORS as exc:
         return ZUSDStepResult(ok=False, error=str(exc))
 
 
@@ -1080,6 +1092,7 @@ def _multi_risky_ops_allowed(state: ZUSDMultiState) -> bool:
 
 def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepResult:
     try:
+        _require_command_args_mapping(cmd.args)
         tag = str(cmd.tag)
         if tag == "advance_epoch":
             delta = _require_pos_int(cmd.args.get("delta"), name="delta")
@@ -1421,5 +1434,5 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
         if failed:
             return ZUSDMultiStepResult(ok=False, error=f"invariant violation: {','.join(failed)}")
         return ZUSDMultiStepResult(ok=True, state=ns, effects=eff)
-    except Exception as exc:
+    except _ZUSD_STEP_DOMAIN_ERRORS as exc:
         return ZUSDMultiStepResult(ok=False, error=str(exc))

@@ -178,6 +178,25 @@ def test_multi_invariant_detection_for_sub_floor_debt() -> None:
     assert "inv_debt_floor_a" in check_multi_invariants(s)
 
 
+def test_multi_step_rejects_malformed_command_args() -> None:
+    r = step_multi(init_multi_state(), ZUSDMultiCommand(tag="advance_epoch", args=None))  # type: ignore[arg-type]
+
+    assert not r.ok
+    assert r.error == "command args must be a mapping"
+
+
+def test_multi_step_propagates_unexpected_invariant_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.core.zusd as zusd_mod
+
+    def _boom(_state: ZUSDMultiState) -> list[str]:
+        raise RuntimeError("multi invariant checker bug")
+
+    monkeypatch.setattr(zusd_mod, "check_multi_invariants", _boom)
+
+    with pytest.raises(RuntimeError, match="multi invariant checker bug"):
+        step_multi(init_multi_state(), ZUSDMultiCommand(tag="advance_epoch", args={"delta": 1}))
+
+
 def test_multi_debt_floor_sequence_grid_for_repay_and_redeem() -> None:
     for minted_e8 in (100 * E8, 150 * E8, 250 * E8):
         s = init_multi_state()

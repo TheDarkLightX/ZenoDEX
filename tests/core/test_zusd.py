@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.zusd import (
     E8,
     ZUSDCommand,
@@ -199,6 +201,25 @@ def test_invariant_detection_for_supply_conservation() -> None:
     )
     violations = check_invariants(bad)
     assert "inv_supply_conservation" in violations
+
+
+def test_step_rejects_malformed_command_args() -> None:
+    r = step(init_state(), ZUSDCommand(tag="advance_epoch", args=None))  # type: ignore[arg-type]
+
+    assert not r.ok
+    assert r.error == "command args must be a mapping"
+
+
+def test_step_propagates_unexpected_invariant_fault(monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.core.zusd as zusd_mod
+
+    def _boom(_state: ZUSDState) -> list[str]:
+        raise RuntimeError("invariant checker bug")
+
+    monkeypatch.setattr(zusd_mod, "check_invariants", _boom)
+
+    with pytest.raises(RuntimeError, match="invariant checker bug"):
+        step(init_state(), ZUSDCommand(tag="advance_epoch", args={"delta": 1}))
 
 
 def test_invariant_detection_for_sub_floor_debt() -> None:
