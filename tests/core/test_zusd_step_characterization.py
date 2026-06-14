@@ -4,9 +4,9 @@ dispatch-table refactor of ``_step_python``.
 The refactor replaced a monolithic if/elif chain with a total ``tag -> handler``
 dispatch table; each handler returns ``(new_state, effects)`` on success or a reject
 ``ZUSDStepResult``, and the shared tail (post-state invariant check + accept) and the
-fail-closed ``except`` wrapper run once in ``_step_python``. Equivalence to the prior
-implementation was verified bit-identically against a 2058-case golden corpus during
-development; this module is the committed permanent guard. It locks:
+fail-closed ``except`` wrapper run once in ``_step_python``. This committed module is
+structural characterization evidence. Base-branch parity requires a separate checked-in
+replay artifact. It locks:
 
 * dispatch TOTALITY (the table covers exactly the known command set);
 * fail-closed shape (every input yields a ``ZUSDStepResult``; rejects carry no state;
@@ -112,7 +112,7 @@ def test_step_is_total_deterministic_and_fail_closed_over_corpus():
         r1 = Z._step_python(state, cmd)
         r2 = Z._step_python(state, cmd)
         # determinism
-        assert (r1.ok, r1.error, r1.effects) == (r2.ok, r2.error, r2.effects)
+        assert (r1.ok, r1.error, r1.state, r1.effects) == (r2.ok, r2.error, r2.state, r2.effects)
         assert isinstance(r1, Z.ZUSDStepResult)
         tag = str(cmd.tag)
         if r1.ok:
@@ -212,7 +212,7 @@ def test_multi_step_is_total_deterministic_and_fail_closed_over_corpus():
     for state, cmd in _multi_corpus():
         r1 = Z.step_multi(state, cmd)
         r2 = Z.step_multi(state, cmd)
-        assert (r1.ok, r1.error, r1.effects) == (r2.ok, r2.error, r2.effects)
+        assert (r1.ok, r1.error, r1.state, r1.effects) == (r2.ok, r2.error, r2.state, r2.effects)
         assert isinstance(r1, Z.ZUSDMultiStepResult)
         tag = str(cmd.tag)
         if r1.ok:
@@ -248,4 +248,25 @@ def test_handlers_return_tuple_or_reject_when_they_return():
                 assert isinstance(ns, Z.ZUSDState) and isinstance(eff, dict)
                 saw_tuple += 1
     # Non-vacuity: the contract was exercised in all three shapes.
+    assert saw_tuple and saw_reject and saw_raise
+
+
+def test_multi_handlers_return_tuple_or_reject_when_they_return():
+    """Multi-vault analogue of the direct handler-shape contract."""
+    rng = random.Random(8)
+    saw_tuple = saw_reject = saw_raise = 0
+    for tag, handler in Z._ZUSD_MULTI_STEP_HANDLERS.items():
+        for base in (Z.ZUSDMultiState(), _ready_multi(), _liq_multi("a"), _liq_multi("b")):
+            try:
+                res = handler(base, Z.ZUSDMultiCommand(tag=tag, args=_rand_multi_args(rng, tag)))
+            except Exception:
+                saw_raise += 1
+                continue
+            if isinstance(res, Z.ZUSDMultiStepResult):
+                assert res.ok is False
+                saw_reject += 1
+            else:
+                ns, eff = res
+                assert isinstance(ns, Z.ZUSDMultiState) and isinstance(eff, dict)
+                saw_tuple += 1
     assert saw_tuple and saw_reject and saw_raise

@@ -30,7 +30,6 @@ from src.state.pools import (
     PoolStatus,
 )
 
-
 ASSET0 = "0x" + "01" * 32
 ASSET1 = "0x" + "02" * 32
 

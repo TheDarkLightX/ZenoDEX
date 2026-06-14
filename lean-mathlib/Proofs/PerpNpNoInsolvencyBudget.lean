@@ -17,18 +17,22 @@ Model. Each open account contributes a pair `(c, p)`:
 The book is net-zero, and MTM is zero-sum, so `∑ p = 0` (this is exactly
 `pnl_e8 (position, s, mark)` summed over a net-zero book in the runtime).
 
-Quantities (matching the runtime):
-* `gain` = `∑ max 0 p`            -- winners' realized profit = the ADL haircut budget
-                                     (on the reachable path collateral ≥ pnl, so the
-                                     `min(pnl, collateral)` cap in the runtime is a no-op);
+Quantities (arithmetic abstraction of the runtime):
+* `gain` = `∑ max 0 p`            -- total positive MTM PnL. This equals the runtime
+                                     ADL haircut budget only under the additional
+                                     reachable-path assumptions that positive-PnL
+                                     accounts are not liquidated and the runtime
+                                     winner cap `min(pnl, collateral)` is a no-op;
 * `badDebt` = `∑ max 0 (-(c+p))`  -- collateral driven below zero, summed as a positive
                                      deficit (underwater accounts; they pay zero penalty,
                                      so the penalty term drops out of this core bound).
 
 THE THEOREM: `badDebt ≤ gain`. Hence `residual = badDebt - min(badDebt, insurance) ≤
-badDebt ≤ gain = budget`, so the runtime's `residual > budget` fail-closed branch is
-never taken on this core path -- a machine-checked counterpart to the test-level
-corroboration, and a strict generalization of the 2-leg witness in
+badDebt ≤ gain`. To instantiate this as `residual ≤ runtimeBudget`, the runtime-binding
+tests must also show that `runtimeBudget = gain` on the scoped reachable path. This file
+therefore proves the core arithmetic inequality. Runtime ADL equivalence requires the
+additional runtime-binding checks above. It is a machine-checked counterpart to the
+test-level corroboration and a strict generalization of the 2-leg witness in
 `PerpADLSybilBankruptcyClosure.lean` to arbitrary N.
 
 Proof idea (two clean steps):
@@ -40,7 +44,8 @@ Proof idea (two clean steps):
 namespace Internal
 namespace PerpNpNoInsolvencyBudget
 
-/-- Winners' realized profit = ADL haircut budget on the reachable path. -/
+/-- Total positive MTM PnL. This is the ADL haircut budget only under the runtime
+reachability/cap assumptions stated in the module comment. -/
 def gain (book : List (ℤ × ℤ)) : ℤ := (book.map (fun cp => max 0 cp.2)).sum
 
 /-- Bad debt: collateral driven below zero by MTM, summed as a positive deficit. -/

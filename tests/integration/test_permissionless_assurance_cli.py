@@ -8,7 +8,6 @@ from pathlib import Path
 
 from tools import permissionless_assurance as assurance_cli
 
-
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "tools" / "permissionless_assurance.py"
 

@@ -4,24 +4,25 @@ from pathlib import Path
 
 import pytest
 
+import src.integration.exact_in_route_certificate as exact_in_route_certificate_module
 from src.core.routing import RouteHop, RouteLeg, RouteQuote, best_route_exact_in_2hop
 from src.integration.exact_in_route_certificate import (
     EXACT_IN_ROUTE_CERTIFICATE_SCHEMA,
     build_exact_in_route_canonical_certificate,
     build_exact_in_route_canonical_certificate_for_pools,
     build_exact_in_route_guarded_quote_packet,
+    build_exact_in_route_oracle_contract,
     build_exact_in_route_rank_projection_packet,
     build_exact_in_route_rank_projection_packet_for_pools,
     build_exact_in_route_true_key_interpretation_packet,
     build_exact_in_route_true_key_interpretation_packet_for_pools,
-    build_exact_in_route_oracle_contract,
     verify_exact_in_route_canonical_certificate,
     verify_exact_in_route_guarded_quote_packet_payload,
+    verify_exact_in_route_oracle_contract_payload,
     verify_exact_in_route_rank_projection_packet,
     verify_exact_in_route_rank_projection_packet_payload,
     verify_exact_in_route_true_key_interpretation_packet,
     verify_exact_in_route_true_key_interpretation_packet_payload,
-    verify_exact_in_route_oracle_contract_payload,
 )
 from src.integration.tau_runner import find_tau_bin, run_tau_spec_steps
 from src.integration.tau_witness import ARGMIN_STREAM_CERTIFICATE_V1
@@ -166,6 +167,69 @@ def test_exact_in_route_candidates_drop_zero_endpoint_split_legs() -> None:
     quotes = [candidate.quote for candidate in certificate.candidates]
     ok, err = verify_exact_in_route_canonical_certificate(quotes, certificate=certificate)
     assert ok, err
+
+
+def test_exact_in_route_candidates_suppress_domain_reject(monkeypatch) -> None:
+    pools = {
+        "p0": _pool("p0", "A", "B", 1000, 1000, 0),
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+    }
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(
+        exact_in_route_certificate_module,
+        "best_split_many_pools_exact_in_for_pools",
+        _domain_reject,
+    )
+    monkeypatch.setattr(
+        exact_in_route_certificate_module,
+        "best_split_two_pools_exact_in_for_pools",
+        _domain_reject,
+    )
+
+    certificate = build_exact_in_route_canonical_certificate_for_pools(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=500,
+    )
+
+    assert certificate is not None
+    assert all(len(candidate.quote.legs) == 1 for candidate in certificate.candidates)
+
+
+def test_exact_in_route_candidates_propagate_programmer_error(monkeypatch) -> None:
+    pools = {
+        "p0": _pool("p0", "A", "B", 1000, 1000, 0),
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+    }
+
+    def _programmer_error(*_args, **_kwargs):
+        raise RuntimeError("unexpected certificate split bug")
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(
+        exact_in_route_certificate_module,
+        "best_split_many_pools_exact_in_for_pools",
+        _domain_reject,
+    )
+    monkeypatch.setattr(
+        exact_in_route_certificate_module,
+        "best_split_two_pools_exact_in_for_pools",
+        _programmer_error,
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected certificate split bug"):
+        build_exact_in_route_canonical_certificate_for_pools(
+            pools_by_id=pools,
+            asset_in="A",
+            asset_out="B",
+            amount_in=500,
+        )
 
 
 def test_exact_in_route_certificate_tau_steps_verify_when_tau_is_available() -> None:

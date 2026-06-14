@@ -434,12 +434,13 @@ class PerpMarketState:
 # Settable margin/control param bounds for the 2p/3p clearinghouse kernels. These
 # mirror perp_engine._CLEARINGHOUSE_CONTROL_PARAM_BOUNDS (the engine validates them at
 # set-time); a drift-guard test pins equality. The snapshot validators below check both
-# the RANGES and the margin-tier ORDERING so a forged/corrupt snapshot fails closed at
-# the boundary rather than reaching settlement math. The ordering mirrors the kernel
-# ref model's `inv_margin_params_ordered` invariant (max_oracle_move <= maintenance <=
-# initial; the 2p/3p kernels have no depeg buffer), which the engine enforces at
-# set-time via `_ch2p/_ch3p_state_from_dict` -- so this rejects only already-invalid
-# snapshots, never an engine-accepted config.
+# the RANGES and relational margin constraints so a forged/corrupt snapshot fails
+# closed at the boundary rather than reaching settlement math. These mirror the
+# engine's set-time guards plus the kernel ref model's `inv_margin_params_ordered`
+# invariant for the 2p/3p kernels, which have no depeg buffer:
+#   0 < liquidation_penalty < maintenance <= initial
+#   max_oracle_move <= maintenance
+# so this rejects only already-invalid snapshots, never an engine-accepted config.
 PERP_CLEARINGHOUSE_PARAM_BOUNDS: Dict[str, Tuple[int, int]] = {
     "max_oracle_staleness_epochs": (1, 1_000_000),
     "max_oracle_move_bps": (0, 10_000),
@@ -451,10 +452,12 @@ PERP_CLEARINGHOUSE_PARAM_BOUNDS: Dict[str, Tuple[int, int]] = {
 
 
 def _check_clearinghouse_params(state: Mapping[str, Any]) -> None:
-    """Fail-closed range + margin-ordering check for the clearinghouse control params
-    (forged-snapshot hardening). Run only after the state's keys + int types are
-    validated. Mirrors the kernel ref model: per-key ranges and `inv_margin_params_
-    ordered` (max_oracle_move <= maintenance <= initial)."""
+    """Fail-closed range + relational checks for clearinghouse control params.
+
+    Run only after the state's keys + int types are validated. Mirrors live set-time
+    admission: per-key ranges, max_oracle_move <= maintenance <= initial, and
+    0 < liquidation_penalty < maintenance.
+    """
     for key, (lo, hi) in PERP_CLEARINGHOUSE_PARAM_BOUNDS.items():
         value = int(state[key])
         if value < lo or value > hi:
@@ -462,10 +465,15 @@ def _check_clearinghouse_params(state: Mapping[str, Any]) -> None:
     max_move = int(state["max_oracle_move_bps"])
     maint = int(state["maintenance_margin_bps"])
     initial = int(state["initial_margin_bps"])
+    penalty = int(state["liquidation_penalty_bps"])
     if not (max_move <= maint <= initial):
         raise ValueError(
             "clearinghouse invalid margin params ordering "
             "(max_oracle_move_bps <= maintenance_margin_bps <= initial_margin_bps)")
+    if not (0 < penalty < maint):
+        raise ValueError(
+            "clearinghouse invalid liquidation_penalty_bps "
+            "(0 < liquidation_penalty_bps < maintenance_margin_bps)")
 
 
 @dataclass(frozen=True)

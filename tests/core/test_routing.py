@@ -102,6 +102,43 @@ def test_best_route_can_split_across_parallel_pools():
     assert q.amount_out > single.amount_out
 
 
+def test_best_route_parallel_split_suppresses_domain_reject(monkeypatch):
+    pools = {
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+    }
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(routing_module, "best_split_many_pools_exact_in_for_pools", _domain_reject)
+    monkeypatch.setattr(routing_module, "best_split_two_pools_exact_in_for_pools", _domain_reject)
+
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=500)
+
+    assert q is not None
+    assert len(q.legs) == 1
+
+
+def test_best_route_parallel_split_propagates_programmer_error(monkeypatch):
+    pools = {
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+    }
+
+    def _programmer_error(*_args, **_kwargs):
+        raise RuntimeError("unexpected split bug")
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(routing_module, "best_split_many_pools_exact_in_for_pools", _domain_reject)
+    monkeypatch.setattr(routing_module, "best_split_two_pools_exact_in_for_pools", _programmer_error)
+
+    with pytest.raises(RuntimeError, match="unexpected split bug"):
+        best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=500)
+
+
 def test_best_route_can_split_direct_plus_twohop_when_enabled():
     # Construct a small witness where neither pure direct nor pure 2-hop dominates,
     # but splitting across the disjoint legs strictly improves total output.

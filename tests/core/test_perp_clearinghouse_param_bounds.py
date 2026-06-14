@@ -1,15 +1,12 @@
 """Forged-snapshot param-range hardening for the 2p/3p clearinghouse snapshot types.
 
 The 2p/3p snapshot validators previously checked net-zero / conservation / key+type,
-but NOT the margin/control param RANGES that the engine validates at set-time
+but not the margin/control param ranges and relational guards that the engine validates at set-time
 (`perp_engine._CLEARINGHOUSE_CONTROL_PARAM_BOUNDS`). A forged/corrupt snapshot with an
 out-of-range param therefore passed the boundary and reached settlement math. The
 validators now call `_check_clearinghouse_params`, which checks both the ranges and
-the margin-tier ORDERING (max_oracle_move <= maintenance <= initial), mirroring the
-kernel ref model's `inv_margin_params_ordered` invariant. The engine enforces both at
-set-time (ranges via `_validated_control_params`; ordering via the ref model in
-`_ch2p/_ch3p_state_from_dict`), so the snapshot check rejects only already-invalid
-configs.
+the relational guards (max_oracle_move <= maintenance <= initial and
+0 < liquidation_penalty < maintenance), mirroring the live set-time admission path.
 """
 
 from __future__ import annotations
@@ -76,14 +73,19 @@ def test_3p_rejects_each_param_below_and_above_range(key, bounds):
             _make_3p(state)
 
 
-_ORDERING_KEYS = {"max_oracle_move_bps", "maintenance_margin_bps", "initial_margin_bps"}
+_RELATIONAL_KEYS = {
+    "max_oracle_move_bps",
+    "maintenance_margin_bps",
+    "initial_margin_bps",
+    "liquidation_penalty_bps",
+}
 
 
 def test_2p_accepts_non_ordering_param_boundaries():
     """For params NOT in the margin ordering, exact lo/hi are valid (off-by-one safety
     on the range check). The ordering params are covered by the ordering tests below."""
     for key, (lo, hi) in P.PERP_CLEARINGHOUSE_PARAM_BOUNDS.items():
-        if key in _ORDERING_KEYS:
+        if key in _RELATIONAL_KEYS:
             continue
         for good in (lo, hi):
             state = dict(E._ch2p_init_state_dict())
@@ -103,6 +105,22 @@ def test_rejects_invalid_margin_ordering(make, init):
     s = dict(init())
     s["maintenance_margin_bps"] = int(s["initial_margin_bps"]) + 1    # maint > initial
     with pytest.raises(ValueError, match="margin params ordering"):
+        make(s)
+
+
+@pytest.mark.parametrize("make,init", [
+    (_make_2p, E._ch2p_init_state_dict), (_make_3p, E._ch3p_init_state_dict)])
+def test_rejects_liquidation_penalty_zero_or_not_below_maintenance(make, init):
+    """Mirror the live set-time guard:
+    0 < liquidation_penalty_bps < maintenance_margin_bps."""
+    s = dict(init())
+    s["liquidation_penalty_bps"] = 0
+    with pytest.raises(ValueError, match="liquidation_penalty_bps"):
+        make(s)
+
+    s = dict(init())
+    s["liquidation_penalty_bps"] = int(s["maintenance_margin_bps"])
+    with pytest.raises(ValueError, match="liquidation_penalty_bps"):
         make(s)
 
 

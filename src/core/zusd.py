@@ -837,8 +837,9 @@ def _step_python(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
     chain: each command tag is handled by a small `_zusd_h_*` function returning
     either ``(new_state, effects)`` on success or a reject ``ZUSDStepResult``. The
     shared tail (post-state invariant check + accept) and the fail-closed
-    ``except`` wrapper are applied here once. Behaviour is identical to the prior
-    implementation (locked by the golden characterization corpus)."""
+    ``except`` wrapper are applied here once. The committed characterization suite
+    checks dispatch totality, determinism, fail-closed rejects, and invariant-clean
+    accepts. Base-branch equivalence requires a separate replay artifact."""
     try:
         tag = str(cmd.tag)
         handler = _ZUSD_STEP_HANDLERS.get(tag)
@@ -1487,8 +1488,9 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
     (mirrors the single-vault ``_step_python`` refactor): each tag is handled by a
     ``_zusd_mh_*`` function returning ``(new_state, effects)`` on success or a reject
     ``ZUSDMultiStepResult``. The shared post-state invariant tail and the fail-closed
-    ``except`` wrapper run once here. Behaviour is identical to the prior monolith
-    (locked by the golden characterization corpus)."""
+    ``except`` wrapper run once here. The committed characterization suite checks
+    dispatch totality, determinism, fail-closed rejects, and invariant-clean accepts;
+    base-branch equivalence requires a separate replay artifact."""
     try:
         tag = str(cmd.tag)
         handler = _ZUSD_MULTI_STEP_HANDLERS.get(tag)
