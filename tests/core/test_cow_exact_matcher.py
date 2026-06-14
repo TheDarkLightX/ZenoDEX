@@ -26,12 +26,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+import src.core.batch_clearing as batch_clearing_module  # noqa: E402
 from src.core.batch_clearing import (  # noqa: E402
-    _CowCandidateExactIn,
+    _MAX_COW_EXACT_MATCH_TOTAL_CANDIDATES,
     _cow_exact_match_uncoupled,
+    _cow_exact_match_work_within_cap,
     _cow_feasible,
     _cow_pair_ab,
+    _cow_pair_netting_exact_in_v1,
+    _CowCandidateExactIn,
 )
+from src.state.balances import BalanceTable  # noqa: E402
+from src.state.intents import Intent, IntentKind  # noqa: E402
+from src.state.pools import PoolState, PoolStatus  # noqa: E402
 
 
 def _cand(cid: str, amount_in: int, min_out: int, sender: str) -> _CowCandidateExactIn:
@@ -44,6 +51,10 @@ def _cand(cid: str, amount_in: int, min_out: int, sender: str) -> _CowCandidateE
         asset_in="A",
         asset_out="B",
     )
+
+
+def _iid(n: int) -> str:
+    return "0x" + f"{n:064x}"
 
 
 def _brute(s01, s10):
@@ -118,6 +129,88 @@ def _random_sides(rng, n0, n1):
     s01 = [_cand(f"a{i:02d}", rng.randint(1, big), rng.randint(0, big), f"s01_{i}") for i in range(n0)]
     s10 = [_cand(f"b{i:02d}", rng.randint(1, big), rng.randint(0, big), f"s10_{i}") for i in range(n1)]
     return s01, s10
+
+
+def test_exact_matcher_work_cap_rejects_large_uncoupled_batches():
+    n = (_MAX_COW_EXACT_MATCH_TOTAL_CANDIDATES // 2) + 1
+    s01 = [_cand(f"a{i:02d}", 10, 0, f"s01_{i}") for i in range(n)]
+    s10 = [_cand(f"b{i:02d}", 10, 0, f"s10_{i}") for i in range(n)]
+    assert not _cow_exact_match_work_within_cap(s01, s10)
+
+
+def test_pair_netting_falls_back_when_exact_uncoupled_work_is_over_cap(monkeypatch):
+    """Large uncoupled batches must not enter the exact matcher.
+
+    The exact matcher re-solves an assignment problem during lex tie-breaking, so
+    the public helper must preserve the old bounded fallback behavior above the
+    local cap.
+    """
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "aa" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+    intents = []
+    n = (_MAX_COW_EXACT_MATCH_TOTAL_CANDIDATES // 2) + 1
+    for i in range(n):
+        sender = "0x" + f"{i + 1:096x}"
+        balances.set(sender, asset0, 10)
+        intents.append(
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.SWAP_EXACT_IN,
+                intent_id=_iid(i + 1),
+                sender_pubkey=sender,
+                deadline=9999999999,
+                fields={
+                    "pool_id": pool.pool_id,
+                    "asset_in": asset0,
+                    "asset_out": asset1,
+                    "amount_in": 10,
+                    "min_amount_out": 0,
+                },
+            )
+        )
+    for i in range(n):
+        sender = "0x" + f"{100 + i + 1:096x}"
+        balances.set(sender, asset1, 10)
+        intents.append(
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.SWAP_EXACT_IN,
+                intent_id=_iid(100 + i + 1),
+                sender_pubkey=sender,
+                deadline=9999999999,
+                fields={
+                    "pool_id": pool.pool_id,
+                    "asset_in": asset1,
+                    "asset_out": asset0,
+                    "amount_in": 10,
+                    "min_amount_out": 0,
+                },
+            )
+        )
+
+    def _unexpected_exact_call(*_args, **_kwargs):
+        raise AssertionError("exact matcher should be capped for this batch")
+
+    monkeypatch.setattr(batch_clearing_module, "_cow_exact_match_uncoupled", _unexpected_exact_call)
+    fills, remaining = _cow_pair_netting_exact_in_v1(intents, pool_state=pool, balances=balances)
+
+    assert not remaining
+    assert len(fills) == 2 * n
+    assert all(fill.reason == "COW_NETTED" for fill in fills)
 
 
 def test_exact_matcher_large_value_overflow_regression():

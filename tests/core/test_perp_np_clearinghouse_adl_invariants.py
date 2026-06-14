@@ -456,7 +456,7 @@ def test_runtime_badDebt_le_gain_matches_lean_theorem():
         coll = [rng.randint(0, 10 ** 11) for _ in range(n)]  # thin enough to drive bad-debt
         pnl = [C.pnl_e8(p, s, PRICE0) for p in pos]          # runtime MTM
         assert sum(pnl) == 0, "runtime MTM must be zero-sum on a net-zero book"
-        bad_debt = sum(max(0, -(c + p)) for c, p in zip(coll, pnl))
+        bad_debt = sum(max(0, -(c + p)) for c, p in zip(coll, pnl, strict=True))
         gain = sum(max(0, p) for p in pnl)
         assert bad_debt <= gain, (
             f"Lean badDebt_le_gain refuted on runtime PnL: {bad_debt} > {gain} "

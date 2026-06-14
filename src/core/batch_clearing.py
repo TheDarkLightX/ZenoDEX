@@ -82,6 +82,11 @@ _MAX_SWAP_ORDERING_BRUTE_FORCE_N = 12
 _MAX_SWAP_ORDERING_GLOBAL_REFINE_N = 24
 # MCI insertion is heavier than greedy seeding; keep it opt-in and bounded.
 _MAX_SWAP_ORDERING_MCI_N = 18
+# Exact CoW matching is polynomial, but its lex tie-break re-solves the assignment
+# problem once per feasible edge. Keep the exact path bounded and preserve the
+# existing deterministic greedy fallback for larger valid batches.
+_MAX_COW_EXACT_MATCH_TOTAL_CANDIDATES = 32
+_MAX_COW_EXACT_MATCH_FEASIBLE_EDGES = 256
 # Chunk size for settlement delta aggregation (invariant chunking promotion).
 _DELTA_AGG_CHUNK_SIZE = 128
 
@@ -1404,7 +1409,38 @@ def _cow_exact_match_uncoupled(
             forced = forced | {(i, j)}
             used_i.add(i)
             used_j.add(j)
-    return [(side_01[i], side_10[j]) for (i, j) in forced]
+    return [
+        (side_01[i], side_10[j])
+        for (i, j) in sorted(
+            forced,
+            key=lambda ij: (
+                side_01[ij[0]].intent.intent_id,
+                side_10[ij[1]].intent.intent_id,
+            ),
+        )
+    ]
+
+
+def _cow_exact_match_work_within_cap(
+    side_01: List["_CowCandidateExactIn"],
+    side_10: List["_CowCandidateExactIn"],
+) -> bool:
+    """Return true when the exact uncoupled matcher is within the local work cap.
+
+    The exact algorithm's objective is useful, but the lex tie-break calls the
+    O(n^3) assignment solver once per feasible edge. This cheap precheck keeps
+    the core bounded even if a caller bypasses the integration-layer intent cap.
+    """
+    if len(side_01) + len(side_10) > _MAX_COW_EXACT_MATCH_TOTAL_CANDIDATES:
+        return False
+    feasible_edges = 0
+    for x in side_01:
+        for y in side_10:
+            if _cow_feasible(x, y):
+                feasible_edges += 1
+                if feasible_edges > _MAX_COW_EXACT_MATCH_FEASIBLE_EDGES:
+                    return False
+    return True
 
 
 def _cow_uncoupled(
@@ -1524,12 +1560,11 @@ def _cow_pair_netting_exact_in_v1(
     best_pairs: List[tuple[_CowCandidateExactIn, _CowCandidateExactIn]] = []
     best_key: tuple[int, int, Tuple[Tuple[str, str], ...]] | None = None
 
-    if _cow_uncoupled(side_01, side_10, balances, a0, a1):
+    if _cow_exact_match_work_within_cap(side_01, side_10) and _cow_uncoupled(side_01, side_10, balances, a0, a1):
         # Uncoupled => the per-sender balance constraint cannot bind, so the matching is
-        # an unconstrained max-weight bipartite matching: solve it EXACTLY in polynomial
-        # time. The brute force below is capped at 8 candidates and the greedy fallback is
-        # non-optimal; this exact matcher is bit-identical to the brute where they overlap
-        # and yields the true (A,B,lex) optimum at any size.
+        # an unconstrained max-weight bipartite matching. Use the exact solver only
+        # while its lex tie-break work is bounded; larger batches keep the prior
+        # deterministic greedy fallback rather than risking settlement stalls.
         best_pairs = _cow_exact_match_uncoupled(side_01, side_10)
     elif use_bruteforce:
         # Track per-sender debit feasibility in the recursion to prune.

@@ -417,13 +417,13 @@ def _search_dgstr_v1(
         if int(c) in seen:
             continue
         seen.add(int(c))
-        cand = _scan_range_best(
+        scan_cand = _scan_range_best(
             lo=max(int(lo), int(c) - int(window)),
             hi=min(int(hi), int(c) + int(window)),
             total_out=total_out,
         )
-        if _is_better_candidate(cand, best):
-            best = cand
+        if _is_better_candidate(scan_cand, best):
+            best = scan_cand
 
     if best is None:
         return None
@@ -698,6 +698,7 @@ def best_split_two_pools_exact_in(
             )
             a_star = max(lo_both, min(hi_both, a_star))
 
+            best_both: tuple[int, int] | None
             if profile == "dgstr_v1":
                 best_both = _search_dgstr_v1(
                     lo_both=int(lo_both),
@@ -727,34 +728,34 @@ def best_split_two_pools_exact_in(
                             break
                         centers.add(c)
 
-                best_both: tuple[int, int] | None = None
+                best_both = None
                 for c in sorted(centers):
-                    cand = _scan_range_best(
+                    scan_cand = _scan_range_best(
                         lo=max(lo_both, c - window),
                         hi=min(hi_both, c + window),
                         total_out=total_out,
                     )
-                    if _is_better_candidate(cand, best_both):
-                        best_both = cand
+                    if _is_better_candidate(scan_cand, best_both):
+                        best_both = scan_cand
 
                 if best_both is not None:
                     # Refine by expanding around the current best within the both-valid interval.
                     refine_out, refine_a = best_both
                     half = max(1, int(window))
                     while True:
-                        cand = _scan_range_best(
+                        scan_cand = _scan_range_best(
                             lo=max(lo_both, refine_a - half),
                             hi=min(hi_both, refine_a + half),
                             total_out=total_out,
                         )
-                        if _is_better_candidate(cand, (int(refine_out), int(refine_a))):
-                            # Invariant: _is_better_candidate(None, _) is False, so cand is
+                        if _is_better_candidate(scan_cand, (int(refine_out), int(refine_a))):
+                            # Invariant: _is_better_candidate(None, _) is False, so scan_cand is
                             # non-None inside this branch. Explicit guard (not `assert`) so
                             # it survives `python -O`.
-                            if cand is None:
+                            if scan_cand is None:
                                 raise AssertionError(
                                     "internal: _is_better_candidate accepted a None candidate")
-                            refine_out, refine_a = cand
+                            refine_out, refine_a = scan_cand
                         r_lo = max(lo_both, refine_a - half)
                         r_hi = min(hi_both, refine_a + half)
                         if r_lo == lo_both and r_hi == hi_both:
