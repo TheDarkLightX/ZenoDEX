@@ -17,7 +17,7 @@ Units note:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Literal
+from typing import Any, Dict, Literal, Mapping, Tuple
 
 from ..state.canonical import canonical_hex_fixed_allow_0x
 from .perp_apply_funding_auto_gate import (
@@ -431,6 +431,43 @@ class PerpMarketState:
         return {**dict(self.global_state), **account.to_kernel_state()}
 
 
+# Settable margin/control param bounds for the 2p/3p clearinghouse kernels. These
+# mirror perp_engine._CLEARINGHOUSE_CONTROL_PARAM_BOUNDS (the engine validates them at
+# set-time); a drift-guard test pins equality. The snapshot validators below check both
+# the RANGES and the margin-tier ORDERING so a forged/corrupt snapshot fails closed at
+# the boundary rather than reaching settlement math. The ordering mirrors the kernel
+# ref model's `inv_margin_params_ordered` invariant (max_oracle_move <= maintenance <=
+# initial; the 2p/3p kernels have no depeg buffer), which the engine enforces at
+# set-time via `_ch2p/_ch3p_state_from_dict` -- so this rejects only already-invalid
+# snapshots, never an engine-accepted config.
+PERP_CLEARINGHOUSE_PARAM_BOUNDS: Dict[str, Tuple[int, int]] = {
+    "max_oracle_staleness_epochs": (1, 1_000_000),
+    "max_oracle_move_bps": (0, 10_000),
+    "initial_margin_bps": (0, 10_000),
+    "maintenance_margin_bps": (0, 10_000),
+    "liquidation_penalty_bps": (0, 10_000),
+    "max_position_abs": (1, 1_000_000),
+}
+
+
+def _check_clearinghouse_params(state: Mapping[str, Any]) -> None:
+    """Fail-closed range + margin-ordering check for the clearinghouse control params
+    (forged-snapshot hardening). Run only after the state's keys + int types are
+    validated. Mirrors the kernel ref model: per-key ranges and `inv_margin_params_
+    ordered` (max_oracle_move <= maintenance <= initial)."""
+    for key, (lo, hi) in PERP_CLEARINGHOUSE_PARAM_BOUNDS.items():
+        value = int(state[key])
+        if value < lo or value > hi:
+            raise ValueError(f"state[{key!r}] out of range: {value} not in [{lo}, {hi}]")
+    max_move = int(state["max_oracle_move_bps"])
+    maint = int(state["maintenance_margin_bps"])
+    initial = int(state["initial_margin_bps"])
+    if not (max_move <= maint <= initial):
+        raise ValueError(
+            "clearinghouse invalid margin params ordering "
+            "(max_oracle_move_bps <= maintenance_margin_bps <= initial_margin_bps)")
+
+
 @dataclass(frozen=True)
 class PerpClearinghouse2pMarketState:
     """Two-party clearinghouse market state (spec-driven kernel state).
@@ -480,6 +517,8 @@ class PerpClearinghouse2pMarketState:
             if isinstance(v, int) and not isinstance(v, bool):
                 continue
             raise TypeError(f"state[{k!r}] must be an int")
+
+        _check_clearinghouse_params(self.state)
 
         # Critical clearinghouse invariants (fail-closed on invalid snapshots):
         # - net exposure is structurally zero for the two-party market
@@ -563,6 +602,8 @@ class PerpClearinghouse3pTransferMarketState:
             if isinstance(v, int) and not isinstance(v, bool):
                 continue
             raise TypeError(f"state[{k!r}] must be an int")
+
+        _check_clearinghouse_params(self.state)
 
         # Critical clearinghouse invariants (fail-closed on invalid snapshots):
         # - net exposure is structurally zero across the three accounts
