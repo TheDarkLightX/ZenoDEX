@@ -111,7 +111,6 @@ def _perps_oracle_authorization_bundle(config: object, state: DexState, market_i
     market = state.perps.markets[market_id]
     runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
     observed_epoch = int(market.global_state.get("oracle_last_update_epoch", 0))
-    now_epoch = int(market.global_state.get("now_epoch", 0))
     authorized_value_e8 = int(market.global_state.get("index_price_e8", 0) if value_e8 is None else value_e8)
     authorization = OracleAuthorization(
         consumer_module="zenodex.perps",
@@ -751,7 +750,7 @@ def test_apply_perp_ops_fail_closed_on_invalid_field_type() -> None:
     res = apply_perp_ops(
         config=cfg,
         state=state,
-        operations={"5": [_op(market_id, "advance_epoch", delta="1")]},  # type: ignore[arg-type]
+        operations={"5": [_op(market_id, "advance_epoch", delta="1")]},
         tx_sender_pubkey=operator,
         block_timestamp=0,
     )
@@ -1495,7 +1494,7 @@ def test_apply_funding_auto_balanced_book_leaves_sink_unchanged() -> None:
     eff = res.effects[0]
     assert eff["raw_projected_net_funding_quote"] == 0
     assert eff["funding_sink_delta_quote"] == 0
-    m = res.state.perps.markets[market_id]  # type: ignore[union-attr]
+    m = res.state.perps.markets[market_id]
     assert _sink(m) == pre_sink  # equal & opposite funding nets to zero; sink untouched
     assert _sum_collateral(m) == _sum_collateral(pre)
 
@@ -1521,7 +1520,7 @@ def test_apply_funding_auto_positive_net_routes_to_sink() -> None:
     assert eff["net_position_base"] == 1_000
     assert eff["raw_projected_net_funding_quote"] == 10
     assert eff["funding_sink_delta_quote"] == 10
-    m = res.state.perps.markets[market_id]  # type: ignore[union-attr]
+    m = res.state.perps.markets[market_id]
     fee, inc, ins = _sink(m)
     assert (fee, inc, ins) == (pre_fee + 10, pre_inc + 10, pre_ins + 10)
     assert fee == inc  # identity fee_pool_quote == fee_income preserved
@@ -1547,7 +1546,7 @@ def test_apply_funding_auto_no_user_absorbs_residual() -> None:
     pre = state.perps.markets[market_id]
     res = _apply_result(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "apply_funding_auto")])
     assert res.ok is True, res.error
-    m = res.state.perps.markets[market_id]  # type: ignore[union-attr]
+    m = res.state.perps.markets[market_id]
     rate = int(res.effects[0]["funding_rate_bps"])
     index = int(pre.global_state["index_price_e8"])
     for pk in (alice, bob):
@@ -1746,7 +1745,7 @@ def test_apply_funding_auto_negative_net_prefunded_sink_succeeds() -> None:
     eff = res.effects[0]
     assert eff["raw_projected_net_funding_quote"] == -10
     assert eff["funding_sink_delta_quote"] == -10
-    m = res.state.perps.markets[market_id]  # type: ignore[union-attr]
+    m = res.state.perps.markets[market_id]
     fee, inc, ins = _sink(m)
     assert (fee, inc, ins) == (pre_fee - 10, pre_inc - 10, pre_ins - 10)
     assert fee == inc  # identity preserved
@@ -1893,6 +1892,98 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     )
     assert res_mid.ok is False
     assert res_mid.error == "cannot update market params mid-epoch"
+
+
+def test_clearinghouse_np_settle_insolvent_rejects_without_state_commit() -> None:
+    """Bind the pure SettleInsolvent counterexample to the live engine path.
+
+    The snapshot is conserved and net-zero, but below maintenance, so it is outside
+    the deposit->match reachable region. The engine must fail closed before
+    materializing a next DexState.
+    """
+    from src.core.perp_np_matching import E8
+    from src.core.perps import (
+        PERPS_STATE_VERSION,
+        PerpClearinghouseNpAccount,
+        PerpClearinghouseNpMarketState,
+        PerpsState,
+    )
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:chnp:insolvent-test"
+    quote_asset = "0x" + "77" * 32
+    operator = "00" * 48
+    alice = "0x" + "aa" * 48
+    bob = "0x" + "bb" * 48
+    price0 = 100 * E8
+
+    market = PerpClearinghouseNpMarketState(
+        quote_asset=quote_asset,
+        global_state={
+            "now_epoch": 0,
+            "index_price_e8": price0,
+            "clearing_price_seen": 1,
+            "clearing_price_epoch": 0,
+            "clearing_price_e8": 105 * E8,
+            "fee_pool_e8": 0,
+            "insurance_e8": 0,
+            "insurance_ext_e8": 0,
+            "claims_paid_e8": 0,
+            "net_deposited_e8": 0,
+            "initial_margin_bps": 1000,
+            "maintenance_margin_bps": 500,
+            "depeg_buffer_bps": 100,
+            "liquidation_penalty_bps": 50,
+            "max_oracle_move_bps": 500,
+            "funding_cap_bps": 100,
+            "max_position_abs": 1_000_000,
+            "min_notional_for_bounty_e8": 100 * E8,
+        },
+        accounts=(
+            PerpClearinghouseNpAccount(
+                pubkey=alice,
+                position_base=1,
+                entry_price_e8=price0,
+                collateral_e8=0,
+            ),
+            PerpClearinghouseNpAccount(
+                pubkey=bob,
+                position_base=-1,
+                entry_price_e8=price0,
+                collateral_e8=0,
+            ),
+        ),
+    )
+    pre = DexState(
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=LPTable(),
+        perps=PerpsState(version=PERPS_STATE_VERSION, markets={market_id: market}),
+    )
+
+    res = apply_perp_ops(
+        config=PerpEngineConfig(operator_pubkey=operator),
+        state=pre,
+        operations={
+            "5": [
+                {
+                    "module": "TauPerp",
+                    "version": "1.2",
+                    "market_id": market_id,
+                    "action": "settle_epoch",
+                }
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+
+    assert res.ok is False
+    assert res.error is not None
+    assert res.error.startswith("clearinghouse_np_settle_insolvent:")
+    assert res.state is None
+    assert pre.perps is not None
+    assert pre.perps.markets[market_id] == market
 
 
 def test_rust_shadow_unauthorized_settle_epoch_does_not_run_oracle_bridge_verifier() -> None:
