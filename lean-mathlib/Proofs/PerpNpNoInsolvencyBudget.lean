@@ -111,9 +111,8 @@ theorem witness_two_leg :
       ∧ 0 < badDebt [((0 : ℤ), (1000 : ℤ)), (0, -1000)]
       ∧ badDebt [((0 : ℤ), (1000 : ℤ)), (0, -1000)]
           ≤ gain [((0 : ℤ), (1000 : ℤ)), (0, -1000)] := by
-  refine ⟨by decide, by decide, by decide, ?_⟩
   -- the final conjunct follows from the general theorem, not just evaluation
-  exact badDebt_le_gain _ (by decide) (by decide)
+  exact ⟨by decide, by decide, by decide, badDebt_le_gain _ (by decide) (by decide)⟩
 
 -- Axiom audit (verified via `#print axioms`): both `badDebt_le_gain` and
 -- `witness_two_leg` depend only on [propext, Classical.choice, Quot.sound] -- the

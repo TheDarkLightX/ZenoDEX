@@ -20,6 +20,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..kernels.python.exact_out_many_pool_canonical_domain_v1 import (
     DEFAULT_EXACT_OUT_MANY_POOL_MAX_ENUMERATED_CANDIDATES,
+)
+from ..kernels.python.exact_out_many_pool_canonical_domain_v1 import (
     build_exact_out_many_pool_selected_domain as _kernel_build_exact_out_many_pool_selected_domain,
 )
 from ..kernels.python.exact_out_many_pool_repaired_prefilter_v1 import (
@@ -28,7 +30,12 @@ from ..kernels.python.exact_out_many_pool_repaired_prefilter_v1 import (
 from ..state.balances import Amount, AssetId
 from ..state.pools import CURVE_TAG_CPMM, PoolState
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
-from .split_routing import PoolXY, best_split_two_pools_exact_in, exact_out_for_pool_exact_in, resolve_two_pool_split_search_params
+from .split_routing import (
+    PoolXY,
+    best_split_two_pools_exact_in,
+    exact_out_for_pool_exact_in,
+    resolve_two_pool_split_search_params,
+)
 
 
 @dataclass(frozen=True)

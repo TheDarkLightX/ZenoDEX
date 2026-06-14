@@ -8,7 +8,6 @@ the participation the fixed 2-party clearinghouse cannot provide.
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -17,14 +16,12 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+import src.core.perp_np_clearinghouse as C  # noqa: E402
 from src.core.perp_np_matching import (  # noqa: E402
     E8,
     Intent,
-    MatchParams,
-    match_intents,
     ration_net_zero,
 )
-import src.core.perp_np_clearinghouse as C  # noqa: E402
 from src.core.perps import (  # noqa: E402
     PerpClearinghouseNpAccount,
     PerpClearinghouseNpMarketState,

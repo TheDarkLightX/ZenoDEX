@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import random
 
+import pytest
+
+import src.core.routing as routing_module
 from src.core.amm_dispatch import swap_exact_out_for_pool
 from src.core.routing import (
     ExactOutTwoHopGateConfig,
     RouteHop,
     RouteLeg,
     RouteQuote,
+    _pool_quote_exact_out,
     _quote_key,
     best_route_exact_out_2hop,
 )
@@ -44,6 +48,29 @@ def _quote_exact_out(pool: PoolState, *, asset_in: str, asset_out: str, amount_o
     except Exception:
         return None
     return int(amount_in)
+
+
+def test_pool_quote_exact_out_suppresses_domain_reject(monkeypatch):
+    pool = _pool("p_ab", "A", "B", 1000, 1000, 0)
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(routing_module, "swap_exact_out_for_pool", _domain_reject)
+
+    assert _pool_quote_exact_out(pool, asset_in="A", asset_out="B", amount_out=10) is None
+
+
+def test_pool_quote_exact_out_propagates_programmer_error(monkeypatch):
+    pool = _pool("p_ab", "A", "B", 1000, 1000, 0)
+
+    def _programmer_error(*_args, **_kwargs):
+        raise RuntimeError("unexpected bug")
+
+    monkeypatch.setattr(routing_module, "swap_exact_out_for_pool", _programmer_error)
+
+    with pytest.raises(RuntimeError, match="unexpected bug"):
+        _pool_quote_exact_out(pool, asset_in="A", asset_out="B", amount_out=10)
 
 
 def _brute_best_route_exact_out_2hop(

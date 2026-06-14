@@ -153,7 +153,7 @@ def find_marginal_arbitrage_cycle(edges: Sequence[MarginalEdge]) -> Optional[Mar
     pred: Dict[AssetId, Tuple[AssetId, MarginalEdge] | None] = {n: None for n in nodes}
 
     improved: AssetId | None = None
-    for i in range(len(nodes)):
+    for _ in range(len(nodes)):
         improved = None
         for e in edges_sorted:
             u, v = e.asset_in, e.asset_out
@@ -163,9 +163,12 @@ def find_marginal_arbitrage_cycle(edges: Sequence[MarginalEdge]) -> Optional[Mar
                 best[v] = cand
                 pred[v] = (u, e)
                 improved = v
-            elif cand == cur and pred[v] is not None:
+            elif cand == cur:
                 # Deterministic tie-break for witness stability.
-                prev_u, prev_e = pred[v]
+                prev = pred[v]
+                if prev is None:
+                    continue
+                prev_u, prev_e = prev
                 if (e.pool_id, e.asset_in, e.asset_out) < (
                     prev_e.pool_id,
                     prev_e.asset_in,

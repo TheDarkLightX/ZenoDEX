@@ -1504,4 +1504,3 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
         return ZUSDMultiStepResult(ok=True, state=ns, effects=eff)
     except Exception as exc:
         return ZUSDMultiStepResult(ok=False, error=str(exc))
-

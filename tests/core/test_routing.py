@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from src.core.routing import best_route_exact_in_2hop
+import pytest
+
+import src.core.routing as routing_module
+from src.core.routing import _pool_quote_exact_in, best_route_exact_in_2hop
 from src.state.pools import PoolState, PoolStatus
 
 
@@ -58,6 +61,29 @@ def test_tie_break_is_deterministic():
     assert len(q.legs) == 1
     assert len(q.legs[0].hops) == 1
     assert q.legs[0].hops[0].pool_id == "p1"
+
+
+def test_pool_quote_exact_in_suppresses_domain_reject(monkeypatch):
+    pool = _pool("p_ab", "A", "B", 1000, 1000, 0)
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(routing_module, "swap_exact_in_for_pool", _domain_reject)
+
+    assert _pool_quote_exact_in(pool, asset_in="A", asset_out="B", amount_in=10) is None
+
+
+def test_pool_quote_exact_in_propagates_programmer_error(monkeypatch):
+    pool = _pool("p_ab", "A", "B", 1000, 1000, 0)
+
+    def _programmer_error(*_args, **_kwargs):
+        raise RuntimeError("unexpected bug")
+
+    monkeypatch.setattr(routing_module, "swap_exact_in_for_pool", _programmer_error)
+
+    with pytest.raises(RuntimeError, match="unexpected bug"):
+        _pool_quote_exact_in(pool, asset_in="A", asset_out="B", amount_in=10)
 
 
 def test_best_route_can_split_across_parallel_pools():
