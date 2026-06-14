@@ -22,8 +22,17 @@ from typing import Any, Dict, Mapping, Optional, Tuple, cast
 from urllib.parse import parse_qs, urlsplit
 
 from ..core.dex import DexState
-from ..core.perps import PerpClearinghouse2pMarketState, PerpClearinghouseNpMarketState, PerpMarketState
-from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
+from ..core.perps import (
+    PerpClearinghouse2pMarketState,
+    PerpClearinghouseNpMarketState,
+    PerpMarketState,
+)
+from ..state.canonical import (
+    canonical_hex_fixed_allow_0x,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 from .dex_snapshot import snapshot_with_legacy_lp_metadata_defaults, state_from_snapshot
 from .live_proof_wrapper import (
     live_zk_proof_required,
@@ -49,6 +58,7 @@ from .perps_wallet_encrypted_sss_backup import (
     perps_wallet_encrypted_sss_backup_hash_v1,
     recipient_root_keys_from_fixture_v1,
 )
+
 try:
     from .production_promotion_evidence import evaluate_production_hardware_wallet_evidence_v1
 except ModuleNotFoundError:
@@ -77,14 +87,13 @@ from .tau_net_client import (
     bls_pubkey_hex_from_privkey,
     build_signed_tau_transaction,
     encode_tau_operations_for_wire,
-    tau_rpc_invalid_sequence_numbers,
     sign_perp_op_for_engine,
+    tau_rpc_invalid_sequence_numbers,
     tau_rpc_response_is_success,
     verify_tau_transaction_payload_signature,
 )
 from .zeno_oracle_authority import evaluate_oracle_authority_profile_v1
 from .zusd_tau_token import derive_zusd_tau_asset_id
-
 
 MAX_POST_BODY = 65_536
 ResponseT = Tuple[int, Dict[str, Any]]
@@ -2344,7 +2353,10 @@ def _local_perps_oracle_bridge_fixture(
     fraction_bps: int = 0,
 ) -> dict[str, Any]:
     wallet_action = action
-    from tools.zenodex_oracle import ACTION_TYPE, receipt_content_hash  # pylint: disable=import-outside-toplevel
+    from tools.zenodex_oracle import (  # pylint: disable=import-outside-toplevel
+        ACTION_TYPE,
+        receipt_content_hash,
+    )
     from tools.zenodex_oracle_adapter import (  # pylint: disable=import-outside-toplevel
         ACTION_SCHEMA,
         PROFILE_SCHEMA,
@@ -2363,8 +2375,11 @@ def _local_perps_oracle_bridge_fixture(
         AGGREGATE_READ_SCHEMA,
         _bundle_for_aggregate,
         aggregate_read_value_hash,
+    )
+    from tools.zenodex_oracle_aggregate_read import (
         bridge_content_hash as aggregate_read_content_hash,
     )
+
     from .perp_engine import (  # pylint: disable=import-outside-toplevel
         _ORACLE_PERPS_INDEX_QUERY_ID,
         _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,

@@ -8,25 +8,31 @@ from typing import Mapping
 
 import pytest
 
+import src.integration.perps_wallet_api as perps_wallet_api
 from src.core.dex import DexState
+from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
 from src.integration.dex_snapshot import snapshot_from_state
+from src.integration.perp_engine import (
+    PerpEngineConfig,
+    _kernel_initial_global_state,
+    apply_perp_ops,
+)
 from src.integration.perps_wallet_authority import (
     PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
     PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1,
-    PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_SCHEMA_V1,
     PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
     PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
-    PERPS_WALLET_SIGNER_PROMPT_CAPTURE_SCHEMA_V1,
     PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_SCHEMA_V1,
+    PERPS_WALLET_SIGNER_PROMPT_CAPTURE_SCHEMA_V1,
+    build_perps_wallet_authority_profile_v1,
     build_perps_wallet_device_approval_environment_policy_v1,
     build_perps_wallet_device_approval_exercise_v1,
     build_perps_wallet_device_approval_use_policy_v1,
-    build_perps_wallet_authority_profile_v1,
     build_perps_wallet_signer_device_integration_v1,
-    build_perps_wallet_signer_prompt_capture_v1,
     build_perps_wallet_signer_execution_exercise_v1,
+    build_perps_wallet_signer_prompt_capture_v1,
     evaluate_perps_wallet_authority_profile_v1,
     evaluate_perps_wallet_device_approval_exercise_v1,
     evaluate_perps_wallet_hardware_custody_v1,
@@ -34,20 +40,20 @@ from src.integration.perps_wallet_authority import (
     evaluate_perps_wallet_rotation_exercise_v1,
     evaluate_perps_wallet_signer_ceremony_v1,
     evaluate_perps_wallet_signer_device_integration_v1,
-    evaluate_perps_wallet_signer_prompt_capture_v1,
     evaluate_perps_wallet_signer_execution_exercise_v1,
+    evaluate_perps_wallet_signer_prompt_capture_v1,
     perps_wallet_device_approval_exercise_hash_v1,
     perps_wallet_recovery_exercise_hash_v1,
     perps_wallet_rotation_exercise_hash_v1,
     perps_wallet_signer_device_integration_hash_v1,
-    perps_wallet_signer_prompt_capture_hash_v1,
     perps_wallet_signer_execution_exercise_hash_v1,
+    perps_wallet_signer_prompt_capture_hash_v1,
 )
-from src.integration.zeno_oracle_authority import (
-    ORACLE_AUTHORITY_PAYLOAD_KIND,
-    build_oracle_authority_profile_v1,
+from src.integration.production_promotion_evidence import (
+    HARDWARE_WALLET_EVIDENCE_SCHEMA_V1,
+    attach_production_hardware_wallet_hash_v1,
+    evaluate_production_hardware_wallet_evidence_v1,
 )
-from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
 from src.integration.tau_net_client import (
     TauNetRpcError,
     bls_pubkey_hex_from_privkey,
@@ -55,33 +61,32 @@ from src.integration.tau_net_client import (
     sign_perp_op_for_engine,
 )
 from src.integration.zeno_key_manager import (
-    KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
     KEY_ENVIRONMENT_LOCAL_PROCESS,
+    KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
     KeyExecutionEnvironment,
     KeyRef,
     RecoveryGuardian,
     SocialRecoveryPolicy,
     ZenoKeyManager,
 )
-from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0, infer_artifact_hash_v0
-from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
-from src.integration.zeno_ledger_v0 import hash_v0
 from src.integration.zeno_key_manager_v0 import (
     BACKEND_HARDWARE_WALLET,
     BACKEND_HARDWARE_WALLET_PLACEHOLDER,
     BACKEND_OS_KEYCHAIN,
     KeyBackendDescriptor,
 )
-from src.integration.production_promotion_evidence import (
-    HARDWARE_WALLET_EVIDENCE_SCHEMA_V1,
-    attach_production_hardware_wallet_hash_v1,
-    evaluate_production_hardware_wallet_evidence_v1,
+from src.integration.zeno_ledger_signature import (
+    build_bls_signed_artifact_envelope_v0,
+    infer_artifact_hash_v0,
+)
+from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
+from src.integration.zeno_ledger_v0 import hash_v0
+from src.integration.zeno_oracle_authority import (
+    ORACLE_AUTHORITY_PAYLOAD_KIND,
+    build_oracle_authority_profile_v1,
 )
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
-from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
-import src.integration.perps_wallet_api as perps_wallet_api
-
 
 CHAIN_ID = "tau-test-perps-wallet"
 ALICE_PRIVKEY = 83
