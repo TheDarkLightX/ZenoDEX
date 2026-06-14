@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+import tools.run_release_pytest_groups as pytest_groups
 from tools.run_release_pytest_groups import discover_pytest_groups, run_pytest_groups
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -223,10 +226,129 @@ def test_run_pytest_groups_clears_stale_log_dir(tmp_path: Path) -> None:
     assert (log_dir / "root_test_files.stdout.log").exists()
 
 
+def test_run_pytest_groups_resumes_accepted_current_commit_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tests_root = tmp_path / "tests"
+    _write(tests_root / "test_root.py")
+    _write(tests_root / "integration" / "test_integration.py")
+    report_path = tmp_path / "pytest_groups.json"
+    first_run_calls = 0
+
+    monkeypatch.setattr(pytest_groups, "_git_head", lambda: "commit-a")
+    monkeypatch.setattr(pytest_groups, "_git_dirty", lambda: False)
+
+    def interrupted_runner(
+        argv: list[str],
+        stdout_path: Path,
+        stderr_path: Path,
+        timeout_sec: int | None,
+    ) -> tuple[int | None, bool]:
+        nonlocal first_run_calls
+        first_run_calls += 1
+        if first_run_calls == 1:
+            stdout_path.write_text("passed\n", encoding="utf-8")
+            stderr_path.write_text("", encoding="utf-8")
+            return 0, False
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        run_pytest_groups(report_path=report_path, tests_root=tests_root, runner=interrupted_runner)
+
+    resumed_calls: list[list[str]] = []
+
+    def resumed_runner(
+        argv: list[str],
+        stdout_path: Path,
+        stderr_path: Path,
+        timeout_sec: int | None,
+    ) -> tuple[int | None, bool]:
+        resumed_calls.append(argv)
+        stdout_path.write_text("passed\n", encoding="utf-8")
+        stderr_path.write_text("", encoding="utf-8")
+        return 0, False
+
+    report = run_pytest_groups(
+        report_path=report_path,
+        tests_root=tests_root,
+        resume=True,
+        runner=resumed_runner,
+    )
+
+    assert report["ok"] is True
+    assert report["resumed_group_count"] == 1
+    assert report["resume_rejected_reasons"] == []
+    assert len(resumed_calls) == 1
+    assert report["groups"][0]["group_id"] == "root_test_files"
+    assert report["groups"][0]["resumed_from_previous_report"] is True
+    assert report["groups"][1]["group_id"] == "dir_integration"
+    assert report["groups"][1]["resumed_from_previous_report"] is False
+
+
+def test_run_pytest_groups_rejects_stale_commit_resume(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tests_root = tmp_path / "tests"
+    _write(tests_root / "test_root.py")
+    _write(tests_root / "integration" / "test_integration.py")
+    report_path = tmp_path / "pytest_groups.json"
+
+    monkeypatch.setattr(pytest_groups, "_git_head", lambda: "commit-a")
+    monkeypatch.setattr(pytest_groups, "_git_dirty", lambda: False)
+
+    def first_runner(
+        argv: list[str],
+        stdout_path: Path,
+        stderr_path: Path,
+        timeout_sec: int | None,
+    ) -> tuple[int | None, bool]:
+        stdout_path.write_text("passed\n", encoding="utf-8")
+        stderr_path.write_text("", encoding="utf-8")
+        return 0, False
+
+    first_report = run_pytest_groups(
+        report_path=report_path,
+        tests_root=tests_root,
+        runner=first_runner,
+    )
+    assert first_report["ok"] is True
+
+    monkeypatch.setattr(pytest_groups, "_git_head", lambda: "commit-b")
+    fresh_calls: list[list[str]] = []
+
+    def fresh_runner(
+        argv: list[str],
+        stdout_path: Path,
+        stderr_path: Path,
+        timeout_sec: int | None,
+    ) -> tuple[int | None, bool]:
+        fresh_calls.append(argv)
+        stdout_path.write_text("passed\n", encoding="utf-8")
+        stderr_path.write_text("", encoding="utf-8")
+        return 0, False
+
+    report = run_pytest_groups(
+        report_path=report_path,
+        tests_root=tests_root,
+        resume=True,
+        runner=fresh_runner,
+    )
+
+    assert report["ok"] is True
+    assert report["commit_sha"] == "commit-b"
+    assert report["resumed_group_count"] == 0
+    assert report["resume_rejected_reasons"] == ["resume_commit_mismatch"]
+    assert len(fresh_calls) == 2
+    assert all(group["resumed_from_previous_report"] is False for group in report["groups"])
+
+
 def test_prod_gate_uses_grouped_pytest_artifact() -> None:
     gate = (ROOT / "tools" / "prod_gate.sh").read_text(encoding="utf-8")
 
     assert "tools/run_release_pytest_groups.py" in gate
     assert "PYTEST_GROUP_TIMEOUT_SEC" in gate
     assert "--timeout-sec-per-group \"$PYTEST_GROUP_TIMEOUT_SEC\"" in gate
+    assert "--resume" in gate
     assert "pytest -q\n" not in gate

@@ -32,6 +32,25 @@ class PytestGroup:
     test_files: tuple[Path, ...]
 
 
+@dataclass(frozen=True)
+class ResumePrefix:
+    groups: tuple[dict[str, Any], ...]
+    source_report: str | None
+    rejected_reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ResumeContext:
+    report_path: Path
+    log_dir: Path
+    groups: tuple[PytestGroup, ...]
+    tests_root: Path
+    max_files_per_group: int
+    formal_max_files_per_group: int
+    commit_sha: str | None
+    git_dirty_before: bool
+
+
 Runner = Callable[[list[str], Path, Path, int | None], tuple[int | None, bool]]
 
 
@@ -82,85 +101,62 @@ def run_pytest_groups(
     max_files_per_group: int = DEFAULT_MAX_FILES_PER_GROUP,
     formal_max_files_per_group: int = DEFAULT_FORMAL_MAX_FILES_PER_GROUP,
     timeout_sec_per_group: int | None = None,
+    resume: bool = False,
     runner: Runner | None = None,
 ) -> dict[str, Any]:
     report_path = report_path.resolve()
     report_path.parent.mkdir(parents=True, exist_ok=True)
     log_dir = report_path.with_suffix("")
-    _reset_log_dir(log_dir)
     runner = runner or _run_command
     groups = discover_pytest_groups(
         tests_root,
         max_files_per_group=max_files_per_group,
         formal_max_files_per_group=formal_max_files_per_group,
     )
+    commit_sha = _git_head()
+    git_dirty_before = _git_dirty()
+    resume_context = ResumeContext(
+        report_path=report_path,
+        log_dir=log_dir,
+        groups=groups,
+        tests_root=tests_root,
+        max_files_per_group=max_files_per_group,
+        formal_max_files_per_group=formal_max_files_per_group,
+        commit_sha=commit_sha,
+        git_dirty_before=git_dirty_before,
+    )
+    resume_prefix = _load_resume_prefix(
+        context=resume_context,
+        resume_requested=resume,
+    )
+    if not resume_prefix.groups:
+        _reset_log_dir(log_dir)
+    else:
+        log_dir.mkdir(parents=True, exist_ok=True)
+
     started_at = _utc_now()
     start_ns = time.monotonic_ns()
-    report: dict[str, Any] = {
-        "schema": "zenodex.release_pytest_groups.v1",
-        "ok": False,
-        "status": "running",
-        "started_at": started_at,
-        "completed_at": None,
-        "duration_ms": None,
-        "tests_root": _rel(tests_root),
-        "max_files_per_group": max_files_per_group,
-        "formal_max_files_per_group": formal_max_files_per_group,
-        "group_count": len(groups),
-        "all_test_file_count": sum(len(group.test_files) for group in groups),
-        "log_dir": _rel(log_dir),
-        "groups": [],
-        "incomplete_reasons": [],
-    }
+    report = _new_running_report(
+        context=resume_context,
+        started_at=started_at,
+        resume_requested=resume,
+        resume_prefix=resume_prefix,
+    )
     _write_report(report_path, report)
 
-    for group in groups:
-        stdout_path = log_dir / f"{group.group_id}.stdout.log"
-        stderr_path = log_dir / f"{group.group_id}.stderr.log"
-        argv = [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-q",
-            *(_rel(target) for target in group.targets),
-        ]
-        group_started_at = _utc_now()
-        group_start_ns = time.monotonic_ns()
-        print(
-            f"[gate][pytest] running {group.group_id} "
-            f"({len(group.test_files)} files)",
-            flush=True,
+    for resumed_group in resume_prefix.groups:
+        print(f"[gate][pytest] {resumed_group['group_id']} OK (resumed)", flush=True)
+
+    for group in groups[len(resume_prefix.groups) :]:
+        group_report = _run_one_group(
+            group=group,
+            log_dir=log_dir,
+            runner=runner,
+            timeout_sec_per_group=timeout_sec_per_group,
         )
-        returncode, timed_out = runner(argv, stdout_path, stderr_path, timeout_sec_per_group)
-        duration_ms = (time.monotonic_ns() - group_start_ns) // 1_000_000
-        skip_only = _is_skip_only_pytest_exit(
-            returncode=returncode,
-            timed_out=timed_out,
-            stdout_path=stdout_path,
-            stderr_path=stderr_path,
-        )
-        accepted = (returncode == 0 and not timed_out) or skip_only
-        group_report = {
-            "group_id": group.group_id,
-            "ok": accepted,
-            "status": "accepted" if accepted else "rejected",
-            "started_at": group_started_at,
-            "completed_at": _utc_now(),
-            "duration_ms": duration_ms,
-            "returncode": returncode,
-            "timed_out": timed_out,
-            "skip_only": skip_only,
-            "target_count": len(group.targets),
-            "test_file_count": len(group.test_files),
-            "targets": [_rel(target) for target in group.targets],
-            "stdout_path": _rel(stdout_path),
-            "stderr_path": _rel(stderr_path),
-            "stdout_tail": _tail(stdout_path),
-            "stderr_tail": _tail(stderr_path),
-        }
         report["groups"].append(group_report)
         if group_report["ok"]:
-            suffix = " (skip-only)" if skip_only else ""
+            suffix = " (skip-only)" if group_report["skip_only"] else ""
             print(f"[gate][pytest] {group.group_id} OK{suffix}", flush=True)
             _write_report(report_path, report)
             continue
@@ -180,6 +176,90 @@ def run_pytest_groups(
     _write_report(report_path, report)
     print("[gate][pytest] all groups OK", flush=True)
     return report
+
+
+def _new_running_report(
+    *,
+    context: ResumeContext,
+    started_at: str,
+    resume_requested: bool,
+    resume_prefix: ResumePrefix,
+) -> dict[str, Any]:
+    return {
+        "schema": "zenodex.release_pytest_groups.v1",
+        "ok": False,
+        "status": "running",
+        "commit_sha": context.commit_sha,
+        "git_dirty_before": context.git_dirty_before,
+        "started_at": started_at,
+        "completed_at": None,
+        "duration_ms": None,
+        "tests_root": _rel(context.tests_root),
+        "max_files_per_group": context.max_files_per_group,
+        "formal_max_files_per_group": context.formal_max_files_per_group,
+        "group_count": len(context.groups),
+        "all_test_file_count": sum(len(group.test_files) for group in context.groups),
+        "log_dir": _rel(context.log_dir),
+        "resume_requested": resume_requested,
+        "resume_source_report": resume_prefix.source_report,
+        "resumed_group_count": len(resume_prefix.groups),
+        "resume_rejected_reasons": list(resume_prefix.rejected_reasons),
+        "groups": list(resume_prefix.groups),
+        "incomplete_reasons": [],
+    }
+
+
+def _run_one_group(
+    *,
+    group: PytestGroup,
+    log_dir: Path,
+    runner: Runner,
+    timeout_sec_per_group: int | None,
+) -> dict[str, Any]:
+    stdout_path = log_dir / f"{group.group_id}.stdout.log"
+    stderr_path = log_dir / f"{group.group_id}.stderr.log"
+    argv = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-q",
+        *(_rel(target) for target in group.targets),
+    ]
+    group_started_at = _utc_now()
+    group_start_ns = time.monotonic_ns()
+    print(
+        f"[gate][pytest] running {group.group_id} "
+        f"({len(group.test_files)} files)",
+        flush=True,
+    )
+    returncode, timed_out = runner(argv, stdout_path, stderr_path, timeout_sec_per_group)
+    duration_ms = (time.monotonic_ns() - group_start_ns) // 1_000_000
+    skip_only = _is_skip_only_pytest_exit(
+        returncode=returncode,
+        timed_out=timed_out,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+    )
+    accepted = (returncode == 0 and not timed_out) or skip_only
+    return {
+        "group_id": group.group_id,
+        "ok": accepted,
+        "status": "accepted" if accepted else "rejected",
+        "started_at": group_started_at,
+        "completed_at": _utc_now(),
+        "duration_ms": duration_ms,
+        "returncode": returncode,
+        "timed_out": timed_out,
+        "skip_only": skip_only,
+        "target_count": len(group.targets),
+        "test_file_count": len(group.test_files),
+        "targets": [_rel(target) for target in group.targets],
+        "stdout_path": _rel(stdout_path),
+        "stderr_path": _rel(stderr_path),
+        "stdout_tail": _tail(stdout_path),
+        "stderr_tail": _tail(stderr_path),
+        "resumed_from_previous_report": False,
+    }
 
 
 def _run_command(
@@ -215,6 +295,142 @@ def _reset_log_dir(log_dir: Path) -> None:
             else:
                 child.unlink()
     log_dir.mkdir(parents=True, exist_ok=True)
+
+
+def _load_resume_prefix(
+    *,
+    context: ResumeContext,
+    resume_requested: bool,
+) -> ResumePrefix:
+    """Return a safe accepted prefix from a previous current-commit report.
+
+    A release report may only reuse prior group evidence when the source code,
+    grouping configuration, group identity, accepted verdicts, and referenced log
+    files all still match. Any mismatch falls back to a fresh run.
+    """
+    if not resume_requested:
+        return ResumePrefix(groups=(), source_report=None, rejected_reasons=())
+    if context.git_dirty_before:
+        return ResumePrefix(
+            groups=(),
+            source_report=None,
+            rejected_reasons=("resume_current_worktree_dirty",),
+        )
+    if not context.report_path.exists():
+        return ResumePrefix(
+            groups=(),
+            source_report=None,
+            rejected_reasons=("resume_report_missing",),
+        )
+
+    try:
+        previous = json.loads(context.report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ResumePrefix(
+            groups=(),
+            source_report=None,
+            rejected_reasons=("resume_report_unreadable",),
+        )
+
+    rejection = _resume_report_rejection_reason(
+        previous=previous,
+        context=context,
+    )
+    if rejection is not None:
+        return ResumePrefix(groups=(), source_report=None, rejected_reasons=(rejection,))
+
+    prefix: list[dict[str, Any]] = []
+    for index, current_group in enumerate(context.groups):
+        previous_groups = previous.get("groups")
+        if not isinstance(previous_groups, list) or index >= len(previous_groups):
+            break
+        previous_group = previous_groups[index]
+        if not isinstance(previous_group, dict):
+            return ResumePrefix(
+                groups=(),
+                source_report=None,
+                rejected_reasons=("resume_group_entry_invalid",),
+            )
+        rejection = _resume_group_rejection_reason(
+            previous_group=previous_group,
+            current_group=current_group,
+            log_dir=context.log_dir,
+        )
+        if rejection == "resume_group_not_accepted":
+            break
+        if rejection is not None:
+            return ResumePrefix(groups=(), source_report=None, rejected_reasons=(rejection,))
+        resumed_group = dict(previous_group)
+        resumed_group["resumed_from_previous_report"] = True
+        prefix.append(resumed_group)
+
+    return ResumePrefix(
+        groups=tuple(prefix),
+        source_report=_rel(context.report_path),
+        rejected_reasons=(),
+    )
+
+
+def _resume_report_rejection_reason(
+    *,
+    previous: dict[str, Any],
+    context: ResumeContext,
+) -> str | None:
+    if previous.get("schema") != "zenodex.release_pytest_groups.v1":
+        return "resume_schema_mismatch"
+    if previous.get("status") not in {"running", "accepted"}:
+        return "resume_status_not_resumable"
+    if previous.get("commit_sha") != context.commit_sha:
+        return "resume_commit_mismatch"
+    if previous.get("git_dirty_before") is not False:
+        return "resume_previous_worktree_dirty"
+    if previous.get("tests_root") != _rel(context.tests_root):
+        return "resume_tests_root_mismatch"
+    if previous.get("max_files_per_group") != context.max_files_per_group:
+        return "resume_max_files_per_group_mismatch"
+    if previous.get("formal_max_files_per_group") != context.formal_max_files_per_group:
+        return "resume_formal_max_files_per_group_mismatch"
+    if previous.get("group_count") != len(context.groups):
+        return "resume_group_count_mismatch"
+    all_test_file_count = sum(len(group.test_files) for group in context.groups)
+    if previous.get("all_test_file_count") != all_test_file_count:
+        return "resume_test_file_count_mismatch"
+    if previous.get("log_dir") != _rel(context.log_dir):
+        return "resume_log_dir_mismatch"
+    if not isinstance(previous.get("groups"), list):
+        return "resume_groups_not_list"
+    return None
+
+
+def _resume_group_rejection_reason(
+    *,
+    previous_group: dict[str, Any],
+    current_group: PytestGroup,
+    log_dir: Path,
+) -> str | None:
+    expected_stdout = log_dir / f"{current_group.group_id}.stdout.log"
+    expected_stderr = log_dir / f"{current_group.group_id}.stderr.log"
+    if previous_group.get("group_id") != current_group.group_id:
+        return "resume_group_id_mismatch"
+    if previous_group.get("target_count") != len(current_group.targets):
+        return "resume_group_target_count_mismatch"
+    if previous_group.get("test_file_count") != len(current_group.test_files):
+        return "resume_group_test_file_count_mismatch"
+    if previous_group.get("targets") != [_rel(target) for target in current_group.targets]:
+        return "resume_group_targets_mismatch"
+    if previous_group.get("stdout_path") != _rel(expected_stdout):
+        return "resume_group_stdout_path_mismatch"
+    if previous_group.get("stderr_path") != _rel(expected_stderr):
+        return "resume_group_stderr_path_mismatch"
+    if not expected_stdout.exists() or not expected_stderr.exists():
+        return "resume_group_log_missing"
+    if previous_group.get("ok") is not True or previous_group.get("status") != "accepted":
+        return "resume_group_not_accepted"
+    if previous_group.get("timed_out") is True:
+        return "resume_group_timed_out"
+    if previous_group.get("returncode") != 0 and previous_group.get("skip_only") is not True:
+        return "resume_group_returncode_not_accepted"
+    return None
 
 
 def _is_skip_only_pytest_exit(
@@ -279,6 +495,30 @@ def _utc_now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def _git_head() -> str | None:
+    proc = _git("rev-parse", "HEAD")
+    if proc.returncode != 0:
+        return None
+    head = proc.stdout.strip()
+    return head or None
+
+
+def _git_dirty() -> bool:
+    proc = _git("status", "--short")
+    return proc.returncode != 0 or bool(proc.stdout.strip())
+
+
+def _git(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+
 def _tail(path: Path, *, limit: int = 4000) -> str:
     if not path.exists():
         return ""
@@ -297,6 +537,11 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_FORMAL_MAX_FILES_PER_GROUP,
     )
     parser.add_argument("--timeout-sec-per-group", type=int, default=None)
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Reuse accepted groups from a current-commit report when the group identity and logs match.",
+    )
     args = parser.parse_args(argv)
 
     report = run_pytest_groups(
@@ -305,6 +550,7 @@ def main(argv: list[str] | None = None) -> int:
         max_files_per_group=args.max_files_per_group,
         formal_max_files_per_group=args.formal_max_files_per_group,
         timeout_sec_per_group=args.timeout_sec_per_group,
+        resume=args.resume,
     )
     return 0 if report["ok"] else 1
 

@@ -113,7 +113,8 @@ echo "[gate] running pytest"
 echo "[gate] pytest group timeout: ${PYTEST_GROUP_TIMEOUT_SEC}s"
 python tools/run_release_pytest_groups.py \
   --out runs/production_readiness/release_gate/pytest_groups_report.json \
-  --timeout-sec-per-group "$PYTEST_GROUP_TIMEOUT_SEC"
+  --timeout-sec-per-group "$PYTEST_GROUP_TIMEOUT_SEC" \
+  --resume
 
 if [[ "$SKIP_UI" -eq 0 ]]; then
   if [[ -d tools/dex-ui ]]; then
