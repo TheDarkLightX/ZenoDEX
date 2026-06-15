@@ -37,7 +37,7 @@ def _count_profile_calls(
             search_profile=search_profile,
         )
     finally:
-        split_routing_mod.exact_out_for_pool_exact_in = orig  # type: ignore[assignment]
+        split_routing_mod.exact_out_for_pool_exact_in = orig
     return result, int(calls["n"])
 
 
@@ -121,6 +121,42 @@ def test_unknown_search_profile_rejected():
         assert "unsupported search_profile" in str(exc)
     else:
         assert False, "expected ValueError for unknown search profile"
+
+
+def test_bruteforce_suppresses_domain_reject_but_propagates_programmer_error(monkeypatch):
+    p0 = PoolXY(x=100, y=100, fee_bps=10)
+    p1 = PoolXY(x=100, y=100, fee_bps=10)
+    orig = split_routing_mod.exact_out_for_pool_exact_in
+
+    def domain_reject_for_pool0(pool: PoolXY, amount: int) -> int:
+        if pool is p0:
+            raise ValueError("domain reject")
+        return orig(pool, amount)
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", domain_reject_for_pool0)
+    best_out, best_a = brute_force_best_split_two_pools_exact_in(p0, p1, 10)
+    assert best_out == orig(p1, 10)
+    assert best_a == 0
+
+    def programmer_error(_pool: PoolXY, _amount: int) -> int:
+        raise RuntimeError("unexpected quote bug")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", programmer_error)
+    with pytest.raises(RuntimeError, match="unexpected quote bug"):
+        brute_force_best_split_two_pools_exact_in(p0, p1, 10)
+
+
+def test_split_search_propagates_programmer_errors(monkeypatch):
+    p0 = PoolXY(x=10_000, y=10_000, fee_bps=10)
+    p1 = PoolXY(x=10_000, y=10_000, fee_bps=10)
+
+    def programmer_error(_pool: PoolXY, _amount: int) -> int:
+        raise RuntimeError("unexpected quote bug")
+
+    monkeypatch.setattr(split_routing_mod, "exact_out_for_pool_exact_in", programmer_error)
+
+    with pytest.raises(RuntimeError, match="unexpected quote bug"):
+        best_split_two_pools_exact_in(p0, p1, 5000, search_profile="baseline")
 
 
 def test_adaptive_v1_resolves_to_expected_hardness_tier_on_known_hard_cases():

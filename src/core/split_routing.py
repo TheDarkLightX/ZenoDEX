@@ -75,7 +75,7 @@ def brute_force_best_split_two_pools_exact_in(pool0: PoolXY, pool1: PoolXY, amou
         try:
             out0 = exact_out_for_pool_exact_in(pool0, a) if a > 0 else 0
             out1 = exact_out_for_pool_exact_in(pool1, b) if b > 0 else 0
-        except Exception:
+        except ValueError:
             continue
         total = out0 + out1
         if best_out is None or total > best_out or (total == best_out and a < best_a):
@@ -214,7 +214,7 @@ def _min_valid_amount_for_pool(
             return False
         try:
             exact_out_for_pool_exact_in(pool, int(a))
-        except Exception:
+        except ValueError:
             return False
         return True
 
@@ -320,13 +320,13 @@ def _search_dgstr_v1(
         if int(c) in seen:
             continue
         seen.add(int(c))
-        cand = _scan_range_best(
+        scan_cand = _scan_range_best(
             lo=max(int(lo), int(c) - int(window)),
             hi=min(int(hi), int(c) + int(window)),
             total_out=total_out,
         )
-        if _is_better_candidate(cand, best):
-            best = cand
+        if _is_better_candidate(scan_cand, best):
+            best = scan_cand
 
     if best is None:
         return None
@@ -561,7 +561,7 @@ def best_split_two_pools_exact_in(
         try:
             out0 = exact_out_for_pool_exact_in(pool0, a) if a > 0 else 0
             out1 = exact_out_for_pool_exact_in(pool1, b) if b > 0 else 0
-        except Exception:
+        except ValueError:
             tot_cache[a] = None
             return None
         tot = int(out0 + out1)
@@ -621,30 +621,30 @@ def best_split_two_pools_exact_in(
                             break
                         centers.add(c)
 
-                best_both: tuple[int, int] | None = None
+                local_best_both: tuple[int, int] | None = None
                 for c in sorted(centers):
-                    cand = _scan_range_best(
+                    scan_cand = _scan_range_best(
                         lo=max(lo_both, c - window),
                         hi=min(hi_both, c + window),
                         total_out=total_out,
                     )
-                    if _is_better_candidate(cand, best_both):
-                        best_both = cand
+                    if _is_better_candidate(scan_cand, local_best_both):
+                        local_best_both = scan_cand
 
-                if best_both is not None:
+                if local_best_both is not None:
                     # Refine by expanding around the current best within the both-valid interval.
-                    refine_out, refine_a = best_both
+                    refine_out, refine_a = local_best_both
                     half = max(1, int(window))
                     while True:
-                        cand = _scan_range_best(
+                        scan_cand = _scan_range_best(
                             lo=max(lo_both, refine_a - half),
                             hi=min(hi_both, refine_a + half),
                             total_out=total_out,
                         )
-                        if _is_better_candidate(cand, (int(refine_out), int(refine_a))):
-                            if cand is None:
+                        if _is_better_candidate(scan_cand, (int(refine_out), int(refine_a))):
+                            if scan_cand is None:
                                 raise RuntimeError("internal split-routing candidate ordering invariant violated")
-                            refine_out, refine_a = cand
+                            refine_out, refine_a = scan_cand
                         r_lo = max(lo_both, refine_a - half)
                         r_hi = min(hi_both, refine_a + half)
                         if r_lo == lo_both and r_hi == hi_both:
