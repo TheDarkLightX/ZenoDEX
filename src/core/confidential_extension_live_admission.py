@@ -70,10 +70,10 @@ def evaluate_confidential_extension_live_admission_gate(
 
 def validate_confidential_extension_live_admission(
     *,
-    receipt: Mapping[str, Any],
+    receipt: object,
     approved_measurements: Iterable[str] | AbstractSet[str],
     expected_policy_digest: str,
-    request_table: ConfidentialRequestTable,
+    request_table: object,
 ) -> tuple[bool, str | None, ConfidentialRequestTable | None]:
     if not isinstance(receipt, Mapping):
         return False, "bad_receipt_type", None
@@ -84,7 +84,7 @@ def validate_confidential_extension_live_admission(
             expected_policy_digest,
             name="expected_policy_digest",
         )
-    except Exception:
+    except (TypeError, ValueError):
         return False, "bad_expected_policy_digest", None
     ok, err = verify_confidential_extension_receipt(
         dict(receipt),
