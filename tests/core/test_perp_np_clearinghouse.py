@@ -8,7 +8,6 @@ the participation the fixed 2-party clearinghouse cannot provide.
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -17,14 +16,13 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+import src.core.perp_np_clearinghouse as C  # noqa: E402
 from src.core.perp_np_matching import (  # noqa: E402
     E8,
     Intent,
-    MatchParams,
-    match_intents,
+    _selftest,
     ration_net_zero,
 )
-import src.core.perp_np_clearinghouse as C  # noqa: E402
 from src.core.perps import (  # noqa: E402
     PerpClearinghouseNpAccount,
     PerpClearinghouseNpMarketState,
@@ -95,6 +93,14 @@ def test_matcher_rations_heavy_side_largest_remainder():
     assert sum(out) == 0
     assert out[0] == 7
     assert sorted(out[1:]) == [-3, -2, -2]              # 7 rationed across 3 by largest remainder
+
+
+def test_matcher_selftest_is_deterministic_and_passes():
+    result = _selftest()
+
+    assert result["ok"] is True
+    assert result["checked"] == 20011
+    assert result["failures"] == []
 
 
 # --- persistent market state type (snapshot-grade, fail-closed) -------------

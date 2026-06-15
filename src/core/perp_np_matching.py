@@ -189,7 +189,7 @@ def match_intents(
     if clearing_price_e8 <= 0:
         raise ValueError("clearing_price_e8 must be positive")
 
-    receipts: dict[str, IntentReceipt] = {}
+    receipts: dict[tuple[str, int], IntentReceipt] = {}
 
     # 1) Canonical order: sort by pubkey bytes, then nonce (highest last so it wins).
     ordered = sorted(intents, key=lambda it: (it.pubkey, it.nonce))
@@ -235,7 +235,7 @@ def match_intents(
         desired = [d if it.pubkey not in revoked else 0 for it, d in survivors]
         deltas = ration_net_zero(desired)
         newly_revoked = False
-        for (it, _), delta in zip(survivors, deltas):
+        for (it, _), delta in zip(survivors, deltas, strict=True):
             if it.pubkey in revoked:
                 continue
             if 0 < abs(delta) < it.min_fill_base:
@@ -246,7 +246,7 @@ def match_intents(
 
     # 6/7) Overflow + post-match invariant re-check; build receipts.
     out_deltas: dict[str, int] = {}
-    for (it, d), delta in zip(survivors, deltas):
+    for (it, _d), delta in zip(survivors, deltas, strict=True):
         if it.pubkey in revoked:
             receipts[_rkey(it)] = IntentReceipt(it.pubkey, it.nonce, "filled", delta=0)
             continue
@@ -324,10 +324,16 @@ def _validate_intent(
 # --- Deterministic self-test CLI ----------------------------------------------
 def _selftest() -> dict:
     """Deterministic battery: assert net-zero, sign-consistency, |delta|<=|desired|."""
-    import random
-
     failures: list[str] = []
     checked = 0
+    stream_state = 20260601
+
+    def deterministic_int(lo: int, hi: int) -> int:
+        nonlocal stream_state
+        if lo > hi:
+            raise ValueError("lo must be <= hi")
+        stream_state = (6364136223846793005 * stream_state + 1442695040888963407) % (1 << 64)
+        return lo + (stream_state % (hi - lo + 1))
 
     def check_ration(desired: list[int]) -> None:
         nonlocal checked
@@ -335,7 +341,7 @@ def _selftest() -> dict:
         checked += 1
         if sum(out) != 0:
             failures.append(f"net!=0 for {desired} -> {out}")
-        for d, o in zip(desired, out):
+        for d, o in zip(desired, out, strict=True):
             if d >= 0 and not (0 <= o <= d):
                 failures.append(f"sign/bound for d={d} o={o}")
             if d < 0 and not (d <= o <= 0):
@@ -361,11 +367,11 @@ def _selftest() -> dict:
     ):
         check_ration(list(case))
 
-    # Seeded random battery (reproducible: fixed seed, no wall-clock).
-    rng = random.Random(20260601)
+    # Deterministic pseudo-random battery. Keep the generator local and integer-only
+    # so `src/core` stays free of ambient randomness imports.
     for _ in range(20000):
-        n = rng.randint(0, 8)
-        desired = [rng.randint(-50, 50) for _ in range(n)]
+        n = deterministic_int(0, 8)
+        desired = [deterministic_int(-50, 50) for _ in range(n)]
         check_ration(desired)
 
     # End-to-end match_intents: net-zero + min-fill respected.
