@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from src.core.amm_dispatch import CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT
-from src.core.amm_dispatch import swap_exact_out_for_pool
+import src.core.swap_preflight as swap_preflight_module
+from src.core import cpmm as cpmm_module
+from src.core.amm_dispatch import (
+    CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+    swap_exact_out_for_pool,
+)
 from src.core.swap_preflight import preflight_swap_exact_in, preflight_swap_exact_out
 from src.state.pools import PoolState, PoolStatus
 
@@ -65,6 +69,32 @@ def test_preflight_exact_in_rejects_min_out_too_high() -> None:
     assert bad.suggested_min_amount_out <= ok.amount_out_quote
 
 
+def test_preflight_exact_in_maps_expected_quote_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def rejecting_swap(*args: object, **kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise ValueError("quote input rejected")
+
+    monkeypatch.setattr(swap_preflight_module, "swap_exact_in_for_pool", rejecting_swap)
+    res = preflight_swap_exact_in(pool=p, asset_in="A", asset_out="B", amount_in=100, min_amount_out=0)
+
+    assert res.ok is False
+    assert res.reason == "swap_error"
+
+
+def test_preflight_exact_in_propagates_unexpected_quote_engine_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def broken_swap(*args: object, **kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("exact-in quote bug")
+
+    monkeypatch.setattr(swap_preflight_module, "swap_exact_in_for_pool", broken_swap)
+    with pytest.raises(RuntimeError, match="exact-in quote bug"):
+        preflight_swap_exact_in(pool=p, asset_in="A", asset_out="B", amount_in=100, min_amount_out=0)
+
+
 def test_preflight_exact_out_ok() -> None:
     p = _pool(r0=1000, r1=1000, fee_bps=0)
     req_in, _ = swap_exact_out_for_pool(p, reserve_in=int(p.reserve0), reserve_out=int(p.reserve1), amount_out=300)
@@ -82,6 +112,56 @@ def test_preflight_exact_out_ok() -> None:
     assert res.amount_in_quote == int(req_in)
     assert res.suggested_max_amount_in is not None
     assert res.suggested_max_amount_in >= int(req_in)
+
+
+def test_preflight_exact_out_gap_analysis_failure_still_attempts_quote(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+    req_in, _ = swap_exact_out_for_pool(p, reserve_in=int(p.reserve0), reserve_out=int(p.reserve1), amount_out=300)
+
+    def rejecting_gap_kernel(*args: object, **kwargs: object) -> object:
+        raise ValueError("gap analysis rejected")
+
+    monkeypatch.setattr(swap_preflight_module, "_cpmm_exact_out_kernel_v8", rejecting_gap_kernel)
+    res = preflight_swap_exact_out(
+        pool=p,
+        asset_in="A",
+        asset_out="B",
+        amount_out=300,
+        max_amount_in=int(req_in),
+        suggested_slippage_bps=50,
+    )
+
+    assert res.ok is True
+    assert res.overdelivery_gap is None
+    assert res.overdelivery_gap_bps is None
+
+
+def test_preflight_exact_out_gap_analysis_propagates_unexpected_kernel_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def broken_gap_kernel(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("gap kernel bug")
+
+    monkeypatch.setattr(swap_preflight_module, "_cpmm_exact_out_kernel_v8", broken_gap_kernel)
+    with pytest.raises(RuntimeError, match="gap kernel bug"):
+        preflight_swap_exact_out(pool=p, asset_in="A", asset_out="B", amount_out=300, max_amount_in=400)
+
+
+def test_preflight_exact_out_propagates_unexpected_quote_engine_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    p = _pool(r0=1000, r1=1000, fee_bps=0)
+
+    def broken_swap(*args: object, **kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("exact-out quote bug")
+
+    monkeypatch.setattr(cpmm_module, "swap_exact_out", broken_swap)
+    with pytest.raises(RuntimeError, match="exact-out quote bug"):
+        preflight_swap_exact_out(pool=p, asset_in="A", asset_out="B", amount_out=300, max_amount_in=400)
 
 
 def test_preflight_exact_out_rejects_max_in_too_low() -> None:
