@@ -80,7 +80,7 @@ try:
 
     G2Basic = _PyEccG2Basic
     _BLS_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     G2Basic = None
     _BLS_AVAILABLE = False
 
@@ -403,7 +403,7 @@ def _pubkey_bytes48_or_none(value: Optional[str], *, name: str) -> Optional[byte
         return None
     try:
         return _hex_to_bytes_allow_0x(value, name=name, expected_nbytes=48)
-    except Exception:
+    except (TypeError, ValueError):
         return None
 
 
@@ -1079,7 +1079,7 @@ def _is_supported_uniform_batch_swap_family(intents: List[Intent]) -> bool:
             current_pool_id = str(intent.get_field("pool_id"))
             asset_in = str(intent.get_field("asset_in"))
             asset_out = str(intent.get_field("asset_out"))
-        except Exception:
+        except (TypeError, ValueError):
             return False
         if asset_in == asset_out:
             return False
@@ -1430,7 +1430,7 @@ def apply_ops(
                 try:
                     expected = _settlement_rewrite_normal_form_dict(computed_settlement)
                     got = _settlement_rewrite_normal_form_dict(settlement)
-                except Exception:
+                except (TypeError, ValueError):
                     return DexTxResult(ok=False, error="invalid settlement payload for comparison")
                 if got != expected:
                     return DexTxResult(ok=False, error="settlement mismatch")
