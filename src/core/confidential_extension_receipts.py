@@ -13,7 +13,7 @@ is reduced here to an approved measurement allowlist plus bounded epoch freshnes
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import AbstractSet, Any, Dict, Iterable, Tuple
+from typing import AbstractSet, Any, Dict, Iterable, Tuple, cast
 
 from ..state.canonical import (
     canonical_hex_fixed_allow_0x,
@@ -148,7 +148,7 @@ def _measurement_registry_unsigned(registry: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def verify_confidential_measurement_registry(
-    registry: Dict[str, Any],
+    registry: object,
     *,
     current_epoch: int,
     policy_digest: str | None = None,
@@ -652,7 +652,7 @@ def make_confidential_extension_receipt(
 
 
 def verify_confidential_extension_receipt(
-    receipt: Dict[str, Any],
+    receipt: object,
     *,
     approved_measurements: Iterable[str] | AbstractSet[str],
 ) -> Tuple[bool, str]:
@@ -679,7 +679,7 @@ def verify_confidential_extension_receipt(
     try:
         policy_digest = body.get("policy_digest")
         policy_digest_ok = isinstance(policy_digest, str) and bool(policy_digest) and policy_digest == _require_policy_digest(policy_digest)
-    except Exception:
+    except (TypeError, ValueError):
         policy_digest_ok = False
     measurement = body.get("measurement")
     measurement_format_ok = isinstance(measurement, str) and bool(measurement) and is_canonical_confidential_measurement(measurement)
@@ -695,21 +695,24 @@ def verify_confidential_extension_receipt(
     numeric_fields_ok = False
     try:
         if host_object_ok and attestation_object_ok and accounting_object_ok:
-            do_execute = _require_int_field(host, "do_execute")
-            policy_ok = _require_int_field(host, "policy_ok")
-            nonce_unused = _require_int_field(host, "nonce_unused")
-            output_bound_ok = _require_int_field(host, "output_bound_ok")
-            current_epoch = _require_int_field(attestation, "current_epoch")
-            attestation_epoch = _require_int_field(attestation, "attestation_epoch")
-            max_attestation_age = _require_int_field(attestation, "max_attestation_age")
-            fee_charged = _require_int_field(accounting, "fee_charged")
-            receipt_fee = _require_int_field(accounting, "receipt_fee")
-            credit_before = _require_int_field(accounting, "credit_before")
-            credit_after = _require_int_field(accounting, "credit_after")
-            provider_balance_before = _require_int_field(accounting, "provider_balance_before")
-            provider_balance_after = _require_int_field(accounting, "provider_balance_after")
+            host_fields = cast(Dict[str, Any], host)
+            attestation_fields = cast(Dict[str, Any], attestation)
+            accounting_fields = cast(Dict[str, Any], accounting)
+            do_execute = _require_int_field(host_fields, "do_execute")
+            policy_ok = _require_int_field(host_fields, "policy_ok")
+            nonce_unused = _require_int_field(host_fields, "nonce_unused")
+            output_bound_ok = _require_int_field(host_fields, "output_bound_ok")
+            current_epoch = _require_int_field(attestation_fields, "current_epoch")
+            attestation_epoch = _require_int_field(attestation_fields, "attestation_epoch")
+            max_attestation_age = _require_int_field(attestation_fields, "max_attestation_age")
+            fee_charged = _require_int_field(accounting_fields, "fee_charged")
+            receipt_fee = _require_int_field(accounting_fields, "receipt_fee")
+            credit_before = _require_int_field(accounting_fields, "credit_before")
+            credit_after = _require_int_field(accounting_fields, "credit_after")
+            provider_balance_before = _require_int_field(accounting_fields, "provider_balance_before")
+            provider_balance_after = _require_int_field(accounting_fields, "provider_balance_after")
             numeric_fields_ok = True
-    except Exception:
+    except ValueError:
         numeric_fields_ok = False
 
     precheck = evaluate_confidential_extension_receipt_precheck_gate(
