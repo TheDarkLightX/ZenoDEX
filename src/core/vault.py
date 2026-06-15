@@ -11,7 +11,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping
 
-
 ACC_SCALE = 1_000_000
 
 
@@ -78,7 +77,7 @@ def step(state: VaultState, cmd: VaultCommand) -> VaultStepResult:
         if cmd.tag == "unstake":
             return _unstake(state, cmd.args)
         return VaultStepResult(ok=False, error=f"unknown action: {cmd.tag}")
-    except Exception as exc:
+    except (TypeError, ValueError, ArithmeticError) as exc:
         return VaultStepResult(ok=False, error=str(exc))
 
 
@@ -202,4 +201,3 @@ def _unstake(state: VaultState, args: Mapping[str, Any]) -> VaultStepResult:
         staked_lp_shares=state.staked_lp_shares - amount,
     )
     return VaultStepResult(ok=True, state=new_state, effects={"delta_acc": 0, "harvested_reward": 0})
-
