@@ -5,6 +5,7 @@ from typing import Any, Callable
 
 import pytest
 
+import src.core.quote_receipts as quote_receipts_module
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.quote_receipts import (
     QUOTE_RECEIPT_CERTIFICATE_AMOUNT_OUT_MISMATCH,
@@ -222,6 +223,47 @@ def test_quote_receipt_rejects_bad_expected_quote_epoch() -> None:
     ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools, expected_quote_epoch=-1)
     assert not ok
     assert err == "bad_expected_quote_epoch"
+
+
+def test_quote_receipt_hop_replay_maps_expected_quote_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = _pool("p_ab", "A", "B", 1_000, 1_000, 0)
+
+    def rejecting_swap(*args: object, **kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise ValueError("bad quote input")
+
+    monkeypatch.setattr(quote_receipts_module, "swap_exact_in_for_pool", rejecting_swap)
+    ok, err, next_pool = _replay_and_apply_hop(
+        pool=pool,
+        kind="exact_in",
+        asset_in="A",
+        asset_out="B",
+        amount_in=100,
+        amount_out=90,
+    )
+
+    assert not ok
+    assert err == "hop_quote_error"
+    assert next_pool is None
+
+
+def test_quote_receipt_hop_replay_propagates_unexpected_quote_engine_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = _pool("p_ab", "A", "B", 1_000, 1_000, 0)
+
+    def broken_swap(*args: object, **kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise RuntimeError("quote engine bug")
+
+    monkeypatch.setattr(quote_receipts_module, "swap_exact_in_for_pool", broken_swap)
+    with pytest.raises(RuntimeError, match="quote engine bug"):
+        _replay_and_apply_hop(
+            pool=pool,
+            kind="exact_in",
+            asset_in="A",
+            asset_out="B",
+            amount_in=100,
+            amount_out=90,
+        )
 
 
 def test_quote_receipt_exact_out_split_roundtrip() -> None:
@@ -1006,7 +1048,7 @@ def test_quote_receipt_verifier_rejects_non_dict_receipt_type() -> None:
 
 def test_quote_receipt_verifier_rejects_missing_working_pool_via_inconsistent_pool_map() -> None:
     class InconsistentPools(dict[str, str]):
-        def __iter__(self):  # type: ignore[override]
+        def __iter__(self):
             return iter(())
 
         def __contains__(self, key: object) -> bool:
