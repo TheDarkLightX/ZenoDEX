@@ -49,7 +49,7 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
 
             try:
                 cubic_params_obj = json.loads(cubic_params_obj)
-            except Exception as exc:
+            except json.JSONDecodeError as exc:
                 raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
         if not isinstance(cubic_params_obj, dict):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
@@ -71,7 +71,7 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
 
             try:
                 sum_boost_params_obj = json.loads(sum_boost_params_obj)
-            except Exception as exc:
+            except json.JSONDecodeError as exc:
                 raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
         if not isinstance(sum_boost_params_obj, dict):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
@@ -95,7 +95,7 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
 
             try:
                 quartic_params_obj = json.loads(quartic_params_obj)
-            except Exception as exc:
+            except json.JSONDecodeError as exc:
                 raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
         if not isinstance(quartic_params_obj, dict):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
@@ -130,7 +130,7 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
 
             try:
                 quintic_params_obj = json.loads(quintic_params_obj)
-            except Exception as exc:
+            except json.JSONDecodeError as exc:
                 raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
         if not isinstance(quintic_params_obj, dict):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
@@ -168,7 +168,7 @@ def parse_cubic_sum_params(curve_params: str) -> Tuple[int, int]:
         raise TypeError("curve_params must be a string")
     try:
         obj = json.loads(curve_params)
-    except Exception as exc:
+    except json.JSONDecodeError as exc:
         raise ValueError(f"invalid curve_params JSON: {exc}") from exc
     if not isinstance(obj, dict):
         raise ValueError("curve_params must decode to a JSON object")
@@ -191,7 +191,7 @@ def parse_sum_boost_params(curve_params: str) -> Tuple[int, int]:
         raise TypeError("curve_params must be a string")
     try:
         obj = json.loads(curve_params)
-    except Exception as exc:
+    except json.JSONDecodeError as exc:
         raise ValueError(f"invalid curve_params JSON: {exc}") from exc
     if not isinstance(obj, dict):
         raise ValueError("curve_params must decode to a JSON object")
@@ -214,7 +214,7 @@ def parse_quartic_blend_params(curve_params: str) -> Tuple[int, int]:
         raise TypeError("curve_params must be a string")
     try:
         obj = json.loads(curve_params)
-    except Exception as exc:
+    except json.JSONDecodeError as exc:
         raise ValueError(f"invalid curve_params JSON: {exc}") from exc
     if not isinstance(obj, dict):
         raise ValueError("curve_params must decode to a JSON object")
@@ -237,7 +237,7 @@ def parse_quintic_blend_params(curve_params: str) -> Tuple[int, int]:
         raise TypeError("curve_params must be a string")
     try:
         obj = json.loads(curve_params)
-    except Exception as exc:
+    except json.JSONDecodeError as exc:
         raise ValueError(f"invalid curve_params JSON: {exc}") from exc
     if not isinstance(obj, dict):
         raise ValueError("curve_params must decode to a JSON object")
