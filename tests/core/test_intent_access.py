@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from src.core.intent_access import partition_independent_intents
+import pytest
+
+import src.core.intent_access as intent_access_module
+from src.core.intent_access import access_for_intent, partition_independent_intents
 from src.state.intents import Intent, IntentKind
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
 
@@ -142,3 +145,43 @@ def test_partition_treats_add_liquidity_into_new_pool_as_reading_sender_assets()
     # add_liq and swap_touching_pkb must be in the same component via pk_b asset access.
     group_ids = [{i.intent_id for i in g} for g in groups]
     assert any({add_liq.intent_id, swap_touching_pkb.intent_id}.issubset(s) for s in group_ids)
+
+
+def test_partition_propagates_created_pool_helper_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    pk = "0x" + "11" * 48
+    create_pool = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(4),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"asset0": "0x" + "01" * 32, "asset1": "0x" + "02" * 32, "fee_bps": 30},
+    )
+
+    def broken_compute_pool_id(*args: object, **kwargs: object) -> str:
+        raise RuntimeError("pool-id helper bug")
+
+    monkeypatch.setattr(intent_access_module, "compute_pool_id", broken_compute_pool_id)
+    with pytest.raises(RuntimeError, match="pool-id helper bug"):
+        partition_independent_intents([create_pool], pools={})
+
+
+def test_access_for_intent_propagates_create_pool_helper_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    pk = "0x" + "11" * 48
+    create_pool = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(5),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"asset0": "0x" + "01" * 32, "asset1": "0x" + "02" * 32, "fee_bps": 30},
+    )
+
+    def broken_compute_pool_id(*args: object, **kwargs: object) -> str:
+        raise RuntimeError("pool-id helper bug")
+
+    monkeypatch.setattr(intent_access_module, "compute_pool_id", broken_compute_pool_id)
+    with pytest.raises(RuntimeError, match="pool-id helper bug"):
+        access_for_intent(create_pool, pools={}, created_pools={})
