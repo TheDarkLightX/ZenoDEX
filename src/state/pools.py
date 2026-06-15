@@ -4,15 +4,13 @@ Pool state management for DEX pools.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Tuple
 
-import hashlib
-
-from .balances import AssetId, Amount
+from .balances import Amount, AssetId
 from .canonical import canonical_json_bytes
-
 
 CURVE_TAG_CPMM = "CPMM"
 CURVE_TAG_CUBIC_SUM_V1 = "CUBIC_SUM_V1"
@@ -43,20 +41,20 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
         return CURVE_TAG_CPMM, ""
 
     if tag == CURVE_TAG_CUBIC_SUM_V1:
-        params_obj: object = curve_params
-        if params_obj is None:
-            params_obj = {"p": 1, "q": 1}
-        if isinstance(params_obj, str):
+        cubic_params_obj: object = curve_params
+        if cubic_params_obj is None:
+            cubic_params_obj = {"p": 1, "q": 1}
+        if isinstance(cubic_params_obj, str):
             import json
 
             try:
-                params_obj = json.loads(params_obj)
+                cubic_params_obj = json.loads(cubic_params_obj)
             except Exception as exc:
                 raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(params_obj, dict):
+        if not isinstance(cubic_params_obj, dict):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
-        p = params_obj.get("p", 1)
-        q = params_obj.get("q", 1)
+        p = cubic_params_obj.get("p", 1)
+        q = cubic_params_obj.get("q", 1)
         if not isinstance(p, int) or isinstance(p, bool) or p <= 0:
             raise ValueError(f"{tag} param p must be a positive int")
         if not isinstance(q, int) or isinstance(q, bool) or q <= 0:
@@ -65,20 +63,20 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
         return CURVE_TAG_CUBIC_SUM_V1, canonical_json_bytes(params_norm).decode("utf-8")
 
     if tag == CURVE_TAG_SUM_BOOST_V1:
-        params_obj: object = curve_params
-        if params_obj is None:
-            params_obj = {"mu_num": 200, "mu_den": 10_000}
-        if isinstance(params_obj, str):
+        sum_boost_params_obj: object = curve_params
+        if sum_boost_params_obj is None:
+            sum_boost_params_obj = {"mu_num": 200, "mu_den": 10_000}
+        if isinstance(sum_boost_params_obj, str):
             import json
 
             try:
-                params_obj = json.loads(params_obj)
+                sum_boost_params_obj = json.loads(sum_boost_params_obj)
             except Exception as exc:
                 raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(params_obj, dict):
+        if not isinstance(sum_boost_params_obj, dict):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
-        mu_num = params_obj.get("mu_num", 200)
-        mu_den = params_obj.get("mu_den", 10_000)
+        mu_num = sum_boost_params_obj.get("mu_num", 200)
+        mu_den = sum_boost_params_obj.get("mu_den", 10_000)
         if not isinstance(mu_num, int) or isinstance(mu_num, bool) or mu_num < 0:
             raise ValueError(f"{tag} param mu_num must be a non-negative int")
         if not isinstance(mu_den, int) or isinstance(mu_den, bool) or mu_den <= 0:
@@ -87,22 +85,22 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
         return CURVE_TAG_SUM_BOOST_V1, canonical_json_bytes(params_norm).decode("utf-8")
 
     if tag == CURVE_TAG_QUARTIC_BLEND_V1:
-        params_obj: object = curve_params
-        if params_obj is None:
+        quartic_params_obj: object = curve_params
+        if quartic_params_obj is None:
             # Default: c=8 is a conservative setting that reduces the frequency of large negative regressions vs CPMM
             # (at the cost of smaller average improvement).
-            params_obj = {"c_num": 8, "c_den": 1}
-        if isinstance(params_obj, str):
+            quartic_params_obj = {"c_num": 8, "c_den": 1}
+        if isinstance(quartic_params_obj, str):
             import json
 
             try:
-                params_obj = json.loads(params_obj)
+                quartic_params_obj = json.loads(quartic_params_obj)
             except Exception as exc:
                 raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(params_obj, dict):
+        if not isinstance(quartic_params_obj, dict):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
-        c_num = params_obj.get("c_num", 8)
-        c_den = params_obj.get("c_den", 1)
+        c_num = quartic_params_obj.get("c_num", 8)
+        c_den = quartic_params_obj.get("c_den", 1)
         if not isinstance(c_num, int) or isinstance(c_num, bool) or c_num < 0:
             raise ValueError(f"{tag} param c_num must be a non-negative int")
         if not isinstance(c_den, int) or isinstance(c_den, bool) or c_den <= 0:
@@ -123,21 +121,21 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
         return CURVE_TAG_QUARTIC_BLEND_V1, canonical_json_bytes(params_norm).decode("utf-8")
 
     if tag == CURVE_TAG_QUINTIC_BLEND_V1:
-        params_obj: object = curve_params
-        if params_obj is None:
+        quintic_params_obj: object = curve_params
+        if quintic_params_obj is None:
             # Default: c=2 => K(x,y)=x*y*(x+y)^3 (a stable, easy-to-reason-about special case).
-            params_obj = {"c_num": 2, "c_den": 1}
-        if isinstance(params_obj, str):
+            quintic_params_obj = {"c_num": 2, "c_den": 1}
+        if isinstance(quintic_params_obj, str):
             import json
 
             try:
-                params_obj = json.loads(params_obj)
+                quintic_params_obj = json.loads(quintic_params_obj)
             except Exception as exc:
                 raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(params_obj, dict):
+        if not isinstance(quintic_params_obj, dict):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
-        c_num = params_obj.get("c_num", 2)
-        c_den = params_obj.get("c_den", 1)
+        c_num = quintic_params_obj.get("c_num", 2)
+        c_den = quintic_params_obj.get("c_den", 1)
         if not isinstance(c_num, int) or isinstance(c_num, bool) or c_num < 0:
             raise ValueError(f"{tag} param c_num must be a non-negative int")
         if not isinstance(c_den, int) or isinstance(c_den, bool) or c_den <= 0:
@@ -276,6 +274,12 @@ def _canonical_pool_asset_id(asset: AssetId) -> AssetId:
     return "0x" + body.lower()
 
 
+def _require_strict_int(name: str, value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
 def compute_pool_id(
     asset0: AssetId,
     asset1: AssetId,
@@ -293,7 +297,8 @@ def compute_pool_id(
     asset1_hash = _canonical_pool_asset_id(asset1)
     if asset0_hash >= asset1_hash:
         raise ValueError(f"Assets must be in canonical order: {asset0} < {asset1}")
-    if not (0 <= fee_bps <= 10000):
+    fee_bps_i = _require_strict_int("fee_bps", fee_bps)
+    if not (0 <= fee_bps_i <= 10000):
         raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")
     if not isinstance(curve_tag, str) or not curve_tag:
         raise ValueError("curve_tag must be a non-empty string")
@@ -304,7 +309,7 @@ def compute_pool_id(
         b"TauSwapPool"
         + asset0_hash.encode("utf-8")
         + asset1_hash.encode("utf-8")
-        + str(int(fee_bps)).encode("utf-8")
+        + str(fee_bps_i).encode("utf-8")
         + curve_tag.encode("utf-8")
         + curve_params.encode("utf-8")
     )
@@ -348,7 +353,13 @@ class PoolState:
             raise ValueError(
                 f"Assets must be in canonical order: {self.asset0} < {self.asset1}"
             )
-        
+
+        self.reserve0 = _require_strict_int("reserve0", self.reserve0)
+        self.reserve1 = _require_strict_int("reserve1", self.reserve1)
+        self.fee_bps = _require_strict_int("fee_bps", self.fee_bps)
+        self.lp_supply = _require_strict_int("lp_supply", self.lp_supply)
+        self.created_at = _require_strict_int("created_at", self.created_at)
+
         # Validate fee_bps
         if not (0 <= self.fee_bps <= 10000):
             raise ValueError(f"fee_bps must be in [0, 10000]: {self.fee_bps}")
