@@ -960,7 +960,7 @@ def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths(monkey
         max_verifier_payload_bytes=64,
     ) == (False, "proof payload too large")
 
-    monkeypatch.setattr("src.integration.dex_engine.bounded_json_utf8_size", lambda payload, *, max_bytes: (_ for _ in ()).throw(RuntimeError("bad encoding")))
+    monkeypatch.setattr("src.integration.dex_engine.bounded_json_utf8_size", lambda payload, *, max_bytes: (_ for _ in ()).throw(TypeError("bad encoding")))
     assert _verify_proof_if_present(
         verifier,
         intents=[],
@@ -971,6 +971,19 @@ def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths(monkey
         batch_commitment="0x2",
         max_verifier_payload_bytes=1024,
     ) == (False, "invalid proof payload encoding")
+
+    monkeypatch.setattr("src.integration.dex_engine.bounded_json_utf8_size", lambda payload, *, max_bytes: (_ for _ in ()).throw(RuntimeError("bad encoding")))
+    with pytest.raises(RuntimeError, match="bad encoding"):
+        _verify_proof_if_present(
+            verifier,
+            intents=[],
+            settlement_env=_empty_settlement_env(proof={"pre_state_commitment": "0x1", "batch_commitment": "0x2"}),
+            require_proof=False,
+            verifier_enforcing=True,
+            pre_state_commitment="0x1",
+            batch_commitment="0x2",
+            max_verifier_payload_bytes=1024,
+        )
 
     monkeypatch.undo()
     ok_verifier = _DummyVerifier((True, None))
@@ -1029,7 +1042,7 @@ def test_apply_ops_covers_external_tool_policy_and_intent_parse_errors(monkeypat
 
     monkeypatch.setattr(dex_engine, "parse_signed_intents", lambda operations: (_ for _ in ()).throw(RuntimeError("boom")))
     res = apply_ops(config=DexEngineConfig(), state=state, operations={"2": "ignored"}, block_timestamp=0)
-    assert res.error == "invalid intents"
+    assert res.error == "internal error"
 
 
 def test_apply_ops_covers_too_many_intents_and_settlement_parse_errors(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1054,7 +1067,7 @@ def test_apply_ops_covers_too_many_intents_and_settlement_parse_errors(monkeypat
 
     monkeypatch.setattr(dex_engine, "parse_settlement_envelope", lambda operations: (_ for _ in ()).throw(RuntimeError("boom")))
     res = apply_ops(config=DexEngineConfig(), state=state, operations={}, block_timestamp=0)
-    assert res.error == "invalid settlement"
+    assert res.error == "internal error"
 
 
 def test_apply_ops_covers_invalid_proof_payload_and_signing_payload_errors(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1082,6 +1095,23 @@ def test_apply_ops_covers_invalid_proof_payload_and_signing_payload_errors(monke
     )
     assert res.error == "invalid proof payload encoding"
 
+
+    monkeypatch.setattr(
+        dex_engine,
+        "bounded_json_utf8_size",
+        lambda value, *, max_bytes: (_ for _ in ()).throw(RuntimeError("bad proof json")) if value == {"scheme": "dummy"} else 0,
+    )
+    res = apply_ops(
+        config=DexEngineConfig(
+            consensus_mode=False,
+            allow_external_tools=True,
+            proof_config=ProofVerifierConfig(enabled=True, verifier_cmd=["/bin/true"]),
+        ),
+        state=state,
+        operations={},
+        block_timestamp=0,
+    )
+    assert res.error == "internal error"
     _patch_apply_ops_happy_path(monkeypatch)
     monkeypatch.setattr(dex_engine, "_build_signing_payloads", lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("payload boom")))
     res = apply_ops(config=DexEngineConfig(), state=state, operations={"2": "ignored"}, block_timestamp=0)

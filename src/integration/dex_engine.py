@@ -585,7 +585,7 @@ def _verify_proof_if_present(
         bounded_json_utf8_size(payload, max_bytes=max_verifier_payload_bytes)
     except ValueError:
         return False, "proof payload too large"
-    except Exception:
+    except TypeError:
         return False, "invalid proof payload encoding"
     ok, err = verifier.verify(payload)
     if not ok:
@@ -1170,8 +1170,6 @@ def apply_ops(
             signed_intents = parse_signed_intents(operations)
         except ValueError as exc:
             return DexTxResult(ok=False, error=f"invalid intents: {_clean_error(exc)}")
-        except Exception:
-            return DexTxResult(ok=False, error="invalid intents")
         if len(signed_intents) > config.max_intents:
             return DexTxResult(ok=False, error=f"too many intents: {len(signed_intents)} > {config.max_intents}")
         _fault_stage(config, "after_intent_parse")
@@ -1180,8 +1178,6 @@ def apply_ops(
             settlement_env = parse_settlement_envelope(operations)
         except ValueError as exc:
             return DexTxResult(ok=False, error=f"invalid settlement: {_clean_error(exc)}")
-        except Exception:
-            return DexTxResult(ok=False, error="invalid settlement")
         settlement = settlement_env.settlement if settlement_env else None
         proof = settlement_env.proof if settlement_env else None
         uniform_batch_certificate = (
@@ -1235,7 +1231,7 @@ def apply_ops(
                 bounded_json_utf8_size(proof, max_bytes=config.proof_config.max_proof_bytes)
             except ValueError:
                 return DexTxResult(ok=False, error="proof payload too large")
-            except Exception:
+            except TypeError:
                 return DexTxResult(ok=False, error="invalid proof payload encoding")
         _fault_stage(config, "after_settlement_parse")
 
