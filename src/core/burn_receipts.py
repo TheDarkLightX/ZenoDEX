@@ -19,6 +19,12 @@ from typing import Any, Dict, Tuple
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 
 
+def _receipt_int(value: Any) -> int:
+    if isinstance(value, bool):
+        raise TypeError("bool is not a burn receipt integer")
+    return int(value)
+
+
 def burn_receipt_hash(receipt_body: Dict[str, Any]) -> str:
     return sha256_hex(domain_sep_bytes("zenodex.burn_receipt/v1") + canonical_json_bytes(receipt_body))
 
@@ -110,7 +116,7 @@ def make_burn_receipt(
     return {"body": body, "receipt_hash": burn_receipt_hash(body)}
 
 
-def verify_burn_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
+def verify_burn_receipt(receipt: object) -> Tuple[bool, str]:
     if not isinstance(receipt, dict):
         return False, "bad_receipt_type"
     body = receipt.get("body")
@@ -138,18 +144,18 @@ def verify_burn_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
         return False, "bad_accounting"
 
     try:
-        do_burn = int(host.get("do_burn"))
-        receipt_bound = int(host.get("receipt_bound"))
-        nullifier_unused = int(host.get("nullifier_unused"))
-        policy_ok = int(host.get("policy_ok"))
-        burn_amount = int(accounting.get("burn_amount"))
-        receipt_amount = int(accounting.get("receipt_amount"))
-        burn_budget = int(accounting.get("burn_budget"))
-        supply_before = int(accounting.get("supply_before"))
-        supply_after = int(accounting.get("supply_after"))
-        batch_burn_sum_before = int(accounting.get("batch_burn_sum_before"))
-        batch_burn_sum_after = int(accounting.get("batch_burn_sum_after"))
-    except Exception:
+        do_burn = _receipt_int(host.get("do_burn"))
+        receipt_bound = _receipt_int(host.get("receipt_bound"))
+        nullifier_unused = _receipt_int(host.get("nullifier_unused"))
+        policy_ok = _receipt_int(host.get("policy_ok"))
+        burn_amount = _receipt_int(accounting.get("burn_amount"))
+        receipt_amount = _receipt_int(accounting.get("receipt_amount"))
+        burn_budget = _receipt_int(accounting.get("burn_budget"))
+        supply_before = _receipt_int(accounting.get("supply_before"))
+        supply_after = _receipt_int(accounting.get("supply_after"))
+        batch_burn_sum_before = _receipt_int(accounting.get("batch_burn_sum_before"))
+        batch_burn_sum_after = _receipt_int(accounting.get("batch_burn_sum_after"))
+    except (TypeError, ValueError, OverflowError):
         return False, "bad_numeric_field"
 
     if not _rail_replay_guard(

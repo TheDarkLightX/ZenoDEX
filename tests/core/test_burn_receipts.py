@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from typing import Any
+
+import pytest
+
 from src.core.burn_receipts import burn_receipt_hash, make_burn_receipt, verify_burn_receipt
 
 
-def _make_valid_receipt() -> dict:
+def _make_valid_receipt() -> dict[str, Any]:
     return make_burn_receipt(
         asset_id="TDEX",
         batch_id="batch-1",
@@ -79,3 +83,41 @@ def test_burn_receipt_no_burn_path_preserves_state() -> None:
     )
     ok, err = verify_burn_receipt(receipt)
     assert ok, err
+
+
+def test_burn_receipt_bool_numeric_field_is_rejected() -> None:
+    receipt = _make_valid_receipt()
+    receipt["body"]["host"]["do_burn"] = True
+    receipt["receipt_hash"] = burn_receipt_hash(receipt["body"])
+
+    ok, err = verify_burn_receipt(receipt)
+
+    assert not ok
+    assert err == "bad_numeric_field"
+
+
+def test_burn_receipt_expected_numeric_coercion_failures_are_bad_numeric_field() -> None:
+    receipt = _make_valid_receipt()
+    receipt["body"]["accounting"]["burn_amount"] = "not-a-number"
+    receipt["receipt_hash"] = burn_receipt_hash(receipt["body"])
+
+    ok, err = verify_burn_receipt(receipt)
+
+    assert not ok
+    assert err == "bad_numeric_field"
+
+
+def test_burn_receipt_unexpected_numeric_coercion_bug_propagates() -> None:
+    class BrokenInt(str):
+        def __new__(cls) -> "BrokenInt":
+            return super().__new__(cls, "5")
+
+        def __int__(self) -> int:
+            raise RuntimeError("numeric parser bug")
+
+    receipt = _make_valid_receipt()
+    receipt["body"]["accounting"]["burn_amount"] = BrokenInt()
+    receipt["receipt_hash"] = burn_receipt_hash(receipt["body"])
+
+    with pytest.raises(RuntimeError, match="numeric parser bug"):
+        verify_burn_receipt(receipt)
