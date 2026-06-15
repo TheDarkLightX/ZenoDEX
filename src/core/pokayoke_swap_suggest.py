@@ -13,7 +13,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .pokayoke_swap_guardrails import SwapGuardrailContext, SwapGuardrailDecision, decide_swap_guardrails
+from .pokayoke_swap_guardrails import (
+    SwapGuardrailContext,
+    SwapGuardrailDecision,
+    decide_swap_guardrails,
+)
 from .price_impact_preview import BPS_SCALE, price_impact_preview
 from .slippage_advisor import SlippageAdvice, slippage_advice_exact_in_cpmm
 
@@ -427,6 +431,7 @@ def suggest_amount_in_exact_in_cpmm(
 
     # Generic ladder: rapid reductions to find a safe-ish regime.
     # If we already probed near an impact threshold guess, skip obviously-too-large fractions.
+    fracs: tuple[tuple[int, int], ...]
     if base_has_high_impact or base_has_moderate_impact:
         fracs = (
             (1, 4),   # 0.25
@@ -509,7 +514,7 @@ def suggest_amount_in_exact_in_cpmm(
                     max_attacker_amount_in=max_attacker_amount_in,
                     user_slippage_bps=user_slippage_bps,
                 )
-            except Exception:
+            except (TypeError, ValueError, OverflowError):
                 continue
             if _action_severity(str(d.action)) <= target_sev:
                 suggested_amount = int(cand)
