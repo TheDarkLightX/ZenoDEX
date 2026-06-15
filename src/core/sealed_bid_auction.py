@@ -19,6 +19,12 @@ MAX_UNITS = 0xFFFF
 MAX_PRICE = 0xFFFF
 
 
+def _receipt_int(value: Any) -> int:
+    if isinstance(value, bool):
+        raise TypeError("bool is not a sealed-bid receipt integer")
+    return int(value)
+
+
 @dataclass(frozen=True)
 class RevealedSealedBid:
     bidder_id: str
@@ -82,7 +88,7 @@ def make_sealed_bid_commit_receipt(
     return {"body": body, "receipt_hash": receipt_hash}
 
 
-def verify_commit_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
+def verify_commit_receipt(receipt: object) -> Tuple[bool, str]:
     if not isinstance(receipt, dict):
         return False, "bad_receipt_type"
     body = receipt.get("body")
@@ -98,10 +104,10 @@ def verify_commit_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
         if key in body:
             return False, f"private_field_leaked_{key}"
     try:
-        commit_epoch = int(body.get("commit_epoch"))
-        reveal_deadline_epoch = int(body.get("reveal_deadline_epoch"))
-        units_for_sale = int(body.get("units_for_sale"))
-    except Exception:
+        commit_epoch = _receipt_int(body.get("commit_epoch"))
+        reveal_deadline_epoch = _receipt_int(body.get("reveal_deadline_epoch"))
+        units_for_sale = _receipt_int(body.get("units_for_sale"))
+    except (TypeError, ValueError, OverflowError):
         return False, "bad_numeric_field"
     if commit_epoch < 0 or reveal_deadline_epoch < commit_epoch:
         return False, "bad_epoch_window"
@@ -119,7 +125,7 @@ def verify_commit_receipt(receipt: Dict[str, Any]) -> Tuple[bool, str]:
 def reveal_matches_commitment(*, commitment: str, quantity: int, limit_price: int, nonce: str) -> bool:
     try:
         return str(commitment) == sealed_bid_reveal_hash(quantity=quantity, limit_price=limit_price, nonce=nonce)
-    except Exception:
+    except ValueError:
         return False
 
 
