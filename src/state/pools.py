@@ -265,7 +265,7 @@ def _canonical_pool_asset_id(asset: AssetId) -> AssetId:
     0x-prefixed hex IDs are normalized so Python and Rust cannot fork on case.
     """
     if not isinstance(asset, str):
-        return asset
+        raise TypeError("asset ids must be strings")
     if len(asset) < 3 or asset[:2].lower() != "0x":
         return asset
     body = asset[2:]
@@ -348,6 +348,11 @@ class PoolState:
     
     def __post_init__(self):
         """Validate pool state invariants."""
+        if not isinstance(self.pool_id, str) or not self.pool_id:
+            raise TypeError("pool_id must be a non-empty string")
+        if not isinstance(self.asset0, str) or not isinstance(self.asset1, str):
+            raise TypeError("asset ids must be strings")
+
         # Ensure canonical ordering
         if self.asset0 >= self.asset1:
             raise ValueError(
@@ -378,6 +383,8 @@ class PoolState:
         # Validate non-negative LP supply
         if self.lp_supply < 0:
             raise ValueError(f"LP supply must be non-negative: {self.lp_supply}")
+        if self.created_at < 0:
+            raise ValueError(f"created_at must be non-negative: {self.created_at}")
     
     def get_reserve(self, asset: AssetId) -> Amount:
         """
