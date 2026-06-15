@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import pytest
 
+import src.state.support_root as support_root_module
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
@@ -81,7 +84,7 @@ def test_support_root_commits_to_balances_for_add_liquidity_into_new_pool() -> N
     balances2.set(pk_b, min(asset0, asset1), 99)  # differs only here
     balances2.set(pk_b, max(asset0, asset1), 200)
 
-    pools = {}
+    pools: dict[str, PoolState] = {}
     lp = LPTable()
 
     r1 = compute_support_state_root_for_batch(intents=intents, balances=balances1, pools=pools, lp_balances=lp)
@@ -194,27 +197,50 @@ def test_derive_batch_state_support_ignores_invalid_create_pool_fields_fail_clos
     assert support == BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=(pk,))
 
 
+def test_derive_batch_state_support_propagates_create_pool_helper_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    create_pool = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(101),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"asset0": asset0, "asset1": asset1, "fee_bps": 30},
+    )
+
+    def broken_compute_pool_id(*args: object, **kwargs: object) -> str:
+        raise RuntimeError("pool-id helper bug")
+
+    monkeypatch.setattr(support_root_module, "compute_pool_id", broken_compute_pool_id)
+    with pytest.raises(RuntimeError, match="pool-id helper bug"):
+        derive_batch_state_support([create_pool], pools={})
+
+
 def test_compute_support_state_root_rejects_wrong_table_types() -> None:
+    bad_mapping = cast(Any, {})
     with pytest.raises(TypeError, match="balances must be a BalanceTable"):
-        compute_support_state_root(  # type: ignore[arg-type]
-            balances={},
+        compute_support_state_root(
+            balances=bad_mapping,
             pools={},
             lp_balances=LPTable(),
             support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=()),
         )
     with pytest.raises(TypeError, match="lp_balances must be an LPTable"):
-        compute_support_state_root(  # type: ignore[arg-type]
+        compute_support_state_root(
             balances=BalanceTable(),
             pools={},
-            lp_balances={},
+            lp_balances=bad_mapping,
             support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=()),
         )
     with pytest.raises(TypeError, match="support must be a BatchStateSupport"):
-        compute_support_state_root(  # type: ignore[arg-type]
+        compute_support_state_root(
             balances=BalanceTable(),
             pools={},
             lp_balances=LPTable(),
-            support={},
+            support=bad_mapping,
         )
     with pytest.raises(TypeError, match="nonces must be a NonceTable"):
         compute_support_state_root(
@@ -222,7 +248,7 @@ def test_compute_support_state_root_rejects_wrong_table_types() -> None:
             pools={},
             lp_balances=LPTable(),
             support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=()),
-            nonces={},  # type: ignore[arg-type]
+            nonces=bad_mapping,
         )
 
 
@@ -435,7 +461,7 @@ def test_derive_batch_state_support_covers_missing_add_liquidity_pool_and_unknow
         deadline=9999999999,
         fields={},
     )
-    unknown.kind = "UNKNOWN_KIND"  # type: ignore[assignment]
+    unknown.kind = "UNKNOWN_KIND"
 
     support = derive_batch_state_support([missing_pool_add, unknown], pools={})
     assert support == BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=(pk,))
@@ -461,7 +487,7 @@ def test_compute_support_state_root_covers_positive_lp_section_unknown_status_an
     assert root.startswith("0x")
 
     bad_status = _pool(pool_id, asset0, asset1)
-    bad_status.status = object()  # type: ignore[assignment]
+    bad_status.status = object()
     with pytest.raises(ValueError, match="unknown pool status"):
         compute_support_state_root(
             balances=BalanceTable(),
@@ -471,7 +497,7 @@ def test_compute_support_state_root_covers_positive_lp_section_unknown_status_an
         )
 
     bad_reserve = _pool(pool_id, asset0, asset1)
-    bad_reserve.reserve0 = True  # type: ignore[assignment]
+    bad_reserve.reserve0 = True
     with pytest.raises(ValueError, match="invalid pool reserve0"):
         compute_support_state_root(
             balances=BalanceTable(),
@@ -522,7 +548,7 @@ def test_compute_support_state_root_rejects_invalid_pool_and_amount_scalars() ->
     pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
 
     balances = BalanceTable()
-    balances._balances[(pk, asset0)] = True  # type: ignore[assignment]
+    balances._balances[(pk, asset0)] = True
     with pytest.raises(ValueError, match="invalid balance amount"):
         compute_support_state_root(
             balances=balances,
@@ -534,7 +560,7 @@ def test_compute_support_state_root_rejects_invalid_pool_and_amount_scalars() ->
     good_balances = BalanceTable()
     good_balances.set(pk, asset0, 10)
     lp = LPTable()
-    lp._balances[(pk, pool_id)] = True  # type: ignore[assignment]
+    lp._balances[(pk, pool_id)] = True
     with pytest.raises(ValueError, match="invalid LP amount"):
         compute_support_state_root(
             balances=good_balances,
