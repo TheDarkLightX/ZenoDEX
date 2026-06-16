@@ -35,6 +35,46 @@ class PoolXY:
     fee_bps: int
 
 
+@dataclass
+class _SplitQuoteCache:
+    pool0: PoolXY
+    pool1: PoolXY
+    amount_in: int
+    totals: dict[int, int | None]
+
+    def total_out(self, a: int) -> int | None:
+        if not (0 <= a <= self.amount_in):
+            return None
+        if a in self.totals:
+            return self.totals[a]
+
+        b = int(self.amount_in) - int(a)
+        try:
+            out0 = exact_out_for_pool_exact_in(self.pool0, a) if a > 0 else 0
+            out1 = exact_out_for_pool_exact_in(self.pool1, b) if b > 0 else 0
+        except ValueError:
+            self.totals[a] = None
+            return None
+
+        total = int(out0 + out1)
+        self.totals[a] = total
+        return total
+
+
+@dataclass(frozen=True)
+class _WindowSearchPlan:
+    pool0: PoolXY
+    pool1: PoolXY
+    amount_in: int
+    bounds: tuple[int, int]
+    profile: str
+    grid_n: int
+    force_dense_grid: bool
+    left_sweep_k: int
+    window: int
+    total_out: Callable[[int], int | None]
+
+
 def exact_out_for_pool_exact_in(pool: PoolXY, amount_in: int) -> int:
     """
     Exact-in quote under v8 semantics:
@@ -505,6 +545,210 @@ def resolve_two_pool_split_search_params(
     return 64, "baseline"
 
 
+def _resolve_entrypoint_profile(
+    pool0: PoolXY,
+    pool1: PoolXY,
+    amount_in: int,
+    *,
+    window: int,
+    search_profile: str,
+) -> tuple[int, str]:
+    profile = str(search_profile).strip().lower()
+    adaptive_profiles = {
+        "adaptive_v1",
+        "adaptive_v2",
+        "adaptive_v3",
+        "adaptive_v4",
+        "adaptive_v5",
+        "adaptive_v6",
+        "adaptive_v7",
+    }
+    if profile not in adaptive_profiles:
+        return int(window), profile
+    return resolve_two_pool_split_search_params(
+        pool0,
+        pool1,
+        int(amount_in),
+        search_profile=profile,
+        window=int(window),
+    )
+
+
+def _best_endpoint_split(amount_in: int, total_out: Callable[[int], int | None]) -> tuple[int, int] | None:
+    best: tuple[int, int] | None = None
+    for a in (0, int(amount_in)):
+        total = total_out(a)
+        if total is None:
+            continue
+        candidate = (int(total), int(a))
+        if _is_better_candidate(candidate, best):
+            best = candidate
+    return best
+
+
+def _both_valid_bounds(pool0: PoolXY, pool1: PoolXY, amount_in: int) -> tuple[int, int] | None:
+    min0 = _min_valid_amount_for_pool(pool=pool0, amount_in_total=int(amount_in))
+    min1 = _min_valid_amount_for_pool(pool=pool1, amount_in_total=int(amount_in))
+    if min0 is None or min1 is None:
+        return None
+
+    lo_both = int(min0)
+    hi_both = int(amount_in) - int(min1)
+    return (lo_both, hi_both) if lo_both <= hi_both else None
+
+
+def _split_search_centers(
+    *,
+    lo_both: int,
+    hi_both: int,
+    a_star: int,
+    grid_n: int,
+    window: int,
+    force_dense_grid: bool,
+    left_sweep_k: int,
+) -> set[int]:
+    span = int(hi_both) - int(lo_both)
+    centers = {int(lo_both), int(hi_both), int((lo_both + hi_both) // 2), int(a_star)}
+    if span > 0 and (force_dense_grid or span > int(grid_n) * int(window)):
+        for i in range(1, int(grid_n)):
+            centers.add(int(lo_both) + (span * i) // int(grid_n))
+
+    if int(left_sweep_k) <= 0 or int(window) <= 0:
+        return centers
+    for k in range(1, int(left_sweep_k) + 1):
+        c = int(a_star) - int(k) * int(window)
+        if c <= int(lo_both):
+            centers.add(int(lo_both))
+            break
+        centers.add(c)
+    return centers
+
+
+def _scan_centers_best(
+    *,
+    centers: set[int],
+    lo_both: int,
+    hi_both: int,
+    window: int,
+    total_out: Callable[[int], int | None],
+) -> tuple[int, int] | None:
+    best: tuple[int, int] | None = None
+    for c in sorted(centers):
+        candidate = _scan_range_best(
+            lo=max(int(lo_both), int(c) - int(window)),
+            hi=min(int(hi_both), int(c) + int(window)),
+            total_out=total_out,
+        )
+        if _is_better_candidate(candidate, best):
+            best = candidate
+    return best
+
+
+def _refine_window_best(
+    *,
+    candidate: tuple[int, int],
+    lo_both: int,
+    hi_both: int,
+    span: int,
+    window: int,
+    total_out: Callable[[int], int | None],
+) -> tuple[int, int]:
+    refine_out, refine_a = int(candidate[0]), int(candidate[1])
+    half = max(1, int(window))
+    while True:
+        scan_cand = _scan_range_best(
+            lo=max(int(lo_both), refine_a - half),
+            hi=min(int(hi_both), refine_a + half),
+            total_out=total_out,
+        )
+        if _is_better_candidate(scan_cand, (refine_out, refine_a)):
+            if scan_cand is None:
+                raise RuntimeError("internal split-routing candidate ordering invariant violated")
+            refine_out, refine_a = int(scan_cand[0]), int(scan_cand[1])
+
+        r_lo = max(int(lo_both), refine_a - half)
+        r_hi = min(int(hi_both), refine_a + half)
+        if r_lo == int(lo_both) and r_hi == int(hi_both):
+            break
+        if refine_a in (r_lo, r_hi) and refine_a not in (int(lo_both), int(hi_both)):
+            half = min(int(span), half * 2)
+            continue
+        break
+    return refine_out, refine_a
+
+
+def _dense_profile_leftmost(
+    *,
+    candidate: tuple[int, int],
+    lo_both: int,
+    total_out: Callable[[int], int | None],
+    force_dense_grid: bool,
+) -> tuple[int, int]:
+    best_out, best_a = _canonicalize_leftmost(lo_both=int(lo_both), candidate=candidate, total_out=total_out)
+    if not force_dense_grid:
+        return best_out, best_a
+
+    for a_scan in range(int(lo_both), int(best_a)):
+        total = total_out(int(a_scan))
+        if total is not None and int(total) == int(best_out):
+            return int(best_out), int(a_scan)
+    return int(best_out), int(best_a)
+
+
+def _search_windowed_both_valid(plan: _WindowSearchPlan) -> tuple[int, int] | None:
+    lo_both, hi_both = int(plan.bounds[0]), int(plan.bounds[1])
+    a_star = _seed_opt_split_by_derivative(
+        plan.pool0,
+        plan.pool1,
+        amount_in_total=int(plan.amount_in),
+        lo_both=lo_both,
+        hi_both=hi_both,
+    )
+    a_star = max(lo_both, min(hi_both, int(a_star)))
+    if plan.profile == "dgstr_v1":
+        return _search_dgstr_v1(
+            lo_both=lo_both,
+            hi_both=hi_both,
+            a_star=a_star,
+            window=int(plan.window),
+            total_out=plan.total_out,
+        )
+
+    span = hi_both - lo_both
+    centers = _split_search_centers(
+        lo_both=lo_both,
+        hi_both=hi_both,
+        a_star=a_star,
+        grid_n=int(plan.grid_n),
+        window=int(plan.window),
+        force_dense_grid=plan.force_dense_grid,
+        left_sweep_k=int(plan.left_sweep_k),
+    )
+    local_best = _scan_centers_best(
+        centers=centers,
+        lo_both=lo_both,
+        hi_both=hi_both,
+        window=int(plan.window),
+        total_out=plan.total_out,
+    )
+    if local_best is None:
+        return None
+    refined = _refine_window_best(
+        candidate=local_best,
+        lo_both=lo_both,
+        hi_both=hi_both,
+        span=span,
+        window=int(plan.window),
+        total_out=plan.total_out,
+    )
+    return _dense_profile_leftmost(
+        candidate=refined,
+        lo_both=lo_both,
+        total_out=plan.total_out,
+        force_dense_grid=plan.force_dense_grid,
+    )
+
+
 def best_split_two_pools_exact_in(
     pool0: PoolXY,
     pool1: PoolXY,
@@ -514,35 +758,23 @@ def best_split_two_pools_exact_in(
     search_profile: str = "adaptive_v6",
 ) -> Tuple[int, int]:
     """
-    Fast deterministic split optimizer:
-    - For small trades, use brute-force (exact + canonical).
-    - For larger trades, use a multi-center window search seeded by a continuous approximation,
-      plus endpoints and a refinement pass.
-    - Choose best total output; tie-break by smallest a.
+    Fast deterministic split optimizer with smallest-`a` tie-breaks.
 
-    `search_profile` (guarded mode):
-    - "baseline": legacy search schedule.
-    - "dense24": denser deterministic coarse probes (24 bins) + local refinement.
-    - "dense32": very dense deterministic coarse probes (32 bins) + local refinement.
-    - "dgstr_v1": experimental discrete golden-section / ternary refinement with bounded rescue scans.
-
-    This is intended to be iteratively improved with counterexample mining.
+    Small trades use the brute-force oracle. Larger trades use endpoints plus a
+    multi-center window search seeded by a continuous marginal-output estimate.
     """
     if amount_in <= 0:
         raise ValueError("amount_in must be positive")
     if window < 0:
         raise ValueError("window must be non-negative")
-    # Allow adaptive profile names directly at the algorithm entrypoint.
-    # This keeps call sites simple while retaining explicit deterministic resolution.
-    profile = str(search_profile).strip().lower()
-    if profile in {"adaptive_v1", "adaptive_v2", "adaptive_v3", "adaptive_v4", "adaptive_v5", "adaptive_v6", "adaptive_v7"}:
-        window, profile = resolve_two_pool_split_search_params(
-            pool0,
-            pool1,
-            int(amount_in),
-            search_profile=profile,
-            window=int(window),
-        )
+
+    window, profile = _resolve_entrypoint_profile(
+        pool0,
+        pool1,
+        int(amount_in),
+        window=int(window),
+        search_profile=search_profile,
+    )
 
     _profile, grid_n, force_dense_grid, left_sweep_k = _search_profile_params(profile)
 
@@ -550,135 +782,25 @@ def best_split_two_pools_exact_in(
     if amount_in <= brute_force_max:
         return brute_force_best_split_two_pools_exact_in(pool0, pool1, amount_in)
 
-    tot_cache: dict[int, int | None] = {}
+    quote_cache = _SplitQuoteCache(pool0=pool0, pool1=pool1, amount_in=int(amount_in), totals={})
+    best = _best_endpoint_split(int(amount_in), quote_cache.total_out)
 
-    def total_out(a: int) -> int | None:
-        if not (0 <= a <= amount_in):
-            return None
-        if a in tot_cache:
-            return tot_cache[a]
-        b = amount_in - a
-        try:
-            out0 = exact_out_for_pool_exact_in(pool0, a) if a > 0 else 0
-            out1 = exact_out_for_pool_exact_in(pool1, b) if b > 0 else 0
-        except ValueError:
-            tot_cache[a] = None
-            return None
-        tot = int(out0 + out1)
-        tot_cache[a] = tot
-        return tot
-
-    best: tuple[int, int] | None = None
-    for a in (0, amount_in):
-        tot = total_out(a)
-        if tot is None:
-            continue
-        cand = (int(tot), int(a))
-        if _is_better_candidate(cand, best):
-            best = cand
-
-    min0 = _min_valid_amount_for_pool(pool=pool0, amount_in_total=int(amount_in))
-    min1 = _min_valid_amount_for_pool(pool=pool1, amount_in_total=int(amount_in))
-    if min0 is not None and min1 is not None:
-        lo_both = min0
-        hi_both = amount_in - min1
-        if lo_both <= hi_both:
-            a_star = _seed_opt_split_by_derivative(
-                pool0,
-                pool1,
-                amount_in_total=int(amount_in),
-                lo_both=int(lo_both),
-                hi_both=int(hi_both),
-            )
-            a_star = max(lo_both, min(hi_both, a_star))
-
-            if profile == "dgstr_v1":
-                best_both = _search_dgstr_v1(
-                    lo_both=int(lo_both),
-                    hi_both=int(hi_both),
-                    a_star=int(a_star),
-                    window=int(window),
-                    total_out=total_out,
-                )
-            else:
-                span = hi_both - lo_both
-                centers = {lo_both, hi_both, (lo_both + hi_both) // 2, a_star}
-                if span > 0 and (force_dense_grid or span > int(grid_n) * int(window)):
-                    # Deterministic coarse coverage grid; density controlled by search_profile.
-                    for i in range(1, int(grid_n)):
-                        centers.add(lo_both + (span * i) // int(grid_n))
-
-                if int(left_sweep_k) > 0 and int(window) > 0:
-                    # Deterministic extra coverage to the left of the continuous optimum.
-                    #
-                    # Motivation: under integer rounding, the set of maximizers can be disconnected; a local plateau
-                    # walk-left only canonicalizes within the discovered segment. Adding a bounded left sweep reduces
-                    # tie-break mismatches (min-a among maximizers) without forcing a full global scan.
-                    for k in range(1, int(left_sweep_k) + 1):
-                        c = int(a_star) - int(k) * int(window)
-                        if c <= lo_both:
-                            centers.add(lo_both)
-                            break
-                        centers.add(c)
-
-                local_best_both: tuple[int, int] | None = None
-                for c in sorted(centers):
-                    scan_cand = _scan_range_best(
-                        lo=max(lo_both, c - window),
-                        hi=min(hi_both, c + window),
-                        total_out=total_out,
-                    )
-                    if _is_better_candidate(scan_cand, local_best_both):
-                        local_best_both = scan_cand
-
-                if local_best_both is not None:
-                    # Refine by expanding around the current best within the both-valid interval.
-                    refine_out, refine_a = local_best_both
-                    half = max(1, int(window))
-                    while True:
-                        scan_cand = _scan_range_best(
-                            lo=max(lo_both, refine_a - half),
-                            hi=min(hi_both, refine_a + half),
-                            total_out=total_out,
-                        )
-                        if _is_better_candidate(scan_cand, (int(refine_out), int(refine_a))):
-                            if scan_cand is None:
-                                raise RuntimeError("internal split-routing candidate ordering invariant violated")
-                            refine_out, refine_a = scan_cand
-                        r_lo = max(lo_both, refine_a - half)
-                        r_hi = min(hi_both, refine_a + half)
-                        if r_lo == lo_both and r_hi == hi_both:
-                            break
-                        # If the best is at the edge of our scanned window, keep expanding.
-                        #
-                        # Important: if the best is at the *global* boundary (lo_both/hi_both), naive expansion
-                        # degenerates into scanning the full span even when we already probed other centers.
-                        # This can create an O(D) call cliff in deep-liquidity regimes where the optimum is at a boundary.
-                        if refine_a in (r_lo, r_hi) and refine_a not in (lo_both, hi_both):
-                            half *= 2
-                            if half >= span:
-                                half = span
-                            continue
-                        break
-
-                    best_both = _canonicalize_leftmost(
-                        lo_both=int(lo_both),
-                        candidate=(int(refine_out), int(refine_a)),
-                        total_out=total_out,
-                    )
-
-                    if force_dense_grid:
-                        # Dense profiles pay a small extra pass to enforce global canonical tie-break:
-                        # choose the smallest feasible `a` that attains `refine_out`.
-                        refine_out2, refine_a2 = best_both
-                        for a_scan in range(int(lo_both), int(refine_a2)):
-                            tot_scan = total_out(int(a_scan))
-                            if tot_scan is not None and int(tot_scan) == int(refine_out2):
-                                best_both = (int(refine_out2), int(a_scan))
-                                break
-
-            if _is_better_candidate(best_both, best):
-                best = best_both
+    bounds = _both_valid_bounds(pool0, pool1, int(amount_in))
+    if bounds is not None:
+        best_both = _search_windowed_both_valid(_WindowSearchPlan(
+            pool0=pool0,
+            pool1=pool1,
+            amount_in=int(amount_in),
+            bounds=bounds,
+            profile=profile,
+            grid_n=int(grid_n),
+            force_dense_grid=force_dense_grid,
+            left_sweep_k=int(left_sweep_k),
+            window=int(window),
+            total_out=quote_cache.total_out,
+        ))
+        if _is_better_candidate(best_both, best):
+            best = best_both
 
     if best is None:
         raise ValueError("no feasible split")
