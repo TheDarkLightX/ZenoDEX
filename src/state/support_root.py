@@ -55,21 +55,22 @@ class BatchStateSupport:
     nonce_keys: Tuple[PubKey, ...]
 
 
-def derive_batch_state_support(
-    intents: Sequence[Intent],
-    *,
-    pools: Mapping[str, PoolState],
-) -> BatchStateSupport:
-    """
-    Derive the batch read-set from intents (and pool metadata, when needed).
+@dataclass
+class _SupportAccumulator:
+    balance_keys: set[tuple[str, str]]
+    pool_ids: set[str]
+    lp_keys: set[tuple[str, str]]
+    nonce_keys: set[str]
 
-    The support is used to compute a projected pre-state commitment (support root).
-    """
-    balance_keys: set[tuple[str, str]] = set()
-    pool_ids: set[str] = set()
-    lp_keys: set[tuple[str, str]] = set()
-    nonce_keys: set[str] = set()
 
+@dataclass
+class _SupportDerivationContext:
+    pools: Mapping[str, PoolState]
+    created_pool_assets: Mapping[str, tuple[str, str]]
+    acc: _SupportAccumulator
+
+
+def _created_pool_assets_for_intents(intents: Sequence[Intent]) -> dict[str, tuple[str, str]]:
     created_pool_assets: dict[str, tuple[str, str]] = {}
     for intent in intents:
         if intent.kind != IntentKind.CREATE_POOL:
@@ -88,62 +89,100 @@ def derive_batch_state_support(
         except (TypeError, ValueError):
             continue
         created_pool_assets[pool_id] = (asset0, asset1)
+    return created_pool_assets
+
+
+def _add_create_pool_support(intent: Intent, *, sender: str, acc: _SupportAccumulator) -> None:
+    asset0 = intent.get_field("asset0")
+    asset1 = intent.get_field("asset1")
+    fee_bps = intent.get_field("fee_bps")
+    if not isinstance(asset0, str) or not isinstance(asset1, str):
+        return
+
+    acc.balance_keys.add((sender, asset0))
+    acc.balance_keys.add((sender, asset1))
+    if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
+        return
+    try:
+        pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
+    except (TypeError, ValueError):
+        # Invalid CREATE_POOL params; keep support minimal and let validation reject.
+        return
+    acc.pool_ids.add(pool_id)
+
+
+def _add_add_liquidity_support(
+    intent: Intent,
+    *,
+    sender: str,
+    pool_id: str,
+    context: _SupportDerivationContext,
+) -> None:
+    recipient = intent.get_field("recipient", sender)
+    if isinstance(recipient, str) and recipient:
+        context.acc.lp_keys.add((recipient, pool_id))
+    if pool_id in context.pools:
+        pool = context.pools[pool_id]
+        context.acc.balance_keys.add((sender, pool.asset0))
+        context.acc.balance_keys.add((sender, pool.asset1))
+    elif pool_id in context.created_pool_assets:
+        asset0, asset1 = context.created_pool_assets[pool_id]
+        context.acc.balance_keys.add((sender, asset0))
+        context.acc.balance_keys.add((sender, asset1))
+
+
+def derive_batch_state_support(
+    intents: Sequence[Intent],
+    *,
+    pools: Mapping[str, PoolState],
+) -> BatchStateSupport:
+    """
+    Derive the batch read-set from intents (and pool metadata, when needed).
+
+    The support is used to compute a projected pre-state commitment (support root).
+    """
+    acc = _SupportAccumulator(balance_keys=set(), pool_ids=set(), lp_keys=set(), nonce_keys=set())
+    created_pool_assets = _created_pool_assets_for_intents(intents)
+    context = _SupportDerivationContext(pools=pools, created_pool_assets=created_pool_assets, acc=acc)
 
     for intent in intents:
         sender = intent.sender_pubkey
-        nonce_keys.add(sender)
+        acc.nonce_keys.add(sender)
 
         if intent.kind == IntentKind.CREATE_POOL:
-            asset0 = intent.get_field("asset0")
-            asset1 = intent.get_field("asset1")
-            fee_bps = intent.get_field("fee_bps")
-            if isinstance(asset0, str) and isinstance(asset1, str):
-                balance_keys.add((sender, asset0))
-                balance_keys.add((sender, asset1))
-                if isinstance(fee_bps, int) and not isinstance(fee_bps, bool):
-                    try:
-                        pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
-                        pool_ids.add(pool_id)
-                    except (TypeError, ValueError):
-                        # Invalid CREATE_POOL params; keep support minimal and let validation reject.
-                        pass
+            _add_create_pool_support(intent, sender=sender, acc=acc)
             continue
 
         pool_id = intent.get_field("pool_id")
         if isinstance(pool_id, str) and pool_id:
-            pool_ids.add(pool_id)
+            acc.pool_ids.add(pool_id)
 
         if intent.kind in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
             asset_in = intent.get_field("asset_in")
             if isinstance(asset_in, str) and asset_in:
-                balance_keys.add((sender, asset_in))
+                acc.balance_keys.add((sender, asset_in))
             continue
 
         if intent.kind == IntentKind.ADD_LIQUIDITY:
             if isinstance(pool_id, str) and pool_id:
-                recipient = intent.get_field("recipient", sender)
-                if isinstance(recipient, str) and recipient:
-                    lp_keys.add((recipient, pool_id))
-                if pool_id in pools:
-                    pool = pools[pool_id]
-                    balance_keys.add((sender, pool.asset0))
-                    balance_keys.add((sender, pool.asset1))
-                elif pool_id in created_pool_assets:
-                    asset0, asset1 = created_pool_assets[pool_id]
-                    balance_keys.add((sender, asset0))
-                    balance_keys.add((sender, asset1))
+                _add_add_liquidity_support(
+                    intent,
+                    sender=sender,
+                    pool_id=pool_id,
+                    context=context,
+                )
             continue
 
         if intent.kind == IntentKind.REMOVE_LIQUIDITY:
             if isinstance(pool_id, str) and pool_id:
-                lp_keys.add((sender, pool_id))
+                acc.lp_keys.add((sender, pool_id))
             continue
 
     return BatchStateSupport(
-        balance_keys=tuple(sorted(balance_keys, key=lambda t: (t[0], t[1]))),
-        pool_ids=tuple(sorted(pool_ids)),
-        lp_keys=tuple(sorted(lp_keys, key=lambda t: (t[0], t[1]))),
-        nonce_keys=tuple(sorted(nonce_keys)),
+        balance_keys=tuple(sorted(acc.balance_keys, key=lambda t: (t[0], t[1]))),
+        pool_ids=tuple(sorted(acc.pool_ids)),
+        lp_keys=tuple(sorted(acc.lp_keys, key=lambda t: (t[0], t[1]))),
+        nonce_keys=tuple(sorted(acc.nonce_keys)),
     )
 
 
