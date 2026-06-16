@@ -18,15 +18,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from ..kernels.python.exact_out_many_pool_canonical_domain_v1 import (
-    DEFAULT_EXACT_OUT_MANY_POOL_MAX_ENUMERATED_CANDIDATES,
-)
-from ..kernels.python.exact_out_many_pool_canonical_domain_v1 import (
-    build_exact_out_many_pool_selected_domain as _kernel_build_exact_out_many_pool_selected_domain,
-)
-from ..kernels.python.exact_out_many_pool_repaired_prefilter_v1 import (
-    select_many_pool_repaired_prefilter_candidates as _kernel_select_many_pool_repaired_prefilter_candidates,
-)
 from ..state.balances import Amount, AssetId
 from ..state.pools import CURVE_TAG_CPMM, PoolState
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
@@ -40,15 +31,22 @@ from .split_routing_generic_exact_in import (
     GenericExactInSplitRequest,
     best_generic_two_pool_exact_in,
 )
+from .split_routing_many_exact_out import (
+    ManyPoolExactOutRequest,
+    best_many_pool_exact_out_split,
+    build_exact_out_capacity_guard_from_caps,
+)
 from .split_routing_types import (
     ExactOutCapacityGuard,
     ExactOutRouteCanonicalKey,
-    SplitLegExactOutQuote,
     SplitLegQuote,
     SplitManyPoolsExactOutQuote,
     SplitManyPoolsQuote,
     SplitTwoPoolsQuote,
     exact_out_route_canonical_key_for_legs,
+)
+from .split_routing_types import (
+    SplitLegExactOutQuote as SplitLegExactOutQuote,
 )
 from .split_routing_types import (
     exact_out_route_canonical_key as exact_out_route_canonical_key,
@@ -123,26 +121,6 @@ def _min_valid_amount(
     return int(lo)
 
 
-def _build_exact_out_capacity_guard(
-    caps_by_pool: Sequence[Tuple[str, int]],
-    *,
-    amount_out_total: Amount,
-    max_legs: int,
-) -> ExactOutCapacityGuard:
-    ranked_caps = sorted(
-        ((str(pool_id), int(cap)) for pool_id, cap in caps_by_pool if int(cap) > 0),
-        key=lambda item: (-int(item[1]), item[0]),
-    )
-    top_caps = tuple(ranked_caps[: min(int(max_legs), len(ranked_caps))])
-    capacity_upper_bound = sum(int(cap) for _pool_id, cap in top_caps)
-    return ExactOutCapacityGuard(
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        top_caps=top_caps,
-        capacity_upper_bound=int(capacity_upper_bound),
-    )
-
-
 def exact_out_capacity_guard_for_pools(
     pools: Sequence[PoolState],
     *,
@@ -177,7 +155,7 @@ def exact_out_capacity_guard_for_pools(
         except ValueError:
             continue
         caps_by_pool.append((pool.pool_id, int(cap)))
-    return _build_exact_out_capacity_guard(
+    return build_exact_out_capacity_guard_from_caps(
         caps_by_pool,
         amount_out_total=int(target_out),
         max_legs=int(max_legs),
@@ -1059,129 +1037,25 @@ def best_split_many_pools_exact_out_for_pools(
       preserves the older heuristic prefilter.
     - If the selected domain exceeds the bounded enumeration budget, this path fails closed.
     """
-    if amount_out_total <= 0:
-        raise ValueError("amount_out_total must be positive")
-    if max_legs <= 0:
-        raise ValueError("max_legs must be positive")
-    if max_candidates <= 0:
-        raise ValueError("max_candidates must be positive")
-    if max_iters <= 0:
-        raise ValueError("max_iters must be positive")
-    if window < 0:
-        raise ValueError("window must be non-negative")
-    if brute_force_max < 0:
-        raise ValueError("brute_force_max must be non-negative")
-    if max_full_domain_pools <= 0:
-        raise ValueError("max_full_domain_pools must be positive")
+    def reserves_for(pool: PoolState) -> tuple[int, int] | None:
+        return _reserves_for(pool, asset_in=asset_in, asset_out=asset_out)
 
-    Q = int(amount_out_total)
+    def quote_exact_out(pool: PoolState, amount_out: int) -> int:
+        return _quote_exact_out(pool, asset_in=asset_in, asset_out=asset_out, amount_out=int(amount_out))
 
-    # Filter to feasible direct pools and compute per-pool output caps.
-    feasible: list[tuple[PoolState, int, int]] = []
-    for p in pools:
-        if p.status.value != "ACTIVE":
-            continue
-        reserves = _reserves_for(p, asset_in=asset_in, asset_out=asset_out)
-        if reserves is None:
-            continue
-        _rin, rout = reserves
-        cap = int(rout) - 1
-        if cap <= 0:
-            continue
-        out_i = min(int(Q), int(cap))
-        try:
-            in_i = _quote_exact_out(p, asset_in=asset_in, asset_out=asset_out, amount_out=int(out_i))
-        except ValueError:
-            continue
-        feasible.append((p, int(cap), int(in_i)))
-
-    if not feasible:
-        raise ValueError("no feasible pools for exact-out split")
-
-    capacity_guard = _build_exact_out_capacity_guard(
-        tuple((pool.pool_id, int(cap)) for pool, cap, _in_i in feasible),
-        amount_out_total=int(Q),
-        max_legs=int(max_legs),
-    )
-    if not capacity_guard.feasible:
-        raise ValueError(
-            "no feasible split under max_legs constraint: "
-            f"requested={Q} capacity_upper_bound={capacity_guard.capacity_upper_bound} max_legs={max_legs}"
+    return best_many_pool_exact_out_split(
+        ManyPoolExactOutRequest(
+            pools=pools,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_out_total=int(amount_out_total),
+            max_legs=int(max_legs),
+            max_candidates=int(max_candidates),
+            max_iters=int(max_iters),
+            window=int(window),
+            brute_force_max=int(brute_force_max),
+            max_full_domain_pools=int(max_full_domain_pools),
+            reserves_for=reserves_for,
+            quote_exact_out=quote_exact_out,
         )
-
-    feasible_pools = tuple(pool for pool, _cap, _in_i in feasible)
-    candidates: list[PoolState] = []
-    if len(feasible_pools) <= int(max_full_domain_pools):
-        try:
-            candidates = list(
-                _kernel_select_many_pool_repaired_prefilter_candidates(
-                    feasible_pools,
-                    asset_in=str(asset_in),
-                    asset_out=str(asset_out),
-                    amount_out_total=int(Q),
-                    max_legs=int(max_legs),
-                    max_candidate_pools=int(max_candidates),
-                    max_full_domain_pools=int(max_full_domain_pools),
-                    max_enumerated_candidates=max(
-                        int(DEFAULT_EXACT_OUT_MANY_POOL_MAX_ENUMERATED_CANDIDATES),
-                        int(max_iters) * max(1, int(max_legs)),
-                    ),
-                )
-            )
-        except ValueError:
-            candidates = []
-
-    if not candidates:
-        # Rank pools by estimated unit cost (in_i / out_i), then by input, then pool_id.
-        ranked: list[tuple[int, int, PoolState, int]] = []
-        for p, cap, in_i in feasible:
-            out_i = min(int(Q), int(cap))
-            # scaled unit cost: floor(in_i * 1e6 / out_i)
-            scaled = (int(in_i) * 1_000_000) // max(1, int(out_i))
-            ranked.append((int(scaled), int(in_i), p, int(cap)))
-        ranked.sort(key=lambda t: (t[0], t[1], t[2].pool_id))
-
-        # Select candidates until (a) we hit max_candidates or (b) the top max_legs capacities cover Q.
-        caps: dict[str, int] = {}
-        for _scaled, _in_i, p, cap in ranked:
-            if p.pool_id in caps:
-                continue
-            candidates.append(p)
-            caps[p.pool_id] = int(cap)
-            if len(candidates) >= int(max_candidates):
-                break
-            top_caps = sorted(caps.values(), reverse=True)
-            if sum(top_caps[: min(int(max_legs), len(top_caps))]) >= int(Q) and len(candidates) >= min(int(max_legs), len(feasible)):
-                # Enough capacity to satisfy Q with <= max_legs pools.
-                break
-
-    if not candidates:
-        raise ValueError("no feasible candidates for exact-out split")
-
-    # Canonicalize candidate pool order for deterministic tie-breaks.
-    candidates.sort(key=lambda p: p.pool_id)
-    max_enumerated_candidates = max(
-        int(DEFAULT_EXACT_OUT_MANY_POOL_MAX_ENUMERATED_CANDIDATES),
-        int(max_iters) * max(1, int(max_legs)),
-    )
-    selected_domain = _kernel_build_exact_out_many_pool_selected_domain(
-        tuple(candidates),
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=int(Q),
-        max_legs=int(max_legs),
-        max_enumerated_candidates=int(max_enumerated_candidates),
-    )
-
-    return SplitManyPoolsExactOutQuote(
-        amount_out_total=int(selected_domain.canonical_quote.amount_out_total),
-        amount_in_total=int(selected_domain.canonical_quote.amount_in_total),
-        legs=tuple(
-            SplitLegExactOutQuote(
-                pool_id=leg.pool_id,
-                amount_out=int(leg.amount_out),
-                amount_in=int(leg.amount_in),
-            )
-            for leg in selected_domain.canonical_quote.legs
-        ),
     )
