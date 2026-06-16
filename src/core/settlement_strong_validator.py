@@ -221,6 +221,32 @@ class _SettlementPreState:
 
 
 @dataclass(frozen=True)
+class _CreatePoolIntentFields:
+    asset0: object
+    asset1: object
+    fee_bps: object
+    amount0: object
+    amount1: object
+    created_at: object
+    curve_tag: object
+    curve_params: object
+
+
+@dataclass(frozen=True)
+class _CreatePoolAssetIds:
+    asset0: AssetId
+    asset1: AssetId
+
+
+@dataclass(frozen=True)
+class _CreatePoolScalars:
+    fee_bps: int
+    amount0: int
+    amount1: int
+    created_at: int
+
+
+@dataclass(frozen=True)
 class _CreatePoolReplayInput:
     intent_id: str
     sender: PubKey
@@ -612,43 +638,116 @@ def _validate_cow_pair_index(
     return _validate_cow_pair_reciprocity(entries)
 
 
+def _create_pool_intent_fields(intent: Intent) -> _CreatePoolIntentFields:
+    return _CreatePoolIntentFields(
+        asset0=intent.get_field("asset0"),
+        asset1=intent.get_field("asset1"),
+        fee_bps=intent.get_field("fee_bps"),
+        amount0=intent.get_field("amount0"),
+        amount1=intent.get_field("amount1"),
+        created_at=intent.get_field("created_at", 0),
+        curve_tag=intent.get_field("curve_tag", None),
+        curve_params=intent.get_field("curve_params", None),
+    )
+
+
+def _validate_create_pool_required_fields(
+    *,
+    intent_id: str,
+    fields: _CreatePoolIntentFields,
+) -> Optional[str]:
+    if any(v is None for v in (fields.asset0, fields.asset1, fields.fee_bps, fields.amount0, fields.amount1)):
+        return f"missing CREATE_POOL fields for intent_id={intent_id}"
+    return None
+
+
+def _parse_create_pool_asset_ids(
+    *,
+    intent_id: str,
+    fields: _CreatePoolIntentFields,
+) -> Tuple[Optional[_CreatePoolAssetIds], Optional[str]]:
+    if not isinstance(fields.asset0, str) or not isinstance(fields.asset1, str):
+        return None, f"invalid CREATE_POOL asset ids for intent_id={intent_id}"
+    return _CreatePoolAssetIds(asset0=fields.asset0, asset1=fields.asset1), None
+
+
+def _parse_create_pool_fee_bps(*, intent_id: str, value: object) -> Tuple[Optional[int], Optional[str]]:
+    if not is_strict_int(value) or not (0 <= value <= 10000):
+        return None, f"invalid CREATE_POOL fee_bps for intent_id={intent_id}"
+    return value, None
+
+
+def _parse_create_pool_positive_amount(
+    *,
+    intent_id: str,
+    field_name: str,
+    value: object,
+) -> Tuple[Optional[int], Optional[str]]:
+    if not is_strict_int(value) or value <= 0:
+        return None, f"invalid CREATE_POOL {field_name} for intent_id={intent_id}"
+    return value, None
+
+
+def _parse_create_pool_created_at(*, intent_id: str, value: object) -> Tuple[Optional[int], Optional[str]]:
+    if value is not None and (not is_strict_int(value) or value < 0):
+        return None, f"invalid CREATE_POOL created_at for intent_id={intent_id}"
+    return 0 if value is None else value, None
+
+
+def _parse_create_pool_scalars(
+    *,
+    intent_id: str,
+    fields: _CreatePoolIntentFields,
+) -> Tuple[Optional[_CreatePoolScalars], Optional[str]]:
+    fee_bps, err = _parse_create_pool_fee_bps(intent_id=intent_id, value=fields.fee_bps)
+    if fee_bps is None:
+        return None, err
+    amount0, err = _parse_create_pool_positive_amount(intent_id=intent_id, field_name="amount0", value=fields.amount0)
+    if amount0 is None:
+        return None, err
+    amount1, err = _parse_create_pool_positive_amount(intent_id=intent_id, field_name="amount1", value=fields.amount1)
+    if amount1 is None:
+        return None, err
+    created_at, err = _parse_create_pool_created_at(intent_id=intent_id, value=fields.created_at)
+    if created_at is None:
+        return None, err
+    return (
+        _CreatePoolScalars(
+            fee_bps=fee_bps,
+            amount0=amount0,
+            amount1=amount1,
+            created_at=created_at,
+        ),
+        None,
+    )
+
+
 def _parse_create_pool_replay_input(
     intent: Intent,
 ) -> Tuple[Optional[_CreatePoolReplayInput], Optional[str]]:
     intent_id = intent.intent_id
-
-    asset0 = intent.get_field("asset0")
-    asset1 = intent.get_field("asset1")
-    fee_bps = intent.get_field("fee_bps")
-    amount0 = intent.get_field("amount0")
-    amount1 = intent.get_field("amount1")
-    created_at = intent.get_field("created_at", 0)
-    curve_tag = intent.get_field("curve_tag", None)
-    curve_params = intent.get_field("curve_params", None)
-    if any(v is None for v in (asset0, asset1, fee_bps, amount0, amount1)):
-        return None, f"missing CREATE_POOL fields for intent_id={intent_id}"
-    if not isinstance(asset0, str) or not isinstance(asset1, str):
-        return None, f"invalid CREATE_POOL asset ids for intent_id={intent_id}"
-    if not is_strict_int(fee_bps) or not (0 <= fee_bps <= 10000):
-        return None, f"invalid CREATE_POOL fee_bps for intent_id={intent_id}"
-    if not is_strict_int(amount0) or amount0 <= 0:
-        return None, f"invalid CREATE_POOL amount0 for intent_id={intent_id}"
-    if not is_strict_int(amount1) or amount1 <= 0:
-        return None, f"invalid CREATE_POOL amount1 for intent_id={intent_id}"
-    if created_at is not None and (not is_strict_int(created_at) or created_at < 0):
-        return None, f"invalid CREATE_POOL created_at for intent_id={intent_id}"
+    fields = _create_pool_intent_fields(intent)
+    err = _validate_create_pool_required_fields(intent_id=intent_id, fields=fields)
+    if err is not None:
+        return None, err
+    asset_ids, err = _parse_create_pool_asset_ids(intent_id=intent_id, fields=fields)
+    if asset_ids is None:
+        return None, err
+    scalars, err = _parse_create_pool_scalars(intent_id=intent_id, fields=fields)
+    if scalars is None:
+        return None, err
     return (
         _CreatePoolReplayInput(
             intent_id=intent_id,
             sender=intent.sender_pubkey,
-            asset0=asset0,
-            asset1=asset1,
-            fee_bps=fee_bps,
-            amount0=amount0,
-            amount1=amount1,
-            created_at=0 if created_at is None else created_at,
-            curve_tag=curve_tag,
-            curve_params=curve_params,
+            asset0=asset_ids.asset0,
+            asset1=asset_ids.asset1,
+            fee_bps=scalars.fee_bps,
+            amount0=scalars.amount0,
+            amount1=scalars.amount1,
+            created_at=scalars.created_at,
+            curve_tag=fields.curve_tag,
+            curve_params=fields.curve_params,
         ),
         None,
     )
