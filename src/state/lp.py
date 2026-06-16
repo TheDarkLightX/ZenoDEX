@@ -15,6 +15,14 @@ from .balances import Amount, PubKey
 PoolId = str
 
 
+def _require_lp_int(name: str, value: object) -> int:
+    # LP balances feed canonical state roots; reject bool-as-int and non-int
+    # numerics before they can enter sparse state.
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
 @dataclass(frozen=True)
 class LPDurationRiskMetadata:
     """Committed duration-risk metadata for one aggregate LP position key."""
@@ -47,29 +55,32 @@ class LPTable:
 
     def set(self, pubkey: PubKey, pool_id: PoolId, amount: Amount) -> None:
         """Set LP balance for (pubkey, pool_id)."""
-        if amount < 0:
-            raise ValueError(f"LP balance cannot be negative: {amount}")
-        if amount == 0:
+        amount_i = _require_lp_int("amount", amount)
+        if amount_i < 0:
+            raise ValueError(f"LP balance cannot be negative: {amount_i}")
+        if amount_i == 0:
             self._balances.pop((pubkey, pool_id), None)
             self._last_mint_timestamps.pop((pubkey, pool_id), None)
         else:
-            self._balances[(pubkey, pool_id)] = amount
+            self._balances[(pubkey, pool_id)] = amount_i
 
     def add(self, pubkey: PubKey, pool_id: PoolId, delta: int) -> None:
         """Add delta to an LP balance (delta may be negative)."""
+        delta_i = _require_lp_int("delta", delta)
         current = self.get(pubkey, pool_id)
-        new_balance = current + delta
+        new_balance = current + delta_i
         if new_balance < 0:
             raise ValueError(
-                f"Insufficient LP balance: {current} + {delta} = {new_balance} < 0"
+                f"Insufficient LP balance: {current} + {delta_i} = {new_balance} < 0"
             )
         self.set(pubkey, pool_id, new_balance)
 
     def subtract(self, pubkey: PubKey, pool_id: PoolId, delta: Amount) -> None:
         """Subtract a non-negative amount from an LP balance."""
-        if delta < 0:
-            raise ValueError(f"Delta must be non-negative: {delta}")
-        self.add(pubkey, pool_id, -delta)
+        delta_i = _require_lp_int("delta", delta)
+        if delta_i < 0:
+            raise ValueError(f"Delta must be non-negative: {delta_i}")
+        self.add(pubkey, pool_id, -delta_i)
 
     def get_all_balances(self) -> Dict[Tuple[PubKey, PoolId], Amount]:
         """Return all LP balances."""
