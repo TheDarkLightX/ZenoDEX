@@ -1,0 +1,323 @@
+"""Fail-closed gate evaluators for confidential extension receipts."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Dict
+
+MAX_FEE = 0x7FFF
+MAX_BALANCE = 0xFFFF
+MAX_EPOCH = 0xFFFFFFFF
+MAX_ATTESTATION_AGE = 0xFF
+
+PRECHECK_OK = "Ok"
+PRECHECK_BAD_SCHEMA = "BadSchema"
+PRECHECK_MISSING_RECEIPT_HASH = "MissingReceiptHash"
+PRECHECK_HASH_MISMATCH = "HashMismatch"
+PRECHECK_BAD_EXTENSION_ID = "BadExtensionId"
+PRECHECK_BAD_PROVIDER_ID = "BadProviderId"
+PRECHECK_BAD_REQUEST_ID = "BadRequestId"
+PRECHECK_BAD_POLICY_VERSION = "BadPolicyVersion"
+PRECHECK_BAD_POLICY_DIGEST = "BadPolicyDigest"
+PRECHECK_BAD_MEASUREMENT = "BadMeasurement"
+PRECHECK_MEASUREMENT_NOT_APPROVED = "MeasurementNotApproved"
+PRECHECK_BAD_HOST = "BadHost"
+PRECHECK_BAD_ATTESTATION = "BadAttestation"
+PRECHECK_BAD_ACCOUNTING = "BadAccounting"
+PRECHECK_BAD_NUMERIC_FIELD = "BadNumericField"
+PRECHECK_BAD_DO_EXECUTE = "BadDoExecute"
+PRECHECK_BAD_POLICY_OK = "BadPolicyOk"
+PRECHECK_BAD_NONCE_UNUSED = "BadNonceUnused"
+PRECHECK_BAD_OUTPUT_BOUND_OK = "BadOutputBoundOk"
+
+
+@dataclass(frozen=True)
+class ConfidentialExtensionReceiptPrecheckOutcome:
+    precheck_ok: bool
+    reject_code: str
+    checks: Dict[str, bool]
+
+
+@dataclass(frozen=True)
+class ConfidentialExtensionReceiptGateOutcome:
+    do_execute: int
+    policy_ok: int
+    nonce_unused: int
+    output_bound_ok: int
+    fresh_attestation_ok: bool
+    host_guards_ok: bool
+    accounting_ok: bool
+    receipt_admissible: bool
+
+
+def _require_bounded_int(value: Any, *, name: str, upper: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > upper:
+        raise ValueError(f"{name} must be a bounded int")
+    return value
+
+
+def _require_flag(value: Any, *, name: str) -> int:
+    return _require_bounded_int(value, name=name, upper=1)
+
+
+def _require_gate_flag(value: Any, *, name: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and not isinstance(value, bool) and value in (0, 1):
+        return bool(value)
+    raise ValueError(f"{name} must be a bool or 0/1 int")
+
+
+def evaluate_confidential_extension_receipt_precheck_gate(
+    *,
+    schema_ok: Any,
+    receipt_hash_present: Any,
+    hash_matches: Any,
+    extension_id_ok: Any,
+    provider_id_ok: Any,
+    request_id_ok: Any,
+    policy_version_ok: Any,
+    policy_digest_ok: Any,
+    measurement_format_ok: Any,
+    measurement_approved: Any,
+    host_object_ok: Any,
+    attestation_object_ok: Any,
+    accounting_object_ok: Any,
+    numeric_fields_ok: Any,
+    do_execute_flag_ok: Any,
+    policy_ok_flag_ok: Any,
+    nonce_unused_flag_ok: Any,
+    output_bound_ok_flag_ok: Any,
+) -> ConfidentialExtensionReceiptPrecheckOutcome:
+    schema_ok_v = _require_gate_flag(schema_ok, name="schema_ok")
+    receipt_hash_present_v = _require_gate_flag(receipt_hash_present, name="receipt_hash_present")
+    hash_matches_v = _require_gate_flag(hash_matches, name="hash_matches")
+    extension_id_ok_v = _require_gate_flag(extension_id_ok, name="extension_id_ok")
+    provider_id_ok_v = _require_gate_flag(provider_id_ok, name="provider_id_ok")
+    request_id_ok_v = _require_gate_flag(request_id_ok, name="request_id_ok")
+    policy_version_ok_v = _require_gate_flag(policy_version_ok, name="policy_version_ok")
+    policy_digest_ok_v = _require_gate_flag(policy_digest_ok, name="policy_digest_ok")
+    measurement_format_ok_v = _require_gate_flag(measurement_format_ok, name="measurement_format_ok")
+    measurement_approved_v = _require_gate_flag(measurement_approved, name="measurement_approved")
+    host_object_ok_v = _require_gate_flag(host_object_ok, name="host_object_ok")
+    attestation_object_ok_v = _require_gate_flag(attestation_object_ok, name="attestation_object_ok")
+    accounting_object_ok_v = _require_gate_flag(accounting_object_ok, name="accounting_object_ok")
+    numeric_fields_ok_v = _require_gate_flag(numeric_fields_ok, name="numeric_fields_ok")
+    do_execute_flag_ok_v = _require_gate_flag(do_execute_flag_ok, name="do_execute_flag_ok")
+    policy_ok_flag_ok_v = _require_gate_flag(policy_ok_flag_ok, name="policy_ok_flag_ok")
+    nonce_unused_flag_ok_v = _require_gate_flag(nonce_unused_flag_ok, name="nonce_unused_flag_ok")
+    output_bound_ok_flag_ok_v = _require_gate_flag(output_bound_ok_flag_ok, name="output_bound_ok_flag_ok")
+
+    checks = {
+        "schema_ok": schema_ok_v,
+        "receipt_hash_present": receipt_hash_present_v,
+        "hash_matches": hash_matches_v,
+        "extension_id_ok": extension_id_ok_v,
+        "provider_id_ok": provider_id_ok_v,
+        "request_id_ok": request_id_ok_v,
+        "policy_version_ok": policy_version_ok_v,
+        "policy_digest_ok": policy_digest_ok_v,
+        "measurement_format_ok": measurement_format_ok_v,
+        "measurement_approved": measurement_approved_v,
+        "host_object_ok": host_object_ok_v,
+        "attestation_object_ok": attestation_object_ok_v,
+        "accounting_object_ok": accounting_object_ok_v,
+        "numeric_fields_ok": numeric_fields_ok_v,
+        "do_execute_flag_ok": do_execute_flag_ok_v,
+        "policy_ok_flag_ok": policy_ok_flag_ok_v,
+        "nonce_unused_flag_ok": nonce_unused_flag_ok_v,
+        "output_bound_ok_flag_ok": output_bound_ok_flag_ok_v,
+    }
+
+    if not schema_ok_v:
+        reject_code = PRECHECK_BAD_SCHEMA
+    elif not receipt_hash_present_v:
+        reject_code = PRECHECK_MISSING_RECEIPT_HASH
+    elif not hash_matches_v:
+        reject_code = PRECHECK_HASH_MISMATCH
+    elif not extension_id_ok_v:
+        reject_code = PRECHECK_BAD_EXTENSION_ID
+    elif not provider_id_ok_v:
+        reject_code = PRECHECK_BAD_PROVIDER_ID
+    elif not request_id_ok_v:
+        reject_code = PRECHECK_BAD_REQUEST_ID
+    elif not policy_version_ok_v:
+        reject_code = PRECHECK_BAD_POLICY_VERSION
+    elif not policy_digest_ok_v:
+        reject_code = PRECHECK_BAD_POLICY_DIGEST
+    elif not measurement_format_ok_v:
+        reject_code = PRECHECK_BAD_MEASUREMENT
+    elif not measurement_approved_v:
+        reject_code = PRECHECK_MEASUREMENT_NOT_APPROVED
+    elif not host_object_ok_v:
+        reject_code = PRECHECK_BAD_HOST
+    elif not attestation_object_ok_v:
+        reject_code = PRECHECK_BAD_ATTESTATION
+    elif not accounting_object_ok_v:
+        reject_code = PRECHECK_BAD_ACCOUNTING
+    elif not numeric_fields_ok_v:
+        reject_code = PRECHECK_BAD_NUMERIC_FIELD
+    elif not do_execute_flag_ok_v:
+        reject_code = PRECHECK_BAD_DO_EXECUTE
+    elif not policy_ok_flag_ok_v:
+        reject_code = PRECHECK_BAD_POLICY_OK
+    elif not nonce_unused_flag_ok_v:
+        reject_code = PRECHECK_BAD_NONCE_UNUSED
+    elif not output_bound_ok_flag_ok_v:
+        reject_code = PRECHECK_BAD_OUTPUT_BOUND_OK
+    else:
+        reject_code = PRECHECK_OK
+
+    return ConfidentialExtensionReceiptPrecheckOutcome(
+        precheck_ok=bool(reject_code == PRECHECK_OK),
+        reject_code=reject_code,
+        checks=checks,
+    )
+
+
+def confidential_extension_receipt_precheck_error(
+    outcome: ConfidentialExtensionReceiptPrecheckOutcome,
+) -> str:
+    mapping = {
+        PRECHECK_BAD_SCHEMA: "bad_schema",
+        PRECHECK_MISSING_RECEIPT_HASH: "missing_receipt_hash",
+        PRECHECK_HASH_MISMATCH: "hash_mismatch",
+        PRECHECK_BAD_EXTENSION_ID: "bad_extension_id",
+        PRECHECK_BAD_PROVIDER_ID: "bad_provider_id",
+        PRECHECK_BAD_REQUEST_ID: "bad_request_id",
+        PRECHECK_BAD_POLICY_VERSION: "bad_policy_version",
+        PRECHECK_BAD_POLICY_DIGEST: "bad_policy_digest",
+        PRECHECK_BAD_MEASUREMENT: "bad_measurement",
+        PRECHECK_MEASUREMENT_NOT_APPROVED: "measurement_not_approved",
+        PRECHECK_BAD_HOST: "bad_host",
+        PRECHECK_BAD_ATTESTATION: "bad_attestation",
+        PRECHECK_BAD_ACCOUNTING: "bad_accounting",
+        PRECHECK_BAD_NUMERIC_FIELD: "bad_numeric_field",
+        PRECHECK_BAD_DO_EXECUTE: "bad_do_execute",
+        PRECHECK_BAD_POLICY_OK: "bad_policy_ok",
+        PRECHECK_BAD_NONCE_UNUSED: "bad_nonce_unused",
+        PRECHECK_BAD_OUTPUT_BOUND_OK: "bad_output_bound_ok",
+    }
+    return mapping.get(outcome.reject_code, "ok")
+
+
+def _fresh_attestation(*, current_epoch: int, attestation_epoch: int, max_attestation_age: int) -> bool:
+    for value, upper in (
+        (current_epoch, MAX_EPOCH),
+        (attestation_epoch, MAX_EPOCH),
+        (max_attestation_age, MAX_ATTESTATION_AGE),
+    ):
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > upper:
+            return False
+    if attestation_epoch > current_epoch:
+        return False
+    return (current_epoch - attestation_epoch) <= max_attestation_age
+
+
+def _accounting_ok(
+    *,
+    do_execute: int,
+    fee_charged: int,
+    receipt_fee: int,
+    credit_before: int,
+    credit_after: int,
+    provider_balance_before: int,
+    provider_balance_after: int,
+) -> bool:
+    for value, upper in (
+        (fee_charged, MAX_FEE),
+        (receipt_fee, MAX_FEE),
+        (credit_before, MAX_BALANCE),
+        (credit_after, MAX_BALANCE),
+        (provider_balance_before, MAX_BALANCE),
+        (provider_balance_after, MAX_BALANCE),
+    ):
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > upper:
+            return False
+    if do_execute == 0:
+        return (
+            fee_charged == 0
+            and receipt_fee == 0
+            and credit_after == credit_before
+            and provider_balance_after == provider_balance_before
+        )
+    return (
+        fee_charged > 0
+        and fee_charged == receipt_fee
+        and credit_before >= fee_charged
+        and credit_after == (credit_before - fee_charged)
+        and provider_balance_after == (provider_balance_before + fee_charged)
+        and provider_balance_after <= MAX_BALANCE
+    )
+
+
+def evaluate_confidential_extension_receipt_gate(
+    *,
+    do_execute: Any,
+    policy_ok: Any,
+    nonce_unused: Any,
+    output_bound_ok: Any,
+    current_epoch: Any,
+    attestation_epoch: Any,
+    max_attestation_age: Any,
+    fee_charged: Any,
+    receipt_fee: Any,
+    credit_before: Any,
+    credit_after: Any,
+    provider_balance_before: Any,
+    provider_balance_after: Any,
+) -> ConfidentialExtensionReceiptGateOutcome:
+    do_execute_v = _require_flag(do_execute, name="do_execute")
+    policy_ok_v = _require_flag(policy_ok, name="policy_ok")
+    nonce_unused_v = _require_flag(nonce_unused, name="nonce_unused")
+    output_bound_ok_v = _require_flag(output_bound_ok, name="output_bound_ok")
+    current_epoch_v = _require_bounded_int(current_epoch, name="current_epoch", upper=MAX_EPOCH)
+    attestation_epoch_v = _require_bounded_int(attestation_epoch, name="attestation_epoch", upper=MAX_EPOCH)
+    max_attestation_age_v = _require_bounded_int(
+        max_attestation_age,
+        name="max_attestation_age",
+        upper=MAX_ATTESTATION_AGE,
+    )
+    fee_charged_v = _require_bounded_int(fee_charged, name="fee_charged", upper=MAX_FEE)
+    receipt_fee_v = _require_bounded_int(receipt_fee, name="receipt_fee", upper=MAX_FEE)
+    credit_before_v = _require_bounded_int(credit_before, name="credit_before", upper=MAX_BALANCE)
+    credit_after_v = _require_bounded_int(credit_after, name="credit_after", upper=MAX_BALANCE)
+    provider_balance_before_v = _require_bounded_int(
+        provider_balance_before,
+        name="provider_balance_before",
+        upper=MAX_BALANCE,
+    )
+    provider_balance_after_v = _require_bounded_int(
+        provider_balance_after,
+        name="provider_balance_after",
+        upper=MAX_BALANCE,
+    )
+
+    fresh_attestation_ok = _fresh_attestation(
+        current_epoch=current_epoch_v,
+        attestation_epoch=attestation_epoch_v,
+        max_attestation_age=max_attestation_age_v,
+    )
+    host_guards_ok = bool(
+        do_execute_v == 0
+        or (policy_ok_v == 1 and nonce_unused_v == 1 and output_bound_ok_v == 1)
+    )
+    accounting_ok = _accounting_ok(
+        do_execute=do_execute_v,
+        fee_charged=fee_charged_v,
+        receipt_fee=receipt_fee_v,
+        credit_before=credit_before_v,
+        credit_after=credit_after_v,
+        provider_balance_before=provider_balance_before_v,
+        provider_balance_after=provider_balance_after_v,
+    )
+    return ConfidentialExtensionReceiptGateOutcome(
+        do_execute=do_execute_v,
+        policy_ok=policy_ok_v,
+        nonce_unused=nonce_unused_v,
+        output_bound_ok=output_bound_ok_v,
+        fresh_attestation_ok=fresh_attestation_ok,
+        host_guards_ok=host_guards_ok,
+        accounting_ok=accounting_ok,
+        receipt_admissible=bool(fresh_attestation_ok and host_guards_ok and accounting_ok),
+    )
