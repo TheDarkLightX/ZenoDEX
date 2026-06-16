@@ -24,8 +24,8 @@ from .settlement_end_to_end_certificate_packet import (
     build_settlement_end_to_end_certificate_packet_from_price_packet,
 )
 
-
 SETTLEMENT_WITNESS_LIFECYCLE_PACKET_SCHEMA = "zenodex/settlement-witness-lifecycle-packet/v1"
+_LIFECYCLE_DOMAIN_ERRORS = (TypeError, ValueError, ArithmeticError)
 
 
 @dataclass(frozen=True)
@@ -221,7 +221,7 @@ def build_settlement_witness_lifecycle_packet(
                 pool_snapshots=settlement_end_to_end_certificate_inputs.pool_snapshots,
                 allowed_signers=settlement_end_to_end_certificate_inputs.allowed_signers,
             )
-    except Exception as exc:
+    except _LIFECYCLE_DOMAIN_ERRORS as exc:
         rejection_reason = str(exc)
 
     if packet is not None and not packet.packet_ok:
@@ -249,7 +249,7 @@ def build_settlement_witness_lifecycle_packet(
             if not witness_valid:
                 rejection_reason = str(witness_err or "settlement decision witness invalid")
                 witness = None
-        except Exception as exc:
+        except _LIFECYCLE_DOMAIN_ERRORS as exc:
             rejection_reason = str(exc)
             witness = None
             witness_valid = False
@@ -308,7 +308,7 @@ def verify_settlement_witness_lifecycle_packet_payload(
             swap_ordering=swap_ordering,
             quote_bindings_validated=quote_bindings_validated,
         )
-    except Exception as exc:
+    except _LIFECYCLE_DOMAIN_ERRORS as exc:
         return False, str(exc)
     if dict(packet_payload) != expected.to_dict():
         return False, "settlement witness lifecycle packet payload mismatch"

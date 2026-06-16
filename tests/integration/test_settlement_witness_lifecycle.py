@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
-from src.integration.settlement_end_to_end_certificate_packet import SettlementEndToEndCertificateInputs
+from src.integration import settlement_witness_lifecycle as lifecycle_mod
+from src.integration.settlement_end_to_end_certificate_packet import (
+    SettlementEndToEndCertificateInputs,
+)
 from src.integration.settlement_feature_extension_packet import SettlementFeatureExtensionInputs
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
@@ -214,3 +219,87 @@ def test_settlement_witness_lifecycle_packet_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "settlement witness lifecycle packet payload mismatch"
+
+
+def test_settlement_witness_lifecycle_certificate_builder_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intents, settlement, balances, pools, certificate_inputs = _settlement_context()
+
+    def broken_packet_builder(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("end-to-end packet builder bug")
+
+    monkeypatch.setattr(
+        lifecycle_mod,
+        "build_settlement_end_to_end_certificate_packet_from_price_packet",
+        broken_packet_builder,
+    )
+
+    with pytest.raises(RuntimeError, match="end-to-end packet builder bug"):
+        build_settlement_witness_lifecycle_packet(
+            intents=intents,
+            settlement=settlement,
+            balances=balances,
+            pools=pools,
+            lp_balances=LPTable(),
+            block_timestamp=0,
+            settlement_end_to_end_certificate_inputs=certificate_inputs,
+        )
+
+
+def test_settlement_witness_lifecycle_witness_builder_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intents, settlement, balances, pools, certificate_inputs = _settlement_context()
+
+    def broken_witness_builder(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("decision witness builder bug")
+
+    monkeypatch.setattr(
+        lifecycle_mod,
+        "build_decision_witness_from_settlement_end_to_end_certificate_packet",
+        broken_witness_builder,
+    )
+
+    with pytest.raises(RuntimeError, match="decision witness builder bug"):
+        build_settlement_witness_lifecycle_packet(
+            intents=intents,
+            settlement=settlement,
+            balances=balances,
+            pools=pools,
+            lp_balances=LPTable(),
+            block_timestamp=0,
+            settlement_end_to_end_certificate_inputs=certificate_inputs,
+        )
+
+
+def test_settlement_witness_lifecycle_verify_expected_builder_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intents, settlement, balances, pools, certificate_inputs = _settlement_context()
+    packet = build_settlement_witness_lifecycle_packet(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_end_to_end_certificate_inputs=certificate_inputs,
+    )
+
+    def broken_lifecycle_builder(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("lifecycle expected builder bug")
+
+    monkeypatch.setattr(lifecycle_mod, "build_settlement_witness_lifecycle_packet", broken_lifecycle_builder)
+
+    with pytest.raises(RuntimeError, match="lifecycle expected builder bug"):
+        verify_settlement_witness_lifecycle_packet_payload(
+            intents=intents,
+            settlement=settlement,
+            balances=balances,
+            pools=pools,
+            lp_balances=LPTable(),
+            block_timestamp=0,
+            settlement_end_to_end_certificate_inputs=certificate_inputs,
+            packet_payload=packet.to_dict(),
+        )
