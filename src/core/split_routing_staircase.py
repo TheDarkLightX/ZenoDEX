@@ -8,6 +8,7 @@ quote implementation.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Callable, Protocol
 
 BPS_DENOM = 10_000
@@ -20,6 +21,25 @@ class _PoolLike(Protocol):
 
 
 _QuoteExactIn = Callable[[_PoolLike, int], int]
+
+
+@dataclass(frozen=True)
+class _TwoPoolQuoteContext:
+    pool0: _PoolLike
+    pool1: _PoolLike
+    amount_in: int
+    quote_exact_in: _QuoteExactIn
+
+    def total_out_for_split(self, split_a: int) -> int | None:
+        if not (0 <= int(split_a) <= int(self.amount_in)):
+            return None
+        split_b = int(self.amount_in) - int(split_a)
+        try:
+            out0 = self.quote_exact_in(self.pool0, int(split_a)) if split_a > 0 else 0
+            out1 = self.quote_exact_in(self.pool1, split_b) if split_b > 0 else 0
+        except ValueError:
+            return None
+        return int(out0 + out1)
 
 
 def _is_better_candidate(cand: tuple[int, int] | None, best: tuple[int, int] | None) -> bool:
@@ -67,25 +87,6 @@ def _pool_output_jump_candidates(
     return candidates
 
 
-def _total_out_for_split(
-    pool0: _PoolLike,
-    pool1: _PoolLike,
-    amount_in: int,
-    split_a: int,
-    *,
-    quote_exact_in: _QuoteExactIn,
-) -> int | None:
-    if not (0 <= int(split_a) <= int(amount_in)):
-        return None
-    split_b = int(amount_in) - int(split_a)
-    try:
-        out0 = quote_exact_in(pool0, int(split_a)) if split_a > 0 else 0
-        out1 = quote_exact_in(pool1, split_b) if split_b > 0 else 0
-    except ValueError:
-        return None
-    return int(out0 + out1)
-
-
 def staircase_jump_best_split_two_pools_exact_in(
     pool0: _PoolLike,
     pool1: _PoolLike,
@@ -104,6 +105,12 @@ def staircase_jump_best_split_two_pools_exact_in(
     if amount_in <= 0:
         raise ValueError("amount_in must be positive")
 
+    quote_context = _TwoPoolQuoteContext(
+        pool0=pool0,
+        pool1=pool1,
+        amount_in=int(amount_in),
+        quote_exact_in=quote_exact_in,
+    )
     best: tuple[int, int] | None = None
     candidates = {0, int(amount_in)} | _pool_output_jump_candidates(
         pool0,
@@ -111,13 +118,7 @@ def staircase_jump_best_split_two_pools_exact_in(
         quote_exact_in=quote_exact_in,
     )
     for split_a in sorted(candidates):
-        total = _total_out_for_split(
-            pool0,
-            pool1,
-            int(amount_in),
-            int(split_a),
-            quote_exact_in=quote_exact_in,
-        )
+        total = quote_context.total_out_for_split(int(split_a))
         if total is None:
             continue
         candidate = (int(total), int(split_a))
