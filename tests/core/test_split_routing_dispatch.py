@@ -15,7 +15,9 @@ import pytest
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.split_routing_dispatch import (
     SplitLegExactOutQuote,
+    SplitLegQuote,
     SplitManyPoolsExactOutQuote,
+    best_split_many_pools_exact_in_for_pools,
     best_split_many_pools_exact_out_for_pools,
     best_split_two_pools_exact_in_for_pools,
     best_split_two_pools_exact_out_for_pools,
@@ -302,6 +304,39 @@ class TestSplitRoutingDispatch:
                 amount_out_total=9,
                 max_legs=2,
             )
+
+    def test_exact_in_many_pool_quote_satisfies_allocation_contract(self) -> None:
+        pools = (
+            _mk_pool(pool_id="pool_c", curve_tag=CURVE_TAG_CPMM, reserve0=12_000, reserve1=900, fee_bps=5),
+            _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=10_000, reserve1=800, fee_bps=0),
+            _mk_pool(pool_id="pool_b", curve_tag=CURVE_TAG_CPMM, reserve0=11_000, reserve1=850, fee_bps=3),
+        )
+        pools_by_id = {pool.pool_id: pool for pool in pools}
+
+        quote = best_split_many_pools_exact_in_for_pools(
+            pools,
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            amount_in_total=150,
+            max_legs=2,
+            max_candidates=3,
+            max_iters=512,
+        )
+
+        assert quote.amount_in_total == 150
+        assert quote.amount_out_total == 11
+        assert quote.legs == (
+            SplitLegQuote(pool_id="pool_a", amount_in=76, amount_out=6),
+            SplitLegQuote(pool_id="pool_b", amount_in=74, amount_out=5),
+        )
+        assert len(quote.legs) <= 2
+        assert sum(int(leg.amount_in) for leg in quote.legs) == quote.amount_in_total
+        assert sum(int(leg.amount_out) for leg in quote.legs) == quote.amount_out_total
+        assert all(
+            int(leg.amount_out)
+            == _quote_exact_in(pools_by_id[leg.pool_id], asset_in=ASSET0, asset_out=ASSET1, amount_in=int(leg.amount_in))
+            for leg in quote.legs
+        )
 
     def test_exact_out_many_pool_quote_satisfies_allocation_contract(self) -> None:
         pools = (
