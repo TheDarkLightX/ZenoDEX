@@ -14,9 +14,27 @@ host flags in the receipt body.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Dict, Tuple
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+
+_IDENTITY_KEYS = ("asset_id", "batch_id", "nullifier", "tx_ref", "policy_version")
+
+
+@dataclass(frozen=True)
+class _BurnReceiptNumbers:
+    do_burn: int
+    receipt_bound: int
+    nullifier_unused: int
+    policy_ok: int
+    burn_amount: int
+    receipt_amount: int
+    burn_budget: int
+    supply_before: int
+    supply_after: int
+    batch_burn_sum_before: int
+    batch_burn_sum_after: int
 
 
 def _receipt_int(value: Any) -> int:
@@ -69,6 +87,62 @@ def _rail_batch_sum_guard(*, do_burn: int, burn_amount: int, batch_burn_sum_befo
     if do_burn == 0:
         return batch_burn_sum_after == batch_burn_sum_before
     return bool(batch_burn_sum_after == batch_burn_sum_before + burn_amount)
+
+
+def _validate_burn_receipt_identity(body: Dict[str, Any]) -> str | None:
+    for key in _IDENTITY_KEYS:
+        val = body.get(key)
+        if not isinstance(val, str) or not val:
+            return f"bad_{key}"
+    return None
+
+
+def _parse_burn_receipt_numbers(host: Dict[str, Any], accounting: Dict[str, Any]) -> _BurnReceiptNumbers:
+    return _BurnReceiptNumbers(
+        do_burn=_receipt_int(host.get("do_burn")),
+        receipt_bound=_receipt_int(host.get("receipt_bound")),
+        nullifier_unused=_receipt_int(host.get("nullifier_unused")),
+        policy_ok=_receipt_int(host.get("policy_ok")),
+        burn_amount=_receipt_int(accounting.get("burn_amount")),
+        receipt_amount=_receipt_int(accounting.get("receipt_amount")),
+        burn_budget=_receipt_int(accounting.get("burn_budget")),
+        supply_before=_receipt_int(accounting.get("supply_before")),
+        supply_after=_receipt_int(accounting.get("supply_after")),
+        batch_burn_sum_before=_receipt_int(accounting.get("batch_burn_sum_before")),
+        batch_burn_sum_after=_receipt_int(accounting.get("batch_burn_sum_after")),
+    )
+
+
+def _burn_receipt_rail_error(numbers: _BurnReceiptNumbers) -> str | None:
+    if not _rail_replay_guard(
+        do_burn=numbers.do_burn,
+        receipt_bound=numbers.receipt_bound,
+        nullifier_unused=numbers.nullifier_unused,
+        policy_ok=numbers.policy_ok,
+    ):
+        return "replay_guard_failed"
+    if not _rail_amount_guard(
+        do_burn=numbers.do_burn,
+        burn_amount=numbers.burn_amount,
+        receipt_amount=numbers.receipt_amount,
+        burn_budget=numbers.burn_budget,
+    ):
+        return "amount_guard_failed"
+    if not _rail_supply_guard(
+        do_burn=numbers.do_burn,
+        burn_amount=numbers.burn_amount,
+        supply_before=numbers.supply_before,
+        supply_after=numbers.supply_after,
+    ):
+        return "supply_guard_failed"
+    if not _rail_batch_sum_guard(
+        do_burn=numbers.do_burn,
+        burn_amount=numbers.burn_amount,
+        batch_burn_sum_before=numbers.batch_burn_sum_before,
+        batch_burn_sum_after=numbers.batch_burn_sum_after,
+    ):
+        return "batch_sum_guard_failed"
+    return None
 
 
 def make_burn_receipt(
@@ -135,10 +209,9 @@ def verify_burn_receipt(receipt: object) -> Tuple[bool, str]:
     if actual_hash != want_hash:
         return False, "hash_mismatch"
 
-    for key in ("asset_id", "batch_id", "nullifier", "tx_ref", "policy_version"):
-        val = body.get(key)
-        if not isinstance(val, str) or not val:
-            return False, f"bad_{key}"
+    identity_error = _validate_burn_receipt_identity(body)
+    if identity_error is not None:
+        return False, identity_error
 
     host = body.get("host")
     accounting = body.get("accounting")
@@ -148,46 +221,11 @@ def verify_burn_receipt(receipt: object) -> Tuple[bool, str]:
         return False, "bad_accounting"
 
     try:
-        do_burn = _receipt_int(host.get("do_burn"))
-        receipt_bound = _receipt_int(host.get("receipt_bound"))
-        nullifier_unused = _receipt_int(host.get("nullifier_unused"))
-        policy_ok = _receipt_int(host.get("policy_ok"))
-        burn_amount = _receipt_int(accounting.get("burn_amount"))
-        receipt_amount = _receipt_int(accounting.get("receipt_amount"))
-        burn_budget = _receipt_int(accounting.get("burn_budget"))
-        supply_before = _receipt_int(accounting.get("supply_before"))
-        supply_after = _receipt_int(accounting.get("supply_after"))
-        batch_burn_sum_before = _receipt_int(accounting.get("batch_burn_sum_before"))
-        batch_burn_sum_after = _receipt_int(accounting.get("batch_burn_sum_after"))
+        numbers = _parse_burn_receipt_numbers(host, accounting)
     except (TypeError, ValueError, OverflowError):
         return False, "bad_numeric_field"
 
-    if not _rail_replay_guard(
-        do_burn=do_burn,
-        receipt_bound=receipt_bound,
-        nullifier_unused=nullifier_unused,
-        policy_ok=policy_ok,
-    ):
-        return False, "replay_guard_failed"
-    if not _rail_amount_guard(
-        do_burn=do_burn,
-        burn_amount=burn_amount,
-        receipt_amount=receipt_amount,
-        burn_budget=burn_budget,
-    ):
-        return False, "amount_guard_failed"
-    if not _rail_supply_guard(
-        do_burn=do_burn,
-        burn_amount=burn_amount,
-        supply_before=supply_before,
-        supply_after=supply_after,
-    ):
-        return False, "supply_guard_failed"
-    if not _rail_batch_sum_guard(
-        do_burn=do_burn,
-        burn_amount=burn_amount,
-        batch_burn_sum_before=batch_burn_sum_before,
-        batch_burn_sum_after=batch_burn_sum_after,
-    ):
-        return False, "batch_sum_guard_failed"
+    rail_error = _burn_receipt_rail_error(numbers)
+    if rail_error is not None:
+        return False, rail_error
     return True, "ok"
