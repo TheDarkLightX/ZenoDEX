@@ -15,7 +15,7 @@ recomputes canonical deltas/events and requires exact match.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..kernels.python.settlement_swap_runtime_v1 import quote_cpmm_swap_exact_out
 from ..state.balances import AssetId, BalanceTable, PubKey
@@ -2366,67 +2366,48 @@ def _check_unique_sorted_delta_keys(keys: List[Tuple], what: str) -> Tuple[bool,
     return True, None
 
 
+def _check_canonical_delta_entries(
+    *,
+    deltas: list[Any],
+    what: str,
+    key_fn: Callable[[Any], Tuple],
+) -> Tuple[bool, Optional[str]]:
+    keys: List[Tuple] = []
+    for delta in deltas:
+        delta_add = delta.delta_add
+        delta_sub = delta.delta_sub
+        if not is_strict_int(delta_add) or delta_add < 0:
+            return False, f"{what} contains invalid delta_add"
+        if not is_strict_int(delta_sub) or delta_sub < 0:
+            return False, f"{what} contains invalid delta_sub"
+        if delta_add == 0 and delta_sub == 0:
+            return False, f"{what} contains a zero entry"
+        keys.append(key_fn(delta))
+    return _check_unique_sorted_delta_keys(keys, what)
+
+
 def _check_canonical_balance_deltas(deltas: List[BalanceDelta]) -> Tuple[bool, Optional[str]]:
-    bal_keys: List[Tuple[PubKey, AssetId]] = []
-    for balance_delta in deltas:
-        if (
-            not isinstance(balance_delta.delta_add, int)
-            or isinstance(balance_delta.delta_add, bool)
-            or balance_delta.delta_add < 0
-        ):
-            return False, "balance_deltas contains invalid delta_add"
-        if (
-            not isinstance(balance_delta.delta_sub, int)
-            or isinstance(balance_delta.delta_sub, bool)
-            or balance_delta.delta_sub < 0
-        ):
-            return False, "balance_deltas contains invalid delta_sub"
-        if balance_delta.delta_add == 0 and balance_delta.delta_sub == 0:
-            return False, "balance_deltas contains a zero entry"
-        bal_keys.append((balance_delta.pubkey, balance_delta.asset))
-    return _check_unique_sorted_delta_keys(bal_keys, "balance_deltas")
+    return _check_canonical_delta_entries(
+        deltas=list(deltas),
+        what="balance_deltas",
+        key_fn=lambda delta: (delta.pubkey, delta.asset),
+    )
 
 
 def _check_canonical_reserve_deltas(deltas: List[ReserveDelta]) -> Tuple[bool, Optional[str]]:
-    res_keys: List[Tuple[str, AssetId]] = []
-    for reserve_delta in deltas:
-        if (
-            not isinstance(reserve_delta.delta_add, int)
-            or isinstance(reserve_delta.delta_add, bool)
-            or reserve_delta.delta_add < 0
-        ):
-            return False, "reserve_deltas contains invalid delta_add"
-        if (
-            not isinstance(reserve_delta.delta_sub, int)
-            or isinstance(reserve_delta.delta_sub, bool)
-            or reserve_delta.delta_sub < 0
-        ):
-            return False, "reserve_deltas contains invalid delta_sub"
-        if reserve_delta.delta_add == 0 and reserve_delta.delta_sub == 0:
-            return False, "reserve_deltas contains a zero entry"
-        res_keys.append((reserve_delta.pool_id, reserve_delta.asset))
-    return _check_unique_sorted_delta_keys(res_keys, "reserve_deltas")
+    return _check_canonical_delta_entries(
+        deltas=list(deltas),
+        what="reserve_deltas",
+        key_fn=lambda delta: (delta.pool_id, delta.asset),
+    )
 
 
 def _check_canonical_lp_deltas(deltas: List[LPDelta]) -> Tuple[bool, Optional[str]]:
-    lp_keys: List[Tuple[PubKey, str]] = []
-    for lp_delta in deltas:
-        if (
-            not isinstance(lp_delta.delta_add, int)
-            or isinstance(lp_delta.delta_add, bool)
-            or lp_delta.delta_add < 0
-        ):
-            return False, "lp_deltas contains invalid delta_add"
-        if (
-            not isinstance(lp_delta.delta_sub, int)
-            or isinstance(lp_delta.delta_sub, bool)
-            or lp_delta.delta_sub < 0
-        ):
-            return False, "lp_deltas contains invalid delta_sub"
-        if lp_delta.delta_add == 0 and lp_delta.delta_sub == 0:
-            return False, "lp_deltas contains a zero entry"
-        lp_keys.append((lp_delta.pubkey, lp_delta.pool_id))
-    return _check_unique_sorted_delta_keys(lp_keys, "lp_deltas")
+    return _check_canonical_delta_entries(
+        deltas=list(deltas),
+        what="lp_deltas",
+        key_fn=lambda delta: (delta.pubkey, delta.pool_id),
+    )
 
 
 def _check_canonical_deltas(settlement: Settlement) -> Tuple[bool, Optional[str]]:
