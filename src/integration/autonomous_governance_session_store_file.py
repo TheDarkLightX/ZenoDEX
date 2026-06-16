@@ -127,6 +127,7 @@ def _write_store_file(path: Path, store: Mapping[str, Any]) -> tuple[bool, tuple
     if len(raw) > MAX_SESSION_STORE_FILE_BYTES_V1:
         return False, ("session_store_file_store_too_large",)
 
+    temp_name: str | None = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(
@@ -142,10 +143,13 @@ def _write_store_file(path: Path, store: Mapping[str, Any]) -> tuple[bool, tuple
             os.fsync(handle.fileno())
         os.replace(temp_name, path)
     except OSError:
-        try:
-            os.unlink(temp_name)  # type: ignore[name-defined]
-        except Exception:
-            pass
+        if temp_name is not None:
+            try:
+                os.unlink(temp_name)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                pass
         return False, ("session_store_file_write_failed",)
     return True, ()
 

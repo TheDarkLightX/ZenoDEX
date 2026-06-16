@@ -8,6 +8,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+from src.integration import autonomous_governance_session_store_file as store_file
 from src.integration.autonomous_governance_session_store_file import (
     _lock_path,
     admit_autonomous_governance_session_file_continuation_v1,
@@ -177,6 +180,24 @@ def test_session_store_file_existing_lock_refuses_write(tmp_path: Path) -> None:
     assert refused["admitted"] is False
     assert "session_store_file_lock_exists" in refused["errors"]
     assert _persisted_store(path)["store_hash"] == init["store_hash"]
+
+
+def test_session_store_file_tempfile_create_failure_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "autogov-session-store.json"
+
+    def fail_named_temporary_file(*_args: object, **_kwargs: object) -> object:
+        raise OSError("tempfile denied")
+
+    monkeypatch.setattr(store_file.tempfile, "NamedTemporaryFile", fail_named_temporary_file)
+
+    wrote, errors = store_file._write_store_file(path, {"store_hash": "candidate"})
+
+    assert wrote is False
+    assert errors == ("session_store_file_write_failed",)
+    assert not path.exists()
 
 
 def test_cli_session_store_file_lifecycle(tmp_path: Path) -> None:
