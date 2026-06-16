@@ -4,6 +4,7 @@ import pytest
 
 from src.core.perp_submission_auth_field_selector_gate import (
     PERP_OP_AUTH_FIELD_SELECTOR_ACTION_TAGS_V1,
+    PERP_OP_AUTH_FIELD_SELECTOR_CANDIDATE_KEYS_V1,
     evaluate_perp_submission_auth_field_selector_gate,
     select_perp_submission_auth_signed_field_keys_v1,
 )
@@ -30,6 +31,45 @@ def test_select_perp_submission_auth_signed_field_keys_v1_set_position_pair_exac
         "deadline",
     )
     assert selection.signed_field_count == 5
+
+
+@pytest.mark.parametrize(
+    ("action", "expected_keys"),
+    [
+        ("init_market_2p", ("quote_asset", "account_a_pubkey", "account_b_pubkey", "deadline")),
+        (
+            "init_market_3p",
+            ("quote_asset", "account_a_pubkey", "account_b_pubkey", "account_c_pubkey", "deadline"),
+        ),
+        (
+            "set_position_pair",
+            ("account_a_pubkey", "account_b_pubkey", "new_position_base_a", "new_position_base_b", "deadline"),
+        ),
+        (
+            "set_position_triplet",
+            (
+                "account_a_pubkey",
+                "account_b_pubkey",
+                "account_c_pubkey",
+                "new_position_base_a",
+                "new_position_base_b",
+                "new_position_base_c",
+                "deadline",
+            ),
+        ),
+        ("publish_clearing_price", ("price_e8", "deadline")),
+    ],
+)
+def test_select_perp_submission_auth_signed_field_keys_v1_action_table(
+    action: str,
+    expected_keys: tuple[str, ...],
+) -> None:
+    op = {key: f"value:{key}" for key in PERP_OP_AUTH_FIELD_SELECTOR_CANDIDATE_KEYS_V1}
+
+    selection = select_perp_submission_auth_signed_field_keys_v1(action=action, op=op)
+
+    assert selection.signed_field_keys == expected_keys
+    assert selection.signed_field_count == len(expected_keys)
 
 
 def test_evaluate_perp_submission_auth_field_selector_gate_publish_price_contract() -> None:

@@ -23,6 +23,22 @@ PERP_OP_AUTH_FIELD_SELECTOR_CANDIDATE_KEYS_V1: tuple[str, ...] = (
     "deadline",
 )
 
+_REQUIRED_KEYS_BY_ACTION_TAG_V1: dict[int, tuple[str, ...]] = {
+    0: ("quote_asset", "account_a_pubkey", "account_b_pubkey", "deadline"),
+    1: ("quote_asset", "account_a_pubkey", "account_b_pubkey", "account_c_pubkey", "deadline"),
+    2: ("account_a_pubkey", "account_b_pubkey", "new_position_base_a", "new_position_base_b", "deadline"),
+    3: (
+        "account_a_pubkey",
+        "account_b_pubkey",
+        "account_c_pubkey",
+        "new_position_base_a",
+        "new_position_base_b",
+        "new_position_base_c",
+        "deadline",
+    ),
+    4: ("price_e8", "deadline"),
+}
+
 
 @dataclass(frozen=True)
 class PerpSubmissionAuthFieldSelectorGateOutcome:
@@ -58,67 +74,11 @@ def _require_bool(value: Any, *, name: str) -> bool:
 
 
 def _include_flags_for_action_tag(action_tag: int) -> dict[str, bool]:
-    if action_tag == 0:
-        return {
-            "quote_asset": True,
-            "account_a_pubkey": True,
-            "account_b_pubkey": True,
-            "account_c_pubkey": False,
-            "new_position_base_a": False,
-            "new_position_base_b": False,
-            "new_position_base_c": False,
-            "price_e8": False,
-            "deadline": True,
-        }
-    if action_tag == 1:
-        return {
-            "quote_asset": True,
-            "account_a_pubkey": True,
-            "account_b_pubkey": True,
-            "account_c_pubkey": True,
-            "new_position_base_a": False,
-            "new_position_base_b": False,
-            "new_position_base_c": False,
-            "price_e8": False,
-            "deadline": True,
-        }
-    if action_tag == 2:
-        return {
-            "quote_asset": False,
-            "account_a_pubkey": True,
-            "account_b_pubkey": True,
-            "account_c_pubkey": False,
-            "new_position_base_a": True,
-            "new_position_base_b": True,
-            "new_position_base_c": False,
-            "price_e8": False,
-            "deadline": True,
-        }
-    if action_tag == 3:
-        return {
-            "quote_asset": False,
-            "account_a_pubkey": True,
-            "account_b_pubkey": True,
-            "account_c_pubkey": True,
-            "new_position_base_a": True,
-            "new_position_base_b": True,
-            "new_position_base_c": True,
-            "price_e8": False,
-            "deadline": True,
-        }
-    if action_tag == 4:
-        return {
-            "quote_asset": False,
-            "account_a_pubkey": False,
-            "account_b_pubkey": False,
-            "account_c_pubkey": False,
-            "new_position_base_a": False,
-            "new_position_base_b": False,
-            "new_position_base_c": False,
-            "price_e8": True,
-            "deadline": True,
-        }
-    raise ValueError("action_tag out of range")
+    required_keys = _REQUIRED_KEYS_BY_ACTION_TAG_V1.get(action_tag)
+    if required_keys is None:
+        raise ValueError("action_tag out of range")
+    required = set(required_keys)
+    return {key: key in required for key in PERP_OP_AUTH_FIELD_SELECTOR_CANDIDATE_KEYS_V1}
 
 
 def evaluate_perp_submission_auth_field_selector_gate(
