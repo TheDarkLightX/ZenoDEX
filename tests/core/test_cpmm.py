@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from src.core.cpmm import MIN_LP_LOCK, compute_lp_mint
-from src.core.cpmm import swap_exact_in, swap_exact_out
+from src.core.cpmm import MIN_LP_LOCK, compute_lp_mint, swap_exact_in, swap_exact_out
 
 
 def test_compute_lp_mint_uses_integer_isqrt() -> None:

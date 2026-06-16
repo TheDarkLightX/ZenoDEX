@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 BPS_DENOM = 10_000
 
 
