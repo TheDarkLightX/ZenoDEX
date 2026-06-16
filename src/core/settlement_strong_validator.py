@@ -35,6 +35,15 @@ LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 _MODE_STRONG_REPLAY = "strong_replay"
 _MODE_STRONG_PROOF_CARRYING = "strong_proof_carrying"
 _VALIDATION_MODES = frozenset({_MODE_STRONG_REPLAY, _MODE_STRONG_PROOF_CARRYING})
+_FAIL_CLOSED_VALIDATOR_ERRORS = (
+    TypeError,
+    ValueError,
+    ArithmeticError,
+    LookupError,
+    AttributeError,
+    RuntimeError,
+    AssertionError,
+)
 
 
 def _format_error_details(**kwargs: object) -> str:
@@ -183,7 +192,7 @@ def validate_settlement_strong(
             protocol_fee_share_bps=protocol_fee_share_bps,
             protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
         )
-    except Exception as exc:
+    except _FAIL_CLOSED_VALIDATOR_ERRORS as exc:
         detail = str(exc).strip()
         if "\n" in detail or "\r" in detail:
             detail = " ".join(detail.split())

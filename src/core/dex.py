@@ -25,6 +25,16 @@ from .settlement import Settlement
 from .settlement_strong_validator import validate_settlement_strong
 from .vault import VaultState
 
+_FAIL_CLOSED_STEP_ERRORS = (
+    TypeError,
+    ValueError,
+    ArithmeticError,
+    LookupError,
+    AttributeError,
+    RuntimeError,
+    AssertionError,
+)
+
 
 @dataclass(frozen=True)
 class DexConfig:
@@ -165,7 +175,7 @@ def step_with_candidate_settlement(
             candidate_settlement,
             next_nonces or state.nonces,
         )
-    except Exception as exc:
+    except _FAIL_CLOSED_STEP_ERRORS as exc:
         return DexStepResult(ok=False, error=str(exc))
 
 
@@ -197,5 +207,5 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
             settlement,
             next_nonces or state.nonces,
         )
-    except Exception as exc:
+    except _FAIL_CLOSED_STEP_ERRORS as exc:
         return DexStepResult(ok=False, error=str(exc))

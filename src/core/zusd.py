@@ -22,6 +22,15 @@ from .zusd_multi_redeem_selector import select_multi_redeem_vault
 E8 = 100_000_000
 BPS_SCALE = 10_000
 MAX_AMOUNT_E8 = 10**30
+_FAIL_CLOSED_ZUSD_ERRORS = (
+    TypeError,
+    ValueError,
+    ArithmeticError,
+    LookupError,
+    AttributeError,
+    RuntimeError,
+    AssertionError,
+)
 
 ZUSDCommandTag = Literal[
     "advance_epoch",
@@ -609,7 +618,7 @@ def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
         if failed:
             return ZUSDStepResult(ok=False, error=f"invariant violation: {','.join(failed)}")
         return ZUSDStepResult(ok=True, state=ns, effects=eff)
-    except Exception as exc:
+    except _FAIL_CLOSED_ZUSD_ERRORS as exc:
         return ZUSDStepResult(ok=False, error=str(exc))
 
 
@@ -1187,5 +1196,5 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
         if failed:
             return ZUSDMultiStepResult(ok=False, error=f"invariant violation: {','.join(failed)}")
         return ZUSDMultiStepResult(ok=True, state=ns, effects=eff)
-    except Exception as exc:
+    except _FAIL_CLOSED_ZUSD_ERRORS as exc:
         return ZUSDMultiStepResult(ok=False, error=str(exc))
