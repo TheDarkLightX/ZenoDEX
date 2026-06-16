@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.settlement_normal_form import normalize_settlement_op_for_commitment
 
 
@@ -69,3 +71,49 @@ def test_normalize_settlement_op_sorts_fills_deterministically() -> None:
 
     assert normalize_settlement_op_for_commitment(op1) == normalize_settlement_op_for_commitment(op2)
 
+
+def test_normalize_settlement_op_drops_non_transition_metadata_and_fill_noise() -> None:
+    norm = normalize_settlement_op_for_commitment(
+        {
+            "batch_ref": "batch-1",
+            "events": [{"kind": "debug"}],
+            "included_intents": [["intent_0", "FILL"]],
+            "fills": [
+                {
+                    "intent_id": "intent_0",
+                    "action": "FILL",
+                    "amount_in_filled": 100,
+                    "reason": "ignored",
+                    "debug_note": None,
+                }
+            ],
+            "balance_deltas": [],
+            "reserve_deltas": [],
+            "lp_deltas": [],
+        }
+    )
+
+    assert "batch_ref" not in norm
+    assert "events" not in norm
+    assert norm["fills"] == [
+        {
+            "intent_id": "intent_0",
+            "action": "FILL",
+            "amount_in_filled": 100,
+        }
+    ]
+
+
+def test_normalize_settlement_op_rejects_bool_delta_amount() -> None:
+    with pytest.raises(TypeError, match="balance_deltas.delta_add must be an int"):
+        normalize_settlement_op_for_commitment(
+            {
+                "included_intents": [],
+                "fills": [],
+                "balance_deltas": [
+                    {"pubkey": "alice", "asset": "ETH", "delta_add": True}
+                ],
+                "reserve_deltas": [],
+                "lp_deltas": [],
+            }
+        )
