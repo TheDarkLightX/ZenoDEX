@@ -88,6 +88,29 @@ def test_perp_funding_apply_gate_rejects_maintenance_violation() -> None:
     assert perp_funding_apply_gate_error(outcome) == "apply_funding would violate maintenance margin"
 
 
+@pytest.mark.parametrize(
+    ("overrides", "expected_error"),
+    [
+        ({"epoch_phase": EpochPhase.SETTLED}, "apply_funding only allowed during open or price-published phase"),
+        ({"auth_ok": False}, "apply_funding requires auth"),
+        ({"index_price_e8": 0}, "apply_funding requires positive index_price_e8"),
+        ({"oracle_seen": False}, "apply_funding requires oracle_seen"),
+        ({"max_oracle_staleness_epochs": 0}, "apply_funding requires valid max_oracle_staleness_epochs"),
+        ({"position_base": 0}, "apply_funding requires non-zero position"),
+        ({"collateral_quote": -1, "position_base": 0}, "apply_funding requires non-zero position"),
+        ({"funding_paid_cumulative": 10**30}, "apply_funding would violate cumulative funding bounds"),
+    ],
+)
+def test_perp_funding_apply_gate_error_precedence(overrides: dict[str, object], expected_error: str) -> None:
+    kwargs = _base_kwargs()
+    kwargs.update(overrides)
+
+    outcome = evaluate_perp_funding_apply_gate(**kwargs)
+
+    assert outcome.funding_apply_allowed is False
+    assert perp_funding_apply_gate_error(outcome) == expected_error
+
+
 def test_perp_funding_apply_gate_rejects_noncanonical_flag() -> None:
     kwargs = _base_kwargs()
     kwargs["auth_ok"] = 2
