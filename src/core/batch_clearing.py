@@ -42,9 +42,18 @@ from ..kernels.python.settlement_swap_runtime_v1 import (
 from ..state.balances import Amount, AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
-from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
+from ..state.pools import CURVE_TAG_CPMM, PoolState
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
-from .cpmm import MIN_LP_LOCK, compute_fee_total
+from .batch_clearing_create_pool import (
+    _apply_create_pool_to_locals,
+    _parse_create_pool_event_payload,
+)
+from .batch_clearing_deltas import (
+    _aggregate_balance_deltas_chunked,
+    _aggregate_lp_deltas_chunked,
+    _aggregate_reserve_deltas_chunked,
+)
+from .cpmm import compute_fee_total
 from .domain_limits import DEX_LP_AMOUNT_MAX, is_strict_int
 from .liquidity import add_liquidity, create_pool, remove_liquidity
 from .settlement import (
@@ -55,8 +64,6 @@ from .settlement import (
     ReserveDelta,
     Settlement,
 )
-
-LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 
 _SWAP_ORDERING_LIMIT_PRICE = "limit_price"
 _SWAP_ORDERING_OPTIMAL_AB_BOUNDED = "optimal_ab_bounded"
@@ -342,111 +349,6 @@ def _copy_lp_table(lp_balances: LPTable) -> LPTable:
     return copied
 
 
-def _parse_create_pool_event_payload(
-    event: dict[str, Any],
-) -> tuple[str, str, str, int, str, str, PoolStatus, int]:
-    pool_id = event.get("pool_id")
-    asset0 = event.get("asset0")
-    asset1 = event.get("asset1")
-    fee_bps = event.get("fee_bps")
-    curve_tag = event.get("curve_tag", CURVE_TAG_CPMM)
-    curve_params = event.get("curve_params", "")
-    status_str = event.get("status", PoolStatus.ACTIVE.value)
-    created_at = event.get("created_at", 0)
-
-    if not isinstance(pool_id, str) or not pool_id:
-        raise ValueError("Invalid CREATE_POOL event: missing pool_id")
-    if not isinstance(asset0, str) or not isinstance(asset1, str):
-        raise ValueError(f"Invalid CREATE_POOL assets for pool: {pool_id}")
-    if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
-        raise ValueError(f"Invalid CREATE_POOL fee_bps for pool: {pool_id}")
-    if not isinstance(curve_tag, str) or not curve_tag:
-        raise ValueError(f"Invalid CREATE_POOL curve_tag for pool: {pool_id}")
-    if not isinstance(curve_params, str):
-        raise ValueError(f"Invalid CREATE_POOL curve_params for pool: {pool_id}")
-    if not isinstance(created_at, int) or isinstance(created_at, bool) or created_at < 0:
-        raise ValueError(f"Invalid CREATE_POOL created_at for pool: {pool_id}")
-
-    try:
-        status = PoolStatus(str(status_str))
-    except ValueError as exc:
-        raise ValueError(f"Invalid CREATE_POOL status for pool: {pool_id}") from exc
-
-    return pool_id, asset0, asset1, fee_bps, curve_tag, curve_params, status, created_at
-
-
-def _aggregate_balance_deltas_chunked(
-    deltas: List[BalanceDelta], *, chunk_size: int
-) -> List[BalanceDelta]:
-    global_acc: Dict[Tuple[PubKey, AssetId], Tuple[Amount, Amount]] = {}
-    step = max(1, int(chunk_size))
-    for i in range(0, len(deltas), step):
-        chunk_acc: Dict[Tuple[PubKey, AssetId], Tuple[Amount, Amount]] = {}
-        for d in deltas[i : i + step]:
-            key = (d.pubkey, d.asset)
-            add_prev, sub_prev = chunk_acc.get(key, (0, 0))
-            chunk_acc[key] = (int(add_prev) + int(d.delta_add), int(sub_prev) + int(d.delta_sub))
-        for key, (add_chunk, sub_chunk) in chunk_acc.items():
-            add_prev, sub_prev = global_acc.get(key, (0, 0))
-            global_acc[key] = (int(add_prev) + int(add_chunk), int(sub_prev) + int(sub_chunk))
-
-    out: List[BalanceDelta] = []
-    for key in sorted(global_acc.keys()):
-        delta_add, delta_sub = global_acc[key]
-        if delta_add == 0 and delta_sub == 0:
-            continue
-        out.append(BalanceDelta(pubkey=key[0], asset=key[1], delta_add=int(delta_add), delta_sub=int(delta_sub)))
-    return out
-
-
-def _aggregate_reserve_deltas_chunked(
-    deltas: List[ReserveDelta], *, chunk_size: int
-) -> List[ReserveDelta]:
-    global_acc: Dict[Tuple[str, AssetId], Tuple[Amount, Amount]] = {}
-    step = max(1, int(chunk_size))
-    for i in range(0, len(deltas), step):
-        chunk_acc: Dict[Tuple[str, AssetId], Tuple[Amount, Amount]] = {}
-        for d in deltas[i : i + step]:
-            key = (d.pool_id, d.asset)
-            add_prev, sub_prev = chunk_acc.get(key, (0, 0))
-            chunk_acc[key] = (int(add_prev) + int(d.delta_add), int(sub_prev) + int(d.delta_sub))
-        for key, (add_chunk, sub_chunk) in chunk_acc.items():
-            add_prev, sub_prev = global_acc.get(key, (0, 0))
-            global_acc[key] = (int(add_prev) + int(add_chunk), int(sub_prev) + int(sub_chunk))
-
-    out: List[ReserveDelta] = []
-    for key in sorted(global_acc.keys()):
-        delta_add, delta_sub = global_acc[key]
-        if delta_add == 0 and delta_sub == 0:
-            continue
-        out.append(ReserveDelta(pool_id=key[0], asset=key[1], delta_add=int(delta_add), delta_sub=int(delta_sub)))
-    return out
-
-
-def _aggregate_lp_deltas_chunked(
-    deltas: List[LPDelta], *, chunk_size: int
-) -> List[LPDelta]:
-    global_acc: Dict[Tuple[PubKey, str], Tuple[Amount, Amount]] = {}
-    step = max(1, int(chunk_size))
-    for i in range(0, len(deltas), step):
-        chunk_acc: Dict[Tuple[PubKey, str], Tuple[Amount, Amount]] = {}
-        for d in deltas[i : i + step]:
-            key = (d.pubkey, d.pool_id)
-            add_prev, sub_prev = chunk_acc.get(key, (0, 0))
-            chunk_acc[key] = (int(add_prev) + int(d.delta_add), int(sub_prev) + int(d.delta_sub))
-        for key, (add_chunk, sub_chunk) in chunk_acc.items():
-            add_prev, sub_prev = global_acc.get(key, (0, 0))
-            global_acc[key] = (int(add_prev) + int(add_chunk), int(sub_prev) + int(sub_chunk))
-
-    out: List[LPDelta] = []
-    for key in sorted(global_acc.keys()):
-        delta_add, delta_sub = global_acc[key]
-        if delta_add == 0 and delta_sub == 0:
-            continue
-        out.append(LPDelta(pubkey=key[0], pool_id=key[1], delta_add=int(delta_add), delta_sub=int(delta_sub)))
-    return out
-
-
 def _try_create_pool(
     intent: Intent,
     pool_states: Dict[str, PoolState],
@@ -566,61 +468,6 @@ def _try_create_pool(
         pool_state,
         None,
     )
-
-
-def _apply_create_pool_to_locals(
-    intent: Intent,
-    pool_id: str,
-    created_pool: PoolState,
-    balances: BalanceTable,
-    lp_balances: LPTable,
-    balance_deltas: List[BalanceDelta],
-    reserve_deltas: List[ReserveDelta],
-    lp_deltas: List[LPDelta],
-    events: List[Dict[str, Any]],
-) -> None:
-    sender = intent.sender_pubkey
-    asset0 = intent.get_field("asset0")
-    asset1 = intent.get_field("asset1")
-    fee_bps = intent.get_field("fee_bps")
-    amount0 = intent.get_field("amount0")
-    amount1 = intent.get_field("amount1")
-    created_at = intent.get_field("created_at", created_pool.created_at)
-
-    if asset0 is None or asset1 is None or amount0 is None or amount1 is None:
-        raise RuntimeError("create_pool fill missing required asset or amount fields")
-
-    lp_minted = created_pool.lp_supply - MIN_LP_LOCK
-
-    # Apply to local state (so later intents see updated balances/LP).
-    balances.subtract(sender, asset0, amount0)
-    balances.subtract(sender, asset1, amount1)
-    lp_balances.add(sender, pool_id, lp_minted)
-    lp_balances.add(LP_LOCK_PUBKEY, pool_id, MIN_LP_LOCK)
-
-    # Emit create event. Apply reserves/supply via deltas for conservation.
-    events.append(
-        {
-            "type": "CREATE_POOL",
-            "pool_id": pool_id,
-            "asset0": asset0,
-            "asset1": asset1,
-            "fee_bps": fee_bps,
-            "curve_tag": created_pool.curve_tag,
-            "curve_params": created_pool.curve_params,
-            "status": PoolStatus.ACTIVE.value,
-            "created_at": created_at,
-        }
-    )
-
-    balance_deltas.append(BalanceDelta(pubkey=sender, asset=asset0, delta_add=0, delta_sub=amount0))
-    balance_deltas.append(BalanceDelta(pubkey=sender, asset=asset1, delta_add=0, delta_sub=amount1))
-
-    reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=amount0, delta_sub=0))
-    reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset1, delta_add=amount1, delta_sub=0))
-
-    lp_deltas.append(LPDelta(pubkey=sender, pool_id=pool_id, delta_add=lp_minted, delta_sub=0))
-    lp_deltas.append(LPDelta(pubkey=LP_LOCK_PUBKEY, pool_id=pool_id, delta_add=MIN_LP_LOCK, delta_sub=0))
 
 
 def _apply_filled_intent_to_locals(
