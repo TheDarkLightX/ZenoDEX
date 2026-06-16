@@ -53,6 +53,25 @@ def test_sealed_bid_bond_reveal_without_commit_fails_closed() -> None:
         )
 
 
+def test_sealed_bid_bond_decisions_are_canonical_commitment_then_bidder_order() -> None:
+    outcome = settle_sealed_bid_non_reveal_bonds(
+        commits=[
+            BondedSealedBidCommit("carol", "c2", 7),
+            BondedSealedBidCommit("bob", "c1", 5),
+            BondedSealedBidCommit("alice", "c1", 3),
+        ],
+        reveals=[SealedBidRevealRef("alice", "c1")],
+    )
+
+    assert [(decision.commitment, decision.bidder_id) for decision in outcome.decisions] == [
+        ("c1", "alice"),
+        ("c1", "bob"),
+        ("c2", "carol"),
+    ]
+    assert [decision.refunded for decision in outcome.decisions] == [3, 0, 0]
+    assert [decision.slashed for decision in outcome.decisions] == [0, 5, 7]
+
+
 @pytest.mark.parametrize(
     "bond_amount,expect_error",
     [
