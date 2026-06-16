@@ -409,7 +409,6 @@ def test_interpretable_gate_tradeoff_on_holdout_distribution() -> None:
     piecewise_capture_rate = piecewise_capture / total_improvement
     fee_piecewise_capture_rate = fee_piecewise_capture / total_improvement
     tripiece_capture_rate = tripiece_capture / total_improvement
-    stress_avg_calls = stress_calls / feasible
     combo_avg_calls = combo_calls / feasible
     adaptive_avg_calls = adaptive_calls / feasible
     piecewise_avg_calls = piecewise_calls / feasible

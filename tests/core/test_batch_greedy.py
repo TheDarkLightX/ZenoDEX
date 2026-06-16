@@ -4,10 +4,6 @@ from __future__ import annotations
 
 import hashlib
 
-from src.state.intents import Intent, IntentKind
-from src.state.pools import PoolState, PoolStatus
-from src.state.balances import BalanceTable
-from src.state.lp import LPTable
 from src.core.batch_clearing import (
     _SWAP_ORDERING_GREEDY_AB,
     _SWAP_ORDERING_LIMIT_PRICE,
@@ -16,6 +12,10 @@ from src.core.batch_clearing import (
     compute_settlement,
 )
 from src.core.settlement import FillAction
+from src.state.balances import BalanceTable
+from src.state.intents import Intent, IntentKind
+from src.state.lp import LPTable
+from src.state.pools import PoolState, PoolStatus
 
 
 def _make_pool(reserve0: int = 1_000_000, reserve1: int = 1_000_000, fee_bps: int = 30) -> PoolState:
