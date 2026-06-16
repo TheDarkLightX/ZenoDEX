@@ -145,6 +145,13 @@ class _ReplayContext:
 
 
 @dataclass(frozen=True)
+class _SettlementPreState:
+    balances: BalanceTable
+    pools: Dict[str, PoolState]
+    lp_balances: Optional[LPTable]
+
+
+@dataclass(frozen=True)
 class _CreatePoolReplayInput:
     intent_id: str
     sender: PubKey
@@ -1481,17 +1488,12 @@ def _replay_swap_exact_out_fill(
 def _validate_replayed_payload(
     *,
     settlement: Settlement,
-    bal_deltas: List[BalanceDelta],
-    res_deltas: List[ReserveDelta],
-    lp_deltas: List[LPDelta],
-    expected_events: List[dict],
-    pre_balances: BalanceTable,
-    pre_pools: Dict[str, PoolState],
-    pre_lp_balances: Optional[LPTable],
+    replay: _ReplayContext,
+    pre_state: _SettlementPreState,
 ) -> Tuple[bool, Optional[str]]:
-    expected_balance = _aggregate_balance_deltas(bal_deltas)
-    expected_reserve = _aggregate_reserve_deltas(res_deltas)
-    expected_lp = _aggregate_lp_deltas(lp_deltas)
+    expected_balance = _aggregate_balance_deltas(replay.bal_deltas)
+    expected_reserve = _aggregate_reserve_deltas(replay.res_deltas)
+    expected_lp = _aggregate_lp_deltas(replay.lp_deltas)
 
     ok, err = _check_canonical_deltas(settlement)
     if not ok:
@@ -1505,7 +1507,7 @@ def _validate_replayed_payload(
         return False, "lp_deltas mismatch vs replay"
 
     got_events_norm = settlement.events or []
-    if got_events_norm != expected_events:
+    if got_events_norm != replay.expected_events:
         return False, "events mismatch vs replay"
 
     # Defense-in-depth: ensure basic conservation/non-negativity in addition to replay checks.
@@ -1513,9 +1515,9 @@ def _validate_replayed_payload(
     # where conservation must be enforced globally across balance deltas.
     ok_legacy, err_legacy = validate_settlement_legacy(
         settlement=settlement,
-        pre_balances=pre_balances,
-        pre_pools=pre_pools,
-        pre_lp_balances=pre_lp_balances,
+        pre_balances=pre_state.balances,
+        pre_pools=pre_state.pools,
+        pre_lp_balances=pre_state.lp_balances,
     )
     if not ok_legacy:
         return False, f"legacy validation failed: {err_legacy}"
@@ -1613,10 +1615,11 @@ def _validate_settlement_strong_impl(
         pre_lp_balances=pre_lp_balances,
     )
     pools = replay.pools
-    expected_events = replay.expected_events
-    bal_deltas = replay.bal_deltas
-    res_deltas = replay.res_deltas
-    lp_deltas = replay.lp_deltas
+    pre_state = _SettlementPreState(
+        balances=pre_balances,
+        pools=pre_pools,
+        lp_balances=pre_lp_balances,
+    )
     protocol_fee_config = _ProtocolFeeReplayConfig(
         share_bps=int(protocol_fee_share_bps),
         recipient_pubkey=protocol_fee_recipient_pubkey,
@@ -1740,13 +1743,8 @@ def _validate_settlement_strong_impl(
 
     return _validate_replayed_payload(
         settlement=settlement,
-        bal_deltas=bal_deltas,
-        res_deltas=res_deltas,
-        lp_deltas=lp_deltas,
-        expected_events=expected_events,
-        pre_balances=pre_balances,
-        pre_pools=pre_pools,
-        pre_lp_balances=pre_lp_balances,
+        replay=replay,
+        pre_state=pre_state,
     )
 
 
