@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 import src.core.batch_clearing as batch_clearing_module
+import src.core.batch_clearing_ordering as batch_clearing_ordering
 from src.core.batch_clearing import (
     _ab_ordering_key,
     _aggregate_balance_deltas_chunked,
@@ -2139,6 +2140,8 @@ def test_non_cpmm_swap_paths_cover_runtime_and_objective_fallbacks(monkeypatch) 
 
     monkeypatch.setattr(batch_clearing_module, "swap_exact_in_for_pool", _fake_swap_exact_in_for_pool)
     monkeypatch.setattr(batch_clearing_module, "swap_exact_out_for_pool", _fake_swap_exact_out_for_pool)
+    monkeypatch.setattr(batch_clearing_ordering, "swap_exact_in_for_pool", _fake_swap_exact_in_for_pool)
+    monkeypatch.setattr(batch_clearing_ordering, "swap_exact_out_for_pool", _fake_swap_exact_out_for_pool)
 
     fill = _process_swap_intent(exact_in_01, reserves, pool, balances)
     assert fill.action == FillAction.FILL
@@ -2251,7 +2254,7 @@ def test_order_swaps_mci_and_refinement_helpers(monkeypatch) -> None:
     def _eval_stub(ordering: list[Intent], *_args: object) -> tuple[int, int]:
         return eval_map[tuple(it.intent_id for it in ordering)]
 
-    monkeypatch.setattr(batch_clearing_module, "_eval_ordering_ab", _eval_stub)
+    monkeypatch.setattr(batch_clearing_ordering, "_eval_ordering_ab", _eval_stub)
     refined = _refine_b_ordering(order, pool_state=pool, reserves=reserves)
     assert [it.intent_id for it in refined] == [valid[1].intent_id, valid[0].intent_id]
     monkeypatch.undo()
@@ -2270,7 +2273,7 @@ def test_order_swaps_mci_and_refinement_helpers(monkeypatch) -> None:
     def _global_eval(ordering: list[Intent], *_args: object) -> tuple[int, int]:
         return global_eval_map[tuple(it.intent_id for it in ordering)]
 
-    monkeypatch.setattr(batch_clearing_module, "_eval_ordering_ab", _global_eval)
+    monkeypatch.setattr(batch_clearing_ordering, "_eval_ordering_ab", _global_eval)
     globally_refined = _refine_ab_ordering_global(order, pool_state=pool, reserves=reserves)
     assert [it.intent_id for it in globally_refined] == [valid[1].intent_id, valid[0].intent_id]
 
@@ -2469,7 +2472,7 @@ def test_order_swaps_optimal_ab_bounded_non_cpmm_objective_paths(monkeypatch) ->
     )
 
     monkeypatch.setattr(
-        batch_clearing_module,
+        batch_clearing_ordering,
         "swap_exact_in_for_pool",
         lambda *_args, **_kwargs: (93, (2_000_100, 1_999_907)),
     )
@@ -2479,7 +2482,7 @@ def test_order_swaps_optimal_ab_bounded_non_cpmm_objective_paths(monkeypatch) ->
     assert sorted(it.intent_id for it in result) == sorted([exact_in.intent_id, exact_in_2.intent_id])
 
     monkeypatch.setattr(
-        batch_clearing_module,
+        batch_clearing_ordering,
         "swap_exact_out_for_pool",
         lambda *_args, **_kwargs: (55, (2_000_055, 1_999_950)),
     )
@@ -2491,7 +2494,7 @@ def test_order_swaps_optimal_ab_bounded_non_cpmm_objective_paths(monkeypatch) ->
     def _boom(*_args: object, **_kwargs: object) -> object:
         raise ValueError("boom")
 
-    monkeypatch.setattr(batch_clearing_module, "swap_exact_out_for_pool", _boom)
+    monkeypatch.setattr(batch_clearing_ordering, "swap_exact_out_for_pool", _boom)
     result = _order_swaps_optimal_ab_bounded(
         [exact_out, exact_out_2], pool_state=pool, balances=balances, reserves=reserves
     )
@@ -2950,7 +2953,7 @@ def test_order_swaps_optimal_ab_bounded_exact_out_exception_path(monkeypatch) ->
     def _boom(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise ValueError("boom")
 
-    monkeypatch.setattr(batch_clearing_module, "swap_exact_out_for_pool", _boom)
+    monkeypatch.setattr(batch_clearing_ordering, "swap_exact_out_for_pool", _boom)
     result = _order_swaps_optimal_ab_bounded(intents, pool_state=pool, balances=balances, reserves=reserves)
     assert sorted(it.intent_id for it in result) == sorted(it.intent_id for it in intents)
 

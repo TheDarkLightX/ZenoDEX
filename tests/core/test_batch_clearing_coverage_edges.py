@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import src.core.batch_clearing as batch_clearing_module
+import src.core.batch_clearing_ordering as batch_clearing_ordering
 from src.core.batch_clearing import _cow_pair_netting_exact_in_v1, _refine_ab_ordering_global
 from src.core.liquidity import create_pool
 from src.state.balances import BalanceTable
@@ -124,7 +124,7 @@ def test_refine_ab_ordering_global_can_exhaust_pass_budget_with_monotone_improve
         counter["n"] += 1
         return counter["n"], counter["n"]
 
-    monkeypatch.setattr(batch_clearing_module, "_eval_ordering_ab", _monotone_eval)
+    monkeypatch.setattr(batch_clearing_ordering, "_eval_ordering_ab", _monotone_eval)
     refined = _refine_ab_ordering_global(order, pool_state=pool, reserves=reserves)
     assert sorted(it.intent_id for it in refined) == sorted(it.intent_id for it in order)
     assert counter["n"] >= 3
