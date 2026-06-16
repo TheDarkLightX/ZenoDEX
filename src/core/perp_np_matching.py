@@ -169,6 +169,36 @@ class MatchResult:
         return sum(self.deltas.values())
 
 
+ReceiptKey = tuple[str, int]
+Survivor = tuple[Intent, int]
+
+
+@dataclass(frozen=True)
+class _MatchContext:
+    current_positions: Mapping[str, int]
+    collaterals: Mapping[str, int]
+    last_nonces: Mapping[str, int]
+    clearing_price_e8: int
+    now_epoch: int
+    params: MatchParams
+
+
+@dataclass(frozen=True)
+class _IntentValidationContext:
+    current: int
+    collateral: int
+    last_nonce: int
+    price_e8: int
+    now_epoch: int
+    params: MatchParams
+
+
+@dataclass(frozen=True)
+class _RationResult:
+    deltas: Sequence[int]
+    revoked: set[str]
+
+
 # --- Full matcher pipeline (tested by pytest; not the Kani target) -------------
 def match_intents(
     intents: Sequence[Intent],
@@ -189,89 +219,180 @@ def match_intents(
     if clearing_price_e8 <= 0:
         raise ValueError("clearing_price_e8 must be positive")
 
-    receipts: dict[tuple[str, int], IntentReceipt] = {}
-
-    # 1) Canonical order: sort by pubkey bytes, then nonce (highest last so it wins).
-    ordered = sorted(intents, key=lambda it: (it.pubkey, it.nonce))
-
-    # 2+3) Per account, the HIGHEST-NONCE *VALID* intent wins. Each account's intents are
-    #     validated first (ascending nonce); an invalid higher-nonce intent gets its OWN
-    #     reject code (REJ_EXPIRED/REJ_BAD_NONCE/REJ_MARGIN/...) and must NOT cancel a valid
-    #     lower-nonce intent. A valid intent that loses to a higher valid one is SUPERSEDED.
-    by_pubkey: dict[str, list[Intent]] = {}
-    for it in ordered:
-        by_pubkey.setdefault(it.pubkey, []).append(it)
-
-    survivors: list[tuple[Intent, int]] = []  # (intent, desired_delta)
-    for pk in sorted(by_pubkey):
-        cur = int(current_positions.get(pk, 0))
-        coll = int(collaterals.get(pk, 0))
-        last_nonce = int(last_nonces.get(pk, -1))
-        # Reject ALL intents sharing a nonce within this batch: otherwise the operator could
-        # choose which same-nonce intent executes by ordering them (front-running / discretion).
-        nonce_counts: dict[int, int] = {}
-        for it in by_pubkey[pk]:
-            nonce_counts[it.nonce] = nonce_counts.get(it.nonce, 0) + 1
-        chosen_it: Intent | None = None
-        for it in by_pubkey[pk]:  # ascending nonce
-            if nonce_counts[it.nonce] > 1:
-                receipts[_rkey(it)] = IntentReceipt(it.pubkey, it.nonce, "rejected",
-                                                    reject_code=REJ_DUP_NONCE)
-                continue
-            code = _validate_intent(it, cur, coll, last_nonce, clearing_price_e8, now_epoch, params)
-            if code is not None:
-                receipts[_rkey(it)] = IntentReceipt(it.pubkey, it.nonce, "rejected", reject_code=code)
-                continue
-            if chosen_it is not None:  # a valid lower-nonce intent is superseded by this one
-                receipts[_rkey(chosen_it)] = IntentReceipt(chosen_it.pubkey, chosen_it.nonce,
-                                                           "rejected", reject_code=REJ_SUPERSEDED)
-            chosen_it = it
-        if chosen_it is not None:
-            survivors.append((chosen_it, chosen_it.target_base - cur))
-
-    # 4) ration_net_zero + 5) min-fill revocation loop (monotone -> terminates).
-    revoked: set[str] = set()
-    while True:
-        desired = [d if it.pubkey not in revoked else 0 for it, d in survivors]
-        deltas = ration_net_zero(desired)
-        newly_revoked = False
-        for (it, _), delta in zip(survivors, deltas, strict=True):
-            if it.pubkey in revoked:
-                continue
-            if 0 < abs(delta) < it.min_fill_base:
-                revoked.add(it.pubkey)
-                newly_revoked = True
-        if not newly_revoked:
-            break
-
-    # 6/7) Overflow + post-match invariant re-check; build receipts.
-    out_deltas: dict[str, int] = {}
-    for (it, _d), delta in zip(survivors, deltas, strict=True):
-        if it.pubkey in revoked:
-            receipts[_rkey(it)] = IntentReceipt(it.pubkey, it.nonce, "filled", delta=0)
-            continue
-        cur_pos = int(current_positions.get(it.pubkey, 0))
-        new_pos = cur_pos + delta
-        coll = int(collaterals.get(it.pubkey, 0))
-        # Only RISK-INCREASING fills (grow same-side exposure or cross zero to the other side)
-        # must satisfy initial margin. A pure same-side reduction never needs more margin than
-        # already legally held, so it must NOT be dropped -- dropping it would unpair its
-        # counterparty and break net-zero. For risk-increasing fills |delta| <= |desired| and the
-        # target already passed validation, so this branch is unreachable -> fail-closed if it fires.
-        if (_increases_risk(cur_pos, new_pos)
-                and coll < initial_margin_req_e8(new_pos, clearing_price_e8, params.initial_margin_bps)):
-            receipts[_rkey(it)] = IntentReceipt(it.pubkey, it.nonce, "rejected",
-                                                reject_code=REJ_INVARIANT)
-            continue
-        receipts[_rkey(it)] = IntentReceipt(it.pubkey, it.nonce, "filled", delta=delta)
-        if delta != 0:
-            out_deltas[it.pubkey] = delta
+    ctx = _MatchContext(
+        current_positions=current_positions,
+        collaterals=collaterals,
+        last_nonces=last_nonces,
+        clearing_price_e8=clearing_price_e8,
+        now_epoch=now_epoch,
+        params=params,
+    )
+    survivors, receipts = _select_survivors_by_account(intents=intents, ctx=ctx)
+    rationed = _apply_min_fill_revocation(survivors=survivors)
+    out_deltas = _finalize_match_receipts(
+        ctx=ctx,
+        survivors=survivors,
+        rationed=rationed,
+        receipts=receipts,
+    )
 
     ordered_receipts = tuple(receipts[k] for k in sorted(receipts))
     result = MatchResult(out_deltas, ordered_receipts, clearing_price_e8, now_epoch)
     if result.net != 0:  # defence in depth; ration_net_zero guarantees this
         raise AssertionError("matcher produced non-zero net")
     return result
+
+
+def _group_intents_by_pubkey(intents: Sequence[Intent]) -> dict[str, list[Intent]]:
+    ordered = sorted(intents, key=lambda it: (it.pubkey, it.nonce))
+    by_pubkey: dict[str, list[Intent]] = {}
+    for it in ordered:
+        by_pubkey.setdefault(it.pubkey, []).append(it)
+    return by_pubkey
+
+
+def _nonce_counts(intents: Sequence[Intent]) -> dict[int, int]:
+    counts: dict[int, int] = {}
+    for it in intents:
+        counts[it.nonce] = counts.get(it.nonce, 0) + 1
+    return counts
+
+
+def _select_survivors_by_account(
+    *,
+    intents: Sequence[Intent],
+    ctx: _MatchContext,
+) -> tuple[list[Survivor], dict[ReceiptKey, IntentReceipt]]:
+    # Per account, the HIGHEST-NONCE valid intent wins. Invalid higher-nonce
+    # intents keep their own reject code and do not cancel lower valid intents.
+    by_pubkey = _group_intents_by_pubkey(intents)
+    receipts: dict[ReceiptKey, IntentReceipt] = {}
+    survivors: list[Survivor] = []
+    for pubkey in sorted(by_pubkey):
+        chosen = _select_account_survivor(
+            pubkey=pubkey,
+            account_intents=by_pubkey[pubkey],
+            ctx=ctx,
+            receipts=receipts,
+        )
+        if chosen is not None:
+            survivors.append(chosen)
+    return survivors, receipts
+
+
+def _select_account_survivor(
+    *,
+    pubkey: str,
+    account_intents: Sequence[Intent],
+    ctx: _MatchContext,
+    receipts: dict[ReceiptKey, IntentReceipt],
+) -> Survivor | None:
+    cur = int(ctx.current_positions.get(pubkey, 0))
+    coll = int(ctx.collaterals.get(pubkey, 0))
+    last_nonce = int(ctx.last_nonces.get(pubkey, -1))
+    validation = _IntentValidationContext(
+        current=cur,
+        collateral=coll,
+        last_nonce=last_nonce,
+        price_e8=ctx.clearing_price_e8,
+        now_epoch=ctx.now_epoch,
+        params=ctx.params,
+    )
+    nonce_counts = _nonce_counts(account_intents)
+    chosen_it: Intent | None = None
+    for it in account_intents:  # ascending nonce
+        if nonce_counts[it.nonce] > 1:
+            receipts[_rkey(it)] = IntentReceipt(
+                it.pubkey,
+                it.nonce,
+                "rejected",
+                reject_code=REJ_DUP_NONCE,
+            )
+            continue
+        code = _validate_intent(it, validation)
+        if code is not None:
+            receipts[_rkey(it)] = IntentReceipt(it.pubkey, it.nonce, "rejected", reject_code=code)
+            continue
+        if chosen_it is not None:
+            receipts[_rkey(chosen_it)] = IntentReceipt(
+                chosen_it.pubkey,
+                chosen_it.nonce,
+                "rejected",
+                reject_code=REJ_SUPERSEDED,
+            )
+        chosen_it = it
+    if chosen_it is None:
+        return None
+    return chosen_it, chosen_it.target_base - cur
+
+
+def _apply_min_fill_revocation(
+    *, survivors: Sequence[Survivor]
+) -> _RationResult:
+    # Monotone loop: each pass can only add revoked pubkeys, so it terminates
+    # after at most len(survivors) revocations.
+    revoked: set[str] = set()
+    while True:
+        desired = [d if it.pubkey not in revoked else 0 for it, d in survivors]
+        deltas = ration_net_zero(desired)
+        newly_revoked = _collect_min_fill_revocations(
+            survivors=survivors,
+            deltas=deltas,
+            revoked=revoked,
+        )
+        if not newly_revoked:
+            return _RationResult(deltas=deltas, revoked=revoked)
+
+
+def _collect_min_fill_revocations(
+    *,
+    survivors: Sequence[Survivor],
+    deltas: Sequence[int],
+    revoked: set[str],
+) -> bool:
+    newly_revoked = False
+    for (it, _), delta in zip(survivors, deltas, strict=True):
+        if it.pubkey in revoked:
+            continue
+        if 0 < abs(delta) < it.min_fill_base:
+            revoked.add(it.pubkey)
+            newly_revoked = True
+    return newly_revoked
+
+
+def _finalize_match_receipts(
+    *,
+    ctx: _MatchContext,
+    survivors: Sequence[Survivor],
+    rationed: _RationResult,
+    receipts: dict[ReceiptKey, IntentReceipt],
+) -> dict[str, int]:
+    out_deltas: dict[str, int] = {}
+    for (it, _d), delta in zip(survivors, rationed.deltas, strict=True):
+        if it.pubkey in rationed.revoked:
+            receipts[_rkey(it)] = IntentReceipt(it.pubkey, it.nonce, "filled", delta=0)
+            continue
+        cur_pos = int(ctx.current_positions.get(it.pubkey, 0))
+        new_pos = cur_pos + delta
+        coll = int(ctx.collaterals.get(it.pubkey, 0))
+        # Only RISK-INCREASING fills (grow same-side exposure or cross zero to the other side)
+        # must satisfy initial margin. A pure same-side reduction never needs more margin than
+        # already legally held, so it must NOT be dropped -- dropping it would unpair its
+        # counterparty and break net-zero. For risk-increasing fills |delta| <= |desired| and the
+        # target already passed validation, so this branch is unreachable -> fail-closed if it fires.
+        if (_increases_risk(cur_pos, new_pos)
+                and coll < initial_margin_req_e8(
+                    new_pos,
+                    ctx.clearing_price_e8,
+                    ctx.params.initial_margin_bps,
+                )):
+            receipts[_rkey(it)] = IntentReceipt(it.pubkey, it.nonce, "rejected",
+                                                reject_code=REJ_INVARIANT)
+            continue
+        receipts[_rkey(it)] = IntentReceipt(it.pubkey, it.nonce, "filled", delta=delta)
+        if delta != 0:
+            out_deltas[it.pubkey] = delta
+    return out_deltas
 
 
 def _rkey(it: Intent) -> tuple[str, int]:
@@ -285,38 +406,34 @@ def _increases_risk(current: int, target: int) -> bool:
     return current * target < 0 or abs(target) > abs(current)
 
 
-def _validate_intent(
-    it: Intent,
-    current: int,
-    collateral: int,
-    last_nonce: int,
-    price_e8: int,
-    now_epoch: int,
-    params: MatchParams,
-) -> str | None:
+def _validate_intent(it: Intent, ctx: _IntentValidationContext) -> str | None:
     """Return a reject code, or None if the intent may participate. Precedence order
     matches the listing (expiry -> nonce -> bound -> overflow -> margin -> price)."""
-    if it.expiry_epoch < now_epoch:
+    if it.expiry_epoch < ctx.now_epoch:
         return REJ_EXPIRED
-    if it.nonce <= last_nonce:
+    if it.nonce <= ctx.last_nonce:
         return REJ_BAD_NONCE
-    if abs(it.target_base) > params.max_position_abs:
+    if abs(it.target_base) > ctx.params.max_position_abs:
         return REJ_POS_BOUND
-    if abs(it.target_base) * price_e8 > I128_MAX:
+    if abs(it.target_base) * ctx.price_e8 > I128_MAX:
         return REJ_OVERFLOW
     # Initial-margin gate applies whenever the target takes on NEW directional risk: either it
     # grows the same-side exposure (|target| > |current|) OR it CROSSES ZERO to the other side
     # (current * target < 0) -- a flip like long 10 -> short 9 is new short risk, not de-risking,
     # so it must post initial margin (cross-model review caught this zero-crossing bypass). A pure
     # same-side reduction (|target| <= |current|, no sign flip) is always allowed.
-    if (_increases_risk(current, it.target_base)
-            and collateral < initial_margin_req_e8(it.target_base, price_e8, params.initial_margin_bps)):
+    if (_increases_risk(ctx.current, it.target_base)
+            and ctx.collateral < initial_margin_req_e8(
+                it.target_base,
+                ctx.price_e8,
+                ctx.params.initial_margin_bps,
+            )):
         return REJ_MARGIN
-    desired = it.target_base - current
+    desired = it.target_base - ctx.current
     if it.limit_price_e8 != 0 and desired != 0:
-        if desired > 0 and price_e8 > it.limit_price_e8:   # buyer wants p_c <= limit
+        if desired > 0 and ctx.price_e8 > it.limit_price_e8:   # buyer wants p_c <= limit
             return REJ_PRICE
-        if desired < 0 and price_e8 < it.limit_price_e8:   # seller wants p_c >= limit
+        if desired < 0 and ctx.price_e8 < it.limit_price_e8:   # seller wants p_c >= limit
             return REJ_PRICE
     return None
 
@@ -324,57 +441,83 @@ def _validate_intent(
 # --- Deterministic self-test CLI ----------------------------------------------
 def _selftest() -> dict:
     """Deterministic battery: assert net-zero, sign-consistency, |delta|<=|desired|."""
+    ration_checked, failures = _run_ration_selftest()
+    match_failures = _run_match_intents_selftest()
+    failures.extend(match_failures)
+    checked = ration_checked + 1
+    return {"ok": not failures, "checked": checked, "failures": failures}
+
+
+def _run_ration_selftest() -> tuple[int, list[str]]:
     failures: list[str] = []
     checked = 0
-    stream_state = 20260601
-
-    def deterministic_int(lo: int, hi: int) -> int:
-        nonlocal stream_state
-        if lo > hi:
-            raise ValueError("lo must be <= hi")
-        stream_state = (6364136223846793005 * stream_state + 1442695040888963407) % (1 << 64)
-        return lo + (stream_state % (hi - lo + 1))
-
-    def check_ration(desired: list[int]) -> None:
-        nonlocal checked
-        out = ration_net_zero(desired)
+    for desired in _handpicked_ration_cases():
+        failures.extend(_check_ration_case(list(desired)))
         checked += 1
-        if sum(out) != 0:
-            failures.append(f"net!=0 for {desired} -> {out}")
-        for d, o in zip(desired, out, strict=True):
-            if d >= 0 and not (0 <= o <= d):
-                failures.append(f"sign/bound for d={d} o={o}")
-            if d < 0 and not (d <= o <= 0):
-                failures.append(f"sign/bound for d={d} o={o}")
-        # matched volume == min(buy,sell)
-        b = sum(d for d in desired if d > 0)
-        s = -sum(d for d in desired if d < 0)
-        if sum(o for o in out if o > 0) != min(b, s):
-            failures.append(f"volume mismatch for {desired}")
+    for desired in _deterministic_ration_cases(case_count=20000):
+        failures.extend(_check_ration_case(desired))
+        checked += 1
+    return checked, failures
 
-    # Hand-picked edge cases.
-    for case in (
-        [],
-        [0, 0],
-        [5, -5],
-        [1, 1, 1, -2],     # classic remainder case: buys 3 vs sell 2
-        [3, -1, -1, -1],
-        [7, -3, -4],
-        [100, -1, -1, -1, -1],
-        [-10, 4, 4, 4],
-        [1000000, -999999, -1],
-        [2, 2, 2, -3],     # heavy buys 6 vs sell 3 -> ration to (1,1,1)
-    ):
-        check_ration(list(case))
 
-    # Deterministic pseudo-random battery. Keep the generator local and integer-only
-    # so `src/core` stays free of ambient randomness imports.
-    for _ in range(20000):
-        n = deterministic_int(0, 8)
-        desired = [deterministic_int(-50, 50) for _ in range(n)]
-        check_ration(desired)
+def _handpicked_ration_cases() -> tuple[tuple[int, ...], ...]:
+    return (
+        (),
+        (0, 0),
+        (5, -5),
+        (1, 1, 1, -2),     # classic remainder case: buys 3 vs sell 2
+        (3, -1, -1, -1),
+        (7, -3, -4),
+        (100, -1, -1, -1, -1),
+        (-10, 4, 4, 4),
+        (1000000, -999999, -1),
+        (2, 2, 2, -3),     # heavy buys 6 vs sell 3 -> ration to (1,1,1)
+    )
 
-    # End-to-end match_intents: net-zero + min-fill respected.
+
+def _next_deterministic_int(*, state: int, lo: int, hi: int) -> tuple[int, int]:
+    if lo > hi:
+        raise ValueError("lo must be <= hi")
+    next_state = (6364136223846793005 * state + 1442695040888963407) % (1 << 64)
+    return next_state, lo + (next_state % (hi - lo + 1))
+
+
+def _deterministic_ration_cases(*, case_count: int) -> list[list[int]]:
+    cases: list[list[int]] = []
+    stream_state = 20260601
+    for _ in range(case_count):
+        stream_state, n = _next_deterministic_int(state=stream_state, lo=0, hi=8)
+        desired: list[int] = []
+        for _ in range(n):
+            stream_state, value = _next_deterministic_int(
+                state=stream_state,
+                lo=-50,
+                hi=50,
+            )
+            desired.append(value)
+        cases.append(desired)
+    return cases
+
+
+def _check_ration_case(desired: list[int]) -> list[str]:
+    failures: list[str] = []
+    out = ration_net_zero(desired)
+    if sum(out) != 0:
+        failures.append(f"net!=0 for {desired} -> {out}")
+    for d, o in zip(desired, out, strict=True):
+        if d >= 0 and not (0 <= o <= d):
+            failures.append(f"sign/bound for d={d} o={o}")
+        if d < 0 and not (d <= o <= 0):
+            failures.append(f"sign/bound for d={d} o={o}")
+    buy_volume = sum(d for d in desired if d > 0)
+    sell_volume = -sum(d for d in desired if d < 0)
+    if sum(o for o in out if o > 0) != min(buy_volume, sell_volume):
+        failures.append(f"volume mismatch for {desired}")
+    return failures
+
+
+def _run_match_intents_selftest() -> list[str]:
+    failures: list[str] = []
     params = MatchParams(initial_margin_bps=1000, max_position_abs=1_000_000)
     price = 100 * E8
     intents = [
@@ -385,14 +528,12 @@ def _selftest() -> dict:
     colls = {"aa": 10 * params.initial_margin_bps * price // BPS_SCALE // E8 * E8 + 10**18,
              "bb": 10**18, "cc": 10**18}
     res = match_intents(intents, {}, colls, {}, price, now_epoch=1, params=params)
-    checked += 1
     if res.net != 0:
         failures.append("match_intents net!=0")
     for r in res.receipts:
         if r.status == "filled" and 0 < abs(r.delta) < _min_fill(intents, r.pubkey):
             failures.append(f"min-fill violated for {r.pubkey}: {r.delta}")
-
-    return {"ok": not failures, "checked": checked, "failures": failures}
+    return failures
 
 
 def _min_fill(intents: Sequence[Intent], pubkey: str) -> int:

@@ -19,8 +19,12 @@ sys.path.insert(0, str(ROOT))
 import src.core.perp_np_clearinghouse as C  # noqa: E402
 from src.core.perp_np_matching import (  # noqa: E402
     E8,
+    REJ_EXPIRED,
+    REJ_SUPERSEDED,
     Intent,
+    MatchParams,
     _selftest,
+    match_intents,
     ration_net_zero,
 )
 from src.core.perps import (  # noqa: E402
@@ -101,6 +105,82 @@ def test_matcher_selftest_is_deterministic_and_passes():
     assert result["ok"] is True
     assert result["checked"] == 20011
     assert result["failures"] == []
+
+
+def test_matcher_higher_valid_nonce_supersedes_lower_valid_intent():
+    params = MatchParams(initial_margin_bps=1000, max_position_abs=1_000_000)
+    price = 100 * E8
+    res = match_intents(
+        [
+            Intent("alice", target_base=5, nonce=1),
+            Intent("alice", target_base=10, nonce=2),
+            Intent("bob", target_base=-10, nonce=1),
+        ],
+        current_positions={},
+        collaterals={"alice": 10**15, "bob": 10**15},
+        last_nonces={},
+        clearing_price_e8=price,
+        now_epoch=1,
+        params=params,
+    )
+
+    assert res.deltas == {"alice": 10, "bob": -10}
+    assert [(r.pubkey, r.nonce, r.status, r.delta, r.reject_code) for r in res.receipts] == [
+        ("alice", 1, "rejected", 0, REJ_SUPERSEDED),
+        ("alice", 2, "filled", 10, None),
+        ("bob", 1, "filled", -10, None),
+    ]
+
+
+def test_matcher_invalid_higher_nonce_does_not_supersede_lower_valid_intent():
+    params = MatchParams(initial_margin_bps=1000, max_position_abs=1_000_000)
+    price = 100 * E8
+    res = match_intents(
+        [
+            Intent("alice", target_base=5, nonce=1),
+            Intent("alice", target_base=10, expiry_epoch=0, nonce=2),
+            Intent("bob", target_base=-5, nonce=1),
+        ],
+        current_positions={},
+        collaterals={"alice": 10**15, "bob": 10**15},
+        last_nonces={},
+        clearing_price_e8=price,
+        now_epoch=1,
+        params=params,
+    )
+
+    assert res.deltas == {"alice": 5, "bob": -5}
+    assert [(r.pubkey, r.nonce, r.status, r.delta, r.reject_code) for r in res.receipts] == [
+        ("alice", 1, "filled", 5, None),
+        ("alice", 2, "rejected", 0, REJ_EXPIRED),
+        ("bob", 1, "filled", -5, None),
+    ]
+
+
+def test_matcher_min_fill_revocation_is_net_zero_and_noop_for_revoked_intent():
+    params = MatchParams(initial_margin_bps=1000, max_position_abs=1_000_000)
+    price = 100 * E8
+    res = match_intents(
+        [
+            Intent("alice", target_base=10, min_fill_base=8, nonce=1),
+            Intent("bob", target_base=-3, nonce=1),
+            Intent("carol", target_base=-3, nonce=1),
+        ],
+        current_positions={},
+        collaterals={"alice": 10**15, "bob": 10**15, "carol": 10**15},
+        last_nonces={},
+        clearing_price_e8=price,
+        now_epoch=1,
+        params=params,
+    )
+
+    assert res.net == 0
+    assert res.deltas == {}
+    assert [(r.pubkey, r.status, r.delta, r.reject_code) for r in res.receipts] == [
+        ("alice", "filled", 0, None),
+        ("bob", "filled", 0, None),
+        ("carol", "filled", 0, None),
+    ]
 
 
 # --- persistent market state type (snapshot-grade, fail-closed) -------------
