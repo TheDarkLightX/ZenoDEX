@@ -124,6 +124,21 @@ class _CowPairEntry:
     amount_out_filled: int
 
 
+@dataclass(frozen=True)
+class _CowPairIntentFields:
+    pool_id: str
+    asset_in: AssetId
+    asset_out: AssetId
+    amount_in: int
+    min_out: int
+
+
+@dataclass(frozen=True)
+class _CowPairFillAmounts:
+    amount_in_filled: int
+    amount_out_filled: int
+
+
 _CowPairKey = Tuple[str, AssetId, AssetId, int, int]
 
 
@@ -378,17 +393,19 @@ def _cow_pair_reciprocal_key(entry: _CowPairEntry) -> _CowPairKey:
     )
 
 
-def _parse_cow_pair_entry(
+def _validate_cow_pair_shape(*, intent_id: str, intent: Intent, fill: Fill) -> Optional[str]:
+    if fill.action != FillAction.FILL:
+        return f"COW_NETTED requires filled action: intent_id={intent_id}"
+    if intent.kind != IntentKind.SWAP_EXACT_IN:
+        return f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={intent_id}"
+    return None
+
+
+def _parse_cow_pair_intent_fields(
     *,
     intent_id: str,
     intent: Intent,
-    fill: Fill,
-) -> Tuple[Optional[_CowPairEntry], Optional[str]]:
-    if fill.action != FillAction.FILL:
-        return None, f"COW_NETTED requires filled action: intent_id={intent_id}"
-    if intent.kind != IntentKind.SWAP_EXACT_IN:
-        return None, f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={intent_id}"
-
+) -> Tuple[Optional[_CowPairIntentFields], Optional[str]]:
     pool_id = intent.get_field("pool_id")
     if not isinstance(pool_id, str) or not pool_id:
         return None, f"missing pool_id for intent_id={intent_id}"
@@ -398,27 +415,63 @@ def _parse_cow_pair_entry(
         return None, f"invalid asset_in/out for intent_id={intent_id}"
     amount_in = intent.get_field("amount_in")
     min_out = intent.get_field("min_amount_out", 0)
-    if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
+    if not is_strict_int(amount_in) or int(amount_in) <= 0:
         return None, f"invalid amount_in for intent_id={intent_id}"
-    if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
+    if not is_strict_int(min_out) or int(min_out) < 0:
         return None, f"invalid min_amount_out for intent_id={intent_id}"
+    return (
+        _CowPairIntentFields(
+            pool_id=pool_id,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_in=int(amount_in),
+            min_out=int(min_out),
+        ),
+        None,
+    )
+
+
+def _parse_cow_pair_fill_amounts(
+    *,
+    intent_id: str,
+    fill: Fill,
+    fields: _CowPairIntentFields,
+) -> Tuple[Optional[_CowPairFillAmounts], Optional[str]]:
     if int(fill.fee_paid or 0) != 0:
         return None, f"COW_NETTED fee_paid must be 0: intent_id={intent_id}"
-    if not is_strict_int(fill.amount_in_filled) or int(fill.amount_in_filled or 0) != int(amount_in):
+    if not is_strict_int(fill.amount_in_filled) or int(fill.amount_in_filled or 0) != fields.amount_in:
         return None, f"COW_NETTED amount_in_filled mismatch: intent_id={intent_id}"
     if not is_strict_int(fill.amount_out_filled):
         return None, f"COW_NETTED amount_out_filled invalid: intent_id={intent_id}"
     out_amt = int(fill.amount_out_filled or 0)
-    if out_amt < int(min_out):
+    if out_amt < fields.min_out:
         return None, f"COW_NETTED slippage: intent_id={intent_id}"
+    return _CowPairFillAmounts(amount_in_filled=int(fill.amount_in_filled or 0), amount_out_filled=out_amt), None
+
+
+def _parse_cow_pair_entry(
+    *,
+    intent_id: str,
+    intent: Intent,
+    fill: Fill,
+) -> Tuple[Optional[_CowPairEntry], Optional[str]]:
+    shape_error = _validate_cow_pair_shape(intent_id=intent_id, intent=intent, fill=fill)
+    if shape_error is not None:
+        return None, shape_error
+    fields, field_error = _parse_cow_pair_intent_fields(intent_id=intent_id, intent=intent)
+    if fields is None:
+        return None, field_error
+    amounts, amount_error = _parse_cow_pair_fill_amounts(intent_id=intent_id, fill=fill, fields=fields)
+    if amounts is None:
+        return None, amount_error
     return (
         _CowPairEntry(
             intent_id=intent_id,
-            pool_id=pool_id,
-            asset_in=asset_in,
-            asset_out=asset_out,
-            amount_in_filled=int(fill.amount_in_filled or 0),
-            amount_out_filled=out_amt,
+            pool_id=fields.pool_id,
+            asset_in=fields.asset_in,
+            asset_out=fields.asset_out,
+            amount_in_filled=amounts.amount_in_filled,
+            amount_out_filled=amounts.amount_out_filled,
         ),
         None,
     )
