@@ -85,6 +85,24 @@ class _WindowSearchPlan:
     total_out: Callable[[int], int | None]
 
 
+@dataclass
+class _DgstrSearchState:
+    lo: int
+    hi: int
+    a_star: int
+    window: int
+    total_out: Callable[[int], int | None]
+    point_vals: dict[int, int | None]
+
+    def probe(self, a: int) -> int | None:
+        if not (self.lo <= int(a) <= self.hi):
+            return None
+        key = int(a)
+        if key not in self.point_vals:
+            self.point_vals[key] = self.total_out(key)
+        return self.point_vals[key]
+
+
 @dataclass(frozen=True)
 class _SplitRoutingFeatures:
     min_x: int
@@ -373,6 +391,76 @@ def _canonicalize_leftmost(
     return int(best_out), int(best_a)
 
 
+def _dgstr_seed_centers(state: _DgstrSearchState) -> set[int]:
+    span = int(state.hi - state.lo)
+    centers = {int(state.lo), int(state.hi), int((state.lo + state.hi) // 2), int(state.a_star)}
+    if span > 0:
+        for i in range(1, 8):
+            centers.add(int(state.lo + (span * i) // 8))
+    return centers
+
+
+def _dgstr_probe_centers(state: _DgstrSearchState, centers: set[int]) -> tuple[int, int] | None:
+    best: tuple[int, int] | None = None
+    for c in sorted(centers):
+        val = state.probe(int(c))
+        if val is None:
+            continue
+        candidate = (int(val), int(c))
+        if _is_better_candidate(candidate, best):
+            best = candidate
+    return best
+
+
+def _dgstr_narrow_window(state: _DgstrSearchState) -> tuple[int, int]:
+    cur_lo = int(state.lo)
+    cur_hi = int(state.hi)
+    while cur_hi - cur_lo > max(4 * int(state.window), 160):
+        span = int(cur_hi - cur_lo)
+        step = max(1, span // 3)
+        m1 = int(cur_lo + step)
+        m2 = int(cur_hi - step)
+        v1 = state.probe(m1)
+        v2 = state.probe(m2)
+        if v2 is None or (v1 is not None and int(v1) > int(v2)):
+            cur_hi = m2
+        elif v1 is None or int(v2) > int(v1):
+            cur_lo = m1
+        else:
+            cur_lo = m1
+            cur_hi = m2
+    return int(cur_lo), int(cur_hi)
+
+
+def _dgstr_rescue_centers(state: _DgstrSearchState, cur_lo: int, cur_hi: int) -> list[int]:
+    ranked = [(int(v), int(a)) for a, v in state.point_vals.items() if v is not None]
+    ranked.sort(key=lambda t: (int(t[0]), -int(t[1])), reverse=True)
+    rescue_centers = [int(a) for _v, a in ranked[:6]]
+    rescue_centers.extend([int(cur_lo), int(cur_hi), int((cur_lo + cur_hi) // 2), int(state.a_star)])
+    return rescue_centers
+
+
+def _dgstr_scan_rescue_windows(
+    state: _DgstrSearchState,
+    *,
+    best: tuple[int, int] | None,
+    rescue_centers: list[int],
+) -> tuple[int, int] | None:
+    seen: set[int] = set()
+    for c in rescue_centers:
+        if int(c) in seen:
+            continue
+        seen.add(int(c))
+        candidate = _scan_range_best(
+            lo=max(int(state.lo), int(c) - int(state.window)),
+            hi=min(int(state.hi), int(c) + int(state.window)),
+            total_out=state.total_out,
+        )
+        if _is_better_candidate(candidate, best):
+            best = candidate
+    return best
+
+
 def _search_dgstr_v1(
     *,
     lo_both: int,
@@ -394,70 +482,25 @@ def _search_dgstr_v1(
     if lo > hi:
         return None
 
-    point_vals: dict[int, int | None] = {}
-
-    def probe(a: int) -> int | None:
-        if not (lo <= int(a) <= hi):
-            return None
-        key = int(a)
-        if key not in point_vals:
-            point_vals[key] = total_out(key)
-        return point_vals[key]
-
-    best: tuple[int, int] | None = None
-    span = int(hi - lo)
-    centers = {int(lo), int(hi), int((lo + hi) // 2), int(a_star)}
-    if span > 0:
-        for i in range(1, 8):
-            centers.add(int(lo + (span * i) // 8))
-
-    for c in sorted(centers):
-        val = probe(int(c))
-        if val is None:
-            continue
-        cand = (int(val), int(c))
-        if _is_better_candidate(cand, best):
-            best = cand
-
-    cur_lo = int(lo)
-    cur_hi = int(hi)
-    while cur_hi - cur_lo > max(4 * int(window), 160):
-        span = int(cur_hi - cur_lo)
-        step = max(1, span // 3)
-        m1 = int(cur_lo + step)
-        m2 = int(cur_hi - step)
-        v1 = probe(int(m1))
-        v2 = probe(int(m2))
-        if v2 is None or (v1 is not None and int(v1) > int(v2)):
-            cur_hi = int(m2)
-        elif v1 is None or int(v2) > int(v1):
-            cur_lo = int(m1)
-        else:
-            cur_lo = int(m1)
-            cur_hi = int(m2)
-
-    ranked = [(int(v), int(a)) for a, v in point_vals.items() if v is not None]
-    ranked.sort(key=lambda t: (int(t[0]), -int(t[1])), reverse=True)
-
-    rescue_centers = [int(a) for _v, a in ranked[:6]]
-    rescue_centers.extend([int(cur_lo), int(cur_hi), int((cur_lo + cur_hi) // 2), int(a_star)])
-
-    seen: set[int] = set()
-    for c in rescue_centers:
-        if int(c) in seen:
-            continue
-        seen.add(int(c))
-        scan_cand = _scan_range_best(
-            lo=max(int(lo), int(c) - int(window)),
-            hi=min(int(hi), int(c) + int(window)),
-            total_out=total_out,
-        )
-        if _is_better_candidate(scan_cand, best):
-            best = scan_cand
+    state = _DgstrSearchState(
+        lo=lo,
+        hi=hi,
+        a_star=int(a_star),
+        window=int(window),
+        total_out=total_out,
+        point_vals={},
+    )
+    best = _dgstr_probe_centers(state, _dgstr_seed_centers(state))
+    cur_lo, cur_hi = _dgstr_narrow_window(state)
+    best = _dgstr_scan_rescue_windows(
+        state,
+        best=best,
+        rescue_centers=_dgstr_rescue_centers(state, cur_lo, cur_hi),
+    )
 
     if best is None:
         return None
-    return _canonicalize_leftmost(lo_both=int(lo), candidate=best, total_out=total_out)
+    return _canonicalize_leftmost(lo_both=lo, candidate=best, total_out=total_out)
 
 
 def _ratio_ge_num_denom(*, a: int, b: int, num: int, denom: int) -> bool:
