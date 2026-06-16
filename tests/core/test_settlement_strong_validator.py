@@ -6,6 +6,8 @@ import ast
 from dataclasses import replace
 from pathlib import Path
 
+import src.core.settlement_quote_binding as settlement_quote_binding
+import src.core.settlement_replay_swaps as settlement_replay_swaps
 import src.core.settlement_strong_validator as strong_validator
 from src.core.batch_clearing import compute_settlement, validate_settlement
 from src.core.dex import DexConfig, DexState
@@ -211,7 +213,7 @@ def _setup_remove_liquidity_context() -> tuple[str, str, str, str, PoolState, Ba
 
 
 def test_quote_binding_error_without_context_returns_reason() -> None:
-    assert strong_validator._quote_binding_error("plain reason") == "plain reason"
+    assert settlement_quote_binding.quote_binding_error("plain reason") == "plain reason"
 
 
 def test_validate_settlement_strong_fail_closed_on_internal_crash_with_detail(monkeypatch) -> None:
@@ -2334,7 +2336,7 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     def _boom_exact_in(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise ValueError("boom")
 
-    monkeypatch.setattr(strong_validator, "swap_exact_in_for_pool", _boom_exact_in)
+    monkeypatch.setattr(settlement_replay_swaps, "swap_exact_in_for_pool", _boom_exact_in)
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -2351,7 +2353,7 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     def _bug_exact_in(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise RuntimeError("helper bug")
 
-    monkeypatch.setattr(strong_validator, "swap_exact_in_for_pool", _bug_exact_in)
+    monkeypatch.setattr(settlement_replay_swaps, "swap_exact_in_for_pool", _bug_exact_in)
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -2466,7 +2468,7 @@ def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monk
     def _boom_exact_out(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise ValueError("boom")
 
-    monkeypatch.setattr(strong_validator, "swap_exact_out_for_pool", _boom_exact_out)
+    monkeypatch.setattr(settlement_replay_swaps, "swap_exact_out_for_pool", _boom_exact_out)
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
