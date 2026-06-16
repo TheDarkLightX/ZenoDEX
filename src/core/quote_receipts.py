@@ -63,6 +63,29 @@ def _require_receipt_gate_flag(value: Any, *, name: str) -> bool:
     raise ValueError(f"{name} must be a bool or 0/1 int")
 
 
+GateFlagSpec = tuple[str, Any]
+GateFailureSpec = tuple[str, str]
+
+
+def _coerce_receipt_gate_checks(specs: tuple[GateFlagSpec, ...]) -> Dict[str, bool]:
+    return {
+        name: _require_receipt_gate_flag(value, name=name)
+        for name, value in specs
+    }
+
+
+def _first_failed_gate_code(
+    *,
+    checks: Dict[str, bool],
+    failures: tuple[GateFailureSpec, ...],
+    ok_code: str,
+) -> str:
+    for check_name, reject_code in failures:
+        if not checks[check_name]:
+            return reject_code
+    return ok_code
+
+
 QUOTE_RECEIPT_PRECHECK_OK = "Ok"
 QUOTE_RECEIPT_PRECHECK_BAD_SCHEMA = "BadSchema"
 QUOTE_RECEIPT_PRECHECK_MISSING_RECEIPT_HASH = "MissingReceiptHash"
@@ -171,50 +194,37 @@ def evaluate_route_quote_receipt_precheck_gate(
     pools_object_ok: Any,
     legs_list_ok: Any,
 ) -> RouteQuoteReceiptPrecheckOutcome:
-    schema_ok_v = _require_receipt_gate_flag(schema_ok, name="schema_ok")
-    receipt_hash_present_v = _require_receipt_gate_flag(receipt_hash_present, name="receipt_hash_present")
-    hash_matches_v = _require_receipt_gate_flag(hash_matches, name="hash_matches")
-    kind_ok_v = _require_receipt_gate_flag(kind_ok, name="kind_ok")
-    canonical_certificate_allowed_v = _require_receipt_gate_flag(
-        canonical_certificate_allowed,
-        name="canonical_certificate_allowed",
+    checks = _coerce_receipt_gate_checks(
+        (
+            ("schema_ok", schema_ok),
+            ("receipt_hash_present", receipt_hash_present),
+            ("hash_matches", hash_matches),
+            ("kind_ok", kind_ok),
+            ("canonical_certificate_allowed", canonical_certificate_allowed),
+            ("body_assets_ok", body_assets_ok),
+            ("quote_epoch_ok", quote_epoch_ok),
+            ("pools_object_ok", pools_object_ok),
+            ("legs_list_ok", legs_list_ok),
+        )
     )
-    body_assets_ok_v = _require_receipt_gate_flag(body_assets_ok, name="body_assets_ok")
-    quote_epoch_ok_v = _require_receipt_gate_flag(quote_epoch_ok, name="quote_epoch_ok")
-    pools_object_ok_v = _require_receipt_gate_flag(pools_object_ok, name="pools_object_ok")
-    legs_list_ok_v = _require_receipt_gate_flag(legs_list_ok, name="legs_list_ok")
-
-    checks = {
-        "schema_ok": schema_ok_v,
-        "receipt_hash_present": receipt_hash_present_v,
-        "hash_matches": hash_matches_v,
-        "kind_ok": kind_ok_v,
-        "canonical_certificate_allowed": canonical_certificate_allowed_v,
-        "body_assets_ok": body_assets_ok_v,
-        "quote_epoch_ok": quote_epoch_ok_v,
-        "pools_object_ok": pools_object_ok_v,
-        "legs_list_ok": legs_list_ok_v,
-    }
-    if not schema_ok_v:
-        reject_code = QUOTE_RECEIPT_PRECHECK_BAD_SCHEMA
-    elif not receipt_hash_present_v:
-        reject_code = QUOTE_RECEIPT_PRECHECK_MISSING_RECEIPT_HASH
-    elif not hash_matches_v:
-        reject_code = QUOTE_RECEIPT_PRECHECK_HASH_MISMATCH
-    elif not kind_ok_v:
-        reject_code = QUOTE_RECEIPT_PRECHECK_BAD_KIND
-    elif not canonical_certificate_allowed_v:
-        reject_code = QUOTE_RECEIPT_PRECHECK_UNEXPECTED_CANONICAL_ROUTE_CERTIFICATE
-    elif not body_assets_ok_v:
-        reject_code = QUOTE_RECEIPT_PRECHECK_BAD_BODY_ASSETS
-    elif not quote_epoch_ok_v:
-        reject_code = QUOTE_RECEIPT_PRECHECK_BAD_QUOTE_EPOCH
-    elif not pools_object_ok_v:
-        reject_code = QUOTE_RECEIPT_PRECHECK_BAD_POOLS
-    elif not legs_list_ok_v:
-        reject_code = QUOTE_RECEIPT_PRECHECK_BAD_LEGS
-    else:
-        reject_code = QUOTE_RECEIPT_PRECHECK_OK
+    reject_code = _first_failed_gate_code(
+        checks=checks,
+        failures=(
+            ("schema_ok", QUOTE_RECEIPT_PRECHECK_BAD_SCHEMA),
+            ("receipt_hash_present", QUOTE_RECEIPT_PRECHECK_MISSING_RECEIPT_HASH),
+            ("hash_matches", QUOTE_RECEIPT_PRECHECK_HASH_MISMATCH),
+            ("kind_ok", QUOTE_RECEIPT_PRECHECK_BAD_KIND),
+            (
+                "canonical_certificate_allowed",
+                QUOTE_RECEIPT_PRECHECK_UNEXPECTED_CANONICAL_ROUTE_CERTIFICATE,
+            ),
+            ("body_assets_ok", QUOTE_RECEIPT_PRECHECK_BAD_BODY_ASSETS),
+            ("quote_epoch_ok", QUOTE_RECEIPT_PRECHECK_BAD_QUOTE_EPOCH),
+            ("pools_object_ok", QUOTE_RECEIPT_PRECHECK_BAD_POOLS),
+            ("legs_list_ok", QUOTE_RECEIPT_PRECHECK_BAD_LEGS),
+        ),
+        ok_code=QUOTE_RECEIPT_PRECHECK_OK,
+    )
     return RouteQuoteReceiptPrecheckOutcome(
         precheck_ok=bool(reject_code == QUOTE_RECEIPT_PRECHECK_OK),
         reject_code=reject_code,
@@ -248,43 +258,35 @@ def evaluate_route_quote_receipt_certificate_gate(
     amount_out_match: Any,
     legs_match: Any,
 ) -> RouteQuoteReceiptCertificateOutcome:
-    cert_present_v = _require_receipt_gate_flag(cert_present, name="cert_present")
-    cert_dict_ok_v = _require_receipt_gate_flag(cert_dict_ok, name="cert_dict_ok")
-    winner_quote_dict_ok_v = _require_receipt_gate_flag(winner_quote_dict_ok, name="winner_quote_dict_ok")
-    asset_in_match_v = _require_receipt_gate_flag(asset_in_match, name="asset_in_match")
-    asset_out_match_v = _require_receipt_gate_flag(asset_out_match, name="asset_out_match")
-    amount_in_match_v = _require_receipt_gate_flag(amount_in_match, name="amount_in_match")
-    amount_out_match_v = _require_receipt_gate_flag(amount_out_match, name="amount_out_match")
-    legs_match_v = _require_receipt_gate_flag(legs_match, name="legs_match")
-
-    checks = {
-        "cert_present": cert_present_v,
-        "cert_dict_ok": cert_dict_ok_v,
-        "winner_quote_dict_ok": winner_quote_dict_ok_v,
-        "asset_in_match": asset_in_match_v,
-        "asset_out_match": asset_out_match_v,
-        "amount_in_match": amount_in_match_v,
-        "amount_out_match": amount_out_match_v,
-        "legs_match": legs_match_v,
-    }
-    if not cert_present_v:
-        reject_code = QUOTE_RECEIPT_CERTIFICATE_OK
-    elif not cert_dict_ok_v:
-        reject_code = QUOTE_RECEIPT_CERTIFICATE_BAD_TYPE
-    elif not winner_quote_dict_ok_v:
-        reject_code = QUOTE_RECEIPT_CERTIFICATE_BAD_WINNER
-    elif not asset_in_match_v:
-        reject_code = QUOTE_RECEIPT_CERTIFICATE_ASSET_IN_MISMATCH
-    elif not asset_out_match_v:
-        reject_code = QUOTE_RECEIPT_CERTIFICATE_ASSET_OUT_MISMATCH
-    elif not amount_in_match_v:
-        reject_code = QUOTE_RECEIPT_CERTIFICATE_AMOUNT_IN_MISMATCH
-    elif not amount_out_match_v:
-        reject_code = QUOTE_RECEIPT_CERTIFICATE_AMOUNT_OUT_MISMATCH
-    elif not legs_match_v:
-        reject_code = QUOTE_RECEIPT_CERTIFICATE_LEGS_MISMATCH
-    else:
-        reject_code = QUOTE_RECEIPT_CERTIFICATE_OK
+    checks = _coerce_receipt_gate_checks(
+        (
+            ("cert_present", cert_present),
+            ("cert_dict_ok", cert_dict_ok),
+            ("winner_quote_dict_ok", winner_quote_dict_ok),
+            ("asset_in_match", asset_in_match),
+            ("asset_out_match", asset_out_match),
+            ("amount_in_match", amount_in_match),
+            ("amount_out_match", amount_out_match),
+            ("legs_match", legs_match),
+        )
+    )
+    reject_code = (
+        QUOTE_RECEIPT_CERTIFICATE_OK
+        if not checks["cert_present"]
+        else _first_failed_gate_code(
+            checks=checks,
+            failures=(
+                ("cert_dict_ok", QUOTE_RECEIPT_CERTIFICATE_BAD_TYPE),
+                ("winner_quote_dict_ok", QUOTE_RECEIPT_CERTIFICATE_BAD_WINNER),
+                ("asset_in_match", QUOTE_RECEIPT_CERTIFICATE_ASSET_IN_MISMATCH),
+                ("asset_out_match", QUOTE_RECEIPT_CERTIFICATE_ASSET_OUT_MISMATCH),
+                ("amount_in_match", QUOTE_RECEIPT_CERTIFICATE_AMOUNT_IN_MISMATCH),
+                ("amount_out_match", QUOTE_RECEIPT_CERTIFICATE_AMOUNT_OUT_MISMATCH),
+                ("legs_match", QUOTE_RECEIPT_CERTIFICATE_LEGS_MISMATCH),
+            ),
+            ok_code=QUOTE_RECEIPT_CERTIFICATE_OK,
+        )
+    )
     return RouteQuoteReceiptCertificateOutcome(
         certificate_ok=bool(reject_code == QUOTE_RECEIPT_CERTIFICATE_OK),
         reject_code=reject_code,
@@ -311,32 +313,22 @@ def evaluate_route_quote_receipt_pool_snapshot_gate(
     all_pools_present: Any,
     all_fingerprints_match: Any,
 ) -> RouteQuoteReceiptPoolSnapshotOutcome:
-    pool_entries_well_formed_v = _require_receipt_gate_flag(
-        pool_entries_well_formed,
-        name="pool_entries_well_formed",
+    checks = _coerce_receipt_gate_checks(
+        (
+            ("pool_entries_well_formed", pool_entries_well_formed),
+            ("all_pools_present", all_pools_present),
+            ("all_fingerprints_match", all_fingerprints_match),
+        )
     )
-    all_pools_present_v = _require_receipt_gate_flag(
-        all_pools_present,
-        name="all_pools_present",
+    reject_code = _first_failed_gate_code(
+        checks=checks,
+        failures=(
+            ("pool_entries_well_formed", QUOTE_RECEIPT_POOL_SNAPSHOT_BAD_FINGERPRINT),
+            ("all_pools_present", QUOTE_RECEIPT_POOL_SNAPSHOT_MISSING_POOL),
+            ("all_fingerprints_match", QUOTE_RECEIPT_POOL_SNAPSHOT_MISMATCH),
+        ),
+        ok_code=QUOTE_RECEIPT_POOL_SNAPSHOT_OK,
     )
-    all_fingerprints_match_v = _require_receipt_gate_flag(
-        all_fingerprints_match,
-        name="all_fingerprints_match",
-    )
-
-    checks = {
-        "pool_entries_well_formed": pool_entries_well_formed_v,
-        "all_pools_present": all_pools_present_v,
-        "all_fingerprints_match": all_fingerprints_match_v,
-    }
-    if not pool_entries_well_formed_v:
-        reject_code = QUOTE_RECEIPT_POOL_SNAPSHOT_BAD_FINGERPRINT
-    elif not all_pools_present_v:
-        reject_code = QUOTE_RECEIPT_POOL_SNAPSHOT_MISSING_POOL
-    elif not all_fingerprints_match_v:
-        reject_code = QUOTE_RECEIPT_POOL_SNAPSHOT_MISMATCH
-    else:
-        reject_code = QUOTE_RECEIPT_POOL_SNAPSHOT_OK
     return RouteQuoteReceiptPoolSnapshotOutcome(
         snapshot_ok=bool(reject_code == QUOTE_RECEIPT_POOL_SNAPSHOT_OK),
         reject_code=reject_code,
@@ -366,68 +358,53 @@ def evaluate_route_quote_receipt_hop_structure_gate(
     hop_amounts_ok: Any,
     hop_amount_chain_ok: Any,
 ) -> RouteQuoteReceiptHopStructureOutcome:
-    hop_dict_ok_v = _require_receipt_gate_flag(hop_dict_ok, name="hop_dict_ok")
-    pool_id_ok_v = _require_receipt_gate_flag(pool_id_ok, name="pool_id_ok")
-    snapshotted_pool_present_v = _require_receipt_gate_flag(
-        snapshotted_pool_present,
-        name="snapshotted_pool_present",
+    checks = _coerce_receipt_gate_checks(
+        (
+            ("hop_dict_ok", hop_dict_ok),
+            ("pool_id_ok", pool_id_ok),
+            ("snapshotted_pool_present", snapshotted_pool_present),
+            ("working_pool_present", working_pool_present),
+            ("assets_shaped_ok", assets_shaped_ok),
+            ("is_first_hop", is_first_hop),
+            ("first_hop_asset_in_ok", first_hop_asset_in_ok),
+            ("hop_asset_chain_ok", hop_asset_chain_ok),
+            ("hop_amounts_ok", hop_amounts_ok),
+            ("hop_amount_chain_ok", hop_amount_chain_ok),
+        )
     )
-    working_pool_present_v = _require_receipt_gate_flag(
-        working_pool_present,
-        name="working_pool_present",
-    )
-    assets_shaped_ok_v = _require_receipt_gate_flag(assets_shaped_ok, name="assets_shaped_ok")
-    is_first_hop_v = _require_receipt_gate_flag(is_first_hop, name="is_first_hop")
-    first_hop_asset_in_ok_v = _require_receipt_gate_flag(
-        first_hop_asset_in_ok,
-        name="first_hop_asset_in_ok",
-    )
-    hop_asset_chain_ok_v = _require_receipt_gate_flag(
-        hop_asset_chain_ok,
-        name="hop_asset_chain_ok",
-    )
-    hop_amounts_ok_v = _require_receipt_gate_flag(hop_amounts_ok, name="hop_amounts_ok")
-    hop_amount_chain_ok_v = _require_receipt_gate_flag(
-        hop_amount_chain_ok,
-        name="hop_amount_chain_ok",
-    )
-
-    checks = {
-        "hop_dict_ok": hop_dict_ok_v,
-        "pool_id_ok": pool_id_ok_v,
-        "snapshotted_pool_present": snapshotted_pool_present_v,
-        "working_pool_present": working_pool_present_v,
-        "assets_shaped_ok": assets_shaped_ok_v,
-        "is_first_hop": is_first_hop_v,
-        "first_hop_asset_in_ok": first_hop_asset_in_ok_v,
-        "hop_asset_chain_ok": hop_asset_chain_ok_v,
-        "hop_amounts_ok": hop_amounts_ok_v,
-        "hop_amount_chain_ok": hop_amount_chain_ok_v,
-    }
-    if not hop_dict_ok_v:
-        reject_code = QUOTE_RECEIPT_HOP_BAD_HOP
-    elif not pool_id_ok_v:
-        reject_code = QUOTE_RECEIPT_HOP_BAD_POOL_ID
-    elif not snapshotted_pool_present_v:
-        reject_code = QUOTE_RECEIPT_HOP_MISSING_POOL_FINGERPRINT
-    elif not working_pool_present_v:
-        reject_code = QUOTE_RECEIPT_HOP_MISSING_WORKING_POOL
-    elif not assets_shaped_ok_v:
-        reject_code = QUOTE_RECEIPT_HOP_BAD_ASSETS
-    elif is_first_hop_v and not first_hop_asset_in_ok_v:
-        reject_code = QUOTE_RECEIPT_HOP_LEG_ASSET_IN_MISMATCH
-    elif (not is_first_hop_v) and not hop_asset_chain_ok_v:
-        reject_code = QUOTE_RECEIPT_HOP_HOP_ASSET_CHAIN_MISMATCH
-    elif not hop_amounts_ok_v:
-        reject_code = QUOTE_RECEIPT_HOP_BAD_AMOUNTS
-    elif not hop_amount_chain_ok_v:
-        reject_code = QUOTE_RECEIPT_HOP_CHAIN_MISMATCH
-    else:
-        reject_code = QUOTE_RECEIPT_HOP_OK
+    reject_code = _route_quote_hop_structure_reject_code(checks)
     return RouteQuoteReceiptHopStructureOutcome(
         hop_ok=bool(reject_code == QUOTE_RECEIPT_HOP_OK),
         reject_code=reject_code,
         checks=checks,
+    )
+
+
+def _route_quote_hop_structure_reject_code(checks: Dict[str, bool]) -> str:
+    first_failure = _first_failed_gate_code(
+        checks=checks,
+        failures=(
+            ("hop_dict_ok", QUOTE_RECEIPT_HOP_BAD_HOP),
+            ("pool_id_ok", QUOTE_RECEIPT_HOP_BAD_POOL_ID),
+            ("snapshotted_pool_present", QUOTE_RECEIPT_HOP_MISSING_POOL_FINGERPRINT),
+            ("working_pool_present", QUOTE_RECEIPT_HOP_MISSING_WORKING_POOL),
+            ("assets_shaped_ok", QUOTE_RECEIPT_HOP_BAD_ASSETS),
+        ),
+        ok_code=QUOTE_RECEIPT_HOP_OK,
+    )
+    if first_failure != QUOTE_RECEIPT_HOP_OK:
+        return first_failure
+    if checks["is_first_hop"] and not checks["first_hop_asset_in_ok"]:
+        return QUOTE_RECEIPT_HOP_LEG_ASSET_IN_MISMATCH
+    if (not checks["is_first_hop"]) and not checks["hop_asset_chain_ok"]:
+        return QUOTE_RECEIPT_HOP_HOP_ASSET_CHAIN_MISMATCH
+    return _first_failed_gate_code(
+        checks=checks,
+        failures=(
+            ("hop_amounts_ok", QUOTE_RECEIPT_HOP_BAD_AMOUNTS),
+            ("hop_amount_chain_ok", QUOTE_RECEIPT_HOP_CHAIN_MISMATCH),
+        ),
+        ok_code=QUOTE_RECEIPT_HOP_OK,
     )
 
 
