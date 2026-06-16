@@ -74,6 +74,10 @@ from .batch_clearing_swaps import (
     _reserves_after_swap_fill,
     _SwapIntentFactories,
 )
+from .batch_clearing_validate import (
+    _SettlementValidationFactories,
+    validate_settlement_with_factories,
+)
 from .domain_limits import is_strict_int
 from .liquidity import add_liquidity, create_pool, remove_liquidity
 from .settlement import (
@@ -605,97 +609,16 @@ def validate_settlement(
     Returns:
         Tuple of (is_valid, error_message)
     """
-    # Determine pools created by this settlement (if any).
-    created_pools: Dict[str, PoolState] = {}
-    if settlement.events:
-        for event in settlement.events:
-            if event.get("type") != "CREATE_POOL":
-                continue
-            try:
-                pool_id, asset0, asset1, fee_bps, curve_tag, curve_params, status, created_at = (
-                    _parse_create_pool_event_payload(event)
-                )
-            except ValueError as exc:
-                return False, str(exc)
-            if pool_id in pre_pools:
-                return False, f"CREATE_POOL conflicts with existing pool: {pool_id}"
-            if pool_id in created_pools:
-                return False, f"Duplicate CREATE_POOL event for pool: {pool_id}"
-            try:
-                created_pools[pool_id] = PoolState(
-                    pool_id=pool_id,
-                    asset0=asset0,
-                    asset1=asset1,
-                    reserve0=0,
-                    reserve1=0,
-                    fee_bps=fee_bps,
-                    lp_supply=0,
-                    status=status,
-                    created_at=created_at,
-                    curve_tag=str(curve_tag),
-                    curve_params=str(curve_params),
-                )
-            except (TypeError, ValueError) as exc:
-                return False, f"Invalid CREATE_POOL event for pool {pool_id}: {exc}"
-
-    pools_view: Dict[str, PoolState] = {**pre_pools, **created_pools}
-    lp_view = pre_lp_balances or LPTable()
-
-    # Aggregate balance deltas per (pubkey, asset) and check non-negativity.
-    balance_net: Dict[Tuple[PubKey, AssetId], Amount] = defaultdict(int)
-    for balance_delta in settlement.balance_deltas:
-        balance_net[(balance_delta.pubkey, balance_delta.asset)] += balance_delta.net_delta()
-    for (pubkey, asset), net in balance_net.items():
-        current = pre_balances.get(pubkey, asset)
-        if current + net < 0:
-            return False, f"Negative balance: {pubkey}, {asset}, {current} + {net}"
-
-    # Aggregate reserve deltas per (pool_id, asset) and check non-negativity.
-    reserve_net: Dict[Tuple[str, AssetId], Amount] = defaultdict(int)
-    for reserve_delta in settlement.reserve_deltas:
-        reserve_net[(reserve_delta.pool_id, reserve_delta.asset)] += reserve_delta.net_delta()
-    for (pool_id, asset), net in reserve_net.items():
-        if pool_id not in pools_view:
-            return False, f"Pool not found: {pool_id}"
-        pool = pools_view[pool_id]
-        try:
-            current = pool.get_reserve(asset)
-        except ValueError as exc:
-            return False, str(exc)
-        if current + net < 0:
-            return False, f"Negative reserve: {pool_id}, {asset}, {current} + {net}"
-
-    # Aggregate LP deltas per (pubkey, pool_id) and check non-negativity.
-    lp_net: Dict[Tuple[PubKey, str], Amount] = defaultdict(int)
-    for lp_delta in settlement.lp_deltas:
-        lp_net[(lp_delta.pubkey, lp_delta.pool_id)] += lp_delta.net_delta()
-    for (pubkey, pool_id), net in lp_net.items():
-        current = lp_view.get(pubkey, pool_id)
-        if current + net < 0:
-            return False, f"Negative LP balance: {pubkey}, {pool_id}, {current} + {net}"
-
-    # Asset conservation (per asset): Σ_account_deltas + Σ_pool_deltas = 0.
-    asset_net: Dict[AssetId, Amount] = defaultdict(int)
-    for balance_delta in settlement.balance_deltas:
-        asset_net[balance_delta.asset] += balance_delta.net_delta()
-    for reserve_delta in settlement.reserve_deltas:
-        asset_net[reserve_delta.asset] += reserve_delta.net_delta()
-    for asset, net in asset_net.items():
-        if net != 0:
-            return False, f"Asset conservation violation: {asset}, net_delta = {net}"
-
-    # LP supply must remain non-negative; for created pools, supply must be established via lp_deltas.
-    supply_net: Dict[str, Amount] = defaultdict(int)
-    for lp_delta in settlement.lp_deltas:
-        supply_net[lp_delta.pool_id] += lp_delta.net_delta()
-    for pool_id, net in supply_net.items():
-        if pool_id not in pools_view:
-            return False, f"LP delta references unknown pool: {pool_id}"
-        start_supply = pre_pools[pool_id].lp_supply if pool_id in pre_pools else 0
-        if start_supply + net < 0:
-            return False, f"Negative LP supply: {pool_id}, {start_supply} + {net}"
-
-    return True, None
+    return validate_settlement_with_factories(
+        settlement,
+        pre_balances,
+        pre_pools,
+        pre_lp_balances,
+        _SettlementValidationFactories(
+            parse_create_pool_event_payload_fn=_parse_create_pool_event_payload,
+            pool_state_fn=PoolState,
+        ),
+    )
 
 
 def apply_settlement(
