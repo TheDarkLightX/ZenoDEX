@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 from ..state.balances import BalanceTable, PubKey
@@ -13,6 +14,32 @@ from .domain_limits import DEX_LP_AMOUNT_MAX, is_strict_int
 from .settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
+
+
+@dataclass(frozen=True)
+class _CreatePoolIntentParams:
+    asset0: str
+    asset1: str
+    fee_bps: int
+    amount0: int
+    amount1: int
+    created_at: int
+    curve_tag: Any
+    curve_params: Any
+
+
+def _reject_create_pool(
+    *,
+    intent_id: str,
+    fill_reason: str,
+    error: str,
+) -> tuple[Fill, None, None, str]:
+    return (
+        Fill(intent_id=intent_id, action=FillAction.REJECT, reason=fill_reason),
+        None,
+        None,
+        error,
+    )
 
 
 def _parse_create_pool_event_payload(
@@ -48,6 +75,101 @@ def _parse_create_pool_event_payload(
     return pool_id, asset0, asset1, fee_bps, curve_tag, curve_params, status, created_at
 
 
+def _parse_create_pool_intent_params(
+    intent: Intent,
+) -> tuple[_CreatePoolIntentParams | None, tuple[Fill, None, None, str] | None]:
+    intent_id = intent.intent_id
+    asset0 = intent.get_field("asset0")
+    asset1 = intent.get_field("asset1")
+    fee_bps = intent.get_field("fee_bps")
+    amount0 = intent.get_field("amount0")
+    amount1 = intent.get_field("amount1")
+    created_at = intent.get_field("created_at", 0)
+    curve_tag = intent.get_field("curve_tag", None)
+    curve_params = intent.get_field("curve_params", None)
+
+    if any(v is None for v in (asset0, asset1, fee_bps, amount0, amount1)):
+        return None, _reject_create_pool(intent_id=intent_id, fill_reason="MISSING_PARAMS", error="missing params")
+    if not isinstance(asset0, str) or not isinstance(asset1, str):
+        return None, _reject_create_pool(
+            intent_id=intent_id,
+            fill_reason="INVALID_PARAMS",
+            error="asset ids must be strings",
+        )
+    if not is_strict_int(fee_bps) or not (0 <= fee_bps <= 10000):
+        return None, _reject_create_pool(
+            intent_id=intent_id,
+            fill_reason="INVALID_PARAMS",
+            error="fee_bps out of domain",
+        )
+    if not is_strict_int(amount0) or not (1 <= amount0 <= DEX_LP_AMOUNT_MAX):
+        return None, _reject_create_pool(
+            intent_id=intent_id,
+            fill_reason="INVALID_PARAMS",
+            error="amount0 out of domain",
+        )
+    if not is_strict_int(amount1) or not (1 <= amount1 <= DEX_LP_AMOUNT_MAX):
+        return None, _reject_create_pool(
+            intent_id=intent_id,
+            fill_reason="INVALID_PARAMS",
+            error="amount1 out of domain",
+        )
+    if created_at is not None and (not is_strict_int(created_at) or created_at < 0):
+        return None, _reject_create_pool(
+            intent_id=intent_id,
+            fill_reason="INVALID_PARAMS",
+            error="created_at out of domain",
+        )
+    return (
+        _CreatePoolIntentParams(
+            asset0=asset0,
+            asset1=asset1,
+            fee_bps=int(fee_bps),
+            amount0=int(amount0),
+            amount1=int(amount1),
+            created_at=0 if created_at is None else int(created_at),
+            curve_tag=curve_tag,
+            curve_params=curve_params,
+        ),
+        None,
+    )
+
+
+def _run_create_pool_factory(
+    *,
+    sender: PubKey,
+    params: _CreatePoolIntentParams,
+    create_pool_fn: Callable[..., tuple[str, PoolState, int]],
+) -> tuple[str, PoolState, int]:
+    return create_pool_fn(
+        asset0=params.asset0,
+        asset1=params.asset1,
+        amount0=params.amount0,
+        amount1=params.amount1,
+        fee_bps=params.fee_bps,
+        creator_pubkey=sender,
+        created_at=params.created_at,
+        curve_tag=params.curve_tag,
+        curve_params=params.curve_params,
+    )
+
+
+def _create_pool_success_fill(
+    *,
+    intent_id: str,
+    params: _CreatePoolIntentParams,
+    lp_minted: int,
+) -> Fill:
+    return Fill(
+        intent_id=intent_id,
+        action=FillAction.FILL,
+        reason="POOL_CREATED",
+        amount0_used=params.amount0,
+        amount1_used=params.amount1,
+        lp_minted=lp_minted,
+    )
+
+
 def _try_create_pool_with_factory(
     intent: Intent,
     pool_states: Dict[str, PoolState],
@@ -64,80 +186,23 @@ def _try_create_pool_with_factory(
     """
     sender = intent.sender_pubkey
 
-    asset0 = intent.get_field("asset0")
-    asset1 = intent.get_field("asset1")
-    fee_bps = intent.get_field("fee_bps")
-    amount0 = intent.get_field("amount0")
-    amount1 = intent.get_field("amount1")
-    created_at = intent.get_field("created_at", 0)
-    curve_tag = intent.get_field("curve_tag", None)
-    curve_params = intent.get_field("curve_params", None)
+    params, reject = _parse_create_pool_intent_params(intent)
+    if reject is not None:
+        return reject
+    if params is None:
+        raise RuntimeError("create_pool params parser returned no decision")
 
-    if any(v is None for v in (asset0, asset1, fee_bps, amount0, amount1)):
-        return (
-            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="MISSING_PARAMS"),
-            None,
-            None,
-            "missing params",
+    if balances.get(sender, params.asset0) < params.amount0 or balances.get(sender, params.asset1) < params.amount1:
+        return _reject_create_pool(
+            intent_id=intent.intent_id,
+            fill_reason="INSUFFICIENT_BALANCE",
+            error="insufficient balance",
         )
-
-    if not isinstance(asset0, str) or not isinstance(asset1, str):
-        return (
-            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
-            None,
-            None,
-            "asset ids must be strings",
-        )
-    if not is_strict_int(fee_bps) or not (0 <= fee_bps <= 10000):
-        return (
-            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
-            None,
-            None,
-            "fee_bps out of domain",
-        )
-    if not is_strict_int(amount0) or not (1 <= amount0 <= DEX_LP_AMOUNT_MAX):
-        return (
-            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
-            None,
-            None,
-            "amount0 out of domain",
-        )
-    if not is_strict_int(amount1) or not (1 <= amount1 <= DEX_LP_AMOUNT_MAX):
-        return (
-            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
-            None,
-            None,
-            "amount1 out of domain",
-        )
-    if created_at is not None and (not is_strict_int(created_at) or created_at < 0):
-        return (
-            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
-            None,
-            None,
-            "created_at out of domain",
-        )
-
-    if balances.get(sender, asset0) < amount0 or balances.get(sender, asset1) < amount1:
-        return (
-            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INSUFFICIENT_BALANCE"),
-            None,
-            None,
-            "insufficient balance",
-        )
-
-    created_at_value = 0 if created_at is None else created_at
-
     try:
-        pool_id, pool_state, lp_minted = create_pool_fn(
-            asset0=asset0,
-            asset1=asset1,
-            amount0=amount0,
-            amount1=amount1,
-            fee_bps=fee_bps,
-            creator_pubkey=sender,
-            created_at=created_at_value,
-            curve_tag=curve_tag,
-            curve_params=curve_params,
+        pool_id, pool_state, lp_minted = _run_create_pool_factory(
+            sender=sender,
+            params=params,
+            create_pool_fn=create_pool_fn,
         )
     except (TypeError, ValueError, ZeroDivisionError) as exc:
         return (
@@ -148,25 +213,17 @@ def _try_create_pool_with_factory(
         )
 
     if pool_id in pool_states:
-        return (
-            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="POOL_ALREADY_EXISTS"),
-            None,
-            None,
-            "pool already exists",
+        return _reject_create_pool(
+            intent_id=intent.intent_id,
+            fill_reason="POOL_ALREADY_EXISTS",
+            error="pool already exists",
         )
 
     # Insert so subsequent intents in this batch can reference it.
     pool_states[pool_id] = pool_state
 
     return (
-        Fill(
-            intent_id=intent.intent_id,
-            action=FillAction.FILL,
-            reason="POOL_CREATED",
-            amount0_used=amount0,
-            amount1_used=amount1,
-            lp_minted=lp_minted,
-        ),
+        _create_pool_success_fill(intent_id=intent.intent_id, params=params, lp_minted=lp_minted),
         pool_id,
         pool_state,
         None,
