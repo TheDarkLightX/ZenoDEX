@@ -22,6 +22,29 @@ from .domain_limits import (
 )
 
 
+def _normalize_create_pool_assets(asset0: AssetId, asset1: AssetId) -> tuple[AssetId, AssetId]:
+    if not isinstance(asset0, str) or not isinstance(asset1, str):
+        raise TypeError("asset ids must be strings")
+
+    asset0_norm = canonical_pool_asset_id(asset0)
+    asset1_norm = canonical_pool_asset_id(asset1)
+    if asset0_norm >= asset1_norm:
+        raise ValueError(f"Assets must be in canonical order: {asset0_norm} < {asset1_norm}")
+    return asset0_norm, asset1_norm
+
+
+def _validate_create_pool_amounts(
+    amount0: Amount,
+    amount1: Amount,
+    fee_bps: int,
+    created_at: int,
+) -> None:
+    require_int_range("amount0", amount0, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
+    require_int_range("amount1", amount1, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
+    require_int_range("fee_bps", fee_bps, minimum=0, maximum=10000)
+    require_int_range("created_at", created_at, minimum=0)
+
+
 def create_pool(
     asset0: AssetId,
     asset1: AssetId,
@@ -35,55 +58,17 @@ def create_pool(
     curve_params: Optional[object] = None,
 ) -> Tuple[str, PoolState, Amount]:
     """
-    Create a new CPMM pool.
-    
-    Pool ID is deterministic:
-        pool_id = H("TauSwapPool" || asset0 || asset1 || fee_bps || curve_tag || curve_params)
-    
-    For v0.1 (default):
-        curve_tag = "CPMM"
-        curve_params = "" (no additional params)
-    
-    LP minting for first deposit:
-        lp = floor(sqrt(amount0 * amount1)) - MIN_LP_LOCK
-    
-    Args:
-        asset0: First asset (must be < asset1 lexicographically)
-        asset1: Second asset
-        amount0: Initial deposit of asset0
-        amount1: Initial deposit of asset1
-        fee_bps: Fee in basis points (0-10000)
-        creator_pubkey: Public key of pool creator
-        created_at: Block height or timestamp
-        
-    Returns:
-        Tuple of (pool_id, PoolState, lp_minted)
-        
-    Raises:
-        ValueError: If inputs are invalid
+    Create a pool with canonical asset text and deterministic initial LP minting.
+
+    The pool ID is the hash of canonical assets, fee, curve tag, and canonical
+    curve parameters. The initial LP mint follows `compute_lp_mint`.
     """
-    if not isinstance(asset0, str) or not isinstance(asset1, str):
-        raise TypeError("asset ids must be strings")
-
-    asset0 = canonical_pool_asset_id(asset0)
-    asset1 = canonical_pool_asset_id(asset1)
-
-    # Validate canonical ordering
-    if asset0 >= asset1:
-        raise ValueError(f"Assets must be in canonical order: {asset0} < {asset1}")
-
-    require_int_range("amount0", amount0, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
-    require_int_range("amount1", amount1, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
-    require_int_range("fee_bps", fee_bps, minimum=0, maximum=10000)
-    require_int_range("created_at", created_at, minimum=0)
-    
+    asset0, asset1 = _normalize_create_pool_assets(asset0, asset1)
+    _validate_create_pool_amounts(amount0, amount1, fee_bps, created_at)
     curve_tag_norm, curve_params_norm = normalize_curve_config(curve_tag=curve_tag, curve_params=curve_params)
     pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag=curve_tag_norm, curve_params=curve_params_norm)
-    
-    # Compute LP to mint
     lp_minted = compute_lp_mint(amount0, amount1, amount0, amount1, 0)
-    
-    # Create pool state
+
     pool_state = PoolState(
         pool_id=pool_id,
         asset0=asset0,
@@ -93,11 +78,11 @@ def create_pool(
         fee_bps=fee_bps,
         curve_tag=curve_tag_norm,
         curve_params=curve_params_norm,
-        lp_supply=lp_minted + MIN_LP_LOCK,  # Include locked LP
+        lp_supply=lp_minted + MIN_LP_LOCK,
         status=PoolStatus.ACTIVE,
         created_at=created_at,
     )
-    
+
     return pool_id, pool_state, lp_minted
 
 
