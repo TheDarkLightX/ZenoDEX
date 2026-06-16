@@ -25,25 +25,22 @@ Notes
 
 from __future__ import annotations
 
-from collections import OrderedDict
-from dataclasses import dataclass
 import hashlib
 import threading
+from collections import OrderedDict
+from dataclasses import dataclass
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
-from ..core.amm_dispatch import swap_exact_in_for_pool
-from ..core.amm_dispatch import swap_exact_out_for_pool
-from ..core.routing import RouteHop, RouteLeg, RouteQuote
+from ..core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
+from ..core.routing import RouteHop, RouteLeg, RouteQuote, should_consider_exact_out_two_hop
 from ..core.split_routing_dispatch import (
     best_split_many_pools_exact_in_for_pools,
-    best_split_two_pools_exact_out_for_pools,
     best_split_two_pools_exact_in_for_pools,
+    best_split_two_pools_exact_out_for_pools,
 )
-from ..core.routing import should_consider_exact_out_two_hop
 from ..state.balances import Amount, AssetId
 from ..state.canonical import domain_sep_bytes
 from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
-
 
 BPS_DENOM = 10_000
 MAX_PAIRS_PER_MID_DEFAULT = 2_000_000
@@ -58,6 +55,7 @@ SAFE_GROSS_FOR_INT64_FEE = (INT64_MAX - (BPS_DENOM - 1)) // BPS_DENOM
 # enumeration over 2-hop pairs (still advisory; final amounts are exact integer replay).
 EXACT_OUT_MICRO_AMOUNT_OUT_MAX = 100
 EXACT_OUT_MICRO_MAX_TOTAL_PAIRS = 250_000
+_QUOTE_DOMAIN_ERRORS = (TypeError, ValueError, ArithmeticError)
 
 
 def _dir_reserves_cpmm(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId) -> Optional[Tuple[int, int]]:
@@ -79,7 +77,7 @@ def _quote_exact_in_onehop(pool: PoolState, *, asset_in: AssetId, asset_out: Ass
     rin, rout = r
     try:
         out, _ = swap_exact_in_for_pool(pool, reserve_in=int(rin), reserve_out=int(rout), amount_in=int(amount_in))
-    except Exception:
+    except _QUOTE_DOMAIN_ERRORS:
         return None
     return int(out)
 
@@ -101,7 +99,7 @@ def _quote_exact_in_twohop(
     try:
         out_mid, _ = swap_exact_in_for_pool(p1, reserve_in=int(r1[0]), reserve_out=int(r1[1]), amount_in=int(amount_in))
         out_final, _ = swap_exact_in_for_pool(p2, reserve_in=int(r2[0]), reserve_out=int(r2[1]), amount_in=int(out_mid))
-    except Exception:
+    except _QUOTE_DOMAIN_ERRORS:
         return None
     return int(out_mid), int(out_final)
 
@@ -115,7 +113,7 @@ def _quote_exact_out_onehop(pool: PoolState, *, asset_in: AssetId, asset_out: As
     rin, rout = r
     try:
         inn, _ = swap_exact_out_for_pool(pool, reserve_in=int(rin), reserve_out=int(rout), amount_out=int(amount_out))
-    except Exception:
+    except _QUOTE_DOMAIN_ERRORS:
         return None
     return int(inn)
 
@@ -135,7 +133,7 @@ def _quote_exact_out_twohop(
         return None
     try:
         mid_in, _ = swap_exact_out_for_pool(p2, reserve_in=int(r2[0]), reserve_out=int(r2[1]), amount_out=int(amount_out))
-    except Exception:
+    except _QUOTE_DOMAIN_ERRORS:
         return None
 
     r1 = _dir_reserves_cpmm(p1, asset_in=asset_in, asset_out=mid)
@@ -143,7 +141,7 @@ def _quote_exact_out_twohop(
         return None
     try:
         amt_in, _ = swap_exact_out_for_pool(p1, reserve_in=int(r1[0]), reserve_out=int(r1[1]), amount_out=int(mid_in))
-    except Exception:
+    except _QUOTE_DOMAIN_ERRORS:
         return None
     return int(amt_in), int(mid_in)
 
@@ -244,7 +242,7 @@ class FastQuoteRouterV1:
     ) -> _PreparedPair:
         try:
             import numpy as np  # type: ignore
-        except Exception as exc:  # pragma: no cover - optional dependency
+        except ImportError as exc:  # pragma: no cover - optional dependency
             raise RuntimeError("numpy not available") from exc
 
         snap = _snapshot_digest_for_sorted_pools(pools_sorted)
@@ -392,7 +390,7 @@ class FastQuoteRouterV1:
 
         try:
             import numpy as np  # type: ignore
-        except Exception:
+        except ImportError:
             return None
 
         prepared = self._get_or_build_prepared(pools_sorted=pools_sorted, asset_in=asset_in, asset_out=asset_out)
@@ -496,7 +494,7 @@ class FastQuoteRouterV1:
             union.sort(key=lambda x: (-float(x[0]), x[1]))
             best2: Optional[RouteQuote] = None
             best2_key: Optional[Tuple[int, int, str, str, str]] = None
-            for _a, rkey, p1_id, p2_id, mid in union[: int(kmax)]:
+            for _a, _rkey, p1_id, p2_id, mid in union[: int(kmax)]:
                 p1 = pools_by_id.get(p1_id)
                 p2 = pools_by_id.get(p2_id)
                 if p1 is None or p2 is None:
@@ -549,7 +547,7 @@ class FastQuoteRouterV1:
                         amount_in_total=int(D),
                         search_profile="adaptive_v6",
                     )
-                except Exception:
+                except _QUOTE_DOMAIN_ERRORS:
                     split2 = None
                 if split2 is not None and int(split2.amount_out_total) > 0 and int(split2.amount_in_0) > 0 and int(split2.amount_in_1) > 0:
                     leg0 = RouteLeg(
@@ -585,7 +583,7 @@ class FastQuoteRouterV1:
                         max_candidates=len(candidates_probe),
                         max_iters=256,
                     )
-                except Exception:
+                except _QUOTE_DOMAIN_ERRORS:
                     split_probe = None
                 if split_probe is not None and int(split_probe.amount_out_total) > 0:
                     # Compare probe output to the pre-split best (key tie-break).
@@ -616,7 +614,7 @@ class FastQuoteRouterV1:
                             max_candidates=len(candidates),
                             max_iters=4096,
                         )
-                    except Exception:
+                    except _QUOTE_DOMAIN_ERRORS:
                         splitN = None
                     if splitN is not None and int(splitN.amount_out_total) > 0 and len(splitN.legs) >= 2:
                         legs: List[RouteLeg] = []
@@ -683,7 +681,7 @@ class FastQuoteRouterV1:
 
         try:
             import numpy as np  # type: ignore
-        except Exception:
+        except ImportError:
             return None
 
         prepared = self._get_or_build_prepared(pools_sorted=pools_sorted, asset_in=asset_in, asset_out=asset_out)
@@ -753,7 +751,7 @@ class FastQuoteRouterV1:
                             asset_out=asset_out,
                             amount_out_total=int(Q),
                         )
-                    except Exception:
+                    except _QUOTE_DOMAIN_ERRORS:
                         continue
                     if int(split.amount_in_total) <= 0:
                         continue
