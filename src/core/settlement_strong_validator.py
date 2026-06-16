@@ -14,7 +14,7 @@ recomputes canonical deltas/events and requires exact match.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from ..kernels.python.settlement_swap_runtime_v1 import quote_cpmm_swap_exact_out
@@ -45,6 +45,9 @@ from .settlement_quote_binding import (
 from .settlement_quote_binding import (
     validate_quote_binding_transport as _validate_quote_binding_transport,
 )
+from .settlement_replay_context import ReplayContext as _ReplayContext
+from .settlement_replay_context import SettlementPreState as _SettlementPreState
+from .settlement_replay_context import build_replay_context as _build_replay_context
 from .settlement_replay_index import SettlementIndex as _SettlementIndex
 from .settlement_replay_index import (
     build_settlement_index as _build_settlement_index,
@@ -64,24 +67,6 @@ _FAIL_CLOSED_VALIDATOR_ERRORS = (
     RuntimeError,
     AssertionError,
 )
-
-
-@dataclass
-class _ReplayContext:
-    balances: BalanceTable
-    pools: Dict[str, PoolState]
-    lp: LPTable
-    expected_events: List[dict]
-    bal_deltas: List[BalanceDelta]
-    res_deltas: List[ReserveDelta]
-    lp_deltas: List[LPDelta]
-
-
-@dataclass(frozen=True)
-class _SettlementPreState:
-    balances: BalanceTable
-    pools: Dict[str, PoolState]
-    lp_balances: Optional[LPTable]
 
 
 @dataclass(frozen=True)
@@ -299,23 +284,6 @@ class _PoolReplayTarget:
     pool_id: str
     pool: PoolState
     recipient: PubKey
-
-
-def _build_replay_context(
-    *,
-    pre_balances: BalanceTable,
-    pre_pools: Dict[str, PoolState],
-    pre_lp_balances: Optional[LPTable],
-) -> _ReplayContext:
-    return _ReplayContext(
-        balances=_copy_balance_table(pre_balances),
-        pools={pool_id: replace(pool) for pool_id, pool in pre_pools.items()},
-        lp=_copy_lp_table(pre_lp_balances) if pre_lp_balances is not None else LPTable(),
-        expected_events=[],
-        bal_deltas=[],
-        res_deltas=[],
-        lp_deltas=[],
-    )
 
 
 def _create_pool_intent_fields(intent: Intent) -> _CreatePoolIntentFields:
@@ -1913,20 +1881,4 @@ def _validate_settlement_strong_impl(
         pre_state=request.pre_state,
     )
 
-
-def _copy_balance_table(balances: BalanceTable) -> BalanceTable:
-    copied = BalanceTable()
-    for (pubkey, asset), amount in balances.get_all_balances().items():
-        copied.set(pubkey, asset, amount)
-    return copied
-
-
-def _copy_lp_table(lp_balances: LPTable) -> LPTable:
-    copied = LPTable()
-    for (pubkey, pool_id), amount in lp_balances.get_all_balances().items():
-        copied.set(pubkey, pool_id, amount)
-    for (pubkey, pool_id), timestamp in lp_balances.get_all_last_mint_timestamps().items():
-        if copied.get(pubkey, pool_id) > 0:
-            copied.set_last_mint_timestamp(pubkey, pool_id, timestamp)
-    return copied
 
