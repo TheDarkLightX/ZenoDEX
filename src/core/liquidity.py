@@ -6,7 +6,13 @@ from typing import Optional, Tuple
 
 from ..kernels.python.lp_math_v7 import optimal_liquidity
 from ..state.balances import Amount, AssetId
-from ..state.pools import PoolState, PoolStatus, compute_pool_id, normalize_curve_config
+from ..state.pools import (
+    PoolState,
+    PoolStatus,
+    canonical_pool_asset_id,
+    compute_pool_id,
+    normalize_curve_config,
+)
 from .cpmm import MIN_LP_LOCK, compute_lp_burn, compute_lp_mint
 from .domain_limits import (
     DEX_LP_AMOUNT_MAX,
@@ -58,6 +64,9 @@ def create_pool(
     """
     if not isinstance(asset0, str) or not isinstance(asset1, str):
         raise TypeError("asset ids must be strings")
+
+    asset0 = canonical_pool_asset_id(asset0)
+    asset1 = canonical_pool_asset_id(asset1)
 
     # Validate canonical ordering
     if asset0 >= asset1:

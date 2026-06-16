@@ -276,7 +276,7 @@ class PoolStatus(Enum):
     DISABLED = "DISABLED"
 
 
-def _canonical_pool_asset_id(asset: AssetId) -> AssetId:
+def canonical_pool_asset_id(asset: AssetId) -> AssetId:
     """
     Canonicalize hex asset identifiers before hashing pool IDs.
 
@@ -312,8 +312,8 @@ def compute_pool_id(
 
     Matches the formula described in `src/core/liquidity.py`.
     """
-    asset0_hash = _canonical_pool_asset_id(asset0)
-    asset1_hash = _canonical_pool_asset_id(asset1)
+    asset0_hash = canonical_pool_asset_id(asset0)
+    asset1_hash = canonical_pool_asset_id(asset1)
     if asset0_hash >= asset1_hash:
         raise ValueError(f"Assets must be in canonical order: {asset0} < {asset1}")
     fee_bps_i = _require_strict_int("fee_bps", fee_bps)
@@ -371,6 +371,11 @@ class PoolState:
             raise TypeError("pool_id must be a non-empty string")
         if not isinstance(self.asset0, str) or not isinstance(self.asset1, str):
             raise TypeError("asset ids must be strings")
+
+        # Pool IDs hash canonical asset text, so stored state must use the same
+        # text before order checks or state-root encoders observe it.
+        self.asset0 = canonical_pool_asset_id(self.asset0)
+        self.asset1 = canonical_pool_asset_id(self.asset1)
 
         # Ensure canonical ordering
         if self.asset0 >= self.asset1:
