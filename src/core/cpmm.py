@@ -55,6 +55,15 @@ class _ExactOutInputs:
     max_overdelivery_gap_bps: int | None
 
 
+@dataclass(frozen=True)
+class _LpMintInputs:
+    reserve0: Amount
+    reserve1: Amount
+    amount0: Amount
+    amount1: Amount
+    lp_supply: Amount
+
+
 def compute_fee_total(gross_amount: Amount, fee_bps: int) -> Amount:
     """
     Deterministic fee computation (ceil rounding).
@@ -226,6 +235,40 @@ def _raise_if_k_decreased(*, k_before: int, k_after: int) -> None:
         raise ValueError(f"Invariant violation: new_k ({k_after}) < old_k ({k_before})")
 
 
+def _validate_lp_mint_inputs(params: _LpMintInputs) -> None:
+    require_int_range("reserve0", params.reserve0, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("reserve1", params.reserve1, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("amount0", params.amount0, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
+    require_int_range("amount1", params.amount1, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
+    require_int_range("lp_supply", params.lp_supply, minimum=0, maximum=DEX_LP_SUPPLY_MAX)
+
+
+def _compute_initial_lp_mint(params: _LpMintInputs) -> Amount:
+    lp, _total_supply = _kernel_mint_liquidity_initial_v7(
+        amount0=int(params.amount0),
+        amount1=int(params.amount1),
+        min_lp_lock=int(MIN_LP_LOCK),
+    )
+    return int(lp)
+
+
+def _raise_if_deposit_exceeds_reserve_domain(name: str, reserve: Amount, amount: Amount) -> None:
+    if reserve + amount > DEX_POOL_RESERVE_MAX:
+        raise ValueError(f"deposit would exceed {name} domain max {DEX_POOL_RESERVE_MAX}: {reserve} + {amount}")
+
+
+def _compute_existing_lp_mint(params: _LpMintInputs) -> Amount:
+    if params.reserve0 == 0 or params.reserve1 == 0:
+        raise ValueError("Cannot add liquidity to empty pool")
+
+    _raise_if_deposit_exceeds_reserve_domain("reserve0", params.reserve0, params.amount0)
+    _raise_if_deposit_exceeds_reserve_domain("reserve1", params.reserve1, params.amount1)
+
+    lp0 = (params.amount0 * params.lp_supply) // params.reserve0
+    lp1 = (params.amount1 * params.lp_supply) // params.reserve1
+    return min(lp0, lp1)
+
+
 def swap_exact_out(
     reserve_in: Amount,
     reserve_out: Amount,
@@ -280,65 +323,21 @@ def compute_lp_mint(
     lp_supply: Amount,
 ) -> Amount:
     """
-    Compute LP tokens to mint for liquidity deposit.
-    
-    For first deposit (lp_supply == 0):
-        lp = floor(sqrt(amount0 * amount1)) - MIN_LP_LOCK
-        
-    For subsequent deposits:
-        lp = min(floor(amount0 * lp_supply / reserve0), floor(amount1 * lp_supply / reserve1))
-    
-    Args:
-        reserve0: Current reserve of asset0
-        reserve1: Current reserve of asset1
-        amount0: Amount of asset0 being deposited
-        amount1: Amount of asset1 being deposited
-        lp_supply: Current LP token supply
-        
-    Returns:
-        Amount of LP tokens to mint
-        
-    Raises:
-        ValueError: If inputs are invalid
+    Compute LP tokens to mint for an initial or proportional liquidity deposit.
     """
-    require_int_range("reserve0", reserve0, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
-    require_int_range("reserve1", reserve1, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
-    require_int_range("amount0", amount0, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
-    require_int_range("amount1", amount1, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
-    require_int_range("lp_supply", lp_supply, minimum=0, maximum=DEX_LP_SUPPLY_MAX)
+    params = _LpMintInputs(
+        reserve0=reserve0,
+        reserve1=reserve1,
+        amount0=amount0,
+        amount1=amount1,
+        lp_supply=lp_supply,
+    )
+    _validate_lp_mint_inputs(params)
 
-    if lp_supply == 0:
-        # Delegate initial mint math to the (auditable) v7 kernel helper.
-        lp, _total_supply = _kernel_mint_liquidity_initial_v7(
-            amount0=int(amount0),
-            amount1=int(amount1),
-            min_lp_lock=int(MIN_LP_LOCK),
-        )
-    else:
-        # Subsequent deposits: proportional to existing supply
-        if reserve0 == 0 or reserve1 == 0:
-            raise ValueError("Cannot add liquidity to empty pool")
-        if reserve0 + amount0 > DEX_POOL_RESERVE_MAX:
-            raise ValueError(
-                f"deposit would exceed reserve0 domain max {DEX_POOL_RESERVE_MAX}: "
-                f"{reserve0} + {amount0}"
-            )
-        if reserve1 + amount1 > DEX_POOL_RESERVE_MAX:
-            raise ValueError(
-                f"deposit would exceed reserve1 domain max {DEX_POOL_RESERVE_MAX}: "
-                f"{reserve1} + {amount1}"
-            )
-        
-        # Compute proportional LP for each asset (round down)
-        lp0 = (amount0 * lp_supply) // reserve0
-        lp1 = (amount1 * lp_supply) // reserve1
-        
-        # Take minimum to maintain ratio
-        lp = min(lp0, lp1)
-    
+    lp = _compute_initial_lp_mint(params) if params.lp_supply == 0 else _compute_existing_lp_mint(params)
     if lp <= 0:
         raise ValueError(f"Computed LP amount is non-positive: {lp}")
-    
+
     return lp
 
 
