@@ -99,6 +99,48 @@ _PERP_CLEARINGHOUSE_NP_PARAM_BOUNDS: dict[str, tuple[int, int]] = {
 }
 
 
+def validate_np_account_record(*, account: Any, pubkey_bytes48: PubkeyBytes48) -> None:
+    """Validate one N-party clearinghouse account record."""
+    if not isinstance(account.pubkey, str) or not account.pubkey:
+        raise TypeError("account pubkey must be a non-empty string")
+    pubkey_bytes48(account.pubkey, name="account pubkey")
+    for field_name in (
+        "position_base",
+        "entry_price_e8",
+        "collateral_e8",
+        "funding_paid_cum_e8",
+        "nonce",
+    ):
+        value = getattr(account, field_name)
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise TypeError(f"account {field_name} must be an int")
+    if account.entry_price_e8 < 0:
+        raise ValueError("account entry_price_e8 must be non-negative")
+    if account.collateral_e8 < 0:
+        raise ValueError("account collateral_e8 must be non-negative")
+    if account.nonce < 0:
+        raise ValueError("account nonce must be non-negative")
+
+
+def validate_np_pending_intent_record(*, intent: Any, pubkey_bytes48: PubkeyBytes48) -> None:
+    """Validate one N-party clearinghouse pending-intent record."""
+    if not isinstance(intent.pubkey, str) or not intent.pubkey:
+        raise TypeError("pending intent pubkey must be a non-empty string")
+    pubkey_bytes48(intent.pubkey, name="pending intent pubkey")
+    for field_name in ("target_base", "nonce", "limit_price_e8", "min_fill_base", "expiry_epoch"):
+        value = getattr(intent, field_name)
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise TypeError(f"pending intent {field_name} must be an int")
+    if intent.nonce <= 0:
+        raise ValueError("pending intent nonce must be positive")
+    if intent.limit_price_e8 < 0:
+        raise ValueError("pending intent limit_price_e8 must be non-negative")
+    if intent.min_fill_base < 0:
+        raise ValueError("pending intent min_fill_base must be non-negative")
+    if intent.expiry_epoch < 0:
+        raise ValueError("pending intent expiry_epoch must be non-negative")
+
+
 def _validate_market_identity(*, kind: str, expected_kind: str, quote_asset: str) -> None:
     if kind != expected_kind:
         raise ValueError(f"unsupported perps market kind: {kind}")

@@ -56,6 +56,28 @@ PERP_ISOLATED_GLOBAL_BOOL_KEYS: set[str] = {
 }
 
 
+def validate_isolated_account_state(account: Any) -> None:
+    """Validate the isolated account record shape used by PerpAccountState."""
+    if not isinstance(account.position_base, int) or isinstance(account.position_base, bool):
+        raise TypeError("position_base must be an int")
+    if not isinstance(account.entry_price_e8, int) or isinstance(account.entry_price_e8, bool):
+        raise TypeError("entry_price_e8 must be an int")
+    if not isinstance(account.collateral_quote, int) or isinstance(account.collateral_quote, bool):
+        raise TypeError("collateral_quote must be an int")
+    if not isinstance(account.funding_paid_cumulative, int) or isinstance(account.funding_paid_cumulative, bool):
+        raise TypeError("funding_paid_cumulative must be an int")
+    if not isinstance(account.funding_last_applied_epoch, int) or isinstance(account.funding_last_applied_epoch, bool):
+        raise TypeError("funding_last_applied_epoch must be an int")
+    if not isinstance(account.liquidated_this_step, bool):
+        raise TypeError("liquidated_this_step must be a bool")
+    if account.entry_price_e8 < 0:
+        raise ValueError("entry_price_e8 must be non-negative")
+    if account.collateral_quote < 0:
+        raise ValueError("collateral_quote must be non-negative")
+    if account.funding_last_applied_epoch < 0:
+        raise ValueError("funding_last_applied_epoch must be non-negative")
+
+
 @dataclass(frozen=True)
 class _IsolatedValidationContext:
     accounts: Mapping[str, Any]

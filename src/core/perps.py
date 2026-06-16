@@ -32,10 +32,15 @@ from .perps_fixed_validation import (
     validate_three_party_transfer_clearinghouse_invariants,
     validate_two_party_clearinghouse_invariants,
 )
-from .perps_isolated_validation import validate_isolated_state_consistency
+from .perps_isolated_validation import (
+    validate_isolated_account_state,
+    validate_isolated_state_consistency,
+)
 from .perps_np_validation import (
     NpMarketValidationRequest,
+    validate_np_account_record,
     validate_np_market_state,
+    validate_np_pending_intent_record,
 )
 
 # Kernel value domain (mirrors the YAML spec / generated refs): bool | int | str
@@ -123,24 +128,7 @@ class PerpAccountState:
     liquidated_this_step: bool
 
     def __post_init__(self) -> None:
-        if not isinstance(self.position_base, int) or isinstance(self.position_base, bool):
-            raise TypeError("position_base must be an int")
-        if not isinstance(self.entry_price_e8, int) or isinstance(self.entry_price_e8, bool):
-            raise TypeError("entry_price_e8 must be an int")
-        if not isinstance(self.collateral_quote, int) or isinstance(self.collateral_quote, bool):
-            raise TypeError("collateral_quote must be an int")
-        if not isinstance(self.funding_paid_cumulative, int) or isinstance(self.funding_paid_cumulative, bool):
-            raise TypeError("funding_paid_cumulative must be an int")
-        if not isinstance(self.funding_last_applied_epoch, int) or isinstance(self.funding_last_applied_epoch, bool):
-            raise TypeError("funding_last_applied_epoch must be an int")
-        if not isinstance(self.liquidated_this_step, bool):
-            raise TypeError("liquidated_this_step must be a bool")
-        if self.entry_price_e8 < 0:
-            raise ValueError("entry_price_e8 must be non-negative")
-        if self.collateral_quote < 0:
-            raise ValueError("collateral_quote must be non-negative")
-        if self.funding_last_applied_epoch < 0:
-            raise ValueError("funding_last_applied_epoch must be non-negative")
+        validate_isolated_account_state(self)
 
     def to_kernel_state(self) -> dict[str, Value]:
         return {
@@ -349,25 +337,8 @@ class PerpClearinghouseNpAccount:
     nonce: int = 0
 
     def __post_init__(self) -> None:
-        if not isinstance(self.pubkey, str) or not self.pubkey:
-            raise TypeError("account pubkey must be a non-empty string")
-        _pubkey_bytes48(self.pubkey, name="account pubkey")
-        for field_name in (
-            "position_base",
-            "entry_price_e8",
-            "collateral_e8",
-            "funding_paid_cum_e8",
-            "nonce",
-        ):
-            value = getattr(self, field_name)
-            if not isinstance(value, int) or isinstance(value, bool):
-                raise TypeError(f"account {field_name} must be an int")
-        if self.entry_price_e8 < 0:
-            raise ValueError("account entry_price_e8 must be non-negative")
-        if self.collateral_e8 < 0:
-            raise ValueError("account collateral_e8 must be non-negative")
-        if self.nonce < 0:
-            raise ValueError("account nonce must be non-negative")
+        validate_np_account_record(account=self, pubkey_bytes48=_pubkey_bytes48)
+
 
 @dataclass(frozen=True)
 class PerpClearinghouseNpPendingIntent:
@@ -381,21 +352,7 @@ class PerpClearinghouseNpPendingIntent:
     expiry_epoch: int = 1 << 62
 
     def __post_init__(self) -> None:
-        if not isinstance(self.pubkey, str) or not self.pubkey:
-            raise TypeError("pending intent pubkey must be a non-empty string")
-        _pubkey_bytes48(self.pubkey, name="pending intent pubkey")
-        for field_name in ("target_base", "nonce", "limit_price_e8", "min_fill_base", "expiry_epoch"):
-            value = getattr(self, field_name)
-            if not isinstance(value, int) or isinstance(value, bool):
-                raise TypeError(f"pending intent {field_name} must be an int")
-        if self.nonce <= 0:
-            raise ValueError("pending intent nonce must be positive")
-        if self.limit_price_e8 < 0:
-            raise ValueError("pending intent limit_price_e8 must be non-negative")
-        if self.min_fill_base < 0:
-            raise ValueError("pending intent min_fill_base must be non-negative")
-        if self.expiry_epoch < 0:
-            raise ValueError("pending intent expiry_epoch must be non-negative")
+        validate_np_pending_intent_record(intent=self, pubkey_bytes48=_pubkey_bytes48)
 
 
 @dataclass(frozen=True)
