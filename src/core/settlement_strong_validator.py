@@ -300,6 +300,18 @@ class _CowNettingReplayRequest:
 
 
 @dataclass(frozen=True)
+class _CowNettingReplayAmounts:
+    amount_in: int
+    amount_out: int
+
+
+@dataclass(frozen=True)
+class _CowNettingIntentAmounts:
+    amount_in: int
+    min_out: int
+
+
+@dataclass(frozen=True)
 class _ProtocolFeeReplayConfig:
     share_bps: int
     recipient_pubkey: Optional[PubKey]
@@ -1255,39 +1267,94 @@ def _replay_cow_netted_fill(
     request: _CowNettingReplayRequest,
     replay: _ReplayContext,
 ) -> Optional[str]:
-    intent = request.intent
-    fill = request.fill
+    err = _validate_cow_netted_replay_preconditions(request)
+    if err is not None:
+        return err
+    amounts, err = _parse_cow_netted_replay_amounts(request)
+    if amounts is None:
+        return err
+    err = _apply_cow_netted_balance_replay(replay=replay, target=request.target, amounts=amounts)
+    if err is not None:
+        return err
+    _record_cow_netted_balance_deltas(replay=replay, target=request.target, amounts=amounts)
+    return None
+
+
+def _validate_cow_netted_replay_preconditions(request: _CowNettingReplayRequest) -> Optional[str]:
     target = request.target
     if not request.allow_cow_netting:
         return f"COW_NETTED not allowed for intent_id={target.intent_id}"
-    if intent.kind != IntentKind.SWAP_EXACT_IN:
+    if request.intent.kind != IntentKind.SWAP_EXACT_IN:
         return f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={target.intent_id}"
+    return None
+
+
+def _parse_cow_netted_replay_amounts(
+    request: _CowNettingReplayRequest,
+) -> Tuple[Optional[_CowNettingReplayAmounts], Optional[str]]:
+    intent_amounts, err = _parse_cow_netted_intent_amounts(request)
+    if intent_amounts is None:
+        return None, err
+    return _parse_cow_netted_fill_amounts(request=request, intent_amounts=intent_amounts)
+
+
+def _parse_cow_netted_intent_amounts(
+    request: _CowNettingReplayRequest,
+) -> Tuple[Optional[_CowNettingIntentAmounts], Optional[str]]:
+    intent = request.intent
+    target = request.target
     amount_in = intent.get_field("amount_in")
     min_out = intent.get_field("min_amount_out", 0)
     if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-        return f"invalid amount_in for intent_id={target.intent_id}"
+        return None, f"invalid amount_in for intent_id={target.intent_id}"
     if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
-        return f"invalid min_amount_out for intent_id={target.intent_id}"
+        return None, f"invalid min_amount_out for intent_id={target.intent_id}"
+    return _CowNettingIntentAmounts(amount_in=int(amount_in), min_out=int(min_out)), None
+
+
+def _parse_cow_netted_fill_amounts(
+    *,
+    request: _CowNettingReplayRequest,
+    intent_amounts: _CowNettingIntentAmounts,
+) -> Tuple[Optional[_CowNettingReplayAmounts], Optional[str]]:
+    fill = request.fill
+    target = request.target
     if int(fill.fee_paid or 0) != 0:
-        return f"COW_NETTED fee_paid must be 0: intent_id={target.intent_id}"
-    if int(fill.amount_in_filled or 0) != int(amount_in):
-        return f"COW_NETTED amount_in_filled mismatch: intent_id={target.intent_id}"
+        return None, f"COW_NETTED fee_paid must be 0: intent_id={target.intent_id}"
+    if int(fill.amount_in_filled or 0) != intent_amounts.amount_in:
+        return None, f"COW_NETTED amount_in_filled mismatch: intent_id={target.intent_id}"
     out_amt = int(fill.amount_out_filled or 0)
-    if out_amt < int(min_out):
-        return f"COW_NETTED slippage: intent_id={target.intent_id}"
+    if out_amt < intent_amounts.min_out:
+        return None, f"COW_NETTED slippage: intent_id={target.intent_id}"
+    return _CowNettingReplayAmounts(amount_in=intent_amounts.amount_in, amount_out=out_amt), None
+
+
+def _apply_cow_netted_balance_replay(
+    *,
+    replay: _ReplayContext,
+    target: _SwapReplayTarget,
+    amounts: _CowNettingReplayAmounts,
+) -> Optional[str]:
     try:
-        replay.balances.subtract(target.sender, target.asset_in, int(amount_in))
-        replay.balances.add(target.recipient, target.asset_out, out_amt)
+        replay.balances.subtract(target.sender, target.asset_in, amounts.amount_in)
+        replay.balances.add(target.recipient, target.asset_out, amounts.amount_out)
     except (TypeError, ValueError, ArithmeticError) as exc:
         return f"COW_NETTED apply error for intent_id={target.intent_id}: {exc}"
-
-    replay.bal_deltas.append(
-        BalanceDelta(pubkey=target.sender, asset=target.asset_in, delta_add=0, delta_sub=int(amount_in))
-    )
-    replay.bal_deltas.append(
-        BalanceDelta(pubkey=target.recipient, asset=target.asset_out, delta_add=out_amt, delta_sub=0)
-    )
     return None
+
+
+def _record_cow_netted_balance_deltas(
+    *,
+    replay: _ReplayContext,
+    target: _SwapReplayTarget,
+    amounts: _CowNettingReplayAmounts,
+) -> None:
+    replay.bal_deltas.append(
+        BalanceDelta(pubkey=target.sender, asset=target.asset_in, delta_add=0, delta_sub=amounts.amount_in)
+    )
+    replay.bal_deltas.append(
+        BalanceDelta(pubkey=target.recipient, asset=target.asset_out, delta_add=amounts.amount_out, delta_sub=0)
+    )
 
 
 def _parse_swap_exact_in_replay_input(intent: Intent) -> Tuple[Optional[_SwapExactInReplayInput], Optional[str]]:
