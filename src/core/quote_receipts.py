@@ -135,6 +135,22 @@ class _ReceiptHopData:
     amount_out: int
 
 
+@dataclass(frozen=True)
+class _HopDirection:
+    forward_direction: bool
+    direction_ok: bool
+    reserve_in: int
+    reserve_out: int
+
+
+@dataclass(frozen=True)
+class _HopSwapReplay:
+    swap_ok: bool
+    quote_matches: bool
+    next_reserve_in: int
+    next_reserve_out: int
+
+
 def _normalize_route_quote_receipt_kind(kind: str) -> str:
     normalized = str(kind).strip().lower()
     if normalized not in {"exact_in", "exact_out"}:
@@ -271,64 +287,96 @@ def _pool_reserves_for_hop(pool: PoolState, *, asset_in: str, asset_out: str) ->
     return None
 
 
+def _resolve_hop_direction(hop_data: _ReceiptHopData) -> _HopDirection:
+    pool = hop_data.pool
+    forward_direction = bool(hop_data.asset_in == pool.asset0 and hop_data.asset_out == pool.asset1)
+    reverse_direction = bool(hop_data.asset_in == pool.asset1 and hop_data.asset_out == pool.asset0)
+    reserves = _pool_reserves_for_hop(pool, asset_in=hop_data.asset_in, asset_out=hop_data.asset_out)
+    if not (forward_direction or reverse_direction) or reserves is None:
+        return _HopDirection(
+            forward_direction=forward_direction,
+            direction_ok=False,
+            reserve_in=0,
+            reserve_out=0,
+        )
+    reserve_in, reserve_out = reserves
+    return _HopDirection(
+        forward_direction=forward_direction,
+        direction_ok=True,
+        reserve_in=int(reserve_in),
+        reserve_out=int(reserve_out),
+    )
+
+
+def _replay_hop_swap(
+    *,
+    kind: str,
+    direction: _HopDirection,
+    hop_data: _ReceiptHopData,
+) -> _HopSwapReplay:
+    if not direction.direction_ok:
+        return _HopSwapReplay(
+            swap_ok=False,
+            quote_matches=False,
+            next_reserve_in=0,
+            next_reserve_out=0,
+        )
+    try:
+        if kind == "exact_in":
+            quoted_out, next_reserves = swap_exact_in_for_pool(
+                hop_data.pool,
+                reserve_in=int(direction.reserve_in),
+                reserve_out=int(direction.reserve_out),
+                amount_in=int(hop_data.amount_in),
+            )
+            quote_matches = int(quoted_out) == int(hop_data.amount_out)
+        else:
+            quoted_in, next_reserves = swap_exact_out_for_pool(
+                hop_data.pool,
+                reserve_in=int(direction.reserve_in),
+                reserve_out=int(direction.reserve_out),
+                amount_out=int(hop_data.amount_out),
+            )
+            quote_matches = int(quoted_in) == int(hop_data.amount_in)
+    except (TypeError, ValueError, OverflowError):
+        return _HopSwapReplay(
+            swap_ok=False,
+            quote_matches=False,
+            next_reserve_in=0,
+            next_reserve_out=0,
+        )
+    next_reserve_in, next_reserve_out = next_reserves
+    return _HopSwapReplay(
+        swap_ok=True,
+        quote_matches=bool(quote_matches),
+        next_reserve_in=int(next_reserve_in),
+        next_reserve_out=int(next_reserve_out),
+    )
+
+
 def _replay_and_apply_hop(
     *,
-    pool: PoolState,
     kind: str,
-    asset_in: str,
-    asset_out: str,
-    amount_in: int,
-    amount_out: int,
+    hop_data: _ReceiptHopData,
 ) -> Tuple[bool, str, PoolState | None]:
-    forward_direction = bool(asset_in == pool.asset0 and asset_out == pool.asset1)
-    reverse_direction = bool(asset_in == pool.asset1 and asset_out == pool.asset0)
-    direction_ok = bool(forward_direction or reverse_direction)
-    reserves = _pool_reserves_for_hop(pool, asset_in=asset_in, asset_out=asset_out)
-    if not direction_ok or reserves is None:
-        direction_ok = False
-        rin = 0
-        rout = 0
-    else:
-        rin, rout = reserves
-
-    swap_ok = False
-    quote_matches = False
-    next_rin = 0
-    next_rout = 0
-    if direction_ok:
-        try:
-            if kind == "exact_in":
-                quoted_out, (next_rin, next_rout) = swap_exact_in_for_pool(
-                    pool,
-                    reserve_in=rin,
-                    reserve_out=rout,
-                    amount_in=int(amount_in),
-                )
-                swap_ok = True
-                quote_matches = int(quoted_out) == int(amount_out)
-            else:
-                quoted_in, (next_rin, next_rout) = swap_exact_out_for_pool(
-                    pool,
-                    reserve_in=rin,
-                    reserve_out=rout,
-                    amount_out=int(amount_out),
-                )
-                swap_ok = True
-                quote_matches = int(quoted_in) == int(amount_in)
-        except (TypeError, ValueError, OverflowError):
-            swap_ok = False
+    direction = _resolve_hop_direction(hop_data)
+    swap = _replay_hop_swap(
+        kind=kind,
+        direction=direction,
+        hop_data=hop_data,
+    )
 
     replay = evaluate_route_quote_receipt_hop_replay_gate(
-        direction_ok=direction_ok,
-        forward_direction=forward_direction,
-        swap_ok=swap_ok,
-        quote_matches=quote_matches,
-        next_reserve_in=next_rin,
-        next_reserve_out=next_rout,
+        direction_ok=direction.direction_ok,
+        forward_direction=direction.forward_direction,
+        swap_ok=swap.swap_ok,
+        quote_matches=swap.quote_matches,
+        next_reserve_in=swap.next_reserve_in,
+        next_reserve_out=swap.next_reserve_out,
     )
     if not replay.replay_ok:
         return False, route_quote_receipt_hop_replay_error(replay), None
-    return True, "ok", replace(pool, reserve0=int(replay.next_reserve0), reserve1=int(replay.next_reserve1))
+    return True, "ok", replace(hop_data.pool, reserve0=int(replay.next_reserve0), reserve1=int(replay.next_reserve1))
 
 
 def _verify_expected_quote_epoch(
@@ -474,12 +522,8 @@ def _verify_receipt_hop(
     if not structure_ok or hop_data is None:
         return False, structure_err, None, None, None, None
     ok, err, next_pool = _replay_and_apply_hop(
-        pool=hop_data.pool,
         kind=ctx.kind,
-        asset_in=hop_data.asset_in,
-        asset_out=hop_data.asset_out,
-        amount_in=hop_data.amount_in,
-        amount_out=hop_data.amount_out,
+        hop_data=hop_data,
     )
     if not ok or next_pool is None:
         return False, err, None, None, None, None

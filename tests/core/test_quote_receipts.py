@@ -16,6 +16,7 @@ from src.core.quote_receipts import (
     QUOTE_RECEIPT_CERTIFICATE_OK,
     RouteQuoteReceiptCertificateOutcome,
     _pool_reserves_for_hop,
+    _ReceiptHopData,
     _replay_and_apply_hop,
     _require_receipt_gate_flag,
     evaluate_route_quote_receipt_certificate_gate,
@@ -46,6 +47,24 @@ def _pool(pid: str, a0: str, a1: str, r0: int, r1: int, fee_bps: int = 0) -> Poo
         lp_supply=1,
         status=PoolStatus.ACTIVE,
         created_at=0,
+    )
+
+
+def _hop_data(
+    pool: PoolState,
+    *,
+    asset_in: str,
+    asset_out: str,
+    amount_in: int,
+    amount_out: int,
+) -> _ReceiptHopData:
+    return _ReceiptHopData(
+        pool_id=pool.pool_id,
+        pool=pool,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_in=int(amount_in),
+        amount_out=int(amount_out),
     )
 
 
@@ -233,12 +252,8 @@ def test_quote_receipt_hop_replay_maps_expected_quote_errors(monkeypatch: pytest
 
     monkeypatch.setattr(quote_receipts_module, "swap_exact_in_for_pool", rejecting_swap)
     ok, err, next_pool = _replay_and_apply_hop(
-        pool=pool,
         kind="exact_in",
-        asset_in="A",
-        asset_out="B",
-        amount_in=100,
-        amount_out=90,
+        hop_data=_hop_data(pool, asset_in="A", asset_out="B", amount_in=100, amount_out=90),
     )
 
     assert not ok
@@ -257,12 +272,8 @@ def test_quote_receipt_hop_replay_propagates_unexpected_quote_engine_bug(
     monkeypatch.setattr(quote_receipts_module, "swap_exact_in_for_pool", broken_swap)
     with pytest.raises(RuntimeError, match="quote engine bug"):
         _replay_and_apply_hop(
-            pool=pool,
             kind="exact_in",
-            asset_in="A",
-            asset_out="B",
-            amount_in=100,
-            amount_out=90,
+            hop_data=_hop_data(pool, asset_in="A", asset_out="B", amount_in=100, amount_out=90),
         )
 
 
@@ -731,24 +742,16 @@ def test_replay_and_apply_hop_exact_out_reverse_direction_and_mismatch() -> None
         amount_out=amount_out,
     )
     ok, err, next_pool = _replay_and_apply_hop(
-        pool=pool,
         kind="exact_out",
-        asset_in="B",
-        asset_out="A",
-        amount_in=int(amount_in) + 1,
-        amount_out=amount_out,
+        hop_data=_hop_data(pool, asset_in="B", asset_out="A", amount_in=int(amount_in) + 1, amount_out=amount_out),
     )
     assert not ok
     assert err == "hop_quote_mismatch"
     assert next_pool is None
 
     ok, err, next_pool = _replay_and_apply_hop(
-        pool=pool,
         kind="exact_out",
-        asset_in="B",
-        asset_out="A",
-        amount_in=int(amount_in),
-        amount_out=amount_out,
+        hop_data=_hop_data(pool, asset_in="B", asset_out="A", amount_in=int(amount_in), amount_out=amount_out),
     )
     assert ok
     assert err == "ok"
@@ -1100,12 +1103,14 @@ def test_replay_and_apply_hop_fail_closed_on_inconsistent_direction_contract(
     )
 
     ok, err, next_pool = _replay_and_apply_hop(
-        pool=pool,
         kind="exact_in",
-        asset_in="A",
-        asset_out="C",
-        amount_in=int(hop["amount_in"]),
-        amount_out=int(hop["amount_out"]),
+        hop_data=_hop_data(
+            pool,
+            asset_in="A",
+            asset_out="C",
+            amount_in=int(hop["amount_in"]),
+            amount_out=int(hop["amount_out"]),
+        ),
     )
 
     assert not ok
