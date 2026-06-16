@@ -19,6 +19,15 @@ from typing import Any, Dict, Tuple
 
 from ..core import quote_receipt_gates as _quote_receipt_gates
 from ..core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
+from ..core.quote_receipt_gate_contract import (
+    route_quote_receipt_certificate_error,
+    route_quote_receipt_hop_replay_error,
+    route_quote_receipt_hop_structure_error,
+    route_quote_receipt_leg_summary_error,
+    route_quote_receipt_pool_snapshot_error,
+    route_quote_receipt_precheck_error,
+    route_quote_receipt_totals_error,
+)
 from ..core.quote_receipt_gates import (
     _require_receipt_int,
     evaluate_route_quote_receipt_certificate_gate,
@@ -28,13 +37,6 @@ from ..core.quote_receipt_gates import (
     evaluate_route_quote_receipt_pool_snapshot_gate,
     evaluate_route_quote_receipt_precheck_gate,
     evaluate_route_quote_receipt_totals_gate,
-    route_quote_receipt_certificate_error,
-    route_quote_receipt_hop_replay_error,
-    route_quote_receipt_hop_structure_error,
-    route_quote_receipt_leg_summary_error,
-    route_quote_receipt_pool_snapshot_error,
-    route_quote_receipt_precheck_error,
-    route_quote_receipt_totals_error,
 )
 from ..core.routing import RouteQuote
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
