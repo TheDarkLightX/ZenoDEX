@@ -248,6 +248,51 @@ def _validate_cow_pair_index(
     return True, None
 
 
+def _validate_replayed_payload(
+    *,
+    settlement: Settlement,
+    bal_deltas: List[BalanceDelta],
+    res_deltas: List[ReserveDelta],
+    lp_deltas: List[LPDelta],
+    expected_events: List[dict],
+    pre_balances: BalanceTable,
+    pre_pools: Dict[str, PoolState],
+    pre_lp_balances: Optional[LPTable],
+) -> Tuple[bool, Optional[str]]:
+    expected_balance = _aggregate_balance_deltas(bal_deltas)
+    expected_reserve = _aggregate_reserve_deltas(res_deltas)
+    expected_lp = _aggregate_lp_deltas(lp_deltas)
+
+    ok, err = _check_canonical_deltas(settlement)
+    if not ok:
+        return False, err
+
+    if settlement.balance_deltas != expected_balance:
+        return False, "balance_deltas mismatch vs replay"
+    if settlement.reserve_deltas != expected_reserve:
+        return False, "reserve_deltas mismatch vs replay"
+    if settlement.lp_deltas != expected_lp:
+        return False, "lp_deltas mismatch vs replay"
+
+    got_events_norm = settlement.events or []
+    if got_events_norm != expected_events:
+        return False, "events mismatch vs replay"
+
+    # Defense-in-depth: ensure basic conservation/non-negativity in addition to replay checks.
+    # This is essential when a fill type does not touch pool reserves (e.g. COW_NETTED),
+    # where conservation must be enforced globally across balance deltas.
+    ok_legacy, err_legacy = validate_settlement_legacy(
+        settlement=settlement,
+        pre_balances=pre_balances,
+        pre_pools=pre_pools,
+        pre_lp_balances=pre_lp_balances,
+    )
+    if not ok_legacy:
+        return False, f"legacy validation failed: {err_legacy}"
+
+    return True, None
+
+
 def validate_settlement_strong(
     *,
     settlement: Settlement,
@@ -806,40 +851,16 @@ def _validate_settlement_strong_impl(
 
         return fail(f"unsupported intent kind for strong validation: {it.kind}")
 
-    # Canonicalize and compare the settlement payloads.
-    expected_balance = _aggregate_balance_deltas(bal_deltas)
-    expected_reserve = _aggregate_reserve_deltas(res_deltas)
-    expected_lp = _aggregate_lp_deltas(lp_deltas)
-
-    ok, err = _check_canonical_deltas(settlement)
-    if not ok:
-        return False, err
-
-    if settlement.balance_deltas != expected_balance:
-        return False, "balance_deltas mismatch vs replay"
-    if settlement.reserve_deltas != expected_reserve:
-        return False, "reserve_deltas mismatch vs replay"
-    if settlement.lp_deltas != expected_lp:
-        return False, "lp_deltas mismatch vs replay"
-
-    exp_events_norm = expected_events
-    got_events_norm = settlement.events or []
-    if got_events_norm != exp_events_norm:
-        return False, "events mismatch vs replay"
-
-    # Defense-in-depth: ensure basic conservation/non-negativity in addition to replay checks.
-    # This is essential when a fill type does not touch pool reserves (e.g. COW_NETTED),
-    # where conservation must be enforced globally across balance deltas.
-    ok_legacy, err_legacy = validate_settlement_legacy(
+    return _validate_replayed_payload(
         settlement=settlement,
+        bal_deltas=bal_deltas,
+        res_deltas=res_deltas,
+        lp_deltas=lp_deltas,
+        expected_events=expected_events,
         pre_balances=pre_balances,
         pre_pools=pre_pools,
         pre_lp_balances=pre_lp_balances,
     )
-    if not ok_legacy:
-        return False, f"legacy validation failed: {err_legacy}"
-
-    return True, None
 
 
 def _copy_balance_table(balances: BalanceTable) -> BalanceTable:
