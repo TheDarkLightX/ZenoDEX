@@ -25,6 +25,9 @@ from typing import Callable, Tuple
 
 from ..kernels.python.cpmm_swap_v8 import compute_fee_total as _fee_total_v8
 from .split_routing_profiles import ADAPTIVE_SEARCH_PROFILES, resolve_two_pool_split_search_params
+from .split_routing_staircase import (
+    staircase_jump_best_split_two_pools_exact_in as _staircase_jump_best_split_two_pools_exact_in,
+)
 
 BPS_DENOM = 10_000
 EXACT_STAIRCASE_PROFILE = "staircase_exact"
@@ -244,63 +247,13 @@ def _is_better_candidate(
     return bool(cand[0] > best[0] or (cand[0] == best[0] and cand[1] < best[1]))
 
 
-def _ceil_div_positive(numerator: int, denominator: int) -> int:
-    if denominator <= 0:
-        raise ValueError("denominator must be positive")
-    return (int(numerator) + int(denominator) - 1) // int(denominator)
-
-
-def _min_gross_in_for_output_level(pool: PoolXY, output_level: int) -> int | None:
-    alpha = int(BPS_DENOM) - int(pool.fee_bps)
-    target = int(output_level)
-    if alpha <= 0 or target <= 0 or target >= int(pool.y):
-        return None
-
-    # Invert floor(y*n/(x+n)) >= target to n >= ceil(target*x/(y-target)),
-    # then invert net=floor(gross*alpha/BPS_DENOM).
-    min_net = _ceil_div_positive(target * int(pool.x), int(pool.y) - target)
-    return _ceil_div_positive(min_net * int(BPS_DENOM), alpha)
-
-
-def _pool_output_jump_candidates(pool: PoolXY, amount_in_total: int) -> set[int]:
-    candidates: set[int] = set()
-    try:
-        max_output = exact_out_for_pool_exact_in(pool, int(amount_in_total))
-    except ValueError:
-        return candidates
-
-    for output_level in range(1, int(max_output) + 1):
-        gross_in = _min_gross_in_for_output_level(pool, output_level)
-        if gross_in is not None and gross_in <= int(amount_in_total):
-            candidates.add(int(gross_in))
-    return candidates
-
-
 def staircase_jump_best_split_two_pools_exact_in(pool0: PoolXY, pool1: PoolXY, amount_in: int) -> tuple[int, int]:
-    """
-    Exact two-pool CPMM split by enumerating pool0 output jump points.
-
-    Complexity is O(J) quotes where J is the number of distinct positive pool0
-    outputs reachable with `amount_in`, plus two endpoint checks. This is exact
-    because pool0 is constant between jumps and pool1 cannot improve as input is
-    shifted away from it.
-    """
-    if amount_in <= 0:
-        raise ValueError("amount_in must be positive")
-
-    quote_cache = _SplitQuoteCache(pool0=pool0, pool1=pool1, amount_in=int(amount_in), totals={})
-    best: tuple[int, int] | None = None
-    for a in sorted({0, int(amount_in)} | _pool_output_jump_candidates(pool0, int(amount_in))):
-        total = quote_cache.total_out(int(a))
-        if total is None:
-            continue
-        candidate = (int(total), int(a))
-        if _is_better_candidate(candidate, best):
-            best = candidate
-
-    if best is None:
-        raise ValueError("no feasible split")
-    return int(best[0]), int(best[1])
+    return _staircase_jump_best_split_two_pools_exact_in(
+        pool0,
+        pool1,
+        int(amount_in),
+        quote_exact_in=exact_out_for_pool_exact_in,
+    )
 
 
 def _scan_range_best(
