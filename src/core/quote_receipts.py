@@ -106,6 +106,26 @@ class _ReceiptHopContext:
 
 
 @dataclass(frozen=True)
+class _ReceiptLegContext:
+    kind: str
+    body_asset_in: str
+    body_asset_out: str
+    working_pools: Dict[str, PoolState]
+    snapshotted_pools: Dict[str, Any]
+
+
+@dataclass(frozen=True)
+class _ReceiptLegsContext:
+    kind: str
+    legs: list[Any]
+    body: Dict[str, Any]
+    body_asset_in: str
+    body_asset_out: str
+    working_pools: Dict[str, PoolState]
+    snapshotted_pools: Dict[str, Any]
+
+
+@dataclass(frozen=True)
 class _ReceiptHopData:
     pool_id: str
     pool: PoolState
@@ -466,15 +486,7 @@ def _verify_receipt_hop(
     return True, "ok", hop_data.pool_id, hop_data.amount_out, hop_data.asset_out, next_pool
 
 
-def _verify_receipt_leg(
-    *,
-    kind: str,
-    leg: object,
-    body_asset_in: str,
-    body_asset_out: str,
-    working_pools: Dict[str, PoolState],
-    snapshotted_pools: Dict[str, Any],
-) -> Tuple[bool, str, int, int]:
+def _verify_receipt_leg(ctx: _ReceiptLegContext, leg: object) -> Tuple[bool, str, int, int]:
     if not isinstance(leg, dict):
         return False, "bad_leg", 0, 0
     hops = leg.get("hops")
@@ -490,26 +502,26 @@ def _verify_receipt_leg(
     prev_asset_out: str | None = None
     for hop_index, hop in enumerate(hops):
         hop_ctx = _ReceiptHopContext(
-            kind=kind,
+            kind=ctx.kind,
             hop=hop,
             hop_index=hop_index,
             prev_out=prev_out,
             prev_asset_out=prev_asset_out,
-            body_asset_in=body_asset_in,
-            working_pools=working_pools,
-            snapshotted_pools=snapshotted_pools,
+            body_asset_in=ctx.body_asset_in,
+            working_pools=ctx.working_pools,
+            snapshotted_pools=ctx.snapshotted_pools,
         )
         ok, err, pid, amt_out, asset_out, next_pool = _verify_receipt_hop(hop_ctx)
         if not ok or pid is None or amt_out is None or asset_out is None or next_pool is None:
             return False, err, 0, 0
-        working_pools[pid] = next_pool
+        ctx.working_pools[pid] = next_pool
         prev_out = amt_out
         prev_asset_out = str(asset_out)
 
     first_hop_amount_in = _require_receipt_int(hops[0].get("amount_in"))
     last_hop_amount_out = _require_receipt_int(hops[-1].get("amount_out"))
     leg_summary = evaluate_route_quote_receipt_leg_summary_gate(
-        final_asset_out_ok=prev_asset_out == body_asset_out,
+        final_asset_out_ok=prev_asset_out == ctx.body_asset_out,
         first_hop_amount_in_ok=first_hop_amount_in is not None and first_hop_amount_in == leg_in,
         last_hop_amount_out_ok=last_hop_amount_out is not None and last_hop_amount_out == leg_out,
     )
@@ -518,34 +530,25 @@ def _verify_receipt_leg(
     return True, "ok", int(leg_in), int(leg_out)
 
 
-def _verify_receipt_legs_and_totals(
-    *,
-    kind: str,
-    legs: list[Any],
-    body: Dict[str, Any],
-    body_asset_in: str,
-    body_asset_out: str,
-    working_pools: Dict[str, PoolState],
-    snapshotted_pools: Dict[str, Any],
-) -> Tuple[bool, str]:
+def _verify_receipt_legs_and_totals(ctx: _ReceiptLegsContext) -> Tuple[bool, str]:
     total_in = 0
     total_out = 0
-    for leg in legs:
-        ok, err, leg_in, leg_out = _verify_receipt_leg(
-            kind=kind,
-            leg=leg,
-            body_asset_in=body_asset_in,
-            body_asset_out=body_asset_out,
-            working_pools=working_pools,
-            snapshotted_pools=snapshotted_pools,
-        )
+    leg_ctx = _ReceiptLegContext(
+        kind=ctx.kind,
+        body_asset_in=ctx.body_asset_in,
+        body_asset_out=ctx.body_asset_out,
+        working_pools=ctx.working_pools,
+        snapshotted_pools=ctx.snapshotted_pools,
+    )
+    for leg in ctx.legs:
+        ok, err, leg_in, leg_out = _verify_receipt_leg(leg_ctx, leg)
         if not ok:
             return False, err
         total_in += leg_in
         total_out += leg_out
 
-    body_amount_in = _require_receipt_int(body.get("amount_in"))
-    body_amount_out = _require_receipt_int(body.get("amount_out"))
+    body_amount_in = _require_receipt_int(ctx.body.get("amount_in"))
+    body_amount_out = _require_receipt_int(ctx.body.get("amount_out"))
     body_amounts_ok = body_amount_in is not None and body_amount_out is not None
     totals_gate = evaluate_route_quote_receipt_totals_gate(
         body_amounts_ok=body_amounts_ok,
@@ -643,13 +646,15 @@ def _verify_prechecked_route_quote_receipt(
         return False, snapshot_err
 
     legs_ok, legs_err = _verify_receipt_legs_and_totals(
-        kind=ctx.kind,
-        legs=ctx.legs,
-        body=ctx.body,
-        body_asset_in=ctx.body_asset_in,
-        body_asset_out=ctx.body_asset_out,
-        working_pools=working_pools,
-        snapshotted_pools=ctx.pools,
+        _ReceiptLegsContext(
+            kind=ctx.kind,
+            legs=ctx.legs,
+            body=ctx.body,
+            body_asset_in=ctx.body_asset_in,
+            body_asset_out=ctx.body_asset_out,
+            working_pools=working_pools,
+            snapshotted_pools=ctx.pools,
+        )
     )
     if not legs_ok:
         return False, legs_err
