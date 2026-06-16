@@ -147,30 +147,7 @@ def derive_batch_state_support(
     )
 
 
-def compute_support_state_root(
-    *,
-    balances: BalanceTable,
-    pools: Mapping[str, PoolState],
-    lp_balances: LPTable,
-    support: BatchStateSupport,
-    nonces: NonceTable | None = None,
-) -> str:
-    """
-    Compute a deterministic commitment over the batch's support.
-
-    Entries with zero balance / missing pools are omitted, mirroring the full
-    `compute_state_root()` sparsity behavior.
-    """
-    if not isinstance(balances, BalanceTable):
-        raise TypeError("balances must be a BalanceTable")
-    if not isinstance(lp_balances, LPTable):
-        raise TypeError("lp_balances must be an LPTable")
-    if not isinstance(support, BatchStateSupport):
-        raise TypeError("support must be a BatchStateSupport")
-    nonce_table = NonceTable() if nonces is None else nonces
-    if not isinstance(nonce_table, NonceTable):
-        raise TypeError("nonces must be a NonceTable")
-
+def _encode_support_balances_section(*, balances: BalanceTable, support: BatchStateSupport) -> bytes:
     bal_out = bytearray()
     bal_entries: list[tuple[bytes, bytes, int]] = []
     bal_seen: set[tuple[bytes, bytes]] = set()
@@ -193,8 +170,10 @@ def compute_support_state_root(
         bal_out += pk_b
         bal_out += asset_b
         bal_out += encode_uvarint(amount)
-    balances_section = bytes(bal_out)
+    return bytes(bal_out)
 
+
+def _encode_support_pools_section(*, pools: Mapping[str, PoolState], support: BatchStateSupport) -> bytes:
     pool_out = bytearray()
     pool_entries: list[tuple[bytes, PoolState]] = []
     pool_seen: set[bytes] = set()
@@ -239,8 +218,10 @@ def compute_support_state_root(
         pool_out += encode_uvarint(pool.created_at)
         pool_out += encode_bytes(pool.curve_tag.encode("utf-8"))
         pool_out += encode_bytes(pool.curve_params.encode("utf-8"))
-    pools_section = bytes(pool_out)
+    return bytes(pool_out)
 
+
+def _encode_support_lp_balances_section(*, lp_balances: LPTable, support: BatchStateSupport) -> bytes:
     lp_out = bytearray()
     lp_entries: list[tuple[bytes, bytes, int]] = []
     lp_seen: set[tuple[bytes, bytes]] = set()
@@ -263,8 +244,10 @@ def compute_support_state_root(
         lp_out += pk_b
         lp_out += pool_b
         lp_out += encode_uvarint(amount)
-    lp_section = bytes(lp_out)
+    return bytes(lp_out)
 
+
+def _encode_support_lp_duration_section(*, lp_balances: LPTable, support: BatchStateSupport) -> bytes:
     lp_duration_out = bytearray()
     lp_duration_entries: list[tuple[bytes, bytes, LPDurationRiskMetadata]] = []
     lp_duration_seen: set[tuple[bytes, bytes]] = set()
@@ -315,8 +298,10 @@ def compute_support_state_root(
         lp_duration_out += encode_uvarint(1 if metadata.last_churn_update_timestamp is not None else 0)
         if metadata.last_churn_update_timestamp is not None:
             lp_duration_out += encode_uvarint(metadata.last_churn_update_timestamp)
-    lp_duration_section = bytes(lp_duration_out)
+    return bytes(lp_duration_out)
 
+
+def _encode_support_nonces_section(*, nonce_table: NonceTable, support: BatchStateSupport) -> bytes:
     nonce_out = bytearray()
     nonce_entries: list[tuple[bytes, int]] = []
     nonce_seen: set[bytes] = set()
@@ -334,20 +319,45 @@ def compute_support_state_root(
     for pk_b, last_nonce in nonce_entries:
         nonce_out += pk_b
         nonce_out += encode_uvarint(last_nonce)
-    nonce_section = bytes(nonce_out)
+    return bytes(nonce_out)
+
+
+def compute_support_state_root(
+    *,
+    balances: BalanceTable,
+    pools: Mapping[str, PoolState],
+    lp_balances: LPTable,
+    support: BatchStateSupport,
+    nonces: NonceTable | None = None,
+) -> str:
+    """
+    Compute a deterministic commitment over the batch's support.
+
+    Entries with zero balance / missing pools are omitted, mirroring the full
+    `compute_state_root()` sparsity behavior.
+    """
+    if not isinstance(balances, BalanceTable):
+        raise TypeError("balances must be a BalanceTable")
+    if not isinstance(lp_balances, LPTable):
+        raise TypeError("lp_balances must be an LPTable")
+    if not isinstance(support, BatchStateSupport):
+        raise TypeError("support must be a BatchStateSupport")
+    nonce_table = NonceTable() if nonces is None else nonces
+    if not isinstance(nonce_table, NonceTable):
+        raise TypeError("nonces must be a NonceTable")
 
     payload = (
         domain_sep_bytes("state_support_root", version=SUPPORT_ROOT_VERSION)
         + b"BAL"
-        + encode_bytes(balances_section)
+        + encode_bytes(_encode_support_balances_section(balances=balances, support=support))
         + b"POL"
-        + encode_bytes(pools_section)
+        + encode_bytes(_encode_support_pools_section(pools=pools, support=support))
         + b"LPB"
-        + encode_bytes(lp_section)
+        + encode_bytes(_encode_support_lp_balances_section(lp_balances=lp_balances, support=support))
         + b"LPA"
-        + encode_bytes(lp_duration_section)
+        + encode_bytes(_encode_support_lp_duration_section(lp_balances=lp_balances, support=support))
         + b"NNC"
-        + encode_bytes(nonce_section)
+        + encode_bytes(_encode_support_nonces_section(nonce_table=nonce_table, support=support))
     )
     return sha256_hex(payload)
 
