@@ -15,7 +15,6 @@ Notes:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Optional, Sequence, Tuple
 
 from ..state.balances import Amount, AssetId
@@ -37,13 +36,15 @@ from .split_routing_many_exact_out import (
     best_many_pool_exact_out_split,
     build_exact_out_capacity_guard_from_caps,
 )
+from .split_routing_two_exact_out import TwoPoolExactOutRequest, best_two_pool_exact_out_split
 from .split_routing_types import (
     ExactOutCapacityGuard,
-    ExactOutRouteCanonicalKey,
     SplitManyPoolsExactOutQuote,
     SplitManyPoolsQuote,
     SplitTwoPoolsQuote,
-    exact_out_route_canonical_key_for_legs,
+)
+from .split_routing_types import (
+    ExactOutRouteCanonicalKey as ExactOutRouteCanonicalKey,
 )
 from .split_routing_types import (
     SplitLegExactOutQuote as SplitLegExactOutQuote,
@@ -53,6 +54,9 @@ from .split_routing_types import (
 )
 from .split_routing_types import (
     exact_out_route_canonical_key as exact_out_route_canonical_key,
+)
+from .split_routing_types import (
+    exact_out_route_canonical_key_for_legs as exact_out_route_canonical_key_for_legs,
 )
 
 
@@ -284,238 +288,6 @@ def best_split_two_pools_exact_in_for_pools(
     )
 
 
-@dataclass(frozen=True)
-class _TwoPoolExactOutContext:
-    p0: PoolState
-    p1: PoolState
-    asset_in: AssetId
-    asset_out: AssetId
-    amount_out_total: int
-    reserve_in_0: int
-    reserve_out_0: int
-    reserve_in_1: int
-    reserve_out_1: int
-    lo: int
-    hi: int
-
-    @property
-    def span(self) -> int:
-        return int(self.hi - self.lo)
-
-    def total_input_for_split(self, q0: int) -> int | None:
-        if q0 < self.lo or q0 > self.hi:
-            return None
-        q1 = int(self.amount_out_total) - int(q0)
-        try:
-            in0 = (
-                _quote_exact_out(self.p0, asset_in=self.asset_in, asset_out=self.asset_out, amount_out=int(q0))
-                if q0 > 0
-                else 0
-            )
-            in1 = (
-                _quote_exact_out(self.p1, asset_in=self.asset_in, asset_out=self.asset_out, amount_out=int(q1))
-                if q1 > 0
-                else 0
-            )
-        except ValueError:
-            return None
-        return int(in0 + in1)
-
-    def route_key_for_split(self, q0: int, total_input: int) -> ExactOutRouteCanonicalKey:
-        q1 = int(self.amount_out_total) - int(q0)
-        legs: list[tuple[str, int]] = []
-        if int(q0) > 0:
-            legs.append((self.p0.pool_id, int(q0)))
-        if int(q1) > 0:
-            legs.append((self.p1.pool_id, int(q1)))
-        return exact_out_route_canonical_key_for_legs(
-            amount_in_total=int(total_input),
-            legs=tuple(legs),
-        )
-
-    def scan_range(self, range_lo: int, range_hi: int) -> tuple[int, int] | None:
-        if range_lo > range_hi:
-            return None
-        best_in: int | None = None
-        best_key: ExactOutRouteCanonicalKey | None = None
-        best_q0 = int(range_lo)
-        for q0 in range(int(range_lo), int(range_hi) + 1):
-            total_input = self.total_input_for_split(int(q0))
-            if total_input is None:
-                continue
-            candidate_key = self.route_key_for_split(int(q0), int(total_input))
-            if best_in is None or best_key is None:
-                best_in = int(total_input)
-                best_key = candidate_key
-                best_q0 = int(q0)
-                continue
-            if int(total_input) < int(best_in) or (int(total_input) == int(best_in) and candidate_key < best_key):
-                best_in = int(total_input)
-                best_key = candidate_key
-                best_q0 = int(q0)
-        return None if best_in is None else (int(best_in), int(best_q0))
-
-    def derivative_ge(self, q0: int) -> bool:
-        bps = 10_000
-        alpha0 = int(bps) - int(self.p0.fee_bps)
-        alpha1 = int(bps) - int(self.p1.fee_bps)
-        q0 = int(q0)
-        q1 = int(self.amount_out_total) - int(q0)
-        y0_minus = int(self.reserve_out_0) - int(q0)
-        y1_minus = int(self.reserve_out_1) - int(q1)
-        if y0_minus <= 0 or y1_minus <= 0:
-            return True
-        if alpha0 <= 0 or alpha1 <= 0:
-            return True
-        left = int(self.reserve_in_0) * int(self.reserve_out_0) * int(alpha1) * int(y1_minus) * int(y1_minus)
-        right = int(self.reserve_in_1) * int(self.reserve_out_1) * int(alpha0) * int(y0_minus) * int(y0_minus)
-        return left >= right
-
-    def seed_q0(self) -> int:
-        a = int(self.lo)
-        b = int(self.hi)
-        if a > b:
-            return a
-        if self.derivative_ge(a):
-            return a
-        if not self.derivative_ge(b):
-            return b
-        while a < b:
-            mid = (a + b) // 2
-            if self.derivative_ge(mid):
-                b = mid
-            else:
-                a = mid + 1
-        return int(a)
-
-    def window_centers(self, window: int) -> set[int]:
-        q0_star = self.seed_q0()
-        centers = {int(self.lo), int(self.hi), int(q0_star), int((int(self.lo) + int(self.hi)) // 2)}
-        if int(self.span) > 8 * int(window):
-            # Keep quote costs bounded while still probing near endpoint pockets where rounding can improve.
-            for i in (1, 3, 5, 7):
-                centers.add(int(self.lo) + (int(self.span) * int(i)) // 8)
-        return centers
-
-    def materialize_quote(self, best_q0: int) -> SplitTwoPoolsQuote:
-        q1 = int(self.amount_out_total) - int(best_q0)
-        in0 = (
-            _quote_exact_out(self.p0, asset_in=self.asset_in, asset_out=self.asset_out, amount_out=int(best_q0))
-            if best_q0 > 0
-            else 0
-        )
-        in1 = (
-            _quote_exact_out(self.p1, asset_in=self.asset_in, asset_out=self.asset_out, amount_out=int(q1))
-            if q1 > 0
-            else 0
-        )
-        return SplitTwoPoolsQuote(
-            pool0_id=self.p0.pool_id,
-            pool1_id=self.p1.pool_id,
-            amount_in_total=int(in0 + in1),
-            amount_out_total=int(self.amount_out_total),
-            amount_in_0=int(in0),
-            amount_out_0=int(best_q0),
-            amount_in_1=int(in1),
-            amount_out_1=int(q1),
-        )
-
-
-def _build_two_pool_exact_out_context(
-    pool0: PoolState,
-    pool1: PoolState,
-    *,
-    asset_in: AssetId,
-    asset_out: AssetId,
-    amount_out_total: Amount,
-) -> _TwoPoolExactOutContext:
-    p0, p1 = (pool0, pool1) if pool0.pool_id <= pool1.pool_id else (pool1, pool0)
-    reserves0 = _reserves_for(p0, asset_in=asset_in, asset_out=asset_out)
-    reserves1 = _reserves_for(p1, asset_in=asset_in, asset_out=asset_out)
-    if reserves0 is None or reserves1 is None:
-        raise ValueError("pools do not support this direction (or are inactive)")
-
-    reserve_in_0, reserve_out_0 = reserves0
-    reserve_in_1, reserve_out_1 = reserves1
-    amount_out_i = int(amount_out_total)
-    max0 = max(0, int(reserve_out_0) - 1)
-    max1 = max(0, int(reserve_out_1) - 1)
-    lo = max(0, int(amount_out_i) - int(max1))
-    hi = min(int(amount_out_i), int(max0))
-    if lo > hi:
-        raise ValueError("no feasible split for desired amount_out_total")
-
-    return _TwoPoolExactOutContext(
-        p0=p0,
-        p1=p1,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=amount_out_i,
-        reserve_in_0=int(reserve_in_0),
-        reserve_out_0=int(reserve_out_0),
-        reserve_in_1=int(reserve_in_1),
-        reserve_out_1=int(reserve_out_1),
-        lo=int(lo),
-        hi=int(hi),
-    )
-
-
-def _best_windowed_two_pool_exact_out_split(
-    ctx: _TwoPoolExactOutContext,
-    *,
-    window: int,
-) -> tuple[int, int]:
-    best_in = 0
-    best_key: ExactOutRouteCanonicalKey | None = None
-    best_q0 = int(ctx.lo)
-    best_found = False
-    for center in sorted(ctx.window_centers(int(window))):
-        range_lo = max(int(ctx.lo), int(center) - int(window))
-        range_hi = min(int(ctx.hi), int(center) + int(window))
-        candidate = ctx.scan_range(int(range_lo), int(range_hi))
-        if candidate is None:
-            continue
-        candidate_in, candidate_q0 = candidate
-        candidate_key = ctx.route_key_for_split(int(candidate_q0), int(candidate_in))
-        if (
-            (not best_found)
-            or best_key is None
-            or candidate_in < best_in
-            or (candidate_in == best_in and candidate_key < best_key)
-        ):
-            best_in, best_q0 = int(candidate_in), int(candidate_q0)
-            best_key = candidate_key
-            best_found = True
-
-    if not best_found:
-        raise ValueError("no feasible split")
-
-    canon_left = max(128, 4 * int(window))
-    sweep_lo = max(int(ctx.lo), int(best_q0) - int(canon_left))
-    sweep = ctx.scan_range(int(sweep_lo), int(best_q0))
-    if sweep is not None:
-        sweep_in, sweep_q0 = sweep
-        sweep_key = ctx.route_key_for_split(int(sweep_q0), int(sweep_in))
-        if best_key is None or sweep_in < best_in or (sweep_in == best_in and sweep_key < best_key):
-            best_in, best_q0 = int(sweep_in), int(sweep_q0)
-            best_key = sweep_key
-    return int(best_in), int(best_q0)
-
-
-def _best_two_pool_exact_out_split(
-    ctx: _TwoPoolExactOutContext,
-    *,
-    window: int,
-    brute_force_max: int,
-) -> tuple[int, int]:
-    if int(ctx.amount_out_total) <= int(brute_force_max) or ctx.span <= int(brute_force_max):
-        brute = ctx.scan_range(int(ctx.lo), int(ctx.hi))
-        if brute is None:
-            raise ValueError("no feasible split")
-        return brute
-    return _best_windowed_two_pool_exact_out_split(ctx, window=int(window))
-
-
 def best_split_two_pools_exact_out_for_pools(
     pool0: PoolState,
     pool1: PoolState,
@@ -539,26 +311,25 @@ def best_split_two_pools_exact_out_for_pools(
     - Uses brute-force for `amount_out_total <= brute_force_max`.
     - Otherwise uses a deterministic windowed search around a continuous approximation.
     """
-    if amount_out_total <= 0:
-        raise ValueError("amount_out_total must be positive")
-    if window < 0:
-        raise ValueError("window must be non-negative")
-    if brute_force_max < 0:
-        raise ValueError("brute_force_max must be non-negative")
+    def reserves_for(pool: PoolState) -> tuple[int, int] | None:
+        return _reserves_for(pool, asset_in=asset_in, asset_out=asset_out)
 
-    ctx = _build_two_pool_exact_out_context(
-        pool0,
-        pool1,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=amount_out_total,
+    def quote_exact_out(pool: PoolState, amount_out: int) -> int:
+        return _quote_exact_out(pool, asset_in=asset_in, asset_out=asset_out, amount_out=int(amount_out))
+
+    return best_two_pool_exact_out_split(
+        TwoPoolExactOutRequest(
+            pool0=pool0,
+            pool1=pool1,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_out_total=int(amount_out_total),
+            window=int(window),
+            brute_force_max=int(brute_force_max),
+            reserves_for=reserves_for,
+            quote_exact_out=quote_exact_out,
+        )
     )
-    _best_in, best_q0 = _best_two_pool_exact_out_split(
-        ctx,
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-    )
-    return ctx.materialize_quote(int(best_q0))
 
 
 def best_split_many_pools_exact_in_for_pools(
