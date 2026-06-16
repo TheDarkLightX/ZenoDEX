@@ -60,6 +60,11 @@ from .batch_clearing_deltas import (
     _aggregate_reserve_deltas_chunked,
 )
 from .batch_clearing_liquidity import _process_liquidity_intent_with_factories
+from .batch_clearing_single_pool import (
+    _SinglePoolFactories,
+    _SinglePoolOrderingPolicy,
+    clear_batch_single_pool_with_factories,
+)
 from .batch_clearing_swaps import (
     _apply_swap_fill_to_scratch_balances,
     _process_swap_intent_with_factories,
@@ -425,166 +430,41 @@ def clear_batch_single_pool(
     Returns:
         List of Fill objects
     """
-    if swap_ordering not in _SWAP_ORDERING_CHOICES:
-        raise ValueError(f"unsupported swap_ordering: {swap_ordering!r}")
-    if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
-        raise ValueError("protocol_fee_share_bps must be an int in [0, 10000]")
-    if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
-        raise ValueError("protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0")
-    # Sort intents deterministically
-    # For swaps: sort by effective limit price (best first)
-    # For liquidity: process in order received
-    swap_intents = [i for i in intents if i.kind in (
-        IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT
-    )]
-    liquidity_intents = [i for i in intents if i.kind in (
-        IntentKind.ADD_LIQUIDITY, IntentKind.REMOVE_LIQUIDITY
-    )]
-    
-    fills: List[Fill] = []
-    current_reserves = (pool_state.reserve0, pool_state.reserve1)
-    current_lp_supply = pool_state.lp_supply
-
-    balances_scratch = _copy_balance_table(balances)
-    lp_scratch = _copy_lp_table(lp_balances)
-
-    # Optional CoW-style pre-netting pass (EXPERIMENTAL): match opposite-direction
-    # exact-in swaps directly between users when both sides' min_out constraints are met.
-    #
-    # This is *not* a lattice/LLL solver; it is a deterministic, certificate-friendly
-    # primitive that can be extended later.
-    post_swap_ordering = swap_ordering
-    if swap_ordering == _SWAP_ORDERING_COW_PAIR_NETTING_V1:
-        netted_fills, remaining_swaps = _cow_pair_netting_exact_in_v1(
-            swap_intents,
-            pool_state=pool_state,
-            balances=balances_scratch,
-        )
-        fills.extend(netted_fills)
-        swap_intents = remaining_swaps
-        # After netting, clear the remainder using AB-optimal bounded when possible.
-        post_swap_ordering = (
-            _SWAP_ORDERING_OPTIMAL_AB_BOUNDED
-            if len(swap_intents) <= _MAX_SWAP_ORDERING_BRUTE_FORCE_N
-            else _SWAP_ORDERING_GREEDY_AB_REFINED
-        )
-
-    # Process swap intents first.
-    if post_swap_ordering == _SWAP_ORDERING_OPTIMAL_AB_BOUNDED:
-        sorted_swaps = _order_swaps_optimal_ab_bounded(
-            swap_intents,
-            pool_state=pool_state,
-            balances=balances_scratch,
-            reserves=current_reserves,
-        )
-    elif post_swap_ordering == _SWAP_ORDERING_GREEDY_AB:
-        sorted_swaps = _order_swaps_greedy_ab(
-            swap_intents,
-            pool_state=pool_state,
-            reserves=current_reserves,
-        )
-    elif post_swap_ordering == _SWAP_ORDERING_GREEDY_AB_REFINED:
-        greedy = _order_swaps_greedy_ab(
-            swap_intents,
-            pool_state=pool_state,
-            reserves=current_reserves,
-        )
-        sorted_swaps = _refine_b_ordering(
-            greedy,
-            pool_state=pool_state,
-            reserves=current_reserves,
-        )
-    elif post_swap_ordering == _SWAP_ORDERING_GREEDY_AB_GLOBAL:
-        greedy = _order_swaps_greedy_ab(
-            swap_intents,
-            pool_state=pool_state,
-            reserves=current_reserves,
-        )
-        refined = _refine_b_ordering(
-            greedy,
-            pool_state=pool_state,
-            reserves=current_reserves,
-        )
-        sorted_swaps = _refine_ab_ordering_global(
-            refined,
-            pool_state=pool_state,
-            reserves=current_reserves,
-        )
-    elif post_swap_ordering == _SWAP_ORDERING_MCI_AB_GLOBAL:
-        mci = _order_swaps_mci_ab(
-            swap_intents,
-            pool_state=pool_state,
-            reserves=current_reserves,
-        )
-        sorted_swaps = _refine_ab_ordering_global(
-            mci,
-            pool_state=pool_state,
-            reserves=current_reserves,
-        )
-    else:
-        sorted_swaps = _order_swaps_limit_price(swap_intents)
-    
-    for intent in sorted_swaps:
-        fill = _process_swap_intent(
-            intent,
-            current_reserves,
-            pool_state,
-            balances_scratch,
-            protocol_fee_share_bps=protocol_fee_share_bps,
-        )
-        fills.append(fill)
-        
-        if fill.action == FillAction.FILL:
-            current_reserves = _reserves_after_swap_fill(
-                intent,
-                fill,
-                pool_state,
-                current_reserves,
-                protocol_fee_share_bps=protocol_fee_share_bps,
-            )
-            _apply_swap_fill_to_scratch_balances(
-                intent,
-                fill,
-                balances_scratch,
-                protocol_fee_recipient_pubkey,
-            )
-    
-    # Process liquidity intents (in order received)
-    for intent in liquidity_intents:
-        snap_pool = replace(
-            pool_state,
-            reserve0=current_reserves[0],
-            reserve1=current_reserves[1],
-            lp_supply=current_lp_supply,
-        )
-        fill = _process_liquidity_intent(intent, snap_pool, lp_scratch, balances_scratch)
-        fills.append(fill)
-
-        if fill.action == FillAction.FILL:
-            if intent.kind == IntentKind.ADD_LIQUIDITY:
-                current_reserves = (
-                    current_reserves[0] + (fill.amount0_used or 0),
-                    current_reserves[1] + (fill.amount1_used or 0),
-                )
-                current_lp_supply = current_lp_supply + (fill.lp_minted or 0)
-
-                recipient = intent.get_field("recipient", intent.sender_pubkey)
-                balances_scratch.subtract(intent.sender_pubkey, snap_pool.asset0, fill.amount0_used or 0)
-                balances_scratch.subtract(intent.sender_pubkey, snap_pool.asset1, fill.amount1_used or 0)
-                lp_scratch.add(recipient, snap_pool.pool_id, fill.lp_minted or 0)
-            else:  # REMOVE_LIQUIDITY
-                current_reserves = (
-                    current_reserves[0] - (fill.amount0_out or 0),
-                    current_reserves[1] - (fill.amount1_out or 0),
-                )
-                current_lp_supply = current_lp_supply - (fill.lp_burned or 0)
-
-                recipient = intent.get_field("recipient", intent.sender_pubkey)
-                lp_scratch.subtract(intent.sender_pubkey, snap_pool.pool_id, fill.lp_burned or 0)
-                balances_scratch.add(recipient, snap_pool.asset0, fill.amount0_out or 0)
-                balances_scratch.add(recipient, snap_pool.asset1, fill.amount1_out or 0)
-    
-    return fills
+    return clear_batch_single_pool_with_factories(
+        intents,
+        pool_state,
+        balances,
+        lp_balances,
+        policy=_SinglePoolOrderingPolicy(
+            swap_ordering=swap_ordering,
+            ordering_choices=_SWAP_ORDERING_CHOICES,
+            limit_price=_SWAP_ORDERING_LIMIT_PRICE,
+            optimal_ab_bounded=_SWAP_ORDERING_OPTIMAL_AB_BOUNDED,
+            greedy_ab=_SWAP_ORDERING_GREEDY_AB,
+            greedy_ab_refined=_SWAP_ORDERING_GREEDY_AB_REFINED,
+            greedy_ab_global=_SWAP_ORDERING_GREEDY_AB_GLOBAL,
+            mci_ab_global=_SWAP_ORDERING_MCI_AB_GLOBAL,
+            cow_pair_netting_v1=_SWAP_ORDERING_COW_PAIR_NETTING_V1,
+            max_brute_force_n=_MAX_SWAP_ORDERING_BRUTE_FORCE_N,
+        ),
+        factories=_SinglePoolFactories(
+            copy_balance_table_fn=_copy_balance_table,
+            copy_lp_table_fn=_copy_lp_table,
+            cow_pair_netting_fn=_cow_pair_netting_exact_in_v1,
+            order_limit_price_fn=_order_swaps_limit_price,
+            order_optimal_ab_bounded_fn=_order_swaps_optimal_ab_bounded,
+            order_greedy_ab_fn=_order_swaps_greedy_ab,
+            order_mci_ab_fn=_order_swaps_mci_ab,
+            refine_b_ordering_fn=_refine_b_ordering,
+            refine_ab_ordering_global_fn=_refine_ab_ordering_global,
+            process_swap_intent_fn=_process_swap_intent,
+            reserves_after_swap_fill_fn=_reserves_after_swap_fill,
+            apply_swap_fill_to_scratch_balances_fn=_apply_swap_fill_to_scratch_balances,
+            process_liquidity_intent_fn=_process_liquidity_intent,
+        ),
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+    )
 
 
 def _order_swaps_limit_price(intents: List[Intent]) -> List[Intent]:
