@@ -585,22 +585,53 @@ def _parse_cow_pair_intent_fields(
     )
 
 
+def _check_cow_pair_fill_fee(*, intent_id: str, fill: Fill) -> Optional[str]:
+    if int(fill.fee_paid or 0) != 0:
+        return f"COW_NETTED fee_paid must be 0: intent_id={intent_id}"
+    return None
+
+
+def _parse_cow_pair_amount_in_filled(
+    *,
+    intent_id: str,
+    fill: Fill,
+    fields: _CowPairIntentFields,
+) -> Tuple[Optional[int], Optional[str]]:
+    if not is_strict_int(fill.amount_in_filled) or int(fill.amount_in_filled or 0) != fields.amount_in:
+        return None, f"COW_NETTED amount_in_filled mismatch: intent_id={intent_id}"
+    return int(fill.amount_in_filled or 0), None
+
+
+def _parse_cow_pair_amount_out_filled(
+    *,
+    intent_id: str,
+    fill: Fill,
+    fields: _CowPairIntentFields,
+) -> Tuple[Optional[int], Optional[str]]:
+    if not is_strict_int(fill.amount_out_filled):
+        return None, f"COW_NETTED amount_out_filled invalid: intent_id={intent_id}"
+    out_amt = int(fill.amount_out_filled or 0)
+    if out_amt < fields.min_out:
+        return None, f"COW_NETTED slippage: intent_id={intent_id}"
+    return out_amt, None
+
+
 def _parse_cow_pair_fill_amounts(
     *,
     intent_id: str,
     fill: Fill,
     fields: _CowPairIntentFields,
 ) -> Tuple[Optional[_CowPairFillAmounts], Optional[str]]:
-    if int(fill.fee_paid or 0) != 0:
-        return None, f"COW_NETTED fee_paid must be 0: intent_id={intent_id}"
-    if not is_strict_int(fill.amount_in_filled) or int(fill.amount_in_filled or 0) != fields.amount_in:
-        return None, f"COW_NETTED amount_in_filled mismatch: intent_id={intent_id}"
-    if not is_strict_int(fill.amount_out_filled):
-        return None, f"COW_NETTED amount_out_filled invalid: intent_id={intent_id}"
-    out_amt = int(fill.amount_out_filled or 0)
-    if out_amt < fields.min_out:
-        return None, f"COW_NETTED slippage: intent_id={intent_id}"
-    return _CowPairFillAmounts(amount_in_filled=int(fill.amount_in_filled or 0), amount_out_filled=out_amt), None
+    err = _check_cow_pair_fill_fee(intent_id=intent_id, fill=fill)
+    if err is not None:
+        return None, err
+    amount_in_filled, err = _parse_cow_pair_amount_in_filled(intent_id=intent_id, fill=fill, fields=fields)
+    if amount_in_filled is None:
+        return None, err
+    amount_out_filled, err = _parse_cow_pair_amount_out_filled(intent_id=intent_id, fill=fill, fields=fields)
+    if amount_out_filled is None:
+        return None, err
+    return _CowPairFillAmounts(amount_in_filled=amount_in_filled, amount_out_filled=amount_out_filled), None
 
 
 def _parse_cow_pair_entry(
