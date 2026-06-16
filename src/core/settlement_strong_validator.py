@@ -199,6 +199,28 @@ class _RemoveLiquidityReplayResult:
 
 
 @dataclass(frozen=True)
+class _SwapReplayTarget:
+    intent_id: str
+    sender: PubKey
+    recipient: PubKey
+    pool_id: str
+    pool: PoolState
+    asset_in: AssetId
+    asset_out: AssetId
+    reserve_in: int
+    reserve_out: int
+    dir_is_0_to_1: bool
+
+
+@dataclass(frozen=True)
+class _CowNettingReplayRequest:
+    intent: Intent
+    fill: Fill
+    target: _SwapReplayTarget
+    allow_cow_netting: bool
+
+
+@dataclass(frozen=True)
 class _PoolReplayTarget:
     pool_id: str
     pool: PoolState
@@ -921,6 +943,115 @@ def _replay_remove_liquidity_fill(
     return None
 
 
+def _build_swap_replay_target(
+    *,
+    intent: Intent,
+    target: _PoolReplayTarget,
+    quote_pool_fp: object,
+) -> Tuple[Optional[_SwapReplayTarget], Optional[str]]:
+    intent_id = intent.intent_id
+    pool = target.pool
+    asset_in = intent.get_field("asset_in")
+    asset_out = intent.get_field("asset_out")
+    if not isinstance(asset_in, str) or not isinstance(asset_out, str):
+        return None, f"invalid asset_in/out for intent_id={intent_id}"
+    if pool.status != PoolStatus.ACTIVE:
+        return None, f"pool not active for intent_id={intent_id}: {pool.status}"
+    if {asset_in, asset_out} != {pool.asset0, pool.asset1} or asset_in == asset_out:
+        return None, f"swap asset mismatch for intent_id={intent_id}"
+    if quote_pool_fp is not None:
+        actual_pool_fp = pool_state_fingerprint(pool)
+        if actual_pool_fp != quote_pool_fp:
+            return (
+                None,
+                _quote_binding_error(
+                    "quote receipt pool snapshot mismatch",
+                    **_quote_binding_context(intent),
+                    actual_pool_fingerprint=actual_pool_fp,
+                ),
+            )
+
+    if asset_in == pool.asset0 and asset_out == pool.asset1:
+        reserve_in = int(pool.reserve0)
+        reserve_out = int(pool.reserve1)
+        dir_is_0_to_1 = True
+    else:
+        reserve_in = int(pool.reserve1)
+        reserve_out = int(pool.reserve0)
+        dir_is_0_to_1 = False
+
+    return (
+        _SwapReplayTarget(
+            intent_id=intent_id,
+            sender=intent.sender_pubkey,
+            recipient=target.recipient,
+            pool_id=target.pool_id,
+            pool=pool,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            dir_is_0_to_1=dir_is_0_to_1,
+        ),
+        None,
+    )
+
+
+def _check_swap_reserve_witness(
+    *,
+    fill: Fill,
+    target: _SwapReplayTarget,
+    mode: str,
+) -> Optional[str]:
+    if mode != _MODE_STRONG_PROOF_CARRYING:
+        return None
+    if fill.reserve_in_before is None or fill.reserve_out_before is None:
+        return f"missing swap witness reserves for intent_id={target.intent_id}"
+    if int(fill.reserve_in_before) != int(target.reserve_in) or int(fill.reserve_out_before) != int(target.reserve_out):
+        return f"swap witness reserve mismatch for intent_id={target.intent_id}"
+    return None
+
+
+def _replay_cow_netted_fill(
+    *,
+    request: _CowNettingReplayRequest,
+    replay: _ReplayContext,
+) -> Optional[str]:
+    intent = request.intent
+    fill = request.fill
+    target = request.target
+    if not request.allow_cow_netting:
+        return f"COW_NETTED not allowed for intent_id={target.intent_id}"
+    if intent.kind != IntentKind.SWAP_EXACT_IN:
+        return f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={target.intent_id}"
+    amount_in = intent.get_field("amount_in")
+    min_out = intent.get_field("min_amount_out", 0)
+    if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
+        return f"invalid amount_in for intent_id={target.intent_id}"
+    if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
+        return f"invalid min_amount_out for intent_id={target.intent_id}"
+    if int(fill.fee_paid or 0) != 0:
+        return f"COW_NETTED fee_paid must be 0: intent_id={target.intent_id}"
+    if int(fill.amount_in_filled or 0) != int(amount_in):
+        return f"COW_NETTED amount_in_filled mismatch: intent_id={target.intent_id}"
+    out_amt = int(fill.amount_out_filled or 0)
+    if out_amt < int(min_out):
+        return f"COW_NETTED slippage: intent_id={target.intent_id}"
+    try:
+        replay.balances.subtract(target.sender, target.asset_in, int(amount_in))
+        replay.balances.add(target.recipient, target.asset_out, out_amt)
+    except (TypeError, ValueError, ArithmeticError) as exc:
+        return f"COW_NETTED apply error for intent_id={target.intent_id}: {exc}"
+
+    replay.bal_deltas.append(
+        BalanceDelta(pubkey=target.sender, asset=target.asset_in, delta_add=0, delta_sub=int(amount_in))
+    )
+    replay.bal_deltas.append(
+        BalanceDelta(pubkey=target.recipient, asset=target.asset_out, delta_add=out_amt, delta_sub=0)
+    )
+    return None
+
+
 def _validate_replayed_payload(
     *,
     settlement: Settlement,
@@ -1097,70 +1228,40 @@ def _validate_settlement_strong_impl(
         if pool_id not in pools:
             return fail(f"pool not found for intent_id={intent_id}: {pool_id}")
         pool = pools[pool_id]
+        pool_target = _PoolReplayTarget(pool_id=pool_id, pool=pool, recipient=recipient)
 
         if it.kind in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
-            asset_in = it.get_field("asset_in")
-            asset_out = it.get_field("asset_out")
-            if not isinstance(asset_in, str) or not isinstance(asset_out, str):
-                return fail(f"invalid asset_in/out for intent_id={intent_id}")
-            if pool.status != PoolStatus.ACTIVE:
-                return fail(f"pool not active for intent_id={intent_id}: {pool.status}")
-            if {asset_in, asset_out} != {pool.asset0, pool.asset1} or asset_in == asset_out:
-                return fail(f"swap asset mismatch for intent_id={intent_id}")
-            if quote_pool_fp is not None:
-                actual_pool_fp = pool_state_fingerprint(pool)
-                if actual_pool_fp != quote_pool_fp:
-                    return fail(
-                        _quote_binding_error(
-                            "quote receipt pool snapshot mismatch",
-                            **_quote_binding_context(it),
-                            actual_pool_fingerprint=actual_pool_fp,
-                        )
-                    )
+            swap_target, err = _build_swap_replay_target(
+                intent=it,
+                target=pool_target,
+                quote_pool_fp=quote_pool_fp,
+            )
+            if swap_target is None:
+                return fail(err or f"invalid asset_in/out for intent_id={intent_id}")
+            asset_in = swap_target.asset_in
+            asset_out = swap_target.asset_out
+            reserve_in = swap_target.reserve_in
+            reserve_out = swap_target.reserve_out
+            dir_is_0_to_1 = swap_target.dir_is_0_to_1
 
             # CoW netting semantics (optional): direct user-to-user swap, no pool reserve changes.
             if f.reason == "COW_NETTED":
-                if not allow_cow_netting:
-                    return fail(f"COW_NETTED not allowed for intent_id={intent_id}")
-                if it.kind != IntentKind.SWAP_EXACT_IN:
-                    return fail(f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={intent_id}")
-                amount_in = it.get_field("amount_in")
-                min_out = it.get_field("min_amount_out", 0)
-                if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-                    return fail(f"invalid amount_in for intent_id={intent_id}")
-                if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
-                    return fail(f"invalid min_amount_out for intent_id={intent_id}")
-                if int(f.fee_paid or 0) != 0:
-                    return fail(f"COW_NETTED fee_paid must be 0: intent_id={intent_id}")
-                if int(f.amount_in_filled or 0) != int(amount_in):
-                    return fail(f"COW_NETTED amount_in_filled mismatch: intent_id={intent_id}")
-                out_amt = int(f.amount_out_filled or 0)
-                if out_amt < int(min_out):
-                    return fail(f"COW_NETTED slippage: intent_id={intent_id}")
-                try:
-                    balances.subtract(sender, asset_in, int(amount_in))
-                    balances.add(recipient, asset_out, out_amt)
-                except (TypeError, ValueError, ArithmeticError) as exc:
-                    return fail(f"COW_NETTED apply error for intent_id={intent_id}: {exc}")
-
-                bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
-                bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=out_amt, delta_sub=0))
+                err = _replay_cow_netted_fill(
+                    request=_CowNettingReplayRequest(
+                        intent=it,
+                        fill=f,
+                        target=swap_target,
+                        allow_cow_netting=allow_cow_netting,
+                    ),
+                    replay=replay,
+                )
+                if err is not None:
+                    return fail(err)
                 continue
 
-            if asset_in == pool.asset0 and asset_out == pool.asset1:
-                reserve_in = int(pool.reserve0)
-                reserve_out = int(pool.reserve1)
-                dir_is_0_to_1 = True
-            else:
-                reserve_in = int(pool.reserve1)
-                reserve_out = int(pool.reserve0)
-                dir_is_0_to_1 = False
-
-            if mode == _MODE_STRONG_PROOF_CARRYING:
-                if f.reserve_in_before is None or f.reserve_out_before is None:
-                    return fail(f"missing swap witness reserves for intent_id={intent_id}")
-                if int(f.reserve_in_before) != int(reserve_in) or int(f.reserve_out_before) != int(reserve_out):
-                    return fail(f"swap witness reserve mismatch for intent_id={intent_id}")
+            err = _check_swap_reserve_witness(fill=f, target=swap_target, mode=mode)
+            if err is not None:
+                return fail(err)
 
             if it.kind == IntentKind.SWAP_EXACT_IN:
                 amount_in = it.get_field("amount_in")
@@ -1345,7 +1446,7 @@ def _validate_settlement_strong_impl(
             err = _replay_add_liquidity_fill(
                 intent=it,
                 fill=f,
-                target=_PoolReplayTarget(pool_id=pool_id, pool=pool, recipient=recipient),
+                target=pool_target,
                 replay=replay,
             )
             if err is not None:
@@ -1356,7 +1457,7 @@ def _validate_settlement_strong_impl(
             err = _replay_remove_liquidity_fill(
                 intent=it,
                 fill=f,
-                target=_PoolReplayTarget(pool_id=pool_id, pool=pool, recipient=recipient),
+                target=pool_target,
                 replay=replay,
             )
             if err is not None:
