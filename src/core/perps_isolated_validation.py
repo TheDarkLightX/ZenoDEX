@@ -11,6 +11,51 @@ from .perp_apply_funding_auto_gate import is_derivatives_safe_mark_price_source
 Value = bool | int | str
 
 
+PERP_ACCOUNT_KEYS: set[str] = {
+    "position_base",
+    "entry_price_e8",
+    "collateral_quote",
+    "funding_paid_cumulative",
+    "funding_last_applied_epoch",
+    "liquidated_this_step",
+}
+
+PERP_ISOLATED_GLOBAL_KEYS: set[str] = {
+    "now_epoch",
+    "epoch_phase",
+    "breaker_active",
+    "breaker_last_trigger_epoch",
+    "clearing_price_seen",
+    "clearing_price_epoch",
+    "clearing_price_e8",
+    "mark_price_source_kind",
+    "oracle_seen",
+    "oracle_last_update_epoch",
+    "index_price_e8",
+    "max_oracle_staleness_epochs",
+    "max_oracle_move_bps",
+    "initial_margin_bps",
+    "maintenance_margin_bps",
+    "depeg_buffer_bps",
+    "liquidation_penalty_bps",
+    "max_position_abs",
+    "fee_pool_quote",
+    "funding_rate_bps",
+    "funding_cap_bps",
+    "insurance_balance",
+    "initial_insurance",
+    "fee_income",
+    "claims_paid",
+    "min_notional_for_bounty",
+}
+
+PERP_ISOLATED_GLOBAL_BOOL_KEYS: set[str] = {
+    "breaker_active",
+    "clearing_price_seen",
+    "oracle_seen",
+}
+
+
 @dataclass(frozen=True)
 class _IsolatedValidationContext:
     accounts: Mapping[str, Any]

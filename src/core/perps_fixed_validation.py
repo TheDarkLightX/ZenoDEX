@@ -9,6 +9,78 @@ from typing import Protocol
 Value = bool | int | str
 
 
+PERP_CLEARINGHOUSE_2P_STATE_KEYS: set[str] = {
+    "now_epoch",
+    "breaker_active",
+    "breaker_last_trigger_epoch",
+    "clearing_price_seen",
+    "clearing_price_epoch",
+    "clearing_price_e8",
+    "oracle_seen",
+    "oracle_last_update_epoch",
+    "index_price_e8",
+    "max_oracle_staleness_epochs",
+    "max_oracle_move_bps",
+    "initial_margin_bps",
+    "maintenance_margin_bps",
+    "liquidation_penalty_bps",
+    "max_position_abs",
+    "fee_pool_e8",
+    "liquidated_this_step",
+    "net_deposited_e8",
+    "position_base_a",
+    "entry_price_e8_a",
+    "collateral_e8_a",
+    "position_base_b",
+    "entry_price_e8_b",
+    "collateral_e8_b",
+}
+
+PERP_CLEARINGHOUSE_2P_BOOL_KEYS: set[str] = {
+    "breaker_active",
+    "clearing_price_seen",
+    "oracle_seen",
+    "liquidated_this_step",
+}
+
+PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS: set[str] = {
+    "now_epoch",
+    "breaker_active",
+    "breaker_last_trigger_epoch",
+    "clearing_price_seen",
+    "clearing_price_epoch",
+    "clearing_price_e8",
+    "oracle_seen",
+    "oracle_last_update_epoch",
+    "index_price_e8",
+    "max_oracle_staleness_epochs",
+    "max_oracle_move_bps",
+    "initial_margin_bps",
+    "maintenance_margin_bps",
+    "liquidation_penalty_bps",
+    "max_position_abs",
+    "fee_pool_e8",
+    "liquidated_this_step",
+    "net_deposited_e8",
+    "position_base_a",
+    "entry_price_e8_a",
+    "collateral_e8_a",
+    "position_base_b",
+    "entry_price_e8_b",
+    "collateral_e8_b",
+    "position_base_c",
+    "entry_price_e8_c",
+    "collateral_e8_c",
+}
+
+PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS: set[str] = {
+    "breaker_active",
+    "clearing_price_seen",
+    "oracle_seen",
+    "liquidated_this_step",
+}
+
+
 class PubkeyBytes48(Protocol):
     def __call__(self, pubkey: str, *, name: str) -> bytes: ...
 

@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from typing import Dict, Literal
 
 from ..state.canonical import canonical_hex_fixed_allow_0x
+from . import perps_fixed_validation as _fixed_validation
+from . import perps_isolated_validation as _isolated_validation
 from . import perps_np_validation as _np_validation
 from .perp_apply_funding_auto_gate import (
     MARK_PRICE_SOURCE_EXTERNAL_MEDIAN,
@@ -95,130 +97,19 @@ PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1: Literal["clearinghouse_np_v1"] = "clearing
 
 # Compatibility re-exports: existing snapshot and integration code import these
 # constants from `src.core.perps`.
+PERP_ACCOUNT_KEYS = _isolated_validation.PERP_ACCOUNT_KEYS
+PERP_ISOLATED_GLOBAL_KEYS = _isolated_validation.PERP_ISOLATED_GLOBAL_KEYS
+_PERP_ISOLATED_GLOBAL_BOOL_KEYS = _isolated_validation.PERP_ISOLATED_GLOBAL_BOOL_KEYS
 PERP_CLEARINGHOUSE_NP_ACCOUNT_KEYS = _np_validation.PERP_CLEARINGHOUSE_NP_ACCOUNT_KEYS
 PERP_CLEARINGHOUSE_NP_GLOBAL_KEYS = _np_validation.PERP_CLEARINGHOUSE_NP_GLOBAL_KEYS
 PERP_CLEARINGHOUSE_NP_PENDING_INTENT_KEYS = _np_validation.PERP_CLEARINGHOUSE_NP_PENDING_INTENT_KEYS
-
-# Per `src/kernels/dex/perp_epoch_isolated_v3.yaml` (default posture).
-PERP_ACCOUNT_KEYS: set[str] = {
-    "position_base",
-    "entry_price_e8",
-    "collateral_quote",
-    "funding_paid_cumulative",
-    "funding_last_applied_epoch",
-    "liquidated_this_step",
-}
-PERP_ISOLATED_GLOBAL_KEYS: set[str] = {
-    "now_epoch",
-    "epoch_phase",
-    "breaker_active",
-    "breaker_last_trigger_epoch",
-    "clearing_price_seen",
-    "clearing_price_epoch",
-    "clearing_price_e8",
-    "mark_price_source_kind",
-    "oracle_seen",
-    "oracle_last_update_epoch",
-    "index_price_e8",
-    "max_oracle_staleness_epochs",
-    "max_oracle_move_bps",
-    "initial_margin_bps",
-    "maintenance_margin_bps",
-    "depeg_buffer_bps",
-    "liquidation_penalty_bps",
-    "max_position_abs",
-    "fee_pool_quote",
-    "funding_rate_bps",
-    "funding_cap_bps",
-    "insurance_balance",
-    "initial_insurance",
-    "fee_income",
-    "claims_paid",
-    "min_notional_for_bounty",
-}
-
-# JSON compatibility: allow legacy 0/1 encodings for bools and normalize them.
-_PERP_ISOLATED_GLOBAL_BOOL_KEYS: set[str] = {
-    "breaker_active",
-    "clearing_price_seen",
-    "oracle_seen",
-}
+PERP_CLEARINGHOUSE_2P_BOOL_KEYS = _fixed_validation.PERP_CLEARINGHOUSE_2P_BOOL_KEYS
+PERP_CLEARINGHOUSE_2P_STATE_KEYS = _fixed_validation.PERP_CLEARINGHOUSE_2P_STATE_KEYS
+PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS = _fixed_validation.PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS
+PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS = _fixed_validation.PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS
 
 # Backwards-compatible alias (older modules import PERP_GLOBAL_KEYS).
 PERP_GLOBAL_KEYS: set[str] = PERP_ISOLATED_GLOBAL_KEYS
-
-# Per `src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml`.
-PERP_CLEARINGHOUSE_2P_STATE_KEYS: set[str] = {
-    "now_epoch",
-    "breaker_active",
-    "breaker_last_trigger_epoch",
-    "clearing_price_seen",
-    "clearing_price_epoch",
-    "clearing_price_e8",
-    "oracle_seen",
-    "oracle_last_update_epoch",
-    "index_price_e8",
-    "max_oracle_staleness_epochs",
-    "max_oracle_move_bps",
-    "initial_margin_bps",
-    "maintenance_margin_bps",
-    "liquidation_penalty_bps",
-    "max_position_abs",
-    "fee_pool_e8",
-    "liquidated_this_step",
-    "net_deposited_e8",
-    "position_base_a",
-    "entry_price_e8_a",
-    "collateral_e8_a",
-    "position_base_b",
-    "entry_price_e8_b",
-    "collateral_e8_b",
-}
-
-PERP_CLEARINGHOUSE_2P_BOOL_KEYS: set[str] = {
-    "breaker_active",
-    "clearing_price_seen",
-    "oracle_seen",
-    "liquidated_this_step",
-}
-
-PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS: set[str] = {
-    "now_epoch",
-    "breaker_active",
-    "breaker_last_trigger_epoch",
-    "clearing_price_seen",
-    "clearing_price_epoch",
-    "clearing_price_e8",
-    "oracle_seen",
-    "oracle_last_update_epoch",
-    "index_price_e8",
-    "max_oracle_staleness_epochs",
-    "max_oracle_move_bps",
-    "initial_margin_bps",
-    "maintenance_margin_bps",
-    "liquidation_penalty_bps",
-    "max_position_abs",
-    "fee_pool_e8",
-    "liquidated_this_step",
-    "net_deposited_e8",
-    "position_base_a",
-    "entry_price_e8_a",
-    "collateral_e8_a",
-    "position_base_b",
-    "entry_price_e8_b",
-    "collateral_e8_b",
-    "position_base_c",
-    "entry_price_e8_c",
-    "collateral_e8_c",
-}
-
-PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS: set[str] = {
-    "breaker_active",
-    "clearing_price_seen",
-    "oracle_seen",
-    "liquidated_this_step",
-}
-
 
 @dataclass(frozen=True)
 class PerpAccountState:
