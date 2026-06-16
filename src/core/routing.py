@@ -34,6 +34,7 @@ from ..state.balances import Amount, AssetId
 from ..state.pools import PoolState
 from . import routing_common as _routing_common
 from . import routing_exact_out_gate as _exact_out_gate
+from . import routing_mixed_split as _routing_mixed_split
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .routing_types import RouteHop, RouteLeg, RouteQuote
 from .routing_types import quote_key as _quote_key
@@ -312,137 +313,18 @@ def _best_split_direct_vs_twohop_exact_in(
     window: int = 64,
     brute_force_max: int = 512,
 ) -> Optional[RouteQuote]:
-    """
-    Experimental: best split of exact-in input across two disjoint legs:
-    - direct: asset_in -> asset_out (1 hop)
-    - twohop: asset_in -> mid -> asset_out (2 hops)
-
-    Goal: maximize total output for a fixed total input.
-
-    Determinism:
-    - Uses a fixed-center window search around a deterministic coarse grid seed (integer-only).
-    - Tie-break: choose the smallest direct-leg input among maximizers (left-biased).
-    - Legs are canonicalized by lexicographic pool-id sequence.
-    """
-    D = int(amount_in_total)
-    if D <= 1:
-        return None
-    if window < 0 or brute_force_max < 0:
-        raise ValueError("window/brute_force_max must be non-negative")
-
-    # Quick direction support check (fail-closed).
-    if (
-        _pool_reserves_direction(direct_pool, asset_in=asset_in, asset_out=asset_out) is None
-        or _pool_reserves_direction(hop1_pool, asset_in=asset_in, asset_out=mid) is None
-        or _pool_reserves_direction(hop2_pool, asset_in=mid, asset_out=asset_out) is None
-    ):
-        return None
-
-    def total_out(a: int) -> int | None:
-        if not (0 <= a <= D):
-            return None
-        b = D - int(a)
-        # Reject degenerate splits; router already considers pure direct and pure 2-hop legs.
-        if a == 0 or b == 0:
-            return None
-        out_d = _pool_quote_exact_in(direct_pool, asset_in=asset_in, asset_out=asset_out, amount_in=int(a))
-        if out_d is None:
-            return None
-        out1 = _pool_quote_exact_in(hop1_pool, asset_in=asset_in, asset_out=mid, amount_in=int(b))
-        if out1 is None:
-            return None
-        amt_mid, _pid1 = out1
-        out2 = _pool_quote_exact_in(hop2_pool, asset_in=mid, asset_out=asset_out, amount_in=int(amt_mid))
-        if out2 is None:
-            return None
-        out_b, _pid2 = out2
-        return int(out_d[0] + out_b)
-
-    def scan_range(lo: int, hi: int) -> tuple[int, int] | None:
-        if lo > hi:
-            return None
-        best_out: int | None = None
-        best_a = int(lo)
-        for a in range(int(lo), int(hi) + 1):
-            tot = total_out(int(a))
-            if tot is None:
-                continue
-            if best_out is None or int(tot) > int(best_out) or (int(tot) == int(best_out) and int(a) < int(best_a)):
-                best_out = int(tot)
-                best_a = int(a)
-        return None if best_out is None else (int(best_out), int(best_a))
-
-    # Brute force for small totals: exact maximizer + canonical left bias.
-    if D <= int(brute_force_max):
-        brute = scan_range(1, D - 1)
-        if brute is None:
-            return None
-        best_out, best_a = brute
-    else:
-        # Deterministic coarse grid centers (integer-only).
-        lo = 1
-        hi = D - 1
-        span = hi - lo
-        grid_n = 16
-        centers = {lo, hi, (lo + hi) // 2}
-        if span > 0:
-            for i in range(1, int(grid_n)):
-                centers.add(lo + (span * int(i)) // int(grid_n))
-
-        best_out = 0
-        best_a = 1
-        best_found = False
-        for c in sorted(centers):
-            r_lo = max(1, int(c) - int(window))
-            r_hi = min(D - 1, int(c) + int(window))
-            cand = scan_range(int(r_lo), int(r_hi))
-            if cand is None:
-                continue
-            cand_out, cand_a = cand
-            if (not best_found) or cand_out > best_out or (cand_out == best_out and cand_a < best_a):
-                best_out, best_a = int(cand_out), int(cand_a)
-                best_found = True
-        if not best_found:
-            return None
-
-        # Canonicalize within a local plateau: pick the smallest `a` with equal best_out.
-        a_c = int(best_a)
-        while a_c > int(lo):
-            prev = total_out(int(a_c) - 1)
-            if prev is None or int(prev) != int(best_out):
-                break
-            a_c -= 1
-        best_a = int(a_c)
-
-    # Recompute the winning split and construct a route quote.
-    b = int(D) - int(best_a)
-    out_d = _pool_quote_exact_in(direct_pool, asset_in=asset_in, asset_out=asset_out, amount_in=int(best_a))
-    out1 = _pool_quote_exact_in(hop1_pool, asset_in=asset_in, asset_out=mid, amount_in=int(b))
-    if out_d is None or out1 is None:
-        return None
-    amt_out_d, _ = out_d
-    amt_mid, _ = out1
-    out2 = _pool_quote_exact_in(hop2_pool, asset_in=mid, asset_out=asset_out, amount_in=int(amt_mid))
-    if out2 is None:
-        return None
-    amt_out_b, _ = out2
-
-    hop_d = RouteHop(direct_pool.pool_id, asset_in, asset_out, int(best_a), int(amt_out_d))
-    hop1 = RouteHop(hop1_pool.pool_id, asset_in, mid, int(b), int(amt_mid))
-    hop2 = RouteHop(hop2_pool.pool_id, mid, asset_out, int(amt_mid), int(amt_out_b))
-    leg_d = RouteLeg(hops=(hop_d,), amount_in=int(best_a), amount_out=int(amt_out_d))
-    leg_2 = RouteLeg(hops=(hop1, hop2), amount_in=int(b), amount_out=int(amt_out_b))
-
-    # Canonicalize leg ordering for deterministic quote keys.
-    legs = [leg_d, leg_2]
-    legs.sort(key=lambda leg: ",".join(h.pool_id for h in leg.hops))
-    total_out_amt = int(amt_out_d + amt_out_b)
-    return RouteQuote(
+    return _routing_mixed_split.best_split_direct_vs_twohop_exact_in(
+        direct_pool=direct_pool,
+        hop1_pool=hop1_pool,
+        hop2_pool=hop2_pool,
         asset_in=asset_in,
+        mid=mid,
         asset_out=asset_out,
-        amount_in=int(D),
-        amount_out=total_out_amt,
-        legs=tuple(legs),
+        amount_in_total=amount_in_total,
+        quote_exact_in=_pool_quote_exact_in,
+        reserves_direction=_pool_reserves_direction,
+        window=window,
+        brute_force_max=brute_force_max,
     )
 
 
