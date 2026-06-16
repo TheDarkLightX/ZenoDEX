@@ -24,6 +24,12 @@ from . import perps_np_validation as _np_validation
 from .perp_apply_funding_auto_gate import (
     MARK_PRICE_SOURCE_EXTERNAL_MEDIAN,
 )
+from .perps_fixed_validation import (
+    FixedClearinghouseValidationRequest,
+    validate_fixed_clearinghouse_shape,
+    validate_three_party_transfer_clearinghouse_invariants,
+    validate_two_party_clearinghouse_invariants,
+)
 from .perps_isolated_validation import validate_isolated_state_consistency
 from .perps_np_validation import (
     NpMarketValidationRequest,
@@ -361,54 +367,22 @@ class PerpClearinghouse2pMarketState:
     kind: Literal["clearinghouse_2p_v1"] = PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1
 
     def __post_init__(self) -> None:
-        if self.kind != PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1:
-            raise ValueError(f"unsupported perps market kind: {self.kind}")
-        if not isinstance(self.quote_asset, str) or not self.quote_asset:
-            raise TypeError("quote_asset must be a non-empty string")
-        if not isinstance(self.account_a_pubkey, str) or not self.account_a_pubkey:
-            raise TypeError("account_a_pubkey must be a non-empty string")
-        if not isinstance(self.account_b_pubkey, str) or not self.account_b_pubkey:
-            raise TypeError("account_b_pubkey must be a non-empty string")
-        a_b = _pubkey_bytes48(self.account_a_pubkey, name="account_a_pubkey")
-        b_b = _pubkey_bytes48(self.account_b_pubkey, name="account_b_pubkey")
-        if a_b == b_b:
-            raise ValueError("clearinghouse accounts must be distinct")
-        if not isinstance(self.state, dict):
-            raise TypeError("state must be a dict")
-
-        keys = set(self.state.keys())
-        extra = keys - PERP_CLEARINGHOUSE_2P_STATE_KEYS
-        missing = PERP_CLEARINGHOUSE_2P_STATE_KEYS - keys
-        if extra:
-            raise ValueError(f"state has unknown keys: {sorted(extra)[:8]}")
-        if missing:
-            raise ValueError(f"state missing required keys: {sorted(missing)[:8]}")
-        for k, v in self.state.items():
-            if k in PERP_CLEARINGHOUSE_2P_BOOL_KEYS:
-                if not isinstance(v, bool):
-                    raise TypeError(f"state[{k!r}] must be a bool")
-                continue
-            if isinstance(v, int) and not isinstance(v, bool):
-                continue
-            raise TypeError(f"state[{k!r}] must be an int")
-
-        # Critical clearinghouse invariants (fail-closed on invalid snapshots):
-        # - net exposure is structurally zero for the two-party market
-        # - total quote-e8 is conserved across the two accounts + fee pool
-        pos_a = int(self.state["position_base_a"])
-        pos_b = int(self.state["position_base_b"])
-        if pos_a + pos_b != 0:
-            raise ValueError("clearinghouse state must satisfy position_base_a + position_base_b == 0")
-
-        coll_a = int(self.state["collateral_e8_a"])
-        coll_b = int(self.state["collateral_e8_b"])
-        fee_pool = int(self.state["fee_pool_e8"])
-        net_deposited = int(self.state["net_deposited_e8"])
-        if net_deposited != coll_a + coll_b + fee_pool:
-            raise ValueError(
-                "clearinghouse state must satisfy "
-                "net_deposited_e8 == collateral_e8_a + collateral_e8_b + fee_pool_e8"
+        validate_fixed_clearinghouse_shape(
+            FixedClearinghouseValidationRequest(
+                kind=self.kind,
+                expected_kind=PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1,
+                quote_asset=self.quote_asset,
+                account_pubkeys=(
+                    ("account_a_pubkey", self.account_a_pubkey),
+                    ("account_b_pubkey", self.account_b_pubkey),
+                ),
+                state=self.state,
+                state_keys=PERP_CLEARINGHOUSE_2P_STATE_KEYS,
+                bool_keys=PERP_CLEARINGHOUSE_2P_BOOL_KEYS,
+                pubkey_bytes48=_pubkey_bytes48,
             )
+        )
+        validate_two_party_clearinghouse_invariants(self.state)
 
     def role_for_pubkey(self, pubkey: str) -> Literal["a", "b"] | None:
         pb = _pubkey_bytes48_or_none(pubkey)
@@ -441,62 +415,23 @@ class PerpClearinghouse3pTransferMarketState:
     kind: Literal["clearinghouse_3p_transfer_v1"] = PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1
 
     def __post_init__(self) -> None:
-        if self.kind != PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1:
-            raise ValueError(f"unsupported perps market kind: {self.kind}")
-        if not isinstance(self.quote_asset, str) or not self.quote_asset:
-            raise TypeError("quote_asset must be a non-empty string")
-        if not isinstance(self.account_a_pubkey, str) or not self.account_a_pubkey:
-            raise TypeError("account_a_pubkey must be a non-empty string")
-        if not isinstance(self.account_b_pubkey, str) or not self.account_b_pubkey:
-            raise TypeError("account_b_pubkey must be a non-empty string")
-        if not isinstance(self.account_c_pubkey, str) or not self.account_c_pubkey:
-            raise TypeError("account_c_pubkey must be a non-empty string")
-        a_b = _pubkey_bytes48(self.account_a_pubkey, name="account_a_pubkey")
-        b_b = _pubkey_bytes48(self.account_b_pubkey, name="account_b_pubkey")
-        c_b = _pubkey_bytes48(self.account_c_pubkey, name="account_c_pubkey")
-        if len({a_b, b_b, c_b}) != 3:
-            raise ValueError("clearinghouse accounts must be distinct")
-        if not isinstance(self.state, dict):
-            raise TypeError("state must be a dict")
-
-        keys = set(self.state.keys())
-        extra = keys - PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS
-        missing = PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS - keys
-        if extra:
-            raise ValueError(f"state has unknown keys: {sorted(extra)[:8]}")
-        if missing:
-            raise ValueError(f"state missing required keys: {sorted(missing)[:8]}")
-        for k, v in self.state.items():
-            if k in PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS:
-                if not isinstance(v, bool):
-                    raise TypeError(f"state[{k!r}] must be a bool")
-                continue
-            if isinstance(v, int) and not isinstance(v, bool):
-                continue
-            raise TypeError(f"state[{k!r}] must be an int")
-
-        # Critical clearinghouse invariants (fail-closed on invalid snapshots):
-        # - net exposure is structurally zero across the three accounts
-        # - at least one account is flat (prevents 3-way open exposure)
-        # - total quote-e8 is conserved across the three accounts + fee pool
-        pos_a = int(self.state["position_base_a"])
-        pos_b = int(self.state["position_base_b"])
-        pos_c = int(self.state["position_base_c"])
-        if pos_a + pos_b + pos_c != 0:
-            raise ValueError("clearinghouse state must satisfy position_base_a + position_base_b + position_base_c == 0")
-        if not (pos_a == 0 or pos_b == 0 or pos_c == 0):
-            raise ValueError("clearinghouse state must satisfy at least one flat position")
-
-        coll_a = int(self.state["collateral_e8_a"])
-        coll_b = int(self.state["collateral_e8_b"])
-        coll_c = int(self.state["collateral_e8_c"])
-        fee_pool = int(self.state["fee_pool_e8"])
-        net_deposited = int(self.state["net_deposited_e8"])
-        if net_deposited != coll_a + coll_b + coll_c + fee_pool:
-            raise ValueError(
-                "clearinghouse state must satisfy "
-                "net_deposited_e8 == collateral_e8_a + collateral_e8_b + collateral_e8_c + fee_pool_e8"
+        validate_fixed_clearinghouse_shape(
+            FixedClearinghouseValidationRequest(
+                kind=self.kind,
+                expected_kind=PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1,
+                quote_asset=self.quote_asset,
+                account_pubkeys=(
+                    ("account_a_pubkey", self.account_a_pubkey),
+                    ("account_b_pubkey", self.account_b_pubkey),
+                    ("account_c_pubkey", self.account_c_pubkey),
+                ),
+                state=self.state,
+                state_keys=PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS,
+                bool_keys=PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS,
+                pubkey_bytes48=_pubkey_bytes48,
             )
+        )
+        validate_three_party_transfer_clearinghouse_invariants(self.state)
 
     def role_for_pubkey(self, pubkey: str) -> Literal["a", "b", "c"] | None:
         pb = _pubkey_bytes48_or_none(pubkey)
