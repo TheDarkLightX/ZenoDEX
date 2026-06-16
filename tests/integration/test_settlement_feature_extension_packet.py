@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from src.integration import settlement_feature_extension_packet as feature_packet_mod
 from src.integration.settlement_feature_extension_packet import (
     SettlementFeatureExtensionInputs,
     build_settlement_feature_extension_packet,
@@ -58,3 +61,41 @@ def test_settlement_feature_extension_packet_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "settlement feature extension packet mismatch"
+
+
+def test_settlement_feature_extension_input_parser_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken_from_dict(_payload: object) -> object:
+        raise RuntimeError("feature extension input parser bug")
+
+    monkeypatch.setattr(
+        feature_packet_mod.SettlementFeatureExtensionInputs,
+        "from_dict",
+        staticmethod(broken_from_dict),
+    )
+
+    with pytest.raises(RuntimeError, match="feature extension input parser bug"):
+        verify_settlement_feature_extension_packet_payload(
+            inputs_payload={},
+            packet_payload={},
+        )
+
+
+def test_settlement_feature_extension_expected_builder_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken_builder(_inputs: object) -> object:
+        raise RuntimeError("feature extension packet builder bug")
+
+    monkeypatch.setattr(
+        feature_packet_mod,
+        "build_settlement_feature_extension_packet",
+        broken_builder,
+    )
+
+    with pytest.raises(RuntimeError, match="feature extension packet builder bug"):
+        verify_settlement_feature_extension_packet_payload(
+            inputs_payload=_inputs().to_dict(),
+            packet_payload={},
+        )

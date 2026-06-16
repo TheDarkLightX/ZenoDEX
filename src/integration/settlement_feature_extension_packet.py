@@ -11,8 +11,8 @@ from .tau_witness import (
     build_tdex_lock_weight_v1_step,
 )
 
-
 SETTLEMENT_FEATURE_EXTENSION_PACKET_SCHEMA = "zenodex/settlement-feature-extension-packet/v1"
+_PACKET_DOMAIN_ERRORS = (TypeError, ValueError, ArithmeticError)
 
 
 def _require_u16(value: int, *, name: str) -> None:
@@ -301,11 +301,11 @@ def verify_settlement_feature_extension_packet_payload(
 ) -> tuple[bool, str | None]:
     try:
         inputs = SettlementFeatureExtensionInputs.from_dict(inputs_payload)
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     try:
         expected = build_settlement_feature_extension_packet(inputs)
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     if not isinstance(packet_payload, Mapping):
         return False, "packet must be an object"
