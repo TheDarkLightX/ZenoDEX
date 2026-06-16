@@ -7,8 +7,8 @@ from dataclasses import replace
 from pathlib import Path
 
 import src.core.settlement_quote_binding as settlement_quote_binding
+import src.core.settlement_replay_swap_exact_in as settlement_replay_swap_exact_in
 import src.core.settlement_replay_swap_exact_out as settlement_replay_swap_exact_out
-import src.core.settlement_replay_swaps as settlement_replay_swaps
 import src.core.settlement_strong_validator as strong_validator
 from src.core.batch_clearing import compute_settlement, validate_settlement
 from src.core.dex import DexConfig, DexState
@@ -2337,7 +2337,7 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     def _boom_exact_in(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise ValueError("boom")
 
-    monkeypatch.setattr(settlement_replay_swaps, "swap_exact_in_for_pool", _boom_exact_in)
+    monkeypatch.setattr(settlement_replay_swap_exact_in, "swap_exact_in_for_pool", _boom_exact_in)
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -2354,7 +2354,7 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     def _bug_exact_in(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise RuntimeError("helper bug")
 
-    monkeypatch.setattr(settlement_replay_swaps, "swap_exact_in_for_pool", _bug_exact_in)
+    monkeypatch.setattr(settlement_replay_swap_exact_in, "swap_exact_in_for_pool", _bug_exact_in)
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
