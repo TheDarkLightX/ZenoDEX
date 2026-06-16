@@ -22,8 +22,8 @@ from typing import Dict, Literal
 from ..state.canonical import canonical_hex_fixed_allow_0x
 from .perp_apply_funding_auto_gate import (
     MARK_PRICE_SOURCE_EXTERNAL_MEDIAN,
-    is_derivatives_safe_mark_price_source,
 )
+from .perps_isolated_validation import validate_isolated_state_consistency
 
 # Kernel value domain (mirrors the YAML spec / generated refs): bool | int | str
 Value = bool | int | str
@@ -320,111 +320,11 @@ class PerpMarketState:
         This prevents malformed snapshots from bypassing phase gates or corrupting
         derived accounting.
         """
-        gs = self.global_state
-
-        now_epoch = int(gs["now_epoch"])
-        epoch_phase = int(gs["epoch_phase"])
-        epoch_phase_str = _EPOCH_PHASE_INT_TO_STR.get(epoch_phase, str(epoch_phase))
-
-        breaker_active = bool(gs["breaker_active"])
-        breaker_last_trigger_epoch = int(gs["breaker_last_trigger_epoch"])
-
-        clearing_price_seen = bool(gs["clearing_price_seen"])
-        clearing_price_epoch = int(gs["clearing_price_epoch"])
-        clearing_price_e8 = int(gs["clearing_price_e8"])
-        mark_price_source_kind = int(gs["mark_price_source_kind"])
-
-        oracle_seen = bool(gs["oracle_seen"])
-        oracle_last_update_epoch = int(gs["oracle_last_update_epoch"])
-        index_price_e8 = int(gs["index_price_e8"])
-
-        max_oracle_move_bps = int(gs["max_oracle_move_bps"])
-        initial_margin_bps = int(gs["initial_margin_bps"])
-        maintenance_margin_bps = int(gs["maintenance_margin_bps"])
-        depeg_buffer_bps = int(gs["depeg_buffer_bps"])
-        liquidation_penalty_bps = int(gs["liquidation_penalty_bps"])
-
-        fee_pool_quote = int(gs["fee_pool_quote"])
-        funding_rate_bps = int(gs["funding_rate_bps"])
-        funding_cap_bps = int(gs["funding_cap_bps"])
-
-        insurance_balance = int(gs["insurance_balance"])
-        initial_insurance = int(gs["initial_insurance"])
-        fee_income = int(gs["fee_income"])
-        claims_paid = int(gs["claims_paid"])
-
-        # Basic temporal sanity: "from future" fields are invalid.
-        if breaker_last_trigger_epoch > now_epoch:
-            raise ValueError("breaker_last_trigger_epoch must be <= now_epoch")
-        if clearing_price_epoch > now_epoch:
-            raise ValueError("clearing_price_epoch must be <= now_epoch")
-        if oracle_last_update_epoch > now_epoch:
-            raise ValueError("oracle_last_update_epoch must be <= now_epoch")
-
-        # Zeroing invariants (fail-closed on partial fields).
-        if not breaker_active and breaker_last_trigger_epoch != 0:
-            raise ValueError("breaker_last_trigger_epoch must be 0 when breaker_active is false")
-        if not clearing_price_seen and (clearing_price_epoch != 0 or clearing_price_e8 != 0):
-            raise ValueError("clearing_price fields must be 0 when clearing_price_seen is false")
-        if clearing_price_seen and not is_derivatives_safe_mark_price_source(mark_price_source_kind):
-            raise ValueError("mark_price_source_kind must be derivatives-safe when clearing_price_seen is true")
-        if not oracle_seen and (oracle_last_update_epoch != 0 or index_price_e8 != 0):
-            raise ValueError("oracle fields must be 0 when oracle_seen is false")
-        if oracle_seen and index_price_e8 <= 0:
-            raise ValueError("index_price_e8 must be positive when oracle_seen is true")
-
-        # Parameter ordering invariants.
-        eff_maint = maintenance_margin_bps + depeg_buffer_bps
-        if not (max_oracle_move_bps <= eff_maint <= initial_margin_bps):
-            raise ValueError("invalid margin params ordering (max_move <= maint+depeg <= initial)")
-        if liquidation_penalty_bps >= eff_maint:
-            raise ValueError("invalid liquidation_penalty_bps (must be < maintenance_margin_bps + depeg_buffer_bps)")
-
-        # Funding bounds + gate.
-        if abs(funding_rate_bps) > funding_cap_bps:
-            raise ValueError("funding_rate_bps must be within [-funding_cap_bps, funding_cap_bps]")
-
-        # Insurance accounting + nonneg.
-        if insurance_balance < 0:
-            raise ValueError("insurance_balance must be non-negative")
-        if insurance_balance != initial_insurance + fee_income - claims_paid:
-            raise ValueError("insurance_balance must equal initial_insurance + fee_income - claims_paid")
-
-        # Fee pool accounting identity.
-        if fee_pool_quote != fee_income:
-            raise ValueError("fee_pool_quote must equal fee_income")
-
-        # Epoch phase consistency (prevents bypassing phase gating via malformed snapshots).
-        if epoch_phase == 0:
-            if clearing_price_seen and clearing_price_epoch == now_epoch:
-                raise ValueError("epoch_phase Open inconsistent with clearing_price for current epoch")
-            if now_epoch > 0 and oracle_seen and oracle_last_update_epoch == now_epoch:
-                raise ValueError("epoch_phase Open inconsistent with oracle_last_update_epoch == now_epoch")
-        elif epoch_phase == 1:
-            if not (clearing_price_seen and clearing_price_epoch == now_epoch):
-                raise ValueError("epoch_phase PricePublished requires clearing_price for current epoch")
-            if oracle_seen and oracle_last_update_epoch == now_epoch:
-                raise ValueError("epoch_phase PricePublished requires oracle_last_update_epoch < now_epoch")
-        elif epoch_phase == 2:
-            if not (clearing_price_seen and clearing_price_epoch == now_epoch):
-                raise ValueError("epoch_phase Settled requires clearing_price for current epoch")
-            if not (oracle_seen and oracle_last_update_epoch == now_epoch):
-                raise ValueError("epoch_phase Settled requires oracle_last_update_epoch == now_epoch")
-        else:  # pragma: no cover - guarded earlier
-            raise ValueError(f"invalid epoch_phase: {epoch_phase_str!r}")
-
-        # Account-level invariants that are cheap to enforce at snapshot boundaries.
-        for pk, acct in self.accounts.items():
-            if not isinstance(pk, str) or not pk:
-                raise TypeError("accounts keys must be non-empty strings")
-            pos = int(acct.position_base)
-            entry = int(acct.entry_price_e8)
-            if int(acct.funding_last_applied_epoch) > now_epoch:
-                raise ValueError("account funding_last_applied_epoch must be <= now_epoch")
-            if pos == 0 and entry != 0:
-                raise ValueError("entry_price_e8 must be 0 when position_base is 0")
-            if pos != 0 and entry != index_price_e8:
-                raise ValueError("entry_price_e8 must equal index_price_e8 when position_base is non-zero")
+        validate_isolated_state_consistency(
+            global_state=self.global_state,
+            accounts=self.accounts,
+            epoch_phase_int_to_str=_EPOCH_PHASE_INT_TO_STR,
+        )
 
     def kernel_state_for_account(self, account: PerpAccountState) -> dict[str, Value]:
         # Merge global + account state into a single kernel state dict.
