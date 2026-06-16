@@ -32,6 +32,8 @@ class SettlementSwapExactInQuote:
     amount_in: int
     amount_out: int
     fee_paid: int
+    protocol_fee_paid: int
+    lp_fee_paid: int
     net_in: int
     reserve_in_before: int
     reserve_out_before: int
@@ -49,6 +51,8 @@ class SettlementSwapExactOutQuote:
     overdelivery_gap: int
     gap_bps: int
     fee_paid: int
+    protocol_fee_paid: int
+    lp_fee_paid: int
     net_in_actual: int
     reserve_in_before: int
     reserve_out_before: int
@@ -85,12 +89,19 @@ def quote_cpmm_swap_exact_in(
     reserve_out: int,
     amount_in: int,
     fee_bps: int,
+    protocol_fee_share_bps: int = 0,
 ) -> SettlementSwapExactInQuote:
     """Return a kernel-backed exact-in settlement quote plus post-state."""
     reserve_in = _require_int_range("reserve_in", reserve_in, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
     reserve_out = _require_int_range("reserve_out", reserve_out, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
     amount_in = _require_int_range("amount_in", amount_in, minimum=1, maximum=DEX_SWAP_AMOUNT_MAX)
     fee_bps = _require_int_range("fee_bps", fee_bps, minimum=0, maximum=BPS_DENOM)
+    protocol_fee_share_bps = _require_int_range(
+        "protocol_fee_share_bps",
+        protocol_fee_share_bps,
+        minimum=0,
+        maximum=BPS_DENOM,
+    )
     if reserve_in + amount_in > DEX_POOL_RESERVE_MAX:
         raise ValueError(
             f"swap would exceed reserve_in domain max {DEX_POOL_RESERVE_MAX}: "
@@ -102,7 +113,7 @@ def quote_cpmm_swap_exact_in(
         reserve_out=reserve_out,
         amount_in=amount_in,
         fee_bps=fee_bps,
-        protocol_fee_share_bps=0,
+        protocol_fee_share_bps=protocol_fee_share_bps,
     )
     if res.k_after < res.k_before:
         raise ValueError(f"Invariant violation: new_k ({res.k_after}) < old_k ({res.k_before})")
@@ -111,6 +122,8 @@ def quote_cpmm_swap_exact_in(
         amount_in=int(amount_in),
         amount_out=int(res.amount_out),
         fee_paid=int(res.fee_total),
+        protocol_fee_paid=int(res.protocol_fee),
+        lp_fee_paid=int(res.lp_fee),
         net_in=int(res.net_in),
         reserve_in_before=int(reserve_in),
         reserve_out_before=int(reserve_out),
@@ -128,6 +141,7 @@ def quote_cpmm_swap_exact_out(
     amount_out: int,
     fee_bps: int,
     max_overdelivery_gap_bps: int = CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+    protocol_fee_share_bps: int = 0,
 ) -> SettlementSwapExactOutQuote:
     """Return a kernel-backed exact-out settlement quote plus post-state."""
     reserve_in = _require_int_range("reserve_in", reserve_in, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
@@ -140,12 +154,19 @@ def quote_cpmm_swap_exact_out(
         minimum=0,
         maximum=BPS_DENOM,
     )
+    protocol_fee_share_bps = _require_int_range(
+        "protocol_fee_share_bps",
+        protocol_fee_share_bps,
+        minimum=0,
+        maximum=BPS_DENOM,
+    )
 
     res = _kernel_swap_exact_out_v8(
         reserve_in=reserve_in,
         reserve_out=reserve_out,
         amount_out=amount_out,
         fee_bps=fee_bps,
+        protocol_fee_share_bps=protocol_fee_share_bps,
     )
     gap_bps = _gap_bps(overdelivery_gap=int(res.overdelivery_gap), amount_out=amount_out)
     if gap_bps > max_overdelivery_gap_bps:
@@ -162,6 +183,8 @@ def quote_cpmm_swap_exact_out(
         overdelivery_gap=int(res.overdelivery_gap),
         gap_bps=int(gap_bps),
         fee_paid=int(res.fee_total),
+        protocol_fee_paid=int(res.protocol_fee),
+        lp_fee_paid=int(res.lp_fee),
         net_in_actual=int(res.net_in),
         reserve_in_before=int(reserve_in),
         reserve_out_before=int(reserve_out),
