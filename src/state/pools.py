@@ -19,6 +19,128 @@ CURVE_TAG_QUARTIC_BLEND_V1 = "QUARTIC_BLEND_V1"
 CURVE_TAG_QUINTIC_BLEND_V1 = "QUINTIC_BLEND_V1"
 
 
+@dataclass(frozen=True)
+class _CurveParamSpec:
+    name: str
+    default: int
+    minimum: int
+    minimum_label: str
+
+
+def _canonical_curve_params(params: dict[str, int]) -> str:
+    return canonical_json_bytes(params).decode("utf-8")
+
+
+def _decode_curve_params_for_tag(
+    *,
+    tag: str,
+    curve_params: Optional[object],
+    default: dict[str, int],
+) -> dict[object, object]:
+    params_obj: object = default if curve_params is None else curve_params
+    if isinstance(params_obj, str):
+        import json
+
+        try:
+            params_obj = json.loads(params_obj)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
+    if not isinstance(params_obj, dict):
+        raise ValueError(f"curve_params for {tag} must be a JSON object")
+    return params_obj
+
+
+def _curve_param_int(
+    params: dict[object, object],
+    *,
+    tag: str,
+    spec: _CurveParamSpec,
+) -> int:
+    value = params.get(spec.name, spec.default)
+    if not isinstance(value, int) or isinstance(value, bool) or value < spec.minimum:
+        raise ValueError(f"{tag} param {spec.name} must be a {spec.minimum_label} int")
+    return int(value)
+
+
+def _normalize_non_negative_rational(c_num: int, c_den: int) -> Tuple[int, int]:
+    # Canonicalize equivalent rational params before pool_id hashing.
+    if c_num == 0:
+        return 0, 1
+
+    import math
+
+    gcd = math.gcd(c_num, c_den)
+    if gcd <= 1:
+        return c_num, c_den
+    return c_num // gcd, c_den // gcd
+
+
+def _normalize_cubic_sum_curve_params(tag: str, curve_params: Optional[object]) -> str:
+    params_obj = _decode_curve_params_for_tag(tag=tag, curve_params=curve_params, default={"p": 1, "q": 1})
+    p = _curve_param_int(
+        params_obj,
+        tag=tag,
+        spec=_CurveParamSpec(name="p", default=1, minimum=1, minimum_label="positive"),
+    )
+    q = _curve_param_int(
+        params_obj,
+        tag=tag,
+        spec=_CurveParamSpec(name="q", default=1, minimum=1, minimum_label="positive"),
+    )
+    return _canonical_curve_params({"p": p, "q": q})
+
+
+def _normalize_sum_boost_curve_params(tag: str, curve_params: Optional[object]) -> str:
+    params_obj = _decode_curve_params_for_tag(
+        tag=tag,
+        curve_params=curve_params,
+        default={"mu_num": 200, "mu_den": 10_000},
+    )
+    mu_num = _curve_param_int(
+        params_obj,
+        tag=tag,
+        spec=_CurveParamSpec(name="mu_num", default=200, minimum=0, minimum_label="non-negative"),
+    )
+    mu_den = _curve_param_int(
+        params_obj,
+        tag=tag,
+        spec=_CurveParamSpec(name="mu_den", default=10_000, minimum=1, minimum_label="positive"),
+    )
+    return _canonical_curve_params({"mu_den": mu_den, "mu_num": mu_num})
+
+
+def _normalize_quartic_blend_curve_params(tag: str, curve_params: Optional[object]) -> str:
+    params_obj = _decode_curve_params_for_tag(tag=tag, curve_params=curve_params, default={"c_num": 8, "c_den": 1})
+    c_num = _curve_param_int(
+        params_obj,
+        tag=tag,
+        spec=_CurveParamSpec(name="c_num", default=8, minimum=0, minimum_label="non-negative"),
+    )
+    c_den = _curve_param_int(
+        params_obj,
+        tag=tag,
+        spec=_CurveParamSpec(name="c_den", default=1, minimum=1, minimum_label="positive"),
+    )
+    c_num_norm, c_den_norm = _normalize_non_negative_rational(c_num, c_den)
+    return _canonical_curve_params({"c_den": c_den_norm, "c_num": c_num_norm})
+
+
+def _normalize_quintic_blend_curve_params(tag: str, curve_params: Optional[object]) -> str:
+    params_obj = _decode_curve_params_for_tag(tag=tag, curve_params=curve_params, default={"c_num": 2, "c_den": 1})
+    c_num = _curve_param_int(
+        params_obj,
+        tag=tag,
+        spec=_CurveParamSpec(name="c_num", default=2, minimum=0, minimum_label="non-negative"),
+    )
+    c_den = _curve_param_int(
+        params_obj,
+        tag=tag,
+        spec=_CurveParamSpec(name="c_den", default=1, minimum=1, minimum_label="positive"),
+    )
+    c_num_norm, c_den_norm = _normalize_non_negative_rational(c_num, c_den)
+    return _canonical_curve_params({"c_den": c_den_norm, "c_num": c_num_norm})
+
+
 def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optional[object]) -> Tuple[str, str]:
     """
     Normalize and validate curve configuration.
@@ -41,119 +163,16 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
         return CURVE_TAG_CPMM, ""
 
     if tag == CURVE_TAG_CUBIC_SUM_V1:
-        cubic_params_obj: object = curve_params
-        if cubic_params_obj is None:
-            cubic_params_obj = {"p": 1, "q": 1}
-        if isinstance(cubic_params_obj, str):
-            import json
-
-            try:
-                cubic_params_obj = json.loads(cubic_params_obj)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(cubic_params_obj, dict):
-            raise ValueError(f"curve_params for {tag} must be a JSON object")
-        p = cubic_params_obj.get("p", 1)
-        q = cubic_params_obj.get("q", 1)
-        if not isinstance(p, int) or isinstance(p, bool) or p <= 0:
-            raise ValueError(f"{tag} param p must be a positive int")
-        if not isinstance(q, int) or isinstance(q, bool) or q <= 0:
-            raise ValueError(f"{tag} param q must be a positive int")
-        params_norm = {"p": int(p), "q": int(q)}
-        return CURVE_TAG_CUBIC_SUM_V1, canonical_json_bytes(params_norm).decode("utf-8")
+        return CURVE_TAG_CUBIC_SUM_V1, _normalize_cubic_sum_curve_params(tag, curve_params)
 
     if tag == CURVE_TAG_SUM_BOOST_V1:
-        sum_boost_params_obj: object = curve_params
-        if sum_boost_params_obj is None:
-            sum_boost_params_obj = {"mu_num": 200, "mu_den": 10_000}
-        if isinstance(sum_boost_params_obj, str):
-            import json
-
-            try:
-                sum_boost_params_obj = json.loads(sum_boost_params_obj)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(sum_boost_params_obj, dict):
-            raise ValueError(f"curve_params for {tag} must be a JSON object")
-        mu_num = sum_boost_params_obj.get("mu_num", 200)
-        mu_den = sum_boost_params_obj.get("mu_den", 10_000)
-        if not isinstance(mu_num, int) or isinstance(mu_num, bool) or mu_num < 0:
-            raise ValueError(f"{tag} param mu_num must be a non-negative int")
-        if not isinstance(mu_den, int) or isinstance(mu_den, bool) or mu_den <= 0:
-            raise ValueError(f"{tag} param mu_den must be a positive int")
-        params_norm = {"mu_den": int(mu_den), "mu_num": int(mu_num)}
-        return CURVE_TAG_SUM_BOOST_V1, canonical_json_bytes(params_norm).decode("utf-8")
+        return CURVE_TAG_SUM_BOOST_V1, _normalize_sum_boost_curve_params(tag, curve_params)
 
     if tag == CURVE_TAG_QUARTIC_BLEND_V1:
-        quartic_params_obj: object = curve_params
-        if quartic_params_obj is None:
-            # Default: c=8 is a conservative setting that reduces the frequency of large negative regressions vs CPMM
-            # (at the cost of smaller average improvement).
-            quartic_params_obj = {"c_num": 8, "c_den": 1}
-        if isinstance(quartic_params_obj, str):
-            import json
-
-            try:
-                quartic_params_obj = json.loads(quartic_params_obj)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(quartic_params_obj, dict):
-            raise ValueError(f"curve_params for {tag} must be a JSON object")
-        c_num = quartic_params_obj.get("c_num", 8)
-        c_den = quartic_params_obj.get("c_den", 1)
-        if not isinstance(c_num, int) or isinstance(c_num, bool) or c_num < 0:
-            raise ValueError(f"{tag} param c_num must be a non-negative int")
-        if not isinstance(c_den, int) or isinstance(c_den, bool) or c_den <= 0:
-            raise ValueError(f"{tag} param c_den must be a positive int")
-
-        import math
-
-        c_num_i = int(c_num)
-        c_den_i = int(c_den)
-        if c_num_i == 0:
-            c_den_i = 1
-        else:
-            g = math.gcd(c_num_i, c_den_i)
-            if g > 1:
-                c_num_i //= g
-                c_den_i //= g
-        params_norm = {"c_den": int(c_den_i), "c_num": int(c_num_i)}
-        return CURVE_TAG_QUARTIC_BLEND_V1, canonical_json_bytes(params_norm).decode("utf-8")
+        return CURVE_TAG_QUARTIC_BLEND_V1, _normalize_quartic_blend_curve_params(tag, curve_params)
 
     if tag == CURVE_TAG_QUINTIC_BLEND_V1:
-        quintic_params_obj: object = curve_params
-        if quintic_params_obj is None:
-            # Default: c=2 => K(x,y)=x*y*(x+y)^3 (a stable, easy-to-reason-about special case).
-            quintic_params_obj = {"c_num": 2, "c_den": 1}
-        if isinstance(quintic_params_obj, str):
-            import json
-
-            try:
-                quintic_params_obj = json.loads(quintic_params_obj)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(quintic_params_obj, dict):
-            raise ValueError(f"curve_params for {tag} must be a JSON object")
-        c_num = quintic_params_obj.get("c_num", 2)
-        c_den = quintic_params_obj.get("c_den", 1)
-        if not isinstance(c_num, int) or isinstance(c_num, bool) or c_num < 0:
-            raise ValueError(f"{tag} param c_num must be a non-negative int")
-        if not isinstance(c_den, int) or isinstance(c_den, bool) or c_den <= 0:
-            raise ValueError(f"{tag} param c_den must be a positive int")
-        # Canonicalize the rational to lowest terms so semantically identical params hash to the same pool_id.
-        import math
-
-        c_num_i = int(c_num)
-        c_den_i = int(c_den)
-        if c_num_i == 0:
-            c_den_i = 1
-        else:
-            g = math.gcd(c_num_i, c_den_i)
-            if g > 1:
-                c_num_i //= g
-                c_den_i //= g
-        params_norm = {"c_den": int(c_den_i), "c_num": int(c_num_i)}
-        return CURVE_TAG_QUINTIC_BLEND_V1, canonical_json_bytes(params_norm).decode("utf-8")
+        return CURVE_TAG_QUINTIC_BLEND_V1, _normalize_quintic_blend_curve_params(tag, curve_params)
 
     raise ValueError(f"unsupported curve_tag: {tag!r}")
 
