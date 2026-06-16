@@ -1682,7 +1682,7 @@ def _quote_swap_exact_in_replay(
         return None, f"swap_exact_in kernel error for intent_id={target.intent_id}: {exc}"
 
 
-def _check_swap_exact_in_fill(
+def _check_swap_exact_in_amount_fields(
     *,
     fill: Fill,
     target: _SwapReplayTarget,
@@ -1693,15 +1693,59 @@ def _check_swap_exact_in_fill(
         return f"swap amount_in_filled mismatch for intent_id={target.intent_id}"
     if int(fill.amount_out_filled or 0) != int(replay_amounts.amount_out):
         return f"swap amount_out_filled mismatch for intent_id={target.intent_id}"
+    return None
+
+
+def _check_swap_exact_in_slippage(
+    *,
+    target: _SwapReplayTarget,
+    replay_input: _SwapExactInReplayInput,
+    replay_amounts: _SwapReplayAmounts,
+) -> Optional[str]:
     if int(replay_amounts.amount_out) < int(replay_input.min_out):
         return f"swap slippage for intent_id={target.intent_id}"
+    return None
 
-    fee = compute_fee_total(int(replay_input.amount_in), int(target.pool.fee_bps))
+
+def _check_swap_fee_fields(
+    *,
+    fill: Fill,
+    target: _SwapReplayTarget,
+    fee_basis_amount: int,
+    protocol_fee_paid: int,
+) -> Optional[str]:
+    fee = compute_fee_total(int(fee_basis_amount), int(target.pool.fee_bps))
     if int(fill.fee_paid or 0) != int(fee):
         return f"swap fee_paid mismatch for intent_id={target.intent_id}"
-    if int(fill.protocol_fee_paid or 0) != int(replay_amounts.protocol_fee):
+    if int(fill.protocol_fee_paid or 0) != int(protocol_fee_paid):
         return f"swap protocol_fee_paid mismatch for intent_id={target.intent_id}"
     return None
+
+
+def _check_swap_exact_in_fill(
+    *,
+    fill: Fill,
+    target: _SwapReplayTarget,
+    replay_input: _SwapExactInReplayInput,
+    replay_amounts: _SwapReplayAmounts,
+) -> Optional[str]:
+    err = _check_swap_exact_in_amount_fields(
+        fill=fill,
+        target=target,
+        replay_input=replay_input,
+        replay_amounts=replay_amounts,
+    )
+    if err is not None:
+        return err
+    err = _check_swap_exact_in_slippage(target=target, replay_input=replay_input, replay_amounts=replay_amounts)
+    if err is not None:
+        return err
+    return _check_swap_fee_fields(
+        fill=fill,
+        target=target,
+        fee_basis_amount=int(replay_input.amount_in),
+        protocol_fee_paid=int(replay_amounts.protocol_fee),
+    )
 
 
 def _apply_swap_replay(
@@ -1887,7 +1931,7 @@ def _quote_swap_exact_out_replay(
         return None, f"swap_exact_out kernel error for intent_id={target.intent_id}: {exc}"
 
 
-def _check_swap_exact_out_fill(
+def _check_swap_exact_out_amount_fields(
     *,
     fill: Fill,
     target: _SwapReplayTarget,
@@ -1898,15 +1942,44 @@ def _check_swap_exact_out_fill(
         return f"swap amount_out_filled mismatch for intent_id={target.intent_id}"
     if int(fill.amount_in_filled or 0) != int(replay_amounts.amount_in):
         return f"swap amount_in_filled mismatch for intent_id={target.intent_id}"
+    return None
+
+
+def _check_swap_exact_out_slippage(
+    *,
+    target: _SwapReplayTarget,
+    replay_input: _SwapExactOutReplayInput,
+    replay_amounts: _SwapReplayAmounts,
+) -> Optional[str]:
     if int(replay_amounts.amount_in) > int(replay_input.max_in):
         return f"swap slippage for intent_id={target.intent_id}"
-
-    fee = compute_fee_total(int(replay_amounts.amount_in), int(target.pool.fee_bps))
-    if int(fill.fee_paid or 0) != int(fee):
-        return f"swap fee_paid mismatch for intent_id={target.intent_id}"
-    if int(fill.protocol_fee_paid or 0) != int(replay_amounts.protocol_fee):
-        return f"swap protocol_fee_paid mismatch for intent_id={target.intent_id}"
     return None
+
+
+def _check_swap_exact_out_fill(
+    *,
+    fill: Fill,
+    target: _SwapReplayTarget,
+    replay_input: _SwapExactOutReplayInput,
+    replay_amounts: _SwapReplayAmounts,
+) -> Optional[str]:
+    err = _check_swap_exact_out_amount_fields(
+        fill=fill,
+        target=target,
+        replay_input=replay_input,
+        replay_amounts=replay_amounts,
+    )
+    if err is not None:
+        return err
+    err = _check_swap_exact_out_slippage(target=target, replay_input=replay_input, replay_amounts=replay_amounts)
+    if err is not None:
+        return err
+    return _check_swap_fee_fields(
+        fill=fill,
+        target=target,
+        fee_basis_amount=int(replay_amounts.amount_in),
+        protocol_fee_paid=int(replay_amounts.protocol_fee),
+    )
 
 
 def _replay_swap_exact_out_fill(
