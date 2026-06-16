@@ -7,6 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import src.core.settlement_quote_binding as settlement_quote_binding
+import src.core.settlement_replay_swap_exact_out as settlement_replay_swap_exact_out
 import src.core.settlement_replay_swaps as settlement_replay_swaps
 import src.core.settlement_strong_validator as strong_validator
 from src.core.batch_clearing import compute_settlement, validate_settlement
@@ -2468,7 +2469,7 @@ def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monk
     def _boom_exact_out(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise ValueError("boom")
 
-    monkeypatch.setattr(settlement_replay_swaps, "swap_exact_out_for_pool", _boom_exact_out)
+    monkeypatch.setattr(settlement_replay_swap_exact_out, "swap_exact_out_for_pool", _boom_exact_out)
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
