@@ -237,6 +237,35 @@ class _ProtocolFeeReplayConfig:
 
 
 @dataclass(frozen=True)
+class _StrongValidationRequest:
+    settlement: Settlement
+    intents: List[Intent]
+    pre_state: _SettlementPreState
+    mode: str
+    allow_cow_netting: bool
+    allow_snapshot_bound_quote_bindings: bool
+    protocol_fee_share_bps: int
+    protocol_fee_recipient_pubkey: Optional[PubKey]
+
+
+@dataclass(frozen=True)
+class _IntentReplayEnvironment:
+    request: _StrongValidationRequest
+    settlement_index: _SettlementIndex
+    replay: _ReplayContext
+    protocol_fee: _ProtocolFeeReplayConfig
+
+
+@dataclass(frozen=True)
+class _PoolIntentReplayRequest:
+    intent: Intent
+    fill: Fill
+    pool_target: _PoolReplayTarget
+    quote_pool_fp: object
+    env: _IntentReplayEnvironment
+
+
+@dataclass(frozen=True)
 class _SwapReplayRequest:
     intent: Intent
     fill: Fill
@@ -1525,6 +1554,110 @@ def _validate_replayed_payload(
     return True, None
 
 
+def _replay_included_intents(env: _IntentReplayEnvironment) -> Tuple[bool, Optional[str]]:
+    for intent_id, action in env.request.settlement.included_intents:
+        err = _replay_included_intent(intent_id=intent_id, action=action, env=env)
+        if err is not None:
+            return False, err
+    return True, None
+
+
+def _replay_included_intent(
+    *,
+    intent_id: str,
+    action: FillAction,
+    env: _IntentReplayEnvironment,
+) -> Optional[str]:
+    intent = env.settlement_index.intents_by_id[intent_id]
+    quote_binding_error = _validate_quote_binding_transport(
+        intent,
+        allow_snapshot_bound_quote_bindings=env.request.allow_snapshot_bound_quote_bindings,
+    )
+    if quote_binding_error is not None:
+        return quote_binding_error
+    if action == FillAction.REJECT:
+        return None
+
+    fill = env.settlement_index.fill_by_id[intent_id]
+    recipient: PubKey = intent.get_field("recipient", intent.sender_pubkey)
+    if not isinstance(recipient, str) or not recipient:
+        return f"invalid recipient for intent_id={intent_id}"
+
+    if intent.kind == IntentKind.CREATE_POOL:
+        return _replay_create_pool_fill(intent=intent, fill=fill, replay=env.replay)
+
+    pool_id = intent.get_field("pool_id")
+    if not isinstance(pool_id, str) or not pool_id:
+        return f"missing pool_id for intent_id={intent_id}"
+    if pool_id not in env.replay.pools:
+        return f"pool not found for intent_id={intent_id}: {pool_id}"
+
+    pool_target = _PoolReplayTarget(pool_id=pool_id, pool=env.replay.pools[pool_id], recipient=recipient)
+    return _replay_pool_intent(
+        request=_PoolIntentReplayRequest(
+            intent=intent,
+            fill=fill,
+            pool_target=pool_target,
+            quote_pool_fp=intent.get_field("quote_pool_fingerprint"),
+            env=env,
+        ),
+    )
+
+
+def _replay_pool_intent(*, request: _PoolIntentReplayRequest) -> Optional[str]:
+    if request.intent.kind in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
+        return _replay_swap_intent(request=request)
+    if request.intent.kind == IntentKind.ADD_LIQUIDITY:
+        return _replay_add_liquidity_fill(
+            intent=request.intent,
+            fill=request.fill,
+            target=request.pool_target,
+            replay=request.env.replay,
+        )
+    if request.intent.kind == IntentKind.REMOVE_LIQUIDITY:
+        return _replay_remove_liquidity_fill(
+            intent=request.intent,
+            fill=request.fill,
+            target=request.pool_target,
+            replay=request.env.replay,
+        )
+    return f"unsupported intent kind for strong validation: {request.intent.kind}"
+
+
+def _replay_swap_intent(*, request: _PoolIntentReplayRequest) -> Optional[str]:
+    swap_target, err = _build_swap_replay_target(
+        intent=request.intent,
+        target=request.pool_target,
+        quote_pool_fp=request.quote_pool_fp,
+    )
+    if swap_target is None:
+        return err or f"invalid asset_in/out for intent_id={request.intent.intent_id}"
+
+    if request.fill.reason == "COW_NETTED":
+        return _replay_cow_netted_fill(
+            request=_CowNettingReplayRequest(
+                intent=request.intent,
+                fill=request.fill,
+                target=swap_target,
+                allow_cow_netting=request.env.request.allow_cow_netting,
+            ),
+            replay=request.env.replay,
+        )
+
+    err = _check_swap_reserve_witness(fill=request.fill, target=swap_target, mode=request.env.request.mode)
+    if err is not None:
+        return err
+    swap_request = _SwapReplayRequest(
+        intent=request.intent,
+        fill=request.fill,
+        target=swap_target,
+        protocol_fee=request.env.protocol_fee,
+    )
+    if request.intent.kind == IntentKind.SWAP_EXACT_IN:
+        return _replay_swap_exact_in_fill(request=swap_request, replay=request.env.replay)
+    return _replay_swap_exact_out_fill(request=swap_request, replay=request.env.replay)
+
+
 def validate_settlement_strong(
     *,
     settlement: Settlement,
@@ -1545,18 +1678,21 @@ def validate_settlement_strong(
     rather than crash on malformed inputs.
     """
     try:
-        return _validate_settlement_strong_impl(
+        request = _StrongValidationRequest(
             settlement=settlement,
             intents=intents,
-            pre_balances=pre_balances,
-            pre_pools=pre_pools,
-            pre_lp_balances=pre_lp_balances,
+            pre_state=_SettlementPreState(
+                balances=pre_balances,
+                pools=pre_pools,
+                lp_balances=pre_lp_balances,
+            ),
             mode=mode,
             allow_cow_netting=allow_cow_netting,
             allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
             protocol_fee_share_bps=protocol_fee_share_bps,
             protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
         )
+        return _validate_settlement_strong_impl(request=request)
     except _FAIL_CLOSED_VALIDATOR_ERRORS as exc:
         detail = str(exc).strip()
         if "\n" in detail or "\r" in detail:
@@ -1570,181 +1706,59 @@ def validate_settlement_strong(
 
 def _validate_settlement_strong_impl(
     *,
-    settlement: Settlement,
-    intents: List[Intent],
-    pre_balances: BalanceTable,
-    pre_pools: Dict[str, PoolState],
-    pre_lp_balances: Optional[LPTable] = None,
-    mode: str = _MODE_STRONG_REPLAY,
-    allow_cow_netting: bool = False,
-    allow_snapshot_bound_quote_bindings: bool = False,
-    protocol_fee_share_bps: int = 0,
-    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
+    request: _StrongValidationRequest,
 ) -> Tuple[bool, Optional[str]]:
     """
     Strong settlement validation.
 
     This is intended to be used in `dex.step` as a fail-closed acceptance gate.
     """
-    if mode not in _VALIDATION_MODES:
-        return False, f"unsupported validation mode: {mode!r}"
-    if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
+    if request.mode not in _VALIDATION_MODES:
+        return False, f"unsupported validation mode: {request.mode!r}"
+    if not is_strict_int(request.protocol_fee_share_bps) or not (0 <= request.protocol_fee_share_bps <= 10000):
         return False, "protocol_fee_share_bps must be an int in [0, 10000]"
-    if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
+    if request.protocol_fee_share_bps > 0 and not request.protocol_fee_recipient_pubkey:
         return False, "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
 
-    settlement_index, err_index = _build_settlement_index(settlement=settlement, intents=intents)
+    settlement_index, err_index = _build_settlement_index(
+        settlement=request.settlement,
+        intents=request.intents,
+    )
     if settlement_index is None:
         return False, err_index or "settlement index construction failed"
-    intents_by_id = settlement_index.intents_by_id
-    fill_by_id = settlement_index.fill_by_id
 
     ok_cow, err_cow = _validate_cow_pair_index(
-        settlement=settlement,
-        intents_by_id=intents_by_id,
-        fill_by_id=fill_by_id,
-        allow_cow_netting=allow_cow_netting,
+        settlement=request.settlement,
+        intents_by_id=settlement_index.intents_by_id,
+        fill_by_id=settlement_index.fill_by_id,
+        allow_cow_netting=request.allow_cow_netting,
     )
     if not ok_cow:
         return False, err_cow
 
     # Replay state (pure local copies).
     replay = _build_replay_context(
-        pre_balances=pre_balances,
-        pre_pools=pre_pools,
-        pre_lp_balances=pre_lp_balances,
+        pre_balances=request.pre_state.balances,
+        pre_pools=request.pre_state.pools,
+        pre_lp_balances=request.pre_state.lp_balances,
     )
-    pools = replay.pools
-    pre_state = _SettlementPreState(
-        balances=pre_balances,
-        pools=pre_pools,
-        lp_balances=pre_lp_balances,
+    env = _IntentReplayEnvironment(
+        request=request,
+        settlement_index=settlement_index,
+        replay=replay,
+        protocol_fee=_ProtocolFeeReplayConfig(
+            share_bps=int(request.protocol_fee_share_bps),
+            recipient_pubkey=request.protocol_fee_recipient_pubkey,
+        ),
     )
-    protocol_fee_config = _ProtocolFeeReplayConfig(
-        share_bps=int(protocol_fee_share_bps),
-        recipient_pubkey=protocol_fee_recipient_pubkey,
-    )
-
-    def fail(msg: str) -> Tuple[bool, Optional[str]]:
-        return False, msg
-
-    for intent_id, action in settlement.included_intents:
-        it = intents_by_id[intent_id]
-        quote_pool_fp = it.get_field("quote_pool_fingerprint")
-        quote_binding_error = _validate_quote_binding_transport(
-            it,
-            allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
-        )
-        if quote_binding_error is not None:
-            return fail(quote_binding_error)
-
-        if action == FillAction.REJECT:
-            continue
-
-        f = fill_by_id[intent_id]
-
-        sender: PubKey = it.sender_pubkey
-        recipient: PubKey = it.get_field("recipient", sender)
-        if not isinstance(recipient, str) or not recipient:
-            return fail(f"invalid recipient for intent_id={intent_id}")
-
-        if it.kind == IntentKind.CREATE_POOL:
-            err = _replay_create_pool_fill(intent=it, fill=f, replay=replay)
-            if err is not None:
-                return fail(err)
-            continue
-
-        pool_id = it.get_field("pool_id")
-        if not isinstance(pool_id, str) or not pool_id:
-            return fail(f"missing pool_id for intent_id={intent_id}")
-        if pool_id not in pools:
-            return fail(f"pool not found for intent_id={intent_id}: {pool_id}")
-        pool = pools[pool_id]
-        pool_target = _PoolReplayTarget(pool_id=pool_id, pool=pool, recipient=recipient)
-
-        if it.kind in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
-            swap_target, err = _build_swap_replay_target(
-                intent=it,
-                target=pool_target,
-                quote_pool_fp=quote_pool_fp,
-            )
-            if swap_target is None:
-                return fail(err or f"invalid asset_in/out for intent_id={intent_id}")
-
-            # CoW netting semantics (optional): direct user-to-user swap, no pool reserve changes.
-            if f.reason == "COW_NETTED":
-                err = _replay_cow_netted_fill(
-                    request=_CowNettingReplayRequest(
-                        intent=it,
-                        fill=f,
-                        target=swap_target,
-                        allow_cow_netting=allow_cow_netting,
-                    ),
-                    replay=replay,
-                )
-                if err is not None:
-                    return fail(err)
-                continue
-
-            err = _check_swap_reserve_witness(fill=f, target=swap_target, mode=mode)
-            if err is not None:
-                return fail(err)
-
-            if it.kind == IntentKind.SWAP_EXACT_IN:
-                err = _replay_swap_exact_in_fill(
-                    request=_SwapReplayRequest(
-                        intent=it,
-                        fill=f,
-                        target=swap_target,
-                        protocol_fee=protocol_fee_config,
-                    ),
-                    replay=replay,
-                )
-                if err is not None:
-                    return fail(err)
-                continue
-
-            err = _replay_swap_exact_out_fill(
-                request=_SwapReplayRequest(
-                    intent=it,
-                    fill=f,
-                    target=swap_target,
-                    protocol_fee=protocol_fee_config,
-                ),
-                replay=replay,
-            )
-            if err is not None:
-                return fail(err)
-            continue
-
-        if it.kind == IntentKind.ADD_LIQUIDITY:
-            err = _replay_add_liquidity_fill(
-                intent=it,
-                fill=f,
-                target=pool_target,
-                replay=replay,
-            )
-            if err is not None:
-                return fail(err)
-            continue
-
-        if it.kind == IntentKind.REMOVE_LIQUIDITY:
-            err = _replay_remove_liquidity_fill(
-                intent=it,
-                fill=f,
-                target=pool_target,
-                replay=replay,
-            )
-            if err is not None:
-                return fail(err)
-            continue
-
-        return fail(f"unsupported intent kind for strong validation: {it.kind}")
+    ok_replay, err_replay = _replay_included_intents(env)
+    if not ok_replay:
+        return False, err_replay
 
     return _validate_replayed_payload(
-        settlement=settlement,
+        settlement=request.settlement,
         replay=replay,
-        pre_state=pre_state,
+        pre_state=request.pre_state,
     )
 
 
