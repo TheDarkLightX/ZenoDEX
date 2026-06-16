@@ -25,7 +25,6 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple
 
-from ..core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from ..core.split_routing_dispatch import (
     best_split_many_pools_exact_in_for_pools,
     best_split_two_pools_exact_in_for_pools,
@@ -33,7 +32,9 @@ from ..core.split_routing_dispatch import (
 )
 from ..state.balances import Amount, AssetId
 from ..state.pools import PoolState
+from . import routing_common as _routing_common
 from . import routing_exact_out_gate as _exact_out_gate
+from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .routing_types import RouteHop, RouteLeg, RouteQuote
 from .routing_types import quote_key as _quote_key
 
@@ -41,87 +42,41 @@ ExactOutTwoHopGateConfig = _exact_out_gate.ExactOutTwoHopGateConfig
 ExactOutTwoHopGateDecision = _exact_out_gate.ExactOutTwoHopGateDecision
 decide_exact_out_two_hop_gate = _exact_out_gate.decide_exact_out_two_hop_gate
 should_consider_exact_out_two_hop = _exact_out_gate.should_consider_exact_out_two_hop
+_pool_reserves_direction = _routing_common.pool_reserves_direction
+_pool_connects = _routing_common.pool_connects
+_build_asset_pool_index = _routing_common.build_asset_pool_index
 
 
 def _pool_quote_exact_in(
-    pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_in: Amount
+    pool: PoolState,
+    *,
+    asset_in: AssetId,
+    asset_out: AssetId,
+    amount_in: Amount,
 ) -> Optional[Tuple[Amount, str]]:
-    if amount_in <= 0:
-        return None
-    if pool.status.value != "ACTIVE":
-        return None
-    # Determine reserves direction.
-    if asset_in == pool.asset0 and asset_out == pool.asset1:
-        rin, rout = pool.reserve0, pool.reserve1
-    elif asset_in == pool.asset1 and asset_out == pool.asset0:
-        rin, rout = pool.reserve1, pool.reserve0
-    else:
-        return None
-    try:
-        amount_out, _ = swap_exact_in_for_pool(pool, reserve_in=rin, reserve_out=rout, amount_in=amount_in)
-    except ValueError:
-        return None
-    return amount_out, pool.pool_id
+    return _routing_common.pool_quote_exact_in(
+        pool,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_in=amount_in,
+        quote_exact_in=swap_exact_in_for_pool,
+    )
 
 
 def _pool_quote_exact_out(
-    pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_out: Amount
+    pool: PoolState,
+    *,
+    asset_in: AssetId,
+    asset_out: AssetId,
+    amount_out: Amount,
 ) -> Optional[Tuple[Amount, str, Amount]]:
-    """
-    Exact-out quote helper.
-
-    Returns (amount_in, pool_id, direct_reserve_out) for this direction.
-    """
-    if amount_out <= 0:
-        return None
-    if pool.status.value != "ACTIVE":
-        return None
-    # Determine reserves direction.
-    if asset_in == pool.asset0 and asset_out == pool.asset1:
-        rin, rout = pool.reserve0, pool.reserve1
-    elif asset_in == pool.asset1 and asset_out == pool.asset0:
-        rin, rout = pool.reserve1, pool.reserve0
-    else:
-        return None
-    try:
-        amount_in, _ = swap_exact_out_for_pool(pool, reserve_in=rin, reserve_out=rout, amount_out=amount_out)
-    except ValueError:
-        return None
-    return amount_in, pool.pool_id, rout
-
-
-def _pool_reserves_direction(
-    pool: PoolState, *, asset_in: AssetId, asset_out: AssetId
-) -> Optional[Tuple[int, int, int]]:
-    """
-    Return (reserve_in, reserve_out, fee_bps) for the requested direction, or None if unsupported/inactive.
-    """
-    if pool.status.value != "ACTIVE":
-        return None
-    if asset_in == pool.asset0 and asset_out == pool.asset1:
-        return int(pool.reserve0), int(pool.reserve1), int(pool.fee_bps)
-    if asset_in == pool.asset1 and asset_out == pool.asset0:
-        return int(pool.reserve1), int(pool.reserve0), int(pool.fee_bps)
-    return None
-
-
-def _pool_connects(pool: PoolState, a: AssetId, b: AssetId) -> bool:
-    return (a == pool.asset0 and b == pool.asset1) or (a == pool.asset1 and b == pool.asset0)
-
-
-def _build_asset_pool_index(pools: Tuple[PoolState, ...]) -> Dict[AssetId, Tuple[int, ...]]:
-    """
-    Build deterministic asset -> pool-index adjacency for indexed routing scans.
-    """
-    temp: Dict[AssetId, List[int]] = {}
-    for idx, pool in enumerate(pools):
-        temp.setdefault(pool.asset0, []).append(idx)
-        temp.setdefault(pool.asset1, []).append(idx)
-    out: Dict[AssetId, Tuple[int, ...]] = {}
-    for asset, indices in temp.items():
-        indices.sort(key=lambda i: pools[i].pool_id)
-        out[asset] = tuple(indices)
-    return out
+    return _routing_common.pool_quote_exact_out(
+        pool,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out=amount_out,
+        quote_exact_out=swap_exact_out_for_pool,
+    )
 
 
 def best_route_exact_in_2hop(
