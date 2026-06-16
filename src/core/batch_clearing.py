@@ -44,6 +44,10 @@ from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
 from ..state.pools import CURVE_TAG_CPMM, PoolState
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
+from .batch_clearing_apply import (
+    _apply_filled_intent_to_locals_with_context,
+    _FilledIntentLocalContext,
+)
 from .batch_clearing_cow import _cow_pair_netting_exact_in_v1
 from .batch_clearing_create_pool import (
     _apply_create_pool_to_locals,
@@ -382,97 +386,20 @@ def _apply_filled_intent_to_locals(
     lp_deltas: List[LPDelta],
     protocol_fee_recipient_pubkey: Optional[PubKey] = None,
 ) -> None:
-    sender = intent.sender_pubkey
-    recipient = intent.get_field("recipient", sender)
-
-    if intent.kind in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
-        asset_in = intent.get_field("asset_in")
-        asset_out = intent.get_field("asset_out")
-        amount_in = fill.amount_in_filled or 0
-        amount_out = fill.amount_out_filled or 0
-        protocol_fee = fill.protocol_fee_paid or 0
-
-        balances.subtract(sender, asset_in, amount_in)
-        balances.add(recipient, asset_out, amount_out)
-        if protocol_fee:
-            if not protocol_fee_recipient_pubkey:
-                raise ValueError("protocol_fee_recipient_pubkey is required for protocol fee capture")
-            # Review finding (grade A-): the fee-recipient guard was correct at
-            # runtime, but the later delta row still carried Optional[PubKey].
-            # Keep the validated non-null recipient in one variable so the
-            # consensus delta witness and balance mutation share the same value.
-            fee_recipient = protocol_fee_recipient_pubkey
-            balances.add(fee_recipient, asset_in, protocol_fee)
-
-        balance_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=amount_in))
-        balance_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=amount_out, delta_sub=0))
-        if protocol_fee:
-            balance_deltas.append(
-                BalanceDelta(
-                    pubkey=fee_recipient,
-                    asset=asset_in,
-                    delta_add=protocol_fee,
-                    delta_sub=0,
-                )
-            )
-
-        # CoW-style netting: do not touch pool reserves/deltas.
-        if fill.reason == "COW_NETTED":
-            return
-
-        reserve_amount_in = amount_in - protocol_fee
-        reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_in, delta_add=reserve_amount_in, delta_sub=0))
-        reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=amount_out))
-
-        if asset_in == pool_state.asset0:
-            pool_state.reserve0 += reserve_amount_in
-            pool_state.reserve1 -= amount_out
-        else:
-            pool_state.reserve1 += reserve_amount_in
-            pool_state.reserve0 -= amount_out
-        return
-
-    if intent.kind == IntentKind.ADD_LIQUIDITY:
-        amount0_used = fill.amount0_used or 0
-        amount1_used = fill.amount1_used or 0
-        lp_minted = fill.lp_minted or 0
-
-        balances.subtract(sender, pool_state.asset0, amount0_used)
-        balances.subtract(sender, pool_state.asset1, amount1_used)
-        lp_balances.add(recipient, pool_id, lp_minted)
-
-        balance_deltas.append(BalanceDelta(pubkey=sender, asset=pool_state.asset0, delta_add=0, delta_sub=amount0_used))
-        balance_deltas.append(BalanceDelta(pubkey=sender, asset=pool_state.asset1, delta_add=0, delta_sub=amount1_used))
-        reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=pool_state.asset0, delta_add=amount0_used, delta_sub=0))
-        reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=pool_state.asset1, delta_add=amount1_used, delta_sub=0))
-        lp_deltas.append(LPDelta(pubkey=recipient, pool_id=pool_id, delta_add=lp_minted, delta_sub=0))
-
-        pool_state.reserve0 += amount0_used
-        pool_state.reserve1 += amount1_used
-        pool_state.lp_supply += lp_minted
-        return
-
-    if intent.kind == IntentKind.REMOVE_LIQUIDITY:
-        lp_burned = fill.lp_burned or 0
-        amount0_out = fill.amount0_out or 0
-        amount1_out = fill.amount1_out or 0
-
-        lp_balances.subtract(sender, pool_id, lp_burned)
-        balances.add(recipient, pool_state.asset0, amount0_out)
-        balances.add(recipient, pool_state.asset1, amount1_out)
-
-        lp_deltas.append(LPDelta(pubkey=sender, pool_id=pool_id, delta_add=0, delta_sub=lp_burned))
-        balance_deltas.append(BalanceDelta(pubkey=recipient, asset=pool_state.asset0, delta_add=amount0_out, delta_sub=0))
-        balance_deltas.append(BalanceDelta(pubkey=recipient, asset=pool_state.asset1, delta_add=amount1_out, delta_sub=0))
-        reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=pool_state.asset0, delta_add=0, delta_sub=amount0_out))
-        reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=pool_state.asset1, delta_add=0, delta_sub=amount1_out))
-
-        pool_state.reserve0 -= amount0_out
-        pool_state.reserve1 -= amount1_out
-        pool_state.lp_supply -= lp_burned
-        return
-
-    raise ValueError(f"Unsupported intent kind for fill application: {intent.kind}")
+    _apply_filled_intent_to_locals_with_context(
+        intent,
+        fill,
+        _FilledIntentLocalContext(
+            pool_id=pool_id,
+            pool_state=pool_state,
+            balances=balances,
+            lp_balances=lp_balances,
+            balance_deltas=balance_deltas,
+            reserve_deltas=reserve_deltas,
+            lp_deltas=lp_deltas,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+        ),
+    )
 
 
 def clear_batch_single_pool(
