@@ -23,7 +23,6 @@ Complexity:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from ..core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
@@ -35,36 +34,13 @@ from ..core.split_routing_dispatch import (
 from ..state.balances import Amount, AssetId
 from ..state.pools import PoolState
 from . import routing_exact_out_gate as _exact_out_gate
+from .routing_types import RouteHop, RouteLeg, RouteQuote
+from .routing_types import quote_key as _quote_key
 
 ExactOutTwoHopGateConfig = _exact_out_gate.ExactOutTwoHopGateConfig
 ExactOutTwoHopGateDecision = _exact_out_gate.ExactOutTwoHopGateDecision
 decide_exact_out_two_hop_gate = _exact_out_gate.decide_exact_out_two_hop_gate
 should_consider_exact_out_two_hop = _exact_out_gate.should_consider_exact_out_two_hop
-
-
-@dataclass(frozen=True)
-class RouteHop:
-    pool_id: str
-    asset_in: AssetId
-    asset_out: AssetId
-    amount_in: Amount
-    amount_out: Amount
-
-
-@dataclass(frozen=True)
-class RouteLeg:
-    hops: Tuple[RouteHop, ...]
-    amount_in: Amount
-    amount_out: Amount
-
-
-@dataclass(frozen=True)
-class RouteQuote:
-    asset_in: AssetId
-    asset_out: AssetId
-    amount_in: Amount
-    amount_out: Amount
-    legs: Tuple[RouteLeg, ...]
 
 
 def _pool_quote_exact_in(
@@ -146,17 +122,6 @@ def _build_asset_pool_index(pools: Tuple[PoolState, ...]) -> Dict[AssetId, Tuple
         indices.sort(key=lambda i: pools[i].pool_id)
         out[asset] = tuple(indices)
     return out
-
-
-def _quote_key(q: RouteQuote) -> Tuple[int, int, str, str, str]:
-    # Prefer fewer sequential hops, then fewer legs, then lexicographic pool_id sequence.
-    hop_count = sum(len(leg.hops) for leg in q.legs)
-    leg_count = len(q.legs)
-    pool_seq = ";".join(",".join(h.pool_id for h in leg.hops) for leg in q.legs)
-    mid = ""
-    if leg_count == 1 and hop_count == 2:
-        mid = q.legs[0].hops[0].asset_out
-    return (int(hop_count), int(leg_count), pool_seq, mid, q.asset_out)
 
 
 def best_route_exact_in_2hop(
