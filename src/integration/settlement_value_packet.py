@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
 
 SETTLEMENT_VALUE_PACKET_SCHEMA = "zenodex/settlement-value-packet/v1"
+_PACKET_DOMAIN_ERRORS = (TypeError, ValueError, ArithmeticError)
 
 
 @dataclass(frozen=True)
@@ -261,7 +262,7 @@ def verify_settlement_value_packet_payload_from_price_packet(
 ) -> tuple[bool, str | None]:
     try:
         price_packet = SettlementSpotPricePacket.from_dict(price_packet_payload)
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     try:
         expected = build_settlement_value_packet_from_price_packet(
@@ -269,11 +270,11 @@ def verify_settlement_value_packet_payload_from_price_packet(
             price_packet=price_packet,
             lp_unit_values=lp_unit_values,
         )
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     try:
         packet = SettlementValuePacket.from_dict(packet_payload)
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     if packet.schema != expected.schema:
         return False, "schema mismatch"
@@ -296,7 +297,7 @@ def verify_settlement_value_packet_payload_from_price_attestation(
 
     try:
         price_attestation = SettlementSpotPriceAttestation.from_dict(price_attestation_payload)
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     try:
         expected = build_settlement_value_packet_from_price_attestation(
@@ -307,11 +308,11 @@ def verify_settlement_value_packet_payload_from_price_attestation(
             lp_unit_values=lp_unit_values,
             allowed_signers=allowed_signers,
         )
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     try:
         packet = SettlementValuePacket.from_dict(packet_payload)
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     if packet.schema != expected.schema:
         return False, "schema mismatch"

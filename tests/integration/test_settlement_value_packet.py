@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
+from src.integration import settlement_value_packet as value_packet_mod
 from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
-from src.integration.settlement_price_provenance import SettlementSpotPriceEntry, build_settlement_spot_price_packet
+from src.integration.settlement_price_provenance import (
+    SettlementSpotPriceEntry,
+    build_settlement_spot_price_packet,
+)
 from src.integration.settlement_value_packet import (
     SETTLEMENT_VALUE_PACKET_SCHEMA,
     SettlementValuePacket,
@@ -370,3 +376,85 @@ def test_settlement_value_packet_from_dict_round_trips() -> None:
     packet = build_settlement_value_packet_from_price_packet(settlement=settlement, price_packet=price_packet)
     rebuilt = SettlementValuePacket.from_dict(packet.to_dict())
     assert rebuilt == packet
+
+
+def test_settlement_value_packet_price_packet_parse_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, _asset0, _asset1, _pool_id, settlement = _swap_context()
+
+    def broken_from_dict(_payload: object) -> object:
+        raise RuntimeError("price packet parser bug")
+
+    monkeypatch.setattr(
+        value_packet_mod.SettlementSpotPricePacket,
+        "from_dict",
+        staticmethod(broken_from_dict),
+    )
+
+    with pytest.raises(RuntimeError, match="price packet parser bug"):
+        verify_settlement_value_packet_payload_from_price_packet(
+            settlement=settlement,
+            price_packet_payload={},
+            packet_payload={},
+        )
+
+
+def test_settlement_value_packet_expected_builder_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="local:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="local:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+
+    def broken_builder(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("value packet builder bug")
+
+    monkeypatch.setattr(
+        value_packet_mod,
+        "build_settlement_value_packet_from_price_packet",
+        broken_builder,
+    )
+
+    with pytest.raises(RuntimeError, match="value packet builder bug"):
+        verify_settlement_value_packet_payload_from_price_packet(
+            settlement=settlement,
+            price_packet_payload=price_packet.to_dict(),
+            packet_payload={},
+        )
+
+
+def test_settlement_value_packet_payload_rebuild_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="local:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="local:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+
+    def broken_packet_from_dict(_payload: object) -> object:
+        raise RuntimeError("value packet parser bug")
+
+    monkeypatch.setattr(
+        value_packet_mod.SettlementValuePacket,
+        "from_dict",
+        staticmethod(broken_packet_from_dict),
+    )
+
+    with pytest.raises(RuntimeError, match="value packet parser bug"):
+        verify_settlement_value_packet_payload_from_price_packet(
+            settlement=settlement,
+            price_packet_payload=price_packet.to_dict(),
+            packet_payload={},
+        )
