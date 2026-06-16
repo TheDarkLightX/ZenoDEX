@@ -124,6 +124,52 @@ class _CowPairEntry:
     amount_out_filled: int
 
 
+@dataclass(frozen=True)
+class _SettlementIndex:
+    intents_by_id: Dict[str, Intent]
+    fill_by_id: Dict[str, Fill]
+
+
+def _build_settlement_index(
+    *,
+    settlement: Settlement,
+    intents: List[Intent],
+) -> Tuple[Optional[_SettlementIndex], Optional[str]]:
+    # Intents must have unique ids (otherwise settlement semantics are ambiguous).
+    intent_ids = [it.intent_id for it in intents]
+    if len(intent_ids) != len(set(intent_ids)):
+        return None, "duplicate intent_id in input intents"
+
+    intents_by_id: Dict[str, Intent] = {it.intent_id: it for it in intents}
+
+    included_ids = [intent_id for intent_id, _action in settlement.included_intents]
+    if set(included_ids) != set(intent_ids):
+        missing = sorted(set(intent_ids) - set(included_ids))
+        extra = sorted(set(included_ids) - set(intent_ids))
+        return None, f"settlement included_intents mismatch: missing={missing} extra={extra}"
+    if len(included_ids) != len(set(included_ids)):
+        return None, "settlement included_intents contains duplicate intent_id entries"
+
+    # Build fill map. NOTE: Reject actions are allowed to omit fill details.
+    fill_ids = [f.intent_id for f in settlement.fills]
+    if len(fill_ids) != len(set(fill_ids)):
+        return None, "settlement fills contains duplicate intent_id entries"
+    extra_fill_ids = sorted(set(fill_ids) - set(intent_ids))
+    if extra_fill_ids:
+        return None, f"settlement fills contains intent_ids not in input intents: {extra_fill_ids}"
+    fill_by_id: Dict[str, Fill] = {f.intent_id: f for f in settlement.fills}
+    for intent_id, action in settlement.included_intents:
+        fill = fill_by_id.get(intent_id)
+        if fill is None:
+            if action == FillAction.FILL:
+                return None, f"missing Fill for filled intent_id: {intent_id}"
+            continue
+        if fill.action != action:
+            return None, f"Fill.action mismatch for intent_id={intent_id}: {fill.action} != {action}"
+
+    return _SettlementIndex(intents_by_id=intents_by_id, fill_by_id=fill_by_id), None
+
+
 def _validate_cow_pair_index(
     *,
     settlement: Settlement,
@@ -270,37 +316,11 @@ def _validate_settlement_strong_impl(
     if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
         return False, "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
 
-    # Intents must have unique ids (otherwise settlement semantics are ambiguous).
-    intent_ids = [it.intent_id for it in intents]
-    if len(intent_ids) != len(set(intent_ids)):
-        return False, "duplicate intent_id in input intents"
-
-    intents_by_id: Dict[str, Intent] = {it.intent_id: it for it in intents}
-
-    included_ids = [intent_id for intent_id, _action in settlement.included_intents]
-    if set(included_ids) != set(intent_ids):
-        missing = sorted(set(intent_ids) - set(included_ids))
-        extra = sorted(set(included_ids) - set(intent_ids))
-        return False, f"settlement included_intents mismatch: missing={missing} extra={extra}"
-    if len(included_ids) != len(set(included_ids)):
-        return False, "settlement included_intents contains duplicate intent_id entries"
-
-    # Build fill map. NOTE: Reject actions are allowed to omit fill details.
-    fill_ids = [f.intent_id for f in settlement.fills]
-    if len(fill_ids) != len(set(fill_ids)):
-        return False, "settlement fills contains duplicate intent_id entries"
-    extra_fill_ids = sorted(set(fill_ids) - set(intent_ids))
-    if extra_fill_ids:
-        return False, f"settlement fills contains intent_ids not in input intents: {extra_fill_ids}"
-    fill_by_id: Dict[str, Fill] = {f.intent_id: f for f in settlement.fills}
-    for intent_id, action in settlement.included_intents:
-        f = fill_by_id.get(intent_id)
-        if f is None:
-            if action == FillAction.FILL:
-                return False, f"missing Fill for filled intent_id: {intent_id}"
-            continue
-        if f.action != action:
-            return False, f"Fill.action mismatch for intent_id={intent_id}: {f.action} != {action}"
+    settlement_index, err_index = _build_settlement_index(settlement=settlement, intents=intents)
+    if settlement_index is None:
+        return False, err_index or "settlement index construction failed"
+    intents_by_id = settlement_index.intents_by_id
+    fill_by_id = settlement_index.fill_by_id
 
     ok_cow, err_cow = _validate_cow_pair_index(
         settlement=settlement,
