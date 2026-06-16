@@ -30,7 +30,6 @@ Algorithm Design:
 
 from __future__ import annotations
 
-import itertools
 from collections import defaultdict
 from dataclasses import dataclass, replace
 from typing import Any, Dict, List, Optional, Tuple
@@ -44,6 +43,10 @@ from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
 from ..state.pools import CURVE_TAG_CPMM, PoolState
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
+from .batch_clearing_ab_order import (
+    _OptimalAbOrderingFactories,
+    order_swaps_optimal_ab_bounded_with_factories,
+)
 from .batch_clearing_apply import (
     _apply_filled_intent_to_locals_with_context,
     _FilledIntentLocalContext,
@@ -498,137 +501,22 @@ def _order_swaps_optimal_ab_bounded(
     swaps share the same direction (same asset_in/out). Mixed-direction batches
     fall back to limit-price ordering.
     """
-    if len(intents) <= 1:
-        return list(intents)
-    if len(intents) > _MAX_SWAP_ORDERING_BRUTE_FORCE_N:
-        return _order_swaps_limit_price(intents)
-
-    first_asset_in = intents[0].get_field("asset_in")
-    first_asset_out = intents[0].get_field("asset_out")
-    if not isinstance(first_asset_in, str) or not isinstance(first_asset_out, str):
-        return _order_swaps_limit_price(intents)
-    if first_asset_in == first_asset_out:
-        return _order_swaps_limit_price(intents)
-
-    if not (
-        (first_asset_in == pool_state.asset0 and first_asset_out == pool_state.asset1)
-        or (first_asset_in == pool_state.asset1 and first_asset_out == pool_state.asset0)
-    ):
-        return _order_swaps_limit_price(intents)
-
-    for it in intents[1:]:
-        asset_in = it.get_field("asset_in")
-        asset_out = it.get_field("asset_out")
-        if asset_in != first_asset_in or asset_out != first_asset_out:
-            return _order_swaps_limit_price(intents)
-
-    if first_asset_in == pool_state.asset0:
-        r_in0 = int(reserves[0])
-        r_out0 = int(reserves[1])
-    else:
-        r_in0 = int(reserves[1])
-        r_out0 = int(reserves[0])
-
-    sender_bal_in: Dict[PubKey, Amount] = {}
-    for it in intents:
-        sender_bal_in[it.sender_pubkey] = balances.get(it.sender_pubkey, first_asset_in)
-
-    def _objective_for_order(order: Tuple[Intent, ...]) -> Tuple[int, int, Tuple[str, ...]]:
-        r_in = r_in0
-        r_out = r_out0
-        bal_in = dict(sender_bal_in)
-        A = 0
-        B = 0
-        for it in order:
-            sender = it.sender_pubkey
-
-            if it.kind == IntentKind.SWAP_EXACT_IN:
-                amount_in = it.get_field("amount_in")
-                min_amount_out = it.get_field("min_amount_out", 0)
-                if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-                    continue
-                if not isinstance(min_amount_out, int) or isinstance(min_amount_out, bool) or min_amount_out < 0:
-                    continue
-                if bal_in.get(sender, 0) < amount_in:
-                    continue
-                try:
-                    if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_in(
-                            reserve_in=r_in,
-                            reserve_out=r_out,
-                            amount_in=amount_in,
-                            fee_bps=pool_state.fee_bps,
-                        )
-                        amount_out = quote.amount_out
-                        new_r_in, new_r_out = quote.reserve_in_after, quote.reserve_out_after
-                    else:
-                        amount_out, (new_r_in, new_r_out) = swap_exact_in_for_pool(
-                            pool_state,
-                            reserve_in=r_in,
-                            reserve_out=r_out,
-                            amount_in=amount_in,
-                        )
-                except ValueError:
-                    continue
-                if amount_out < min_amount_out:
-                    continue
-
-                A += int(amount_in)
-                B += int(amount_out) - int(min_amount_out)
-                bal_in[sender] = int(bal_in.get(sender, 0) - amount_in)
-                r_in, r_out = int(new_r_in), int(new_r_out)
-                continue
-
-            if it.kind == IntentKind.SWAP_EXACT_OUT:
-                amount_out = it.get_field("amount_out")
-                max_amount_in = it.get_field("max_amount_in")
-                if not isinstance(amount_out, int) or isinstance(amount_out, bool) or amount_out <= 0:
-                    continue
-                if not isinstance(max_amount_in, int) or isinstance(max_amount_in, bool) or max_amount_in < 0:
-                    continue
-                try:
-                    if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_out(
-                            reserve_in=r_in,
-                            reserve_out=r_out,
-                            amount_out=amount_out,
-                            fee_bps=pool_state.fee_bps,
-                        )
-                        amount_in = quote.amount_in
-                        new_r_in, new_r_out = quote.reserve_in_after, quote.reserve_out_after
-                    else:
-                        amount_in, (new_r_in, new_r_out) = swap_exact_out_for_pool(
-                            pool_state,
-                            reserve_in=r_in,
-                            reserve_out=r_out,
-                            amount_out=amount_out,
-                        )
-                except ValueError:
-                    continue
-                if amount_in > max_amount_in:
-                    continue
-                if bal_in.get(sender, 0) < amount_in:
-                    continue
-
-                A += int(amount_in)
-                bal_in[sender] = int(bal_in.get(sender, 0) - amount_in)
-                r_in, r_out = int(new_r_in), int(new_r_out)
-                continue
-
-        order_ids = tuple(it.intent_id for it in order)
-        return int(A), int(B), order_ids
-
-    best_A = -1
-    best_B = -1
-    best_order_ids: Tuple[str, ...] | None = None
-    best_order: Tuple[Intent, ...] | None = None
-
-    for perm in itertools.permutations(intents):
-        cand_key = _ab_ordering_key(A_B_order=_objective_for_order(perm))
-        if best_order is None or _is_better_ab_key(cand_key, (best_A, best_B, best_order_ids or tuple())):
-            best_A, best_B, best_order_ids, best_order = cand_key[0], cand_key[1], cand_key[2], perm
-
-    return list(best_order) if best_order is not None else _order_swaps_limit_price(intents)
+    return order_swaps_optimal_ab_bounded_with_factories(
+        intents,
+        pool_state=pool_state,
+        balances=balances,
+        reserves=reserves,
+        max_brute_force_n=_MAX_SWAP_ORDERING_BRUTE_FORCE_N,
+        factories=_OptimalAbOrderingFactories(
+            quote_exact_in_fn=quote_cpmm_swap_exact_in,
+            quote_exact_out_fn=quote_cpmm_swap_exact_out,
+            swap_exact_in_fn=swap_exact_in_for_pool,
+            swap_exact_out_fn=swap_exact_out_for_pool,
+            order_limit_price_fn=_order_swaps_limit_price,
+            ab_ordering_key_fn=_ab_ordering_key,
+            is_better_ab_key_fn=_is_better_ab_key,
+        ),
+    )
 
 
 def _get_limit_price(intent: Intent) -> int:
