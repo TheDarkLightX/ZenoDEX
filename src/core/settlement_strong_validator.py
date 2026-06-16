@@ -2058,6 +2058,58 @@ def _replay_swap_intent(*, request: _PoolIntentReplayRequest) -> Optional[str]:
     return _replay_swap_exact_out_fill(request=swap_request, replay=request.env.replay)
 
 
+def _validate_strong_request_preflight(request: _StrongValidationRequest) -> Optional[str]:
+    if request.mode not in _VALIDATION_MODES:
+        return f"unsupported validation mode: {request.mode!r}"
+    if not is_strict_int(request.protocol_fee_share_bps) or not (0 <= request.protocol_fee_share_bps <= 10000):
+        return "protocol_fee_share_bps must be an int in [0, 10000]"
+    if request.protocol_fee_share_bps > 0 and not request.protocol_fee_recipient_pubkey:
+        return "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
+    return None
+
+
+def _build_validated_settlement_index(
+    request: _StrongValidationRequest,
+) -> Tuple[Optional[_SettlementIndex], Optional[str]]:
+    settlement_index, err_index = _build_settlement_index(
+        settlement=request.settlement,
+        intents=request.intents,
+    )
+    if settlement_index is None:
+        return None, err_index or "settlement index construction failed"
+
+    ok_cow, err_cow = _validate_cow_pair_index(
+        settlement=request.settlement,
+        intents_by_id=settlement_index.intents_by_id,
+        fill_by_id=settlement_index.fill_by_id,
+        allow_cow_netting=request.allow_cow_netting,
+    )
+    if not ok_cow:
+        return None, err_cow
+    return settlement_index, None
+
+
+def _build_intent_replay_environment(
+    *,
+    request: _StrongValidationRequest,
+    settlement_index: _SettlementIndex,
+) -> _IntentReplayEnvironment:
+    replay = _build_replay_context(
+        pre_balances=request.pre_state.balances,
+        pre_pools=request.pre_state.pools,
+        pre_lp_balances=request.pre_state.lp_balances,
+    )
+    return _IntentReplayEnvironment(
+        request=request,
+        settlement_index=settlement_index,
+        replay=replay,
+        protocol_fee=_ProtocolFeeReplayConfig(
+            share_bps=int(request.protocol_fee_share_bps),
+            recipient_pubkey=request.protocol_fee_recipient_pubkey,
+        ),
+    )
+
+
 def validate_settlement_strong(
     *,
     settlement: Settlement,
@@ -2113,51 +2165,20 @@ def _validate_settlement_strong_impl(
 
     This is intended to be used in `dex.step` as a fail-closed acceptance gate.
     """
-    if request.mode not in _VALIDATION_MODES:
-        return False, f"unsupported validation mode: {request.mode!r}"
-    if not is_strict_int(request.protocol_fee_share_bps) or not (0 <= request.protocol_fee_share_bps <= 10000):
-        return False, "protocol_fee_share_bps must be an int in [0, 10000]"
-    if request.protocol_fee_share_bps > 0 and not request.protocol_fee_recipient_pubkey:
-        return False, "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
-
-    settlement_index, err_index = _build_settlement_index(
-        settlement=request.settlement,
-        intents=request.intents,
-    )
+    err = _validate_strong_request_preflight(request)
+    if err is not None:
+        return False, err
+    settlement_index, err = _build_validated_settlement_index(request)
     if settlement_index is None:
-        return False, err_index or "settlement index construction failed"
-
-    ok_cow, err_cow = _validate_cow_pair_index(
-        settlement=request.settlement,
-        intents_by_id=settlement_index.intents_by_id,
-        fill_by_id=settlement_index.fill_by_id,
-        allow_cow_netting=request.allow_cow_netting,
-    )
-    if not ok_cow:
-        return False, err_cow
-
-    # Replay state (pure local copies).
-    replay = _build_replay_context(
-        pre_balances=request.pre_state.balances,
-        pre_pools=request.pre_state.pools,
-        pre_lp_balances=request.pre_state.lp_balances,
-    )
-    env = _IntentReplayEnvironment(
-        request=request,
-        settlement_index=settlement_index,
-        replay=replay,
-        protocol_fee=_ProtocolFeeReplayConfig(
-            share_bps=int(request.protocol_fee_share_bps),
-            recipient_pubkey=request.protocol_fee_recipient_pubkey,
-        ),
-    )
+        return False, err
+    env = _build_intent_replay_environment(request=request, settlement_index=settlement_index)
     ok_replay, err_replay = _replay_included_intents(env)
     if not ok_replay:
         return False, err_replay
 
     return _validate_replayed_payload(
         settlement=request.settlement,
-        replay=replay,
+        replay=env.replay,
         pre_state=request.pre_state,
     )
 
