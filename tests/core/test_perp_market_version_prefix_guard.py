@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.perp_market_version_prefix_guard import (
     REJECT_CH2P_PREFIX_MISMATCH,
     REJECT_CH3P_PREFIX_MISMATCH,
     REJECT_INVALID_VERSION,
+    REJECT_ISOLATED_PREFIX_CONFLICT,
     REJECT_OK,
     evaluate_perp_market_version_prefix_guard,
 )
@@ -70,3 +73,30 @@ def test_perp_market_version_prefix_guard_rejects_unknown_version() -> None:
     assert outcome.market_prefix_ok is False
     assert outcome.admission_ok is False
     assert outcome.reject_code == REJECT_INVALID_VERSION
+
+
+def test_perp_market_version_prefix_guard_rejects_isolated_prefixed_market() -> None:
+    outcome = evaluate_perp_market_version_prefix_guard(
+        version_is_v0_1=True,
+        version_is_ch2p=False,
+        version_is_ch3p=False,
+        market_has_ch2p_prefix=True,
+        market_has_ch3p_prefix=False,
+    )
+
+    assert outcome.version_ok is True
+    assert outcome.isolated_version is True
+    assert outcome.market_prefix_ok is False
+    assert outcome.admission_ok is False
+    assert outcome.reject_code == REJECT_ISOLATED_PREFIX_CONFLICT
+
+
+def test_perp_market_version_prefix_guard_rejects_non_bool_flags() -> None:
+    with pytest.raises(TypeError, match="version_is_ch2p must be a bool"):
+        evaluate_perp_market_version_prefix_guard(
+            version_is_v0_1=False,
+            version_is_ch2p=1,
+            version_is_ch3p=False,
+            market_has_ch2p_prefix=False,
+            market_has_ch3p_prefix=False,
+        )
