@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from random import Random
+
 import pytest
 
 from src.core import split_routing as split_routing_mod
@@ -9,6 +11,7 @@ from src.core.split_routing import (
     brute_force_best_split_two_pools_exact_in,
     exact_out_for_pool_exact_in,
     resolve_two_pool_split_search_params,
+    staircase_jump_best_split_two_pools_exact_in,
 )
 from tools.metamuse_split_routing_lane import DGSTR_CURATED_CASES
 
@@ -110,6 +113,33 @@ def test_default_adaptive_v6_recovers_known_gap_case():
     default_out, default_a = best_split_two_pools_exact_in(p0, p1, amt, window=64)
     assert default_out == best_out_bf
     assert default_a == best_a_bf
+
+
+def test_staircase_exact_matches_bruteforce_on_seeded_integer_corpus() -> None:
+    rng = Random(20260616)
+    for _ in range(250):
+        p0 = PoolXY(x=rng.randint(1, 500), y=rng.randint(1, 500), fee_bps=rng.randint(0, 500))
+        p1 = PoolXY(x=rng.randint(1, 500), y=rng.randint(1, 500), fee_bps=rng.randint(0, 500))
+        amount_in = rng.randint(2, 750)
+        try:
+            expected = brute_force_best_split_two_pools_exact_in(p0, p1, amount_in)
+        except ValueError:
+            continue
+
+        assert staircase_jump_best_split_two_pools_exact_in(p0, p1, amount_in) == expected
+        assert best_split_two_pools_exact_in(p0, p1, amount_in, search_profile="staircase_exact") == expected
+
+
+def test_staircase_exact_recovers_known_gap_case_with_bounded_quote_count() -> None:
+    p0 = PoolXY(x=87, y=80, fee_bps=75)
+    p1 = PoolXY(x=46, y=66, fee_bps=11)
+    amount_in = 6539
+    expected = brute_force_best_split_two_pools_exact_in(p0, p1, amount_in)
+
+    got, calls = _count_profile_calls(p0, p1, amount_in, search_profile="staircase_exact")
+
+    assert got == expected
+    assert calls <= 2 * p0.y + 5
 
 
 def test_unknown_search_profile_rejected():

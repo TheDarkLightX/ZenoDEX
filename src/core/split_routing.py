@@ -35,6 +35,7 @@ ADAPTIVE_SEARCH_PROFILES = frozenset({
     "adaptive_v6",
     "adaptive_v7",
 })
+EXACT_STAIRCASE_PROFILE = "staircase_exact"
 
 
 @dataclass(frozen=True)
@@ -249,6 +250,65 @@ def _is_better_candidate(
     if best is None:
         return True
     return bool(cand[0] > best[0] or (cand[0] == best[0] and cand[1] < best[1]))
+
+
+def _ceil_div_positive(numerator: int, denominator: int) -> int:
+    if denominator <= 0:
+        raise ValueError("denominator must be positive")
+    return (int(numerator) + int(denominator) - 1) // int(denominator)
+
+
+def _min_gross_in_for_output_level(pool: PoolXY, output_level: int) -> int | None:
+    alpha = int(BPS_DENOM) - int(pool.fee_bps)
+    target = int(output_level)
+    if alpha <= 0 or target <= 0 or target >= int(pool.y):
+        return None
+
+    # Invert floor(y*n/(x+n)) >= target to n >= ceil(target*x/(y-target)),
+    # then invert net=floor(gross*alpha/BPS_DENOM).
+    min_net = _ceil_div_positive(target * int(pool.x), int(pool.y) - target)
+    return _ceil_div_positive(min_net * int(BPS_DENOM), alpha)
+
+
+def _pool_output_jump_candidates(pool: PoolXY, amount_in_total: int) -> set[int]:
+    candidates: set[int] = set()
+    try:
+        max_output = exact_out_for_pool_exact_in(pool, int(amount_in_total))
+    except ValueError:
+        return candidates
+
+    for output_level in range(1, int(max_output) + 1):
+        gross_in = _min_gross_in_for_output_level(pool, output_level)
+        if gross_in is not None and gross_in <= int(amount_in_total):
+            candidates.add(int(gross_in))
+    return candidates
+
+
+def staircase_jump_best_split_two_pools_exact_in(pool0: PoolXY, pool1: PoolXY, amount_in: int) -> tuple[int, int]:
+    """
+    Exact two-pool CPMM split by enumerating pool0 output jump points.
+
+    Complexity is O(J) quotes where J is the number of distinct positive pool0
+    outputs reachable with `amount_in`, plus two endpoint checks. This is exact
+    because pool0 is constant between jumps and pool1 cannot improve as input is
+    shifted away from it.
+    """
+    if amount_in <= 0:
+        raise ValueError("amount_in must be positive")
+
+    quote_cache = _SplitQuoteCache(pool0=pool0, pool1=pool1, amount_in=int(amount_in), totals={})
+    best: tuple[int, int] | None = None
+    for a in sorted({0, int(amount_in)} | _pool_output_jump_candidates(pool0, int(amount_in))):
+        total = quote_cache.total_out(int(a))
+        if total is None:
+            continue
+        candidate = (int(total), int(a))
+        if _is_better_candidate(candidate, best):
+            best = candidate
+
+    if best is None:
+        raise ValueError("no feasible split")
+    return int(best[0]), int(best[1])
 
 
 def _scan_range_best(
@@ -591,6 +651,8 @@ def _resolve_entrypoint_profile(
     search_profile: str,
 ) -> tuple[int, str]:
     profile = str(search_profile).strip().lower()
+    if profile == EXACT_STAIRCASE_PROFILE:
+        return int(window), profile
     if profile not in ADAPTIVE_SEARCH_PROFILES:
         return int(window), profile
     return resolve_two_pool_split_search_params(
@@ -803,6 +865,8 @@ def best_split_two_pools_exact_in(
         window=int(window),
         search_profile=search_profile,
     )
+    if profile == EXACT_STAIRCASE_PROFILE:
+        return staircase_jump_best_split_two_pools_exact_in(pool0, pool1, int(amount_in))
 
     _profile, grid_n, force_dense_grid, left_sweep_k = _search_profile_params(profile)
 
