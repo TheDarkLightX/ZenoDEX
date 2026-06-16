@@ -36,6 +36,10 @@ from .split_routing import (
     exact_out_for_pool_exact_in,
     resolve_two_pool_split_search_params,
 )
+from .split_routing_generic_exact_in import (
+    GenericExactInSplitRequest,
+    best_generic_two_pool_exact_in,
+)
 from .split_routing_types import (
     ExactOutCapacityGuard,
     ExactOutRouteCanonicalKey,
@@ -103,6 +107,22 @@ def _is_valid(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_
     return True
 
 
+def _min_valid_amount(
+    pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_in_total: Amount
+) -> Optional[int]:
+    if not _is_valid(pool, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in_total):
+        return None
+    lo = 1
+    hi = int(amount_in_total)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if _is_valid(pool, asset_in=asset_in, asset_out=asset_out, amount_in=int(mid)):
+            hi = mid
+        else:
+            lo = mid + 1
+    return int(lo)
+
+
 def _build_exact_out_capacity_guard(
     caps_by_pool: Sequence[Tuple[str, int]],
     *,
@@ -164,50 +184,6 @@ def exact_out_capacity_guard_for_pools(
     )
 
 
-def _min_valid_amount(
-    pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_in_total: Amount
-) -> Optional[int]:
-    if not _is_valid(pool, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in_total):
-        return None
-    lo = 1
-    hi = int(amount_in_total)
-    while lo < hi:
-        mid = (lo + hi) // 2
-        if _is_valid(pool, asset_in=asset_in, asset_out=asset_out, amount_in=int(mid)):
-            hi = mid
-        else:
-            lo = mid + 1
-    return int(lo)
-
-
-def _brute_force_best_split(
-    pool0: PoolState,
-    pool1: PoolState,
-    *,
-    asset_in: AssetId,
-    asset_out: AssetId,
-    amount_in_total: Amount,
-) -> Tuple[int, int]:
-    if amount_in_total <= 0:
-        raise ValueError("amount_in_total must be positive")
-    best_out: int | None = None
-    best_a = 0
-    for a in range(0, int(amount_in_total) + 1):
-        b = int(amount_in_total) - a
-        try:
-            out0 = _quote_exact_in(pool0, asset_in=asset_in, asset_out=asset_out, amount_in=a) if a > 0 else 0
-            out1 = _quote_exact_in(pool1, asset_in=asset_in, asset_out=asset_out, amount_in=b) if b > 0 else 0
-        except ValueError:
-            continue
-        total = int(out0 + out1)
-        if best_out is None or total > best_out or (total == best_out and a < best_a):
-            best_out = total
-            best_a = a
-    if best_out is None:
-        raise ValueError("no feasible split")
-    return int(best_out), int(best_a)
-
-
 def _generic_best_split_two_pools_exact_in(
     pool0: PoolState,
     pool1: PoolState,
@@ -223,106 +199,21 @@ def _generic_best_split_two_pools_exact_in(
     if window < 0:
         raise ValueError("window must be non-negative")
 
-    if int(amount_in_total) <= int(brute_force_max):
-        return _brute_force_best_split(
-            pool0,
-            pool1,
-            asset_in=asset_in,
-            asset_out=asset_out,
-            amount_in_total=amount_in_total,
+    def quote0(amount_in: int) -> int:
+        return _quote_exact_in(pool0, asset_in=asset_in, asset_out=asset_out, amount_in=int(amount_in))
+
+    def quote1(amount_in: int) -> int:
+        return _quote_exact_in(pool1, asset_in=asset_in, asset_out=asset_out, amount_in=int(amount_in))
+
+    return best_generic_two_pool_exact_in(
+        GenericExactInSplitRequest(
+            amount_in_total=int(amount_in_total),
+            window=int(window),
+            brute_force_max=int(brute_force_max),
+            quote0=quote0,
+            quote1=quote1,
         )
-
-    def total_out(a: int) -> int | None:
-        if not (0 <= a <= int(amount_in_total)):
-            return None
-        b = int(amount_in_total) - a
-        try:
-            out0 = _quote_exact_in(pool0, asset_in=asset_in, asset_out=asset_out, amount_in=a) if a > 0 else 0
-            out1 = _quote_exact_in(pool1, asset_in=asset_in, asset_out=asset_out, amount_in=b) if b > 0 else 0
-        except ValueError:
-            return None
-        return int(out0 + out1)
-
-    def scan_range(lo: int, hi: int) -> tuple[int, int] | None:
-        if lo > hi:
-            return None
-        best_out = -1
-        best_a = 0
-        for a in range(lo, hi + 1):
-            tot = total_out(a)
-            if tot is None:
-                continue
-            if tot > best_out or (tot == best_out and a < best_a):
-                best_out = tot
-                best_a = a
-        return None if best_out < 0 else (best_out, best_a)
-
-    best_out = -1
-    best_a = 0
-    for a in (0, int(amount_in_total)):
-        tot = total_out(a)
-        if tot is None:
-            continue
-        if tot > best_out or (tot == best_out and a < best_a):
-            best_out = int(tot)
-            best_a = int(a)
-
-    min0 = _min_valid_amount(pool0, asset_in=asset_in, asset_out=asset_out, amount_in_total=amount_in_total)
-    min1 = _min_valid_amount(pool1, asset_in=asset_in, asset_out=asset_out, amount_in_total=amount_in_total)
-    if min0 is not None and min1 is not None:
-        lo_both = int(min0)
-        hi_both = int(amount_in_total) - int(min1)
-        if lo_both <= hi_both:
-            span = int(hi_both - lo_both)
-            centers = {lo_both, hi_both, (lo_both + hi_both) // 2}
-            if span > 8 * int(window):
-                for i in range(1, 8):
-                    centers.add(lo_both + (span * i) // 8)
-
-            best_both: tuple[int, int] | None = None
-            for c in sorted(centers):
-                r_lo = max(lo_both, int(c) - int(window))
-                r_hi = min(hi_both, int(c) + int(window))
-                cand = scan_range(r_lo, r_hi)
-                if cand is None:
-                    continue
-                if best_both is None or cand[0] > best_both[0] or (cand[0] == best_both[0] and cand[1] < best_both[1]):
-                    best_both = cand
-
-            if best_both is not None:
-                refine_out, refine_a = best_both
-                half = max(1, int(window))
-                while True:
-                    r_lo = max(lo_both, refine_a - half)
-                    r_hi = min(hi_both, refine_a + half)
-                    cand = scan_range(r_lo, r_hi)
-                    if cand is not None:
-                        refine_out2, refine_a2 = cand
-                        if refine_out2 > refine_out or (refine_out2 == refine_out and refine_a2 < refine_a):
-                            refine_out, refine_a = refine_out2, refine_a2
-                    if r_lo == lo_both and r_hi == hi_both:
-                        break
-                    if refine_a in (r_lo, r_hi):
-                        half *= 2
-                        if half >= span:
-                            half = span
-                        continue
-                    break
-
-                # Canonicalize within a local plateau.
-                a0 = int(refine_a)
-                while a0 > lo_both:
-                    prev = total_out(a0 - 1)
-                    if prev is None or int(prev) != int(refine_out):
-                        break
-                    a0 -= 1
-
-                if int(refine_out) > best_out or (int(refine_out) == best_out and int(a0) < best_a):
-                    best_out, best_a = int(refine_out), int(a0)
-
-    if best_out < 0:
-        raise ValueError("no feasible split")
-    return int(best_out), int(best_a)
+    )
 
 
 def best_split_two_pools_exact_in_for_pools(
