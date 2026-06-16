@@ -17,6 +17,13 @@ from __future__ import annotations
 from typing import Iterable, List, Sequence
 
 
+def _require_positive_divisor(d: int) -> None:
+    if not isinstance(d, int) or isinstance(d, bool):
+        raise TypeError("d must be an int")
+    if d <= 0:
+        raise ValueError("d must be positive")
+
+
 def euclid_div_rem(x: int, d: int) -> tuple[int, int]:
     """
     Euclidean division for integers with positive divisor.
@@ -27,16 +34,54 @@ def euclid_div_rem(x: int, d: int) -> tuple[int, int]:
     """
     if not isinstance(x, int) or isinstance(x, bool):
         raise TypeError("x must be an int")
-    if not isinstance(d, int) or isinstance(d, bool):
-        raise TypeError("d must be an int")
-    if d <= 0:
-        raise ValueError("d must be positive")
+    _require_positive_divisor(d)
 
     q = x // d
     r = x - q * d
     if not (0 <= r < d):
         raise AssertionError("internal error: remainder out of range")
     return q, r
+
+
+def _validate_rounding_inputs(*, xs: Sequence[int], keys: Sequence[str]) -> None:
+    if not isinstance(xs, Sequence):
+        raise TypeError("xs must be a sequence")
+    if not isinstance(keys, Sequence):
+        raise TypeError("keys must be a sequence")
+    if len(xs) != len(keys):
+        raise ValueError("xs and keys must have the same length")
+    if not xs:
+        raise ValueError("xs must be non-empty")
+
+
+def _collect_euclidean_parts(
+    *, xs: Sequence[int], keys: Sequence[str], d: int
+) -> tuple[list[int], list[int]]:
+    qs: list[int] = []
+    rs: list[int] = []
+    for i, x in enumerate(xs):
+        if not isinstance(x, int) or isinstance(x, bool):
+            raise TypeError(f"xs[{i}] must be an int")
+        key = keys[i]
+        if not isinstance(key, str) or not key:
+            raise TypeError(f"keys[{i}] must be a non-empty string")
+        q, r = euclid_div_rem(x, d)
+        qs.append(q)
+        rs.append(r)
+    return qs, rs
+
+
+def _allocate_remainder_dust(
+    *, qs: Sequence[int], rs: Sequence[int], keys: Sequence[str], need: int
+) -> list[int]:
+    order = sorted(range(len(qs)), key=lambda i: (-rs[i], keys[i]))
+    out = list(qs)
+    for i in order[:need]:
+        out[i] += 1
+
+    if sum(out) != 0:
+        raise AssertionError("internal error: dust allocation failed to restore conservation")
+    return out
 
 
 def largest_remainder_adjust_net_zero(*, xs: Sequence[int], keys: Sequence[str], d: int) -> List[int]:
@@ -57,31 +102,9 @@ def largest_remainder_adjust_net_zero(*, xs: Sequence[int], keys: Sequence[str],
     - the +1 adjustments go to the indices with the largest remainders r_i,
       tie-broken lexicographically by keys[i] (deterministic).
     """
-    if not isinstance(d, int) or isinstance(d, bool):
-        raise TypeError("d must be an int")
-    if d <= 0:
-        raise ValueError("d must be positive")
-
-    if not isinstance(xs, Sequence):
-        raise TypeError("xs must be a sequence")
-    if not isinstance(keys, Sequence):
-        raise TypeError("keys must be a sequence")
-    if len(xs) != len(keys):
-        raise ValueError("xs and keys must have the same length")
-    if not xs:
-        raise ValueError("xs must be non-empty")
-
-    qs: list[int] = []
-    rs: list[int] = []
-    for i, x in enumerate(xs):
-        if not isinstance(x, int) or isinstance(x, bool):
-            raise TypeError(f"xs[{i}] must be an int")
-        key = keys[i]
-        if not isinstance(key, str) or not key:
-            raise TypeError(f"keys[{i}] must be a non-empty string")
-        q, r = euclid_div_rem(x, d)
-        qs.append(q)
-        rs.append(r)
+    _require_positive_divisor(d)
+    _validate_rounding_inputs(xs=xs, keys=keys)
+    qs, rs = _collect_euclidean_parts(xs=xs, keys=keys, d=d)
 
     if sum(xs) != 0:
         raise ValueError("sum(xs) must be 0 (net-zero precondition)")
@@ -92,14 +115,7 @@ def largest_remainder_adjust_net_zero(*, xs: Sequence[int], keys: Sequence[str],
     if need == 0:
         return list(qs)
 
-    order = sorted(range(len(xs)), key=lambda i: (-rs[i], keys[i]))
-    out = list(qs)
-    for i in order[:need]:
-        out[i] += 1
-
-    if sum(out) != 0:
-        raise AssertionError("internal error: dust allocation failed to restore conservation")
-    return out
+    return _allocate_remainder_dust(qs=qs, rs=rs, keys=keys, need=need)
 
 
 def mul_sum(xs: Iterable[int]) -> int:

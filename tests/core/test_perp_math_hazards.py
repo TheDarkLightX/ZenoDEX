@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from src.core.perp_rounding import largest_remainder_adjust_net_zero
+import pytest
+
+from src.core.perp_rounding import euclid_div_rem, largest_remainder_adjust_net_zero
 
 
 def test_rounding_leak_witness_under_euclidean_division() -> None:
@@ -25,8 +27,34 @@ def test_largest_remainder_dust_allocator_restores_net_zero_conservation() -> No
     assert sum(adj) == 0
     # Each adjusted value is either floor(x/d) or floor(x/d)+1.
     floors = [x // d for x in xs]
-    for a, f in zip(adj, floors):
+    for a, f in zip(adj, floors, strict=True):
         assert a in (f, f + 1)
+
+
+def test_largest_remainder_ties_break_by_key() -> None:
+    adj = largest_remainder_adjust_net_zero(
+        xs=[1, 1, -2],
+        keys=["bob", "alice", "carol"],
+        d=3,
+    )
+
+    assert adj == [0, 1, -1]
+    assert sum(adj) == 0
+
+
+def test_largest_remainder_rejects_bool_amount_before_net_zero_check() -> None:
+    with pytest.raises(TypeError, match=r"xs\[0\] must be an int"):
+        largest_remainder_adjust_net_zero(xs=[True, -1], keys=["alice", "bob"], d=3)
+
+
+def test_largest_remainder_rejects_nonzero_sum_after_shape_checks() -> None:
+    with pytest.raises(ValueError, match=r"sum\(xs\) must be 0"):
+        largest_remainder_adjust_net_zero(xs=[1, 1], keys=["alice", "bob"], d=3)
+
+
+def test_euclid_divisor_rejects_bool() -> None:
+    with pytest.raises(TypeError, match="d must be an int"):
+        euclid_div_rem(1, True)
 
 
 def test_breaker_quantization_can_stall_witness() -> None:
