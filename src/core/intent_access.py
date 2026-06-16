@@ -39,26 +39,148 @@ class IntentAccess:
     writes: Set[_Key]
 
 
+@dataclass(frozen=True)
+class _PoolAccessContext:
+    pool_id: object
+    pools: Mapping[str, PoolState]
+    created_pools: Mapping[str, Tuple[str, str]]
+    reads: set[_Key]
+    writes: set[_Key]
+
+
+def _created_pool_assets_entry(intent: Intent) -> Optional[Tuple[str, Tuple[str, str]]]:
+    if intent.kind != IntentKind.CREATE_POOL:
+        return None
+    asset0 = intent.get_field("asset0")
+    asset1 = intent.get_field("asset1")
+    fee_bps = intent.get_field("fee_bps")
+    if not isinstance(asset0, str) or not asset0:
+        return None
+    if not isinstance(asset1, str) or not asset1:
+        return None
+    if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
+        return None
+    try:
+        pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
+    except (TypeError, ValueError):
+        return None
+    return pool_id, (asset0, asset1)
+
+
 def _created_pools_assets(intents: Sequence[Intent]) -> Mapping[str, Tuple[str, str]]:
     out: dict[str, Tuple[str, str]] = {}
     for intent in intents:
-        if intent.kind != IntentKind.CREATE_POOL:
+        entry = _created_pool_assets_entry(intent)
+        if entry is None:
             continue
-        asset0 = intent.get_field("asset0")
-        asset1 = intent.get_field("asset1")
-        fee_bps = intent.get_field("fee_bps")
-        if not isinstance(asset0, str) or not asset0:
-            continue
-        if not isinstance(asset1, str) or not asset1:
-            continue
-        if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
-            continue
-        try:
-            pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
-        except (TypeError, ValueError):
-            continue
-        out[pool_id] = (asset0, asset1)
+        pool_id, assets = entry
+        out[pool_id] = assets
     return out
+
+
+def _touch_balance(reads: set[_Key], writes: set[_Key], pubkey: PubKey, asset: object) -> None:
+    if not isinstance(asset, str) or not asset:
+        return
+    key = _k_bal(pubkey, asset)
+    reads.add(key)
+    writes.add(key)
+
+
+def _created_pool_id(intent: Intent) -> Optional[str]:
+    asset0 = intent.get_field("asset0")
+    asset1 = intent.get_field("asset1")
+    fee_bps = intent.get_field("fee_bps")
+    if not isinstance(asset0, str) or not isinstance(asset1, str):
+        return None
+    if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
+        return None
+    try:
+        return compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
+    except (TypeError, ValueError):
+        return None
+
+
+def _asset_pair_for_pool(
+    *,
+    pool_id: str,
+    pools: Mapping[str, PoolState],
+    created_pools: Mapping[str, Tuple[str, str]],
+) -> Optional[Tuple[str, str]]:
+    if pool_id in pools:
+        pool = pools[pool_id]
+        return pool.asset0, pool.asset1
+    return created_pools.get(pool_id)
+
+
+def _access_for_create_pool(intent: Intent) -> IntentAccess:
+    reads: set[_Key] = set()
+    writes: set[_Key] = set()
+    sender = intent.sender_pubkey
+    asset0 = intent.get_field("asset0")
+    asset1 = intent.get_field("asset1")
+    _touch_balance(reads, writes, sender, asset0)
+    _touch_balance(reads, writes, sender, asset1)
+
+    pool_id = _created_pool_id(intent)
+    if pool_id is not None:
+        reads.add(_k_pool(pool_id))  # existence check
+        writes.add(_k_pool(pool_id))  # create
+        writes.add(_k_lp(sender, pool_id))
+        writes.add(_k_lp(LP_LOCK_PUBKEY, pool_id))
+    return IntentAccess(reads=reads, writes=writes)
+
+
+def _access_for_swap(intent: Intent, *, reads: set[_Key], writes: set[_Key]) -> IntentAccess:
+    sender = intent.sender_pubkey
+    asset_in = intent.get_field("asset_in")
+    asset_out = intent.get_field("asset_out")
+    recipient = intent.get_field("recipient", sender)
+    _touch_balance(reads, writes, sender, asset_in)
+    if isinstance(asset_out, str) and asset_out and isinstance(recipient, str) and recipient:
+        writes.add(_k_bal(recipient, asset_out))
+    return IntentAccess(reads=reads, writes=writes)
+
+
+def _access_for_add_liquidity(
+    intent: Intent,
+    *,
+    context: _PoolAccessContext,
+) -> IntentAccess:
+    recipient = intent.get_field("recipient", intent.sender_pubkey)
+    pool_id = context.pool_id
+    if not isinstance(pool_id, str) or not pool_id:
+        return IntentAccess(reads=context.reads, writes=context.writes)
+
+    asset_pair = _asset_pair_for_pool(pool_id=pool_id, pools=context.pools, created_pools=context.created_pools)
+    if asset_pair is None:
+        return IntentAccess(reads=context.reads, writes=context.writes)
+
+    a0, a1 = asset_pair
+    _touch_balance(context.reads, context.writes, intent.sender_pubkey, a0)
+    _touch_balance(context.reads, context.writes, intent.sender_pubkey, a1)
+    if isinstance(recipient, str) and recipient:
+        context.writes.add(_k_lp(recipient, pool_id))
+    return IntentAccess(reads=context.reads, writes=context.writes)
+
+
+def _access_for_remove_liquidity(
+    intent: Intent,
+    *,
+    context: _PoolAccessContext,
+) -> IntentAccess:
+    recipient = intent.get_field("recipient", intent.sender_pubkey)
+    pool_id = context.pool_id
+    if not isinstance(pool_id, str) or not pool_id:
+        return IntentAccess(reads=context.reads, writes=context.writes)
+
+    context.reads.add(_k_lp(intent.sender_pubkey, pool_id))
+    context.writes.add(_k_lp(intent.sender_pubkey, pool_id))
+    asset_pair = _asset_pair_for_pool(pool_id=pool_id, pools=context.pools, created_pools=context.created_pools)
+    if asset_pair is not None and isinstance(recipient, str) and recipient:
+        a0, a1 = asset_pair
+        context.writes.add(_k_bal(recipient, a0))
+        context.writes.add(_k_bal(recipient, a1))
+    return IntentAccess(reads=context.reads, writes=context.writes)
 
 
 def access_for_intent(
@@ -70,28 +192,8 @@ def access_for_intent(
     reads: set[_Key] = set()
     writes: set[_Key] = set()
 
-    sender = intent.sender_pubkey
-
     if intent.kind == IntentKind.CREATE_POOL:
-        asset0 = intent.get_field("asset0")
-        asset1 = intent.get_field("asset1")
-        fee_bps = intent.get_field("fee_bps")
-        if isinstance(asset0, str) and asset0:
-            reads.add(_k_bal(sender, asset0))
-            writes.add(_k_bal(sender, asset0))
-        if isinstance(asset1, str) and asset1:
-            reads.add(_k_bal(sender, asset1))
-            writes.add(_k_bal(sender, asset1))
-        if isinstance(asset0, str) and isinstance(asset1, str) and isinstance(fee_bps, int) and not isinstance(fee_bps, bool):
-            try:
-                pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
-                reads.add(_k_pool(pool_id))  # existence check
-                writes.add(_k_pool(pool_id))  # create
-                writes.add(_k_lp(sender, pool_id))
-                writes.add(_k_lp(LP_LOCK_PUBKEY, pool_id))
-            except (TypeError, ValueError):
-                pass
-        return IntentAccess(reads=reads, writes=writes)
+        return _access_for_create_pool(intent)
 
     pool_id = intent.get_field("pool_id")
     if isinstance(pool_id, str) and pool_id:
@@ -99,51 +201,31 @@ def access_for_intent(
         writes.add(_k_pool(pool_id))
 
     if intent.kind in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
-        asset_in = intent.get_field("asset_in")
-        asset_out = intent.get_field("asset_out")
-        recipient = intent.get_field("recipient", sender)
-        if isinstance(asset_in, str) and asset_in:
-            reads.add(_k_bal(sender, asset_in))
-            writes.add(_k_bal(sender, asset_in))
-        if isinstance(asset_out, str) and asset_out and isinstance(recipient, str) and recipient:
-            writes.add(_k_bal(recipient, asset_out))
-        return IntentAccess(reads=reads, writes=writes)
+        return _access_for_swap(intent, reads=reads, writes=writes)
 
     if intent.kind == IntentKind.ADD_LIQUIDITY:
-        recipient = intent.get_field("recipient", sender)
-        if isinstance(pool_id, str) and pool_id:
-            asset_pair: Optional[Tuple[str, str]] = None
-            if pool_id in pools:
-                pool = pools[pool_id]
-                asset_pair = (pool.asset0, pool.asset1)
-            elif pool_id in created_pools:
-                asset_pair = created_pools[pool_id]
-            if asset_pair is not None:
-                a0, a1 = asset_pair
-                reads.add(_k_bal(sender, a0))
-                reads.add(_k_bal(sender, a1))
-                writes.add(_k_bal(sender, a0))
-                writes.add(_k_bal(sender, a1))
-                if isinstance(recipient, str) and recipient:
-                    writes.add(_k_lp(recipient, pool_id))
-        return IntentAccess(reads=reads, writes=writes)
+        return _access_for_add_liquidity(
+            intent,
+            context=_PoolAccessContext(
+                pool_id=pool_id,
+                pools=pools,
+                created_pools=created_pools,
+                reads=reads,
+                writes=writes,
+            ),
+        )
 
     if intent.kind == IntentKind.REMOVE_LIQUIDITY:
-        recipient = intent.get_field("recipient", sender)
-        if isinstance(pool_id, str) and pool_id:
-            reads.add(_k_lp(sender, pool_id))
-            writes.add(_k_lp(sender, pool_id))
-            remove_asset_pair: Optional[Tuple[str, str]] = None
-            if pool_id in pools:
-                pool = pools[pool_id]
-                remove_asset_pair = (pool.asset0, pool.asset1)
-            elif pool_id in created_pools:
-                remove_asset_pair = created_pools[pool_id]
-            if remove_asset_pair is not None and isinstance(recipient, str) and recipient:
-                a0, a1 = remove_asset_pair
-                writes.add(_k_bal(recipient, a0))
-                writes.add(_k_bal(recipient, a1))
-        return IntentAccess(reads=reads, writes=writes)
+        return _access_for_remove_liquidity(
+            intent,
+            context=_PoolAccessContext(
+                pool_id=pool_id,
+                pools=pools,
+                created_pools=created_pools,
+                reads=reads,
+                writes=writes,
+            ),
+        )
 
     return IntentAccess(reads=reads, writes=writes)
 
