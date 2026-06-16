@@ -8,7 +8,10 @@ from typing import TYPE_CHECKING, Any, Mapping, Sequence
 from src.core.settlement import Settlement
 from src.state.pools import PoolState, PoolStatus
 
-from .settlement_lp_value_contract import SettlementLPValueContract, build_settlement_lp_value_contract
+from .settlement_lp_value_contract import (
+    SettlementLPValueContract,
+    build_settlement_lp_value_contract,
+)
 from .settlement_price_provenance import (
     SettlementSpotPricePacket,
     asset_prices_from_spot_price_packet,
@@ -20,6 +23,7 @@ if TYPE_CHECKING:
 
 
 SETTLEMENT_ENDOGENOUS_LP_VALUE_PACKET_SCHEMA = "zenodex/settlement-endogenous-lp-value-packet/v1"
+_PACKET_DOMAIN_ERRORS = (TypeError, ValueError, ArithmeticError)
 
 
 @dataclass(frozen=True)
@@ -242,11 +246,11 @@ def verify_settlement_endogenous_lp_value_packet_payload_from_price_packet(
 ) -> tuple[bool, str | None]:
     try:
         price_packet = SettlementSpotPricePacket.from_dict(price_packet_payload)
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     try:
         pool_snapshots = tuple(_pool_from_dict(snapshot) for snapshot in pool_snapshots_payload)
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     try:
         expected = build_settlement_endogenous_lp_value_packet_from_price_packet(
@@ -254,11 +258,11 @@ def verify_settlement_endogenous_lp_value_packet_payload_from_price_packet(
             price_packet=price_packet,
             pool_snapshots=pool_snapshots,
         )
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     try:
         packet = SettlementEndogenousLPValuePacket.from_dict(packet_payload)
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     if packet.schema != expected.schema:
         return False, "schema mismatch"
@@ -281,11 +285,11 @@ def verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation(
 
     try:
         price_attestation = SettlementSpotPriceAttestation.from_dict(price_attestation_payload)
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     try:
         pool_snapshots = tuple(_pool_from_dict(snapshot) for snapshot in pool_snapshots_payload)
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     try:
         expected = build_settlement_endogenous_lp_value_packet_from_price_attestation(
@@ -296,11 +300,11 @@ def verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation(
             pool_snapshots=pool_snapshots,
             allowed_signers=allowed_signers,
         )
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     try:
         packet = SettlementEndogenousLPValuePacket.from_dict(packet_payload)
-    except Exception as exc:
+    except _PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     if packet.schema != expected.schema:
         return False, "schema mismatch"
@@ -390,5 +394,5 @@ def _require_hex_digest(value: str, *, name: str) -> None:
         raise ValueError(f"{name} must be a 64-char sha256 hex digest")
     try:
         int(value, 16)
-    except Exception as exc:  # pragma: no cover
+    except ValueError as exc:  # pragma: no cover
         raise ValueError(f"{name} must be hex") from exc

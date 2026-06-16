@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
+from src.integration import settlement_endogenous_lp_value_packet as endogenous_packet_mod
 from src.integration.settlement_endogenous_lp_value_packet import (
     SETTLEMENT_ENDOGENOUS_LP_VALUE_PACKET_SCHEMA,
     SettlementEndogenousLPValuePacket,
@@ -12,9 +15,14 @@ from src.integration.settlement_endogenous_lp_value_packet import (
     verify_settlement_endogenous_lp_value_packet_payload_from_price_packet,
 )
 from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
-from src.integration.settlement_price_provenance import SettlementSpotPriceEntry, build_settlement_spot_price_packet
+from src.integration.settlement_price_provenance import (
+    SettlementSpotPriceEntry,
+    SettlementSpotPricePacket,
+    build_settlement_spot_price_packet,
+)
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
+from src.state.pools import PoolState
 
 
 def _iid(n: int) -> str:
@@ -53,6 +61,17 @@ def _swap_context():
     )
     settlement = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
     return pk, asset0, asset1, pool_id, pool, settlement
+
+
+def _price_packet(asset0: str, asset1: str) -> SettlementSpotPricePacket:
+    return build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
 
 
 def test_endogenous_lp_value_packet_round_trips_from_price_packet() -> None:
@@ -174,3 +193,110 @@ def test_endogenous_lp_value_packet_from_dict_round_trips() -> None:
     )
     rebuilt = SettlementEndogenousLPValuePacket.from_dict(packet.to_dict())
     assert rebuilt == packet
+
+
+def test_endogenous_lp_value_packet_price_packet_parse_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, _asset0, _asset1, _pool_id, _pool, settlement = _swap_context()
+
+    def broken_from_dict(_payload: object) -> object:
+        raise RuntimeError("endogenous price packet parser bug")
+
+    monkeypatch.setattr(
+        endogenous_packet_mod.SettlementSpotPricePacket,
+        "from_dict",
+        staticmethod(broken_from_dict),
+    )
+
+    with pytest.raises(RuntimeError, match="endogenous price packet parser bug"):
+        verify_settlement_endogenous_lp_value_packet_payload_from_price_packet(
+            settlement=settlement,
+            price_packet_payload={},
+            pool_snapshots_payload=(),
+            packet_payload={},
+        )
+
+
+def test_endogenous_lp_value_packet_pool_snapshot_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, pool, settlement = _swap_context()
+    price_packet = _price_packet(asset0, asset1)
+
+    def broken_pool_from_dict(_payload: object) -> object:
+        raise RuntimeError("pool snapshot parser bug")
+
+    monkeypatch.setattr(endogenous_packet_mod, "_pool_from_dict", broken_pool_from_dict)
+
+    with pytest.raises(RuntimeError, match="pool snapshot parser bug"):
+        verify_settlement_endogenous_lp_value_packet_payload_from_price_packet(
+            settlement=settlement,
+            price_packet_payload=price_packet.to_dict(),
+            pool_snapshots_payload=(_pool_snapshot_payload(pool),),
+            packet_payload={},
+        )
+
+
+def test_endogenous_lp_value_packet_expected_builder_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, pool, settlement = _swap_context()
+    price_packet = _price_packet(asset0, asset1)
+
+    def broken_builder(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("endogenous value packet builder bug")
+
+    monkeypatch.setattr(
+        endogenous_packet_mod,
+        "build_settlement_endogenous_lp_value_packet_from_price_packet",
+        broken_builder,
+    )
+
+    with pytest.raises(RuntimeError, match="endogenous value packet builder bug"):
+        verify_settlement_endogenous_lp_value_packet_payload_from_price_packet(
+            settlement=settlement,
+            price_packet_payload=price_packet.to_dict(),
+            pool_snapshots_payload=(_pool_snapshot_payload(pool),),
+            packet_payload={},
+        )
+
+
+def test_endogenous_lp_value_packet_payload_rebuild_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pk, asset0, asset1, _pool_id, pool, settlement = _swap_context()
+    price_packet = _price_packet(asset0, asset1)
+
+    def broken_packet_from_dict(_payload: object) -> object:
+        raise RuntimeError("endogenous value packet parser bug")
+
+    monkeypatch.setattr(
+        endogenous_packet_mod.SettlementEndogenousLPValuePacket,
+        "from_dict",
+        staticmethod(broken_packet_from_dict),
+    )
+
+    with pytest.raises(RuntimeError, match="endogenous value packet parser bug"):
+        verify_settlement_endogenous_lp_value_packet_payload_from_price_packet(
+            settlement=settlement,
+            price_packet_payload=price_packet.to_dict(),
+            pool_snapshots_payload=(_pool_snapshot_payload(pool),),
+            packet_payload={},
+        )
+
+
+def _pool_snapshot_payload(pool: PoolState) -> dict[str, object]:
+    return {
+        "pool_id": str(pool.pool_id),
+        "asset0": str(pool.asset0),
+        "asset1": str(pool.asset1),
+        "reserve0": int(pool.reserve0),
+        "reserve1": int(pool.reserve1),
+        "fee_bps": int(pool.fee_bps),
+        "lp_supply": int(pool.lp_supply),
+        "status": str(pool.status.name),
+        "created_at": int(pool.created_at),
+        "curve_tag": str(pool.curve_tag),
+        "curve_params": str(pool.curve_params),
+    }
