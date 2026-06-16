@@ -43,6 +43,12 @@ class SwapGuardrailDecision:
     typed_confirm_phrase: str | None
 
 
+@dataclass
+class _GuardrailNotes:
+    reasons: list[str]
+    messages: list[str]
+
+
 def _validate_bps(name: str, v: int) -> int:
     if not isinstance(v, int) or isinstance(v, bool):
         raise TypeError(f"{name} must be int")
@@ -66,6 +72,82 @@ def _bps_to_percent_str(bps: int) -> str:
     return f"{whole}.{frac:02d}%"
 
 
+def _append_status_reasons(status: str, notes: _GuardrailNotes) -> None:
+    if status == "mev_conflict":
+        notes.reasons.append("mev_conflict")
+        notes.messages.append(
+            "MEV/revert conflict: revert-safe slippage appears sandwich-profitable under the bounded model."
+        )
+    elif status == "inconclusive_mev":
+        notes.reasons.append("inconclusive_mev")
+        notes.messages.append("MEV risk is inconclusive under the scan cap. Treat as unknown (fail-closed).")
+    elif status == "no_revert_safe_option":
+        notes.reasons.append("no_revert_safe_option")
+        notes.messages.append("No provided slippage option is revert-safe at the confidence bound; the swap may revert.")
+    elif status != "ok":
+        notes.reasons.append(f"status_{status}")
+        notes.messages.append(f"Slippage advisor returned status={status}.")
+
+
+def _append_price_impact_reasons(impact_bps: int, notes: _GuardrailNotes) -> None:
+    if impact_bps >= 500:
+        notes.reasons.append("high_price_impact")
+        notes.messages.append(f"High price impact: {_bps_to_percent_str(impact_bps)}. Consider trading a smaller amount.")
+    elif impact_bps >= 100:
+        notes.reasons.append("moderate_price_impact")
+        notes.messages.append(f"Moderate price impact: {_bps_to_percent_str(impact_bps)}.")
+
+
+def _append_revert_safe_reasons(
+    *,
+    ctx: SwapGuardrailContext,
+    user_slippage_bps: int,
+    required_slippage_bps: int,
+    notes: _GuardrailNotes,
+) -> None:
+    rec_revert = ctx.recommended_slippage_bps_revert_safe
+    if rec_revert is None:
+        if required_slippage_bps > 0:
+            notes.messages.append(f"Required slippage at confidence (ceil): {_bps_to_percent_str(required_slippage_bps)}.")
+        return
+
+    _validate_bps("recommended_slippage_bps_revert_safe", int(rec_revert))
+    if user_slippage_bps < int(rec_revert):
+        notes.reasons.append("slippage_below_revert_safe")
+        notes.messages.append(
+            f"Your slippage ({_bps_to_percent_str(user_slippage_bps)}) is below the smallest revert-safe option ({_bps_to_percent_str(int(rec_revert))}) at the confidence bound."
+        )
+
+
+def _append_mev_safe_reasons(
+    *,
+    ctx: SwapGuardrailContext,
+    user_slippage_bps: int,
+    notes: _GuardrailNotes,
+) -> None:
+    rec_mev = ctx.recommended_slippage_bps_mev_safe
+    if rec_mev is None:
+        return
+
+    _validate_bps("recommended_slippage_bps_mev_safe", int(rec_mev))
+    if user_slippage_bps > int(rec_mev):
+        notes.reasons.append("slippage_above_mev_safe")
+        notes.messages.append(
+            f"Your slippage ({_bps_to_percent_str(user_slippage_bps)}) is above the MEV-safe ceiling ({_bps_to_percent_str(int(rec_mev))}) for the bounded model."
+        )
+
+
+def _guardrail_action_for_reasons(reasons: list[str]) -> tuple[str, str | None]:
+    typed_triggers = {"mev_conflict", "no_revert_safe_option", "high_price_impact", "slippage_below_revert_safe"}
+    confirm_triggers = {"inconclusive_mev", "moderate_price_impact", "slippage_above_mev_safe"}
+
+    if any(r in typed_triggers for r in reasons):
+        return "typed_confirm", "PROCEED"
+    if any(r in confirm_triggers for r in reasons) or any(r.startswith("status_") for r in reasons):
+        return "confirm", None
+    return "allow", None
+
+
 def decide_swap_guardrails(
     *,
     ctx: SwapGuardrailContext,
@@ -86,74 +168,22 @@ def decide_swap_guardrails(
 
     st = str(ctx.slippage_advice_status or "").strip() or "unknown"
 
-    reasons: list[str] = []
-    messages: list[str] = []
+    notes = _GuardrailNotes(reasons=[], messages=[])
 
-    # Status-driven gating (fail-closed posture).
-    if st == "mev_conflict":
-        reasons.append("mev_conflict")
-        messages.append("MEV/revert conflict: revert-safe slippage appears sandwich-profitable under the bounded model.")
-    elif st == "inconclusive_mev":
-        reasons.append("inconclusive_mev")
-        messages.append("MEV risk is inconclusive under the scan cap. Treat as unknown (fail-closed).")
-    elif st == "no_revert_safe_option":
-        reasons.append("no_revert_safe_option")
-        messages.append("No provided slippage option is revert-safe at the confidence bound; the swap may revert.")
-    elif st != "ok":
-        reasons.append(f"status_{st}")
-        messages.append(f"Slippage advisor returned status={st}.")
-
-    # Price impact tiers (1% -> confirm, 5% -> typed confirm).
-    if impact >= 500:
-        reasons.append("high_price_impact")
-        messages.append(f"High price impact: {_bps_to_percent_str(impact)}. Consider trading a smaller amount.")
-    elif impact >= 100:
-        reasons.append("moderate_price_impact")
-        messages.append(f"Moderate price impact: {_bps_to_percent_str(impact)}.")
-
-    # User setting vs revert-safe requirement.
-    rec_revert = ctx.recommended_slippage_bps_revert_safe
-    if rec_revert is not None:
-        _validate_bps("recommended_slippage_bps_revert_safe", int(rec_revert))
-        if user_slip < int(rec_revert):
-            reasons.append("slippage_below_revert_safe")
-            messages.append(
-                f"Your slippage ({_bps_to_percent_str(user_slip)}) is below the smallest revert-safe option ({_bps_to_percent_str(int(rec_revert))}) at the confidence bound."
-            )
-    else:
-        # If we couldn't find a revert-safe option, make the required slippage visible.
-        if required > 0:
-            messages.append(f"Required slippage at confidence (ceil): {_bps_to_percent_str(required)}.")
-
-    rec_mev = ctx.recommended_slippage_bps_mev_safe
-    if rec_mev is not None:
-        _validate_bps("recommended_slippage_bps_mev_safe", int(rec_mev))
-        if user_slip > int(rec_mev):
-            reasons.append("slippage_above_mev_safe")
-            messages.append(
-                f"Your slippage ({_bps_to_percent_str(user_slip)}) is above the MEV-safe ceiling ({_bps_to_percent_str(int(rec_mev))}) for the bounded model."
-            )
-
-    # Decision tiering.
-    action = "allow"
-    typed_phrase: str | None = None
-
-    # Hard blocks: reserve for true impossibilities (none in v1; keep experimental).
-    # if ...:
-    #   action = "block"
-
-    typed_triggers = {"mev_conflict", "no_revert_safe_option", "high_price_impact", "slippage_below_revert_safe"}
-    confirm_triggers = {"inconclusive_mev", "moderate_price_impact", "slippage_above_mev_safe"}
-
-    if any(r in typed_triggers for r in reasons):
-        action = "typed_confirm"
-        typed_phrase = "PROCEED"
-    elif any(r in confirm_triggers for r in reasons) or any(r.startswith("status_") for r in reasons):
-        action = "confirm"
+    _append_status_reasons(st, notes)
+    _append_price_impact_reasons(impact, notes)
+    _append_revert_safe_reasons(
+        ctx=ctx,
+        user_slippage_bps=user_slip,
+        required_slippage_bps=required,
+        notes=notes,
+    )
+    _append_mev_safe_reasons(ctx=ctx, user_slippage_bps=user_slip, notes=notes)
+    action, typed_phrase = _guardrail_action_for_reasons(notes.reasons)
 
     return SwapGuardrailDecision(
         action=str(action),
-        reasons=tuple(reasons),
-        messages=tuple(messages),
+        reasons=tuple(notes.reasons),
+        messages=tuple(notes.messages),
         typed_confirm_phrase=typed_phrase,
     )
