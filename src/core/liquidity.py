@@ -45,6 +45,34 @@ def _validate_create_pool_amounts(
     require_int_range("created_at", created_at, minimum=0)
 
 
+def _validate_active_liquidity_pool(pool_state: PoolState) -> None:
+    if pool_state.status != PoolStatus.ACTIVE:
+        raise ValueError(f"Pool is not active: {pool_state.status}")
+
+    require_int_range("pool_state.reserve0", pool_state.reserve0, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("pool_state.reserve1", pool_state.reserve1, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("pool_state.lp_supply", pool_state.lp_supply, minimum=0, maximum=DEX_LP_SUPPLY_MAX)
+    if pool_state.reserve0 == 0 or pool_state.reserve1 == 0:
+        raise ValueError("Cannot add liquidity to empty pool")
+
+
+def _validate_add_liquidity_amounts(
+    amount0_desired: Amount,
+    amount1_desired: Amount,
+    amount0_min: Amount,
+    amount1_min: Amount,
+) -> None:
+    require_int_range("amount0_desired", amount0_desired, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
+    require_int_range("amount1_desired", amount1_desired, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
+    require_int_range("amount0_min", amount0_min, minimum=0, maximum=DEX_LP_AMOUNT_MAX)
+    require_int_range("amount1_min", amount1_min, minimum=0, maximum=DEX_LP_AMOUNT_MAX)
+
+
+def _raise_if_below_minimum(name: str, used: Amount, minimum: Amount) -> None:
+    if used < minimum:
+        raise ValueError(f"{name}_used ({used}) < {name}_min ({minimum})")
+
+
 def create_pool(
     asset0: AssetId,
     asset1: AssetId,
@@ -94,43 +122,13 @@ def add_liquidity(
     amount1_min: Amount,
 ) -> Tuple[Amount, Amount, Amount]:
     """
-    Add liquidity to an existing pool.
-    
-    The settlement MUST choose actual used amounts such that:
-        amount0_used / amount1_used = reserve0 / reserve1
-        (within integer rounding constraints)
-    
-    LP minted:
-        lp = min(floor(amount0_used * lp_supply / reserve0),
-                 floor(amount1_used * lp_supply / reserve1))
-    
-    Args:
-        pool_state: Current pool state
-        amount0_desired: Desired amount of asset0
-        amount1_desired: Desired amount of asset1
-        amount0_min: Minimum acceptable amount0
-        amount1_min: Minimum acceptable amount1
-        
-    Returns:
-        Tuple of (amount0_used, amount1_used, lp_minted)
-        
-    Raises:
-        ValueError: If inputs are invalid or pool is empty
+    Add liquidity while preserving the pool reserve ratio within integer dust.
+
+    Returns `(amount0_used, amount1_used, lp_minted)`.
     """
-    if pool_state.status != PoolStatus.ACTIVE:
-        raise ValueError(f"Pool is not active: {pool_state.status}")
+    _validate_active_liquidity_pool(pool_state)
+    _validate_add_liquidity_amounts(amount0_desired, amount1_desired, amount0_min, amount1_min)
 
-    require_int_range("pool_state.reserve0", pool_state.reserve0, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
-    require_int_range("pool_state.reserve1", pool_state.reserve1, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
-    require_int_range("pool_state.lp_supply", pool_state.lp_supply, minimum=0, maximum=DEX_LP_SUPPLY_MAX)
-    if pool_state.reserve0 == 0 or pool_state.reserve1 == 0:
-        raise ValueError("Cannot add liquidity to empty pool")
-
-    require_int_range("amount0_desired", amount0_desired, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
-    require_int_range("amount1_desired", amount1_desired, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
-    require_int_range("amount0_min", amount0_min, minimum=0, maximum=DEX_LP_AMOUNT_MAX)
-    require_int_range("amount1_min", amount1_min, minimum=0, maximum=DEX_LP_AMOUNT_MAX)
-    
     opt = optimal_liquidity(
         reserve0=pool_state.reserve0,
         reserve1=pool_state.reserve1,
@@ -139,18 +137,9 @@ def add_liquidity(
     )
     amount0_used = opt.amount0_used
     amount1_used = opt.amount1_used
-    
-    # Check minimums
-    if amount0_used < amount0_min:
-        raise ValueError(
-            f"amount0_used ({amount0_used}) < amount0_min ({amount0_min})"
-        )
-    if amount1_used < amount1_min:
-        raise ValueError(
-            f"amount1_used ({amount1_used}) < amount1_min ({amount1_min})"
-        )
-    
-    # Compute LP to mint
+    _raise_if_below_minimum("amount0", amount0_used, amount0_min)
+    _raise_if_below_minimum("amount1", amount1_used, amount1_min)
+
     lp_minted = compute_lp_mint(
         pool_state.reserve0,
         pool_state.reserve1,
@@ -158,7 +147,7 @@ def add_liquidity(
         amount1_used,
         pool_state.lp_supply,
     )
-    
+
     return amount0_used, amount1_used, lp_minted
 
 
