@@ -14,34 +14,37 @@ This supports:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any, Dict, Tuple
 
 from ..core import quote_receipt_gates as _quote_receipt_gates
 from ..core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
+from ..core.quote_receipt_body_verification import (
+    _precheck_receipt_body,
+    _ReceiptBodyContext,
+    _verify_canonical_route_certificate,
+    _verify_expected_quote_epoch,
+    _verify_pool_snapshots,
+)
 from ..core.quote_receipt_building import (
     make_route_quote_receipt,
     pool_state_fingerprint,
     receipt_hash,
 )
 from ..core.quote_receipt_gate_contract import (
-    route_quote_receipt_certificate_error,
-    route_quote_receipt_hop_replay_error,
     route_quote_receipt_hop_structure_error,
     route_quote_receipt_leg_summary_error,
-    route_quote_receipt_pool_snapshot_error,
-    route_quote_receipt_precheck_error,
     route_quote_receipt_totals_error,
 )
 from ..core.quote_receipt_gates import (
     _require_receipt_int,
-    evaluate_route_quote_receipt_certificate_gate,
-    evaluate_route_quote_receipt_hop_replay_gate,
     evaluate_route_quote_receipt_hop_structure_gate,
     evaluate_route_quote_receipt_leg_summary_gate,
-    evaluate_route_quote_receipt_pool_snapshot_gate,
-    evaluate_route_quote_receipt_precheck_gate,
     evaluate_route_quote_receipt_totals_gate,
+)
+from ..core.quote_receipt_hop_replay import _ReceiptHopData
+from ..core.quote_receipt_hop_replay import (
+    replay_and_apply_hop as _replay_and_apply_hop_with_reserve_lookup,
 )
 from ..state.pools import PoolState
 
@@ -63,18 +66,6 @@ def __getattr__(name: str) -> object:
 
 def __dir__() -> list[str]:
     return sorted(set(globals()) | set(dir(_quote_receipt_gates)))
-
-
-@dataclass(frozen=True)
-class _ReceiptBodyContext:
-    body: Dict[str, Any]
-    kind: str
-    canonical_route_certificate: object
-    body_asset_in: str
-    body_asset_out: str
-    quote_epoch_value: int | None
-    pools: Dict[str, Any]
-    legs: list[Any]
 
 
 @dataclass(frozen=True)
@@ -109,32 +100,6 @@ class _ReceiptLegsContext:
     snapshotted_pools: Dict[str, Any]
 
 
-@dataclass(frozen=True)
-class _ReceiptHopData:
-    pool_id: str
-    pool: PoolState
-    asset_in: str
-    asset_out: str
-    amount_in: int
-    amount_out: int
-
-
-@dataclass(frozen=True)
-class _HopDirection:
-    forward_direction: bool
-    direction_ok: bool
-    reserve_in: int
-    reserve_out: int
-
-
-@dataclass(frozen=True)
-class _HopSwapReplay:
-    swap_ok: bool
-    quote_matches: bool
-    next_reserve_in: int
-    next_reserve_out: int
-
-
 def _pool_reserves_for_hop(pool: PoolState, *, asset_in: str, asset_out: str) -> Tuple[int, int] | None:
     if asset_in == pool.asset0 and asset_out == pool.asset1:
         return int(pool.reserve0), int(pool.reserve1)
@@ -143,177 +108,18 @@ def _pool_reserves_for_hop(pool: PoolState, *, asset_in: str, asset_out: str) ->
     return None
 
 
-def _resolve_hop_direction(hop_data: _ReceiptHopData) -> _HopDirection:
-    pool = hop_data.pool
-    forward_direction = bool(hop_data.asset_in == pool.asset0 and hop_data.asset_out == pool.asset1)
-    reverse_direction = bool(hop_data.asset_in == pool.asset1 and hop_data.asset_out == pool.asset0)
-    reserves = _pool_reserves_for_hop(pool, asset_in=hop_data.asset_in, asset_out=hop_data.asset_out)
-    if not (forward_direction or reverse_direction) or reserves is None:
-        return _HopDirection(
-            forward_direction=forward_direction,
-            direction_ok=False,
-            reserve_in=0,
-            reserve_out=0,
-        )
-    reserve_in, reserve_out = reserves
-    return _HopDirection(
-        forward_direction=forward_direction,
-        direction_ok=True,
-        reserve_in=int(reserve_in),
-        reserve_out=int(reserve_out),
-    )
-
-
-def _replay_hop_swap(
-    *,
-    kind: str,
-    direction: _HopDirection,
-    hop_data: _ReceiptHopData,
-) -> _HopSwapReplay:
-    if not direction.direction_ok:
-        return _HopSwapReplay(
-            swap_ok=False,
-            quote_matches=False,
-            next_reserve_in=0,
-            next_reserve_out=0,
-        )
-    try:
-        if kind == "exact_in":
-            quoted_out, next_reserves = swap_exact_in_for_pool(
-                hop_data.pool,
-                reserve_in=int(direction.reserve_in),
-                reserve_out=int(direction.reserve_out),
-                amount_in=int(hop_data.amount_in),
-            )
-            quote_matches = int(quoted_out) == int(hop_data.amount_out)
-        else:
-            quoted_in, next_reserves = swap_exact_out_for_pool(
-                hop_data.pool,
-                reserve_in=int(direction.reserve_in),
-                reserve_out=int(direction.reserve_out),
-                amount_out=int(hop_data.amount_out),
-            )
-            quote_matches = int(quoted_in) == int(hop_data.amount_in)
-    except (TypeError, ValueError, OverflowError):
-        return _HopSwapReplay(
-            swap_ok=False,
-            quote_matches=False,
-            next_reserve_in=0,
-            next_reserve_out=0,
-        )
-    next_reserve_in, next_reserve_out = next_reserves
-    return _HopSwapReplay(
-        swap_ok=True,
-        quote_matches=bool(quote_matches),
-        next_reserve_in=int(next_reserve_in),
-        next_reserve_out=int(next_reserve_out),
-    )
-
-
 def _replay_and_apply_hop(
     *,
     kind: str,
     hop_data: _ReceiptHopData,
 ) -> Tuple[bool, str, PoolState | None]:
-    direction = _resolve_hop_direction(hop_data)
-    swap = _replay_hop_swap(
+    return _replay_and_apply_hop_with_reserve_lookup(
         kind=kind,
-        direction=direction,
         hop_data=hop_data,
+        reserve_lookup=_pool_reserves_for_hop,
+        swap_exact_in=swap_exact_in_for_pool,
+        swap_exact_out=swap_exact_out_for_pool,
     )
-
-    replay = evaluate_route_quote_receipt_hop_replay_gate(
-        direction_ok=direction.direction_ok,
-        forward_direction=direction.forward_direction,
-        swap_ok=swap.swap_ok,
-        quote_matches=swap.quote_matches,
-        next_reserve_in=swap.next_reserve_in,
-        next_reserve_out=swap.next_reserve_out,
-    )
-    if not replay.replay_ok:
-        return False, route_quote_receipt_hop_replay_error(replay), None
-    return True, "ok", replace(hop_data.pool, reserve0=int(replay.next_reserve0), reserve1=int(replay.next_reserve1))
-
-
-def _verify_expected_quote_epoch(
-    *,
-    quote_epoch_value: int | None,
-    expected_quote_epoch: int | None,
-) -> Tuple[bool, str]:
-    if expected_quote_epoch is None:
-        return True, "ok"
-    expected_quote_epoch_value = _require_receipt_int(expected_quote_epoch)
-    if expected_quote_epoch_value is None or expected_quote_epoch_value < 0:
-        return False, "bad_expected_quote_epoch"
-    if quote_epoch_value is None:
-        return False, "missing_quote_epoch"
-    if quote_epoch_value != expected_quote_epoch_value:
-        return False, "quote_epoch_mismatch"
-    return True, "ok"
-
-
-def _verify_canonical_route_certificate(
-    *,
-    canonical_route_certificate: object,
-    body: Dict[str, Any],
-) -> Tuple[bool, str]:
-    if canonical_route_certificate is None:
-        return True, "ok"
-    from ..integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
-        verify_exact_in_route_canonical_certificate_payload,
-    )
-
-    cert_ok, cert_err = verify_exact_in_route_canonical_certificate_payload(canonical_route_certificate)
-    if not cert_ok:
-        return False, f"bad_canonical_route_certificate:{cert_err}"
-    winner_quote = (
-        canonical_route_certificate.get("winner_quote")
-        if isinstance(canonical_route_certificate, dict)
-        else None
-    )
-    winner_is_dict = isinstance(winner_quote, dict)
-    cert_gate = evaluate_route_quote_receipt_certificate_gate(
-        cert_present=True,
-        cert_dict_ok=isinstance(canonical_route_certificate, dict),
-        winner_quote_dict_ok=winner_is_dict,
-        asset_in_match=winner_is_dict and winner_quote.get("asset_in") == body.get("asset_in"),
-        asset_out_match=winner_is_dict and winner_quote.get("asset_out") == body.get("asset_out"),
-        amount_in_match=winner_is_dict and winner_quote.get("amount_in") == body.get("amount_in"),
-        amount_out_match=winner_is_dict and winner_quote.get("amount_out") == body.get("amount_out"),
-        legs_match=winner_is_dict and winner_quote.get("legs") == body.get("legs"),
-    )
-    if not cert_gate.certificate_ok:
-        return False, route_quote_receipt_certificate_error(cert_gate)
-    return True, "ok"
-
-
-def _verify_pool_snapshots(
-    *,
-    pools: Dict[str, Any],
-    pools_by_id: Dict[str, PoolState],
-) -> Tuple[bool, str, Dict[str, PoolState] | None]:
-    pool_entries_well_formed = True
-    all_pools_present = True
-    all_fingerprints_match = True
-    for pid, fp in pools.items():
-        if not isinstance(pid, str) or not isinstance(fp, str):
-            pool_entries_well_formed = False
-            break
-        pool = pools_by_id.get(pid)
-        if pool is None:
-            all_pools_present = False
-            break
-        if pool_state_fingerprint(pool) != fp:
-            all_fingerprints_match = False
-            break
-    pool_snapshot = evaluate_route_quote_receipt_pool_snapshot_gate(
-        pool_entries_well_formed=pool_entries_well_formed,
-        all_pools_present=all_pools_present,
-        all_fingerprints_match=all_fingerprints_match,
-    )
-    if not pool_snapshot.snapshot_ok:
-        return False, route_quote_receipt_pool_snapshot_error(pool_snapshot), None
-    return True, "ok", {pid: replace(pools_by_id[pid]) for pid in pools}
 
 
 def _parse_receipt_hop_structure(
@@ -457,65 +263,6 @@ def _verify_receipt_legs_and_totals(ctx: _ReceiptLegsContext) -> Tuple[bool, str
     if not totals_gate.totals_ok:
         return False, route_quote_receipt_totals_error(totals_gate)
     return True, "ok"
-
-
-def _precheck_receipt_body(
-    *,
-    body: Dict[str, Any],
-    want_hash: object,
-) -> Tuple[bool, str, _ReceiptBodyContext | None]:
-    schema_ok = body.get("schema") == "zenodex/route_quote_receipt/v1"
-    receipt_hash_present = isinstance(want_hash, str) and bool(want_hash)
-    hash_matches = bool(receipt_hash_present and receipt_hash(body) == want_hash)
-    kind = str(body.get("kind", "")).strip().lower()
-    canonical_route_certificate = body.get("canonical_route_certificate")
-    body_asset_in = body.get("asset_in")
-    body_asset_out = body.get("asset_out")
-    body_assets_ok = (
-        isinstance(body_asset_in, str)
-        and isinstance(body_asset_out, str)
-        and bool(body_asset_in)
-        and bool(body_asset_out)
-        and body_asset_in != body_asset_out
-    )
-    quote_epoch_ok = True
-    quote_epoch_value: int | None = None
-    if "quote_epoch" in body:
-        quote_epoch_value = _require_receipt_int(body.get("quote_epoch"))
-        quote_epoch_ok = quote_epoch_value is not None and quote_epoch_value >= 0
-    pools = body.get("pools")
-    pools_object_ok = isinstance(pools, dict)
-    legs = body.get("legs")
-    legs_list_ok = isinstance(legs, list) and bool(legs)
-    precheck = evaluate_route_quote_receipt_precheck_gate(
-        schema_ok=schema_ok,
-        receipt_hash_present=receipt_hash_present,
-        hash_matches=hash_matches,
-        kind_ok=kind in {"exact_in", "exact_out"},
-        canonical_certificate_allowed=canonical_route_certificate is None or kind == "exact_in",
-        body_assets_ok=body_assets_ok,
-        quote_epoch_ok=quote_epoch_ok,
-        pools_object_ok=pools_object_ok,
-        legs_list_ok=legs_list_ok,
-    )
-    if not precheck.precheck_ok:
-        return False, route_quote_receipt_precheck_error(precheck), None
-    if not isinstance(pools, dict):
-        return False, "bad_pools", None
-    if not isinstance(legs, list) or not legs:
-        return False, "bad_legs", None
-    if not isinstance(body_asset_in, str) or not isinstance(body_asset_out, str):
-        return False, "bad_body_assets", None
-    return True, "ok", _ReceiptBodyContext(
-        body=body,
-        kind=kind,
-        canonical_route_certificate=canonical_route_certificate,
-        body_asset_in=body_asset_in,
-        body_asset_out=body_asset_out,
-        quote_epoch_value=quote_epoch_value,
-        pools=pools,
-        legs=legs,
-    )
 
 
 def _verify_prechecked_route_quote_receipt(
