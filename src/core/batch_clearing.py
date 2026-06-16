@@ -38,7 +38,7 @@ from ..kernels.python.settlement_swap_runtime_v1 import (
     quote_cpmm_swap_exact_in,
     quote_cpmm_swap_exact_out,
 )
-from ..state.balances import Amount, AssetId, BalanceTable, PubKey
+from ..state.balances import Amount, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
 from ..state.pools import CURVE_TAG_CPMM, PoolState
@@ -50,6 +50,10 @@ from .batch_clearing_ab_order import (
 from .batch_clearing_apply import (
     _apply_filled_intent_to_locals_with_context,
     _FilledIntentLocalContext,
+)
+from .batch_clearing_apply_settlement import (
+    _SettlementApplyFactories,
+    apply_settlement_with_factories,
 )
 from .batch_clearing_cow import _cow_pair_netting_exact_in_v1
 from .batch_clearing_create_pool import (
@@ -640,80 +644,16 @@ def apply_settlement(
     Raises:
         ValueError: If settlement is invalid
     """
-    # Create any pools declared by settlement events.
-    if settlement.events:
-        for event in settlement.events:
-            if event.get("type") != "CREATE_POOL":
-                continue
-            pool_id, asset0, asset1, fee_bps, curve_tag, curve_params, status, created_at = (
-                _parse_create_pool_event_payload(event)
-            )
-            if pool_id in pools:
-                raise ValueError(f"Pool already exists: {pool_id}")
-
-            pools[pool_id] = PoolState(
-                pool_id=pool_id,
-                asset0=asset0,
-                asset1=asset1,
-                reserve0=0,
-                reserve1=0,
-                fee_bps=fee_bps,
-                lp_supply=0,
-                status=status,
-                created_at=created_at,
-                curve_tag=str(curve_tag),
-                curve_params=str(curve_params),
-            )
-
-    # Apply balance deltas (order-independent): net per (pubkey, asset).
-    balance_net: Dict[Tuple[PubKey, AssetId], Amount] = defaultdict(int)
-    for balance_delta in settlement.balance_deltas:
-        balance_net[(balance_delta.pubkey, balance_delta.asset)] += balance_delta.net_delta()
-    for (pubkey, asset), net in sorted(balance_net.items(), key=lambda t: (t[0][0], t[0][1])):
-        if net > 0:
-            balances.add(pubkey, asset, net)
-        elif net < 0:
-            balances.subtract(pubkey, asset, -net)
-
-    # Apply reserve deltas (order-independent): net per (pool_id, asset).
-    reserve_net: Dict[Tuple[str, AssetId], Amount] = defaultdict(int)
-    for reserve_delta in settlement.reserve_deltas:
-        reserve_net[(reserve_delta.pool_id, reserve_delta.asset)] += reserve_delta.net_delta()
-    for (pool_id, asset), net in sorted(reserve_net.items(), key=lambda t: (t[0][0], t[0][1])):
-        if pool_id not in pools:
-            raise ValueError(f"Pool not found: {pool_id}")
-        pool = pools[pool_id]
-        current = pool.get_reserve(asset)
-        new_reserve = current + net
-        if new_reserve < 0:
-            raise ValueError(f"Negative reserve: {pool_id}, {asset}, {current} + {net}")
-        if asset == pool.asset0:
-            pool.reserve0 = new_reserve
-        else:
-            # `get_reserve(asset)` above already guarantees membership.
-            pool.reserve1 = new_reserve
-
-    # Apply LP deltas (order-independent): net per pool for supply, per (pubkey, pool_id) for balances.
-    supply_net: Dict[str, Amount] = defaultdict(int)
-    lp_net: Dict[Tuple[PubKey, str], Amount] = defaultdict(int)
-    for lp_delta in settlement.lp_deltas:
-        supply_net[lp_delta.pool_id] += lp_delta.net_delta()
-        lp_net[(lp_delta.pubkey, lp_delta.pool_id)] += lp_delta.net_delta()
-
-    for pool_id, net in sorted(supply_net.items(), key=lambda t: t[0]):
-        if pool_id not in pools:
-            raise ValueError(f"Pool not found for LP delta: {pool_id}")
-        new_supply = pools[pool_id].lp_supply + net
-        if new_supply < 0:
-            raise ValueError(f"Negative LP supply: {pool_id}")
-        pools[pool_id].lp_supply = new_supply
-
-    if lp_balances is not None:
-        for (pubkey, pool_id), net in sorted(lp_net.items(), key=lambda t: (t[0][0], t[0][1])):
-            if net > 0:
-                lp_balances.add(pubkey, pool_id, net)
-            elif net < 0:
-                lp_balances.subtract(pubkey, pool_id, -net)
+    apply_settlement_with_factories(
+        settlement,
+        balances,
+        pools,
+        lp_balances,
+        _SettlementApplyFactories(
+            parse_create_pool_event_payload_fn=_parse_create_pool_event_payload,
+            pool_state_fn=PoolState,
+        ),
+    )
 
 
 def apply_settlement_pure(
