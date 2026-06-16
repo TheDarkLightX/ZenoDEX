@@ -5,12 +5,11 @@ import json
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-_PRICE_PACKET_VERIFY_CACHE: dict[tuple[object, ...], tuple[bool, str | None]] = {}
-
 from .zusd_oracle_contracts import verify_zusd_cross_module_oracle_sync_contract_payload
 
-
 SETTLEMENT_SPOT_PRICE_PACKET_SCHEMA = "zenodex/settlement-spot-price-packet/v1"
+_PRICE_PACKET_DOMAIN_ERRORS = (TypeError, ValueError, ArithmeticError)
+_PRICE_PACKET_VERIFY_CACHE: dict[tuple[object, ...], tuple[bool, str | None]] = {}
 
 
 @dataclass(frozen=True)
@@ -255,7 +254,7 @@ def verify_settlement_spot_price_packet(
             cross_module_sync_required=packet.cross_module_sync_required,
             cross_module_sync_contract=packet.cross_module_sync_contract,
         )
-    except Exception as exc:
+    except _PRICE_PACKET_DOMAIN_ERRORS as exc:
         result = (False, str(exc))
         _cache_verify_result(_PRICE_PACKET_VERIFY_CACHE, key, result)
         return result
@@ -273,7 +272,7 @@ def verify_settlement_spot_price_packet_payload(payload: object) -> tuple[bool, 
         return False, "packet payload must be a dict"
     try:
         packet = SettlementSpotPricePacket.from_dict(payload)
-    except Exception as exc:
+    except _PRICE_PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     return verify_settlement_spot_price_packet(packet=packet)
 
