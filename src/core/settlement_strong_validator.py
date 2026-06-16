@@ -241,6 +241,12 @@ class _SwapExactInReplayInput:
 
 
 @dataclass(frozen=True)
+class _SwapExactOutReplayInput:
+    amount_out: int
+    max_in: int
+
+
+@dataclass(frozen=True)
 class _SwapReplayAmounts:
     amount_in: int
     amount_out: int
@@ -1286,6 +1292,132 @@ def _replay_swap_exact_in_fill(
     )
 
 
+def _parse_swap_exact_out_replay_input(intent: Intent) -> Tuple[Optional[_SwapExactOutReplayInput], Optional[str]]:
+    intent_id = intent.intent_id
+    amount_out = intent.get_field("amount_out")
+    max_in = intent.get_field("max_amount_in")
+    if not isinstance(amount_out, int) or isinstance(amount_out, bool) or amount_out <= 0:
+        return None, f"invalid amount_out for intent_id={intent_id}"
+    if not isinstance(max_in, int) or isinstance(max_in, bool) or max_in < 0:
+        return None, f"invalid max_amount_in for intent_id={intent_id}"
+    return _SwapExactOutReplayInput(amount_out=amount_out, max_in=max_in), None
+
+
+def _quote_swap_exact_out_replay(
+    *,
+    target: _SwapReplayTarget,
+    replay_input: _SwapExactOutReplayInput,
+    protocol_fee: _ProtocolFeeReplayConfig,
+) -> Tuple[Optional[_SwapReplayAmounts], Optional[str]]:
+    try:
+        if int(protocol_fee.share_bps):
+            if target.pool.curve_tag != CURVE_TAG_CPMM:
+                return None, f"protocol fee unsupported for curve intent_id={target.intent_id}"
+            quote = quote_cpmm_swap_exact_out(
+                reserve_in=int(target.reserve_in),
+                reserve_out=int(target.reserve_out),
+                amount_out=int(replay_input.amount_out),
+                fee_bps=int(target.pool.fee_bps),
+                protocol_fee_share_bps=int(protocol_fee.share_bps),
+            )
+            return (
+                _SwapReplayAmounts(
+                    amount_in=int(quote.amount_in),
+                    amount_out=int(replay_input.amount_out),
+                    new_reserve_in=int(quote.reserve_in_after),
+                    new_reserve_out=int(quote.reserve_out_after),
+                    protocol_fee=int(quote.protocol_fee_paid),
+                ),
+                None,
+            )
+
+        amount_in, (new_in, new_out) = swap_exact_out_for_pool(
+            target.pool,
+            reserve_in=int(target.reserve_in),
+            reserve_out=int(target.reserve_out),
+            amount_out=int(replay_input.amount_out),
+        )
+        return (
+            _SwapReplayAmounts(
+                amount_in=int(amount_in),
+                amount_out=int(replay_input.amount_out),
+                new_reserve_in=int(new_in),
+                new_reserve_out=int(new_out),
+                protocol_fee=0,
+            ),
+            None,
+        )
+    except (TypeError, ValueError, ArithmeticError) as exc:
+        return None, f"swap_exact_out kernel error for intent_id={target.intent_id}: {exc}"
+
+
+def _check_swap_exact_out_fill(
+    *,
+    fill: Fill,
+    target: _SwapReplayTarget,
+    replay_input: _SwapExactOutReplayInput,
+    replay_amounts: _SwapReplayAmounts,
+) -> Optional[str]:
+    if int(fill.amount_out_filled or 0) != int(replay_input.amount_out):
+        return f"swap amount_out_filled mismatch for intent_id={target.intent_id}"
+    if int(fill.amount_in_filled or 0) != int(replay_amounts.amount_in):
+        return f"swap amount_in_filled mismatch for intent_id={target.intent_id}"
+    if int(replay_amounts.amount_in) > int(replay_input.max_in):
+        return f"swap slippage for intent_id={target.intent_id}"
+
+    fee = compute_fee_total(int(replay_amounts.amount_in), int(target.pool.fee_bps))
+    if int(fill.fee_paid or 0) != int(fee):
+        return f"swap fee_paid mismatch for intent_id={target.intent_id}"
+    if int(fill.protocol_fee_paid or 0) != int(replay_amounts.protocol_fee):
+        return f"swap protocol_fee_paid mismatch for intent_id={target.intent_id}"
+    return None
+
+
+def _replay_swap_exact_out_fill(
+    *,
+    request: _SwapReplayRequest,
+    replay: _ReplayContext,
+) -> Optional[str]:
+    replay_input, err = _parse_swap_exact_out_replay_input(request.intent)
+    if replay_input is None:
+        return err or f"invalid amount_out for intent_id={request.target.intent_id}"
+    if int(request.fill.amount_out_filled or 0) != int(replay_input.amount_out):
+        return f"swap amount_out_filled mismatch for intent_id={request.target.intent_id}"
+
+    replay_amounts, err = _quote_swap_exact_out_replay(
+        target=request.target,
+        replay_input=replay_input,
+        protocol_fee=request.protocol_fee,
+    )
+    if replay_amounts is None:
+        return err or f"swap_exact_out kernel error for intent_id={request.target.intent_id}"
+
+    err = _check_swap_exact_out_fill(
+        fill=request.fill,
+        target=request.target,
+        replay_input=replay_input,
+        replay_amounts=replay_amounts,
+    )
+    if err is not None:
+        return err
+
+    err = _apply_swap_replay(
+        replay=replay,
+        target=request.target,
+        replay_amounts=replay_amounts,
+        protocol_fee=request.protocol_fee,
+    )
+    if err is not None:
+        return err
+
+    return _record_swap_replay_deltas(
+        replay=replay,
+        target=request.target,
+        replay_amounts=replay_amounts,
+        protocol_fee=request.protocol_fee,
+    )
+
+
 def _validate_replayed_payload(
     *,
     settlement: Settlement,
@@ -1420,7 +1552,6 @@ def _validate_settlement_strong_impl(
         pre_pools=pre_pools,
         pre_lp_balances=pre_lp_balances,
     )
-    balances = replay.balances
     pools = replay.pools
     expected_events = replay.expected_events
     bal_deltas = replay.bal_deltas
@@ -1476,11 +1607,6 @@ def _validate_settlement_strong_impl(
             )
             if swap_target is None:
                 return fail(err or f"invalid asset_in/out for intent_id={intent_id}")
-            asset_in = swap_target.asset_in
-            asset_out = swap_target.asset_out
-            reserve_in = swap_target.reserve_in
-            reserve_out = swap_target.reserve_out
-            dir_is_0_to_1 = swap_target.dir_is_0_to_1
 
             # CoW netting semantics (optional): direct user-to-user swap, no pool reserve changes.
             if f.reason == "COW_NETTED":
@@ -1515,93 +1641,17 @@ def _validate_settlement_strong_impl(
                     return fail(err)
                 continue
 
-            # SWAP_EXACT_OUT
-            amount_out_req = it.get_field("amount_out")
-            max_in = it.get_field("max_amount_in")
-            if not isinstance(amount_out_req, int) or isinstance(amount_out_req, bool) or amount_out_req <= 0:
-                return fail(f"invalid amount_out for intent_id={intent_id}")
-            if not isinstance(max_in, int) or isinstance(max_in, bool) or max_in < 0:
-                return fail(f"invalid max_amount_in for intent_id={intent_id}")
-
-            if int(f.amount_out_filled or 0) != int(amount_out_req):
-                return fail(f"swap amount_out_filled mismatch for intent_id={intent_id}")
-
-            try:
-                if int(protocol_fee_share_bps):
-                    if pool.curve_tag != CURVE_TAG_CPMM:
-                        return fail(f"protocol fee unsupported for curve intent_id={intent_id}")
-                    quote = quote_cpmm_swap_exact_out(
-                        reserve_in=int(reserve_in),
-                        reserve_out=int(reserve_out),
-                        amount_out=int(amount_out_req),
-                        fee_bps=int(pool.fee_bps),
-                        protocol_fee_share_bps=int(protocol_fee_share_bps),
-                    )
-                    amount_in_req = int(quote.amount_in)
-                    new_in = int(quote.reserve_in_after)
-                    new_out = int(quote.reserve_out_after)
-                    protocol_fee = int(quote.protocol_fee_paid)
-                else:
-                    amount_in_req, (new_in, new_out) = swap_exact_out_for_pool(
-                        pool,
-                        reserve_in=int(reserve_in),
-                        reserve_out=int(reserve_out),
-                        amount_out=int(amount_out_req),
-                    )
-                    protocol_fee = 0
-            except (TypeError, ValueError, ArithmeticError) as exc:
-                return fail(f"swap_exact_out kernel error for intent_id={intent_id}: {exc}")
-
-            if int(f.amount_in_filled or 0) != int(amount_in_req):
-                return fail(f"swap amount_in_filled mismatch for intent_id={intent_id}")
-            if int(amount_in_req) > int(max_in):
-                return fail(f"swap slippage for intent_id={intent_id}")
-
-            fee = compute_fee_total(int(amount_in_req), int(pool.fee_bps))
-            if int(f.fee_paid or 0) != int(fee):
-                return fail(f"swap fee_paid mismatch for intent_id={intent_id}")
-            if int(f.protocol_fee_paid or 0) != int(protocol_fee):
-                return fail(f"swap protocol_fee_paid mismatch for intent_id={intent_id}")
-
-            try:
-                balances.subtract(sender, asset_in, int(amount_in_req))
-                balances.add(recipient, asset_out, int(amount_out_req))
-                if protocol_fee:
-                    if protocol_fee_recipient_pubkey is None:
-                        return fail(f"protocol fee recipient missing during replay for intent_id={intent_id}")
-                    balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
-            except (TypeError, ValueError, ArithmeticError) as exc:
-                return fail(f"swap apply error for intent_id={intent_id}: {exc}")
-
-            if dir_is_0_to_1:
-                pool.reserve0 = int(new_in)
-                pool.reserve1 = int(new_out)
-            else:
-                pool.reserve1 = int(new_in)
-                pool.reserve0 = int(new_out)
-
-            bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in_req)))
-            bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out_req), delta_sub=0))
-            if protocol_fee:
-                if protocol_fee_recipient_pubkey is None:
-                    return fail(f"protocol fee recipient missing during replay for intent_id={intent_id}")
-                bal_deltas.append(
-                    BalanceDelta(
-                        pubkey=protocol_fee_recipient_pubkey,
-                        asset=asset_in,
-                        delta_add=int(protocol_fee),
-                        delta_sub=0,
-                    )
-                )
-            res_deltas.append(
-                ReserveDelta(
-                    pool_id=pool_id,
-                    asset=asset_in,
-                    delta_add=int(amount_in_req) - int(protocol_fee),
-                    delta_sub=0,
-                )
+            err = _replay_swap_exact_out_fill(
+                request=_SwapReplayRequest(
+                    intent=it,
+                    fill=f,
+                    target=swap_target,
+                    protocol_fee=protocol_fee_config,
+                ),
+                replay=replay,
             )
-            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out_req)))
+            if err is not None:
+                return fail(err)
             continue
 
         if it.kind == IntentKind.ADD_LIQUIDITY:
