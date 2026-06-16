@@ -162,6 +162,32 @@ class _CreatePoolReplayResult:
     lp_minted: int
 
 
+@dataclass(frozen=True)
+class _AddLiquidityReplayInput:
+    intent_id: str
+    sender: PubKey
+    recipient: PubKey
+    pool_id: str
+    amount0_desired: int
+    amount1_desired: int
+    amount0_min: int
+    amount1_min: int
+
+
+@dataclass(frozen=True)
+class _AddLiquidityReplayResult:
+    amount0_used: int
+    amount1_used: int
+    lp_minted: int
+
+
+@dataclass(frozen=True)
+class _PoolReplayTarget:
+    pool_id: str
+    pool: PoolState
+    recipient: PubKey
+
+
 def _build_replay_context(
     *,
     pre_balances: BalanceTable,
@@ -521,6 +547,186 @@ def _replay_create_pool_fill(
 
     _record_create_pool_replay(
         replay=replay,
+        replay_input=replay_input,
+        replay_result=replay_result,
+    )
+    return None
+
+
+def _parse_add_liquidity_replay_input(
+    *,
+    intent: Intent,
+    recipient: PubKey,
+    pool_id: str,
+) -> Tuple[Optional[_AddLiquidityReplayInput], Optional[str]]:
+    intent_id = intent.intent_id
+    amount0_desired = intent.get_field("amount0_desired")
+    amount1_desired = intent.get_field("amount1_desired")
+    amount0_min = intent.get_field("amount0_min", 0)
+    amount1_min = intent.get_field("amount1_min", 0)
+    if any(v is None for v in (amount0_desired, amount1_desired)):
+        return None, f"missing ADD_LIQUIDITY fields for intent_id={intent_id}"
+    if not is_strict_int(amount0_desired) or amount0_desired <= 0:
+        return None, f"invalid amount0_desired for intent_id={intent_id}"
+    if not is_strict_int(amount1_desired) or amount1_desired <= 0:
+        return None, f"invalid amount1_desired for intent_id={intent_id}"
+    if not is_strict_int(amount0_min) or amount0_min < 0:
+        return None, f"invalid amount0_min for intent_id={intent_id}"
+    if not is_strict_int(amount1_min) or amount1_min < 0:
+        return None, f"invalid amount1_min for intent_id={intent_id}"
+    return (
+        _AddLiquidityReplayInput(
+            intent_id=intent_id,
+            sender=intent.sender_pubkey,
+            recipient=recipient,
+            pool_id=pool_id,
+            amount0_desired=amount0_desired,
+            amount1_desired=amount1_desired,
+            amount0_min=amount0_min,
+            amount1_min=amount1_min,
+        ),
+        None,
+    )
+
+
+def _check_add_liquidity_fill(
+    *,
+    fill: Fill,
+    replay_input: _AddLiquidityReplayInput,
+    replay_result: _AddLiquidityReplayResult,
+) -> Optional[str]:
+    if int(fill.amount0_used or 0) != int(replay_result.amount0_used):
+        return f"ADD_LIQUIDITY fill.amount0_used mismatch for intent_id={replay_input.intent_id}"
+    if int(fill.amount1_used or 0) != int(replay_result.amount1_used):
+        return f"ADD_LIQUIDITY fill.amount1_used mismatch for intent_id={replay_input.intent_id}"
+    if int(fill.lp_minted or 0) != int(replay_result.lp_minted):
+        return f"ADD_LIQUIDITY fill.lp_minted mismatch for intent_id={replay_input.intent_id}"
+    return None
+
+
+def _apply_add_liquidity_replay(
+    *,
+    replay: _ReplayContext,
+    pool: PoolState,
+    replay_input: _AddLiquidityReplayInput,
+    replay_result: _AddLiquidityReplayResult,
+) -> Optional[str]:
+    try:
+        replay.balances.subtract(replay_input.sender, pool.asset0, int(replay_result.amount0_used))
+        replay.balances.subtract(replay_input.sender, pool.asset1, int(replay_result.amount1_used))
+        replay.lp.add(replay_input.recipient, replay_input.pool_id, int(replay_result.lp_minted))
+    except (TypeError, ValueError, ArithmeticError) as exc:
+        return f"ADD_LIQUIDITY apply error for intent_id={replay_input.intent_id}: {exc}"
+
+    pool.reserve0 += int(replay_result.amount0_used)
+    pool.reserve1 += int(replay_result.amount1_used)
+    pool.lp_supply += int(replay_result.lp_minted)
+    return None
+
+
+def _record_add_liquidity_deltas(
+    *,
+    replay: _ReplayContext,
+    pool: PoolState,
+    replay_input: _AddLiquidityReplayInput,
+    replay_result: _AddLiquidityReplayResult,
+) -> None:
+    replay.bal_deltas.append(
+        BalanceDelta(
+            pubkey=replay_input.sender,
+            asset=pool.asset0,
+            delta_add=0,
+            delta_sub=int(replay_result.amount0_used),
+        )
+    )
+    replay.bal_deltas.append(
+        BalanceDelta(
+            pubkey=replay_input.sender,
+            asset=pool.asset1,
+            delta_add=0,
+            delta_sub=int(replay_result.amount1_used),
+        )
+    )
+    replay.res_deltas.append(
+        ReserveDelta(
+            pool_id=replay_input.pool_id,
+            asset=pool.asset0,
+            delta_add=int(replay_result.amount0_used),
+            delta_sub=0,
+        )
+    )
+    replay.res_deltas.append(
+        ReserveDelta(
+            pool_id=replay_input.pool_id,
+            asset=pool.asset1,
+            delta_add=int(replay_result.amount1_used),
+            delta_sub=0,
+        )
+    )
+    replay.lp_deltas.append(
+        LPDelta(
+            pubkey=replay_input.recipient,
+            pool_id=replay_input.pool_id,
+            delta_add=int(replay_result.lp_minted),
+            delta_sub=0,
+        )
+    )
+
+
+def _replay_add_liquidity_fill(
+    *,
+    intent: Intent,
+    fill: Fill,
+    target: _PoolReplayTarget,
+    replay: _ReplayContext,
+) -> Optional[str]:
+    if target.pool.status != PoolStatus.ACTIVE:
+        return f"pool not active for intent_id={intent.intent_id}: {target.pool.status}"
+
+    replay_input, err = _parse_add_liquidity_replay_input(
+        intent=intent,
+        recipient=target.recipient,
+        pool_id=target.pool_id,
+    )
+    if replay_input is None:
+        return err or f"missing ADD_LIQUIDITY fields for intent_id={intent.intent_id}"
+
+    try:
+        amount0_used, amount1_used, lp_minted = add_liquidity(
+            pool_state=target.pool,
+            amount0_desired=replay_input.amount0_desired,
+            amount1_desired=replay_input.amount1_desired,
+            amount0_min=replay_input.amount0_min,
+            amount1_min=replay_input.amount1_min,
+        )
+    except (TypeError, ValueError, ArithmeticError) as exc:
+        return f"ADD_LIQUIDITY computation error for intent_id={replay_input.intent_id}: {exc}"
+
+    replay_result = _AddLiquidityReplayResult(
+        amount0_used=amount0_used,
+        amount1_used=amount1_used,
+        lp_minted=lp_minted,
+    )
+    err = _check_add_liquidity_fill(
+        fill=fill,
+        replay_input=replay_input,
+        replay_result=replay_result,
+    )
+    if err is not None:
+        return err
+
+    err = _apply_add_liquidity_replay(
+        replay=replay,
+        pool=target.pool,
+        replay_input=replay_input,
+        replay_result=replay_result,
+    )
+    if err is not None:
+        return err
+
+    _record_add_liquidity_deltas(
+        replay=replay,
+        pool=target.pool,
         replay_input=replay_input,
         replay_result=replay_result,
     )
@@ -949,57 +1155,14 @@ def _validate_settlement_strong_impl(
             continue
 
         if it.kind == IntentKind.ADD_LIQUIDITY:
-            if pool.status != PoolStatus.ACTIVE:
-                return fail(f"pool not active for intent_id={intent_id}: {pool.status}")
-            amount0_desired = it.get_field("amount0_desired")
-            amount1_desired = it.get_field("amount1_desired")
-            amount0_min = it.get_field("amount0_min", 0)
-            amount1_min = it.get_field("amount1_min", 0)
-            if any(v is None for v in (amount0_desired, amount1_desired)):
-                return fail(f"missing ADD_LIQUIDITY fields for intent_id={intent_id}")
-            if not is_strict_int(amount0_desired) or amount0_desired <= 0:
-                return fail(f"invalid amount0_desired for intent_id={intent_id}")
-            if not is_strict_int(amount1_desired) or amount1_desired <= 0:
-                return fail(f"invalid amount1_desired for intent_id={intent_id}")
-            if not is_strict_int(amount0_min) or amount0_min < 0:
-                return fail(f"invalid amount0_min for intent_id={intent_id}")
-            if not is_strict_int(amount1_min) or amount1_min < 0:
-                return fail(f"invalid amount1_min for intent_id={intent_id}")
-
-            try:
-                amount0_used, amount1_used, lp_minted = add_liquidity(
-                    pool_state=pool,
-                    amount0_desired=amount0_desired,
-                    amount1_desired=amount1_desired,
-                    amount0_min=amount0_min,
-                    amount1_min=amount1_min,
-                )
-            except (TypeError, ValueError, ArithmeticError) as exc:
-                return fail(f"ADD_LIQUIDITY computation error for intent_id={intent_id}: {exc}")
-
-            if int(f.amount0_used or 0) != int(amount0_used):
-                return fail(f"ADD_LIQUIDITY fill.amount0_used mismatch for intent_id={intent_id}")
-            if int(f.amount1_used or 0) != int(amount1_used):
-                return fail(f"ADD_LIQUIDITY fill.amount1_used mismatch for intent_id={intent_id}")
-            if int(f.lp_minted or 0) != int(lp_minted):
-                return fail(f"ADD_LIQUIDITY fill.lp_minted mismatch for intent_id={intent_id}")
-
-            try:
-                balances.subtract(sender, pool.asset0, int(amount0_used))
-                balances.subtract(sender, pool.asset1, int(amount1_used))
-                lp.add(recipient, pool_id, int(lp_minted))
-            except (TypeError, ValueError, ArithmeticError) as exc:
-                return fail(f"ADD_LIQUIDITY apply error for intent_id={intent_id}: {exc}")
-
-            pool.reserve0 += int(amount0_used)
-            pool.reserve1 += int(amount1_used)
-            pool.lp_supply += int(lp_minted)
-
-            bal_deltas.append(BalanceDelta(pubkey=sender, asset=pool.asset0, delta_add=0, delta_sub=int(amount0_used)))
-            bal_deltas.append(BalanceDelta(pubkey=sender, asset=pool.asset1, delta_add=0, delta_sub=int(amount1_used)))
-            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=pool.asset0, delta_add=int(amount0_used), delta_sub=0))
-            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=pool.asset1, delta_add=int(amount1_used), delta_sub=0))
-            lp_deltas.append(LPDelta(pubkey=recipient, pool_id=pool_id, delta_add=int(lp_minted), delta_sub=0))
+            err = _replay_add_liquidity_fill(
+                intent=it,
+                fill=f,
+                target=_PoolReplayTarget(pool_id=pool_id, pool=pool, recipient=recipient),
+                replay=replay,
+            )
+            if err is not None:
+                return fail(err)
             continue
 
         if it.kind == IntentKind.REMOVE_LIQUIDITY:
