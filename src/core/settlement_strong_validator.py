@@ -1752,18 +1752,17 @@ def _aggregate_lp_deltas(deltas: List[LPDelta]) -> List[LPDelta]:
     return out
 
 
-def _check_canonical_deltas(settlement: Settlement) -> Tuple[bool, Optional[str]]:
-    # Ensure deltas are canonical (one entry per key, sorted, and with non-negative fields).
-    def _check_unique_sorted(keys: List[Tuple], what: str) -> Tuple[bool, Optional[str]]:
-        if keys != sorted(keys):
-            return False, f"{what} not sorted canonically"
-        if len(keys) != len(set(keys)):
-            return False, f"{what} contains duplicate keys"
-        return True, None
+def _check_unique_sorted_delta_keys(keys: List[Tuple], what: str) -> Tuple[bool, Optional[str]]:
+    if keys != sorted(keys):
+        return False, f"{what} not sorted canonically"
+    if len(keys) != len(set(keys)):
+        return False, f"{what} contains duplicate keys"
+    return True, None
 
-    # Balance deltas
+
+def _check_canonical_balance_deltas(deltas: List[BalanceDelta]) -> Tuple[bool, Optional[str]]:
     bal_keys: List[Tuple[PubKey, AssetId]] = []
-    for balance_delta in settlement.balance_deltas:
+    for balance_delta in deltas:
         if (
             not isinstance(balance_delta.delta_add, int)
             or isinstance(balance_delta.delta_add, bool)
@@ -1779,13 +1778,12 @@ def _check_canonical_deltas(settlement: Settlement) -> Tuple[bool, Optional[str]
         if balance_delta.delta_add == 0 and balance_delta.delta_sub == 0:
             return False, "balance_deltas contains a zero entry"
         bal_keys.append((balance_delta.pubkey, balance_delta.asset))
-    ok, err = _check_unique_sorted(bal_keys, "balance_deltas")
-    if not ok:
-        return ok, err
+    return _check_unique_sorted_delta_keys(bal_keys, "balance_deltas")
 
-    # Reserve deltas
+
+def _check_canonical_reserve_deltas(deltas: List[ReserveDelta]) -> Tuple[bool, Optional[str]]:
     res_keys: List[Tuple[str, AssetId]] = []
-    for reserve_delta in settlement.reserve_deltas:
+    for reserve_delta in deltas:
         if (
             not isinstance(reserve_delta.delta_add, int)
             or isinstance(reserve_delta.delta_add, bool)
@@ -1801,13 +1799,12 @@ def _check_canonical_deltas(settlement: Settlement) -> Tuple[bool, Optional[str]
         if reserve_delta.delta_add == 0 and reserve_delta.delta_sub == 0:
             return False, "reserve_deltas contains a zero entry"
         res_keys.append((reserve_delta.pool_id, reserve_delta.asset))
-    ok, err = _check_unique_sorted(res_keys, "reserve_deltas")
-    if not ok:
-        return ok, err
+    return _check_unique_sorted_delta_keys(res_keys, "reserve_deltas")
 
-    # LP deltas
+
+def _check_canonical_lp_deltas(deltas: List[LPDelta]) -> Tuple[bool, Optional[str]]:
     lp_keys: List[Tuple[PubKey, str]] = []
-    for lp_delta in settlement.lp_deltas:
+    for lp_delta in deltas:
         if (
             not isinstance(lp_delta.delta_add, int)
             or isinstance(lp_delta.delta_add, bool)
@@ -1823,8 +1820,18 @@ def _check_canonical_deltas(settlement: Settlement) -> Tuple[bool, Optional[str]
         if lp_delta.delta_add == 0 and lp_delta.delta_sub == 0:
             return False, "lp_deltas contains a zero entry"
         lp_keys.append((lp_delta.pubkey, lp_delta.pool_id))
-    ok, err = _check_unique_sorted(lp_keys, "lp_deltas")
+    return _check_unique_sorted_delta_keys(lp_keys, "lp_deltas")
+
+
+def _check_canonical_deltas(settlement: Settlement) -> Tuple[bool, Optional[str]]:
+    # Ensure deltas are canonical (one entry per key, sorted, and with non-negative fields).
+    ok, err = _check_canonical_balance_deltas(settlement.balance_deltas)
     if not ok:
         return ok, err
-
+    ok, err = _check_canonical_reserve_deltas(settlement.reserve_deltas)
+    if not ok:
+        return ok, err
+    ok, err = _check_canonical_lp_deltas(settlement.lp_deltas)
+    if not ok:
+        return ok, err
     return True, None
