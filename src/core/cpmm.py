@@ -45,6 +45,16 @@ class SwapExactInProtocolFeeResult:
     k_after: int
 
 
+@dataclass(frozen=True)
+class _ExactOutInputs:
+    reserve_in: Amount
+    reserve_out: Amount
+    amount_out: Amount
+    fee_bps: int
+    max_overdelivery_gap_abs: Amount | None
+    max_overdelivery_gap_bps: int | None
+
+
 def compute_fee_total(gross_amount: Amount, fee_bps: int) -> Amount:
     """
     Deterministic fee computation (ceil rounding).
@@ -168,6 +178,54 @@ def swap_exact_in_with_protocol_fee(
     )
 
 
+def _validate_exact_out_inputs(
+    params: _ExactOutInputs,
+) -> None:
+    require_int_range("reserve_in", params.reserve_in, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("reserve_out", params.reserve_out, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("amount_out", params.amount_out, minimum=1, maximum=DEX_SWAP_AMOUNT_MAX)
+    if params.amount_out >= params.reserve_out:
+        raise ValueError(
+            f"Cannot drain full reserve: amount_out ({params.amount_out}) >= reserve_out ({params.reserve_out})"
+        )
+    require_int_range("fee_bps", params.fee_bps, minimum=0, maximum=10000)
+    if params.max_overdelivery_gap_abs is not None:
+        require_int_range(
+            "max_overdelivery_gap_abs",
+            params.max_overdelivery_gap_abs,
+            minimum=0,
+            maximum=DEX_SWAP_AMOUNT_MAX,
+        )
+    if params.max_overdelivery_gap_bps is not None:
+        require_int_range("max_overdelivery_gap_bps", params.max_overdelivery_gap_bps, minimum=0, maximum=10000)
+
+
+def _enforce_exact_out_overdelivery_policy(
+    *,
+    requested_amount_out: Amount,
+    overdelivery_gap: Amount,
+    max_overdelivery_gap_abs: Amount | None,
+    max_overdelivery_gap_bps: int | None,
+) -> None:
+    if max_overdelivery_gap_abs is not None and overdelivery_gap > max_overdelivery_gap_abs:
+        raise ValueError(
+            f"overdelivery gap exceeds absolute policy: gap={overdelivery_gap} > {max_overdelivery_gap_abs}"
+        )
+    if max_overdelivery_gap_bps is None:
+        return
+    # ceil(overdelivery_gap * 10_000 / requested_amount_out)
+    gap_bps = ((overdelivery_gap * 10_000) + requested_amount_out - 1) // requested_amount_out
+    if gap_bps > max_overdelivery_gap_bps:
+        raise ValueError(
+            f"overdelivery gap exceeds bps policy: gap_bps={gap_bps} > {max_overdelivery_gap_bps}"
+        )
+
+
+def _raise_if_k_decreased(*, k_before: int, k_after: int) -> None:
+    if k_after < k_before:
+        raise ValueError(f"Invariant violation: new_k ({k_after}) < old_k ({k_before})")
+
+
 def swap_exact_out(
     reserve_in: Amount,
     reserve_out: Amount,
@@ -177,76 +235,39 @@ def swap_exact_out(
     max_overdelivery_gap_bps: int | None = None,
 ) -> Tuple[Amount, Tuple[Amount, Amount]]:
     """
-    Compute required input amount for exact-out swap with deterministic rounding.
-    
-    This implements the reverse CPMM formula:
-        k = reserve_in * reserve_out
-        net_in = ceil(reserve_in * amount_out / (reserve_out - amount_out))
-        amount_in = ceil(net_in / (1 - fee_bps/10_000))
-        
-    In integer math:
-        amount_in = floor_div(net_in * 10_000 + (10_000 - fee_bps) - 1, (10_000 - fee_bps))
-    
-    Args:
-        reserve_in: Current reserve of input asset
-        reserve_out: Current reserve of output asset
-        amount_out: Exact output amount desired
-        fee_bps: Fee in basis points (0-10000)
-        
-    Args:
-        max_overdelivery_gap_abs: Optional absolute cap on exact-out overdelivery gap
-            (`amount_out_quote - amount_out`) under exact-in semantics.
-        max_overdelivery_gap_bps: Optional relative cap on overdelivery gap in bps
-            of requested `amount_out`.
+    Compute required input for an exact-out CPMM swap.
 
-    Returns:
-        Tuple of (amount_in, (new_reserve_in, new_reserve_out))
-        
-    Raises:
-        ValueError: If inputs are invalid or would violate invariants
+    The v8 kernel owns the deterministic ceil-rounding formula. This wrapper
+    validates domains, applies optional overdelivery policy, and checks that the
+    post-swap constant product did not decrease.
     """
-    # Input validation
-    require_int_range("reserve_in", reserve_in, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
-    require_int_range("reserve_out", reserve_out, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
-    require_int_range("amount_out", amount_out, minimum=1, maximum=DEX_SWAP_AMOUNT_MAX)
-    if amount_out >= reserve_out:
-        raise ValueError(
-            f"Cannot drain full reserve: amount_out ({amount_out}) >= reserve_out ({reserve_out})"
-        )
-    require_int_range("fee_bps", fee_bps, minimum=0, maximum=10000)
-    if max_overdelivery_gap_abs is not None:
-        require_int_range(
-            "max_overdelivery_gap_abs",
-            max_overdelivery_gap_abs,
-            minimum=0,
-            maximum=DEX_SWAP_AMOUNT_MAX,
-        )
-    if max_overdelivery_gap_bps is not None:
-        require_int_range("max_overdelivery_gap_bps", max_overdelivery_gap_bps, minimum=0, maximum=10000)
-    
-    res = _kernel_swap_exact_out_v8(
+    params = _ExactOutInputs(
         reserve_in=reserve_in,
         reserve_out=reserve_out,
         amount_out=amount_out,
         fee_bps=fee_bps,
+        max_overdelivery_gap_abs=max_overdelivery_gap_abs,
+        max_overdelivery_gap_bps=max_overdelivery_gap_bps,
+    )
+    _validate_exact_out_inputs(params)
+
+    res = _kernel_swap_exact_out_v8(
+        reserve_in=params.reserve_in,
+        reserve_out=params.reserve_out,
+        amount_out=params.amount_out,
+        fee_bps=params.fee_bps,
     )
 
     # Optional policy guard for exact-out quote quality in small-reserve regimes.
-    if max_overdelivery_gap_abs is not None and res.overdelivery_gap > max_overdelivery_gap_abs:
-        raise ValueError(
-            f"overdelivery gap exceeds absolute policy: gap={res.overdelivery_gap} > {max_overdelivery_gap_abs}"
-        )
-    if max_overdelivery_gap_bps is not None:
-        # ceil(overdelivery_gap * 10_000 / amount_out)
-        gap_bps = ((res.overdelivery_gap * 10_000) + amount_out - 1) // amount_out
-        if gap_bps > max_overdelivery_gap_bps:
-            raise ValueError(
-                f"overdelivery gap exceeds bps policy: gap_bps={gap_bps} > {max_overdelivery_gap_bps}"
-            )
+    _enforce_exact_out_overdelivery_policy(
+        requested_amount_out=params.amount_out,
+        overdelivery_gap=res.overdelivery_gap,
+        max_overdelivery_gap_abs=params.max_overdelivery_gap_abs,
+        max_overdelivery_gap_bps=params.max_overdelivery_gap_bps,
+    )
 
     # Verify invariant: with protocol_fee_share_bps=0, k must not decrease.
-    if res.k_after < res.k_before:
-        raise ValueError(f"Invariant violation: new_k ({res.k_after}) < old_k ({res.k_before})")
+    _raise_if_k_decreased(k_before=res.k_before, k_after=res.k_after)
 
     return res.amount_in, (res.new_reserve_in, res.new_reserve_out)
 
