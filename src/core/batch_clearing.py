@@ -54,6 +54,10 @@ from .batch_clearing_deltas import (
     _aggregate_lp_deltas_chunked,
     _aggregate_reserve_deltas_chunked,
 )
+from .batch_clearing_swaps import (
+    _apply_swap_fill_to_scratch_balances,
+    _reserves_after_swap_fill,
+)
 from .cpmm import compute_fee_total
 from .domain_limits import is_strict_int
 from .liquidity import add_liquidity, create_pool, remove_liquidity
@@ -601,93 +605,19 @@ def clear_batch_single_pool(
         fills.append(fill)
         
         if fill.action == FillAction.FILL:
-            # Update reserves based on asset mapping
-            asset_in = intent.get_field("asset_in")
-            if asset_in == pool_state.asset0:
-                # Swapping asset0 -> asset1
-                if intent.kind == IntentKind.SWAP_EXACT_IN:
-                    if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_in(
-                            reserve_in=current_reserves[0],
-                            reserve_out=current_reserves[1],
-                            amount_in=fill.amount_in_filled or 0,
-                            fee_bps=pool_state.fee_bps,
-                            protocol_fee_share_bps=protocol_fee_share_bps,
-                        )
-                        new_r0, new_r1 = quote.reserve_in_after, quote.reserve_out_after
-                    else:
-                        _, (new_r0, new_r1) = swap_exact_in_for_pool(
-                            pool_state,
-                            reserve_in=current_reserves[0],
-                            reserve_out=current_reserves[1],
-                            amount_in=fill.amount_in_filled or 0,
-                        )
-                else:  # SWAP_EXACT_OUT
-                    if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_out(
-                            reserve_in=current_reserves[0],
-                            reserve_out=current_reserves[1],
-                            amount_out=fill.amount_out_filled or 0,
-                            fee_bps=pool_state.fee_bps,
-                            protocol_fee_share_bps=protocol_fee_share_bps,
-                        )
-                        new_r0, new_r1 = quote.reserve_in_after, quote.reserve_out_after
-                    else:
-                        _, (new_r0, new_r1) = swap_exact_out_for_pool(
-                            pool_state,
-                            reserve_in=current_reserves[0],
-                            reserve_out=current_reserves[1],
-                            amount_out=fill.amount_out_filled or 0,
-                        )
-                current_reserves = (new_r0, new_r1)
-            else:  # asset_in == asset1, swapping asset1 -> asset0
-                if intent.kind == IntentKind.SWAP_EXACT_IN:
-                    if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_in(
-                            reserve_in=current_reserves[1],
-                            reserve_out=current_reserves[0],
-                            amount_in=fill.amount_in_filled or 0,
-                            fee_bps=pool_state.fee_bps,
-                            protocol_fee_share_bps=protocol_fee_share_bps,
-                        )
-                        new_r1, new_r0 = quote.reserve_in_after, quote.reserve_out_after
-                    else:
-                        _, (new_r1, new_r0) = swap_exact_in_for_pool(
-                            pool_state,
-                            reserve_in=current_reserves[1],
-                            reserve_out=current_reserves[0],
-                            amount_in=fill.amount_in_filled or 0,
-                        )
-                else:  # SWAP_EXACT_OUT
-                    if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_out(
-                            reserve_in=current_reserves[1],
-                            reserve_out=current_reserves[0],
-                            amount_out=fill.amount_out_filled or 0,
-                            fee_bps=pool_state.fee_bps,
-                            protocol_fee_share_bps=protocol_fee_share_bps,
-                        )
-                        new_r1, new_r0 = quote.reserve_in_after, quote.reserve_out_after
-                    else:
-                        _, (new_r1, new_r0) = swap_exact_out_for_pool(
-                            pool_state,
-                            reserve_in=current_reserves[1],
-                            reserve_out=current_reserves[0],
-                            amount_out=fill.amount_out_filled or 0,
-                        )
-                current_reserves = (new_r0, new_r1)
-
-            # Apply to scratch balances for subsequent intents.
-            asset_in = intent.get_field("asset_in")
-            asset_out = intent.get_field("asset_out")
-            recipient = intent.get_field("recipient", intent.sender_pubkey)
-            balances_scratch.subtract(intent.sender_pubkey, asset_in, fill.amount_in_filled or 0)
-            balances_scratch.add(recipient, asset_out, fill.amount_out_filled or 0)
-            protocol_fee = int(fill.protocol_fee_paid or 0)
-            if protocol_fee:
-                if not protocol_fee_recipient_pubkey:
-                    raise ValueError("protocol_fee_recipient_pubkey is required for protocol fee capture")
-                balances_scratch.add(protocol_fee_recipient_pubkey, asset_in, protocol_fee)
+            current_reserves = _reserves_after_swap_fill(
+                intent,
+                fill,
+                pool_state,
+                current_reserves,
+                protocol_fee_share_bps=protocol_fee_share_bps,
+            )
+            _apply_swap_fill_to_scratch_balances(
+                intent,
+                fill,
+                balances_scratch,
+                protocol_fee_recipient_pubkey,
+            )
     
     # Process liquidity intents (in order received)
     for intent in liquidity_intents:
