@@ -41,11 +41,13 @@ from ..kernels.python.settlement_swap_runtime_v1 import (
 from ..state.balances import Amount, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
-from ..state.pools import CURVE_TAG_CPMM, PoolState
+from ..state.pools import PoolState
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .batch_clearing_ab_order import (
     _OptimalAbOrderingFactories,
+    _SwapReserveSimulationFactories,
     order_swaps_optimal_ab_bounded_with_factories,
+    simulate_swap_reserves_with_factories,
 )
 from .batch_clearing_apply import (
     _apply_filled_intent_to_locals_with_context,
@@ -696,61 +698,15 @@ def _simulate_swap_reserves(
 
     Returns (0, 0, reserves) if swap cannot execute.
     """
-    if intent.kind != IntentKind.SWAP_EXACT_IN:
-        return 0, 0, reserves
-
-    asset_in = intent.get_field("asset_in")
-    asset_out = intent.get_field("asset_out")
-    reserve0, reserve1 = reserves
-
-    if asset_in == pool_state.asset0 and asset_out == pool_state.asset1:
-        reserve_in, reserve_out = reserve0, reserve1
-    elif asset_in == pool_state.asset1 and asset_out == pool_state.asset0:
-        reserve_in, reserve_out = reserve1, reserve0
-    else:
-        return 0, 0, reserves
-
-    amount_in = intent.get_field("amount_in")
-    min_amount_out = intent.get_field("min_amount_out", 0)
-    if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-        return 0, 0, reserves
-    if not isinstance(min_amount_out, int) or isinstance(min_amount_out, bool):
-        return 0, 0, reserves
-    if min_amount_out < 0:
-        return 0, 0, reserves
-
-    try:
-        if pool_state.curve_tag == CURVE_TAG_CPMM:
-            quote = quote_cpmm_swap_exact_in(
-                reserve_in=reserve_in,
-                reserve_out=reserve_out,
-                amount_in=amount_in,
-                fee_bps=pool_state.fee_bps,
-            )
-            amount_out = quote.amount_out
-            new_r_in, new_r_out = quote.reserve_in_after, quote.reserve_out_after
-        else:
-            amount_out, (new_r_in, new_r_out) = swap_exact_in_for_pool(
-                pool_state,
-                reserve_in=reserve_in,
-                reserve_out=reserve_out,
-                amount_in=amount_in,
-            )
-    except ValueError:
-        return 0, 0, reserves
-
-    if amount_out < min_amount_out:
-        return 0, 0, reserves
-
-    surplus = amount_out - min_amount_out
-
-    # Reconstruct full reserves tuple
-    if asset_in == pool_state.asset0:
-        new_reserves = (new_r_in, new_r_out)
-    else:
-        new_reserves = (new_r_out, new_r_in)
-
-    return amount_in, surplus, new_reserves
+    return simulate_swap_reserves_with_factories(
+        intent,
+        pool_state,
+        reserves,
+        _SwapReserveSimulationFactories(
+            quote_exact_in_fn=quote_cpmm_swap_exact_in,
+            swap_exact_in_fn=swap_exact_in_for_pool,
+        ),
+    )
 
 
 def _eval_ordering_ab(

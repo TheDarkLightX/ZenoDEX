@@ -25,6 +25,12 @@ class _OptimalAbOrderingFactories:
 
 
 @dataclass(frozen=True)
+class _SwapReserveSimulationFactories:
+    quote_exact_in_fn: _AnyFn
+    swap_exact_in_fn: _AnyFn
+
+
+@dataclass(frozen=True)
 class _OptimalAbObjectiveContext:
     pool_state: PoolState
     first_asset_in: str
@@ -32,6 +38,70 @@ class _OptimalAbObjectiveContext:
     r_out0: int
     sender_bal_in: Dict[PubKey, Amount]
     factories: _OptimalAbOrderingFactories
+
+
+def _simulation_reserve_direction(
+    intent: Intent,
+    pool_state: PoolState,
+    reserves: Tuple[Amount, Amount],
+) -> Optional[Tuple[Amount, Amount, bool]]:
+    asset_in = intent.get_field("asset_in")
+    asset_out = intent.get_field("asset_out")
+    reserve0, reserve1 = reserves
+
+    if asset_in == pool_state.asset0 and asset_out == pool_state.asset1:
+        return reserve0, reserve1, False
+    if asset_in == pool_state.asset1 and asset_out == pool_state.asset0:
+        return reserve1, reserve0, True
+    return None
+
+
+def simulate_swap_reserves_with_factories(
+    intent: Intent,
+    pool_state: PoolState,
+    reserves: Tuple[Amount, Amount],
+    factories: _SwapReserveSimulationFactories,
+) -> Tuple[Amount, Amount, Tuple[Amount, Amount]]:
+    if intent.kind != IntentKind.SWAP_EXACT_IN:
+        return 0, 0, reserves
+
+    direction = _simulation_reserve_direction(intent, pool_state, reserves)
+    if direction is None:
+        return 0, 0, reserves
+    reserve_in, reserve_out, reverse = direction
+
+    amount_in = intent.get_field("amount_in")
+    min_amount_out = intent.get_field("min_amount_out", 0)
+    if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
+        return 0, 0, reserves
+    if not isinstance(min_amount_out, int) or isinstance(min_amount_out, bool) or min_amount_out < 0:
+        return 0, 0, reserves
+
+    try:
+        if pool_state.curve_tag == CURVE_TAG_CPMM:
+            quote = factories.quote_exact_in_fn(
+                reserve_in=reserve_in,
+                reserve_out=reserve_out,
+                amount_in=amount_in,
+                fee_bps=pool_state.fee_bps,
+            )
+            amount_out = quote.amount_out
+            new_r_in, new_r_out = quote.reserve_in_after, quote.reserve_out_after
+        else:
+            amount_out, (new_r_in, new_r_out) = factories.swap_exact_in_fn(
+                pool_state,
+                reserve_in=reserve_in,
+                reserve_out=reserve_out,
+                amount_in=amount_in,
+            )
+    except ValueError:
+        return 0, 0, reserves
+
+    if amount_out < min_amount_out:
+        return 0, 0, reserves
+    surplus = amount_out - min_amount_out
+    new_reserves = (new_r_out, new_r_in) if reverse else (new_r_in, new_r_out)
+    return amount_in, surplus, new_reserves
 
 
 def _same_pool_direction_or_none(
