@@ -41,6 +41,14 @@ class _SwapIntentContext:
     factories: _SwapIntentFactories
 
 
+@dataclass(frozen=True)
+class _ReserveQuoteContext:
+    pool_state: PoolState
+    reserve_in: Amount
+    reserve_out: Amount
+    protocol_fee_share_bps: int
+
+
 def _reject_swap_intent(intent: Intent, reason: str) -> Fill:
     return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason=reason)
 
@@ -208,6 +216,50 @@ def _process_swap_intent_with_factories(
     return _reject_swap_intent(intent, "UNKNOWN_INTENT_TYPE")
 
 
+def _reserves_after_exact_in_direction(
+    context: _ReserveQuoteContext,
+    amount_in: Amount,
+) -> Tuple[Amount, Amount]:
+    if context.pool_state.curve_tag == CURVE_TAG_CPMM:
+        quote = quote_cpmm_swap_exact_in(
+            reserve_in=context.reserve_in,
+            reserve_out=context.reserve_out,
+            amount_in=amount_in,
+            fee_bps=context.pool_state.fee_bps,
+            protocol_fee_share_bps=context.protocol_fee_share_bps,
+        )
+        return quote.reserve_in_after, quote.reserve_out_after
+    _, next_reserves = swap_exact_in_for_pool(
+        context.pool_state,
+        reserve_in=context.reserve_in,
+        reserve_out=context.reserve_out,
+        amount_in=amount_in,
+    )
+    return next_reserves
+
+
+def _reserves_after_exact_out_direction(
+    context: _ReserveQuoteContext,
+    amount_out: Amount,
+) -> Tuple[Amount, Amount]:
+    if context.pool_state.curve_tag == CURVE_TAG_CPMM:
+        quote = quote_cpmm_swap_exact_out(
+            reserve_in=context.reserve_in,
+            reserve_out=context.reserve_out,
+            amount_out=amount_out,
+            fee_bps=context.pool_state.fee_bps,
+            protocol_fee_share_bps=context.protocol_fee_share_bps,
+        )
+        return quote.reserve_in_after, quote.reserve_out_after
+    _, next_reserves = swap_exact_out_for_pool(
+        context.pool_state,
+        reserve_in=context.reserve_in,
+        reserve_out=context.reserve_out,
+        amount_out=amount_out,
+    )
+    return next_reserves
+
+
 def _reserves_after_swap_fill(
     intent: Intent,
     fill: Fill,
@@ -218,75 +270,33 @@ def _reserves_after_swap_fill(
 ) -> Tuple[Amount, Amount]:
     asset_in = intent.get_field("asset_in")
     if asset_in == pool_state.asset0:
-        if intent.kind == IntentKind.SWAP_EXACT_IN:
-            if pool_state.curve_tag == CURVE_TAG_CPMM:
-                quote = quote_cpmm_swap_exact_in(
-                    reserve_in=reserves[0],
-                    reserve_out=reserves[1],
-                    amount_in=fill.amount_in_filled or 0,
-                    fee_bps=pool_state.fee_bps,
-                    protocol_fee_share_bps=protocol_fee_share_bps,
-                )
-                return quote.reserve_in_after, quote.reserve_out_after
-            _, next_reserves = swap_exact_in_for_pool(
-                pool_state,
-                reserve_in=reserves[0],
-                reserve_out=reserves[1],
-                amount_in=fill.amount_in_filled or 0,
-            )
-            return next_reserves
-
-        if pool_state.curve_tag == CURVE_TAG_CPMM:
-            quote = quote_cpmm_swap_exact_out(
-                reserve_in=reserves[0],
-                reserve_out=reserves[1],
-                amount_out=fill.amount_out_filled or 0,
-                fee_bps=pool_state.fee_bps,
-                protocol_fee_share_bps=protocol_fee_share_bps,
-            )
-            return quote.reserve_in_after, quote.reserve_out_after
-        _, next_reserves = swap_exact_out_for_pool(
-            pool_state,
+        context = _ReserveQuoteContext(
+            pool_state=pool_state,
             reserve_in=reserves[0],
             reserve_out=reserves[1],
-            amount_out=fill.amount_out_filled or 0,
-        )
-        return next_reserves
-
-    if intent.kind == IntentKind.SWAP_EXACT_IN:
-        if pool_state.curve_tag == CURVE_TAG_CPMM:
-            quote = quote_cpmm_swap_exact_in(
-                reserve_in=reserves[1],
-                reserve_out=reserves[0],
-                amount_in=fill.amount_in_filled or 0,
-                fee_bps=pool_state.fee_bps,
-                protocol_fee_share_bps=protocol_fee_share_bps,
-            )
-            return quote.reserve_out_after, quote.reserve_in_after
-        _, (new_r1, new_r0) = swap_exact_in_for_pool(
-            pool_state,
-            reserve_in=reserves[1],
-            reserve_out=reserves[0],
-            amount_in=fill.amount_in_filled or 0,
-        )
-        return new_r0, new_r1
-
-    if pool_state.curve_tag == CURVE_TAG_CPMM:
-        quote = quote_cpmm_swap_exact_out(
-            reserve_in=reserves[1],
-            reserve_out=reserves[0],
-            amount_out=fill.amount_out_filled or 0,
-            fee_bps=pool_state.fee_bps,
             protocol_fee_share_bps=protocol_fee_share_bps,
         )
-        return quote.reserve_out_after, quote.reserve_in_after
-    _, (new_r1, new_r0) = swap_exact_out_for_pool(
-        pool_state,
+        if intent.kind == IntentKind.SWAP_EXACT_IN:
+            return _reserves_after_exact_in_direction(context, fill.amount_in_filled or 0)
+        return _reserves_after_exact_out_direction(context, fill.amount_out_filled or 0)
+
+    context = _ReserveQuoteContext(
+        pool_state=pool_state,
         reserve_in=reserves[1],
         reserve_out=reserves[0],
-        amount_out=fill.amount_out_filled or 0,
+        protocol_fee_share_bps=protocol_fee_share_bps,
     )
-    return new_r0, new_r1
+    if intent.kind == IntentKind.SWAP_EXACT_IN:
+        next_reserve_in, next_reserve_out = _reserves_after_exact_in_direction(
+            context,
+            fill.amount_in_filled or 0,
+        )
+        return next_reserve_out, next_reserve_in
+    next_reserve_in, next_reserve_out = _reserves_after_exact_out_direction(
+        context,
+        fill.amount_out_filled or 0,
+    )
+    return next_reserve_out, next_reserve_in
 
 
 def _apply_swap_fill_to_scratch_balances(
