@@ -6,6 +6,19 @@ from typing import Any
 from .perp_v2.funding_rule import compute_funding_rate_bps
 from .perp_v2.math import BPS_SCALE, is_oracle_fresh, settle_price
 
+MARK_PRICE_SOURCE_EXTERNAL_MEDIAN = 1
+MARK_PRICE_SOURCE_SPOT_AMM_TWAP = 2
+MARK_PRICE_SOURCE_ORACLE_CLAMPED_SPOT = 3
+MARK_PRICE_SOURCE_INTERNAL_BATCH_CLEARING = 4
+
+DERIVATIVES_SAFE_MARK_PRICE_SOURCES = frozenset(
+    (
+        MARK_PRICE_SOURCE_EXTERNAL_MEDIAN,
+        MARK_PRICE_SOURCE_SPOT_AMM_TWAP,
+        MARK_PRICE_SOURCE_ORACLE_CLAMPED_SPOT,
+    )
+)
+
 
 @dataclass(frozen=True)
 class PerpApplyFundingAutoGateOutcome:
@@ -42,6 +55,11 @@ def _require_flag(value: Any, *, name: str) -> bool:
     if value not in (0, 1):
         raise ValueError(f"{name} must be 0 or 1")
     return bool(value)
+
+
+def is_derivatives_safe_mark_price_source(source_kind: Any) -> bool:
+    source = _require_int(source_kind, name="mark_price_source_kind")
+    return source in DERIVATIVES_SAFE_MARK_PRICE_SOURCES
 
 
 def evaluate_perp_apply_funding_auto_gate(
