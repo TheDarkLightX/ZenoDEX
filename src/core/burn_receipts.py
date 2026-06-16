@@ -128,7 +128,11 @@ def verify_burn_receipt(receipt: object) -> Tuple[bool, str]:
     want_hash = receipt.get("receipt_hash")
     if not isinstance(want_hash, str) or not want_hash:
         return False, "missing_receipt_hash"
-    if burn_receipt_hash(body) != want_hash:
+    try:
+        actual_hash = burn_receipt_hash(body)
+    except (TypeError, ValueError, OverflowError):
+        return False, "bad_body_encoding"
+    if actual_hash != want_hash:
         return False, "hash_mismatch"
 
     for key in ("asset_id", "batch_id", "nullifier", "tx_ref", "policy_version"):

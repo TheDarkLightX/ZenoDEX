@@ -53,6 +53,26 @@ def test_burn_receipt_hash_mismatch_is_rejected() -> None:
     assert err == "hash_mismatch"
 
 
+def test_burn_receipt_float_body_field_fails_closed() -> None:
+    receipt = _make_valid_receipt()
+    receipt["body"]["accounting"]["burn_amount"] = 20.0
+
+    ok, err = verify_burn_receipt(receipt)
+
+    assert not ok
+    assert err == "bad_body_encoding"
+
+
+def test_burn_receipt_non_string_body_key_fails_closed() -> None:
+    receipt = _make_valid_receipt()
+    receipt["body"][1] = "non-string key"
+
+    ok, err = verify_burn_receipt(receipt)
+
+    assert not ok
+    assert err == "bad_body_encoding"
+
+
 def test_burn_receipt_amount_mismatch_rejected_after_rehash() -> None:
     receipt = _make_valid_receipt()
     receipt["body"]["accounting"]["receipt_amount"] = 19
