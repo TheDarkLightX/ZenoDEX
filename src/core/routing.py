@@ -33,6 +33,7 @@ from ..core.split_routing_dispatch import (
 from ..state.balances import Amount, AssetId
 from ..state.pools import PoolState
 from . import routing_common as _routing_common
+from . import routing_exact_out as _routing_exact_out
 from . import routing_exact_out_gate as _exact_out_gate
 from . import routing_mixed_split as _routing_mixed_split
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
@@ -337,160 +338,17 @@ def best_route_exact_out_2hop(
     apply_two_hop_gate: bool = False,
     gate_config: ExactOutTwoHopGateConfig | None = None,
 ) -> Optional[RouteQuote]:
-    """
-    Compute the best exact-out route up to 2 hops (min input for desired output).
-
-    If apply_two_hop_gate=True, use `should_consider_exact_out_two_hop` to decide whether to
-    consider 2-hop candidates, based on the best direct pool quote.
-    """
-    if amount_out <= 0:
-        return None
-    if asset_in == asset_out:
-        return None
-
-    pools: Tuple[PoolState, ...] = tuple(sorted(pools_by_id.values(), key=lambda p: p.pool_id))
-    by_asset: Dict[AssetId, Tuple[int, ...]] = _build_asset_pool_index(pools)
-
-    best_direct: Optional[RouteQuote] = None
-    best_direct_reserve_out: Amount | None = None
-    best_direct_fee_bps: int | None = None
-    direct_candidates: List[PoolState] = []
-
-    # 1-hop candidates (direct pools).
-    for idx in by_asset.get(asset_in, ()):
-        p = pools[idx]
-        if not _pool_connects(p, asset_in, asset_out):
-            continue
-        direct_candidates.append(p)
-        out = _pool_quote_exact_out(p, asset_in=asset_in, asset_out=asset_out, amount_out=amount_out)
-        if out is None:
-            continue
-        amt_in, _pid, rout = out
-        hop = RouteHop(p.pool_id, asset_in, asset_out, amt_in, amount_out)
-        q = RouteQuote(
-            asset_in=asset_in,
-            asset_out=asset_out,
-            amount_in=amt_in,
-            amount_out=amount_out,
-            legs=(RouteLeg(hops=(hop,), amount_in=amt_in, amount_out=amount_out),),
-        )
-        if best_direct is None or (q.amount_in < best_direct.amount_in) or (
-            q.amount_in == best_direct.amount_in and _quote_key(q) < _quote_key(best_direct)
-        ):
-            best_direct = q
-            best_direct_reserve_out = rout
-            best_direct_fee_bps = int(p.fee_bps)
-
-    consider_two_hop = True
-    if apply_two_hop_gate and best_direct is not None and best_direct_reserve_out is not None:
-        consider_two_hop = should_consider_exact_out_two_hop(
-            amount_out=amount_out,
-            direct_reserve_out=int(best_direct_reserve_out),
-            direct_amount_in=int(best_direct.amount_in),
-            direct_fee_bps=int(best_direct_fee_bps or 0),
-            config=gate_config,
-        )
-
-    best: Optional[RouteQuote] = best_direct
-
-    # Split exact-out across parallel pools (2 legs, 1 hop each).
-    #
-    # Note: we consider pools even if they cannot individually satisfy the full amount_out; splitting can still be feasible.
-    if len(direct_candidates) >= 2:
-        # Deterministic cap: avoid O(k^2) blowups when many direct pools exist for the same pair.
-        MAX_SPLIT_CANDIDATES = 8
-        if len(direct_candidates) > MAX_SPLIT_CANDIDATES:
-            def _direct_rout(p: PoolState) -> int:
-                if asset_in == p.asset0 and asset_out == p.asset1:
-                    return int(p.reserve1)
-                if asset_in == p.asset1 and asset_out == p.asset0:
-                    return int(p.reserve0)
-                return 0
-
-            direct_candidates = sorted(
-                direct_candidates,
-                key=lambda p: (-_direct_rout(p), p.pool_id),
-            )[:MAX_SPLIT_CANDIDATES]
-            direct_candidates.sort(key=lambda p: p.pool_id)
-
-        for i in range(len(direct_candidates)):
-            for j in range(i + 1, len(direct_candidates)):
-                p0 = direct_candidates[i]
-                p1 = direct_candidates[j]
-                try:
-                    split = best_split_two_pools_exact_out_for_pools(
-                        p0,
-                        p1,
-                        asset_in=asset_in,
-                        asset_out=asset_out,
-                        amount_out_total=amount_out,
-                    )
-                except ValueError:
-                    continue
-                if split.amount_in_total <= 0:
-                    continue
-                leg0 = RouteLeg(
-                    hops=(RouteHop(split.pool0_id, asset_in, asset_out, split.amount_in_0, split.amount_out_0),),
-                    amount_in=split.amount_in_0,
-                    amount_out=split.amount_out_0,
-                )
-                leg1 = RouteLeg(
-                    hops=(RouteHop(split.pool1_id, asset_in, asset_out, split.amount_in_1, split.amount_out_1),),
-                    amount_in=split.amount_in_1,
-                    amount_out=split.amount_out_1,
-                )
-                q = RouteQuote(
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_in=split.amount_in_total,
-                    amount_out=amount_out,
-                    legs=(leg0, leg1),
-                )
-                if best is None or (q.amount_in < best.amount_in) or (
-                    q.amount_in == best.amount_in and _quote_key(q) < _quote_key(best)
-                ):
-                    best = q
-
-    if consider_two_hop:
-        # 2-hop candidates: asset_in -> mid -> asset_out
-        for idx1 in by_asset.get(asset_in, ()):
-            p1 = pools[idx1]
-            if asset_in == p1.asset0:
-                mid = p1.asset1
-            elif asset_in == p1.asset1:
-                mid = p1.asset0
-            else:
-                continue
-            if mid == asset_out or mid == asset_in:
-                continue
-
-            for idx2 in by_asset.get(mid, ()):
-                p2 = pools[idx2]
-                if not _pool_connects(p2, mid, asset_out):
-                    continue
-
-                out2 = _pool_quote_exact_out(p2, asset_in=mid, asset_out=asset_out, amount_out=amount_out)
-                if out2 is None:
-                    continue
-                mid_in, _pid2, _rout2 = out2
-
-                out1 = _pool_quote_exact_out(p1, asset_in=asset_in, asset_out=mid, amount_out=mid_in)
-                if out1 is None:
-                    continue
-                amt_in, _pid1, _rout1 = out1
-
-                hop1 = RouteHop(p1.pool_id, asset_in, mid, amt_in, mid_in)
-                hop2 = RouteHop(p2.pool_id, mid, asset_out, mid_in, amount_out)
-                q = RouteQuote(
-                    asset_in=asset_in,
-                    asset_out=asset_out,
-                    amount_in=amt_in,
-                    amount_out=amount_out,
-                    legs=(RouteLeg(hops=(hop1, hop2), amount_in=amt_in, amount_out=amount_out),),
-                )
-                if best is None or (q.amount_in < best.amount_in) or (
-                    q.amount_in == best.amount_in and _quote_key(q) < _quote_key(best)
-                ):
-                    best = q
-
-    return best
+    return _routing_exact_out.best_route_exact_out_2hop(
+        pools_by_id=pools_by_id,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out=amount_out,
+        build_asset_pool_index=_build_asset_pool_index,
+        pool_connects=_pool_connects,
+        pool_quote_exact_out=_pool_quote_exact_out,
+        quote_key=_quote_key,
+        should_consider_exact_out_two_hop=should_consider_exact_out_two_hop,
+        split_two_pools_exact_out=best_split_two_pools_exact_out_for_pools,
+        apply_two_hop_gate=apply_two_hop_gate,
+        gate_config=gate_config,
+    )
