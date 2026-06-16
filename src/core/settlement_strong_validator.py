@@ -280,6 +280,22 @@ class _AddLiquidityReplayInput:
 
 
 @dataclass(frozen=True)
+class _AddLiquidityIntentFields:
+    amount0_desired: object
+    amount1_desired: object
+    amount0_min: object
+    amount1_min: object
+
+
+@dataclass(frozen=True)
+class _AddLiquidityAmounts:
+    amount0_desired: int
+    amount1_desired: int
+    amount0_min: int
+    amount1_min: int
+
+
+@dataclass(frozen=True)
 class _AddLiquidityReplayResult:
     amount0_used: int
     amount1_used: int
@@ -974,6 +990,91 @@ def _replay_create_pool_fill(
     return None
 
 
+def _add_liquidity_intent_fields(intent: Intent) -> _AddLiquidityIntentFields:
+    return _AddLiquidityIntentFields(
+        amount0_desired=intent.get_field("amount0_desired"),
+        amount1_desired=intent.get_field("amount1_desired"),
+        amount0_min=intent.get_field("amount0_min", 0),
+        amount1_min=intent.get_field("amount1_min", 0),
+    )
+
+
+def _validate_add_liquidity_required_fields(
+    *,
+    intent_id: str,
+    fields: _AddLiquidityIntentFields,
+) -> Optional[str]:
+    if any(v is None for v in (fields.amount0_desired, fields.amount1_desired)):
+        return f"missing ADD_LIQUIDITY fields for intent_id={intent_id}"
+    return None
+
+
+def _parse_add_liquidity_positive_amount(
+    *,
+    intent_id: str,
+    field_name: str,
+    value: object,
+) -> Tuple[Optional[int], Optional[str]]:
+    if not is_strict_int(value) or value <= 0:
+        return None, f"invalid {field_name} for intent_id={intent_id}"
+    return value, None
+
+
+def _parse_add_liquidity_min_amount(
+    *,
+    intent_id: str,
+    field_name: str,
+    value: object,
+) -> Tuple[Optional[int], Optional[str]]:
+    if not is_strict_int(value) or value < 0:
+        return None, f"invalid {field_name} for intent_id={intent_id}"
+    return value, None
+
+
+def _parse_add_liquidity_amounts(
+    *,
+    intent_id: str,
+    fields: _AddLiquidityIntentFields,
+) -> Tuple[Optional[_AddLiquidityAmounts], Optional[str]]:
+    amount0_desired, err = _parse_add_liquidity_positive_amount(
+        intent_id=intent_id,
+        field_name="amount0_desired",
+        value=fields.amount0_desired,
+    )
+    if amount0_desired is None:
+        return None, err
+    amount1_desired, err = _parse_add_liquidity_positive_amount(
+        intent_id=intent_id,
+        field_name="amount1_desired",
+        value=fields.amount1_desired,
+    )
+    if amount1_desired is None:
+        return None, err
+    amount0_min, err = _parse_add_liquidity_min_amount(
+        intent_id=intent_id,
+        field_name="amount0_min",
+        value=fields.amount0_min,
+    )
+    if amount0_min is None:
+        return None, err
+    amount1_min, err = _parse_add_liquidity_min_amount(
+        intent_id=intent_id,
+        field_name="amount1_min",
+        value=fields.amount1_min,
+    )
+    if amount1_min is None:
+        return None, err
+    return (
+        _AddLiquidityAmounts(
+            amount0_desired=amount0_desired,
+            amount1_desired=amount1_desired,
+            amount0_min=amount0_min,
+            amount1_min=amount1_min,
+        ),
+        None,
+    )
+
+
 def _parse_add_liquidity_replay_input(
     *,
     intent: Intent,
@@ -981,30 +1082,23 @@ def _parse_add_liquidity_replay_input(
     pool_id: str,
 ) -> Tuple[Optional[_AddLiquidityReplayInput], Optional[str]]:
     intent_id = intent.intent_id
-    amount0_desired = intent.get_field("amount0_desired")
-    amount1_desired = intent.get_field("amount1_desired")
-    amount0_min = intent.get_field("amount0_min", 0)
-    amount1_min = intent.get_field("amount1_min", 0)
-    if any(v is None for v in (amount0_desired, amount1_desired)):
-        return None, f"missing ADD_LIQUIDITY fields for intent_id={intent_id}"
-    if not is_strict_int(amount0_desired) or amount0_desired <= 0:
-        return None, f"invalid amount0_desired for intent_id={intent_id}"
-    if not is_strict_int(amount1_desired) or amount1_desired <= 0:
-        return None, f"invalid amount1_desired for intent_id={intent_id}"
-    if not is_strict_int(amount0_min) or amount0_min < 0:
-        return None, f"invalid amount0_min for intent_id={intent_id}"
-    if not is_strict_int(amount1_min) or amount1_min < 0:
-        return None, f"invalid amount1_min for intent_id={intent_id}"
+    fields = _add_liquidity_intent_fields(intent)
+    err = _validate_add_liquidity_required_fields(intent_id=intent_id, fields=fields)
+    if err is not None:
+        return None, err
+    amounts, err = _parse_add_liquidity_amounts(intent_id=intent_id, fields=fields)
+    if amounts is None:
+        return None, err
     return (
         _AddLiquidityReplayInput(
             intent_id=intent_id,
             sender=intent.sender_pubkey,
             recipient=recipient,
             pool_id=pool_id,
-            amount0_desired=amount0_desired,
-            amount1_desired=amount1_desired,
-            amount0_min=amount0_min,
-            amount1_min=amount1_min,
+            amount0_desired=amounts.amount0_desired,
+            amount1_desired=amounts.amount1_desired,
+            amount0_min=amounts.amount0_min,
+            amount1_min=amounts.amount1_min,
         ),
         None,
     )
