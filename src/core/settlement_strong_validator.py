@@ -41,6 +41,10 @@ from .settlement_quote_binding import (
 from .settlement_quote_binding import (
     validate_quote_binding_transport as _validate_quote_binding_transport,
 )
+from .settlement_replay_index import SettlementIndex as _SettlementIndex
+from .settlement_replay_index import (
+    build_settlement_index as _build_settlement_index,
+)
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 
@@ -56,12 +60,6 @@ _FAIL_CLOSED_VALIDATOR_ERRORS = (
     RuntimeError,
     AssertionError,
 )
-
-
-@dataclass(frozen=True)
-class _SettlementIndex:
-    intents_by_id: Dict[str, Intent]
-    fill_by_id: Dict[str, Fill]
 
 
 @dataclass
@@ -314,79 +312,6 @@ def _build_replay_context(
         res_deltas=[],
         lp_deltas=[],
     )
-
-
-def _build_intents_by_id(intents: List[Intent]) -> Tuple[Optional[Dict[str, Intent]], Optional[str]]:
-    intent_ids = [it.intent_id for it in intents]
-    if len(intent_ids) != len(set(intent_ids)):
-        return None, "duplicate intent_id in input intents"
-    return {it.intent_id: it for it in intents}, None
-
-
-def _validate_included_intent_ids(
-    *,
-    settlement: Settlement,
-    intent_ids: List[str],
-) -> Optional[str]:
-    included_ids = [intent_id for intent_id, _action in settlement.included_intents]
-    if set(included_ids) != set(intent_ids):
-        missing = sorted(set(intent_ids) - set(included_ids))
-        extra = sorted(set(included_ids) - set(intent_ids))
-        return f"settlement included_intents mismatch: missing={missing} extra={extra}"
-    if len(included_ids) != len(set(included_ids)):
-        return "settlement included_intents contains duplicate intent_id entries"
-    return None
-
-
-def _build_fill_by_id(
-    *,
-    settlement: Settlement,
-    intent_ids: List[str],
-) -> Tuple[Optional[Dict[str, Fill]], Optional[str]]:
-    fill_ids = [f.intent_id for f in settlement.fills]
-    if len(fill_ids) != len(set(fill_ids)):
-        return None, "settlement fills contains duplicate intent_id entries"
-    extra_fill_ids = sorted(set(fill_ids) - set(intent_ids))
-    if extra_fill_ids:
-        return None, f"settlement fills contains intent_ids not in input intents: {extra_fill_ids}"
-    return {f.intent_id: f for f in settlement.fills}, None
-
-
-def _validate_included_fill_actions(
-    *,
-    settlement: Settlement,
-    fill_by_id: Dict[str, Fill],
-) -> Optional[str]:
-    for intent_id, action in settlement.included_intents:
-        fill = fill_by_id.get(intent_id)
-        if fill is None:
-            if action == FillAction.FILL:
-                return f"missing Fill for filled intent_id: {intent_id}"
-            continue
-        if fill.action != action:
-            return f"Fill.action mismatch for intent_id={intent_id}: {fill.action} != {action}"
-    return None
-
-
-def _build_settlement_index(
-    *,
-    settlement: Settlement,
-    intents: List[Intent],
-) -> Tuple[Optional[_SettlementIndex], Optional[str]]:
-    intent_ids = [it.intent_id for it in intents]
-    intents_by_id, err = _build_intents_by_id(intents)
-    if intents_by_id is None:
-        return None, err
-    err = _validate_included_intent_ids(settlement=settlement, intent_ids=intent_ids)
-    if err is not None:
-        return None, err
-    fill_by_id, err = _build_fill_by_id(settlement=settlement, intent_ids=intent_ids)
-    if fill_by_id is None:
-        return None, err
-    err = _validate_included_fill_actions(settlement=settlement, fill_by_id=fill_by_id)
-    if err is not None:
-        return None, err
-    return _SettlementIndex(intents_by_id=intents_by_id, fill_by_id=fill_by_id), None
 
 
 def _create_pool_intent_fields(intent: Intent) -> _CreatePoolIntentFields:
