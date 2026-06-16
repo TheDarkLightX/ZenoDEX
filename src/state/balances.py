@@ -6,14 +6,22 @@ Implements BalanceTable[PubKey, AssetId] -> Amount
 
 from typing import Dict, Tuple
 
-
 # Type aliases
 PubKey = str  # BLS12-381 public key as hex string
 AssetId = str  # 32-byte hex string (0x...)
 Amount = int  # Non-negative integer (arbitrary precision)
+BalanceDelta = int
 
 # Native asset identifier
 NATIVE_ASSET = "0x" + "00" * 32
+
+
+def _require_balance_int(name: str, value: object) -> int:
+    # Balance entries feed canonical roots and settlement replay. Reject
+    # bool-as-int and non-int numerics before they can enter sparse state.
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
 
 
 class BalanceTable:
@@ -46,15 +54,16 @@ class BalanceTable:
         Raises:
             ValueError: If amount is negative
         """
-        if amount < 0:
-            raise ValueError(f"Balance cannot be negative: {amount}")
-        if amount == 0:
+        amount_i = _require_balance_int("amount", amount)
+        if amount_i < 0:
+            raise ValueError(f"Balance cannot be negative: {amount_i}")
+        if amount_i == 0:
             # Remove zero balances to keep table sparse
             self._balances.pop((pubkey, asset), None)
         else:
-            self._balances[(pubkey, asset)] = amount
+            self._balances[(pubkey, asset)] = amount_i
     
-    def add(self, pubkey: PubKey, asset: AssetId, delta: Amount) -> None:
+    def add(self, pubkey: PubKey, asset: AssetId, delta: BalanceDelta) -> None:
         """
         Add delta to balance. Equivalent to set(pubkey, asset, get(...) + delta).
         
@@ -66,11 +75,12 @@ class BalanceTable:
         Raises:
             ValueError: If resulting balance would be negative
         """
+        delta_i = _require_balance_int("delta", delta)
         current = self.get(pubkey, asset)
-        new_balance = current + delta
+        new_balance = current + delta_i
         if new_balance < 0:
             raise ValueError(
-                f"Insufficient balance: {current} + {delta} = {new_balance} < 0"
+                f"Insufficient balance: {current} + {delta_i} = {new_balance} < 0"
             )
         self.set(pubkey, asset, new_balance)
     
@@ -86,9 +96,10 @@ class BalanceTable:
         Raises:
             ValueError: If delta is negative or insufficient balance
         """
-        if delta < 0:
-            raise ValueError(f"Delta must be non-negative: {delta}")
-        self.add(pubkey, asset, -delta)
+        delta_i = _require_balance_int("delta", delta)
+        if delta_i < 0:
+            raise ValueError(f"Delta must be non-negative: {delta_i}")
+        self.add(pubkey, asset, -delta_i)
     
     def get_all_balances(self) -> Dict[Tuple[PubKey, AssetId], Amount]:
         """
