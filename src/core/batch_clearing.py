@@ -58,9 +58,10 @@ from .batch_clearing_deltas import (
 from .batch_clearing_liquidity import _process_liquidity_intent_with_factories
 from .batch_clearing_swaps import (
     _apply_swap_fill_to_scratch_balances,
+    _process_swap_intent_with_factories,
     _reserves_after_swap_fill,
+    _SwapIntentFactories,
 )
-from .cpmm import compute_fee_total
 from .domain_limits import is_strict_int
 from .liquidity import add_liquidity, create_pool, remove_liquidity
 from .settlement import (
@@ -849,130 +850,19 @@ def _process_swap_intent(
     *,
     protocol_fee_share_bps: int = 0,
 ) -> Fill:
-    """Process a single swap intent against a pool snapshot."""
-    reserve0, reserve1 = reserves
-
-    def _reject(reason: str) -> Fill:
-        return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason=reason)
-
-    sender = intent.sender_pubkey
-
-    asset_in = intent.get_field("asset_in")
-    asset_out = intent.get_field("asset_out")
-    if not isinstance(asset_in, str) or not isinstance(asset_out, str):
-        return _reject("MISSING_PARAMS")
-    if asset_in == asset_out:
-        return _reject("INVALID_ASSET_PAIR")
-
-    # Validate that (asset_in, asset_out) is exactly the pool pair.
-    if asset_in == pool_state.asset0 and asset_out == pool_state.asset1:
-        reserve_in, reserve_out = reserve0, reserve1
-    elif asset_in == pool_state.asset1 and asset_out == pool_state.asset0:
-        reserve_in, reserve_out = reserve1, reserve0
-    else:
-        return _reject("ASSET_NOT_IN_POOL")
-
-    try:
-        if intent.kind == IntentKind.SWAP_EXACT_IN:
-            amount_in = intent.get_field("amount_in")
-            min_amount_out = intent.get_field("min_amount_out", 0)
-            if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-                return _reject("MISSING_PARAMS")
-            if not isinstance(min_amount_out, int) or isinstance(min_amount_out, bool) or min_amount_out < 0:
-                return _reject("MISSING_PARAMS")
-
-            if balances.get(sender, asset_in) < amount_in:
-                return _reject("INSUFFICIENT_BALANCE")
-
-            if pool_state.curve_tag == CURVE_TAG_CPMM:
-                quote = quote_cpmm_swap_exact_in(
-                    reserve_in=reserve_in,
-                    reserve_out=reserve_out,
-                    amount_in=amount_in,
-                    fee_bps=pool_state.fee_bps,
-                    protocol_fee_share_bps=protocol_fee_share_bps,
-                )
-                amount_out = quote.amount_out
-                fee = quote.fee_paid
-                protocol_fee = quote.protocol_fee_paid
-            else:
-                if protocol_fee_share_bps:
-                    return _reject("PROTOCOL_FEE_UNSUPPORTED_CURVE")
-                amount_out, _new_reserves = swap_exact_in_for_pool(
-                    pool_state,
-                    reserve_in=reserve_in,
-                    reserve_out=reserve_out,
-                    amount_in=amount_in,
-                )
-                fee = compute_fee_total(amount_in, pool_state.fee_bps)
-                protocol_fee = 0
-            
-            # Check slippage constraint
-            if amount_out < min_amount_out:
-                return _reject("SLIPPAGE")
-            return Fill(
-                intent_id=intent.intent_id,
-                action=FillAction.FILL,
-                amount_in_filled=amount_in,
-                amount_out_filled=amount_out,
-                fee_paid=fee,
-                protocol_fee_paid=protocol_fee,
-                reserve_in_before=int(reserve_in),
-                reserve_out_before=int(reserve_out),
-            )
-        
-        elif intent.kind == IntentKind.SWAP_EXACT_OUT:
-            amount_out = intent.get_field("amount_out")
-            max_amount_in = intent.get_field("max_amount_in")
-            if not isinstance(amount_out, int) or isinstance(amount_out, bool) or amount_out <= 0:
-                return _reject("MISSING_PARAMS")
-            if not isinstance(max_amount_in, int) or isinstance(max_amount_in, bool) or max_amount_in < 0:
-                return _reject("MISSING_PARAMS")
-
-            if pool_state.curve_tag == CURVE_TAG_CPMM:
-                quote = quote_cpmm_swap_exact_out(
-                    reserve_in=reserve_in,
-                    reserve_out=reserve_out,
-                    amount_out=amount_out,
-                    fee_bps=pool_state.fee_bps,
-                    protocol_fee_share_bps=protocol_fee_share_bps,
-                )
-                amount_in = quote.amount_in
-                fee = quote.fee_paid
-                protocol_fee = quote.protocol_fee_paid
-            else:
-                if protocol_fee_share_bps:
-                    return _reject("PROTOCOL_FEE_UNSUPPORTED_CURVE")
-                amount_in, _new_reserves = swap_exact_out_for_pool(
-                    pool_state,
-                    reserve_in=reserve_in,
-                    reserve_out=reserve_out,
-                    amount_out=amount_out,
-                )
-                fee = compute_fee_total(amount_in, pool_state.fee_bps)
-                protocol_fee = 0
-
-            if balances.get(sender, asset_in) < amount_in:
-                return _reject("INSUFFICIENT_BALANCE")
-            
-            # Check slippage constraint
-            if amount_in > max_amount_in:
-                return _reject("SLIPPAGE")
-            return Fill(
-                intent_id=intent.intent_id,
-                action=FillAction.FILL,
-                amount_in_filled=amount_in,
-                amount_out_filled=amount_out,
-                fee_paid=fee,
-                protocol_fee_paid=protocol_fee,
-                reserve_in_before=int(reserve_in),
-                reserve_out_before=int(reserve_out),
-            )
-    
-    except (ValueError, ZeroDivisionError) as e:
-        return _reject(f"COMPUTATION_ERROR: {str(e)}")
-    
-    return _reject("UNKNOWN_INTENT_TYPE")
+    return _process_swap_intent_with_factories(
+        intent,
+        reserves,
+        pool_state,
+        balances,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        factories=_SwapIntentFactories(
+            quote_exact_in_fn=quote_cpmm_swap_exact_in,
+            quote_exact_out_fn=quote_cpmm_swap_exact_out,
+            swap_exact_in_fn=swap_exact_in_for_pool,
+            swap_exact_out_fn=swap_exact_out_for_pool,
+        ),
+    )
 
 
 def _process_liquidity_intent(
