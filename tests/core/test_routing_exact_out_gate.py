@@ -242,6 +242,41 @@ def test_exact_out_two_hop_gate_rejects_bad_inputs() -> None:
     else:
         assert False, "expected ValueError for negative direct_fee_bps"
 
+    try:
+        decide_exact_out_two_hop_gate(
+            amount_out=True,
+            direct_reserve_out=100,
+            direct_amount_in=20,
+        )
+    except TypeError as exc:
+        assert "amount_out must be int" in str(exc)
+    else:
+        assert False, "expected TypeError for bool amount_out"
+
+    try:
+        decide_exact_out_two_hop_gate(
+            amount_out=10,
+            direct_reserve_out=100,
+            direct_amount_in=20,
+            direct_fee_bps=True,
+        )
+    except TypeError as exc:
+        assert "direct_fee_bps must be int" in str(exc)
+    else:
+        assert False, "expected TypeError for bool direct_fee_bps"
+
+    try:
+        decide_exact_out_two_hop_gate(
+            amount_out=10,
+            direct_reserve_out=100,
+            direct_amount_in=20,
+            config=ExactOutTwoHopGateConfig(stress_threshold_bps=True),
+        )
+    except TypeError as exc:
+        assert "stress_threshold_bps must be int" in str(exc)
+    else:
+        assert False, "expected TypeError for bool threshold"
+
 
 def test_interpretable_gate_tradeoff_on_holdout_distribution() -> None:
     rng = random.Random(20260221)
