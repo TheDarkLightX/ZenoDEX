@@ -4,17 +4,17 @@ import importlib.util
 
 import pytest
 
+from src.integration import settlement_price_attestation as attestation_mod
 from src.integration.settlement_price_attestation import (
     build_settlement_spot_price_attestation,
     verify_settlement_spot_price_attestation,
     verify_settlement_spot_price_attestation_payload,
 )
 from src.integration.settlement_price_provenance import (
-    SettlementSpotPricePacket,
     SettlementSpotPriceEntry,
+    SettlementSpotPricePacket,
     build_settlement_spot_price_packet,
 )
-
 
 pytestmark = pytest.mark.skipif(importlib.util.find_spec("py_ecc") is None, reason="py_ecc is not available")
 
@@ -107,3 +107,47 @@ def test_settlement_spot_price_attestation_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "packet_hash mismatch"
+
+
+def test_settlement_spot_price_attestation_verifier_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(
+        packet=packet,
+        signer_privkey=7,
+    )
+    attestation_mod._PRICE_ATTESTATION_VERIFY_CACHE.clear()
+
+    def broken_verify(*_args: object, **_kwargs: object) -> bool:
+        raise RuntimeError("bls verifier adapter bug")
+
+    monkeypatch.setattr(attestation_mod.G2Basic, "Verify", broken_verify)
+
+    with pytest.raises(RuntimeError, match="bls verifier adapter bug"):
+        verify_settlement_spot_price_attestation(
+            attestation=attestation,
+            consumer_now_epoch=103,
+            max_attestation_age_epochs=5,
+            allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        )
+
+
+def test_settlement_spot_price_attestation_payload_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken_from_dict(_payload: object) -> object:
+        raise RuntimeError("attestation payload adapter bug")
+
+    monkeypatch.setattr(
+        attestation_mod.SettlementSpotPriceAttestation,
+        "from_dict",
+        staticmethod(broken_from_dict),
+    )
+
+    with pytest.raises(RuntimeError, match="attestation payload adapter bug"):
+        verify_settlement_spot_price_attestation_payload(
+            payload={},
+            consumer_now_epoch=103,
+            max_attestation_age_epochs=5,
+        )

@@ -3,21 +3,31 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
+from src.state.canonical import (
+    canonical_hex_fixed_allow_0x,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 
-from .settlement_price_provenance import SettlementSpotPricePacket, verify_settlement_spot_price_packet
+from .settlement_price_provenance import (
+    SettlementSpotPricePacket,
+    verify_settlement_spot_price_packet,
+)
 
 try:
     from py_ecc.bls import G2Basic
+    from py_ecc.bls.ciphersuites import ValidationError as _BLSValidationError
 
     _BLS_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     G2Basic = None
+    _BLSValidationError = ValueError
     _BLS_AVAILABLE = False
 
 try:
     from py_ecc.optimized_bls12_381 import curve_order as _BLS12_381_CURVE_ORDER
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     _BLS12_381_CURVE_ORDER = None
 
 
@@ -188,7 +198,7 @@ def verify_settlement_spot_price_attestation(
             result = (False, "settlement spot price attestation signature invalid")
             _cache_attestation_verify_result(cache_key, result)
             return result
-    except Exception as exc:
+    except (TypeError, ValueError, _BLSValidationError) as exc:
         result = (False, f"settlement spot price attestation verification error: {exc}")
         _cache_attestation_verify_result(cache_key, result)
         return result
@@ -206,7 +216,7 @@ def verify_settlement_spot_price_attestation_payload(
 ) -> tuple[bool, str | None]:
     try:
         attestation = SettlementSpotPriceAttestation.from_dict(payload)
-    except Exception as exc:
+    except (TypeError, ValueError, ArithmeticError) as exc:
         return False, str(exc)
     return verify_settlement_spot_price_attestation(
         attestation=attestation,
