@@ -86,48 +86,50 @@ _MAX_SWAP_ORDERING_MCI_N = 18
 _DELTA_AGG_CHUNK_SIZE = 128
 
 
-def compute_settlement(
-    intents: List[Intent],
-    pools: Dict[str, PoolState],
-    balances: BalanceTable,
-    lp_balances: Optional[LPTable] = None,
-    *,
-    swap_ordering: str = _SWAP_ORDERING_GREEDY_AB_REFINED,
-    protocol_fee_share_bps: int = 0,
-    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
-) -> Settlement:
-    """
-    Compute settlement for a batch of intents.
-    
-    Algorithm:
-    1. Group intents by pool_id
-    2. For each pool, sort intents by limit price (best first)
-    3. Process intents sequentially, computing fills
-    4. Aggregate deltas across all pools
-    5. Verify global conservation and non-negativity
-    
-    Args:
-        intents: List of intents to process
-        pools: Dictionary mapping pool_id -> PoolState
-        balances: Current balance table (for validation)
-        
-    Returns:
-        Settlement object with fills and deltas
-    """
-    if swap_ordering not in _SWAP_ORDERING_CHOICES:
-        raise ValueError(f"unsupported swap_ordering: {swap_ordering!r}")
-    if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
-        raise ValueError("protocol_fee_share_bps must be an int in [0, 10000]")
-    if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
-        raise ValueError("protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0")
-    # Work on local copies (functional core / imperative shell).
-    pool_states: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pools.items()}
-    balances_local = _copy_balance_table(balances)
-    lp_local = _copy_lp_table(lp_balances) if lp_balances is not None else LPTable()
+@dataclass(frozen=True)
+class _IntentPartitions:
+    create_pool_intents: List[Intent]
+    intents_by_pool: Dict[str, List[Intent]]
+    non_pool_intents: List[Intent]
 
-    events: List[Dict[str, Any]] = []
 
-    # Group intents by pool
+@dataclass
+class _SettlementBuffers:
+    included_intents: List[Tuple[str, FillAction]]
+    fills: List[Fill]
+    balance_deltas: List[BalanceDelta]
+    reserve_deltas: List[ReserveDelta]
+    lp_deltas: List[LPDelta]
+    events: List[Dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class _SettlementExecutionState:
+    pool_states: Dict[str, PoolState]
+    balances: BalanceTable
+    lp_balances: LPTable
+    buffers: _SettlementBuffers
+
+
+@dataclass(frozen=True)
+class _SettlementPolicy:
+    swap_ordering: str
+    protocol_fee_share_bps: int
+    protocol_fee_recipient_pubkey: Optional[PubKey]
+
+
+def _new_settlement_buffers() -> _SettlementBuffers:
+    return _SettlementBuffers(
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=[],
+    )
+
+
+def _partition_settlement_intents(intents: List[Intent]) -> _IntentPartitions:
     intents_by_pool: Dict[str, List[Intent]] = defaultdict(list)
     create_pool_intents: List[Intent] = []
     non_pool_intents: List[Intent] = []
@@ -142,19 +144,59 @@ def compute_settlement(
             intents_by_pool[pool_id].append(intent)
         else:
             non_pool_intents.append(intent)
-    
-    # Process each pool's intents
-    all_fills: List[Fill] = []
-    all_balance_deltas: List[BalanceDelta] = []
-    all_reserve_deltas: List[ReserveDelta] = []
-    all_lp_deltas: List[LPDelta] = []
-    included_intents: List[Tuple[str, FillAction]] = []
-    
-    # Process CREATE_POOL first so the rest of the batch can reference new pools.
+
+    return _IntentPartitions(
+        create_pool_intents=create_pool_intents,
+        intents_by_pool=dict(intents_by_pool),
+        non_pool_intents=non_pool_intents,
+    )
+
+
+def _append_rejected_intents(
+    buffers: _SettlementBuffers,
+    intents: List[Intent],
+    *,
+    reason: str,
+) -> None:
+    for intent in intents:
+        buffers.included_intents.append((intent.intent_id, FillAction.REJECT))
+        buffers.fills.append(Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason=reason))
+
+
+def _build_settlement_from_buffers(buffers: _SettlementBuffers) -> Settlement:
+    # Invariant chunking: aggregate deltas in bounded chunks to reduce payload
+    # size while preserving semantics.
+    return Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",  # Will be set by caller
+        included_intents=buffers.included_intents,
+        fills=buffers.fills,
+        balance_deltas=_aggregate_balance_deltas_chunked(
+            buffers.balance_deltas,
+            chunk_size=_DELTA_AGG_CHUNK_SIZE,
+        ),
+        reserve_deltas=_aggregate_reserve_deltas_chunked(
+            buffers.reserve_deltas,
+            chunk_size=_DELTA_AGG_CHUNK_SIZE,
+        ),
+        lp_deltas=_aggregate_lp_deltas_chunked(
+            buffers.lp_deltas,
+            chunk_size=_DELTA_AGG_CHUNK_SIZE,
+        ),
+        events=buffers.events or None,
+    )
+
+
+def _process_create_pool_phase(
+    state: _SettlementExecutionState,
+    create_pool_intents: List[Intent],
+) -> None:
+    # CREATE_POOL executes first so later intents can reference new pools.
     for intent in sorted(create_pool_intents, key=lambda i: i.intent_id):
-        fill, pool_id, created_pool, _err = _try_create_pool(intent, pool_states, balances_local)
-        included_intents.append((intent.intent_id, fill.action))
-        all_fills.append(fill)
+        fill, pool_id, created_pool, _err = _try_create_pool(intent, state.pool_states, state.balances)
+        state.buffers.included_intents.append((intent.intent_id, fill.action))
+        state.buffers.fills.append(fill)
 
         if fill.action != FillAction.FILL:
             continue
@@ -165,42 +207,41 @@ def compute_settlement(
             intent=intent,
             pool_id=pool_id,
             created_pool=created_pool,
-            balances=balances_local,
-            lp_balances=lp_local,
-            balance_deltas=all_balance_deltas,
-            reserve_deltas=all_reserve_deltas,
-            lp_deltas=all_lp_deltas,
-            events=events,
+            balances=state.balances,
+            lp_balances=state.lp_balances,
+            balance_deltas=state.buffers.balance_deltas,
+            reserve_deltas=state.buffers.reserve_deltas,
+            lp_deltas=state.buffers.lp_deltas,
+            events=state.buffers.events,
         )
 
-    # Process pool intents
+
+def _process_pool_intent_phase(
+    state: _SettlementExecutionState,
+    intents_by_pool: Dict[str, List[Intent]],
+    *,
+    policy: _SettlementPolicy,
+) -> None:
     for pool_id in sorted(intents_by_pool.keys()):
         pool_intents = intents_by_pool[pool_id]
-        if pool_id not in pool_states:
-            # Pool doesn't exist - reject all intents
-            for intent in pool_intents:
-                included_intents.append((intent.intent_id, FillAction.REJECT))
-                all_fills.append(Fill(
-                    intent_id=intent.intent_id,
-                    action=FillAction.REJECT,
-                    reason="POOL_NOT_FOUND"
-                ))
+        if pool_id not in state.pool_states:
+            _append_rejected_intents(state.buffers, pool_intents, reason="POOL_NOT_FOUND")
             continue
-        
-        pool_state = pool_states[pool_id]
+
+        pool_state = state.pool_states[pool_id]
         fills = clear_batch_single_pool(
             pool_intents,
             pool_state,
-            balances_local,
-            lp_local,
-            swap_ordering=swap_ordering,
-            protocol_fee_share_bps=protocol_fee_share_bps,
-            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+            state.balances,
+            state.lp_balances,
+            swap_ordering=policy.swap_ordering,
+            protocol_fee_share_bps=policy.protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=policy.protocol_fee_recipient_pubkey,
         )
 
         for fill in fills:
-            all_fills.append(fill)
-            included_intents.append((fill.intent_id, fill.action))
+            state.buffers.fills.append(fill)
+            state.buffers.included_intents.append((fill.intent_id, fill.action))
 
             if fill.action != FillAction.FILL:
                 continue
@@ -211,47 +252,77 @@ def compute_settlement(
                 fill=fill,
                 pool_id=pool_id,
                 pool_state=pool_state,
-                balances=balances_local,
-                lp_balances=lp_local,
-                balance_deltas=all_balance_deltas,
-                reserve_deltas=all_reserve_deltas,
-                lp_deltas=all_lp_deltas,
-                protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+                balances=state.balances,
+                lp_balances=state.lp_balances,
+                balance_deltas=state.buffers.balance_deltas,
+                reserve_deltas=state.buffers.reserve_deltas,
+                lp_deltas=state.buffers.lp_deltas,
+                protocol_fee_recipient_pubkey=policy.protocol_fee_recipient_pubkey,
             )
 
-        pool_states[pool_id] = pool_state
-    
-    # Process non-pool intents (invalid/malformed)
-    for intent in non_pool_intents:
-        included_intents.append((intent.intent_id, FillAction.REJECT))
-        all_fills.append(Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_INTENT"))
-    
-    # Create settlement
-    # Invariant chunking: aggregate deltas in bounded chunks to reduce payload
-    # size while preserving semantics.
-    all_balance_deltas = _aggregate_balance_deltas_chunked(
-        all_balance_deltas, chunk_size=_DELTA_AGG_CHUNK_SIZE
+        state.pool_states[pool_id] = pool_state
+
+
+def compute_settlement(
+    intents: List[Intent],
+    pools: Dict[str, PoolState],
+    balances: BalanceTable,
+    lp_balances: Optional[LPTable] = None,
+    *,
+    swap_ordering: str = _SWAP_ORDERING_GREEDY_AB_REFINED,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
+) -> Settlement:
+    """
+    Compute settlement for a batch of intents.
+
+    Algorithm:
+    1. Group intents by pool_id
+    2. For each pool, sort intents by limit price (best first)
+    3. Process intents sequentially, computing fills
+    4. Aggregate deltas across all pools
+    5. Verify global conservation and non-negativity
+
+    Args:
+        intents: List of intents to process
+        pools: Dictionary mapping pool_id -> PoolState
+        balances: Current balance table (for validation)
+
+    Returns:
+        Settlement object with fills and deltas
+    """
+    if swap_ordering not in _SWAP_ORDERING_CHOICES:
+        raise ValueError(f"unsupported swap_ordering: {swap_ordering!r}")
+    if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
+        raise ValueError("protocol_fee_share_bps must be an int in [0, 10000]")
+    if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
+        raise ValueError("protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0")
+    # Work on local copies (functional core / imperative shell).
+    pool_states: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pools.items()}
+    balances_local = _copy_balance_table(balances)
+    lp_local = _copy_lp_table(lp_balances) if lp_balances is not None else LPTable()
+    partitions = _partition_settlement_intents(intents)
+    buffers = _new_settlement_buffers()
+    policy = _SettlementPolicy(
+        swap_ordering=swap_ordering,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
-    all_reserve_deltas = _aggregate_reserve_deltas_chunked(
-        all_reserve_deltas, chunk_size=_DELTA_AGG_CHUNK_SIZE
-    )
-    all_lp_deltas = _aggregate_lp_deltas_chunked(
-        all_lp_deltas, chunk_size=_DELTA_AGG_CHUNK_SIZE
+    execution_state = _SettlementExecutionState(
+        pool_states=pool_states,
+        balances=balances_local,
+        lp_balances=lp_local,
+        buffers=buffers,
     )
 
-    settlement = Settlement(
-        module="TauSwap",
-        version="0.1",
-        batch_ref="",  # Will be set by caller
-        included_intents=included_intents,
-        fills=all_fills,
-        balance_deltas=all_balance_deltas,
-        reserve_deltas=all_reserve_deltas,
-        lp_deltas=all_lp_deltas,
-        events=events or None,
+    _process_create_pool_phase(execution_state, partitions.create_pool_intents)
+    _process_pool_intent_phase(
+        execution_state,
+        partitions.intents_by_pool,
+        policy=policy,
     )
-    
-    return settlement
+    _append_rejected_intents(buffers, partitions.non_pool_intents, reason="INVALID_INTENT")
+    return _build_settlement_from_buffers(buffers)
 
 
 def _copy_balance_table(balances: BalanceTable) -> BalanceTable:
