@@ -8,7 +8,11 @@ from dataclasses import replace
 from src.core.liquidity import create_pool
 from src.core.settlement import Fill, FillAction, Settlement
 from src.integration import tau_gate
-from src.integration.tau_gate import TauGateConfig, TauSettlementModuleFlags, validate_settlement_swaps
+from src.integration.tau_gate import (
+    TauGateConfig,
+    TauSettlementModuleFlags,
+    validate_settlement_swaps,
+)
 from src.state.intents import Intent, IntentKind
 
 
@@ -31,6 +35,72 @@ def test_tau_gate_enabled_no_swaps_does_not_require_tau() -> None:
     )
     ok, err = validate_settlement_swaps(
         intents=intents,
+        settlement=settlement,
+        pre_pools={},
+        config=TauGateConfig(enabled=True, tau_bin=None, allow_path_lookup=False),
+    )
+    assert ok, err
+
+
+def test_tau_gate_replays_non_cpmm_create_pool_before_add_liquidity_without_tau() -> None:
+    pk_a = "0x" + "11" * 48
+    pk_b = "0x" + "22" * 48
+    asset0 = "0x" + "03" * 32
+    asset1 = "0x" + "04" * 32
+    pool_id, _, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=1_000,
+        amount1=2_000,
+        fee_bps=20,
+        creator_pubkey=pk_a,
+        created_at=0,
+        curve_tag=" sum_boost_v1 ",
+        curve_params={"mu_num": 1, "mu_den": 2},
+    )
+    create_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_mk_intent_id(201),
+        sender_pubkey=pk_a,
+        deadline=9999999999,
+        fields={
+            "asset0": asset0,
+            "asset1": asset1,
+            "fee_bps": 20,
+            "amount0": 1_000,
+            "amount1": 2_000,
+            "curve_tag": " sum_boost_v1 ",
+            "curve_params": {"mu_num": 1, "mu_den": 2},
+        },
+    )
+    add_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_mk_intent_id(202),
+        sender_pubkey=pk_b,
+        deadline=9999999999,
+        fields={"pool_id": pool_id},
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(create_intent.intent_id, FillAction.FILL), (add_intent.intent_id, FillAction.FILL)],
+        fills=[
+            Fill(intent_id=create_intent.intent_id, action=FillAction.FILL),
+            Fill(intent_id=add_intent.intent_id, action=FillAction.FILL, amount0_used=10, amount1_used=20),
+        ],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    ok, err = validate_settlement_swaps(
+        intents=[create_intent, add_intent],
         settlement=settlement,
         pre_pools={},
         config=TauGateConfig(enabled=True, tau_bin=None, allow_path_lookup=False),

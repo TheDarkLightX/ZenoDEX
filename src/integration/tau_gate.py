@@ -27,9 +27,9 @@ from .tau_witness import (
     SWAP_BV32_SAFE_RANGE_GUARD_V1,
     SWAP_EXACT_IN_PROOF_GATE_V1,
     SWAP_EXACT_IN_V1,
-    SWAP_EXACT_OUT_V1,
-    SWAP_EXACT_OUT_PROOF_GATE_V1,
     SWAP_EXACT_IN_V4,
+    SWAP_EXACT_OUT_PROOF_GATE_V1,
+    SWAP_EXACT_OUT_V1,
     SWAP_EXACT_OUT_V4,
     TauSpecRef,
     build_settlement_price_rails_aligned_v1_step,
@@ -37,9 +37,9 @@ from .tau_witness import (
     build_swap_bv32_safe_range_guard_v1_step,
     build_swap_exact_in_proof_gate_v1_step,
     build_swap_exact_in_v1_step,
-    build_swap_exact_out_v1_step,
-    build_swap_exact_out_proof_gate_v1_step,
     build_swap_exact_in_v4_step,
+    build_swap_exact_out_proof_gate_v1_step,
+    build_swap_exact_out_v1_step,
     build_swap_exact_out_v4_step,
 )
 
@@ -222,6 +222,8 @@ def validate_settlement_swaps(
                 amount0 = intent.get_field("amount0")
                 amount1 = intent.get_field("amount1")
                 created_at = intent.get_field("created_at", 0)
+                curve_tag = intent.get_field("curve_tag", None)
+                curve_params = intent.get_field("curve_params", None)
                 if any(v is None for v in (asset0, asset1, fee_bps, amount0, amount1)):
                     return False, f"CREATE_POOL missing params for intent {intent.intent_id}"
                 pool_id, pool_state, _lp_minted = create_pool(
@@ -232,6 +234,8 @@ def validate_settlement_swaps(
                     fee_bps=fee_bps,
                     creator_pubkey=intent.sender_pubkey,
                     created_at=created_at,
+                    curve_tag=curve_tag,
+                    curve_params=curve_params,
                 )
                 if pool_id in pools_mut or pool_id in pre_pools:
                     return False, f"CREATE_POOL conflicts with existing pool: {pool_id}"
