@@ -127,16 +127,34 @@ class SettlementEndogenousLPValuePacket:
             pool_snapshots=tuple(dict(snapshot) for snapshot in pool_snapshots_payload),
             pool_snapshot_vector_sha256=str(payload.get("pool_snapshot_vector_sha256", "")),
             lp_value_contract=SettlementLPValueContract.from_dict(lp_value_contract_payload),
-            price_provenance_ok=bool(payload.get("price_provenance_ok", False)),
-            attestation_ok=bool(payload.get("attestation_ok", False)),
-            unique_pool_ids_ok=bool(payload.get("unique_pool_ids_ok", False)),
-            all_positive_lp_supply_ok=bool(payload.get("all_positive_lp_supply_ok", False)),
-            all_assets_priced_ok=bool(payload.get("all_assets_priced_ok", False)),
-            asset_conservation_ok=bool(payload.get("asset_conservation_ok", False)),
-            lp_liability_balanced_ok=bool(payload.get("lp_liability_balanced_ok", False)),
-            value_conservation_ok=bool(payload.get("value_conservation_ok", False)),
-            packet_ok=bool(payload.get("packet_ok", False)),
+            price_provenance_ok=_require_bool(payload.get("price_provenance_ok", False), name="price_provenance_ok"),
+            attestation_ok=_require_bool(payload.get("attestation_ok", False), name="attestation_ok"),
+            unique_pool_ids_ok=_require_bool(payload.get("unique_pool_ids_ok", False), name="unique_pool_ids_ok"),
+            all_positive_lp_supply_ok=_require_bool(
+                payload.get("all_positive_lp_supply_ok", False),
+                name="all_positive_lp_supply_ok",
+            ),
+            all_assets_priced_ok=_require_bool(payload.get("all_assets_priced_ok", False), name="all_assets_priced_ok"),
+            asset_conservation_ok=_require_bool(
+                payload.get("asset_conservation_ok", False),
+                name="asset_conservation_ok",
+            ),
+            lp_liability_balanced_ok=_require_bool(
+                payload.get("lp_liability_balanced_ok", False),
+                name="lp_liability_balanced_ok",
+            ),
+            value_conservation_ok=_require_bool(
+                payload.get("value_conservation_ok", False),
+                name="value_conservation_ok",
+            ),
+            packet_ok=_require_bool(payload.get("packet_ok", False), name="packet_ok"),
         )
+
+
+def _require_bool(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return bool(value)
 
 
 def build_settlement_endogenous_lp_value_packet_from_price_packet(

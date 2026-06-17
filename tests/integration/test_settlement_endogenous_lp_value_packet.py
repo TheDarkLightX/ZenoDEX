@@ -195,6 +195,22 @@ def test_endogenous_lp_value_packet_from_dict_round_trips() -> None:
     assert rebuilt == packet
 
 
+def test_endogenous_lp_value_packet_from_dict_rejects_string_boolean_flags() -> None:
+    pk, asset0, asset1, pool_id, pool, settlement = _swap_context()
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=1, delta_sub=0))
+    price_packet = _price_packet(asset0, asset1)
+    packet = build_settlement_endogenous_lp_value_packet_from_price_packet(
+        settlement=settlement,
+        price_packet=price_packet,
+        pool_snapshots=(pool,),
+    )
+    payload = packet.to_dict()
+    payload["packet_ok"] = "yes"
+
+    with pytest.raises(TypeError, match="^packet_ok must be a bool$"):
+        SettlementEndogenousLPValuePacket.from_dict(payload)
+
+
 def test_endogenous_lp_value_packet_price_packet_parse_programmer_error_propagates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
