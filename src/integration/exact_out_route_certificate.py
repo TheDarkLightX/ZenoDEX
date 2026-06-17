@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Sequence
 
+from src.core.amm_dispatch import swap_exact_out_for_pool
 from src.core.split_routing_dispatch import (
     ExactOutRouteCanonicalKey,
     SplitLegExactOutQuote,
@@ -11,27 +12,37 @@ from src.core.split_routing_dispatch import (
     best_split_many_pools_exact_out_for_pools,
     best_split_two_pools_exact_out_for_pools,
 )
-from src.core.amm_dispatch import swap_exact_out_for_pool
-from src.state.pools import PoolState, PoolStatus
-from src.kernels.python.exact_out_many_pool_certified_winner_packet_v1_adapter import (
-    check_exact_out_many_pool_certified_winner_packet_gate,
-)
 from src.kernels.python.exact_out_many_pool_bounded_oracle_v1 import (
     bounded_exact_out_many_pool_runtime_domain as _kernel_bounded_exact_out_many_pool_runtime_domain,
+)
+from src.kernels.python.exact_out_many_pool_bounded_oracle_v1 import (
     enumerate_exact_out_many_pool_candidates as _kernel_enumerate_exact_out_many_pool_candidates,
+)
+from src.kernels.python.exact_out_many_pool_bounded_oracle_v1 import (
     feasible_exact_out_pools as _kernel_feasible_exact_out_pools,
+)
+from src.kernels.python.exact_out_many_pool_bounded_oracle_v1 import (
     pool_reserves_for_exact_out as _kernel_pool_reserves_for_exact_out,
+)
+from src.kernels.python.exact_out_many_pool_bounded_oracle_v1 import (
     select_many_pool_audit_candidates as _kernel_select_many_pool_audit_candidates,
 )
 from src.kernels.python.exact_out_many_pool_canonical_domain_v1 import (
     build_exact_out_many_pool_selected_domain as _kernel_build_exact_out_many_pool_selected_domain,
+)
+from src.kernels.python.exact_out_many_pool_canonical_domain_v1 import (
     rank_exact_out_feasible_pools as _kernel_rank_exact_out_feasible_pools,
+)
+from src.kernels.python.exact_out_many_pool_certified_winner_packet_v1_adapter import (
+    check_exact_out_many_pool_certified_winner_packet_gate,
 )
 from src.kernels.python.exact_out_many_pool_prefilter_contraction_audit_v1 import (
     audit_exact_out_many_pool_selected_subset_contraction as _kernel_audit_exact_out_many_pool_selected_subset_contraction,
 )
 from src.kernels.python.exact_out_many_pool_projection_cover_audit_v1 import (
     ExactOutManyPoolProjectionCoverAudit as _KernelExactOutManyPoolProjectionCoverAudit,
+)
+from src.kernels.python.exact_out_many_pool_projection_cover_audit_v1 import (
     audit_exact_out_many_pool_selected_domain_projection_cover as _kernel_audit_exact_out_many_pool_selected_domain_projection_cover,
 )
 from src.kernels.python.exact_out_many_pool_repaired_prefilter_v1 import (
@@ -40,6 +51,7 @@ from src.kernels.python.exact_out_many_pool_repaired_prefilter_v1 import (
 from src.kernels.python.exact_out_route_canonical_selector_v1 import (
     select_exact_out_route_canonical_winner as _kernel_select_exact_out_route_canonical_winner,
 )
+from src.state.pools import PoolState, PoolStatus
 
 from .tau_witness import ARGMIN_STREAM_CERTIFICATE_V1, build_argmin_stream_certificate_v1_step
 
@@ -2138,15 +2150,15 @@ def _repaired_selected_pools_from_contract(
 
 
 def _candidate_quote_to_core_quote(quote: object) -> SplitManyPoolsExactOutQuote:
-    amount_out_total = int(getattr(quote, "amount_out_total"))
-    amount_in_total = int(getattr(quote, "amount_in_total"))
+    amount_out_total = int(quote.amount_out_total)
+    amount_in_total = int(quote.amount_in_total)
     legs = tuple(
         SplitLegExactOutQuote(
-            pool_id=str(getattr(leg, "pool_id")),
-            amount_out=int(getattr(leg, "amount_out")),
-            amount_in=int(getattr(leg, "amount_in")),
+            pool_id=str(leg.pool_id),
+            amount_out=int(leg.amount_out),
+            amount_in=int(leg.amount_in),
         )
-        for leg in getattr(quote, "legs")
+        for leg in quote.legs
     )
     return SplitManyPoolsExactOutQuote(
         amount_out_total=amount_out_total,
@@ -4665,7 +4677,7 @@ def verify_exact_out_many_pool_bounded_advisory_quote_packet_payload(payload: ob
 
 
 def _projection_cover_audit_from_kernel(
-    audit: _KernelExactOutManyPoolCpmmProjectionCoverAudit,
+    audit: _KernelExactOutManyPoolProjectionCoverAudit,
 ) -> ExactOutManyPoolProjectionCoverAudit:
     return ExactOutManyPoolProjectionCoverAudit(
         selected_pool_ids=tuple(str(pool_id) for pool_id in audit.selected_pool_ids),
