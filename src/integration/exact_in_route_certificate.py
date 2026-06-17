@@ -30,6 +30,12 @@ EXACT_IN_ROUTE_GUARD_MISMATCH_ERROR = "exact_in_runtime_not_canonical_on_audit_d
 ExactInRouteCanonicalKey = tuple[int, int, int, str, str, str]
 
 
+def _require_bool(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return value
+
+
 def exact_in_route_canonical_key(quote: RouteQuote) -> ExactInRouteCanonicalKey:
     hop_count, leg_count, pool_seq, mid, asset_out = _quote_key(quote)
     return (-int(quote.amount_out), int(hop_count), int(leg_count), str(pool_seq), str(mid), str(asset_out))
@@ -1024,7 +1030,10 @@ def verify_exact_in_route_oracle_contract_payload(payload: object) -> tuple[bool
             asset_out=str(payload["asset_out"]),
             amount_in=int(payload["amount_in"]),
             split_search_profile=str(payload["split_search_profile"]),
-            enable_mixed_direct_twohop_split=bool(payload["enable_mixed_direct_twohop_split"]),
+            enable_mixed_direct_twohop_split=_require_bool(
+                payload["enable_mixed_direct_twohop_split"],
+                name="enable_mixed_direct_twohop_split",
+            ),
             binding_ok=int(payload["binding_ok"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
@@ -1059,7 +1068,10 @@ def verify_exact_in_route_guarded_quote_packet_payload(payload: object) -> tuple
             asset_out=str(contract_payload["asset_out"]),
             amount_in=int(contract_payload["amount_in"]),
             split_search_profile=str(contract_payload["split_search_profile"]),
-            enable_mixed_direct_twohop_split=bool(contract_payload["enable_mixed_direct_twohop_split"]),
+            enable_mixed_direct_twohop_split=_require_bool(
+                contract_payload["enable_mixed_direct_twohop_split"],
+                name="enable_mixed_direct_twohop_split",
+            ),
             binding_ok=int(contract_payload["binding_ok"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
