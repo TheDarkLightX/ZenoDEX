@@ -116,3 +116,43 @@ def test_3p_pubkey_helper_bugs_reach_internal_error(monkeypatch: pytest.MonkeyPa
 
     assert result.ok is False
     assert result.error == "internal error: RuntimeError"
+
+
+def test_2p_init_state_helper_bugs_reach_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(perp_engine, "_verify_perp_op_signature", lambda **_: None)
+
+    def broken_init_state() -> dict[str, object]:
+        raise RuntimeError("2p init state helper bug")
+
+    monkeypatch.setattr(perp_engine, "_ch2p_init_state_dict", broken_init_state)
+
+    result = perp_engine.apply_perp_ops(
+        config=perp_engine.PerpEngineConfig(),
+        state=_empty_state(),
+        operations={perp_engine.PERP_OPS_KEY: [_base_2p_init()]},
+        tx_sender_pubkey=_ALICE,
+        block_timestamp=1,
+    )
+
+    assert result.ok is False
+    assert result.error == "internal error: RuntimeError"
+
+
+def test_3p_init_state_helper_bugs_reach_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(perp_engine, "_verify_perp_op_signature", lambda **_: None)
+
+    def broken_init_state() -> dict[str, object]:
+        raise RuntimeError("3p init state helper bug")
+
+    monkeypatch.setattr(perp_engine, "_ch3p_init_state_dict", broken_init_state)
+
+    result = perp_engine.apply_perp_ops(
+        config=perp_engine.PerpEngineConfig(),
+        state=_empty_state(),
+        operations={perp_engine.PERP_OPS_KEY: [_base_3p_init()]},
+        tx_sender_pubkey=_ALICE,
+        block_timestamp=1,
+    )
+
+    assert result.ok is False
+    assert result.error == "internal error: RuntimeError"

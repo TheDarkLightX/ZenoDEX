@@ -3810,9 +3810,11 @@ def apply_perp_ops(
 
                 # Clearinghouse markets require perps state v5+ (market kind tags).
                 perps_version = max(perps_version, PERPS_STATE_VERSION_V5)
+                # Only generated-model domain rejects are user-facing here; internal
+                # helper defects must bubble to apply_perp_ops' sanitizer.
                 try:
                     init_state = _ch2p_init_state_dict()
-                except Exception as exc:
+                except ValueError as exc:
                     return PerpTxResult(ok=False, error=str(exc))
                 markets[market_id] = PerpClearinghouse2pMarketState(
                     quote_asset=quote_asset,
@@ -3936,9 +3938,11 @@ def apply_perp_ops(
                     return PerpTxResult(ok=False, error=f"account_c signature invalid: {sig_err_c}")
 
                 perps_version = max(perps_version, PERPS_STATE_VERSION_V5)
+                # Only generated-model domain rejects are user-facing here; internal
+                # helper defects must bubble to apply_perp_ops' sanitizer.
                 try:
                     init_state = _ch3p_init_state_dict()
-                except Exception as exc:
+                except ValueError as exc:
                     return PerpTxResult(ok=False, error=str(exc))
                 markets[market_id] = PerpClearinghouse3pTransferMarketState(
                     quote_asset=quote_asset,
