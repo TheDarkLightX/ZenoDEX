@@ -3,12 +3,12 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Dict, Mapping
 
+from ..state.canonical import canonical_json_bytes, domain_sep_bytes
 from .perp_submission_auth_field_selector_gate import (
     PERP_OP_AUTH_FIELD_SELECTOR_ACTION_TAGS_V1,
     PERP_OP_AUTH_FIELD_SELECTOR_CANDIDATE_KEYS_V1,
     select_perp_submission_auth_signed_field_keys_v1,
 )
-from ..state.canonical import canonical_json_bytes, domain_sep_bytes
 
 
 def _derive_signed_field_keys_v1() -> dict[str, tuple[str, ...]]:
@@ -25,6 +25,14 @@ def _derive_signed_field_keys_v1() -> dict[str, tuple[str, ...]]:
 PERP_OP_AUTH_SIGNED_FIELD_KEYS_V1: dict[str, tuple[str, ...]] = _derive_signed_field_keys_v1()
 
 
+def _require_auth_nonce(nonce: int) -> int:
+    if not isinstance(nonce, int) or isinstance(nonce, bool):
+        raise TypeError("nonce must be an int")
+    if nonce < 0:
+        raise ValueError("nonce must be non-negative")
+    return int(nonce)
+
+
 def build_perp_op_auth_signing_dict_v1(
     op: Mapping[str, Any],
     *,
@@ -32,6 +40,7 @@ def build_perp_op_auth_signing_dict_v1(
     nonce: int,
 ) -> Dict[str, Any]:
     """Build the canonical action-bound signing dict for perps op authorization."""
+    nonce_int = _require_auth_nonce(nonce)
     module = op.get("module")
     version = op.get("version")
     market_id = op.get("market_id")
@@ -57,7 +66,7 @@ def build_perp_op_auth_signing_dict_v1(
         "market_id": market_id,
         "action": action,
         "signer_pubkey": str(signer_pubkey),
-        "nonce": int(nonce),
+        "nonce": nonce_int,
         "fields": fields,
     }
 

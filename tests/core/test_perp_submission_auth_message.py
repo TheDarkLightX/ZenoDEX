@@ -70,6 +70,36 @@ def test_hash_perp_op_auth_message_v1_matches_manual_contract() -> None:
     ).digest()
 
 
+def test_build_perp_op_auth_signing_dict_v1_rejects_bad_nonce_type() -> None:
+    op = {
+        "module": "TauPerp",
+        "version": "1.1",
+        "market_id": "perp:ch3p:eth-usd",
+        "action": "publish_clearing_price",
+        "price_e8": 250_000_000_000,
+        "deadline": 555,
+        "oracle_nonce": 3,
+    }
+
+    with pytest.raises(TypeError, match="nonce must be an int"):
+        build_perp_op_auth_signing_dict_v1(op, signer_pubkey="cc" * 48, nonce=True)
+
+
+def test_build_perp_op_auth_signing_dict_v1_rejects_negative_nonce() -> None:
+    op = {
+        "module": "TauPerp",
+        "version": "1.1",
+        "market_id": "perp:ch3p:eth-usd",
+        "action": "publish_clearing_price",
+        "price_e8": 250_000_000_000,
+        "deadline": 555,
+        "oracle_nonce": 3,
+    }
+
+    with pytest.raises(ValueError, match="nonce must be non-negative"):
+        build_perp_op_auth_signing_dict_v1(op, signer_pubkey="cc" * 48, nonce=-1)
+
+
 def test_build_perp_op_auth_message_v1_rejects_missing_required_field() -> None:
     op = {
         "module": "TauPerp",
