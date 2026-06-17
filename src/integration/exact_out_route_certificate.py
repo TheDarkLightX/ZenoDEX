@@ -99,6 +99,26 @@ EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPAIRED_FULL_DOMAIN_PACKET_NOT_OK = "repai
 EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPLAYABLE_QUOTE_MISSING = "replayable_quote_missing"
 
 
+def _require_payload_int(payload: Mapping[str, Any], field_name: str) -> int:
+    value = payload[field_name]
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{field_name} must be an int")
+    return int(value)
+
+
+def _require_payload_int_path(payload: Mapping[str, Any], *field_path: str) -> int:
+    if not field_path:
+        raise ValueError("field_path must be non-empty")
+    current: object = payload
+    for field_name in field_path[:-1]:
+        if not isinstance(current, Mapping):
+            raise TypeError(".".join(field_path[:-1]) + " must be a dict")
+        current = current[field_name]
+    if not isinstance(current, Mapping):
+        raise TypeError(".".join(field_path[:-1]) + " must be a dict")
+    return _require_payload_int(current, field_path[-1])
+
+
 @dataclass(frozen=True)
 class ExactOutRouteCandidateCertificate:
     candidate_index: int
@@ -2996,9 +3016,9 @@ def verify_exact_out_many_pool_prefilter_contract_payload(payload: object) -> tu
             pools,
             asset_in=str(payload["asset_in"]),
             asset_out=str(payload["asset_out"]),
-            amount_out_total=int(payload["amount_out_total"]),
-            max_legs=int(payload["max_legs"]),
-            max_candidate_pools=int(payload["max_candidate_pools"]),
+            amount_out_total=_require_payload_int(payload, "amount_out_total"),
+            max_legs=_require_payload_int(payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(payload, "max_candidate_pools"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -3021,11 +3041,11 @@ def verify_exact_out_many_pool_repaired_prefilter_contract_payload(payload: obje
             pools,
             asset_in=str(payload["asset_in"]),
             asset_out=str(payload["asset_out"]),
-            amount_out_total=int(payload["amount_out_total"]),
-            max_legs=int(payload["max_legs"]),
-            max_candidate_pools=int(payload["max_candidate_pools"]),
-            max_full_domain_pools=int(payload["max_full_domain_pools"]),
-            max_enumerated_candidates=int(payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(payload, "amount_out_total"),
+            max_legs=_require_payload_int(payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(payload, "max_candidate_pools"),
+            max_full_domain_pools=_require_payload_int(payload, "max_full_domain_pools"),
+            max_enumerated_candidates=_require_payload_int(payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -4659,15 +4679,15 @@ def verify_exact_out_many_pool_audited_bounds_contract_payload(payload: object) 
             pools,
             asset_in=str(payload["asset_in"]),
             asset_out=str(payload["asset_out"]),
-            amount_out_total=int(payload["amount_out_total"]),
-            max_legs=int(payload["max_legs"]),
-            max_candidate_pools=int(payload["max_candidate_pools"]),
-            max_candidates=int(payload["max_candidates"]),
-            max_iters=int(payload["max_iters"]),
-            window=int(payload["window"]),
-            brute_force_max=int(payload["brute_force_max"]),
-            max_full_domain_pools=int(payload["max_full_domain_pools"]),
-            max_enumerated_candidates=int(payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(payload, "amount_out_total"),
+            max_legs=_require_payload_int(payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(payload, "max_candidate_pools"),
+            max_candidates=_require_payload_int(payload, "max_candidates"),
+            max_iters=_require_payload_int(payload, "max_iters"),
+            window=_require_payload_int(payload, "window"),
+            brute_force_max=_require_payload_int(payload, "brute_force_max"),
+            max_full_domain_pools=_require_payload_int(payload, "max_full_domain_pools"),
+            max_enumerated_candidates=_require_payload_int(payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -4693,15 +4713,15 @@ def verify_exact_out_many_pool_adaptive_liveness_packet_payload(payload: object)
             pools,
             asset_in=str(contract_payload["asset_in"]),
             asset_out=str(contract_payload["asset_out"]),
-            amount_out_total=int(contract_payload["amount_out_total"]),
-            max_legs=int(contract_payload["max_legs"]),
-            max_candidate_pools=int(contract_payload["max_candidate_pools"]),
-            max_candidates=int(contract_payload["max_candidates"]),
-            max_iters=int(contract_payload["max_iters"]),
-            window=int(contract_payload["window"]),
-            brute_force_max=int(contract_payload["brute_force_max"]),
-            max_full_domain_pools=int(contract_payload["max_full_domain_pools"]),
-            max_enumerated_candidates=int(contract_payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(contract_payload, "amount_out_total"),
+            max_legs=_require_payload_int(contract_payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(contract_payload, "max_candidate_pools"),
+            max_candidates=_require_payload_int(contract_payload, "max_candidates"),
+            max_iters=_require_payload_int(contract_payload, "max_iters"),
+            window=_require_payload_int(contract_payload, "window"),
+            brute_force_max=_require_payload_int(contract_payload, "brute_force_max"),
+            max_full_domain_pools=_require_payload_int(contract_payload, "max_full_domain_pools"),
+            max_enumerated_candidates=_require_payload_int(contract_payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -4724,10 +4744,10 @@ def verify_exact_out_many_pool_candidate_domain_contract_payload(payload: object
             pools,
             asset_in=str(payload["asset_in"]),
             asset_out=str(payload["asset_out"]),
-            amount_out_total=int(payload["amount_out_total"]),
-            max_legs=int(payload["max_legs"]),
-            max_candidate_pools=int(payload["max_candidate_pools"]),
-            max_enumerated_candidates=int(payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(payload, "amount_out_total"),
+            max_legs=_require_payload_int(payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(payload, "max_candidate_pools"),
+            max_enumerated_candidates=_require_payload_int(payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -5186,15 +5206,15 @@ def verify_exact_out_many_pool_certified_winner_packet_payload(payload: object) 
             pools,
             asset_in=str(domain_payload["asset_in"]),
             asset_out=str(domain_payload["asset_out"]),
-            amount_out_total=int(domain_payload["amount_out_total"]),
-            max_legs=int(domain_payload["max_legs"]),
-            max_candidate_pools=int(domain_payload["max_candidate_pools"]),
-            max_candidates=int(payload["guarded_packet"]["contract"]["max_candidates"]),
-            max_iters=int(payload["guarded_packet"]["contract"]["max_iters"]),
-            window=int(payload["guarded_packet"]["contract"]["window"]),
-            brute_force_max=int(payload["guarded_packet"]["contract"]["brute_force_max"]),
-            max_full_domain_pools=int(payload["guarded_packet"]["contract"]["max_full_domain_pools"]),
-            max_enumerated_candidates=int(domain_payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(domain_payload, "amount_out_total"),
+            max_legs=_require_payload_int(domain_payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(domain_payload, "max_candidate_pools"),
+            max_candidates=_require_payload_int_path(payload, "guarded_packet", "contract", "max_candidates"),
+            max_iters=_require_payload_int_path(payload, "guarded_packet", "contract", "max_iters"),
+            window=_require_payload_int_path(payload, "guarded_packet", "contract", "window"),
+            brute_force_max=_require_payload_int_path(payload, "guarded_packet", "contract", "brute_force_max"),
+            max_full_domain_pools=_require_payload_int_path(payload, "guarded_packet", "contract", "max_full_domain_pools"),
+            max_enumerated_candidates=_require_payload_int(domain_payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -5229,17 +5249,20 @@ def verify_exact_out_many_pool_certified_advisory_packet_payload(payload: object
             pools,
             asset_in=str(domain_payload["asset_in"]),
             asset_out=str(domain_payload["asset_out"]),
-            amount_out_total=int(domain_payload["amount_out_total"]),
-            max_legs=int(domain_payload["max_legs"]),
-            max_candidate_pools=int(domain_payload["max_candidate_pools"]),
-            max_candidates=int(certified_payload["guarded_packet"]["contract"]["max_candidates"]),
-            max_iters=int(certified_payload["guarded_packet"]["contract"]["max_iters"]),
-            window=int(certified_payload["guarded_packet"]["contract"]["window"]),
-            brute_force_max=int(certified_payload["guarded_packet"]["contract"]["brute_force_max"]),
-            max_full_domain_pools=int(
-                workaround_payload["repaired_packet"]["repaired_contract"]["max_full_domain_pools"]
+            amount_out_total=_require_payload_int(domain_payload, "amount_out_total"),
+            max_legs=_require_payload_int(domain_payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(domain_payload, "max_candidate_pools"),
+            max_candidates=_require_payload_int_path(certified_payload, "guarded_packet", "contract", "max_candidates"),
+            max_iters=_require_payload_int_path(certified_payload, "guarded_packet", "contract", "max_iters"),
+            window=_require_payload_int_path(certified_payload, "guarded_packet", "contract", "window"),
+            brute_force_max=_require_payload_int_path(certified_payload, "guarded_packet", "contract", "brute_force_max"),
+            max_full_domain_pools=_require_payload_int_path(
+                workaround_payload,
+                "repaired_packet",
+                "repaired_contract",
+                "max_full_domain_pools",
             ),
-            max_enumerated_candidates=int(domain_payload["max_enumerated_candidates"]),
+            max_enumerated_candidates=_require_payload_int(domain_payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -5282,15 +5305,15 @@ def verify_exact_out_many_pool_repaired_replacement_shadow_packet_payload(payloa
             pools,
             asset_in=str(replacement_payload["asset_in"]),
             asset_out=str(replacement_payload["asset_out"]),
-            amount_out_total=int(replacement_payload["amount_out_total"]),
-            max_legs=int(replacement_payload["max_legs"]),
-            max_candidate_pools=int(replacement_payload["max_candidate_pools"]),
-            max_candidates=int(replacement_payload["max_candidates"]),
-            max_iters=int(replacement_payload["max_iters"]),
-            window=int(replacement_payload["window"]),
-            brute_force_max=int(replacement_payload["brute_force_max"]),
-            max_full_domain_pools=int(replacement_payload["max_full_domain_pools"]),
-            max_enumerated_candidates=int(replacement_payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(replacement_payload, "amount_out_total"),
+            max_legs=_require_payload_int(replacement_payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(replacement_payload, "max_candidate_pools"),
+            max_candidates=_require_payload_int(replacement_payload, "max_candidates"),
+            max_iters=_require_payload_int(replacement_payload, "max_iters"),
+            window=_require_payload_int(replacement_payload, "window"),
+            brute_force_max=_require_payload_int(replacement_payload, "brute_force_max"),
+            max_full_domain_pools=_require_payload_int(replacement_payload, "max_full_domain_pools"),
+            max_enumerated_candidates=_require_payload_int(replacement_payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -5313,15 +5336,15 @@ def verify_exact_out_many_pool_repaired_selected_domain_oracle_contract_payload(
             pools,
             asset_in=str(payload["asset_in"]),
             asset_out=str(payload["asset_out"]),
-            amount_out_total=int(payload["amount_out_total"]),
-            max_legs=int(payload["max_legs"]),
-            max_candidate_pools=int(payload["max_candidate_pools"]),
-            max_candidates=int(payload["max_candidates"]),
-            max_iters=int(payload["max_iters"]),
-            window=int(payload["window"]),
-            brute_force_max=int(payload["brute_force_max"]),
-            max_full_domain_pools=int(payload["max_full_domain_pools"]),
-            max_enumerated_candidates=int(payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(payload, "amount_out_total"),
+            max_legs=_require_payload_int(payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(payload, "max_candidate_pools"),
+            max_candidates=_require_payload_int(payload, "max_candidates"),
+            max_iters=_require_payload_int(payload, "max_iters"),
+            window=_require_payload_int(payload, "window"),
+            brute_force_max=_require_payload_int(payload, "brute_force_max"),
+            max_full_domain_pools=_require_payload_int(payload, "max_full_domain_pools"),
+            max_enumerated_candidates=_require_payload_int(payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -5344,14 +5367,14 @@ def verify_exact_out_many_pool_oracle_contract_payload(payload: object) -> tuple
             pools,
             asset_in=str(payload["asset_in"]),
             asset_out=str(payload["asset_out"]),
-            amount_out_total=int(payload["amount_out_total"]),
-            max_legs=int(payload["max_legs"]),
-            max_candidate_pools=int(payload["max_candidate_pools"]),
-            max_candidates=int(payload["max_candidates"]),
-            max_iters=int(payload["max_iters"]),
-            window=int(payload["window"]),
-            brute_force_max=int(payload["brute_force_max"]),
-            max_enumerated_candidates=int(payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(payload, "amount_out_total"),
+            max_legs=_require_payload_int(payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(payload, "max_candidate_pools"),
+            max_candidates=_require_payload_int(payload, "max_candidates"),
+            max_iters=_require_payload_int(payload, "max_iters"),
+            window=_require_payload_int(payload, "window"),
+            brute_force_max=_require_payload_int(payload, "brute_force_max"),
+            max_enumerated_candidates=_require_payload_int(payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -5380,14 +5403,14 @@ def verify_exact_out_many_pool_guarded_quote_packet_payload(payload: object) -> 
             pools,
             asset_in=str(contract_payload["asset_in"]),
             asset_out=str(contract_payload["asset_out"]),
-            amount_out_total=int(contract_payload["amount_out_total"]),
-            max_legs=int(contract_payload["max_legs"]),
-            max_candidate_pools=int(contract_payload["max_candidate_pools"]),
-            max_candidates=int(contract_payload["max_candidates"]),
-            max_iters=int(contract_payload["max_iters"]),
-            window=int(contract_payload["window"]),
-            brute_force_max=int(contract_payload["brute_force_max"]),
-            max_enumerated_candidates=int(contract_payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(contract_payload, "amount_out_total"),
+            max_legs=_require_payload_int(contract_payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(contract_payload, "max_candidate_pools"),
+            max_candidates=_require_payload_int(contract_payload, "max_candidates"),
+            max_iters=_require_payload_int(contract_payload, "max_iters"),
+            window=_require_payload_int(contract_payload, "window"),
+            brute_force_max=_require_payload_int(contract_payload, "brute_force_max"),
+            max_enumerated_candidates=_require_payload_int(contract_payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -5416,15 +5439,15 @@ def verify_exact_out_many_pool_repaired_advisory_quote_packet_payload(payload: o
             pools,
             asset_in=str(contract_payload["asset_in"]),
             asset_out=str(contract_payload["asset_out"]),
-            amount_out_total=int(contract_payload["amount_out_total"]),
-            max_legs=int(contract_payload["max_legs"]),
-            max_candidate_pools=int(contract_payload["max_candidate_pools"]),
-            max_candidates=int(payload["max_candidates"]),
-            max_iters=int(payload["max_iters"]),
-            window=int(payload["window"]),
-            brute_force_max=int(payload["brute_force_max"]),
-            max_full_domain_pools=int(contract_payload["max_full_domain_pools"]),
-            max_enumerated_candidates=int(contract_payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(contract_payload, "amount_out_total"),
+            max_legs=_require_payload_int(contract_payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(contract_payload, "max_candidate_pools"),
+            max_candidates=_require_payload_int(payload, "max_candidates"),
+            max_iters=_require_payload_int(payload, "max_iters"),
+            window=_require_payload_int(payload, "window"),
+            brute_force_max=_require_payload_int(payload, "brute_force_max"),
+            max_full_domain_pools=_require_payload_int(contract_payload, "max_full_domain_pools"),
+            max_enumerated_candidates=_require_payload_int(contract_payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -5458,15 +5481,15 @@ def verify_exact_out_many_pool_repaired_full_domain_certified_packet_payload(
             pools,
             asset_in=str(contract_payload["asset_in"]),
             asset_out=str(contract_payload["asset_out"]),
-            amount_out_total=int(contract_payload["amount_out_total"]),
-            max_legs=int(contract_payload["max_legs"]),
-            max_candidate_pools=int(contract_payload["max_candidate_pools"]),
-            max_candidates=int(repaired_payload["max_candidates"]),
-            max_iters=int(repaired_payload["max_iters"]),
-            window=int(repaired_payload["window"]),
-            brute_force_max=int(repaired_payload["brute_force_max"]),
-            max_full_domain_pools=int(contract_payload["max_full_domain_pools"]),
-            max_enumerated_candidates=int(contract_payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(contract_payload, "amount_out_total"),
+            max_legs=_require_payload_int(contract_payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(contract_payload, "max_candidate_pools"),
+            max_candidates=_require_payload_int(repaired_payload, "max_candidates"),
+            max_iters=_require_payload_int(repaired_payload, "max_iters"),
+            window=_require_payload_int(repaired_payload, "window"),
+            brute_force_max=_require_payload_int(repaired_payload, "brute_force_max"),
+            max_full_domain_pools=_require_payload_int(contract_payload, "max_full_domain_pools"),
+            max_enumerated_candidates=_require_payload_int(contract_payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -5497,15 +5520,15 @@ def verify_exact_out_many_pool_repaired_key_cover_packet_payload(
             pools,
             asset_in=str(selected_domain_payload["asset_in"]),
             asset_out=str(selected_domain_payload["asset_out"]),
-            amount_out_total=int(selected_domain_payload["amount_out_total"]),
-            max_legs=int(selected_domain_payload["max_legs"]),
-            max_candidate_pools=int(selected_domain_payload["max_candidate_pools"]),
-            max_candidates=int(selected_domain_payload["max_candidates"]),
-            max_iters=int(selected_domain_payload["max_iters"]),
-            window=int(selected_domain_payload["window"]),
-            brute_force_max=int(selected_domain_payload["brute_force_max"]),
-            max_full_domain_pools=int(selected_domain_payload["max_full_domain_pools"]),
-            max_enumerated_candidates=int(selected_domain_payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(selected_domain_payload, "amount_out_total"),
+            max_legs=_require_payload_int(selected_domain_payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(selected_domain_payload, "max_candidate_pools"),
+            max_candidates=_require_payload_int(selected_domain_payload, "max_candidates"),
+            max_iters=_require_payload_int(selected_domain_payload, "max_iters"),
+            window=_require_payload_int(selected_domain_payload, "window"),
+            brute_force_max=_require_payload_int(selected_domain_payload, "brute_force_max"),
+            max_full_domain_pools=_require_payload_int(selected_domain_payload, "max_full_domain_pools"),
+            max_enumerated_candidates=_require_payload_int(selected_domain_payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -5539,15 +5562,15 @@ def verify_exact_out_many_pool_repaired_key_cover_interpretation_packet_payload(
             pools,
             asset_in=str(selected_domain_payload["asset_in"]),
             asset_out=str(selected_domain_payload["asset_out"]),
-            amount_out_total=int(selected_domain_payload["amount_out_total"]),
-            max_legs=int(selected_domain_payload["max_legs"]),
-            max_candidate_pools=int(selected_domain_payload["max_candidate_pools"]),
-            max_candidates=int(selected_domain_payload["max_candidates"]),
-            max_iters=int(selected_domain_payload["max_iters"]),
-            window=int(selected_domain_payload["window"]),
-            brute_force_max=int(selected_domain_payload["brute_force_max"]),
-            max_full_domain_pools=int(selected_domain_payload["max_full_domain_pools"]),
-            max_enumerated_candidates=int(selected_domain_payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(selected_domain_payload, "amount_out_total"),
+            max_legs=_require_payload_int(selected_domain_payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(selected_domain_payload, "max_candidate_pools"),
+            max_candidates=_require_payload_int(selected_domain_payload, "max_candidates"),
+            max_iters=_require_payload_int(selected_domain_payload, "max_iters"),
+            window=_require_payload_int(selected_domain_payload, "window"),
+            brute_force_max=_require_payload_int(selected_domain_payload, "brute_force_max"),
+            max_full_domain_pools=_require_payload_int(selected_domain_payload, "max_full_domain_pools"),
+            max_enumerated_candidates=_require_payload_int(selected_domain_payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -5579,15 +5602,15 @@ def verify_exact_out_many_pool_bounded_workaround_packet_payload(payload: object
             pools,
             asset_in=str(oracle_payload["asset_in"]),
             asset_out=str(oracle_payload["asset_out"]),
-            amount_out_total=int(oracle_payload["amount_out_total"]),
-            max_legs=int(oracle_payload["max_legs"]),
-            max_candidate_pools=int(oracle_payload["max_candidate_pools"]),
-            max_candidates=int(oracle_payload["max_candidates"]),
-            max_iters=int(oracle_payload["max_iters"]),
-            window=int(oracle_payload["window"]),
-            brute_force_max=int(oracle_payload["brute_force_max"]),
-            max_full_domain_pools=int(repaired_payload["repaired_contract"]["max_full_domain_pools"]),
-            max_enumerated_candidates=int(oracle_payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(oracle_payload, "amount_out_total"),
+            max_legs=_require_payload_int(oracle_payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(oracle_payload, "max_candidate_pools"),
+            max_candidates=_require_payload_int(oracle_payload, "max_candidates"),
+            max_iters=_require_payload_int(oracle_payload, "max_iters"),
+            window=_require_payload_int(oracle_payload, "window"),
+            brute_force_max=_require_payload_int(oracle_payload, "brute_force_max"),
+            max_full_domain_pools=_require_payload_int_path(repaired_payload, "repaired_contract", "max_full_domain_pools"),
+            max_enumerated_candidates=_require_payload_int(oracle_payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -5622,15 +5645,15 @@ def verify_exact_out_many_pool_bounded_advisory_quote_packet_payload(payload: ob
             pools,
             asset_in=str(oracle_payload["asset_in"]),
             asset_out=str(oracle_payload["asset_out"]),
-            amount_out_total=int(oracle_payload["amount_out_total"]),
-            max_legs=int(oracle_payload["max_legs"]),
-            max_candidate_pools=int(oracle_payload["max_candidate_pools"]),
-            max_candidates=int(oracle_payload["max_candidates"]),
-            max_iters=int(oracle_payload["max_iters"]),
-            window=int(oracle_payload["window"]),
-            brute_force_max=int(oracle_payload["brute_force_max"]),
-            max_full_domain_pools=int(repaired_payload["repaired_contract"]["max_full_domain_pools"]),
-            max_enumerated_candidates=int(oracle_payload["max_enumerated_candidates"]),
+            amount_out_total=_require_payload_int(oracle_payload, "amount_out_total"),
+            max_legs=_require_payload_int(oracle_payload, "max_legs"),
+            max_candidate_pools=_require_payload_int(oracle_payload, "max_candidate_pools"),
+            max_candidates=_require_payload_int(oracle_payload, "max_candidates"),
+            max_iters=_require_payload_int(oracle_payload, "max_iters"),
+            window=_require_payload_int(oracle_payload, "window"),
+            brute_force_max=_require_payload_int(oracle_payload, "brute_force_max"),
+            max_full_domain_pools=_require_payload_int_path(repaired_payload, "repaired_contract", "max_full_domain_pools"),
+            max_enumerated_candidates=_require_payload_int(oracle_payload, "max_enumerated_candidates"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -5729,12 +5752,12 @@ def _pool_from_dict(payload: object) -> PoolState:
         pool_id=str(payload["pool_id"]),
         asset0=str(payload["asset0"]),
         asset1=str(payload["asset1"]),
-        reserve0=int(payload["reserve0"]),
-        reserve1=int(payload["reserve1"]),
-        fee_bps=int(payload["fee_bps"]),
-        lp_supply=int(payload["lp_supply"]),
+        reserve0=_require_payload_int(payload, "reserve0"),
+        reserve1=_require_payload_int(payload, "reserve1"),
+        fee_bps=_require_payload_int(payload, "fee_bps"),
+        lp_supply=_require_payload_int(payload, "lp_supply"),
         status=PoolStatus[status_raw],
-        created_at=int(payload["created_at"]),
+        created_at=_require_payload_int(payload, "created_at"),
         curve_tag=str(payload["curve_tag"]),
         curve_params=str(payload["curve_params"]),
     )

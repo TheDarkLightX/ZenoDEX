@@ -1615,6 +1615,35 @@ def test_exact_out_many_pool_oracle_contract_rejects_contract_ok_tampering() -> 
     assert err == "oracle contract payload mismatch"
 
 
+def test_exact_out_many_pool_oracle_contract_rejects_bool_integer_fields() -> None:
+    pools = (_pool(pool_id="pool_a", reserve0=40, reserve1=20, fee_bps=0),)
+    payload = build_exact_out_many_pool_oracle_contract(
+        pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=1,
+        max_legs=1,
+        max_candidate_pools=1,
+        max_candidates=6,
+        max_iters=512,
+        window=8,
+        brute_force_max=16,
+        max_enumerated_candidates=8_000,
+    ).to_dict()
+
+    bool_amount_payload = dict(payload)
+    bool_amount_payload["amount_out_total"] = True
+    ok, err = verify_exact_out_many_pool_oracle_contract_payload(bool_amount_payload)
+    assert not ok
+    assert err == "amount_out_total must be an int"
+
+    bool_pool_payload = dict(payload)
+    bool_pool_payload["pool_snapshots"] = [dict(payload["pool_snapshots"][0], reserve0=True)]
+    ok, err = verify_exact_out_many_pool_oracle_contract_payload(bool_pool_payload)
+    assert not ok
+    assert err == "reserve0 must be an int"
+
+
 def test_guard_exact_out_many_pool_runtime_canonicality_accepts_small_match() -> None:
     pools = (
         _pool(pool_id="pool_b", reserve0=100, reserve1=34),
