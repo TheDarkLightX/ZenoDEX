@@ -123,6 +123,10 @@ def _require_nonnegative_int(value: object, *, name: str) -> int:
     return int(value)
 
 
+def _summary_int_or_zero(value: object) -> int:
+    return int(value) if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
 def _require_bool(value: object, *, name: str) -> bool:
     if not isinstance(value, bool):
         raise TypeError(f"{name} must be bool")
@@ -629,8 +633,8 @@ def _validate_recovery_policies_public(
             {
                 "policy_id": policy_id,
                 "subject_key_id": subject_key_id,
-                "threshold": int(threshold) if isinstance(threshold, int) else 0,
-                "delay_epochs": int(delay_epochs) if isinstance(delay_epochs, int) else 0,
+                "threshold": _summary_int_or_zero(threshold),
+                "delay_epochs": _summary_int_or_zero(delay_epochs),
                 "guardian_count": len(guardians),
                 "active_guardian_weight": active_guardian_weight,
                 "policy_hash": policy.get("policy_hash"),
@@ -778,14 +782,14 @@ def _guardian_signature_quorum_summary(report: Mapping[str, Any]) -> dict[str, A
         "registry_hash": report.get("registry_hash"),
         "payload_kind": report.get("payload_kind"),
         "payload_hash": report.get("payload_hash"),
-        "threshold": int(report.get("threshold", 0)) if isinstance(report.get("threshold"), int) else 0,
-        "accepted_weight": int(report.get("accepted_weight", 0)) if isinstance(report.get("accepted_weight"), int) else 0,
+        "threshold": _summary_int_or_zero(report.get("threshold", 0)),
+        "accepted_weight": _summary_int_or_zero(report.get("accepted_weight", 0)),
         "accepted_signature_count": len(accepted_signatures),
         "accepted_signatures": [
             {
                 "guardian_id": str(item.get("signer_id", "")) if isinstance(item, Mapping) else "",
                 "key_id": str(item.get("key_id", "")) if isinstance(item, Mapping) else "",
-                "weight": int(item.get("weight", 0)) if isinstance(item, Mapping) and isinstance(item.get("weight"), int) else 0,
+                "weight": _summary_int_or_zero(item.get("weight", 0)) if isinstance(item, Mapping) else 0,
                 "envelope_hash": item.get("envelope_hash") if isinstance(item, Mapping) else None,
             }
             for item in accepted_signatures
@@ -2639,7 +2643,7 @@ def _active_signer_summaries(active_signers: list[Mapping[str, Any]]) -> list[di
         {
             "signer_id": str(signer.get("signer_id", "")),
             "key_id": str(signer.get("key_id", "")),
-            "weight": int(signer.get("weight", 0)) if isinstance(signer.get("weight"), int) else 0,
+            "weight": _summary_int_or_zero(signer.get("weight", 0)),
             "signer_hash": signer.get("signer_hash"),
         }
         for signer in sorted(active_signers, key=lambda item: (str(item.get("signer_id")), str(item.get("key_id"))))
