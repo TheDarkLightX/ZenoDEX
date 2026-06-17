@@ -30,6 +30,7 @@ from src.core.split_routing_many_exact_out import (
     best_many_pool_exact_out_split,
     build_exact_out_capacity_guard_from_caps,
 )
+from src.core.split_routing_pool_quotes import quote_exact_in_for_pool, quote_exact_out_for_pool
 from src.core.split_routing_staircase import (
     staircase_jump_best_split_two_pools_exact_in as staircase_jump_impl,
 )
@@ -232,6 +233,24 @@ def test_two_pool_exact_out_request_rejects_non_strict_controls(
 def test_cpmm_exact_in_split_rejects_non_strict_controls(builder, message: str) -> None:
     with pytest.raises(ValueError, match=message):
         builder()
+
+
+@pytest.mark.parametrize(
+    ("quote", "kwargs", "message"),
+    [
+        (quote_exact_in_for_pool, {"amount_in": True}, "amount_in must be positive"),
+        (quote_exact_in_for_pool, {"amount_in": "10"}, "amount_in must be positive"),
+        (quote_exact_out_for_pool, {"amount_out": True}, "amount_out must be positive"),
+        (quote_exact_out_for_pool, {"amount_out": "10"}, "amount_out must be positive"),
+    ],
+)
+def test_live_pool_quote_adapters_reject_non_strict_amounts(
+    quote,
+    kwargs: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        quote(_pool(), asset_in="A", asset_out="B", **kwargs)
 
 
 @pytest.mark.parametrize(
