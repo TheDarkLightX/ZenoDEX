@@ -100,6 +100,74 @@ def test_settlement_spot_price_packet_rejects_tampering() -> None:
     assert err == "settlement spot price packet mismatch"
 
 
+def test_settlement_spot_price_entry_payload_rejects_bool_price() -> None:
+    packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset="A", price=100, observed_epoch=95, age_epochs=5, source_id="local:a"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+        cross_module_sync_required=False,
+    ).to_dict()
+    packet["entries"][0]["price"] = True
+
+    ok, err = verify_settlement_spot_price_packet_payload(packet)
+
+    assert ok is False
+    assert err == "price must be a non-negative int"
+
+
+def test_settlement_spot_price_entry_payload_rejects_numeric_string_epoch() -> None:
+    packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset="A", price=100, observed_epoch=95, age_epochs=5, source_id="local:a"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+        cross_module_sync_required=False,
+    ).to_dict()
+    packet["entries"][0]["observed_epoch"] = "95"
+
+    ok, err = verify_settlement_spot_price_packet_payload(packet)
+
+    assert ok is False
+    assert err == "observed_epoch must be a non-negative int"
+
+
+def test_settlement_spot_price_packet_payload_rejects_bool_now_epoch() -> None:
+    packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset="A", price=100, observed_epoch=95, age_epochs=5, source_id="local:a"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+        cross_module_sync_required=False,
+    ).to_dict()
+    packet["now_epoch"] = True
+
+    ok, err = verify_settlement_spot_price_packet_payload(packet)
+
+    assert ok is False
+    assert err == "now_epoch must be a non-negative int"
+
+
+def test_settlement_spot_price_packet_payload_rejects_numeric_string_max_staleness() -> None:
+    packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset="A", price=100, observed_epoch=95, age_epochs=5, source_id="local:a"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+        cross_module_sync_required=False,
+    ).to_dict()
+    packet["max_staleness_epochs"] = "10"
+
+    ok, err = verify_settlement_spot_price_packet_payload(packet)
+
+    assert ok is False
+    assert err == "max_staleness_epochs must be a non-negative int"
+
+
 def test_settlement_spot_price_payload_parser_programmer_error_propagates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

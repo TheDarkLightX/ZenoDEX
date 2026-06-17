@@ -47,9 +47,9 @@ class SettlementSpotPriceEntry:
             raise ValueError("price entry must be an object")
         return cls(
             asset=str(payload.get("asset", "")),
-            price=int(payload.get("price", -1)),
-            observed_epoch=int(payload.get("observed_epoch", -1)),
-            age_epochs=int(payload.get("age_epochs", -1)),
+            price=_require_non_negative_int(payload.get("price", -1), name="price"),
+            observed_epoch=_require_non_negative_int(payload.get("observed_epoch", -1), name="observed_epoch"),
+            age_epochs=_require_non_negative_int(payload.get("age_epochs", -1), name="age_epochs"),
             source_id=str(payload.get("source_id", "")),
         )
 
@@ -148,8 +148,11 @@ class SettlementSpotPricePacket:
         return cls(
             schema=str(payload.get("schema", "")),
             entries=tuple(SettlementSpotPriceEntry.from_dict(entry) for entry in raw_entries),
-            now_epoch=int(payload.get("now_epoch", -1)),
-            max_staleness_epochs=int(payload.get("max_staleness_epochs", -1)),
+            now_epoch=_require_non_negative_int(payload.get("now_epoch", -1), name="now_epoch"),
+            max_staleness_epochs=_require_non_negative_int(
+                payload.get("max_staleness_epochs", -1),
+                name="max_staleness_epochs",
+            ),
             cross_module_sync_required=cross_module_sync_required,
             cross_module_sync_ok=cross_module_sync_ok,
             price_vector_sha256=str(payload.get("price_vector_sha256", "")),
@@ -279,6 +282,12 @@ def verify_settlement_spot_price_packet_payload(payload: object) -> tuple[bool, 
 
 def asset_prices_from_spot_price_packet(packet: SettlementSpotPricePacket) -> dict[str, int]:
     return {entry.asset: int(entry.price) for entry in packet.entries}
+
+
+def _require_non_negative_int(value: object, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise ValueError(f"{name} must be a non-negative int")
+    return int(value)
 
 
 def _canonical_json_obj(payload: Mapping[str, Any]) -> dict[str, Any]:
