@@ -189,6 +189,9 @@ from src.integration import (  # noqa: E402
 from src.integration import dex_dispatch_handlers as _dex_dispatch_handlers  # noqa: E402,F401
 from src.integration import dex_dispatch_proof_mining_handlers as _proof_handlers  # noqa: E402,F401
 from src.integration import dex_dispatch_receipt_handlers as _receipt_handlers  # noqa: E402,F401
+from src.integration import (  # noqa: E402
+    dex_dispatch_settlement_audit_handlers as _settlement_audit_handlers,  # noqa: F401
+)
 from src.integration import dex_dispatch_slippage_handlers as _slippage_handlers  # noqa: E402,F401
 
 if _REGISTRY_BUILD is None:
