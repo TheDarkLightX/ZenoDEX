@@ -120,13 +120,28 @@ class SettlementValuePacket:
             lp_value_contract=(
                 None if lp_contract_payload is None else SettlementLPValueContract.from_dict(lp_contract_payload)
             ),
-            price_provenance_ok=bool(payload.get("price_provenance_ok", False)),
-            attestation_ok=bool(payload.get("attestation_ok", False)),
-            asset_conservation_ok=bool(payload.get("asset_conservation_ok", False)),
-            lp_liability_balanced_ok=bool(payload.get("lp_liability_balanced_ok", False)),
-            value_conservation_ok=bool(payload.get("value_conservation_ok", False)),
-            packet_ok=bool(payload.get("packet_ok", False)),
+            price_provenance_ok=_require_bool(payload.get("price_provenance_ok", False), name="price_provenance_ok"),
+            attestation_ok=_require_bool(payload.get("attestation_ok", False), name="attestation_ok"),
+            asset_conservation_ok=_require_bool(
+                payload.get("asset_conservation_ok", False),
+                name="asset_conservation_ok",
+            ),
+            lp_liability_balanced_ok=_require_bool(
+                payload.get("lp_liability_balanced_ok", False),
+                name="lp_liability_balanced_ok",
+            ),
+            value_conservation_ok=_require_bool(
+                payload.get("value_conservation_ok", False),
+                name="value_conservation_ok",
+            ),
+            packet_ok=_require_bool(payload.get("packet_ok", False), name="packet_ok"),
         )
+
+
+def _require_bool(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return bool(value)
 
 
 def build_settlement_value_packet_from_price_packet(

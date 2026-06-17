@@ -363,6 +363,29 @@ def test_settlement_value_packet_rejects_tampering() -> None:
     assert err == "settlement value packet mismatch"
 
 
+def test_settlement_value_packet_payload_rejects_string_boolean_flags() -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="local:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="local:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    packet = build_settlement_value_packet_from_price_packet(settlement=settlement, price_packet=price_packet).to_dict()
+    packet["packet_ok"] = "yes"
+
+    ok, err = verify_settlement_value_packet_payload_from_price_packet(
+        settlement=settlement,
+        price_packet_payload=price_packet.to_dict(),
+        packet_payload=packet,
+    )
+
+    assert ok is False
+    assert err == "packet_ok must be a bool"
+
+
 def test_settlement_value_packet_from_dict_round_trips() -> None:
     _pk, asset0, asset1, _pool_id, settlement = _swap_context()
     price_packet = build_settlement_spot_price_packet(
