@@ -208,7 +208,10 @@ def build_settlement_spot_price_packet(
         ok, err = verify_zusd_cross_module_oracle_sync_contract_payload(sync_contract_payload)
         if not ok:
             raise ValueError(f"cross_module_sync_contract invalid: {err}")
-        cross_module_sync_ok = bool(sync_contract_payload.get("sync_gate_ok"))
+        cross_module_sync_ok = _require_bool(
+            sync_contract_payload.get("sync_gate_ok"),
+            name="cross_module_sync_contract.sync_gate_ok",
+        )
 
     provenance_ok = bool(unique_assets) and bool(all_positive) and bool(all_fresh) and (
         (not bool(cross_module_sync_required))
@@ -288,6 +291,12 @@ def _require_non_negative_int(value: object, *, name: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise ValueError(f"{name} must be a non-negative int")
     return int(value)
+
+
+def _require_bool(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} must be a bool")
+    return value
 
 
 def _canonical_json_obj(payload: Mapping[str, Any]) -> dict[str, Any]:

@@ -83,6 +83,38 @@ def test_settlement_spot_price_packet_binds_verified_sync_contract() -> None:
     assert err is None
 
 
+def test_settlement_spot_price_packet_rejects_coerced_sync_gate_after_nested_verify(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sync_contract = build_zusd_cross_module_oracle_sync_contract(
+        market_id="TAU-USD",
+        zusd_price_e8=50_000_000,
+        zusd_epoch=100,
+        perp_price_e8=50_000_000,
+        perp_oracle_epoch=99,
+        max_divergence_bps=0,
+        max_epoch_lag=2,
+    ).to_dict()
+    sync_contract["sync_gate_ok"] = "yes"
+
+    monkeypatch.setattr(
+        provenance_mod,
+        "verify_zusd_cross_module_oracle_sync_contract_payload",
+        lambda _payload: (True, None),
+    )
+
+    with pytest.raises(ValueError, match="cross_module_sync_contract.sync_gate_ok must be a bool"):
+        build_settlement_spot_price_packet(
+            entries=(
+                SettlementSpotPriceEntry(asset="A", price=100, observed_epoch=99, age_epochs=1, source_id="oracle:a"),
+            ),
+            now_epoch=100,
+            max_staleness_epochs=10,
+            cross_module_sync_required=True,
+            cross_module_sync_contract=sync_contract,
+        )
+
+
 def test_settlement_spot_price_packet_rejects_tampering() -> None:
     packet = build_settlement_spot_price_packet(
         entries=(
