@@ -76,6 +76,9 @@ class TauGateConfig:
     settlement_module_flags: Optional[TauSettlementModuleFlags] = None
 
 
+DEFAULT_TAU_GATE_CONFIG = TauGateConfig()
+
+
 def _require_gate_ok(
     outputs_by_step: Dict[int, Dict[str, int]],
     *,
@@ -118,7 +121,7 @@ def validate_settlement_swaps(
     intents: List[Intent],
     settlement: Settlement,
     pre_pools: Dict[str, PoolState],
-    config: TauGateConfig = TauGateConfig(),
+    config: TauGateConfig = DEFAULT_TAU_GATE_CONFIG,
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate swap fills in a settlement using Tau specs (fail-closed).
