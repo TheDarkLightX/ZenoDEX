@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import src.agents.autotrader_client_policy_bundle as client_policy_bundle
 from src.agents.autotrader_client_policy_bundle import (
     AUTOTRADER_CLIENT_POLICY_BUNDLE_SCHEMA,
     autotrader_client_policy_bundle_from_dict,
@@ -150,6 +151,30 @@ def test_client_policy_bundle_roundtrip_signature_and_guard_evaluation(tmp_path:
 
     roundtrip = autotrader_client_policy_bundle_from_dict(signed.to_dict())
     assert roundtrip.to_dict() == signed.to_dict()
+
+
+def test_client_policy_bundle_signature_propagates_unexpected_bls_backend_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ExplodingBLS:
+        @staticmethod
+        def Verify(*_args: object) -> bool:
+            raise RuntimeError("backend invariant failure")
+
+    strategy = _strategy()
+    surface, _signed_policy_artifact = _surface(strategy)
+    bundle = sign_autotrader_client_policy_bundle(
+        build_autotrader_client_policy_bundle(
+            bundle_name="client.bundle.backend.failure",
+            built_at="2026-04-09T15:20:00Z",
+            client_policy_surface=surface,
+        ),
+        privkey=21,
+    )
+    monkeypatch.setattr(client_policy_bundle, "G2Basic", ExplodingBLS)
+
+    with pytest.raises(RuntimeError, match="backend invariant failure"):
+        verify_autotrader_client_policy_bundle_signature(bundle)
 
 
 def test_client_policy_bundle_rejects_mismatched_guard_evaluation_strategy() -> None:

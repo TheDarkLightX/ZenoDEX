@@ -195,10 +195,7 @@ def verify_autotrader_client_policy_bundle_signature(bundle: AutoTraderClientPol
         sig = bytes.fromhex(bundle.signature[2:] if bundle.signature.startswith("0x") else bundle.signature)
     except ValueError:
         return False
-    try:
-        return bool(G2Basic.Verify(pk, bundle.to_json_bytes(), sig))
-    except Exception:
-        return False
+    return bool(G2Basic.Verify(pk, bundle.to_json_bytes(), sig))
 
 
 def autotrader_client_policy_bundle_from_dict(data: Mapping[str, Any]) -> AutoTraderClientPolicyBundle:

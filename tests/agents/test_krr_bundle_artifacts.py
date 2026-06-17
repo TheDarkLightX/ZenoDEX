@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import src.agents.krr_bundle_artifacts as krr_bundle_artifacts
 from src.agents.krr_bundle_artifacts import (
     KRRCanonicalClaim,
     KRREvidenceRecord,
@@ -164,6 +165,38 @@ def test_autotrader_krr_bundle_roundtrip_signature_and_runtime_artifacts(tmp_pat
     assert len(signal_source_registry.entries) == 1
     assert runtime_history is not None
     assert loaded.bundle_hash_hex() == signed.bundle_hash_hex()
+
+
+def test_autotrader_krr_bundle_signature_propagates_unexpected_bls_backend_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ExplodingBLS:
+        @staticmethod
+        def Verify(*_args: object) -> bool:
+            raise RuntimeError("backend invariant failure")
+
+    snapshot = _snapshot()
+    evidence = _evidence(snapshot)
+    claim = _claim(snapshot, evidence)
+    bundle = build_autotrader_krr_bundle(
+        bundle_name="bundle.shadow.backend.failure",
+        built_at="2026-03-12T00:15:00Z",
+        compiler_version="bundle_builder_v1",
+        policy_version="policy_v1",
+        runtime_krr_kb={"check_priors": {}, "operator_priors": {}, "semantic_rules": [], "check_family_priors": {}},
+        runtime_external_signals={"external_signals": []},
+        runtime_signal_source_registry={"entries": []},
+        runtime_history={"history_source_stats": {}},
+        source_snapshots=(snapshot,),
+        evidence_records=(evidence,),
+        canonical_claims=(claim,),
+        review_records=(_bundle_review("bundle.shadow.backend.failure"), _claim_review(claim.claim_id)),
+    )
+    signed = sign_autotrader_krr_bundle(bundle, privkey=21)
+    monkeypatch.setattr(krr_bundle_artifacts, "G2Basic", ExplodingBLS)
+
+    with pytest.raises(RuntimeError, match="backend invariant failure"):
+        verify_autotrader_krr_bundle_signature(signed)
 
 
 def test_autotrader_krr_bundle_requires_approved_runtime_review() -> None:

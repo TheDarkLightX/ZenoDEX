@@ -751,6 +751,6 @@ def verify_intent_signature(
         msg_hash = hashlib.sha256(msg).digest()
         pubkey_bytes = bytes.fromhex(sender_pubkey[2:])
         signature_bytes = bytes.fromhex(signature[2:])
-        return bool(G2Basic.Verify(pubkey_bytes, msg_hash, signature_bytes))
-    except Exception:
+    except (TypeError, ValueError):
         return False
+    return bool(G2Basic.Verify(pubkey_bytes, msg_hash, signature_bytes))

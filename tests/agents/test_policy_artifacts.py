@@ -89,6 +89,35 @@ def test_policy_artifact_roundtrip_and_signature() -> None:
     assert loaded_artifact.policy_artifact_hash_hex() == signed.policy_artifact_hash_hex()
 
 
+def test_policy_artifact_signature_propagates_unexpected_bls_backend_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ExplodingBLS:
+        @staticmethod
+        def Verify(*_args: object) -> bool:
+            raise RuntimeError("backend invariant failure")
+
+    privkey = 7
+    strategy = _strategy("0x" + bls_pubkey_hex_from_privkey(privkey))
+    compile_receipt = build_compile_contract_tau_policy_receipt(strategy=strategy)
+    source_artifact = build_strategy_source_artifact(strategy=strategy, source_form="kv")
+    bundle = build_tau_policy_bundle(
+        strategy=strategy,
+        compile_contract_tau_receipt=compile_receipt.to_dict(),
+        source_artifact=source_artifact,
+    )
+    artifact = build_strategy_policy_artifact(
+        strategy=strategy,
+        tau_policy_bundle=bundle,
+        source_artifact=source_artifact,
+    )
+    signed = sign_strategy_policy_artifact(artifact, privkey=privkey)
+    monkeypatch.setattr(policy_artifacts, "G2Basic", ExplodingBLS)
+
+    with pytest.raises(RuntimeError, match="backend invariant failure"):
+        verify_strategy_policy_artifact_signature(signed)
+
+
 def test_policy_artifact_sign_rejects_wrong_owner() -> None:
     strategy = _strategy("0x" + bls_pubkey_hex_from_privkey(11))
     source_artifact = build_strategy_source_artifact(strategy=strategy, source_form="kv")

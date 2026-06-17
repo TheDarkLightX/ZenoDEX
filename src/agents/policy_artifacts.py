@@ -361,9 +361,9 @@ def verify_strategy_policy_artifact_signature(artifact: StrategyPolicyArtifact) 
         pubkey_bytes = bytes.fromhex(artifact.strategy.owner_pubkey.removeprefix("0x"))
         sig_bytes = bytes.fromhex(artifact.signature.removeprefix("0x"))
         msg_hash = hashlib.sha256(artifact.to_json_bytes()).digest()
-        return bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))
-    except Exception:
+    except ValueError:
         return False
+    return bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))
 
 
 def tau_policy_bundle_from_dict(data: Mapping[str, Any]) -> TauPolicyBundle:

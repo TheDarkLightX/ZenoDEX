@@ -789,10 +789,7 @@ def verify_autotrader_krr_bundle_signature(bundle: AutoTraderKRRBundle) -> bool:
     except ValueError:
         return False
     message = canonical_json_bytes(bundle.to_unsigned_dict())
-    try:
-        return bool(G2Basic.Verify(pk, message, sig))
-    except Exception:
-        return False
+    return bool(G2Basic.Verify(pk, message, sig))
 
 
 def bundle_runtime_artifacts(

@@ -86,6 +86,21 @@ def test_verify_intent_signature_rejects_bad_sender_hex() -> None:
     assert verify_intent_signature(bad) is False
 
 
+def test_verify_intent_signature_propagates_unexpected_bls_backend_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ExplodingBLS:
+        @staticmethod
+        def Verify(*_args: object) -> bool:
+            raise RuntimeError("backend invariant failure")
+
+    signed = sign_intent(_intent(sender_pubkey="0x" + bls_pubkey_hex_from_privkey(28)), 28)
+    monkeypatch.setattr(intent_signer, "G2Basic", ExplodingBLS)
+
+    with pytest.raises(RuntimeError, match="backend invariant failure"):
+        verify_intent_signature(signed)
+
+
 def test_generate_intent_id_uses_shared_canonical_json_encoder() -> None:
     fields = {
         "pool_id": "p_ab",
