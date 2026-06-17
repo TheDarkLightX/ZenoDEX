@@ -341,6 +341,10 @@ def run_external_threshold_bls_signer_v0(
     validate_external_threshold_bls_sign_request_v0(request)
     if not isinstance(command, Sequence) or isinstance(command, (str, bytes, bytearray)) or not command:
         raise TypeError("command must be a non-empty sequence")
+    if isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float)) or timeout_s <= 0:
+        raise ValueError("timeout_s must be positive")
+    if isinstance(max_stdout_bytes, bool) or not isinstance(max_stdout_bytes, int) or max_stdout_bytes <= 0:
+        raise ValueError("max_stdout_bytes must be positive")
     argv = [_require_str(item, name=f"command[{index}]") for index, item in enumerate(command)]
     proc = subprocess.run(
         argv,

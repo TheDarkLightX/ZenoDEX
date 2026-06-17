@@ -249,6 +249,27 @@ def test_external_threshold_bls_runs_hash_pinned_out_of_process_contract_fixture
     assert ok, err
 
 
+def test_external_threshold_bls_signer_rejects_bool_resource_fields() -> None:
+    public_bundle, _partials, _aggregate = _bundle_partials_and_aggregate()
+    evidence = _evidence(public_bundle)
+    request = build_external_threshold_bls_sign_request_v0(
+        key_id="tau-external-threshold-main",
+        evidence_hash=str(evidence["evidence_hash"]),
+        payload=PAYLOAD,
+    )
+    kwargs = {
+        "command": [sys.executable, "-c", "print('unused')"],
+        "request": request,
+        "timeout_s": 1.0,
+        "max_stdout_bytes": 1024,
+    }
+
+    with pytest.raises(ValueError, match="timeout_s must be positive"):
+        run_external_threshold_bls_signer_v0(**{**kwargs, "timeout_s": True})
+    with pytest.raises(ValueError, match="max_stdout_bytes must be positive"):
+        run_external_threshold_bls_signer_v0(**{**kwargs, "max_stdout_bytes": False})
+
+
 def test_external_threshold_bls_cli_sign_and_verify_with_hash_pinned_contract_fixture(
     tmp_path: Path,
     capsys,
