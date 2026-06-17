@@ -13,7 +13,7 @@ from typing import Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
 from ..state.balances import AssetId, PubKey
 from ..state.intents import Intent, IntentKind
-from ..state.pools import PoolState, compute_pool_id
+from ..state.pools import PoolState, compute_pool_id, normalize_curve_config
 
 _Key = Tuple[str, str, str]
 
@@ -53,16 +53,12 @@ def _created_pool_assets_entry(intent: Intent) -> Optional[Tuple[str, Tuple[str,
         return None
     asset0 = intent.get_field("asset0")
     asset1 = intent.get_field("asset1")
-    fee_bps = intent.get_field("fee_bps")
     if not isinstance(asset0, str) or not asset0:
         return None
     if not isinstance(asset1, str) or not asset1:
         return None
-    if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
-        return None
-    try:
-        pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
-    except (TypeError, ValueError):
+    pool_id = _created_pool_id(intent)
+    if pool_id is None:
         return None
     return pool_id, (asset0, asset1)
 
@@ -90,12 +86,26 @@ def _created_pool_id(intent: Intent) -> Optional[str]:
     asset0 = intent.get_field("asset0")
     asset1 = intent.get_field("asset1")
     fee_bps = intent.get_field("fee_bps")
-    if not isinstance(asset0, str) or not isinstance(asset1, str):
+    if not isinstance(asset0, str) or not asset0:
+        return None
+    if not isinstance(asset1, str) or not asset1:
         return None
     if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
         return None
+    curve_tag = intent.get_field("curve_tag", None)
+    curve_params = intent.get_field("curve_params", None)
     try:
-        return compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
+        curve_tag_norm, curve_params_norm = normalize_curve_config(
+            curve_tag=curve_tag,
+            curve_params=curve_params,
+        )
+        return compute_pool_id(
+            asset0,
+            asset1,
+            fee_bps,
+            curve_tag=curve_tag_norm,
+            curve_params=curve_params_norm,
+        )
     except (TypeError, ValueError):
         return None
 

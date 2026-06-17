@@ -11,7 +11,7 @@ from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
 from src.state.nonces import NonceTable
-from src.state.pools import PoolState, PoolStatus, compute_pool_id
+from src.state.pools import PoolState, PoolStatus, compute_pool_id, normalize_curve_config
 from src.state.support_root import (
     SUPPORT_ROOT_VERSION,
     BatchStateSupport,
@@ -23,6 +23,52 @@ from src.state.support_root import (
 
 def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
+
+
+def _sum_boost_create_and_add_liq() -> tuple[str, str, str, str, str, Intent, Intent]:
+    pk_a = "0x" + "11" * 48
+    pk_b = "0x" + "22" * 48
+    asset0 = "0x" + "03" * 32
+    asset1 = "0x" + "04" * 32
+    fee_bps = 20
+    curve_tag, curve_params = normalize_curve_config(
+        curve_tag="SUM_BOOST_V1",
+        curve_params={"mu_num": 1, "mu_den": 2},
+    )
+    pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag=curve_tag, curve_params=curve_params)
+    create_pool = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(201),
+        sender_pubkey=pk_a,
+        deadline=9999999999,
+        fields={
+            "asset0": asset0,
+            "asset1": asset1,
+            "fee_bps": fee_bps,
+            "amount0": 1000,
+            "amount1": 2000,
+            "curve_tag": " sum_boost_v1 ",
+            "curve_params": {"mu_num": 1, "mu_den": 2},
+        },
+    )
+    add_liq = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(202),
+        sender_pubkey=pk_b,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "amount0_desired": 100,
+            "amount1_desired": 200,
+            "amount0_min": 0,
+            "amount1_min": 0,
+        },
+    )
+    return pk_a, pk_b, asset0, asset1, pool_id, create_pool, add_liq
 
 
 def test_support_root_version_commits_lp_age_schema() -> None:
@@ -90,6 +136,36 @@ def test_support_root_commits_to_balances_for_add_liquidity_into_new_pool() -> N
     r1 = compute_support_state_root_for_batch(intents=intents, balances=balances1, pools=pools, lp_balances=lp)
     r2 = compute_support_state_root_for_batch(intents=intents, balances=balances2, pools=pools, lp_balances=lp)
     assert r1 != r2
+
+
+def test_support_root_uses_live_curve_config_for_add_liquidity_into_new_pool() -> None:
+    _, pk_b, asset0, asset1, pool_id, create_pool, add_liq = _sum_boost_create_and_add_liq()
+
+    support = derive_batch_state_support([create_pool, add_liq], pools={})
+    assert (pk_b, asset0) in support.balance_keys
+    assert (pk_b, asset1) in support.balance_keys
+    assert pool_id in support.pool_ids
+
+    balances1 = BalanceTable()
+    balances1.set(pk_b, asset0, 100)
+    balances1.set(pk_b, asset1, 200)
+    balances2 = BalanceTable()
+    balances2.set(pk_b, asset0, 99)
+    balances2.set(pk_b, asset1, 200)
+
+    root1 = compute_support_state_root_for_batch(
+        intents=[create_pool, add_liq],
+        balances=balances1,
+        pools={},
+        lp_balances=LPTable(),
+    )
+    root2 = compute_support_state_root_for_batch(
+        intents=[create_pool, add_liq],
+        balances=balances2,
+        pools={},
+        lp_balances=LPTable(),
+    )
+    assert root1 != root2
 
 
 def test_support_root_changes_on_tracked_nonce_change() -> None:

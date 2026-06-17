@@ -27,7 +27,7 @@ from .canonical import (
 from .intents import Intent, IntentKind
 from .lp import LPDurationRiskMetadata, LPTable
 from .nonces import NonceTable
-from .pools import PoolState, PoolStatus, compute_pool_id
+from .pools import PoolState, PoolStatus, compute_pool_id, normalize_curve_config
 
 SUPPORT_ROOT_VERSION = 4
 
@@ -70,6 +70,34 @@ class _SupportDerivationContext:
     acc: _SupportAccumulator
 
 
+def _created_pool_id_for_intent(intent: Intent) -> str | None:
+    asset0 = intent.get_field("asset0")
+    asset1 = intent.get_field("asset1")
+    fee_bps = intent.get_field("fee_bps")
+    if not isinstance(asset0, str) or not asset0:
+        return None
+    if not isinstance(asset1, str) or not asset1:
+        return None
+    if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
+        return None
+    curve_tag = intent.get_field("curve_tag", None)
+    curve_params = intent.get_field("curve_params", None)
+    try:
+        curve_tag_norm, curve_params_norm = normalize_curve_config(
+            curve_tag=curve_tag,
+            curve_params=curve_params,
+        )
+        return compute_pool_id(
+            asset0,
+            asset1,
+            fee_bps,
+            curve_tag=curve_tag_norm,
+            curve_params=curve_params_norm,
+        )
+    except (TypeError, ValueError):
+        return None
+
+
 def _created_pool_assets_for_intents(intents: Sequence[Intent]) -> dict[str, tuple[str, str]]:
     created_pool_assets: dict[str, tuple[str, str]] = {}
     for intent in intents:
@@ -77,16 +105,12 @@ def _created_pool_assets_for_intents(intents: Sequence[Intent]) -> dict[str, tup
             continue
         asset0 = intent.get_field("asset0")
         asset1 = intent.get_field("asset1")
-        fee_bps = intent.get_field("fee_bps")
         if not isinstance(asset0, str) or not asset0:
             continue
         if not isinstance(asset1, str) or not asset1:
             continue
-        if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
-            continue
-        try:
-            pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
-        except (TypeError, ValueError):
+        pool_id = _created_pool_id_for_intent(intent)
+        if pool_id is None:
             continue
         created_pool_assets[pool_id] = (asset0, asset1)
     return created_pool_assets
@@ -95,17 +119,13 @@ def _created_pool_assets_for_intents(intents: Sequence[Intent]) -> dict[str, tup
 def _add_create_pool_support(intent: Intent, *, sender: str, acc: _SupportAccumulator) -> None:
     asset0 = intent.get_field("asset0")
     asset1 = intent.get_field("asset1")
-    fee_bps = intent.get_field("fee_bps")
     if not isinstance(asset0, str) or not isinstance(asset1, str):
         return
 
     acc.balance_keys.add((sender, asset0))
     acc.balance_keys.add((sender, asset1))
-    if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
-        return
-    try:
-        pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
-    except (TypeError, ValueError):
+    pool_id = _created_pool_id_for_intent(intent)
+    if pool_id is None:
         # Invalid CREATE_POOL params; keep support minimal and let validation reject.
         return
     acc.pool_ids.add(pool_id)
