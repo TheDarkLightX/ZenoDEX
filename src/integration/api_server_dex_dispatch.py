@@ -205,6 +205,9 @@ from src.integration import (  # noqa: E402
     dex_dispatch_settlement_audit_handlers as _settlement_audit_handlers,  # noqa: F401
 )
 from src.integration import (  # noqa: E402
+    dex_dispatch_settlement_endogenous_lp_handlers as _endogenous_lp_handlers,  # noqa: F401
+)
+from src.integration import (  # noqa: E402
     dex_dispatch_settlement_value_handlers as _settlement_value_handlers,  # noqa: F401
 )
 from src.integration import (  # noqa: E402
