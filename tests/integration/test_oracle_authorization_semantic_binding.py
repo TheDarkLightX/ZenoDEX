@@ -207,6 +207,18 @@ def test_opaque_action_id_does_not_prove_runtime_value_matches() -> None:
     assert "runtime_value_e8 mismatch" in typed_errors
 
 
+def test_opaque_authorization_rejects_bool_epoch_fields() -> None:
+    authorization, runtime = _valid_pair()
+    authorization = replace(authorization, expires_at_epoch=True)
+    runtime = replace(runtime, now_epoch=True)
+
+    opaque_ok, opaque_errors = verify_opaque_authorization(authorization, runtime)
+
+    assert opaque_ok is False
+    assert "expires_at_epoch must be an int" in opaque_errors
+    assert "now_epoch must be an int" in opaque_errors
+
+
 def test_typed_authorization_rejects_bool_numeric_fields() -> None:
     authorization, runtime = _valid_pair()
     authorization = replace(

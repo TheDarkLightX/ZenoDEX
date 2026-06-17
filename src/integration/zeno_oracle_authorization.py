@@ -464,6 +464,13 @@ def verify_receipt_graph_binding(
     return not errors, tuple(errors)
 
 
+def _strict_int_for_verifier(value: Any, *, name: str, errors: list[str]) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        errors.append(f"{name} must be an int")
+        return 0
+    return int(value)
+
+
 def verify_opaque_authorization(
     authorization: OracleAuthorization,
     runtime: RuntimeActionFacts,
@@ -471,6 +478,12 @@ def verify_opaque_authorization(
     """Legacy comparison model: match opaque identifiers but not typed semantics."""
 
     errors: list[str] = []
+    now_epoch = _strict_int_for_verifier(runtime.now_epoch, name="now_epoch", errors=errors)
+    expires_at_epoch = _strict_int_for_verifier(
+        authorization.expires_at_epoch,
+        name="expires_at_epoch",
+        errors=errors,
+    )
     if authorization.consumer_module != runtime.consumer_module:
         errors.append("consumer_module mismatch")
     if authorization.action_kind != runtime.action_kind:
@@ -481,16 +494,9 @@ def verify_opaque_authorization(
         errors.append("profile_id mismatch")
     if authorization.query_id != runtime.query_id:
         errors.append("query_id mismatch")
-    if runtime.now_epoch > authorization.expires_at_epoch:
+    if now_epoch > expires_at_epoch:
         errors.append("authorization expired")
     return not errors, tuple(errors)
-
-
-def _strict_int_for_verifier(value: Any, *, name: str, errors: list[str]) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        errors.append(f"{name} must be an int")
-        return 0
-    return int(value)
 
 
 def verify_typed_authorization(
