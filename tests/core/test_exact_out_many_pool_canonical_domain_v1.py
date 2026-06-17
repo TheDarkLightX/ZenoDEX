@@ -10,14 +10,14 @@ from src.kernels.python.exact_out_many_pool_canonical_domain_v1 import (
 from src.state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
 
 
-def _pool(*, pid: str, r0: int, r1: int) -> PoolState:
+def _pool(*, pid: str, r0: int, r1: int, fee_bps: int = 0) -> PoolState:
     return PoolState(
         pool_id=pid,
         asset0="A",
         asset1="B",
         reserve0=int(r0),
         reserve1=int(r1),
-        fee_bps=0,
+        fee_bps=int(fee_bps),
         lp_supply=1_000,
         status=PoolStatus.ACTIVE,
         created_at=0,
@@ -80,6 +80,27 @@ def test_selected_domain_rejects_duplicate_pool_ids() -> None:
             max_legs=2,
             max_enumerated_candidates=100,
         )
+
+
+def test_selected_domain_does_not_assume_exact_out_feasibility_is_prefix_closed() -> None:
+    pool = _pool(pid="pool_a", r0=10, r1=27, fee_bps=1)
+
+    with pytest.raises(ValueError, match="overdelivery gap exceeds bps policy"):
+        amm_dispatch.swap_exact_out_for_pool(pool, reserve_in=10, reserve_out=27, amount_out=1)
+    assert amm_dispatch.swap_exact_out_for_pool(pool, reserve_in=10, reserve_out=27, amount_out=2)[0] == 2
+
+    domain = build_exact_out_many_pool_selected_domain(
+        (pool,),
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=2,
+        max_legs=1,
+        max_enumerated_candidates=100,
+    )
+
+    assert tuple((leg.pool_id, int(leg.amount_out), int(leg.amount_in)) for leg in domain.canonical_quote.legs) == (
+        ("pool_a", 2, 2),
+    )
 
 
 def test_rank_exact_out_feasible_pools_propagates_quote_kernel_bug(monkeypatch: pytest.MonkeyPatch) -> None:
