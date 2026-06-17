@@ -307,6 +307,11 @@ def _non_negative_leaf_int(leaf: Mapping[str, Any], key: str, errors: list[str],
     return out
 
 
+def _require_active_leaf_bool(leaf: Mapping[str, Any], errors: list[str], *, report_id: str) -> None:
+    if leaf.get("active") is not True:
+        errors.append(f"receipt_graph report leaf {report_id} active must be true")
+
+
 def verify_receipt_graph_binding(
     authorization: OracleAuthorization,
     receipt_graph: Mapping[str, Any] | None,
@@ -424,8 +429,7 @@ def verify_receipt_graph_binding(
             leaf_report_ids.append(report_id)
             leaf_source_ids.append(source_id)
             leaf_control_group_ids.append(control_group_id)
-            if not bool(leaf.get("active", False)):
-                errors.append(f"receipt_graph report leaf {report_id} reporter inactive")
+            _require_active_leaf_bool(leaf, errors, report_id=report_id)
             if str(leaf.get("slash_state", "")) != "clear":
                 errors.append(f"receipt_graph report leaf {report_id} slash_state not clear")
             bond_key = "bond_e8" if "bond_e8" in leaf else "bond_amount_e8"

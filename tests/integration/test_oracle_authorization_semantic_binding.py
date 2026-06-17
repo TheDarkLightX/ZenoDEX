@@ -578,6 +578,32 @@ def test_critical_consumer_rejects_terminal_graph_value_mismatch() -> None:
     assert "receipt_graph value_e8 does not match authorization" in result["receipt_graph_errors"]
 
 
+def test_critical_consumer_rejects_coerced_terminal_graph_active_leaf() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["receipt_graph"]["report_leaf_commitments"][0]["active"] = "yes"
+    _refresh_terminal_graph_roots(bundle)
+
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+    )
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert any(
+        error.endswith("active must be true")
+        for error in result["receipt_graph_errors"]
+    )
+
+
 def test_critical_consumer_rejects_terminal_graph_fake_control_group_diversity() -> None:
     authorization, runtime = _valid_pair()
     bundle = authorization_bundle(asdict(authorization))
