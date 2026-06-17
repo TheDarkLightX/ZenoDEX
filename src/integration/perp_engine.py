@@ -1254,6 +1254,17 @@ def _check_clearinghouse_settle_oracle_authorization(
         state=state,
         participant_pubkeys=participant_pubkeys,
     )
+    runtime_value_e8 = runtime.get("runtime_value_e8")
+    now_epoch = runtime.get("now_epoch")
+    if (
+        not isinstance(runtime_value_e8, int)
+        or isinstance(runtime_value_e8, bool)
+        or not isinstance(now_epoch, int)
+        or isinstance(now_epoch, bool)
+    ):
+        # Runtime facts are produced locally, but this boundary feeds the typed
+        # oracle verifier. Reject malformed facts before verifier input.
+        return "clearinghouse_settle_oracle_authorization_rejected: malformed runtime facts"
     try:
         result = check_critical_consumer_authorization(
             authorization,
@@ -1263,8 +1274,8 @@ def _check_clearinghouse_settle_oracle_authorization(
             action_facts_hash=str(runtime["action_facts_hash"]),
             pre_state_hash=str(runtime["pre_state_hash"]),
             query_id=str(runtime["query_id"]),
-            runtime_value_e8=int(runtime["runtime_value_e8"]),
-            now_epoch=int(runtime["now_epoch"]),
+            runtime_value_e8=runtime_value_e8,
+            now_epoch=now_epoch,
             profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
             max_freshness_window_epochs=2,
         )
