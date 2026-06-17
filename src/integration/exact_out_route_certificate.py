@@ -3069,6 +3069,103 @@ def audit_exact_out_two_pool_runtime_canonicality(
     )
 
 
+@dataclass(frozen=True)
+class _ManyPoolCanonicalityParams:
+    asset_in: str
+    asset_out: str
+    amount_out_total: int
+    max_legs: int
+    max_candidate_pools: int
+    max_candidates: int
+    max_iters: int
+    window: int
+    brute_force_max: int
+    max_full_domain_pools: int
+    max_enumerated_candidates: int
+
+
+def _bounded_exact_out_many_pool_runtime_domain(
+    pools: Sequence[PoolState],
+    *,
+    params: _ManyPoolCanonicalityParams,
+) -> Any:
+    return _kernel_bounded_exact_out_many_pool_runtime_domain(
+        pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+
+
+def _selected_pools_for_audit_pool_ids(
+    pools: Sequence[PoolState],
+    *,
+    audit_pool_ids: Sequence[str],
+) -> tuple[PoolState, ...]:
+    pools_by_id = {pool.pool_id: pool for pool in pools}
+    return tuple(
+        pools_by_id[pool_id]
+        for pool_id in audit_pool_ids
+        if pool_id in pools_by_id
+    )
+
+
+def _many_pool_projection_cover_audit(
+    selected_pools: Sequence[PoolState],
+    *,
+    audit_pool_ids: Sequence[str],
+    params: _ManyPoolCanonicalityParams,
+) -> ExactOutManyPoolProjectionCoverAudit | None:
+    if len(selected_pools) != len(audit_pool_ids):
+        return None
+    try:
+        kernel_audit = _kernel_audit_exact_out_many_pool_selected_domain_projection_cover(
+            selected_pools,
+            asset_in=params.asset_in,
+            asset_out=params.asset_out,
+            amount_out_total=int(params.amount_out_total),
+            max_legs=int(params.max_legs),
+            max_selected_pools=max(len(selected_pools), 1),
+            max_enumerated_candidates=int(params.max_enumerated_candidates),
+        )
+    except ValueError:
+        return None
+    return _projection_cover_audit_from_kernel(kernel_audit)
+
+
+def _many_pool_canonicality_audit_from_bounded_domain(
+    pools: Sequence[PoolState],
+    bounded: Any,
+    *,
+    params: _ManyPoolCanonicalityParams,
+) -> ExactOutManyPoolCanonicalityAudit:
+    audit_pool_ids = tuple(bounded.audit_pool_ids)
+    selected_pools = _selected_pools_for_audit_pool_ids(pools, audit_pool_ids=audit_pool_ids)
+    projection_cover_audit = _many_pool_projection_cover_audit(
+        selected_pools,
+        audit_pool_ids=audit_pool_ids,
+        params=params,
+    )
+    return ExactOutManyPoolCanonicalityAudit(
+        runtime_matches_canonical=bounded.runtime_quote == bounded.canonical_quote,
+        runtime_quote=bounded.runtime_quote,
+        canonical_winner_quote=bounded.canonical_quote,
+        candidate_count=len(bounded.candidates),
+        audit_pool_ids=audit_pool_ids,
+        max_legs=int(params.max_legs),
+        certificate=build_exact_out_route_canonical_certificate(bounded.candidates),
+        projection_cover_audit=projection_cover_audit,
+    )
+
+
 def audit_exact_out_many_pool_runtime_canonicality(
     pools: Sequence[PoolState],
     *,
@@ -3084,57 +3181,21 @@ def audit_exact_out_many_pool_runtime_canonicality(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolCanonicalityAudit:
-    bounded = _kernel_bounded_exact_out_many_pool_runtime_domain(
-        pools,
+    params = _ManyPoolCanonicalityParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        amount_out_total=amount_out_total,
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_candidates=max_candidates,
+        max_iters=max_iters,
+        window=window,
+        brute_force_max=brute_force_max,
+        max_full_domain_pools=max_full_domain_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
     )
-    candidates = bounded.candidates
-    certificate = build_exact_out_route_canonical_certificate(candidates)
-    runtime_quote = bounded.runtime_quote
-    canonical_quote = bounded.canonical_quote
-    audit_pool_ids = bounded.audit_pool_ids
-    pools_by_id = {pool.pool_id: pool for pool in pools}
-    selected_pools = tuple(
-        pools_by_id[pool_id]
-        for pool_id in audit_pool_ids
-        if pool_id in pools_by_id
-    )
-    projection_cover_audit: ExactOutManyPoolProjectionCoverAudit | None = None
-    if len(selected_pools) == len(audit_pool_ids):
-        try:
-            kernel_projection_audit = _kernel_audit_exact_out_many_pool_selected_domain_projection_cover(
-                selected_pools,
-                asset_in=asset_in,
-                asset_out=asset_out,
-                amount_out_total=int(amount_out_total),
-                max_legs=int(max_legs),
-                max_selected_pools=max(len(selected_pools), 1),
-                max_enumerated_candidates=int(max_enumerated_candidates),
-            )
-        except ValueError:
-            kernel_projection_audit = None
-        if kernel_projection_audit is not None:
-            projection_cover_audit = _projection_cover_audit_from_kernel(kernel_projection_audit)
-    return ExactOutManyPoolCanonicalityAudit(
-        runtime_matches_canonical=runtime_quote == canonical_quote,
-        runtime_quote=runtime_quote,
-        canonical_winner_quote=canonical_quote,
-        candidate_count=len(candidates),
-        audit_pool_ids=audit_pool_ids,
-        max_legs=int(max_legs),
-        certificate=certificate,
-        projection_cover_audit=projection_cover_audit,
-    )
+    bounded = _bounded_exact_out_many_pool_runtime_domain(pools, params=params)
+    return _many_pool_canonicality_audit_from_bounded_domain(pools, bounded, params=params)
 
 
 def build_exact_out_many_pool_oracle_contract(
