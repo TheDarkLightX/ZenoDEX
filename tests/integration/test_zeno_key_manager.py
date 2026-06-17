@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 
@@ -305,6 +306,12 @@ def test_module_has_no_network_client_imports() -> None:
     assert "requests" not in source
     assert "urllib" not in source
     assert "http.client" not in source
+
+
+def test_module_has_no_strippable_runtime_asserts() -> None:
+    tree = ast.parse(Path(zeno_key_manager.__file__).read_text(encoding="utf-8"))
+
+    assert [node.lineno for node in ast.walk(tree) if isinstance(node, ast.Assert)] == []
 
 
 @pytest.mark.skipif(not zeno_key_manager._BLS_AVAILABLE, reason="py_ecc not installed")
