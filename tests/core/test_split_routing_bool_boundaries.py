@@ -2,6 +2,13 @@ from __future__ import annotations
 
 import pytest
 
+from src.core.split_routing import (
+    PoolXY,
+    best_split_two_pools_exact_in,
+    brute_force_best_split_two_pools_exact_in,
+    exact_out_for_pool_exact_in,
+    staircase_jump_best_split_two_pools_exact_in,
+)
 from src.core.split_routing_dispatch import (
     best_split_many_pools_exact_in_for_pools,
     best_split_many_pools_exact_out_for_pools,
@@ -152,6 +159,53 @@ def test_two_pool_exact_out_request_rejects_non_strict_controls(
                 **kwargs,
             )
         )
+
+
+@pytest.mark.parametrize(
+    ("builder", "message"),
+    [
+        (
+            lambda: exact_out_for_pool_exact_in(PoolXY(x=True, y=100, fee_bps=0), 10),
+            "reserve_in must be an int",
+        ),
+        (
+            lambda: exact_out_for_pool_exact_in(PoolXY(x=100, y=100, fee_bps=False), 10),
+            "fee_bps must be an int",
+        ),
+        (
+            lambda: exact_out_for_pool_exact_in(PoolXY(x=100, y=100, fee_bps=0), True),
+            "amount_in must be positive",
+        ),
+        (
+            lambda: brute_force_best_split_two_pools_exact_in(
+                PoolXY(x=100, y=100, fee_bps=0),
+                PoolXY(x=100, y=100, fee_bps=0),
+                "10",
+            ),
+            "amount_in must be positive",
+        ),
+        (
+            lambda: best_split_two_pools_exact_in(
+                PoolXY(x=100, y=100, fee_bps=0),
+                PoolXY(x=100, y=100, fee_bps=0),
+                10,
+                window=False,
+            ),
+            "window must be non-negative",
+        ),
+        (
+            lambda: staircase_jump_best_split_two_pools_exact_in(
+                PoolXY(x=100, y=100, fee_bps=0),
+                PoolXY(x=100, y=100, fee_bps=0),
+                True,
+            ),
+            "amount_in must be positive",
+        ),
+    ],
+)
+def test_cpmm_exact_in_split_rejects_non_strict_controls(builder, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        builder()
 
 
 @pytest.mark.parametrize(

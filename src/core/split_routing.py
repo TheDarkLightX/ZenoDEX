@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from typing import Callable, Tuple
 
 from ..kernels.python.cpmm_swap_v8 import compute_fee_total as _fee_total_v8
+from .domain_limits import is_strict_int
 from .split_routing_profiles import ADAPTIVE_SEARCH_PROFILES, resolve_two_pool_split_search_params
 from .split_routing_staircase import (
     staircase_jump_best_split_two_pools_exact_in as _staircase_jump_best_split_two_pools_exact_in,
@@ -67,6 +68,24 @@ class _SplitQuoteCache:
         return total
 
 
+def _require_int_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value):
+        raise ValueError(f"{name} must be an int")
+    return int(value)
+
+
+def _require_positive_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) <= 0:
+        raise ValueError(f"{name} must be positive")
+    return int(value)
+
+
+def _require_nonnegative_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return int(value)
+
+
 def exact_out_for_pool_exact_in(pool: PoolXY, amount_in: int) -> int:
     """
     Exact-in quote under v8 semantics:
@@ -75,20 +94,22 @@ def exact_out_for_pool_exact_in(pool: PoolXY, amount_in: int) -> int:
       out = floor(y * net / (x + net))
     Raises ValueError on invalid/degenerate trades (matching kernel behavior).
     """
-    if pool.x <= 0 or pool.y <= 0:
+    x = _require_int_control(pool.x, name="reserve_in")
+    y = _require_int_control(pool.y, name="reserve_out")
+    fee_bps = _require_int_control(pool.fee_bps, name="fee_bps")
+    amount_in_i = _require_positive_control(amount_in, name="amount_in")
+    if x <= 0 or y <= 0:
         raise ValueError("cannot swap against empty reserve")
-    if amount_in <= 0:
-        raise ValueError("amount_in must be positive")
-    if not (0 <= pool.fee_bps <= 10_000):
+    if not (0 <= fee_bps <= 10_000):
         raise ValueError("fee_bps out of range")
-    fee = _fee_total_v8(gross_in=amount_in, fee_bps=pool.fee_bps)
-    net = amount_in - fee
+    fee = _fee_total_v8(gross_in=amount_in_i, fee_bps=fee_bps)
+    net = amount_in_i - fee
     if net <= 0:
         raise ValueError("net_in must be positive")
-    out = (pool.y * net) // (pool.x + net)
+    out = (y * net) // (x + net)
     if out <= 0:
         raise ValueError("amount_out is zero")
-    if out > pool.y:
+    if out > y:
         raise ValueError("amount_out exceeds reserve_out")
     return int(out)
 
@@ -98,12 +119,11 @@ def brute_force_best_split_two_pools_exact_in(pool0: PoolXY, pool1: PoolXY, amou
     Reference: brute force all splits a in [0..amount_in], return (best_out, best_a).
     Deterministic tie-break: smallest a.
     """
-    if amount_in <= 0:
-        raise ValueError("amount_in must be positive")
+    amount_in_i = _require_positive_control(amount_in, name="amount_in")
     best_out: int | None = None
     best_a = 0
-    for a in range(0, amount_in + 1):
-        b = amount_in - a
+    for a in range(0, amount_in_i + 1):
+        b = amount_in_i - a
         try:
             out0 = exact_out_for_pool_exact_in(pool0, a) if a > 0 else 0
             out1 = exact_out_for_pool_exact_in(pool1, b) if b > 0 else 0
@@ -150,10 +170,11 @@ def _is_better_candidate(
 
 
 def staircase_jump_best_split_two_pools_exact_in(pool0: PoolXY, pool1: PoolXY, amount_in: int) -> tuple[int, int]:
+    amount_in_i = _require_positive_control(amount_in, name="amount_in")
     return _staircase_jump_best_split_two_pools_exact_in(
         pool0,
         pool1,
-        int(amount_in),
+        amount_in_i,
         quote_exact_in=exact_out_for_pool_exact_in,
     )
 
@@ -244,36 +265,34 @@ def best_split_two_pools_exact_in(
     Small trades use the brute-force oracle. Larger trades use endpoints plus a
     multi-center window search seeded by a continuous marginal-output estimate.
     """
-    if amount_in <= 0:
-        raise ValueError("amount_in must be positive")
-    if window < 0:
-        raise ValueError("window must be non-negative")
+    amount_in_i = _require_positive_control(amount_in, name="amount_in")
+    window_i = _require_nonnegative_control(window, name="window")
 
     window, profile = _resolve_entrypoint_profile(
         pool0,
         pool1,
-        int(amount_in),
-        window=int(window),
+        amount_in_i,
+        window=window_i,
         search_profile=search_profile,
     )
     if profile == EXACT_STAIRCASE_PROFILE:
-        return staircase_jump_best_split_two_pools_exact_in(pool0, pool1, int(amount_in))
+        return staircase_jump_best_split_two_pools_exact_in(pool0, pool1, amount_in_i)
 
     _profile, grid_n, force_dense_grid, left_sweep_k = _search_profile_params(profile)
 
     brute_force_max = 4096
-    if amount_in <= brute_force_max:
-        return brute_force_best_split_two_pools_exact_in(pool0, pool1, amount_in)
+    if amount_in_i <= brute_force_max:
+        return brute_force_best_split_two_pools_exact_in(pool0, pool1, amount_in_i)
 
-    quote_cache = _SplitQuoteCache(pool0=pool0, pool1=pool1, amount_in=int(amount_in), totals={})
-    best = _best_endpoint_split(int(amount_in), quote_cache.total_out)
+    quote_cache = _SplitQuoteCache(pool0=pool0, pool1=pool1, amount_in=amount_in_i, totals={})
+    best = _best_endpoint_split(amount_in_i, quote_cache.total_out)
 
-    bounds = _both_valid_bounds(pool0, pool1, int(amount_in))
+    bounds = _both_valid_bounds(pool0, pool1, amount_in_i)
     if bounds is not None:
         best_both = search_windowed_both_valid(WindowSearchPlan(
             pool0=pool0,
             pool1=pool1,
-            amount_in=int(amount_in),
+            amount_in=amount_in_i,
             bounds=bounds,
             profile=profile,
             grid_n=int(grid_n),
