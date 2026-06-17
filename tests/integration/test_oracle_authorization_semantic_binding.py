@@ -207,6 +207,35 @@ def test_opaque_action_id_does_not_prove_runtime_value_matches() -> None:
     assert "runtime_value_e8 mismatch" in typed_errors
 
 
+def test_typed_authorization_rejects_bool_numeric_fields() -> None:
+    authorization, runtime = _valid_pair()
+    authorization = replace(
+        authorization,
+        value_e8=True,
+        confidence_e8=True,
+        deviation_bps=True,
+        observed_epoch=True,
+        expires_at_epoch=True,
+        value_hash=oracle_value_hash(
+            query_id=authorization.query_id,
+            value_e8=1,
+            observed_epoch=1,
+        ),
+    )
+    runtime = replace(runtime, runtime_value_e8=True, now_epoch=True)
+
+    typed_ok, typed_errors = verify_typed_authorization(authorization, runtime)
+
+    assert typed_ok is False
+    assert "value_e8 must be an int" in typed_errors
+    assert "runtime_value_e8 must be an int" in typed_errors
+    assert "confidence_e8 must be an int" in typed_errors
+    assert "deviation_bps must be an int" in typed_errors
+    assert "observed_epoch must be an int" in typed_errors
+    assert "expires_at_epoch must be an int" in typed_errors
+    assert "now_epoch must be an int" in typed_errors
+
+
 def test_opaque_action_id_does_not_prove_pre_state_or_action_facts_match() -> None:
     authorization, runtime = _valid_pair()
     runtime = replace(

@@ -486,6 +486,13 @@ def verify_opaque_authorization(
     return not errors, tuple(errors)
 
 
+def _strict_int_for_verifier(value: Any, *, name: str, errors: list[str]) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        errors.append(f"{name} must be an int")
+        return 0
+    return int(value)
+
+
 def verify_typed_authorization(
     authorization: OracleAuthorization,
     runtime: RuntimeActionFacts,
@@ -494,15 +501,27 @@ def verify_typed_authorization(
 
     ok, opaque_errors = verify_opaque_authorization(authorization, runtime)
     errors = list(opaque_errors)
-    if int(runtime.now_epoch) < 0:
+    runtime_now_epoch = _strict_int_for_verifier(runtime.now_epoch, name="now_epoch", errors=errors)
+    observed_epoch = _strict_int_for_verifier(authorization.observed_epoch, name="observed_epoch", errors=errors)
+    expires_at_epoch = _strict_int_for_verifier(authorization.expires_at_epoch, name="expires_at_epoch", errors=errors)
+    confidence_e8 = _strict_int_for_verifier(authorization.confidence_e8, name="confidence_e8", errors=errors)
+    deviation_bps = _strict_int_for_verifier(authorization.deviation_bps, name="deviation_bps", errors=errors)
+    value_e8 = _strict_int_for_verifier(authorization.value_e8, name="value_e8", errors=errors)
+    runtime_value_e8 = _strict_int_for_verifier(
+        runtime.runtime_value_e8,
+        name="runtime_value_e8",
+        errors=errors,
+    )
+
+    if runtime_now_epoch < 0:
         errors.append("runtime now_epoch must be non-negative")
-    if int(authorization.observed_epoch) < 0:
+    if observed_epoch < 0:
         errors.append("observed_epoch must be non-negative")
-    if int(authorization.expires_at_epoch) < 0:
+    if expires_at_epoch < 0:
         errors.append("expires_at_epoch must be non-negative")
-    if int(authorization.observed_epoch) > int(authorization.expires_at_epoch):
+    if observed_epoch > expires_at_epoch:
         errors.append("observed_epoch after expires_at_epoch")
-    if int(authorization.observed_epoch) > int(runtime.now_epoch):
+    if observed_epoch > runtime_now_epoch:
         errors.append("authorization observed in the future")
     expected_max_window = _expected_max_freshness_window_epochs(
         consumer_module=runtime.consumer_module,
@@ -524,13 +543,13 @@ def verify_typed_authorization(
         if expected_max_window is not None and max_window > expected_max_window:
             errors.append("runtime freshness window exceeds critical profile")
     if max_window is not None and max_window >= 0:
-        if int(authorization.expires_at_epoch) - int(authorization.observed_epoch) > max_window:
+        if expires_at_epoch - observed_epoch > max_window:
             errors.append("authorization freshness window exceeds runtime profile")
-        if int(runtime.now_epoch) - int(authorization.observed_epoch) > max_window:
+        if runtime_now_epoch - observed_epoch > max_window:
             errors.append("authorization observed_epoch outside runtime freshness window")
-    if int(authorization.confidence_e8) < 0:
+    if confidence_e8 < 0:
         errors.append("confidence_e8 must be non-negative")
-    if int(authorization.deviation_bps) < 0 or int(authorization.deviation_bps) > 10_000:
+    if deviation_bps < 0 or deviation_bps > 10_000:
         errors.append("deviation_bps must be in [0, 10000]")
     evidence_rank = EVIDENCE_RANK.get(authorization.evidence_class)
     if evidence_rank is None:
@@ -541,12 +560,12 @@ def verify_typed_authorization(
         errors.append("action_facts_hash mismatch")
     if authorization.pre_state_hash != runtime.pre_state_hash:
         errors.append("pre_state_hash mismatch")
-    if int(authorization.value_e8) != int(runtime.runtime_value_e8):
+    if value_e8 != runtime_value_e8:
         errors.append("runtime_value_e8 mismatch")
     expected_value_hash = oracle_value_hash(
         query_id=authorization.query_id,
-        value_e8=authorization.value_e8,
-        observed_epoch=authorization.observed_epoch,
+        value_e8=value_e8,
+        observed_epoch=observed_epoch,
     )
     if authorization.value_hash != expected_value_hash:
         errors.append("value_hash does not bind query_id/value_e8/observed_epoch")
