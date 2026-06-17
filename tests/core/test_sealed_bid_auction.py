@@ -72,6 +72,20 @@ def test_commit_receipt_bool_numeric_field_is_rejected() -> None:
     assert err == "bad_numeric_field"
 
 
+def test_make_commit_receipt_rejects_bool_numeric_input() -> None:
+    commitment = sealed_bid_reveal_hash(quantity=4, limit_price=105, nonce="n1")
+
+    with pytest.raises(TypeError, match="bool is not a sealed-bid receipt integer"):
+        make_sealed_bid_commit_receipt(
+            batch_id="b1",
+            bidder_id="alice",
+            commitment=commitment,
+            commit_epoch=True,
+            reveal_deadline_epoch=2,
+            units_for_sale=10,
+        )
+
+
 def test_commit_receipt_unexpected_numeric_parser_bug_propagates() -> None:
     class BrokenInt(str):
         def __new__(cls) -> "BrokenInt":

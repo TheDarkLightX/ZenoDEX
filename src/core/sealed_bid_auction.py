@@ -80,9 +80,9 @@ def make_sealed_bid_commit_receipt(
         "batch_id": str(batch_id),
         "bidder_id": str(bidder_id),
         "commitment": str(commitment),
-        "commit_epoch": int(commit_epoch),
-        "reveal_deadline_epoch": int(reveal_deadline_epoch),
-        "units_for_sale": int(units_for_sale),
+        "commit_epoch": _receipt_int(commit_epoch),
+        "reveal_deadline_epoch": _receipt_int(reveal_deadline_epoch),
+        "units_for_sale": _receipt_int(units_for_sale),
     }
     receipt_hash = sha256_hex(domain_sep_bytes("zenodex.sealed_bid_commit/v1") + canonical_json_bytes(body))
     return {"body": body, "receipt_hash": receipt_hash}
