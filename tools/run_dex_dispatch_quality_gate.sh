@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Quality gate for the /api/dex/* dispatch shell.
 # Locks in the committed dispatch-shell refactor:
-#   - mypy --strict on the 6 dispatch modules
+#   - mypy --strict on the dispatch modules
 #   - focused branch coverage over helper, metrics, and registry modules
 #   - cyclomatic-complexity regression guard on the dispatch modules
 #   - focused regression suite for helpers, registry, and dispatch behavior
@@ -50,6 +50,7 @@ DISPATCH_MODULES=(
   "src/integration/api_server_dex_metrics.py"
   "src/integration/api_server_dex_dispatch.py"
   "src/integration/dex_dispatch_proof_mining_handlers.py"
+  "src/integration/dex_dispatch_proof_mining_templates.py"
   "src/integration/dex_dispatch_slippage_handlers.py"
   "src/integration/dex_dispatch_handlers.py"
 )
@@ -68,7 +69,7 @@ echo "== dex-dispatch: pytest + branch coverage =="
 # location and report only on helper, metrics, and registry modules (pyproject.toml's
 # global [tool.coverage] config has broader source paths we don't want).
 COVERAGE_DATA="$ROOT_DIR/.coverage.dex_dispatch_gate"
-COVERAGE_INCLUDE="src/integration/_dex_api_helpers.py,src/integration/api_server_dex_metrics.py,src/integration/api_server_dex_dispatch.py,src/integration/dex_dispatch_proof_mining_handlers.py,src/integration/dex_dispatch_slippage_handlers.py,src/integration/dex_dispatch_handlers.py"
+COVERAGE_INCLUDE="src/integration/_dex_api_helpers.py,src/integration/api_server_dex_metrics.py,src/integration/api_server_dex_dispatch.py,src/integration/dex_dispatch_proof_mining_handlers.py,src/integration/dex_dispatch_proof_mining_templates.py,src/integration/dex_dispatch_slippage_handlers.py,src/integration/dex_dispatch_handlers.py"
 COVERAGE_FILE="$COVERAGE_DATA" "$PY" -m coverage erase --rcfile=/dev/null
 COVERAGE_FILE="$COVERAGE_DATA" "$PY" -m coverage run --rcfile=/dev/null --branch \
   --include="$COVERAGE_INCLUDE" \

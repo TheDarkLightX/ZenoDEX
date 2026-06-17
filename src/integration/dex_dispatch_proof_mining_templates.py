@@ -1,0 +1,522 @@
+"""Proof-mining payout-template assembly helpers."""
+
+from __future__ import annotations
+
+import json
+import os
+import urllib as urllib
+import urllib.error
+import urllib.parse
+import urllib.request
+from dataclasses import dataclass, replace
+from pathlib import Path
+from typing import Any, Mapping, Sequence, cast
+
+from src.core.batch_clearing import apply_settlement_pure, compute_settlement
+from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
+from src.core.proof_mining_claims import build_proof_mining_claim
+from src.core.settlement_normal_form import normalize_settlement_op_for_commitment
+from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
+from src.integration.lp_position_age_gate import apply_lp_mint_timestamps_after_settlement
+from src.integration.operations import create_settlement_operation, parse_intents
+from src.integration.proof_mining_context import (
+    build_proof_mining_context,
+    proof_mining_context_to_obj,
+)
+from src.integration.zeno_ledger_v0 import hash_v0
+from src.state.balances import BalanceTable
+from src.state.nonces import validate_and_apply_intent_nonce_batch
+from src.state.support_root import compute_support_state_root_for_batch
+
+BOUNDARY_DOMAIN_ERRORS: tuple[type[Exception], ...] = (TypeError, ValueError, ArithmeticError)
+DexResponse = tuple[int, Mapping[str, Any]]
+
+
+class _TemplateReject(Exception):
+    def __init__(self, status: int, body: Mapping[str, Any]) -> None:
+        self.status = status
+        self.body = dict(body)
+        super().__init__(str(body.get("error", "template_rejected")))
+
+    @property
+    def response(self) -> DexResponse:
+        return self.status, self.body
+
+
+@dataclass(frozen=True)
+class _TemplateIntent:
+    intent: dict[str, Any]
+    intent_for_proof: dict[str, Any]
+    signature: str
+
+
+@dataclass(frozen=True)
+class _TemplateProofBundle:
+    proof: dict[str, Any]
+    settlement: Any
+    settlement_op: dict[str, Any]
+    context: Any
+
+
+@dataclass(frozen=True)
+class _TemplateProofParts:
+    intents: Any
+    proof: dict[str, Any]
+    settlement: Any
+    settlement_op: dict[str, Any]
+    pre_state_commitment: str
+    batch_commitment: str
+
+
+@dataclass(frozen=True)
+class _RewardConfig:
+    pool_pubkey: str
+    asset_id: str
+    pool_before: int
+    base_reward: int
+    epoch: int
+    proposal_slot: int
+    prover_id: int
+    improvement_u64: int
+
+
+@dataclass(frozen=True)
+class _TemplateAssembly:
+    obj: Mapping[str, Any]
+    sender: str
+    chain_id: str
+    tx_block_timestamp: int
+    template_intent: _TemplateIntent
+    faucet_mint: list[Any]
+    bundle: _TemplateProofBundle
+    reward: _RewardConfig
+
+
+def _canonical_asset_id(value: Any, *, name: str) -> str:
+    text = str(value or "").strip().lower()
+    if text.startswith("0x"):
+        text = text[2:]
+    if len(text) != 64 or any(ch not in "0123456789abcdef" for ch in text):
+        raise ValueError(f"{name} must be a canonical 32-byte hex asset")
+    return "0x" + text
+
+
+def _canonical_pubkey_48(value: Any, *, name: str) -> str:
+    text = str(value or "").strip().lower()
+    if text.startswith("0x"):
+        text = text[2:]
+    if len(text) != 96 or any(ch not in "0123456789abcdef" for ch in text):
+        raise ValueError(f"{name} must be a canonical 48-byte hex pubkey")
+    return "0x" + text
+
+
+def _copy_balances_for_template(source: BalanceTable) -> BalanceTable:
+    copied = BalanceTable()
+    for (pubkey, asset), amount in source.get_all_balances().items():
+        copied.set(str(pubkey), str(asset), int(amount))
+    return copied
+
+
+def _load_latest_writer_snapshot_from_url_for_template(url: str) -> Mapping[str, Any]:
+    url_text = str(url).strip()
+    parsed = urllib.parse.urlparse(url_text)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("writer snapshot URL must be absolute http or https")
+    req = urllib.request.Request(url_text, headers={"Accept": "application/json"})
+    # URL scheme and host are validated above.
+    with urllib.request.urlopen(req, timeout=2.0) as resp:  # nosec B310
+        payload = json.loads(resp.read().decode("utf-8"))
+    if not isinstance(payload, Mapping) or payload.get("ok") is not True:
+        raise ValueError("writer snapshot endpoint returned non-ok payload")
+    snapshot_obj = payload.get("snapshot")
+    if not isinstance(snapshot_obj, Mapping):
+        raise ValueError("writer snapshot endpoint missing snapshot object")
+    return snapshot_obj
+
+
+def _load_latest_writer_snapshot_from_file_for_template(data_dir_raw: Any) -> Mapping[str, Any]:
+    data_dir = Path(str(data_dir_raw)).resolve()
+    live_state_path = data_dir / "live_state.json"
+    live_state = json.loads(live_state_path.read_text(encoding="utf-8"))
+    if not isinstance(live_state, Mapping):
+        raise ValueError("live_state.json must decode to an object")
+    rel = live_state.get("latest_snapshot_path")
+    if not isinstance(rel, str) or not rel:
+        raise ValueError("live_state.latest_snapshot_path missing")
+    snapshot_path = Path(rel)
+    if not snapshot_path.is_absolute():
+        snapshot_path = data_dir / snapshot_path
+    snapshot_path = snapshot_path.resolve()
+    try:
+        snapshot_path.relative_to(data_dir)
+    except ValueError as exc:
+        raise ValueError("live_state.latest_snapshot_path escapes writer data dir") from exc
+    snapshot_obj = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    if not isinstance(snapshot_obj, Mapping):
+        raise ValueError("latest snapshot must decode to an object")
+    if snapshot_obj.get("schema") == "zenodex/tau_app_state/v1":
+        dex_state = snapshot_obj.get("dex_state")
+        if not isinstance(dex_state, Mapping):
+            raise ValueError("tau app state dex_state must be an object")
+        return dex_state
+    return snapshot_obj
+
+
+def _load_latest_writer_snapshot_for_template(ctx: Any) -> Mapping[str, Any]:
+    data_dir_raw = getattr(ctx.server, "local_testnet_writer_data_dir", None)
+    if data_dir_raw is not None:
+        return _load_latest_writer_snapshot_from_file_for_template(data_dir_raw)
+
+    snapshot_url = os.environ.get(
+        "ZENO_LEDGER_WRITER_SNAPSHOT_URL",
+        "http://zeno-ledger-writer:8787/api/dex/snapshot",
+    ).strip()
+    if snapshot_url:
+        try:
+            return _load_latest_writer_snapshot_from_url_for_template(snapshot_url)
+        except (OSError, ValueError, urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+            pass
+
+    data_dir_raw = os.environ.get("ZENO_LEDGER_WRITER_DATA_DIR", "/app/data/local-testnet/node-writer")
+    return _load_latest_writer_snapshot_from_file_for_template(data_dir_raw)
+
+
+def _template_batch_commitment(signing_dicts: Sequence[Mapping[str, Any]], settlement_op: Mapping[str, Any]) -> str:
+    from src.state.canonical import (
+        CANONICAL_ENCODING_VERSION,
+        canonical_json_bytes,
+        domain_sep_bytes,
+        sha256_hex,
+    )
+
+    payload = {
+        "schema": "zenodex_batch",
+        "schema_version": 1,
+        "canonical_encoding_version": CANONICAL_ENCODING_VERSION,
+        "intents": [dict(row) for row in signing_dicts],
+        "settlement": dict(settlement_op),
+    }
+    return str(sha256_hex(domain_sep_bytes("dex_batch", version=1) + canonical_json_bytes(payload)))
+
+
+def _template_stable_digest(payload: Mapping[str, Any]) -> str:
+    from src.state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+
+    return str(
+        sha256_hex(
+            domain_sep_bytes("proof_mining_payout_template_defaults", version=1)
+            + canonical_json_bytes(dict(payload))
+        )
+    )
+
+
+def _template_non_negative_int(value: Any, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise ValueError(f"{name} must be a non-negative int")
+    return int(value)
+
+
+def _template_block_timestamp(obj: Mapping[str, Any], intent: Mapping[str, Any]) -> int:
+    raw = obj.get("block_timestamp")
+    if raw is not None:
+        return _template_non_negative_int(raw, name="block_timestamp")
+    created_at = intent.get("created_at")
+    if isinstance(created_at, int) and not isinstance(created_at, bool) and created_at >= 0:
+        return int(created_at)
+    raise ValueError("block_timestamp or intent.created_at required")
+
+
+def _template_intent(obj: Mapping[str, Any], *, sender: str) -> _TemplateIntent:
+    signed_intent = obj.get("signed_intent")
+    if not isinstance(signed_intent, Mapping):
+        raise _TemplateReject(400, {"ok": False, "error": "bad_signed_intent"})
+    raw_intent = signed_intent.get("intent", signed_intent)
+    if not isinstance(raw_intent, Mapping):
+        raise _TemplateReject(400, {"ok": False, "error": "bad_intent"})
+
+    intent = dict(raw_intent)
+    signature = signed_intent.get("signature", intent.get("signature"))
+    if not isinstance(signature, str) or not signature:
+        raise _TemplateReject(400, {"ok": False, "error": "missing_signature"})
+    intent["signature"] = signature
+    if str(intent.get("sender_pubkey", "")).lower() != sender:
+        raise _TemplateReject(400, {"ok": False, "error": "sender_mismatch"})
+    return _TemplateIntent(
+        intent=intent,
+        intent_for_proof={k: v for k, v in intent.items() if k != "signature"},
+        signature=signature,
+    )
+
+
+def _template_state(obj: Mapping[str, Any], ctx: Any) -> Any:
+    snapshot_obj = obj.get("pre_state_snapshot")
+    if snapshot_obj is None:
+        snapshot_obj = _load_latest_writer_snapshot_for_template(ctx)
+    if not isinstance(snapshot_obj, Mapping):
+        raise _TemplateReject(400, {"ok": False, "error": "bad_pre_state_snapshot"})
+    return state_from_snapshot(snapshot_obj)
+
+
+def _template_faucet_mint(obj: Mapping[str, Any]) -> list[Any]:
+    faucet_mint = obj.get("faucet_mint", [])
+    if faucet_mint is None:
+        return []
+    if not isinstance(faucet_mint, list):
+        raise _TemplateReject(400, {"ok": False, "error": "bad_faucet_mint"})
+    return faucet_mint
+
+
+def _template_state_with_faucet(state: Any, faucet_mint: list[Any], *, sender: str) -> Any:
+    balances = _copy_balances_for_template(state.balances)
+    for index, entry in enumerate(faucet_mint):
+        if not isinstance(entry, Mapping):
+            raise _TemplateReject(400, {"ok": False, "error": "bad_faucet_mint_entry", "index": index})
+        pubkey = _canonical_pubkey_48(entry.get("pubkey", sender), name=f"faucet_mint[{index}].pubkey")
+        asset = _canonical_asset_id(entry.get("asset"), name=f"faucet_mint[{index}].asset")
+        amount = entry.get("amount")
+        if not isinstance(amount, int) or isinstance(amount, bool) or amount <= 0:
+            raise _TemplateReject(400, {"ok": False, "error": "bad_faucet_mint_amount", "index": index})
+        balances.set(pubkey, asset, int(balances.get(pubkey, asset)) + int(amount))
+    return replace(state, balances=balances)
+
+
+def _template_proof_parts(proof_state: Any, template_intent: _TemplateIntent) -> _TemplateProofParts:
+    operations_without_proof = {"5": [template_intent.intent_for_proof]}
+    intents = parse_intents(operations_without_proof)
+    settlement = compute_settlement(
+        intents=intents,
+        pools=proof_state.pools,
+        balances=proof_state.balances,
+        lp_balances=proof_state.lp_balances,
+    )
+    settlement_op = create_settlement_operation(settlement)["6"]
+    settlement_op_for_proof = json.loads(json.dumps(settlement_op))
+    signing_dicts = [build_dex_intent_signing_dict_v1(intent_obj) for intent_obj in intents]
+    settlement_commit = normalize_settlement_op_for_commitment(settlement_op)
+    pre_state_commitment = compute_support_state_root_for_batch(
+        intents=intents,
+        balances=proof_state.balances,
+        pools=proof_state.pools,
+        lp_balances=proof_state.lp_balances,
+        nonces=proof_state.nonces,
+    )
+    batch_commitment = _template_batch_commitment(signing_dicts, settlement_commit)
+    proof = {
+        "scheme": "recompute_batch_v4",
+        "pre_state_commitment": pre_state_commitment,
+        "batch_commitment": batch_commitment,
+        "pre_state_snapshot": snapshot_from_state(proof_state).data,
+        "operations": {"5": [template_intent.intent_for_proof], "6": settlement_op_for_proof},
+    }
+    settlement_op["proof"] = proof
+    return _TemplateProofParts(
+        intents=intents,
+        proof=proof,
+        settlement=settlement,
+        settlement_op=settlement_op,
+        pre_state_commitment=pre_state_commitment,
+        batch_commitment=batch_commitment,
+    )
+
+
+def _template_next_state(proof_state: Any, parts: _TemplateProofParts, *, tx_block_timestamp: int) -> Any:
+    next_balances, next_pools, next_lp = apply_settlement_pure(
+        settlement=parts.settlement,
+        balances=proof_state.balances,
+        pools=proof_state.pools,
+        lp_balances=proof_state.lp_balances,
+    )
+    lp_age_err = apply_lp_mint_timestamps_after_settlement(
+        lp_balances=next_lp,
+        settlement=parts.settlement,
+        block_timestamp=tx_block_timestamp,
+        duration_risk_policy=None,
+    )
+    if lp_age_err is not None:
+        raise _TemplateReject(
+            400,
+            {"ok": False, "error": "lp_duration_risk_update_failed", "details": lp_age_err},
+        )
+    nonce_ok, nonce_err, next_nonces = validate_and_apply_intent_nonce_batch(
+        nonces=proof_state.nonces,
+        intents=parts.intents,
+        require_all_nonces=True,
+    )
+    if not nonce_ok or next_nonces is None:
+        raise _TemplateReject(
+            400,
+            {"ok": False, "error": "bad_intent_nonce", "details": nonce_err or "nonce rejected"},
+        )
+    return replace(
+        proof_state,
+        balances=next_balances,
+        pools=next_pools,
+        lp_balances=next_lp,
+        nonces=next_nonces,
+    )
+
+
+def _template_proof_bundle(
+    *,
+    proof_state: Any,
+    template_intent: _TemplateIntent,
+    tx_block_timestamp: int,
+    chain_id: str,
+) -> _TemplateProofBundle:
+    parts = _template_proof_parts(proof_state, template_intent)
+    next_state = _template_next_state(
+        proof_state,
+        parts,
+        tx_block_timestamp=tx_block_timestamp,
+    )
+    context = build_proof_mining_context(
+        chain_id=chain_id,
+        prev_state_hash=parts.pre_state_commitment,
+        batch_hash=parts.batch_commitment,
+        proof=parts.proof,
+        next_state=next_state,
+        proof_scheme="recompute_batch_v4",
+    )
+    return _TemplateProofBundle(
+        proof=parts.proof,
+        settlement=parts.settlement,
+        settlement_op=parts.settlement_op,
+        context=context,
+    )
+
+
+def _reward_config(obj: Mapping[str, Any], *, chain_id: str, state: Any) -> _RewardConfig:
+    reward_pool = os.environ.get("TAU_DEX_PROOF_MINING_POOL_PUBKEY", "").strip()
+    if not reward_pool:
+        reward_pool = str(obj.get("reward_pool_pubkey", "")).strip()
+    reward_pool = _canonical_pubkey_48(reward_pool, name="reward_pool_pubkey")
+
+    reward_asset = obj.get("reward_asset_id")
+    if reward_asset is None:
+        reward_asset = os.environ.get("TAU_DEX_PROOF_MINING_REWARD_ASSET_ID", "").strip()
+    if not reward_asset:
+        token_symbol = os.environ.get("TAU_DEX_TOKEN_SYMBOL", "ZDEX").strip() or "ZDEX"
+        reward_asset = hash_v0("testnet_bundle_token_asset", {"chain_id": chain_id, "symbol": token_symbol})
+    reward_asset = _canonical_asset_id(reward_asset, name="reward_asset_id")
+
+    return _RewardConfig(
+        pool_pubkey=reward_pool,
+        asset_id=reward_asset,
+        pool_before=int(state.balances.get(reward_pool, reward_asset)),
+        base_reward=int(obj.get("base_reward", 8)),
+        epoch=int(obj.get("epoch", 1)),
+        proposal_slot=int(obj.get("proposal_slot", 0)),
+        prover_id=int(obj.get("prover_id", 1)),
+        improvement_u64=int(obj.get("improvement_u64", 1)),
+    )
+
+
+def _template_default_digest(assembly: _TemplateAssembly) -> str:
+    return _template_stable_digest(
+        {
+            "chain_id": assembly.chain_id,
+            "sender": assembly.sender,
+            "block_timestamp": assembly.tx_block_timestamp,
+            "intent": assembly.template_intent.intent_for_proof,
+            "signature": assembly.template_intent.signature,
+            "faucet_mint": assembly.faucet_mint,
+            "pre_state_commitment": assembly.bundle.context.prev_state_hash,
+            "batch_hash": assembly.bundle.context.batch_hash,
+            "witness_hash": assembly.bundle.context.witness_hash,
+            "dex_hash_after": assembly.bundle.context.dex_hash_after,
+            "reward_pool_pubkey": assembly.reward.pool_pubkey,
+            "reward_asset_id": assembly.reward.asset_id,
+            "reward_pool_before": assembly.reward.pool_before,
+            "base_reward": assembly.reward.base_reward,
+            "epoch": assembly.reward.epoch,
+            "proposal_slot": assembly.reward.proposal_slot,
+            "prover_id": assembly.reward.prover_id,
+            "improvement_u64": assembly.reward.improvement_u64,
+        }
+    )
+
+
+def _template_claim(assembly: _TemplateAssembly, default_id_digest: str) -> Mapping[str, Any]:
+    job_digest = str(assembly.obj.get("job_digest") or f"local-proof-mining:{default_id_digest}")
+    round_id = str(assembly.obj.get("round_id") or f"local-proof-mining-round:{default_id_digest}")
+    return cast(
+        Mapping[str, Any],
+        build_proof_mining_claim(
+            round_obj={
+                "schema": "zenodex/improvement_bounty_round/v1",
+                "ok": True,
+                "job_digest": job_digest,
+                "winner": {
+                    "miner_id": assembly.sender,
+                    "witness_sha256": assembly.bundle.context.witness_hash,
+                    "improvement_u64": assembly.reward.improvement_u64,
+                },
+                "candidates": [],
+                "argmax_certificate": None,
+            },
+            round_id=round_id,
+            reward_pool_before=assembly.reward.pool_before,
+            base_reward=assembly.reward.base_reward,
+            epoch=assembly.reward.epoch,
+            proposal_slot=assembly.reward.proposal_slot,
+            prover_id=assembly.reward.prover_id,
+            chain_id=assembly.chain_id,
+            prev_state_hash=assembly.bundle.context.prev_state_hash,
+            batch_hash=assembly.bundle.context.batch_hash,
+            dex_hash_after=assembly.bundle.context.dex_hash_after,
+        ),
+    )
+
+
+def _template_response(assembly: _TemplateAssembly, claim: Mapping[str, Any]) -> Mapping[str, Any]:
+    tx = {
+        "tx_id": str(assembly.obj.get("tx_id") or f"proof-mining-payout:{claim['claim_hash']}"),
+        "tx_sender_pubkey": assembly.sender,
+        "block_timestamp": assembly.tx_block_timestamp,
+        "operations": {
+            **({"7": {"mint": assembly.faucet_mint}} if assembly.faucet_mint else {}),
+            "5": [assembly.template_intent.intent],
+            "6": assembly.bundle.settlement_op,
+            "10": {
+                "module": "ZenoProofMining",
+                "action": "submit_proof",
+                "claim": claim,
+                "recipient_pubkey": assembly.sender,
+            },
+        },
+    }
+    status_request = {
+        "app_state_json": json.dumps(
+            {
+                "schema": "zenodex/tau_app_state/v1",
+                "version": 1,
+                "proof_mining": None,
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ),
+        "chain_balances": {
+            assembly.reward.pool_pubkey: {
+                assembly.reward.asset_id: assembly.reward.pool_before,
+            },
+        },
+        "claim": claim,
+        "proof_mining_context": proof_mining_context_to_obj(assembly.bundle.context),
+        "tx_sender_pubkey": assembly.sender,
+        "expected_proposal_hash": claim["body"]["proposal_hash"],
+        "reward_pool_pubkey": assembly.reward.pool_pubkey,
+    }
+    return {
+        "ok": True,
+        "tx": tx,
+        "status_request": status_request,
+        "reward_pool_pubkey": assembly.reward.pool_pubkey,
+        "reward_asset_id": assembly.reward.asset_id,
+        "reward_pool_before": assembly.reward.pool_before,
+    }
+
+
+def _template_success_body(assembly: _TemplateAssembly) -> Mapping[str, Any]:
+    default_id_digest = _template_default_digest(assembly)
+    claim = _template_claim(assembly, default_id_digest)
+    return _template_response(assembly, claim)
