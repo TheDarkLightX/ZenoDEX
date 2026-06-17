@@ -8,8 +8,8 @@ from typing import Any, Mapping, Optional
 from src.core.settlement import Settlement
 from src.core.settlement_normal_form import normalize_settlement_op_for_commitment
 
-from .operations import create_settlement_operation
 from ..core.settlement_strong_validator import validate_settlement_strong
+from .operations import create_settlement_operation
 from .tau_witness import (
     SETTLEMENT_MODULE_FLAG_BUNDLE_V1,
     SETTLEMENT_PRICE_RAILS_ALIGNED_V1,
@@ -24,6 +24,19 @@ from .tau_witness import (
 
 SETTLEMENT_STRONG_CERTIFICATE_SCHEMA = "zenodex/settlement-strong-certificate/v1"
 SETTLEMENT_PRICE_HISTORY_CERTIFICATE_SCHEMA = "zenodex/settlement-price-history-certificate/v1"
+
+
+def _require_int_field(payload: Mapping[str, Any], field: str, *, default: int = -1) -> int:
+    value = payload.get(field, default)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{field} must be an int")
+    return int(value)
+
+
+def _require_optional_int_field(payload: Mapping[str, Any], field: str) -> int | None:
+    if payload.get(field) is None:
+        return None
+    return _require_int_field(payload, field)
 
 
 @dataclass(frozen=True)
@@ -81,6 +94,22 @@ class SettlementProofFlags:
             binding_ok=1,
         )
 
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementProofFlags":
+        if not isinstance(payload, Mapping):
+            raise ValueError("proof_flags must be an object")
+        return cls(
+            cpmm_ok=_require_int_field(payload, "cpmm_ok"),
+            balance_ok=_require_int_field(payload, "balance_ok"),
+            token_ok=_require_int_field(payload, "token_ok"),
+            buyback_floor_ok=_require_int_field(payload, "buyback_floor_ok"),
+            buyback_floor_fixedpoint_ok=_require_int_field(payload, "buyback_floor_fixedpoint_ok"),
+            rebate_ok=_require_int_field(payload, "rebate_ok"),
+            lock_weight_ok=_require_int_field(payload, "lock_weight_ok"),
+            proof_ok=_require_int_field(payload, "proof_ok"),
+            binding_ok=_require_int_field(payload, "binding_ok"),
+        )
+
 
 @dataclass(frozen=True)
 class SettlementSemanticSummary:
@@ -109,6 +138,20 @@ class SettlementSemanticSummary:
             "price_curr": int(self.price_curr),
         }
 
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementSemanticSummary":
+        if not isinstance(payload, Mapping):
+            raise ValueError("semantic_summary must be an object")
+        return cls(
+            a=_require_int_field(payload, "a"),
+            b=_require_int_field(payload, "b"),
+            c=_require_int_field(payload, "c"),
+            d=_require_int_field(payload, "d"),
+            price_pp=_require_int_field(payload, "price_pp"),
+            price_prev=_require_int_field(payload, "price_prev"),
+            price_curr=_require_int_field(payload, "price_curr"),
+        )
+
 
 @dataclass(frozen=True)
 class SettlementPriceHistoryCertificate:
@@ -131,6 +174,18 @@ class SettlementPriceHistoryCertificate:
             "price_curr": int(self.price_curr),
             "price_trace_sha256": self.price_trace_sha256,
         }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementPriceHistoryCertificate":
+        if not isinstance(payload, Mapping):
+            raise ValueError("price_history_certificate must be an object")
+        return cls(
+            schema=str(payload.get("schema", "")),
+            price_pp=_require_int_field(payload, "price_pp"),
+            price_prev=_require_int_field(payload, "price_prev"),
+            price_curr=_require_int_field(payload, "price_curr"),
+            price_trace_sha256=str(payload.get("price_trace_sha256", "")),
+        )
 
 
 @dataclass(frozen=True)
@@ -218,6 +273,51 @@ class SettlementStrongCertificate:
             out["full_price_rails_step"] = dict(self.full_price_rails_step or {})
             out["full_price_rails_ok"] = int(self.full_price_rails_ok or 0)
         return out
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementStrongCertificate":
+        if not isinstance(payload, Mapping):
+            raise ValueError("settlement strong certificate must be an object")
+        semantic_summary_payload = payload.get("semantic_summary")
+        price_history_certificate_payload = payload.get("price_history_certificate")
+        return cls(
+            schema=str(payload.get("schema", "")),
+            settlement_commitment_sha256=str(payload.get("settlement_commitment_sha256", "")),
+            delta_commitment_sha256=str(payload.get("delta_commitment_sha256", "")),
+            proof_flags=SettlementProofFlags.from_dict(payload.get("proof_flags", {})),
+            core_module_ok=_require_int_field(payload, "core_module_ok"),
+            feature_extension_ok=_require_int_field(payload, "feature_extension_ok"),
+            proof_binding_ok=_require_int_field(payload, "proof_binding_ok"),
+            module_bundle_ok=_require_int_field(payload, "module_bundle_ok"),
+            core_module_step=dict(payload.get("core_module_step", {})),
+            feature_extension_step=dict(payload.get("feature_extension_step", {})),
+            proof_binding_step=dict(payload.get("proof_binding_step", {})),
+            module_bundle_step=dict(payload.get("module_bundle_step", {})),
+            semantic_summary=(
+                None
+                if semantic_summary_payload is None
+                else SettlementSemanticSummary.from_dict(semantic_summary_payload)
+            ),
+            price_history_certificate=(
+                None
+                if price_history_certificate_payload is None
+                else SettlementPriceHistoryCertificate.from_dict(price_history_certificate_payload)
+            ),
+            compact_bundle_step=(
+                None if payload.get("compact_bundle_step") is None else dict(payload.get("compact_bundle_step", {}))
+            ),
+            compact_bundle_ok=_require_optional_int_field(payload, "compact_bundle_ok"),
+            full_price_rails_step=(
+                None
+                if payload.get("full_price_rails_step") is None
+                else dict(payload.get("full_price_rails_step", {}))
+            ),
+            full_price_rails_ok=_require_optional_int_field(payload, "full_price_rails_ok"),
+            module_bundle_spec_id=str(payload.get("module_bundle_spec_id", SETTLEMENT_MODULE_FLAG_BUNDLE_V1.spec_id)),
+            proof_binding_spec_id=str(payload.get("proof_binding_spec_id", "settlement_proof_binding_bundle_v1")),
+            compact_bundle_spec_id=str(payload.get("compact_bundle_spec_id", SETTLEMENT_V5_ALIGNED_COMPACT_BUNDLE.spec_id)),
+            full_price_rails_spec_id=str(payload.get("full_price_rails_spec_id", SETTLEMENT_PRICE_RAILS_ALIGNED_V1.spec_id)),
+        )
 
 
 def build_settlement_price_history_certificate(
@@ -583,7 +683,7 @@ def enforce_replay_bound_settlement_certificate(
 
 
 def _normalized_settlement_dict(settlement: Settlement) -> dict[str, Any]:
-    op = create_settlement_operation(settlement).get("3")
+    op = create_settlement_operation(settlement).get("6")
     if not isinstance(op, dict):
         raise TypeError("internal error: settlement operation must be a dict")
     return normalize_settlement_op_for_commitment(op)
