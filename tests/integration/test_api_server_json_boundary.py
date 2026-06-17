@@ -29,6 +29,45 @@ def _stop_test_server(httpd, thread: threading.Thread) -> None:
     thread.join(timeout=2.0)
 
 
+def _pool_dict(*, pid: str, a0: str, a1: str, r0: int, r1: int, fee_bps: int = 0) -> dict:
+    asset0 = min(a0, a1)
+    asset1 = max(a0, a1)
+    reserve0 = r0 if a0 < a1 else r1
+    reserve1 = r1 if a0 < a1 else r0
+    return {
+        "pool_id": pid,
+        "asset0": asset0,
+        "asset1": asset1,
+        "reserve0": int(reserve0),
+        "reserve1": int(reserve1),
+        "fee_bps": int(fee_bps),
+        "lp_supply": 1,
+        "status": "ACTIVE",
+        "created_at": 0,
+        "curve_tag": "CPMM",
+        "curve_params": "",
+    }
+
+
+def _post_json(host: str, port: int, path: str, payload: dict) -> tuple[int, dict]:
+    conn = HTTPConnection(host, port, timeout=2.0)
+    try:
+        conn.request(
+            "POST",
+            path,
+            body=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": "Bearer test-token",
+                "Content-Type": "application/json",
+            },
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        return int(resp.status), body
+    finally:
+        conn.close()
+
+
 def test_api_server_rejects_invalid_utf8_json_body() -> None:
     httpd, thread, host, port = _start_test_server()
     try:
@@ -47,6 +86,37 @@ def test_api_server_rejects_invalid_utf8_json_body() -> None:
 
         assert resp.status == 400
         assert body == {"ok": False, "error": "bad_json"}
+    finally:
+        _stop_test_server(httpd, thread)
+
+
+def test_api_server_fast_quote_domain_error_falls_back_to_exact_router() -> None:
+    class FailingFastRouter:
+        def quote_exact_in_2hop_fast_v1(self, **_kwargs):
+            raise ValueError("simulated fast-router domain rejection")
+
+    httpd, thread, host, port = _start_test_server()
+    httpd.fast_quote_router_v1 = FailingFastRouter()  # type: ignore[attr-defined]
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote",
+            {
+                "kind": "exact_in",
+                "routing_mode": "fast_v1",
+                "fast_topk_max": 32,
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_in": 100,
+                "pools": [_pool_dict(pid="p1", a0="A", a1="B", r0=1_000, r1=1_000)],
+            },
+        )
+
+        assert status == 200
+        assert body["ok"] is True
+        assert body["routing_mode"] == "exact"
+        assert body["quote"]["amount_out"] > 0
     finally:
         _stop_test_server(httpd, thread)
 

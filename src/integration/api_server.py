@@ -1328,9 +1328,11 @@ class _Handler(BaseHTTPRequestHandler):
                     amt = int(obj.get("amount_in", 0))
                     if routing_mode_req == "fast_v1":
                         # Advisory-only fast path: float ranking + exact integer replay per-hop.
-                        # Safety: fail-closed to the exact deterministic router on any error.
+                        # Safety: fail-closed to the exact deterministic router on domain/import failures.
                         try:
-                            from src.integration.fast_quote_router_v1 import FastQuoteRouterV1  # pylint: disable=import-outside-toplevel
+                            from src.integration.fast_quote_router_v1 import (  # pylint: disable=import-outside-toplevel
+                                FastQuoteRouterV1,
+                            )
 
                             router = getattr(self.server, "fast_quote_router_v1", None)  # type: ignore[attr-defined]
                             if router is None:
@@ -1352,7 +1354,7 @@ class _Handler(BaseHTTPRequestHandler):
                                     asset_out=asset_out,
                                     amount_in=amt,
                                 )
-                        except Exception:
+                        except (ImportError, TypeError, ValueError, ArithmeticError):
                             routing_mode_used = "exact"
                             q = best_route_exact_in_2hop(
                                 pools_by_id=pools_by_id,
@@ -1371,7 +1373,9 @@ class _Handler(BaseHTTPRequestHandler):
                     amt = int(obj.get("amount_out", 0))
                     if routing_mode_req == "fast_v1":
                         try:
-                            from src.integration.fast_quote_router_v1 import FastQuoteRouterV1  # pylint: disable=import-outside-toplevel
+                            from src.integration.fast_quote_router_v1 import (  # pylint: disable=import-outside-toplevel
+                                FastQuoteRouterV1,
+                            )
 
                             router = getattr(self.server, "fast_quote_router_v1", None)  # type: ignore[attr-defined]
                             if router is None:
@@ -1395,7 +1399,7 @@ class _Handler(BaseHTTPRequestHandler):
                                     amount_out=amt,
                                     apply_two_hop_gate=bool(obj.get("apply_two_hop_gate", False)),
                                 )
-                        except Exception:
+                        except (ImportError, TypeError, ValueError, ArithmeticError):
                             routing_mode_used = "exact"
                             q = best_route_exact_out_2hop(
                                 pools_by_id=pools_by_id,
