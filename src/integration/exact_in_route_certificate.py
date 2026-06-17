@@ -43,6 +43,12 @@ def _require_payload_int(payload: Mapping[str, Any], field_name: str) -> int:
     return int(value)
 
 
+def _require_amount_in_int(amount_in: object) -> int:
+    if not isinstance(amount_in, int) or isinstance(amount_in, bool):
+        raise ValueError("amount_in must be an int")
+    return int(amount_in)
+
+
 def exact_in_route_canonical_key(quote: RouteQuote) -> ExactInRouteCanonicalKey:
     hop_count, leg_count, pool_seq, mid, asset_out = _quote_key(quote)
     return (-int(quote.amount_out), int(hop_count), int(leg_count), str(pool_seq), str(mid), str(asset_out))
@@ -57,7 +63,8 @@ def enumerate_route_candidates_exact_in_2hop(
     split_search_profile: str = "adaptive_v6",
     enable_mixed_direct_twohop_split: bool = False,
 ) -> tuple[RouteQuote, ...]:
-    if int(amount_in) <= 0 or asset_in == asset_out:
+    amount_in_i = _require_amount_in_int(amount_in)
+    if amount_in_i <= 0 or asset_in == asset_out:
         return ()
 
     pools: Tuple[PoolState, ...] = tuple(sorted(pools_by_id.values(), key=lambda pool: pool.pool_id))
@@ -846,11 +853,12 @@ def build_exact_in_route_oracle_contract(
     enable_mixed_direct_twohop_split: bool = False,
     binding_ok: int = 1,
 ) -> ExactInRouteOracleContract:
+    amount_in_i = _require_amount_in_int(amount_in)
     runtime_quote = best_route_exact_in_2hop(
         pools_by_id=pools_by_id,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_in=amount_in,
+        amount_in=amount_in_i,
         split_search_profile=split_search_profile,
         enable_mixed_direct_twohop_split=enable_mixed_direct_twohop_split,
     )
@@ -858,7 +866,7 @@ def build_exact_in_route_oracle_contract(
         pools_by_id=pools_by_id,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_in=amount_in,
+        amount_in=amount_in_i,
         split_search_profile=split_search_profile,
         enable_mixed_direct_twohop_split=enable_mixed_direct_twohop_split,
         binding_ok=binding_ok,
@@ -872,7 +880,7 @@ def build_exact_in_route_oracle_contract(
     return ExactInRouteOracleContract(
         asset_in=str(asset_in),
         asset_out=str(asset_out),
-        amount_in=int(amount_in),
+        amount_in=amount_in_i,
         split_search_profile=str(split_search_profile),
         enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
         binding_ok=int(binding_ok),

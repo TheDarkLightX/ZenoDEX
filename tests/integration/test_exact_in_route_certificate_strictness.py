@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import pytest
+
 from src.integration.exact_in_route_certificate import (
+    build_exact_in_route_canonical_certificate_for_pools,
     build_exact_in_route_guarded_quote_packet,
     build_exact_in_route_oracle_contract,
+    enumerate_route_candidates_exact_in_2hop,
     verify_exact_in_route_guarded_quote_packet_payload,
     verify_exact_in_route_oracle_contract_payload,
 )
@@ -93,3 +97,29 @@ def test_exact_in_route_oracle_contract_rejects_bool_pool_snapshot_int() -> None
 
     assert ok is False
     assert err == "reserve0 must be an int"
+
+
+@pytest.mark.parametrize("amount_in", [True, "100"])
+def test_exact_in_route_candidates_reject_non_strict_amount_before_no_route_short_circuit(
+    amount_in: object,
+) -> None:
+    with pytest.raises(ValueError, match="amount_in must be an int"):
+        enumerate_route_candidates_exact_in_2hop(
+            pools_by_id={},
+            asset_in="A",
+            asset_out="A",
+            amount_in=amount_in,
+        )
+
+
+@pytest.mark.parametrize("amount_in", [True, "100"])
+def test_exact_in_route_certificate_builder_rejects_non_strict_amount_before_no_route_short_circuit(
+    amount_in: object,
+) -> None:
+    with pytest.raises(ValueError, match="amount_in must be an int"):
+        build_exact_in_route_canonical_certificate_for_pools(
+            pools_by_id={},
+            asset_in="A",
+            asset_out="A",
+            amount_in=amount_in,
+        )
