@@ -483,7 +483,7 @@ def _apply_clearinghouse_market_params(
             _ch3p_state_from_dict(new_state)
         else:  # pragma: no cover
             raise ValueError(f"unknown clearinghouse kind: {kind}")
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         raise ValueError(str(exc)) from exc
 
     return new_state
@@ -897,7 +897,7 @@ def parse_perp_ops(
             op_bytes = bounded_json_utf8_size(op_obj, max_bytes=max_op_bytes)
         except ValueError:
             raise ValueError(f"perps op {i} too large") from None
-        except Exception as exc:
+        except TypeError as exc:
             raise ValueError(f"invalid perps op {i}: {exc}") from exc
         total_bytes += op_bytes
         if total_bytes > max_total_ops_bytes:
@@ -1017,7 +1017,7 @@ def _require_operator(config: PerpEngineConfig, *, tx_sender_pubkey: str) -> Opt
     try:
         sender_b = _hex_to_bytes_allow_0x(tx_sender_pubkey, name="tx_sender_pubkey", expected_nbytes=48)
         operator_b = _hex_to_bytes_allow_0x(operator, name="operator_pubkey", expected_nbytes=48)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return _safe_error_str(exc)
     if sender_b != operator_b:
         return "operator only"
@@ -1385,13 +1385,13 @@ def _verify_perp_op_signature(
 
     try:
         signer_nonce_key = canonical_hex_fixed_allow_0x(signer_pubkey, nbytes=48, name="signer_pubkey")
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return str(exc)
 
     # Deadline check first (cheap).
     try:
         deadline = _require_int(op.get("deadline"), name="deadline", non_negative=True)
-    except Exception as exc:
+    except ValueError as exc:
         return _safe_error_str(exc)
     deadline_ok = int(block_timestamp) <= int(deadline)
 
@@ -1417,7 +1417,7 @@ def _verify_perp_op_signature(
     try:
         pubkey_bytes = _hex_to_bytes_allow_0x(signer_pubkey, name="signer_pubkey", expected_nbytes=48)
         sig_bytes = _hex_to_bytes_allow_0x(signature, name="signature", expected_nbytes=96)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return str(exc)
 
     try:
@@ -1453,7 +1453,7 @@ def _require_sender_bound_account_pubkey(*, account_pubkey: str, tx_sender_pubke
     try:
         acct_b = _hex_to_bytes_allow_0x(account_pubkey, name="account_pubkey", expected_nbytes=48)
         sender_b = _hex_to_bytes_allow_0x(tx_sender_pubkey, name="tx_sender_pubkey", expected_nbytes=48)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         return str(exc)
     outcome = evaluate_perp_submission_auth_gate(
         mode_signed=False,
