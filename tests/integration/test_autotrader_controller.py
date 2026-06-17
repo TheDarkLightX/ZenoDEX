@@ -352,6 +352,25 @@ def test_autotrader_controller_rejects_signal_packet_build_failure(monkeypatch: 
     assert decision.reason == "signal_packet_build_failed:ValueError:broken packet"
 
 
+def test_autotrader_controller_signal_packet_adapter_bugs_propagate(monkeypatch: pytest.MonkeyPatch) -> None:
+    strategy = _compiled_strategy()
+    pools, receipt = _single_hop_receipt()
+
+    def _explode(**_: object) -> QuoteReceiptSignalPacket:
+        raise AssertionError("signal adapter bug")
+
+    monkeypatch.setattr(autotrader_controller, "build_quote_receipt_signal_packet", _explode)
+    with pytest.raises(AssertionError, match="signal adapter bug"):
+        evaluate_autotrader_quote_receipt(
+            strategy=strategy,
+            controller_state=AutoTraderControllerState(),
+            receipt=receipt,
+            pools_by_id=pools,
+            current_epoch=5,
+            intent_deadline=99,
+        )
+
+
 def test_autotrader_controller_rejects_signal_quote_epoch_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
     strategy = _compiled_strategy()
     pools, receipt = _single_hop_receipt(quote_epoch=5)
@@ -898,7 +917,7 @@ def test_autotrader_controller_rejects_intent_builder_failure(monkeypatch) -> No
     pools, receipt = _single_hop_receipt()
 
     def _boom(**kwargs):  # type: ignore[no-untyped-def]
-        raise RuntimeError("quote builder exploded")
+        raise ValueError("quote builder rejected")
 
     monkeypatch.setattr(autotrader_controller, "create_swap_intents_from_quote_receipt", _boom)
 
@@ -912,7 +931,27 @@ def test_autotrader_controller_rejects_intent_builder_failure(monkeypatch) -> No
     )
 
     assert decision.tag is AutoTraderDecisionTag.REJECT
-    assert "intent_construction_failed:RuntimeError:quote builder exploded" == decision.reason
+    assert "intent_construction_failed:ValueError:quote builder rejected" == decision.reason
+
+
+def test_autotrader_controller_intent_builder_adapter_bugs_propagate(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    strategy = _compiled_strategy()
+    pools, receipt = _single_hop_receipt()
+
+    def _boom(**kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError("intent adapter bug")
+
+    monkeypatch.setattr(autotrader_controller, "create_swap_intents_from_quote_receipt", _boom)
+
+    with pytest.raises(RuntimeError, match="intent adapter bug"):
+        evaluate_autotrader_quote_receipt(
+            strategy=strategy,
+            controller_state=AutoTraderControllerState(),
+            receipt=receipt,
+            pools_by_id=pools,
+            current_epoch=5,
+            intent_deadline=99,
+        )
 
 
 def test_autotrader_controller_rejects_intent_amount_type(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -1195,6 +1234,27 @@ def test_autotrader_controller_rejects_on_tau_runner_error(monkeypatch) -> None:
 
     assert decision.tag is AutoTraderDecisionTag.REJECT
     assert decision.reason == "tau_policy_runner_error:RuntimeError:tau crashed"
+
+
+def test_autotrader_controller_tau_adapter_bugs_propagate(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    strategy = _compiled_strategy(backend="tau")
+    pools, receipt = _single_hop_receipt()
+
+    def _boom(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("tau adapter bug")
+
+    monkeypatch.setattr(autotrader_controller, "run_tau_spec_steps", _boom)
+
+    with pytest.raises(AssertionError, match="tau adapter bug"):
+        evaluate_autotrader_quote_receipt(
+            strategy=strategy,
+            controller_state=AutoTraderControllerState(),
+            receipt=receipt,
+            pools_by_id=pools,
+            current_epoch=5,
+            intent_deadline=99,
+            tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+        )
 
 
 def test_autotrader_controller_rejects_on_tau_missing_output(monkeypatch) -> None:  # type: ignore[no-untyped-def]

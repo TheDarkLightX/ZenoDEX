@@ -44,7 +44,7 @@ from ..kernels.python.strategy_signal_provenance_guard_v1_adapter import check_s
 from ..state.intents import Intent
 from ..state.pools import PoolState
 from .autotrader_signals import build_quote_receipt_signal_packet
-from .tau_runner import find_tau_bin, run_tau_spec_steps
+from .tau_runner import TauRunError, find_tau_bin, run_tau_spec_steps
 from .tau_witness import (
     AUTOTRADER_BUDGET_GUARD_V1,
     AUTOTRADER_EXECUTION_GUARD_V1,
@@ -54,6 +54,10 @@ from .tau_witness import (
     AUTOTRADER_SIGNAL_PROVENANCE_GUARD_V1,
     AUTOTRADER_WALLET_CAPABILITY_GUARD_V1,
 )
+
+_SIGNAL_PACKET_BUILD_ERRORS = (TypeError, ValueError)
+_INTENT_CONSTRUCTION_ERRORS = (TypeError, ValueError)
+_TAU_POLICY_RUNNER_ERRORS = (TauRunError, RuntimeError, ValueError, OSError)
 
 
 class AutoTraderDecisionTag(Enum):
@@ -299,7 +303,7 @@ def _verify_tau_policy_receipt(
             steps=list(receipt.steps),
             timeout_s=config.timeout_s,
         )
-    except Exception as exc:
+    except _TAU_POLICY_RUNNER_ERRORS as exc:
         return f"tau_policy_runner_error:{type(exc).__name__}:{exc}"
     tau_gate_value = outputs.get(0, {}).get(receipt.gate_output)
     if tau_gate_value is None:
@@ -462,7 +466,7 @@ def evaluate_autotrader_quote_receipt(
             pools_by_id=pools_by_id,
             current_epoch=current_epoch,
         )
-    except Exception as exc:
+    except _SIGNAL_PACKET_BUILD_ERRORS as exc:
         return _reject(
             state=controller_state,
             reason=f"signal_packet_build_failed:{type(exc).__name__}:{exc}",
@@ -611,7 +615,7 @@ def evaluate_autotrader_quote_receipt(
             slippage_bps=effective_slippage_bps,
             nonce_start=nonce_start,
         )
-    except Exception as exc:
+    except _INTENT_CONSTRUCTION_ERRORS as exc:
         return _reject(
             state=controller_state,
             reason=f"intent_construction_failed:{type(exc).__name__}:{exc}",
