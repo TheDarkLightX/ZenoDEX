@@ -19,6 +19,7 @@ from typing import Sequence, Tuple
 
 from ..state.balances import Amount, AssetId
 from ..state.pools import CURVE_TAG_CPMM, PoolState
+from .domain_limits import is_strict_int
 from .split_routing import (
     PoolXY,
     best_split_two_pools_exact_in,
@@ -68,6 +69,18 @@ from .split_routing_types import (
 )
 
 
+def _require_positive_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) <= 0:
+        raise ValueError(f"{name} must be positive")
+    return int(value)
+
+
+def _require_nonnegative_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return int(value)
+
+
 def exact_out_capacity_guard_for_pools(
     pools: Sequence[PoolState],
     *,
@@ -76,12 +89,9 @@ def exact_out_capacity_guard_for_pools(
     amount_out_total: Amount,
     max_legs: int,
 ) -> ExactOutCapacityGuard:
-    if amount_out_total <= 0:
-        raise ValueError("amount_out_total must be positive")
-    if max_legs <= 0:
-        raise ValueError("max_legs must be positive")
+    target_out = _require_positive_control(amount_out_total, name="amount_out_total")
+    max_legs_i = _require_positive_control(max_legs, name="max_legs")
     caps_by_pool: list[tuple[str, int]] = []
-    target_out = int(amount_out_total)
     for pool in pools:
         if pool.status.value != "ACTIVE":
             continue
@@ -105,7 +115,7 @@ def exact_out_capacity_guard_for_pools(
     return build_exact_out_capacity_guard_from_caps(
         caps_by_pool,
         amount_out_total=int(target_out),
-        max_legs=int(max_legs),
+        max_legs=max_legs_i,
     )
 
 
@@ -119,10 +129,9 @@ def _generic_best_split_two_pools_exact_in(
     window: int,
     brute_force_max: int,
 ) -> Tuple[int, int]:
-    if amount_in_total <= 0:
-        raise ValueError("amount_in_total must be positive")
-    if window < 0:
-        raise ValueError("window must be non-negative")
+    amount_in_total_i = _require_positive_control(amount_in_total, name="amount_in_total")
+    window_i = _require_nonnegative_control(window, name="window")
+    brute_force_max_i = _require_nonnegative_control(brute_force_max, name="brute_force_max")
 
     def quote0(amount_in: int) -> int:
         return _quote_exact_in(pool0, asset_in=asset_in, asset_out=asset_out, amount_in=int(amount_in))
@@ -132,9 +141,9 @@ def _generic_best_split_two_pools_exact_in(
 
     return best_generic_two_pool_exact_in(
         GenericExactInSplitRequest(
-            amount_in_total=int(amount_in_total),
-            window=int(window),
-            brute_force_max=int(brute_force_max),
+            amount_in_total=amount_in_total_i,
+            window=window_i,
+            brute_force_max=brute_force_max_i,
             quote0=quote0,
             quote1=quote1,
         )
@@ -240,8 +249,8 @@ def best_split_two_pools_exact_in_for_pools(
     - Pools are ordered by `pool_id` before split optimization.
     - Ties are broken by smaller `amount_in_0` (send less to the first pool).
     """
-    if amount_in_total <= 0:
-        raise ValueError("amount_in_total must be positive")
+    amount_in_total_i = _require_positive_control(amount_in_total, name="amount_in_total")
+    window_i = _require_nonnegative_control(window, name="window")
 
     # Canonicalize pool order.
     p0, p1 = (pool0, pool1) if pool0.pool_id <= pool1.pool_id else (pool1, pool0)
@@ -253,8 +262,8 @@ def best_split_two_pools_exact_in_for_pools(
             p1,
             asset_in=asset_in,
             asset_out=asset_out,
-            amount_in_total=amount_in_total,
-            window=int(window),
+            amount_in_total=amount_in_total_i,
+            window=window_i,
             search_profile=str(search_profile),
         )
 
@@ -263,8 +272,8 @@ def best_split_two_pools_exact_in_for_pools(
         p1,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_in_total=amount_in_total,
-        window=int(window),
+        amount_in_total=amount_in_total_i,
+        window=window_i,
     )
 
 
@@ -291,6 +300,10 @@ def best_split_two_pools_exact_out_for_pools(
     - Uses brute-force for `amount_out_total <= brute_force_max`.
     - Otherwise uses a deterministic windowed search around a continuous approximation.
     """
+    amount_out_total_i = _require_positive_control(amount_out_total, name="amount_out_total")
+    window_i = _require_nonnegative_control(window, name="window")
+    brute_force_max_i = _require_nonnegative_control(brute_force_max, name="brute_force_max")
+
     def reserves_for(pool: PoolState) -> tuple[int, int] | None:
         return _reserves_for(pool, asset_in=asset_in, asset_out=asset_out)
 
@@ -303,9 +316,9 @@ def best_split_two_pools_exact_out_for_pools(
             pool1=pool1,
             asset_in=asset_in,
             asset_out=asset_out,
-            amount_out_total=int(amount_out_total),
-            window=int(window),
-            brute_force_max=int(brute_force_max),
+            amount_out_total=amount_out_total_i,
+            window=window_i,
+            brute_force_max=brute_force_max_i,
             reserves_for=reserves_for,
             quote_exact_out=quote_exact_out,
         )
@@ -335,6 +348,11 @@ def best_split_many_pools_exact_in_for_pools(
     - Apply deterministic tie-breaks: higher output, fewer legs, then lexicographic legs.
     - Limit to at most `max_legs` non-zero legs and `max_candidates` candidate pools.
     """
+    amount_in_total_i = _require_positive_control(amount_in_total, name="amount_in_total")
+    max_legs_i = _require_positive_control(max_legs, name="max_legs")
+    max_candidates_i = _require_positive_control(max_candidates, name="max_candidates")
+    max_iters_i = _require_positive_control(max_iters, name="max_iters")
+
     def reserves_for(pool: PoolState) -> tuple[int, int] | None:
         return _reserves_for(pool, asset_in=asset_in, asset_out=asset_out)
 
@@ -346,10 +364,10 @@ def best_split_many_pools_exact_in_for_pools(
             pools=pools,
             asset_in=asset_in,
             asset_out=asset_out,
-            amount_in_total=int(amount_in_total),
-            max_legs=int(max_legs),
-            max_candidates=int(max_candidates),
-            max_iters=int(max_iters),
+            amount_in_total=amount_in_total_i,
+            max_legs=max_legs_i,
+            max_candidates=max_candidates_i,
+            max_iters=max_iters_i,
             reserves_for=reserves_for,
             quote_exact_in=quote_exact_in,
         )
@@ -391,6 +409,14 @@ def best_split_many_pools_exact_out_for_pools(
       preserves the older heuristic prefilter.
     - If the selected domain exceeds the bounded enumeration budget, this path fails closed.
     """
+    amount_out_total_i = _require_positive_control(amount_out_total, name="amount_out_total")
+    max_legs_i = _require_positive_control(max_legs, name="max_legs")
+    max_candidates_i = _require_positive_control(max_candidates, name="max_candidates")
+    max_iters_i = _require_positive_control(max_iters, name="max_iters")
+    window_i = _require_nonnegative_control(window, name="window")
+    brute_force_max_i = _require_nonnegative_control(brute_force_max, name="brute_force_max")
+    max_full_domain_pools_i = _require_positive_control(max_full_domain_pools, name="max_full_domain_pools")
+
     def reserves_for(pool: PoolState) -> tuple[int, int] | None:
         return _reserves_for(pool, asset_in=asset_in, asset_out=asset_out)
 
@@ -402,13 +428,13 @@ def best_split_many_pools_exact_out_for_pools(
             pools=pools,
             asset_in=asset_in,
             asset_out=asset_out,
-            amount_out_total=int(amount_out_total),
-            max_legs=int(max_legs),
-            max_candidates=int(max_candidates),
-            max_iters=int(max_iters),
-            window=int(window),
-            brute_force_max=int(brute_force_max),
-            max_full_domain_pools=int(max_full_domain_pools),
+            amount_out_total=amount_out_total_i,
+            max_legs=max_legs_i,
+            max_candidates=max_candidates_i,
+            max_iters=max_iters_i,
+            window=window_i,
+            brute_force_max=brute_force_max_i,
+            max_full_domain_pools=max_full_domain_pools_i,
             reserves_for=reserves_for,
             quote_exact_out=quote_exact_out,
         )

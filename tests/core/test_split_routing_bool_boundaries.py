@@ -2,6 +2,13 @@ from __future__ import annotations
 
 import pytest
 
+from src.core.split_routing_dispatch import (
+    best_split_many_pools_exact_in_for_pools,
+    best_split_many_pools_exact_out_for_pools,
+    best_split_two_pools_exact_in_for_pools,
+    best_split_two_pools_exact_out_for_pools,
+    exact_out_capacity_guard_for_pools,
+)
 from src.core.split_routing_many_exact_in import (
     ManyPoolExactInRequest,
     best_many_pool_exact_in_split,
@@ -17,6 +24,23 @@ from src.core.split_routing_types import (
     SplitLegQuote,
     exact_out_route_canonical_key_for_legs,
 )
+from src.state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
+
+
+def _pool(pid: str = "pool-a") -> PoolState:
+    return PoolState(
+        pool_id=pid,
+        asset0="A",
+        asset1="B",
+        reserve0=100,
+        reserve1=100,
+        fee_bps=0,
+        lp_supply=1_000,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+        curve_tag=CURVE_TAG_CPMM,
+        curve_params=None,
+    )
 
 
 def _exact_in_request(**overrides: object) -> ManyPoolExactInRequest:
@@ -126,4 +150,64 @@ def test_many_pool_exact_out_property_rejects_bool_budget_controls() -> None:
 )
 def test_split_route_contracts_reject_bool_amounts_and_caps(builder) -> None:
     with pytest.raises(ValueError):
+        builder()
+
+
+@pytest.mark.parametrize(
+    ("builder", "message"),
+    [
+        (
+            lambda: exact_out_capacity_guard_for_pools(
+                (),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=True,
+                max_legs=1,
+            ),
+            "amount_out_total must be positive",
+        ),
+        (
+            lambda: best_split_two_pools_exact_in_for_pools(
+                _pool("pool-a"),
+                _pool("pool-b"),
+                asset_in="A",
+                asset_out="B",
+                amount_in_total=True,
+            ),
+            "amount_in_total must be positive",
+        ),
+        (
+            lambda: best_split_two_pools_exact_out_for_pools(
+                _pool("pool-a"),
+                _pool("pool-b"),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=True,
+            ),
+            "amount_out_total must be positive",
+        ),
+        (
+            lambda: best_split_many_pools_exact_in_for_pools(
+                (),
+                asset_in="A",
+                asset_out="B",
+                amount_in_total=10,
+                max_iters=True,
+            ),
+            "max_iters must be positive",
+        ),
+        (
+            lambda: best_split_many_pools_exact_out_for_pools(
+                (),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                window=False,
+            ),
+            "window must be non-negative",
+        ),
+    ],
+)
+def test_split_routing_dispatch_rejects_bool_controls(builder, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
         builder()
