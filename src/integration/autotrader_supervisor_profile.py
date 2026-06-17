@@ -11,7 +11,6 @@ from typing import Any, Mapping
 
 from src.integration.zeno_ledger_v0 import hash_v0
 
-
 AUTOTRADER_SUPERVISOR_PROFILE_SCHEMA_V1 = "zenodex/autotrader-supervisor-profile/v1"
 AUTOTRADER_SUPERVISOR_STATUS_SCHEMA_V1 = "zenodex/autotrader-supervisor-status/v1"
 AUTOTRADER_SUPERVISOR_EXECUTION_MODE = "bounded_local_testnet_supervisor"
@@ -23,6 +22,7 @@ _NOT_CLAIMED = (
     "does_not_claim_production_chain_submission",
     "does_not_claim_scheduler_fairness",
 )
+_PROFILE_PARSE_ERRORS = (TypeError, ValueError)
 
 
 def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
@@ -145,7 +145,7 @@ def evaluate_autotrader_supervisor_profile_v1(
 
     try:
         obj = _require_mapping(profile, name="profile")
-    except Exception as exc:
+    except _PROFILE_PARSE_ERRORS as exc:
         gaps.append(f"autotrader supervisor profile invalid: {exc}")
         return _status(
             ok=False,
@@ -201,7 +201,7 @@ def evaluate_autotrader_supervisor_profile_v1(
             obj.get("allowed_actions"),
             name="allowed_actions",
         )
-    except Exception as exc:
+    except _PROFILE_PARSE_ERRORS as exc:
         gaps.append(str(exc))
         return _status(
             ok=False,
@@ -272,6 +272,22 @@ def _status(
     readiness_gaps: list[str],
     expected_chain_id: str | None,
 ) -> dict[str, Any]:
+    def _status_int(key: str) -> int:
+        if profile is None:
+            return 0
+        value = profile.get(key, 0)
+        if not isinstance(value, int) or isinstance(value, bool):
+            return 0
+        return int(value)
+
+    def _status_list(key: str) -> list[Any]:
+        if profile is None:
+            return []
+        value = profile.get(key, [])
+        if not isinstance(value, list):
+            return []
+        return list(value)
+
     return {
         "schema": AUTOTRADER_SUPERVISOR_STATUS_SCHEMA_V1,
         "ok": bool(ok),
@@ -299,10 +315,10 @@ def _status(
         "require_local_preparation": bool(
             False if profile is None else profile.get("require_local_preparation")
         ),
-        "max_actions_per_tick": int(0 if profile is None else profile.get("max_actions_per_tick", 0)),
-        "max_runs_per_process": int(0 if profile is None else profile.get("max_runs_per_process", 0)),
-        "allowed_templates": [] if profile is None else list(profile.get("allowed_templates", [])),
-        "allowed_actions": [] if profile is None else list(profile.get("allowed_actions", [])),
+        "max_actions_per_tick": _status_int("max_actions_per_tick"),
+        "max_runs_per_process": _status_int("max_runs_per_process"),
+        "allowed_templates": _status_list("allowed_templates"),
+        "allowed_actions": _status_list("allowed_actions"),
         "supervisor_hash": None if profile is None else profile.get("supervisor_hash"),
         "readiness_gaps": list(readiness_gaps),
         "not_claimed": list(_NOT_CLAIMED),
