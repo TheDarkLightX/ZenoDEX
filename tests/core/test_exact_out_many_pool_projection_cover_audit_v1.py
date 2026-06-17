@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import pytest
 
+import src.kernels.python.exact_out_many_pool_projection_cover_audit_v1 as projection_cover
 from src.kernels.python.exact_out_many_pool_projection_cover_audit_v1 import (
-    audit_exact_out_many_pool_projection_cover,
     audit_exact_out_many_pool_cpmm_projection_cover,
-    audit_exact_out_many_pool_selected_domain_projection_cover,
+    audit_exact_out_many_pool_projection_cover,
     audit_exact_out_many_pool_selected_domain_cpmm_projection_cover,
+    audit_exact_out_many_pool_selected_domain_projection_cover,
     enumerate_exact_out_many_pool_reachable_projected_paths,
-    enumerate_exact_out_many_pool_cpmm_reachable_projected_paths,
 )
 from src.state.pools import CURVE_TAG_CPMM, CURVE_TAG_SUM_BOOST_V1, PoolState, PoolStatus
 
@@ -162,4 +162,21 @@ def test_selected_domain_cpmm_projection_cover_enforces_selected_pool_bound() ->
             max_legs=3,
             max_selected_pools=2,
             max_enumerated_candidates=2_000,
+        )
+
+
+def test_reachable_projection_enumeration_propagates_quote_kernel_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _bug(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("quote kernel bug")
+
+    monkeypatch.setattr(projection_cover, "swap_exact_out_for_pool", _bug)
+
+    with pytest.raises(RuntimeError, match="quote kernel bug"):
+        enumerate_exact_out_many_pool_reachable_projected_paths(
+            (_pool(pid="pool_a", r0=40, r1=20),),
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=3,
+            max_legs=1,
+            max_selected_pools=1,
         )

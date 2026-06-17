@@ -8,6 +8,7 @@ from ...core.split_routing_dispatch import (
     SplitManyPoolsExactOutQuote,
     best_split_many_pools_exact_out_for_pools,
 )
+from ...state.pools import PoolState
 from .exact_out_many_pool_canonical_domain_v1 import (
     ExactOutManyPoolCandidateQuote,
     build_exact_out_many_pool_selected_domain,
@@ -18,7 +19,15 @@ from .exact_out_many_pool_canonical_domain_v1 import (
 from .exact_out_many_pool_repaired_prefilter_v1 import (
     select_many_pool_repaired_prefilter_candidates,
 )
-from ...state.pools import PoolState
+
+__all__ = (
+    "ExactOutManyPoolBoundedRuntimeDomain",
+    "bounded_exact_out_many_pool_runtime_domain",
+    "enumerate_exact_out_many_pool_candidates",
+    "feasible_exact_out_pools",
+    "pool_reserves_for_exact_out",
+    "select_many_pool_audit_candidates",
+)
 
 
 @dataclass(frozen=True)
@@ -66,7 +75,7 @@ def enumerate_exact_out_many_pool_candidates(
             max_full_domain_pools=int(max_full_domain_pools),
             max_enumerated_candidates=int(max_enumerated_candidates),
         )
-    except Exception:
+    except ValueError:
         candidate_pools = select_many_pool_audit_candidates(
             pools,
             asset_in=asset_in,
@@ -112,7 +121,7 @@ def bounded_exact_out_many_pool_runtime_domain(
             max_full_domain_pools=int(max_full_domain_pools),
             max_enumerated_candidates=int(max_enumerated_candidates),
         )
-    except Exception:
+    except ValueError:
         audit_pools = select_many_pool_audit_candidates(
             pools,
             asset_in=asset_in,

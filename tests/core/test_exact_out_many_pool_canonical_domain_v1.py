@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+import src.core.amm_dispatch as amm_dispatch
 from src.kernels.python.exact_out_many_pool_canonical_domain_v1 import (
     build_exact_out_many_pool_selected_domain,
     rank_exact_out_feasible_pools,
@@ -77,5 +78,37 @@ def test_selected_domain_rejects_duplicate_pool_ids() -> None:
             asset_out="B",
             amount_out_total=3,
             max_legs=2,
+            max_enumerated_candidates=100,
+        )
+
+
+def test_rank_exact_out_feasible_pools_propagates_quote_kernel_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _bug(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("quote kernel bug")
+
+    monkeypatch.setattr(amm_dispatch, "swap_exact_out_for_pool", _bug)
+
+    with pytest.raises(RuntimeError, match="quote kernel bug"):
+        rank_exact_out_feasible_pools(
+            (_pool(pid="pool_a", r0=40, r1=20),),
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=3,
+        )
+
+
+def test_selected_domain_propagates_quote_kernel_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _bug(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("quote kernel bug")
+
+    monkeypatch.setattr(amm_dispatch, "swap_exact_out_for_pool", _bug)
+
+    with pytest.raises(RuntimeError, match="quote kernel bug"):
+        build_exact_out_many_pool_selected_domain(
+            (_pool(pid="pool_a", r0=40, r1=20),),
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=3,
+            max_legs=1,
             max_enumerated_candidates=100,
         )

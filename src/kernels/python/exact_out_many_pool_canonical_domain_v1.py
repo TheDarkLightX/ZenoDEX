@@ -152,7 +152,7 @@ def feasible_exact_out_pools(
                 reserve_out=int(reserves[1]),
                 amount_out=int(out_i),
             )
-        except Exception:
+        except ValueError:
             continue
         feasible.append((pool, int(cap), int(in_i)))
     return feasible
@@ -322,7 +322,7 @@ def build_exact_out_many_pool_selected_domain(
                 reserve_out=int(reserves[1]),
                 amount_out=int(amount_out),
             )
-        except Exception:
+        except ValueError:
             quote_cache[key] = None
             return None
         quote_cache[key] = int(amount_in)

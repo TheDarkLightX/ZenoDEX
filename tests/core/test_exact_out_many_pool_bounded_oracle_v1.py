@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+import src.kernels.python.exact_out_many_pool_bounded_oracle_v1 as bounded_oracle
 from src.integration.exact_out_route_certificate import build_exact_out_route_canonical_certificate
 from src.kernels.python.exact_out_many_pool_bounded_oracle_v1 import (
     bounded_exact_out_many_pool_runtime_domain,
@@ -123,3 +126,40 @@ def test_bounded_exact_out_many_pool_runtime_domain_uses_repaired_subset_within_
         ("p0", 2, 5),
         ("p1", 2, 5),
     )
+
+
+def test_candidate_enumeration_propagates_prefilter_programmer_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _bug(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("prefilter bug")
+
+    monkeypatch.setattr(bounded_oracle, "select_many_pool_repaired_prefilter_candidates", _bug)
+
+    with pytest.raises(RuntimeError, match="prefilter bug"):
+        enumerate_exact_out_many_pool_candidates(
+            (_pool(pid="pool_a", r0=40, r1=20),),
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=3,
+            max_legs=1,
+            max_candidate_pools=1,
+            max_enumerated_candidates=100,
+        )
+
+
+def test_runtime_domain_propagates_prefilter_programmer_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _bug(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("prefilter bug")
+
+    monkeypatch.setattr(bounded_oracle, "select_many_pool_repaired_prefilter_candidates", _bug)
+
+    with pytest.raises(RuntimeError, match="prefilter bug"):
+        bounded_exact_out_many_pool_runtime_domain(
+            (_pool(pid="pool_a", r0=40, r1=20),),
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=3,
+            max_legs=1,
+            max_candidate_pools=1,
+            max_candidates=1,
+            max_enumerated_candidates=100,
+        )

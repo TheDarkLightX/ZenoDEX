@@ -114,7 +114,7 @@ def search_exact_out_many_pool_prefilter_subset(
                     max_legs=int(max_legs),
                     max_enumerated_candidates=int(max_enumerated_candidates),
                 )
-            except Exception:
+            except ValueError:
                 continue
             if subset_domain.canonical_quote != full_canonical_quote:
                 continue

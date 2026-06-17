@@ -95,7 +95,7 @@ def _selected_domain_quote_env(
                 reserve_out=int(reserves[1]),
                 amount_out=amount_out_i,
             )
-        except Exception:
+        except ValueError:
             quote_cache[key] = None
             return None
         amount_in_i = int(amount_in)
@@ -175,7 +175,7 @@ def enumerate_exact_out_many_pool_reachable_projected_paths(
             for outputs in _enumerate_positive_bounded_outputs(int(amount_out_total), upper_bounds):
                 path: list[ProjectedQuotedLeg] = []
                 ok = True
-                for pool_id, amount_out in zip(support_ids, outputs):
+                for pool_id, amount_out in zip(support_ids, outputs, strict=True):
                     amount_in = quote_in(pool_id, int(amount_out))
                     if amount_in is None or int(amount_in) <= 0:
                         ok = False
