@@ -30,6 +30,9 @@ from src.core.split_routing_many_exact_out import (
     best_many_pool_exact_out_split,
     build_exact_out_capacity_guard_from_caps,
 )
+from src.core.split_routing_staircase import (
+    staircase_jump_best_split_two_pools_exact_in as staircase_jump_impl,
+)
 from src.core.split_routing_two_exact_out import (
     TwoPoolExactOutRequest,
     best_two_pool_exact_out_split,
@@ -203,6 +206,24 @@ def test_two_pool_exact_out_request_rejects_non_strict_controls(
                 PoolXY(x=100, y=100, fee_bps=0),
                 PoolXY(x=100, y=100, fee_bps=0),
                 True,
+            ),
+            "amount_in must be positive",
+        ),
+        (
+            lambda: staircase_jump_impl(
+                PoolXY(x=100, y=100, fee_bps=0),
+                PoolXY(x=100, y=100, fee_bps=0),
+                True,
+                quote_exact_in=exact_out_for_pool_exact_in,
+            ),
+            "amount_in must be positive",
+        ),
+        (
+            lambda: staircase_jump_impl(
+                PoolXY(x=100, y=100, fee_bps=0),
+                PoolXY(x=100, y=100, fee_bps=0),
+                "10",
+                quote_exact_in=exact_out_for_pool_exact_in,
             ),
             "amount_in must be positive",
         ),

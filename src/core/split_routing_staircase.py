@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
+from .domain_limits import is_strict_int
+
 BPS_DENOM = 10_000
 
 
@@ -21,6 +23,12 @@ class _PoolLike(Protocol):
 
 
 _QuoteExactIn = Callable[[_PoolLike, int], int]
+
+
+def _require_positive_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) <= 0:
+        raise ValueError(f"{name} must be positive")
+    return int(value)
 
 
 @dataclass(frozen=True)
@@ -120,23 +128,22 @@ def staircase_jump_best_split_two_pools_exact_in(
     reserves are skewed. This is exact because pool0 is constant between jumps
     and pool1 cannot improve as input is shifted away from it.
     """
-    if amount_in <= 0:
-        raise ValueError("amount_in must be positive")
+    amount_in_i = _require_positive_control(amount_in, name="amount_in")
 
     pool0_jump_outputs = _pool_output_jump_candidates(
         pool0,
-        int(amount_in),
+        amount_in_i,
         quote_exact_in=quote_exact_in,
     )
     quote_context = _TwoPoolQuoteContext(
         pool0=pool0,
         pool1=pool1,
-        amount_in=int(amount_in),
+        amount_in=amount_in_i,
         quote_exact_in=quote_exact_in,
         known_pool0_outputs=pool0_jump_outputs,
     )
     best: tuple[int, int] | None = None
-    candidates = {0, int(amount_in)} | set(pool0_jump_outputs)
+    candidates = {0, amount_in_i} | set(pool0_jump_outputs)
     for split_a in sorted(candidates):
         total = quote_context.total_out_for_split(int(split_a))
         if total is None:
