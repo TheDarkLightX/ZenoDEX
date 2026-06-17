@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from typing import Callable
+
 import pytest
 
 from src.integration.exact_in_route_certificate import (
     build_exact_in_route_canonical_certificate_for_pools,
     build_exact_in_route_guarded_quote_packet,
     build_exact_in_route_oracle_contract,
+    build_exact_in_route_rank_projection_packet_for_pools,
+    build_exact_in_route_true_key_interpretation_packet_for_pools,
     enumerate_route_candidates_exact_in_2hop,
     verify_exact_in_route_guarded_quote_packet_payload,
     verify_exact_in_route_oracle_contract_payload,
@@ -83,6 +87,22 @@ def test_exact_in_route_oracle_contract_rejects_bool_binding_flag() -> None:
     assert err == "binding_ok must be an int"
 
 
+def test_exact_in_route_oracle_contract_rejects_non_string_split_profile() -> None:
+    payload = build_exact_in_route_oracle_contract(
+        pools_by_id=_pools(),
+        asset_in="A",
+        asset_out="B",
+        amount_in=100,
+        enable_mixed_direct_twohop_split=True,
+    ).to_dict()
+    payload["split_search_profile"] = 1
+
+    ok, err = verify_exact_in_route_oracle_contract_payload(payload)
+
+    assert ok is False
+    assert err == "split_search_profile must be a non-empty string"
+
+
 def test_exact_in_route_oracle_contract_rejects_bool_pool_snapshot_int() -> None:
     payload = build_exact_in_route_oracle_contract(
         pools_by_id=_pools(),
@@ -109,6 +129,81 @@ def test_exact_in_route_candidates_reject_non_strict_amount_before_no_route_shor
             asset_in="A",
             asset_out="A",
             amount_in=amount_in,
+        )
+
+
+@pytest.mark.parametrize("bad_flag", [1, "yes"])
+@pytest.mark.parametrize(
+    "builder",
+    [
+        enumerate_route_candidates_exact_in_2hop,
+        build_exact_in_route_canonical_certificate_for_pools,
+        build_exact_in_route_oracle_contract,
+        build_exact_in_route_guarded_quote_packet,
+        build_exact_in_route_rank_projection_packet_for_pools,
+        build_exact_in_route_true_key_interpretation_packet_for_pools,
+    ],
+)
+def test_exact_in_route_public_builders_reject_non_bool_mixed_split_flag(
+    builder: Callable[..., object],
+    bad_flag: object,
+) -> None:
+    with pytest.raises(TypeError, match="enable_mixed_direct_twohop_split must be a bool"):
+        builder(
+            pools_by_id=_pools(),
+            asset_in="A",
+            asset_out="B",
+            amount_in=100,
+            enable_mixed_direct_twohop_split=bad_flag,
+        )
+
+
+@pytest.mark.parametrize("bad_binding", [True, "1", 2])
+@pytest.mark.parametrize(
+    "builder",
+    [
+        build_exact_in_route_canonical_certificate_for_pools,
+        build_exact_in_route_oracle_contract,
+        build_exact_in_route_guarded_quote_packet,
+    ],
+)
+def test_exact_in_route_public_builders_reject_non_strict_binding_ok(
+    builder: Callable[..., object],
+    bad_binding: object,
+) -> None:
+    with pytest.raises((TypeError, ValueError), match="binding_ok"):
+        builder(
+            pools_by_id=_pools(),
+            asset_in="A",
+            asset_out="B",
+            amount_in=100,
+            binding_ok=bad_binding,
+        )
+
+
+@pytest.mark.parametrize("bad_profile", [1, ""])
+@pytest.mark.parametrize(
+    "builder",
+    [
+        enumerate_route_candidates_exact_in_2hop,
+        build_exact_in_route_canonical_certificate_for_pools,
+        build_exact_in_route_oracle_contract,
+        build_exact_in_route_guarded_quote_packet,
+        build_exact_in_route_rank_projection_packet_for_pools,
+        build_exact_in_route_true_key_interpretation_packet_for_pools,
+    ],
+)
+def test_exact_in_route_public_builders_reject_non_string_split_profile(
+    builder: Callable[..., object],
+    bad_profile: object,
+) -> None:
+    with pytest.raises(ValueError, match="split_search_profile must be a non-empty string"):
+        builder(
+            pools_by_id=_pools(),
+            asset_in="A",
+            asset_out="B",
+            amount_in=100,
+            split_search_profile=bad_profile,
         )
 
 

@@ -49,6 +49,21 @@ def _require_amount_in_int(amount_in: object) -> int:
     return int(amount_in)
 
 
+def _require_split_search_profile(split_search_profile: object) -> str:
+    if not isinstance(split_search_profile, str) or not split_search_profile:
+        raise ValueError("split_search_profile must be a non-empty string")
+    return split_search_profile
+
+
+def _require_binding_ok(binding_ok: object) -> int:
+    if not isinstance(binding_ok, int) or isinstance(binding_ok, bool):
+        raise TypeError("binding_ok must be an int")
+    binding_ok_i = int(binding_ok)
+    if binding_ok_i not in {0, 1}:
+        raise ValueError("binding_ok must be 0 or 1")
+    return binding_ok_i
+
+
 def exact_in_route_canonical_key(quote: RouteQuote) -> ExactInRouteCanonicalKey:
     hop_count, leg_count, pool_seq, mid, asset_out = _quote_key(quote)
     return (-int(quote.amount_out), int(hop_count), int(leg_count), str(pool_seq), str(mid), str(asset_out))
@@ -64,6 +79,11 @@ def enumerate_route_candidates_exact_in_2hop(
     enable_mixed_direct_twohop_split: bool = False,
 ) -> tuple[RouteQuote, ...]:
     amount_in_i = _require_amount_in_int(amount_in)
+    split_search_profile_i = _require_split_search_profile(split_search_profile)
+    enable_mixed_direct_twohop_split_i = _require_bool(
+        enable_mixed_direct_twohop_split,
+        name="enable_mixed_direct_twohop_split",
+    )
     if amount_in_i <= 0 or asset_in == asset_out:
         return ()
 
@@ -188,7 +208,7 @@ def enumerate_route_candidates_exact_in_2hop(
                         asset_in=asset_in,
                         asset_out=asset_out,
                         amount_in_total=amount_in,
-                        search_profile=str(split_search_profile),
+                        search_profile=split_search_profile_i,
                     )
                 except ValueError:
                     continue
@@ -214,7 +234,7 @@ def enumerate_route_candidates_exact_in_2hop(
                     )
                 )
 
-    if enable_mixed_direct_twohop_split and best_direct_1hop is not None and twohop_candidates:
+    if enable_mixed_direct_twohop_split_i and best_direct_1hop is not None and twohop_candidates:
         direct_pool_id = best_direct_1hop.legs[0].hops[0].pool_id
         direct_pool = pools_by_id.get(direct_pool_id)
         if direct_pool is not None:
@@ -783,6 +803,7 @@ def build_exact_in_route_canonical_certificate(
     *,
     binding_ok: int = 1,
 ) -> ExactInRouteCanonicalCertificate:
+    binding_ok_i = _require_binding_ok(binding_ok)
     first, normalized = _validate_exact_in_route_quotes(quotes)
     indexed_keys = [(int(index), quote, exact_in_route_canonical_key(quote)) for index, quote in enumerate(normalized)]
     _ordered_unique_keys, rank_by_key = compute_exact_in_route_rank_projection(normalized)
@@ -803,7 +824,7 @@ def build_exact_in_route_canonical_certificate(
             winner_index=int(winner.candidate_index),
             cand_key=int(candidate.route_key_rank_u64),
             cand_index=int(candidate.candidate_index),
-            binding_ok=int(binding_ok),
+            binding_ok=binding_ok_i,
         )
         for candidate in candidates
     )
@@ -830,6 +851,7 @@ def build_exact_in_route_canonical_certificate_for_pools(
     enable_mixed_direct_twohop_split: bool = False,
     binding_ok: int = 1,
 ) -> Optional[ExactInRouteCanonicalCertificate]:
+    binding_ok_i = _require_binding_ok(binding_ok)
     quotes = enumerate_route_candidates_exact_in_2hop(
         pools_by_id=pools_by_id,
         asset_in=asset_in,
@@ -840,7 +862,7 @@ def build_exact_in_route_canonical_certificate_for_pools(
     )
     if not quotes:
         return None
-    return build_exact_in_route_canonical_certificate(quotes, binding_ok=binding_ok)
+    return build_exact_in_route_canonical_certificate(quotes, binding_ok=binding_ok_i)
 
 
 def build_exact_in_route_oracle_contract(
@@ -854,22 +876,28 @@ def build_exact_in_route_oracle_contract(
     binding_ok: int = 1,
 ) -> ExactInRouteOracleContract:
     amount_in_i = _require_amount_in_int(amount_in)
+    split_search_profile_i = _require_split_search_profile(split_search_profile)
+    enable_mixed_direct_twohop_split_i = _require_bool(
+        enable_mixed_direct_twohop_split,
+        name="enable_mixed_direct_twohop_split",
+    )
+    binding_ok_i = _require_binding_ok(binding_ok)
     runtime_quote = best_route_exact_in_2hop(
         pools_by_id=pools_by_id,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_in=amount_in_i,
-        split_search_profile=split_search_profile,
-        enable_mixed_direct_twohop_split=enable_mixed_direct_twohop_split,
+        split_search_profile=split_search_profile_i,
+        enable_mixed_direct_twohop_split=enable_mixed_direct_twohop_split_i,
     )
     certificate = build_exact_in_route_canonical_certificate_for_pools(
         pools_by_id=pools_by_id,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_in=amount_in_i,
-        split_search_profile=split_search_profile,
-        enable_mixed_direct_twohop_split=enable_mixed_direct_twohop_split,
-        binding_ok=binding_ok,
+        split_search_profile=split_search_profile_i,
+        enable_mixed_direct_twohop_split=enable_mixed_direct_twohop_split_i,
+        binding_ok=binding_ok_i,
     )
     if runtime_quote is None or certificate is None:
         raise ValueError("no feasible exact-in route")
@@ -881,9 +909,9 @@ def build_exact_in_route_oracle_contract(
         asset_in=str(asset_in),
         asset_out=str(asset_out),
         amount_in=amount_in_i,
-        split_search_profile=str(split_search_profile),
-        enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
-        binding_ok=int(binding_ok),
+        split_search_profile=split_search_profile_i,
+        enable_mixed_direct_twohop_split=enable_mixed_direct_twohop_split_i,
+        binding_ok=binding_ok_i,
         pool_snapshots=pool_snapshots,
         runtime_quote=runtime_quote,
         canonical_winner_quote=certificate.winner_quote,
@@ -1044,7 +1072,7 @@ def verify_exact_in_route_oracle_contract_payload(payload: object) -> tuple[bool
             asset_in=str(payload["asset_in"]),
             asset_out=str(payload["asset_out"]),
             amount_in=_require_payload_int(payload, "amount_in"),
-            split_search_profile=str(payload["split_search_profile"]),
+            split_search_profile=_require_split_search_profile(payload["split_search_profile"]),
             enable_mixed_direct_twohop_split=_require_bool(
                 payload["enable_mixed_direct_twohop_split"],
                 name="enable_mixed_direct_twohop_split",
@@ -1082,7 +1110,7 @@ def verify_exact_in_route_guarded_quote_packet_payload(payload: object) -> tuple
             asset_in=str(contract_payload["asset_in"]),
             asset_out=str(contract_payload["asset_out"]),
             amount_in=_require_payload_int(contract_payload, "amount_in"),
-            split_search_profile=str(contract_payload["split_search_profile"]),
+            split_search_profile=_require_split_search_profile(contract_payload["split_search_profile"]),
             enable_mixed_direct_twohop_split=_require_bool(
                 contract_payload["enable_mixed_direct_twohop_split"],
                 name="enable_mixed_direct_twohop_split",
