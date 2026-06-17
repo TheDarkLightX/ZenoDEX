@@ -483,7 +483,7 @@ def best_route_exact_in_2hop(
                 max_candidates=k,
                 max_iters=4096,
             )
-        except Exception:
+        except ValueError:
             splitN = None
         if splitN is not None and splitN.amount_out_total > 0:
             legs: List[RouteLeg] = []
@@ -523,7 +523,7 @@ def best_route_exact_in_2hop(
                         amount_in_total=amount_in,
                         search_profile=str(split_search_profile),
                     )
-                except Exception:
+                except ValueError:
                     continue
                 if split.amount_out_total <= 0:
                     continue
@@ -834,7 +834,7 @@ def best_route_exact_out_2hop(
                         asset_out=asset_out,
                         amount_out_total=amount_out,
                     )
-                except Exception:
+                except ValueError:
                     continue
                 if split.amount_in_total <= 0:
                     continue

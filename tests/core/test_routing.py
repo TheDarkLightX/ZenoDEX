@@ -86,6 +86,59 @@ def test_pool_quote_exact_in_propagates_programmer_error(monkeypatch):
         _pool_quote_exact_in(pool, asset_in="A", asset_out="B", amount_in=10)
 
 
+def test_best_route_split_candidate_domain_reject_preserves_direct_quote(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(routing_module, "best_split_many_pools_exact_in_for_pools", _domain_reject)
+    monkeypatch.setattr(routing_module, "best_split_two_pools_exact_in_for_pools", _domain_reject)
+
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10)
+
+    assert q is not None
+    assert len(q.legs) == 1
+    assert q.legs[0].hops[0].pool_id == "p1"
+
+
+def test_best_route_split_many_programmer_error_propagates(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+
+    def _programmer_error(*_args, **_kwargs):
+        raise RuntimeError("unexpected many-pool split bug")
+
+    monkeypatch.setattr(routing_module, "best_split_many_pools_exact_in_for_pools", _programmer_error)
+
+    with pytest.raises(RuntimeError, match="unexpected many-pool split bug"):
+        best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10)
+
+
+def test_best_route_split_pair_programmer_error_propagates(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    def _programmer_error(*_args, **_kwargs):
+        raise RuntimeError("unexpected two-pool split bug")
+
+    monkeypatch.setattr(routing_module, "best_split_many_pools_exact_in_for_pools", _domain_reject)
+    monkeypatch.setattr(routing_module, "best_split_two_pools_exact_in_for_pools", _programmer_error)
+
+    with pytest.raises(RuntimeError, match="unexpected two-pool split bug"):
+        best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10)
+
+
 def test_best_route_can_split_across_parallel_pools():
     # Two identical pools: splitting strictly improves output vs using only one pool.
     pools = {

@@ -133,7 +133,7 @@ def enumerate_route_candidates_exact_in_2hop(
                 max_candidates=top_k,
                 max_iters=4096,
             )
-        except Exception:
+        except ValueError:
             split_many = None
         if split_many is not None and split_many.amount_out_total > 0:
             legs: list[RouteLeg] = []
@@ -170,7 +170,7 @@ def enumerate_route_candidates_exact_in_2hop(
                         amount_in_total=amount_in,
                         search_profile=str(split_search_profile),
                     )
-                except Exception:
+                except ValueError:
                     continue
                 if split.amount_out_total <= 0:
                     continue

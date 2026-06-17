@@ -73,6 +73,39 @@ def test_pool_quote_exact_out_propagates_programmer_error(monkeypatch):
         _pool_quote_exact_out(pool, asset_in="A", asset_out="B", amount_out=10)
 
 
+def test_best_route_exact_out_split_domain_reject_preserves_direct_quote(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(routing_module, "best_split_two_pools_exact_out_for_pools", _domain_reject)
+
+    q = best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_out=10)
+
+    assert q is not None
+    assert len(q.legs) == 1
+    assert q.legs[0].hops[0].pool_id == "p1"
+
+
+def test_best_route_exact_out_split_programmer_error_propagates(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+
+    def _programmer_error(*_args, **_kwargs):
+        raise RuntimeError("unexpected exact-out split bug")
+
+    monkeypatch.setattr(routing_module, "best_split_two_pools_exact_out_for_pools", _programmer_error)
+
+    with pytest.raises(RuntimeError, match="unexpected exact-out split bug"):
+        best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_out=10)
+
+
 def _brute_best_route_exact_out_2hop(
     *, pools_by_id: dict[str, PoolState], asset_in: str, asset_out: str, amount_out: int
 ) -> RouteQuote | None:
