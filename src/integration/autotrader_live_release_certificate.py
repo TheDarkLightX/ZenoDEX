@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from ..state.canonical import canonical_json_bytes, sha256_hex
 from .autotrader_controller import AutoTraderDecisionTag
 from .autotrader_decision import observation_hash_hex
-from ..state.canonical import canonical_json_bytes, sha256_hex
 
 if TYPE_CHECKING:
     from .autotrader_live import AutoTraderLiveReport
 
 
 LIVE_RELEASE_SCHEMA = "zenodex/strategy-live-release/v1"
+_LIVE_RELEASE_PAYLOAD_ERRORS = (TypeError, ValueError, ArithmeticError)
+
+
 def _derive_release_error(
     *,
     emit_requested: bool,
@@ -221,7 +224,7 @@ def verify_autotrader_live_release_certificate_payload(payload: object) -> tuple
             release_ok=payload.get("release_ok"),
             release_error=payload.get("release_error"),
         )
-    except Exception as exc:
+    except _LIVE_RELEASE_PAYLOAD_ERRORS as exc:
         return False, str(exc)
     if payload != certificate.to_dict():
         return False, "live release certificate payload mismatch"
