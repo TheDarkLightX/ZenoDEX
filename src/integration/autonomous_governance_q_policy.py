@@ -10,10 +10,10 @@ import copy
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
+from src.integration.autonomous_governance_hostile_input import safe_field_label
 from src.integration.tau_witness import build_revision_policy_v1_step
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.tau_specs.governance import gov_gate
-
 
 AUTONOMOUS_GOVERNANCE_Q_POLICY_SCHEMA_V1 = "zenodex.autonomous_governance.q_policy.v1"
 AUTONOMOUS_GOVERNANCE_Q_RECEIPT_SCHEMA_V1 = "zenodex.autonomous_governance.q_receipt.v1"
@@ -1031,7 +1031,7 @@ def admit_autonomous_governance_surface_request_v1(request: Mapping[str, Any]) -
 
     unknown_fields = tuple(
         sorted(
-            str(field)
+            safe_field_label(field)
             for field in request_obj
             if field not in ALLOWED_SURFACE_ADMISSION_REQUEST_FIELDS_V1
             and field not in FORBIDDEN_SURFACE_ADMISSION_RESULT_FIELDS_V1

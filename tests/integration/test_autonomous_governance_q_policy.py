@@ -917,6 +917,36 @@ def test_autogovnext_live_admission_rejects_unknown_request_field() -> None:
     assert "unknown_admission_request_field:model_says_approved" in admission["errors"]
 
 
+def test_autogovnext_live_admission_rejects_unrenderable_unknown_field() -> None:
+    class UnrenderableField:
+        def __str__(self) -> str:
+            raise RuntimeError("field-name-boom")
+
+        def __repr__(self) -> str:
+            raise RuntimeError("field-name-boom")
+
+    policy = sample_autonomous_governance_next_policy_v1()
+    initial = _surface_state(fee_bps=300, funding_cap_bps=150)
+
+    admission = admit_autonomous_governance_surface_request_v1(
+        {
+            "policy": policy,
+            "expected_policy_hash": policy["policy_hash"],
+            "surface_state": initial,
+            "observation": _next_observation(),
+            "current_epoch": 50,
+            "proposal_epoch": 10,
+            "last_update_epoch": 48,
+            UnrenderableField(): True,
+        }
+    )
+
+    assert admission["ok"] is False
+    assert admission["admitted"] is False
+    assert admission["unknown_fields"] == ("<unrenderable>",)
+    assert "unknown_admission_request_field:<unrenderable>" in admission["errors"]
+
+
 def test_autonomous_governance_q_policy_cli_sample_and_evaluate(tmp_path: Path) -> None:
     bundle = tmp_path / "bundle.json"
     sample = subprocess.run(
