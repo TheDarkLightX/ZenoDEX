@@ -85,6 +85,59 @@ def test_best_route_rejects_same_asset_round_trip_boundary():
     assert best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="A", amount_out=10) is None
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"amount_in": True}, "amount_in must be an int"),
+        ({"amount_in": "10"}, "amount_in must be an int"),
+        ({"amount_in": 10, "enable_mixed_direct_twohop_split": 1}, "enable_mixed_direct_twohop_split must be a bool"),
+    ],
+)
+def test_best_route_exact_in_rejects_non_strict_entrypoint_controls(
+    kwargs: dict[str, object],
+    message: str,
+) -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 0),
+    }
+    values: dict[str, object] = {"amount_in": 10}
+    values.update(kwargs)
+
+    with pytest.raises(ValueError, match=message):
+        best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", **values)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"amount_out": True}, "amount_out must be an int"),
+        ({"amount_out": "10"}, "amount_out must be an int"),
+        ({"amount_out": 10, "apply_two_hop_gate": 1}, "apply_two_hop_gate must be a bool"),
+    ],
+)
+def test_best_route_exact_out_rejects_non_strict_entrypoint_controls(
+    kwargs: dict[str, object],
+    message: str,
+) -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 0),
+    }
+    values: dict[str, object] = {"amount_out": 10}
+    values.update(kwargs)
+
+    with pytest.raises(ValueError, match=message):
+        best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", **values)
+
+
+def test_best_route_keeps_zero_amount_as_no_route() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 0),
+    }
+
+    assert best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=0) is None
+    assert best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_out=0) is None
+
+
 def test_best_route_uses_2hop_when_better():
     # Direct A-B is shallow; A-C and C-B are deep.
     pools = {

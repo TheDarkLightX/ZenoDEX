@@ -6,8 +6,21 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..state.balances import Amount, AssetId
 from ..state.pools import PoolState
+from .domain_limits import is_strict_int
 from .routing_exact_out_gate import ExactOutTwoHopGateConfig
 from .routing_types import RouteHop, RouteLeg, RouteQuote
+
+
+def _require_int_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value):
+        raise ValueError(f"{name} must be an int")
+    return int(value)
+
+
+def _require_bool_control(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} must be a bool")
+    return bool(value)
 
 
 def best_route_exact_out_2hop(
@@ -26,7 +39,9 @@ def best_route_exact_out_2hop(
     gate_config: ExactOutTwoHopGateConfig | None = None,
 ) -> Optional[RouteQuote]:
     """Compute the best exact-out route up to 2 hops."""
-    if amount_out <= 0:
+    amount_out_i = _require_int_control(amount_out, name="amount_out")
+    apply_gate = _require_bool_control(apply_two_hop_gate, name="apply_two_hop_gate")
+    if amount_out_i <= 0:
         return None
     if asset_in == asset_out:
         return None
@@ -39,16 +54,16 @@ def best_route_exact_out_2hop(
         by_asset=by_asset,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out=amount_out,
+        amount_out=amount_out_i,
         pool_connects=pool_connects,
         pool_quote_exact_out=pool_quote_exact_out,
         quote_key=quote_key,
     )
     consider_two_hop = _should_scan_two_hop(
-        amount_out=amount_out,
+        amount_out=amount_out_i,
         best_direct=best_direct,
         gate_inputs=gate_inputs,
-        apply_two_hop_gate=apply_two_hop_gate,
+        apply_two_hop_gate=apply_gate,
         gate_config=gate_config,
         should_consider_exact_out_two_hop=should_consider_exact_out_two_hop,
     )
@@ -59,7 +74,7 @@ def best_route_exact_out_2hop(
         direct_candidates=direct_candidates,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out=amount_out,
+        amount_out=amount_out_i,
         quote_key=quote_key,
         split_two_pools_exact_out=split_two_pools_exact_out,
     )
@@ -70,7 +85,7 @@ def best_route_exact_out_2hop(
             by_asset=by_asset,
             asset_in=asset_in,
             asset_out=asset_out,
-            amount_out=amount_out,
+            amount_out=amount_out_i,
             pool_connects=pool_connects,
             pool_quote_exact_out=pool_quote_exact_out,
             quote_key=quote_key,

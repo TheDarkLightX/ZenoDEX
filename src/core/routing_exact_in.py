@@ -7,7 +7,20 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from ..state.balances import Amount, AssetId
 from ..state.pools import PoolState
 from . import routing_exact_in_split as _exact_in_split
+from .domain_limits import is_strict_int
 from .routing_types import RouteHop, RouteLeg, RouteQuote
+
+
+def _require_int_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value):
+        raise ValueError(f"{name} must be an int")
+    return int(value)
+
+
+def _require_bool_control(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} must be a bool")
+    return bool(value)
 
 
 def best_route_exact_in_2hop(
@@ -27,7 +40,12 @@ def best_route_exact_in_2hop(
     enable_mixed_direct_twohop_split: bool = False,
 ) -> Optional[RouteQuote]:
     """Compute the best exact-in route up to 2 hops."""
-    if amount_in <= 0:
+    amount_in_i = _require_int_control(amount_in, name="amount_in")
+    mixed_split_enabled = _require_bool_control(
+        enable_mixed_direct_twohop_split,
+        name="enable_mixed_direct_twohop_split",
+    )
+    if amount_in_i <= 0:
         return None
     if asset_in == asset_out:
         return None
@@ -46,7 +64,7 @@ def best_route_exact_in_2hop(
         by_asset=by_asset,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_in=amount_in,
+        amount_in=amount_in_i,
         pool_connects=pool_connects,
         pool_quote_exact_in=pool_quote_exact_in,
         quote_key=quote_key,
@@ -58,7 +76,7 @@ def best_route_exact_in_2hop(
         by_asset=by_asset,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_in=amount_in,
+        amount_in=amount_in_i,
         pool_quote_exact_in=pool_quote_exact_in,
         quote_key=quote_key,
     )
@@ -68,7 +86,7 @@ def best_route_exact_in_2hop(
         by_asset=by_asset,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_in=amount_in,
+        amount_in=amount_in_i,
         pool_connects=pool_connects,
         pool_quote_exact_in=pool_quote_exact_in,
         quote_key=quote_key,
@@ -76,7 +94,7 @@ def best_route_exact_in_2hop(
         split_two_exact_in=split_two_exact_in,
         split_search_profile=split_search_profile,
     )
-    if enable_mixed_direct_twohop_split and best_direct_1hop is not None and twohop_candidates:
+    if mixed_split_enabled and best_direct_1hop is not None and twohop_candidates:
         best = _scan_mixed_direct_twohop_split(
             best=best,
             best_direct_1hop=best_direct_1hop,
@@ -84,7 +102,7 @@ def best_route_exact_in_2hop(
             pools_by_id=pools_by_id,
             asset_in=asset_in,
             asset_out=asset_out,
-            amount_in=amount_in,
+            amount_in=amount_in_i,
             quote_key=quote_key,
             mixed_split_direct_vs_twohop=mixed_split_direct_vs_twohop,
         )
