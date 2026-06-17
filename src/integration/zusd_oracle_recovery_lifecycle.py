@@ -127,20 +127,44 @@ class ZUSDOracleRecoveryLifecyclePacket:
             current_sync_contract=ZUSDCrossModuleOracleSyncContract.from_dict(
                 payload.get("current_sync_contract")
             ),
-            nested_contracts_ok=bool(payload.get("nested_contracts_ok", False)),
-            risky_action_requested=bool(payload.get("risky_action_requested", False)),
-            previous_risky_action_blocked=bool(payload.get("previous_risky_action_blocked", False)),
-            current_oracle_env_ok=bool(payload.get("current_oracle_env_ok", False)),
-            current_sync_gate_ok=bool(payload.get("current_sync_gate_ok", False)),
-            sync_aligned_to_current_gate=bool(payload.get("sync_aligned_to_current_gate", False)),
-            healthy_now=bool(payload.get("healthy_now", False)),
-            current_risky_ops_allowed=bool(payload.get("current_risky_ops_allowed", False)),
-            risky_ops_reenabled=bool(payload.get("risky_ops_reenabled", False)),
-            rejected_with_reason=bool(payload.get("rejected_with_reason", False)),
-            rejection_reason_present=bool(payload.get("rejection_reason_present", False)),
+            nested_contracts_ok=_require_bool(payload.get("nested_contracts_ok", False), name="nested_contracts_ok"),
+            risky_action_requested=_require_bool(
+                payload.get("risky_action_requested", False),
+                name="risky_action_requested",
+            ),
+            previous_risky_action_blocked=_require_bool(
+                payload.get("previous_risky_action_blocked", False),
+                name="previous_risky_action_blocked",
+            ),
+            current_oracle_env_ok=_require_bool(
+                payload.get("current_oracle_env_ok", False),
+                name="current_oracle_env_ok",
+            ),
+            current_sync_gate_ok=_require_bool(payload.get("current_sync_gate_ok", False), name="current_sync_gate_ok"),
+            sync_aligned_to_current_gate=_require_bool(
+                payload.get("sync_aligned_to_current_gate", False),
+                name="sync_aligned_to_current_gate",
+            ),
+            healthy_now=_require_bool(payload.get("healthy_now", False), name="healthy_now"),
+            current_risky_ops_allowed=_require_bool(
+                payload.get("current_risky_ops_allowed", False),
+                name="current_risky_ops_allowed",
+            ),
+            risky_ops_reenabled=_require_bool(payload.get("risky_ops_reenabled", False), name="risky_ops_reenabled"),
+            rejected_with_reason=_require_bool(payload.get("rejected_with_reason", False), name="rejected_with_reason"),
+            rejection_reason_present=_require_bool(
+                payload.get("rejection_reason_present", False),
+                name="rejection_reason_present",
+            ),
             rejection_reason=payload.get("rejection_reason"),
-            lifecycle_ok=bool(payload.get("lifecycle_ok", False)),
+            lifecycle_ok=_require_bool(payload.get("lifecycle_ok", False), name="lifecycle_ok"),
         )
+
+
+def _require_bool(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return bool(value)
 
 
 def build_zusd_oracle_recovery_lifecycle_packet(
