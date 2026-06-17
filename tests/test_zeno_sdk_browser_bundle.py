@@ -9,6 +9,7 @@ from src.integration.zeno_ledger_v0 import hash_v0
 from src.integration.zeno_sdk_browser_bundle_v0 import (
     BROWSER_CHECKPOINT_BUNDLE_SCHEMA_V0,
     BROWSER_WALLET_SYNC_STATE_SCHEMA_V0,
+    _portable_range_summary,
     validate_browser_checkpoint_bundle_v0,
     validate_wallet_sync_state_v0,
     wallet_sync_state_v0,
@@ -23,6 +24,24 @@ from tools.build_zeno_sdk_browser_bundle import build_browser_bundle_from_files,
 from tools.zeno_ledger_verify import ZERO_ROOT
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_browser_bundle_range_summary_requires_strict_bool_ok() -> None:
+    summary = _portable_range_summary(
+        {
+            "range_verify_report": {
+                "ok": "false",
+                "checked_heights": [1, True, 2],
+                "last_header_hash": ZERO_ROOT,
+            },
+            "from_height": 1,
+            "to_height": 2,
+            "trusted_prev_header_hash": ZERO_ROOT,
+        }
+    )
+
+    assert summary["ok"] is False
+    assert summary["checked_heights"] == [1, 2]
 
 
 def _write_fixture_files(tmp_path: Path) -> tuple[Path, Path, Path, Path, list[Path]]:

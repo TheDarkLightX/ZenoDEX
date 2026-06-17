@@ -179,7 +179,7 @@ def _portable_range_summary(report: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(checked, list):
         checked = []
     return {
-        "ok": bool(range_report.get("ok")),
+        "ok": range_report.get("ok") is True,
         "checked_heights": [int(item) for item in checked if isinstance(item, int) and not isinstance(item, bool)],
         "last_header_hash": range_report.get("last_header_hash"),
         "from_height": report.get("from_height"),
