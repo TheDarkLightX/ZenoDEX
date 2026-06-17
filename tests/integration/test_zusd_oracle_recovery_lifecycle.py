@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from src.core.zusd import E8, init_state, step, ZUSDCommand
+import pytest
+
+import src.integration.zusd_oracle_recovery_lifecycle as recovery_lifecycle
+from src.core.zusd import E8, ZUSDCommand, init_state, step
 from src.integration.zusd_oracle_contracts import (
     build_zusd_cross_module_oracle_sync_contract,
     build_zusd_oracle_pending_gate_contract,
@@ -125,3 +128,21 @@ def test_zusd_oracle_recovery_lifecycle_packet_rejects_tampering() -> None:
     ok, err = verify_zusd_oracle_recovery_lifecycle_packet_payload(payload)
     assert not ok
     assert err == "rejected_with_reason mismatch"
+
+
+def test_zusd_oracle_recovery_lifecycle_verifier_propagates_programmer_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {"schema": ZUSD_ORACLE_RECOVERY_LIFECYCLE_PACKET_SCHEMA}
+
+    def programmer_error(_payload: object) -> object:
+        raise RuntimeError("unexpected oracle recovery parser bug")
+
+    monkeypatch.setattr(
+        recovery_lifecycle.ZUSDOracleRecoveryLifecyclePacket,
+        "from_dict",
+        programmer_error,
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected oracle recovery parser bug"):
+        verify_zusd_oracle_recovery_lifecycle_packet_payload(payload)

@@ -12,7 +12,6 @@ from .zusd_oracle_contracts import (
     verify_zusd_oracle_pending_gate_contract_payload,
 )
 
-
 ZUSD_ORACLE_RECOVERY_LIFECYCLE_PACKET_SCHEMA = "zenodex/zusd-oracle-recovery-lifecycle-packet/v1"
 
 
@@ -226,7 +225,7 @@ def verify_zusd_oracle_recovery_lifecycle_packet_payload(payload: object) -> tup
         return False, "unsupported oracle recovery lifecycle packet schema"
     try:
         packet = ZUSDOracleRecoveryLifecyclePacket.from_dict(payload)
-    except Exception as exc:
+    except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
     expected = build_zusd_oracle_recovery_lifecycle_packet(
         previous_pending_gate_contract=packet.previous_pending_gate_contract,
