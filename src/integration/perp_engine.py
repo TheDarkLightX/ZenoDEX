@@ -44,8 +44,8 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
-from ..core.dex import DexState
 from ..core import perp_np_clearinghouse as _np_core
+from ..core.dex import DexState
 from ..core.perp_apply_funding_auto_gate import (
     MARK_PRICE_SOURCE_EXTERNAL_MEDIAN,
     evaluate_perp_apply_funding_auto_gate,
@@ -63,7 +63,6 @@ from ..core.perp_epoch import (
     perp_epoch_isolated_default_fee_pool_max_quote,
     perp_epoch_isolated_default_initial_state,
 )
-from ..core.perp_np_matching import Intent as _NpIntent
 from ..core.perp_market_version_prefix_guard import (
     REJECT_CH2P_PREFIX_MISMATCH,
     REJECT_CH3P_PREFIX_MISMATCH,
@@ -71,6 +70,7 @@ from ..core.perp_market_version_prefix_guard import (
     REJECT_ISOLATED_PREFIX_CONFLICT,
     evaluate_perp_market_version_prefix_guard,
 )
+from ..core.perp_np_matching import Intent as _NpIntent
 from ..core.perp_runtime_risk_gate import (
     ACTION_ADVANCE_EPOCH as RUNTIME_ACTION_ADVANCE_EPOCH,
 )
@@ -123,8 +123,10 @@ from ..core.perp_submission_auth_message import (
     build_perp_op_auth_signing_dict_v1,
     hash_perp_op_auth_message_v1,
 )
+from ..core.perp_v2.invariants import funded_liquidation_params_ok_bps
 from ..core.perp_v2.math import MAX_COLLATERAL
 from ..core.perp_v2.math import funding_payment as _perp_v2_funding_payment
+from ..core.perp_v2.math import liq_penalty as _perp_v2_liq_penalty
 from ..core.perp_v2.math import maint_margin_req as _perp_v2_maint_margin_req
 from ..core.perps import (
     PERP_CLEARINGHOUSE_2P_STATE_KEYS,
@@ -137,11 +139,17 @@ from ..core.perps import (
     PerpAnyMarketState,
     PerpClearinghouse2pMarketState,
     PerpClearinghouse3pTransferMarketState,
-    PerpClearinghouseNpAccount as _NpAccount,
-    PerpClearinghouseNpMarketState as _NpMarketState,
-    PerpClearinghouseNpPendingIntent as _NpPendingIntent,
     PerpMarketState,
     PerpsState,
+)
+from ..core.perps import (
+    PerpClearinghouseNpAccount as _NpAccount,
+)
+from ..core.perps import (
+    PerpClearinghouseNpMarketState as _NpMarketState,
+)
+from ..core.perps import (
+    PerpClearinghouseNpPendingIntent as _NpPendingIntent,
 )
 from ..state.balances import BalanceTable
 from ..state.canonical import (
@@ -383,6 +391,17 @@ def _apply_isolated_market_params(
         raise ValueError("invalid params: require liquidation_penalty_bps < maintenance_margin_bps + depeg_buffer_bps")
     if liquidation_penalty_bps <= 0:
         raise ValueError("invalid params: require liquidation_penalty_bps > 0")
+    if not funded_liquidation_params_ok_bps(
+        max_oracle_move_bps=max_oracle_move_bps,
+        maintenance_margin_bps=maintenance_margin_bps,
+        depeg_buffer_bps=depeg_buffer_bps,
+        liquidation_penalty_bps=liquidation_penalty_bps,
+    ):
+        raise ValueError(
+            "invalid params: require funded liquidation "
+            "liquidation_penalty_bps * (10000 + max_oracle_move_bps) <= "
+            "10000 * (maintenance_margin_bps + depeg_buffer_bps - max_oracle_move_bps)"
+        )
 
     # Scientist-driven anti-farming guard:
     # if a liquidation is eligible for bounty accounting, the notional threshold must be
@@ -2600,6 +2619,9 @@ def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
     expected_global_no_accum["insurance_balance"] = pre_insurance_balance
 
     total_penalty_delta = 0
+    total_raw_liquidation_penalty = 0
+    total_liquidation_penalty_shortfall = 0
+    liquidation_penalty_cap_bound_count = 0
     new_accounts: Dict[str, PerpAccountState] = {}
     sorted_accounts = tuple(sorted(pre_market.accounts.items()))
     for pk, acct in sorted_accounts:
@@ -2646,7 +2668,20 @@ def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
         if fee_pool_delta != fee_income_delta or fee_pool_delta != insurance_delta:
             return "internal error: fee/insurance deltas inconsistent"
 
+        raw_liquidation_penalty = 0
+        if bool(post_acct.liquidated_this_step):
+            raw_liquidation_penalty = _perp_v2_liq_penalty(
+                int(acct.position_base),
+                int(post_global.get("index_price_e8", 0)),
+                int(post_global.get("liquidation_penalty_bps", 0)),
+                int(post_global.get("min_notional_for_bounty", 0)),
+            )
+
         total_penalty_delta += fee_pool_delta
+        total_raw_liquidation_penalty += int(raw_liquidation_penalty)
+        if int(raw_liquidation_penalty) > int(fee_pool_delta):
+            liquidation_penalty_cap_bound_count += 1
+            total_liquidation_penalty_shortfall += int(raw_liquidation_penalty) - int(fee_pool_delta)
         new_accounts[str(pk)] = post_acct
 
     # Fail-closed on fee-pool overflow beyond the kernel's finite-domain bound.
@@ -2673,6 +2708,10 @@ def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
             "market_id": market_id,
             "action": action,
             "fee_pool_delta": int(total_penalty_delta),
+            "liquidation_penalty_raw_quote": int(total_raw_liquidation_penalty),
+            "liquidation_penalty_collected_quote": int(total_penalty_delta),
+            "liquidation_penalty_shortfall_quote": int(total_liquidation_penalty_shortfall),
+            "liquidation_penalty_cap_bound_count": int(liquidation_penalty_cap_bound_count),
             "effects": dict(res0.effects or {}),
         }
     )
@@ -2740,13 +2779,26 @@ def _apply_isolated_set_market_params(
     if not isinstance(params, Mapping):
         return "params must be an object"
     min_collectible_penalty = _min_collectible_liquidation_penalty_quote(ctx.config)
+    old_funding_rate_bps = int(market.global_state.get("funding_rate_bps", 0))
     next_market = _apply_isolated_market_params(
         market,
         params=params,
         min_collectible_liquidation_penalty_quote=min_collectible_penalty,
     )
+    new_funding_rate_bps = int(next_market.global_state.get("funding_rate_bps", 0))
+    funding_rate_clamped = int(old_funding_rate_bps) != int(new_funding_rate_bps)
     ctx.markets[market_id] = next_market
-    ctx.effects.append({"i": i, "market_id": market_id, "action": action, "params": dict(params)})
+    ctx.effects.append(
+        {
+            "i": i,
+            "market_id": market_id,
+            "action": action,
+            "params": dict(params),
+            "funding_rate_clamped": bool(funding_rate_clamped),
+            "funding_rate_bps_before": int(old_funding_rate_bps),
+            "funding_rate_bps_after": int(new_funding_rate_bps),
+        }
+    )
     return None
 
 
