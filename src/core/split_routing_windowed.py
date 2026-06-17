@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
+from .domain_limits import is_strict_int
 from .split_routing_dgstr import DgstrSearchRequest, search_dgstr_v1
 
 BPS_DENOM = 10_000
@@ -45,6 +46,43 @@ class _CenterSearchPolicy:
     window: int
     force_dense_grid: bool
     left_sweep_k: int
+
+
+def _require_positive_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) <= 0:
+        raise ValueError(f"{name} must be positive")
+    return int(value)
+
+
+def _require_nonnegative_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return int(value)
+
+
+def _require_bool_control(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} must be a bool")
+    return bool(value)
+
+
+def _validated_plan_controls(plan: WindowSearchPlan) -> tuple[int, int, int, int, bool, int, int, str]:
+    amount_in = _require_positive_control(plan.amount_in, name="amount_in")
+    if not isinstance(plan.bounds, tuple) or len(plan.bounds) != 2:
+        raise ValueError("bounds must contain two endpoints")
+    lo_both = _require_nonnegative_control(plan.bounds[0], name="bounds.lo")
+    hi_both = _require_nonnegative_control(plan.bounds[1], name="bounds.hi")
+    if lo_both > hi_both:
+        raise ValueError("bounds must be ordered")
+    if hi_both > amount_in:
+        raise ValueError("bounds.hi must be <= amount_in")
+    grid_n = _require_positive_control(plan.grid_n, name="grid_n")
+    window = _require_nonnegative_control(plan.window, name="window")
+    force_dense_grid = _require_bool_control(plan.force_dense_grid, name="force_dense_grid")
+    left_sweep_k = _require_nonnegative_control(plan.left_sweep_k, name="left_sweep_k")
+    if not isinstance(plan.profile, str):
+        raise ValueError("profile must be a string")
+    return amount_in, lo_both, hi_both, grid_n, force_dense_grid, left_sweep_k, window, plan.profile
 
 
 def _is_better_candidate(cand: tuple[int, int] | None, best: tuple[int, int] | None) -> bool:
@@ -248,22 +286,24 @@ def _dense_profile_leftmost(
 
 
 def search_windowed_both_valid(plan: WindowSearchPlan) -> tuple[int, int] | None:
-    lo_both, hi_both = int(plan.bounds[0]), int(plan.bounds[1])
+    amount_in, lo_both, hi_both, grid_n, force_dense_grid, left_sweep_k, window, profile = _validated_plan_controls(
+        plan
+    )
     a_star = _seed_opt_split_by_derivative(
         plan.pool0,
         plan.pool1,
-        amount_in_total=int(plan.amount_in),
+        amount_in_total=amount_in,
         lo_both=lo_both,
         hi_both=hi_both,
     )
     a_star = max(lo_both, min(hi_both, int(a_star)))
-    if plan.profile == "dgstr_v1":
+    if profile == "dgstr_v1":
         return search_dgstr_v1(
             DgstrSearchRequest(
                 lo=lo_both,
                 hi=hi_both,
                 a_star=a_star,
-                window=int(plan.window),
+                window=window,
                 total_out=plan.total_out,
             )
         )
@@ -273,16 +313,16 @@ def search_windowed_both_valid(plan: WindowSearchPlan) -> tuple[int, int] | None
         lo_both=lo_both,
         hi_both=hi_both,
         a_star=a_star,
-        grid_n=int(plan.grid_n),
-        window=int(plan.window),
-        force_dense_grid=plan.force_dense_grid,
-        left_sweep_k=int(plan.left_sweep_k),
+        grid_n=grid_n,
+        window=window,
+        force_dense_grid=force_dense_grid,
+        left_sweep_k=left_sweep_k,
     )
     local_best = _scan_centers_best(
         centers=_split_search_centers(policy),
         lo_both=lo_both,
         hi_both=hi_both,
-        window=int(plan.window),
+        window=window,
         total_out=plan.total_out,
     )
     if local_best is None:
@@ -292,7 +332,7 @@ def search_windowed_both_valid(plan: WindowSearchPlan) -> tuple[int, int] | None
         lo_both=lo_both,
         hi_both=hi_both,
         span=span,
-        window=int(plan.window),
+        window=window,
         total_out=plan.total_out,
     )
     return _dense_profile_leftmost(

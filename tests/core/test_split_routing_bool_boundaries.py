@@ -45,6 +45,7 @@ from src.core.split_routing_types import (
     SplitLegQuote,
     exact_out_route_canonical_key_for_legs,
 )
+from src.core.split_routing_windowed import WindowSearchPlan, search_windowed_both_valid
 from src.state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
 
 
@@ -62,6 +63,23 @@ def _pool(pid: str = "pool-a") -> PoolState:
         curve_tag=CURVE_TAG_CPMM,
         curve_params=None,
     )
+
+
+def _window_plan(**overrides: object) -> WindowSearchPlan:
+    values = {
+        "pool0": PoolXY(x=100, y=100, fee_bps=0),
+        "pool1": PoolXY(x=100, y=100, fee_bps=0),
+        "amount_in": 10,
+        "bounds": (0, 10),
+        "profile": "baseline",
+        "grid_n": 8,
+        "force_dense_grid": False,
+        "left_sweep_k": 0,
+        "window": 2,
+        "total_out": lambda split: int(split),
+    }
+    values.update(overrides)
+    return WindowSearchPlan(**values)
 
 
 def _exact_in_request(**overrides: object) -> ManyPoolExactInRequest:
@@ -287,6 +305,30 @@ def test_split_profile_resolution_preserves_nonpositive_integer_fallback() -> No
         64,
         "baseline",
     )
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"amount_in": True}, "amount_in must be positive"),
+        ({"amount_in": "10"}, "amount_in must be positive"),
+        ({"bounds": [0, 10]}, "bounds must contain two endpoints"),
+        ({"bounds": (True, 10)}, "bounds.lo must be non-negative"),
+        ({"bounds": (5, 4)}, "bounds must be ordered"),
+        ({"bounds": (0, 11)}, "bounds.hi must be <= amount_in"),
+        ({"grid_n": False}, "grid_n must be positive"),
+        ({"window": False}, "window must be non-negative"),
+        ({"force_dense_grid": 1}, "force_dense_grid must be a bool"),
+        ({"left_sweep_k": False}, "left_sweep_k must be non-negative"),
+        ({"profile": True}, "profile must be a string"),
+    ],
+)
+def test_windowed_split_plan_rejects_non_strict_controls(
+    overrides: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        search_windowed_both_valid(_window_plan(**overrides))
 
 
 @pytest.mark.parametrize(
