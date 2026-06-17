@@ -41,10 +41,16 @@ class _SuggestionInputs:
     max_option_bps: int | None
 
 
-def _optional_int(value: Any) -> int | None:
+def _coerce_int(value: Any, field: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{field} must be an int")
+    return int(value)
+
+
+def _optional_int(value: Any, field: str) -> int | None:
     if value is None:
         return None
-    return int(value)
+    return _coerce_int(value, field)
 
 
 def _slippage_options(raw_opts: Any, *, clamp_to_bps: bool) -> list[int] | None:
@@ -53,7 +59,7 @@ def _slippage_options(raw_opts: Any, *, clamp_to_bps: bool) -> list[int] | None:
     values: list[int] = []
     for raw_value in raw_opts:
         try:
-            value = int(raw_value)
+            value = _coerce_int(raw_value, "slippage_options_bps[]")
         except BOUNDARY_DOMAIN_ERRORS:
             continue
         if clamp_to_bps and (value < 0 or value > 10_000):
@@ -136,14 +142,18 @@ def _slippage_advice_payload(advice: Any, pokayoke: dict[str, Any] | None) -> di
 
 def _handle_slippage_advice(obj: Mapping[str, Any], ctx: DexRequestContext) -> DexResponse:
     try:
-        reserve_in = int(obj.get("reserve_in", 0))
-        reserve_out = int(obj.get("reserve_out", 0))
-        amount_in = int(obj.get("amount_in", 0))
-        fee_bps = int(obj.get("fee_bps", 0))
-        pending_same_dir = int(obj.get("pending_volume_same_direction", 0))
-        confidence_bps = int(obj.get("confidence_bps", 9500))
-        max_attacker_amount_in = int(obj.get("max_attacker_amount_in", 5000))
-        user_slippage_bps = _optional_int(obj.get("user_slippage_bps", None))
+        reserve_in = _coerce_int(obj.get("reserve_in", 0), "reserve_in")
+        reserve_out = _coerce_int(obj.get("reserve_out", 0), "reserve_out")
+        amount_in = _coerce_int(obj.get("amount_in", 0), "amount_in")
+        fee_bps = _coerce_int(obj.get("fee_bps", 0), "fee_bps")
+        pending_same_dir = _coerce_int(
+            obj.get("pending_volume_same_direction", 0), "pending_volume_same_direction"
+        )
+        confidence_bps = _coerce_int(obj.get("confidence_bps", 9500), "confidence_bps")
+        max_attacker_amount_in = _coerce_int(
+            obj.get("max_attacker_amount_in", 5000), "max_attacker_amount_in"
+        )
+        user_slippage_bps = _optional_int(obj.get("user_slippage_bps", None), "user_slippage_bps")
         slippage_options_bps = _slippage_options(obj.get("slippage_options_bps"), clamp_to_bps=False)
 
         advice = slippage_advice_exact_in_cpmm(
@@ -191,13 +201,15 @@ def _simple_suggestion_payload(suggestion: Any) -> dict[str, Any] | None:
 def _parse_suggestion_inputs(obj: Mapping[str, Any]) -> _SuggestionInputs:
     opts = _slippage_options(obj.get("slippage_options_bps"), clamp_to_bps=True) or []
     return _SuggestionInputs(
-        reserve_in=int(obj.get("reserve_in", 0)),
-        reserve_out=int(obj.get("reserve_out", 0)),
-        amount_in=int(obj.get("amount_in", 0)),
-        fee_bps=int(obj.get("fee_bps", 0)),
-        pending_same_dir=int(obj.get("pending_volume_same_direction", 0)),
-        confidence_bps=int(obj.get("confidence_bps", 9500)),
-        user_slippage_bps=_optional_int(obj.get("user_slippage_bps", None)),
+        reserve_in=_coerce_int(obj.get("reserve_in", 0), "reserve_in"),
+        reserve_out=_coerce_int(obj.get("reserve_out", 0), "reserve_out"),
+        amount_in=_coerce_int(obj.get("amount_in", 0), "amount_in"),
+        fee_bps=_coerce_int(obj.get("fee_bps", 0), "fee_bps"),
+        pending_same_dir=_coerce_int(
+            obj.get("pending_volume_same_direction", 0), "pending_volume_same_direction"
+        ),
+        confidence_bps=_coerce_int(obj.get("confidence_bps", 9500), "confidence_bps"),
+        user_slippage_bps=_optional_int(obj.get("user_slippage_bps", None), "user_slippage_bps"),
         max_option_bps=max(opts) if opts else None,
     )
 
@@ -290,23 +302,27 @@ def _heavy_suggestion_payload(suggestion: Any) -> dict[str, Any]:
 
 def _handle_pokayoke_swap_suggest_heavy(obj: Mapping[str, Any], ctx: DexRequestContext) -> DexResponse:
     try:
-        reserve_in = int(obj.get("reserve_in", 0))
-        reserve_out = int(obj.get("reserve_out", 0))
-        amount_in = int(obj.get("amount_in", 0))
-        fee_bps = int(obj.get("fee_bps", 0))
-        pending_same_dir = int(obj.get("pending_volume_same_direction", 0))
-        confidence_bps = int(obj.get("confidence_bps", 9500))
+        reserve_in = _coerce_int(obj.get("reserve_in", 0), "reserve_in")
+        reserve_out = _coerce_int(obj.get("reserve_out", 0), "reserve_out")
+        amount_in = _coerce_int(obj.get("amount_in", 0), "amount_in")
+        fee_bps = _coerce_int(obj.get("fee_bps", 0), "fee_bps")
+        pending_same_dir = _coerce_int(
+            obj.get("pending_volume_same_direction", 0), "pending_volume_same_direction"
+        )
+        confidence_bps = _coerce_int(obj.get("confidence_bps", 9500), "confidence_bps")
 
         user_slippage_bps_raw = obj.get("user_slippage_bps", None)
         if user_slippage_bps_raw is None:
             raise ValueError("user_slippage_bps is required")
-        user_slippage_bps = int(user_slippage_bps_raw)
+        user_slippage_bps = _coerce_int(user_slippage_bps_raw, "user_slippage_bps")
 
-        max_attacker_amount_in = int(obj.get("max_attacker_amount_in", 2000))
+        max_attacker_amount_in = _coerce_int(
+            obj.get("max_attacker_amount_in", 2000), "max_attacker_amount_in"
+        )
         if max_attacker_amount_in < 0 or max_attacker_amount_in > 50_000:
             raise ValueError("max_attacker_amount_in must be in [0, 50_000]")
 
-        max_evals = int(obj.get("max_evals", 16))
+        max_evals = _coerce_int(obj.get("max_evals", 16), "max_evals")
         if max_evals <= 0 or max_evals > 64:
             raise ValueError("max_evals must be in [1, 64]")
 
