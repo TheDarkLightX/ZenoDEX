@@ -77,6 +77,24 @@ def _packet() -> AutoTraderObservationPacket:
     )
 
 
+def _candidate_set_and_decision() -> tuple[StrategyCandidateSet, StrategyDecisionCertificate]:
+    strategy = _strategy()
+    bundle = build_tau_policy_bundle(
+        strategy=strategy,
+        compile_contract_tau_receipt=build_compile_contract_tau_policy_receipt(strategy=strategy).to_dict(),
+    )
+    artifact = build_strategy_policy_artifact(strategy=strategy, tau_policy_bundle=bundle)
+    candidate_set = build_strategy_candidate_set(
+        policy_artifact=artifact,
+        tau_policy_bundle=bundle,
+        observation_packet=_packet(),
+        emit_requested=True,
+        emit_admissible=True,
+    )
+    decision = build_strategy_decision_certificate(candidate_set=candidate_set, kill_switch_active=False)
+    return candidate_set, decision
+
+
 def test_candidate_set_and_decision_emit_vs_noop() -> None:
     strategy = _strategy()
     bundle = build_tau_policy_bundle(
@@ -192,6 +210,45 @@ def test_verify_strategy_decision_certificate_rejects_tampered_binding() -> None
     ok, err = verify_strategy_candidate_set_payload(candidate_payload)
     assert ok is False
     assert err == "candidate_set_hash mismatch"
+
+
+def test_payload_verifiers_reject_malformed_payload_fields() -> None:
+    candidate_set, _decision = _candidate_set_and_decision()
+    candidate_payload = candidate_set.to_dict()
+    del candidate_payload["candidates"][1]["candidate_key"]
+    unsigned_payload = {
+        key: value for key, value in candidate_payload.items() if key != "candidate_set_hash"
+    }
+    candidate_payload["candidate_set_hash"] = sha256_hex(canonical_json_bytes(unsigned_payload))
+
+    ok, err = verify_strategy_candidate_set_payload(candidate_payload)
+
+    assert ok is False
+    assert err == "'candidate_key'"
+
+
+def test_payload_verifiers_do_not_swallow_adapter_bugs(monkeypatch: pytest.MonkeyPatch) -> None:
+    candidate_set, decision = _candidate_set_and_decision()
+    candidate_payload = candidate_set.to_dict()
+    decision_payload = decision.to_dict()
+
+    def broken_candidate_adapter(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("candidate payload adapter bug")
+
+    monkeypatch.setattr(autotrader_decision, "DecisionCandidate", broken_candidate_adapter)
+    with pytest.raises(RuntimeError, match="candidate payload adapter bug"):
+        verify_strategy_candidate_set_payload(candidate_payload)
+
+    def broken_certificate_adapter(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("decision certificate adapter bug")
+
+    monkeypatch.setattr(
+        autotrader_decision,
+        "StrategyDecisionCertificate",
+        broken_certificate_adapter,
+    )
+    with pytest.raises(RuntimeError, match="decision certificate adapter bug"):
+        verify_strategy_decision_certificate_payload(decision_payload)
 
 
 def test_decision_models_cover_validation_and_hash_paths(monkeypatch: pytest.MonkeyPatch) -> None:

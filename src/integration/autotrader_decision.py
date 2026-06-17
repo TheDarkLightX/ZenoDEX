@@ -17,6 +17,8 @@ from .tau_witness import build_argmax_stream_certificate_v1_step
 CANDIDATE_SET_SCHEMA = "zenodex/strategy-candidate-set/v1"
 DECISION_CERTIFICATE_SCHEMA = "zenodex/strategy-decision/v1"
 DEFAULT_DECISION_MODEL_VERSION = "autotrader-binary-v1"
+_PAYLOAD_DOMAIN_ERRORS = (TypeError, ValueError, ArithmeticError, KeyError)
+
 
 class DecisionCandidateKind(Enum):
     NO_OP = "no_op"
@@ -371,7 +373,7 @@ def verify_strategy_candidate_set_payload(payload: object) -> tuple[bool, str | 
             decision_model_version=str(payload.get("decision_model_version", "")),
             candidates=candidates,
         )
-    except Exception as exc:
+    except _PAYLOAD_DOMAIN_ERRORS as exc:
         return False, str(exc)
     if payload != candidate_set.to_dict():
         return False, "candidate set payload mismatch"
@@ -412,7 +414,7 @@ def verify_strategy_decision_certificate_payload(payload: object) -> tuple[bool,
             argmax_steps=tuple(dict(step) for step in argmax_steps),
             kill_switch_active=kill_switch_active,
         )
-    except Exception as exc:
+    except _PAYLOAD_DOMAIN_ERRORS as exc:
         return False, str(exc)
     if payload != certificate.to_dict():
         return False, "decision certificate payload mismatch"
