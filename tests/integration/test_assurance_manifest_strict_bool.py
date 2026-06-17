@@ -7,6 +7,7 @@ import pytest
 
 import tools.check_batch_auction_ifql_vmo_manifest as batch_ifql_manifest
 import tools.check_runtime_shell_assurance_manifest as runtime_shell_manifest
+from tools.autonomous_governance_policy_factory import _optimizer_reports_ok
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -215,3 +216,10 @@ def test_batch_ifql_manifest_rejects_string_vmo_ok(
                 "mode": "bounded",
             }
         )
+
+
+def test_autogov_policy_factory_optimizer_ok_requires_strict_bool_flags() -> None:
+    assert _optimizer_reports_ok({"ok": True}, {"ok": True}) is True
+    assert _optimizer_reports_ok({"ok": "true"}, {"ok": True}) is False
+    assert _optimizer_reports_ok({"ok": True}, {"ok": "false"}) is False
+    assert _optimizer_reports_ok({"ok": True}, {}) is False

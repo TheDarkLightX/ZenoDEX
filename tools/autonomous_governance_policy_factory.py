@@ -6610,6 +6610,10 @@ def _promotion_gate(
     }
 
 
+def _optimizer_reports_ok(optimizer_run: Mapping[str, Any], optimizer_report: Mapping[str, Any]) -> bool:
+    return optimizer_run.get("ok") is True and optimizer_report.get("ok") is True
+
+
 def build_factory_report(*, out_dir: Path, julia_bin: str, policy_input: Path | None) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     raw_policy_path = out_dir / "optimized_policy.raw.json"
@@ -6702,7 +6706,7 @@ def build_factory_report(*, out_dir: Path, julia_bin: str, policy_input: Path | 
     _write_json(training_corpus_path, training_corpus)
     training_corpus_summary = dict(training_corpus["summary"])
     promotion_gate = _promotion_gate(
-        optimizer_ok=bool(optimizer_run.get("ok")) and bool(optimizer_report.get("ok", True)),
+        optimizer_ok=_optimizer_reports_ok(optimizer_run, optimizer_report),
         replay=replay,
         coverage_profile=coverage_profile,
         training_corpus_summary=training_corpus_summary,
