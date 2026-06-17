@@ -5,7 +5,6 @@ import json
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping
 
-
 FIRE_INTERVAL_CERT_SCHEMA = "zenodex/fire-interval-certificate/v1"
 _EVIDENCE_LEVELS = frozenset({"proved", "contract", "implemented", "tested_discovery", "hypothesis"})
 
@@ -259,14 +258,17 @@ def _derive_binary_interval(rule: FireRule, left: FireInterval, right: FireInter
 def _verify_node(node: FireCertNode, env: FireCertEnv, *, path: str) -> tuple[bool, str | None, FireInterval | None]:
     try:
         if node.rule == "const":
-            assert node.value is not None
+            if node.value is None:
+                raise ValueError("const node missing value")
             derived = FireInterval(lower=node.value, upper=node.value)
         elif node.rule == "exact_param":
-            assert node.name is not None
+            if node.name is None:
+                raise ValueError("exact_param node missing name")
             value = env.exact(node.name)
             derived = FireInterval(lower=value, upper=value)
         elif node.rule == "source_bound":
-            assert node.name is not None
+            if node.name is None:
+                raise ValueError("source_bound node missing name")
             derived = env.source_bound(node.name)
         else:
             left = node.children[0]
@@ -277,7 +279,8 @@ def _verify_node(node: FireCertNode, env: FireCertEnv, *, path: str) -> tuple[bo
             ok, err, right_interval = _verify_node(right, env, path=f"{path}.1")
             if not ok:
                 return False, err, None
-            assert left_interval is not None and right_interval is not None
+            if left_interval is None or right_interval is None:
+                raise ValueError("verified child node did not return interval")
             derived = _derive_binary_interval(node.rule, left_interval, right_interval)
     except (AssertionError, KeyError, TypeError, ValueError) as exc:
         return False, f"{path}:{exc}", None
