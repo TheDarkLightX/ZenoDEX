@@ -8,9 +8,9 @@ from src.core.settlement_strong_validator import validate_settlement_strong
 
 from .settlement_endogenous_lp_value_packet import (
     SettlementEndogenousLPValuePacket,
+    _pool_from_dict,
     build_settlement_endogenous_lp_value_packet_from_price_attestation,
     build_settlement_endogenous_lp_value_packet_from_price_packet,
-    _pool_from_dict,
 )
 from .settlement_feature_extension_packet import (
     SettlementFeatureExtensionInputs,
@@ -32,11 +32,18 @@ from .settlement_value_packet import (
 )
 
 if TYPE_CHECKING:
-    from .settlement_price_attestation import SettlementSpotPriceAttestation
     from src.state.pools import PoolState
+
+    from .settlement_price_attestation import SettlementSpotPriceAttestation
 
 
 SETTLEMENT_END_TO_END_CERTIFICATE_PACKET_SCHEMA = "zenodex/settlement-end-to-end-certificate-packet/v1"
+
+
+def _require_bool(value: Any, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return value
 
 
 @dataclass(frozen=True)
@@ -68,7 +75,9 @@ class SettlementEndToEndCertificateInputs:
         if self.price_packet is not None and not isinstance(self.price_packet, SettlementSpotPricePacket):
             raise TypeError("price_packet must be a SettlementSpotPricePacket")
         if self.price_attestation is not None:
-            from .settlement_price_attestation import SettlementSpotPriceAttestation as RuntimeSettlementSpotPriceAttestation
+            from .settlement_price_attestation import (
+                SettlementSpotPriceAttestation as RuntimeSettlementSpotPriceAttestation,
+            )
 
             if not isinstance(self.price_attestation, RuntimeSettlementSpotPriceAttestation):
                 raise TypeError("price_attestation must be a SettlementSpotPriceAttestation")
@@ -169,6 +178,46 @@ class SettlementEndToEndCertificatePacket:
             "value_conservation_ok": bool(self.value_conservation_ok),
             "packet_ok": bool(self.packet_ok),
         }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementEndToEndCertificatePacket":
+        if not isinstance(payload, Mapping):
+            raise ValueError("packet must be an object")
+        value_packet_payload = payload.get("value_packet")
+        endogenous_lp_value_packet_payload = payload.get("endogenous_lp_value_packet")
+        return cls(
+            schema=str(payload.get("schema", "")),
+            price_input_kind=str(payload.get("price_input_kind", "")),
+            value_packet_kind=str(payload.get("value_packet_kind", "")),
+            strong_certificate=SettlementStrongCertificate.from_dict(payload.get("strong_certificate", {})),
+            feature_extension_packet=SettlementFeatureExtensionPacket.from_dict(
+                payload.get("feature_extension_packet", {})
+            ),
+            value_packet=(
+                None if value_packet_payload is None else SettlementValuePacket.from_dict(value_packet_payload)
+            ),
+            endogenous_lp_value_packet=(
+                None
+                if endogenous_lp_value_packet_payload is None
+                else SettlementEndogenousLPValuePacket.from_dict(endogenous_lp_value_packet_payload)
+            ),
+            strong_certificate_ok=_require_bool(payload["strong_certificate_ok"], name="strong_certificate_ok"),
+            feature_extension_packet_ok=_require_bool(
+                payload["feature_extension_packet_ok"],
+                name="feature_extension_packet_ok",
+            ),
+            module_bundle_ok=_require_bool(payload["module_bundle_ok"], name="module_bundle_ok"),
+            full_price_rails_ok=_require_bool(payload["full_price_rails_ok"], name="full_price_rails_ok"),
+            price_provenance_ok=_require_bool(payload["price_provenance_ok"], name="price_provenance_ok"),
+            attestation_ok=_require_bool(payload["attestation_ok"], name="attestation_ok"),
+            asset_conservation_ok=_require_bool(payload["asset_conservation_ok"], name="asset_conservation_ok"),
+            lp_liability_balanced_ok=_require_bool(
+                payload["lp_liability_balanced_ok"],
+                name="lp_liability_balanced_ok",
+            ),
+            value_conservation_ok=_require_bool(payload["value_conservation_ok"], name="value_conservation_ok"),
+            packet_ok=_require_bool(payload["packet_ok"], name="packet_ok"),
+        )
 
 
 def build_settlement_end_to_end_certificate_packet_from_price_packet(

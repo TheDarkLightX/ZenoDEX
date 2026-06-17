@@ -7,6 +7,7 @@ from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
 from src.integration.settlement_end_to_end_certificate_packet import (
     SETTLEMENT_END_TO_END_CERTIFICATE_PACKET_SCHEMA,
+    SettlementEndToEndCertificatePacket,
     _assemble_packet,
     build_settlement_end_to_end_certificate_packet_from_price_attestation,
     build_settlement_end_to_end_certificate_packet_from_price_packet,
@@ -297,3 +298,26 @@ def test_end_to_end_certificate_packet_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "settlement end-to-end certificate packet mismatch"
+
+
+def test_end_to_end_certificate_packet_from_dict_rejects_string_boolean_flags() -> None:
+    _pk, asset0, asset1, _pool_id, _pool, settlement = _four_swap_context()
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    packet = build_settlement_end_to_end_certificate_packet_from_price_packet(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        feature_extension_inputs=_feature_extension_inputs(),
+        price_packet=price_packet,
+    ).to_dict()
+    packet["packet_ok"] = "yes"
+
+    with pytest.raises(TypeError, match="packet_ok must be a bool"):
+        SettlementEndToEndCertificatePacket.from_dict(packet)
