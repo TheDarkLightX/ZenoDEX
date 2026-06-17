@@ -9,12 +9,14 @@ from ..agents.strategy_ir import StrategyAction
 from ..state.canonical import canonical_json_bytes, sha256_hex
 from .autotrader_decision import observation_hash_hex
 from .autotrader_signals import AutoTraderObservationPacket
-from .tau_runner import run_tau_spec_steps
+from .tau_runner import TauRunError, run_tau_spec_steps
 from .tau_witness import ARGMAX_STREAM_CERTIFICATE_V1, build_argmax_stream_certificate_v1_step
 
 MULTI_ACTION_CANDIDATE_SET_SCHEMA = "zenodex/strategy-multi-action-candidate-set/v1"
 MULTI_ACTION_DECISION_CERTIFICATE_SCHEMA = "zenodex/strategy-multi-action-decision/v1"
 DEFAULT_MULTI_ACTION_MODEL_VERSION = "autotrader-multi-action-v1"
+_PAYLOAD_DOMAIN_ERRORS = (TypeError, ValueError, ArithmeticError, KeyError)
+_TAU_RUNNER_ERRORS = (TauRunError, RuntimeError, ValueError, OSError)
 
 
 class MultiActionCandidateKind(Enum):
@@ -465,7 +467,7 @@ def check_bounded_multi_action_decision_tau_argmax_contract(
             steps=[dict(step) for step in certificate.argmax_steps],
             timeout_s=timeout_s,
         )
-    except Exception as exc:
+    except _TAU_RUNNER_ERRORS as exc:
         return BoundedMultiActionTauArgmaxContractResult(
             ok=False,
             certificate_ok=True,
@@ -534,7 +536,7 @@ def verify_bounded_multi_action_candidate_set_payload(payload: object) -> tuple[
             decision_model_version=str(payload.get("decision_model_version", "")),
             candidates=candidates,
         )
-    except Exception as exc:
+    except _PAYLOAD_DOMAIN_ERRORS as exc:
         return False, str(exc)
     if payload != candidate_set.to_dict():
         return False, "bounded multi-action candidate set payload mismatch"
@@ -566,7 +568,7 @@ def verify_bounded_multi_action_decision_certificate_payload(payload: object) ->
             frontier_width=payload.get("frontier_width"),
             argmax_steps=tuple(dict(step) for step in argmax_steps),
         )
-    except Exception as exc:
+    except _PAYLOAD_DOMAIN_ERRORS as exc:
         return False, str(exc)
     if payload != certificate.to_dict():
         return False, "bounded multi-action decision certificate payload mismatch"

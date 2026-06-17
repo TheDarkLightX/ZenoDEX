@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import pytest
 
+import src.integration.autotrader_multiaction_decision as multiaction_decision
 from src.agents.policy_artifacts import build_strategy_policy_artifact, build_tau_policy_bundle
 from src.agents.strategy_ir import (
     NotionalCaps,
@@ -29,15 +30,15 @@ from src.integration.autotrader_multiaction_decision import (
     verify_bounded_multi_action_decision_certificate,
     verify_bounded_multi_action_decision_certificate_payload,
 )
-from src.kernels.python.strategy_multi_action_candidate_set_contract_v1_adapter import (
-    check_strategy_multi_action_candidate_set_contract,
-)
 from src.integration.autotrader_signals import (
     AutoTraderObservationPacket,
     AutoTraderWalletCapability,
     QuoteReceiptSignalPacket,
 )
 from src.integration.tau_runner import find_tau_bin
+from src.kernels.python.strategy_multi_action_candidate_set_contract_v1_adapter import (
+    check_strategy_multi_action_candidate_set_contract,
+)
 from src.state.canonical import canonical_json_bytes, sha256_hex
 
 
@@ -98,6 +99,22 @@ def _artifact_bundle() -> tuple[object, object]:
     )
     artifact = build_strategy_policy_artifact(strategy=strategy, tau_policy_bundle=bundle)
     return artifact, bundle
+
+
+def _candidate_set_and_decision() -> tuple[BoundedMultiActionCandidateSet, BoundedMultiActionDecisionCertificate]:
+    artifact, bundle = _artifact_bundle()
+    candidate_set = build_bounded_multi_action_candidate_set(
+        policy_artifact=artifact,
+        tau_policy_bundle=bundle,
+        observation_packet=_packet(),
+        action_frontier={
+            StrategyAction.PLACE_SWAP_EXACT_IN: (True, True, 10),
+            StrategyAction.PLACE_SWAP_EXACT_OUT: (True, True, 30),
+            StrategyAction.PLACE_ORDER_INTENT: (True, False, 40),
+        },
+    )
+    decision = build_bounded_multi_action_decision_certificate(candidate_set=candidate_set)
+    return candidate_set, decision
 
 
 def test_bounded_multi_action_candidate_set_and_decision_choose_highest_priority_requested_action() -> None:
@@ -207,6 +224,60 @@ def test_bounded_multi_action_decision_roundtrip_and_tamper_rejection() -> None:
     ok, err = verify_bounded_multi_action_candidate_set_payload(bad_candidate_payload)
     assert ok is False
     assert err == "candidate_set_hash mismatch"
+
+
+def test_bounded_multi_action_payload_verifiers_reject_malformed_fields() -> None:
+    candidate_set, decision = _candidate_set_and_decision()
+
+    candidate_payload = candidate_set.to_dict()
+    del candidate_payload["candidates"][1]["candidate_key"]
+    candidate_unsigned = {
+        key: value for key, value in candidate_payload.items() if key != "candidate_set_hash"
+    }
+    candidate_payload["candidate_set_hash"] = sha256_hex(canonical_json_bytes(candidate_unsigned))
+    ok, err = verify_bounded_multi_action_candidate_set_payload(candidate_payload)
+    assert ok is False
+    assert err == "'candidate_key'"
+
+    decision_payload = decision.to_dict()
+    decision_payload["winner_key"] = True
+    decision_unsigned = {
+        key: value for key, value in decision_payload.items() if key != "decision_hash"
+    }
+    decision_payload["decision_hash"] = sha256_hex(canonical_json_bytes(decision_unsigned))
+    ok, err = verify_bounded_multi_action_decision_certificate_payload(decision_payload)
+    assert ok is False
+    assert err == "winner_key must be an int"
+
+
+def test_bounded_multi_action_payload_verifiers_do_not_swallow_adapter_bugs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    candidate_set, decision = _candidate_set_and_decision()
+    candidate_payload = candidate_set.to_dict()
+    decision_payload = decision.to_dict()
+
+    def broken_candidate_adapter(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("multi-action candidate adapter bug")
+
+    monkeypatch.setattr(
+        multiaction_decision,
+        "MultiActionDecisionCandidate",
+        broken_candidate_adapter,
+    )
+    with pytest.raises(RuntimeError, match="multi-action candidate adapter bug"):
+        verify_bounded_multi_action_candidate_set_payload(candidate_payload)
+
+    def broken_certificate_adapter(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("multi-action decision adapter bug")
+
+    monkeypatch.setattr(
+        multiaction_decision,
+        "BoundedMultiActionDecisionCertificate",
+        broken_certificate_adapter,
+    )
+    with pytest.raises(RuntimeError, match="multi-action decision adapter bug"):
+        verify_bounded_multi_action_decision_certificate_payload(decision_payload)
 
 
 def test_bounded_multi_action_candidate_set_contract_rejects_mutated_shape() -> None:
@@ -371,6 +442,40 @@ def test_bounded_multi_action_tau_argmax_contract_replays_when_tau_enabled() -> 
         )
     with pytest.raises(TypeError, match="candidate_set must be a BoundedMultiActionCandidateSet"):
         build_bounded_multi_action_decision_certificate(candidate_set="bad")  # type: ignore[arg-type]
+
+
+def test_bounded_multi_action_tau_runner_errors_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    candidate_set, decision = _candidate_set_and_decision()
+
+    def bad_tau_run(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("bad tau input")
+
+    monkeypatch.setattr(multiaction_decision, "run_tau_spec_steps", bad_tau_run)
+    result = check_bounded_multi_action_decision_tau_argmax_contract(
+        candidate_set=candidate_set,
+        certificate=decision,
+        tau_bin="/fake/tau",
+    )
+
+    assert result.ok is False
+    assert result.tau_used is True
+    assert result.argmax_steps_ok is False
+    assert result.error == "ValueError:bad tau input"
+
+
+def test_bounded_multi_action_tau_adapter_bugs_propagate(monkeypatch: pytest.MonkeyPatch) -> None:
+    candidate_set, decision = _candidate_set_and_decision()
+
+    def broken_tau_adapter(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("tau adapter bug")
+
+    monkeypatch.setattr(multiaction_decision, "run_tau_spec_steps", broken_tau_adapter)
+    with pytest.raises(AssertionError, match="tau adapter bug"):
+        check_bounded_multi_action_decision_tau_argmax_contract(
+            candidate_set=candidate_set,
+            certificate=decision,
+            tau_bin="/fake/tau",
+        )
 
 
 def test_bounded_multi_action_decision_verifier_rejects_mismatch() -> None:
