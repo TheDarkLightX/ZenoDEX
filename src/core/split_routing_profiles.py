@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from .domain_limits import is_strict_int
+
 ADAPTIVE_SEARCH_PROFILES = frozenset({
     "adaptive_v1",
     "adaptive_v2",
@@ -44,6 +46,18 @@ class _SplitRoutingFeatures:
     imbalance_hi: bool
     high: bool
     med: bool
+
+
+def _require_int_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value):
+        raise ValueError(f"{name} must be an int")
+    return int(value)
+
+
+def _require_nonnegative_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return int(value)
 
 
 def _ratio_ge_num_denom(*, a: int, b: int, num: int, denom: int) -> bool:
@@ -208,13 +222,15 @@ def resolve_two_pool_split_search_params(
     """
     Resolve adaptive split policies into concrete `(window, profile)` pairs.
     """
+    amount_in_i = _require_int_control(amount_in, name="amount_in")
+    window_i = _require_nonnegative_control(window, name="window")
     prof = str(search_profile).strip().lower()
     if prof not in ADAPTIVE_SEARCH_PROFILES:
-        return int(window), str(search_profile)
-    if amount_in <= 0:
-        return int(window), "baseline"
+        return window_i, str(search_profile)
+    if amount_in_i <= 0:
+        return window_i, "baseline"
 
-    features = _split_routing_features(pool0, pool1, int(amount_in))
+    features = _split_routing_features(pool0, pool1, amount_in_i)
     if prof == "adaptive_v1":
         return _resolve_adaptive_v1(features)
     if prof == "adaptive_v2":

@@ -7,6 +7,7 @@ from src.core.split_routing import (
     best_split_two_pools_exact_in,
     brute_force_best_split_two_pools_exact_in,
     exact_out_for_pool_exact_in,
+    resolve_two_pool_split_search_params,
     staircase_jump_best_split_two_pools_exact_in,
 )
 from src.core.split_routing_dispatch import (
@@ -251,6 +252,41 @@ def test_live_pool_quote_adapters_reject_non_strict_amounts(
 ) -> None:
     with pytest.raises(ValueError, match=message):
         quote(_pool(), asset_in="A", asset_out="B", **kwargs)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"amount_in": True, "window": 64}, "amount_in must be an int"),
+        ({"amount_in": "10", "window": 64}, "amount_in must be an int"),
+        ({"amount_in": 10, "window": False}, "window must be non-negative"),
+        ({"amount_in": 10, "window": -1}, "window must be non-negative"),
+    ],
+)
+def test_split_profile_resolution_rejects_non_strict_controls(
+    kwargs: dict[str, object],
+    message: str,
+) -> None:
+    p0 = PoolXY(x=100, y=100, fee_bps=0)
+    p1 = PoolXY(x=100, y=100, fee_bps=0)
+    with pytest.raises(ValueError, match=message):
+        resolve_two_pool_split_search_params(
+            p0,
+            p1,
+            kwargs["amount_in"],
+            search_profile="adaptive_v6",
+            window=kwargs["window"],
+        )
+
+
+def test_split_profile_resolution_preserves_nonpositive_integer_fallback() -> None:
+    p0 = PoolXY(x=100, y=100, fee_bps=0)
+    p1 = PoolXY(x=100, y=100, fee_bps=0)
+
+    assert resolve_two_pool_split_search_params(p0, p1, 0, search_profile="adaptive_v6", window=64) == (
+        64,
+        "baseline",
+    )
 
 
 @pytest.mark.parametrize(
