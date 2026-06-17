@@ -96,6 +96,14 @@ from src.state.nonces import validate_and_apply_intent_nonce_batch
 from src.state.support_root import compute_support_state_root_for_batch
 
 
+BOUNDARY_DOMAIN_ERRORS: tuple[type[Exception], ...] = (TypeError, ValueError, ArithmeticError)
+"""Expected parse/domain failures at the API adapter boundary.
+
+Unexpected exceptions are intentionally left for the central dispatcher, which
+preserves the same client response while producing operator diagnostics.
+"""
+
+
 # ----------------------------------------------------------------------
 # /api/dex/impact_preview
 # Legacy: src/integration/api_server.py:1443-1490
@@ -166,7 +174,7 @@ def _handle_slippage_advice(obj: Mapping[str, Any], ctx: DexRequestContext) -> D
             for x in raw_opts:
                 try:
                     collected_opts.append(int(x))
-                except (TypeError, ValueError, OverflowError):
+                except BOUNDARY_DOMAIN_ERRORS:
                     continue
             slippage_options_bps = collected_opts
         else:
@@ -251,7 +259,7 @@ def _handle_slippage_advice(obj: Mapping[str, Any], ctx: DexRequestContext) -> D
                 ],
             },
         }
-    except (TypeError, ValueError, ArithmeticError):
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "slippage_advice_error", "details": "request failed"}
 
 
@@ -281,7 +289,7 @@ def _handle_pokayoke_swap_suggest(obj: Mapping[str, Any], ctx: DexRequestContext
             for x in raw_opts:
                 try:
                     v = int(x)
-                except (TypeError, ValueError, OverflowError):
+                except BOUNDARY_DOMAIN_ERRORS:
                     continue
                 if v < 0 or v > 10_000:
                     continue
@@ -356,7 +364,7 @@ def _handle_pokayoke_swap_suggest(obj: Mapping[str, Any], ctx: DexRequestContext
                 "required_slippage_le_max_option_bps": _as_obj(req_max_opt),
             },
         }
-    except (TypeError, ValueError, ArithmeticError):
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "pokayoke_swap_suggest_error", "details": "request failed"}
 
 
@@ -385,7 +393,7 @@ def _handle_pokayoke_swap_suggest_heavy(obj: Mapping[str, Any], ctx: DexRequestC
             for x in raw_opts:
                 try:
                     v = int(x)
-                except (TypeError, ValueError, OverflowError):
+                except BOUNDARY_DOMAIN_ERRORS:
                     continue
                 if v < 0 or v > 10_000:
                     continue
@@ -442,7 +450,7 @@ def _handle_pokayoke_swap_suggest_heavy(obj: Mapping[str, Any], ctx: DexRequestC
             }
 
         return 200, {"ok": True, "suggestions": [_as_obj(s) for s in rows]}
-    except (TypeError, ValueError, ArithmeticError):
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "pokayoke_swap_suggest_heavy_error", "details": "request failed"}
 
 
@@ -856,7 +864,7 @@ def _handle_proof_mining_status(obj: Mapping[str, Any], ctx: DexRequestContext) 
             proof_mining_context_obj=proof_mining_context,
         )
         return 200, {"ok": True, "status": status.to_public_dict()}
-    except (TypeError, ValueError, ArithmeticError):
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "proof_mining_status_error", "details": "request failed"}
 
 
@@ -895,7 +903,7 @@ def _make_simple_verifier(
             verifier = importer()
             ok, err = verifier(payload)
             return 200, {"ok": bool(ok), "error": err}
-        except (TypeError, ValueError, ArithmeticError):
+        except BOUNDARY_DOMAIN_ERRORS:
             return 400, {"ok": False, "error": error_code, "details": "request failed"}
 
     return _handler
@@ -977,7 +985,7 @@ def _handle_verify_quote_receipt(obj: Mapping[str, Any], ctx: DexRequestContext)
             expected_quote_epoch=(None if expected_quote_epoch is None else int(expected_quote_epoch)),
         )
         return 200, {"ok": bool(ok), "error": str(err)}
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "verify_error", "details": "request failed"}
 
 
@@ -1023,7 +1031,7 @@ def _make_policy_verifier(
                 if quote_policy is not None:
                     fail_body["quote_policy"] = quote_policy
                 return 200, fail_body
-        except Exception:
+        except BOUNDARY_DOMAIN_ERRORS:
             return 400, {"ok": False, "error": error_code, "details": "request failed"}
 
     return _handler
@@ -1216,7 +1224,7 @@ def _handle_verify_exact_out_route_certificate(obj: Mapping[str, Any], ctx: DexR
 
         ok, err = verify_exact_out_route_canonical_certificate_payload(certificate)
         return 200, {"ok": bool(ok), "error": ("ok" if ok else str(err))}
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "verify_exact_out_certificate_error", "details": "request failed"}
 
 
@@ -1259,7 +1267,7 @@ def _handle_verify_settlement_feature_extension_packet(obj: Mapping[str, Any], c
             packet_payload=packet_obj,
         )
         return 200, {"ok": bool(ok), "error": err}
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "verify_settlement_feature_extension_packet_error", "details": "request failed"}
 
 
@@ -1292,7 +1300,7 @@ def _handle_verify_settlement_spot_price_attestation(obj: Mapping[str, Any], ctx
             allowed_signers=allowed_signers_obj,
         )
         return 200, {"ok": bool(ok), "error": err}
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "verify_settlement_spot_price_attestation_error", "details": "request failed"}
 
 
@@ -1314,7 +1322,7 @@ def _handle_build_settlement_spot_price_attestation(obj: Mapping[str, Any], ctx:
             signer_privkey=signer_privkey,
         )
         return 200, {"ok": True, "attestation": attestation.to_dict()}
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "build_settlement_spot_price_attestation_error", "details": "request failed"}
 
 
@@ -1334,7 +1342,7 @@ def _handle_build_exact_out_route_certificate(obj: Mapping[str, Any], ctx: DexRe
         quotes = tuple(exact_out_split_quote_from_dict(quote_obj) for quote_obj in quotes_obj)
         certificate = build_exact_out_route_canonical_certificate(quotes)
         return 200, {"ok": True, "certificate": certificate.to_dict()}
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "bad_exact_out_certificate_request", "details": "request failed"}
 
 
@@ -1373,7 +1381,7 @@ def _handle_audit_exact_out_two_pool_canonicality(obj: Mapping[str, Any], ctx: D
             brute_force_max=(None if brute_force_max is None else int(brute_force_max)),
         )
         return 200, {"ok": True, "audit": audit.to_dict()}
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "audit_exact_out_two_pool_canonicality_error", "details": "request failed"}
 
 
@@ -1502,7 +1510,7 @@ def _handle_build_exact_in_route_oracle_contract(obj: Mapping[str, Any], ctx: De
             "verify_contract_endpoint": "/api/dex/verify_exact_in_route_oracle_contract",
             "contract": contract.to_dict(),
         }
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "build_exact_in_route_oracle_contract_error", "details": "request failed"}
 
 
@@ -1522,7 +1530,7 @@ def _handle_guard_exact_in_route_canonicality(obj: Mapping[str, Any], ctx: DexRe
 
         ok, err_msg, contract = guard_exact_in_route_runtime_canonicality(pools_by_id=pools_by_id, **kwargs)
         return 200, {"ok": bool(ok), "contract": contract.to_dict(), "error": err_msg}
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "guard_exact_in_route_canonicality_error", "details": "request failed"}
 
 
@@ -1565,7 +1573,7 @@ def _handle_quote_exact_in_route_guarded(obj: Mapping[str, Any], ctx: DexRequest
         if quote is not None:
             response["quote"] = contract.to_dict()["runtime_quote"]
         return 200, response
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "quote_exact_in_route_guarded_error", "details": "request failed"}
 
 
@@ -1595,7 +1603,7 @@ def _handle_build_exact_in_route_guarded_quote_packet(obj: Mapping[str, Any], ct
             response["guard_ok"] = False
             response["error"] = str(packet.error or "exact_in_runtime_not_canonical")
         return 200, response
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "build_exact_in_route_guarded_quote_packet_error", "details": "request failed"}
 
 
@@ -1622,7 +1630,7 @@ def _handle_build_exact_in_route_rank_projection_packet(obj: Mapping[str, Any], 
             "verify_packet_endpoint": "/api/dex/verify_exact_in_route_rank_projection_packet",
             "packet": packet.to_dict(),
         }
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "build_exact_in_route_rank_projection_packet_error", "details": "request failed"}
 
 
@@ -1649,7 +1657,7 @@ def _handle_build_exact_in_route_true_key_interpretation_packet(obj: Mapping[str
             "verify_packet_endpoint": "/api/dex/verify_exact_in_route_true_key_interpretation_packet",
             "packet": packet.to_dict(),
         }
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "build_exact_in_route_true_key_interpretation_packet_error", "details": "request failed"}
 
 
