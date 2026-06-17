@@ -20,6 +20,7 @@ Those (2) imports stay lazy inside the handler bodies that need them.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Mapping, Optional, Sequence
 
 from src.core.price_impact_preview import price_impact_preview
@@ -918,35 +919,40 @@ def _int_field_specs_from_tuples(
     return tuple(IntFieldSpec(name=n, default=d, minimum=m) for n, d, m in tuples)
 
 
+@dataclass(frozen=True)
+class _ExactOutContractResponseSpec:
+    schema: str
+    verify_endpoint: str
+    include_contract_ok: bool
+    quote_endpoint: Optional[str]
+
+
 def _exact_out_contract_response(
     *,
     contract_dict: Mapping[str, Any],
-    schema: str,
-    verify_endpoint: str,
-    include_contract_ok: bool,
-    quote_endpoint: Optional[str],
+    spec: _ExactOutContractResponseSpec,
 ) -> dict[str, Any]:
-    if quote_endpoint is not None:
+    if spec.quote_endpoint is not None:
         return {
             "ok": True,
             "contract": contract_dict,
-            "contract_schema": schema,
-            "quote_endpoint": quote_endpoint,
-            "verify_contract_endpoint": verify_endpoint,
+            "contract_schema": spec.schema,
+            "quote_endpoint": spec.quote_endpoint,
+            "verify_contract_endpoint": spec.verify_endpoint,
         }
-    if include_contract_ok:
+    if spec.include_contract_ok:
         return {
             "ok": True,
             "contract": contract_dict,
             "contract_ok": bool(contract_dict["contract_ok"]),
-            "contract_schema": schema,
-            "verify_contract_endpoint": verify_endpoint,
+            "contract_schema": spec.schema,
+            "verify_contract_endpoint": spec.verify_endpoint,
         }
     return {
         "ok": True,
         "contract": contract_dict,
-        "contract_schema": schema,
-        "verify_contract_endpoint": verify_endpoint,
+        "contract_schema": spec.schema,
+        "verify_contract_endpoint": spec.verify_endpoint,
     }
 
 
@@ -983,10 +989,12 @@ def _make_exact_out_many_pool_contract_builder(
         )
         return 200, _exact_out_contract_response(
             contract_dict=contract.to_dict(),
-            schema=schema,
-            verify_endpoint=verify_endpoint,
-            include_contract_ok=include_contract_ok,
-            quote_endpoint=quote_endpoint,
+            spec=_ExactOutContractResponseSpec(
+                schema=schema,
+                verify_endpoint=verify_endpoint,
+                include_contract_ok=include_contract_ok,
+                quote_endpoint=quote_endpoint,
+            ),
         )
 
     return _handler
@@ -1148,67 +1156,64 @@ _PACKET_BUILDER_DEFAULT_FIELDS: list[tuple[str, Any, int]] = [
 ]
 
 
+@dataclass(frozen=True)
+class _ExactOutPacketResponseSpec:
+    schema: str
+    verify_endpoint: str
+    quote_policy: Optional[str]
+    response_mode: str
+    fallback_error: Optional[str]
+    extra_response_field: Optional[tuple[str, str]]
+
+
 def _exact_out_packet_response_base(
     *,
     ok: bool,
     packet: Any,
-    schema: str,
-    verify_endpoint: str,
-    quote_policy: Optional[str],
+    spec: _ExactOutPacketResponseSpec,
 ) -> dict[str, Any]:
     response: dict[str, Any] = {
         "ok": ok,
         "packet": packet.to_dict(),
-        "packet_schema": schema,
-        "verify_packet_endpoint": verify_endpoint,
+        "packet_schema": spec.schema,
+        "verify_packet_endpoint": spec.verify_endpoint,
     }
-    if quote_policy is not None:
-        response["quote_policy"] = quote_policy
+    if spec.quote_policy is not None:
+        response["quote_policy"] = spec.quote_policy
     return response
 
 
 def _exact_out_packet_response(
     *,
     packet: Any,
-    schema: str,
-    verify_endpoint: str,
-    quote_policy: Optional[str],
-    response_mode: str,
-    fallback_error: Optional[str],
-    extra_response_field: Optional[tuple[str, str]],
+    spec: _ExactOutPacketResponseSpec,
 ) -> dict[str, Any]:
-    if response_mode == "ok_true":
+    if spec.response_mode == "ok_true":
         response = _exact_out_packet_response_base(
             ok=True,
             packet=packet,
-            schema=schema,
-            verify_endpoint=verify_endpoint,
-            quote_policy=quote_policy,
+            spec=spec,
         )
-    elif response_mode == "ok_packet_ok":
+    elif spec.response_mode == "ok_packet_ok":
         response = _exact_out_packet_response_base(
             ok=bool(packet.packet_ok),
             packet=packet,
-            schema=schema,
-            verify_endpoint=verify_endpoint,
-            quote_policy=quote_policy,
+            spec=spec,
         )
-        if not packet.packet_ok and fallback_error is not None:
-            response["error"] = str(getattr(packet, "error", None) or fallback_error)
+        if not packet.packet_ok and spec.fallback_error is not None:
+            response["error"] = str(getattr(packet, "error", None) or spec.fallback_error)
     else:
         response = _exact_out_packet_response_base(
             ok=True,
             packet=packet,
-            schema=schema,
-            verify_endpoint=verify_endpoint,
-            quote_policy=quote_policy,
+            spec=spec,
         )
         if not packet.packet_ok:
             response["ok"] = False
-            response["error"] = str(packet.error or fallback_error or "packet_not_ok")
+            response["error"] = str(packet.error or spec.fallback_error or "packet_not_ok")
 
-    if extra_response_field is not None:
-        response_key, packet_attr = extra_response_field
+    if spec.extra_response_field is not None:
+        response_key, packet_attr = spec.extra_response_field
         response[response_key] = bool(getattr(packet, packet_attr))
     return response
 
@@ -1251,12 +1256,14 @@ def _make_exact_out_many_pool_packet_builder(
         )
         return 200, _exact_out_packet_response(
             packet=packet,
-            schema=schema,
-            verify_endpoint=verify_endpoint,
-            quote_policy=quote_policy,
-            response_mode=response_mode,
-            fallback_error=fallback_error,
-            extra_response_field=extra_response_field,
+            spec=_ExactOutPacketResponseSpec(
+                schema=schema,
+                verify_endpoint=verify_endpoint,
+                quote_policy=quote_policy,
+                response_mode=response_mode,
+                fallback_error=fallback_error,
+                extra_response_field=extra_response_field,
+            ),
         )
 
     return _handler
@@ -1488,41 +1495,43 @@ def _handle_guard_exact_out_many_pool_canonicality(obj: Mapping[str, Any], ctx: 
 _register("/api/dex/guard_exact_out_many_pool_canonicality", _handle_guard_exact_out_many_pool_canonicality)
 
 
-def _exact_out_guarded_quote_response(
-    *,
-    quote: Any,
-    err_msg: Any,
-    contract_dict: Mapping[str, Any],
-    audit_payload: Mapping[str, Any],
-    contract_schema: str,
-    packet_schema: str,
-) -> dict[str, Any]:
+@dataclass(frozen=True)
+class _ExactOutGuardedQuoteResponse:
+    quote: Any
+    err_msg: Any
+    contract_dict: Mapping[str, Any]
+    audit_payload: Mapping[str, Any]
+    contract_schema: str
+    packet_schema: str
+
+
+def _exact_out_guarded_quote_response(payload: _ExactOutGuardedQuoteResponse) -> dict[str, Any]:
     common = {
-        "contract": contract_dict,
-        "contract_ok": bool(contract_dict["contract_ok"]),
-        "contract_schema": contract_schema,
-        "packet_schema": packet_schema,
+        "contract": payload.contract_dict,
+        "contract_ok": bool(payload.contract_dict["contract_ok"]),
+        "contract_schema": payload.contract_schema,
+        "packet_schema": payload.packet_schema,
         "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",
         "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_oracle_contract",
         "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_guarded_quote_packet",
         "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_guarded_quote_packet",
-        "runtime_projected_path": audit_payload["runtime_projected_path"],
-        "canonical_winner_projected_path": audit_payload["canonical_winner_projected_path"],
-        "runtime_matches_canonical_projected_path": audit_payload["runtime_matches_canonical_projected_path"],
-        "projection_cover_available": audit_payload["projection_cover_available"],
-        "projection_cover_holds": audit_payload["projection_cover_holds"],
+        "runtime_projected_path": payload.audit_payload["runtime_projected_path"],
+        "canonical_winner_projected_path": payload.audit_payload["canonical_winner_projected_path"],
+        "runtime_matches_canonical_projected_path": payload.audit_payload["runtime_matches_canonical_projected_path"],
+        "projection_cover_available": payload.audit_payload["projection_cover_available"],
+        "projection_cover_holds": payload.audit_payload["projection_cover_holds"],
     }
-    if quote is not None:
+    if payload.quote is not None:
         return {
             "ok": True,
-            "quote": dict(audit_payload["runtime_quote"]),
+            "quote": dict(payload.audit_payload["runtime_quote"]),
             **common,
         }
     return {
         "ok": False,
-        "error": str(err_msg or "many_pool_runtime_not_canonical"),
-        "runtime_quote": dict(audit_payload["runtime_quote"]),
-        "canonical_winner_quote": dict(audit_payload["canonical_winner_quote"]),
+        "error": str(payload.err_msg or "many_pool_runtime_not_canonical"),
+        "runtime_quote": dict(payload.audit_payload["runtime_quote"]),
+        "canonical_winner_quote": dict(payload.audit_payload["canonical_winner_quote"]),
         **common,
     }
 
@@ -1562,12 +1571,14 @@ def _handle_quote_exact_out_many_pool_guarded(obj: Mapping[str, Any], ctx: DexRe
         contract_dict = contract.to_dict()
         audit_payload = contract_dict["audit"]
         return 200, _exact_out_guarded_quote_response(
-            quote=quote,
-            err_msg=err_msg,
-            contract_dict=contract_dict,
-            audit_payload=audit_payload,
-            contract_schema=EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
-            packet_schema=EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
+            _ExactOutGuardedQuoteResponse(
+                quote=quote,
+                err_msg=err_msg,
+                contract_dict=contract_dict,
+                audit_payload=audit_payload,
+                contract_schema=EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
+                packet_schema=EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
+            )
         )
     except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "quote_exact_out_many_pool_guarded_error", "details": "request failed"}
