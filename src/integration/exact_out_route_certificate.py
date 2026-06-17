@@ -3594,6 +3594,172 @@ def _exact_out_many_pool_certified_advisory_packet_error(
     return EXACT_OUT_MANY_POOL_GUARD_MISMATCH_ERROR
 
 
+@dataclass(frozen=True)
+class _AdaptiveLivenessPathStatus:
+    repaired_full_domain_packet: ExactOutManyPoolRepairedFullDomainCertifiedPacket
+    cheap_path_attempted: bool
+    cheap_path_success: bool
+    fallback_required: bool
+    fallback_attempted: bool
+    fallback_available: bool
+    fallback_success: bool
+    returned_success: bool
+    explicit_failure: bool
+
+
+@dataclass(frozen=True)
+class _AdaptiveLivenessEffectiveResult:
+    effective_quote_source: str | None
+    effective_quote: SplitManyPoolsExactOutQuote | None
+    failure_reason: str | None
+    nested_error: str | None
+
+
+def _adaptive_liveness_path_status(
+    default_packet: ExactOutManyPoolCertifiedAdvisoryPacket,
+) -> _AdaptiveLivenessPathStatus:
+    repaired_full_domain_packet = default_packet.advisory_packet.workaround_packet.repaired_full_domain_packet
+    cheap_path_success = bool(default_packet.packet_ok and default_packet.advisory_packet.advisory_quote is not None)
+    fallback_required = not cheap_path_success
+    fallback_available = bool(
+        repaired_full_domain_packet.packet_ok and repaired_full_domain_packet.repaired_quote is not None
+    )
+    fallback_success = bool(fallback_required and fallback_available)
+    returned_success = bool(cheap_path_success or fallback_success)
+    return _AdaptiveLivenessPathStatus(
+        repaired_full_domain_packet=repaired_full_domain_packet,
+        cheap_path_attempted=True,
+        cheap_path_success=cheap_path_success,
+        fallback_required=fallback_required,
+        fallback_attempted=fallback_required,
+        fallback_available=fallback_available,
+        fallback_success=fallback_success,
+        returned_success=returned_success,
+        explicit_failure=not returned_success,
+    )
+
+
+def _adaptive_liveness_failure_reason(
+    *,
+    audited_bounds_contract: ExactOutManyPoolAuditedBoundsContract,
+    default_packet: ExactOutManyPoolCertifiedAdvisoryPacket,
+    repaired_full_domain_packet: ExactOutManyPoolRepairedFullDomainCertifiedPacket,
+) -> str:
+    if not audited_bounds_contract.contract_ok:
+        return EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_AUDITED_BOUNDS_CONTRACT_NOT_OK
+    if not default_packet.packet_ok:
+        return EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_DEFAULT_PACKET_NOT_OK
+    if not repaired_full_domain_packet.packet_ok:
+        return EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPAIRED_FULL_DOMAIN_PACKET_NOT_OK
+    return EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPLAYABLE_QUOTE_MISSING
+
+
+def _adaptive_liveness_effective_result(
+    *,
+    audited_bounds_contract: ExactOutManyPoolAuditedBoundsContract,
+    status: _AdaptiveLivenessPathStatus,
+) -> _AdaptiveLivenessEffectiveResult:
+    default_packet = audited_bounds_contract.certified_advisory_packet
+    if status.cheap_path_success:
+        return _AdaptiveLivenessEffectiveResult(
+            effective_quote_source="default_certified_advisory",
+            effective_quote=default_packet.advisory_packet.advisory_quote,
+            failure_reason=None,
+            nested_error=None,
+        )
+    if status.fallback_success:
+        return _AdaptiveLivenessEffectiveResult(
+            effective_quote_source="repaired_full_domain",
+            effective_quote=status.repaired_full_domain_packet.repaired_quote,
+            failure_reason=None,
+            nested_error=None,
+        )
+
+    default_error = _exact_out_many_pool_certified_advisory_packet_error(default_packet)
+    fallback_error = None if status.fallback_available else status.repaired_full_domain_packet.error
+    failure_reason = _adaptive_liveness_failure_reason(
+        audited_bounds_contract=audited_bounds_contract,
+        default_packet=default_packet,
+        repaired_full_domain_packet=status.repaired_full_domain_packet,
+    )
+    return _AdaptiveLivenessEffectiveResult(
+        effective_quote_source=None,
+        effective_quote=None,
+        failure_reason=failure_reason,
+        nested_error=str(fallback_error or default_error or failure_reason),
+    )
+
+
+def _adaptive_liveness_packet_ok(
+    *,
+    audited_bounds_contract: ExactOutManyPoolAuditedBoundsContract,
+    status: _AdaptiveLivenessPathStatus,
+    result: _AdaptiveLivenessEffectiveResult,
+) -> bool:
+    return bool(
+        status.repaired_full_domain_packet
+        == audited_bounds_contract.certified_advisory_packet.advisory_packet.workaround_packet.repaired_full_domain_packet
+        and status.cheap_path_attempted
+        and status.fallback_required == (not status.cheap_path_success)
+        and status.fallback_attempted == status.fallback_required
+        and status.fallback_success == (status.fallback_attempted and status.fallback_available)
+        and status.returned_success == (status.cheap_path_success or status.fallback_success)
+        and status.explicit_failure == (not status.returned_success)
+        and (result.failure_reason is not None) == status.explicit_failure
+        and (
+            (
+                status.returned_success
+                and result.effective_quote_source is not None
+                and result.effective_quote is not None
+                and result.failure_reason is None
+            )
+            or (
+                status.explicit_failure
+                and result.effective_quote_source is None
+                and result.effective_quote is None
+                and result.failure_reason is not None
+            )
+        )
+    )
+
+
+def _adaptive_liveness_packet_from_audited_bounds(
+    audited_bounds_contract: ExactOutManyPoolAuditedBoundsContract,
+) -> ExactOutManyPoolAdaptiveLivenessPacket:
+    status = _adaptive_liveness_path_status(audited_bounds_contract.certified_advisory_packet)
+    result = _adaptive_liveness_effective_result(
+        audited_bounds_contract=audited_bounds_contract,
+        status=status,
+    )
+    no_spurious_failure = bool((not status.explicit_failure) or (not status.fallback_available))
+    packet_ok = _adaptive_liveness_packet_ok(
+        audited_bounds_contract=audited_bounds_contract,
+        status=status,
+        result=result,
+    )
+    liveness_ok = bool(packet_ok and audited_bounds_contract.contract_ok and no_spurious_failure)
+    return ExactOutManyPoolAdaptiveLivenessPacket(
+        audited_bounds_contract=audited_bounds_contract,
+        repaired_full_domain_packet=status.repaired_full_domain_packet,
+        cheap_path_attempted=status.cheap_path_attempted,
+        cheap_path_success=status.cheap_path_success,
+        fallback_required=status.fallback_required,
+        fallback_attempted=status.fallback_attempted,
+        fallback_available=status.fallback_available,
+        fallback_success=status.fallback_success,
+        returned_success=status.returned_success,
+        explicit_failure=status.explicit_failure,
+        failure_reason_present=result.failure_reason is not None,
+        no_spurious_failure=no_spurious_failure,
+        effective_quote_source=result.effective_quote_source,
+        effective_quote=result.effective_quote,
+        failure_reason=result.failure_reason,
+        nested_error=result.nested_error,
+        packet_ok=packet_ok,
+        liveness_ok=liveness_ok,
+    )
+
+
 def build_exact_out_many_pool_adaptive_liveness_packet(
     pools: Sequence[PoolState],
     *,
@@ -3623,94 +3789,7 @@ def build_exact_out_many_pool_adaptive_liveness_packet(
         max_full_domain_pools=int(max_full_domain_pools),
         max_enumerated_candidates=int(max_enumerated_candidates),
     )
-    default_packet = audited_bounds_contract.certified_advisory_packet
-    repaired_full_domain_packet = default_packet.advisory_packet.workaround_packet.repaired_full_domain_packet
-
-    cheap_path_attempted = True
-    cheap_path_success = bool(default_packet.packet_ok and default_packet.advisory_packet.advisory_quote is not None)
-    fallback_required = not cheap_path_success
-    fallback_attempted = fallback_required
-    fallback_available = bool(
-        repaired_full_domain_packet.packet_ok and repaired_full_domain_packet.repaired_quote is not None
-    )
-    fallback_success = bool(fallback_attempted and fallback_available)
-    returned_success = bool(cheap_path_success or fallback_success)
-    explicit_failure = not returned_success
-
-    if cheap_path_success:
-        effective_quote_source = "default_certified_advisory"
-        effective_quote = default_packet.advisory_packet.advisory_quote
-        failure_reason = None
-        nested_error = None
-    elif fallback_success:
-        effective_quote_source = "repaired_full_domain"
-        effective_quote = repaired_full_domain_packet.repaired_quote
-        failure_reason = None
-        nested_error = None
-    else:
-        effective_quote_source = None
-        effective_quote = None
-        default_error = _exact_out_many_pool_certified_advisory_packet_error(default_packet)
-        fallback_error = None if fallback_available else repaired_full_domain_packet.error
-        if not audited_bounds_contract.contract_ok:
-            failure_reason = EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_AUDITED_BOUNDS_CONTRACT_NOT_OK
-        elif not default_packet.packet_ok:
-            failure_reason = EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_DEFAULT_PACKET_NOT_OK
-        elif not repaired_full_domain_packet.packet_ok:
-            failure_reason = EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPAIRED_FULL_DOMAIN_PACKET_NOT_OK
-        else:
-            failure_reason = EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPLAYABLE_QUOTE_MISSING
-        nested_error = str(fallback_error or default_error or failure_reason)
-
-    failure_reason_present = bool(failure_reason is not None)
-    no_spurious_failure = bool((not explicit_failure) or (not fallback_available))
-    packet_ok = bool(
-        repaired_full_domain_packet
-        == default_packet.advisory_packet.workaround_packet.repaired_full_domain_packet
-        and cheap_path_attempted
-        and fallback_required == (not cheap_path_success)
-        and fallback_attempted == fallback_required
-        and fallback_success == (fallback_attempted and fallback_available)
-        and returned_success == (cheap_path_success or fallback_success)
-        and explicit_failure == (not returned_success)
-        and failure_reason_present == (failure_reason is not None)
-        and no_spurious_failure == ((not explicit_failure) or (not fallback_available))
-        and (
-            (
-                returned_success
-                and effective_quote_source is not None
-                and effective_quote is not None
-                and failure_reason is None
-            )
-            or (
-                explicit_failure
-                and effective_quote_source is None
-                and effective_quote is None
-                and failure_reason is not None
-            )
-        )
-    )
-    liveness_ok = bool(packet_ok and audited_bounds_contract.contract_ok and no_spurious_failure)
-    return ExactOutManyPoolAdaptiveLivenessPacket(
-        audited_bounds_contract=audited_bounds_contract,
-        repaired_full_domain_packet=repaired_full_domain_packet,
-        cheap_path_attempted=bool(cheap_path_attempted),
-        cheap_path_success=bool(cheap_path_success),
-        fallback_required=bool(fallback_required),
-        fallback_attempted=bool(fallback_attempted),
-        fallback_available=bool(fallback_available),
-        fallback_success=bool(fallback_success),
-        returned_success=bool(returned_success),
-        explicit_failure=bool(explicit_failure),
-        failure_reason_present=bool(failure_reason_present),
-        no_spurious_failure=bool(no_spurious_failure),
-        effective_quote_source=effective_quote_source,
-        effective_quote=effective_quote,
-        failure_reason=failure_reason,
-        nested_error=nested_error,
-        packet_ok=bool(packet_ok),
-        liveness_ok=bool(liveness_ok),
-    )
+    return _adaptive_liveness_packet_from_audited_bounds(audited_bounds_contract)
 
 
 def quote_exact_out_many_pool_adaptive(
