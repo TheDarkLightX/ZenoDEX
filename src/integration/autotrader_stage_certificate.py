@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..state.canonical import canonical_json_bytes, sha256_hex
 from .autotrader_decision import observation_hash_hex
@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 
 STAGE_CERTIFICATE_SCHEMA = "zenodex/strategy-stage-certificate/v1"
+_STAGE_CERTIFICATE_PAYLOAD_ERRORS = (TypeError, ValueError, ArithmeticError)
 _STAGES = (
     "signer",
     "tau_policy_bundle",
@@ -234,7 +235,7 @@ def verify_autotrader_stage_certificate_payload(payload: object) -> tuple[bool, 
             release_eligible=payload.get("release_eligible"),
             blocker=payload.get("blocker"),
         )
-    except Exception as exc:
+    except _STAGE_CERTIFICATE_PAYLOAD_ERRORS as exc:
         return False, str(exc)
     if payload != certificate.to_dict():
         return False, "stage certificate payload mismatch"

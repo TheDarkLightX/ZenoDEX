@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 import src.integration.autotrader_live as autotrader_live
+import src.integration.autotrader_stage_certificate as autotrader_stage_certificate
 from src.agents.policy_compiler import compile_policy_candidate
 from src.agents.strategy_ir import AUTOTRADER_TAU_POLICY_SPECS, StrategyIR
 from src.core.quote_receipts import make_route_quote_receipt
@@ -124,6 +127,71 @@ def test_stage_certificate_attaches_to_successful_submit() -> None:
     payload_ok, payload_err = verify_autotrader_stage_certificate_payload(certificate.to_dict())
     assert payload_ok is True
     assert payload_err is None
+
+
+def test_stage_certificate_payload_verifier_rejects_malformed_payload() -> None:
+    privkey = 311
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+        krr_backend="python",
+        tx_sequence_number=4,
+        tx_expiration_time=999,
+    )
+    payload = build_autotrader_stage_certificate(report).to_dict()
+    payload["release_eligible"] = "yes"
+    unsigned_payload = {key: value for key, value in payload.items() if key != "stage_hash"}
+    payload["stage_hash"] = sha256_hex(canonical_json_bytes(unsigned_payload))
+
+    ok, err = verify_autotrader_stage_certificate_payload(payload)
+
+    assert ok is False
+    assert err == "release_eligible must be a bool"
+
+
+def test_stage_certificate_payload_verifier_does_not_swallow_adapter_bugs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    privkey = 311
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+        krr_backend="python",
+        tx_sequence_number=4,
+        tx_expiration_time=999,
+    )
+    payload = build_autotrader_stage_certificate(report).to_dict()
+
+    def broken_stage_certificate_adapter(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("stage certificate adapter bug")
+
+    monkeypatch.setattr(
+        autotrader_stage_certificate,
+        "AutoTraderStageCertificate",
+        broken_stage_certificate_adapter,
+    )
+    with pytest.raises(RuntimeError, match="stage certificate adapter bug"):
+        verify_autotrader_stage_certificate_payload(payload)
 
 
 def test_stage_certificate_attaches_to_signer_mismatch_reject() -> None:
