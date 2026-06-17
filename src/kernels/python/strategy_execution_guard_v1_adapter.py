@@ -94,7 +94,8 @@ def check_order_execution(
 
     if not cadence_ok:
         required_spacing = max(cadence_epochs, min_order_spacing_epochs)
-        assert last_action_epoch is not None
+        if last_action_epoch is None:
+            raise RuntimeError("cadence failure requires last_action_epoch")
         delta = current_epoch - last_action_epoch
         return StrategyExecutionResult(
             ok=False,
