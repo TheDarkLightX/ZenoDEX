@@ -1514,6 +1514,27 @@ def test_perps_wallet_signer_device_integration_ready_receipt() -> None:
     assert status["environment_hash"] == integration["environment"]["environment_hash"]
 
 
+def test_perps_wallet_signer_device_integration_rejects_integer_backend_booleans() -> None:
+    integration = _perps_wallet_signer_device_integration()
+    integration["backend_descriptor"] = {
+        **integration["backend_descriptor"],
+        "active": 1,
+        "no_raw_private_key_exposure": 1,
+    }
+    body = {key: value for key, value in integration.items() if key != "integration_hash"}
+    integration["integration_hash"] = perps_wallet_signer_device_integration_hash_v1(body)
+
+    status = evaluate_perps_wallet_signer_device_integration_v1(
+        _perps_wallet_authority_profile(),
+        integration,
+        expected_chain_id=CHAIN_ID,
+    )
+
+    assert status["ok"] is False
+    assert status["signer_device_ready"] is False
+    assert any("backend_descriptor.active must be bool" in error for error in status["errors"])
+
+
 def test_perps_wallet_signer_device_integration_blocks_missing_user_presence() -> None:
     integration = _perps_wallet_signer_device_integration()
     integration["environment"] = {
