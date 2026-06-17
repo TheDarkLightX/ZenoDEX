@@ -798,6 +798,34 @@ def test_make_route_quote_receipt_rejects_bad_quote_epoch() -> None:
         make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools, quote_epoch=-1)
 
 
+def test_make_route_quote_receipt_rejects_bool_amount_before_hashing() -> None:
+    pools = {"p_ab": _pool("p_ab", "A", "B", 1_000, 1_000, 0)}
+    hop = RouteHop(pool_id="p_ab", asset_in="A", asset_out="B", amount_in=True, amount_out=90)
+    leg = RouteLeg(hops=(hop,), amount_in=True, amount_out=90)
+    quote = RouteQuote(asset_in="A", asset_out="B", amount_in=True, amount_out=90, legs=(leg,))
+
+    with pytest.raises(TypeError, match="hop.amount_in must be an int"):
+        make_route_quote_receipt(kind="exact_out", quote=quote, pools_by_id=pools)
+
+
+def test_make_route_quote_receipt_rejects_zero_amount_before_hashing() -> None:
+    pools = {"p_ab": _pool("p_ab", "A", "B", 1_000, 1_000, 0)}
+    hop = RouteHop(pool_id="p_ab", asset_in="A", asset_out="B", amount_in=0, amount_out=90)
+    leg = RouteLeg(hops=(hop,), amount_in=0, amount_out=90)
+    quote = RouteQuote(asset_in="A", asset_out="B", amount_in=0, amount_out=90, legs=(leg,))
+
+    with pytest.raises(ValueError, match="hop.amount_in must be positive"):
+        make_route_quote_receipt(kind="exact_out", quote=quote, pools_by_id=pools)
+
+
+def test_pool_state_fingerprint_rejects_bool_numeric_field() -> None:
+    pool = _pool("p_ab", "A", "B", 1_000, 1_000, 0)
+    pool.reserve0 = True
+
+    with pytest.raises(TypeError, match="pool.reserve0 must be an int"):
+        pool_state_fingerprint(pool)
+
+
 def _mutate_missing_body(receipt: dict[str, Any], pools: dict[str, PoolState]) -> tuple[dict[str, Any], dict[str, PoolState]]:
     mutated = copy.deepcopy(receipt)
     mutated.pop("body", None)
