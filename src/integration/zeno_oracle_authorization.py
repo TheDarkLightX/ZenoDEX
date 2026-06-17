@@ -720,6 +720,18 @@ def check_critical_consumer_authorization(
     max_freshness_window_epochs: int | None = None,
     require_receipt_graph: bool = True,
 ) -> dict[str, Any]:
+    runtime_field_errors: list[str] = []
+    if isinstance(runtime_value_e8, bool) or not isinstance(runtime_value_e8, int):
+        runtime_field_errors.append("runtime_value_e8 must be an int")
+        runtime_value_e8_int = 0
+    else:
+        runtime_value_e8_int = int(runtime_value_e8)
+    if isinstance(now_epoch, bool) or not isinstance(now_epoch, int):
+        runtime_field_errors.append("now_epoch must be an int")
+        now_epoch_int = 0
+    else:
+        now_epoch_int = int(now_epoch)
+
     expected_profile = profile_id or CRITICAL_CONSUMER_PROFILES.get((consumer_module, action_kind))
     expected_max_freshness_window_epochs = max_freshness_window_epochs
     if expected_max_freshness_window_epochs is None:
@@ -736,7 +748,7 @@ def check_critical_consumer_authorization(
             "receipt_graph_ok": False,
             "economic_envelope_ok": False,
             "opaque_errors": ["unsupported critical consumer/action"],
-            "typed_errors": ["unsupported critical consumer/action"],
+            "typed_errors": ["unsupported critical consumer/action", *runtime_field_errors],
             "receipt_graph_errors": ["unsupported critical consumer/action"],
             "economic_envelope_errors": ["unsupported critical consumer/action"],
             "authorization": dict(_authorization_obj_from_payload(authorization_payload)),
@@ -762,8 +774,8 @@ def check_critical_consumer_authorization(
         pre_state_hash=pre_state_hash,
         profile_id=expected_profile,
         query_id=query_id,
-        runtime_value_e8=int(runtime_value_e8),
-        now_epoch=int(now_epoch),
+        runtime_value_e8=runtime_value_e8_int,
+        now_epoch=now_epoch_int,
         runtime_notional_value_e8=runtime_notional_value_e8,
         max_freshness_window_epochs=expected_max_freshness_window_epochs,
     )
@@ -774,6 +786,7 @@ def check_critical_consumer_authorization(
     )
     authorization = authorization_from_obj(_authorization_obj_from_payload(authorization_payload))
     typed_errors = list(result["typed_errors"])
+    typed_errors.extend(runtime_field_errors)
     if authorization.profile_id != expected_profile:
         typed_errors.append("critical profile mismatch")
     result["typed_errors"] = typed_errors

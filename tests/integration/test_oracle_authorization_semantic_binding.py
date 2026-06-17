@@ -464,6 +464,37 @@ def test_critical_consumer_requires_terminal_receipt_graph() -> None:
     assert "receipt_graph required" in result["receipt_graph_errors"]
 
 
+def test_critical_consumer_rejects_bool_runtime_fields() -> None:
+    authorization, runtime = _valid_pair()
+    authorization = replace(
+        authorization,
+        value_e8=1,
+        observed_epoch=0,
+        expires_at_epoch=1,
+        value_hash=oracle_value_hash(
+            query_id=authorization.query_id,
+            value_e8=1,
+            observed_epoch=0,
+        ),
+    )
+
+    result = check_critical_consumer_authorization(
+        authorization_bundle(asdict(authorization)),
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=True,
+        now_epoch=True,
+    )
+
+    assert result["typed_ok"] is False
+    assert "runtime_value_e8 must be an int" in result["typed_errors"]
+    assert "now_epoch must be an int" in result["typed_errors"]
+
+
 def test_critical_consumer_rejects_terminal_graph_value_mismatch() -> None:
     authorization, runtime = _valid_pair()
     bundle = authorization_bundle(asdict(authorization))
