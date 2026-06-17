@@ -15,6 +15,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+def _require_plain_int(name: str, value: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
 @dataclass(frozen=True)
 class StressFeePolicy:
     """Piecewise-linear fee schedule in bps as a function of trade stress.
@@ -56,12 +62,14 @@ def fee_bps_from_stress_policy(
     amount_in: int,
 ) -> int:
     """Compute stress-based fee in bps (integer-only, deterministic)."""
-    if reserve_in <= 0:
+    reserve = _require_plain_int("reserve_in", reserve_in)
+    amount = _require_plain_int("amount_in", amount_in)
+    if reserve <= 0:
         raise ValueError("reserve_in must be positive")
-    if amount_in < 0:
+    if amount < 0:
         raise ValueError("amount_in must be non-negative")
 
-    stress_bps = (int(amount_in) * 10_000) // int(reserve_in)
+    stress_bps = (amount * 10_000) // reserve
     if stress_bps > 10_000:
         stress_bps = 10_000
 
