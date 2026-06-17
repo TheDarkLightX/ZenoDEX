@@ -731,6 +731,17 @@ def check_critical_consumer_authorization(
         now_epoch_int = 0
     else:
         now_epoch_int = int(now_epoch)
+    runtime_notional_value_e8_int: int | None
+    if runtime_notional_value_e8 is None:
+        runtime_notional_value_e8_int = None
+    elif isinstance(runtime_notional_value_e8, bool) or not isinstance(runtime_notional_value_e8, int):
+        runtime_field_errors.append("runtime_notional_value_e8 must be an int when present")
+        runtime_notional_value_e8_int = None
+    elif runtime_notional_value_e8 < 0:
+        runtime_field_errors.append("runtime_notional_value_e8 must be a non-negative int")
+        runtime_notional_value_e8_int = None
+    else:
+        runtime_notional_value_e8_int = int(runtime_notional_value_e8)
 
     expected_profile = profile_id or CRITICAL_CONSUMER_PROFILES.get((consumer_module, action_kind))
     expected_max_freshness_window_epochs = max_freshness_window_epochs
@@ -776,7 +787,7 @@ def check_critical_consumer_authorization(
         query_id=query_id,
         runtime_value_e8=runtime_value_e8_int,
         now_epoch=now_epoch_int,
-        runtime_notional_value_e8=runtime_notional_value_e8,
+        runtime_notional_value_e8=runtime_notional_value_e8_int,
         max_freshness_window_epochs=expected_max_freshness_window_epochs,
     )
     result = check_authorization_for_runtime(

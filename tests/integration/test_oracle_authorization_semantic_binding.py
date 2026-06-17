@@ -495,6 +495,26 @@ def test_critical_consumer_rejects_bool_runtime_fields() -> None:
     assert "now_epoch must be an int" in result["typed_errors"]
 
 
+def test_critical_consumer_rejects_bool_runtime_notional_without_envelope() -> None:
+    authorization, runtime = _valid_pair()
+
+    result = check_critical_consumer_authorization(
+        authorization_bundle(asdict(authorization)),
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+        runtime_notional_value_e8=True,
+    )
+
+    assert result["typed_ok"] is False
+    assert "runtime_notional_value_e8 must be an int when present" in result["typed_errors"]
+
+
 def test_critical_consumer_rejects_terminal_graph_value_mismatch() -> None:
     authorization, runtime = _valid_pair()
     bundle = authorization_bundle(asdict(authorization))
