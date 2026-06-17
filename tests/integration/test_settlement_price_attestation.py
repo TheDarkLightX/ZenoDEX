@@ -109,6 +109,33 @@ def test_settlement_spot_price_attestation_rejects_tampering() -> None:
     assert err == "packet_hash mismatch"
 
 
+def test_settlement_spot_price_attestation_rejects_bool_signer_privkey() -> None:
+    with pytest.raises(TypeError, match="privkey must be str\\|int\\|bytes and not bool"):
+        build_settlement_spot_price_attestation(
+            packet=_packet(),
+            signer_privkey=True,
+        )
+
+
+def test_settlement_spot_price_attestation_payload_rejects_bool_signed_at_epoch() -> None:
+    built = build_settlement_spot_price_attestation(
+        packet=_packet(),
+        signer_privkey=7,
+    )
+    payload = built.to_dict()
+    payload["signed_at_epoch"] = True
+
+    ok, err = verify_settlement_spot_price_attestation_payload(
+        payload=payload,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        allowed_signers={built.signer_pubkey: ["oracle:a", "oracle:b"]},
+    )
+
+    assert ok is False
+    assert err == "signed_at_epoch must be a non-negative int"
+
+
 def test_settlement_spot_price_attestation_verifier_programmer_error_propagates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

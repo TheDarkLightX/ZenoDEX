@@ -88,11 +88,14 @@ class SettlementSpotPriceAttestation:
         packet_payload = payload.get("packet")
         if not isinstance(packet_payload, Mapping):
             raise ValueError("attestation.packet must be an object")
+        signed_at_epoch = payload.get("signed_at_epoch", -1)
+        if isinstance(signed_at_epoch, bool):
+            raise ValueError("signed_at_epoch must be a non-negative int")
         return cls(
             schema=str(payload.get("schema", "")),
             packet=SettlementSpotPricePacket.from_dict(packet_payload),
             signer_pubkey=str(payload.get("signer_pubkey", "")),
-            signed_at_epoch=int(payload.get("signed_at_epoch", -1)),
+            signed_at_epoch=int(signed_at_epoch),
             packet_hash=str(payload.get("packet_hash", "")),
             signature=str(payload.get("signature", "")),
         )
@@ -306,6 +309,8 @@ def _cache_attestation_verify_result(
 
 
 def _parse_privkey_to_int(privkey: str | int | bytes | bytearray) -> int:
+    if isinstance(privkey, bool):
+        raise TypeError("privkey must be str|int|bytes and not bool")
     if isinstance(privkey, int):
         sk = int(privkey)
     elif isinstance(privkey, (bytes, bytearray)):
