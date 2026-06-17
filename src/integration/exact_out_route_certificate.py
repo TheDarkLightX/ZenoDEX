@@ -1552,10 +1552,21 @@ class ExactOutManyPoolAdaptiveLivenessPacket:
     schema: str = EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA
 
     def __post_init__(self) -> None:
+        self._validate_packet_types()
+        self._validate_bool_fields()
+        self._validate_optional_fields()
+        self._validate_nested_binding()
+        self._validate_liveness_flags()
+        self._validate_success_or_failure_payload()
+        self._validate_liveness_ok_formula()
+
+    def _validate_packet_types(self) -> None:
         if not isinstance(self.audited_bounds_contract, ExactOutManyPoolAuditedBoundsContract):
             raise TypeError("audited_bounds_contract must be an ExactOutManyPoolAuditedBoundsContract")
         if not isinstance(self.repaired_full_domain_packet, ExactOutManyPoolRepairedFullDomainCertifiedPacket):
             raise TypeError("repaired_full_domain_packet must be an ExactOutManyPoolRepairedFullDomainCertifiedPacket")
+
+    def _validate_bool_fields(self) -> None:
         for field_name, value in (
             ("cheap_path_attempted", self.cheap_path_attempted),
             ("cheap_path_success", self.cheap_path_success),
@@ -1572,6 +1583,8 @@ class ExactOutManyPoolAdaptiveLivenessPacket:
         ):
             if not isinstance(value, bool):
                 raise TypeError(f"{field_name} must be a bool")
+
+    def _validate_optional_fields(self) -> None:
         if self.effective_quote_source is not None and self.effective_quote_source not in (
             "default_certified_advisory",
             "repaired_full_domain",
@@ -1590,11 +1603,15 @@ class ExactOutManyPoolAdaptiveLivenessPacket:
             raise ValueError("nested_error must be a non-empty string or None")
         if self.schema != EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA:
             raise ValueError("unsupported adaptive liveness packet schema")
+
+    def _validate_nested_binding(self) -> None:
         if (
             self.repaired_full_domain_packet
             != self.audited_bounds_contract.certified_advisory_packet.advisory_packet.workaround_packet.repaired_full_domain_packet
         ):
             raise ValueError("repaired_full_domain_packet must match the nested audited-bounds repaired full-domain packet")
+
+    def _validate_liveness_flags(self) -> None:
         if not self.cheap_path_attempted:
             raise ValueError("cheap_path_attempted must always be true")
         if self.fallback_required != (not self.cheap_path_success):
@@ -1611,28 +1628,44 @@ class ExactOutManyPoolAdaptiveLivenessPacket:
             raise ValueError("failure_reason_present must track failure_reason presence")
         if self.no_spurious_failure != ((not self.explicit_failure) or (not self.fallback_available)):
             raise ValueError("no_spurious_failure formula mismatch")
+
+    def _validate_success_or_failure_payload(self) -> None:
         if self.returned_success:
-            if self.effective_quote_source is None:
-                raise ValueError("returned_success requires effective_quote_source")
-            if self.effective_quote is None:
-                raise ValueError("returned_success requires effective_quote")
-            if self.failure_reason is not None:
-                raise ValueError("returned_success must not carry failure_reason")
-            if self.effective_quote_source == "default_certified_advisory":
-                if not self.cheap_path_success:
-                    raise ValueError("default_certified_advisory source requires cheap_path_success")
-                if self.effective_quote != self.audited_bounds_contract.certified_advisory_packet.advisory_packet.advisory_quote:
-                    raise ValueError("effective_quote must match audited-bounds certified advisory quote")
-            elif self.effective_quote_source == "repaired_full_domain":
-                if not self.fallback_success:
-                    raise ValueError("repaired_full_domain source requires fallback_success")
-                if self.effective_quote != self.repaired_full_domain_packet.repaired_quote:
-                    raise ValueError("effective_quote must match repaired_full_domain_packet.repaired_quote")
+            self._validate_success_payload()
         else:
-            if self.effective_quote_source is not None or self.effective_quote is not None:
-                raise ValueError("explicit failure packets must not carry an effective quote")
-            if self.failure_reason is None:
-                raise ValueError("explicit failure packets must carry a failure_reason")
+            self._validate_failure_payload()
+
+    def _validate_success_payload(self) -> None:
+        if self.effective_quote_source is None:
+            raise ValueError("returned_success requires effective_quote_source")
+        if self.effective_quote is None:
+            raise ValueError("returned_success requires effective_quote")
+        if self.failure_reason is not None:
+            raise ValueError("returned_success must not carry failure_reason")
+        if self.effective_quote_source == "default_certified_advisory":
+            self._validate_default_advisory_success_quote()
+        elif self.effective_quote_source == "repaired_full_domain":
+            self._validate_repaired_full_domain_success_quote()
+
+    def _validate_default_advisory_success_quote(self) -> None:
+        if not self.cheap_path_success:
+            raise ValueError("default_certified_advisory source requires cheap_path_success")
+        if self.effective_quote != self.audited_bounds_contract.certified_advisory_packet.advisory_packet.advisory_quote:
+            raise ValueError("effective_quote must match audited-bounds certified advisory quote")
+
+    def _validate_repaired_full_domain_success_quote(self) -> None:
+        if not self.fallback_success:
+            raise ValueError("repaired_full_domain source requires fallback_success")
+        if self.effective_quote != self.repaired_full_domain_packet.repaired_quote:
+            raise ValueError("effective_quote must match repaired_full_domain_packet.repaired_quote")
+
+    def _validate_failure_payload(self) -> None:
+        if self.effective_quote_source is not None or self.effective_quote is not None:
+            raise ValueError("explicit failure packets must not carry an effective quote")
+        if self.failure_reason is None:
+            raise ValueError("explicit failure packets must carry a failure_reason")
+
+    def _validate_liveness_ok_formula(self) -> None:
         if self.liveness_ok != (
             self.packet_ok and self.audited_bounds_contract.contract_ok and self.no_spurious_failure
         ):

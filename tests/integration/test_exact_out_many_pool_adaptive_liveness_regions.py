@@ -9,7 +9,9 @@ from src.integration.exact_out_many_pool_adaptive_liveness_regions import (
     input_region,
     packet_input_region,
 )
-from src.integration.exact_out_route_certificate import build_exact_out_many_pool_adaptive_liveness_packet
+from src.integration.exact_out_route_certificate import (
+    build_exact_out_many_pool_adaptive_liveness_packet,
+)
 from src.state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
 
 
