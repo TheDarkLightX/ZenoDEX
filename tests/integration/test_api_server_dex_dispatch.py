@@ -119,10 +119,8 @@ def test_registry_contains_pr1_endpoints() -> None:
 def test_lookup_returns_none_for_unregistered_paths() -> None:
     from src.integration.api_server_dex_dispatch import lookup
 
-    # /api/dex/quote is the central router and NOT yet migrated — it
-    # still lives in the legacy if-chain. If it ever gets migrated this
-    # assertion should be replaced with another unmigrated path.
-    assert lookup("/api/dex/quote") is None
+    # Settlement value endpoints remain in the legacy fall-through chain.
+    assert lookup("/api/dex/build_settlement_spot_value_contract") is None
     assert lookup("/api/dex/this_path_does_not_exist") is None
 
 
@@ -130,6 +128,7 @@ def test_lookup_returns_handler_for_registered_path() -> None:
     from src.integration.api_server_dex_dispatch import lookup
 
     assert callable(lookup("/api/dex/impact_preview"))
+    assert callable(lookup("/api/dex/quote"))
 
 
 def test_writer_snapshot_loader_rejects_relative_escape(tmp_path: Path) -> None:
@@ -1010,10 +1009,16 @@ def test_unregistered_path_still_routes_to_legacy_chain() -> None:
     """An endpoint NOT in the registry must still work via legacy fall-through."""
     httpd, t, host, port = _start_test_server()
     try:
-        # /api/dex/quote is NOT yet in the registry but is implemented in
-        # the legacy chain — exercising the strangler-fig fallthrough.
-        # We just hit it; success means the dispatcher did not short-circuit.
-        status, body = _post_json(host, port, "/api/dex/quote", {"pools": [], "intent": {}})
+        # This endpoint is still implemented in the legacy chain. The
+        # representative bad request should return a legacy-shaped body,
+        # proving the dispatcher did not turn an unregistered path into
+        # a no-handler response.
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/build_settlement_spot_value_contract",
+            {"settlement": []},
+        )
         # Either accepted or rejected — but NOT a "no handler" / 404 / 405.
         # The legacy chain returns 400 with a specific error_code on bad input.
         assert status in (200, 400)

@@ -199,6 +199,7 @@ from src.integration import (  # noqa: E402
     dex_dispatch_exact_out_verify_handlers as _exact_out_verify_handlers,  # noqa: F401
 )
 from src.integration import dex_dispatch_proof_mining_handlers as _proof_handlers  # noqa: E402,F401
+from src.integration import dex_dispatch_quote_handlers as _quote_handlers  # noqa: E402,F401
 from src.integration import dex_dispatch_receipt_handlers as _receipt_handlers  # noqa: E402,F401
 from src.integration import (  # noqa: E402
     dex_dispatch_settlement_audit_handlers as _settlement_audit_handlers,  # noqa: F401
