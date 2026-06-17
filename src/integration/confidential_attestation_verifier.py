@@ -66,13 +66,13 @@ class SubprocessConfidentialAttestationVerifier(ConfidentialAttestationVerifier)
     ) -> None:
         if not cmd:
             raise ValueError("cmd must be non-empty")
-        if timeout_s <= 0:
+        if isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float)) or timeout_s <= 0:
             raise ValueError("timeout_s must be positive")
-        if max_bytes <= 0:
+        if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes <= 0:
             raise ValueError("max_bytes must be positive")
-        if max_stdout_bytes <= 0:
+        if isinstance(max_stdout_bytes, bool) or not isinstance(max_stdout_bytes, int) or max_stdout_bytes <= 0:
             raise ValueError("max_stdout_bytes must be positive")
-        if max_stderr_bytes <= 0:
+        if isinstance(max_stderr_bytes, bool) or not isinstance(max_stderr_bytes, int) or max_stderr_bytes <= 0:
             raise ValueError("max_stderr_bytes must be positive")
         self._cmd = list(cmd)
         self._timeout_s = float(timeout_s)
