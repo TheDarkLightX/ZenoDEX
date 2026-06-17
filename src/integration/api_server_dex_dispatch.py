@@ -183,7 +183,8 @@ def _operation_id_for_path(path: str) -> str:
 # Import handler modules to populate the registry. Each module calls
 # ``_register`` at import time. New handler files should be added to this
 # import block; do not import them lazily.
-from src.integration import dex_dispatch_handlers as _dex_dispatch_handlers  # noqa: E402, F401
+from src.integration import dex_dispatch_handlers as _dex_dispatch_handlers  # noqa: E402,F401
+from src.integration import dex_dispatch_slippage_handlers as _slippage_handlers  # noqa: E402,F401
 
 if _REGISTRY_BUILD is None:
     raise RuntimeError("dex endpoint registry build table missing")
