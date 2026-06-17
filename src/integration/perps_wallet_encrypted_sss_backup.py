@@ -119,7 +119,7 @@ def recover_secret_shamir_gf256(shares: Sequence[tuple[int, bytes]]) -> bytes:
     seen_x: set[int] = set()
     share_len: int | None = None
     for x, share in shares:
-        if not isinstance(x, int) or x <= 0 or x > 255:
+        if not isinstance(x, int) or isinstance(x, bool) or x <= 0 or x > 255:
             raise ValueError("share x coordinate must be in 1..255")
         if x in seen_x:
             raise ValueError("duplicate share x coordinate")
