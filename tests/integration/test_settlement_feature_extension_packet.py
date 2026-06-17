@@ -72,6 +72,44 @@ def test_settlement_feature_extension_packet_from_dict_rejects_string_boolean_fl
         SettlementFeatureExtensionPacket.from_dict(packet)
 
 
+def test_settlement_feature_extension_inputs_reject_bool_numeric_fields() -> None:
+    inputs_payload = _inputs().to_dict()
+    inputs_payload["trade_amount"] = True
+    matching_packet = build_settlement_feature_extension_packet(
+        SettlementFeatureExtensionInputs(
+            **(_inputs().to_dict() | {"trade_amount": 1}),
+        )
+    ).to_dict()
+
+    with pytest.raises(ValueError, match="trade_amount must be an int"):
+        SettlementFeatureExtensionInputs.from_dict(inputs_payload)
+
+    ok, err = verify_settlement_feature_extension_packet_payload(
+        inputs_payload=inputs_payload,
+        packet_payload=matching_packet,
+    )
+
+    assert ok is False
+    assert err == "trade_amount must be an int"
+
+
+def test_settlement_feature_extension_packet_rejects_bool_step_values() -> None:
+    inputs = _inputs()
+    packet = build_settlement_feature_extension_packet(inputs).to_dict()
+    packet["feature_extension_step"]["i1"] = True
+
+    with pytest.raises(ValueError, match="feature_extension_step.i1 must be an int"):
+        SettlementFeatureExtensionPacket.from_dict(packet)
+
+    ok, err = verify_settlement_feature_extension_packet_payload(
+        inputs_payload=inputs.to_dict(),
+        packet_payload=packet,
+    )
+
+    assert ok is False
+    assert err == "feature_extension_step.i1 must be an int"
+
+
 def test_settlement_feature_extension_input_parser_programmer_error_propagates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

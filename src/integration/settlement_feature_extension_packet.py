@@ -31,6 +31,26 @@ def _require_bool(value: Any, *, name: str) -> bool:
     return value
 
 
+def _require_int(value: object, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{name} must be an int")
+    return value
+
+
+def _require_int_field(payload: Mapping[str, Any], name: str) -> int:
+    try:
+        value = payload[name]
+    except KeyError as exc:
+        raise ValueError(f"missing feature extension input field: {name}") from exc
+    return _require_int(value, name=name)
+
+
+def _require_step_dict(value: object, *, name: str) -> dict[str, int]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{name} must be an object")
+    return {str(key): _require_int(step_value, name=f"{name}.{key}") for key, step_value in value.items()}
+
+
 @dataclass(frozen=True)
 class SettlementFeatureExtensionInputs:
     trade_amount: int
@@ -106,31 +126,28 @@ class SettlementFeatureExtensionInputs:
     def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementFeatureExtensionInputs":
         if not isinstance(payload, Mapping):
             raise TypeError("feature extension inputs must be an object")
-        try:
-            return cls(
-                trade_amount=int(payload["trade_amount"]),
-                fee_charged=int(payload["fee_charged"]),
-                buyback_amount=int(payload["buyback_amount"]),
-                burned_amount=int(payload["burned_amount"]),
-                supply_before=int(payload["supply_before"]),
-                supply_after=int(payload["supply_after"]),
-                supply_floor=int(payload["supply_floor"]),
-                unit_scale=int(payload["unit_scale"]),
-                rebate_rate_bps=int(payload["rebate_rate_bps"]),
-                rebate_amount=int(payload["rebate_amount"]),
-                rebate_cap=int(payload["rebate_cap"]),
-                lock_days=int(payload["lock_days"]),
-                stake_amount=int(payload["stake_amount"]),
-                tier1_days=int(payload["tier1_days"]),
-                tier2_days=int(payload["tier2_days"]),
-                weight_t1=int(payload["weight_t1"]),
-                weight_t2=int(payload["weight_t2"]),
-                weight_t3=int(payload["weight_t3"]),
-                weight_claimed=int(payload["weight_claimed"]),
-                weighted_stake=int(payload["weighted_stake"]),
-            )
-        except KeyError as exc:
-            raise ValueError(f"missing feature extension input field: {exc.args[0]}") from exc
+        return cls(
+            trade_amount=_require_int_field(payload, "trade_amount"),
+            fee_charged=_require_int_field(payload, "fee_charged"),
+            buyback_amount=_require_int_field(payload, "buyback_amount"),
+            burned_amount=_require_int_field(payload, "burned_amount"),
+            supply_before=_require_int_field(payload, "supply_before"),
+            supply_after=_require_int_field(payload, "supply_after"),
+            supply_floor=_require_int_field(payload, "supply_floor"),
+            unit_scale=_require_int_field(payload, "unit_scale"),
+            rebate_rate_bps=_require_int_field(payload, "rebate_rate_bps"),
+            rebate_amount=_require_int_field(payload, "rebate_amount"),
+            rebate_cap=_require_int_field(payload, "rebate_cap"),
+            lock_days=_require_int_field(payload, "lock_days"),
+            stake_amount=_require_int_field(payload, "stake_amount"),
+            tier1_days=_require_int_field(payload, "tier1_days"),
+            tier2_days=_require_int_field(payload, "tier2_days"),
+            weight_t1=_require_int_field(payload, "weight_t1"),
+            weight_t2=_require_int_field(payload, "weight_t2"),
+            weight_t3=_require_int_field(payload, "weight_t3"),
+            weight_claimed=_require_int_field(payload, "weight_claimed"),
+            weighted_stake=_require_int_field(payload, "weighted_stake"),
+        )
 
 
 @dataclass(frozen=True)
@@ -192,11 +209,20 @@ class SettlementFeatureExtensionPacket:
             inputs = SettlementFeatureExtensionInputs.from_dict(payload["inputs"])
             return cls(
                 inputs=inputs,
-                buyback_floor_step=dict(payload["buyback_floor_step"]),
-                buyback_floor_fixedpoint_step=dict(payload["buyback_floor_fixedpoint_step"]),
-                rebate_step=dict(payload["rebate_step"]),
-                lock_weight_step=dict(payload["lock_weight_step"]),
-                feature_extension_step=dict(payload["feature_extension_step"]),
+                buyback_floor_step=_require_step_dict(
+                    payload["buyback_floor_step"],
+                    name="buyback_floor_step",
+                ),
+                buyback_floor_fixedpoint_step=_require_step_dict(
+                    payload["buyback_floor_fixedpoint_step"],
+                    name="buyback_floor_fixedpoint_step",
+                ),
+                rebate_step=_require_step_dict(payload["rebate_step"], name="rebate_step"),
+                lock_weight_step=_require_step_dict(payload["lock_weight_step"], name="lock_weight_step"),
+                feature_extension_step=_require_step_dict(
+                    payload["feature_extension_step"],
+                    name="feature_extension_step",
+                ),
                 buyback_floor_ok=_require_bool(payload["buyback_floor_ok"], name="buyback_floor_ok"),
                 buyback_floor_fixedpoint_ok=_require_bool(
                     payload["buyback_floor_fixedpoint_ok"],
@@ -320,7 +346,11 @@ def verify_settlement_feature_extension_packet_payload(
         return False, "packet must be an object"
     if str(packet_payload.get("schema", "")) != expected.schema:
         return False, "schema mismatch"
-    if dict(packet_payload) != expected.to_dict():
+    try:
+        observed = SettlementFeatureExtensionPacket.from_dict(packet_payload)
+    except _PACKET_DOMAIN_ERRORS as exc:
+        return False, str(exc)
+    if observed.to_dict() != expected.to_dict():
         return False, "settlement feature extension packet mismatch"
     return True, None
 
