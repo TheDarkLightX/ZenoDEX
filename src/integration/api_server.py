@@ -657,6 +657,13 @@ def _adapter_error_summary(result: Any) -> str:
     return "bridge verifier rejected"
 
 
+def _routing_pool_int(row: Mapping[str, Any], field: str, default: int) -> int:
+    value = row.get(field, default)
+    if isinstance(value, bool):
+        raise ValueError(f"{field}_must_be_int")
+    return int(value)
+
+
 def _canonical_routing_pool_snapshots(pools_raw: object) -> list[dict[str, Any]]:
     if not isinstance(pools_raw, list):
         raise ValueError("pools_must_be_list")
@@ -669,12 +676,12 @@ def _canonical_routing_pool_snapshots(pools_raw: object) -> list[dict[str, Any]]
                 "pool_id": str(row.get("pool_id", "")),
                 "asset0": str(row.get("asset0", "")),
                 "asset1": str(row.get("asset1", "")),
-                "reserve0": int(row.get("reserve0", 0)),
-                "reserve1": int(row.get("reserve1", 0)),
-                "fee_bps": int(row.get("fee_bps", 0)),
-                "lp_supply": int(row.get("lp_supply", 1)),
+                "reserve0": _routing_pool_int(row, "reserve0", 0),
+                "reserve1": _routing_pool_int(row, "reserve1", 0),
+                "fee_bps": _routing_pool_int(row, "fee_bps", 0),
+                "lp_supply": _routing_pool_int(row, "lp_supply", 1),
                 "status": str(row.get("status", "ACTIVE")).strip().upper(),
-                "created_at": int(row.get("created_at", 0)),
+                "created_at": _routing_pool_int(row, "created_at", 0),
                 "curve_tag": str(row.get("curve_tag", "CPMM")),
                 "curve_params": row.get("curve_params", ""),
             }
