@@ -927,6 +927,17 @@ class _ExactOutContractResponseSpec:
     quote_endpoint: Optional[str]
 
 
+@dataclass(frozen=True)
+class _ExactOutContractBuilderSpec:
+    field_specs: Sequence[IntFieldSpec]
+    module_function_name: str
+    module_schema_name: str
+    verify_endpoint: str
+    error_code: str
+    include_contract_ok: bool = False
+    quote_endpoint: Optional[str] = None
+
+
 def _exact_out_contract_response(
     *,
     contract_dict: Mapping[str, Any],
@@ -956,16 +967,7 @@ def _exact_out_contract_response(
     }
 
 
-def _make_exact_out_many_pool_contract_builder(
-    *,
-    field_specs: Sequence[IntFieldSpec],
-    module_function_name: str,
-    module_schema_name: str,
-    verify_endpoint: str,
-    error_code: str,
-    include_contract_ok: bool = False,
-    quote_endpoint: Optional[str] = None,
-) -> Any:
+def _make_exact_out_many_pool_contract_builder(spec: _ExactOutContractBuilderSpec) -> Any:
     """Factory for the build_exact_out_many_pool_*_contract endpoints."""
     def _handler(obj: Mapping[str, Any], ctx: DexRequestContext) -> DexResponse:
         pools_by_id = parse_pools(obj)
@@ -974,12 +976,12 @@ def _make_exact_out_many_pool_contract_builder(
         if not asset_in or not asset_out or asset_in == asset_out:
             return 400, {"ok": False, "error": "bad_assets"}
 
-        int_kwargs = parse_int_kwargs(obj, field_specs)
+        int_kwargs = parse_int_kwargs(obj, spec.field_specs)
 
         import importlib  # pylint: disable=import-outside-toplevel
         module = importlib.import_module("src.integration.exact_out_route_certificate")
-        builder = getattr(module, module_function_name)
-        schema = getattr(module, module_schema_name)
+        builder = getattr(module, spec.module_function_name)
+        schema = getattr(module, spec.module_schema_name)
 
         contract = builder(
             list(pools_by_id.values()),
@@ -991,9 +993,9 @@ def _make_exact_out_many_pool_contract_builder(
             contract_dict=contract.to_dict(),
             spec=_ExactOutContractResponseSpec(
                 schema=schema,
-                verify_endpoint=verify_endpoint,
-                include_contract_ok=include_contract_ok,
-                quote_endpoint=quote_endpoint,
+                verify_endpoint=spec.verify_endpoint,
+                include_contract_ok=spec.include_contract_ok,
+                quote_endpoint=spec.quote_endpoint,
             ),
         )
 
@@ -1114,7 +1116,7 @@ for _path, _spec in _BUILD_EXACT_OUT_CONTRACT_SPECS:
     # registered EndpointSchema. The schema gives us OpenAPI for every
     # contract builder for free.
     _field_specs = _int_field_specs_from_tuples(_spec["field_defaults"])
-    _handler_fn = _make_exact_out_many_pool_contract_builder(
+    _contract_builder_spec = _ExactOutContractBuilderSpec(
         field_specs=_field_specs,
         module_function_name=_spec["module_function_name"],
         module_schema_name=_spec["module_schema_name"],
@@ -1123,10 +1125,11 @@ for _path, _spec in _BUILD_EXACT_OUT_CONTRACT_SPECS:
         include_contract_ok=_spec.get("include_contract_ok", False),
         quote_endpoint=_spec.get("quote_endpoint"),
     )
+    _handler_fn = _make_exact_out_many_pool_contract_builder(_contract_builder_spec)
     _register(
         _path,
         _handler_fn,
-        default_error_code=_spec["error_code"],
+        default_error_code=_contract_builder_spec.error_code,
         schema=EndpointSchema(requires_pools=True, requires_assets=True, int_fields=_field_specs),
     )
 
@@ -1164,6 +1167,19 @@ class _ExactOutPacketResponseSpec:
     response_mode: str
     fallback_error: Optional[str]
     extra_response_field: Optional[tuple[str, str]]
+
+
+@dataclass(frozen=True)
+class _ExactOutPacketBuilderSpec:
+    field_specs: Sequence[IntFieldSpec]
+    module_function_name: str
+    module_schema_name: str
+    verify_endpoint: str
+    error_code: str
+    quote_policy: Optional[str] = None
+    response_mode: str = "ok_packet_ok"
+    fallback_error: Optional[str] = None
+    extra_response_field: Optional[tuple[str, str]] = None
 
 
 def _exact_out_packet_response_base(
@@ -1218,21 +1234,10 @@ def _exact_out_packet_response(
     return response
 
 
-def _make_exact_out_many_pool_packet_builder(
-    *,
-    field_specs: Sequence[IntFieldSpec],
-    module_function_name: str,
-    module_schema_name: str,
-    verify_endpoint: str,
-    error_code: str,
-    quote_policy: Optional[str] = None,
-    response_mode: str = "ok_packet_ok",
-    fallback_error: Optional[str] = None,
-    extra_response_field: Optional[tuple[str, str]] = None,
-) -> Any:
+def _make_exact_out_many_pool_packet_builder(spec: _ExactOutPacketBuilderSpec) -> Any:
     """Factory for build_exact_out_many_pool_*_packet endpoints."""
-    if response_mode not in {"ok_true", "ok_packet_ok", "ok_true_unless_packet_ok"}:
-        raise ValueError(f"unknown response_mode: {response_mode}")
+    if spec.response_mode not in {"ok_true", "ok_packet_ok", "ok_true_unless_packet_ok"}:
+        raise ValueError(f"unknown response_mode: {spec.response_mode}")
 
     def _handler(obj: Mapping[str, Any], ctx: DexRequestContext) -> DexResponse:
         pools_by_id = parse_pools(obj)
@@ -1241,12 +1246,12 @@ def _make_exact_out_many_pool_packet_builder(
         if not asset_in or not asset_out or asset_in == asset_out:
             return 400, {"ok": False, "error": "bad_assets"}
 
-        int_kwargs = parse_int_kwargs(obj, field_specs)
+        int_kwargs = parse_int_kwargs(obj, spec.field_specs)
 
         import importlib  # pylint: disable=import-outside-toplevel
         module = importlib.import_module("src.integration.exact_out_route_certificate")
-        builder = getattr(module, module_function_name)
-        schema = getattr(module, module_schema_name)
+        builder = getattr(module, spec.module_function_name)
+        schema = getattr(module, spec.module_schema_name)
 
         packet = builder(
             list(pools_by_id.values()),
@@ -1258,11 +1263,11 @@ def _make_exact_out_many_pool_packet_builder(
             packet=packet,
             spec=_ExactOutPacketResponseSpec(
                 schema=schema,
-                verify_endpoint=verify_endpoint,
-                quote_policy=quote_policy,
-                response_mode=response_mode,
-                fallback_error=fallback_error,
-                extra_response_field=extra_response_field,
+                verify_endpoint=spec.verify_endpoint,
+                quote_policy=spec.quote_policy,
+                response_mode=spec.response_mode,
+                fallback_error=spec.fallback_error,
+                extra_response_field=spec.extra_response_field,
             ),
         )
 
@@ -1398,7 +1403,7 @@ _BUILD_EXACT_OUT_PACKET_SPECS: tuple[tuple[str, dict[str, Any]], ...] = (
 
 for _path, _spec in _BUILD_EXACT_OUT_PACKET_SPECS:
     _field_specs = _int_field_specs_from_tuples(_spec["field_defaults"])
-    _handler_fn = _make_exact_out_many_pool_packet_builder(
+    _packet_builder_spec = _ExactOutPacketBuilderSpec(
         field_specs=_field_specs,
         module_function_name=_spec["module_function_name"],
         module_schema_name=_spec["module_schema_name"],
@@ -1409,10 +1414,11 @@ for _path, _spec in _BUILD_EXACT_OUT_PACKET_SPECS:
         fallback_error=_spec.get("fallback_error"),
         extra_response_field=_spec.get("extra_response_field"),
     )
+    _handler_fn = _make_exact_out_many_pool_packet_builder(_packet_builder_spec)
     _register(
         _path,
         _handler_fn,
-        default_error_code=_spec["error_code"],
+        default_error_code=_packet_builder_spec.error_code,
         schema=EndpointSchema(requires_pools=True, requires_assets=True, int_fields=_field_specs),
     )
 
@@ -1628,12 +1634,14 @@ _certified_winner_field_specs = _int_field_specs_from_tuples(_PACKET_BUILDER_DEF
 _register(
     "/api/dex/build_exact_out_many_pool_certified_winner_packet",
     _make_exact_out_many_pool_packet_builder(
-        field_specs=_certified_winner_field_specs,
-        module_function_name="build_exact_out_many_pool_certified_winner_packet",
-        module_schema_name="EXACT_OUT_MANY_POOL_CERTIFIED_WINNER_PACKET_SCHEMA",
-        verify_endpoint="/api/dex/verify_exact_out_many_pool_certified_winner_packet",
-        error_code="build_exact_out_many_pool_certified_winner_packet_error",
-        response_mode="ok_true",
+        _ExactOutPacketBuilderSpec(
+            field_specs=_certified_winner_field_specs,
+            module_function_name="build_exact_out_many_pool_certified_winner_packet",
+            module_schema_name="EXACT_OUT_MANY_POOL_CERTIFIED_WINNER_PACKET_SCHEMA",
+            verify_endpoint="/api/dex/verify_exact_out_many_pool_certified_winner_packet",
+            error_code="build_exact_out_many_pool_certified_winner_packet_error",
+            response_mode="ok_true",
+        )
     ),
     default_error_code="build_exact_out_many_pool_certified_winner_packet_error",
     schema=EndpointSchema(requires_pools=True, requires_assets=True, int_fields=_certified_winner_field_specs),
