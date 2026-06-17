@@ -16,6 +16,7 @@ from src.integration.settlement_price_provenance import (
 from src.integration.settlement_strong_certificate import SettlementProofFlags
 from src.integration.settlement_witness_lifecycle import (
     SETTLEMENT_WITNESS_LIFECYCLE_PACKET_SCHEMA,
+    SettlementWitnessLifecyclePacket,
     build_settlement_witness_lifecycle_packet,
     verify_settlement_witness_lifecycle_packet_payload,
 )
@@ -219,6 +220,24 @@ def test_settlement_witness_lifecycle_packet_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "settlement witness lifecycle packet payload mismatch"
+
+
+def test_settlement_witness_lifecycle_from_dict_rejects_string_boolean_flags() -> None:
+    intents, settlement, balances, pools, certificate_inputs = _settlement_context()
+    packet = build_settlement_witness_lifecycle_packet(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_end_to_end_certificate_inputs=certificate_inputs,
+    )
+    payload = packet.to_dict()
+    payload["lifecycle_ok"] = "yes"
+
+    with pytest.raises(TypeError, match="^lifecycle_ok must be a bool$"):
+        SettlementWitnessLifecyclePacket.from_dict(payload)
 
 
 def test_settlement_witness_lifecycle_certificate_builder_programmer_error_propagates(
