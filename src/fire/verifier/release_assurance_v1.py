@@ -21,7 +21,6 @@ from src.fire.verifier.settlement_v1 import (
     verify_fire_settlement_packet,
 )
 
-
 FIRE_RELEASE_ASSURANCE_CHECK_REPORT_SCHEMA = "zenodex/fire-release-assurance-check-report/v1"
 
 REQUIRED_SETTLEMENT_RULE_REJECTS = frozenset(
@@ -140,7 +139,7 @@ def _expect(condition: bool, message: str) -> None:
 def _load_json(path: Path) -> Mapping[str, object]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise FireReleaseAssuranceError(f"failed to read JSON {path}: {exc}") from exc
     return _as_mapping(payload, ctx=str(path))
 
@@ -148,7 +147,7 @@ def _load_json(path: Path) -> Mapping[str, object]:
 def _load_yaml(path: Path) -> Mapping[str, object]:
     try:
         payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except Exception as exc:
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
         raise FireReleaseAssuranceError(f"failed to read YAML {path}: {exc}") from exc
     return _as_mapping(payload, ctx=str(path))
 

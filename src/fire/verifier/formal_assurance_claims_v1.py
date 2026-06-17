@@ -10,8 +10,10 @@ from typing import Any, Mapping, Sequence
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker
 
-from src.fire.pathing_v1 import fire_formal_assurance_claims_path, fire_formal_assurance_claims_schema_path
-
+from src.fire.pathing_v1 import (
+    fire_formal_assurance_claims_path,
+    fire_formal_assurance_claims_schema_path,
+)
 
 FIRE_FORMAL_ASSURANCE_CLAIMS_SCHEMA = "zenodex/fire-formal-assurance-claims/v1"
 FIRE_FORMAL_ASSURANCE_CLAIMS_CHECK_REPORT_SCHEMA = "zenodex/fire-formal-assurance-claims-check-report/v1"
@@ -107,7 +109,7 @@ def _as_bool(value: object, *, ctx: str) -> bool:
 def _load_yaml(path: Path) -> Mapping[str, object]:
     try:
         payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except Exception as exc:
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
         raise FireFormalAssuranceClaimsError(f"failed to read YAML {path}: {exc}") from exc
     return _as_mapping(payload, ctx=str(path))
 
@@ -115,7 +117,7 @@ def _load_yaml(path: Path) -> Mapping[str, object]:
 def _load_json(path: Path) -> Mapping[str, object]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise FireFormalAssuranceClaimsError(f"failed to read JSON {path}: {exc}") from exc
     return _as_mapping(payload, ctx=str(path))
 
