@@ -28,7 +28,6 @@ from .object_compiler_v1 import (
     sub_expr,
 )
 
-
 FIRE_FMOS_FILE_SCHEMA = "zenodex/fire-math-object-spec/v1"
 
 
@@ -314,10 +313,12 @@ def load_fire_math_object_spec_file(path: str | Path) -> FireMathObjectSpecFile:
 
 def _resolve_value_ref(value_ref: FireValueRef, terms: Any) -> int:
     if value_ref.kind == "const":
-        assert value_ref.value is not None
+        if value_ref.value is None:
+            raise ValueError("const value ref missing value")
         return value_ref.value
     if value_ref.kind == "term":
-        assert value_ref.term is not None
+        if value_ref.term is None:
+            raise ValueError("term value ref missing term")
         value = getattr(terms, value_ref.term)
         if not isinstance(value, int) or isinstance(value, bool):
             raise TypeError(f"term field {value_ref.term} must resolve to int")
