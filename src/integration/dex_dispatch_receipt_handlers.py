@@ -18,14 +18,20 @@ from src.integration.exact_in_route_certificate import (
 BOUNDARY_DOMAIN_ERRORS: tuple[type[Exception], ...] = (TypeError, ValueError, ArithmeticError)
 
 
+def _coerce_int(value: Any, field: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{field} must be an int")
+    return int(value)
+
+
 def _handle_impact_preview(obj: Mapping[str, Any], ctx: DexRequestContext) -> DexResponse:
     """Return the legacy price-impact response shape for ``/api/dex/impact_preview``."""
-    reserve_in = int(obj.get("reserve_in", 0))
-    reserve_out = int(obj.get("reserve_out", 0))
-    amount_in = int(obj.get("amount_in", 0))
-    fee_bps = int(obj.get("fee_bps", 0))
-    pending_same_dir = int(obj.get("pending_volume_same_direction", 0))
-    confidence_bps = int(obj.get("confidence_bps", 9500))
+    reserve_in = _coerce_int(obj.get("reserve_in", 0), "reserve_in")
+    reserve_out = _coerce_int(obj.get("reserve_out", 0), "reserve_out")
+    amount_in = _coerce_int(obj.get("amount_in", 0), "amount_in")
+    fee_bps = _coerce_int(obj.get("fee_bps", 0), "fee_bps")
+    pending_same_dir = _coerce_int(obj.get("pending_volume_same_direction", 0), "pending_volume_same_direction")
+    confidence_bps = _coerce_int(obj.get("confidence_bps", 9500), "confidence_bps")
 
     preview = price_impact_preview(
         reserve_in=reserve_in,

@@ -192,6 +192,27 @@ def test_api_server_quote_rejects_bool_fast_topk() -> None:
         _stop_test_server(httpd, thread)
 
 
+def test_api_server_impact_preview_rejects_bool_reserve() -> None:
+    httpd, thread, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/impact_preview",
+            {
+                "reserve_in": True,
+                "reserve_out": 1_000,
+                "amount_in": 10,
+                "fee_bps": 0,
+            },
+        )
+
+        assert status == 400
+        assert body == {"ok": False, "error": "impact_preview_error", "details": "request failed"}
+    finally:
+        _stop_test_server(httpd, thread)
+
+
 def test_routing_oracle_adapter_bridge_domain_error_fails_closed(monkeypatch) -> None:
     from src.integration import api_server
     from tools import zenodex_oracle_aggregate_adapter
