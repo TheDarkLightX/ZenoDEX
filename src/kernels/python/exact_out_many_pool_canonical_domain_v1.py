@@ -297,11 +297,11 @@ def build_exact_out_many_pool_selected_domain(
         reserves_by_id[pool_id] = (int(reserves[0]), int(reserves[1]))
         max_out[pool_id] = max(0, int(reserves[1]) - 1)
 
+    from ...core.amm_dispatch import swap_exact_out_for_pool
+
     quote_cache: dict[tuple[str, int], int | None] = {}
 
     def quote_in(pool_id: str, amount_out: int) -> int | None:
-        from ...core.amm_dispatch import swap_exact_out_for_pool
-
         if int(amount_out) < 0:
             return None
         if int(amount_out) == 0:
@@ -330,22 +330,41 @@ def build_exact_out_many_pool_selected_domain(
 
     candidate_quotes: list[ExactOutManyPoolCandidateQuote] = []
     target_out = int(amount_out_total)
+    # Cache the "best possible capacity from this suffix" bound used by every
+    # recursive branch. Recomputing it in-place is observationally identical but
+    # turns the pruning guard into repeated sort work on the hot path.
+    suffix_capacity_sums: list[tuple[int, ...]] = []
+    for start_index in range(len(pool_ids) + 1):
+        sorted_caps = sorted(
+            (int(max_out.get(pool_id, 0)) for pool_id in pool_ids[start_index:]),
+            reverse=True,
+        )
+        prefix_sums = [0]
+        for cap in sorted_caps:
+            prefix_sums.append(prefix_sums[-1] + int(cap))
+        suffix_capacity_sums.append(tuple(prefix_sums))
 
     def remaining_capacity(start_index: int, slots: int) -> int:
         if int(slots) <= 0:
             return 0
-        caps = [int(max_out.get(pool_id, 0)) for pool_id in pool_ids[start_index:]]
-        caps.sort(reverse=True)
-        return int(sum(caps[: int(slots)]))
+        prefix_sums = suffix_capacity_sums[min(int(start_index), len(pool_ids))]
+        capped_slots = min(int(slots), len(prefix_sums) - 1)
+        return int(prefix_sums[capped_slots])
 
-    def recurse(start_index: int, remaining_out: int, legs_left: int, partial: list[tuple[str, int, int]]) -> None:
+    def recurse(
+        start_index: int,
+        remaining_out: int,
+        legs_left: int,
+        partial: list[tuple[str, int, int]],
+        partial_amount_in_total: int,
+    ) -> None:
         if len(candidate_quotes) > int(max_enumerated_candidates):
             raise ValueError("many-pool exact-out selected domain exceeded max_enumerated_candidates")
         if int(remaining_out) == 0:
             candidate_quotes.append(
                 ExactOutManyPoolCandidateQuote(
                     amount_out_total=int(target_out),
-                    amount_in_total=int(sum(int(amount_in) for _pool_id, _amount_out, amount_in in partial)),
+                    amount_in_total=int(partial_amount_in_total),
                     legs=tuple(
                         ExactOutManyPoolCandidateLeg(
                             pool_id=pool_id,
@@ -374,10 +393,16 @@ def build_exact_out_many_pool_selected_domain(
                 if amount_in is None:
                     continue
                 partial.append((pool_id, int(amount_out), int(amount_in)))
-                recurse(idx + 1, int(remaining_out) - int(amount_out), int(legs_left) - 1, partial)
+                recurse(
+                    idx + 1,
+                    int(remaining_out) - int(amount_out),
+                    int(legs_left) - 1,
+                    partial,
+                    int(partial_amount_in_total) + int(amount_in),
+                )
                 partial.pop()
 
-    recurse(0, int(target_out), int(max_legs), [])
+    recurse(0, int(target_out), int(max_legs), [], 0)
     if not candidate_quotes:
         raise ValueError("no feasible exact-out candidates in bounded selected domain")
     if len(candidate_quotes) > int(max_enumerated_candidates):

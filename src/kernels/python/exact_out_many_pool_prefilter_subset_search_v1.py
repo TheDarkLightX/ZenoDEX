@@ -101,10 +101,18 @@ def search_exact_out_many_pool_prefilter_subset(
 
     full_canonical_quote = full_domain.canonical_quote
     current_matches = current_selected_domain.canonical_quote == full_canonical_quote
+    # A subset that omits a leg used by the full-domain winner cannot reproduce
+    # that winner. Prune it before rebuilding the selected-domain oracle.
+    required_pool_ids = frozenset(leg.pool_id for leg in full_canonical_quote.legs)
 
     for subset_size in range(1, min(int(max_candidate_pools), len(feasible_pools)) + 1):
         for subset in combinations(feasible_pools, subset_size):
             searched_subset_count += 1
+            if int(subset_size) < len(required_pool_ids):
+                continue
+            subset_pool_ids = {pool.pool_id for pool in subset}
+            if not required_pool_ids.issubset(subset_pool_ids):
+                continue
             try:
                 subset_domain = build_exact_out_many_pool_selected_domain(
                     subset,

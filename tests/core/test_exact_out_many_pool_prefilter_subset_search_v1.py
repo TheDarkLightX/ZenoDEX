@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+import src.kernels.python.exact_out_many_pool_prefilter_subset_search_v1 as subset_search
 from src.kernels.python.exact_out_many_pool_prefilter_subset_search_v1 import (
     search_exact_out_many_pool_prefilter_subset,
     select_many_pool_cover_search_candidates,
@@ -125,3 +128,42 @@ def test_cover_search_selector_can_shrink_already_good_domain() -> None:
     assert selection.current_selected_pool_ids == ("pool_a", "pool_b", "pool_c")
     assert selection.selected_pool_ids == ("pool_b",)
     assert selection.selected_domain_canonical_quote == selection.full_domain_canonical_quote
+
+
+def test_subset_search_prunes_subsets_missing_full_domain_winner_leg(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pools = (
+        _pool(pid="pool_a", r0=40, r1=20),
+        _pool(pid="pool_b", r0=40, r1=63),
+        _pool(pid="pool_c", r0=40, r1=20),
+    )
+    original_builder = subset_search.build_exact_out_many_pool_selected_domain
+    rebuilt_subsets: list[tuple[str, ...]] = []
+
+    def recording_builder(selected_pools, **kwargs):
+        pool_ids = tuple(sorted(pool.pool_id for pool in selected_pools))
+        if pool_ids != ("pool_a", "pool_b", "pool_c"):
+            rebuilt_subsets.append(pool_ids)
+        return original_builder(selected_pools, **kwargs)
+
+    monkeypatch.setattr(
+        subset_search,
+        "build_exact_out_many_pool_selected_domain",
+        recording_builder,
+    )
+
+    result = search_exact_out_many_pool_prefilter_subset(
+        pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=3,
+        max_legs=3,
+        max_candidate_pools=3,
+        max_full_domain_pools=6,
+        max_enumerated_candidates=8_000,
+    )
+
+    assert result.best_cover_subset_ids == ("pool_b",)
+    assert rebuilt_subsets
+    assert all("pool_b" in pool_ids for pool_ids in rebuilt_subsets)
