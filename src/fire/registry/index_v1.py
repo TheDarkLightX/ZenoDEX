@@ -8,11 +8,13 @@ from pathlib import Path
 from src.agents.policy_artifacts import G2Basic, _parse_privkey_to_int, _require_bls
 from src.fire.registry.bundle_v1 import (
     FireBundleContractReceipt,
-    FireRegistryBundleManifest,
     load_fire_registry_bundle,
     verify_fire_registry_bundle,
 )
-from src.fire.registry.instance_v1 import FireInstanceGateReport, verify_fire_object_instance_against_manifest
+from src.fire.registry.instance_v1 import (
+    FireInstanceGateReport,
+    verify_fire_object_instance_against_manifest,
+)
 from src.fire.verifier.cert_v1 import (
     FireInstanceGateClaims,
     FireIntervalCertificate,
@@ -21,7 +23,6 @@ from src.fire.verifier.cert_v1 import (
 )
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
 from src.state.canonical import canonical_json_bytes
-
 
 INDEX_SCHEMA = "zenodex/fire-registry-index/v1"
 _EVIDENCE_RANK = {
@@ -525,9 +526,9 @@ def verify_fire_registry_index_signature(index: FireRegistryIndex) -> bool:
             return False
         pk = bytes.fromhex(index.signer_pubkey.removeprefix("0x"))
         sig = bytes.fromhex(index.signature.removeprefix("0x"))
-        return bool(G2Basic.Verify(pk, index.to_json_bytes(), sig))
-    except Exception:
+    except ValueError:
         return False
+    return bool(G2Basic.Verify(pk, index.to_json_bytes(), sig))
 
 
 def write_fire_registry_index(
