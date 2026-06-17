@@ -152,6 +152,12 @@ def _template_non_negative_int(value: Any, *, name: str) -> int:
     return int(value)
 
 
+def _template_coerced_int(value: Any, *, name: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must be an int")
+    return int(value)
+
+
 def _template_block_timestamp(obj: Mapping[str, Any], intent: Mapping[str, Any]) -> int:
     raw = obj.get("block_timestamp")
     if raw is not None:
@@ -339,11 +345,11 @@ def _reward_config(obj: Mapping[str, Any], *, chain_id: str, state: Any) -> _Rew
         pool_pubkey=reward_pool,
         asset_id=reward_asset,
         pool_before=int(state.balances.get(reward_pool, reward_asset)),
-        base_reward=int(obj.get("base_reward", 8)),
-        epoch=int(obj.get("epoch", 1)),
-        proposal_slot=int(obj.get("proposal_slot", 0)),
-        prover_id=int(obj.get("prover_id", 1)),
-        improvement_u64=int(obj.get("improvement_u64", 1)),
+        base_reward=_template_coerced_int(obj.get("base_reward", 8), name="base_reward"),
+        epoch=_template_coerced_int(obj.get("epoch", 1), name="epoch"),
+        proposal_slot=_template_coerced_int(obj.get("proposal_slot", 0), name="proposal_slot"),
+        prover_id=_template_coerced_int(obj.get("prover_id", 1), name="prover_id"),
+        improvement_u64=_template_coerced_int(obj.get("improvement_u64", 1), name="improvement_u64"),
     )
 
 
