@@ -8,12 +8,11 @@ from tools.build_zenoenergy_real_replay_report import (
     build_upba_real_replay_report,
     main,
 )
+from tools.check_zenoenergy_production_promotion import build_production_gate_report
 from tools.check_zenoenergy_replay_source_manifest import (
     canonical_sha256,
     validate_replay_source_manifest,
 )
-from tools.check_zenoenergy_production_promotion import build_production_gate_report
-
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -194,6 +193,28 @@ def test_builder_rejects_narrow_coverage_profile() -> None:
         assert "upba_candidate_family_count" in str(exc)
     else:
         raise AssertionError("narrow coverage profile should be rejected")
+
+
+def test_builder_rejects_truthy_string_source_manifest_ok() -> None:
+    source_manifest_check = _upba_manifest_check()
+    source_manifest_check["ok"] = "true"
+
+    try:
+        build_upba_real_replay_report(
+            benchmark_report=_upba_benchmark_report(),
+            source_kind="production-shadow",
+            source_descriptor="prod-shadow:2026-05-01..2026-05-09",
+            market_day_count=9,
+            deterministic_replay_ok=True,
+            no_live_secrets=True,
+            source_reports=_upba_source_reports(),
+            source_manifest_check=source_manifest_check,
+            coverage_profile=_upba_coverage_profile(),
+        )
+    except ValueError as exc:
+        assert "source manifest check failed" in str(exc)
+    else:
+        raise AssertionError("truthy string source manifest ok should be rejected")
 
 
 def test_cli_writes_upba_real_replay_report(tmp_path: Path) -> None:

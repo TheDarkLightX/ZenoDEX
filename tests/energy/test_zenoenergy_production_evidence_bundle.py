@@ -3,12 +3,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from tools import build_zenoenergy_production_evidence_bundle as bundle_mod
 from tools.build_zenoenergy_production_evidence_bundle import (
     build_production_evidence_bundle,
     main,
 )
 from tools.check_zenoenergy_replay_source_manifest import canonical_sha256
-
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -138,6 +140,21 @@ def test_bundle_rejects_source_manifest_hash_mismatch() -> None:
         assert "source_reports_match" in str(exc)
     else:
         raise AssertionError("bundle should reject mismatched UPBA source manifest")
+
+
+def test_bundle_source_manifest_check_requires_strict_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        bundle_mod,
+        "validate_replay_source_manifest",
+        lambda **_: {"ok": "true", "checks": [{"check_id": "malformed_ok", "passed": "true"}]},
+    )
+
+    with pytest.raises(ValueError, match="source manifest check failed"):
+        bundle_mod._require_passing_manifest_check(
+            label="upba",
+            manifest={},
+            source_reports=[],
+        )
 
 
 def test_cli_writes_bundle_json_and_markdown(tmp_path: Path) -> None:

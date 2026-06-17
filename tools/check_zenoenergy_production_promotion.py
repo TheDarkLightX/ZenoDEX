@@ -136,7 +136,7 @@ def _research_replay_obligation(report: dict[str, Any]) -> dict[str, Any]:
     shadow = summary.get("autotrader_energy_shadow_bridge", {})
     passed = (
         report.get("schema") == "zenodex/energy/research_evidence_replay_receipt/v1"
-        and bool(report.get("ok")) is True
+        and report.get("ok") is True
         and int(report.get("failed_count", -1)) == 0
         and int(fallback.get("invalid_accept_count", -1)) == 0
         and int(autotrader.get("invalid_accept_count_total", -1)) == 0
@@ -149,7 +149,7 @@ def _research_replay_obligation(report: dict[str, Any]) -> dict[str, Any]:
         "passed": passed,
         "reason": "research replay, fallback, and invalid-accept receipts must be clean",
         "observed": {
-            "ok": bool(report.get("ok")),
+            "ok": report.get("ok") is True,
             "failed_count": int(report.get("failed_count", -1)),
             "fallback_invalid_accept_count": fallback.get("invalid_accept_count"),
             "autotrader_invalid_accept_count_total": autotrader.get(

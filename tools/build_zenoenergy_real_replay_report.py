@@ -14,16 +14,15 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.check_zenoenergy_replay_coverage_profile import (  # noqa: E402
+    coverage_profile_summary,
+    validate_replay_coverage_profile,
+)
 from tools.check_zenoenergy_replay_source_manifest import (  # noqa: E402
     source_manifest_summary,
     source_report_from_path,
     validate_replay_source_manifest,
 )
-from tools.check_zenoenergy_replay_coverage_profile import (  # noqa: E402
-    coverage_profile_summary,
-    validate_replay_coverage_profile,
-)
-
 
 ALLOWED_SOURCE_KINDS = {"production-shadow", "historical-replay"}
 FORBIDDEN_SOURCE_MARKERS = ("synthetic", "fixture", "built-in", "generated")
@@ -322,7 +321,7 @@ def _validate_source_manifest_check(
         return
     if check_report.get("schema") != "zenodex/energy/replay_source_manifest_check/v1":
         raise ValueError("source manifest check must use replay_source_manifest_check/v1")
-    if bool(check_report.get("ok")) is not True:
+    if check_report.get("ok") is not True:
         raise ValueError("source manifest check failed")
     if str(check_report.get("source_kind")) != source_kind:
         raise ValueError("source manifest source_kind does not match builder arguments")
@@ -342,11 +341,11 @@ def _attach_coverage_profile(
         real_report=report,
         profile=coverage_profile,
     )
-    if bool(check_report.get("ok")) is not True:
+    if check_report.get("ok") is not True:
         failed = ", ".join(
             str(item["check_id"])
             for item in check_report.get("checks", [])
-            if not bool(item.get("passed"))
+            if item.get("passed") is not True
         )
         raise ValueError(f"coverage profile check failed: {failed}")
     report["coverage_profile"] = coverage_profile_summary(check_report)

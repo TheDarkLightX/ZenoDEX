@@ -8,7 +8,6 @@ from tools.check_zenoenergy_production_promotion import (
     main,
 )
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -101,6 +100,27 @@ def test_production_gate_blocks_real_report_without_coverage_profile() -> None:
     observed = _obligation(report, "upba_real_replay_coverage")["observed"]
     assert isinstance(observed, dict)
     assert observed["coverage_profile_ok"] is False
+
+
+def test_production_gate_rejects_truthy_string_research_ok() -> None:
+    research_replay = json.loads(
+        (ROOT / "data/upba_energy/zenoenergy_research_evidence_replay_receipt.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    research_replay["ok"] = "true"
+
+    report = build_production_gate_report(
+        research_replay=research_replay,
+        upba_real_replay=_passing_upba_real_replay(),
+        autotrader_real_shadow=_passing_autotrader_real_shadow(),
+        operator_release_enabled=True,
+    )
+
+    assert report["decision"] == "blocked"
+    obligation = _obligation(report, "research_replay_clean")
+    assert obligation["passed"] is False
+    assert obligation["observed"]["ok"] is False
 
 
 def test_production_gate_cli_writes_blocked_receipt(tmp_path: Path) -> None:

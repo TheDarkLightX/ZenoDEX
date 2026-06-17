@@ -21,14 +21,14 @@ from tools.build_zenoenergy_real_replay_report import (  # noqa: E402
 from tools.check_zenoenergy_production_promotion import (  # noqa: E402
     build_production_gate_report,
 )
+from tools.check_zenoenergy_replay_coverage_profile import (  # noqa: E402
+    coverage_profile_summary,
+    validate_replay_coverage_profile,
+)
 from tools.check_zenoenergy_replay_source_manifest import (  # noqa: E402
     source_manifest_summary,
     source_report_from_path,
     validate_replay_source_manifest,
-)
-from tools.check_zenoenergy_replay_coverage_profile import (  # noqa: E402
-    coverage_profile_summary,
-    validate_replay_coverage_profile,
 )
 
 
@@ -285,11 +285,11 @@ def _require_passing_manifest_check(
         manifest=manifest,
         source_reports=source_reports,
     )
-    if bool(check.get("ok")) is not True:
+    if check.get("ok") is not True:
         failed = ", ".join(
             str(item["check_id"])
             for item in check.get("checks", [])
-            if not bool(item.get("passed"))
+            if item.get("passed") is not True
         )
         raise ValueError(f"{label} source manifest check failed: {failed}")
     return check
