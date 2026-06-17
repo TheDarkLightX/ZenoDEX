@@ -165,6 +165,15 @@ def test_build_autotrader_krr_history_maps_compile_tau_receipt_on_reject() -> No
     assert rows["policy::compile_guard"] == {"total": 1, "supported": 0, "support_rate": 0.0}
 
 
+def test_report_decision_rejects_truthy_string_compile_ok() -> None:
+    decision, reason, detail = _report_decision(
+        {"schema": "zenodex/autotrader-policy-compile/v1", "ok": "false", "error": "compile_failed"},
+        "compile",
+    )
+
+    assert (decision, reason, detail) == ("reject", "compile_failed", None)
+
+
 def test_build_autotrader_krr_history_maps_session_state_guards() -> None:
     history = build_autotrader_krr_history(
         reports=[

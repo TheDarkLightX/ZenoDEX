@@ -31,6 +31,10 @@ def _as_str_list(value: object) -> list[str]:
     return out
 
 
+def _json_bool_is_true(value: object) -> bool:
+    return value is True
+
+
 def _load_history_rows(existing: Mapping[str, object] | None) -> dict[str, dict[str, int | float]]:
     if not isinstance(existing, Mapping):
         return {}
@@ -133,7 +137,7 @@ def _report_phase(report: Mapping[str, object], advice: Mapping[str, object]) ->
 
 def _report_decision(report: Mapping[str, object], phase: str) -> tuple[str, str, Mapping[str, object] | None]:
     if phase == "compile":
-        ok = bool(report.get("ok", False))
+        ok = _json_bool_is_true(report.get("ok"))
         return ("submit" if ok else "reject"), ("compile_ok" if ok else str(report.get("error", ""))), None
     decision = report.get("decision")
     if not isinstance(decision, Mapping):
