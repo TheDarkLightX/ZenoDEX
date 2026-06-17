@@ -9,20 +9,20 @@ Keep it out of the functional core.
 from __future__ import annotations
 
 import importlib
-import re
-import shutil
 import os
-import sys
+import re
 import select
+import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import time
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from typing import Dict, List, Optional, Sequence, Tuple
-
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -85,10 +85,8 @@ def _run_subprocess_with_output_caps(
     )
 
     if proc.stdin is None or proc.stdout is None or proc.stderr is None:
-        try:
+        with suppress(Exception):
             proc.kill()
-        except Exception:
-            pass
         raise RuntimeError("tau subprocess misconfigured: stdin/stdout/stderr pipes unavailable")
     stdout_buf = bytearray()
     stderr_buf = bytearray()
@@ -104,17 +102,15 @@ def _run_subprocess_with_output_caps(
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             return
-        except Exception:
-            try:
+        except (OSError, RuntimeError):
+            with suppress(Exception):
                 proc.kill()
-            except Exception:
-                return
 
     try:
         for stream in (proc.stdin, proc.stdout, proc.stderr):
             try:
                 os.set_blocking(stream.fileno(), False)
-            except Exception:
+            except (OSError, ValueError):
                 _kill_proc_group()
                 return -1, _decode_stdout(), "tau requires non-blocking pipes"
 
@@ -127,7 +123,7 @@ def _run_subprocess_with_output_caps(
             stdin_open = False
             try:
                 proc.stdin.close()
-            except Exception:
+            except (OSError, ValueError, RuntimeError):
                 _kill_proc_group()
                 return -1, _decode_stdout(), "tau stdin close error"
 
@@ -154,7 +150,7 @@ def _run_subprocess_with_output_caps(
                 ready_r, ready_w, _ = select.select(rlist, wlist, [], min(0.1, remaining))
             except InterruptedError:
                 continue
-            except Exception as exc:
+            except (OSError, ValueError, RuntimeError) as exc:
                 _kill_proc_group()
                 detail = str(exc).strip()
                 if detail:
@@ -167,24 +163,25 @@ def _run_subprocess_with_output_caps(
                     n = stream.write(stdin_view[stdin_off : stdin_off + 4096])
                 except BrokenPipeError:
                     stdin_open = False
-                    try:
+                    with suppress(Exception):
                         stream.close()
-                    except Exception:
-                        pass
                     continue
                 except BlockingIOError:
                     continue
-                except Exception:
+                except (OSError, ValueError, RuntimeError):
                     _kill_proc_group()
                     return -1, _decode_stdout(), "tau stdin error"
                 if n is None:
-                    n = 0
+                    continue
+                if int(n) <= 0:
+                    _kill_proc_group()
+                    return -1, _decode_stdout(), "tau stdin made no progress"
                 stdin_off += int(n)
                 if stdin_off >= len(stdin_view):
                     stdin_open = False
                     try:
                         proc.stdin.close()
-                    except Exception:
+                    except (OSError, ValueError, RuntimeError):
                         _kill_proc_group()
                         return -1, _decode_stdout(), "tau stdin close error"
 
@@ -193,7 +190,7 @@ def _run_subprocess_with_output_caps(
                     chunk = stream.read(4096)
                 except BlockingIOError:
                     continue
-                except Exception:
+                except (OSError, ValueError, RuntimeError):
                     _kill_proc_group()
                     return -1, _decode_stdout(), "tau stdout/stderr read error"
                 if not chunk:
@@ -231,7 +228,7 @@ def _run_subprocess_with_output_caps(
             except subprocess.TimeoutExpired:
                 _kill_proc_group()
                 return -1, _decode_stdout(), "tau timed out"
-            except Exception:
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
                 _kill_proc_group()
                 return -1, _decode_stdout(), "tau did not exit"
 
@@ -242,24 +239,17 @@ def _run_subprocess_with_output_caps(
 
         return int(rc), out_s, err_s
     finally:
-        try:
+        with suppress(Exception):
             if proc.returncode is None:
-                try:
-                    _kill_proc_group()
-                except Exception:
-                    pass
-        except Exception:
-            pass
-        try:
+                _kill_proc_group()
+        with suppress(Exception):
             proc.wait(timeout=1.0)
-        except Exception:
-            pass
 
 
 def _executable_file(path: Path) -> bool:
     try:
         return path.exists() and path.is_file() and os.access(str(path), os.X_OK)
-    except Exception:
+    except (OSError, RuntimeError):
         return False
 
 
@@ -364,7 +354,7 @@ def _try_import_tau_python_binding(project_root: Path = ROOT) -> Optional[Module
                 sys.path.insert(0, ds)
         try:
             mod = importlib.import_module("tau")
-        except Exception:
+        except (ImportError, OSError, RuntimeError):
             return None
 
         # Guard against importing an unrelated `tau` package.
@@ -472,7 +462,7 @@ def _run_tau_spec_steps_via_python_binding(
             raw_s = str(raw).strip()
             try:
                 value = int(raw_s)
-            except Exception as exc:
+            except ValueError as exc:
                 raise RuntimeError(f"{out_name} output non-integer value: {raw_s!r}") from exc
             outputs_by_step.setdefault(idx, {})[out_name] = value
 
@@ -723,7 +713,7 @@ def inline_definitions(expr: str, defs: dict[str, TauDefinition], *, max_depth: 
 
             expanded_args = [inline_definitions(a.strip(), defs, max_depth=max_depth - 1) for a in args]
             body = definition.body
-            for param, arg in zip(definition.params, expanded_args):
+            for param, arg in zip(definition.params, expanded_args, strict=True):
                 body = _replace_identifier(body, param, f"({arg})")
             body = inline_definitions(body, defs, max_depth=max_depth - 1)
             out.append(f"({body})")
@@ -918,7 +908,7 @@ def run_tau_spec_steps(
                 severity="error",
                 experimental=experimental,
             )
-        except Exception:
+        except (OSError, RuntimeError, TauRunError, ValueError):
             return None
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -982,8 +972,8 @@ def run_tau_spec_steps(
             try:
                 if path.stat().st_size > max_bytes:
                     raise RuntimeError(f"{name} output file too large: {path.stat().st_size} > {max_bytes} bytes")
-            except OSError:
-                raise RuntimeError(f"could not stat tau output file: {name}")
+            except OSError as exc:
+                raise RuntimeError(f"could not stat tau output file: {name}") from exc
             values = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
             if len(values) != len(steps):
                 fallback_outputs = _try_spec_mode_fallback()
@@ -1070,7 +1060,7 @@ def run_tau_spec_steps_with_trace(
                 experimental=experimental,
             )
             return outputs_sm, out_sm, err_sm
-        except Exception:
+        except (OSError, RuntimeError, TauRunError, ValueError):
             return None
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -1149,14 +1139,14 @@ def run_tau_spec_steps_with_trace(
                         stderr=err,
                         repl_script=repl_script,
                     )
-            except OSError:
+            except OSError as exc:
                 raise TauRunError(
                     f"could not stat tau output file: {name}",
                     rc=rc,
                     stdout=out,
                     stderr=err,
                     repl_script=repl_script,
-                )
+                ) from exc
             values = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
             if len(values) != len(steps):
                 fallback = _try_spec_mode_fallback_with_trace()
