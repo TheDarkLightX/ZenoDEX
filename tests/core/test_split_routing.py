@@ -182,6 +182,29 @@ def test_staircase_exact_rejects_quote_inversion_drift() -> None:
         staircase_jump_impl(p0, p1, 5, quote_exact_in=broken_quote)
 
 
+def test_staircase_exact_rejects_positive_jump_quote_reject_drift() -> None:
+    p0 = PoolXY(x=1, y=1_000, fee_bps=0)
+    p1 = PoolXY(x=1_000, y=1_000, fee_bps=0)
+
+    def rejecting_quote(pool: PoolXY, amount: int) -> int:
+        if pool is p0 and amount == 1:
+            raise ValueError("synthetic jump reject")
+        return exact_out_for_pool_exact_in(pool, amount)
+
+    with pytest.raises(ValueError, match="quote rejected requested output level"):
+        staircase_jump_impl(p0, p1, 5, quote_exact_in=rejecting_quote)
+
+
+def test_staircase_exact_allows_endpoint_when_pool0_has_no_positive_domain() -> None:
+    p0 = PoolXY(x=0, y=1_000, fee_bps=0)
+    p1 = PoolXY(x=1_000, y=1_000, fee_bps=0)
+
+    assert staircase_jump_best_split_two_pools_exact_in(p0, p1, 5) == (
+        exact_out_for_pool_exact_in(p1, 5),
+        0,
+    )
+
+
 def test_unknown_search_profile_rejected():
     p0 = PoolXY(x=100, y=100, fee_bps=10)
     p1 = PoolXY(x=100, y=100, fee_bps=10)

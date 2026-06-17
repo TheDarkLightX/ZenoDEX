@@ -67,6 +67,8 @@ def _ceil_div_positive(numerator: int, denominator: int) -> int:
 def _min_gross_in_for_output_level(pool: _PoolLike, output_level: int) -> int | None:
     alpha = int(BPS_DENOM) - int(pool.fee_bps)
     target = int(output_level)
+    if int(pool.x) <= 0 or int(pool.y) <= 0:
+        return None
     if alpha <= 0 or target <= 0 or target >= int(pool.y):
         return None
 
@@ -89,8 +91,8 @@ def _pool_output_jump_candidates(
         if gross_in is not None and gross_in <= int(amount_in_total):
             try:
                 reached_output = quote_exact_in(pool, int(gross_in))
-            except ValueError:
-                return candidates
+            except ValueError as exc:
+                raise ValueError("quote rejected requested output level") from exc
             if int(reached_output) < int(next_output_level):
                 raise ValueError("quote did not reach requested output level")
             candidates[int(gross_in)] = int(reached_output)
