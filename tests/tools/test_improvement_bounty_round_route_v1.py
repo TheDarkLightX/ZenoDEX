@@ -8,6 +8,7 @@ import pytest
 
 from src.integration.tau_runner import find_tau_bin, run_tau_spec_steps
 from tools.gpu_jobs.improvement_bounty_round_route_v1 import _compute_payout_amount
+from tools.proof_verifiers.route_improvement_v1 import verify_route_improvement_witness
 
 
 def _run_tau(spec_path: str, *, steps: list[dict[str, int]]) -> list[int]:
@@ -97,6 +98,11 @@ def test_improvement_bounty_round_selects_best_and_emits_tau_argmax_cert(tmp_pat
     )
     w1 = json.loads(w1_path.read_text(encoding="utf-8"))
     assert w1["improves"] is True
+    w1_string_flag = dict(w1)
+    w1_string_flag["improves"] = "yes"
+    ok, err = verify_route_improvement_witness(w1_string_flag)
+    assert not ok
+    assert err == "improves must be a bool"
 
     # Make a second, valid submission that does not improve: proposal==baseline, improves=false.
     w2 = dict(w1)

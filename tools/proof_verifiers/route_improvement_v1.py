@@ -58,6 +58,12 @@ def _require_int(value: Any, *, name: str) -> int:
     return int(value)
 
 
+def _require_bool(value: Any, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} must be a bool")
+    return value
+
+
 def _pool_from_json(obj: Mapping[str, Any]) -> PoolState:
     # Keep consistent with tools/gpu_jobs/route_2hop_search_cpmm.py parsing.
     pool_id = _require_str(obj.get("pool_id"), name="pool.pool_id")
@@ -210,7 +216,7 @@ def verify_route_improvement_witness(payload: Mapping[str, Any]) -> Tuple[bool, 
 
         baseline = _require_mapping(payload.get("baseline"), name="baseline")
         proposal = _require_mapping(payload.get("proposal"), name="proposal")
-        improves_flag = bool(payload.get("improves", False))
+        improves_flag = _require_bool(payload.get("improves", False), name="improves")
 
         baseline_route = _require_list(baseline.get("route"), name="baseline.route")
         baseline_amt_out_claim = _require_int(baseline.get("amount_out"), name="baseline.amount_out")
@@ -276,4 +282,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
