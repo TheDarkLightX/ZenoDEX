@@ -89,11 +89,19 @@ def test_fee_total_helpers_reject_invalid_inputs() -> None:
         fee_total_ceil_bigint(-1, 1)
     with pytest.raises(ValueError, match="fee_bps out of range"):
         fee_total_ceil_bigint(1, 10_001)
+    with pytest.raises(TypeError, match="gross_in must be an int"):
+        fee_total_ceil_bigint(True, 1)
+    with pytest.raises(TypeError, match="fee_bps must be an int"):
+        fee_total_ceil_bigint(1, False)
 
     with pytest.raises(ValueError, match="gross_in must be non-negative"):
         fee_total_ceil_decomposed(-1, 1)
     with pytest.raises(ValueError, match="fee_bps out of range"):
         fee_total_ceil_decomposed(1, 10_001)
+    with pytest.raises(TypeError, match="gross_in must be an int"):
+        fee_total_ceil_decomposed(True, 1)
+    with pytest.raises(TypeError, match="fee_bps must be an int"):
+        fee_total_ceil_decomposed(1, False)
 
 
 def test_mul_div_floor_gcd_reduction_rejects_invalid_inputs_and_reports_intractable_case() -> None:
@@ -101,6 +109,12 @@ def test_mul_div_floor_gcd_reduction_rejects_invalid_inputs_and_reports_intracta
         mul_div_floor_gcd_reduced_u256(a=-1, b=1, c=1)
     with pytest.raises(ValueError, match="inputs must fit in u256"):
         mul_div_floor_gcd_reduced_u256(a=U256_MAX + 1, b=1, c=1)
+    with pytest.raises(TypeError, match="a must be an int"):
+        mul_div_floor_gcd_reduced_u256(a=True, b=1, c=1)
+    with pytest.raises(TypeError, match="b must be an int"):
+        mul_div_floor_gcd_reduced_u256(a=1, b=False, c=1)
+    with pytest.raises(TypeError, match="c must be an int"):
+        mul_div_floor_gcd_reduced_u256(a=1, b=1, c=True)
 
     assert mul_div_floor_gcd_reduced_u256(a=U256_MAX, b=2, c=1) is None
 

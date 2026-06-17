@@ -11,19 +11,27 @@ It provides:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 
 from .fixed_width import U256_BITS, U256_MAX, will_add_overflow, will_mul_overflow
 
 
+def _require_plain_int(name: str, value: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
 def fee_total_ceil_bigint(gross_in: int, fee_bps: int) -> int:
     """Reference: ceil(gross_in * fee_bps / 10_000) in bigint math."""
-    if gross_in < 0:
+    gross = _require_plain_int("gross_in", gross_in)
+    fee = _require_plain_int("fee_bps", fee_bps)
+    if gross < 0:
         raise ValueError("gross_in must be non-negative")
-    if not (0 <= fee_bps <= 10_000):
+    if not (0 <= fee <= 10_000):
         raise ValueError("fee_bps out of range")
-    return (int(gross_in) * int(fee_bps) + 10_000 - 1) // 10_000
+    return (gross * fee + 10_000 - 1) // 10_000
 
 
 def fee_total_ceil_decomposed(gross_in: int, fee_bps: int) -> int:
@@ -34,13 +42,15 @@ def fee_total_ceil_decomposed(gross_in: int, fee_bps: int) -> int:
       ceil(gross_in * fee / 10_000)
         = q*fee + ceil(r*fee/10_000)
     """
-    if gross_in < 0:
+    gross = _require_plain_int("gross_in", gross_in)
+    fee = _require_plain_int("fee_bps", fee_bps)
+    if gross < 0:
         raise ValueError("gross_in must be non-negative")
-    if not (0 <= fee_bps <= 10_000):
+    if not (0 <= fee <= 10_000):
         raise ValueError("fee_bps out of range")
-    q, r = divmod(int(gross_in), 10_000)
+    q, r = divmod(gross, 10_000)
     # q*fee_bps is the dominant term but q is smaller by 10_000.
-    return int(q) * int(fee_bps) + (int(r) * int(fee_bps) + 10_000 - 1) // 10_000
+    return int(q) * fee + (int(r) * fee + 10_000 - 1) // 10_000
 
 
 def mul_div_floor_gcd_reduced_u256(*, a: int, b: int, c: int) -> int | None:
@@ -50,18 +60,21 @@ def mul_div_floor_gcd_reduced_u256(*, a: int, b: int, c: int) -> int | None:
       - int result if intermediate products can be kept within u256.
       - None if a u256 overflow would still be required (intractable without a 512-bit mulDiv).
     """
-    if a < 0 or b < 0 or c <= 0:
+    a_int = _require_plain_int("a", a)
+    b_int = _require_plain_int("b", b)
+    c_int = _require_plain_int("c", c)
+    if a_int < 0 or b_int < 0 or c_int <= 0:
         raise ValueError("a,b must be non-negative and c must be positive")
-    if a > U256_MAX or b > U256_MAX or c > U256_MAX:
+    if a_int > U256_MAX or b_int > U256_MAX or c_int > U256_MAX:
         raise ValueError("inputs must fit in u256")
 
     # Cancel common factors before multiplying to reduce overflow risk.
-    g1 = math.gcd(int(a), int(c))
-    a1 = int(a) // int(g1)
-    c1 = int(c) // int(g1)
+    g1 = math.gcd(a_int, c_int)
+    a1 = a_int // int(g1)
+    c1 = c_int // int(g1)
 
-    g2 = math.gcd(int(b), int(c1))
-    b1 = int(b) // int(g2)
+    g2 = math.gcd(b_int, int(c1))
+    b1 = b_int // int(g2)
     c2 = int(c1) // int(g2)
 
     # Now compute floor(a1*b1/c2) if a1*b1 fits in u256.
