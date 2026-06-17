@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.integration.decision_witness import (
     DECISION_WITNESS_SCHEMA,
     DecisionWitness,
@@ -69,6 +71,27 @@ def test_verify_decision_witness_payload_rejects_kind_mismatch() -> None:
     )
     assert ok is False
     assert err == "decision witness kind mismatch"
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value"),
+    [
+        ("binding_kind", 123),
+        ("binding_id", 123),
+        ("binding_digest", True),
+    ],
+)
+def test_verify_decision_witness_payload_rejects_non_string_binding_fields(
+    field_name: str,
+    bad_value: object,
+) -> None:
+    payload = _sample_witness().to_dict()
+    payload["state_binding"][field_name] = bad_value
+
+    ok, err = verify_decision_witness_payload(payload)
+
+    assert ok is False
+    assert err == f"{field_name} must be a non-empty string"
 
 
 def test_decision_witness_rejects_non_scalar_canonical_key_item() -> None:

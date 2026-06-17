@@ -21,6 +21,12 @@ def _is_nonempty_string(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def _require_nonempty_string(value: object, *, name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string")
+    return value
+
+
 def _as_plain_dict(value: Mapping[str, Any] | None) -> dict[str, Any] | None:
     if value is None:
         return None
@@ -96,9 +102,9 @@ class DecisionWitnessBinding:
         if nested_payload is not None and not isinstance(nested_payload, Mapping):
             raise ValueError("binding.payload must be an object when present")
         return cls(
-            binding_kind=str(payload.get("binding_kind", "")),
-            binding_id=str(payload.get("binding_id", "")),
-            binding_digest=str(payload.get("binding_digest", "")),
+            binding_kind=_require_nonempty_string(payload.get("binding_kind"), name="binding_kind"),
+            binding_id=_require_nonempty_string(payload.get("binding_id"), name="binding_id"),
+            binding_digest=_require_nonempty_string(payload.get("binding_digest"), name="binding_digest"),
             payload=None if nested_payload is None else dict(nested_payload),
         )
 
