@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import src.integration.autonomous_governance_live_apply as live_apply
 from src.integration.autonomous_governance_live_apply import (
     admit_autonomous_governance_live_session_file_update_v1,
     autonomous_governance_live_session_file_context_hash_v1,
@@ -164,6 +165,57 @@ def test_live_session_file_update_refuses_forged_receipt(
     assert result["admitted"] is False
     assert "live_trajectory_admission_refused" in result["errors"]
     assert current_session_store_file_head_v1(path=path)["store_hash"] == init["store_hash"]
+
+
+def test_live_session_file_update_refuses_bool_typed_post_head(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    path = tmp_path / "live-store.json"
+    policy, genesis, init = _init_file(path)
+    receipt = _continue(policy, genesis, 103)
+    committed = dict(genesis["final_state"])
+    context_hash = _context_hash(
+        path=path,
+        committed_surface_state=committed,
+        receipt=receipt,
+        expected_policy_hash=str(policy["policy_hash"]),
+    )
+    assert receipt["final_state"]["stakers_bps"] == 0
+
+    real_head = live_apply.current_session_store_file_head_v1
+    calls = 0
+
+    def corrupted_second_head(*, path: Path) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        head = real_head(path=path)
+        if calls < 2 or head.get("ok") is not True:
+            return head
+        corrupted = dict(head)
+        surface_state = dict(corrupted["surface_state"])
+        surface_state["stakers_bps"] = False
+        corrupted["surface_state"] = surface_state
+        return corrupted
+
+    monkeypatch.setattr(
+        live_apply,
+        "current_session_store_file_head_v1",
+        corrupted_second_head,
+    )
+
+    result = admit_autonomous_governance_live_session_file_update_v1(
+        store_path=path,
+        policy=policy,
+        trajectory_receipt=receipt,
+        committed_surface_state=committed,
+        expected_policy_hash=str(policy["policy_hash"]),
+        expected_store_hash=init["store_hash"],
+        expected_live_context_hash=context_hash,
+    )
+    assert result["admitted"] is False
+    assert "live_store_head_final_state_mismatch" in result["errors"]
+    assert result["applied_state"] == committed
 
 
 def test_live_session_file_update_refuses_stale_expected_store_hash(

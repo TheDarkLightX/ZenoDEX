@@ -81,9 +81,10 @@ def autonomous_governance_live_session_file_context_hash_v1(
     return hash_v0(_LIVE_CONTEXT_HASH_TAG, body)
 
 
-def _state_equals(left: Mapping[str, int], right: Mapping[str, Any]) -> bool:
-    normalized, errors = _normalize_surface_state(right)
-    return not errors and normalized == dict(left)
+def _state_equals(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    left_normalized, left_errors = _normalize_surface_state(left)
+    right_normalized, right_errors = _normalize_surface_state(right)
+    return not left_errors and not right_errors and left_normalized == right_normalized
 
 
 def admit_autonomous_governance_live_session_file_update_v1(
@@ -221,9 +222,8 @@ def admit_autonomous_governance_live_session_file_update_v1(
                 errors.append("live_store_head_final_state_mismatch")
                 admitted = False
             else:
-                applied_state = {
-                    name: int(value) for name, value in dict(head_after_surface).items()
-                }
+                normalized_after, _ = _normalize_surface_state(head_after_surface)
+                applied_state = dict(normalized_after)
 
     body = {
         "schema": AUTONOMOUS_GOVERNANCE_LIVE_SESSION_FILE_UPDATE_SCHEMA_V1,
