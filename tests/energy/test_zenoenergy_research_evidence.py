@@ -2,10 +2,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from tools import check_zenoenergy_research_evidence as research_mod
 from tools.check_zenoenergy_research_evidence import replay_zenoenergy_evidence
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _check_by_id(report: dict[str, object], check_id: str) -> dict[str, object]:
+    for check in report["checks"]:  # type: ignore[index]
+        if isinstance(check, dict) and check.get("check_id") == check_id:
+            return check
+    raise AssertionError(f"missing check {check_id}")
 
 
 def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
@@ -258,3 +268,47 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "popperpad.status.H_ZENOENERGY_ENSEMBLE_BEATS_GAP_WEIGHTED_20260519",
         "popperpad.status.H_AUTOTRADER_JEPA_UX_FUTURE_RISK_20260519",
     }.issubset(check_ids)
+
+
+def test_research_evidence_replay_rejects_truthy_string_receipt_ok(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_truthy_ok(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_suffix_bound_cross_seed_seed20260541_20260543.json":
+            payload["ok"] = "true"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_truthy_ok)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "suffix_bound_cross_seed.schema")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_truthy_string_obligation_passed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_truthy_obligation(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_model_leaderboard.json":
+            obligations = payload["obligations"]
+            assert isinstance(obligations, list)
+            first = obligations[0]
+            assert isinstance(first, dict)
+            first["passed"] = "true"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_truthy_obligation)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "upba_v2_model_leaderboard.obligations")
+    assert check["passed"] is False

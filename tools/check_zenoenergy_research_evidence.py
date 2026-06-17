@@ -895,7 +895,7 @@ def _check_set_aware(report: dict[str, Any]) -> list[EvidenceCheck]:
     checks.append(
         _expect_true(
             "set_aware.negative_knowledge_recorded",
-            bool(report["interpretation"]["set_aware_top1_improved"]) is False
+            _is_false(report["interpretation"]["set_aware_top1_improved"])
             and float(modes["set_aware_learned"]["mean_verifier_calls"])
             >= float(modes["aggregate_learned"]["mean_verifier_calls"]),
             "set-aware linear ranker did not beat aggregate learned baseline",
@@ -918,7 +918,7 @@ def _check_listwise_set(report: dict[str, Any]) -> list[EvidenceCheck]:
             "listwise_set.safety",
             _all_modes_zero(modes)
             and int(listwise["permutation_violation_count"]) == 0
-            and bool(report["interpretation"]["permutation_violation_count"] == 0),
+            and int(report["interpretation"]["permutation_violation_count"]) == 0,
             "zero invalid accepts and zero listwise permutation violations",
         ),
         _expect_true(
@@ -930,7 +930,7 @@ def _check_listwise_set(report: dict[str, Any]) -> list[EvidenceCheck]:
         ),
         _expect_true(
             "listwise_set.negative_knowledge",
-            bool(report["interpretation"]["listwise_improved_over_best_pairwise"]) is False
+            _is_false(report["interpretation"]["listwise_improved_over_best_pairwise"])
             and float(listwise["mean_verifier_calls"]) > float(aggregate["mean_verifier_calls"])
             and "did not improve mean verifier calls"
             in str(report["interpretation"]["negative_knowledge"]),
@@ -951,7 +951,7 @@ def _check_listwise_cross_seed(report: dict[str, Any]) -> list[EvidenceCheck]:
         ),
         _expect_true(
             "listwise_cross_seed.safety",
-            bool(aggregate["all_safety_passed"]) is True
+            _is_true(aggregate["all_safety_passed"])
             and int(report["safety"]["invalid_accept_count"]) == 0
             and int(report["safety"]["permutation_violation_count"]) == 0,
             "all cross-seed listwise runs have zero invalid accepts and zero permutation violations",
@@ -1042,7 +1042,7 @@ def _check_neighborhood(report: dict[str, Any]) -> list[EvidenceCheck]:
             "neighborhood.safety",
             int(neighborhood["invalid_accept_count"]) == 0
             and int(neighborhood["original_subset_violation_count"]) == 0
-            and bool(report["safety"]["verifier_authoritative"]) is True,
+            and _is_true(report["safety"]["verifier_authoritative"]),
             "zero invalid accepts, zero subset violations, verifier authoritative",
         ),
         _expect_true(
@@ -1074,7 +1074,7 @@ def _check_repair_selector(report: dict[str, Any]) -> list[EvidenceCheck]:
             "repair_selector.safety",
             _all_modes_zero(modes)
             and int(report["safety"]["invalid_accept_count"]) == 0
-            and bool(report["safety"]["verifier_authoritative"]) is True,
+            and _is_true(report["safety"]["verifier_authoritative"]),
             "zero invalid accepts and verifier authoritative",
         ),
         _expect_true(
@@ -1104,7 +1104,7 @@ def _check_repair_selector_cross_seed(report: dict[str, Any]) -> list[EvidenceCh
         ),
         _expect_true(
             "repair_selector_cross_seed.safety",
-            bool(aggregate["all_safety_passed"]) is True
+            _is_true(aggregate["all_safety_passed"])
             and int(report["safety"]["invalid_accept_count"]) == 0
             and int(report["safety"]["original_subset_violation_count"]) == 0,
             "all cross-seed runs have zero invalid accepts and zero subset violations",
@@ -1391,9 +1391,9 @@ def _check_objective_equiv_training_hygiene(
         ),
         _expect_true(
             "objective_equiv_training_hygiene.safety_boundary",
-            bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
-            and bool(report["safety"]["model_output_in_state_root"]) is False
+            _is_true(report["safety"]["verifier_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_settlement"])
+            and _is_false(report["safety"]["model_output_in_state_root"])
             and "training-target change" in doc_lower
             and "deterministic verification" in doc_lower,
             "receipt and doc keep the change on the advisory training boundary",
@@ -1428,7 +1428,7 @@ def _check_production_promotion_gate(
         _expect_true(
             "production_promotion_gate.blocks_current_research",
             report.get("decision") == "blocked"
-            and bool(report.get("promotion_allowed")) is False
+            and _is_false(report.get("promotion_allowed"))
             and "missing real UPBA replay report" in blocked_reasons
             and "missing real AutoTrader shadow report" in blocked_reasons
             and "operator must explicitly enable advisory ranking-only promotion"
@@ -1437,22 +1437,20 @@ def _check_production_promotion_gate(
         ),
         _expect_true(
             "production_promotion_gate.research_replay_clean",
-            bool(obligations["research_replay_clean"]["passed"]) is True
-            and bool(obligations["upba_real_replay_coverage"]["passed"]) is False
-            and bool(obligations["autotrader_real_shadow_coverage"]["passed"]) is False,
+            _is_true(obligations["research_replay_clean"]["passed"])
+            and _is_false(obligations["upba_real_replay_coverage"]["passed"])
+            and _is_false(obligations["autotrader_real_shadow_coverage"]["passed"]),
             "clean research replay is necessary but insufficient for promotion",
         ),
         _expect_true(
             "production_promotion_gate.safety_contract",
-            bool(report["safety_contract"]["verifier_authoritative"]) is True
-            and bool(report["safety_contract"]["policy_guards_authoritative"]) is True
-            and bool(
+            _is_true(report["safety_contract"]["verifier_authoritative"])
+            and _is_true(report["safety_contract"]["policy_guards_authoritative"])
+            and _is_false(
                 report["safety_contract"]["scorer_authorizes_settlement_or_trade"]
             )
-            is False
-            and bool(report["safety_contract"]["model_output_in_state_root"]) is False
-            and bool(report["safety_contract"]["deterministic_fallback_required"])
-            is True,
+            and _is_false(report["safety_contract"]["model_output_in_state_root"])
+            and _is_true(report["safety_contract"]["deterministic_fallback_required"]),
             "gate preserves verifier/policy authority and fallback boundary",
         ),
         _expect_true(
@@ -1526,10 +1524,9 @@ def _check_replay_source_manifest(
         ),
         _expect_true(
             "replay_source_manifest.negative_knowledge",
-            bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["policy_guards_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_settlement_or_trade"])
-            is False
+            _is_true(report["safety"]["verifier_authoritative"])
+            and _is_true(report["safety"]["policy_guards_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_settlement_or_trade"])
             and "cannot prove external data custody" in limits_lower
             and "without a passing replay source manifest check" in negative_lower,
             "receipt preserves advisory boundary and source-custody limits",
@@ -1588,12 +1585,10 @@ def _check_replay_source_manifest_builder(
         ),
         _expect_true(
             "replay_source_manifest_builder.safety_and_limits",
-            bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["policy_guards_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_settlement_or_trade"])
-            is False
-            and bool(report["safety"]["manifest_builder_authorizes_production"])
-            is False
+            _is_true(report["safety"]["verifier_authoritative"])
+            and _is_true(report["safety"]["policy_guards_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_settlement_or_trade"])
+            and _is_false(report["safety"]["manifest_builder_authorizes_production"])
             and "external data custody" in limits_lower
             and "not sufficient production evidence" in negative_lower,
             "builder preserves advisory boundary and records custody limits",
@@ -1654,12 +1649,10 @@ def _check_replay_secret_scan(
         ),
         _expect_true(
             "replay_secret_scan.safety_and_limits",
-            bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["policy_guards_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_settlement_or_trade"])
-            is False
-            and bool(report["safety"]["secret_scanner_authorizes_production"])
-            is False
+            _is_true(report["safety"]["verifier_authoritative"])
+            and _is_true(report["safety"]["policy_guards_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_settlement_or_trade"])
+            and _is_false(report["safety"]["secret_scanner_authorizes_production"])
             and "privacy compliance" in limits_lower
             and "full privacy audit" in negative_lower
             and "production promotion decision" in negative_lower,
@@ -1733,12 +1726,10 @@ def _check_replay_coverage_profile(
         ),
         _expect_true(
             "replay_coverage_profile.safety_and_limits",
-            bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["policy_guards_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_settlement_or_trade"])
-            is False
-            and bool(report["safety"]["coverage_profile_authorizes_production"])
-            is False
+            _is_true(report["safety"]["verifier_authoritative"])
+            and _is_true(report["safety"]["policy_guards_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_settlement_or_trade"])
+            and _is_false(report["safety"]["coverage_profile_authorizes_production"])
             and "representative" in limits_lower
             and "aggregate batch" in negative_lower
             and "not a production authorization path" in negative_lower,
@@ -1804,13 +1795,13 @@ def _check_real_replay_report_builder(
         ),
         _expect_true(
             "real_replay_report_builder.safety_boundary",
-            bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["policy_guards_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_settlement_or_trade"])
-            is False
-            and bool(report["safety"]["model_output_in_state_root"]) is False
-            and bool(report["safety"]["performance_thresholds_delegated_to_production_gate"])
-            is True
+            _is_true(report["safety"]["verifier_authoritative"])
+            and _is_true(report["safety"]["policy_guards_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_settlement_or_trade"])
+            and _is_false(report["safety"]["model_output_in_state_root"])
+            and _is_true(
+                report["safety"]["performance_thresholds_delegated_to_production_gate"]
+            )
             and "cannot independently prove" in limits_lower
             and "synthetic and built-in fixture reports remain research evidence"
             in negative_lower,
@@ -1882,12 +1873,11 @@ def _check_production_evidence_bundle(
         ),
         _expect_true(
             "production_evidence_bundle.safety_and_limits",
-            bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["policy_guards_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_settlement_or_trade"])
-            is False
-            and bool(report["safety"]["model_output_in_state_root"]) is False
-            and bool(report["safety"]["deterministic_fallback_required"]) is True
+            _is_true(report["safety"]["verifier_authoritative"])
+            and _is_true(report["safety"]["policy_guards_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_settlement_or_trade"])
+            and _is_false(report["safety"]["model_output_in_state_root"])
+            and _is_true(report["safety"]["deterministic_fallback_required"])
             and "advisory ranking" in doc_lower
             and "exits with code `2`" in doc_lower
             and "coverage profiles fail" in doc_lower
@@ -2017,8 +2007,8 @@ def _check_autotrader_energy_hard_cross_seed(
         _expect_true(
             "autotrader_energy_hard_cross_seed.safety",
             int(report["safety"]["invalid_accept_count_total"]) == 0
-            and bool(report["safety"]["policy_guards_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_trade"]) is False
+            and _is_true(report["safety"]["policy_guards_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_trade"])
             and int(aggregate["safety_pass_count"]) == int(report["run_count"]),
             "zero invalid accepts and deterministic AutoTrader policy guards remain authoritative",
         ),
@@ -2067,9 +2057,9 @@ def _check_autotrader_energy_shadow_bridge(
         _expect_true(
             "autotrader_energy_shadow_bridge.safety",
             int(report["safety"]["invalid_accept_count_total"]) == 0
-            and bool(report["safety"]["policy_guards_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_trade"]) is False
-            and bool(report["safety"]["model_output_in_state_root"]) is False
+            and _is_true(report["safety"]["policy_guards_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_trade"])
+            and _is_false(report["safety"]["model_output_in_state_root"])
             and _all_modes_zero(modes),
             "zero invalid accepts and deterministic AutoTrader policy guards remain authoritative",
         ),
@@ -2085,7 +2075,7 @@ def _check_autotrader_energy_shadow_bridge(
         ),
         _expect_true(
             "autotrader_energy_shadow_bridge.learned_ties_hand_negative",
-            bool(report["interpretation"]["learned_beats_hand_on_mean_guard_calls"]) is False
+            _is_false(report["interpretation"]["learned_beats_hand_on_mean_guard_calls"])
             and float(learned["mean_guard_calls"]) == float(hand["mean_guard_calls"])
             and float(learned["mean_guard_calls"]) < float(random["mean_guard_calls"])
             and float(learned["top_5_recall"]) == 1.0
@@ -2162,9 +2152,9 @@ def _check_dominance_cover(
         _expect_true(
             "dominance_cover.safety_and_hooks",
             int(report["safety"]["invalid_accept_count"]) == 0
-            and bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
-            and bool(report["safety"]["model_output_in_state_root"]) is False
+            and _is_true(report["safety"]["verifier_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_settlement"])
+            and _is_false(report["safety"]["model_output_in_state_root"])
             and "full_list_complete_for_claim" in source_text
             and "pruned_sound_ok" in source_text
             and "global_claim_ok" in source_text
@@ -2225,10 +2215,10 @@ def _check_wes_dominance_search(
         _expect_true(
             "wes_dominance_search.safety",
             int(report["safety"]["invalid_accept_count"]) == 0
-            and bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["wes_ranks_only"]) is True
-            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
-            and bool(report["safety"]["model_output_in_state_root"]) is False
+            and _is_true(report["safety"]["verifier_authoritative"])
+            and _is_true(report["safety"]["wes_ranks_only"])
+            and _is_false(report["safety"]["scorer_authorizes_settlement"])
+            and _is_false(report["safety"]["model_output_in_state_root"])
             and int(summary["checker_invalid_accept_count"]) == 0,
             "WES ranks checker calls only and records zero invalid accepts",
         ),
@@ -2272,15 +2262,15 @@ def _check_dominance_prefix(
             == "zenodex/energy/upba_v2_dominance_prefix_benchmark/v1"
             and report.get("audit_schema")
             == "zenodex/energy/upba_v2_prefix_dominance_cover_audit/v1"
-            and bool(report.get("learned_model_present")) is True,
+            and _is_true(report.get("learned_model_present")),
             "dominance-prefix benchmark and audit schemas are stable",
         ),
         _expect_true(
             "dominance_prefix.safety",
             int(report["safety"]["invalid_accept_count"]) == 0
-            and bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
-            and bool(report["safety"]["model_output_in_state_root"]) is False,
+            and _is_true(report["safety"]["verifier_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_settlement"])
+            and _is_false(report["safety"]["model_output_in_state_root"]),
             "prefix audit preserves verifier authority and records zero invalid accepts",
         ),
         _expect_true(
@@ -2345,16 +2335,16 @@ def _check_suffix_bound(
             report.get("schema") == "zenodex/energy/upba_v2_suffix_bound_benchmark/v1"
             and report.get("certificate_schema")
             == "zenodex/energy/upba_v2_suffix_bound_certificate/v1"
-            and bool(report.get("learned_model_present")) is True,
+            and _is_true(report.get("learned_model_present")),
             "suffix-bound benchmark and certificate schemas are stable",
         ),
         _expect_true(
             "suffix_bound.safety",
             int(report["safety"]["invalid_accept_count"]) == 0
-            and bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
-            and bool(report["safety"]["model_output_in_state_root"]) is False
-            and bool(report["safety"]["deterministic_suffix_bound_required"]) is True,
+            and _is_true(report["safety"]["verifier_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_settlement"])
+            and _is_false(report["safety"]["model_output_in_state_root"])
+            and _is_true(report["safety"]["deterministic_suffix_bound_required"]),
             "suffix-bound early stop preserves verifier authority and records zero invalid accepts",
         ),
         _expect_true(
@@ -2419,7 +2409,7 @@ def _check_suffix_bound_cross_seed(
         _expect_true(
             "suffix_bound_cross_seed.schema",
             report.get("schema") == "zenodex/energy/upba_v2_suffix_bound_cross_seed/v1"
-            and bool(report.get("ok")) is True
+            and _is_true(report.get("ok"))
             and int(report.get("batches_per_config")) == 60
             and list(report.get("seeds")) == [20260541, 20260542, 20260543]
             and list(report.get("candidate_counts")) == [20, 32, 50],
@@ -2428,10 +2418,10 @@ def _check_suffix_bound_cross_seed(
         _expect_true(
             "suffix_bound_cross_seed.safety",
             int(report["safety"]["invalid_accept_count_total"]) == 0
-            and bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
-            and bool(report["safety"]["model_output_in_state_root"]) is False
-            and bool(report["safety"]["deterministic_suffix_bound_required"]) is True
+            and _is_true(report["safety"]["verifier_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_settlement"])
+            and _is_false(report["safety"]["model_output_in_state_root"])
+            and _is_true(report["safety"]["deterministic_suffix_bound_required"])
             and int(learned["invalid_accept_count_total"]) == 0
             and int(hybrid["invalid_accept_count_total"]) == 0,
             "cross-seed suffix-bound stress has zero invalid accepts and keeps verifier authority",
@@ -2491,7 +2481,7 @@ def _check_suffix_bound_adversarial(
             "suffix_bound_adversarial.schema",
             report.get("schema")
             == "zenodex/energy/upba_v2_suffix_bound_adversarial_stress/v1"
-            and bool(report.get("ok")) is True
+            and _is_true(report.get("ok"))
             and int(report.get("batches")) == 120
             and int(report.get("candidates_per_batch")) == 24
             and int(report.get("seed")) == 20260544,
@@ -2500,10 +2490,10 @@ def _check_suffix_bound_adversarial(
         _expect_true(
             "suffix_bound_adversarial.safety",
             int(report["safety"]["invalid_accept_count"]) == 0
-            and bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
-            and bool(report["safety"]["model_output_in_state_root"]) is False
-            and bool(report["safety"]["deterministic_suffix_bound_required"]) is True,
+            and _is_true(report["safety"]["verifier_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_settlement"])
+            and _is_false(report["safety"]["model_output_in_state_root"])
+            and _is_true(report["safety"]["deterministic_suffix_bound_required"]),
             "adversarial suffix stress preserves verifier authority and zero invalid accepts",
         ),
         _expect_true(
@@ -2566,7 +2556,7 @@ def _check_suffix_bound_adversarial_families(
             "suffix_bound_adversarial_families.schema",
             report.get("schema")
             == "zenodex/energy/upba_v2_suffix_bound_adversarial_family_stress/v1"
-            and bool(report.get("ok")) is True
+            and _is_true(report.get("ok"))
             and int(report.get("batches")) == 120
             and int(report.get("candidates_per_batch")) == 24
             and int(report.get("seed")) == 20260545,
@@ -2575,10 +2565,10 @@ def _check_suffix_bound_adversarial_families(
         _expect_true(
             "suffix_bound_adversarial_families.safety",
             int(report["safety"]["invalid_accept_count"]) == 0
-            and bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
-            and bool(report["safety"]["model_output_in_state_root"]) is False
-            and bool(report["safety"]["deterministic_suffix_bound_required"]) is True,
+            and _is_true(report["safety"]["verifier_authoritative"])
+            and _is_false(report["safety"]["scorer_authorizes_settlement"])
+            and _is_false(report["safety"]["model_output_in_state_root"])
+            and _is_true(report["safety"]["deterministic_suffix_bound_required"]),
             "multi-family adversarial suffix stress preserves verifier authority",
         ),
         _expect_true(
@@ -2637,7 +2627,7 @@ def _check_negative_curriculum(
         _expect_true(
             "negative_curriculum.schema",
             report.get("schema") == "zenodex/energy/negative_curriculum/v1"
-            and bool(report.get("ok")) is True
+            and _is_true(report.get("ok"))
             and report["source_schema"]
             == "zenodex/energy/upba_v2_suffix_bound_adversarial_family_stress/v1"
             and int(report["evaluated_batches"]) == 118
@@ -2706,7 +2696,7 @@ def _check_curriculum_ranker(
             int(stress_curriculum["invalid_accept_count_total"]) == 0
             and int(stress_curriculum["permutation_violation_count_total"]) == 0
             and float(stress_curriculum["top_10_recall_min"]) == 1.0
-            and bool(interpretation["safety_clean"]) is True,
+            and _is_true(interpretation["safety_clean"]),
             "curriculum ranker preserves safety, permutation, and top-10 fallback evidence",
         ),
         _expect_true(
@@ -2715,7 +2705,7 @@ def _check_curriculum_ranker(
             > float(holdout_baseline["mean_verifier_calls"])
             and float(stress_curriculum["mean_verifier_calls_mean"])
             > float(stress_baseline["mean_verifier_calls_mean"])
-            and bool(interpretation["curriculum_improved_cross_seed_mean_calls"]) is False
+            and _is_false(interpretation["curriculum_improved_cross_seed_mean_calls"])
             and interpretation["promotion_decision"] == "keep_default",
             "rare-disqualifier curriculum does not beat the gap-weighted default",
         ),
@@ -2761,7 +2751,7 @@ def _check_data_scaling(
             "data_scaling.safety",
             int(report["safety"]["invalid_accept_count_total"]) == 0
             and all(int(row["metrics"]["invalid_accept_count"]) == 0 for row in runs)
-            and bool(report["safety"]["verifier_authoritative"]) is True,
+            and _is_true(report["safety"]["verifier_authoritative"]),
             "all scaling budgets preserve zero invalid accepts and verifier authority",
         ),
         _expect_true(
@@ -2774,8 +2764,8 @@ def _check_data_scaling(
         _expect_true(
             "data_scaling.saturates_below_current",
             float(last["mean_verifier_calls"]) >= float(baseline["mean_verifier_calls"])
-            and bool(interpretation["best_budget_beats_current_gap_weighted"]) is False
-            and bool(interpretation["best_budget_matches_current_gap_weighted_top10"]) is True,
+            and _is_false(interpretation["best_budget_beats_current_gap_weighted"])
+            and _is_true(interpretation["best_budget_matches_current_gap_weighted_top10"]),
             "full same-generator scaling does not beat the current gap-weighted checkpoint",
         ),
         _expect_true(
@@ -2853,7 +2843,7 @@ def _check_best_model_registry(
         _expect_true(
             "best_model_registry.upba_default",
             int(upba.get("parameter_count", 0)) == 6273
-            and bool(upba["metrics"]["promotion_allowed"]) is True
+            and _is_true(upba["metrics"]["promotion_allowed"])
             and int(upba["metrics"]["holdout_invalid_accept_count"]) == 0
             and int(upba["metrics"]["cross_seed_invalid_accept_count_total"]) == 0
             and int(upba["metrics"]["cross_seed_permutation_violation_count_total"]) == 0
@@ -2881,9 +2871,9 @@ def _check_best_model_registry(
         ),
         _expect_true(
             "best_model_registry.advisory_boundary",
-            bool(registry["safety_contract"]["model_authorizes_settlement"]) is False
-            and bool(registry["safety_contract"]["model_authorizes_trade"]) is False
-            and bool(registry["safety_contract"]["state_root_dependency"]) is False
+            _is_false(registry["safety_contract"]["model_authorizes_settlement"])
+            and _is_false(registry["safety_contract"]["model_authorizes_trade"])
+            and _is_false(registry["safety_contract"]["state_root_dependency"])
             and "zenodex/energy/best_model_registry/v1" in tool_text
             and "test_best_model_registry_pins_current_models" in test_text
             and "Deterministic UPBA verification" in doc_text,
@@ -2932,7 +2922,7 @@ def _check_upba_v2_model_leaderboard(
         _expect_true(
             "upba_v2_model_leaderboard.obligations",
             required_obligations == obligation_ids
-            and all(bool(item["passed"]) is True for item in report["obligations"]),
+            and all(_is_true(item["passed"]) for item in report["obligations"]),
             "all highwinner promotion obligations pass",
         ),
         _expect_true(
@@ -3020,8 +3010,8 @@ def _check_quality_selection(
         _expect_true(
             "quality_selection.safety",
             int(report["safety"]["invalid_accept_count_total"]) == 0
-            and bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["model_authorizes_settlement"]) is False
+            and _is_true(report["safety"]["verifier_authoritative"])
+            and _is_false(report["safety"]["model_authorizes_settlement"])
             and all(int(run["metrics"]["invalid_accept_count"]) == 0 for run in raw)
             and all(int(run["metrics"]["invalid_accept_count"]) == 0 for run in quality),
             "all quality-selection policies preserve verifier authority and zero invalid accepts",
@@ -3078,16 +3068,16 @@ def _check_ensemble(
         _expect_true(
             "ensemble.safety",
             int(report["safety"]["invalid_accept_count_total"]) == 0
-            and bool(report["safety"]["verifier_authoritative"]) is True
-            and bool(report["safety"]["model_authorizes_settlement"]) is False
-            and bool(report["safety"]["deterministic_fallback_required"]) is True
+            and _is_true(report["safety"]["verifier_authoritative"])
+            and _is_false(report["safety"]["model_authorizes_settlement"])
+            and _is_true(report["safety"]["deterministic_fallback_required"])
             and all(int(mode["invalid_accept_count"]) == 0 for mode in modes.values()),
             "ensemble preserves verifier authority, deterministic fallback, and zero invalid accepts",
         ),
         _expect_true(
             "ensemble.top10_and_default_negative",
             all(float(mode["top_10_recall"]) == 1.0 for mode in modes.values())
-            and bool(interpretation["best_ensemble_beats_current_gap_weighted"]) is False
+            and _is_false(interpretation["best_ensemble_beats_current_gap_weighted"])
             and float(baseline["mean_verifier_calls"])
             < float(interpretation["best_ensemble_mean_verifier_calls"])
             and "keep the single retained UPBA model" in interpretation["negative_knowledge"],
@@ -3125,7 +3115,7 @@ def _check_epiplexity_literature(
         _expect_true(
             "epiplexity_literature.schema",
             report.get("schema") == "zenodex/energy/epiplexity_literature_receipt/v1"
-            and bool(report.get("ok")) is True
+            and _is_true(report.get("ok"))
             and int(report["source_count"]) == 6
             and int(report["passed_count"]) == 7
             and int(report["failed_count"]) == 0,
@@ -3181,7 +3171,7 @@ def _check_synthetic_data_limits(
         _expect_true(
             "synthetic_data_limits.schema",
             report.get("schema") == "zenodex/energy/synthetic_data_limits_receipt/v1"
-            and bool(report.get("ok")) is True
+            and _is_true(report.get("ok"))
             and int(report["source_count"]) == 8
             and int(report["passed_count"]) == 6
             and int(report["failed_count"]) == 0,
@@ -3235,22 +3225,22 @@ def _check_langevin_discovery(
             "langevin_discovery.schema",
             report.get("schema")
             == "zenodex/energy/gemini_langevin_discovery_receipt/v1"
-            and bool(report.get("ok")) is True
+            and _is_true(report.get("ok"))
             and int(report["candidate_count"]) == 32,
             "Langevin discovery receipt schema and deterministic seed are stable",
         ),
         _expect_true(
             "langevin_discovery.verifier_selection",
-            bool(report["seed_verifier_ok"]) is True
-            and bool(report["selected_verifier_ok"]) is True
-            and bool(report["accepted_refinement"]) is False
-            and bool(report["fallback_to_seed"]) is True,
+            _is_true(report["seed_verifier_ok"])
+            and _is_true(report["selected_verifier_ok"])
+            and _is_false(report["accepted_refinement"])
+            and _is_true(report["fallback_to_seed"]),
             "invalid lower-energy refinement falls back to a verifier-backed seed",
         ),
         _expect_true(
             "langevin_discovery.energy_is_not_safety",
             float(report["energy_delta"]) < 0.0
-            and bool(report["refined_verifier_ok"]) is False
+            and _is_false(report["refined_verifier_ok"])
             and "lower learned energy does not imply verifier acceptance" in negative_text
             and "ZenoGuard is an advisory soft prior" in doc_text,
             "lower energy and ZenoGuard are not treated as safety proof",
@@ -3278,16 +3268,16 @@ def _check_autotrader_refiner_boundary(
             "autotrader_refiner_boundary.schema",
             report.get("schema")
             == "zenodex/energy/autotrader_refiner_boundary_receipt/v1"
-            and bool(report.get("ok")) is True
+            and _is_true(report.get("ok"))
             and int(report["evaluated_contexts"]) == 160,
             "AutoTrader refiner boundary receipt schema and deterministic seed are stable",
         ),
         _expect_true(
             "autotrader_refiner_boundary.policy_selection",
             int(report["selected_invalid_count"]) == 0
-            and bool(report["policy_guards_authoritative"]) is True
-            and bool(report["model_authorizes_trade"]) is False
-            and bool(report["refined_proposal_authorizes_trade"]) is False,
+            and _is_true(report["policy_guards_authoritative"])
+            and _is_false(report["model_authorizes_trade"])
+            and _is_false(report["refined_proposal_authorizes_trade"]),
             "refined AutoTrader proposals are selected only through policy labels",
         ),
         _expect_true(
@@ -3324,31 +3314,31 @@ def _check_jepa_logic_boundary(
             "jepa_logic_boundary.schema",
             report.get("schema")
             == "zenodex/energy/gemini_jepa_logic_boundary_receipt/v1"
-            and bool(report.get("ok")) is True
+            and _is_true(report.get("ok"))
             and report["decision"] == "research_only_future_aware_advisory_score",
             "JEPA/ZenoLogic boundary receipt schema and decision are stable",
         ),
         _expect_true(
             "jepa_logic_boundary.future_score_advisory",
-            bool(jepa["future_tension_prefers_balanced"]) is True
+            _is_true(jepa["future_tension_prefers_balanced"])
             and float(jepa["balanced_action_tension"]) < float(jepa["draining_action_tension"])
-            and bool(jepa["model_authorizes_settlement"]) is False,
+            and _is_false(jepa["model_authorizes_settlement"]),
             "future-tension score ranks proposals but does not authorize settlement",
         ),
         _expect_true(
             "jepa_logic_boundary.logic_negation_warning",
-            bool(logic["energy_not_inverts_barrier"]) is True
+            _is_true(logic["energy_not_inverts_barrier"])
             and "EnergyNot can invert hard barriers" in doc_text
             and "must not be used over safety predicates" in negative_text,
             "ZenoLogic records the hard-barrier inversion hazard",
         ),
         _expect_true(
             "jepa_logic_boundary.safety_contract",
-            bool(safety["deterministic_verifier_authoritative"]) is True
-            and bool(safety["deterministic_policy_guards_authoritative"]) is True
-            and bool(safety["model_authorizes_settlement"]) is False
-            and bool(safety["future_tension_authorizes_settlement"]) is False
-            and bool(safety["logic_expression_authorizes_settlement"]) is False,
+            _is_true(safety["deterministic_verifier_authoritative"])
+            and _is_true(safety["deterministic_policy_guards_authoritative"])
+            and _is_false(safety["model_authorizes_settlement"])
+            and _is_false(safety["future_tension_authorizes_settlement"])
+            and _is_false(safety["logic_expression_authorizes_settlement"]),
             "JEPA and ZenoLogic remain advisory scoring surfaces",
         ),
         _expect_true(
@@ -3386,13 +3376,13 @@ def _check_autotrader_jepa_ux(
             "autotrader_jepa_ux.schema",
             report.get("schema")
             == "zenodex/energy/autotrader_jepa_ux_receipt/v1"
-            and bool(report.get("ok")) is True
+            and _is_true(report.get("ok"))
             and report["decision"] == "research_only_future_aware_autotrader_ux",
             "source-level AutoTrader JEPA UX receipt schema and decision are stable",
         ),
         _expect_true(
             "autotrader_jepa_ux.future_tension",
-            bool(scenario["future_tension_differentiates_fragility"]) is True
+            _is_true(scenario["future_tension_differentiates_fragility"])
             and float(scenario["fragile_future_tension"])
             > float(scenario["balanced_future_tension"]),
             "future tension distinguishes fragile and balanced proposal scenarios",
@@ -3402,7 +3392,7 @@ def _check_autotrader_jepa_ux(
             float(prediction["later_policy_failure_auc"]) >= 0.80
             and float(prediction["future_failure_tension_delta_mean"]) > 0.25
             and int(prediction["later_policy_failure_count"]) > 0
-            and bool(prediction["model_authorizes_trade"]) is False,
+            and _is_false(prediction["model_authorizes_trade"]),
             "future tension separates later policy failures from non-failures",
         ),
         _expect_true(
@@ -3416,8 +3406,8 @@ def _check_autotrader_jepa_ux(
             "autotrader_jepa_ux.counterfactual_controls",
             float(controls["safer_counterfactual_reduction_rate"]) >= 0.95
             and float(controls["suggested_control_best_reduction_rate"]) >= 0.95
-            and bool(controls["suggested_control_authority_ok"]) is True
-            and bool(controls["model_authorizes_trade"]) is False,
+            and _is_true(controls["suggested_control_authority_ok"])
+            and _is_false(controls["model_authorizes_trade"]),
             "safer counterfactual controls and suggested controls reduce future tension",
         ),
         _expect_true(
@@ -3430,10 +3420,10 @@ def _check_autotrader_jepa_ux(
         _expect_true(
             "autotrader_jepa_ux.policy_boundary",
             int(future_eval["invalid_accept_count"]) == 0
-            and bool(future_eval["policy_guards_authoritative"]) is True
-            and bool(safety["model_authorizes_trade"]) is False
-            and bool(safety["future_tension_authorizes_trade"]) is False
-            and bool(safety["ux_card_authorizes_trade"]) is False,
+            and _is_true(future_eval["policy_guards_authoritative"])
+            and _is_false(safety["model_authorizes_trade"])
+            and _is_false(safety["future_tension_authorizes_trade"])
+            and _is_false(safety["ux_card_authorizes_trade"]),
             "future-aware UX keeps deterministic policy guards authoritative",
         ),
         _expect_true(
@@ -3441,12 +3431,12 @@ def _check_autotrader_jepa_ux(
             future_eval["mode"] == "learned_future_aware"
             and float(ranking["learned_future_top_5_recall"]) >= 0.99
             and float(ranking["learned_future_mean_guard_calls"]) <= 1.10
-            and bool(ranking["ranking_guardrail_passed"]) is True,
+            and _is_true(ranking["ranking_guardrail_passed"]),
             "learned+JEPA ranking remains a guardrail with high top-k recall",
         ),
         _expect_true(
             "autotrader_jepa_ux.ux_explanations",
-            bool(ux["ux_explains_status_and_controls"]) is True
+            _is_true(ux["ux_explains_status_and_controls"])
             and ux["blocked_card"]["status"] == "blocked_by_policy_guard"
             and "stale signal or quote" in ux["blocked_card"]["blocked_reasons"]
             and ux["fragile_card"]["status"]
@@ -3460,12 +3450,12 @@ def _check_autotrader_jepa_ux(
         ),
         _expect_true(
             "autotrader_jepa_ux.research_inputs",
-            bool(research_inputs["ok"]) is True
+            _is_true(research_inputs["ok"])
             and "experiments_ideas" in research_inputs["artifacts"]
             and "experiments_breakthroughs" in research_inputs["artifacts"]
             and "popperpad_zenoenergy_readme" in research_inputs["artifacts"]
             and int(efficiency["parameter_count"]) == 68
-            and bool(efficiency["ok"]) is True,
+            and _is_true(efficiency["ok"]),
             "ideas, breakthroughs, PopperPad, and a small JEPA profile are linked",
         ),
         _expect_true(
@@ -3593,7 +3583,7 @@ def _run_popperpad_doctor(root: Path) -> EvidenceCheck:
         )
     try:
         payload = json.loads(proc.stdout)
-        passed = bool(payload["ok"]) and bool(payload["result"]["ok"])
+        passed = _is_true(payload["ok"]) and _is_true(payload["result"]["ok"])
     except (json.JSONDecodeError, KeyError, TypeError):
         passed = False
     return EvidenceCheck(
@@ -4396,6 +4386,14 @@ def _expect_equal(check_id: str, actual: object, expected: object) -> EvidenceCh
         passed=actual == expected,
         detail=f"expected {expected!r}, observed {actual!r}",
     )
+
+
+def _is_true(value: object) -> bool:
+    return value is True
+
+
+def _is_false(value: object) -> bool:
+    return value is False
 
 
 def _expect_true(check_id: str, condition: bool, detail: str) -> EvidenceCheck:
