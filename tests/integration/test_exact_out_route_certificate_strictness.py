@@ -11,15 +11,33 @@ from src.integration.exact_out_route_certificate import (
     ExactOutManyPoolGuardedQuotePacket,
     ExactOutManyPoolOracleContract,
     audit_exact_out_many_pool_runtime_canonicality,
+    build_exact_out_many_pool_adaptive_liveness_packet,
+    build_exact_out_many_pool_audited_bounds_contract,
+    build_exact_out_many_pool_bounded_advisory_quote_packet,
+    build_exact_out_many_pool_bounded_workaround_packet,
+    build_exact_out_many_pool_candidate_domain_contract,
     build_exact_out_many_pool_certified_advisory_packet,
+    build_exact_out_many_pool_certified_winner_packet,
     build_exact_out_many_pool_default_packet,
     build_exact_out_many_pool_guarded_quote_packet,
     build_exact_out_many_pool_oracle_contract,
+    build_exact_out_many_pool_prefilter_contract,
+    build_exact_out_many_pool_repaired_advisory_quote_packet,
+    build_exact_out_many_pool_repaired_full_domain_certified_packet,
+    build_exact_out_many_pool_repaired_key_cover_interpretation_packet,
+    build_exact_out_many_pool_repaired_key_cover_packet,
+    build_exact_out_many_pool_repaired_replacement_shadow_packet,
+    build_exact_out_many_pool_repaired_selected_domain_oracle_contract,
     enumerate_exact_out_many_pool_candidates,
     guard_exact_out_many_pool_runtime_canonicality,
+    quote_exact_out_many_pool_adaptive,
+    quote_exact_out_many_pool_bounded_advisory,
     quote_exact_out_many_pool_certified_advisory,
     quote_exact_out_many_pool_default,
     quote_exact_out_many_pool_guarded,
+    quote_exact_out_many_pool_repaired_advisory,
+    quote_exact_out_many_pool_repaired_full_domain_certified,
+    quote_exact_out_many_pool_repaired_selected_domain,
 )
 from src.state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
 
@@ -139,7 +157,173 @@ def _strict_amount_entrypoints() -> tuple[tuple[str, ExactOutCall], ...]:
                 amount_out_total=amount,
             ),
         ),
+        (
+            "prefilter_contract",
+            lambda amount: build_exact_out_many_pool_prefilter_contract(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "candidate_domain",
+            lambda amount: build_exact_out_many_pool_candidate_domain_contract(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "repaired_selected_domain_oracle",
+            lambda amount: build_exact_out_many_pool_repaired_selected_domain_oracle_contract(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "repaired_selected_domain_quote",
+            lambda amount: quote_exact_out_many_pool_repaired_selected_domain(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "repaired_advisory_packet",
+            lambda amount: build_exact_out_many_pool_repaired_advisory_quote_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "repaired_advisory_quote",
+            lambda amount: quote_exact_out_many_pool_repaired_advisory(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "repaired_full_domain_packet",
+            lambda amount: build_exact_out_many_pool_repaired_full_domain_certified_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "repaired_full_domain_quote",
+            lambda amount: quote_exact_out_many_pool_repaired_full_domain_certified(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "repaired_key_cover_packet",
+            lambda amount: build_exact_out_many_pool_repaired_key_cover_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "repaired_key_cover_interpretation",
+            lambda amount: build_exact_out_many_pool_repaired_key_cover_interpretation_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "bounded_workaround",
+            lambda amount: build_exact_out_many_pool_bounded_workaround_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "bounded_advisory_packet",
+            lambda amount: build_exact_out_many_pool_bounded_advisory_quote_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "bounded_advisory_quote",
+            lambda amount: quote_exact_out_many_pool_bounded_advisory(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "audited_bounds",
+            lambda amount: build_exact_out_many_pool_audited_bounds_contract(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "adaptive_liveness_packet",
+            lambda amount: build_exact_out_many_pool_adaptive_liveness_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "adaptive_quote",
+            lambda amount: quote_exact_out_many_pool_adaptive(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "certified_winner",
+            lambda amount: build_exact_out_many_pool_certified_winner_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "repaired_replacement_shadow",
+            lambda amount: build_exact_out_many_pool_repaired_replacement_shadow_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
     )
+
+
+def _strict_amount_acceptance_entrypoints() -> tuple[tuple[str, ExactOutCall], ...]:
+    return _strict_amount_entrypoints()[:10]
 
 
 @pytest.mark.parametrize("amount_out_total", [True, "10"])
@@ -152,7 +336,7 @@ def test_exact_out_many_pool_public_entrypoints_reject_non_strict_amounts(
 
 
 def test_exact_out_many_pool_public_entrypoints_still_accept_strict_integer_amount() -> None:
-    results = {name: call(10) for name, call in _strict_amount_entrypoints()}
+    results = {name: call(10) for name, call in _strict_amount_acceptance_entrypoints()}
 
     assert isinstance(results["enumerate"], tuple)
     assert isinstance(results["audit"], ExactOutManyPoolCanonicalityAudit)

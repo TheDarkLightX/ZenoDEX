@@ -2263,10 +2263,11 @@ def build_exact_out_many_pool_prefilter_contract(
     max_legs: int = 3,
     max_candidate_pools: int = 5,
 ) -> ExactOutManyPoolPrefilterContract:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     params = _PrefilterContractParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total,
+        amount_out_total=amount_out_total_i,
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
     )
@@ -2730,11 +2731,12 @@ def build_exact_out_many_pool_repaired_key_cover_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedKeyCoverPacket:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     selected_domain_contract = build_exact_out_many_pool_repaired_selected_domain_oracle_contract(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -2748,7 +2750,7 @@ def build_exact_out_many_pool_repaired_key_cover_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -2823,11 +2825,12 @@ def build_exact_out_many_pool_repaired_key_cover_interpretation_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedKeyCoverInterpretationPacket:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     key_cover_packet = build_exact_out_many_pool_repaired_key_cover_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -2996,10 +2999,11 @@ def build_exact_out_many_pool_candidate_domain_contract(
     max_candidate_pools: int = 5,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolCandidateDomainContract:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     params = _CandidateDomainParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total,
+        amount_out_total=amount_out_total_i,
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_enumerated_candidates=max_enumerated_candidates,
@@ -3405,10 +3409,11 @@ def build_exact_out_many_pool_repaired_selected_domain_oracle_contract(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedSelectedDomainOracleContract:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     params = _ExactOutManyPoolRuntimeParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total,
+        amount_out_total=amount_out_total_i,
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_candidates=max_candidates,
@@ -3441,11 +3446,12 @@ def quote_exact_out_many_pool_repaired_selected_domain(
     str | None,
     ExactOutManyPoolRepairedSelectedDomainOracleContract,
 ]:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     contract = build_exact_out_many_pool_repaired_selected_domain_oracle_contract(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -3609,10 +3615,11 @@ def build_exact_out_many_pool_repaired_advisory_quote_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedAdvisoryQuotePacket:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     params = _ExactOutManyPoolRuntimeParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total,
+        amount_out_total=amount_out_total_i,
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_candidates=max_candidates,
@@ -3660,11 +3667,12 @@ def quote_exact_out_many_pool_repaired_advisory(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> tuple[SplitManyPoolsExactOutQuote | None, str | None, ExactOutManyPoolRepairedAdvisoryQuotePacket]:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     packet = build_exact_out_many_pool_repaired_advisory_quote_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -3739,11 +3747,12 @@ def build_exact_out_many_pool_repaired_full_domain_certified_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedFullDomainCertifiedPacket:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     repaired_packet = build_exact_out_many_pool_repaired_advisory_quote_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -3758,7 +3767,7 @@ def build_exact_out_many_pool_repaired_full_domain_certified_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_full_domain_pools=int(max_full_domain_pools),
         max_enumerated_candidates=int(max_enumerated_candidates),
@@ -3780,11 +3789,12 @@ def quote_exact_out_many_pool_repaired_full_domain_certified(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> tuple[SplitManyPoolsExactOutQuote | None, str | None, ExactOutManyPoolRepairedFullDomainCertifiedPacket]:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     packet = build_exact_out_many_pool_repaired_full_domain_certified_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -3936,10 +3946,11 @@ def build_exact_out_many_pool_bounded_workaround_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolBoundedWorkaroundPacket:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     params = _ExactOutManyPoolRuntimeParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total,
+        amount_out_total=amount_out_total_i,
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_candidates=max_candidates,
@@ -4029,10 +4040,11 @@ def build_exact_out_many_pool_bounded_advisory_quote_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolBoundedAdvisoryQuotePacket:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     params = _ExactOutManyPoolRuntimeParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total,
+        amount_out_total=amount_out_total_i,
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_candidates=max_candidates,
@@ -4072,11 +4084,12 @@ def quote_exact_out_many_pool_bounded_advisory(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> tuple[SplitManyPoolsExactOutQuote | None, str | None, ExactOutManyPoolBoundedAdvisoryQuotePacket]:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     packet = build_exact_out_many_pool_bounded_advisory_quote_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -4408,10 +4421,11 @@ def build_exact_out_many_pool_audited_bounds_contract(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolAuditedBoundsContract:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     params = _AuditedBoundsBuildParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total,
+        amount_out_total=amount_out_total_i,
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_candidates=max_candidates,
@@ -4621,11 +4635,12 @@ def build_exact_out_many_pool_adaptive_liveness_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolAdaptiveLivenessPacket:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     audited_bounds_contract = build_exact_out_many_pool_audited_bounds_contract(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -4653,11 +4668,12 @@ def quote_exact_out_many_pool_adaptive(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> tuple[SplitManyPoolsExactOutQuote | None, str | None, ExactOutManyPoolAdaptiveLivenessPacket]:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     packet = build_exact_out_many_pool_adaptive_liveness_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -4899,11 +4915,12 @@ def build_exact_out_many_pool_certified_winner_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolCertifiedWinnerPacket:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     domain_contract = build_exact_out_many_pool_candidate_domain_contract(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_enumerated_candidates=int(max_enumerated_candidates),
@@ -4912,7 +4929,7 @@ def build_exact_out_many_pool_certified_winner_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -5144,11 +5161,12 @@ def build_exact_out_many_pool_repaired_replacement_shadow_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedReplacementShadowPacket:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     default_packet = build_exact_out_many_pool_default_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
