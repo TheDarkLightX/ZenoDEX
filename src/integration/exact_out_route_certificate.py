@@ -1988,31 +1988,72 @@ def _top_capacity_sum(caps_by_pool_id: dict[str, int], *, max_legs: int) -> int:
     return int(sum(caps[: int(max_legs)]))
 
 
-def build_exact_out_many_pool_prefilter_contract(
-    pools: Sequence[PoolState],
-    *,
-    asset_in: str,
-    asset_out: str,
-    amount_out_total: int,
-    max_legs: int = 3,
-    max_candidate_pools: int = 5,
-) -> ExactOutManyPoolPrefilterContract:
-    if not asset_in or not asset_out or asset_in == asset_out:
+@dataclass(frozen=True)
+class _PrefilterContractParams:
+    asset_in: str
+    asset_out: str
+    amount_out_total: int
+    max_legs: int
+    max_candidate_pools: int
+
+
+@dataclass(frozen=True)
+class _PrefilterContractChecks:
+    feasible_rows_sorted_unique: bool
+    selected_pool_ids_sorted_unique: bool
+    selected_pool_ids_within_budget: bool
+    selected_pool_ids_subset_of_feasible: bool
+    selected_is_prefix_of_feasible_ranking: bool
+    full_capacity_guard_feasible: bool
+    selected_capacity_guard_feasible: bool
+
+    @property
+    def contract_ok(self) -> bool:
+        return (
+            self.feasible_rows_sorted_unique
+            and self.selected_pool_ids_sorted_unique
+            and self.selected_pool_ids_within_budget
+            and self.selected_pool_ids_subset_of_feasible
+            and self.selected_is_prefix_of_feasible_ranking
+            and self.full_capacity_guard_feasible
+            and self.selected_capacity_guard_feasible
+        )
+
+
+@dataclass(frozen=True)
+class _PrefilterContractEvidence:
+    feasible_rows: tuple[ExactOutManyPoolPrefilterRow, ...]
+    selected_pool_ids: tuple[str, ...]
+    checks: _PrefilterContractChecks
+
+    @property
+    def contract_ok(self) -> bool:
+        return bool(self.feasible_rows and self.checks.contract_ok)
+
+
+def _validate_prefilter_contract_inputs(params: _PrefilterContractParams) -> None:
+    if not params.asset_in or not params.asset_out or params.asset_in == params.asset_out:
         raise ValueError("asset_in and asset_out must be non-empty and distinct")
-    if int(amount_out_total) <= 0:
+    if int(params.amount_out_total) <= 0:
         raise ValueError("amount_out_total must be positive")
-    if int(max_legs) <= 0:
+    if int(params.max_legs) <= 0:
         raise ValueError("max_legs must be positive")
-    if int(max_candidate_pools) <= 0:
+    if int(params.max_candidate_pools) <= 0:
         raise ValueError("max_candidate_pools must be positive")
 
+
+def _prefilter_feasible_rows(
+    pools: Sequence[PoolState],
+    *,
+    params: _PrefilterContractParams,
+) -> tuple[ExactOutManyPoolPrefilterRow, ...]:
     ranked_rows_raw = _kernel_rank_exact_out_feasible_pools(
         pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
     )
-    feasible_rows = tuple(
+    return tuple(
         ExactOutManyPoolPrefilterRow(
             pool_id=row.pool_id,
             cap_out=int(row.cap_out),
@@ -2022,62 +2063,112 @@ def build_exact_out_many_pool_prefilter_contract(
         )
         for row in ranked_rows_raw
     )
-    selected_pool_ids = tuple(
+
+
+def _prefilter_selected_pool_ids(
+    pools: Sequence[PoolState],
+    *,
+    params: _PrefilterContractParams,
+) -> tuple[str, ...]:
+    return tuple(
         pool.pool_id
         for pool in _select_many_pool_audit_candidates(
             pools,
-            asset_in=asset_in,
-            asset_out=asset_out,
-            amount_out_total=int(amount_out_total),
-            max_legs=int(max_legs),
-            max_candidate_pools=int(max_candidate_pools),
+            asset_in=params.asset_in,
+            asset_out=params.asset_out,
+            amount_out_total=int(params.amount_out_total),
+            max_legs=int(params.max_legs),
+            max_candidate_pools=int(params.max_candidate_pools),
         )
     )
 
+
+def _prefilter_contract_checks(
+    feasible_rows: Sequence[ExactOutManyPoolPrefilterRow],
+    selected_pool_ids: Sequence[str],
+    *,
+    params: _PrefilterContractParams,
+) -> _PrefilterContractChecks:
     feasible_pool_ids = tuple(row.pool_id for row in feasible_rows)
-    feasible_rows_sorted_unique = _prefilter_rows_rank_sorted_unique(feasible_rows)
-    selected_pool_ids_sorted_unique = _audit_pool_ids_sorted_unique(selected_pool_ids)
-    selected_pool_ids_within_budget = len(selected_pool_ids) <= int(max_candidate_pools)
-    selected_pool_ids_subset_of_feasible = all(pool_id in set(feasible_pool_ids) for pool_id in selected_pool_ids)
-    selected_is_prefix_of_feasible_ranking = selected_pool_ids == tuple(
-        sorted(feasible_pool_ids[: len(selected_pool_ids)])
+    feasible_pool_id_set = set(feasible_pool_ids)
+    selected_pool_id_set = set(selected_pool_ids)
+    return _PrefilterContractChecks(
+        feasible_rows_sorted_unique=_prefilter_rows_rank_sorted_unique(feasible_rows),
+        selected_pool_ids_sorted_unique=_audit_pool_ids_sorted_unique(selected_pool_ids),
+        selected_pool_ids_within_budget=len(selected_pool_ids) <= int(params.max_candidate_pools),
+        selected_pool_ids_subset_of_feasible=all(pool_id in feasible_pool_id_set for pool_id in selected_pool_ids),
+        selected_is_prefix_of_feasible_ranking=tuple(selected_pool_ids)
+        == tuple(sorted(feasible_pool_ids[: len(selected_pool_ids)])),
+        full_capacity_guard_feasible=_top_capacity_sum(
+            {row.pool_id: int(row.cap_out) for row in feasible_rows},
+            max_legs=int(params.max_legs),
+        )
+        >= int(params.amount_out_total),
+        selected_capacity_guard_feasible=_top_capacity_sum(
+            {row.pool_id: int(row.cap_out) for row in feasible_rows if row.pool_id in selected_pool_id_set},
+            max_legs=int(params.max_legs),
+        )
+        >= int(params.amount_out_total),
     )
-    full_capacity_guard_feasible = _top_capacity_sum(
-        {row.pool_id: int(row.cap_out) for row in feasible_rows},
-        max_legs=int(max_legs),
-    ) >= int(amount_out_total)
-    selected_capacity_guard_feasible = _top_capacity_sum(
-        {row.pool_id: int(row.cap_out) for row in feasible_rows if row.pool_id in set(selected_pool_ids)},
-        max_legs=int(max_legs),
-    ) >= int(amount_out_total)
-    contract_ok = (
-        bool(feasible_rows)
-        and feasible_rows_sorted_unique
-        and selected_pool_ids_sorted_unique
-        and selected_pool_ids_within_budget
-        and selected_pool_ids_subset_of_feasible
-        and selected_is_prefix_of_feasible_ranking
-        and full_capacity_guard_feasible
-        and selected_capacity_guard_feasible
-    )
+
+
+def _build_prefilter_contract_evidence(
+    pools: Sequence[PoolState],
+    *,
+    params: _PrefilterContractParams,
+) -> _PrefilterContractEvidence:
+    feasible_rows = _prefilter_feasible_rows(pools, params=params)
+    selected_pool_ids = _prefilter_selected_pool_ids(pools, params=params)
+    checks = _prefilter_contract_checks(feasible_rows, selected_pool_ids, params=params)
+    return _PrefilterContractEvidence(feasible_rows=feasible_rows, selected_pool_ids=selected_pool_ids, checks=checks)
+
+
+def _prefilter_contract_from_evidence(
+    pools: Sequence[PoolState],
+    *,
+    params: _PrefilterContractParams,
+    evidence: _PrefilterContractEvidence,
+) -> ExactOutManyPoolPrefilterContract:
+    checks = evidence.checks
     return ExactOutManyPoolPrefilterContract(
-        asset_in=str(asset_in),
-        asset_out=str(asset_out),
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
+        asset_in=str(params.asset_in),
+        asset_out=str(params.asset_out),
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
         pool_snapshots=tuple(_pool_to_dict(pool) for pool in pools),
-        feasible_rows=feasible_rows,
-        selected_pool_ids=selected_pool_ids,
-        feasible_rows_sorted_unique=bool(feasible_rows_sorted_unique),
-        selected_pool_ids_sorted_unique=bool(selected_pool_ids_sorted_unique),
-        selected_pool_ids_within_budget=bool(selected_pool_ids_within_budget),
-        selected_pool_ids_subset_of_feasible=bool(selected_pool_ids_subset_of_feasible),
-        selected_is_prefix_of_feasible_ranking=bool(selected_is_prefix_of_feasible_ranking),
-        full_capacity_guard_feasible=bool(full_capacity_guard_feasible),
-        selected_capacity_guard_feasible=bool(selected_capacity_guard_feasible),
-        contract_ok=bool(contract_ok),
+        feasible_rows=evidence.feasible_rows,
+        selected_pool_ids=evidence.selected_pool_ids,
+        feasible_rows_sorted_unique=bool(checks.feasible_rows_sorted_unique),
+        selected_pool_ids_sorted_unique=bool(checks.selected_pool_ids_sorted_unique),
+        selected_pool_ids_within_budget=bool(checks.selected_pool_ids_within_budget),
+        selected_pool_ids_subset_of_feasible=bool(checks.selected_pool_ids_subset_of_feasible),
+        selected_is_prefix_of_feasible_ranking=bool(checks.selected_is_prefix_of_feasible_ranking),
+        full_capacity_guard_feasible=bool(checks.full_capacity_guard_feasible),
+        selected_capacity_guard_feasible=bool(checks.selected_capacity_guard_feasible),
+        contract_ok=bool(evidence.contract_ok),
     )
+
+
+def build_exact_out_many_pool_prefilter_contract(
+    pools: Sequence[PoolState],
+    *,
+    asset_in: str,
+    asset_out: str,
+    amount_out_total: int,
+    max_legs: int = 3,
+    max_candidate_pools: int = 5,
+) -> ExactOutManyPoolPrefilterContract:
+    params = _PrefilterContractParams(
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out_total=amount_out_total,
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+    )
+    _validate_prefilter_contract_inputs(params)
+    evidence = _build_prefilter_contract_evidence(pools, params=params)
+    return _prefilter_contract_from_evidence(pools, params=params, evidence=evidence)
 
 
 @dataclass(frozen=True)
