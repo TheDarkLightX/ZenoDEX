@@ -98,6 +98,15 @@ def test_zenoctl_doctor_passes_static_repo_checks_without_engine_requirement() -
     assert checks["tools/gate_operator_preflight.sh"]["ok"] is True
 
 
+def test_zenoctl_doctor_aggregate_requires_strict_bool_ok() -> None:
+    checks = [
+        {"id": "good", "ok": True},
+        {"id": "truthy-string", "ok": "true"},
+    ]
+
+    assert zenoctl._all_checks_ok(checks) is False
+
+
 def test_deployment_profiles_accept_default_profile_dir() -> None:
     report = validate_profile_dir(Path("config/deploy"))
 

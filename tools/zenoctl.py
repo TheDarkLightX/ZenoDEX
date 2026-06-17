@@ -49,6 +49,10 @@ def _check_file(repo_root: Path, relative: str) -> dict[str, Any]:
     return {"id": relative, "ok": path.exists(), "path": str(path)}
 
 
+def _all_checks_ok(checks: Sequence[dict[str, Any]]) -> bool:
+    return all(item.get("ok") is True for item in checks)
+
+
 def build_doctor_report(*, repo_root: Path, engine: str = "auto", strict: bool = False) -> dict[str, Any]:
     checks: list[dict[str, Any]] = [
         {"id": "repo_root", "ok": repo_root.is_dir(), "path": str(repo_root)},
@@ -125,7 +129,7 @@ def build_doctor_report(*, repo_root: Path, engine: str = "auto", strict: bool =
 
     return {
         "schema": "zenodex/zenoctl_doctor/v1",
-        "ok": all(bool(item.get("ok")) for item in checks),
+        "ok": _all_checks_ok(checks),
         "strict": bool(strict),
         "repo_root": str(repo_root),
         "checks": checks,
