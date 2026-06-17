@@ -25,6 +25,12 @@ def _require_u32(value: int, *, name: str) -> None:
         raise ValueError(f"{name} out of u32 range: {value!r}")
 
 
+def _require_bool(value: Any, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return value
+
+
 @dataclass(frozen=True)
 class SettlementFeatureExtensionInputs:
     trade_amount: int
@@ -191,12 +197,15 @@ class SettlementFeatureExtensionPacket:
                 rebate_step=dict(payload["rebate_step"]),
                 lock_weight_step=dict(payload["lock_weight_step"]),
                 feature_extension_step=dict(payload["feature_extension_step"]),
-                buyback_floor_ok=bool(payload["buyback_floor_ok"]),
-                buyback_floor_fixedpoint_ok=bool(payload["buyback_floor_fixedpoint_ok"]),
-                rebate_ok=bool(payload["rebate_ok"]),
-                lock_weight_ok=bool(payload["lock_weight_ok"]),
-                feature_extension_ok=bool(payload["feature_extension_ok"]),
-                packet_ok=bool(payload["packet_ok"]),
+                buyback_floor_ok=_require_bool(payload["buyback_floor_ok"], name="buyback_floor_ok"),
+                buyback_floor_fixedpoint_ok=_require_bool(
+                    payload["buyback_floor_fixedpoint_ok"],
+                    name="buyback_floor_fixedpoint_ok",
+                ),
+                rebate_ok=_require_bool(payload["rebate_ok"], name="rebate_ok"),
+                lock_weight_ok=_require_bool(payload["lock_weight_ok"], name="lock_weight_ok"),
+                feature_extension_ok=_require_bool(payload["feature_extension_ok"], name="feature_extension_ok"),
+                packet_ok=_require_bool(payload["packet_ok"], name="packet_ok"),
             )
         except KeyError as exc:
             raise ValueError(f"missing feature extension packet field: {exc.args[0]}") from exc

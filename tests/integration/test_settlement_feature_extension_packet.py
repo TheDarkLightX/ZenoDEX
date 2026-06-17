@@ -5,6 +5,7 @@ import pytest
 from src.integration import settlement_feature_extension_packet as feature_packet_mod
 from src.integration.settlement_feature_extension_packet import (
     SettlementFeatureExtensionInputs,
+    SettlementFeatureExtensionPacket,
     build_settlement_feature_extension_packet,
     verify_settlement_feature_extension_packet_payload,
 )
@@ -61,6 +62,14 @@ def test_settlement_feature_extension_packet_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "settlement feature extension packet mismatch"
+
+
+def test_settlement_feature_extension_packet_from_dict_rejects_string_boolean_flags() -> None:
+    packet = build_settlement_feature_extension_packet(_inputs()).to_dict()
+    packet["packet_ok"] = "yes"
+
+    with pytest.raises(TypeError, match="packet_ok must be a bool"):
+        SettlementFeatureExtensionPacket.from_dict(packet)
 
 
 def test_settlement_feature_extension_input_parser_programmer_error_propagates(
