@@ -825,7 +825,7 @@ def _handle_proof_mining_payout_template(obj: Mapping[str, Any], ctx: DexRequest
             "reward_asset_id": reward_asset,
             "reward_pool_before": reward_pool_before,
         }
-    except Exception as exc:
+    except BOUNDARY_DOMAIN_ERRORS as exc:
         return 400, {"ok": False, "error": "proof_mining_payout_template_error", "details": str(exc)}
 
 
