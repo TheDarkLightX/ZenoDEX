@@ -5,23 +5,25 @@ from pathlib import Path
 import pytest
 
 from src.core.routing import RouteHop, RouteLeg, RouteQuote, best_route_exact_in_2hop
+from src.integration import exact_in_route_certificate as exact_in_route_certificate_module
 from src.integration.exact_in_route_certificate import (
     EXACT_IN_ROUTE_CERTIFICATE_SCHEMA,
     build_exact_in_route_canonical_certificate,
     build_exact_in_route_canonical_certificate_for_pools,
     build_exact_in_route_guarded_quote_packet,
+    build_exact_in_route_oracle_contract,
     build_exact_in_route_rank_projection_packet,
     build_exact_in_route_rank_projection_packet_for_pools,
     build_exact_in_route_true_key_interpretation_packet,
     build_exact_in_route_true_key_interpretation_packet_for_pools,
-    build_exact_in_route_oracle_contract,
+    enumerate_route_candidates_exact_in_2hop,
     verify_exact_in_route_canonical_certificate,
     verify_exact_in_route_guarded_quote_packet_payload,
+    verify_exact_in_route_oracle_contract_payload,
     verify_exact_in_route_rank_projection_packet,
     verify_exact_in_route_rank_projection_packet_payload,
     verify_exact_in_route_true_key_interpretation_packet,
     verify_exact_in_route_true_key_interpretation_packet_payload,
-    verify_exact_in_route_oracle_contract_payload,
 )
 from src.integration.tau_runner import find_tau_bin, run_tau_spec_steps
 from src.integration.tau_witness import ARGMIN_STREAM_CERTIFICATE_V1
@@ -138,6 +140,108 @@ def test_exact_in_route_certificate_matches_best_route_for_pools() -> None:
     quotes = [candidate.quote for candidate in certificate.candidates]
     ok, err = verify_exact_in_route_canonical_certificate(quotes, certificate=certificate)
     assert ok, err
+
+
+def test_exact_in_route_candidate_enumerator_skips_split_domain_reject(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {
+        "p_ab_0": _pool("p_ab_0", "A", "B", 1000, 1000, 0),
+        "p_ab_1": _pool("p_ab_1", "A", "B", 1000, 999, 0),
+    }
+
+    def reject_many_split(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(
+        exact_in_route_certificate_module,
+        "best_split_many_pools_exact_in_for_pools",
+        reject_many_split,
+    )
+
+    candidates = enumerate_route_candidates_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=10,
+    )
+
+    assert candidates
+
+
+def test_exact_in_route_candidate_enumerator_propagates_unexpected_split_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pools = {
+        "p_ab_0": _pool("p_ab_0", "A", "B", 1000, 1000, 0),
+        "p_ab_1": _pool("p_ab_1", "A", "B", 1000, 999, 0),
+    }
+
+    def fail_many_split(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("split optimizer bug")
+
+    monkeypatch.setattr(
+        exact_in_route_certificate_module,
+        "best_split_many_pools_exact_in_for_pools",
+        fail_many_split,
+    )
+
+    with pytest.raises(RuntimeError, match="split optimizer bug"):
+        enumerate_route_candidates_exact_in_2hop(
+            pools_by_id=pools,
+            asset_in="A",
+            asset_out="B",
+            amount_in=10,
+        )
+
+
+def test_exact_in_route_candidate_enumerator_skips_two_pool_domain_reject(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {
+        "p_ab_0": _pool("p_ab_0", "A", "B", 1000, 1000, 0),
+        "p_ab_1": _pool("p_ab_1", "A", "B", 1000, 999, 0),
+    }
+
+    def reject_two_pool_split(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(
+        exact_in_route_certificate_module,
+        "best_split_two_pools_exact_in_for_pools",
+        reject_two_pool_split,
+    )
+
+    candidates = enumerate_route_candidates_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=10,
+    )
+
+    assert candidates
+
+
+def test_exact_in_route_candidate_enumerator_propagates_unexpected_two_pool_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pools = {
+        "p_ab_0": _pool("p_ab_0", "A", "B", 1000, 1000, 0),
+        "p_ab_1": _pool("p_ab_1", "A", "B", 1000, 999, 0),
+    }
+
+    def fail_two_pool_split(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("two-pool optimizer bug")
+
+    monkeypatch.setattr(
+        exact_in_route_certificate_module,
+        "best_split_two_pools_exact_in_for_pools",
+        fail_two_pool_split,
+    )
+
+    with pytest.raises(RuntimeError, match="two-pool optimizer bug"):
+        enumerate_route_candidates_exact_in_2hop(
+            pools_by_id=pools,
+            asset_in="A",
+            asset_out="B",
+            amount_in=10,
+        )
 
 
 def test_exact_in_route_certificate_tau_steps_verify_when_tau_is_available() -> None:

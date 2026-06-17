@@ -133,7 +133,7 @@ def enumerate_route_candidates_exact_in_2hop(
                 max_candidates=top_k,
                 max_iters=4096,
             )
-        except Exception:
+        except ValueError:
             split_many = None
         if split_many is not None and split_many.amount_out_total > 0:
             legs: list[RouteLeg] = []
@@ -170,7 +170,7 @@ def enumerate_route_candidates_exact_in_2hop(
                         amount_in_total=amount_in,
                         search_profile=str(split_search_profile),
                     )
-                except Exception:
+                except ValueError:
                     continue
                 if split.amount_out_total <= 0:
                     continue
@@ -200,7 +200,7 @@ def enumerate_route_candidates_exact_in_2hop(
         if direct_pool is not None:
             twohop_candidates.sort(key=lambda item: (-int(item[0].amount_out), _quote_key(item[0])))
             top_mixed = twohop_candidates[: min(8, len(twohop_candidates))]
-            for twohop_quote, pool1, pool2, mid in top_mixed:
+            for _twohop_quote, pool1, pool2, mid in top_mixed:
                 if direct_pool.pool_id in {pool1.pool_id, pool2.pool_id}:
                     continue
                 total = int(amount_in)
