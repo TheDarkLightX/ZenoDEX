@@ -3050,6 +3050,121 @@ def build_exact_out_many_pool_oracle_contract(
     )
 
 
+@dataclass(frozen=True)
+class _RepairedSelectedDomainOracleEvidence:
+    repaired_contract: ExactOutManyPoolRepairedPrefilterContract
+    audit: ExactOutManyPoolCanonicalityAudit
+    audit_pool_ids_match_repaired_selected_pool_ids: bool
+
+    @property
+    def contract_ok(self) -> bool:
+        return bool(
+            self.repaired_contract.contract_ok
+            and self.audit_pool_ids_match_repaired_selected_pool_ids
+            and self.audit.runtime_matches_canonical
+        )
+
+
+def _audit_repaired_selected_domain(
+    selected_pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> ExactOutManyPoolCanonicalityAudit:
+    return audit_exact_out_many_pool_runtime_canonicality(
+        selected_pools,
+        asset_in=str(params.asset_in),
+        asset_out=str(params.asset_out),
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=max(len(selected_pools), 1),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        max_full_domain_pools=max(len(selected_pools), int(params.max_full_domain_pools)),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+
+
+def _audit_repaired_selected_domain_fallback(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> ExactOutManyPoolCanonicalityAudit:
+    return audit_exact_out_many_pool_runtime_canonicality(
+        tuple(pools),
+        asset_in=str(params.asset_in),
+        asset_out=str(params.asset_out),
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+
+
+def _repaired_selected_domain_oracle_audit(
+    pools: Sequence[PoolState],
+    repaired_contract: ExactOutManyPoolRepairedPrefilterContract,
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> ExactOutManyPoolCanonicalityAudit:
+    if not repaired_contract.contract_ok:
+        return _audit_repaired_selected_domain_fallback(pools, params=params)
+    selected_pools = _repaired_selected_pools_from_contract(
+        pools,
+        repaired_contract=repaired_contract,
+    )
+    return _audit_repaired_selected_domain(selected_pools, params=params)
+
+
+def _build_repaired_selected_domain_oracle_evidence(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> _RepairedSelectedDomainOracleEvidence:
+    repaired_contract = _repaired_prefilter_contract_for_runtime_params(pools, params=params)
+    audit = _repaired_selected_domain_oracle_audit(pools, repaired_contract, params=params)
+    audit_pool_ids_match = bool(tuple(audit.audit_pool_ids) == tuple(repaired_contract.repaired_selected_pool_ids))
+    return _RepairedSelectedDomainOracleEvidence(
+        repaired_contract=repaired_contract,
+        audit=audit,
+        audit_pool_ids_match_repaired_selected_pool_ids=audit_pool_ids_match,
+    )
+
+
+def _repaired_selected_domain_oracle_contract_from_evidence(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+    evidence: _RepairedSelectedDomainOracleEvidence,
+) -> ExactOutManyPoolRepairedSelectedDomainOracleContract:
+    return ExactOutManyPoolRepairedSelectedDomainOracleContract(
+        asset_in=str(params.asset_in),
+        asset_out=str(params.asset_out),
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+        pool_snapshots=tuple(_pool_to_dict(pool) for pool in pools),
+        repaired_contract=evidence.repaired_contract,
+        audit=evidence.audit,
+        audit_pool_ids_match_repaired_selected_pool_ids=bool(
+            evidence.audit_pool_ids_match_repaired_selected_pool_ids
+        ),
+        contract_ok=bool(evidence.contract_ok),
+    )
+
+
 def build_exact_out_many_pool_repaired_selected_domain_oracle_contract(
     pools: Sequence[PoolState],
     *,
@@ -3065,76 +3180,21 @@ def build_exact_out_many_pool_repaired_selected_domain_oracle_contract(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedSelectedDomainOracleContract:
-    repaired_contract = build_exact_out_many_pool_repaired_prefilter_contract(
-        pools,
+    params = _ExactOutManyPoolRuntimeParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        amount_out_total=amount_out_total,
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_candidates=max_candidates,
+        max_iters=max_iters,
+        window=window,
+        brute_force_max=brute_force_max,
+        max_full_domain_pools=max_full_domain_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
     )
-    if repaired_contract.contract_ok:
-        repaired_selected_pools = _repaired_selected_pools_from_contract(
-            pools,
-            repaired_contract=repaired_contract,
-        )
-        audit = audit_exact_out_many_pool_runtime_canonicality(
-            repaired_selected_pools,
-            asset_in=str(asset_in),
-            asset_out=str(asset_out),
-            amount_out_total=int(amount_out_total),
-            max_legs=int(max_legs),
-            max_candidate_pools=max(len(repaired_selected_pools), 1),
-            max_candidates=int(max_candidates),
-            max_iters=int(max_iters),
-            window=int(window),
-            brute_force_max=int(brute_force_max),
-            max_full_domain_pools=max(len(repaired_selected_pools), int(max_full_domain_pools)),
-            max_enumerated_candidates=int(max_enumerated_candidates),
-        )
-    else:
-        audit = audit_exact_out_many_pool_runtime_canonicality(
-            tuple(pools),
-            asset_in=str(asset_in),
-            asset_out=str(asset_out),
-            amount_out_total=int(amount_out_total),
-            max_legs=int(max_legs),
-            max_candidate_pools=int(max_candidate_pools),
-            max_candidates=int(max_candidates),
-            max_iters=int(max_iters),
-            window=int(window),
-            brute_force_max=int(brute_force_max),
-            max_full_domain_pools=int(max_full_domain_pools),
-            max_enumerated_candidates=int(max_enumerated_candidates),
-        )
-    audit_pool_ids_match_repaired_selected_pool_ids = bool(
-        tuple(audit.audit_pool_ids) == tuple(repaired_contract.repaired_selected_pool_ids)
-    )
-    contract_ok = bool(
-        repaired_contract.contract_ok
-        and audit_pool_ids_match_repaired_selected_pool_ids
-        and audit.runtime_matches_canonical
-    )
-    return ExactOutManyPoolRepairedSelectedDomainOracleContract(
-        asset_in=str(asset_in),
-        asset_out=str(asset_out),
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
-        pool_snapshots=tuple(_pool_to_dict(pool) for pool in pools),
-        repaired_contract=repaired_contract,
-        audit=audit,
-        audit_pool_ids_match_repaired_selected_pool_ids=bool(audit_pool_ids_match_repaired_selected_pool_ids),
-        contract_ok=bool(contract_ok),
-    )
+    evidence = _build_repaired_selected_domain_oracle_evidence(pools, params=params)
+    return _repaired_selected_domain_oracle_contract_from_evidence(pools, params=params, evidence=evidence)
 
 
 def quote_exact_out_many_pool_repaired_selected_domain(
@@ -3176,7 +3236,7 @@ def quote_exact_out_many_pool_repaired_selected_domain(
 
 
 @dataclass(frozen=True)
-class _RepairedAdvisoryQuoteParams:
+class _ExactOutManyPoolRuntimeParams:
     asset_in: str
     asset_out: str
     amount_out_total: int
@@ -3198,10 +3258,10 @@ class _RepairedAdvisorySuccessPayload:
     projection_cover_audit: ExactOutManyPoolProjectionCoverAudit | None
 
 
-def _repaired_advisory_prefilter_contract(
+def _repaired_prefilter_contract_for_runtime_params(
     pools: Sequence[PoolState],
     *,
-    params: _RepairedAdvisoryQuoteParams,
+    params: _ExactOutManyPoolRuntimeParams,
 ) -> ExactOutManyPoolRepairedPrefilterContract:
     return build_exact_out_many_pool_repaired_prefilter_contract(
         pools,
@@ -3218,7 +3278,7 @@ def _repaired_advisory_prefilter_contract(
 def _repaired_advisory_runtime_quote(
     pools: Sequence[PoolState],
     *,
-    params: _RepairedAdvisoryQuoteParams,
+    params: _ExactOutManyPoolRuntimeParams,
 ) -> SplitManyPoolsExactOutQuote:
     return best_split_many_pools_exact_out_for_pools(
         pools,
@@ -3237,7 +3297,7 @@ def _repaired_advisory_unavailable_packet(
     runtime_quote: SplitManyPoolsExactOutQuote,
     repaired_contract: ExactOutManyPoolRepairedPrefilterContract,
     *,
-    params: _RepairedAdvisoryQuoteParams,
+    params: _ExactOutManyPoolRuntimeParams,
 ) -> ExactOutManyPoolRepairedAdvisoryQuotePacket:
     return ExactOutManyPoolRepairedAdvisoryQuotePacket(
         packet_ok=False,
@@ -3257,7 +3317,7 @@ def _repaired_advisory_unavailable_packet(
 def _repaired_advisory_selected_domain(
     selected_pools: Sequence[PoolState],
     *,
-    params: _RepairedAdvisoryQuoteParams,
+    params: _ExactOutManyPoolRuntimeParams,
 ) -> Any:
     return _kernel_build_exact_out_many_pool_selected_domain(
         selected_pools,
@@ -3272,7 +3332,7 @@ def _repaired_advisory_selected_domain(
 def _repaired_advisory_projection_cover_audit(
     selected_pools: Sequence[PoolState],
     *,
-    params: _RepairedAdvisoryQuoteParams,
+    params: _ExactOutManyPoolRuntimeParams,
 ) -> ExactOutManyPoolProjectionCoverAudit | None:
     try:
         kernel_audit = _kernel_audit_exact_out_many_pool_selected_domain_projection_cover(
@@ -3292,7 +3352,7 @@ def _repaired_advisory_projection_cover_audit(
 def _repaired_advisory_success_packet(
     *,
     payload: _RepairedAdvisorySuccessPayload,
-    params: _RepairedAdvisoryQuoteParams,
+    params: _ExactOutManyPoolRuntimeParams,
 ) -> ExactOutManyPoolRepairedAdvisoryQuotePacket:
     return ExactOutManyPoolRepairedAdvisoryQuotePacket(
         packet_ok=True,
@@ -3324,7 +3384,7 @@ def build_exact_out_many_pool_repaired_advisory_quote_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedAdvisoryQuotePacket:
-    params = _RepairedAdvisoryQuoteParams(
+    params = _ExactOutManyPoolRuntimeParams(
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=amount_out_total,
@@ -3337,7 +3397,7 @@ def build_exact_out_many_pool_repaired_advisory_quote_packet(
         max_full_domain_pools=max_full_domain_pools,
         max_enumerated_candidates=max_enumerated_candidates,
     )
-    repaired_contract = _repaired_advisory_prefilter_contract(pools, params=params)
+    repaired_contract = _repaired_prefilter_contract_for_runtime_params(pools, params=params)
     runtime_quote = _repaired_advisory_runtime_quote(pools, params=params)
     if not repaired_contract.contract_ok:
         return _repaired_advisory_unavailable_packet(runtime_quote, repaired_contract, params=params)
