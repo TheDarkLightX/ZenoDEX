@@ -386,7 +386,8 @@ def layered_q_propose(
             raise ValueError("layered q-table hash mismatch: artifact is not the pinned one")
     regime_snap = snap["regime"]
     actions_snap = snap["actions"]
-    assert type(regime_snap) is dict and type(actions_snap) is dict  # by construction of the snapshot
+    if type(regime_snap) is not dict or type(actions_snap) is not dict:
+        raise TypeError("layered q-table snapshot must contain plain dict regime/actions")
     regime_key = state_key(regime_bins)
     action_key = state_key(action_bins)
     if regime_key not in regime_snap:
@@ -506,10 +507,12 @@ def energy_propose(
         if _energy_digest(snap) != expected_hash:
             raise ValueError("energy model hash mismatch: artifact is not the pinned one")
     targets_snap = snap["targets"]
-    assert type(targets_snap) is dict  # by construction of the snapshot
+    if type(targets_snap) is not dict:
+        raise TypeError("energy model snapshot targets must be a plain dict")
     w_track = snap["w_track"]
     w_move = snap["w_move"]
-    assert type(w_track) is int and type(w_move) is int  # by construction of the snapshot
+    if type(w_track) is not int or type(w_move) is not int:
+        raise TypeError("energy model snapshot weights must be plain ints")
     key = state_key(bins)
     if key not in targets_snap:
         return EnergyResult(curr, key, None, None, hit=False)
@@ -526,5 +529,6 @@ def energy_propose(
         e = w_track * d * d + w_move * m
         if best_e is None or e < best_e:  # strict <: first (smallest) candidate wins ties
             best_c, best_e = c, e
-    assert best_c is not None and best_e is not None  # band non-empty by the check above
+    if best_c is None or best_e is None:
+        raise RuntimeError("energy model candidate band unexpectedly empty")
     return EnergyResult(best_c, key, target, best_e, hit=True)
