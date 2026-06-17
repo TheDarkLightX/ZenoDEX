@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
-from .cantor_region_backend_invariance_receipt import CANTOR_REGION_BACKEND_INVARIANCE_RECEIPT_SCHEMA
+from .cantor_region_backend_invariance_receipt import (
+    CANTOR_REGION_BACKEND_INVARIANCE_RECEIPT_SCHEMA,
+)
 from .cantor_shapeforge_bridge_report import (
     SHAPEFORGE_CANTOR_BRIDGE_REPORT_SCHEMA,
     build_cantor_shapeforge_bridge_report,
@@ -86,7 +88,7 @@ def verify_cantor_shapeforge_bridge_report_payload(
         return False, "world_model_path does not exist"
     try:
         world_model = _load_json_object(world_model_file)
-    except Exception as exc:
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
         return False, str(exc)
     if world_model.get("world_model_id") != world_model_id:
         return False, "world model id mismatch"
