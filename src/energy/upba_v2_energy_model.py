@@ -29,7 +29,7 @@ def count_mlp_parameters(input_dim: int = FEATURE_DIM, hidden_dim: int = 64, hid
 def torch_available() -> bool:
     try:
         import torch  # noqa: F401
-    except Exception:
+    except ImportError:
         return False
     return True
 
@@ -39,7 +39,7 @@ def build_torch_mlp(input_dim: int = FEATURE_DIM, hidden_dim: int = 64) -> Any:
 
     try:
         import torch.nn as nn
-    except Exception as exc:  # pragma: no cover - depends on optional torch
+    except ImportError as exc:  # pragma: no cover - depends on optional torch
         raise RuntimeError("PyTorch is not installed") from exc
     return nn.Sequential(nn.Linear(input_dim, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, 1))
 
