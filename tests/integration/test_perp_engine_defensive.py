@@ -48,6 +48,32 @@ def _empty_state() -> DexState:
     return DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
 
 
+def _apply_perp_ops(state: DexState, op: dict[str, object], *, tx_sender_pubkey: str = _ALICE):
+    return perp_engine.apply_perp_ops(
+        config=perp_engine.PerpEngineConfig(),
+        state=state,
+        operations={perp_engine.PERP_OPS_KEY: [op]},
+        tx_sender_pubkey=tx_sender_pubkey,
+        block_timestamp=1,
+    )
+
+
+def _init_2p_state(monkeypatch: pytest.MonkeyPatch) -> DexState:
+    monkeypatch.setattr(perp_engine, "_verify_perp_op_signature", lambda **_: None)
+    result = _apply_perp_ops(_empty_state(), _base_2p_init())
+    assert result.ok is True, result.error
+    assert result.state is not None
+    return result.state
+
+
+def _init_3p_state(monkeypatch: pytest.MonkeyPatch) -> DexState:
+    monkeypatch.setattr(perp_engine, "_verify_perp_op_signature", lambda **_: None)
+    result = _apply_perp_ops(_empty_state(), _base_3p_init())
+    assert result.ok is True, result.error
+    assert result.state is not None
+    return result.state
+
+
 def test_2p_pubkey_domain_errors_remain_signer_attributed(monkeypatch: pytest.MonkeyPatch) -> None:
     real_hex_to_bytes = perp_engine._hex_to_bytes_allow_0x
 
@@ -89,6 +115,52 @@ def test_2p_pubkey_helper_bugs_reach_internal_error(monkeypatch: pytest.MonkeyPa
         operations={perp_engine.PERP_OPS_KEY: [_base_2p_init()]},
         tx_sender_pubkey=_ALICE,
         block_timestamp=1,
+    )
+
+    assert result.ok is False
+    assert result.error == "internal error: RuntimeError"
+
+
+def test_2p_generated_step_helper_bugs_reach_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    state = _init_2p_state(monkeypatch)
+
+    def broken_step(*args: object, **kwargs: object):
+        raise RuntimeError("2p generated step bug")
+
+    monkeypatch.setattr(perp_engine, "_ch2p_step", broken_step)
+
+    result = _apply_perp_ops(
+        state,
+        {
+            "module": perp_engine.PERP_OP_MODULE,
+            "version": "1.0",
+            "market_id": "perp:ch2p:btc-usd",
+            "action": "advance_epoch",
+            "delta": 1,
+        },
+    )
+
+    assert result.ok is False
+    assert result.error == "internal error: RuntimeError"
+
+
+def test_3p_generated_step_helper_bugs_reach_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    state = _init_3p_state(monkeypatch)
+
+    def broken_step(*args: object, **kwargs: object):
+        raise RuntimeError("3p generated step bug")
+
+    monkeypatch.setattr(perp_engine, "_ch3p_step", broken_step)
+
+    result = _apply_perp_ops(
+        state,
+        {
+            "module": perp_engine.PERP_OP_MODULE,
+            "version": "1.1",
+            "market_id": "perp:ch3p:btc-usd",
+            "action": "advance_epoch",
+            "delta": 1,
+        },
     )
 
     assert result.ok is False

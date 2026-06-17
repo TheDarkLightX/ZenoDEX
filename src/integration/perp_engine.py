@@ -1619,7 +1619,7 @@ def _apply_ch2p_op(
             return "advance_epoch delta must be 1 for clearinghouse markets"
         try:
             next_state, eff = _ch2p_step(ch2p_market.state, tag="advance_epoch", args={"delta": delta})
-        except Exception as exc:
+        except ValueError as exc:
             return str(exc)
         ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
         ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
@@ -1680,7 +1680,7 @@ def _apply_ch2p_op(
 
         try:
             next_state, eff = _ch2p_step(ch2p_market.state, tag="publish_clearing_price", args={"price_e8": price_e8})
-        except Exception as exc:
+        except ValueError as exc:
             return str(exc)
         ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
         ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
@@ -1713,7 +1713,7 @@ def _apply_ch2p_op(
             return err
         try:
             next_state, eff = _ch2p_step(ch2p_market.state, tag="settle_epoch", args={})
-        except Exception as exc:
+        except ValueError as exc:
             return str(exc)
         ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
         ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
@@ -1728,7 +1728,7 @@ def _apply_ch2p_op(
             return "cannot clear breaker while positions are open"
         try:
             next_state, eff = _ch2p_step(ch2p_market.state, tag="clear_breaker", args={"auth_ok": True})
-        except Exception as exc:
+        except ValueError as exc:
             return str(exc)
         ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
         ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
@@ -1769,7 +1769,7 @@ def _apply_ch2p_op(
                 operator_ok=operator_ok,
                 epoch_settled_ok=epoch_settled_ok,
             )
-        except Exception as exc:
+        except ValueError as exc:
             return str(exc)
         ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
         ctx.effects.append({"i": i, "market_id": market_id, "action": action, "params": dict(params)})
@@ -1808,7 +1808,7 @@ def _apply_ch2p_op(
                     tag=tag,
                     args={"amount_e8": amount_e8, "auth_ok": True},
                 )
-            except Exception as exc:
+            except ValueError as exc:
                 return str(exc)
             balances.subtract(account_pubkey, ch2p_market.quote_asset, amount)
         else:
@@ -1819,7 +1819,7 @@ def _apply_ch2p_op(
                     tag=tag,
                     args={"amount_e8": amount_e8, "auth_ok": True},
                 )
-            except Exception as exc:
+            except ValueError as exc:
                 return str(exc)
             balances.add(account_pubkey, ch2p_market.quote_asset, amount)
 
@@ -1879,7 +1879,7 @@ def _apply_ch2p_op(
             b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
             ma_b = _hex_to_bytes_allow_0x(ch2p_market.account_a_pubkey, name="market.account_a_pubkey", expected_nbytes=48)
             mb_b = _hex_to_bytes_allow_0x(ch2p_market.account_b_pubkey, name="market.account_b_pubkey", expected_nbytes=48)
-        except Exception as exc:
+        except (TypeError, ValueError) as exc:
             return str(exc)
         market_accounts_match_ok = bool(a_b == ma_b and b_b == mb_b)
 
@@ -1926,7 +1926,7 @@ def _apply_ch2p_op(
                 tag="set_position_pair",
                 args={"new_position_base_a": new_a, "auth_ok": True},
             )
-        except Exception as exc:
+        except ValueError as exc:
             return str(exc)
 
         ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
@@ -1966,7 +1966,7 @@ def _apply_ch3p_op(
             return "advance_epoch delta must be 1 for clearinghouse markets"
         try:
             next_state, eff = _ch3p_step(ch3p_market.state, tag="advance_epoch", args={"delta": delta})
-        except Exception as exc:
+        except ValueError as exc:
             return str(exc)
         ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
         ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
@@ -2027,7 +2027,7 @@ def _apply_ch3p_op(
 
         try:
             next_state, eff = _ch3p_step(ch3p_market.state, tag="publish_clearing_price", args={"price_e8": price_e8})
-        except Exception as exc:
+        except ValueError as exc:
             return str(exc)
         ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
         ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
@@ -2064,7 +2064,7 @@ def _apply_ch3p_op(
             return err
         try:
             next_state, eff = _ch3p_step(ch3p_market.state, tag="settle_epoch", args={})
-        except Exception as exc:
+        except ValueError as exc:
             return str(exc)
         ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
         ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
@@ -2083,7 +2083,7 @@ def _apply_ch3p_op(
             return "cannot clear breaker while positions are open"
         try:
             next_state, eff = _ch3p_step(ch3p_market.state, tag="clear_breaker", args={"auth_ok": True})
-        except Exception as exc:
+        except ValueError as exc:
             return str(exc)
         ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
         ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
@@ -2124,7 +2124,7 @@ def _apply_ch3p_op(
                 operator_ok=operator_ok,
                 epoch_settled_ok=epoch_settled_ok,
             )
-        except Exception as exc:
+        except ValueError as exc:
             return str(exc)
         ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
         ctx.effects.append({"i": i, "market_id": market_id, "action": action, "params": dict(params)})
@@ -2162,7 +2162,7 @@ def _apply_ch3p_op(
                     tag=tag,
                     args={"amount_e8": amount_e8, "auth_ok": True},
                 )
-            except Exception as exc:
+            except ValueError as exc:
                 return str(exc)
             balances.subtract(account_pubkey, ch3p_market.quote_asset, amount)
         else:
@@ -2173,7 +2173,7 @@ def _apply_ch3p_op(
                     tag=tag,
                     args={"amount_e8": amount_e8, "auth_ok": True},
                 )
-            except Exception as exc:
+            except ValueError as exc:
                 return str(exc)
             balances.add(account_pubkey, ch3p_market.quote_asset, amount)
 
@@ -2244,7 +2244,7 @@ def _apply_ch3p_op(
             ma_b = _hex_to_bytes_allow_0x(ch3p_market.account_a_pubkey, name="market.account_a_pubkey", expected_nbytes=48)
             mb_b = _hex_to_bytes_allow_0x(ch3p_market.account_b_pubkey, name="market.account_b_pubkey", expected_nbytes=48)
             mc_b = _hex_to_bytes_allow_0x(ch3p_market.account_c_pubkey, name="market.account_c_pubkey", expected_nbytes=48)
-        except Exception as exc:
+        except (TypeError, ValueError) as exc:
             return str(exc)
         market_accounts_match_ok = bool(a_b == ma_b and b_b == mb_b and c_b == mc_b)
 
@@ -2318,7 +2318,7 @@ def _apply_ch3p_op(
 
         try:
             next_state, eff = _ch3p_step(ch3p_market.state, tag=tag, args=args)
-        except Exception as exc:
+        except ValueError as exc:
             return str(exc)
 
         ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
