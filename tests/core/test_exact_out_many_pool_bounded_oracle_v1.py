@@ -68,6 +68,40 @@ def test_enumerate_exact_out_many_pool_candidates_returns_complete_candidates() 
         assert tuple(leg.pool_id for leg in candidate.legs) == tuple(sorted(leg.pool_id for leg in candidate.legs))
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("amount_out_total", True, "amount_out_total must be positive"),
+        ("amount_out_total", "6", "amount_out_total must be positive"),
+        ("max_legs", True, "max_legs must be positive"),
+        ("max_candidate_pools", True, "max_candidate_pools must be positive"),
+        ("max_full_domain_pools", True, "max_full_domain_pools must be positive"),
+        ("max_enumerated_candidates", True, "max_enumerated_candidates must be positive"),
+    ],
+)
+def test_candidate_enumeration_rejects_non_strict_int_controls(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    kwargs = {
+        "amount_out_total": 6,
+        "max_legs": 3,
+        "max_candidate_pools": 3,
+        "max_full_domain_pools": 8,
+        "max_enumerated_candidates": 2_000,
+    }
+    kwargs[field] = value
+
+    with pytest.raises(ValueError, match=message):
+        enumerate_exact_out_many_pool_candidates(
+            (_pool(pid="pool_a", r0=120, r1=40),),
+            asset_in="A",
+            asset_out="B",
+            **kwargs,
+        )
+
+
 def test_bounded_exact_out_many_pool_runtime_domain_aligns_runtime_to_canonical_quote() -> None:
     pools = (
         _pool(pid="pool_a", r0=40, r1=20),
@@ -93,6 +127,47 @@ def test_bounded_exact_out_many_pool_runtime_domain_aligns_runtime_to_canonical_
     assert bounded.canonical_quote == certificate.winner_quote
     assert certificate.winner_quote.amount_in_total == 2
     assert bounded.runtime_quote == certificate.winner_quote
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("amount_out_total", True, "amount_out_total must be positive"),
+        ("max_legs", True, "max_legs must be positive"),
+        ("max_candidate_pools", True, "max_candidate_pools must be positive"),
+        ("max_candidates", True, "max_candidates must be positive"),
+        ("max_iters", True, "max_iters must be positive"),
+        ("window", False, "window must be non-negative"),
+        ("brute_force_max", False, "brute_force_max must be non-negative"),
+        ("max_full_domain_pools", True, "max_full_domain_pools must be positive"),
+        ("max_enumerated_candidates", True, "max_enumerated_candidates must be positive"),
+    ],
+)
+def test_bounded_runtime_domain_rejects_non_strict_int_controls(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    kwargs = {
+        "amount_out_total": 3,
+        "max_legs": 3,
+        "max_candidate_pools": 3,
+        "max_candidates": 6,
+        "max_iters": 512,
+        "window": 8,
+        "brute_force_max": 16,
+        "max_full_domain_pools": 8,
+        "max_enumerated_candidates": 8_000,
+    }
+    kwargs[field] = value
+
+    with pytest.raises(ValueError, match=message):
+        bounded_exact_out_many_pool_runtime_domain(
+            (_pool(pid="pool_a", r0=40, r1=20),),
+            asset_in="A",
+            asset_out="B",
+            **kwargs,
+        )
 
 
 def test_bounded_exact_out_many_pool_runtime_domain_uses_repaired_subset_within_audited_bound() -> None:
