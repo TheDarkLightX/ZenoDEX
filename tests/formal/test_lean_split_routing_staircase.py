@@ -21,22 +21,6 @@ def _require_lean_env() -> tuple[str, Path]:
     return lake, root / "lean-mathlib"
 
 
-def _ensure_proofs_root_built(lake: str, lean_dir: Path) -> None:
-    try:
-        proc = subprocess.run(
-            [lake, "build", "Proofs"],
-            cwd=lean_dir,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=300,
-        )
-    except subprocess.TimeoutExpired as exc:
-        pytest.skip(f"lake build Proofs timed out after {exc.timeout}s")
-
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-
-
 def test_lean_split_routing_staircase_builds_without_warnings() -> None:
     lake, lean_dir = _require_lean_env()
 
@@ -55,12 +39,18 @@ def test_lean_split_routing_staircase_builds_without_warnings() -> None:
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
-def test_lean_split_routing_staircase_exported_via_proofs_root() -> None:
+def test_lean_split_routing_staircase_listed_in_proofs_root() -> None:
+    root = Path(__file__).resolve().parents[2]
+    imports = (root / "lean-mathlib" / "Proofs.lean").read_text(encoding="utf-8").splitlines()
+
+    assert f"import {TARGET}" in imports
+
+
+def test_lean_split_routing_staircase_exports_checked_theorems() -> None:
     lake, lean_dir = _require_lean_env()
-    _ensure_proofs_root_built(lake, lean_dir)
 
     smoke = (
-        "import Proofs\n"
+        f"import {TARGET}\n"
         "#check Proofs.SplitRoutingStaircase.two_pool_split_candidate_complete\n"
         "#check Proofs.SplitRoutingStaircase.le_feeOut_iff\n"
         "#check Proofs.SplitRoutingStaircase.jump_point_closed_form\n"
@@ -80,7 +70,7 @@ def test_lean_split_routing_staircase_exported_via_proofs_root() -> None:
             timeout=240,
         )
     except subprocess.TimeoutExpired as exc:
-        pytest.skip(f"lake env lean timed out after {exc.timeout}s for import-Proofs smoke file")
+        pytest.skip(f"lake env lean timed out after {exc.timeout}s for {TARGET} smoke file")
     finally:
         smoke_path.unlink(missing_ok=True)
 

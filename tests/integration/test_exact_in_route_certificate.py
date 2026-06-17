@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+import src.integration.exact_in_route_certificate as route_cert_module
 from src.core.routing import RouteHop, RouteLeg, RouteQuote, best_route_exact_in_2hop
 from src.integration.exact_in_route_certificate import (
     EXACT_IN_ROUTE_CERTIFICATE_SCHEMA,
@@ -166,6 +167,79 @@ def test_exact_in_route_candidates_drop_zero_endpoint_split_legs() -> None:
     quotes = [candidate.quote for candidate in certificate.candidates]
     ok, err = verify_exact_in_route_canonical_certificate(quotes, certificate=certificate)
     assert ok, err
+
+
+def test_exact_in_route_candidate_split_domain_reject_preserves_direct_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    monkeypatch.setattr(route_cert_module, "best_split_many_pools_exact_in_for_pools", _domain_reject)
+    monkeypatch.setattr(route_cert_module, "best_split_two_pools_exact_in_for_pools", _domain_reject)
+
+    candidates = route_cert_module.enumerate_route_candidates_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=10,
+    )
+
+    assert candidates
+    assert any(len(candidate.legs) == 1 for candidate in candidates)
+
+
+def test_exact_in_route_candidate_split_many_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+
+    def _programmer_error(*_args, **_kwargs):
+        raise RuntimeError("unexpected certificate many-pool split bug")
+
+    monkeypatch.setattr(route_cert_module, "best_split_many_pools_exact_in_for_pools", _programmer_error)
+
+    with pytest.raises(RuntimeError, match="unexpected certificate many-pool split bug"):
+        route_cert_module.enumerate_route_candidates_exact_in_2hop(
+            pools_by_id=pools,
+            asset_in="A",
+            asset_out="B",
+            amount_in=10,
+        )
+
+
+def test_exact_in_route_candidate_split_pair_programmer_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+    }
+
+    def _domain_reject(*_args, **_kwargs):
+        raise ValueError("domain reject")
+
+    def _programmer_error(*_args, **_kwargs):
+        raise RuntimeError("unexpected certificate two-pool split bug")
+
+    monkeypatch.setattr(route_cert_module, "best_split_many_pools_exact_in_for_pools", _domain_reject)
+    monkeypatch.setattr(route_cert_module, "best_split_two_pools_exact_in_for_pools", _programmer_error)
+
+    with pytest.raises(RuntimeError, match="unexpected certificate two-pool split bug"):
+        route_cert_module.enumerate_route_candidates_exact_in_2hop(
+            pools_by_id=pools,
+            asset_in="A",
+            asset_out="B",
+            amount_in=10,
+        )
 
 
 def test_exact_in_route_certificate_tau_steps_verify_when_tau_is_available() -> None:

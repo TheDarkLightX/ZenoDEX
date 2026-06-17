@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 
+import src.core.split_routing_dispatch as split_dispatch_module
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.split_routing_dispatch import (
     SplitLegExactOutQuote,
@@ -135,6 +136,106 @@ def _brute_force_best_split_exact_out(
 
 
 class TestSplitRoutingDispatch:
+    def test_exact_in_candidate_scan_suppresses_domain_reject(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        p0 = _mk_pool(
+            pool_id="pool_a",
+            curve_tag=CURVE_TAG_CUBIC_SUM_V1,
+            reserve0=10_000,
+            reserve1=10_000,
+            fee_bps=0,
+            curve_params={"p": 1, "q": 1},
+        )
+        p1 = _mk_pool(
+            pool_id="pool_b",
+            curve_tag=CURVE_TAG_CUBIC_SUM_V1,
+            reserve0=10_000,
+            reserve1=10_000,
+            fee_bps=0,
+            curve_params={"p": 1, "q": 1},
+        )
+
+        def _domain_reject(*_args, **_kwargs):
+            raise ValueError("domain reject")
+
+        monkeypatch.setattr(split_dispatch_module, "_quote_exact_in", _domain_reject)
+
+        with pytest.raises(ValueError, match="no feasible split"):
+            best_split_two_pools_exact_in_for_pools(
+                p0,
+                p1,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_in_total=20,
+            )
+
+    def test_exact_in_candidate_scan_propagates_programmer_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        p0 = _mk_pool(
+            pool_id="pool_a",
+            curve_tag=CURVE_TAG_CUBIC_SUM_V1,
+            reserve0=10_000,
+            reserve1=10_000,
+            fee_bps=0,
+            curve_params={"p": 1, "q": 1},
+        )
+        p1 = _mk_pool(
+            pool_id="pool_b",
+            curve_tag=CURVE_TAG_CUBIC_SUM_V1,
+            reserve0=10_000,
+            reserve1=10_000,
+            fee_bps=0,
+            curve_params={"p": 1, "q": 1},
+        )
+
+        def _programmer_error(*_args, **_kwargs):
+            raise RuntimeError("unexpected split-routing bug")
+
+        monkeypatch.setattr(split_dispatch_module, "_quote_exact_in", _programmer_error)
+
+        with pytest.raises(RuntimeError, match="unexpected split-routing bug"):
+            best_split_two_pools_exact_in_for_pools(
+                p0,
+                p1,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_in_total=20,
+            )
+
+    def test_exact_out_capacity_guard_suppresses_domain_reject(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        pool = _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=10_000, reserve1=10_000, fee_bps=0)
+
+        def _domain_reject(*_args, **_kwargs):
+            raise ValueError("domain reject")
+
+        monkeypatch.setattr(split_dispatch_module, "_quote_exact_out", _domain_reject)
+
+        guard = exact_out_capacity_guard_for_pools(
+            (pool,),
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            amount_out_total=20,
+            max_legs=1,
+        )
+
+        assert guard.top_caps == ()
+        assert guard.feasible is False
+
+    def test_exact_out_capacity_guard_propagates_programmer_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        pool = _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=10_000, reserve1=10_000, fee_bps=0)
+
+        def _programmer_error(*_args, **_kwargs):
+            raise RuntimeError("unexpected exact-out split bug")
+
+        monkeypatch.setattr(split_dispatch_module, "_quote_exact_out", _programmer_error)
+
+        with pytest.raises(RuntimeError, match="unexpected exact-out split bug"):
+            exact_out_capacity_guard_for_pools(
+                (pool,),
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_out_total=20,
+                max_legs=1,
+            )
+
     @pytest.mark.parametrize(
         "amount_in_total,reason",
         [
