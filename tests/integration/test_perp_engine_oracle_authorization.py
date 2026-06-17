@@ -225,6 +225,61 @@ def test_isolated_settle_rejects_malformed_runtime_facts(monkeypatch) -> None:
     assert res.error == "oracle_authorization_rejected: malformed runtime facts"
 
 
+def test_isolated_settle_sanitizes_oracle_verifier_internal_error(monkeypatch) -> None:
+    import src.integration.perp_engine as perp_engine
+
+    market_id = "perp:auth-verifier-bug"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    auth = _authorization_for(runtime, observed_epoch=int(market.global_state["oracle_last_update_epoch"]))
+
+    def broken_verifier(*args: object, **kwargs: object) -> dict[str, object]:
+        raise RuntimeError("oracle verifier implementation bug")
+
+    monkeypatch.setattr(perp_engine, "check_critical_consumer_authorization", broken_verifier)
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_authorization=True,
+        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+    )
+
+    assert res.ok is False
+    assert res.error == "oracle_authorization_rejected: internal error: RuntimeError"
+
+
+def test_clearinghouse_settle_sanitizes_oracle_verifier_internal_error(monkeypatch) -> None:
+    import src.integration.perp_engine as perp_engine
+
+    def broken_verifier(*args: object, **kwargs: object) -> dict[str, object]:
+        raise RuntimeError("clearinghouse oracle verifier implementation bug")
+
+    monkeypatch.setattr(perp_engine, "check_critical_consumer_authorization", broken_verifier)
+
+    err = perp_engine._check_clearinghouse_settle_oracle_authorization(
+        perp_engine.PerpEngineConfig(),
+        data={"oracle_authorization": {"present": True}},
+        market_id="perp:ch2p:auth-verifier-bug",
+        market_kind="clearinghouse_2p_v1",
+        quote_asset="zUSD",
+        state={
+            "now_epoch": 1,
+            "clearing_price_epoch": 1,
+            "clearing_price_e8": 100_000_000,
+            "index_price_e8": 100_000_000,
+            "oracle_last_update_epoch": 1,
+        },
+        participant_pubkeys=("00" * 48, "11" * 48),
+    )
+
+    assert err == "clearinghouse_settle_oracle_authorization_rejected: internal error: RuntimeError"
+
+
 def test_isolated_settle_rejects_authorization_for_different_pre_state() -> None:
     market_id = "perp:auth-pre-state-mismatch"
     operator = "00" * 48

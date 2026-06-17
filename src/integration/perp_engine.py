@@ -834,7 +834,7 @@ def _check_isolated_settle_oracle_authorization(
             now_epoch=now_epoch,
         )
     except Exception as exc:
-        return f"oracle_authorization_rejected: {exc}"
+        return f"oracle_authorization_rejected: {_safe_error_str(exc)}"
     if not bool(result.get("typed_ok", False)):
         errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
         return "oracle_authorization_rejected: " + "; ".join(str(err) for err in errors)
@@ -1299,7 +1299,7 @@ def _check_clearinghouse_settle_oracle_authorization(
             max_freshness_window_epochs=2,
         )
     except Exception as exc:
-        return f"clearinghouse_settle_oracle_authorization_rejected: {exc}"
+        return f"clearinghouse_settle_oracle_authorization_rejected: {_safe_error_str(exc)}"
     if not bool(result.get("typed_ok", False)):
         errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
         return "clearinghouse_settle_oracle_authorization_rejected: " + "; ".join(str(err) for err in errors)
