@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+import src.integration.autotrader_signals as autotrader_signals
 from src.agents.policy_compiler import compile_policy_candidate
 from src.agents.strategy_ir import StrategyAction
 from src.core.quote_receipts import make_route_quote_receipt
@@ -225,6 +226,37 @@ def test_verify_autotrader_observation_packet_payload_rejects_tampered_summary()
     ok, error = verify_autotrader_observation_packet_payload(payload)
     assert ok is False
     assert error == "observation packet payload mismatch"
+
+
+def test_verify_autotrader_observation_packet_payload_rejects_malformed_payload() -> None:
+    pools, receipt = _market()
+    primary = build_quote_receipt_signal_packet(receipt=receipt, pools_by_id=pools, current_epoch=5)
+    payload = build_autotrader_observation_packet(primary_signal=primary).to_dict()
+    payload["current_epoch"] = "bad"
+
+    ok, error = verify_autotrader_observation_packet_payload(payload)
+
+    assert ok is False
+    assert error == "current_epoch must be an int"
+
+
+def test_verify_autotrader_observation_packet_payload_does_not_swallow_adapter_bugs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pools, receipt = _market()
+    primary = build_quote_receipt_signal_packet(receipt=receipt, pools_by_id=pools, current_epoch=5)
+    payload = build_autotrader_observation_packet(primary_signal=primary).to_dict()
+
+    def broken_packet_adapter(_payload: object) -> object:
+        raise RuntimeError("observation packet adapter bug")
+
+    monkeypatch.setattr(
+        autotrader_signals,
+        "autotrader_observation_packet_from_dict",
+        broken_packet_adapter,
+    )
+    with pytest.raises(RuntimeError, match="observation packet adapter bug"):
+        verify_autotrader_observation_packet_payload(payload)
 
 
 @pytest.mark.parametrize(

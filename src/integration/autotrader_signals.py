@@ -26,6 +26,7 @@ SIGNAL_PACKET_SCHEMA = "zenodex/autotrader-signal-packet/v1"
 OBSERVATION_PACKET_SCHEMA = "zenodex/autotrader-observation-packet/v1"
 EXTERNAL_SIGNAL_SCHEMA = "zenodex/autotrader-external-signal/v1"
 WALLET_CAPABILITY_SCHEMA = "zenodex/autotrader-wallet-capability/v1"
+_OBSERVATION_PACKET_DOMAIN_ERRORS = (TypeError, ValueError, ArithmeticError)
 
 
 class SignalSourceKind(Enum):
@@ -590,7 +591,7 @@ def verify_autotrader_observation_packet_payload(payload: object) -> tuple[bool,
         return False, "observation packet payload must be an object"
     try:
         packet = autotrader_observation_packet_from_dict(payload)
-    except Exception as exc:
+    except _OBSERVATION_PACKET_DOMAIN_ERRORS as exc:
         return False, str(exc)
     if dict(payload) != packet.to_dict():
         return False, "observation packet payload mismatch"
