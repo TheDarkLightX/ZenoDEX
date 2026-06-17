@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 from pathlib import Path
 
 from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0
@@ -22,7 +21,6 @@ from tests.test_check_zeno_ledger_light_client_checkpoint import (
 )
 from tools.build_zeno_sdk_browser_bundle import build_browser_bundle_from_files, main
 from tools.zeno_ledger_verify import ZERO_ROOT
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -191,6 +189,9 @@ def test_wallet_sync_state_rejects_rollback(tmp_path: Path) -> None:
     validate_wallet_sync_state_v0(current)
     assert current["schema"] == BROWSER_WALLET_SYNC_STATE_SCHEMA_V0
     assert current["height"] == 2
+    assert current["target_header_hash"] == bundle["verification_summary"]["target_header_hash"]
+    assert current["signer_registry_hash"] == bundle["verification_summary"]["registry_hash"]
+    assert current["trust_model"] == "builder_bls_claim"
 
     lower = dict(current)
     lower["height"] = 3
@@ -293,7 +294,15 @@ def test_browser_sdk_verifies_python_built_bundle_hashes(tmp_path: Path) -> None
         from_height=1,
         to_height=2,
     )
+    current = wallet_sync_state_v0(
+        current_state=None,
+        checkpoint_bundle=bundle,
+        surface="zusd",
+        updated_at_ms=1_778_730_000_000,
+    )
     out.write_text(json.dumps(bundle, indent=2, sort_keys=True), encoding="utf-8")
+    state_path = tmp_path / "wallet-sync-state.json"
+    state_path.write_text(json.dumps(current, indent=2, sort_keys=True), encoding="utf-8")
 
     sdk_uri = (ROOT / "tools" / "dex-ui" / "src" / "sdk" / "zenoProofClient.js").resolve().as_uri()
     script = f"""
@@ -301,7 +310,13 @@ import fs from 'node:fs';
 import {{ advanceWalletSyncStateV0, verifyBrowserCheckpointBundleV0 }} from {json.dumps(sdk_uri)};
 
 const bundle = JSON.parse(fs.readFileSync({json.dumps(str(out))}, 'utf8'));
-const report = await verifyBrowserCheckpointBundleV0(bundle);
+const current = JSON.parse(fs.readFileSync({json.dumps(str(state_path))}, 'utf8'));
+const trustAnchors = {{
+  trustBuilderBls: true,
+  expectedTrustedPrevHeaderHash: bundle.trusted_prev_header_hash,
+  expectedSignerRegistryHash: bundle.signer_registry.registry_hash,
+}};
+const report = await verifyBrowserCheckpointBundleV0(bundle, trustAnchors);
 if (!report.ok) {{
   throw new Error(report.gaps.join('; '));
 }}
@@ -315,15 +330,27 @@ const sync = await advanceWalletSyncStateV0({{
   bundle,
   surface: 'zusd',
   updatedAtMs: 1778730000000,
+  ...trustAnchors,
 }});
 if (!sync.ok) {{
   throw new Error(sync.gaps.join('; '));
+}}
+const repeat = await advanceWalletSyncStateV0({{
+  currentState: current,
+  bundle,
+  surface: 'zusd',
+  updatedAtMs: 1778730001000,
+  ...trustAnchors,
+}});
+if (!repeat.ok) {{
+  throw new Error(repeat.gaps.join('; '));
 }}
 console.log(JSON.stringify({{
   ok: true,
   bundle_hash: report.bundle_hash,
   checkpoint_hash: report.checkpoint_hash,
   state_hash: sync.state.state_hash,
+  repeat_state_hash: repeat.state.state_hash,
 }}));
 """
     proc = subprocess.run(
@@ -340,6 +367,7 @@ console.log(JSON.stringify({{
     assert payload["bundle_hash"] == bundle["bundle_hash"]
     assert payload["checkpoint_hash"] == bundle["verification_summary"]["checkpoint_hash"]
     assert payload["state_hash"].startswith("0x")
+    assert payload["repeat_state_hash"].startswith("0x")
 
 
 def test_browser_sdk_independent_bls_rejects_signatures_for_wrong_checkpoint(tmp_path: Path) -> None:
@@ -385,7 +413,11 @@ bundle.bundle_hash = await hashV0('browser_checkpoint_bundle_v0', bundle);
 if (bundle.bundle_hash === oldHash) {{
   throw new Error('test fixture did not perturb bundle hash');
 }}
-const report = await verifyBrowserCheckpointBundleV0(bundle, {{ requireIndependentBls: true }});
+const report = await verifyBrowserCheckpointBundleV0(bundle, {{
+  requireIndependentBls: true,
+  expectedTrustedPrevHeaderHash: bundle.trusted_prev_header_hash,
+  expectedSignerRegistryHash: bundle.signer_registry.registry_hash,
+}});
 console.log(JSON.stringify(report));
 """
     proc = subprocess.run(

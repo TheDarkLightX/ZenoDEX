@@ -22,7 +22,6 @@ from src.integration.zeno_ledger_v0 import (
     validate_header_v0,
 )
 
-
 BROWSER_CHECKPOINT_BUNDLE_SCHEMA_V0 = "zenodex.zeno_sdk.browser_checkpoint_bundle.v0"
 BROWSER_CHECKPOINT_VERIFICATION_SUMMARY_SCHEMA_V0 = (
     "zenodex.zeno_sdk.browser_checkpoint_verification_summary.v0"
@@ -483,11 +482,15 @@ def wallet_sync_state_v0(
     validate_browser_checkpoint_bundle_v0(checkpoint_bundle)
     bundle = _require_mapping(checkpoint_bundle, name="checkpoint_bundle")
     checkpoint = _require_mapping(bundle.get("target_checkpoint"), name="target_checkpoint")
+    verification_summary = _require_mapping(bundle.get("verification_summary"), name="verification_summary")
     chain_id = _require_str(checkpoint.get("chain_id"), name="checkpoint.chain_id")
     height = _require_nonnegative_int(checkpoint.get("height"), name="checkpoint.height")
     app_hash = _require_root(checkpoint.get("app_hash"), name="checkpoint.app_hash")
-    checkpoint_hash = _require_root(bundle.get("verification_summary", {}).get("checkpoint_hash"), name="checkpoint_hash")
+    checkpoint_hash = _require_root(verification_summary.get("checkpoint_hash"), name="checkpoint_hash")
+    target_header_hash = _require_root(verification_summary.get("target_header_hash"), name="target_header_hash")
+    signer_registry_hash = _require_root(verification_summary.get("registry_hash"), name="signer_registry_hash")
     bundle_hash = _require_root(bundle.get("bundle_hash"), name="bundle_hash")
+    trust_model = "builder_bls_claim"
 
     if current_state is not None:
         validate_wallet_sync_state_v0(current_state)
@@ -501,6 +504,8 @@ def wallet_sync_state_v0(
             old.get("checkpoint_hash") != checkpoint_hash or old.get("app_hash") != app_hash
         ):
             raise ValueError("wallet sync same-height drift rejected")
+        if height > old_height and old.get("target_header_hash") != bundle.get("trusted_prev_header_hash"):
+            raise ValueError("wallet sync extension root mismatch")
 
     body = {
         "schema": BROWSER_WALLET_SYNC_STATE_SCHEMA_V0,
@@ -508,7 +513,10 @@ def wallet_sync_state_v0(
         "chain_id": chain_id,
         "height": height,
         "app_hash": app_hash,
+        "target_header_hash": target_header_hash,
         "checkpoint_hash": checkpoint_hash,
+        "signer_registry_hash": signer_registry_hash,
+        "trust_model": trust_model,
         "bundle_hash": bundle_hash,
         "updated_at_ms": _require_nonnegative_int(updated_at_ms, name="updated_at_ms"),
     }
@@ -523,7 +531,10 @@ def validate_wallet_sync_state_v0(state: Mapping[str, Any]) -> None:
         "chain_id",
         "height",
         "app_hash",
+        "target_header_hash",
         "checkpoint_hash",
+        "signer_registry_hash",
+        "trust_model",
         "bundle_hash",
         "updated_at_ms",
         "state_hash",
@@ -536,7 +547,12 @@ def validate_wallet_sync_state_v0(state: Mapping[str, Any]) -> None:
     _require_str(obj.get("chain_id"), name="chain_id")
     _require_nonnegative_int(obj.get("height"), name="height")
     _require_root(obj.get("app_hash"), name="app_hash")
+    _require_root(obj.get("target_header_hash"), name="target_header_hash")
     _require_root(obj.get("checkpoint_hash"), name="checkpoint_hash")
+    _require_root(obj.get("signer_registry_hash"), name="signer_registry_hash")
+    trust_model = _require_str(obj.get("trust_model"), name="trust_model")
+    if trust_model not in {"builder_bls_claim", "independent_bls"}:
+        raise ValueError("wallet sync state trust_model mismatch")
     _require_root(obj.get("bundle_hash"), name="bundle_hash")
     _require_nonnegative_int(obj.get("updated_at_ms"), name="updated_at_ms")
     state_hash = _require_root(obj.get("state_hash"), name="state_hash")
