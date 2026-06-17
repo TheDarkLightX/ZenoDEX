@@ -140,6 +140,7 @@ def _handle_quote_exact_out_many_pool_guarded(
 ) -> DexResponse:
     try:
         from src.integration.api_server import (  # pylint: disable=import-outside-toplevel
+            RoutingGuardedExactOutQuoteAction,
             _check_routing_exact_out_oracle_adapter_bridge,
         )
 
@@ -150,8 +151,11 @@ def _handle_quote_exact_out_many_pool_guarded(
 
         bridge_err = _check_routing_exact_out_oracle_adapter_bridge(
             body=obj,
-            path="/api/dex/quote_exact_out_many_pool_guarded",
-            **inputs,
+            action=RoutingGuardedExactOutQuoteAction(
+                path="/api/dex/quote_exact_out_many_pool_guarded",
+                pools_raw=obj.get("pools"),
+                **inputs,
+            ),
         )
         if bridge_err is not None:
             return 400, {"ok": False, "error": "rejected", "detail": bridge_err}

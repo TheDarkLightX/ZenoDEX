@@ -121,9 +121,11 @@ def test_exact_out_many_pool_guarded_quote_rejects_bridge_for_reordered_pool_sna
         "max_enumerated_candidates": 8000,
     }
     wrong_action_id = api_server._routing_guarded_exact_out_quote_oracle_action_id(
-        path="/api/dex/quote_exact_out_many_pool_guarded",
-        pools_raw=list(reversed(pools)),
-        **params,
+        api_server.RoutingGuardedExactOutQuoteAction(
+            path="/api/dex/quote_exact_out_many_pool_guarded",
+            pools_raw=list(reversed(pools)),
+            **params,
+        )
     )
 
     def _accepted_bridge_for_reordered_snapshot(_bridge: object) -> dict[str, object]:

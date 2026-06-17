@@ -677,69 +677,77 @@ def _canonical_routing_pool_snapshots(pools_raw: object) -> list[dict[str, Any]]
     return snapshots
 
 
+@dataclass(frozen=True)
+class RoutingGuardedQuoteAction:
+    path: str
+    asset_in: str
+    asset_out: str
+    amount_in: int
+    split_search_profile: str
+    enable_mixed_direct_twohop_split: bool
+    binding_ok: int
+    pools_raw: object
+
+
+@dataclass(frozen=True)
+class RoutingGuardedExactOutQuoteAction:
+    path: str
+    asset_in: str
+    asset_out: str
+    amount_out_total: int
+    max_legs: int
+    max_candidate_pools: int
+    max_candidates: int
+    max_iters: int
+    window: int
+    brute_force_max: int
+    max_enumerated_candidates: int
+    pools_raw: object
+
+
 def _routing_guarded_quote_oracle_action_id(
-    *,
-    path: str,
-    asset_in: str,
-    asset_out: str,
-    amount_in: int,
-    split_search_profile: str,
-    enable_mixed_direct_twohop_split: bool,
-    binding_ok: int,
-    pools_raw: object,
+    action: RoutingGuardedQuoteAction,
 ) -> str:
-    pool_snapshots = _canonical_routing_pool_snapshots(pools_raw)
+    pool_snapshots = _canonical_routing_pool_snapshots(action.pools_raw)
     pool_snapshot_hash = "sha256:" + hashlib.sha256(canonical_json_bytes({"pools": pool_snapshots})).hexdigest()
     payload = {
         "schema": "zenodex.oracle.routing_runtime_action_id.v1",
         "consumer_module": "zenodex.routing",
         "action_kind": "guarded_quote",
-        "path": path,
+        "path": action.path,
         "quote_kind": "exact_in",
-        "asset_in": asset_in,
-        "asset_out": asset_out,
-        "amount_in": int(amount_in),
-        "split_search_profile": split_search_profile,
-        "enable_mixed_direct_twohop_split": bool(enable_mixed_direct_twohop_split),
-        "binding_ok": int(binding_ok),
+        "asset_in": action.asset_in,
+        "asset_out": action.asset_out,
+        "amount_in": int(action.amount_in),
+        "split_search_profile": action.split_search_profile,
+        "enable_mixed_direct_twohop_split": bool(action.enable_mixed_direct_twohop_split),
+        "binding_ok": int(action.binding_ok),
         "pool_snapshot_hash": pool_snapshot_hash,
     }
     return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
 
 
 def _routing_guarded_exact_out_quote_oracle_action_id(
-    *,
-    path: str,
-    asset_in: str,
-    asset_out: str,
-    amount_out_total: int,
-    max_legs: int,
-    max_candidate_pools: int,
-    max_candidates: int,
-    max_iters: int,
-    window: int,
-    brute_force_max: int,
-    max_enumerated_candidates: int,
-    pools_raw: object,
+    action: RoutingGuardedExactOutQuoteAction,
 ) -> str:
-    pool_snapshots = _canonical_routing_pool_snapshots(pools_raw)
+    pool_snapshots = _canonical_routing_pool_snapshots(action.pools_raw)
     pool_snapshot_hash = "sha256:" + hashlib.sha256(canonical_json_bytes({"pools": pool_snapshots})).hexdigest()
     payload = {
         "schema": "zenodex.oracle.routing_runtime_action_id.v1",
         "consumer_module": "zenodex.routing",
         "action_kind": "guarded_quote",
-        "path": path,
+        "path": action.path,
         "quote_kind": "exact_out_many_pool",
-        "asset_in": asset_in,
-        "asset_out": asset_out,
-        "amount_out_total": int(amount_out_total),
-        "max_legs": int(max_legs),
-        "max_candidate_pools": int(max_candidate_pools),
-        "max_candidates": int(max_candidates),
-        "max_iters": int(max_iters),
-        "window": int(window),
-        "brute_force_max": int(brute_force_max),
-        "max_enumerated_candidates": int(max_enumerated_candidates),
+        "asset_in": action.asset_in,
+        "asset_out": action.asset_out,
+        "amount_out_total": int(action.amount_out_total),
+        "max_legs": int(action.max_legs),
+        "max_candidate_pools": int(action.max_candidate_pools),
+        "max_candidates": int(action.max_candidates),
+        "max_iters": int(action.max_iters),
+        "window": int(action.window),
+        "brute_force_max": int(action.brute_force_max),
+        "max_enumerated_candidates": int(action.max_enumerated_candidates),
         "pool_snapshot_hash": pool_snapshot_hash,
     }
     return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
@@ -790,29 +798,14 @@ def _check_routing_oracle_adapter_bridge_for_action(
 def _check_routing_oracle_adapter_bridge(
     *,
     body: Mapping[str, Any],
-    path: str,
-    asset_in: str,
-    asset_out: str,
-    amount_in: int,
-    split_search_profile: str,
-    enable_mixed_direct_twohop_split: bool,
-    binding_ok: int,
+    action: RoutingGuardedQuoteAction,
 ) -> Optional[str]:
     if "oracle_adapter_bridge" not in body:
         if _env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False):
             return "guarded_quote requires oracle_adapter_bridge"
         return None
     try:
-        expected_action_id = _routing_guarded_quote_oracle_action_id(
-            path=path,
-            asset_in=asset_in,
-            asset_out=asset_out,
-            amount_in=int(amount_in),
-            split_search_profile=split_search_profile,
-            enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
-            binding_ok=int(binding_ok),
-            pools_raw=body.get("pools"),
-        )
+        expected_action_id = _routing_guarded_quote_oracle_action_id(action)
     except (TypeError, ValueError):
         return "oracle_adapter_bridge action_id unavailable"
     return _check_routing_oracle_adapter_bridge_for_action(
@@ -824,37 +817,14 @@ def _check_routing_oracle_adapter_bridge(
 def _check_routing_exact_out_oracle_adapter_bridge(
     *,
     body: Mapping[str, Any],
-    path: str,
-    asset_in: str,
-    asset_out: str,
-    amount_out_total: int,
-    max_legs: int,
-    max_candidate_pools: int,
-    max_candidates: int,
-    max_iters: int,
-    window: int,
-    brute_force_max: int,
-    max_enumerated_candidates: int,
+    action: RoutingGuardedExactOutQuoteAction,
 ) -> Optional[str]:
     if "oracle_adapter_bridge" not in body:
         if _env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False):
             return "guarded_quote requires oracle_adapter_bridge"
         return None
     try:
-        expected_action_id = _routing_guarded_exact_out_quote_oracle_action_id(
-            path=path,
-            asset_in=asset_in,
-            asset_out=asset_out,
-            amount_out_total=int(amount_out_total),
-            max_legs=int(max_legs),
-            max_candidate_pools=int(max_candidate_pools),
-            max_candidates=int(max_candidates),
-            max_iters=int(max_iters),
-            window=int(window),
-            brute_force_max=int(brute_force_max),
-            max_enumerated_candidates=int(max_enumerated_candidates),
-            pools_raw=body.get("pools"),
-        )
+        expected_action_id = _routing_guarded_exact_out_quote_oracle_action_id(action)
     except (TypeError, ValueError):
         return "oracle_adapter_bridge action_id unavailable"
     return _check_routing_oracle_adapter_bridge_for_action(

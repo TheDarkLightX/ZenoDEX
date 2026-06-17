@@ -102,6 +102,7 @@ def _handle_quote_exact_in_route_guarded(
 ) -> DexResponse:
     try:
         from src.integration.api_server import (  # pylint: disable=import-outside-toplevel
+            RoutingGuardedQuoteAction,
             _check_routing_oracle_adapter_bridge,
         )
 
@@ -112,13 +113,16 @@ def _handle_quote_exact_in_route_guarded(
 
         bridge_err = _check_routing_oracle_adapter_bridge(
             body=obj,
-            path="/api/dex/quote_exact_in_route_guarded",
-            asset_in=kwargs["asset_in"],
-            asset_out=kwargs["asset_out"],
-            amount_in=kwargs["amount_in"],
-            split_search_profile=kwargs["split_search_profile"],
-            enable_mixed_direct_twohop_split=kwargs["enable_mixed_direct_twohop_split"],
-            binding_ok=kwargs["binding_ok"],
+            action=RoutingGuardedQuoteAction(
+                path="/api/dex/quote_exact_in_route_guarded",
+                asset_in=kwargs["asset_in"],
+                asset_out=kwargs["asset_out"],
+                amount_in=kwargs["amount_in"],
+                split_search_profile=kwargs["split_search_profile"],
+                enable_mixed_direct_twohop_split=kwargs["enable_mixed_direct_twohop_split"],
+                binding_ok=kwargs["binding_ok"],
+                pools_raw=obj.get("pools"),
+            ),
         )
         if bridge_err is not None:
             return 400, {"ok": False, "error": "rejected", "detail": bridge_err}
