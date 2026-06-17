@@ -476,6 +476,48 @@ DISPATCH_METRICS = DispatchMetrics()
 by every ``dispatch()`` call."""
 
 
+def _run_endpoint_handler(
+    path: str,
+    spec: DexEndpointSpec,
+    obj: Mapping[str, Any],
+    ctx: DexRequestContext,
+) -> tuple[DexResponse, Optional[str]]:
+    """Run a handler and convert legacy endpoint exceptions into responses."""
+    # Late import keeps the helper module independently importable in tests.
+    from src.integration._dex_api_helpers import BadFieldError as _BadFieldError
+
+    try:
+        return spec.handler(obj, ctx), None
+    except DexEndpointError as exc:
+        return exc.response, exc.code
+    except _BadFieldError as exc:
+        code = f"bad_{exc.field}"
+        return (400, {"ok": False, "error": code}), code
+    except Exception:
+        import sys
+        import traceback
+
+        print(
+            f"dex dispatch error path={path} code={spec.default_error_code}",
+            file=sys.stderr,
+        )
+        traceback.print_exc(file=sys.stderr)
+        return (
+            400,
+            {"ok": False, "error": spec.default_error_code, "details": "request failed"},
+        ), spec.default_error_code
+
+
+def _returned_error_code(response: DexResponse) -> Optional[str]:
+    """Extract the ``error`` code from a handler-returned error body."""
+    body = response[1]
+    if isinstance(body, Mapping):
+        raw_code = body.get("error")
+        if isinstance(raw_code, str):
+            return raw_code
+    return None
+
+
 def dispatch(path: str, obj: Mapping[str, Any], ctx: DexRequestContext) -> Optional[DexResponse]:
     """Look up a handler and run it with uniform exception handling.
 
@@ -501,32 +543,8 @@ def dispatch(path: str, obj: Mapping[str, Any], ctx: DexRequestContext) -> Optio
     if spec is None:
         return None
 
-    # Late import to avoid the cycle: _dex_api_helpers → BadFieldError →
-    # (no cycle), but historically the helper module was tested
-    # independently.
-    from src.integration._dex_api_helpers import BadFieldError as _BadFieldError
-
     start_ns = time.perf_counter_ns()
-    response: DexResponse
-    error_code_for_metrics: Optional[str] = None
-    try:
-        response = spec.handler(obj, ctx)
-    except DexEndpointError as exc:
-        response = exc.response
-        error_code_for_metrics = exc.code
-    except _BadFieldError as exc:
-        response = 400, {"ok": False, "error": f"bad_{exc.field}"}
-        error_code_for_metrics = f"bad_{exc.field}"
-    except Exception:
-        import sys
-        import traceback
-        print(
-            f"dex dispatch error path={path} code={spec.default_error_code}",
-            file=sys.stderr,
-        )
-        traceback.print_exc(file=sys.stderr)
-        response = 400, {"ok": False, "error": spec.default_error_code, "details": "request failed"}
-        error_code_for_metrics = spec.default_error_code
+    response, error_code_for_metrics = _run_endpoint_handler(path, spec, obj, ctx)
     latency_ms = (time.perf_counter_ns() - start_ns) / 1_000_000.0
 
     # Treat status >= 400 as an error for metrics purposes (even if the
@@ -535,13 +553,7 @@ def dispatch(path: str, obj: Mapping[str, Any], ctx: DexRequestContext) -> Optio
     status = response[0]
     is_error = error_code_for_metrics is not None or status >= 400
     if is_error and error_code_for_metrics is None:
-        # Handler returned an error response directly; pull the code
-        # from the body if present.
-        body = response[1]
-        if isinstance(body, Mapping):
-            raw_code = body.get("error")
-            if isinstance(raw_code, str):
-                error_code_for_metrics = raw_code
+        error_code_for_metrics = _returned_error_code(response)
 
     DISPATCH_METRICS.record_request(
         path,
