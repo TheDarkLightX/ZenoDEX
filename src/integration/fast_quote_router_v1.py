@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
+from ..core.domain_limits import is_strict_int
 from ..core.routing import RouteHop, RouteLeg, RouteQuote, should_consider_exact_out_two_hop
 from ..core.split_routing_dispatch import (
     best_split_many_pools_exact_in_for_pools,
@@ -58,6 +59,27 @@ EXACT_OUT_MICRO_MAX_TOTAL_PAIRS = 250_000
 _QUOTE_DOMAIN_ERRORS = (TypeError, ValueError, ArithmeticError)
 
 
+def _require_int_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value):
+        raise ValueError(f"{name} must be an int")
+    return int(value)
+
+
+def _require_bool_control(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} must be a bool")
+    return bool(value)
+
+
+def _positive_or_default_control(value: object, *, name: str, default: int, maximum: int | None = None) -> int:
+    value_i = _require_int_control(value, name=name)
+    if value_i <= 0:
+        return int(default)
+    if maximum is not None and value_i > int(maximum):
+        return int(maximum)
+    return value_i
+
+
 def _dir_reserves_cpmm(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId) -> Optional[Tuple[int, int]]:
     if pool.curve_tag != CURVE_TAG_CPMM:
         return None
@@ -69,6 +91,9 @@ def _dir_reserves_cpmm(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId
 
 
 def _quote_exact_in_onehop(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_in: int) -> Optional[int]:
+    amount_in_i = _require_int_control(amount_in, name="amount_in")
+    if amount_in_i <= 0:
+        return None
     if pool.status != PoolStatus.ACTIVE:
         return None
     r = _dir_reserves_cpmm(pool, asset_in=asset_in, asset_out=asset_out)
@@ -76,7 +101,7 @@ def _quote_exact_in_onehop(pool: PoolState, *, asset_in: AssetId, asset_out: Ass
         return None
     rin, rout = r
     try:
-        out, _ = swap_exact_in_for_pool(pool, reserve_in=int(rin), reserve_out=int(rout), amount_in=int(amount_in))
+        out, _ = swap_exact_in_for_pool(pool, reserve_in=int(rin), reserve_out=int(rout), amount_in=amount_in_i)
     except _QUOTE_DOMAIN_ERRORS:
         return None
     return int(out)
@@ -92,12 +117,15 @@ def _quote_exact_in_twohop(
     amount_in: int,
 ) -> Optional[Tuple[int, int]]:
     # Returns (out_mid, out_final)
+    amount_in_i = _require_int_control(amount_in, name="amount_in")
+    if amount_in_i <= 0:
+        return None
     r1 = _dir_reserves_cpmm(p1, asset_in=asset_in, asset_out=mid)
     r2 = _dir_reserves_cpmm(p2, asset_in=mid, asset_out=asset_out)
     if r1 is None or r2 is None:
         return None
     try:
-        out_mid, _ = swap_exact_in_for_pool(p1, reserve_in=int(r1[0]), reserve_out=int(r1[1]), amount_in=int(amount_in))
+        out_mid, _ = swap_exact_in_for_pool(p1, reserve_in=int(r1[0]), reserve_out=int(r1[1]), amount_in=amount_in_i)
         out_final, _ = swap_exact_in_for_pool(p2, reserve_in=int(r2[0]), reserve_out=int(r2[1]), amount_in=int(out_mid))
     except _QUOTE_DOMAIN_ERRORS:
         return None
@@ -105,6 +133,9 @@ def _quote_exact_in_twohop(
 
 
 def _quote_exact_out_onehop(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_out: int) -> Optional[int]:
+    amount_out_i = _require_int_control(amount_out, name="amount_out")
+    if amount_out_i <= 0:
+        return None
     if pool.status != PoolStatus.ACTIVE:
         return None
     r = _dir_reserves_cpmm(pool, asset_in=asset_in, asset_out=asset_out)
@@ -112,7 +143,7 @@ def _quote_exact_out_onehop(pool: PoolState, *, asset_in: AssetId, asset_out: As
         return None
     rin, rout = r
     try:
-        inn, _ = swap_exact_out_for_pool(pool, reserve_in=int(rin), reserve_out=int(rout), amount_out=int(amount_out))
+        inn, _ = swap_exact_out_for_pool(pool, reserve_in=int(rin), reserve_out=int(rout), amount_out=amount_out_i)
     except _QUOTE_DOMAIN_ERRORS:
         return None
     return int(inn)
@@ -128,11 +159,14 @@ def _quote_exact_out_twohop(
     amount_out: int,
 ) -> Optional[Tuple[int, int]]:
     # Returns (amount_in_total, mid_in) where mid_in is the hop2 input / hop1 output.
+    amount_out_i = _require_int_control(amount_out, name="amount_out")
+    if amount_out_i <= 0:
+        return None
     r2 = _dir_reserves_cpmm(p2, asset_in=mid, asset_out=asset_out)
     if r2 is None:
         return None
     try:
-        mid_in, _ = swap_exact_out_for_pool(p2, reserve_in=int(r2[0]), reserve_out=int(r2[1]), amount_out=int(amount_out))
+        mid_in, _ = swap_exact_out_for_pool(p2, reserve_in=int(r2[0]), reserve_out=int(r2[1]), amount_out=amount_out_i)
     except _QUOTE_DOMAIN_ERRORS:
         return None
 
@@ -229,7 +263,7 @@ class FastQuoteRouterV1:
     """
 
     def __init__(self, *, max_cache_pairs: int = 32) -> None:
-        self._max_cache_pairs = int(max(1, max_cache_pairs))
+        self._max_cache_pairs = max(1, _require_int_control(max_cache_pairs, name="max_cache_pairs"))
         self._lock = threading.Lock()
         self._pair_cache: "OrderedDict[Tuple[str, str, str], _PreparedPair]" = OrderedDict()
 
@@ -368,22 +402,22 @@ class FastQuoteRouterV1:
 
         Returns a RouteQuote with exact integer hop amounts, or None if no route exists.
         """
-        D = int(amount_in)
+        D = _require_int_control(amount_in, name="amount_in")
         if D <= 0:
             return None
         if asset_in == asset_out:
             return None
-        kmax = int(topk_max)
-        if kmax <= 0:
-            kmax = 32
-        if kmax > 4096:
-            kmax = 4096
-        max_pairs_mid = int(max_pairs_per_mid)
-        if max_pairs_mid <= 0:
-            max_pairs_mid = int(MAX_PAIRS_PER_MID_DEFAULT)
-        max_union = int(max_union_candidates)
-        if max_union <= 0:
-            max_union = int(MAX_UNION_CANDIDATES_DEFAULT)
+        kmax = _positive_or_default_control(topk_max, name="topk_max", default=32, maximum=4096)
+        max_pairs_mid = _positive_or_default_control(
+            max_pairs_per_mid,
+            name="max_pairs_per_mid",
+            default=MAX_PAIRS_PER_MID_DEFAULT,
+        )
+        max_union = _positive_or_default_control(
+            max_union_candidates,
+            name="max_union_candidates",
+            default=MAX_UNION_CANDIDATES_DEFAULT,
+        )
 
         # Deterministic pool ordering.
         pools_sorted: Tuple[PoolState, ...] = tuple(sorted(pools_by_id.values(), key=lambda p: p.pool_id))
@@ -659,22 +693,23 @@ class FastQuoteRouterV1:
 
         Returns a RouteQuote with exact integer hop amounts, or None if no route exists.
         """
-        Q = int(amount_out)
+        Q = _require_int_control(amount_out, name="amount_out")
         if Q <= 0:
             return None
         if asset_in == asset_out:
             return None
-        kmax = int(topk_max)
-        if kmax <= 0:
-            kmax = 32
-        if kmax > 4096:
-            kmax = 4096
-        max_pairs_mid = int(max_pairs_per_mid)
-        if max_pairs_mid <= 0:
-            max_pairs_mid = int(MAX_PAIRS_PER_MID_DEFAULT)
-        max_union = int(max_union_candidates)
-        if max_union <= 0:
-            max_union = int(MAX_UNION_CANDIDATES_DEFAULT)
+        kmax = _positive_or_default_control(topk_max, name="topk_max", default=32, maximum=4096)
+        apply_gate = _require_bool_control(apply_two_hop_gate, name="apply_two_hop_gate")
+        max_pairs_mid = _positive_or_default_control(
+            max_pairs_per_mid,
+            name="max_pairs_per_mid",
+            default=MAX_PAIRS_PER_MID_DEFAULT,
+        )
+        max_union = _positive_or_default_control(
+            max_union_candidates,
+            name="max_union_candidates",
+            default=MAX_UNION_CANDIDATES_DEFAULT,
+        )
 
         # Deterministic pool ordering.
         pools_sorted: Tuple[PoolState, ...] = tuple(sorted(pools_by_id.values(), key=lambda p: p.pool_id))
@@ -778,7 +813,7 @@ class FastQuoteRouterV1:
                         best_key = k
 
         consider_two_hop = True
-        if apply_two_hop_gate and best_direct is not None and best_direct_reserve_out is not None:
+        if apply_gate and best_direct is not None and best_direct_reserve_out is not None:
             consider_two_hop = should_consider_exact_out_two_hop(
                 amount_out=int(Q),
                 direct_reserve_out=int(best_direct_reserve_out),
