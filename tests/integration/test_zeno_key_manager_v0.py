@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
+from src.integration import zeno_key_manager as zeno_key_manager_module
 from src.integration.zeno_key_import_v0 import (
     build_tau_import_challenge_v0,
     import_tau_bls_key_descriptor_v0,
@@ -24,7 +27,6 @@ from src.integration.zeno_key_manager_v0 import (
 )
 from src.integration.zeno_key_recovery_v0 import evaluate_recovery_rotation_v0
 from tools import zeno_key_manager as zeno_key_manager_cli
-
 
 PUBKEY_A = "0x" + "11" * 48
 PUBKEY_B = "0x" + "22" * 48
@@ -182,3 +184,36 @@ def test_zeno_key_manager_cli_tau_challenge(capsys) -> None:
     packet = json.loads(capsys.readouterr().out)
     assert packet["schema"] == "zenodex/zeno_key_manager/tau_import_challenge/v0"
     assert packet["challenge_hash"].startswith("0x")
+
+
+@pytest.mark.skipif(not zeno_key_manager_module._BLS_AVAILABLE, reason="py_ecc not installed")
+def test_zeno_key_manager_cli_local_keygen_writes_0600_file_without_printing_secret(tmp_path, capsys) -> None:
+    key_path = tmp_path / "tau-user-main.key"
+
+    rc = zeno_key_manager_cli.main(
+        [
+            "local-keygen",
+            "--key-ref",
+            "tau-user-main",
+            "--private-key-out",
+            str(key_path),
+            "--label",
+            "local user key",
+        ]
+    )
+
+    assert rc == 0
+    receipt = json.loads(capsys.readouterr().out)
+    private_key_hex = key_path.read_text(encoding="utf-8").strip()
+    encoded_receipt = json.dumps(receipt, sort_keys=True)
+
+    assert key_path.stat().st_mode & 0o777 == 0o600
+    assert private_key_hex.startswith("0x")
+    assert len(private_key_hex) == 66
+    assert receipt["schema"] == "zenodex/zeno_key_manager/local_tau_testnet_keygen_receipt/v0"
+    assert receipt["raw_private_key_imported"] is False
+    assert receipt["zenodex_custody"] is False
+    assert receipt["browser_generated"] is False
+    assert "local_file_0600" in receipt["private_key_delivery"]
+    assert "private_key_hex" not in receipt
+    assert private_key_hex not in encoded_receipt
