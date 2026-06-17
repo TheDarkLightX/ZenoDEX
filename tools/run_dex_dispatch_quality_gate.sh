@@ -9,7 +9,7 @@
 #
 # Why a separate gate: the broader run_critical_quality_gate.sh covers
 # many surfaces; this one fences the imperative-shell refactor so future
-# additions to dex_dispatch_handlers.py can't silently regress
+# additions to dispatch handler modules can't silently regress
 # complexity, types, or coverage.
 
 set -euo pipefail
@@ -51,6 +51,7 @@ DISPATCH_MODULES=(
   "src/integration/api_server_dex_dispatch.py"
   "src/integration/dex_dispatch_exact_in_route_handlers.py"
   "src/integration/dex_dispatch_exact_out_contract_handlers.py"
+  "src/integration/dex_dispatch_exact_out_guarded_handlers.py"
   "src/integration/dex_dispatch_exact_out_packet_common.py"
   "src/integration/dex_dispatch_exact_out_packet_handlers.py"
   "src/integration/dex_dispatch_exact_out_verify_handlers.py"
@@ -77,7 +78,7 @@ echo "== dex-dispatch: pytest + branch coverage =="
 # location and report only on helper, metrics, and registry modules (pyproject.toml's
 # global [tool.coverage] config has broader source paths we don't want).
 COVERAGE_DATA="$ROOT_DIR/.coverage.dex_dispatch_gate"
-COVERAGE_INCLUDE="src/integration/_dex_api_helpers.py,src/integration/api_server_dex_metrics.py,src/integration/api_server_dex_dispatch.py,src/integration/dex_dispatch_exact_in_route_handlers.py,src/integration/dex_dispatch_exact_out_contract_handlers.py,src/integration/dex_dispatch_exact_out_packet_common.py,src/integration/dex_dispatch_exact_out_packet_handlers.py,src/integration/dex_dispatch_exact_out_verify_handlers.py,src/integration/dex_dispatch_proof_mining_handlers.py,src/integration/dex_dispatch_proof_mining_snapshots.py,src/integration/dex_dispatch_proof_mining_templates.py,src/integration/dex_dispatch_receipt_handlers.py,src/integration/dex_dispatch_settlement_audit_handlers.py,src/integration/dex_dispatch_slippage_handlers.py,src/integration/dex_dispatch_handlers.py"
+COVERAGE_INCLUDE="src/integration/_dex_api_helpers.py,src/integration/api_server_dex_metrics.py,src/integration/api_server_dex_dispatch.py,src/integration/dex_dispatch_exact_in_route_handlers.py,src/integration/dex_dispatch_exact_out_contract_handlers.py,src/integration/dex_dispatch_exact_out_guarded_handlers.py,src/integration/dex_dispatch_exact_out_packet_common.py,src/integration/dex_dispatch_exact_out_packet_handlers.py,src/integration/dex_dispatch_exact_out_verify_handlers.py,src/integration/dex_dispatch_proof_mining_handlers.py,src/integration/dex_dispatch_proof_mining_snapshots.py,src/integration/dex_dispatch_proof_mining_templates.py,src/integration/dex_dispatch_receipt_handlers.py,src/integration/dex_dispatch_settlement_audit_handlers.py,src/integration/dex_dispatch_slippage_handlers.py,src/integration/dex_dispatch_handlers.py"
 COVERAGE_FILE="$COVERAGE_DATA" "$PY" -m coverage erase --rcfile=/dev/null
 COVERAGE_FILE="$COVERAGE_DATA" "$PY" -m coverage run --rcfile=/dev/null --branch \
   --include="$COVERAGE_INCLUDE" \
@@ -87,13 +88,13 @@ COVERAGE_FILE="$COVERAGE_DATA" "$PY" -m coverage report --rcfile=/dev/null \
   "src/integration/_dex_api_helpers.py" \
   "src/integration/api_server_dex_metrics.py" \
   "src/integration/api_server_dex_dispatch.py"
-# Handler coverage is intentionally not claimed here: dex_dispatch_handlers.py
-# remains a large adapter table and is guarded by strict typing, direct
-# dispatch tests, and the no-F complexity ratchet below until it is split.
+# Handler-module line coverage is intentionally not claimed here. The focused
+# dispatch tests exercise the HTTP-visible registry behavior, while strict
+# typing and the complexity ratchets below fence the split adapter modules.
 COVERAGE_FILE="$COVERAGE_DATA" "$PY" -m coverage erase --rcfile=/dev/null
 
 echo "== dex-dispatch: radon cyclomatic complexity (no F-grade allowed) =="
-# Any F-grade function in the 3 dispatch modules is a regression of the
+# Any F-grade function in the dispatch modules is a regression of the
 # refactor work. Grade A-E pass; F (radon score >50) fails.
 F_COUNT="$("$PY" -m radon cc "${DISPATCH_MODULES[@]}" -n F -s 2>&1 | grep -c ' - F (' || true)"
 if [[ "$F_COUNT" -gt 0 ]]; then
@@ -103,26 +104,14 @@ if [[ "$F_COUNT" -gt 0 ]]; then
 fi
 
 echo "== dex-dispatch: radon maintainability index ratchet =="
-# api_server_dex_dispatch.py and _dex_api_helpers.py are small, A-grade.
-# dex_dispatch_handlers.py is large inherited debt; allow its current C floor.
-# Anything D or worse
-# means we've grown too many handlers in a single file — time to split
-# per the PR2 plan (theme modules).
-for module in "src/integration/_dex_api_helpers.py" "src/integration/api_server_dex_metrics.py" "src/integration/api_server_dex_dispatch.py"; do
+# The dispatch shell is now split by route family; every included module should
+# remain A-grade on radon maintainability.
+for module in "${DISPATCH_MODULES[@]}"; do
   MI_GRADE="$("$PY" -m radon mi "$module" -s | grep -oE '\b[A-F]\b' | head -1)"
   if [[ "$MI_GRADE" != "A" ]]; then
     echo "error: $module maintainability index is $MI_GRADE (expected A)" >&2
     exit 1
   fi
 done
-
-HANDLER_MI_GRADE="$("$PY" -m radon mi "src/integration/dex_dispatch_handlers.py" -s | grep -oE '\b[A-F]\b' | head -1)"
-case "$HANDLER_MI_GRADE" in
-  A|B|C) ;;
-  *)
-    echo "error: src/integration/dex_dispatch_handlers.py maintainability index is $HANDLER_MI_GRADE (expected A, B, or current C floor)" >&2
-    exit 1
-    ;;
-esac
 
 echo "ok"
