@@ -54,6 +54,10 @@ def _require_pos_int(v: Any, *, name: str) -> int:
     return int(v)
 
 
+def _auth_ok(args: Mapping[str, Any]) -> bool:
+    return args.get("auth_ok") is True
+
+
 def _is_oracle_fresh(*, now_epoch: int, last_update_epoch: int, max_staleness_epochs: int, oracle_seen: bool) -> bool:
     if not oracle_seen:
         return False
@@ -319,7 +323,7 @@ def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
         elif tag == "bootstrap_oracle":
             if state.oracle_seen:
                 return ZUSDStepResult(ok=False, error="oracle already bootstrapped")
-            if not bool(cmd.args.get("auth_ok", False)):
+            if not _auth_ok(cmd.args):
                 return ZUSDStepResult(ok=False, error="bootstrap_oracle requires auth_ok=true")
             p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
             ns = ZUSDState(
@@ -336,7 +340,7 @@ def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
         elif tag == "oracle_report":
             if not state.oracle_seen:
                 return ZUSDStepResult(ok=False, error="oracle not bootstrapped")
-            if not bool(cmd.args.get("auth_ok", False)):
+            if not _auth_ok(cmd.args):
                 return ZUSDStepResult(ok=False, error="oracle_report requires auth_ok=true")
             p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
             if p > state.price_pending_e8:
@@ -347,7 +351,7 @@ def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
         elif tag == "oracle_commit":
             if not state.oracle_seen:
                 return ZUSDStepResult(ok=False, error="oracle not bootstrapped")
-            if not bool(cmd.args.get("auth_ok", False)):
+            if not _auth_ok(cmd.args):
                 return ZUSDStepResult(ok=False, error="oracle_commit requires auth_ok=true")
             # Commit only when vault remains above MCR at pending price.
             if not _mcr_ok(
@@ -864,7 +868,7 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
         elif tag == "bootstrap_oracle":
             if state.oracle_seen:
                 return ZUSDMultiStepResult(ok=False, error="oracle already bootstrapped")
-            if not bool(cmd.args.get("auth_ok", False)):
+            if not _auth_ok(cmd.args):
                 return ZUSDMultiStepResult(ok=False, error="bootstrap_oracle requires auth_ok=true")
             p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
             ns = ZUSDMultiState(
@@ -881,7 +885,7 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
         elif tag == "oracle_report":
             if not state.oracle_seen:
                 return ZUSDMultiStepResult(ok=False, error="oracle not bootstrapped")
-            if not bool(cmd.args.get("auth_ok", False)):
+            if not _auth_ok(cmd.args):
                 return ZUSDMultiStepResult(ok=False, error="oracle_report requires auth_ok=true")
             p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
             if p > state.price_pending_e8:
@@ -892,7 +896,7 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
         elif tag == "oracle_commit":
             if not state.oracle_seen:
                 return ZUSDMultiStepResult(ok=False, error="oracle not bootstrapped")
-            if not bool(cmd.args.get("auth_ok", False)):
+            if not _auth_ok(cmd.args):
                 return ZUSDMultiStepResult(ok=False, error="oracle_commit requires auth_ok=true")
             mcr_pending = check_multi_oracle_commit_mcr(
                 price_pending_e8=state.price_pending_e8,
