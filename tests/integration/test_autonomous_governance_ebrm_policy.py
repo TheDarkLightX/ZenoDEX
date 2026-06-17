@@ -161,6 +161,17 @@ class TestPinAndContextBinding:
         result = _step(expected_committed_context_hash=bound)
         assert result["admitted"] is True, result["errors"]
 
+    def test_negative_context_epochs_fail_closed_without_raising(self) -> None:
+        result = _step(last_update_epoch=-1)
+        assert result["admitted"] is False
+        assert "ebrm_last_update_epoch_must_be_nonnegative" in result["errors"]
+        assert result["final_state"] == result["committed_state"]
+
+        result = _step(current_epoch=-1)
+        assert result["admitted"] is False
+        assert "ebrm_current_epoch_must_be_nonnegative" in result["errors"]
+        assert result["final_state"] == result["committed_state"]
+
 
 class TestEBRMStepSemantics:
     def test_admitted_step_uses_energy_argmin_and_gate(self) -> None:

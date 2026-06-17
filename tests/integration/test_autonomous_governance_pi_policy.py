@@ -118,6 +118,17 @@ class TestPinDiscipline:
         result = _step(expected_committed_context_hash=bound)
         assert "pi_committed_context_hash_mismatch" not in result["errors"]
 
+    def test_negative_context_epochs_fail_closed_without_raising(self) -> None:
+        result = _step(last_update_epoch=-1)
+        assert result["admitted"] is False
+        assert "pi_last_update_epoch_must_be_nonnegative" in result["errors"]
+        assert result["final_state"] == result["committed_state"]
+
+        result = _step(current_epoch=-1)
+        assert result["admitted"] is False
+        assert "pi_current_epoch_must_be_nonnegative" in result["errors"]
+        assert result["final_state"] == result["committed_state"]
+
 
 class TestControllerSemantics:
     def test_admitted_step_moves_surface_and_advances_state(self) -> None:

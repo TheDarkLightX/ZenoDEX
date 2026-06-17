@@ -354,18 +354,35 @@ def evaluate_autonomous_governance_ebrm_policy_step_v1(
     if type(approved) is not bool:
         errors.append("ebrm_approved_must_be_bool")
         approved = False
+    context_inputs_ok = True
     if not _is_plain_int(proposal_epoch):
         errors.append("ebrm_proposal_epoch_must_be_plain_int")
         proposal_epoch = 0
+        context_inputs_ok = False
+    elif proposal_epoch < 0:
+        errors.append("ebrm_proposal_epoch_must_be_nonnegative")
+        proposal_epoch = 0
+        context_inputs_ok = False
     if not _is_plain_int(current_epoch):
         errors.append("ebrm_current_epoch_must_be_plain_int")
         current_epoch = 0
-    if last_update_epoch is not None and not _is_plain_int(last_update_epoch):
-        errors.append("ebrm_last_update_epoch_must_be_plain_int")
-        last_update_epoch = None
+        context_inputs_ok = False
+    elif current_epoch < 0:
+        errors.append("ebrm_current_epoch_must_be_nonnegative")
+        current_epoch = 0
+        context_inputs_ok = False
+    if last_update_epoch is not None:
+        if not _is_plain_int(last_update_epoch):
+            errors.append("ebrm_last_update_epoch_must_be_plain_int")
+            last_update_epoch = None
+            context_inputs_ok = False
+        elif last_update_epoch < 0:
+            errors.append("ebrm_last_update_epoch_must_be_nonnegative")
+            last_update_epoch = None
+            context_inputs_ok = False
 
     context_hash = ""
-    if not state_errors:
+    if not state_errors and context_inputs_ok:
         context_hash = governance_surface_context_hash_v1(
             surface_state=state,
             current_epoch=int(current_epoch),
