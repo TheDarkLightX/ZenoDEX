@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from src.core.zusd import ZUSDMultiState, ZUSDState
 
@@ -21,6 +21,24 @@ def _require_bool(value: object, field_name: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{field_name} must be a bool")
     return value
+
+
+def _require_int(value: object, field_name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{field_name} must be an int")
+    return value
+
+
+def _require_int_field(payload: Mapping[str, Any], field_name: str) -> int:
+    if field_name not in payload:
+        raise ValueError(f"{field_name} must be an int")
+    return _require_int(payload[field_name], field_name)
+
+
+def _require_tau_step(payload: object) -> dict[str, int]:
+    if not isinstance(payload, dict):
+        raise ValueError("tau_step must be an object")
+    return {str(key): _require_int(value, f"tau_step.{key}") for key, value in payload.items()}
 
 
 @dataclass(frozen=True)
@@ -72,11 +90,11 @@ class ZUSDOraclePendingGateContract:
         return cls(
             state_mode=str(payload.get("state_mode", "")),
             oracle_seen=_require_bool(payload.get("oracle_seen"), "oracle_seen"),
-            price_e8=int(payload.get("price_e8", 0)),
-            price_pending_e8=int(payload.get("price_pending_e8", 0)),
-            oracle_last_update_epoch=int(payload.get("oracle_last_update_epoch", 0)),
-            now_epoch=int(payload.get("now_epoch", 0)),
-            max_staleness_epochs=int(payload.get("max_staleness_epochs", 0)),
+            price_e8=_require_int_field(payload, "price_e8"),
+            price_pending_e8=_require_int_field(payload, "price_pending_e8"),
+            oracle_last_update_epoch=_require_int_field(payload, "oracle_last_update_epoch"),
+            now_epoch=_require_int_field(payload, "now_epoch"),
+            max_staleness_epochs=_require_int_field(payload, "max_staleness_epochs"),
             tcr_ok=_require_bool(payload.get("tcr_ok"), "tcr_ok"),
             risky_requested=_require_bool(payload.get("risky_requested"), "risky_requested"),
             pending_eq=_require_bool(payload.get("pending_eq"), "pending_eq"),
@@ -133,19 +151,17 @@ class ZUSDCrossModuleOracleSyncContract:
             raise ValueError("cross-module oracle sync contract must be an object")
         if payload.get("schema") != ZUSD_CROSS_MODULE_ORACLE_SYNC_CONTRACT_SCHEMA:
             raise ValueError("unsupported cross-module oracle sync schema")
-        tau_step = payload.get("tau_step")
-        if not isinstance(tau_step, dict):
-            raise ValueError("tau_step must be an object")
+        tau_step = _require_tau_step(payload.get("tau_step"))
         return cls(
             market_id=str(payload.get("market_id", "")),
-            zusd_price_e8=int(payload.get("zusd_price_e8", 0)),
-            zusd_epoch=int(payload.get("zusd_epoch", 0)),
-            perp_price_e8=int(payload.get("perp_price_e8", 0)),
-            perp_oracle_epoch=int(payload.get("perp_oracle_epoch", 0)),
-            max_divergence_bps=int(payload.get("max_divergence_bps", 0)),
-            max_epoch_lag=int(payload.get("max_epoch_lag", 0)),
-            divergence_bps=int(payload.get("divergence_bps", 0)),
-            epoch_lag=int(payload.get("epoch_lag", 0)),
+            zusd_price_e8=_require_int_field(payload, "zusd_price_e8"),
+            zusd_epoch=_require_int_field(payload, "zusd_epoch"),
+            perp_price_e8=_require_int_field(payload, "perp_price_e8"),
+            perp_oracle_epoch=_require_int_field(payload, "perp_oracle_epoch"),
+            max_divergence_bps=_require_int_field(payload, "max_divergence_bps"),
+            max_epoch_lag=_require_int_field(payload, "max_epoch_lag"),
+            divergence_bps=_require_int_field(payload, "divergence_bps"),
+            epoch_lag=_require_int_field(payload, "epoch_lag"),
             sync_snapshot_available=_require_bool(
                 payload.get("sync_snapshot_available"), "sync_snapshot_available"
             ),
@@ -153,7 +169,7 @@ class ZUSDCrossModuleOracleSyncContract:
             epoch_lag_bounded=_require_bool(payload.get("epoch_lag_bounded"), "epoch_lag_bounded"),
             sync_gate_ok=_require_bool(payload.get("sync_gate_ok"), "sync_gate_ok"),
             tau_spec_id=str(payload.get("tau_spec_id", ZUSD_CROSS_MODULE_ORACLE_SYNC_GATE_V1.spec_id)),
-            tau_step={str(k): int(v) for k, v in tau_step.items()},
+            tau_step=tau_step,
         )
 
 
@@ -252,11 +268,14 @@ def verify_zusd_oracle_pending_gate_contract_payload(payload: object) -> tuple[b
             _require_bool(payload[flag_name], flag_name)
     except ValueError as exc:
         return False, str(exc)
-    price_e8 = int(payload["price_e8"])
-    price_pending_e8 = int(payload["price_pending_e8"])
-    now_epoch = int(payload["now_epoch"])
-    oracle_last_update_epoch = int(payload["oracle_last_update_epoch"])
-    max_staleness_epochs = int(payload["max_staleness_epochs"])
+    try:
+        price_e8 = _require_int_field(payload, "price_e8")
+        price_pending_e8 = _require_int_field(payload, "price_pending_e8")
+        now_epoch = _require_int_field(payload, "now_epoch")
+        oracle_last_update_epoch = _require_int_field(payload, "oracle_last_update_epoch")
+        max_staleness_epochs = _require_int_field(payload, "max_staleness_epochs")
+    except ValueError as exc:
+        return False, str(exc)
     pending_eq = oracle_seen and price_e8 > 0 and price_pending_e8 > 0 and price_pending_e8 == price_e8
     price_pos = oracle_seen and price_e8 > 0 and price_pending_e8 > 0
     fresh = _is_oracle_fresh(
@@ -366,14 +385,26 @@ def verify_zusd_cross_module_oracle_sync_contract_payload(payload: object) -> tu
             _require_bool(payload[flag_name], flag_name)
         except ValueError as exc:
             return False, str(exc)
+    try:
+        zusd_price_e8 = _require_int_field(payload, "zusd_price_e8")
+        zusd_epoch = _require_int_field(payload, "zusd_epoch")
+        perp_price_e8 = _require_int_field(payload, "perp_price_e8")
+        perp_oracle_epoch = _require_int_field(payload, "perp_oracle_epoch")
+        max_divergence_bps = _require_int_field(payload, "max_divergence_bps")
+        max_epoch_lag = _require_int_field(payload, "max_epoch_lag")
+        _require_int_field(payload, "divergence_bps")
+        _require_int_field(payload, "epoch_lag")
+        _require_tau_step(payload["tau_step"])
+    except ValueError as exc:
+        return False, str(exc)
     expected = build_zusd_cross_module_oracle_sync_contract(
         market_id=str(payload["market_id"]),
-        zusd_price_e8=int(payload["zusd_price_e8"]),
-        zusd_epoch=int(payload["zusd_epoch"]),
-        perp_price_e8=int(payload["perp_price_e8"]),
-        perp_oracle_epoch=int(payload["perp_oracle_epoch"]),
-        max_divergence_bps=int(payload["max_divergence_bps"]),
-        max_epoch_lag=int(payload["max_epoch_lag"]),
+        zusd_price_e8=zusd_price_e8,
+        zusd_epoch=zusd_epoch,
+        perp_price_e8=perp_price_e8,
+        perp_oracle_epoch=perp_oracle_epoch,
+        max_divergence_bps=max_divergence_bps,
+        max_epoch_lag=max_epoch_lag,
     )
     if payload != expected.to_dict():
         return False, "contract payload mismatch"

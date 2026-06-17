@@ -103,6 +103,20 @@ def test_zusd_oracle_pending_gate_contract_rejects_missing_boolean_flags() -> No
         ZUSDOraclePendingGateContract.from_dict(payload)
 
 
+def test_zusd_oracle_pending_gate_contract_rejects_bool_numeric_fields() -> None:
+    state = _single_ok(init_state(), "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
+    payload = build_zusd_oracle_pending_gate_contract(state, risky_requested=True, tcr_ok=True).to_dict()
+    payload["max_staleness_epochs"] = True
+
+    with pytest.raises(ValueError, match="max_staleness_epochs must be an int"):
+        ZUSDOraclePendingGateContract.from_dict(payload)
+
+    ok, err = verify_zusd_oracle_pending_gate_contract_payload(payload)
+
+    assert ok is False
+    assert err == "max_staleness_epochs must be an int"
+
+
 def test_zusd_cross_module_oracle_sync_contract_accepts_aligned_snapshot() -> None:
     contract = build_zusd_cross_module_oracle_sync_contract(
         market_id="TAU-USD",
@@ -176,6 +190,48 @@ def test_zusd_cross_module_oracle_sync_contract_rejects_missing_boolean_flags() 
 
     with pytest.raises(ValueError, match="sync_snapshot_available must be a bool"):
         ZUSDCrossModuleOracleSyncContract.from_dict(payload)
+
+
+def test_zusd_cross_module_oracle_sync_contract_rejects_bool_numeric_fields() -> None:
+    payload = build_zusd_cross_module_oracle_sync_contract(
+        market_id="TAU-USD",
+        zusd_price_e8=50_000_000,
+        zusd_epoch=100,
+        perp_price_e8=50_000_000,
+        perp_oracle_epoch=100,
+        max_divergence_bps=0,
+        max_epoch_lag=1,
+    ).to_dict()
+    payload["max_epoch_lag"] = True
+
+    with pytest.raises(ValueError, match="max_epoch_lag must be an int"):
+        ZUSDCrossModuleOracleSyncContract.from_dict(payload)
+
+    ok, err = verify_zusd_cross_module_oracle_sync_contract_payload(payload)
+
+    assert ok is False
+    assert err == "max_epoch_lag must be an int"
+
+
+def test_zusd_cross_module_oracle_sync_contract_rejects_bool_tau_step_values() -> None:
+    payload = build_zusd_cross_module_oracle_sync_contract(
+        market_id="TAU-USD",
+        zusd_price_e8=50_000_000,
+        zusd_epoch=100,
+        perp_price_e8=50_000_000,
+        perp_oracle_epoch=100,
+        max_divergence_bps=0,
+        max_epoch_lag=0,
+    ).to_dict()
+    payload["tau_step"]["i1"] = True
+
+    with pytest.raises(ValueError, match="tau_step.i1 must be an int"):
+        ZUSDCrossModuleOracleSyncContract.from_dict(payload)
+
+    ok, err = verify_zusd_cross_module_oracle_sync_contract_payload(payload)
+
+    assert ok is False
+    assert err == "tau_step.i1 must be an int"
 
 
 def test_zusd_cross_module_oracle_sync_contract_tau_replay_when_available() -> None:
