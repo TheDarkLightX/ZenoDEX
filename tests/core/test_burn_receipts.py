@@ -116,6 +116,28 @@ def test_burn_receipt_bool_numeric_field_is_rejected() -> None:
     assert err == "bad_numeric_field"
 
 
+def test_make_burn_receipt_rejects_bool_numeric_input() -> None:
+    with pytest.raises(TypeError, match="bool is not a burn receipt integer"):
+        make_burn_receipt(
+            asset_id="TDEX",
+            batch_id="batch-1",
+            nullifier="n-1",
+            tx_ref="tx-1",
+            policy_version="burn-policy-v1",
+            do_burn=True,
+            receipt_bound=1,
+            nullifier_unused=1,
+            policy_ok=1,
+            burn_amount=20,
+            receipt_amount=20,
+            burn_budget=30,
+            supply_before=1000,
+            supply_after=980,
+            batch_burn_sum_before=50,
+            batch_burn_sum_after=70,
+        )
+
+
 def test_burn_receipt_expected_numeric_coercion_failures_are_bad_numeric_field() -> None:
     receipt = _make_valid_receipt()
     receipt["body"]["accounting"]["burn_amount"] = "not-a-number"
