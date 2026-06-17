@@ -61,3 +61,35 @@ def test_exact_in_route_guarded_quote_rejects_integer_mixed_split_flag() -> None
 
     assert ok is False
     assert err == "enable_mixed_direct_twohop_split must be a bool"
+
+
+def test_exact_in_route_oracle_contract_rejects_bool_binding_flag() -> None:
+    payload = build_exact_in_route_oracle_contract(
+        pools_by_id=_pools(),
+        asset_in="A",
+        asset_out="B",
+        amount_in=100,
+        enable_mixed_direct_twohop_split=True,
+    ).to_dict()
+    payload["binding_ok"] = True
+
+    ok, err = verify_exact_in_route_oracle_contract_payload(payload)
+
+    assert ok is False
+    assert err == "binding_ok must be an int"
+
+
+def test_exact_in_route_oracle_contract_rejects_bool_pool_snapshot_int() -> None:
+    payload = build_exact_in_route_oracle_contract(
+        pools_by_id=_pools(),
+        asset_in="A",
+        asset_out="B",
+        amount_in=100,
+        enable_mixed_direct_twohop_split=True,
+    ).to_dict()
+    payload["pool_snapshots"][0]["reserve0"] = True
+
+    ok, err = verify_exact_in_route_oracle_contract_payload(payload)
+
+    assert ok is False
+    assert err == "reserve0 must be an int"

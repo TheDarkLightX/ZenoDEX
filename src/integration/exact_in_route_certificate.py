@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from src.core.routing import (
     RouteHop,
@@ -34,6 +34,13 @@ def _require_bool(value: object, *, name: str) -> bool:
     if not isinstance(value, bool):
         raise TypeError(f"{name} must be a bool")
     return value
+
+
+def _require_payload_int(payload: Mapping[str, Any], field_name: str) -> int:
+    value = payload[field_name]
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{field_name} must be an int")
+    return int(value)
 
 
 def exact_in_route_canonical_key(quote: RouteQuote) -> ExactInRouteCanonicalKey:
@@ -1028,13 +1035,13 @@ def verify_exact_in_route_oracle_contract_payload(payload: object) -> tuple[bool
             pools_by_id=pools,
             asset_in=str(payload["asset_in"]),
             asset_out=str(payload["asset_out"]),
-            amount_in=int(payload["amount_in"]),
+            amount_in=_require_payload_int(payload, "amount_in"),
             split_search_profile=str(payload["split_search_profile"]),
             enable_mixed_direct_twohop_split=_require_bool(
                 payload["enable_mixed_direct_twohop_split"],
                 name="enable_mixed_direct_twohop_split",
             ),
-            binding_ok=int(payload["binding_ok"]),
+            binding_ok=_require_payload_int(payload, "binding_ok"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -1066,13 +1073,13 @@ def verify_exact_in_route_guarded_quote_packet_payload(payload: object) -> tuple
             pools_by_id=pools,
             asset_in=str(contract_payload["asset_in"]),
             asset_out=str(contract_payload["asset_out"]),
-            amount_in=int(contract_payload["amount_in"]),
+            amount_in=_require_payload_int(contract_payload, "amount_in"),
             split_search_profile=str(contract_payload["split_search_profile"]),
             enable_mixed_direct_twohop_split=_require_bool(
                 contract_payload["enable_mixed_direct_twohop_split"],
                 name="enable_mixed_direct_twohop_split",
             ),
-            binding_ok=int(contract_payload["binding_ok"]),
+            binding_ok=_require_payload_int(contract_payload, "binding_ok"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         return False, str(exc)
@@ -1250,12 +1257,12 @@ def _pool_from_dict(payload: object) -> PoolState:
         pool_id=str(payload["pool_id"]),
         asset0=str(payload["asset0"]),
         asset1=str(payload["asset1"]),
-        reserve0=int(payload["reserve0"]),
-        reserve1=int(payload["reserve1"]),
-        fee_bps=int(payload["fee_bps"]),
-        lp_supply=int(payload["lp_supply"]),
+        reserve0=_require_payload_int(payload, "reserve0"),
+        reserve1=_require_payload_int(payload, "reserve1"),
+        fee_bps=_require_payload_int(payload, "fee_bps"),
+        lp_supply=_require_payload_int(payload, "lp_supply"),
         status=PoolStatus[status_raw],
-        created_at=int(payload["created_at"]),
+        created_at=_require_payload_int(payload, "created_at"),
         curve_tag=str(payload["curve_tag"]),
         curve_params=str(payload["curve_params"]),
     )
