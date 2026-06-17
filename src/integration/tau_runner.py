@@ -61,11 +61,11 @@ def _run_subprocess_with_output_caps(
 ) -> Tuple[int, str, str]:
     if not cmd:
         raise ValueError("cmd must be non-empty")
-    if not isinstance(timeout_s, (int, float)) or timeout_s <= 0:
+    if isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float)) or timeout_s <= 0:
         raise ValueError("timeout_s must be positive")
-    if not isinstance(max_stdout_bytes, int) or max_stdout_bytes <= 0:
+    if isinstance(max_stdout_bytes, bool) or not isinstance(max_stdout_bytes, int) or max_stdout_bytes <= 0:
         raise ValueError("max_stdout_bytes must be positive")
-    if not isinstance(max_stderr_bytes, int) or max_stderr_bytes <= 0:
+    if isinstance(max_stderr_bytes, bool) or not isinstance(max_stderr_bytes, int) or max_stderr_bytes <= 0:
         raise ValueError("max_stderr_bytes must be positive")
 
     try:

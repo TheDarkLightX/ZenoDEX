@@ -1,10 +1,31 @@
 from __future__ import annotations
 
 import stat
+import sys
 from pathlib import Path
 
-from src.integration.tau_runner import run_tau_spec_steps
+import pytest
+
+from src.integration.tau_runner import _run_subprocess_with_output_caps, run_tau_spec_steps
 from src.integration.tau_witness import SWAP_EXACT_IN_V1, build_swap_exact_in_v1_step
+
+
+def test_tau_subprocess_caps_reject_bool_resource_fields(tmp_path: Path) -> None:
+    kwargs = {
+        "cmd": [sys.executable, "-c", "print('unused')"],
+        "input_text": "",
+        "cwd": tmp_path,
+        "timeout_s": 1.0,
+        "max_stdout_bytes": 1024,
+        "max_stderr_bytes": 1024,
+    }
+
+    with pytest.raises(ValueError, match="timeout_s must be positive"):
+        _run_subprocess_with_output_caps(**{**kwargs, "timeout_s": True})
+    with pytest.raises(ValueError, match="max_stdout_bytes must be positive"):
+        _run_subprocess_with_output_caps(**{**kwargs, "max_stdout_bytes": True})
+    with pytest.raises(ValueError, match="max_stderr_bytes must be positive"):
+        _run_subprocess_with_output_caps(**{**kwargs, "max_stderr_bytes": False})
 
 
 def test_run_tau_spec_steps_with_fake_tau(tmp_path: Path) -> None:
