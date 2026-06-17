@@ -84,6 +84,18 @@ class _RewardConfig:
     improvement_u64: int
 
 
+@dataclass(frozen=True)
+class _TemplateAssembly:
+    obj: Mapping[str, Any]
+    sender: str
+    chain_id: str
+    tx_block_timestamp: int
+    template_intent: _TemplateIntent
+    faucet_mint: list[Any]
+    bundle: _TemplateProofBundle
+    reward: _RewardConfig
+
+
 def _canonical_asset_id(value: Any, *, name: str) -> str:
     text = str(value or "").strip().lower()
     if text.startswith("0x"):
@@ -403,101 +415,74 @@ def _reward_config(obj: Mapping[str, Any], *, chain_id: str, state: Any) -> _Rew
     )
 
 
-def _template_default_digest(
-    *,
-    chain_id: str,
-    sender: str,
-    tx_block_timestamp: int,
-    template_intent: _TemplateIntent,
-    faucet_mint: list[Any],
-    bundle: _TemplateProofBundle,
-    reward: _RewardConfig,
-) -> str:
+def _template_default_digest(assembly: _TemplateAssembly) -> str:
     return _template_stable_digest(
         {
-            "chain_id": chain_id,
-            "sender": sender,
-            "block_timestamp": tx_block_timestamp,
-            "intent": template_intent.intent_for_proof,
-            "signature": template_intent.signature,
-            "faucet_mint": faucet_mint,
-            "pre_state_commitment": bundle.context.prev_state_hash,
-            "batch_hash": bundle.context.batch_hash,
-            "witness_hash": bundle.context.witness_hash,
-            "dex_hash_after": bundle.context.dex_hash_after,
-            "reward_pool_pubkey": reward.pool_pubkey,
-            "reward_asset_id": reward.asset_id,
-            "reward_pool_before": reward.pool_before,
-            "base_reward": reward.base_reward,
-            "epoch": reward.epoch,
-            "proposal_slot": reward.proposal_slot,
-            "prover_id": reward.prover_id,
-            "improvement_u64": reward.improvement_u64,
+            "chain_id": assembly.chain_id,
+            "sender": assembly.sender,
+            "block_timestamp": assembly.tx_block_timestamp,
+            "intent": assembly.template_intent.intent_for_proof,
+            "signature": assembly.template_intent.signature,
+            "faucet_mint": assembly.faucet_mint,
+            "pre_state_commitment": assembly.bundle.context.prev_state_hash,
+            "batch_hash": assembly.bundle.context.batch_hash,
+            "witness_hash": assembly.bundle.context.witness_hash,
+            "dex_hash_after": assembly.bundle.context.dex_hash_after,
+            "reward_pool_pubkey": assembly.reward.pool_pubkey,
+            "reward_asset_id": assembly.reward.asset_id,
+            "reward_pool_before": assembly.reward.pool_before,
+            "base_reward": assembly.reward.base_reward,
+            "epoch": assembly.reward.epoch,
+            "proposal_slot": assembly.reward.proposal_slot,
+            "prover_id": assembly.reward.prover_id,
+            "improvement_u64": assembly.reward.improvement_u64,
         }
     )
 
 
-def _template_claim(
-    obj: Mapping[str, Any],
-    *,
-    sender: str,
-    chain_id: str,
-    default_id_digest: str,
-    bundle: _TemplateProofBundle,
-    reward: _RewardConfig,
-) -> Mapping[str, Any]:
-    job_digest = str(obj.get("job_digest") or f"local-proof-mining:{default_id_digest}")
-    round_id = str(obj.get("round_id") or f"local-proof-mining-round:{default_id_digest}")
+def _template_claim(assembly: _TemplateAssembly, default_id_digest: str) -> Mapping[str, Any]:
+    job_digest = str(assembly.obj.get("job_digest") or f"local-proof-mining:{default_id_digest}")
+    round_id = str(assembly.obj.get("round_id") or f"local-proof-mining-round:{default_id_digest}")
     return cast(Mapping[str, Any], build_proof_mining_claim(
         round_obj={
             "schema": "zenodex/improvement_bounty_round/v1",
             "ok": True,
             "job_digest": job_digest,
             "winner": {
-                "miner_id": sender,
-                "witness_sha256": bundle.context.witness_hash,
-                "improvement_u64": reward.improvement_u64,
+                "miner_id": assembly.sender,
+                "witness_sha256": assembly.bundle.context.witness_hash,
+                "improvement_u64": assembly.reward.improvement_u64,
             },
             "candidates": [],
             "argmax_certificate": None,
         },
         round_id=round_id,
-        reward_pool_before=reward.pool_before,
-        base_reward=reward.base_reward,
-        epoch=reward.epoch,
-        proposal_slot=reward.proposal_slot,
-        prover_id=reward.prover_id,
-        chain_id=chain_id,
-        prev_state_hash=bundle.context.prev_state_hash,
-        batch_hash=bundle.context.batch_hash,
-        dex_hash_after=bundle.context.dex_hash_after,
+        reward_pool_before=assembly.reward.pool_before,
+        base_reward=assembly.reward.base_reward,
+        epoch=assembly.reward.epoch,
+        proposal_slot=assembly.reward.proposal_slot,
+        prover_id=assembly.reward.prover_id,
+        chain_id=assembly.chain_id,
+        prev_state_hash=assembly.bundle.context.prev_state_hash,
+        batch_hash=assembly.bundle.context.batch_hash,
+        dex_hash_after=assembly.bundle.context.dex_hash_after,
     ))
 
 
-def _template_response(
-    obj: Mapping[str, Any],
-    *,
-    sender: str,
-    tx_block_timestamp: int,
-    template_intent: _TemplateIntent,
-    faucet_mint: list[Any],
-    bundle: _TemplateProofBundle,
-    reward: _RewardConfig,
-    claim: Mapping[str, Any],
-) -> Mapping[str, Any]:
+def _template_response(assembly: _TemplateAssembly, claim: Mapping[str, Any]) -> Mapping[str, Any]:
     tx = {
-        "tx_id": str(obj.get("tx_id") or f"proof-mining-payout:{claim['claim_hash']}"),
-        "tx_sender_pubkey": sender,
-        "block_timestamp": tx_block_timestamp,
+        "tx_id": str(assembly.obj.get("tx_id") or f"proof-mining-payout:{claim['claim_hash']}"),
+        "tx_sender_pubkey": assembly.sender,
+        "block_timestamp": assembly.tx_block_timestamp,
         "operations": {
-            **({"7": {"mint": faucet_mint}} if faucet_mint else {}),
-            "5": [template_intent.intent],
-            "6": bundle.settlement_op,
+            **({"7": {"mint": assembly.faucet_mint}} if assembly.faucet_mint else {}),
+            "5": [assembly.template_intent.intent],
+            "6": assembly.bundle.settlement_op,
             "10": {
                 "module": "ZenoProofMining",
                 "action": "submit_proof",
                 "claim": claim,
-                "recipient_pubkey": sender,
+                "recipient_pubkey": assembly.sender,
             },
         },
     }
@@ -512,64 +497,30 @@ def _template_response(
             sort_keys=True,
         ),
         "chain_balances": {
-            reward.pool_pubkey: {
-                reward.asset_id: reward.pool_before,
+            assembly.reward.pool_pubkey: {
+                assembly.reward.asset_id: assembly.reward.pool_before,
             },
         },
         "claim": claim,
-        "proof_mining_context": proof_mining_context_to_obj(bundle.context),
-        "tx_sender_pubkey": sender,
+        "proof_mining_context": proof_mining_context_to_obj(assembly.bundle.context),
+        "tx_sender_pubkey": assembly.sender,
         "expected_proposal_hash": claim["body"]["proposal_hash"],
-        "reward_pool_pubkey": reward.pool_pubkey,
+        "reward_pool_pubkey": assembly.reward.pool_pubkey,
     }
     return {
         "ok": True,
         "tx": tx,
         "status_request": status_request,
-        "reward_pool_pubkey": reward.pool_pubkey,
-        "reward_asset_id": reward.asset_id,
-        "reward_pool_before": reward.pool_before,
+        "reward_pool_pubkey": assembly.reward.pool_pubkey,
+        "reward_asset_id": assembly.reward.asset_id,
+        "reward_pool_before": assembly.reward.pool_before,
     }
 
 
-def _template_success_body(
-    obj: Mapping[str, Any],
-    *,
-    sender: str,
-    chain_id: str,
-    tx_block_timestamp: int,
-    template_intent: _TemplateIntent,
-    faucet_mint: list[Any],
-    bundle: _TemplateProofBundle,
-    reward: _RewardConfig,
-) -> Mapping[str, Any]:
-    default_id_digest = _template_default_digest(
-        chain_id=chain_id,
-        sender=sender,
-        tx_block_timestamp=tx_block_timestamp,
-        template_intent=template_intent,
-        faucet_mint=faucet_mint,
-        bundle=bundle,
-        reward=reward,
-    )
-    claim = _template_claim(
-        obj,
-        sender=sender,
-        chain_id=chain_id,
-        default_id_digest=default_id_digest,
-        bundle=bundle,
-        reward=reward,
-    )
-    return _template_response(
-        obj,
-        sender=sender,
-        tx_block_timestamp=tx_block_timestamp,
-        template_intent=template_intent,
-        faucet_mint=faucet_mint,
-        bundle=bundle,
-        reward=reward,
-        claim=claim,
-    )
+def _template_success_body(assembly: _TemplateAssembly) -> Mapping[str, Any]:
+    default_id_digest = _template_default_digest(assembly)
+    claim = _template_claim(assembly, default_id_digest)
+    return _template_response(assembly, claim)
 
 
 def _handle_proof_mining_payout_template(obj: Mapping[str, Any], ctx: DexRequestContext) -> DexResponse:
@@ -602,18 +553,17 @@ def _handle_proof_mining_payout_template(obj: Mapping[str, Any], ctx: DexRequest
                 "reward_asset_id": reward.asset_id,
             }
 
-        return 200, dict(
-            _template_success_body(
-                obj,
-                sender=sender,
-                chain_id=chain_id,
-                tx_block_timestamp=tx_block_timestamp,
-                template_intent=template_intent,
-                faucet_mint=faucet_mint,
-                bundle=bundle,
-                reward=reward,
-            )
+        assembly = _TemplateAssembly(
+            obj=obj,
+            sender=sender,
+            chain_id=chain_id,
+            tx_block_timestamp=tx_block_timestamp,
+            template_intent=template_intent,
+            faucet_mint=faucet_mint,
+            bundle=bundle,
+            reward=reward,
         )
+        return 200, dict(_template_success_body(assembly))
     except _TemplateReject as reject:
         return reject.response
     except BOUNDARY_DOMAIN_ERRORS as exc:
