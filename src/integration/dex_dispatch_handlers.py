@@ -1488,6 +1488,45 @@ def _handle_guard_exact_out_many_pool_canonicality(obj: Mapping[str, Any], ctx: 
 _register("/api/dex/guard_exact_out_many_pool_canonicality", _handle_guard_exact_out_many_pool_canonicality)
 
 
+def _exact_out_guarded_quote_response(
+    *,
+    quote: Any,
+    err_msg: Any,
+    contract_dict: Mapping[str, Any],
+    audit_payload: Mapping[str, Any],
+    contract_schema: str,
+    packet_schema: str,
+) -> dict[str, Any]:
+    common = {
+        "contract": contract_dict,
+        "contract_ok": bool(contract_dict["contract_ok"]),
+        "contract_schema": contract_schema,
+        "packet_schema": packet_schema,
+        "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",
+        "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_oracle_contract",
+        "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_guarded_quote_packet",
+        "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_guarded_quote_packet",
+        "runtime_projected_path": audit_payload["runtime_projected_path"],
+        "canonical_winner_projected_path": audit_payload["canonical_winner_projected_path"],
+        "runtime_matches_canonical_projected_path": audit_payload["runtime_matches_canonical_projected_path"],
+        "projection_cover_available": audit_payload["projection_cover_available"],
+        "projection_cover_holds": audit_payload["projection_cover_holds"],
+    }
+    if quote is not None:
+        return {
+            "ok": True,
+            "quote": dict(audit_payload["runtime_quote"]),
+            **common,
+        }
+    return {
+        "ok": False,
+        "error": str(err_msg or "many_pool_runtime_not_canonical"),
+        "runtime_quote": dict(audit_payload["runtime_quote"]),
+        "canonical_winner_quote": dict(audit_payload["canonical_winner_quote"]),
+        **common,
+    }
+
+
 def _handle_quote_exact_out_many_pool_guarded(obj: Mapping[str, Any], ctx: DexRequestContext) -> DexResponse:
     try:
         from src.integration._dex_api_helpers import (
@@ -1522,43 +1561,14 @@ def _handle_quote_exact_out_many_pool_guarded(obj: Mapping[str, Any], ctx: DexRe
         )
         contract_dict = contract.to_dict()
         audit_payload = contract_dict["audit"]
-        if quote is not None:
-            return 200, {
-                "ok": True,
-                "quote": dict(audit_payload["runtime_quote"]),
-                "contract": contract_dict,
-                "contract_ok": bool(contract_dict["contract_ok"]),
-                "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
-                "packet_schema": EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
-                "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",
-                "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_oracle_contract",
-                "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_guarded_quote_packet",
-                "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_guarded_quote_packet",
-                "runtime_projected_path": audit_payload["runtime_projected_path"],
-                "canonical_winner_projected_path": audit_payload["canonical_winner_projected_path"],
-                "runtime_matches_canonical_projected_path": audit_payload["runtime_matches_canonical_projected_path"],
-                "projection_cover_available": audit_payload["projection_cover_available"],
-                "projection_cover_holds": audit_payload["projection_cover_holds"],
-            }
-        return 200, {
-            "ok": False,
-            "error": str(err_msg or "many_pool_runtime_not_canonical"),
-            "runtime_quote": dict(audit_payload["runtime_quote"]),
-            "canonical_winner_quote": dict(audit_payload["canonical_winner_quote"]),
-            "contract": contract_dict,
-            "contract_ok": bool(contract_dict["contract_ok"]),
-            "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
-            "packet_schema": EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
-            "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",
-            "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_oracle_contract",
-            "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_guarded_quote_packet",
-            "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_guarded_quote_packet",
-            "runtime_projected_path": audit_payload["runtime_projected_path"],
-            "canonical_winner_projected_path": audit_payload["canonical_winner_projected_path"],
-            "runtime_matches_canonical_projected_path": audit_payload["runtime_matches_canonical_projected_path"],
-            "projection_cover_available": audit_payload["projection_cover_available"],
-            "projection_cover_holds": audit_payload["projection_cover_holds"],
-        }
+        return 200, _exact_out_guarded_quote_response(
+            quote=quote,
+            err_msg=err_msg,
+            contract_dict=contract_dict,
+            audit_payload=audit_payload,
+            contract_schema=EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
+            packet_schema=EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
+        )
     except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "quote_exact_out_many_pool_guarded_error", "details": "request failed"}
 
