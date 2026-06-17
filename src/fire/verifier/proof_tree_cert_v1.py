@@ -277,8 +277,10 @@ def expected_fire_proof_tree_integer_eval_summary(
     runtime_summary = summarize_fire_interval_certificate(certificate)
     exact_params = runtime_summary["exact_params"]
     source_bounds = runtime_summary["source_bounds"]
-    assert isinstance(exact_params, list)
-    assert isinstance(source_bounds, list)
+    if not isinstance(exact_params, list):
+        raise TypeError("runtime certificate summary exact_params must be a list")
+    if not isinstance(source_bounds, list):
+        raise TypeError("runtime certificate summary source_bounds must be a list")
     summary = {
         "runtime_root_rule": runtime_summary["root_rule"],
         "runtime_node_count": runtime_summary["node_count"],
@@ -760,7 +762,8 @@ def _build_bound_proof_nodes(
     node_id = _bound_expr_node_id(path)
     rule = str(runtime_node["rule"])
     children = runtime_node["children"]
-    assert isinstance(children, list)
+    if not isinstance(children, list):
+        raise TypeError("runtime operator node children must be a list")
     nodes: list[dict[str, object]] = []
     input_ids: list[str] = []
     for idx, child in enumerate(children):
