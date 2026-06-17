@@ -1261,7 +1261,7 @@ class _Handler(BaseHTTPRequestHandler):
 
         try:
             obj = json.loads(raw_body)
-        except Exception:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             self._write_json(400, {"ok": False, "error": "bad_json"}, cors_origin=cors_origin)
             return True
         if not isinstance(obj, dict):
