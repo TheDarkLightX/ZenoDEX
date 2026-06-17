@@ -406,3 +406,71 @@ def test_check_strategy_submit_bundle_helper_edges(monkeypatch: pytest.MonkeyPat
     )
     assert result.ok is False
     assert result.error == "submit_bundle_tx_payload_rejected"
+
+
+def test_check_strategy_submit_bundle_propagates_signature_verifier_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    signer_pubkey, signed_intents, operations = _signed_bundle()
+
+    def _bug(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("signature verifier bug")
+
+    monkeypatch.setattr(strategy_submit_bundle_guard_v1_adapter, "verify_intent_signature", _bug)
+
+    with pytest.raises(RuntimeError, match="signature verifier bug"):
+        check_strategy_submit_bundle(
+            emit_requested=True,
+            signed_intents=signed_intents,
+            operations=operations,
+            chain_id="tau-local",
+            signer_pubkey=signer_pubkey,
+            tx_requested=False,
+        )
+
+
+def test_check_strategy_submit_bundle_propagates_operations_parser_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    signer_pubkey, signed_intents, operations = _signed_bundle()
+
+    def _bug(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("operations parser bug")
+
+    monkeypatch.setattr(strategy_submit_bundle_guard_v1_adapter, "parse_signed_intents", _bug)
+
+    with pytest.raises(RuntimeError, match="operations parser bug"):
+        check_strategy_submit_bundle(
+            emit_requested=True,
+            signed_intents=signed_intents,
+            operations=operations,
+            chain_id="tau-local",
+            signer_pubkey=signer_pubkey,
+            tx_requested=False,
+        )
+
+
+def test_check_strategy_submit_bundle_propagates_tau_encoder_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    signer_pubkey, signed_intents, operations = _signed_bundle()
+    tau_tx_payload = build_signed_tau_transaction(
+        privkey=7,
+        sequence_number=9,
+        expiration_time=999,
+        operations=operations,
+        fee_limit="0",
+    )
+
+    def _bug(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("tau encoder bug")
+
+    monkeypatch.setattr(strategy_submit_bundle_guard_v1_adapter, "encode_tau_operations_for_wire", _bug)
+
+    with pytest.raises(RuntimeError, match="tau encoder bug"):
+        check_strategy_submit_bundle(
+            emit_requested=True,
+            signed_intents=signed_intents,
+            operations=operations,
+            chain_id="tau-local",
+            signer_pubkey=signer_pubkey,
+            tx_requested=True,
+            sequence_number=9,
+            expiration_time=999,
+            fee_limit="0",
+            tau_tx_payload=tau_tx_payload,
+        )

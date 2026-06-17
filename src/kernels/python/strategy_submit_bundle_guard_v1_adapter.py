@@ -87,7 +87,7 @@ def _verify_signed_intent_bundle(
                         chain_id=chain_id,
                     )
                 )
-            except Exception:
+            except (ImportError, ValueError):
                 verified_flags.append(False)
         signatures_verify = all(verified_flags)
     else:
@@ -96,7 +96,7 @@ def _verify_signed_intent_bundle(
     quote_receipts_present = all(_quote_receipt_hash(env.quote_receipt) is not None for env in signed_intents)
     try:
         parsed = parse_signed_intents(dict(operations))
-    except Exception:
+    except ValueError:
         operations_roundtrip_ok = False
     else:
         operations_roundtrip_ok = len(parsed) == len(signed_intents) and all(
@@ -139,7 +139,7 @@ def _tx_payload_matches(
         return False
     try:
         expected_ops = encode_tau_operations_for_wire(operations)
-    except Exception:
+    except (TypeError, ValueError):
         return False
     if tau_tx_payload.get("operations") != expected_ops:
         return False
