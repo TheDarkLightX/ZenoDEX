@@ -24,7 +24,7 @@ import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from math import comb
-from typing import Any, Mapping, Optional, Sequence, Set
+from typing import Any, Callable, Mapping, Optional, Sequence, Set
 from urllib.parse import urlsplit
 
 from src.state.canonical import canonical_json_bytes
@@ -427,15 +427,7 @@ def _is_exact_in_route_verify_path(path: str) -> bool:
     return path.startswith("/api/dex/verify_exact_in_route_")
 
 
-def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]:
-    err = _dex_api_list_length_error(
-        obj,
-        field="pools",
-        max_len=DEX_API_MAX_POOLS,
-    )
-    if err is not None:
-        return err
-
+def _dex_api_amount_preview_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]:
     if path in {"/api/dex/impact_preview", "/api/dex/slippage_advice"}:
         err = _dex_api_int_limit_error(
             obj,
@@ -445,7 +437,10 @@ def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]
         )
         if err is not None:
             return err
+    return None
 
+
+def _dex_api_sandwich_scan_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]:
     if path in {
         "/api/dex/slippage_advice",
         "/api/dex/pokayoke_swap_suggest",
@@ -475,7 +470,10 @@ def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]
             )
             if err is not None:
                 return err
+    return None
 
+
+def _dex_api_quote_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]:
     if path == "/api/dex/quote":
         kind = str(obj.get("kind", "")).strip().lower()
         if kind == "exact_in":
@@ -505,7 +503,10 @@ def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]
             )
             if err is not None:
                 return err
+    return None
 
+
+def _dex_api_exact_in_route_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]:
     if path in DEX_API_EXACT_IN_ROUTE_SEARCH_PATHS:
         err = _dex_api_int_limit_error(
             obj,
@@ -518,7 +519,10 @@ def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]
         err = _dex_api_mixed_exact_in_split_limit_error(obj)
         if err is not None:
             return err
+    return None
 
+
+def _dex_api_exact_out_two_pool_audit_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]:
     if path == "/api/dex/audit_exact_out_two_pool_canonicality":
         err = _dex_api_int_limit_error(
             obj,
@@ -536,7 +540,10 @@ def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]
         )
         if err is not None:
             return err
+    return None
 
+
+def _dex_api_exact_in_route_verify_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]:
     if _is_exact_in_route_verify_path(path):
         err = _dex_api_nested_list_length_error(
             obj,
@@ -556,7 +563,10 @@ def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]
         err = _dex_api_nested_mixed_exact_in_split_limit_error(obj)
         if err is not None:
             return err
+    return None
 
+
+def _dex_api_exact_out_verify_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]:
     if _is_exact_out_many_pool_verify_path(path):
         err = _dex_api_nested_list_length_error(
             obj,
@@ -577,7 +587,10 @@ def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]
         err = _dex_api_nested_exact_out_search_budget_error(obj)
         if err is not None:
             return err
+    return None
 
+
+def _dex_api_exact_out_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]:
     if _is_exact_out_many_pool_search_path(path):
         for field, (min_value, max_value) in DEX_API_EXACT_OUT_SEARCH_CAPS.items():
             err = _dex_api_int_limit_error(
@@ -591,8 +604,37 @@ def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]
         err = _dex_api_exact_out_search_budget_error(obj)
         if err is not None:
             return err
-
     return None
+
+
+def _first_limit_error(checks: Sequence[Callable[[], Optional[str]]]) -> Optional[str]:
+    for check in checks:
+        err = check()
+        if err is not None:
+            return err
+    return None
+
+
+def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]:
+    pools_err = _dex_api_list_length_error(
+        obj,
+        field="pools",
+        max_len=DEX_API_MAX_POOLS,
+    )
+    if pools_err is not None:
+        return pools_err
+    return _first_limit_error(
+        (
+            lambda: _dex_api_amount_preview_limit_error(path, obj),
+            lambda: _dex_api_sandwich_scan_limit_error(path, obj),
+            lambda: _dex_api_quote_limit_error(path, obj),
+            lambda: _dex_api_exact_in_route_search_limit_error(path, obj),
+            lambda: _dex_api_exact_out_two_pool_audit_limit_error(path, obj),
+            lambda: _dex_api_exact_in_route_verify_limit_error(path, obj),
+            lambda: _dex_api_exact_out_verify_limit_error(path, obj),
+            lambda: _dex_api_exact_out_search_limit_error(path, obj),
+        )
+    )
 
 
 def _adapter_result_get(result: Any, key: str) -> Any:
