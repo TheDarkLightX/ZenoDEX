@@ -65,6 +65,7 @@ def _pools() -> tuple[PoolState, ...]:
 
 
 ExactOutCall = Callable[[object], object]
+ExactOutControlCall = Callable[[str, object], object]
 
 
 def _strict_amount_entrypoints() -> tuple[tuple[str, ExactOutCall], ...]:
@@ -348,6 +349,201 @@ def _strict_amount_acceptance_entrypoints() -> tuple[tuple[str, ExactOutCall], .
     return _strict_amount_entrypoints()[:10]
 
 
+def _runtime_control_entrypoints() -> tuple[tuple[str, ExactOutControlCall], ...]:
+    return (
+        (
+            "audit",
+            lambda control, value: audit_exact_out_many_pool_runtime_canonicality(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "oracle_contract",
+            lambda control, value: build_exact_out_many_pool_oracle_contract(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "guard",
+            lambda control, value: guard_exact_out_many_pool_runtime_canonicality(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "guarded_quote",
+            lambda control, value: quote_exact_out_many_pool_guarded(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "guarded_packet",
+            lambda control, value: build_exact_out_many_pool_guarded_quote_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "certified_packet",
+            lambda control, value: build_exact_out_many_pool_certified_advisory_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "certified_quote",
+            lambda control, value: quote_exact_out_many_pool_certified_advisory(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "default_quote",
+            lambda control, value: quote_exact_out_many_pool_default(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "default_packet",
+            lambda control, value: build_exact_out_many_pool_default_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "repaired_selected_domain_oracle",
+            lambda control, value: build_exact_out_many_pool_repaired_selected_domain_oracle_contract(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "repaired_selected_domain_quote",
+            lambda control, value: quote_exact_out_many_pool_repaired_selected_domain(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "repaired_advisory_packet",
+            lambda control, value: build_exact_out_many_pool_repaired_advisory_quote_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "repaired_advisory_quote",
+            lambda control, value: quote_exact_out_many_pool_repaired_advisory(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "bounded_workaround",
+            lambda control, value: build_exact_out_many_pool_bounded_workaround_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "bounded_advisory_packet",
+            lambda control, value: build_exact_out_many_pool_bounded_advisory_quote_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "bounded_advisory_quote",
+            lambda control, value: quote_exact_out_many_pool_bounded_advisory(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "audited_bounds",
+            lambda control, value: build_exact_out_many_pool_audited_bounds_contract(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "adaptive_liveness_packet",
+            lambda control, value: build_exact_out_many_pool_adaptive_liveness_packet(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+        (
+            "adaptive_quote",
+            lambda control, value: quote_exact_out_many_pool_adaptive(
+                _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=10,
+                **{control: value},
+            ),
+        ),
+    )
+
+
 @pytest.mark.parametrize("amount_out_total", [True, "10"])
 def test_exact_out_many_pool_public_entrypoints_reject_non_strict_amounts(
     amount_out_total: object,
@@ -355,6 +551,88 @@ def test_exact_out_many_pool_public_entrypoints_reject_non_strict_amounts(
     for _name, call in _strict_amount_entrypoints():
         with pytest.raises(ValueError, match="amount_out_total must be an int"):
             call(amount_out_total)
+
+
+@pytest.mark.parametrize(
+    ("control", "value"),
+    [
+        ("max_legs", True),
+        ("max_legs", "3"),
+        ("max_candidate_pools", True),
+        ("max_candidate_pools", "5"),
+        ("max_candidates", True),
+        ("max_iters", True),
+        ("window", True),
+        ("brute_force_max", True),
+        ("max_full_domain_pools", True),
+        ("max_enumerated_candidates", True),
+    ],
+)
+def test_exact_out_many_pool_runtime_entrypoints_reject_non_strict_controls(
+    control: str,
+    value: object,
+) -> None:
+    for _name, call in _runtime_control_entrypoints():
+        with pytest.raises(ValueError, match=f"{control} must be an int"):
+            call(control, value)
+
+
+@pytest.mark.parametrize(
+    ("control", "value"),
+    [
+        ("max_legs", True),
+        ("max_legs", "3"),
+        ("max_candidate_pools", True),
+        ("max_candidate_pools", "5"),
+        ("max_enumerated_candidates", True),
+        ("max_enumerated_candidates", "20"),
+    ],
+)
+def test_exact_out_many_pool_candidate_domain_entrypoints_reject_non_strict_controls(
+    control: str,
+    value: object,
+) -> None:
+    for call in (
+        lambda: enumerate_exact_out_many_pool_candidates(
+            _pools(),
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=10,
+            **{control: value},
+        ),
+        lambda: build_exact_out_many_pool_candidate_domain_contract(
+            _pools(),
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=10,
+            **{control: value},
+        ),
+    ):
+        with pytest.raises(ValueError, match=f"{control} must be an int"):
+            call()
+
+
+@pytest.mark.parametrize(
+    ("control", "value"),
+    [
+        ("max_legs", True),
+        ("max_legs", "3"),
+        ("max_candidate_pools", True),
+        ("max_candidate_pools", "5"),
+    ],
+)
+def test_exact_out_many_pool_prefilter_entrypoint_rejects_non_strict_controls(
+    control: str,
+    value: object,
+) -> None:
+    with pytest.raises(ValueError, match=f"{control} must be an int"):
+        build_exact_out_many_pool_prefilter_contract(
+            _pools(),
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=10,
+            **{control: value},
+        )
 
 
 def test_exact_out_many_pool_public_entrypoints_still_accept_strict_integer_amount() -> None:
