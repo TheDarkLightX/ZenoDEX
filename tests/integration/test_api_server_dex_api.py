@@ -15,6 +15,7 @@ def _start_test_server(*, dex_enabled: bool = True):
     httpd.zusd_api_enabled = False  # type: ignore[attr-defined]
     httpd.dex_api_enabled = bool(dex_enabled)  # type: ignore[attr-defined]
     httpd.demo_api_token = ""  # type: ignore[attr-defined]
+    httpd.external_auth_enforced = True  # type: ignore[attr-defined]
 
     t = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     t.start()
