@@ -74,13 +74,13 @@ def _post_json(host: str, port: int, path: str, payload: dict, *, timeout: float
 
 def _load_writer_snapshot_from_file(data_dir: Path):
     importlib.import_module("src.integration.api_server_dex_dispatch")
-    handlers = importlib.import_module("src.integration.dex_dispatch_handlers")
+    handlers = importlib.import_module("src.integration.dex_dispatch_proof_mining_handlers")
     return handlers._load_latest_writer_snapshot_from_file_for_template(data_dir)
 
 
 def _load_writer_snapshot_from_url(url: str):
     importlib.import_module("src.integration.api_server_dex_dispatch")
-    handlers = importlib.import_module("src.integration.dex_dispatch_handlers")
+    handlers = importlib.import_module("src.integration.dex_dispatch_proof_mining_handlers")
     return handlers._load_latest_writer_snapshot_from_url_for_template(url)
 
 
@@ -401,7 +401,9 @@ def test_proof_mining_status_missing_expected_proposal_hash_returns_400() -> Non
 
 def test_proof_mining_payout_template_loads_writer_snapshot_over_http(monkeypatch) -> None:
     from src.integration.api_server_dex_dispatch import DexRequestContext
-    from src.integration.dex_dispatch_handlers import _load_latest_writer_snapshot_for_template
+    from src.integration.dex_dispatch_proof_mining_handlers import (
+        _load_latest_writer_snapshot_for_template,
+    )
 
     snapshot = {"schema": "zenodex/dex_state/v1", "pools": [], "balances": []}
 
@@ -424,7 +426,7 @@ def test_proof_mining_payout_template_loads_writer_snapshot_over_http(monkeypatc
         pass
 
     monkeypatch.setenv("ZENO_LEDGER_WRITER_SNAPSHOT_URL", "http://writer.example/api/dex/snapshot")
-    monkeypatch.setattr("src.integration.dex_dispatch_handlers.urllib.request.urlopen", _fake_urlopen)
+    monkeypatch.setattr("src.integration.dex_dispatch_proof_mining_handlers.urllib.request.urlopen", _fake_urlopen)
 
     loaded = _load_latest_writer_snapshot_for_template(DexRequestContext(server=_Server(), cors_origin=None, raw_body=None))
 
