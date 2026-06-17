@@ -635,6 +635,21 @@ def test_exact_out_many_pool_prefilter_entrypoint_rejects_non_strict_controls(
         )
 
 
+@pytest.mark.parametrize("brute_force_max", [True, "64"])
+def test_exact_out_two_pool_audit_rejects_non_strict_optional_brute_force_max(
+    brute_force_max: object,
+) -> None:
+    with pytest.raises(ValueError, match="brute_force_max must be an int"):
+        audit_exact_out_two_pool_runtime_canonicality(
+            _pools()[0],
+            _pools()[1],
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=10,
+            brute_force_max=brute_force_max,
+        )
+
+
 def test_exact_out_many_pool_public_entrypoints_still_accept_strict_integer_amount() -> None:
     results = {name: call(10) for name, call in _strict_amount_acceptance_entrypoints()}
 

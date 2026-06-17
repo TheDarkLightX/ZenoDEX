@@ -131,6 +131,12 @@ def _require_control_int(value: object, *, name: str) -> int:
     return int(value)
 
 
+def _require_optional_control_int(value: object | None, *, name: str) -> int | None:
+    if value is None:
+        return None
+    return _require_control_int(value, name=name)
+
+
 def _require_control_fields(fields: tuple[tuple[str, object], ...]) -> None:
     for name, value in fields:
         _require_control_int(value, name=name)
@@ -3146,6 +3152,7 @@ def audit_exact_out_two_pool_runtime_canonicality(
     brute_force_max: int | None = None,
 ) -> ExactOutTwoPoolCanonicalityAudit:
     amount_out_total_i = _require_amount_out_total_int(amount_out_total)
+    brute_force_max_i = _require_optional_control_int(brute_force_max, name="brute_force_max")
     candidates = enumerate_exact_out_two_pool_candidates(
         pool0,
         pool1,
@@ -3160,7 +3167,7 @@ def audit_exact_out_two_pool_runtime_canonicality(
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=amount_out_total_i,
-        brute_force_max=(max(0, int(brute_force_max)) if brute_force_max is not None else max(1, amount_out_total_i)),
+        brute_force_max=(max(0, brute_force_max_i) if brute_force_max_i is not None else max(1, amount_out_total_i)),
     )
     runtime_many = split_two_pools_exact_out_quote_to_many(runtime_quote)
     return ExactOutTwoPoolCanonicalityAudit(
