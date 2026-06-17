@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Quality gate for the /api/dex/* dispatch shell.
 # Locks in the committed dispatch-shell refactor:
-#   - mypy --strict on the 3 dispatch modules
-#   - focused branch coverage over the helper and registry modules
+#   - mypy --strict on the 4 dispatch modules
+#   - focused branch coverage over helper, metrics, and registry modules
 #   - cyclomatic-complexity regression guard on the dispatch modules
 #   - focused regression suite for helpers, registry, and dispatch behavior
 # Excluded by design: mutmut (slow ~60s; run nightly, not per-PR).
@@ -47,6 +47,7 @@ require_module "radon" "radon"
 
 DISPATCH_MODULES=(
   "src/integration/_dex_api_helpers.py"
+  "src/integration/api_server_dex_metrics.py"
   "src/integration/api_server_dex_dispatch.py"
   "src/integration/dex_dispatch_handlers.py"
 )
@@ -62,10 +63,10 @@ echo "== dex-dispatch: mypy --strict =="
 echo "== dex-dispatch: pytest + branch coverage =="
 # Use the coverage tool directly (pytest-cov isn't on the default
 # requirements lock; coverage 7.x is). Write the data file to a known
-# location and report only on the helper and registry modules (pyproject.toml's
+# location and report only on helper, metrics, and registry modules (pyproject.toml's
 # global [tool.coverage] config has broader source paths we don't want).
 COVERAGE_DATA="$ROOT_DIR/.coverage.dex_dispatch_gate"
-COVERAGE_INCLUDE="src/integration/_dex_api_helpers.py,src/integration/api_server_dex_dispatch.py,src/integration/dex_dispatch_handlers.py"
+COVERAGE_INCLUDE="src/integration/_dex_api_helpers.py,src/integration/api_server_dex_metrics.py,src/integration/api_server_dex_dispatch.py,src/integration/dex_dispatch_handlers.py"
 COVERAGE_FILE="$COVERAGE_DATA" "$PY" -m coverage erase --rcfile=/dev/null
 COVERAGE_FILE="$COVERAGE_DATA" "$PY" -m coverage run --rcfile=/dev/null --branch \
   --include="$COVERAGE_INCLUDE" \
@@ -73,6 +74,7 @@ COVERAGE_FILE="$COVERAGE_DATA" "$PY" -m coverage run --rcfile=/dev/null --branch
 COVERAGE_FILE="$COVERAGE_DATA" "$PY" -m coverage report --rcfile=/dev/null \
   --fail-under=90 \
   "src/integration/_dex_api_helpers.py" \
+  "src/integration/api_server_dex_metrics.py" \
   "src/integration/api_server_dex_dispatch.py"
 # Handler coverage is intentionally not claimed here: dex_dispatch_handlers.py
 # remains a large adapter table and is guarded by strict typing, direct
@@ -95,7 +97,7 @@ echo "== dex-dispatch: radon maintainability index ratchet =="
 # Anything D or worse
 # means we've grown too many handlers in a single file — time to split
 # per the PR2 plan (theme modules).
-for module in "src/integration/_dex_api_helpers.py" "src/integration/api_server_dex_dispatch.py"; do
+for module in "src/integration/_dex_api_helpers.py" "src/integration/api_server_dex_metrics.py" "src/integration/api_server_dex_dispatch.py"; do
   MI_GRADE="$("$PY" -m radon mi "$module" -s | grep -oE '\b[A-F]\b' | head -1)"
   if [[ "$MI_GRADE" != "A" ]]; then
     echo "error: $module maintainability index is $MI_GRADE (expected A)" >&2

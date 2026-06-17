@@ -28,11 +28,26 @@ Design constraints (locked in PR1):
 from __future__ import annotations
 
 import contextlib
-import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Callable, Iterator, Mapping, Optional, Tuple
+
+from src.integration.api_server_dex_metrics import (
+    _METRICS_LATENCY_RESERVOIR as _METRICS_LATENCY_RESERVOIR,
+)
+from src.integration.api_server_dex_metrics import (
+    DISPATCH_METRICS,
+)
+from src.integration.api_server_dex_metrics import (
+    DispatchMetrics as DispatchMetrics,
+)
+from src.integration.api_server_dex_metrics import (
+    EndpointMetrics as EndpointMetrics,
+)
+from src.integration.api_server_dex_metrics import (
+    serve_metrics as serve_metrics,
+)
 
 DexResponse = Tuple[int, Mapping[str, Any]]
 
@@ -337,145 +352,6 @@ def generate_openapi_fragment() -> dict[str, Any]:
     return paths
 
 
-# ============================================================================
-# Step 8: Per-endpoint dispatch metrics.
-#
-# Operator-facing observability for the /api/dex/* dispatch path. Tracks
-# request count, error count, latency samples (kept to a bounded
-# reservoir so p50/p95 stay accurate under steady load without unbounded
-# memory), and the most-recent error code per endpoint.
-#
-# Why in-process counters and not OpenTelemetry/Prometheus:
-#   - Adding a metrics SDK is a runtime dependency change requiring
-#     the same approval gate as msgspec. Out-of-scope for this turn.
-#   - The values are still externally consumable via GET /api/dex/metrics,
-#     where an operator's Prometheus exporter / log scraper can pull
-#     them. Future migration to a real metrics SDK is a thin shim.
-#   - Sufficient for "is the DEX healthy?" — which is the gap we're
-#     closing today.
-# ============================================================================
-
-_METRICS_LATENCY_RESERVOIR = 512
-"""How many latency samples to retain per endpoint for percentile
-computation. Bounded so a long-running process doesn't accumulate
-unbounded memory. Replacement policy: ring-buffer (oldest replaced
-first). At RPS=10, this window is the most recent ~50s."""
-
-
-@dataclass
-class EndpointMetrics:
-    """Per-endpoint observability state. Mutable; protected by the
-    DispatchMetrics lock for thread-safety under ThreadingHTTPServer."""
-
-    request_count: int = 0
-    error_count: int = 0
-    """Count of dispatcher catch-all triggers (handler raised an
-    unhandled exception). Does NOT include DexEndpointError (those are
-    expected 4xx, not server errors) but DOES include BadFieldError
-    since those map to 400 'bad_X' codes."""
-    latency_samples_ms: list[float] = field(default_factory=list)
-    latency_cursor: int = 0  # ring-buffer write position
-    most_recent_error_code: Optional[str] = None
-    most_recent_error_timestamp_ms: Optional[int] = None
-
-    def record_latency(self, latency_ms: float) -> None:
-        """Append a latency sample to the bounded reservoir (ring buffer)."""
-        if len(self.latency_samples_ms) < _METRICS_LATENCY_RESERVOIR:
-            self.latency_samples_ms.append(latency_ms)
-        else:
-            self.latency_samples_ms[self.latency_cursor] = latency_ms
-            self.latency_cursor = (self.latency_cursor + 1) % _METRICS_LATENCY_RESERVOIR
-
-    def to_public_dict(self) -> dict[str, Any]:
-        """Render percentiles + counters as a JSON-friendly dict.
-
-        Computed on read so we don't pay for sorting on every request.
-        Empty samples return None for percentile values.
-        """
-        samples = sorted(self.latency_samples_ms)
-        n = len(samples)
-        out: dict[str, Any] = {
-            "request_count": self.request_count,
-            "error_count": self.error_count,
-            "sample_count": n,
-            "latency_p50_ms": _percentile_or_none(samples, 50, n),
-            "latency_p95_ms": _percentile_or_none(samples, 95, n),
-            "latency_p99_ms": _percentile_or_none(samples, 99, n),
-            "most_recent_error_code": self.most_recent_error_code,
-            "most_recent_error_timestamp_ms": self.most_recent_error_timestamp_ms,
-        }
-        return out
-
-
-def _percentile_or_none(sorted_samples: list[float], pct: int, n: int) -> Optional[float]:
-    """Nearest-rank percentile from a pre-sorted list. None on empty.
-
-    Nearest-rank is what operators expect ("p95 = at most 5% of requests
-    were slower than this"). Linear interpolation would be off by a sample.
-    """
-    if n == 0:
-        return None
-    if n == 1:
-        return sorted_samples[0]
-    # bisect-based nearest-rank: ceil(pct/100 * n) - 1
-    rank = max(0, min(n - 1, (pct * n + 99) // 100 - 1))
-    return sorted_samples[rank]
-
-
-class DispatchMetrics:
-    """Thread-safe per-endpoint metrics for the dispatch path.
-
-    The single global instance ``DISPATCH_METRICS`` is mutated by every
-    request and read by ``GET /api/dex/metrics``. Operations are coarse
-    locked (single lock for all endpoints) because:
-      - Per-endpoint locks add complexity without measurable contention
-        win at expected DEX request rates (10s-100s RPS).
-      - The lock is held for ~1µs (counter increment + reservoir write).
-    """
-
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._endpoints: dict[str, EndpointMetrics] = {}
-
-    def record_request(
-        self,
-        path: str,
-        *,
-        latency_ms: float,
-        is_error: bool,
-        error_code: Optional[str] = None,
-    ) -> None:
-        with self._lock:
-            ep = self._endpoints.get(path)
-            if ep is None:
-                ep = EndpointMetrics()
-                self._endpoints[path] = ep
-            ep.request_count += 1
-            ep.record_latency(latency_ms)
-            if is_error:
-                ep.error_count += 1
-                ep.most_recent_error_code = error_code
-                ep.most_recent_error_timestamp_ms = int(time.time() * 1000)
-
-    def snapshot(self) -> dict[str, dict[str, Any]]:
-        """Atomic snapshot of all endpoints' counters. Safe to JSON-serialize."""
-        with self._lock:
-            return {
-                path: ep.to_public_dict()
-                for path, ep in sorted(self._endpoints.items())
-            }
-
-    def reset(self) -> None:
-        """Wipe all counters. Tests use this for isolation."""
-        with self._lock:
-            self._endpoints.clear()
-
-
-DISPATCH_METRICS = DispatchMetrics()
-"""Single global instance. Read by ``GET /api/dex/metrics`` and mutated
-by every ``dispatch()`` call."""
-
-
 def _run_endpoint_handler(
     path: str,
     spec: DexEndpointSpec,
@@ -562,33 +438,3 @@ def dispatch(path: str, obj: Mapping[str, Any], ctx: DexRequestContext) -> Optio
         error_code=error_code_for_metrics,
     )
     return response
-
-
-def serve_metrics() -> dict[str, Any]:
-    """Render the dispatch metrics as a JSON-serializable dict.
-
-    Served at ``GET /api/dex/metrics``. Shape:
-      {
-        "metrics": {
-          "/api/dex/<endpoint>": {
-            "request_count": int,
-            "error_count": int,
-            "sample_count": int,
-            "latency_p50_ms": float | None,
-            "latency_p95_ms": float | None,
-            "latency_p99_ms": float | None,
-            "most_recent_error_code": str | None,
-            "most_recent_error_timestamp_ms": int | None,
-          },
-          ...
-        },
-        "endpoint_count": int,
-        "total_request_count": int,
-      }
-    """
-    endpoints = DISPATCH_METRICS.snapshot()
-    return {
-        "metrics": endpoints,
-        "endpoint_count": len(endpoints),
-        "total_request_count": sum(m["request_count"] for m in endpoints.values()),
-    }
