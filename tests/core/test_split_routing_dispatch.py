@@ -326,8 +326,7 @@ class TestSplitRoutingDispatch:
         assert quote.amount_in_total == 150
         assert quote.amount_out_total == 11
         assert quote.legs == (
-            SplitLegQuote(pool_id="pool_a", amount_in=76, amount_out=6),
-            SplitLegQuote(pool_id="pool_b", amount_in=74, amount_out=5),
+            SplitLegQuote(pool_id="pool_a", amount_in=150, amount_out=11),
         )
         assert len(quote.legs) <= 2
         assert sum(int(leg.amount_in) for leg in quote.legs) == quote.amount_in_total
@@ -336,6 +335,29 @@ class TestSplitRoutingDispatch:
             int(leg.amount_out)
             == _quote_exact_in(pools_by_id[leg.pool_id], asset_in=ASSET0, asset_out=ASSET1, amount_in=int(leg.amount_in))
             for leg in quote.legs
+        )
+
+    def test_exact_in_many_pool_small_domain_uses_exact_allocation_not_greedy_seed(self) -> None:
+        pools = (
+            _mk_pool(pool_id="a", curve_tag=CURVE_TAG_CPMM, reserve0=20, reserve1=10, fee_bps=0),
+            _mk_pool(pool_id="b", curve_tag=CURVE_TAG_CPMM, reserve0=20, reserve1=10, fee_bps=0),
+            _mk_pool(pool_id="c", curve_tag=CURVE_TAG_CPMM, reserve0=20, reserve1=10, fee_bps=0),
+        )
+
+        quote = best_split_many_pools_exact_in_for_pools(
+            pools,
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            amount_in_total=10,
+            max_legs=3,
+            max_candidates=3,
+            max_iters=64,
+        )
+
+        assert quote.amount_out_total == 4
+        assert quote.legs == (
+            SplitLegQuote(pool_id="a", amount_in=5, amount_out=2),
+            SplitLegQuote(pool_id="b", amount_in=5, amount_out=2),
         )
 
     def test_exact_out_many_pool_quote_satisfies_allocation_contract(self) -> None:

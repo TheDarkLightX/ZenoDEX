@@ -2,8 +2,8 @@
 Many-pool exact-in split routing.
 
 The dispatch layer supplies live reserve and quote functions. This module owns
-candidate filtering, bounded greedy allocation, deterministic tie-breaks, and
-quote materialization.
+candidate filtering, bounded exact allocation for small domains, deterministic
+tie-breaks, the larger-domain greedy fallback, and quote materialization.
 """
 
 from __future__ import annotations
@@ -13,11 +13,13 @@ from typing import Callable, Optional, Sequence
 
 from ..state.balances import AssetId
 from ..state.pools import PoolState
+from .split_routing_many_exact_in_small import best_small_domain_many_pool_exact_in
 from .split_routing_types import SplitLegQuote, SplitManyPoolsQuote
 
 ExactInReservesFor = Callable[[PoolState], tuple[int, int] | None]
 ExactInQuoteFor = Callable[[PoolState, int], int]
 _ExactInStepCandidate = tuple[str, int, int, int]  # pool_id, delta, increment, current_amount
+_EXACT_SMALL_DOMAIN_MAX_AMOUNT_IN = 512
 
 
 @dataclass(frozen=True)
@@ -339,6 +341,26 @@ def _is_better_allocation(
     return len(current_legs) < len(best_legs) or (len(current_legs) == len(best_legs) and current_legs < best_legs)
 
 
+def _exact_small_domain_allocation(
+    *,
+    context: _ExactInManyPoolContext,
+    amount_in_total: int,
+    max_legs: int,
+) -> dict[str, int]:
+    def quote_for_pool_id(pool_id: str, amount_in: int) -> int | None:
+        try:
+            return context.quote(pool_id, int(amount_in))
+        except ValueError:
+            return None
+
+    return best_small_domain_many_pool_exact_in(
+        pool_ids=sorted(context.pools_by_id.keys()),
+        amount_in_total=int(amount_in_total),
+        max_legs=int(max_legs),
+        quote_for_pool_id=quote_for_pool_id,
+    )
+
+
 def _search_best_allocation(
     *,
     context: _ExactInManyPoolContext,
@@ -347,6 +369,13 @@ def _search_best_allocation(
     max_iters: int,
 ) -> dict[str, int]:
     amount_total = int(amount_in_total)
+    if amount_total <= min(int(max_iters), _EXACT_SMALL_DOMAIN_MAX_AMOUNT_IN):
+        return _exact_small_domain_allocation(
+            context=context,
+            amount_in_total=amount_total,
+            max_legs=int(max_legs),
+        )
+
     step_min = max(1, amount_total // int(max_iters))
     step = max(step_min, max(1, amount_total // 256))
     best_alloc: Optional[dict[str, int]] = None

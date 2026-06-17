@@ -330,8 +330,9 @@ def best_split_many_pools_exact_in_for_pools(
 
     Approach:
     - Treat each pool as an exact-in oracle `f_i(a)`.
-    - Solve `max Σ f_i(a_i)` s.t. `Σ a_i = D`, `a_i ∈ ℕ`.
-    - Use a bounded multi-stage greedy allocator (marginal-output-per-input), with deterministic tie-breaks.
+    - For small bounded domains, solve `max Σ f_i(a_i)` s.t. `Σ a_i = D`, `a_i ∈ ℕ`.
+    - For larger domains, use the existing bounded multi-stage greedy allocator.
+    - Apply deterministic tie-breaks: higher output, fewer legs, then lexicographic legs.
     - Limit to at most `max_legs` non-zero legs and `max_candidates` candidate pools.
     """
     def reserves_for(pool: PoolState) -> tuple[int, int] | None:
