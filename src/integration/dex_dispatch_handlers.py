@@ -918,6 +918,38 @@ def _int_field_specs_from_tuples(
     return tuple(IntFieldSpec(name=n, default=d, minimum=m) for n, d, m in tuples)
 
 
+def _exact_out_contract_response(
+    *,
+    contract_dict: Mapping[str, Any],
+    schema: str,
+    verify_endpoint: str,
+    include_contract_ok: bool,
+    quote_endpoint: Optional[str],
+) -> dict[str, Any]:
+    if quote_endpoint is not None:
+        return {
+            "ok": True,
+            "contract": contract_dict,
+            "contract_schema": schema,
+            "quote_endpoint": quote_endpoint,
+            "verify_contract_endpoint": verify_endpoint,
+        }
+    if include_contract_ok:
+        return {
+            "ok": True,
+            "contract": contract_dict,
+            "contract_ok": bool(contract_dict["contract_ok"]),
+            "contract_schema": schema,
+            "verify_contract_endpoint": verify_endpoint,
+        }
+    return {
+        "ok": True,
+        "contract": contract_dict,
+        "contract_schema": schema,
+        "verify_contract_endpoint": verify_endpoint,
+    }
+
+
 def _make_exact_out_many_pool_contract_builder(
     *,
     field_specs: Sequence[IntFieldSpec],
@@ -928,44 +960,7 @@ def _make_exact_out_many_pool_contract_builder(
     include_contract_ok: bool = False,
     quote_endpoint: Optional[str] = None,
 ) -> Any:
-    """Factory for the build_exact_out_many_pool_*_contract endpoint shape.
-
-    ``field_specs`` is a sequence of ``IntFieldSpec`` validated by
-    ``parse_int_kwargs`` (raises ``BadFieldError`` on invalid input which
-    the dispatcher converts to ``(400, {"ok": False, "error":
-    f"bad_{field}"})`` matching the legacy ad-hoc shape).
-
-    No try/except in the handler body: the dispatcher's catch-all uses
-    the spec's registered ``default_error_code``.
-    """
-    # The two response variants (include_contract_ok / quote_endpoint /
-    # neither) preserve legacy key ordering exactly. Resolved once at
-    # factory time, not per request, to avoid the per-request dict
-    # rebuild on the hot path.
-    def _response(contract_dict: Mapping[str, Any], schema: str) -> dict[str, Any]:
-        if quote_endpoint is not None:
-            return {
-                "ok": True,
-                "contract": contract_dict,
-                "contract_schema": schema,
-                "quote_endpoint": quote_endpoint,
-                "verify_contract_endpoint": verify_endpoint,
-            }
-        if include_contract_ok:
-            return {
-                "ok": True,
-                "contract": contract_dict,
-                "contract_ok": bool(contract_dict["contract_ok"]),
-                "contract_schema": schema,
-                "verify_contract_endpoint": verify_endpoint,
-            }
-        return {
-            "ok": True,
-            "contract": contract_dict,
-            "contract_schema": schema,
-            "verify_contract_endpoint": verify_endpoint,
-        }
-
+    """Factory for the build_exact_out_many_pool_*_contract endpoints."""
     def _handler(obj: Mapping[str, Any], ctx: DexRequestContext) -> DexResponse:
         pools_by_id = parse_pools(obj)
         asset_in = str(obj.get("asset_in", "")).strip()
@@ -986,7 +981,13 @@ def _make_exact_out_many_pool_contract_builder(
             asset_out=asset_out,
             **int_kwargs,
         )
-        return 200, _response(contract.to_dict(), schema)
+        return 200, _exact_out_contract_response(
+            contract_dict=contract.to_dict(),
+            schema=schema,
+            verify_endpoint=verify_endpoint,
+            include_contract_ok=include_contract_ok,
+            quote_endpoint=quote_endpoint,
+        )
 
     return _handler
 
@@ -1147,6 +1148,71 @@ _PACKET_BUILDER_DEFAULT_FIELDS: list[tuple[str, Any, int]] = [
 ]
 
 
+def _exact_out_packet_response_base(
+    *,
+    ok: bool,
+    packet: Any,
+    schema: str,
+    verify_endpoint: str,
+    quote_policy: Optional[str],
+) -> dict[str, Any]:
+    response: dict[str, Any] = {
+        "ok": ok,
+        "packet": packet.to_dict(),
+        "packet_schema": schema,
+        "verify_packet_endpoint": verify_endpoint,
+    }
+    if quote_policy is not None:
+        response["quote_policy"] = quote_policy
+    return response
+
+
+def _exact_out_packet_response(
+    *,
+    packet: Any,
+    schema: str,
+    verify_endpoint: str,
+    quote_policy: Optional[str],
+    response_mode: str,
+    fallback_error: Optional[str],
+    extra_response_field: Optional[tuple[str, str]],
+) -> dict[str, Any]:
+    if response_mode == "ok_true":
+        response = _exact_out_packet_response_base(
+            ok=True,
+            packet=packet,
+            schema=schema,
+            verify_endpoint=verify_endpoint,
+            quote_policy=quote_policy,
+        )
+    elif response_mode == "ok_packet_ok":
+        response = _exact_out_packet_response_base(
+            ok=bool(packet.packet_ok),
+            packet=packet,
+            schema=schema,
+            verify_endpoint=verify_endpoint,
+            quote_policy=quote_policy,
+        )
+        if not packet.packet_ok and fallback_error is not None:
+            response["error"] = str(getattr(packet, "error", None) or fallback_error)
+    else:
+        response = _exact_out_packet_response_base(
+            ok=True,
+            packet=packet,
+            schema=schema,
+            verify_endpoint=verify_endpoint,
+            quote_policy=quote_policy,
+        )
+        if not packet.packet_ok:
+            response["ok"] = False
+            response["error"] = str(packet.error or fallback_error or "packet_not_ok")
+
+    if extra_response_field is not None:
+        response_key, packet_attr = extra_response_field
+        response[response_key] = bool(getattr(packet, packet_attr))
+    return response
+
+
 def _make_exact_out_many_pool_packet_builder(
     *,
     field_specs: Sequence[IntFieldSpec],
@@ -1159,29 +1225,7 @@ def _make_exact_out_many_pool_packet_builder(
     fallback_error: Optional[str] = None,
     extra_response_field: Optional[tuple[str, str]] = None,
 ) -> Any:
-    """Factory for build_exact_out_many_pool_*_packet endpoints.
-
-    See ``_make_exact_out_many_pool_contract_builder`` for the validation
-    contract. ``response_mode`` controls the shape of the success response:
-
-      - ``ok_true``: response always has ``ok=True`` (only valid when the
-        packet has no failure mode tied to ``packet_ok``).
-      - ``ok_packet_ok``: ``response.ok = bool(packet.packet_ok)``; on
-        ``False``, adds the ``error`` key using ``packet.error`` if
-        present, else ``fallback_error``.
-      - ``ok_true_unless_packet_ok``: ``response.ok = True`` initially;
-        on ``packet_ok=False``, flipped to ``False`` and ``error`` set.
-        Matches the legacy ``advisory_quote_packet`` shape.
-
-    ``extra_response_field``: ``(response_key, packet_attr_name)``. The
-    bool value of ``getattr(packet, packet_attr_name)`` is added to the
-    response under ``response_key``. Used by ``adaptive_liveness_packet``
-    to expose ``liveness_ok``.
-
-    No try/except: the dispatcher catch-all uses the registered
-    ``default_error_code``. ``BadFieldError`` from ``parse_int_kwargs``
-    is converted to ``(400, "bad_{field}")`` by the dispatcher.
-    """
+    """Factory for build_exact_out_many_pool_*_packet endpoints."""
     if response_mode not in {"ok_true", "ok_packet_ok", "ok_true_unless_packet_ok"}:
         raise ValueError(f"unknown response_mode: {response_mode}")
 
@@ -1205,45 +1249,15 @@ def _make_exact_out_many_pool_packet_builder(
             asset_out=asset_out,
             **int_kwargs,
         )
-
-        if response_mode == "ok_true":
-            response: dict[str, Any] = {
-                "ok": True,
-                "packet": packet.to_dict(),
-                "packet_schema": schema,
-                "verify_packet_endpoint": verify_endpoint,
-            }
-            if quote_policy is not None:
-                response["quote_policy"] = quote_policy
-        elif response_mode == "ok_packet_ok":
-            response = {
-                "ok": bool(packet.packet_ok),
-                "packet": packet.to_dict(),
-                "packet_schema": schema,
-                "verify_packet_endpoint": verify_endpoint,
-            }
-            if quote_policy is not None:
-                response["quote_policy"] = quote_policy
-            if not packet.packet_ok and fallback_error is not None:
-                response["error"] = str(getattr(packet, "error", None) or fallback_error)
-        else:  # ok_true_unless_packet_ok
-            response = {
-                "ok": True,
-                "packet": packet.to_dict(),
-                "packet_schema": schema,
-                "verify_packet_endpoint": verify_endpoint,
-            }
-            if quote_policy is not None:
-                response["quote_policy"] = quote_policy
-            if not packet.packet_ok:
-                response["ok"] = False
-                response["error"] = str(packet.error or fallback_error or "packet_not_ok")
-
-        if extra_response_field is not None:
-            response_key, packet_attr = extra_response_field
-            response[response_key] = bool(getattr(packet, packet_attr))
-
-        return 200, response
+        return 200, _exact_out_packet_response(
+            packet=packet,
+            schema=schema,
+            verify_endpoint=verify_endpoint,
+            quote_policy=quote_policy,
+            response_mode=response_mode,
+            fallback_error=fallback_error,
+            extra_response_field=extra_response_field,
+        )
 
     return _handler
 
