@@ -13,25 +13,32 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-def uN_max(bits: int) -> int:
+def _require_bits(bits: int) -> int:
+    if not isinstance(bits, int) or isinstance(bits, bool):
+        raise TypeError("bits must be an int")
     if bits <= 0:
         raise ValueError("bits must be positive")
-    return (1 << int(bits)) - 1
+    return int(bits)
+
+
+def uN_max(bits: int) -> int:
+    bits_int = _require_bits(bits)
+    return (1 << bits_int) - 1
 
 
 def uN_mod(bits: int) -> int:
-    if bits <= 0:
-        raise ValueError("bits must be positive")
-    return 1 << int(bits)
+    bits_int = _require_bits(bits)
+    return 1 << bits_int
 
 
 def _check_uN(bits: int, x: int) -> None:
+    bits_int = _require_bits(bits)
     if not isinstance(x, int) or isinstance(x, bool):
         raise TypeError("value must be an int")
     if x < 0:
         raise ValueError("value must be non-negative")
-    if x > uN_max(bits):
-        raise ValueError(f"value out of range for u{bits}")
+    if x > uN_max(bits_int):
+        raise ValueError(f"value out of range for u{bits_int}")
 
 
 def will_add_overflow(bits: int, a: int, b: int) -> bool:
@@ -83,4 +90,3 @@ class OverflowTriplet:
     a: int
     b: int
     overflows: bool
-
