@@ -194,6 +194,37 @@ def test_isolated_settle_rejects_authorization_for_different_oracle_value() -> N
     assert "runtime_value_e8 mismatch" in res.error
 
 
+def test_isolated_settle_rejects_malformed_runtime_facts(monkeypatch) -> None:
+    import src.integration.perp_engine as perp_engine
+
+    market_id = "perp:auth-malformed-runtime"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    auth = _authorization_for(runtime, observed_epoch=int(market.global_state["oracle_last_update_epoch"]))
+
+    def malformed_runtime_facts(*, market_id: str, market) -> dict[str, object]:
+        facts = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+        facts["runtime_value_e8"] = True
+        facts["now_epoch"] = False
+        return facts
+
+    monkeypatch.setattr(perp_engine, "_isolated_settle_oracle_runtime_facts", malformed_runtime_facts)
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_authorization=True,
+        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+    )
+
+    assert res.ok is False
+    assert res.error == "oracle_authorization_rejected: malformed runtime facts"
+
+
 def test_isolated_settle_rejects_authorization_for_different_pre_state() -> None:
     market_id = "perp:auth-pre-state-mismatch"
     operator = "00" * 48

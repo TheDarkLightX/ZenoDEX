@@ -793,6 +793,15 @@ def _check_isolated_settle_oracle_authorization(
         return "oracle_authorization_rejected: index_price_e8 must be positive"
 
     runtime = _isolated_settle_oracle_runtime_facts(market_id=op.market_id, market=market)
+    runtime_value_e8 = runtime.get("runtime_value_e8")
+    now_epoch = runtime.get("now_epoch")
+    if (
+        not isinstance(runtime_value_e8, int)
+        or isinstance(runtime_value_e8, bool)
+        or not isinstance(now_epoch, int)
+        or isinstance(now_epoch, bool)
+    ):
+        return "oracle_authorization_rejected: malformed runtime facts"
     try:
         result = check_critical_consumer_authorization(
             authorization,
@@ -802,8 +811,8 @@ def _check_isolated_settle_oracle_authorization(
             action_facts_hash=str(runtime["action_facts_hash"]),
             pre_state_hash=str(runtime["pre_state_hash"]),
             query_id=str(runtime["query_id"]),
-            runtime_value_e8=int(runtime["runtime_value_e8"]),
-            now_epoch=int(runtime["now_epoch"]),
+            runtime_value_e8=runtime_value_e8,
+            now_epoch=now_epoch,
         )
     except Exception as exc:
         return f"oracle_authorization_rejected: {exc}"
