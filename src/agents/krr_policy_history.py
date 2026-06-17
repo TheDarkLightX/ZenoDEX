@@ -47,17 +47,17 @@ def _load_history_rows(existing: Mapping[str, object] | None) -> dict[str, dict[
         rate_raw = raw_stats.get("support_rate", 0.0)
         try:
             total = max(0, int(total_raw))
-        except Exception:
+        except (TypeError, ValueError, OverflowError):
             total = 0
         if supported_raw is None:
             try:
                 supported = max(0, min(total, int(round(float(rate_raw) * float(total)))))
-            except Exception:
+            except (TypeError, ValueError, OverflowError):
                 supported = 0
         else:
             try:
                 supported = max(0, min(total, int(supported_raw)))
-            except Exception:
+            except (TypeError, ValueError, OverflowError):
                 supported = 0
         out[check] = {
             "total": total,
@@ -90,7 +90,7 @@ def _load_source_rows(existing: Mapping[str, object] | None) -> dict[str, dict[s
                     return max(0, int(raw))
                 if isinstance(raw, str):
                     return max(0, int(raw))
-            except Exception:
+            except (TypeError, ValueError, OverflowError):
                 pass
             return 0
 

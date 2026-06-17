@@ -285,6 +285,23 @@ def test_krr_history_helpers_cover_input_normalization_and_empty_paths() -> None
     assert _report_decision({}, "unknown") == ("unknown", "", None)
 
 
+def test_krr_history_rows_propagate_unexpected_numeric_failures() -> None:
+    class BrokenInt:
+        def __int__(self) -> int:
+            raise RuntimeError("broken numeric source")
+
+    class BrokenFloat(float):
+        def __int__(self) -> int:
+            raise RuntimeError("broken numeric source")
+
+    with pytest.raises(RuntimeError, match="broken numeric source"):
+        _load_history_rows({"history_check_stats": {"x": {"total": BrokenInt()}}})
+    with pytest.raises(RuntimeError, match="broken numeric source"):
+        _load_history_rows({"history_check_stats": {"x": {"total": 1, "supported": BrokenInt()}}})
+    with pytest.raises(RuntimeError, match="broken numeric source"):
+        _load_source_rows({"history_source_stats": {"source": {"total": BrokenFloat(1.0)}}})
+
+
 @pytest.mark.parametrize(
     ("reason", "phase", "extra_report", "expected"),
     [
