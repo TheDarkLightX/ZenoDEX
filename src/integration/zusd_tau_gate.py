@@ -84,6 +84,10 @@ def _mcr_ok(*, collateral_e8: int, debt_e8: int, price_e8: int, mcr_bps: int) ->
     return (collateral_e8 * price_e8 * 10_000) >= (debt_e8 * mcr_bps * 100_000_000)
 
 
+def _cmd_auth_ok(args: Mapping[str, object]) -> bool:
+    return args.get("auth_ok") is True
+
+
 def _single_risky_ops_allowed(state: ZUSDState) -> bool:
     if not state.oracle_seen or state.price_e8 <= 0 or state.price_pending_e8 <= 0:
         return False
@@ -174,7 +178,7 @@ def _single_checks(
                         oracle_seen=pre_state.oracle_seen,
                     )
                     else 0,
-                    auth_ok=1 if bool(cmd.args.get("auth_ok", False)) else 0,
+                    auth_ok=1 if _cmd_auth_ok(cmd.args) else 0,
                     mcr_ok_at_pending=1
                     if _mcr_ok(
                         collateral_e8=pre_state.collateral_e8,
@@ -447,7 +451,7 @@ def _multi_checks(
                         oracle_seen=pre_state.oracle_seen,
                     )
                     else 0,
-                    auth_ok=1 if bool(cmd.args.get("auth_ok", False)) else 0,
+                    auth_ok=1 if _cmd_auth_ok(cmd.args) else 0,
                     mcr_ok_at_pending=1 if mcr_pending.mcr_ok_at_pending else 0,
                 ),
             )

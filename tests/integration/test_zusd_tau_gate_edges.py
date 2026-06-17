@@ -196,6 +196,12 @@ def test_zusd_tau_gate_single_checks_cover_all_guard_builders() -> None:
 
     checks = gate._single_checks(pre_state=base, cmd=ZUSDCommand(tag="oracle_commit", args={"auth_ok": True}), post_state=base)
     assert checks[0][0].spec_id == gate.ZUSD_ORACLE_COMMIT_GUARD_V2.spec_id
+    string_auth_checks = gate._single_checks(
+        pre_state=base,
+        cmd=ZUSDCommand(tag="oracle_commit", args={"auth_ok": "yes"}),
+        post_state=base,
+    )
+    assert string_auth_checks[0][1]["i4"] == 0
     assert gate._single_checks(pre_state=funded, cmd=ZUSDCommand(tag="mint_zusd", args={"amount_e8": 120 * E8}), post_state=minted)[0][0].spec_id == gate.ZUSD_MINT_GUARD_V1.spec_id
     assert gate._single_checks(pre_state=minted, cmd=ZUSDCommand(tag="repay_zusd", args={"amount_e8": 20 * E8}), post_state=repaid)[0][0].spec_id == gate.ZUSD_REPAY_GUARD_V1.spec_id
     assert gate._single_checks(pre_state=withdraw, cmd=ZUSDCommand(tag="redeem_zusd", args={"amount_e8": 10 * E8}), post_state=redeem)[0][0].spec_id == gate.ZUSD_REDEEM_GUARD_V1.spec_id
@@ -247,6 +253,12 @@ def test_zusd_tau_gate_multi_helpers_and_checks_cover_all_paths() -> None:
         gate._infer_multi_redeem_vault(minted, minted)
 
     assert gate._multi_checks(pre_state=base, cmd=ZUSDMultiCommand(tag="oracle_commit", args={"auth_ok": True}), post_state=base)[0][0].spec_id == gate.ZUSD_ORACLE_COMMIT_GUARD_V2.spec_id
+    string_auth_checks = gate._multi_checks(
+        pre_state=base,
+        cmd=ZUSDMultiCommand(tag="oracle_commit", args={"auth_ok": "yes"}),
+        post_state=base,
+    )
+    assert string_auth_checks[0][1]["i4"] == 0
     assert gate._multi_checks(pre_state=funded, cmd=ZUSDMultiCommand(tag="mint_zusd", args={"vault": "a", "amount_e8": 120 * E8}), post_state=minted_a)[0][0].spec_id == gate.ZUSD_MINT_GUARD_V1.spec_id
     assert gate._multi_checks(pre_state=minted, cmd=ZUSDMultiCommand(tag="repay_zusd", args={"vault": "a", "amount_e8": 20 * E8}), post_state=repaid)[0][0].spec_id == gate.ZUSD_REPAY_GUARD_V1.spec_id
     assert gate._multi_checks(pre_state=withdraw, cmd=ZUSDMultiCommand(tag="redeem_zusd", args={"vault": "a", "amount_e8": 10 * E8}), post_state=redeem_explicit)[0][0].spec_id == gate.ZUSD_REDEEM_GUARD_V1.spec_id
