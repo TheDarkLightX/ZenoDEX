@@ -3545,17 +3545,126 @@ def build_exact_out_many_pool_default_packet(
     )
 
 
+@dataclass(frozen=True)
+class _AuditedBoundsBuildParams:
+    asset_in: str
+    asset_out: str
+    amount_out_total: int
+    max_legs: int
+    max_candidate_pools: int
+    max_candidates: int
+    max_iters: int
+    window: int
+    brute_force_max: int
+    max_full_domain_pools: int
+    max_enumerated_candidates: int
+
+    @property
+    def domain_bounds(self) -> tuple[int, int, int]:
+        return (
+            int(self.max_legs),
+            int(self.max_candidate_pools),
+            int(self.max_enumerated_candidates),
+        )
+
+    @property
+    def runtime_bounds(self) -> tuple[int, int, int, int, int, int, int, int]:
+        return (
+            int(self.max_legs),
+            int(self.max_candidate_pools),
+            int(self.max_candidates),
+            int(self.max_iters),
+            int(self.window),
+            int(self.brute_force_max),
+            int(self.max_full_domain_pools),
+            int(self.max_enumerated_candidates),
+        )
+
+    @property
+    def repaired_packet_bounds(self) -> tuple[int, int, int, int]:
+        return (
+            int(self.max_candidates),
+            int(self.max_iters),
+            int(self.window),
+            int(self.brute_force_max),
+        )
+
+    @property
+    def repaired_contract_bounds(self) -> tuple[int, int, int, int]:
+        return (
+            int(self.max_legs),
+            int(self.max_candidate_pools),
+            int(self.max_full_domain_pools),
+            int(self.max_enumerated_candidates),
+        )
+
+
+@dataclass(frozen=True)
+class _AuditedBoundsFlags:
+    selected_domain_budget_respected: bool
+    repaired_selection_budget_respected: bool
+    full_domain_pool_budget_respected: bool
+    full_domain_candidate_budget_respected: bool
+    budget_parameters_bound: bool
+    failure_path_explicit: bool
+    success_path_replayable: bool
+
+    @property
+    def contract_ok(self) -> bool:
+        return (
+            self.selected_domain_budget_respected
+            and self.repaired_selection_budget_respected
+            and self.full_domain_pool_budget_respected
+            and self.full_domain_candidate_budget_respected
+            and self.budget_parameters_bound
+            and self.failure_path_explicit
+            and self.success_path_replayable
+        )
+
+
+def _domain_contract_budget_tuple(domain_contract: Any) -> tuple[int, int, int]:
+    return (
+        int(domain_contract.max_legs),
+        int(domain_contract.max_candidate_pools),
+        int(domain_contract.max_enumerated_candidates),
+    )
+
+
+def _runtime_contract_budget_tuple(runtime_contract: Any) -> tuple[int, int, int, int, int, int, int, int]:
+    return (
+        int(runtime_contract.max_legs),
+        int(runtime_contract.max_candidate_pools),
+        int(runtime_contract.max_candidates),
+        int(runtime_contract.max_iters),
+        int(runtime_contract.window),
+        int(runtime_contract.brute_force_max),
+        int(runtime_contract.max_full_domain_pools),
+        int(runtime_contract.max_enumerated_candidates),
+    )
+
+
+def _repaired_packet_budget_tuple(repaired_packet: Any) -> tuple[int, int, int, int]:
+    return (
+        int(repaired_packet.max_candidates),
+        int(repaired_packet.max_iters),
+        int(repaired_packet.window),
+        int(repaired_packet.brute_force_max),
+    )
+
+
+def _repaired_contract_budget_tuple(repaired_contract: Any) -> tuple[int, int, int, int]:
+    return (
+        int(repaired_contract.max_legs),
+        int(repaired_contract.max_candidate_pools),
+        int(repaired_contract.max_full_domain_pools),
+        int(repaired_contract.max_enumerated_candidates),
+    )
+
+
 def _exact_out_many_pool_budget_parameters_bound(
     packet: ExactOutManyPoolCertifiedAdvisoryPacket,
     *,
-    max_legs: int,
-    max_candidate_pools: int,
-    max_candidates: int,
-    max_iters: int,
-    window: int,
-    brute_force_max: int,
-    max_full_domain_pools: int,
-    max_enumerated_candidates: int,
+    params: _AuditedBoundsBuildParams,
 ) -> bool:
     domain_contract = packet.certified_packet.domain_contract
     guarded_contract = packet.certified_packet.guarded_packet.contract
@@ -3564,81 +3673,113 @@ def _exact_out_many_pool_budget_parameters_bound(
     oracle_contract = advisory_packet.workaround_packet.oracle_contract
     repaired_packet = advisory_packet.workaround_packet.repaired_packet
     repaired_contract = repaired_packet.repaired_contract
-    expected_domain_bounds = (
-        int(max_legs),
-        int(max_candidate_pools),
-        int(max_enumerated_candidates),
-    )
-    expected_runtime_bounds = (
-        int(max_legs),
-        int(max_candidate_pools),
-        int(max_candidates),
-        int(max_iters),
-        int(window),
-        int(brute_force_max),
-        int(max_full_domain_pools),
-        int(max_enumerated_candidates),
-    )
     return (
-        (int(domain_contract.max_legs), int(domain_contract.max_candidate_pools), int(domain_contract.max_enumerated_candidates))
-        == expected_domain_bounds
-        and (
-            int(guarded_contract.max_legs),
-            int(guarded_contract.max_candidate_pools),
-            int(guarded_contract.max_candidates),
-            int(guarded_contract.max_iters),
-            int(guarded_contract.window),
-            int(guarded_contract.brute_force_max),
-            int(guarded_contract.max_full_domain_pools),
-            int(guarded_contract.max_enumerated_candidates),
+        _domain_contract_budget_tuple(domain_contract) == params.domain_bounds
+        and _runtime_contract_budget_tuple(guarded_contract) == params.runtime_bounds
+        and _runtime_contract_budget_tuple(selected_domain_contract) == params.runtime_bounds
+        and _runtime_contract_budget_tuple(oracle_contract) == params.runtime_bounds
+        and _repaired_packet_budget_tuple(repaired_packet) == params.repaired_packet_bounds
+        and _repaired_contract_budget_tuple(repaired_contract) == params.repaired_contract_bounds
+    )
+
+
+def _build_certified_advisory_packet_for_audited_bounds(
+    pools: Sequence[PoolState],
+    *,
+    params: _AuditedBoundsBuildParams,
+) -> ExactOutManyPoolCertifiedAdvisoryPacket:
+    return build_exact_out_many_pool_certified_advisory_packet(
+        pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+
+
+def _audited_bounds_failure_path_explicit(packet: ExactOutManyPoolCertifiedAdvisoryPacket) -> bool:
+    return bool(
+        packet.packet_ok
+        or not packet.certified_packet.packet_ok
+        or (not packet.advisory_packet.packet_ok and packet.advisory_packet.error is not None)
+        or not packet.selected_runtime_quotes_agree
+    )
+
+
+def _audited_bounds_success_path_replayable(packet: ExactOutManyPoolCertifiedAdvisoryPacket) -> bool:
+    return bool(
+        not packet.packet_ok
+        or (
+            packet.advisory_packet.advisory_quote is not None
+            and packet.advisory_packet.quote_source is not None
+            and packet.advisory_packet.error is None
         )
-        == expected_runtime_bounds
-        and (
-            int(selected_domain_contract.max_legs),
-            int(selected_domain_contract.max_candidate_pools),
-            int(selected_domain_contract.max_candidates),
-            int(selected_domain_contract.max_iters),
-            int(selected_domain_contract.window),
-            int(selected_domain_contract.brute_force_max),
-            int(selected_domain_contract.max_full_domain_pools),
-            int(selected_domain_contract.max_enumerated_candidates),
-        )
-        == expected_runtime_bounds
-        and (
-            int(oracle_contract.max_legs),
-            int(oracle_contract.max_candidate_pools),
-            int(oracle_contract.max_candidates),
-            int(oracle_contract.max_iters),
-            int(oracle_contract.window),
-            int(oracle_contract.brute_force_max),
-            int(oracle_contract.max_full_domain_pools),
-            int(oracle_contract.max_enumerated_candidates),
-        )
-        == expected_runtime_bounds
-        and (
-            int(repaired_packet.max_candidates),
-            int(repaired_packet.max_iters),
-            int(repaired_packet.window),
-            int(repaired_packet.brute_force_max),
-        )
-        == (
-            int(max_candidates),
-            int(max_iters),
-            int(window),
-            int(brute_force_max),
-        )
-        and (
-            int(repaired_contract.max_legs),
-            int(repaired_contract.max_candidate_pools),
-            int(repaired_contract.max_full_domain_pools),
-            int(repaired_contract.max_enumerated_candidates),
-        )
-        == (
-            int(max_legs),
-            int(max_candidate_pools),
-            int(max_full_domain_pools),
-            int(max_enumerated_candidates),
-        )
+    )
+
+
+def _audited_bounds_flags(
+    packet: ExactOutManyPoolCertifiedAdvisoryPacket,
+    *,
+    params: _AuditedBoundsBuildParams,
+) -> _AuditedBoundsFlags:
+    domain_contract = packet.certified_packet.domain_contract
+    repaired_packet = packet.advisory_packet.workaround_packet.repaired_packet
+    repaired_contract = repaired_packet.repaired_contract
+    full_domain_packet = packet.advisory_packet.workaround_packet.repaired_full_domain_packet
+    return _AuditedBoundsFlags(
+        selected_domain_budget_respected=bool(
+            domain_contract.audit_pool_ids_within_budget
+            and domain_contract.candidate_count_within_budget
+        ),
+        repaired_selection_budget_respected=bool(repaired_contract.repaired_selected_pool_ids_within_budget),
+        full_domain_pool_budget_respected=bool(
+            len(full_domain_packet.full_domain_feasible_pool_ids) <= int(params.max_full_domain_pools)
+        ),
+        full_domain_candidate_budget_respected=bool(
+            int(full_domain_packet.full_domain_candidate_count) <= int(params.max_enumerated_candidates)
+        ),
+        budget_parameters_bound=_exact_out_many_pool_budget_parameters_bound(packet, params=params),
+        failure_path_explicit=_audited_bounds_failure_path_explicit(packet),
+        success_path_replayable=_audited_bounds_success_path_replayable(packet),
+    )
+
+
+def _audited_bounds_contract_from_flags(
+    pools: Sequence[PoolState],
+    packet: ExactOutManyPoolCertifiedAdvisoryPacket,
+    *,
+    params: _AuditedBoundsBuildParams,
+    flags: _AuditedBoundsFlags,
+) -> ExactOutManyPoolAuditedBoundsContract:
+    return ExactOutManyPoolAuditedBoundsContract(
+        asset_in=str(params.asset_in),
+        asset_out=str(params.asset_out),
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+        pool_snapshots=tuple(_pool_to_dict(pool) for pool in pools),
+        certified_advisory_packet=packet,
+        selected_domain_budget_respected=bool(flags.selected_domain_budget_respected),
+        repaired_selection_budget_respected=bool(flags.repaired_selection_budget_respected),
+        full_domain_pool_budget_respected=bool(flags.full_domain_pool_budget_respected),
+        full_domain_candidate_budget_respected=bool(flags.full_domain_candidate_budget_respected),
+        budget_parameters_bound=bool(flags.budget_parameters_bound),
+        failure_path_explicit=bool(flags.failure_path_explicit),
+        success_path_replayable=bool(flags.success_path_replayable),
+        contract_ok=bool(flags.contract_ok),
     )
 
 
@@ -3657,96 +3798,22 @@ def build_exact_out_many_pool_audited_bounds_contract(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolAuditedBoundsContract:
-    certified_advisory_packet = build_exact_out_many_pool_certified_advisory_packet(
-        pools,
+    params = _AuditedBoundsBuildParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        amount_out_total=amount_out_total,
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_candidates=max_candidates,
+        max_iters=max_iters,
+        window=window,
+        brute_force_max=brute_force_max,
+        max_full_domain_pools=max_full_domain_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
     )
-    domain_contract = certified_advisory_packet.certified_packet.domain_contract
-    repaired_contract = certified_advisory_packet.advisory_packet.workaround_packet.repaired_packet.repaired_contract
-    repaired_full_domain_packet = certified_advisory_packet.advisory_packet.workaround_packet.repaired_full_domain_packet
-    selected_domain_budget_respected = bool(
-        domain_contract.audit_pool_ids_within_budget
-        and domain_contract.candidate_count_within_budget
-    )
-    repaired_selection_budget_respected = bool(
-        repaired_contract.repaired_selected_pool_ids_within_budget
-    )
-    full_domain_pool_budget_respected = bool(
-        len(repaired_full_domain_packet.full_domain_feasible_pool_ids) <= int(max_full_domain_pools)
-    )
-    full_domain_candidate_budget_respected = bool(
-        int(repaired_full_domain_packet.full_domain_candidate_count) <= int(max_enumerated_candidates)
-    )
-    budget_parameters_bound = _exact_out_many_pool_budget_parameters_bound(
-        certified_advisory_packet,
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
-    )
-    failure_path_explicit = bool(
-        certified_advisory_packet.packet_ok
-        or not certified_advisory_packet.certified_packet.packet_ok
-        or (
-            not certified_advisory_packet.advisory_packet.packet_ok
-            and certified_advisory_packet.advisory_packet.error is not None
-        )
-        or not certified_advisory_packet.selected_runtime_quotes_agree
-    )
-    success_path_replayable = bool(
-        not certified_advisory_packet.packet_ok
-        or (
-            certified_advisory_packet.advisory_packet.advisory_quote is not None
-            and certified_advisory_packet.advisory_packet.quote_source is not None
-            and certified_advisory_packet.advisory_packet.error is None
-        )
-    )
-    contract_ok = bool(
-        selected_domain_budget_respected
-        and repaired_selection_budget_respected
-        and full_domain_pool_budget_respected
-        and full_domain_candidate_budget_respected
-        and budget_parameters_bound
-        and failure_path_explicit
-        and success_path_replayable
-    )
-    return ExactOutManyPoolAuditedBoundsContract(
-        asset_in=str(asset_in),
-        asset_out=str(asset_out),
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
-        pool_snapshots=tuple(_pool_to_dict(pool) for pool in pools),
-        certified_advisory_packet=certified_advisory_packet,
-        selected_domain_budget_respected=bool(selected_domain_budget_respected),
-        repaired_selection_budget_respected=bool(repaired_selection_budget_respected),
-        full_domain_pool_budget_respected=bool(full_domain_pool_budget_respected),
-        full_domain_candidate_budget_respected=bool(full_domain_candidate_budget_respected),
-        budget_parameters_bound=bool(budget_parameters_bound),
-        failure_path_explicit=bool(failure_path_explicit),
-        success_path_replayable=bool(success_path_replayable),
-        contract_ok=bool(contract_ok),
-    )
+    packet = _build_certified_advisory_packet_for_audited_bounds(pools, params=params)
+    flags = _audited_bounds_flags(packet, params=params)
+    return _audited_bounds_contract_from_flags(pools, packet, params=params, flags=flags)
 
 
 def _exact_out_many_pool_certified_advisory_packet_error(
