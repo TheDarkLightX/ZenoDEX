@@ -74,6 +74,13 @@ def _to_measurement_set(values: Iterable[str]) -> set[str]:
     return out
 
 
+def _registry_epoch_sort_key(entry: Dict[str, Any], field: str) -> int:
+    value = entry[field]
+    if isinstance(value, bool):
+        raise ValueError(f"{field} must be an int")
+    return int(value) if isinstance(value, int) else -1
+
+
 def _measurement_registry_unsigned(registry: Dict[str, Any]) -> Dict[str, Any]:
     entries = registry.get("entries")
     if not isinstance(entries, list):
@@ -97,8 +104,8 @@ def _measurement_registry_unsigned(registry: Dict[str, Any]) -> Dict[str, Any]:
             str(entry["provider_id"]),
             str(entry["measurement"]),
             str(entry["policy_digest"]),
-            int(entry["valid_from_epoch"]) if isinstance(entry["valid_from_epoch"], int) else -1,
-            int(entry["valid_until_epoch"]) if isinstance(entry["valid_until_epoch"], int) else -1,
+            _registry_epoch_sort_key(entry, "valid_from_epoch"),
+            _registry_epoch_sort_key(entry, "valid_until_epoch"),
         )
     )
     return {
