@@ -30,10 +30,10 @@ import ast
 import re
 import sys
 from pathlib import Path
-from typing import Iterable
 
 import pytest
 
+from src.integration.zeno_ledger_v0 import hash_v0, merkle_root_v0
 from src.state.canonical import (
     canonical_json_bytes,
     domain_sep_bytes,
@@ -42,14 +42,14 @@ from src.state.canonical import (
     hex_to_bytes_fixed,
     sha256_hex,
 )
-from src.integration.zeno_ledger_v0 import hash_v0, merkle_root_v0
-
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # Files whose output is committed/signed and therefore consensus-critical.
 _CONSENSUS_CRITICAL_SOURCES = (
+    "src/state/app_root.py",
     "src/state/canonical.py",
+    "src/state/jmt.py",
     "src/integration/zeno_ledger_v0.py",
     "src/integration/zeno_ledger_signer_registry.py",
     "src/integration/zeno_ledger_signature.py",
