@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from src.core.amm_dispatch import swap_exact_out_for_pool
 from src.core.split_routing_dispatch import (
@@ -1199,6 +1199,126 @@ class ExactOutManyPoolCertifiedWinnerPacket:
         }
 
 
+def _projection_cover_canonical_path_payload(
+    projection_cover: ExactOutManyPoolProjectionCoverAudit | None,
+) -> list[list[object]] | None:
+    if projection_cover is None:
+        return None
+    return [
+        [str(pool_id), int(amount_out), int(amount_in)]
+        for pool_id, amount_out, amount_in in projection_cover.canonical_quote_projected_path
+    ]
+
+
+def _projection_cover_holds_payload(projection_cover: ExactOutManyPoolProjectionCoverAudit | None) -> bool | None:
+    return None if projection_cover is None else bool(projection_cover.projection_cover_holds)
+
+
+_PayloadItems = tuple[tuple[str, Any], ...]
+
+
+def _repaired_full_domain_summary_items(
+    *,
+    repaired_full_domain_payload: Mapping[str, Any],
+    effective_quote: dict[str, Any] | None,
+) -> _PayloadItems:
+    return (
+        ("repaired_full_domain_packet_ok", bool(repaired_full_domain_payload["packet_ok"])),
+        (
+            "repaired_quote_matches_full_domain_canonical",
+            bool(repaired_full_domain_payload["repaired_matches_full_canonical"]),
+        ),
+        ("repaired_full_domain_feasible_pool_ids", repaired_full_domain_payload["full_domain_feasible_pool_ids"]),
+        ("repaired_full_domain_candidate_count", repaired_full_domain_payload["full_domain_candidate_count"]),
+        ("repaired_full_domain_canonical_quote", repaired_full_domain_payload["full_domain_canonical_quote"]),
+        (
+            "effective_quote_matches_full_domain_canonical",
+            None
+            if effective_quote is None
+            else bool(effective_quote == repaired_full_domain_payload["full_domain_canonical_quote"]),
+        ),
+    )
+
+
+def _repaired_key_cover_summary_items(
+    *,
+    key_cover_packet: ExactOutManyPoolRepairedKeyCoverPacket,
+    interpretation_packet: ExactOutManyPoolRepairedKeyCoverInterpretationPacket,
+) -> _PayloadItems:
+    return (
+        ("repaired_key_cover_packet_ok", bool(key_cover_packet.packet_ok)),
+        ("repaired_selected_keys_subset_full_keys", bool(key_cover_packet.selected_keys_subset_full_keys)),
+        ("repaired_key_cover_holds", bool(key_cover_packet.key_cover_holds)),
+        (
+            "repaired_selected_domain_canonical_matches_full_domain_canonical",
+            bool(key_cover_packet.selected_domain_canonical_matches_full_domain_canonical),
+        ),
+        ("repaired_key_cover_witness_count", len(key_cover_packet.domination_witnesses)),
+        ("repaired_key_cover_interpretation_packet_ok", bool(interpretation_packet.packet_ok)),
+        (
+            "repaired_key_cover_selected_winner_index_in_range",
+            bool(interpretation_packet.selected_winner_index_in_range),
+        ),
+        (
+            "repaired_key_cover_selected_winner_matches_certificate",
+            bool(interpretation_packet.selected_winner_matches_certificate),
+        ),
+        ("repaired_key_cover_selected_winner_key_minimal", bool(interpretation_packet.selected_winner_key_minimal)),
+        (
+            "repaired_key_cover_witness_indices_in_range",
+            bool(interpretation_packet.domination_witness_indices_in_range),
+        ),
+        (
+            "repaired_key_cover_witness_coverage_complete",
+            bool(interpretation_packet.domination_witnesses_cover_full_candidates),
+        ),
+        (
+            "repaired_key_cover_witness_keys_match_candidates",
+            bool(interpretation_packet.domination_witness_keys_match_candidates),
+        ),
+        ("repaired_key_cover_witness_domination_holds", bool(interpretation_packet.domination_witnesses_dominate)),
+    )
+
+
+def _effective_projection_cover_summary_items(
+    *,
+    quote_source: str | None,
+    selected_projection_cover_holds: bool | None,
+    selected_canonical_projected_path: list[list[object]] | None,
+    selected_runtime_projected_path: list[list[object]],
+    repaired_projection_cover_holds: bool | None,
+    repaired_canonical_projected_path: list[list[object]] | None,
+    advisory_projected_path: list[list[object]] | None,
+) -> _PayloadItems:
+    if quote_source == "selected_domain_runtime":
+        side = "selected_domain"
+        cover_holds = selected_projection_cover_holds
+        canonical_projected_path = selected_canonical_projected_path
+        quote_projected_path = selected_runtime_projected_path
+    elif quote_source == "repaired_bounded_advisory":
+        side = "repaired"
+        cover_holds = repaired_projection_cover_holds
+        canonical_projected_path = repaired_canonical_projected_path
+        quote_projected_path = advisory_projected_path
+    else:
+        side = None
+        cover_holds = None
+        canonical_projected_path = None
+        quote_projected_path = None
+    return (
+        ("effective_projection_cover_side", side),
+        ("effective_projection_cover_holds", cover_holds),
+        ("effective_canonical_projected_path", canonical_projected_path),
+        ("effective_quote_projected_path", quote_projected_path),
+        (
+            "effective_quote_matches_canonical_projected_path",
+            None
+            if quote_projected_path is None or canonical_projected_path is None
+            else bool(quote_projected_path == canonical_projected_path),
+        ),
+    )
+
+
 @dataclass(frozen=True)
 class ExactOutManyPoolCertifiedAdvisoryPacket:
     certified_packet: ExactOutManyPoolCertifiedWinnerPacket
@@ -1245,90 +1365,24 @@ class ExactOutManyPoolCertifiedAdvisoryPacket:
             if self.advisory_packet.advisory_quote is None
             else _quote_to_projected_path_payload(self.advisory_packet.advisory_quote)
         )
-        selected_canonical_projected_path = (
-            None
-            if selected_projection_cover is None
-            else [
-                [str(pool_id), int(amount_out), int(amount_in)]
-                for pool_id, amount_out, amount_in in selected_projection_cover.canonical_quote_projected_path
-            ]
-        )
-        repaired_canonical_projected_path = (
-            None
-            if repaired_projection_cover is None
-            else [
-                [str(pool_id), int(amount_out), int(amount_in)]
-                for pool_id, amount_out, amount_in in repaired_projection_cover.canonical_quote_projected_path
-            ]
-        )
-        selected_projection_cover_holds = (
-            None if selected_projection_cover is None else bool(selected_projection_cover.projection_cover_holds)
-        )
-        repaired_projection_cover_holds = (
-            None if repaired_projection_cover is None else bool(repaired_projection_cover.projection_cover_holds)
-        )
-        if self.advisory_packet.quote_source == "selected_domain_runtime":
-            effective_projection_cover_side = "selected_domain"
-            effective_projection_cover_holds = selected_projection_cover_holds
-            effective_canonical_projected_path = selected_canonical_projected_path
-            effective_quote_projected_path = selected_runtime_projected_path
-        elif self.advisory_packet.quote_source == "repaired_bounded_advisory":
-            effective_projection_cover_side = "repaired"
-            effective_projection_cover_holds = repaired_projection_cover_holds
-            effective_canonical_projected_path = repaired_canonical_projected_path
-            effective_quote_projected_path = advisory_projected_path
-        else:
-            effective_projection_cover_side = None
-            effective_projection_cover_holds = None
-            effective_canonical_projected_path = None
-            effective_quote_projected_path = None
+        selected_canonical_projected_path = _projection_cover_canonical_path_payload(selected_projection_cover)
+        repaired_canonical_projected_path = _projection_cover_canonical_path_payload(repaired_projection_cover)
+        selected_projection_cover_holds = _projection_cover_holds_payload(selected_projection_cover)
+        repaired_projection_cover_holds = _projection_cover_holds_payload(repaired_projection_cover)
         return {
             "effective_quote_source": self.advisory_packet.quote_source,
             "effective_quote": effective_quote,
             "selected_domain_runtime_quote": selected_runtime_quote,
             "effective_quote_matches_selected_runtime_quote": bool(self.advisory_packet.quote_matches_runtime),
             "effective_quote_matches_repaired_advisory_quote": bool(self.advisory_packet.quote_matches_repaired_advisory),
-            "repaired_full_domain_packet_ok": bool(repaired_full_domain_payload["packet_ok"]),
-            "repaired_quote_matches_full_domain_canonical": bool(
-                repaired_full_domain_payload["repaired_matches_full_canonical"]
-            ),
-            "repaired_full_domain_feasible_pool_ids": repaired_full_domain_payload["full_domain_feasible_pool_ids"],
-            "repaired_full_domain_candidate_count": repaired_full_domain_payload["full_domain_candidate_count"],
-            "repaired_full_domain_canonical_quote": repaired_full_domain_payload["full_domain_canonical_quote"],
-            "effective_quote_matches_full_domain_canonical": (
-                None
-                if effective_quote is None
-                else bool(effective_quote == repaired_full_domain_payload["full_domain_canonical_quote"])
-            ),
-            "repaired_key_cover_packet_ok": bool(self.repaired_key_cover_packet.packet_ok),
-            "repaired_selected_keys_subset_full_keys": bool(self.repaired_key_cover_packet.selected_keys_subset_full_keys),
-            "repaired_key_cover_holds": bool(self.repaired_key_cover_packet.key_cover_holds),
-            "repaired_selected_domain_canonical_matches_full_domain_canonical": bool(
-                self.repaired_key_cover_packet.selected_domain_canonical_matches_full_domain_canonical
-            ),
-            "repaired_key_cover_witness_count": len(self.repaired_key_cover_packet.domination_witnesses),
-            "repaired_key_cover_interpretation_packet_ok": bool(self.repaired_key_cover_interpretation_packet.packet_ok),
-            "repaired_key_cover_selected_winner_index_in_range": bool(
-                self.repaired_key_cover_interpretation_packet.selected_winner_index_in_range
-            ),
-            "repaired_key_cover_selected_winner_matches_certificate": bool(
-                self.repaired_key_cover_interpretation_packet.selected_winner_matches_certificate
-            ),
-            "repaired_key_cover_selected_winner_key_minimal": bool(
-                self.repaired_key_cover_interpretation_packet.selected_winner_key_minimal
-            ),
-            "repaired_key_cover_witness_indices_in_range": bool(
-                self.repaired_key_cover_interpretation_packet.domination_witness_indices_in_range
-            ),
-            "repaired_key_cover_witness_coverage_complete": bool(
-                self.repaired_key_cover_interpretation_packet.domination_witnesses_cover_full_candidates
-            ),
-            "repaired_key_cover_witness_keys_match_candidates": bool(
-                self.repaired_key_cover_interpretation_packet.domination_witness_keys_match_candidates
-            ),
-            "repaired_key_cover_witness_domination_holds": bool(
-                self.repaired_key_cover_interpretation_packet.domination_witnesses_dominate
-            ),
+            **dict(_repaired_full_domain_summary_items(
+                repaired_full_domain_payload=repaired_full_domain_payload,
+                effective_quote=effective_quote,
+            )),
+            **dict(_repaired_key_cover_summary_items(
+                key_cover_packet=self.repaired_key_cover_packet,
+                interpretation_packet=self.repaired_key_cover_interpretation_packet,
+            )),
             "selected_domain_runtime_projected_path": selected_runtime_projected_path,
             "advisory_projected_path": advisory_projected_path,
             "selected_domain_projection_cover_available": bool(selected_projection_cover is not None),
@@ -1347,15 +1401,15 @@ class ExactOutManyPoolCertifiedAdvisoryPacket:
                 if advisory_projected_path is None or repaired_canonical_projected_path is None
                 else bool(advisory_projected_path == repaired_canonical_projected_path)
             ),
-            "effective_projection_cover_side": effective_projection_cover_side,
-            "effective_projection_cover_holds": effective_projection_cover_holds,
-            "effective_canonical_projected_path": effective_canonical_projected_path,
-            "effective_quote_projected_path": effective_quote_projected_path,
-            "effective_quote_matches_canonical_projected_path": (
-                None
-                if effective_quote_projected_path is None or effective_canonical_projected_path is None
-                else bool(effective_quote_projected_path == effective_canonical_projected_path)
-            ),
+            **dict(_effective_projection_cover_summary_items(
+                quote_source=self.advisory_packet.quote_source,
+                selected_projection_cover_holds=selected_projection_cover_holds,
+                selected_canonical_projected_path=selected_canonical_projected_path,
+                selected_runtime_projected_path=selected_runtime_projected_path,
+                repaired_projection_cover_holds=repaired_projection_cover_holds,
+                repaired_canonical_projected_path=repaired_canonical_projected_path,
+                advisory_projected_path=advisory_projected_path,
+            )),
         }
 
     def to_dict(self) -> dict[str, Any]:
