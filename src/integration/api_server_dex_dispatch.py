@@ -222,6 +222,9 @@ from src.integration import (  # noqa: E402
 from src.integration import (  # noqa: E402
     dex_dispatch_settlement_value_packet_handlers as _settlement_value_packet_handlers,  # noqa: F401
 )
+from src.integration import (  # noqa: E402
+    dex_dispatch_settlement_witness_lifecycle_handlers as _settlement_witness_lifecycle_handlers,  # noqa: F401
+)
 from src.integration import dex_dispatch_slippage_handlers as _slippage_handlers  # noqa: E402,F401
 
 if _REGISTRY_BUILD is None:

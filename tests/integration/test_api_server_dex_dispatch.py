@@ -119,8 +119,6 @@ def test_registry_contains_pr1_endpoints() -> None:
 def test_lookup_returns_none_for_unregistered_paths() -> None:
     from src.integration.api_server_dex_dispatch import lookup
 
-    # Settlement witness lifecycle remains in the delegated legacy fall-through chain.
-    assert lookup("/api/dex/build_settlement_witness_lifecycle_packet") is None
     assert lookup("/api/dex/this_path_does_not_exist") is None
 
 
@@ -145,6 +143,8 @@ def test_lookup_returns_handler_for_registered_path() -> None:
     assert callable(lookup("/api/dex/quote_exact_out_many_pool"))
     assert callable(lookup("/api/dex/quote_exact_out_many_pool_adaptive"))
     assert callable(lookup("/api/dex/quote_exact_out_many_pool_certified_advisory"))
+    assert callable(lookup("/api/dex/build_settlement_witness_lifecycle_packet"))
+    assert callable(lookup("/api/dex/verify_settlement_witness_lifecycle_packet"))
 
 
 def test_writer_snapshot_loader_rejects_relative_escape(tmp_path: Path) -> None:
@@ -1021,24 +1021,18 @@ def test_default_error_code_derived_from_path_suffix() -> None:
     assert _default_error_code_for_path("/api/dex/__test_default_code__") == "__test_default_code___error"
 
 
-def test_unregistered_path_still_routes_to_legacy_chain() -> None:
-    """An endpoint NOT in the registry must still work via legacy fall-through."""
+def test_unregistered_path_returns_not_found_after_dispatch_miss() -> None:
+    """Unknown DEX endpoints should fall through to the final not_found response."""
     httpd, t, host, port = _start_test_server()
     try:
-        # This endpoint is still implemented in the legacy chain. The
-        # representative bad request should return a legacy-shaped body,
-        # proving the dispatcher did not turn an unregistered path into
-        # a no-handler response.
         status, body = _post_json(
             host,
             port,
-            "/api/dex/build_settlement_witness_lifecycle_packet",
-            {"intents": []},
+            "/api/dex/this_path_does_not_exist",
+            {},
         )
-        # Either accepted or rejected — but NOT a "no handler" / 404 / 405.
-        # The legacy chain returns 400 with a specific error_code on bad input.
-        assert status in (200, 400)
-        assert "ok" in body
+        assert status == 404
+        assert body == {"ok": False, "error": "not_found"}
     finally:
         _stop_test_server(httpd, t)
 

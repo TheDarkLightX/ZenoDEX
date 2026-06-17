@@ -27,6 +27,8 @@ from math import comb
 from typing import Any, Mapping, Optional, Sequence, Set
 from urllib.parse import urlsplit
 
+from src.state.canonical import canonical_json_bytes
+
 # Prewarm the expensive attestation / LP-aware settlement modules at server
 # startup so their first request does not pay import latency inside the 2s API
 # timeout budget used by the focused regression suite.
@@ -145,14 +147,6 @@ def _parse_cors_origins(value: str) -> Set[str]:
             continue
         out.add(origin)
     return out
-
-
-from src.integration.api_server_settlement_parsers import (
-    _parse_price_history_payload,
-    _parse_settlement_feature_extension_inputs_payload,
-    _parse_settlement_proof_flags_payload,
-)
-from src.state.canonical import canonical_json_bytes
 
 
 DEX_API_MAX_ROUTE_AMOUNT_IN = 50_000
@@ -1222,6 +1216,21 @@ class _Handler(BaseHTTPRequestHandler):
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
+    def _maybe_handle_dex_get_endpoint(self, *, method: str, path: str, cors_origin: Optional[str]) -> bool:
+        if path == "/api/dex/openapi.json" and method == "GET":
+            from src.integration.api_server_dex_dispatch import (  # pylint: disable=import-outside-toplevel
+                generate_openapi_document,
+            )
+
+            self._write_json(200, generate_openapi_document(), cors_origin=cors_origin)
+            return True
+        if path == "/api/dex/metrics" and method == "GET":
+            from src.integration.api_server_dex_dispatch import serve_metrics  # pylint: disable=import-outside-toplevel
+
+            self._write_json(200, serve_metrics(), cors_origin=cors_origin)
+            return True
+        return False
+
     def _maybe_handle_dex_api(
         self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
     ) -> bool:
@@ -1232,40 +1241,17 @@ class _Handler(BaseHTTPRequestHandler):
         if not self._demo_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
             return True
-        # Step 7: serve the auto-generated OpenAPI 3.1 document. GET-only.
-        # Only the schema-backed (Step 6) endpoints appear; ad-hoc-validated
-        # handlers are intentionally omitted so the published surface
-        # never lies about the contract.
-        if path == "/api/dex/openapi.json" and method == "GET":
-            from src.integration.api_server_dex_dispatch import (  # pylint: disable=import-outside-toplevel
-                generate_openapi_document,
-            )
-
-            self._write_json(200, generate_openapi_document(), cors_origin=cors_origin)
-            return True
-        # Step 8: per-endpoint dispatch metrics (request count, error
-        # count, latency p50/p95/p99). GET-only. Operator-facing.
-        if path == "/api/dex/metrics" and method == "GET":
-            from src.integration.api_server_dex_dispatch import (  # pylint: disable=import-outside-toplevel
-                serve_metrics,
-            )
-
-            self._write_json(200, serve_metrics(), cors_origin=cors_origin)
+        if self._maybe_handle_dex_get_endpoint(method=method, path=path, cors_origin=cors_origin):
             return True
         if method != "POST":
             self._write_json(405, {"ok": False, "error": "method_not_allowed"}, cors_origin=cors_origin)
             return True
-        if raw_body is None:
-            self._write_json(400, {"ok": False, "error": "missing_body"}, cors_origin=cors_origin)
-            return True
+        from src.integration._dex_api_helpers import parse_json_body_or_400  # pylint: disable=import-outside-toplevel
 
-        try:
-            obj = json.loads(raw_body)
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            self._write_json(400, {"ok": False, "error": "bad_json"}, cors_origin=cors_origin)
-            return True
-        if not isinstance(obj, dict):
-            self._write_json(400, {"ok": False, "error": "bad_body"}, cors_origin=cors_origin)
+        obj, parse_error = parse_json_body_or_400(raw_body)
+        if parse_error is not None or obj is None:
+            status, body = parse_error or (400, {"ok": False, "error": "bad_body"})
+            self._write_json(status, body, cors_origin=cors_origin)
             return True
         search_limit_error = _dex_api_search_limit_error(path, obj)
         if search_limit_error is not None:
@@ -1289,43 +1275,6 @@ class _Handler(BaseHTTPRequestHandler):
             _status, _body = _dispatched
             self._write_json(_status, _body, cors_origin=cors_origin)
             return True
-
-        # Closures kept as thin wrappers around helpers in _dex_api_helpers
-        # so the legacy if-chain below still calls them by their original
-        # names. Migrated handlers in dex_dispatch_handlers.py import the
-        # helpers directly.
-        from src.integration._dex_api_helpers import (  # pylint: disable=import-outside-toplevel
-            parse_pools as _parse_pools_helper,
-            projected_path_from_exact_out_quote_payload as _projected_path_from_exact_out_quote_payload,
-        )
-
-        def _parse_pools() -> dict[str, Any]:
-            return _parse_pools_helper(obj)
-        from src.integration.api_server_settlement_witness_routes import (  # pylint: disable=import-outside-toplevel
-            maybe_handle_settlement_witness_lifecycle_route,
-        )
-
-        if maybe_handle_settlement_witness_lifecycle_route(
-            path=path,
-            obj=obj,
-            write_json=lambda status, body: self._write_json(status, body, cors_origin=cors_origin),
-            parse_pools=_parse_pools,
-            parse_settlement_proof_flags_payload=_parse_settlement_proof_flags_payload,
-            parse_price_history_payload=_parse_price_history_payload,
-            parse_settlement_feature_extension_inputs_payload=_parse_settlement_feature_extension_inputs_payload,
-        ):
-            return True
-
-
-
-
-
-
-
-
-
-
-
 
         self._write_json(404, {"ok": False, "error": "not_found"}, cors_origin=cors_origin)
         return True
