@@ -544,8 +544,8 @@ function ZUSDMonetarySurface() {
     async function runSmoke() {
       const nextSmoke = { ...smoke };
       setForm((current) => ({ ...current, ...nextSmoke }));
-      if (!nextSmoke.signer_privkey.trim()) {
-        throw new Error('smoke signer credential required');
+      if (!nextSmoke.signer_privkey.trim() && !nextSmoke.signed_tau_tx_payload.trim()) {
+        throw new Error('smoke signer credential or signed Tau payload required');
       }
       const payloadIn = buildPayload({ ...EMPTY_FORM, ...nextSmoke });
       return apiSubmitZusdMonetary(payloadIn, { timeoutMs: 20000 });
