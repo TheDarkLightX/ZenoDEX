@@ -18,6 +18,10 @@ from src.core.split_routing_many_exact_out import (
     best_many_pool_exact_out_split,
     build_exact_out_capacity_guard_from_caps,
 )
+from src.core.split_routing_two_exact_out import (
+    TwoPoolExactOutRequest,
+    best_two_pool_exact_out_split,
+)
 from src.core.split_routing_types import (
     ExactOutCapacityGuard,
     SplitLegExactOutQuote,
@@ -114,6 +118,40 @@ def test_many_pool_exact_out_property_rejects_bool_budget_controls() -> None:
         _ = _exact_out_request(max_iters=True).max_enumerated_candidates
     with pytest.raises(ValueError, match="max_legs must be positive"):
         _ = _exact_out_request(max_legs=True).max_enumerated_candidates
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("amount_out_total", True, "amount_out_total must be positive"),
+        ("amount_out_total", "10", "amount_out_total must be positive"),
+        ("window", False, "window must be non-negative"),
+        ("brute_force_max", False, "brute_force_max must be non-negative"),
+    ],
+)
+def test_two_pool_exact_out_request_rejects_non_strict_controls(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    kwargs = {
+        "amount_out_total": 10,
+        "window": 0,
+        "brute_force_max": 0,
+    }
+    kwargs[field] = value
+    with pytest.raises(ValueError, match=message):
+        best_two_pool_exact_out_split(
+            TwoPoolExactOutRequest(
+                pool0=_pool("pool-a"),
+                pool1=_pool("pool-b"),
+                asset_in="A",
+                asset_out="B",
+                reserves_for=lambda _pool: (100, 100),
+                quote_exact_out=lambda _pool, amount_out: int(amount_out),
+                **kwargs,
+            )
+        )
 
 
 @pytest.mark.parametrize(

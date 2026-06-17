@@ -12,6 +12,7 @@ from typing import Callable
 
 from ..state.balances import AssetId
 from ..state.pools import PoolState
+from .domain_limits import is_strict_int
 from .split_routing_types import (
     ExactOutRouteCanonicalKey,
     SplitTwoPoolsQuote,
@@ -155,13 +156,22 @@ class _TwoPoolExactOutContext:
         )
 
 
+def _require_positive_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) <= 0:
+        raise ValueError(f"{name} must be positive")
+    return int(value)
+
+
+def _require_nonnegative_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return int(value)
+
+
 def _validate_request(request: TwoPoolExactOutRequest) -> None:
-    if request.amount_out_total <= 0:
-        raise ValueError("amount_out_total must be positive")
-    if request.window < 0:
-        raise ValueError("window must be non-negative")
-    if request.brute_force_max < 0:
-        raise ValueError("brute_force_max must be non-negative")
+    _require_positive_control(request.amount_out_total, name="amount_out_total")
+    _require_nonnegative_control(request.window, name="window")
+    _require_nonnegative_control(request.brute_force_max, name="brute_force_max")
 
 
 def _build_context(request: TwoPoolExactOutRequest) -> _TwoPoolExactOutContext:
