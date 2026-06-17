@@ -160,6 +160,26 @@ def test_trigger_execution_facts_from_obj_normalizes_mapping_input() -> None:
     assert facts == _facts()
 
 
+def test_trigger_execution_facts_rejects_bool_numeric_fields() -> None:
+    with pytest.raises(ValueError, match="observed_value_e8 must be an int"):
+        TriggerExecutionFacts(
+            **{
+                **_facts().__dict__,
+                "observed_value_e8": True,
+            }
+        )
+
+
+def test_trigger_execution_facts_rejects_numeric_string_fields() -> None:
+    with pytest.raises(ValueError, match="current_epoch must be an int"):
+        TriggerExecutionFacts(
+            **{
+                **_facts().__dict__,
+                "current_epoch": "20",
+            }
+        )
+
+
 def test_trigger_execute_oracle_adapter_bridge_accepts_matching_runtime_action() -> None:
     facts = _facts()
     runtime = trigger_execute_runtime_facts(facts)

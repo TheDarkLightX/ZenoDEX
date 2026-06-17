@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from typing import Any, Callable, Mapping
 
 from ..state.canonical import canonical_json_bytes
 from .zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
-
 
 TriggerOracleAdapterBridgeVerifier = Callable[[Mapping[str, Any]], Any]
 
@@ -54,6 +53,28 @@ class TriggerExecutionFacts:
     asset_in: str
     asset_out: str
     pre_state_hash: str | None = None
+
+    def __post_init__(self) -> None:
+        _require_non_empty_str(self.trigger_id, name="trigger_id")
+        _require_non_empty_str(self.owner_pubkey, name="owner_pubkey")
+        _require_non_empty_str(self.action_kind, name="action_kind")
+        _require_non_empty_str(self.query_id, name="query_id")
+        _require_int(self.observed_value_e8, name="observed_value_e8")
+        _require_int(self.trigger_price_e8, name="trigger_price_e8")
+        _require_non_empty_str(self.condition, name="condition")
+        _require_int(self.current_epoch, name="current_epoch", non_negative=True)
+        _require_int(self.valid_from_epoch, name="valid_from_epoch", non_negative=True)
+        _require_int(self.valid_until_epoch, name="valid_until_epoch", non_negative=True)
+        _require_int(
+            self.max_oracle_staleness_epochs,
+            name="max_oracle_staleness_epochs",
+            non_negative=True,
+        )
+        _require_int(self.order_amount, name="order_amount", non_negative=True)
+        _require_non_empty_str(self.asset_in, name="asset_in")
+        _require_non_empty_str(self.asset_out, name="asset_out")
+        if self.pre_state_hash is not None:
+            _require_non_empty_str(self.pre_state_hash, name="pre_state_hash")
 
 
 def _require_non_empty_str(value: Any, *, name: str) -> str:
