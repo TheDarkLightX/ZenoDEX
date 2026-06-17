@@ -3665,6 +3665,128 @@ def quote_exact_out_many_pool_repaired_full_domain_certified(
     return None, str(packet.error or EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_ERROR), packet
 
 
+@dataclass(frozen=True)
+class _BoundedWorkaroundComponents:
+    oracle_contract: ExactOutManyPoolOracleContract
+    repaired_packet: ExactOutManyPoolRepairedAdvisoryQuotePacket
+    repaired_full_domain_packet: ExactOutManyPoolRepairedFullDomainCertifiedPacket
+
+    @property
+    def runtime_quotes_agree(self) -> bool:
+        return bool(
+            self.oracle_contract.audit.runtime_quote
+            == self.repaired_full_domain_packet.repaired_packet.runtime_quote
+        )
+
+    @property
+    def runtime_matches_repaired_advisory(self) -> bool:
+        return bool(
+            self.runtime_quotes_agree
+            and self.repaired_full_domain_packet.repaired_quote is not None
+            and self.oracle_contract.audit.runtime_quote == self.repaired_full_domain_packet.repaired_quote
+        )
+
+    @property
+    def packet_ok(self) -> bool:
+        return bool(
+            self.oracle_contract.audit.runtime_matches_canonical
+            and self.repaired_full_domain_packet.packet_ok
+            and self.runtime_quotes_agree
+        )
+
+
+def _oracle_contract_for_runtime_params(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> ExactOutManyPoolOracleContract:
+    return build_exact_out_many_pool_oracle_contract(
+        pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+
+
+def _repaired_advisory_packet_for_runtime_params(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> ExactOutManyPoolRepairedAdvisoryQuotePacket:
+    return build_exact_out_many_pool_repaired_advisory_quote_packet(
+        pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+
+
+def _repaired_full_domain_packet_for_runtime_params(
+    repaired_packet: ExactOutManyPoolRepairedAdvisoryQuotePacket,
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> ExactOutManyPoolRepairedFullDomainCertifiedPacket:
+    return _build_exact_out_many_pool_repaired_full_domain_certified_packet_from_repaired_packet(
+        repaired_packet,
+        pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+
+
+def _build_bounded_workaround_components(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> _BoundedWorkaroundComponents:
+    oracle_contract = _oracle_contract_for_runtime_params(pools, params=params)
+    repaired_packet = _repaired_advisory_packet_for_runtime_params(pools, params=params)
+    repaired_full_domain_packet = _repaired_full_domain_packet_for_runtime_params(
+        repaired_packet,
+        pools,
+        params=params,
+    )
+    return _BoundedWorkaroundComponents(
+        oracle_contract=oracle_contract,
+        repaired_packet=repaired_packet,
+        repaired_full_domain_packet=repaired_full_domain_packet,
+    )
+
+
+def _bounded_workaround_packet_from_components(
+    components: _BoundedWorkaroundComponents,
+) -> ExactOutManyPoolBoundedWorkaroundPacket:
+    return ExactOutManyPoolBoundedWorkaroundPacket(
+        oracle_contract=components.oracle_contract,
+        repaired_packet=components.repaired_packet,
+        repaired_full_domain_packet=components.repaired_full_domain_packet,
+        runtime_quotes_agree=bool(components.runtime_quotes_agree),
+        runtime_matches_repaired_advisory=bool(components.runtime_matches_repaired_advisory),
+        packet_ok=bool(components.packet_ok),
+    )
+
+
 def build_exact_out_many_pool_bounded_workaround_packet(
     pools: Sequence[PoolState],
     *,
@@ -3680,62 +3802,81 @@ def build_exact_out_many_pool_bounded_workaround_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolBoundedWorkaroundPacket:
-    oracle_contract = build_exact_out_many_pool_oracle_contract(
-        pools,
+    params = _ExactOutManyPoolRuntimeParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        amount_out_total=amount_out_total,
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_candidates=max_candidates,
+        max_iters=max_iters,
+        window=window,
+        brute_force_max=brute_force_max,
+        max_full_domain_pools=max_full_domain_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
     )
-    repaired_packet = build_exact_out_many_pool_repaired_advisory_quote_packet(
-        pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+    components = _build_bounded_workaround_components(pools, params=params)
+    return _bounded_workaround_packet_from_components(components)
+
+
+def _bounded_advisory_failure_packet(
+    workaround_packet: ExactOutManyPoolBoundedWorkaroundPacket,
+    *,
+    error: str,
+) -> ExactOutManyPoolBoundedAdvisoryQuotePacket:
+    return ExactOutManyPoolBoundedAdvisoryQuotePacket(
+        packet_ok=False,
+        advisory_quote=None,
+        quote_source=None,
+        repaired_advisory_available=bool(workaround_packet.repaired_full_domain_packet.packet_ok),
+        quote_matches_runtime=False,
+        quote_matches_repaired_advisory=False,
+        error=error,
+        workaround_packet=workaround_packet,
     )
-    repaired_full_domain_packet = _build_exact_out_many_pool_repaired_full_domain_certified_packet_from_repaired_packet(
-        repaired_packet,
-        pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+
+
+@dataclass(frozen=True)
+class _BoundedAdvisorySuccessDecision:
+    advisory_quote: SplitManyPoolsExactOutQuote
+    quote_source: str
+    repaired_advisory_available: bool
+    quote_matches_runtime: bool
+    quote_matches_repaired_advisory: bool
+
+
+def _bounded_advisory_success_decision(
+    workaround_packet: ExactOutManyPoolBoundedWorkaroundPacket,
+) -> _BoundedAdvisorySuccessDecision:
+    runtime_quote = workaround_packet.oracle_contract.audit.runtime_quote
+    repaired_full_domain_packet = workaround_packet.repaired_full_domain_packet
+    repaired_quote = repaired_full_domain_packet.repaired_quote
+    repaired_available = bool(repaired_full_domain_packet.packet_ok and repaired_quote is not None)
+    use_repaired = bool(repaired_available and not workaround_packet.runtime_matches_repaired_advisory)
+    advisory_quote = repaired_quote if use_repaired else runtime_quote
+    quote_source = "repaired_bounded_advisory" if use_repaired else "selected_domain_runtime"
+    return _BoundedAdvisorySuccessDecision(
+        advisory_quote=advisory_quote,
+        quote_source=quote_source,
+        repaired_advisory_available=bool(repaired_available),
+        quote_matches_runtime=bool(advisory_quote == runtime_quote),
+        quote_matches_repaired_advisory=bool(repaired_quote is not None and advisory_quote == repaired_quote),
     )
-    runtime_quotes_agree = oracle_contract.audit.runtime_quote == repaired_full_domain_packet.repaired_packet.runtime_quote
-    runtime_matches_repaired_advisory = bool(
-        runtime_quotes_agree
-        and repaired_full_domain_packet.repaired_quote is not None
-        and oracle_contract.audit.runtime_quote == repaired_full_domain_packet.repaired_quote
-    )
-    packet_ok = bool(
-        oracle_contract.audit.runtime_matches_canonical
-        and repaired_full_domain_packet.packet_ok
-        and runtime_quotes_agree
-    )
-    return ExactOutManyPoolBoundedWorkaroundPacket(
-        oracle_contract=oracle_contract,
-        repaired_packet=repaired_packet,
-        repaired_full_domain_packet=repaired_full_domain_packet,
-        runtime_quotes_agree=bool(runtime_quotes_agree),
-        runtime_matches_repaired_advisory=bool(runtime_matches_repaired_advisory),
-        packet_ok=bool(packet_ok),
+
+
+def _bounded_advisory_success_packet(
+    workaround_packet: ExactOutManyPoolBoundedWorkaroundPacket,
+) -> ExactOutManyPoolBoundedAdvisoryQuotePacket:
+    decision = _bounded_advisory_success_decision(workaround_packet)
+    return ExactOutManyPoolBoundedAdvisoryQuotePacket(
+        packet_ok=True,
+        advisory_quote=decision.advisory_quote,
+        quote_source=decision.quote_source,
+        repaired_advisory_available=bool(decision.repaired_advisory_available),
+        quote_matches_runtime=bool(decision.quote_matches_runtime),
+        quote_matches_repaired_advisory=bool(decision.quote_matches_repaired_advisory),
+        error=None,
+        workaround_packet=workaround_packet,
     )
 
 
@@ -3754,65 +3895,32 @@ def build_exact_out_many_pool_bounded_advisory_quote_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolBoundedAdvisoryQuotePacket:
-    workaround_packet = build_exact_out_many_pool_bounded_workaround_packet(
-        pools,
+    params = _ExactOutManyPoolRuntimeParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        amount_out_total=amount_out_total,
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_candidates=max_candidates,
+        max_iters=max_iters,
+        window=window,
+        brute_force_max=brute_force_max,
+        max_full_domain_pools=max_full_domain_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
     )
+    components = _build_bounded_workaround_components(pools, params=params)
+    workaround_packet = _bounded_workaround_packet_from_components(components)
     if not workaround_packet.oracle_contract.audit.runtime_matches_canonical:
-        return ExactOutManyPoolBoundedAdvisoryQuotePacket(
-            packet_ok=False,
-            advisory_quote=None,
-            quote_source=None,
-            repaired_advisory_available=bool(workaround_packet.repaired_full_domain_packet.packet_ok),
-            quote_matches_runtime=False,
-            quote_matches_repaired_advisory=False,
+        return _bounded_advisory_failure_packet(
+            workaround_packet,
             error=EXACT_OUT_MANY_POOL_GUARD_MISMATCH_ERROR,
-            workaround_packet=workaround_packet,
         )
     if not workaround_packet.runtime_quotes_agree:
-        return ExactOutManyPoolBoundedAdvisoryQuotePacket(
-            packet_ok=False,
-            advisory_quote=None,
-            quote_source=None,
-            repaired_advisory_available=bool(workaround_packet.repaired_full_domain_packet.packet_ok),
-            quote_matches_runtime=False,
-            quote_matches_repaired_advisory=False,
+        return _bounded_advisory_failure_packet(
+            workaround_packet,
             error=EXACT_OUT_MANY_POOL_RUNTIME_QUOTE_INCONSISTENCY_ERROR,
-            workaround_packet=workaround_packet,
         )
-
-    runtime_quote = workaround_packet.oracle_contract.audit.runtime_quote
-    repaired_full_domain_packet = workaround_packet.repaired_full_domain_packet
-    repaired_advisory_available = bool(
-        repaired_full_domain_packet.packet_ok and repaired_full_domain_packet.repaired_quote is not None
-    )
-    use_repaired_advisory = bool(
-        repaired_advisory_available and not workaround_packet.runtime_matches_repaired_advisory
-    )
-    advisory_quote = repaired_full_domain_packet.repaired_quote if use_repaired_advisory else runtime_quote
-    quote_source = "repaired_bounded_advisory" if use_repaired_advisory else "selected_domain_runtime"
-    return ExactOutManyPoolBoundedAdvisoryQuotePacket(
-        packet_ok=True,
-        advisory_quote=advisory_quote,
-        quote_source=quote_source,
-        repaired_advisory_available=bool(repaired_advisory_available),
-        quote_matches_runtime=bool(advisory_quote == runtime_quote),
-        quote_matches_repaired_advisory=bool(
-            repaired_full_domain_packet.repaired_quote is not None and advisory_quote == repaired_full_domain_packet.repaired_quote
-        ),
-        error=None,
-        workaround_packet=workaround_packet,
-    )
+    return _bounded_advisory_success_packet(workaround_packet)
 
 
 def quote_exact_out_many_pool_bounded_advisory(
