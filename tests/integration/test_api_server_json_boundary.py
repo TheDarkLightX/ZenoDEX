@@ -121,6 +121,27 @@ def test_api_server_fast_quote_domain_error_falls_back_to_exact_router() -> None
         _stop_test_server(httpd, thread)
 
 
+def test_routing_oracle_adapter_bridge_domain_error_fails_closed(monkeypatch) -> None:
+    from src.integration import api_server
+    from tools import zenodex_oracle_aggregate_adapter
+
+    def _raise_domain_error(_bridge: object) -> object:
+        raise ValueError("unencodable bridge")
+
+    monkeypatch.setattr(
+        zenodex_oracle_aggregate_adapter,
+        "verify_aggregate_adapter_bridge",
+        _raise_domain_error,
+    )
+
+    err = api_server._check_routing_oracle_adapter_bridge_for_action(
+        body={"oracle_adapter_bridge": {"schema": "test.bridge"}},
+        expected_action_id="sha256:" + "0" * 64,
+    )
+
+    assert err == "oracle_adapter_bridge verifier error: ValueError"
+
+
 def test_api_server_env_int_rejects_malformed_values(monkeypatch) -> None:
     from src.integration import api_server
 
