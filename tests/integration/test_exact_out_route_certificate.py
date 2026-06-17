@@ -266,6 +266,51 @@ def test_enumerate_exact_out_many_pool_candidates_builds_nonempty_bounded_domain
     assert certificate.winner_quote in candidates
 
 
+def test_enumerate_exact_out_two_pool_candidates_suppresses_domain_rejects(monkeypatch: pytest.MonkeyPatch) -> None:
+    p0 = _pool(pool_id="pool_a", reserve0=120, reserve1=50)
+    p1 = _pool(pool_id="pool_b", reserve0=135, reserve1=40)
+    original = exact_out_module.swap_exact_out_for_pool
+
+    def reject_one_unit(*args: object, **kwargs: object) -> object:
+        if int(kwargs.get("amount_out", 0)) == 1:
+            raise ValueError("domain reject")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(exact_out_module, "swap_exact_out_for_pool", reject_one_unit)
+
+    candidates = exact_out_module.enumerate_exact_out_two_pool_candidates(
+        p0,
+        p1,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=4,
+    )
+
+    assert candidates
+    assert all(leg.amount_out != 1 for quote in candidates for leg in quote.legs)
+
+
+def test_enumerate_exact_out_two_pool_candidates_propagates_programmer_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    p0 = _pool(pool_id="pool_a", reserve0=120, reserve1=50)
+    p1 = _pool(pool_id="pool_b", reserve0=135, reserve1=40)
+
+    def programmer_error(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("unexpected exact-out quote bug")
+
+    monkeypatch.setattr(exact_out_module, "swap_exact_out_for_pool", programmer_error)
+
+    with pytest.raises(RuntimeError, match="unexpected exact-out quote bug"):
+        exact_out_module.enumerate_exact_out_two_pool_candidates(
+            p0,
+            p1,
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=4,
+        )
+
+
 def test_audit_exact_out_many_pool_runtime_canonicality_matches_on_small_case() -> None:
     pools = (
         _pool(pool_id="pool_b", reserve0=100, reserve1=34),
@@ -704,6 +749,42 @@ def test_exact_out_many_pool_repaired_advisory_quote_packet_builds_and_verifies(
 
     ok, err = verify_exact_out_many_pool_repaired_advisory_quote_packet_payload(payload)
     assert ok, err
+
+
+def test_exact_out_many_pool_repaired_advisory_quote_packet_propagates_projection_audit_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pools = (
+        _pool(pool_id="p0", reserve0=20, reserve1=10),
+        _pool(pool_id="p1", reserve0=20, reserve1=10),
+        _pool(pool_id="p2", reserve0=30, reserve1=15),
+        _pool(pool_id="p3", reserve0=30, reserve1=15),
+    )
+
+    def programmer_error(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("unexpected projection-cover audit bug")
+
+    monkeypatch.setattr(
+        exact_out_module,
+        "_kernel_audit_exact_out_many_pool_selected_domain_projection_cover",
+        programmer_error,
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected projection-cover audit bug"):
+        build_exact_out_many_pool_repaired_advisory_quote_packet(
+            pools,
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=4,
+            max_legs=3,
+            max_candidate_pools=3,
+            max_candidates=12,
+            max_iters=4096,
+            window=64,
+            brute_force_max=512,
+            max_full_domain_pools=6,
+            max_enumerated_candidates=50_000,
+        )
 
 
 def test_exact_out_many_pool_repaired_advisory_quote_packet_rejects_tampering() -> None:

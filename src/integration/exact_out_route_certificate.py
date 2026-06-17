@@ -1830,7 +1830,7 @@ def enumerate_exact_out_two_pool_candidates(
                 if q1 > 0
                 else (0, (int(r1[0]), int(r1[1])))
             )
-        except Exception:
+        except ValueError:
             continue
 
         legs: list[SplitLegExactOutQuote] = []
@@ -2945,7 +2945,7 @@ def build_exact_out_many_pool_repaired_advisory_quote_packet(
             max_enumerated_candidates=int(max_enumerated_candidates),
         )
         projection_cover_audit = _projection_cover_audit_from_kernel(kernel_projection_audit)
-    except Exception:
+    except ValueError:
         projection_cover_audit = None
     advisory_quote = _candidate_quote_to_core_quote(repaired_selected_domain.canonical_quote)
     runtime_matches_advisory = runtime_quote == advisory_quote
