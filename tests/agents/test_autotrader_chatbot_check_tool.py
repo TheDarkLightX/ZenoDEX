@@ -7,24 +7,33 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
+import pytest
+
 from src.agents.autotrader_llm_provider import (
     AUTOTRADER_LLM_PARSE_HINT_SCHEMA,
     AUTOTRADER_LLM_PROVIDER_CONFIG_SCHEMA,
     LocalOpenAICompatibleLLMProvider,
+    autotrader_llm_provider_config_from_dict,
     build_autotrader_language_provider_from_config,
     load_autotrader_llm_provider_config_file,
 )
 from tools.check_autotrader_chatbot_advisor import SCHEMA, build_report
-from tools.check_autotrader_chatbot_provider_config import (
-    SCHEMA as PROVIDER_CONFIG_CHECK_SCHEMA,
-    build_report as build_provider_config_report,
-)
 from tools.check_autotrader_chatbot_production_readiness import (
     SCHEMA as PRODUCTION_READINESS_SCHEMA,
+)
+from tools.check_autotrader_chatbot_production_readiness import (
     build_report as build_production_readiness_report,
+)
+from tools.check_autotrader_chatbot_provider_config import (
+    SCHEMA as PROVIDER_CONFIG_CHECK_SCHEMA,
+)
+from tools.check_autotrader_chatbot_provider_config import (
+    build_report as build_provider_config_report,
 )
 from tools.evaluate_autotrader_chatbot_providers import (
     SCHEMA as PROVIDER_EVAL_SCHEMA,
+)
+from tools.evaluate_autotrader_chatbot_providers import (
     build_report as build_provider_eval_report,
 )
 
@@ -217,6 +226,23 @@ def test_provider_config_can_build_loopback_openai_provider_and_evaluate(tmp_pat
     assert eval_report["metrics"]["process_max_rss_kb"] > 0
     assert config_report["ok"] is True
     assert config_report["evaluation"]["ok"] is True
+
+
+def test_provider_config_rejects_string_boolean_acknowledgements() -> None:
+    with pytest.raises(ValueError, match="allow_non_loopback must be a bool"):
+        autotrader_llm_provider_config_from_dict(
+            {
+                "schema": AUTOTRADER_LLM_PROVIDER_CONFIG_SCHEMA,
+                "provider_kind": "local_openai_compatible",
+                "provider_label": "unsafe-remote-model",
+                "base_url": "https://example.invalid/v1/chat/completions",
+                "model": "unsafe-remote-model",
+                "allow_non_loopback": "yes",
+                "user_accepts_model_license_responsibility": "yes",
+                "user_accepts_local_endpoint_risk": "yes",
+                "user_acknowledges_no_trade_authority": "yes",
+            }
+        )
 
 
 def test_provider_config_evaluation_fails_when_local_model_falls_back(tmp_path) -> None:

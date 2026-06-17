@@ -14,8 +14,8 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal, Mapping, Protocol, Sequence
 
 from ..energy.autotrader_energy import AUTOTRADER_FEATURE_NAMES
@@ -318,16 +318,19 @@ def autotrader_llm_provider_config_from_dict(
         api_key_env=_optional_string(payload.get("api_key_env")),
         timeout_seconds=float(payload.get("timeout_seconds", 2.0)),
         max_output_chars=int(payload.get("max_output_chars", 4096)),
-        allow_non_loopback=bool(payload.get("allow_non_loopback", False)),
+        allow_non_loopback=_require_bool(payload.get("allow_non_loopback", False), name="allow_non_loopback"),
         license_label=_optional_string(payload.get("license_label")),
-        user_accepts_model_license_responsibility=bool(
-            payload.get("user_accepts_model_license_responsibility", False)
+        user_accepts_model_license_responsibility=_require_bool(
+            payload.get("user_accepts_model_license_responsibility", False),
+            name="user_accepts_model_license_responsibility",
         ),
-        user_accepts_local_endpoint_risk=bool(
-            payload.get("user_accepts_local_endpoint_risk", False)
+        user_accepts_local_endpoint_risk=_require_bool(
+            payload.get("user_accepts_local_endpoint_risk", False),
+            name="user_accepts_local_endpoint_risk",
         ),
-        user_acknowledges_no_trade_authority=bool(
-            payload.get("user_acknowledges_no_trade_authority", False)
+        user_acknowledges_no_trade_authority=_require_bool(
+            payload.get("user_acknowledges_no_trade_authority", False),
+            name="user_acknowledges_no_trade_authority",
         ),
     )
 
@@ -570,6 +573,12 @@ def _optional_string(value: Any) -> str | None:
         return None
     if not isinstance(value, str):
         raise ValueError("optional string field must be a string when present")
+    return value
+
+
+def _require_bool(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} must be a bool")
     return value
 
 
