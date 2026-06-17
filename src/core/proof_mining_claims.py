@@ -28,6 +28,12 @@ def _require_int(value: Any, *, name: str) -> int:
     return int(value)
 
 
+def _require_bool(value: Any, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return value
+
+
 def _require_flag(value: Any, *, name: str) -> int:
     flag = _require_int(value, name=name)
     if flag not in (0, 1):
@@ -316,14 +322,17 @@ def validate_proof_mining_claim_artifact(
         raise ValueError("tau_inputs mismatch")
 
     conditions = _require_mapping(body.get("conditions"), name="claim.body.conditions")
-    if bool(conditions.get("round_ok")) is not True:
+    if _require_bool(conditions.get("round_ok"), name="claim.body.conditions.round_ok") is not True:
         raise ValueError("round_ok must be true")
-    if bool(conditions.get("positive_improvement")) is not True:
+    if _require_bool(conditions.get("positive_improvement"), name="claim.body.conditions.positive_improvement") is not True:
         raise ValueError("positive_improvement must be true")
-    if bool(conditions.get("budget_ok")) != budget_ok:
+    if _require_bool(conditions.get("budget_ok"), name="claim.body.conditions.budget_ok") != budget_ok:
         raise ValueError("budget_ok mismatch")
     tau_gate_expected_ok = bool(budget_ok and all(value == 1 for value in flag_values.values()))
-    if bool(conditions.get("tau_gate_expected_ok")) != tau_gate_expected_ok:
+    if _require_bool(
+        conditions.get("tau_gate_expected_ok"),
+        name="claim.body.conditions.tau_gate_expected_ok",
+    ) != tau_gate_expected_ok:
         raise ValueError("tau_gate_expected_ok mismatch")
     if require_admissible and not tau_gate_expected_ok:
         raise ValueError("proof-mining claim inadmissible")
