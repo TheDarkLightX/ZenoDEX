@@ -13,8 +13,14 @@ from src.fire.registry.instance_v1 import FireObjectInstanceManifest
 from src.fire.registry.lock_v1 import FireObjectDependencyLock
 from src.fire.registry.object_manifest_v1 import FireEvidenceLabels, FireObjectManifest
 from src.fire.registry.replay_input_v1 import FireReplayInput
-from src.fire.verifier.cert_v1 import FireCertNode, FireInstanceGateClaims, FireIntervalCertificate, _require_int, _require_sha256_prefixed, fire_cert_sha256
-
+from src.fire.verifier.cert_v1 import (
+    FireCertNode,
+    FireInstanceGateClaims,
+    FireIntervalCertificate,
+    _require_int,
+    _require_sha256_prefixed,
+    fire_cert_sha256,
+)
 
 FIRE_PROOF_TREE_CERT_CHECK_REPORT_SCHEMA = "zenodex/fire-proof-tree-cert-check-report/v1"
 _EVIDENCE_RANK = {
@@ -563,13 +569,15 @@ def _walk_runtime_certificate(
 ) -> int:
     count = 1
     if node.rule == "exact_param":
-        assert node.name is not None
+        if node.name is None:
+            raise ValueError("exact_param runtime certificate node missing name")
         value = int(node.lower)
         if node.name in exact_params and exact_params[node.name] != value:
             raise ValueError(f"conflicting exact_param binding for {node.name}")
         exact_params[node.name] = value
     elif node.rule == "source_bound":
-        assert node.name is not None
+        if node.name is None:
+            raise ValueError("source_bound runtime certificate node missing name")
         bound = (int(node.lower), int(node.upper))
         if node.name in source_bounds and source_bounds[node.name] != bound:
             raise ValueError(f"conflicting source_bound binding for {node.name}")
