@@ -1,19 +1,31 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
-from src.integration.settlement_feature_extension_packet import SettlementFeatureExtensionInputs
 from src.integration.settlement_end_to_end_certificate_packet import (
     SETTLEMENT_END_TO_END_CERTIFICATE_PACKET_SCHEMA,
+    _assemble_packet,
     build_settlement_end_to_end_certificate_packet_from_price_attestation,
     build_settlement_end_to_end_certificate_packet_from_price_packet,
     verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation,
     verify_settlement_end_to_end_certificate_packet_payload_from_price_packet,
 )
+from src.integration.settlement_feature_extension_packet import (
+    SettlementFeatureExtensionInputs,
+    SettlementFeatureExtensionPacket,
+)
 from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
-from src.integration.settlement_price_provenance import SettlementSpotPriceEntry, build_settlement_spot_price_packet
-from src.integration.settlement_strong_certificate import SettlementProofFlags
+from src.integration.settlement_price_provenance import (
+    SettlementSpotPriceEntry,
+    build_settlement_spot_price_packet,
+)
+from src.integration.settlement_strong_certificate import (
+    SettlementProofFlags,
+    SettlementStrongCertificate,
+)
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
 
@@ -116,6 +128,52 @@ def _feature_extension_inputs() -> SettlementFeatureExtensionInputs:
         weight_claimed=2,
         weighted_stake=100,
     )
+
+
+def _minimal_strong_certificate() -> SettlementStrongCertificate:
+    return SettlementStrongCertificate(
+        settlement_commitment_sha256="0" * 64,
+        delta_commitment_sha256="1" * 64,
+        proof_flags=SettlementProofFlags.all_true(),
+        core_module_ok=1,
+        feature_extension_ok=1,
+        proof_binding_ok=1,
+        module_bundle_ok=1,
+        core_module_step={},
+        feature_extension_step={},
+        proof_binding_step={},
+        module_bundle_step={},
+    )
+
+
+def _minimal_feature_extension_packet() -> SettlementFeatureExtensionPacket:
+    return SettlementFeatureExtensionPacket(
+        inputs=_feature_extension_inputs(),
+        buyback_floor_step={},
+        buyback_floor_fixedpoint_step={},
+        rebate_step={},
+        lock_weight_step={},
+        feature_extension_step={},
+        buyback_floor_ok=True,
+        buyback_floor_fixedpoint_ok=True,
+        rebate_ok=True,
+        lock_weight_ok=True,
+        feature_extension_ok=True,
+        packet_ok=True,
+    )
+
+
+def test_end_to_end_certificate_packet_assembler_rejects_missing_value_packets() -> None:
+    with pytest.raises(ValueError, match="endogenous_lp_value_packet required"):
+        _assemble_packet(
+            price_input_kind="packet",
+            value_packet_kind="endogenous_lp_value",
+            strong_certificate=_minimal_strong_certificate(),
+            strong_certificate_ok=True,
+            feature_extension_packet=_minimal_feature_extension_packet(),
+            value_packet=None,
+            endogenous_lp_value_packet=None,
+        )
 
 
 def test_end_to_end_certificate_packet_round_trips_for_spot_packet() -> None:
