@@ -44,7 +44,7 @@ for _prewarm_module_name in (
 ):  # pragma: no cover - import latency hygiene only
     try:
         __import__(_prewarm_module_name)
-    except Exception:
+    except ImportError:
         pass
 
 
@@ -54,7 +54,7 @@ def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
         return int(default)
     try:
         v = int(raw.strip())
-    except Exception:
+    except ValueError:
         return int(default)
     if v < lo:
         return int(lo)

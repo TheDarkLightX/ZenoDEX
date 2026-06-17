@@ -49,3 +49,23 @@ def test_api_server_rejects_invalid_utf8_json_body() -> None:
         assert body == {"ok": False, "error": "bad_json"}
     finally:
         _stop_test_server(httpd, thread)
+
+
+def test_api_server_env_int_rejects_malformed_values(monkeypatch) -> None:
+    from src.integration import api_server
+
+    monkeypatch.setenv("ZENODEX_TEST_INT", "invalid")
+    assert api_server._env_int("ZENODEX_TEST_INT", 7, lo=1, hi=9) == 7
+
+    monkeypatch.setenv("ZENODEX_TEST_INT", "1.5")
+    assert api_server._env_int("ZENODEX_TEST_INT", 7, lo=1, hi=9) == 7
+
+
+def test_api_server_env_int_clamps_bounds(monkeypatch) -> None:
+    from src.integration import api_server
+
+    monkeypatch.setenv("ZENODEX_TEST_INT", "-10")
+    assert api_server._env_int("ZENODEX_TEST_INT", 7, lo=1, hi=9) == 1
+
+    monkeypatch.setenv("ZENODEX_TEST_INT", "99")
+    assert api_server._env_int("ZENODEX_TEST_INT", 7, lo=1, hi=9) == 9
