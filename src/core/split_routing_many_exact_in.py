@@ -58,15 +58,17 @@ class _ExactInManyPoolContext:
         return int(out)
 
 
+def _require_positive_control(value: object, *, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{name} must be positive")
+    return int(value)
+
+
 def _validate_request(request: ManyPoolExactInRequest) -> None:
-    if request.amount_in_total <= 0:
-        raise ValueError("amount_in_total must be positive")
-    if request.max_legs <= 0:
-        raise ValueError("max_legs must be positive")
-    if request.max_candidates <= 0:
-        raise ValueError("max_candidates must be positive")
-    if request.max_iters <= 0:
-        raise ValueError("max_iters must be positive")
+    _require_positive_control(request.amount_in_total, name="amount_in_total")
+    _require_positive_control(request.max_legs, name="max_legs")
+    _require_positive_control(request.max_candidates, name="max_candidates")
+    _require_positive_control(request.max_iters, name="max_iters")
 
 
 def _quote_is_valid(request: ManyPoolExactInRequest, pool: PoolState, amount_in: int) -> bool:

@@ -49,10 +49,24 @@ class ManyPoolExactOutRequest:
 
     @property
     def max_enumerated_candidates(self) -> int:
+        max_iters = _require_positive_control(self.max_iters, name="max_iters")
+        max_legs = _require_positive_control(self.max_legs, name="max_legs")
         return max(
             int(DEFAULT_EXACT_OUT_MANY_POOL_MAX_ENUMERATED_CANDIDATES),
-            int(self.max_iters) * max(1, int(self.max_legs)),
+            max_iters * max(1, max_legs),
         )
+
+
+def _require_positive_control(value: object, *, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{name} must be positive")
+    return int(value)
+
+
+def _require_nonnegative_control(value: object, *, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return int(value)
 
 
 def build_exact_out_capacity_guard_from_caps(
@@ -61,35 +75,33 @@ def build_exact_out_capacity_guard_from_caps(
     amount_out_total: Amount,
     max_legs: int,
 ) -> ExactOutCapacityGuard:
-    ranked_caps = sorted(
-        ((str(pool_id), int(cap)) for pool_id, cap in caps_by_pool if int(cap) > 0),
-        key=lambda item: (-int(item[1]), item[0]),
-    )
-    top_caps = tuple(ranked_caps[: min(int(max_legs), len(ranked_caps))])
+    caps: list[tuple[str, int]] = []
+    for pool_id, cap in caps_by_pool:
+        if isinstance(cap, bool):
+            raise ValueError("top_caps capacities must be positive")
+        cap_i = int(cap)
+        if cap_i > 0:
+            caps.append((str(pool_id), cap_i))
+    ranked_caps = sorted(caps, key=lambda item: (-int(item[1]), item[0]))
+    max_legs_i = _require_positive_control(max_legs, name="max_legs")
+    top_caps = tuple(ranked_caps[: min(max_legs_i, len(ranked_caps))])
     capacity_upper_bound = sum(int(cap) for _pool_id, cap in top_caps)
     return ExactOutCapacityGuard(
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
+        amount_out_total=amount_out_total,
+        max_legs=max_legs_i,
         top_caps=top_caps,
         capacity_upper_bound=int(capacity_upper_bound),
     )
 
 
 def _validate_request(request: ManyPoolExactOutRequest) -> None:
-    if request.amount_out_total <= 0:
-        raise ValueError("amount_out_total must be positive")
-    if request.max_legs <= 0:
-        raise ValueError("max_legs must be positive")
-    if request.max_candidates <= 0:
-        raise ValueError("max_candidates must be positive")
-    if request.max_iters <= 0:
-        raise ValueError("max_iters must be positive")
-    if request.window < 0:
-        raise ValueError("window must be non-negative")
-    if request.brute_force_max < 0:
-        raise ValueError("brute_force_max must be non-negative")
-    if request.max_full_domain_pools <= 0:
-        raise ValueError("max_full_domain_pools must be positive")
+    _require_positive_control(request.amount_out_total, name="amount_out_total")
+    _require_positive_control(request.max_legs, name="max_legs")
+    _require_positive_control(request.max_candidates, name="max_candidates")
+    _require_positive_control(request.max_iters, name="max_iters")
+    _require_nonnegative_control(request.window, name="window")
+    _require_nonnegative_control(request.brute_force_max, name="brute_force_max")
+    _require_positive_control(request.max_full_domain_pools, name="max_full_domain_pools")
 
 
 def _feasible_exact_out_pools(request: ManyPoolExactOutRequest) -> list[tuple[PoolState, int, int]]:
