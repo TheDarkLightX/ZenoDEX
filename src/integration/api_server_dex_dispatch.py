@@ -187,6 +187,9 @@ from src.integration import (  # noqa: E402
     dex_dispatch_exact_in_route_handlers as _exact_in_route_handlers,  # noqa: F401
 )
 from src.integration import (  # noqa: E402
+    dex_dispatch_exact_out_contract_handlers as _exact_out_contract_handlers,  # noqa: F401
+)
+from src.integration import (  # noqa: E402
     dex_dispatch_exact_out_verify_handlers as _exact_out_verify_handlers,  # noqa: F401
 )
 from src.integration import dex_dispatch_handlers as _dex_dispatch_handlers  # noqa: E402,F401
