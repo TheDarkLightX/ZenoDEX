@@ -11,6 +11,7 @@ from src.core.routing import (
     best_route_exact_in_2hop,
     best_route_exact_out_2hop,
 )
+from src.core.routing_common import pool_quote_exact_in, pool_quote_exact_out
 from src.integration.exact_in_route_certificate import (
     enumerate_route_candidates_exact_in_2hop,
     exact_in_route_canonical_key,
@@ -136,6 +137,33 @@ def test_best_route_keeps_zero_amount_as_no_route() -> None:
 
     assert best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=0) is None
     assert best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_out=0) is None
+
+
+@pytest.mark.parametrize(
+    ("quote", "kwargs", "message"),
+    [
+        (pool_quote_exact_in, {"amount_in": True}, "amount_in must be an int"),
+        (pool_quote_exact_in, {"amount_in": "10"}, "amount_in must be an int"),
+        (pool_quote_exact_out, {"amount_out": True}, "amount_out must be an int"),
+        (pool_quote_exact_out, {"amount_out": "10"}, "amount_out must be an int"),
+    ],
+)
+def test_routing_common_quote_helpers_reject_non_strict_amounts(
+    quote,
+    kwargs: dict[str, object],
+    message: str,
+) -> None:
+    pool = _pool("p_ab", "A", "B", 1000, 1000, 0)
+
+    with pytest.raises(ValueError, match=message):
+        quote(pool, asset_in="A", asset_out="B", **kwargs)
+
+
+def test_routing_common_quote_helpers_keep_zero_as_no_quote() -> None:
+    pool = _pool("p_ab", "A", "B", 1000, 1000, 0)
+
+    assert pool_quote_exact_in(pool, asset_in="A", asset_out="B", amount_in=0) is None
+    assert pool_quote_exact_out(pool, asset_in="A", asset_out="B", amount_out=0) is None
 
 
 def test_best_route_uses_2hop_when_better():
