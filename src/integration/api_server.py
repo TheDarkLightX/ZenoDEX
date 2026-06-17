@@ -201,6 +201,13 @@ def _is_loopback_host(host: str) -> bool:
     return h in ("127.0.0.1", "localhost", "::1")
 
 
+@dataclass(frozen=True)
+class DexApiIntLimit:
+    field: str
+    min_value: int
+    max_value: int
+
+
 def _dex_api_int_limit_error(
     obj: dict[str, Any],
     *,
@@ -235,26 +242,22 @@ def _dex_api_list_length_error(
 def _dex_api_nested_int_limit_error(
     value: Any,
     *,
-    field: str,
-    min_value: int,
-    max_value: int,
+    limit: DexApiIntLimit,
     max_depth: int = 32,
 ) -> Optional[str]:
     if max_depth < 0:
         return "bad_request_depth"
     if isinstance(value, dict):
-        if field in value:
-            raw = value.get(field)
+        if limit.field in value:
+            raw = value.get(limit.field)
             if not isinstance(raw, int) or isinstance(raw, bool):
-                return f"bad_{field}"
-            if int(raw) < int(min_value) or int(raw) > int(max_value):
-                return f"bad_{field}"
+                return f"bad_{limit.field}"
+            if int(raw) < int(limit.min_value) or int(raw) > int(limit.max_value):
+                return f"bad_{limit.field}"
         for child in value.values():
             err = _dex_api_nested_int_limit_error(
                 child,
-                field=field,
-                min_value=min_value,
-                max_value=max_value,
+                limit=limit,
                 max_depth=max_depth - 1,
             )
             if err is not None:
@@ -263,9 +266,7 @@ def _dex_api_nested_int_limit_error(
         for child in value:
             err = _dex_api_nested_int_limit_error(
                 child,
-                field=field,
-                min_value=min_value,
-                max_value=max_value,
+                limit=limit,
                 max_depth=max_depth - 1,
             )
             if err is not None:
@@ -554,9 +555,11 @@ def _dex_api_exact_in_route_verify_limit_error(path: str, obj: dict[str, Any]) -
             return err
         err = _dex_api_nested_int_limit_error(
             obj,
-            field="amount_in",
-            min_value=1,
-            max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+            limit=DexApiIntLimit(
+                field="amount_in",
+                min_value=1,
+                max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+            ),
         )
         if err is not None:
             return err
@@ -578,9 +581,11 @@ def _dex_api_exact_out_verify_limit_error(path: str, obj: dict[str, Any]) -> Opt
         for field, (min_value, max_value) in DEX_API_EXACT_OUT_SEARCH_CAPS.items():
             err = _dex_api_nested_int_limit_error(
                 obj,
-                field=field,
-                min_value=int(min_value),
-                max_value=int(max_value),
+                limit=DexApiIntLimit(
+                    field=field,
+                    min_value=int(min_value),
+                    max_value=int(max_value),
+                ),
             )
             if err is not None:
                 return err
