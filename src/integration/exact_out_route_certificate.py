@@ -4595,6 +4595,128 @@ def build_exact_out_many_pool_certified_winner_packet(
     )
 
 
+@dataclass(frozen=True)
+class _CertifiedAdvisoryComponents:
+    certified_packet: ExactOutManyPoolCertifiedWinnerPacket
+    advisory_packet: ExactOutManyPoolBoundedAdvisoryQuotePacket
+    repaired_key_cover_packet: ExactOutManyPoolRepairedKeyCoverPacket
+    repaired_key_cover_interpretation_packet: ExactOutManyPoolRepairedKeyCoverInterpretationPacket
+
+    @property
+    def selected_runtime_quotes_agree(self) -> bool:
+        return bool(
+            self.certified_packet.guarded_packet.contract.audit.runtime_quote
+            == self.advisory_packet.workaround_packet.oracle_contract.audit.runtime_quote
+        )
+
+    @property
+    def packet_ok(self) -> bool:
+        return bool(
+            self.certified_packet.packet_ok
+            and self.advisory_packet.packet_ok
+            and self.selected_runtime_quotes_agree
+        )
+
+
+def _certified_winner_packet_for_runtime_params(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> ExactOutManyPoolCertifiedWinnerPacket:
+    return build_exact_out_many_pool_certified_winner_packet(
+        pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+
+
+def _bounded_advisory_packet_for_runtime_params(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> ExactOutManyPoolBoundedAdvisoryQuotePacket:
+    return build_exact_out_many_pool_bounded_advisory_quote_packet(
+        pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+
+
+def _selected_domain_contract_for_runtime_params(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> ExactOutManyPoolRepairedSelectedDomainOracleContract:
+    return build_exact_out_many_pool_repaired_selected_domain_oracle_contract(
+        pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+
+
+def _build_certified_advisory_components(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> _CertifiedAdvisoryComponents:
+    certified_packet = _certified_winner_packet_for_runtime_params(pools, params=params)
+    advisory_packet = _bounded_advisory_packet_for_runtime_params(pools, params=params)
+    selected_domain_contract = _selected_domain_contract_for_runtime_params(pools, params=params)
+    repaired_key_cover_packet = _build_exact_out_many_pool_repaired_key_cover_packet_from_components(
+        selected_domain_contract=selected_domain_contract,
+        repaired_full_domain_packet=advisory_packet.workaround_packet.repaired_full_domain_packet,
+    )
+    interpretation_packet = _build_exact_out_many_pool_repaired_key_cover_interpretation_packet_from_key_cover_packet(
+        repaired_key_cover_packet
+    )
+    return _CertifiedAdvisoryComponents(
+        certified_packet=certified_packet,
+        advisory_packet=advisory_packet,
+        repaired_key_cover_packet=repaired_key_cover_packet,
+        repaired_key_cover_interpretation_packet=interpretation_packet,
+    )
+
+
+def _certified_advisory_packet_from_components(
+    components: _CertifiedAdvisoryComponents,
+) -> ExactOutManyPoolCertifiedAdvisoryPacket:
+    return ExactOutManyPoolCertifiedAdvisoryPacket(
+        certified_packet=components.certified_packet,
+        advisory_packet=components.advisory_packet,
+        repaired_key_cover_packet=components.repaired_key_cover_packet,
+        repaired_key_cover_interpretation_packet=components.repaired_key_cover_interpretation_packet,
+        selected_runtime_quotes_agree=bool(components.selected_runtime_quotes_agree),
+        packet_ok=bool(components.packet_ok),
+    )
+
+
 def build_exact_out_many_pool_certified_advisory_packet(
     pools: Sequence[PoolState],
     *,
@@ -4610,74 +4732,21 @@ def build_exact_out_many_pool_certified_advisory_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolCertifiedAdvisoryPacket:
-    certified_packet = build_exact_out_many_pool_certified_winner_packet(
-        pools,
+    params = _ExactOutManyPoolRuntimeParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        amount_out_total=amount_out_total,
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_candidates=max_candidates,
+        max_iters=max_iters,
+        window=window,
+        brute_force_max=brute_force_max,
+        max_full_domain_pools=max_full_domain_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
     )
-    advisory_packet = build_exact_out_many_pool_bounded_advisory_quote_packet(
-        pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
-    )
-    selected_domain_contract = build_exact_out_many_pool_repaired_selected_domain_oracle_contract(
-        pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
-    )
-    repaired_key_cover_packet = _build_exact_out_many_pool_repaired_key_cover_packet_from_components(
-        selected_domain_contract=selected_domain_contract,
-        repaired_full_domain_packet=advisory_packet.workaround_packet.repaired_full_domain_packet,
-    )
-    repaired_key_cover_interpretation_packet = (
-        _build_exact_out_many_pool_repaired_key_cover_interpretation_packet_from_key_cover_packet(
-            repaired_key_cover_packet
-        )
-    )
-    selected_runtime_quotes_agree = (
-        certified_packet.guarded_packet.contract.audit.runtime_quote
-        == advisory_packet.workaround_packet.oracle_contract.audit.runtime_quote
-    )
-    packet_ok = bool(
-        certified_packet.packet_ok
-        and advisory_packet.packet_ok
-        and selected_runtime_quotes_agree
-    )
-    return ExactOutManyPoolCertifiedAdvisoryPacket(
-        certified_packet=certified_packet,
-        advisory_packet=advisory_packet,
-        repaired_key_cover_packet=repaired_key_cover_packet,
-        repaired_key_cover_interpretation_packet=repaired_key_cover_interpretation_packet,
-        selected_runtime_quotes_agree=bool(selected_runtime_quotes_agree),
-        packet_ok=bool(packet_ok),
-    )
+    components = _build_certified_advisory_components(pools, params=params)
+    return _certified_advisory_packet_from_components(components)
 
 
 def quote_exact_out_many_pool_certified_advisory(
