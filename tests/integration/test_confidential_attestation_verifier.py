@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import sys
 
+from src.integration import confidential_attestation_verifier as verifier_mod
 from src.integration.confidential_attestation_verifier import (
     ConfidentialAttestationVerifierConfig,
     MisconfiguredConfidentialAttestationVerifier,
     SubprocessConfidentialAttestationVerifier,
-    verify_and_make_confidential_extension_receipt,
     make_confidential_attestation_verifier,
+    verify_and_make_confidential_extension_receipt,
 )
-
 
 NITRO_PCR0 = "a" * 96
 NITRO_PCR8 = "b" * 96
@@ -176,3 +176,20 @@ def test_subprocess_confidential_attestation_verifier_times_out_if_verifier_neve
     verified, err = verifier.verify({"x": "A" * 200_000})
     assert verified is None
     assert err == "confidential attestation verification timed out"
+
+
+def test_write_ready_stdin_rejects_zero_byte_progress() -> None:
+    class _ZeroWritePipe:
+        def write(self, _data: memoryview) -> int:
+            return 0
+
+    pipe = _ZeroWritePipe()
+    next_off, stdin_open, err = verifier_mod._write_ready_stdin(
+        stdin=pipe,  # type: ignore[arg-type]
+        ready_w=[pipe],  # type: ignore[list-item]
+        stdin_view=memoryview(b"abc"),
+        stdin_off=0,
+        stdin_open=True,
+    )
+    assert (next_off, stdin_open) == (0, True)
+    assert err == "confidential attestation verifier stdin made no progress"
