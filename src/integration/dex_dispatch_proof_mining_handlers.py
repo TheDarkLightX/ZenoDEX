@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any, Mapping
 
-from src.integration import dex_dispatch_proof_mining_templates as _template_helpers
+from src.integration import dex_dispatch_proof_mining_snapshots as _snapshot_helpers
 from src.integration.api_server_dex_dispatch import (
     DexRequestContext,
     DexResponse,
@@ -27,13 +27,13 @@ from src.integration.dex_dispatch_proof_mining_templates import (
 )
 from src.integration.proof_mining_claimability import evaluate_proof_mining_claimability
 
-urllib = _template_helpers.urllib
-_load_latest_writer_snapshot_for_template = _template_helpers._load_latest_writer_snapshot_for_template
+urllib = _snapshot_helpers.urllib
+_load_latest_writer_snapshot_for_template = _snapshot_helpers._load_latest_writer_snapshot_for_template
 _load_latest_writer_snapshot_from_file_for_template = (
-    _template_helpers._load_latest_writer_snapshot_from_file_for_template
+    _snapshot_helpers._load_latest_writer_snapshot_from_file_for_template
 )
 _load_latest_writer_snapshot_from_url_for_template = (
-    _template_helpers._load_latest_writer_snapshot_from_url_for_template
+    _snapshot_helpers._load_latest_writer_snapshot_from_url_for_template
 )
 
 
