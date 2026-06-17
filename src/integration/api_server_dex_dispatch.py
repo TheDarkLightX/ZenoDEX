@@ -193,6 +193,9 @@ from src.integration import (  # noqa: E402
     dex_dispatch_exact_out_contract_handlers as _exact_out_contract_handlers,  # noqa: F401
 )
 from src.integration import (  # noqa: E402
+    dex_dispatch_exact_out_default_quote_handlers as _exact_out_default_quote_handlers,  # noqa: F401
+)
+from src.integration import (  # noqa: E402
     dex_dispatch_exact_out_guarded_handlers as _exact_out_guarded_handlers,  # noqa: F401
 )
 from src.integration import (  # noqa: E402

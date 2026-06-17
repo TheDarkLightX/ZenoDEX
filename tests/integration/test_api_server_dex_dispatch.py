@@ -119,8 +119,8 @@ def test_registry_contains_pr1_endpoints() -> None:
 def test_lookup_returns_none_for_unregistered_paths() -> None:
     from src.integration.api_server_dex_dispatch import lookup
 
-    # Exact-out default quote remains in the legacy fall-through chain.
-    assert lookup("/api/dex/quote_exact_out_many_pool") is None
+    # Settlement witness lifecycle remains in the delegated legacy fall-through chain.
+    assert lookup("/api/dex/build_settlement_witness_lifecycle_packet") is None
     assert lookup("/api/dex/this_path_does_not_exist") is None
 
 
@@ -142,6 +142,9 @@ def test_lookup_returns_handler_for_registered_path() -> None:
     assert callable(lookup("/api/dex/quote_exact_out_many_pool_repaired_selected_domain"))
     assert callable(lookup("/api/dex/quote_exact_out_many_pool_repaired_advisory"))
     assert callable(lookup("/api/dex/quote_exact_out_many_pool_bounded_advisory"))
+    assert callable(lookup("/api/dex/quote_exact_out_many_pool"))
+    assert callable(lookup("/api/dex/quote_exact_out_many_pool_adaptive"))
+    assert callable(lookup("/api/dex/quote_exact_out_many_pool_certified_advisory"))
 
 
 def test_writer_snapshot_loader_rejects_relative_escape(tmp_path: Path) -> None:
@@ -1029,8 +1032,8 @@ def test_unregistered_path_still_routes_to_legacy_chain() -> None:
         status, body = _post_json(
             host,
             port,
-            "/api/dex/quote_exact_out_many_pool",
-            {"pools": []},
+            "/api/dex/build_settlement_witness_lifecycle_packet",
+            {"intents": []},
         )
         # Either accepted or rejected — but NOT a "no handler" / 404 / 405.
         # The legacy chain returns 400 with a specific error_code on bad input.
