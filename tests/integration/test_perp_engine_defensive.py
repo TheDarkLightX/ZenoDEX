@@ -49,9 +49,12 @@ def _empty_state() -> DexState:
 
 
 def test_2p_pubkey_domain_errors_remain_signer_attributed(monkeypatch: pytest.MonkeyPatch) -> None:
-    def reject_pubkey(_value: str, *, name: str, expected_nbytes: int | None = None) -> bytes:
+    real_hex_to_bytes = perp_engine._hex_to_bytes_allow_0x
+
+    def reject_pubkey(value: str, *, name: str, expected_nbytes: int | None = None) -> bytes:
+        if name not in {"account_a_pubkey", "account_b_pubkey"}:
+            return real_hex_to_bytes(value, name=name, expected_nbytes=expected_nbytes)
         assert expected_nbytes == 48
-        assert name in {"account_a_pubkey", "account_b_pubkey"}
         raise ValueError("bad pubkey")
 
     monkeypatch.setattr(perp_engine, "_hex_to_bytes_allow_0x", reject_pubkey)
@@ -70,9 +73,12 @@ def test_2p_pubkey_domain_errors_remain_signer_attributed(monkeypatch: pytest.Mo
 
 
 def test_2p_pubkey_helper_bugs_reach_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    def broken_pubkey(_value: str, *, name: str, expected_nbytes: int | None = None) -> bytes:
+    real_hex_to_bytes = perp_engine._hex_to_bytes_allow_0x
+
+    def broken_pubkey(value: str, *, name: str, expected_nbytes: int | None = None) -> bytes:
+        if name not in {"account_a_pubkey", "account_b_pubkey"}:
+            return real_hex_to_bytes(value, name=name, expected_nbytes=expected_nbytes)
         assert expected_nbytes == 48
-        assert name in {"account_a_pubkey", "account_b_pubkey"}
         raise RuntimeError("2p pubkey helper bug")
 
     monkeypatch.setattr(perp_engine, "_hex_to_bytes_allow_0x", broken_pubkey)
@@ -90,9 +96,12 @@ def test_2p_pubkey_helper_bugs_reach_internal_error(monkeypatch: pytest.MonkeyPa
 
 
 def test_3p_pubkey_helper_bugs_reach_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    def broken_pubkey(_value: str, *, name: str, expected_nbytes: int | None = None) -> bytes:
+    real_hex_to_bytes = perp_engine._hex_to_bytes_allow_0x
+
+    def broken_pubkey(value: str, *, name: str, expected_nbytes: int | None = None) -> bytes:
+        if name not in {"account_a_pubkey", "account_b_pubkey", "account_c_pubkey"}:
+            return real_hex_to_bytes(value, name=name, expected_nbytes=expected_nbytes)
         assert expected_nbytes == 48
-        assert name in {"account_a_pubkey", "account_b_pubkey", "account_c_pubkey"}
         raise RuntimeError("3p pubkey helper bug")
 
     monkeypatch.setattr(perp_engine, "_hex_to_bytes_allow_0x", broken_pubkey)
