@@ -237,14 +237,16 @@ _register("/api/dex/verify_quote_receipt", _handle_verify_quote_receipt)
 # "quote_policy": "..."} on success; on failure, includes the default
 # error text and optionally the quote_policy.
 # ======================================================================
-def _make_policy_verifier(
-    *,
-    payload_key: str,
-    importer: Any,
-    error_code: str,
-    default_error: str,
-    quote_policy: Optional[str] = None,
-) -> Any:
+@dataclass(frozen=True)
+class _PolicyVerifierSpec:
+    payload_key: str
+    importer: Any
+    error_code: str
+    default_error: str
+    quote_policy: Optional[str] = None
+
+
+def _make_policy_verifier(spec: _PolicyVerifierSpec) -> Any:
     """Build a handler for policy-aware verify endpoints.
 
     Matches the legacy shape exactly:
@@ -254,24 +256,24 @@ def _make_policy_verifier(
     """
 
     def _handler(obj: Mapping[str, Any], ctx: DexRequestContext) -> DexResponse:
-        payload = obj.get(payload_key)
+        payload = obj.get(spec.payload_key)
         if not isinstance(payload, dict):
-            return 400, {"ok": False, "error": f"bad_{payload_key}"}
+            return 400, {"ok": False, "error": f"bad_{spec.payload_key}"}
         try:
-            verifier = importer()
+            verifier = spec.importer()
             ok, err = verifier(payload)
             if ok:
                 body: dict[str, Any] = {"ok": True}
-                if quote_policy is not None:
-                    body["quote_policy"] = quote_policy
+                if spec.quote_policy is not None:
+                    body["quote_policy"] = spec.quote_policy
                 return 200, body
             else:
-                fail_body: dict[str, Any] = {"ok": False, "error": err or default_error}
-                if quote_policy is not None:
-                    fail_body["quote_policy"] = quote_policy
+                fail_body: dict[str, Any] = {"ok": False, "error": err or spec.default_error}
+                if spec.quote_policy is not None:
+                    fail_body["quote_policy"] = spec.quote_policy
                 return 200, fail_body
         except BOUNDARY_DOMAIN_ERRORS:
-            return 400, {"ok": False, "error": error_code, "details": "request failed"}
+            return 400, {"ok": False, "error": spec.error_code, "details": "request failed"}
 
     return _handler
 
@@ -440,11 +442,13 @@ for _path, _key, _fn_name, _err_code, _default_err, _policy in _EXACT_OUT_POLICY
     _register(
         _path,
         _make_policy_verifier(
-            payload_key=_key,
-            importer=_import_exact_out_route_certificate(_fn_name),
-            error_code=_err_code,
-            default_error=_default_err,
-            quote_policy=_policy,
+            _PolicyVerifierSpec(
+                payload_key=_key,
+                importer=_import_exact_out_route_certificate(_fn_name),
+                error_code=_err_code,
+                default_error=_default_err,
+                quote_policy=_policy,
+            )
         ),
     )
 
