@@ -20,6 +20,12 @@ def _receipt_body(receipt: Mapping[str, Any]) -> Mapping[str, Any]:
     return body
 
 
+def _require_non_negative_int(value: Any, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise ValueError(f"{name} must be a non-negative int")
+    return int(value)
+
+
 def _matching_quote_leg(intent: Intent, receipt: Mapping[str, Any]) -> tuple[int, Mapping[str, Any], Mapping[str, Any]]:
     body = _receipt_body(receipt)
     legs = body.get("legs")
@@ -57,6 +63,7 @@ def protected_swap_runtime_facts(
     receipt: Mapping[str, Any],
     now_epoch: int,
 ) -> dict[str, Any]:
+    now_epoch_i = _require_non_negative_int(now_epoch, name="now_epoch")
     body = _receipt_body(receipt)
     kind = str(body.get("kind", "")).strip().lower()
     if kind not in {"exact_in", "exact_out"}:
@@ -148,7 +155,7 @@ def protected_swap_runtime_facts(
     return {
         "action_facts_hash": action_facts_hash,
         "action_id": action_id,
-        "now_epoch": int(now_epoch),
+        "now_epoch": now_epoch_i,
         "pre_state_hash": pre_state_hash,
         "query_id": query_id,
         "runtime_value_e8": int(runtime_value),
