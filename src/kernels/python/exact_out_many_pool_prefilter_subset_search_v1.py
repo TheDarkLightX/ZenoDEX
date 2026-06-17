@@ -7,6 +7,7 @@ from typing import Sequence
 from ...state.pools import PoolState
 from .exact_out_many_pool_canonical_domain_v1 import (
     ExactOutManyPoolCandidateQuote,
+    _require_positive_int,
     build_exact_out_many_pool_selected_domain,
     feasible_exact_out_pools,
     select_many_pool_audit_candidates,
@@ -47,52 +48,52 @@ def search_exact_out_many_pool_prefilter_subset(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolPrefilterSubsetSearchResult:
-    if int(max_legs) <= 0:
-        raise ValueError("max_legs must be positive")
-    if int(max_candidate_pools) <= 0:
-        raise ValueError("max_candidate_pools must be positive")
-    if int(max_full_domain_pools) <= 0:
-        raise ValueError("max_full_domain_pools must be positive")
-    if int(max_enumerated_candidates) <= 0:
-        raise ValueError("max_enumerated_candidates must be positive")
+    amount_out_total_i = _require_positive_int(amount_out_total, name="amount_out_total")
+    max_legs_i = _require_positive_int(max_legs, name="max_legs")
+    max_candidate_pools_i = _require_positive_int(max_candidate_pools, name="max_candidate_pools")
+    max_full_domain_pools_i = _require_positive_int(max_full_domain_pools, name="max_full_domain_pools")
+    max_enumerated_candidates_i = _require_positive_int(
+        max_enumerated_candidates,
+        name="max_enumerated_candidates",
+    )
 
     feasible_rows = feasible_exact_out_pools(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
     )
     if not feasible_rows:
         raise ValueError("no feasible pools for exact-out subset search")
 
     feasible_pools = tuple(pool for pool, _cap, _in_i in feasible_rows)
-    if len(feasible_pools) > int(max_full_domain_pools):
+    if len(feasible_pools) > max_full_domain_pools_i:
         raise ValueError("prefilter subset search exceeded max_full_domain_pools")
 
     full_domain = build_exact_out_many_pool_selected_domain(
         feasible_pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        amount_out_total=amount_out_total_i,
+        max_legs=max_legs_i,
+        max_enumerated_candidates=max_enumerated_candidates_i,
     )
 
     current_selected_pools = select_many_pool_audit_candidates(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
+        amount_out_total=amount_out_total_i,
+        max_legs=max_legs_i,
+        max_candidate_pools=max_candidate_pools_i,
     )
     current_selected_domain = build_exact_out_many_pool_selected_domain(
         current_selected_pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        amount_out_total=amount_out_total_i,
+        max_legs=max_legs_i,
+        max_enumerated_candidates=max_enumerated_candidates_i,
     )
 
     best_subset_ids: tuple[str, ...] | None = None
@@ -105,7 +106,7 @@ def search_exact_out_many_pool_prefilter_subset(
     # that winner. Prune it before rebuilding the selected-domain oracle.
     required_pool_ids = frozenset(leg.pool_id for leg in full_canonical_quote.legs)
 
-    for subset_size in range(1, min(int(max_candidate_pools), len(feasible_pools)) + 1):
+    for subset_size in range(1, min(max_candidate_pools_i, len(feasible_pools)) + 1):
         for subset in combinations(feasible_pools, subset_size):
             searched_subset_count += 1
             if int(subset_size) < len(required_pool_ids):
@@ -118,9 +119,9 @@ def search_exact_out_many_pool_prefilter_subset(
                     subset,
                     asset_in=asset_in,
                     asset_out=asset_out,
-                    amount_out_total=int(amount_out_total),
-                    max_legs=int(max_legs),
-                    max_enumerated_candidates=int(max_enumerated_candidates),
+                    amount_out_total=amount_out_total_i,
+                    max_legs=max_legs_i,
+                    max_enumerated_candidates=max_enumerated_candidates_i,
                 )
             except ValueError:
                 continue
@@ -154,15 +155,23 @@ def select_many_pool_cover_search_candidates(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolPrefilterCoverSelection:
+    amount_out_total_i = _require_positive_int(amount_out_total, name="amount_out_total")
+    max_legs_i = _require_positive_int(max_legs, name="max_legs")
+    max_candidate_pools_i = _require_positive_int(max_candidate_pools, name="max_candidate_pools")
+    max_full_domain_pools_i = _require_positive_int(max_full_domain_pools, name="max_full_domain_pools")
+    max_enumerated_candidates_i = _require_positive_int(
+        max_enumerated_candidates,
+        name="max_enumerated_candidates",
+    )
     result = search_exact_out_many_pool_prefilter_subset(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        amount_out_total=amount_out_total_i,
+        max_legs=max_legs_i,
+        max_candidate_pools=max_candidate_pools_i,
+        max_full_domain_pools=max_full_domain_pools_i,
+        max_enumerated_candidates=max_enumerated_candidates_i,
     )
 
     if result.best_cover_subset_ids is not None:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.kernels.python.exact_out_many_pool_repaired_prefilter_v1 import (
     build_many_pool_repaired_prefilter_selection,
     select_many_pool_repaired_prefilter_candidates,
@@ -79,3 +81,37 @@ def test_repaired_prefilter_can_shrink_already_good_domain() -> None:
     assert selection.strategy == "bounded_cover_search"
     assert selection.current_selected_pool_ids == ("pool_a", "pool_b", "pool_c")
     assert selection.selected_pool_ids == ("pool_b",)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("amount_out_total", True, "amount_out_total must be positive"),
+        ("amount_out_total", "3", "amount_out_total must be positive"),
+        ("max_legs", True, "max_legs must be positive"),
+        ("max_candidate_pools", True, "max_candidate_pools must be positive"),
+        ("max_full_domain_pools", True, "max_full_domain_pools must be positive"),
+        ("max_enumerated_candidates", True, "max_enumerated_candidates must be positive"),
+    ],
+)
+def test_repaired_prefilter_rejects_non_strict_int_controls(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    kwargs = {
+        "amount_out_total": 3,
+        "max_legs": 3,
+        "max_candidate_pools": 3,
+        "max_full_domain_pools": 6,
+        "max_enumerated_candidates": 8_000,
+    }
+    kwargs[field] = value
+
+    with pytest.raises(ValueError, match=message):
+        build_many_pool_repaired_prefilter_selection(
+            (_pool(pid="pool_a", r0=40, r1=20),),
+            asset_in="A",
+            asset_out="B",
+            **kwargs,
+        )

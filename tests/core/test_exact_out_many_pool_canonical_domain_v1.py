@@ -4,7 +4,11 @@ import pytest
 
 import src.core.amm_dispatch as amm_dispatch
 from src.kernels.python.exact_out_many_pool_canonical_domain_v1 import (
+    ExactOutManyPoolCandidateLeg,
+    ExactOutManyPoolCandidateQuote,
+    ExactOutManyPoolFeasiblePoolRow,
     build_exact_out_many_pool_selected_domain,
+    exact_out_many_pool_canonical_key_for_legs,
     rank_exact_out_feasible_pools,
 )
 from src.state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
@@ -79,6 +83,63 @@ def test_selected_domain_rejects_duplicate_pool_ids() -> None:
             amount_out_total=3,
             max_legs=2,
             max_enumerated_candidates=100,
+        )
+
+
+@pytest.mark.parametrize(
+    "builder",
+    [
+        lambda: ExactOutManyPoolFeasiblePoolRow(
+            pool_id="pool_a",
+            cap_out=True,
+            probe_amount_out=1,
+            probe_amount_in=1,
+            scaled_unit_cost_u64=0,
+        ),
+        lambda: ExactOutManyPoolCandidateLeg(pool_id="pool_a", amount_out=True, amount_in=1),
+        lambda: ExactOutManyPoolCandidateQuote(
+            amount_out_total="1",
+            amount_in_total=1,
+            legs=(ExactOutManyPoolCandidateLeg(pool_id="pool_a", amount_out=1, amount_in=1),),
+        ),
+        lambda: exact_out_many_pool_canonical_key_for_legs(
+            amount_in_total=True,
+            legs=(("pool_a", 1),),
+        ),
+        lambda: exact_out_many_pool_canonical_key_for_legs(
+            amount_in_total=1,
+            legs=(("pool_a", "1"),),
+        ),
+    ],
+)
+def test_exact_out_many_pool_contracts_reject_non_strict_ints(builder) -> None:
+    with pytest.raises(ValueError):
+        builder()
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("amount_out_total", True, "amount_out_total must be positive"),
+        ("amount_out_total", "3", "amount_out_total must be positive"),
+        ("max_legs", True, "max_legs must be positive"),
+        ("max_enumerated_candidates", True, "max_enumerated_candidates must be positive"),
+    ],
+)
+def test_selected_domain_rejects_non_strict_int_controls(field: str, value: object, message: str) -> None:
+    kwargs = {
+        "amount_out_total": 3,
+        "max_legs": 2,
+        "max_enumerated_candidates": 100,
+    }
+    kwargs[field] = value
+
+    with pytest.raises(ValueError, match=message):
+        build_exact_out_many_pool_selected_domain(
+            (_pool(pid="pool_a", r0=40, r1=20),),
+            asset_in="A",
+            asset_out="B",
+            **kwargs,
         )
 
 

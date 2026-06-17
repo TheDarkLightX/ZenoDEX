@@ -167,3 +167,37 @@ def test_subset_search_prunes_subsets_missing_full_domain_winner_leg(
     assert result.best_cover_subset_ids == ("pool_b",)
     assert rebuilt_subsets
     assert all("pool_b" in pool_ids for pool_ids in rebuilt_subsets)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("amount_out_total", True, "amount_out_total must be positive"),
+        ("amount_out_total", "3", "amount_out_total must be positive"),
+        ("max_legs", True, "max_legs must be positive"),
+        ("max_candidate_pools", True, "max_candidate_pools must be positive"),
+        ("max_full_domain_pools", True, "max_full_domain_pools must be positive"),
+        ("max_enumerated_candidates", True, "max_enumerated_candidates must be positive"),
+    ],
+)
+def test_prefilter_subset_search_rejects_non_strict_int_controls(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    kwargs = {
+        "amount_out_total": 3,
+        "max_legs": 3,
+        "max_candidate_pools": 3,
+        "max_full_domain_pools": 6,
+        "max_enumerated_candidates": 8_000,
+    }
+    kwargs[field] = value
+
+    with pytest.raises(ValueError, match=message):
+        search_exact_out_many_pool_prefilter_subset(
+            (_pool(pid="pool_a", r0=40, r1=20),),
+            asset_in="A",
+            asset_out="B",
+            **kwargs,
+        )

@@ -3,9 +3,25 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Sequence
 
+from ...core.domain_limits import is_strict_int
 from ...state.pools import PoolState
 
 DEFAULT_EXACT_OUT_MANY_POOL_MAX_ENUMERATED_CANDIDATES = 20_000
+
+
+def _require_positive_int(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) <= 0:
+        raise ValueError(f"{name} must be positive")
+    return int(value)
+
+
+def _require_u64(value: object, *, name: str) -> int:
+    if not is_strict_int(value):
+        raise ValueError(f"{name} out of range")
+    out = int(value)
+    if out < 0 or out > 0xFFFFFFFFFFFFFFFF:
+        raise ValueError(f"{name} out of range")
+    return out
 
 
 @dataclass(frozen=True)
@@ -19,16 +35,12 @@ class ExactOutManyPoolFeasiblePoolRow:
     def __post_init__(self) -> None:
         if not self.pool_id:
             raise ValueError("pool_id must be non-empty")
-        if int(self.cap_out) <= 0:
-            raise ValueError("cap_out must be positive")
-        if int(self.probe_amount_out) <= 0:
-            raise ValueError("probe_amount_out must be positive")
-        if int(self.probe_amount_in) <= 0:
-            raise ValueError("probe_amount_in must be positive")
-        if int(self.probe_amount_out) > int(self.cap_out):
+        cap_out = _require_positive_int(self.cap_out, name="cap_out")
+        probe_amount_out = _require_positive_int(self.probe_amount_out, name="probe_amount_out")
+        _require_positive_int(self.probe_amount_in, name="probe_amount_in")
+        if probe_amount_out > cap_out:
             raise ValueError("probe_amount_out must not exceed cap_out")
-        if int(self.scaled_unit_cost_u64) < 0 or int(self.scaled_unit_cost_u64) > 0xFFFFFFFFFFFFFFFF:
-            raise ValueError("scaled_unit_cost_u64 out of range")
+        _require_u64(self.scaled_unit_cost_u64, name="scaled_unit_cost_u64")
 
 
 @dataclass(frozen=True)
@@ -40,10 +52,8 @@ class ExactOutManyPoolCandidateLeg:
     def __post_init__(self) -> None:
         if not self.pool_id:
             raise ValueError("pool_id must be non-empty")
-        if int(self.amount_out) <= 0:
-            raise ValueError("amount_out must be positive")
-        if int(self.amount_in) <= 0:
-            raise ValueError("amount_in must be positive")
+        _require_positive_int(self.amount_out, name="amount_out")
+        _require_positive_int(self.amount_in, name="amount_in")
 
 
 @dataclass(frozen=True)
@@ -53,10 +63,8 @@ class ExactOutManyPoolCandidateQuote:
     legs: tuple[ExactOutManyPoolCandidateLeg, ...]
 
     def __post_init__(self) -> None:
-        if int(self.amount_out_total) <= 0:
-            raise ValueError("amount_out_total must be positive")
-        if int(self.amount_in_total) <= 0:
-            raise ValueError("amount_in_total must be positive")
+        amount_out_total = _require_positive_int(self.amount_out_total, name="amount_out_total")
+        amount_in_total = _require_positive_int(self.amount_in_total, name="amount_in_total")
         if not self.legs:
             raise ValueError("legs must be non-empty")
         seen: set[str] = set()
@@ -68,9 +76,9 @@ class ExactOutManyPoolCandidateQuote:
             seen.add(leg.pool_id)
             total_out += int(leg.amount_out)
             total_in += int(leg.amount_in)
-        if total_out != int(self.amount_out_total):
+        if total_out != amount_out_total:
             raise ValueError("amount_out_total must equal sum of leg outputs")
-        if total_in != int(self.amount_in_total):
+        if total_in != amount_in_total:
             raise ValueError("amount_in_total must equal sum of leg inputs")
 
 
@@ -81,11 +89,9 @@ class ExactOutManyPoolCanonicalKey:
     legs_lex: tuple[tuple[str, int], ...]
 
     def __post_init__(self) -> None:
-        if int(self.amount_in_total) <= 0:
-            raise ValueError("amount_in_total must be positive")
-        if int(self.leg_count) <= 0:
-            raise ValueError("leg_count must be positive")
-        if len(self.legs_lex) != int(self.leg_count):
+        _require_positive_int(self.amount_in_total, name="amount_in_total")
+        leg_count = _require_positive_int(self.leg_count, name="leg_count")
+        if len(self.legs_lex) != leg_count:
             raise ValueError("leg_count must equal len(legs_lex)")
         if tuple(sorted(self.legs_lex, key=lambda item: item[0])) != self.legs_lex:
             raise ValueError("legs_lex must be sorted by pool_id")
@@ -95,8 +101,7 @@ class ExactOutManyPoolCanonicalKey:
                 raise ValueError("legs_lex pool_id must be non-empty")
             if pool_id in seen:
                 raise ValueError("legs_lex must not repeat pool_id")
-            if int(amount_out) <= 0:
-                raise ValueError("legs_lex amounts must be positive")
+            _require_positive_int(amount_out, name="legs_lex amounts")
             seen.add(pool_id)
 
 
@@ -135,7 +140,7 @@ def feasible_exact_out_pools(
     from ...core.amm_dispatch import swap_exact_out_for_pool
 
     feasible: list[tuple[PoolState, int, int]] = []
-    target_out = int(amount_out_total)
+    target_out = _require_positive_int(amount_out_total, name="amount_out_total")
     for pool in pools:
         reserves = pool_reserves_for_exact_out(pool, asset_in=asset_in, asset_out=asset_out)
         if reserves is None:
@@ -165,16 +170,16 @@ def rank_exact_out_feasible_pools(
     asset_out: str,
     amount_out_total: int,
 ) -> tuple[ExactOutManyPoolFeasiblePoolRow, ...]:
+    target_out = _require_positive_int(amount_out_total, name="amount_out_total")
     feasible = feasible_exact_out_pools(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=target_out,
     )
     if not feasible:
         raise ValueError("no feasible pools for exact-out split")
 
-    target_out = int(amount_out_total)
     rows = [
         ExactOutManyPoolFeasiblePoolRow(
             pool_id=pool.pool_id,
@@ -202,15 +207,14 @@ def select_many_pool_audit_candidates(
     max_legs: int,
     max_candidate_pools: int,
 ) -> tuple[PoolState, ...]:
-    if int(max_legs) <= 0:
-        raise ValueError("max_legs must be positive")
-    if int(max_candidate_pools) <= 0:
-        raise ValueError("max_candidate_pools must be positive")
+    amount_out_total_i = _require_positive_int(amount_out_total, name="amount_out_total")
+    max_legs_i = _require_positive_int(max_legs, name="max_legs")
+    max_candidate_pools_i = _require_positive_int(max_candidate_pools, name="max_candidate_pools")
     rows = rank_exact_out_feasible_pools(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
     )
     pools_by_id = {pool.pool_id: pool for pool in pools}
 
@@ -222,11 +226,11 @@ def select_many_pool_audit_candidates(
         pool = pools_by_id[row.pool_id]
         candidates.append(pool)
         caps[row.pool_id] = int(row.cap_out)
-        if len(candidates) >= int(max_candidate_pools):
+        if len(candidates) >= max_candidate_pools_i:
             break
         top_caps = sorted(caps.values(), reverse=True)
-        if sum(top_caps[: min(int(max_legs), len(top_caps))]) >= int(amount_out_total) and len(candidates) >= min(
-            int(max_legs), len(rows)
+        if sum(top_caps[: min(max_legs_i, len(top_caps))]) >= amount_out_total_i and len(candidates) >= min(
+            max_legs_i, len(rows)
         ):
             break
 
@@ -240,9 +244,9 @@ def exact_out_many_pool_canonical_key_for_legs(
     amount_in_total: int,
     legs: Sequence[tuple[str, int]],
 ) -> ExactOutManyPoolCanonicalKey:
-    legs_lex = tuple(sorted(((str(pool_id), int(amount_out)) for pool_id, amount_out in legs), key=lambda item: item[0]))
+    legs_lex = tuple(sorted(((str(pool_id), amount_out) for pool_id, amount_out in legs), key=lambda item: item[0]))
     return ExactOutManyPoolCanonicalKey(
-        amount_in_total=int(amount_in_total),
+        amount_in_total=amount_in_total,
         leg_count=len(legs_lex),
         legs_lex=legs_lex,
     )
@@ -274,12 +278,12 @@ def build_exact_out_many_pool_selected_domain(
     max_legs: int,
     max_enumerated_candidates: int = DEFAULT_EXACT_OUT_MANY_POOL_MAX_ENUMERATED_CANDIDATES,
 ) -> ExactOutManyPoolSelectedDomain:
-    if int(amount_out_total) <= 0:
-        raise ValueError("amount_out_total must be positive")
-    if int(max_legs) <= 0:
-        raise ValueError("max_legs must be positive")
-    if int(max_enumerated_candidates) <= 0:
-        raise ValueError("max_enumerated_candidates must be positive")
+    target_out = _require_positive_int(amount_out_total, name="amount_out_total")
+    max_legs_i = _require_positive_int(max_legs, name="max_legs")
+    max_enumerated_candidates_i = _require_positive_int(
+        max_enumerated_candidates,
+        name="max_enumerated_candidates",
+    )
     if not selected_pools:
         raise ValueError("selected_pools must be non-empty")
 
@@ -329,7 +333,6 @@ def build_exact_out_many_pool_selected_domain(
         return int(amount_in)
 
     candidate_quotes: list[ExactOutManyPoolCandidateQuote] = []
-    target_out = int(amount_out_total)
     # Cache the "best possible capacity from this suffix" bound used by every
     # recursive branch. Recomputing it in-place is observationally identical but
     # turns the pruning guard into repeated sort work on the hot path.
@@ -358,7 +361,7 @@ def build_exact_out_many_pool_selected_domain(
         partial: list[tuple[str, int, int]],
         partial_amount_in_total: int,
     ) -> None:
-        if len(candidate_quotes) > int(max_enumerated_candidates):
+        if len(candidate_quotes) > max_enumerated_candidates_i:
             raise ValueError("many-pool exact-out selected domain exceeded max_enumerated_candidates")
         if int(remaining_out) == 0:
             candidate_quotes.append(
@@ -402,10 +405,10 @@ def build_exact_out_many_pool_selected_domain(
                 )
                 partial.pop()
 
-    recurse(0, int(target_out), int(max_legs), [], 0)
+    recurse(0, int(target_out), max_legs_i, [], 0)
     if not candidate_quotes:
         raise ValueError("no feasible exact-out candidates in bounded selected domain")
-    if len(candidate_quotes) > int(max_enumerated_candidates):
+    if len(candidate_quotes) > max_enumerated_candidates_i:
         raise ValueError("many-pool exact-out selected domain exceeded max_enumerated_candidates")
 
     return ExactOutManyPoolSelectedDomain(
