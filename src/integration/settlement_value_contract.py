@@ -22,6 +22,16 @@ if TYPE_CHECKING:
 SETTLEMENT_SPOT_VALUE_CONTRACT_SCHEMA = "zenodex/settlement-spot-value-contract/v1"
 
 
+def _require_int(value: object, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{name} must be an int")
+    return value
+
+
+def _require_int_field(payload: Mapping[str, Any], name: str) -> int:
+    return _require_int(payload.get(name, 0), name=name)
+
+
 @dataclass(frozen=True)
 class AssetPriceEntry:
     asset: str
@@ -45,7 +55,7 @@ class AssetPriceEntry:
             raise ValueError("asset price entry must be an object")
         return cls(
             asset=str(payload.get("asset", "")),
-            price=int(payload.get("price", -1)),
+            price=_require_int(payload.get("price", -1), name="price"),
         )
 
 
@@ -80,9 +90,9 @@ class AssetNetValueEntry:
             raise ValueError("asset net entry must be an object")
         return cls(
             asset=str(payload.get("asset", "")),
-            net_delta=int(payload.get("net_delta", 0)),
-            unit_price=int(payload.get("unit_price", -1)),
-            value=int(payload.get("value", 0)),
+            net_delta=_require_int(payload.get("net_delta", 0), name="net_delta"),
+            unit_price=_require_int(payload.get("unit_price", -1), name="unit_price"),
+            value=_require_int(payload.get("value", 0), name="value"),
         )
 
 
@@ -157,9 +167,9 @@ class SettlementSpotValueContract:
             price_vector_sha256=str(payload.get("price_vector_sha256", "")),
             asset_prices=tuple(AssetPriceEntry.from_dict(entry) for entry in asset_prices_payload),
             asset_nets=tuple(AssetNetValueEntry.from_dict(entry) for entry in asset_nets_payload),
-            balance_value_sum=int(payload.get("balance_value_sum", 0)),
-            reserve_value_sum=int(payload.get("reserve_value_sum", 0)),
-            net_value_sum=int(payload.get("net_value_sum", 0)),
+            balance_value_sum=_require_int_field(payload, "balance_value_sum"),
+            reserve_value_sum=_require_int_field(payload, "reserve_value_sum"),
+            net_value_sum=_require_int_field(payload, "net_value_sum"),
             asset_conservation_ok=asset_conservation_ok,
             value_conservation_ok=value_conservation_ok,
         )
@@ -400,7 +410,7 @@ def _canonical_price_entries(asset_prices: Mapping[str, int]) -> tuple[AssetPric
         raise ValueError("asset_prices must be a non-empty mapping")
     entries: list[AssetPriceEntry] = []
     for asset, price in asset_prices.items():
-        entries.append(AssetPriceEntry(asset=str(asset), price=int(price)))
+        entries.append(AssetPriceEntry(asset=str(asset), price=_require_int(price, name=f"asset_prices.{asset}")))
     entries.sort(key=lambda entry: entry.asset)
     return tuple(entries)
 

@@ -23,6 +23,16 @@ if TYPE_CHECKING:
 SETTLEMENT_LP_VALUE_CONTRACT_SCHEMA = "zenodex/settlement-lp-value-contract/v1"
 
 
+def _require_int(value: object, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{name} must be an int")
+    return value
+
+
+def _require_int_field(payload: Mapping[str, Any], name: str) -> int:
+    return _require_int(payload.get(name, 0), name=name)
+
+
 @dataclass(frozen=True)
 class LPUnitValueEntry:
     pool_id: str
@@ -46,7 +56,7 @@ class LPUnitValueEntry:
             raise ValueError("lp unit value entry must be an object")
         return cls(
             pool_id=str(payload.get("pool_id", "")),
-            unit_value=int(payload.get("unit_value", -1)),
+            unit_value=_require_int(payload.get("unit_value", -1), name="unit_value"),
         )
 
 
@@ -82,10 +92,13 @@ class LPNetValueEntry:
             raise ValueError("lp net entry must be an object")
         return cls(
             pool_id=str(payload.get("pool_id", "")),
-            net_delta=int(payload.get("net_delta", 0)),
-            unit_value=int(payload.get("unit_value", -1)),
-            user_value=int(payload.get("user_value", 0)),
-            protocol_liability_value=int(payload.get("protocol_liability_value", 0)),
+            net_delta=_require_int(payload.get("net_delta", 0), name="net_delta"),
+            unit_value=_require_int(payload.get("unit_value", -1), name="unit_value"),
+            user_value=_require_int(payload.get("user_value", 0), name="user_value"),
+            protocol_liability_value=_require_int(
+                payload.get("protocol_liability_value", 0),
+                name="protocol_liability_value",
+            ),
         )
 
 
@@ -189,11 +202,11 @@ class SettlementLPValueContract:
             lp_unit_values=tuple(LPUnitValueEntry.from_dict(entry) for entry in lp_values_payload),
             asset_nets=tuple(AssetNetValueEntry.from_dict(entry) for entry in asset_nets_payload),
             lp_nets=tuple(LPNetValueEntry.from_dict(entry) for entry in lp_nets_payload),
-            balance_value_sum=int(payload.get("balance_value_sum", 0)),
-            reserve_value_sum=int(payload.get("reserve_value_sum", 0)),
-            lp_user_value_sum=int(payload.get("lp_user_value_sum", 0)),
-            lp_protocol_liability_value_sum=int(payload.get("lp_protocol_liability_value_sum", 0)),
-            net_value_sum=int(payload.get("net_value_sum", 0)),
+            balance_value_sum=_require_int_field(payload, "balance_value_sum"),
+            reserve_value_sum=_require_int_field(payload, "reserve_value_sum"),
+            lp_user_value_sum=_require_int_field(payload, "lp_user_value_sum"),
+            lp_protocol_liability_value_sum=_require_int_field(payload, "lp_protocol_liability_value_sum"),
+            net_value_sum=_require_int_field(payload, "net_value_sum"),
             asset_conservation_ok=asset_conservation_ok,
             lp_liability_balanced_ok=lp_liability_balanced_ok,
             value_conservation_ok=value_conservation_ok,
@@ -437,7 +450,10 @@ def verify_settlement_lp_value_contract_payload_from_price_attestation(
 def _canonical_price_entries(asset_prices: Mapping[str, int]) -> tuple[AssetPriceEntry, ...]:
     if not isinstance(asset_prices, Mapping) or not asset_prices:
         raise ValueError("asset_prices must be a non-empty mapping")
-    entries = [AssetPriceEntry(asset=str(asset), price=int(price)) for asset, price in asset_prices.items()]
+    entries = [
+        AssetPriceEntry(asset=str(asset), price=_require_int(price, name=f"asset_prices.{asset}"))
+        for asset, price in asset_prices.items()
+    ]
     entries.sort(key=lambda entry: entry.asset)
     return tuple(entries)
 
@@ -445,7 +461,10 @@ def _canonical_price_entries(asset_prices: Mapping[str, int]) -> tuple[AssetPric
 def _canonical_lp_value_entries(lp_unit_values: Mapping[str, int]) -> tuple[LPUnitValueEntry, ...]:
     if not isinstance(lp_unit_values, Mapping) or not lp_unit_values:
         raise ValueError("lp_unit_values must be a non-empty mapping")
-    entries = [LPUnitValueEntry(pool_id=str(pool_id), unit_value=int(unit_value)) for pool_id, unit_value in lp_unit_values.items()]
+    entries = [
+        LPUnitValueEntry(pool_id=str(pool_id), unit_value=_require_int(unit_value, name=f"lp_unit_values.{pool_id}"))
+        for pool_id, unit_value in lp_unit_values.items()
+    ]
     entries.sort(key=lambda entry: entry.pool_id)
     return tuple(entries)
 

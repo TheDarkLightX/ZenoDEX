@@ -386,6 +386,68 @@ def test_settlement_value_packet_payload_rejects_string_boolean_flags() -> None:
     assert err == "packet_ok must be a bool"
 
 
+def test_settlement_value_packet_rejects_bool_spot_contract_numeric_fields() -> None:
+    _pk, asset0, asset1, _pool_id, settlement = _swap_context()
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=1, observed_epoch=95, age_epochs=5, source_id="local:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=1, observed_epoch=97, age_epochs=3, source_id="local:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    packet = build_settlement_value_packet_from_price_packet(
+        settlement=settlement,
+        price_packet=price_packet,
+    ).to_dict()
+    packet["spot_value_contract"]["asset_prices"][0]["price"] = True
+
+    ok, err = verify_settlement_value_packet_payload_from_price_packet(
+        settlement=settlement,
+        price_packet_payload=price_packet.to_dict(),
+        packet_payload=packet,
+    )
+
+    assert ok is False
+    assert err == "price must be an int"
+
+
+def test_settlement_value_packet_rejects_bool_lp_contract_numeric_fields() -> None:
+    pk, asset0, asset1, pool_id, settlement = _swap_context()
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=1, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=1, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    packet = build_settlement_value_packet_from_price_attestation(
+        settlement=settlement,
+        price_attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        lp_unit_values={pool_id: 1},
+        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+    ).to_dict()
+    packet["lp_value_contract"]["lp_unit_values"][0]["unit_value"] = True
+
+    ok, err = verify_settlement_value_packet_payload_from_price_attestation(
+        settlement=settlement,
+        price_attestation_payload=attestation.to_dict(),
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        packet_payload=packet,
+        lp_unit_values={pool_id: 1},
+        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+    )
+
+    assert ok is False
+    assert err == "unit_value must be an int"
+
+
 def test_settlement_value_packet_from_dict_round_trips() -> None:
     _pk, asset0, asset1, _pool_id, settlement = _swap_context()
     price_packet = build_settlement_spot_price_packet(
