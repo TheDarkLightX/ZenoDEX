@@ -424,6 +424,34 @@ class TestParsePools:
         with pytest.raises(ValueError, match=r"^bad pool status: NOT_A_STATUS$"):
             parse_pools({"pools": [self._pool_row(status="not_a_status")]})
 
+    @pytest.mark.parametrize(
+        "field",
+        ("reserve0", "reserve1", "fee_bps", "lp_supply", "created_at"),
+    )
+    def test_rejects_bool_numeric_pool_fields(self, field: str) -> None:
+        row = self._pool_row()
+        row[field] = True
+
+        with pytest.raises(BadFieldError) as exc_info:
+            parse_pools({"pools": [row]})
+
+        assert exc_info.value.field == field
+        assert exc_info.value.reason == "must be an int (bool rejected)"
+
+    @pytest.mark.parametrize(
+        "field",
+        ("reserve0", "reserve1", "fee_bps", "lp_supply", "created_at"),
+    )
+    def test_rejects_numeric_string_pool_fields(self, field: str) -> None:
+        row = self._pool_row()
+        row[field] = "1"
+
+        with pytest.raises(BadFieldError) as exc_info:
+            parse_pools({"pools": [row]})
+
+        assert exc_info.value.field == field
+        assert exc_info.value.reason == "must be an int (bool rejected)"
+
     def test_default_status_is_active(self) -> None:
         row = self._pool_row()
         del row["status"]
