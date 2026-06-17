@@ -251,7 +251,7 @@ def _handle_slippage_advice(obj: Mapping[str, Any], ctx: DexRequestContext) -> D
                 ],
             },
         }
-    except Exception:
+    except (TypeError, ValueError, ArithmeticError):
         return 400, {"ok": False, "error": "slippage_advice_error", "details": "request failed"}
 
 
@@ -356,7 +356,7 @@ def _handle_pokayoke_swap_suggest(obj: Mapping[str, Any], ctx: DexRequestContext
                 "required_slippage_le_max_option_bps": _as_obj(req_max_opt),
             },
         }
-    except Exception:
+    except (TypeError, ValueError, ArithmeticError):
         return 400, {"ok": False, "error": "pokayoke_swap_suggest_error", "details": "request failed"}
 
 
@@ -442,7 +442,7 @@ def _handle_pokayoke_swap_suggest_heavy(obj: Mapping[str, Any], ctx: DexRequestC
             }
 
         return 200, {"ok": True, "suggestions": [_as_obj(s) for s in rows]}
-    except Exception:
+    except (TypeError, ValueError, ArithmeticError):
         return 400, {"ok": False, "error": "pokayoke_swap_suggest_heavy_error", "details": "request failed"}
 
 
@@ -856,7 +856,7 @@ def _handle_proof_mining_status(obj: Mapping[str, Any], ctx: DexRequestContext) 
             proof_mining_context_obj=proof_mining_context,
         )
         return 200, {"ok": True, "status": status.to_public_dict()}
-    except Exception:
+    except (TypeError, ValueError, ArithmeticError):
         return 400, {"ok": False, "error": "proof_mining_status_error", "details": "request failed"}
 
 
@@ -895,7 +895,7 @@ def _make_simple_verifier(
             verifier = importer()
             ok, err = verifier(payload)
             return 200, {"ok": bool(ok), "error": err}
-        except Exception:
+        except (TypeError, ValueError, ArithmeticError):
             return 400, {"ok": False, "error": error_code, "details": "request failed"}
 
     return _handler
