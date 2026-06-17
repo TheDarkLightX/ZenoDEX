@@ -2229,7 +2229,7 @@ def _handle_guard_exact_out_many_pool_canonicality(obj: Mapping[str, Any], ctx: 
             payload["runtime_quote"] = dict(audit_payload["runtime_quote"])
             payload["canonical_winner_quote"] = dict(audit_payload["canonical_winner_quote"])
         return 200, payload
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "guard_exact_out_many_pool_canonicality_error", "details": "request failed"}
 
 
@@ -2307,7 +2307,7 @@ def _handle_quote_exact_out_many_pool_guarded(obj: Mapping[str, Any], ctx: DexRe
             "projection_cover_available": audit_payload["projection_cover_available"],
             "projection_cover_holds": audit_payload["projection_cover_holds"],
         }
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "quote_exact_out_many_pool_guarded_error", "details": "request failed"}
 
 
@@ -2342,7 +2342,7 @@ def _handle_build_exact_out_many_pool_guarded_quote_packet(obj: Mapping[str, Any
             response["guard_ok"] = False
             response["error"] = str(packet.error or "many_pool_runtime_not_canonical")
         return 200, response
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "build_exact_out_many_pool_guarded_quote_packet_error", "details": "request failed"}
 
 
@@ -2378,7 +2378,7 @@ def _handle_build_settlement_feature_extension_packet(obj: Mapping[str, Any], ct
         feature_extension_inputs = _parse_settlement_feature_extension_inputs_payload(feature_extension_inputs_obj)
         packet = build_settlement_feature_extension_packet(feature_extension_inputs)
         return 200, {"ok": True, "packet": packet.to_dict()}
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "build_settlement_feature_extension_packet_error", "details": "request failed"}
 
 
@@ -2411,7 +2411,7 @@ def _handle_build_settlement_spot_price_packet(obj: Mapping[str, Any], ctx: DexR
             cross_module_sync_contract=cross_module_sync_contract,
         )
         return 200, {"ok": True, "packet": packet.to_dict()}
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "build_settlement_spot_price_packet_error", "details": "request failed"}
 
 
@@ -2461,7 +2461,7 @@ def _handle_quote_exact_out_many_pool_repaired_full_domain_certified(obj: Mappin
         else:
             payload["error"] = str(err_msg or "many_pool_repaired_advisory_not_full_domain_canonical")
         return 200, payload
-    except Exception:
+    except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "quote_exact_out_many_pool_repaired_full_domain_certified_error", "details": "request failed"}
 
 
