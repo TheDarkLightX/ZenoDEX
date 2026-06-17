@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import src.agents.zenograph_fact_pack as fact_pack_module
 from src.agents.krr_bundle_artifacts import KRRReviewRecord
 from src.agents.zenograph_fact_pack import (
     ZenoGraphFactRecord,
@@ -30,7 +31,7 @@ def _runtime_review(pack_name: str) -> KRRReviewRecord:
     )
 
 
-def test_zenograph_fact_pack_roundtrip_signature_and_runtime_facts(tmp_path: Path) -> None:
+def _signed_runtime_fact_pack():
     pack = build_zenograph_fact_pack(
         pack_name="zenograph.shadow.1",
         built_at="2026-03-26T00:15:00Z",
@@ -48,7 +49,11 @@ def test_zenograph_fact_pack_roundtrip_signature_and_runtime_facts(tmp_path: Pat
         ),
         review_records=(_runtime_review("zenograph.shadow.1"),),
     )
-    signed = sign_zenograph_fact_pack(pack, privkey=21)
+    return sign_zenograph_fact_pack(pack, privkey=21)
+
+
+def test_zenograph_fact_pack_roundtrip_signature_and_runtime_facts(tmp_path: Path) -> None:
+    signed = _signed_runtime_fact_pack()
     assert verify_zenograph_fact_pack_signature(signed) is True
 
     path = tmp_path / "fact_pack.json"
@@ -76,3 +81,17 @@ def test_zenograph_fact_pack_requires_runtime_review() -> None:
             ),
             review_records=(),
         )
+
+
+def test_zenograph_fact_pack_signature_propagates_backend_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    signed = _signed_runtime_fact_pack()
+
+    class BrokenBLS:
+        @staticmethod
+        def Verify(_pk: bytes, _message: bytes, _sig: bytes) -> bool:
+            raise RuntimeError("broken BLS verifier")
+
+    monkeypatch.setattr(fact_pack_module, "G2Basic", BrokenBLS)
+
+    with pytest.raises(RuntimeError, match="broken BLS verifier"):
+        verify_zenograph_fact_pack_signature(signed)

@@ -5,11 +5,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+from ..integration.tau_net_client import bls_pubkey_hex_from_privkey
 from ..state.canonical import canonical_json_bytes, sha256_hex
-from .zenograph_schema import ZGFact, ZGFactStatus
 from .krr_bundle_artifacts import KRRReviewRecord, krr_review_record_from_dict
 from .policy_artifacts import G2Basic, _parse_privkey_to_int, _require_bls
-from ..integration.tau_net_client import bls_pubkey_hex_from_privkey
+from .zenograph_schema import ZGFact, ZGFactStatus
 
 ZENOGRAPH_FACT_RECORD_SCHEMA = "zenodex/zenograph-fact-record/v1"
 ZENOGRAPH_FACT_PACK_SCHEMA = "zenodex/zenograph-fact-pack/v1"
@@ -248,10 +248,7 @@ def verify_zenograph_fact_pack_signature(pack: ZenoGraphFactPack) -> bool:
     except ValueError:
         return False
     message = canonical_json_bytes(pack.to_unsigned_dict())
-    try:
-        return bool(G2Basic.Verify(pk, message, sig))
-    except Exception:
-        return False
+    return bool(G2Basic.Verify(pk, message, sig))
 
 
 def zenograph_runtime_facts(pack: ZenoGraphFactPack) -> dict[tuple[str, str], object]:
