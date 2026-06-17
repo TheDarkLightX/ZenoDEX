@@ -124,7 +124,7 @@ class SettlementEndogenousLPValuePacket:
                 if price_attestation_payload is None
                 else SettlementSpotPriceAttestation.from_dict(price_attestation_payload)
             ),
-            pool_snapshots=tuple(dict(snapshot) for snapshot in pool_snapshots_payload),
+            pool_snapshots=tuple(_pool_to_dict(_pool_from_dict(snapshot)) for snapshot in pool_snapshots_payload),
             pool_snapshot_vector_sha256=str(payload.get("pool_snapshot_vector_sha256", "")),
             lp_value_contract=SettlementLPValueContract.from_dict(lp_value_contract_payload),
             price_provenance_ok=_require_bool(payload.get("price_provenance_ok", False), name="price_provenance_ok"),
@@ -155,6 +155,16 @@ def _require_bool(value: object, *, name: str) -> bool:
     if not isinstance(value, bool):
         raise TypeError(f"{name} must be a bool")
     return bool(value)
+
+
+def _require_int(value: object, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{name} must be an int")
+    return value
+
+
+def _require_int_field(payload: Mapping[str, Any], name: str) -> int:
+    return _require_int(payload.get(name, 0), name=name)
 
 
 def build_settlement_endogenous_lp_value_packet_from_price_packet(
@@ -391,12 +401,12 @@ def _pool_from_dict(payload: Mapping[str, Any]) -> PoolState:
         pool_id=str(payload.get("pool_id", "")),
         asset0=str(payload.get("asset0", "")),
         asset1=str(payload.get("asset1", "")),
-        reserve0=int(payload.get("reserve0", 0)),
-        reserve1=int(payload.get("reserve1", 0)),
-        fee_bps=int(payload.get("fee_bps", 0)),
-        lp_supply=int(payload.get("lp_supply", 0)),
+        reserve0=_require_int_field(payload, "reserve0"),
+        reserve1=_require_int_field(payload, "reserve1"),
+        fee_bps=_require_int_field(payload, "fee_bps"),
+        lp_supply=_require_int_field(payload, "lp_supply"),
         status=PoolStatus[status_raw],
-        created_at=int(payload.get("created_at", 0)),
+        created_at=_require_int_field(payload, "created_at"),
         curve_tag=str(payload.get("curve_tag", "CPMM")),
         curve_params=str(payload.get("curve_params", "")),
     )

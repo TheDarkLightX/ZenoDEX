@@ -211,6 +211,46 @@ def test_endogenous_lp_value_packet_from_dict_rejects_string_boolean_flags() -> 
         SettlementEndogenousLPValuePacket.from_dict(payload)
 
 
+def test_endogenous_lp_value_packet_rejects_bool_pool_snapshot_numeric_fields() -> None:
+    pk, asset0, asset1, pool_id, pool, settlement = _swap_context()
+    pool_with_unit_reserve = PoolState(
+        pool_id=pool.pool_id,
+        asset0=pool.asset0,
+        asset1=pool.asset1,
+        reserve0=1,
+        reserve1=pool.reserve1,
+        fee_bps=pool.fee_bps,
+        lp_supply=pool.lp_supply,
+        status=pool.status,
+        created_at=pool.created_at,
+        curve_tag=pool.curve_tag,
+        curve_params=pool.curve_params,
+    )
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    price_packet = _price_packet(asset0, asset1)
+    packet = build_settlement_endogenous_lp_value_packet_from_price_packet(
+        settlement=settlement,
+        price_packet=price_packet,
+        pool_snapshots=(pool_with_unit_reserve,),
+    ).to_dict()
+    pool_snapshot_payload = dict(packet["pool_snapshots"][0])
+    pool_snapshot_payload["reserve0"] = True
+    packet["pool_snapshots"][0]["reserve0"] = True
+
+    with pytest.raises(ValueError, match="reserve0 must be an int"):
+        SettlementEndogenousLPValuePacket.from_dict(packet)
+
+    ok, err = verify_settlement_endogenous_lp_value_packet_payload_from_price_packet(
+        settlement=settlement,
+        price_packet_payload=price_packet.to_dict(),
+        pool_snapshots_payload=[pool_snapshot_payload],
+        packet_payload=packet,
+    )
+
+    assert ok is False
+    assert err == "reserve0 must be an int"
+
+
 def test_endogenous_lp_value_packet_price_packet_parse_programmer_error_propagates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
