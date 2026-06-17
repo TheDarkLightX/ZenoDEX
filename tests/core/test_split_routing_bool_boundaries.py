@@ -16,10 +16,15 @@ from src.core.split_routing_dispatch import (
     best_split_two_pools_exact_out_for_pools,
     exact_out_capacity_guard_for_pools,
 )
+from src.core.split_routing_generic_exact_in import (
+    GenericExactInSplitRequest,
+    best_generic_two_pool_exact_in,
+)
 from src.core.split_routing_many_exact_in import (
     ManyPoolExactInRequest,
     best_many_pool_exact_in_split,
 )
+from src.core.split_routing_many_exact_in_small import best_small_domain_many_pool_exact_in
 from src.core.split_routing_many_exact_out import (
     ManyPoolExactOutRequest,
     best_many_pool_exact_out_split,
@@ -206,6 +211,64 @@ def test_two_pool_exact_out_request_rejects_non_strict_controls(
 def test_cpmm_exact_in_split_rejects_non_strict_controls(builder, message: str) -> None:
     with pytest.raises(ValueError, match=message):
         builder()
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("amount_in_total", True, "amount_in_total must be positive"),
+        ("amount_in_total", "10", "amount_in_total must be positive"),
+        ("window", False, "window must be non-negative"),
+        ("brute_force_max", False, "brute_force_max must be non-negative"),
+    ],
+)
+def test_generic_exact_in_split_rejects_non_strict_controls(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    kwargs = {
+        "amount_in_total": 10,
+        "window": 0,
+        "brute_force_max": 10,
+    }
+    kwargs[field] = value
+    with pytest.raises(ValueError, match=message):
+        best_generic_two_pool_exact_in(
+            GenericExactInSplitRequest(
+                quote0=lambda amount_in: int(amount_in),
+                quote1=lambda amount_in: int(amount_in),
+                **kwargs,
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"amount_in_total": True, "max_legs": 1}, "amount_in_total must be positive"),
+        ({"amount_in_total": "10", "max_legs": 1}, "amount_in_total must be positive"),
+        ({"amount_in_total": 10, "max_legs": True}, "max_legs must be positive"),
+        ({"amount_in_total": 10, "max_legs": 1, "pool_ids": ()}, "pool_ids must be non-empty"),
+        ({"amount_in_total": 10, "max_legs": 1, "pool_ids": ("pool-a", "pool-a")}, "pool_ids must not repeat"),
+        ({"amount_in_total": 10, "max_legs": 1, "pool_ids": ("pool-a", 7)}, "pool_ids must be strings"),
+    ],
+)
+def test_small_domain_exact_in_split_rejects_invalid_controls_and_pool_ids(
+    kwargs: dict[str, object],
+    message: str,
+) -> None:
+    values: dict[str, object] = {
+        "pool_ids": ("pool-a",),
+        "amount_in_total": 10,
+        "max_legs": 1,
+    }
+    values.update(kwargs)
+    with pytest.raises(ValueError, match=message):
+        best_small_domain_many_pool_exact_in(
+            quote_for_pool_id=lambda _pool_id, amount_in: int(amount_in),
+            **values,
+        )
 
 
 @pytest.mark.parametrize(

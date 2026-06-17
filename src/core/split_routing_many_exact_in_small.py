@@ -4,8 +4,29 @@ from __future__ import annotations
 
 from typing import Callable, Sequence
 
+from .domain_limits import is_strict_int
+
 ExactInQuoteForPoolId = Callable[[str, int], int | None]
 _ExactState = tuple[int, tuple[tuple[str, int], ...]]
+
+
+def _require_positive_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) <= 0:
+        raise ValueError(f"{name} must be positive")
+    return int(value)
+
+
+def _canonical_pool_ids(pool_ids: Sequence[str]) -> tuple[str, ...]:
+    if any(not isinstance(pool_id, str) for pool_id in pool_ids):
+        raise ValueError("pool_ids must be strings")
+    canonical = tuple(sorted(pool_ids))
+    if not canonical:
+        raise ValueError("pool_ids must be non-empty")
+    if any(not pool_id for pool_id in canonical):
+        raise ValueError("pool_ids must be non-empty")
+    if len(set(canonical)) != len(canonical):
+        raise ValueError("pool_ids must not repeat")
+    return canonical
 
 
 def _allocation_from_legs(legs: tuple[tuple[str, int], ...], pool_ids: Sequence[str]) -> dict[str, int]:
@@ -68,8 +89,9 @@ def best_small_domain_many_pool_exact_in(
     Tie-breaks match the runtime route key: higher output, fewer positive legs,
     then lexicographic `(pool_id, amount_in)` legs.
     """
-    canonical_pool_ids = tuple(sorted(pool_ids))
-    amount_total = int(amount_in_total)
+    canonical_pool_ids = _canonical_pool_ids(pool_ids)
+    amount_total = _require_positive_control(amount_in_total, name="amount_in_total")
+    max_legs_i = _require_positive_control(max_legs, name="max_legs")
     quote_table = _quote_table(
         pool_ids=canonical_pool_ids,
         amount_in_total=amount_total,
@@ -81,7 +103,7 @@ def best_small_domain_many_pool_exact_in(
         next_states = dict(states)
         pool_quotes = quote_table[pool_id]
         for (used_legs, spent), (total_out, legs) in states.items():
-            if used_legs >= int(max_legs):
+            if used_legs >= max_legs_i:
                 continue
             for amount in range(1, amount_total - int(spent) + 1):
                 out_amount = pool_quotes[amount]
@@ -98,7 +120,7 @@ def best_small_domain_many_pool_exact_in(
 
     best_out = -1
     best_legs: tuple[tuple[str, int], ...] | None = None
-    for used_legs in range(1, int(max_legs) + 1):
+    for used_legs in range(1, max_legs_i + 1):
         state = states.get((used_legs, amount_total))
         if state is None:
             continue

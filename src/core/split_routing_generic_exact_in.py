@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from .domain_limits import is_strict_int
+
 ExactInQuote = Callable[[int], int]
 
 
@@ -20,6 +22,18 @@ class GenericExactInSplitRequest:
     brute_force_max: int
     quote0: ExactInQuote
     quote1: ExactInQuote
+
+
+def _require_positive_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) <= 0:
+        raise ValueError(f"{name} must be positive")
+    return int(value)
+
+
+def _require_nonnegative_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return int(value)
 
 
 def _total_out(request: GenericExactInSplitRequest, split_a: int) -> int | None:
@@ -218,12 +232,11 @@ def _best_both_valid_split(request: GenericExactInSplitRequest) -> tuple[int, in
 
 
 def best_generic_two_pool_exact_in(request: GenericExactInSplitRequest) -> tuple[int, int]:
-    if request.amount_in_total <= 0:
-        raise ValueError("amount_in_total must be positive")
-    if request.window < 0:
-        raise ValueError("window must be non-negative")
+    amount_in_total = _require_positive_control(request.amount_in_total, name="amount_in_total")
+    _require_nonnegative_control(request.window, name="window")
+    brute_force_max = _require_nonnegative_control(request.brute_force_max, name="brute_force_max")
 
-    if int(request.amount_in_total) <= int(request.brute_force_max):
+    if amount_in_total <= brute_force_max:
         return _brute_force_best_split(request)
 
     best = _endpoint_best(request)
