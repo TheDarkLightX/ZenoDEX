@@ -186,6 +186,31 @@ def test_evaluate_autotrader_local_guards_leaves_optional_provenance_unchecked()
     assert provenance.blocking is False
     assert evaluation.ok is True
 
+
+def test_autotrader_local_guard_inputs_to_dict_rejects_unresolved_budget_window_without_assert() -> None:
+    inputs = AutoTraderLocalGuardInputs(current_epoch=12, order_amount=100)
+    object.__setattr__(inputs, "budget_window_id", None)
+
+    with pytest.raises(ValueError, match="budget_window_id must be resolved"):
+        inputs.to_dict()
+
+
+def test_evaluate_autotrader_local_guards_rejects_unresolved_budget_window_without_assert() -> None:
+    inputs = AutoTraderLocalGuardInputs(
+        current_epoch=12,
+        order_amount=100,
+        projected_live_orders=1,
+        lifetime_spent=0,
+        spent_in_window=0,
+        budget_window_id=12,
+        signal_packet=_packet(),
+    )
+    object.__setattr__(inputs, "budget_window_id", None)
+
+    with pytest.raises(ValueError, match="budget_window_id must be resolved"):
+        evaluate_autotrader_local_guards(strategy=_strategy(), inputs=inputs)
+
+
 def test_evaluate_autotrader_local_guards_roundtrips_from_dict() -> None:
     strategy = _strategy()
     evaluation = evaluate_autotrader_local_guards(

@@ -113,7 +113,8 @@ class AutoTraderLocalGuardInputs:
 
     def to_dict(self) -> dict[str, Any]:
         budget_window_id = self.budget_window_id
-        assert budget_window_id is not None
+        if budget_window_id is None:
+            raise ValueError("budget_window_id must be resolved")
         payload: dict[str, Any] = {
             "current_epoch": int(self.current_epoch),
             "order_amount": int(self.order_amount),
@@ -426,7 +427,8 @@ def evaluate_autotrader_local_guards(
         # Keep kill-switch reporting isolated in the controls family to avoid double-counting one latch.
         target_budget_window_id = strategy_budget_window_id(strategy.strategy_window, inputs.current_epoch)
         budget_window_id = inputs.budget_window_id
-        assert budget_window_id is not None
+        if budget_window_id is None:
+            raise ValueError("budget_window_id must be resolved")
         if budget_window_id == inputs.current_epoch and budget_window_id != target_budget_window_id:
             budget_window_id = target_budget_window_id
         budget_state = StrategyBudgetState(
