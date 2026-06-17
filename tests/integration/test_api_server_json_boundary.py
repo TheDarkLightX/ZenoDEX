@@ -121,6 +121,77 @@ def test_api_server_fast_quote_domain_error_falls_back_to_exact_router() -> None
         _stop_test_server(httpd, thread)
 
 
+def test_api_server_quote_rejects_bool_exact_in_amount() -> None:
+    httpd, thread, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote",
+            {
+                "kind": "exact_in",
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_in": True,
+                "pools": [_pool_dict(pid="p1", a0="A", a1="B", r0=1_000, r1=1_000)],
+            },
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "bad_amount_in"
+    finally:
+        _stop_test_server(httpd, thread)
+
+
+def test_api_server_quote_rejects_bool_exact_out_amount() -> None:
+    httpd, thread, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote",
+            {
+                "kind": "exact_out",
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_out": True,
+                "pools": [_pool_dict(pid="p1", a0="A", a1="B", r0=1_000, r1=1_000)],
+            },
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "bad_amount_out"
+    finally:
+        _stop_test_server(httpd, thread)
+
+
+def test_api_server_quote_rejects_bool_fast_topk() -> None:
+    httpd, thread, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote",
+            {
+                "kind": "exact_in",
+                "routing_mode": "fast_v1",
+                "fast_topk_max": True,
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_in": 100,
+                "pools": [_pool_dict(pid="p1", a0="A", a1="B", r0=1_000, r1=1_000)],
+            },
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "bad_fast_topk_max"
+    finally:
+        _stop_test_server(httpd, thread)
+
+
 def test_routing_oracle_adapter_bridge_domain_error_fails_closed(monkeypatch) -> None:
     from src.integration import api_server
     from tools import zenodex_oracle_aggregate_adapter

@@ -19,6 +19,13 @@ def _optional_bool(obj: Mapping[str, Any], name: str, *, default: bool) -> bool:
     return value
 
 
+def _optional_int(obj: Mapping[str, Any], name: str, *, default: int) -> int:
+    value = obj.get(name, default)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{name} must be an int")
+    return value
+
+
 @dataclass(frozen=True)
 class _QuoteInputs:
     kind: str
@@ -69,7 +76,7 @@ def _quote_exact_in(
 ) -> tuple[str, Any]:
     from src.core.routing import best_route_exact_in_2hop  # pylint: disable=import-outside-toplevel
 
-    amount_in = int(obj.get("amount_in", 0))
+    amount_in = _optional_int(obj, "amount_in", default=0)
     if inputs.routing_mode_req != "fast_v1":
         return "exact", best_route_exact_in_2hop(
             pools_by_id=pools_by_id,
@@ -84,7 +91,7 @@ def _quote_exact_in(
             asset_in=inputs.asset_in,
             asset_out=inputs.asset_out,
             amount_in=amount_in,
-            topk_max=int(obj.get("fast_topk_max", 32)),
+            topk_max=_optional_int(obj, "fast_topk_max", default=32),
         )
     except BOUNDARY_DOMAIN_ERRORS:
         q = None
@@ -108,7 +115,7 @@ def _quote_exact_out(
         best_route_exact_out_2hop,  # pylint: disable=import-outside-toplevel
     )
 
-    amount_out = int(obj.get("amount_out", 0))
+    amount_out = _optional_int(obj, "amount_out", default=0)
     apply_two_hop_gate = _optional_bool(obj, "apply_two_hop_gate", default=False)
     if inputs.routing_mode_req != "fast_v1":
         return "exact", best_route_exact_out_2hop(
@@ -125,7 +132,7 @@ def _quote_exact_out(
             asset_in=inputs.asset_in,
             asset_out=inputs.asset_out,
             amount_out=amount_out,
-            topk_max=int(obj.get("fast_topk_max", 32)),
+            topk_max=_optional_int(obj, "fast_topk_max", default=32),
             apply_two_hop_gate=apply_two_hop_gate,
         )
     except BOUNDARY_DOMAIN_ERRORS:
