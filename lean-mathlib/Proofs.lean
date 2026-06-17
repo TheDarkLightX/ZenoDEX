@@ -198,6 +198,7 @@ import Proofs.SlashingEscapePrevention
 import Proofs.SolverCheckerSeparation
 import Proofs.SolverNashEquilibrium
 import Proofs.SplitRoutingArgmaxPlateau
+import Proofs.SplitRoutingStaircase
 import Proofs.SplitRoutingUnimodality
 import Proofs.StablecoinGapRiskADL
 import Proofs.SuppressedSettlementMechanism
