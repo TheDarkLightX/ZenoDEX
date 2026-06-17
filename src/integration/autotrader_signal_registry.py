@@ -20,6 +20,7 @@ EXTERNAL_SIGNAL_SOURCE_REGISTRY_SCHEMA = "zenodex/autotrader-external-signal-sou
 EXTERNAL_SIGNAL_SOURCE_REGISTRY_ENTRY_SCHEMA = (
     "zenodex/autotrader-external-signal-source-registry-entry/v1"
 )
+_REGISTRY_PAYLOAD_DOMAIN_ERRORS = (TypeError, ValueError, ArithmeticError)
 
 
 def _require_safe_token(name: str, value: object) -> str:
@@ -279,7 +280,7 @@ def verify_external_signal_source_registry_payload(payload: object) -> tuple[boo
         return False, "unsupported external signal source registry schema"
     try:
         registry = external_signal_source_registry_from_object(payload)
-    except Exception as exc:
+    except _REGISTRY_PAYLOAD_DOMAIN_ERRORS as exc:
         return False, str(exc)
     if dict(payload) != registry.to_dict():
         return False, "external signal source registry payload mismatch"

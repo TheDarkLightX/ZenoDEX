@@ -132,6 +132,33 @@ def test_signal_source_registry_payload_verifier_roundtrip_and_tamper_rejection(
     assert error == "external signal source registry payload mismatch"
 
 
+def test_signal_source_registry_payload_verifier_rejects_malformed_payload() -> None:
+    payload = _registry().to_dict()
+    payload["entries"][0]["source_id"] = 1
+
+    ok, error = verify_external_signal_source_registry_payload(payload)
+
+    assert ok is False
+    assert error == "external signal source registry entry source_id must be a string"
+
+
+def test_signal_source_registry_payload_verifier_does_not_swallow_adapter_bugs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = _registry().to_dict()
+
+    def broken_registry_adapter(_payload: object) -> object:
+        raise RuntimeError("source registry adapter bug")
+
+    monkeypatch.setattr(
+        signal_registry,
+        "external_signal_source_registry_from_object",
+        broken_registry_adapter,
+    )
+    with pytest.raises(RuntimeError, match="source registry adapter bug"):
+        verify_external_signal_source_registry_payload(payload)
+
+
 def test_signal_source_registry_helper_type_guards() -> None:
     with pytest.raises(TypeError, match="value must be a SignalSourceKind"):
         signal_registry._source_kind_code("attested_external")  # type: ignore[arg-type]
