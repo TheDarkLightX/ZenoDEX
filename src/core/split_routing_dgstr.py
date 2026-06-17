@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
+from .domain_limits import is_strict_int
+
 SplitTotalOut = Callable[[int], int | None]
 
 
@@ -50,6 +52,28 @@ class _DgstrSearchState:
         if key not in self.point_vals:
             self.point_vals[key] = self.request.total_out(key)
         return self.point_vals[key]
+
+
+def _require_int_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value):
+        raise ValueError(f"{name} must be an int")
+    return int(value)
+
+
+def _require_nonnegative_control(value: object, *, name: str) -> int:
+    if not is_strict_int(value) or int(value) < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return int(value)
+
+
+def _validated_request_controls(request: DgstrSearchRequest) -> tuple[int, int, int, int]:
+    lo = _require_nonnegative_control(request.lo, name="lo")
+    hi = _require_nonnegative_control(request.hi, name="hi")
+    a_star = _require_int_control(request.a_star, name="a_star")
+    window = _require_nonnegative_control(request.window, name="window")
+    if not callable(request.total_out):
+        raise ValueError("total_out must be callable")
+    return lo, hi, a_star, window
 
 
 def _is_better_candidate(cand: tuple[int, int] | None, best: tuple[int, int] | None) -> bool:
@@ -174,10 +198,19 @@ def search_dgstr_v1(request: DgstrSearchRequest) -> tuple[int, int] | None:
 
     This is intentionally scoped to easy regimes and is not used as the default profile.
     """
-    if int(request.lo) > int(request.hi):
+    lo, hi, a_star, window = _validated_request_controls(request)
+    if lo > hi:
         return None
 
-    state = _DgstrSearchState(request=request)
+    state = _DgstrSearchState(
+        request=DgstrSearchRequest(
+            lo=lo,
+            hi=hi,
+            a_star=a_star,
+            window=window,
+            total_out=request.total_out,
+        )
+    )
     best = _probe_centers(state, _seed_centers(state))
     cur_lo, cur_hi = _narrow_window(state)
     best = _scan_rescue_windows(

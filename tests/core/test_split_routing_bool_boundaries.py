@@ -10,6 +10,7 @@ from src.core.split_routing import (
     resolve_two_pool_split_search_params,
     staircase_jump_best_split_two_pools_exact_in,
 )
+from src.core.split_routing_dgstr import DgstrSearchRequest, search_dgstr_v1
 from src.core.split_routing_dispatch import (
     best_split_many_pools_exact_in_for_pools,
     best_split_many_pools_exact_out_for_pools,
@@ -80,6 +81,18 @@ def _window_plan(**overrides: object) -> WindowSearchPlan:
     }
     values.update(overrides)
     return WindowSearchPlan(**values)
+
+
+def _dgstr_request(**overrides: object) -> DgstrSearchRequest:
+    values = {
+        "lo": 0,
+        "hi": 10,
+        "a_star": 5,
+        "window": 2,
+        "total_out": lambda split: int(split),
+    }
+    values.update(overrides)
+    return DgstrSearchRequest(**values)
 
 
 def _exact_in_request(**overrides: object) -> ManyPoolExactInRequest:
@@ -329,6 +342,28 @@ def test_windowed_split_plan_rejects_non_strict_controls(
 ) -> None:
     with pytest.raises(ValueError, match=message):
         search_windowed_both_valid(_window_plan(**overrides))
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"lo": True}, "lo must be non-negative"),
+        ({"hi": True}, "hi must be non-negative"),
+        ({"a_star": True}, "a_star must be an int"),
+        ({"window": False}, "window must be non-negative"),
+        ({"total_out": None}, "total_out must be callable"),
+    ],
+)
+def test_dgstr_search_rejects_non_strict_controls(
+    overrides: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        search_dgstr_v1(_dgstr_request(**overrides))
+
+
+def test_dgstr_search_preserves_empty_integer_interval_result() -> None:
+    assert search_dgstr_v1(_dgstr_request(lo=5, hi=4)) is None
 
 
 @pytest.mark.parametrize(
