@@ -26,8 +26,13 @@ from __future__ import annotations
 
 from math import isqrt
 
-
 BPS_DENOM = 10_000
+
+
+def _require_plain_int(name: str, value: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
 
 
 def compute_il_bps(
@@ -42,6 +47,10 @@ def compute_il_bps(
     - IL in [0, 10000], where 0 = no IL and 10000 = 100% loss.
     - 0 for any zero/invalid reserves (fail-safe).
     """
+    reserve_x_before = _require_plain_int("reserve_x_before", reserve_x_before)
+    reserve_y_before = _require_plain_int("reserve_y_before", reserve_y_before)
+    reserve_x_after = _require_plain_int("reserve_x_after", reserve_x_after)
+    reserve_y_after = _require_plain_int("reserve_y_after", reserve_y_after)
     if reserve_x_before <= 0 or reserve_y_before <= 0:
         return 0
     if reserve_x_after <= 0 or reserve_y_after <= 0:
@@ -69,6 +78,9 @@ def compute_payout(
 
     Integer floor division. Non-negative.
     """
+    il_bps = _require_plain_int("il_bps", il_bps)
+    position_value = _require_plain_int("position_value", position_value)
+    coverage_ratio_bps = _require_plain_int("coverage_ratio_bps", coverage_ratio_bps)
     if il_bps <= 0 or position_value <= 0 or coverage_ratio_bps <= 0:
         return 0
     return (position_value * il_bps * coverage_ratio_bps) // (BPS_DENOM * BPS_DENOM)
