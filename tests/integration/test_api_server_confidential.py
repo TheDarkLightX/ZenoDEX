@@ -31,6 +31,7 @@ def _start_test_server():
     httpd.confidential_attestation_api_enabled = True  # type: ignore[attr-defined]
     httpd.dex_api_enabled = False  # type: ignore[attr-defined]
     httpd.demo_api_token = ""  # type: ignore[attr-defined]
+    httpd.external_auth_enforced = True  # type: ignore[attr-defined]
     httpd.confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()  # type: ignore[attr-defined]
     httpd.confidential_request_table = ConfidentialRequestTable()  # type: ignore[attr-defined]
     httpd.confidential_request_lock = threading.Lock()  # type: ignore[attr-defined]
