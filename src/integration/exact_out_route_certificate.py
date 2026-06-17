@@ -2771,6 +2771,150 @@ def build_exact_out_many_pool_repaired_key_cover_interpretation_packet(
     )
 
 
+@dataclass(frozen=True)
+class _CandidateDomainParams:
+    asset_in: str
+    asset_out: str
+    amount_out_total: int
+    max_legs: int
+    max_candidate_pools: int
+    max_enumerated_candidates: int
+
+
+@dataclass(frozen=True)
+class _CandidateDomainChecks:
+    audit_pool_ids_sorted_unique: bool
+    audit_pool_ids_within_budget: bool
+    candidate_domain_nonempty: bool
+    all_candidates_complete: bool
+    all_candidates_leg_bounded: bool
+    all_candidates_leg_pool_ids_sorted_unique: bool
+    all_candidates_within_audit_pool_ids: bool
+    candidate_count_within_budget: bool
+
+    @property
+    def contract_ok(self) -> bool:
+        return (
+            self.candidate_domain_nonempty
+            and self.audit_pool_ids_sorted_unique
+            and self.audit_pool_ids_within_budget
+            and self.all_candidates_complete
+            and self.all_candidates_leg_bounded
+            and self.all_candidates_leg_pool_ids_sorted_unique
+            and self.all_candidates_within_audit_pool_ids
+            and self.candidate_count_within_budget
+        )
+
+
+@dataclass(frozen=True)
+class _CandidateDomainEvidence:
+    candidates: tuple[SplitManyPoolsExactOutQuote, ...]
+    audit_pool_ids: tuple[str, ...]
+    checks: _CandidateDomainChecks
+
+
+def _validate_candidate_domain_assets(params: _CandidateDomainParams) -> None:
+    if not params.asset_in or not params.asset_out or params.asset_in == params.asset_out:
+        raise ValueError("asset_in and asset_out must be non-empty and distinct")
+
+
+def _candidate_domain_candidates(
+    pools: Sequence[PoolState],
+    *,
+    params: _CandidateDomainParams,
+) -> tuple[SplitManyPoolsExactOutQuote, ...]:
+    return tuple(
+        enumerate_exact_out_many_pool_candidates(
+            pools,
+            asset_in=params.asset_in,
+            asset_out=params.asset_out,
+            amount_out_total=int(params.amount_out_total),
+            max_legs=int(params.max_legs),
+            max_candidate_pools=int(params.max_candidate_pools),
+            max_enumerated_candidates=int(params.max_enumerated_candidates),
+        )
+    )
+
+
+def _candidate_domain_audit_pool_ids(candidates: Sequence[SplitManyPoolsExactOutQuote]) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                leg.pool_id
+                for candidate in candidates
+                for leg in candidate.legs
+            }
+        )
+    )
+
+
+def _candidate_domain_checks(
+    candidates: Sequence[SplitManyPoolsExactOutQuote],
+    audit_pool_ids: Sequence[str],
+    *,
+    params: _CandidateDomainParams,
+) -> _CandidateDomainChecks:
+    audit_pool_id_set = set(audit_pool_ids)
+    return _CandidateDomainChecks(
+        audit_pool_ids_sorted_unique=_audit_pool_ids_sorted_unique(audit_pool_ids),
+        audit_pool_ids_within_budget=len(audit_pool_ids) <= int(params.max_candidate_pools),
+        candidate_domain_nonempty=bool(candidates),
+        all_candidates_complete=all(
+            _quote_is_complete_exact_out_candidate(candidate, amount_out_total=int(params.amount_out_total))
+            for candidate in candidates
+        ),
+        all_candidates_leg_bounded=all(1 <= len(candidate.legs) <= int(params.max_legs) for candidate in candidates),
+        all_candidates_leg_pool_ids_sorted_unique=all(
+            _quote_leg_pool_ids_sorted_unique(candidate) for candidate in candidates
+        ),
+        all_candidates_within_audit_pool_ids=all(
+            all(leg.pool_id in audit_pool_id_set for leg in candidate.legs) for candidate in candidates
+        ),
+        candidate_count_within_budget=len(candidates) <= int(params.max_enumerated_candidates),
+    )
+
+
+def _build_candidate_domain_evidence(
+    pools: Sequence[PoolState],
+    *,
+    params: _CandidateDomainParams,
+) -> _CandidateDomainEvidence:
+    candidates = _candidate_domain_candidates(pools, params=params)
+    audit_pool_ids = _candidate_domain_audit_pool_ids(candidates)
+    checks = _candidate_domain_checks(candidates, audit_pool_ids, params=params)
+    return _CandidateDomainEvidence(candidates=candidates, audit_pool_ids=audit_pool_ids, checks=checks)
+
+
+def _candidate_domain_contract_from_evidence(
+    pools: Sequence[PoolState],
+    *,
+    params: _CandidateDomainParams,
+    evidence: _CandidateDomainEvidence,
+) -> ExactOutManyPoolCandidateDomainContract:
+    checks = evidence.checks
+    return ExactOutManyPoolCandidateDomainContract(
+        asset_in=str(params.asset_in),
+        asset_out=str(params.asset_out),
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+        audit_pool_ids=evidence.audit_pool_ids,
+        pool_snapshots=tuple(_pool_to_dict(pool) for pool in pools),
+        candidates=evidence.candidates,
+        candidate_count=len(evidence.candidates),
+        audit_pool_ids_sorted_unique=bool(checks.audit_pool_ids_sorted_unique),
+        audit_pool_ids_within_budget=bool(checks.audit_pool_ids_within_budget),
+        candidate_domain_nonempty=bool(checks.candidate_domain_nonempty),
+        all_candidates_complete=bool(checks.all_candidates_complete),
+        all_candidates_leg_bounded=bool(checks.all_candidates_leg_bounded),
+        all_candidates_leg_pool_ids_sorted_unique=bool(checks.all_candidates_leg_pool_ids_sorted_unique),
+        all_candidates_within_audit_pool_ids=bool(checks.all_candidates_within_audit_pool_ids),
+        candidate_count_within_budget=bool(checks.candidate_count_within_budget),
+        contract_ok=bool(checks.contract_ok),
+    )
+
+
 def build_exact_out_many_pool_candidate_domain_contract(
     pools: Sequence[PoolState],
     *,
@@ -2781,70 +2925,17 @@ def build_exact_out_many_pool_candidate_domain_contract(
     max_candidate_pools: int = 5,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolCandidateDomainContract:
-    if not asset_in or not asset_out or asset_in == asset_out:
-        raise ValueError("asset_in and asset_out must be non-empty and distinct")
-    candidates = enumerate_exact_out_many_pool_candidates(
-        pools,
+    params = _CandidateDomainParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        amount_out_total=amount_out_total,
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
     )
-    audit_pool_ids = tuple(
-        sorted(
-            {
-                leg.pool_id
-                for candidate in candidates
-                for leg in candidate.legs
-            }
-        )
-    )
-    audit_pool_id_set = set(audit_pool_ids)
-    candidate_domain_nonempty = bool(candidates)
-    audit_pool_ids_sorted_unique = _audit_pool_ids_sorted_unique(audit_pool_ids)
-    audit_pool_ids_within_budget = len(audit_pool_ids) <= int(max_candidate_pools)
-    all_candidates_complete = all(
-        _quote_is_complete_exact_out_candidate(candidate, amount_out_total=int(amount_out_total)) for candidate in candidates
-    )
-    all_candidates_leg_bounded = all(1 <= len(candidate.legs) <= int(max_legs) for candidate in candidates)
-    all_candidates_leg_pool_ids_sorted_unique = all(_quote_leg_pool_ids_sorted_unique(candidate) for candidate in candidates)
-    all_candidates_within_audit_pool_ids = all(
-        all(leg.pool_id in audit_pool_id_set for leg in candidate.legs) for candidate in candidates
-    )
-    candidate_count_within_budget = len(candidates) <= int(max_enumerated_candidates)
-    contract_ok = (
-        candidate_domain_nonempty
-        and audit_pool_ids_sorted_unique
-        and audit_pool_ids_within_budget
-        and all_candidates_complete
-        and all_candidates_leg_bounded
-        and all_candidates_leg_pool_ids_sorted_unique
-        and all_candidates_within_audit_pool_ids
-        and candidate_count_within_budget
-    )
-    return ExactOutManyPoolCandidateDomainContract(
-        asset_in=str(asset_in),
-        asset_out=str(asset_out),
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
-        audit_pool_ids=audit_pool_ids,
-        pool_snapshots=tuple(_pool_to_dict(pool) for pool in pools),
-        candidates=tuple(candidates),
-        candidate_count=len(candidates),
-        audit_pool_ids_sorted_unique=bool(audit_pool_ids_sorted_unique),
-        audit_pool_ids_within_budget=bool(audit_pool_ids_within_budget),
-        candidate_domain_nonempty=bool(candidate_domain_nonempty),
-        all_candidates_complete=bool(all_candidates_complete),
-        all_candidates_leg_bounded=bool(all_candidates_leg_bounded),
-        all_candidates_leg_pool_ids_sorted_unique=bool(all_candidates_leg_pool_ids_sorted_unique),
-        all_candidates_within_audit_pool_ids=bool(all_candidates_within_audit_pool_ids),
-        candidate_count_within_budget=bool(candidate_count_within_budget),
-        contract_ok=bool(contract_ok),
-    )
+    _validate_candidate_domain_assets(params)
+    evidence = _build_candidate_domain_evidence(pools, params=params)
+    return _candidate_domain_contract_from_evidence(pools, params=params, evidence=evidence)
 
 
 def verify_exact_out_many_pool_prefilter_contract_payload(payload: object) -> tuple[bool, str | None]:
