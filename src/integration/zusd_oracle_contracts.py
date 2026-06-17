@@ -29,6 +29,19 @@ def _require_int(value: object, field_name: str) -> int:
     return value
 
 
+def _require_nonempty_string(value: object, field_name: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return value
+
+
+def _require_state_mode(value: object) -> str:
+    state_mode = _require_nonempty_string(value, "state_mode")
+    if state_mode not in {"single", "multi"}:
+        raise ValueError("state_mode must be single or multi")
+    return state_mode
+
+
 def _require_int_field(payload: Mapping[str, Any], field_name: str) -> int:
     if field_name not in payload:
         raise ValueError(f"{field_name} must be an int")
@@ -88,7 +101,7 @@ class ZUSDOraclePendingGateContract:
         if payload.get("schema") != ZUSD_ORACLE_PENDING_GATE_CONTRACT_SCHEMA:
             raise ValueError("unsupported oracle pending gate schema")
         return cls(
-            state_mode=str(payload.get("state_mode", "")),
+            state_mode=_require_state_mode(payload.get("state_mode")),
             oracle_seen=_require_bool(payload.get("oracle_seen"), "oracle_seen"),
             price_e8=_require_int_field(payload, "price_e8"),
             price_pending_e8=_require_int_field(payload, "price_pending_e8"),
@@ -153,7 +166,7 @@ class ZUSDCrossModuleOracleSyncContract:
             raise ValueError("unsupported cross-module oracle sync schema")
         tau_step = _require_tau_step(payload.get("tau_step"))
         return cls(
-            market_id=str(payload.get("market_id", "")),
+            market_id=_require_nonempty_string(payload.get("market_id"), "market_id"),
             zusd_price_e8=_require_int_field(payload, "zusd_price_e8"),
             zusd_epoch=_require_int_field(payload, "zusd_epoch"),
             perp_price_e8=_require_int_field(payload, "perp_price_e8"),
@@ -168,7 +181,10 @@ class ZUSDCrossModuleOracleSyncContract:
             divergence_bounded=_require_bool(payload.get("divergence_bounded"), "divergence_bounded"),
             epoch_lag_bounded=_require_bool(payload.get("epoch_lag_bounded"), "epoch_lag_bounded"),
             sync_gate_ok=_require_bool(payload.get("sync_gate_ok"), "sync_gate_ok"),
-            tau_spec_id=str(payload.get("tau_spec_id", ZUSD_CROSS_MODULE_ORACLE_SYNC_GATE_V1.spec_id)),
+            tau_spec_id=_require_nonempty_string(
+                payload.get("tau_spec_id", ZUSD_CROSS_MODULE_ORACLE_SYNC_GATE_V1.spec_id),
+                "tau_spec_id",
+            ),
             tau_step=tau_step,
         )
 
@@ -253,6 +269,7 @@ def verify_zusd_oracle_pending_gate_contract_payload(payload: object) -> tuple[b
     if payload.get("schema") != ZUSD_ORACLE_PENDING_GATE_CONTRACT_SCHEMA:
         return False, "unsupported oracle pending gate schema"
     try:
+        _require_state_mode(payload["state_mode"])
         oracle_seen = _require_bool(payload["oracle_seen"], "oracle_seen")
         tcr_ok = _require_bool(payload["tcr_ok"], "tcr_ok")
         risky_requested = _require_bool(payload["risky_requested"], "risky_requested")
@@ -394,11 +411,15 @@ def verify_zusd_cross_module_oracle_sync_contract_payload(payload: object) -> tu
         max_epoch_lag = _require_int_field(payload, "max_epoch_lag")
         _require_int_field(payload, "divergence_bps")
         _require_int_field(payload, "epoch_lag")
+        market_id = _require_nonempty_string(payload["market_id"], "market_id")
+        tau_spec_id = _require_nonempty_string(payload["tau_spec_id"], "tau_spec_id")
         _require_tau_step(payload["tau_step"])
     except ValueError as exc:
         return False, str(exc)
+    if tau_spec_id != ZUSD_CROSS_MODULE_ORACLE_SYNC_GATE_V1.spec_id:
+        return False, "tau_spec_id mismatch"
     expected = build_zusd_cross_module_oracle_sync_contract(
-        market_id=str(payload["market_id"]),
+        market_id=market_id,
         zusd_price_e8=zusd_price_e8,
         zusd_epoch=zusd_epoch,
         perp_price_e8=perp_price_e8,

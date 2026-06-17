@@ -94,6 +94,34 @@ def test_zusd_oracle_pending_gate_contract_rejects_string_boolean_flags() -> Non
     assert err == "oracle_seen must be a bool"
 
 
+def test_zusd_oracle_pending_gate_contract_rejects_invalid_state_mode() -> None:
+    state = _single_ok(init_state(), "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
+    payload = build_zusd_oracle_pending_gate_contract(state, risky_requested=True, tcr_ok=True).to_dict()
+
+    payload["state_mode"] = "unexpected"
+
+    with pytest.raises(ValueError, match="state_mode must be single or multi"):
+        ZUSDOraclePendingGateContract.from_dict(payload)
+
+    ok, err = verify_zusd_oracle_pending_gate_contract_payload(payload)
+    assert not ok
+    assert err == "state_mode must be single or multi"
+
+
+def test_zusd_oracle_pending_gate_contract_rejects_non_string_state_mode() -> None:
+    state = _single_ok(init_state(), "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
+    payload = build_zusd_oracle_pending_gate_contract(state, risky_requested=True, tcr_ok=True).to_dict()
+
+    payload["state_mode"] = 123
+
+    with pytest.raises(ValueError, match="state_mode must be a non-empty string"):
+        ZUSDOraclePendingGateContract.from_dict(payload)
+
+    ok, err = verify_zusd_oracle_pending_gate_contract_payload(payload)
+    assert not ok
+    assert err == "state_mode must be a non-empty string"
+
+
 def test_zusd_oracle_pending_gate_contract_rejects_missing_boolean_flags() -> None:
     state = _single_ok(init_state(), "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
     payload = build_zusd_oracle_pending_gate_contract(state, risky_requested=True, tcr_ok=True).to_dict()
@@ -174,6 +202,43 @@ def test_zusd_cross_module_oracle_sync_contract_rejects_string_boolean_flags() -
     ok, err = verify_zusd_cross_module_oracle_sync_contract_payload(payload)
     assert not ok
     assert err == "sync_gate_ok must be a bool"
+
+
+def test_zusd_cross_module_oracle_sync_contract_rejects_non_string_market_id() -> None:
+    payload = build_zusd_cross_module_oracle_sync_contract(
+        market_id="TAU-USD",
+        zusd_price_e8=50_000_000,
+        zusd_epoch=100,
+        perp_price_e8=50_000_000,
+        perp_oracle_epoch=95,
+        max_divergence_bps=0,
+        max_epoch_lag=10,
+    ).to_dict()
+    payload["market_id"] = 123
+
+    with pytest.raises(ValueError, match="market_id must be a non-empty string"):
+        ZUSDCrossModuleOracleSyncContract.from_dict(payload)
+
+    ok, err = verify_zusd_cross_module_oracle_sync_contract_payload(payload)
+    assert not ok
+    assert err == "market_id must be a non-empty string"
+
+
+def test_zusd_cross_module_oracle_sync_contract_rejects_tau_spec_id_mismatch() -> None:
+    payload = build_zusd_cross_module_oracle_sync_contract(
+        market_id="TAU-USD",
+        zusd_price_e8=50_000_000,
+        zusd_epoch=100,
+        perp_price_e8=50_000_000,
+        perp_oracle_epoch=95,
+        max_divergence_bps=0,
+        max_epoch_lag=10,
+    ).to_dict()
+    payload["tau_spec_id"] = "wrong-spec"
+
+    ok, err = verify_zusd_cross_module_oracle_sync_contract_payload(payload)
+    assert not ok
+    assert err == "tau_spec_id mismatch"
 
 
 def test_zusd_cross_module_oracle_sync_contract_rejects_missing_boolean_flags() -> None:
