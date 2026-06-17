@@ -13,6 +13,9 @@ from src.core.split_routing import (
     resolve_two_pool_split_search_params,
     staircase_jump_best_split_two_pools_exact_in,
 )
+from src.core.split_routing_staircase import (
+    staircase_jump_best_split_two_pools_exact_in as staircase_jump_impl,
+)
 from tools.metamuse_split_routing_lane import DGSTR_CURATED_CASES
 
 
@@ -140,6 +143,43 @@ def test_staircase_exact_recovers_known_gap_case_with_bounded_quote_count() -> N
 
     assert got == expected
     assert calls <= 2 * p0.y + 5
+
+
+def test_staircase_exact_enumerates_input_breakpoints_not_output_levels(monkeypatch) -> None:
+    p0 = PoolXY(x=1, y=1_000_000_000, fee_bps=0)
+    p1 = PoolXY(x=1_000_000, y=1_000_000, fee_bps=0)
+    amount_in = 5
+    expected = brute_force_best_split_two_pools_exact_in(p0, p1, amount_in)
+    calls = {"n": 0}
+    original = split_routing_mod._staircase_jump_best_split_two_pools_exact_in.__globals__[
+        "_min_gross_in_for_output_level"
+    ]
+
+    def counted_min_gross(pool: PoolXY, output_level: int) -> int | None:
+        calls["n"] = int(calls["n"]) + 1
+        return original(pool, output_level)
+
+    monkeypatch.setitem(
+        split_routing_mod._staircase_jump_best_split_two_pools_exact_in.__globals__,
+        "_min_gross_in_for_output_level",
+        counted_min_gross,
+    )
+
+    got = staircase_jump_best_split_two_pools_exact_in(p0, p1, amount_in)
+
+    assert got == expected
+    assert calls["n"] <= amount_in + 1
+
+
+def test_staircase_exact_rejects_quote_inversion_drift() -> None:
+    p0 = PoolXY(x=1, y=1_000, fee_bps=0)
+    p1 = PoolXY(x=1_000, y=1_000, fee_bps=0)
+
+    def broken_quote(_pool: PoolXY, _amount: int) -> int:
+        return 0
+
+    with pytest.raises(ValueError, match="quote did not reach requested output level"):
+        staircase_jump_impl(p0, p1, 5, quote_exact_in=broken_quote)
 
 
 def test_unknown_search_profile_rejected():

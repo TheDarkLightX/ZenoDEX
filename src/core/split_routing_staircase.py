@@ -29,13 +29,21 @@ class _TwoPoolQuoteContext:
     pool1: _PoolLike
     amount_in: int
     quote_exact_in: _QuoteExactIn
+    known_pool0_outputs: dict[int, int]
 
     def total_out_for_split(self, split_a: int) -> int | None:
         if not (0 <= int(split_a) <= int(self.amount_in)):
             return None
         split_b = int(self.amount_in) - int(split_a)
         try:
-            out0 = self.quote_exact_in(self.pool0, int(split_a)) if split_a > 0 else 0
+            if split_a <= 0:
+                out0 = 0
+            else:
+                known_pool0_output = self.known_pool0_outputs.get(int(split_a))
+                if known_pool0_output is None:
+                    out0 = self.quote_exact_in(self.pool0, int(split_a))
+                else:
+                    out0 = known_pool0_output
             out1 = self.quote_exact_in(self.pool1, split_b) if split_b > 0 else 0
         except ValueError:
             return None
@@ -73,18 +81,25 @@ def _pool_output_jump_candidates(
     amount_in_total: int,
     *,
     quote_exact_in: _QuoteExactIn,
-) -> set[int]:
-    candidates: set[int] = set()
-    try:
-        max_output = quote_exact_in(pool, int(amount_in_total))
-    except ValueError:
-        return candidates
-
-    for output_level in range(1, int(max_output) + 1):
-        gross_in = _min_gross_in_for_output_level(pool, output_level)
+) -> dict[int, int]:
+    candidates: dict[int, int] = {}
+    next_output_level = 1
+    while True:
+        gross_in = _min_gross_in_for_output_level(pool, next_output_level)
         if gross_in is not None and gross_in <= int(amount_in_total):
-            candidates.add(int(gross_in))
-    return candidates
+            try:
+                reached_output = quote_exact_in(pool, int(gross_in))
+            except ValueError:
+                return candidates
+            if int(reached_output) < int(next_output_level):
+                raise ValueError("quote did not reach requested output level")
+            candidates[int(gross_in)] = int(reached_output)
+            # A single gross input can jump over many output levels. Advance to
+            # the next not-yet-reached level so enumeration is bounded by input
+            # breakpoints, not by the raw output magnitude.
+            next_output_level = int(reached_output) + 1
+            continue
+        return candidates
 
 
 def staircase_jump_best_split_two_pools_exact_in(
@@ -97,26 +112,29 @@ def staircase_jump_best_split_two_pools_exact_in(
     """
     Exact two-pool CPMM split by enumerating pool0 output jump points.
 
-    Complexity is O(J) quotes where J is the number of distinct positive pool0
-    outputs reachable with `amount_in`, plus two endpoint checks. This is exact
-    because pool0 is constant between jumps and pool1 cannot improve as input is
-    shifted away from it.
+    Complexity is O(B) quotes where B is the number of distinct positive pool0
+    input breakpoints reachable with `amount_in`, plus endpoint checks. B is at
+    most `amount_in`, and can be much smaller than the raw output magnitude when
+    reserves are skewed. This is exact because pool0 is constant between jumps
+    and pool1 cannot improve as input is shifted away from it.
     """
     if amount_in <= 0:
         raise ValueError("amount_in must be positive")
 
+    pool0_jump_outputs = _pool_output_jump_candidates(
+        pool0,
+        int(amount_in),
+        quote_exact_in=quote_exact_in,
+    )
     quote_context = _TwoPoolQuoteContext(
         pool0=pool0,
         pool1=pool1,
         amount_in=int(amount_in),
         quote_exact_in=quote_exact_in,
+        known_pool0_outputs=pool0_jump_outputs,
     )
     best: tuple[int, int] | None = None
-    candidates = {0, int(amount_in)} | _pool_output_jump_candidates(
-        pool0,
-        int(amount_in),
-        quote_exact_in=quote_exact_in,
-    )
+    candidates = {0, int(amount_in)} | set(pool0_jump_outputs)
     for split_a in sorted(candidates):
         total = quote_context.total_out_for_split(int(split_a))
         if total is None:
