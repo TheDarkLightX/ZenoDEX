@@ -11,6 +11,7 @@ from src.integration.exact_out_route_certificate import (
     ExactOutManyPoolGuardedQuotePacket,
     ExactOutManyPoolOracleContract,
     audit_exact_out_many_pool_runtime_canonicality,
+    audit_exact_out_two_pool_runtime_canonicality,
     build_exact_out_many_pool_adaptive_liveness_packet,
     build_exact_out_many_pool_audited_bounds_contract,
     build_exact_out_many_pool_bounded_advisory_quote_packet,
@@ -29,6 +30,7 @@ from src.integration.exact_out_route_certificate import (
     build_exact_out_many_pool_repaired_replacement_shadow_packet,
     build_exact_out_many_pool_repaired_selected_domain_oracle_contract,
     enumerate_exact_out_many_pool_candidates,
+    enumerate_exact_out_two_pool_candidates,
     guard_exact_out_many_pool_runtime_canonicality,
     quote_exact_out_many_pool_adaptive,
     quote_exact_out_many_pool_bounded_advisory,
@@ -152,6 +154,26 @@ def _strict_amount_entrypoints() -> tuple[tuple[str, ExactOutCall], ...]:
             "default_packet",
             lambda amount: build_exact_out_many_pool_default_packet(
                 _pools(),
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "enumerate_two_pool",
+            lambda amount: enumerate_exact_out_two_pool_candidates(
+                _pools()[0],
+                _pools()[1],
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=amount,
+            ),
+        ),
+        (
+            "audit_two_pool",
+            lambda amount: audit_exact_out_two_pool_runtime_canonicality(
+                _pools()[0],
+                _pools()[1],
                 asset_in="A",
                 asset_out="B",
                 amount_out_total=amount,

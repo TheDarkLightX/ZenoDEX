@@ -2001,10 +2001,11 @@ def enumerate_exact_out_two_pool_candidates(
     asset_out: str,
     amount_out_total: int,
 ) -> tuple[SplitManyPoolsExactOutQuote, ...]:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     params = _TwoPoolExactOutParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total,
+        amount_out_total=amount_out_total_i,
     )
     domain = _two_pool_exact_out_domain(pool0, pool1, params=params)
     quotes: list[SplitManyPoolsExactOutQuote] = []
@@ -3074,12 +3075,13 @@ def audit_exact_out_two_pool_runtime_canonicality(
     amount_out_total: int,
     brute_force_max: int | None = None,
 ) -> ExactOutTwoPoolCanonicalityAudit:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     candidates = enumerate_exact_out_two_pool_candidates(
         pool0,
         pool1,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
     )
     certificate = build_exact_out_route_canonical_certificate(candidates)
     runtime_quote = best_split_two_pools_exact_out_for_pools(
@@ -3087,8 +3089,8 @@ def audit_exact_out_two_pool_runtime_canonicality(
         pool1,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        brute_force_max=(max(0, int(brute_force_max)) if brute_force_max is not None else max(1, int(amount_out_total))),
+        amount_out_total=amount_out_total_i,
+        brute_force_max=(max(0, int(brute_force_max)) if brute_force_max is not None else max(1, amount_out_total_i)),
     )
     runtime_many = split_two_pools_exact_out_quote_to_many(runtime_quote)
     return ExactOutTwoPoolCanonicalityAudit(
