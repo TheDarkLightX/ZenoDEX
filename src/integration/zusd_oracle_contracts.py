@@ -17,6 +17,12 @@ ZUSD_ORACLE_PENDING_GATE_CONTRACT_SCHEMA = "zenodex/zusd-oracle-pending-gate-con
 ZUSD_CROSS_MODULE_ORACLE_SYNC_CONTRACT_SCHEMA = "zenodex/zusd-cross-module-oracle-sync-contract/v1"
 
 
+def _require_bool(value: object, field_name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a bool")
+    return value
+
+
 @dataclass(frozen=True)
 class ZUSDOraclePendingGateContract:
     state_mode: str
@@ -65,21 +71,21 @@ class ZUSDOraclePendingGateContract:
             raise ValueError("unsupported oracle pending gate schema")
         return cls(
             state_mode=str(payload.get("state_mode", "")),
-            oracle_seen=bool(payload.get("oracle_seen", False)),
+            oracle_seen=_require_bool(payload.get("oracle_seen"), "oracle_seen"),
             price_e8=int(payload.get("price_e8", 0)),
             price_pending_e8=int(payload.get("price_pending_e8", 0)),
             oracle_last_update_epoch=int(payload.get("oracle_last_update_epoch", 0)),
             now_epoch=int(payload.get("now_epoch", 0)),
             max_staleness_epochs=int(payload.get("max_staleness_epochs", 0)),
-            tcr_ok=bool(payload.get("tcr_ok", False)),
-            risky_requested=bool(payload.get("risky_requested", False)),
-            pending_eq=bool(payload.get("pending_eq", False)),
-            price_pos=bool(payload.get("price_pos", False)),
-            fresh=bool(payload.get("fresh", False)),
-            env_ok=bool(payload.get("env_ok", False)),
-            risky_ops_allowed=bool(payload.get("risky_ops_allowed", False)),
-            blocked_by_recovery=bool(payload.get("blocked_by_recovery", False)),
-            action_allowed=bool(payload.get("action_allowed", False)),
+            tcr_ok=_require_bool(payload.get("tcr_ok"), "tcr_ok"),
+            risky_requested=_require_bool(payload.get("risky_requested"), "risky_requested"),
+            pending_eq=_require_bool(payload.get("pending_eq"), "pending_eq"),
+            price_pos=_require_bool(payload.get("price_pos"), "price_pos"),
+            fresh=_require_bool(payload.get("fresh"), "fresh"),
+            env_ok=_require_bool(payload.get("env_ok"), "env_ok"),
+            risky_ops_allowed=_require_bool(payload.get("risky_ops_allowed"), "risky_ops_allowed"),
+            blocked_by_recovery=_require_bool(payload.get("blocked_by_recovery"), "blocked_by_recovery"),
+            action_allowed=_require_bool(payload.get("action_allowed"), "action_allowed"),
         )
 
 
@@ -140,10 +146,12 @@ class ZUSDCrossModuleOracleSyncContract:
             max_epoch_lag=int(payload.get("max_epoch_lag", 0)),
             divergence_bps=int(payload.get("divergence_bps", 0)),
             epoch_lag=int(payload.get("epoch_lag", 0)),
-            sync_snapshot_available=bool(payload.get("sync_snapshot_available", False)),
-            divergence_bounded=bool(payload.get("divergence_bounded", False)),
-            epoch_lag_bounded=bool(payload.get("epoch_lag_bounded", False)),
-            sync_gate_ok=bool(payload.get("sync_gate_ok", False)),
+            sync_snapshot_available=_require_bool(
+                payload.get("sync_snapshot_available"), "sync_snapshot_available"
+            ),
+            divergence_bounded=_require_bool(payload.get("divergence_bounded"), "divergence_bounded"),
+            epoch_lag_bounded=_require_bool(payload.get("epoch_lag_bounded"), "epoch_lag_bounded"),
+            sync_gate_ok=_require_bool(payload.get("sync_gate_ok"), "sync_gate_ok"),
             tau_spec_id=str(payload.get("tau_spec_id", ZUSD_CROSS_MODULE_ORACLE_SYNC_GATE_V1.spec_id)),
             tau_step={str(k): int(v) for k, v in tau_step.items()},
         )
@@ -228,14 +236,27 @@ def verify_zusd_oracle_pending_gate_contract_payload(payload: object) -> tuple[b
         return False, "contract payload missing required keys"
     if payload.get("schema") != ZUSD_ORACLE_PENDING_GATE_CONTRACT_SCHEMA:
         return False, "unsupported oracle pending gate schema"
-    oracle_seen = bool(payload["oracle_seen"])
+    try:
+        oracle_seen = _require_bool(payload["oracle_seen"], "oracle_seen")
+        tcr_ok = _require_bool(payload["tcr_ok"], "tcr_ok")
+        risky_requested = _require_bool(payload["risky_requested"], "risky_requested")
+        for flag_name in (
+            "pending_eq",
+            "price_pos",
+            "fresh",
+            "env_ok",
+            "risky_ops_allowed",
+            "blocked_by_recovery",
+            "action_allowed",
+        ):
+            _require_bool(payload[flag_name], flag_name)
+    except ValueError as exc:
+        return False, str(exc)
     price_e8 = int(payload["price_e8"])
     price_pending_e8 = int(payload["price_pending_e8"])
     now_epoch = int(payload["now_epoch"])
     oracle_last_update_epoch = int(payload["oracle_last_update_epoch"])
     max_staleness_epochs = int(payload["max_staleness_epochs"])
-    tcr_ok = bool(payload["tcr_ok"])
-    risky_requested = bool(payload["risky_requested"])
     pending_eq = oracle_seen and price_e8 > 0 and price_pending_e8 > 0 and price_pending_e8 == price_e8
     price_pos = oracle_seen and price_e8 > 0 and price_pending_e8 > 0
     fresh = _is_oracle_fresh(
@@ -258,7 +279,7 @@ def verify_zusd_oracle_pending_gate_contract_payload(payload: object) -> tuple[b
         "action_allowed": bool(action_allowed),
     }
     for key, value in expected.items():
-        if bool(payload.get(key)) != bool(value):
+        if payload.get(key) != bool(value):
             return False, f"{key} mismatch"
     return True, None
 
@@ -335,6 +356,16 @@ def verify_zusd_cross_module_oracle_sync_contract_payload(payload: object) -> tu
         return False, "contract payload missing required keys"
     if payload.get("schema") != ZUSD_CROSS_MODULE_ORACLE_SYNC_CONTRACT_SCHEMA:
         return False, "unsupported cross-module oracle sync schema"
+    for flag_name in (
+        "sync_snapshot_available",
+        "divergence_bounded",
+        "epoch_lag_bounded",
+        "sync_gate_ok",
+    ):
+        try:
+            _require_bool(payload[flag_name], flag_name)
+        except ValueError as exc:
+            return False, str(exc)
     expected = build_zusd_cross_module_oracle_sync_contract(
         market_id=str(payload["market_id"]),
         zusd_price_e8=int(payload["zusd_price_e8"]),
