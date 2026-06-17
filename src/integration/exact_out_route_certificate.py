@@ -2080,6 +2080,210 @@ def build_exact_out_many_pool_prefilter_contract(
     )
 
 
+@dataclass(frozen=True)
+class _RepairedPrefilterSelectionChecks:
+    sorted_unique: bool
+    within_budget: bool
+    subset_of_feasible: bool
+    matches_full_canonical: bool
+    contraction_holds: bool
+
+    @property
+    def contract_ok(self) -> bool:
+        return (
+            self.sorted_unique
+            and self.within_budget
+            and self.subset_of_feasible
+            and self.matches_full_canonical
+            and self.contraction_holds
+        )
+
+
+@dataclass(frozen=True)
+class _RepairedPrefilterContractParams:
+    asset_in: str
+    asset_out: str
+    amount_out_total: int
+    max_legs: int
+    max_candidate_pools: int
+    max_full_domain_pools: int
+    max_enumerated_candidates: int
+
+
+@dataclass(frozen=True)
+class _RepairedPrefilterEvidence:
+    search_result: Any
+    selection: Any
+    checks: _RepairedPrefilterSelectionChecks
+
+
+def _validate_repaired_prefilter_contract_inputs(params: _RepairedPrefilterContractParams) -> None:
+    if not params.asset_in or not params.asset_out or params.asset_in == params.asset_out:
+        raise ValueError("asset_in and asset_out must be non-empty and distinct")
+    int_fields = (
+        ("amount_out_total", params.amount_out_total, 1),
+        ("max_legs", params.max_legs, 1),
+        ("max_candidate_pools", params.max_candidate_pools, 1),
+        ("max_full_domain_pools", params.max_full_domain_pools, 1),
+        ("max_enumerated_candidates", params.max_enumerated_candidates, 1),
+    )
+    for field_name, value, min_value in int_fields:
+        if not isinstance(value, int) or isinstance(value, bool) or int(value) < int(min_value):
+            raise ValueError(f"{field_name} must be an int >= {min_value}")
+
+
+def _search_exact_out_many_pool_prefilter_subset(
+    pools: Sequence[PoolState],
+    *,
+    params: _RepairedPrefilterContractParams,
+) -> Any:
+    from src.kernels.python.exact_out_many_pool_prefilter_subset_search_v1 import (  # pylint: disable=import-outside-toplevel
+        search_exact_out_many_pool_prefilter_subset,
+    )
+
+    return search_exact_out_many_pool_prefilter_subset(
+        pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+
+
+def _build_repaired_prefilter_selection(
+    pools: Sequence[PoolState],
+    *,
+    params: _RepairedPrefilterContractParams,
+) -> Any:
+    return _kernel_build_many_pool_repaired_prefilter_selection(
+        pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+
+
+def _repaired_prefilter_matches_full_canonical(search_result: Any, selection: Any) -> bool:
+    expected_pool_ids = (
+        search_result.best_cover_subset_ids
+        if search_result.best_cover_subset_ids is not None
+        else search_result.current_selected_pool_ids
+    )
+    expected_matches_full = (
+        search_result.best_cover_canonical_quote == search_result.full_domain_canonical_quote
+        if search_result.best_cover_subset_ids is not None
+        else search_result.current_selected_canonical_quote == search_result.full_domain_canonical_quote
+    )
+    return tuple(selection.selected_pool_ids) == tuple(expected_pool_ids) and bool(expected_matches_full)
+
+
+def _repaired_prefilter_selected_pools(
+    pools: Sequence[PoolState],
+    *,
+    selected_pool_ids: Sequence[str],
+) -> tuple[PoolState, ...]:
+    pool_by_id = {pool.pool_id: pool for pool in pools}
+    return tuple(pool_by_id[pool_id] for pool_id in selected_pool_ids)
+
+
+def _repaired_prefilter_contraction_holds(
+    pools: Sequence[PoolState],
+    selected_pools: Sequence[PoolState],
+    *,
+    params: _RepairedPrefilterContractParams,
+) -> bool:
+    audit = _kernel_audit_exact_out_many_pool_selected_subset_contraction(
+        pools,
+        selected_pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+    return bool(audit.contraction_holds)
+
+
+def _repaired_prefilter_selection_checks(
+    pools: Sequence[PoolState],
+    search_result: Any,
+    selection: Any,
+    *,
+    params: _RepairedPrefilterContractParams,
+) -> _RepairedPrefilterSelectionChecks:
+    selected_pool_ids = tuple(selection.selected_pool_ids)
+    feasible_pool_id_set = set(search_result.feasible_pool_ids)
+    selected_pools = _repaired_prefilter_selected_pools(pools, selected_pool_ids=selected_pool_ids)
+    return _RepairedPrefilterSelectionChecks(
+        sorted_unique=_audit_pool_ids_sorted_unique(selected_pool_ids),
+        within_budget=len(selected_pool_ids) <= int(params.max_candidate_pools),
+        subset_of_feasible=all(pool_id in feasible_pool_id_set for pool_id in selected_pool_ids),
+        matches_full_canonical=_repaired_prefilter_matches_full_canonical(search_result, selection),
+        contraction_holds=_repaired_prefilter_contraction_holds(
+            pools,
+            selected_pools,
+            params=params,
+        ),
+    )
+
+
+def _build_repaired_prefilter_evidence(
+    pools: Sequence[PoolState],
+    *,
+    params: _RepairedPrefilterContractParams,
+) -> _RepairedPrefilterEvidence:
+    search_result = _search_exact_out_many_pool_prefilter_subset(pools, params=params)
+    selection = _build_repaired_prefilter_selection(pools, params=params)
+    checks = _repaired_prefilter_selection_checks(
+        pools,
+        search_result,
+        selection,
+        params=params,
+    )
+    return _RepairedPrefilterEvidence(search_result=search_result, selection=selection, checks=checks)
+
+
+def _repaired_prefilter_contract_from_evidence(
+    pools: Sequence[PoolState],
+    *,
+    params: _RepairedPrefilterContractParams,
+    evidence: _RepairedPrefilterEvidence,
+) -> ExactOutManyPoolRepairedPrefilterContract:
+    search_result = evidence.search_result
+    selection = evidence.selection
+    checks = evidence.checks
+    return ExactOutManyPoolRepairedPrefilterContract(
+        asset_in=str(params.asset_in),
+        asset_out=str(params.asset_out),
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+        pool_snapshots=tuple(_pool_to_dict(pool) for pool in pools),
+        feasible_pool_ids=tuple(search_result.feasible_pool_ids),
+        current_selected_pool_ids=tuple(selection.current_selected_pool_ids),
+        repaired_selected_pool_ids=tuple(selection.selected_pool_ids),
+        strategy=str(selection.strategy),
+        searched_subset_count=int(selection.searched_subset_count),
+        current_selected_matches_full_canonical=bool(selection.current_selected_matches_full_canonical),
+        repaired_selected_pool_ids_sorted_unique=bool(checks.sorted_unique),
+        repaired_selected_pool_ids_within_budget=bool(checks.within_budget),
+        repaired_selected_pool_ids_subset_of_feasible=bool(checks.subset_of_feasible),
+        repaired_selected_domain_matches_full_canonical=bool(checks.matches_full_canonical),
+        repaired_contraction_holds=bool(checks.contraction_holds),
+        contract_ok=bool(checks.contract_ok),
+    )
+
+
 def build_exact_out_many_pool_repaired_prefilter_contract(
     pools: Sequence[PoolState],
     *,
@@ -2091,107 +2295,18 @@ def build_exact_out_many_pool_repaired_prefilter_contract(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedPrefilterContract:
-    if not asset_in or not asset_out or asset_in == asset_out:
-        raise ValueError("asset_in and asset_out must be non-empty and distinct")
-    int_fields = (
-        ("amount_out_total", amount_out_total, 1),
-        ("max_legs", max_legs, 1),
-        ("max_candidate_pools", max_candidate_pools, 1),
-        ("max_full_domain_pools", max_full_domain_pools, 1),
-        ("max_enumerated_candidates", max_enumerated_candidates, 1),
-    )
-    for field_name, value, min_value in int_fields:
-        if not isinstance(value, int) or isinstance(value, bool) or int(value) < int(min_value):
-            raise ValueError(f"{field_name} must be an int >= {min_value}")
-
-    from src.kernels.python.exact_out_many_pool_prefilter_subset_search_v1 import (  # pylint: disable=import-outside-toplevel
-        search_exact_out_many_pool_prefilter_subset,
-    )
-
-    search_result = search_exact_out_many_pool_prefilter_subset(
-        pools,
+    params = _RepairedPrefilterContractParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        amount_out_total=amount_out_total,
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_full_domain_pools=max_full_domain_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
     )
-    selection = _kernel_build_many_pool_repaired_prefilter_selection(
-        pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
-    )
-
-    feasible_pool_id_set = set(search_result.feasible_pool_ids)
-    repaired_selected_pool_ids_sorted_unique = _audit_pool_ids_sorted_unique(selection.selected_pool_ids)
-    repaired_selected_pool_ids_within_budget = len(selection.selected_pool_ids) <= int(max_candidate_pools)
-    repaired_selected_pool_ids_subset_of_feasible = all(
-        pool_id in feasible_pool_id_set for pool_id in selection.selected_pool_ids
-    )
-    expected_repaired_selected_pool_ids = (
-        search_result.best_cover_subset_ids
-        if search_result.best_cover_subset_ids is not None
-        else search_result.current_selected_pool_ids
-    )
-    expected_repaired_matches_full = (
-        search_result.best_cover_canonical_quote == search_result.full_domain_canonical_quote
-        if search_result.best_cover_subset_ids is not None
-        else search_result.current_selected_canonical_quote == search_result.full_domain_canonical_quote
-    )
-    repaired_selected_domain_matches_full_canonical = (
-        tuple(selection.selected_pool_ids) == tuple(expected_repaired_selected_pool_ids)
-        and bool(expected_repaired_matches_full)
-    )
-
-    pool_by_id = {pool.pool_id: pool for pool in pools}
-    repaired_selected_pools = tuple(pool_by_id[pool_id] for pool_id in selection.selected_pool_ids)
-    repaired_contraction_audit = _kernel_audit_exact_out_many_pool_selected_subset_contraction(
-        pools,
-        repaired_selected_pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
-    )
-    repaired_contraction_holds = bool(repaired_contraction_audit.contraction_holds)
-    contract_ok = (
-        repaired_selected_pool_ids_sorted_unique
-        and repaired_selected_pool_ids_within_budget
-        and repaired_selected_pool_ids_subset_of_feasible
-        and repaired_selected_domain_matches_full_canonical
-        and repaired_contraction_holds
-    )
-    return ExactOutManyPoolRepairedPrefilterContract(
-        asset_in=str(asset_in),
-        asset_out=str(asset_out),
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
-        pool_snapshots=tuple(_pool_to_dict(pool) for pool in pools),
-        feasible_pool_ids=tuple(search_result.feasible_pool_ids),
-        current_selected_pool_ids=tuple(selection.current_selected_pool_ids),
-        repaired_selected_pool_ids=tuple(selection.selected_pool_ids),
-        strategy=str(selection.strategy),
-        searched_subset_count=int(selection.searched_subset_count),
-        current_selected_matches_full_canonical=bool(selection.current_selected_matches_full_canonical),
-        repaired_selected_pool_ids_sorted_unique=bool(repaired_selected_pool_ids_sorted_unique),
-        repaired_selected_pool_ids_within_budget=bool(repaired_selected_pool_ids_within_budget),
-        repaired_selected_pool_ids_subset_of_feasible=bool(repaired_selected_pool_ids_subset_of_feasible),
-        repaired_selected_domain_matches_full_canonical=bool(repaired_selected_domain_matches_full_canonical),
-        repaired_contraction_holds=bool(repaired_contraction_holds),
-        contract_ok=bool(contract_ok),
-    )
+    _validate_repaired_prefilter_contract_inputs(params)
+    evidence = _build_repaired_prefilter_evidence(pools, params=params)
+    return _repaired_prefilter_contract_from_evidence(pools, params=params, evidence=evidence)
 
 
 def _repaired_selected_pools_from_contract(
