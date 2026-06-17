@@ -1296,14 +1296,16 @@ def verify_fire_proof_tree_certificate(
             if input_id not in node_ids:
                 return False, f"proof_tree_cert_missing_input_node:{input_id}", None
         node_id = node_map["id"]
-        assert isinstance(node_id, str)
+        if not isinstance(node_id, str):
+            return False, f"proof_tree_cert_node_id_invalid:{idx}", None
         ok, claim_err, predicate = _proof_tree_node_predicate(node_id, node_map)
         if not ok:
-            assert claim_err is not None
-            return False, claim_err, None
-        assert predicate is not None
+            return False, claim_err or f"proof_tree_cert_predicate_error_missing:{node_id}", None
+        if predicate is None:
+            return False, f"proof_tree_cert_predicate_missing:{node_id}", None
         rule_id = node_map["rule"]
-        assert isinstance(rule_id, str)
+        if not isinstance(rule_id, str):
+            return False, f"proof_tree_cert_rule_invalid:{idx}", None
         rule_shapes = _CANONICAL_FIRE_VERIFIER_RULE_SHAPES.get(rule_id, ())
         if not rule_shapes:
             return False, f"proof_tree_cert_rule_shape_missing:{rule_id}", None
@@ -1313,12 +1315,13 @@ def verify_fire_proof_tree_certificate(
         if matching_shape.input_predicates is not None:
             actual_input_predicates: list[str] = []
             for input_id in raw_inputs:
-                assert isinstance(input_id, str)
+                if not isinstance(input_id, str):
+                    return False, f"proof_tree_cert_input_id_invalid:{idx}", None
                 child_ok, child_err, child_predicate = _proof_tree_node_predicate(input_id, node_by_id[input_id])
                 if not child_ok:
-                    assert child_err is not None
-                    return False, child_err, None
-                assert child_predicate is not None
+                    return False, child_err or f"proof_tree_cert_child_predicate_error_missing:{input_id}", None
+                if child_predicate is None:
+                    return False, f"proof_tree_cert_child_predicate_missing:{input_id}", None
                 actual_input_predicates.append(child_predicate)
             if tuple(actual_input_predicates) != matching_shape.input_predicates:
                 return False, f"proof_tree_cert_rule_input_predicates_mismatch:{node_id}", None
@@ -1357,8 +1360,7 @@ def verify_fire_proof_tree_certificate(
                     node_by_id=node_by_id,
                 )
                 if not ok:
-                    assert bound_err is not None
-                    return False, bound_err, None
+                    return False, bound_err or "proof_tree_cert_bound_error_missing", None
             elif claim_name == "IntegerEvalOK" and expected_integer_eval_summary is not None:
                 if not _claim_summary_matches(root_claim, expected_integer_eval_summary):
                     return False, "proof_tree_cert_integer_eval_summary_mismatch", None
