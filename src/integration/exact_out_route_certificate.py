@@ -119,6 +119,12 @@ def _require_payload_int_path(payload: Mapping[str, Any], *field_path: str) -> i
     return _require_payload_int(current, field_path[-1])
 
 
+def _require_amount_out_total_int(amount_out_total: object) -> int:
+    if not isinstance(amount_out_total, int) or isinstance(amount_out_total, bool):
+        raise ValueError("amount_out_total must be an int")
+    return int(amount_out_total)
+
+
 @dataclass(frozen=True)
 class ExactOutRouteCandidateCertificate:
     candidate_index: int
@@ -2023,11 +2029,12 @@ def enumerate_exact_out_many_pool_candidates(
     max_candidate_pools: int = 5,
     max_enumerated_candidates: int = 20_000,
 ) -> tuple[SplitManyPoolsExactOutQuote, ...]:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     return _kernel_enumerate_exact_out_many_pool_candidates(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_enumerated_candidates=int(max_enumerated_candidates),
@@ -3201,10 +3208,11 @@ def audit_exact_out_many_pool_runtime_canonicality(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolCanonicalityAudit:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     params = _ManyPoolCanonicalityParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total,
+        amount_out_total=amount_out_total_i,
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_candidates=max_candidates,
@@ -3233,13 +3241,14 @@ def build_exact_out_many_pool_oracle_contract(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolOracleContract:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     if not asset_in or not asset_out or asset_in == asset_out:
         raise ValueError("asset_in and asset_out must be non-empty and distinct")
     audit = audit_exact_out_many_pool_runtime_canonicality(
         pools,
         asset_in=str(asset_in),
         asset_out=str(asset_out),
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -3252,7 +3261,7 @@ def build_exact_out_many_pool_oracle_contract(
     return ExactOutManyPoolOracleContract(
         asset_in=str(asset_in),
         asset_out=str(asset_out),
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -4097,11 +4106,12 @@ def quote_exact_out_many_pool_default(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> tuple[SplitManyPoolsExactOutQuote | None, str | None, ExactOutManyPoolCertifiedAdvisoryPacket]:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     return quote_exact_out_many_pool_certified_advisory(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -4128,11 +4138,12 @@ def build_exact_out_many_pool_default_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolCertifiedAdvisoryPacket:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     return build_exact_out_many_pool_certified_advisory_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -4771,11 +4782,12 @@ def guard_exact_out_many_pool_runtime_canonicality(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> tuple[bool, str | None, ExactOutManyPoolOracleContract]:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     contract = build_exact_out_many_pool_oracle_contract(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -4807,11 +4819,12 @@ def quote_exact_out_many_pool_guarded(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> tuple[SplitManyPoolsExactOutQuote | None, str | None, ExactOutManyPoolOracleContract]:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     ok, err, contract = guard_exact_out_many_pool_runtime_canonicality(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -4841,11 +4854,12 @@ def build_exact_out_many_pool_guarded_quote_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolGuardedQuotePacket:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     quote, err, contract = quote_exact_out_many_pool_guarded(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
@@ -5056,10 +5070,11 @@ def build_exact_out_many_pool_certified_advisory_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolCertifiedAdvisoryPacket:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     params = _ExactOutManyPoolRuntimeParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total,
+        amount_out_total=amount_out_total_i,
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_candidates=max_candidates,
@@ -5088,11 +5103,12 @@ def quote_exact_out_many_pool_certified_advisory(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> tuple[SplitManyPoolsExactOutQuote | None, str | None, ExactOutManyPoolCertifiedAdvisoryPacket]:
+    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
     packet = build_exact_out_many_pool_certified_advisory_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
+        amount_out_total=amount_out_total_i,
         max_legs=int(max_legs),
         max_candidate_pools=int(max_candidate_pools),
         max_candidates=int(max_candidates),
