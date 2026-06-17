@@ -23,6 +23,19 @@ class _SpotValueInputs:
     contract_obj: dict[str, Any] | None = None
 
 
+@dataclass(frozen=True)
+class _LPValueInputs:
+    settlement_obj: dict[str, Any]
+    asset_prices_obj: dict[str, Any] | None
+    price_packet_obj: dict[str, Any] | None
+    price_attestation_obj: dict[str, Any] | None
+    consumer_now_epoch: int | None
+    max_attestation_age_epochs: int | None
+    allowed_signers_obj: dict[str, Any] | None
+    lp_unit_values_obj: dict[str, Any]
+    contract_obj: dict[str, Any] | None = None
+
+
 def _bad_request(error: str) -> DexResponse:
     return 400, {"ok": False, "error": error}
 
@@ -107,12 +120,48 @@ def _parse_asset_prices(asset_prices_obj: Mapping[str, Any] | None) -> dict[str,
     return asset_prices
 
 
+def _parse_lp_unit_values(lp_unit_values_obj: Mapping[str, Any]) -> dict[str, int]:
+    lp_unit_values: dict[str, int] = {}
+    for raw_pool_id, raw_unit_value in lp_unit_values_obj.items():
+        pool_id = str(raw_pool_id).strip()
+        if not pool_id:
+            raise ValueError("lp_unit_values keys must be non-empty strings")
+        if not isinstance(raw_unit_value, int) or isinstance(raw_unit_value, bool) or raw_unit_value < 0:
+            raise ValueError(f"lp unit value must be a non-negative int for {pool_id}")
+        lp_unit_values[pool_id] = int(raw_unit_value)
+    return lp_unit_values
+
+
 def _parse_settlement(settlement_obj: Mapping[str, Any]) -> Any:
     from src.integration.operations import (  # pylint: disable=import-outside-toplevel
         _parse_settlement as parse_settlement,
     )
 
     return parse_settlement(settlement_obj)
+
+
+def _parse_lp_value_inputs(
+    obj: Mapping[str, Any],
+    *,
+    require_contract: bool,
+) -> DexResponse | _LPValueInputs:
+    base = _parse_spot_value_inputs(obj, require_contract=require_contract)
+    if isinstance(base, tuple):
+        return base
+    lp_unit_values_obj = obj.get("lp_unit_values")
+    if not isinstance(lp_unit_values_obj, dict) or not lp_unit_values_obj:
+        return _bad_request("bad_lp_unit_values")
+    return _LPValueInputs(
+        settlement_obj=base.settlement_obj,
+        asset_prices_obj=base.asset_prices_obj,
+        price_packet_obj=base.price_packet_obj,
+        price_attestation_obj=base.price_attestation_obj,
+        consumer_now_epoch=base.consumer_now_epoch,
+        max_attestation_age_epochs=base.max_attestation_age_epochs,
+        allowed_signers_obj=base.allowed_signers_obj,
+        lp_unit_values_obj=lp_unit_values_obj,
+        contract_obj=base.contract_obj,
+    )
 
 
 def _build_spot_value_contract(inputs: _SpotValueInputs) -> Any:
@@ -153,6 +202,52 @@ def _build_spot_value_contract(inputs: _SpotValueInputs) -> Any:
     return build_settlement_spot_value_contract(
         settlement=settlement,
         asset_prices=_parse_asset_prices(inputs.asset_prices_obj),
+    )
+
+
+def _build_lp_value_contract(inputs: _LPValueInputs) -> Any:
+    settlement = _parse_settlement(inputs.settlement_obj)
+    lp_unit_values = _parse_lp_unit_values(inputs.lp_unit_values_obj)
+
+    if inputs.price_attestation_obj is not None:
+        from src.integration.settlement_lp_value_contract import (  # pylint: disable=import-outside-toplevel
+            build_settlement_lp_value_contract_from_price_attestation,
+        )
+        from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
+            SettlementSpotPriceAttestation,
+        )
+
+        return build_settlement_lp_value_contract_from_price_attestation(
+            settlement=settlement,
+            price_attestation=SettlementSpotPriceAttestation.from_dict(inputs.price_attestation_obj),
+            consumer_now_epoch=int(inputs.consumer_now_epoch),
+            max_attestation_age_epochs=int(inputs.max_attestation_age_epochs),
+            lp_unit_values=lp_unit_values,
+            allowed_signers=inputs.allowed_signers_obj,
+        )
+
+    if inputs.price_packet_obj is not None:
+        from src.integration.settlement_lp_value_contract import (  # pylint: disable=import-outside-toplevel
+            build_settlement_lp_value_contract_from_price_packet,
+        )
+        from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
+            SettlementSpotPricePacket,
+        )
+
+        return build_settlement_lp_value_contract_from_price_packet(
+            settlement=settlement,
+            price_packet=SettlementSpotPricePacket.from_dict(inputs.price_packet_obj),
+            lp_unit_values=lp_unit_values,
+        )
+
+    from src.integration.settlement_lp_value_contract import (  # pylint: disable=import-outside-toplevel
+        build_settlement_lp_value_contract,
+    )
+
+    return build_settlement_lp_value_contract(
+        settlement=settlement,
+        asset_prices=_parse_asset_prices(inputs.asset_prices_obj),
+        lp_unit_values=lp_unit_values,
     )
 
 
@@ -197,6 +292,51 @@ def _verify_spot_value_contract(inputs: _SpotValueInputs) -> tuple[bool, str | N
     )
 
 
+def _verify_lp_value_contract(inputs: _LPValueInputs) -> tuple[bool, str | None]:
+    settlement = _parse_settlement(inputs.settlement_obj)
+    if inputs.contract_obj is None:
+        raise ValueError("missing contract")
+    lp_unit_values = _parse_lp_unit_values(inputs.lp_unit_values_obj)
+
+    if inputs.price_attestation_obj is not None:
+        from src.integration.settlement_lp_value_contract import (  # pylint: disable=import-outside-toplevel
+            verify_settlement_lp_value_contract_payload_from_price_attestation,
+        )
+
+        return verify_settlement_lp_value_contract_payload_from_price_attestation(
+            settlement=settlement,
+            price_attestation_payload=inputs.price_attestation_obj,
+            consumer_now_epoch=int(inputs.consumer_now_epoch),
+            max_attestation_age_epochs=int(inputs.max_attestation_age_epochs),
+            lp_unit_values=lp_unit_values,
+            contract_payload=inputs.contract_obj,
+            allowed_signers=inputs.allowed_signers_obj,
+        )
+
+    if inputs.price_packet_obj is not None:
+        from src.integration.settlement_lp_value_contract import (  # pylint: disable=import-outside-toplevel
+            verify_settlement_lp_value_contract_payload_from_price_packet,
+        )
+
+        return verify_settlement_lp_value_contract_payload_from_price_packet(
+            settlement=settlement,
+            price_packet_payload=inputs.price_packet_obj,
+            lp_unit_values=lp_unit_values,
+            contract_payload=inputs.contract_obj,
+        )
+
+    from src.integration.settlement_lp_value_contract import (  # pylint: disable=import-outside-toplevel
+        verify_settlement_lp_value_contract_payload,
+    )
+
+    return verify_settlement_lp_value_contract_payload(
+        settlement=settlement,
+        asset_prices=_parse_asset_prices(inputs.asset_prices_obj),
+        lp_unit_values=lp_unit_values,
+        contract_payload=inputs.contract_obj,
+    )
+
+
 def _handle_build_settlement_spot_value_contract(
     obj: Mapping[str, Any],
     ctx: DexRequestContext,
@@ -212,6 +352,25 @@ def _handle_build_settlement_spot_value_contract(
         return 400, {
             "ok": False,
             "error": "build_settlement_spot_value_contract_error",
+            "details": "request failed",
+        }
+
+
+def _handle_build_settlement_lp_value_contract(
+    obj: Mapping[str, Any],
+    ctx: DexRequestContext,
+) -> DexResponse:
+    del ctx
+    inputs = _parse_lp_value_inputs(obj, require_contract=False)
+    if isinstance(inputs, tuple):
+        return inputs
+    try:
+        contract = _build_lp_value_contract(inputs)
+        return 200, {"ok": True, "contract": contract.to_dict()}
+    except BOUNDARY_DOMAIN_ERRORS:
+        return 400, {
+            "ok": False,
+            "error": "build_settlement_lp_value_contract_error",
             "details": "request failed",
         }
 
@@ -235,5 +394,26 @@ def _handle_verify_settlement_spot_value_contract(
         }
 
 
+def _handle_verify_settlement_lp_value_contract(
+    obj: Mapping[str, Any],
+    ctx: DexRequestContext,
+) -> DexResponse:
+    del ctx
+    inputs = _parse_lp_value_inputs(obj, require_contract=True)
+    if isinstance(inputs, tuple):
+        return inputs
+    try:
+        ok, err = _verify_lp_value_contract(inputs)
+        return 200, {"ok": bool(ok), "error": err}
+    except BOUNDARY_DOMAIN_ERRORS:
+        return 400, {
+            "ok": False,
+            "error": "verify_settlement_lp_value_contract_error",
+            "details": "request failed",
+        }
+
+
 _register("/api/dex/build_settlement_spot_value_contract", _handle_build_settlement_spot_value_contract)
 _register("/api/dex/verify_settlement_spot_value_contract", _handle_verify_settlement_spot_value_contract)
+_register("/api/dex/build_settlement_lp_value_contract", _handle_build_settlement_lp_value_contract)
+_register("/api/dex/verify_settlement_lp_value_contract", _handle_verify_settlement_lp_value_contract)

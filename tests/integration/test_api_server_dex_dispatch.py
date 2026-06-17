@@ -119,8 +119,8 @@ def test_registry_contains_pr1_endpoints() -> None:
 def test_lookup_returns_none_for_unregistered_paths() -> None:
     from src.integration.api_server_dex_dispatch import lookup
 
-    # LP value endpoints remain in the legacy fall-through chain.
-    assert lookup("/api/dex/build_settlement_lp_value_contract") is None
+    # Value-packet endpoints remain in the legacy fall-through chain.
+    assert lookup("/api/dex/build_settlement_value_packet") is None
     assert lookup("/api/dex/this_path_does_not_exist") is None
 
 
@@ -131,6 +131,8 @@ def test_lookup_returns_handler_for_registered_path() -> None:
     assert callable(lookup("/api/dex/quote"))
     assert callable(lookup("/api/dex/build_settlement_spot_value_contract"))
     assert callable(lookup("/api/dex/verify_settlement_spot_value_contract"))
+    assert callable(lookup("/api/dex/build_settlement_lp_value_contract"))
+    assert callable(lookup("/api/dex/verify_settlement_lp_value_contract"))
 
 
 def test_writer_snapshot_loader_rejects_relative_escape(tmp_path: Path) -> None:
@@ -1018,7 +1020,7 @@ def test_unregistered_path_still_routes_to_legacy_chain() -> None:
         status, body = _post_json(
             host,
             port,
-            "/api/dex/build_settlement_lp_value_contract",
+            "/api/dex/build_settlement_value_packet",
             {"settlement": []},
         )
         # Either accepted or rejected — but NOT a "no handler" / 404 / 405.
