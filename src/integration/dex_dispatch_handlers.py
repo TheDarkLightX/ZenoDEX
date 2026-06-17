@@ -166,7 +166,7 @@ def _handle_slippage_advice(obj: Mapping[str, Any], ctx: DexRequestContext) -> D
             for x in raw_opts:
                 try:
                     collected_opts.append(int(x))
-                except Exception:
+                except (TypeError, ValueError, OverflowError):
                     continue
             slippage_options_bps = collected_opts
         else:
@@ -281,7 +281,7 @@ def _handle_pokayoke_swap_suggest(obj: Mapping[str, Any], ctx: DexRequestContext
             for x in raw_opts:
                 try:
                     v = int(x)
-                except Exception:
+                except (TypeError, ValueError, OverflowError):
                     continue
                 if v < 0 or v > 10_000:
                     continue
@@ -385,7 +385,7 @@ def _handle_pokayoke_swap_suggest_heavy(obj: Mapping[str, Any], ctx: DexRequestC
             for x in raw_opts:
                 try:
                     v = int(x)
-                except Exception:
+                except (TypeError, ValueError, OverflowError):
                     continue
                 if v < 0 or v > 10_000:
                     continue
