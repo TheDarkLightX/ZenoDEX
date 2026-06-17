@@ -843,7 +843,7 @@ def apply_body_transactions_v0(
                     state_changed=False,
                 )
                 rejection_receipts.append(receipt)
-        except Exception as exc:
+        except (TypeError, ValueError) as exc:
             receipt = build_tx_receipt_v0(
                 tx_hash=tx_hash,
                 height=height,

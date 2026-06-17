@@ -1049,6 +1049,13 @@ def test_body_transaction_application_rejects_engine_edge_cases(monkeypatch) -> 
     zv.apply_body_transactions_v0(state=state, body=no_sender, config=config)
     assert seen_sender == [None]
 
+    def _programmer_error(**_kwargs):
+        raise RuntimeError("unexpected engine bug")
+
+    monkeypatch.setattr(zv, "apply_ops", _programmer_error)
+    with pytest.raises(RuntimeError, match="unexpected engine bug"):
+        zv.apply_body_transactions_v0(state=state, body=body, config=config)
+
 
 def test_structural_validators_reject_boundary_mutations() -> None:
     ingress = _ingress()
