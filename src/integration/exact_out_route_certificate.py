@@ -3051,6 +3051,140 @@ def quote_exact_out_many_pool_repaired_selected_domain(
     return None, EXACT_OUT_MANY_POOL_REPAIRED_SELECTED_DOMAIN_UNAVAILABLE_ERROR, contract
 
 
+@dataclass(frozen=True)
+class _RepairedAdvisoryQuoteParams:
+    asset_in: str
+    asset_out: str
+    amount_out_total: int
+    max_legs: int
+    max_candidate_pools: int
+    max_candidates: int
+    max_iters: int
+    window: int
+    brute_force_max: int
+    max_full_domain_pools: int
+    max_enumerated_candidates: int
+
+
+@dataclass(frozen=True)
+class _RepairedAdvisorySuccessPayload:
+    advisory_quote: SplitManyPoolsExactOutQuote
+    runtime_quote: SplitManyPoolsExactOutQuote
+    repaired_contract: ExactOutManyPoolRepairedPrefilterContract
+    projection_cover_audit: ExactOutManyPoolProjectionCoverAudit | None
+
+
+def _repaired_advisory_prefilter_contract(
+    pools: Sequence[PoolState],
+    *,
+    params: _RepairedAdvisoryQuoteParams,
+) -> ExactOutManyPoolRepairedPrefilterContract:
+    return build_exact_out_many_pool_repaired_prefilter_contract(
+        pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+
+
+def _repaired_advisory_runtime_quote(
+    pools: Sequence[PoolState],
+    *,
+    params: _RepairedAdvisoryQuoteParams,
+) -> SplitManyPoolsExactOutQuote:
+    return best_split_many_pools_exact_out_for_pools(
+        pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+    )
+
+
+def _repaired_advisory_unavailable_packet(
+    runtime_quote: SplitManyPoolsExactOutQuote,
+    repaired_contract: ExactOutManyPoolRepairedPrefilterContract,
+    *,
+    params: _RepairedAdvisoryQuoteParams,
+) -> ExactOutManyPoolRepairedAdvisoryQuotePacket:
+    return ExactOutManyPoolRepairedAdvisoryQuotePacket(
+        packet_ok=False,
+        advisory_quote=None,
+        runtime_quote=runtime_quote,
+        runtime_matches_advisory=False,
+        error=EXACT_OUT_MANY_POOL_REPAIRED_ADVISORY_UNAVAILABLE_ERROR,
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        repaired_contract=repaired_contract,
+        projection_cover_audit=None,
+    )
+
+
+def _repaired_advisory_selected_domain(
+    selected_pools: Sequence[PoolState],
+    *,
+    params: _RepairedAdvisoryQuoteParams,
+) -> Any:
+    return _kernel_build_exact_out_many_pool_selected_domain(
+        selected_pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+
+
+def _repaired_advisory_projection_cover_audit(
+    selected_pools: Sequence[PoolState],
+    *,
+    params: _RepairedAdvisoryQuoteParams,
+) -> ExactOutManyPoolProjectionCoverAudit | None:
+    try:
+        kernel_audit = _kernel_audit_exact_out_many_pool_selected_domain_projection_cover(
+            selected_pools,
+            asset_in=params.asset_in,
+            asset_out=params.asset_out,
+            amount_out_total=int(params.amount_out_total),
+            max_legs=int(params.max_legs),
+            max_selected_pools=max(len(selected_pools), 1),
+            max_enumerated_candidates=int(params.max_enumerated_candidates),
+        )
+        return _projection_cover_audit_from_kernel(kernel_audit)
+    except ValueError:
+        return None
+
+
+def _repaired_advisory_success_packet(
+    *,
+    payload: _RepairedAdvisorySuccessPayload,
+    params: _RepairedAdvisoryQuoteParams,
+) -> ExactOutManyPoolRepairedAdvisoryQuotePacket:
+    return ExactOutManyPoolRepairedAdvisoryQuotePacket(
+        packet_ok=True,
+        advisory_quote=payload.advisory_quote,
+        runtime_quote=payload.runtime_quote,
+        runtime_matches_advisory=bool(payload.runtime_quote == payload.advisory_quote),
+        error=None,
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        repaired_contract=payload.repaired_contract,
+        projection_cover_audit=payload.projection_cover_audit,
+    )
+
+
 def build_exact_out_many_pool_repaired_advisory_quote_packet(
     pools: Sequence[PoolState],
     *,
@@ -3066,82 +3200,39 @@ def build_exact_out_many_pool_repaired_advisory_quote_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedAdvisoryQuotePacket:
-    repaired_contract = build_exact_out_many_pool_repaired_prefilter_contract(
-        pools,
+    params = _RepairedAdvisoryQuoteParams(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        amount_out_total=amount_out_total,
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_candidates=max_candidates,
+        max_iters=max_iters,
+        window=window,
+        brute_force_max=brute_force_max,
+        max_full_domain_pools=max_full_domain_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
     )
-    runtime_quote = best_split_many_pools_exact_out_for_pools(
-        pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-    )
+    repaired_contract = _repaired_advisory_prefilter_contract(pools, params=params)
+    runtime_quote = _repaired_advisory_runtime_quote(pools, params=params)
     if not repaired_contract.contract_ok:
-        return ExactOutManyPoolRepairedAdvisoryQuotePacket(
-            packet_ok=False,
-            advisory_quote=None,
-            runtime_quote=runtime_quote,
-            runtime_matches_advisory=False,
-            error=EXACT_OUT_MANY_POOL_REPAIRED_ADVISORY_UNAVAILABLE_ERROR,
-            max_candidates=int(max_candidates),
-            max_iters=int(max_iters),
-            window=int(window),
-            brute_force_max=int(brute_force_max),
-            repaired_contract=repaired_contract,
-            projection_cover_audit=None,
-        )
+        return _repaired_advisory_unavailable_packet(runtime_quote, repaired_contract, params=params)
 
     repaired_selected_pools = _repaired_selected_pools_from_contract(
         pools,
         repaired_contract=repaired_contract,
     )
-    repaired_selected_domain = _kernel_build_exact_out_many_pool_selected_domain(
-        repaired_selected_pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_enumerated_candidates=int(max_enumerated_candidates),
-    )
-    projection_cover_audit: ExactOutManyPoolProjectionCoverAudit | None = None
-    try:
-        kernel_projection_audit = _kernel_audit_exact_out_many_pool_selected_domain_projection_cover(
-            repaired_selected_pools,
-            asset_in=asset_in,
-            asset_out=asset_out,
-            amount_out_total=int(amount_out_total),
-            max_legs=int(max_legs),
-            max_selected_pools=max(len(repaired_selected_pools), 1),
-            max_enumerated_candidates=int(max_enumerated_candidates),
-        )
-        projection_cover_audit = _projection_cover_audit_from_kernel(kernel_projection_audit)
-    except ValueError:
-        projection_cover_audit = None
+    repaired_selected_domain = _repaired_advisory_selected_domain(repaired_selected_pools, params=params)
+    projection_cover_audit = _repaired_advisory_projection_cover_audit(repaired_selected_pools, params=params)
     advisory_quote = _candidate_quote_to_core_quote(repaired_selected_domain.canonical_quote)
-    runtime_matches_advisory = runtime_quote == advisory_quote
-    return ExactOutManyPoolRepairedAdvisoryQuotePacket(
-        packet_ok=True,
-        advisory_quote=advisory_quote,
-        runtime_quote=runtime_quote,
-        runtime_matches_advisory=bool(runtime_matches_advisory),
-        error=None,
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        repaired_contract=repaired_contract,
-        projection_cover_audit=projection_cover_audit,
+    return _repaired_advisory_success_packet(
+        payload=_RepairedAdvisorySuccessPayload(
+            advisory_quote=advisory_quote,
+            runtime_quote=runtime_quote,
+            repaired_contract=repaired_contract,
+            projection_cover_audit=projection_cover_audit,
+        ),
+        params=params,
     )
 
 
