@@ -12,6 +12,13 @@ BOUNDARY_DOMAIN_ERRORS: tuple[type[Exception], ...] = (ImportError, TypeError, V
 """Expected import, parse, and arithmetic failures at the quote API boundary."""
 
 
+def _optional_bool(obj: Mapping[str, Any], name: str, *, default: bool) -> bool:
+    value = obj.get(name, default)
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} must be a bool")
+    return value
+
+
 @dataclass(frozen=True)
 class _QuoteInputs:
     kind: str
@@ -102,7 +109,7 @@ def _quote_exact_out(
     )
 
     amount_out = int(obj.get("amount_out", 0))
-    apply_two_hop_gate = bool(obj.get("apply_two_hop_gate", False))
+    apply_two_hop_gate = _optional_bool(obj, "apply_two_hop_gate", default=False)
     if inputs.routing_mode_req != "fast_v1":
         return "exact", best_route_exact_out_2hop(
             pools_by_id=pools_by_id,
