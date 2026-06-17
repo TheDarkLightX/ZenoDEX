@@ -24,6 +24,23 @@ def test_upba_coverage_profile_passes_breadth_thresholds() -> None:
     assert summary["coverage"]["hard_negative_family_count"] == 4
 
 
+def test_coverage_profile_summary_requires_strict_ok() -> None:
+    summary = coverage_profile_summary(
+        {
+            "ok": "true",
+            "profile_type": "upba",
+            "source_kind": "production-shadow",
+            "source_descriptor": "prod-shadow",
+            "market_day_count": 1,
+            "source_report_count": 1,
+            "failed_count": 0,
+            "coverage": {},
+        }
+    )
+
+    assert summary["ok"] is False
+
+
 def test_upba_coverage_profile_rejects_thin_hard_negatives() -> None:
     profile = _upba_coverage_profile()
     profile["hard_negative_family_count"] = 1

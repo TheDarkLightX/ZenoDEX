@@ -74,12 +74,12 @@ def validate_replay_source_manifest(
         ),
         _check(
             "deterministic_replay_ok",
-            bool(manifest.get("deterministic_replay_ok")) is True,
+            manifest.get("deterministic_replay_ok") is True,
             "deterministic replay attestation must be true",
         ),
         _check(
             "no_live_secrets",
-            bool(manifest.get("no_live_secrets")) is True,
+            manifest.get("no_live_secrets") is True,
             "no-live-secrets attestation must be true",
         ),
         _check(
@@ -98,7 +98,7 @@ def validate_replay_source_manifest(
             "every supplied source report must match a manifest artifact hash",
         ),
     ]
-    ok = all(bool(check["passed"]) for check in checks)
+    ok = all(check["passed"] is True for check in checks)
     return {
         "schema": "zenodex/energy/replay_source_manifest_check/v1",
         "ok": ok,
@@ -106,13 +106,13 @@ def validate_replay_source_manifest(
         "source_kind": str(manifest.get("source_kind", "")),
         "source_descriptor": str(manifest.get("source_descriptor", "")),
         "market_day_count": int(manifest.get("market_day_count", 0)),
-        "deterministic_replay_ok": bool(manifest.get("deterministic_replay_ok")),
-        "no_live_secrets": bool(manifest.get("no_live_secrets")),
+        "deterministic_replay_ok": manifest.get("deterministic_replay_ok") is True,
+        "no_live_secrets": manifest.get("no_live_secrets") is True,
         "artifact_count": len(artifacts),
         "source_report_count": len(source_reports),
         "source_report_match_count": _source_report_match_count(artifacts, source_reports),
         "check_count": len(checks),
-        "failed_count": sum(1 for check in checks if not bool(check["passed"])),
+        "failed_count": sum(1 for check in checks if check["passed"] is not True),
         "checks": checks,
         "negative_knowledge": (
             "The manifest check binds source hashes and attestations. It cannot "
@@ -124,7 +124,7 @@ def validate_replay_source_manifest(
 def source_manifest_summary(check_report: dict[str, Any]) -> dict[str, Any]:
     return {
         "schema": "zenodex/energy/replay_source_manifest_check/v1",
-        "ok": bool(check_report.get("ok")),
+        "ok": check_report.get("ok") is True,
         "manifest_id": str(check_report.get("manifest_id", "")),
         "source_kind": str(check_report.get("source_kind", "")),
         "source_descriptor": str(check_report.get("source_descriptor", "")),
@@ -197,7 +197,7 @@ def _secret_scan_clean(manifest: dict[str, Any]) -> bool:
     scan = manifest.get("secret_scan", {})
     if not isinstance(scan, dict):
         return False
-    return bool(scan.get("ok")) is True and int(scan.get("finding_count", -1)) == 0
+    return scan.get("ok") is True and int(scan.get("finding_count", -1)) == 0
 
 
 def _non_fixture_descriptor(value: str) -> bool:

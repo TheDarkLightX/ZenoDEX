@@ -133,7 +133,7 @@ def validate_replay_coverage_profile(
 def coverage_profile_summary(check_report: dict[str, Any]) -> dict[str, Any]:
     return {
         "schema": PROFILE_CHECK_SCHEMA,
-        "ok": bool(check_report.get("ok")),
+        "ok": check_report.get("ok") is True,
         "profile_type": str(check_report.get("profile_type", "")),
         "source_kind": str(check_report.get("source_kind", "")),
         "source_descriptor": str(check_report.get("source_descriptor", "")),
