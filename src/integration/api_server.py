@@ -905,6 +905,248 @@ class TokenBucketRateLimiter:
             return False
 
 
+@dataclass(frozen=True)
+class ApiServerConfig:
+    host: str
+    port: int
+    cors_origins: Set[str]
+    rpm: int
+    max_buckets: int
+    perps_wallet_enabled: bool
+    zusd_tau_wallet_enabled: bool
+    zusd_monetary_wallet_enabled: bool
+    autotrader_live_enabled: bool
+    confidential_attestation_enabled: bool
+    confidential_sealed_bid_enabled: bool
+    confidential_sealed_bid_state_file: str
+    dex_enabled: bool
+    autogov_live_apply_enabled: bool
+    legacy_demo_api_token: str
+    auth_bearer_token: str
+    confidential_feature_status: dict[str, Any]
+    sensitive_api_enabled: bool
+    production_mode: bool
+    external_auth_enforced: bool
+    allow_demo_token_auth: bool
+    allow_in_memory_sealed_bid: bool
+    legacy_demo_token_active: bool
+    confidential_sealed_bid_asset_settlement_enabled: bool
+
+
+def _env_enabled(name: str, default: str = "false") -> bool:
+    return _env_str(name, default).lower() in ("1", "true", "yes")
+
+
+def _load_api_server_config() -> ApiServerConfig:
+    host = _env_str("API_HOST", "127.0.0.1")
+    api_bearer_token = _env_str("ZENODEX_API_BEARER_TOKEN", "")
+    legacy_demo_api_token = _env_str("DEMO_API_TOKEN", "")
+    auth_bearer_token = api_bearer_token or legacy_demo_api_token
+    confidential_sealed_bid_state_file = _env_str("CONFIDENTIAL_SEALED_BID_STATE_FILE", "")
+    runtime_env = _env_str("ZENODEX_ENV", _env_str("APP_ENV", "production")).lower()
+
+    from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
+
+    confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
+    perps_wallet_enabled = _env_enabled("PERPS_WALLET_API_ENABLED")
+    zusd_tau_wallet_enabled = _env_enabled("ZUSD_TAU_WALLET_API_ENABLED")
+    zusd_monetary_wallet_enabled = _env_enabled("ZUSD_MONETARY_WALLET_API_ENABLED")
+    autotrader_live_enabled = _env_enabled("AUTOTRADER_LIVE_API_ENABLED")
+    confidential_attestation_enabled = _env_enabled("CONFIDENTIAL_ATTESTATION_API_ENABLED")
+    confidential_sealed_bid_enabled = _confidential_sealed_bid_enabled_from_env()
+    dex_enabled = _env_enabled("DEX_API_ENABLED")
+    autogov_live_apply_enabled = _env_enabled("AUTOGOV_LIVE_APPLY_API_ENABLED")
+    sensitive_api_enabled = bool(
+        perps_wallet_enabled
+        or zusd_tau_wallet_enabled
+        or zusd_monetary_wallet_enabled
+        or autotrader_live_enabled
+        or confidential_attestation_enabled
+        or confidential_sealed_bid_enabled
+        or dex_enabled
+        or autogov_live_apply_enabled
+    )
+
+    return ApiServerConfig(
+        host=host,
+        port=_env_int("API_PORT", 8000, lo=1, hi=65535),
+        cors_origins=_parse_cors_origins(_env_str("CORS_ORIGINS", "")),
+        rpm=_env_int("RATE_LIMIT_RPM", 600, lo=0, hi=1_000_000),
+        max_buckets=_env_int("RATE_LIMIT_MAX_BUCKETS", 10_000, lo=1, hi=1_000_000),
+        perps_wallet_enabled=perps_wallet_enabled,
+        zusd_tau_wallet_enabled=zusd_tau_wallet_enabled,
+        zusd_monetary_wallet_enabled=zusd_monetary_wallet_enabled,
+        autotrader_live_enabled=autotrader_live_enabled,
+        confidential_attestation_enabled=confidential_attestation_enabled,
+        confidential_sealed_bid_enabled=confidential_sealed_bid_enabled,
+        confidential_sealed_bid_state_file=confidential_sealed_bid_state_file,
+        dex_enabled=dex_enabled,
+        autogov_live_apply_enabled=autogov_live_apply_enabled,
+        legacy_demo_api_token=legacy_demo_api_token,
+        auth_bearer_token=auth_bearer_token,
+        confidential_feature_status=confidential_feature_status,
+        sensitive_api_enabled=sensitive_api_enabled,
+        production_mode=runtime_env not in ("dev", "development", "test", "local"),
+        external_auth_enforced=_env_bool("ZENODEX_EXTERNAL_AUTH_ENFORCED", False),
+        allow_demo_token_auth=_env_bool("ALLOW_DEMO_TOKEN_AUTH", False),
+        allow_in_memory_sealed_bid=_env_bool("CONFIDENTIAL_SEALED_BID_ALLOW_IN_MEMORY_STATE", False),
+        legacy_demo_token_active=bool(legacy_demo_api_token and not api_bearer_token),
+        confidential_sealed_bid_asset_settlement_enabled=_env_bool(
+            "CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED",
+            False,
+        ),
+    )
+
+
+def _api_startup_refusal_lines(config: ApiServerConfig) -> Optional[list[str]]:
+    if config.sensitive_api_enabled and not config.external_auth_enforced and not config.auth_bearer_token:
+        return [
+            "Refusing to start: sensitive APIs enabled without external auth or ZENODEX_API_BEARER_TOKEN "
+            f"(host={config.host!r}, perps_wallet_api={config.perps_wallet_enabled}, "
+            f"zusd_tau_wallet_api={config.zusd_tau_wallet_enabled}, "
+            f"zusd_monetary_wallet_api={config.zusd_monetary_wallet_enabled}, "
+            f"autotrader_live_api={config.autotrader_live_enabled}, "
+            f"confidential_attestation_api={config.confidential_attestation_enabled}, "
+            f"confidential_sealed_bid_api={config.confidential_sealed_bid_enabled}, "
+            f"dex_api={config.dex_enabled}, autogov_live_apply_api={config.autogov_live_apply_enabled})"
+        ]
+    if (
+        config.confidential_sealed_bid_enabled
+        and config.production_mode
+        and not config.confidential_sealed_bid_state_file
+        and not config.allow_in_memory_sealed_bid
+    ):
+        return [
+            "Refusing to start: confidential sealed-bid API requires "
+            "CONFIDENTIAL_SEALED_BID_STATE_FILE in production mode. "
+            "Set CONFIDENTIAL_SEALED_BID_ALLOW_IN_MEMORY_STATE=1 only for controlled demos."
+        ]
+    if (
+        config.sensitive_api_enabled
+        and not config.external_auth_enforced
+        and config.legacy_demo_token_active
+        and config.production_mode
+        and not config.allow_demo_token_auth
+    ):
+        return [
+            "Refusing to start: DEMO_API_TOKEN is demo/dev auth only. "
+            "Set ZENODEX_EXTERNAL_AUTH_ENFORCED=1 for a real auth gateway, or "
+            "ALLOW_DEMO_TOKEN_AUTH=1 only for a controlled demo."
+        ]
+    if (
+        config.sensitive_api_enabled
+        and not config.external_auth_enforced
+        and config.legacy_demo_token_active
+        and not _is_loopback_host(config.host)
+        and not config.allow_demo_token_auth
+    ):
+        return [
+            "Refusing to start: demo-token auth on a non-loopback bind requires "
+            "ALLOW_DEMO_TOKEN_AUTH=1 for an explicitly scoped demo."
+        ]
+    return None
+
+
+def _deploy_profile_refusal_lines(config: ApiServerConfig) -> Optional[list[str]]:
+    deploy_profile_id = _env_str("ZENODEX_DEPLOY_PROFILE", "")
+    if not deploy_profile_id:
+        return None
+    from src.integration.deploy_profile import (  # pylint: disable=import-outside-toplevel
+        evaluate_deploy_profile_consistency,
+        load_deploy_profile,
+    )
+
+    try:
+        profile = load_deploy_profile(deploy_profile_id)
+    except (FileNotFoundError, ValueError) as exc:
+        return [f"Refusing to start: invalid ZENODEX_DEPLOY_PROFILE={deploy_profile_id!r}: {exc}"]
+    runtime_facts = {
+        "sensitive_api_enabled": config.sensitive_api_enabled,
+        "external_auth_enforced": config.external_auth_enforced,
+        "auth_bearer_token_set": bool(config.auth_bearer_token),
+        "allow_demo_token_auth": config.allow_demo_token_auth,
+        "legacy_demo_token_active": config.legacy_demo_token_active,
+        "confidential_sealed_bid_allow_in_memory_state": config.allow_in_memory_sealed_bid,
+        "confidential_sealed_bid_allow_fixture_settlement": _env_bool(
+            "CONFIDENTIAL_SEALED_BID_ALLOW_FIXTURE_SETTLEMENT", False
+        ),
+        "confidential_sealed_bid_return_signed_tau_tx_payload": _env_bool(
+            "CONFIDENTIAL_SEALED_BID_RETURN_SIGNED_TAU_TX_PAYLOAD", False
+        ),
+        "perps_wallet_allow_local_signing": _env_bool("PERPS_WALLET_ALLOW_LOCAL_SIGNING", False),
+        "perps_wallet_return_signed_tau_tx_payload": _env_bool(
+            "PERPS_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False
+        ),
+    }
+    conflicts = evaluate_deploy_profile_consistency(profile, runtime_facts)
+    if not conflicts:
+        return None
+    lines = [f"Refusing to start: runtime env conflicts with deploy profile {deploy_profile_id!r}:"]
+    lines.extend(f"  - {conflict}" for conflict in conflicts)
+    return lines
+
+
+def _print_refusal(lines: list[str]) -> None:
+    for line in lines:
+        print(line)
+
+
+def _attach_api_server_state(httpd: ThreadingHTTPServer, config: ApiServerConfig) -> None:
+    from src.integration.confidential_sealed_bid_api import (  # pylint: disable=import-outside-toplevel
+        ConfidentialSealedBidTable,
+        submit_confidential_sealed_bid_local_ledger_settlement,
+    )
+    from src.state.confidential_requests import ConfidentialRequestTable  # pylint: disable=import-outside-toplevel
+
+    httpd.cors_origins = config.cors_origins  # type: ignore[attr-defined]
+    httpd.rate_limiter = TokenBucketRateLimiter(rpm=config.rpm, max_buckets=config.max_buckets)  # type: ignore[attr-defined]
+    httpd.perps_wallet_api_enabled = config.perps_wallet_enabled  # type: ignore[attr-defined]
+    httpd.zusd_tau_wallet_api_enabled = config.zusd_tau_wallet_enabled  # type: ignore[attr-defined]
+    httpd.zusd_monetary_wallet_api_enabled = config.zusd_monetary_wallet_enabled  # type: ignore[attr-defined]
+    httpd.autotrader_live_api_enabled = config.autotrader_live_enabled  # type: ignore[attr-defined]
+    httpd.autotrader_execution_keys = set()  # type: ignore[attr-defined]
+    httpd.autotrader_supervisor_runs = {}  # type: ignore[attr-defined]
+    httpd.autotrader_execution_lock = threading.Lock()  # type: ignore[attr-defined]
+    httpd.confidential_attestation_api_enabled = config.confidential_attestation_enabled  # type: ignore[attr-defined]
+    httpd.confidential_sealed_bid_api_enabled = config.confidential_sealed_bid_enabled  # type: ignore[attr-defined]
+    httpd.dex_api_enabled = config.dex_enabled  # type: ignore[attr-defined]
+    httpd.autogov_live_apply_api_enabled = config.autogov_live_apply_enabled  # type: ignore[attr-defined]
+    httpd.demo_api_token = config.auth_bearer_token  # type: ignore[attr-defined]
+    httpd.external_auth_enforced = config.external_auth_enforced  # type: ignore[attr-defined]
+    httpd.confidential_feature_status = config.confidential_feature_status  # type: ignore[attr-defined]
+    httpd.confidential_request_table = ConfidentialRequestTable()  # type: ignore[attr-defined]
+    httpd.confidential_request_lock = threading.Lock()  # type: ignore[attr-defined]
+    httpd.confidential_sealed_bid_table = ConfidentialSealedBidTable(  # type: ignore[attr-defined]
+        state_path=config.confidential_sealed_bid_state_file
+    )
+    httpd.confidential_sealed_bid_lock = threading.Lock()  # type: ignore[attr-defined]
+    httpd.confidential_sealed_bid_asset_settlement_submitter = (  # type: ignore[attr-defined]
+        submit_confidential_sealed_bid_local_ledger_settlement
+        if config.confidential_sealed_bid_asset_settlement_enabled
+        else None
+    )
+
+
+def _print_api_startup_banner(config: ApiServerConfig) -> None:
+    print(
+        f"zenodex-api listening on http://{config.host}:{config.port} "
+        f"(cors_origins={sorted(config.cors_origins)}, rpm={config.rpm}, max_buckets={config.max_buckets}, "
+        f"perps_wallet_api={config.perps_wallet_enabled}, "
+        f"zusd_tau_wallet_api={config.zusd_tau_wallet_enabled}, "
+        f"zusd_monetary_wallet_api={config.zusd_monetary_wallet_enabled}, "
+        f"autotrader_live_api={config.autotrader_live_enabled}, "
+        f"confidential_attestation_api={config.confidential_attestation_enabled}, "
+        f"confidential_sealed_bid_api={config.confidential_sealed_bid_enabled}, "
+        f"confidential_sealed_bid_asset_settlement={config.confidential_sealed_bid_asset_settlement_enabled}, "
+        f"dex_api={config.dex_enabled}, "
+        f"autogov_live_apply_api={config.autogov_live_apply_enabled}, "
+        f"confidential_stage={config.confidential_feature_status.get('stage')}, "
+        f"external_auth_enforced={config.external_auth_enforced}, bearer_token_set={bool(config.auth_bearer_token)}, "
+        f"legacy_demo_token_set={bool(config.legacy_demo_api_token)}, "
+        f"demo_token_auth_allowed={config.allow_demo_token_auth})"
+    )
+
+
 class _Handler(BaseHTTPRequestHandler):
     server_version = "ZenoDEXApi/1"
 
@@ -1456,192 +1698,15 @@ class _Handler(BaseHTTPRequestHandler):
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     _ = argv
-    host = _env_str("API_HOST", "127.0.0.1")
-    port = _env_int("API_PORT", 8000, lo=1, hi=65535)
-    cors_origins = _parse_cors_origins(_env_str("CORS_ORIGINS", ""))
-    rpm = _env_int("RATE_LIMIT_RPM", 600, lo=0, hi=1_000_000)
-    max_buckets = _env_int("RATE_LIMIT_MAX_BUCKETS", 10_000, lo=1, hi=1_000_000)
-
-    perps_wallet_enabled = _env_str("PERPS_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    zusd_tau_wallet_enabled = _env_str("ZUSD_TAU_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    zusd_monetary_wallet_enabled = _env_str("ZUSD_MONETARY_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    autotrader_live_enabled = _env_str("AUTOTRADER_LIVE_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    confidential_attestation_enabled = _env_str("CONFIDENTIAL_ATTESTATION_API_ENABLED", "false").lower() in (
-        "1",
-        "true",
-        "yes",
-    )
-    confidential_sealed_bid_enabled = _confidential_sealed_bid_enabled_from_env()
-    confidential_sealed_bid_state_file = _env_str("CONFIDENTIAL_SEALED_BID_STATE_FILE", "")
-    dex_enabled = _env_str("DEX_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    autogov_live_apply_enabled = _env_str("AUTOGOV_LIVE_APPLY_API_ENABLED", "false").lower() in (
-        "1",
-        "true",
-        "yes",
-    )
-    api_bearer_token = _env_str("ZENODEX_API_BEARER_TOKEN", "")
-    legacy_demo_api_token = _env_str("DEMO_API_TOKEN", "")
-    auth_bearer_token = api_bearer_token or legacy_demo_api_token
-    from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
-    confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
-    from src.integration.confidential_sealed_bid_api import (  # pylint: disable=import-outside-toplevel
-        ConfidentialSealedBidTable,
-        submit_confidential_sealed_bid_local_ledger_settlement,
-    )
-    from src.state.confidential_requests import ConfidentialRequestTable  # pylint: disable=import-outside-toplevel
-
-    sensitive_api_enabled = bool(
-        perps_wallet_enabled
-        or zusd_tau_wallet_enabled
-        or zusd_monetary_wallet_enabled
-        or autotrader_live_enabled
-        or confidential_attestation_enabled
-        or confidential_sealed_bid_enabled
-        or dex_enabled
-        or autogov_live_apply_enabled
-    )
-    runtime_env = _env_str("ZENODEX_ENV", _env_str("APP_ENV", "production")).lower()
-    production_mode = runtime_env not in ("dev", "development", "test", "local")
-    external_auth_enforced = _env_bool("ZENODEX_EXTERNAL_AUTH_ENFORCED", False)
-    allow_demo_token_auth = _env_bool("ALLOW_DEMO_TOKEN_AUTH", False)
-    allow_in_memory_sealed_bid = _env_bool("CONFIDENTIAL_SEALED_BID_ALLOW_IN_MEMORY_STATE", False)
-
-    legacy_demo_token_active = bool(legacy_demo_api_token and not api_bearer_token)
-
-    if sensitive_api_enabled and not external_auth_enforced and not auth_bearer_token:
-        print(
-            "Refusing to start: sensitive APIs enabled without external auth or ZENODEX_API_BEARER_TOKEN "
-            f"(host={host!r}, perps_wallet_api={perps_wallet_enabled}, "
-            f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
-            f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, "
-            f"autotrader_live_api={autotrader_live_enabled}, "
-            f"confidential_attestation_api={confidential_attestation_enabled}, "
-            f"confidential_sealed_bid_api={confidential_sealed_bid_enabled}, "
-            f"dex_api={dex_enabled}, autogov_live_apply_api={autogov_live_apply_enabled})"
-        )
-        return 2
-    if confidential_sealed_bid_enabled and production_mode and not confidential_sealed_bid_state_file and not allow_in_memory_sealed_bid:
-        print(
-            "Refusing to start: confidential sealed-bid API requires "
-            "CONFIDENTIAL_SEALED_BID_STATE_FILE in production mode. "
-            "Set CONFIDENTIAL_SEALED_BID_ALLOW_IN_MEMORY_STATE=1 only for controlled demos."
-        )
-        return 2
-    if sensitive_api_enabled and not external_auth_enforced and legacy_demo_token_active and production_mode and not allow_demo_token_auth:
-        print(
-            "Refusing to start: DEMO_API_TOKEN is demo/dev auth only. "
-            "Set ZENODEX_EXTERNAL_AUTH_ENFORCED=1 for a real auth gateway, or "
-            "ALLOW_DEMO_TOKEN_AUTH=1 only for a controlled demo."
-        )
-        return 2
-    if (
-        sensitive_api_enabled
-        and not external_auth_enforced
-        and legacy_demo_token_active
-        and not _is_loopback_host(host)
-        and not allow_demo_token_auth
-    ):
-        print(
-            "Refusing to start: demo-token auth on a non-loopback bind requires "
-            "ALLOW_DEMO_TOKEN_AUTH=1 for an explicitly scoped demo."
-        )
+    config = _load_api_server_config()
+    refusal = _api_startup_refusal_lines(config) or _deploy_profile_refusal_lines(config)
+    if refusal is not None:
+        _print_refusal(refusal)
         return 2
 
-    # Deploy-profile consistency gate (D-CONFIG-002): when a deployment profile is
-    # selected, the declared policy in config/deploy/<profile>.yaml is parsed and
-    # enforced against the active runtime env. The profiles were previously
-    # documentation-only; this makes them load-bearing. Fail-closed on conflict.
-    deploy_profile_id = _env_str("ZENODEX_DEPLOY_PROFILE", "")
-    if deploy_profile_id:
-        from src.integration.deploy_profile import (  # pylint: disable=import-outside-toplevel
-            evaluate_deploy_profile_consistency,
-            load_deploy_profile,
-        )
-
-        try:
-            _profile = load_deploy_profile(deploy_profile_id)
-        except (FileNotFoundError, ValueError) as exc:
-            print(f"Refusing to start: invalid ZENODEX_DEPLOY_PROFILE={deploy_profile_id!r}: {exc}")
-            return 2
-        _runtime_facts = {
-            "sensitive_api_enabled": sensitive_api_enabled,
-            "external_auth_enforced": external_auth_enforced,
-            "auth_bearer_token_set": bool(auth_bearer_token),
-            "allow_demo_token_auth": allow_demo_token_auth,
-            "legacy_demo_token_active": legacy_demo_token_active,
-            "confidential_sealed_bid_allow_in_memory_state": allow_in_memory_sealed_bid,
-            "confidential_sealed_bid_allow_fixture_settlement": _env_bool(
-                "CONFIDENTIAL_SEALED_BID_ALLOW_FIXTURE_SETTLEMENT", False
-            ),
-            "confidential_sealed_bid_return_signed_tau_tx_payload": _env_bool(
-                "CONFIDENTIAL_SEALED_BID_RETURN_SIGNED_TAU_TX_PAYLOAD", False
-            ),
-            "perps_wallet_allow_local_signing": _env_bool("PERPS_WALLET_ALLOW_LOCAL_SIGNING", False),
-            "perps_wallet_return_signed_tau_tx_payload": _env_bool(
-                "PERPS_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False
-            ),
-        }
-        _conflicts = evaluate_deploy_profile_consistency(_profile, _runtime_facts)
-        if _conflicts:
-            print(
-                f"Refusing to start: runtime env conflicts with deploy profile "
-                f"{deploy_profile_id!r}:"
-            )
-            for _c in _conflicts:
-                print(f"  - {_c}")
-            return 2
-
-    httpd = ThreadingHTTPServer((host, port), _Handler)
-    # Attach config to server instance (used by handler).
-    httpd.cors_origins = cors_origins  # type: ignore[attr-defined]
-    httpd.rate_limiter = TokenBucketRateLimiter(rpm=rpm, max_buckets=max_buckets)  # type: ignore[attr-defined]
-    httpd.perps_wallet_api_enabled = perps_wallet_enabled  # type: ignore[attr-defined]
-    httpd.zusd_tau_wallet_api_enabled = zusd_tau_wallet_enabled  # type: ignore[attr-defined]
-    httpd.zusd_monetary_wallet_api_enabled = zusd_monetary_wallet_enabled  # type: ignore[attr-defined]
-    httpd.autotrader_live_api_enabled = autotrader_live_enabled  # type: ignore[attr-defined]
-    httpd.autotrader_execution_keys = set()  # type: ignore[attr-defined]
-    httpd.autotrader_supervisor_runs = {}  # type: ignore[attr-defined]
-    httpd.autotrader_execution_lock = threading.Lock()  # type: ignore[attr-defined]
-    httpd.confidential_attestation_api_enabled = confidential_attestation_enabled  # type: ignore[attr-defined]
-    httpd.confidential_sealed_bid_api_enabled = confidential_sealed_bid_enabled  # type: ignore[attr-defined]
-    httpd.dex_api_enabled = dex_enabled  # type: ignore[attr-defined]
-    httpd.autogov_live_apply_api_enabled = autogov_live_apply_enabled  # type: ignore[attr-defined]
-    httpd.demo_api_token = auth_bearer_token  # type: ignore[attr-defined]
-    httpd.external_auth_enforced = external_auth_enforced  # type: ignore[attr-defined]
-    httpd.confidential_feature_status = confidential_feature_status  # type: ignore[attr-defined]
-    httpd.confidential_request_table = ConfidentialRequestTable()  # type: ignore[attr-defined]
-    httpd.confidential_request_lock = threading.Lock()  # type: ignore[attr-defined]
-    httpd.confidential_sealed_bid_table = ConfidentialSealedBidTable(  # type: ignore[attr-defined]
-        state_path=confidential_sealed_bid_state_file
-    )
-    httpd.confidential_sealed_bid_lock = threading.Lock()  # type: ignore[attr-defined]
-    confidential_sealed_bid_asset_settlement_enabled = _env_bool(
-        "CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED",
-        False,
-    )
-    httpd.confidential_sealed_bid_asset_settlement_submitter = (  # type: ignore[attr-defined]
-        submit_confidential_sealed_bid_local_ledger_settlement
-        if confidential_sealed_bid_asset_settlement_enabled
-        else None
-    )
-
-    print(
-        f"zenodex-api listening on http://{host}:{port} "
-        f"(cors_origins={sorted(cors_origins)}, rpm={rpm}, max_buckets={max_buckets}, "
-        f"perps_wallet_api={perps_wallet_enabled}, "
-        f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
-        f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, "
-        f"autotrader_live_api={autotrader_live_enabled}, "
-        f"confidential_attestation_api={confidential_attestation_enabled}, "
-        f"confidential_sealed_bid_api={confidential_sealed_bid_enabled}, "
-        f"confidential_sealed_bid_asset_settlement={confidential_sealed_bid_asset_settlement_enabled}, "
-        f"dex_api={dex_enabled}, "
-        f"autogov_live_apply_api={autogov_live_apply_enabled}, "
-        f"confidential_stage={confidential_feature_status.get('stage')}, "
-        f"external_auth_enforced={external_auth_enforced}, bearer_token_set={bool(auth_bearer_token)}, "
-        f"legacy_demo_token_set={bool(legacy_demo_api_token)}, "
-        f"demo_token_auth_allowed={allow_demo_token_auth})"
-    )
+    httpd = ThreadingHTTPServer((config.host, config.port), _Handler)
+    _attach_api_server_state(httpd, config)
+    _print_api_startup_banner(config)
     httpd.serve_forever(poll_interval=0.25)
     return 0
 
