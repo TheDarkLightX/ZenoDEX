@@ -1881,6 +1881,92 @@ def _select_many_pool_audit_candidates(
     )
 
 
+@dataclass(frozen=True)
+class _TwoPoolExactOutParams:
+    asset_in: str
+    asset_out: str
+    amount_out_total: int
+
+
+@dataclass(frozen=True)
+class _TwoPoolExactOutDomain:
+    pool0: PoolState
+    pool1: PoolState
+    reserves0: tuple[int, int]
+    reserves1: tuple[int, int]
+    amount_out_total: int
+    split_lo: int
+    split_hi: int
+
+
+def _two_pool_exact_out_domain(
+    pool0: PoolState,
+    pool1: PoolState,
+    *,
+    params: _TwoPoolExactOutParams,
+) -> _TwoPoolExactOutDomain:
+    if int(params.amount_out_total) <= 0:
+        raise ValueError("amount_out_total must be positive")
+    p0, p1 = (pool0, pool1) if pool0.pool_id <= pool1.pool_id else (pool1, pool0)
+    reserves0 = _pool_reserves_for_exact_out(p0, asset_in=params.asset_in, asset_out=params.asset_out)
+    reserves1 = _pool_reserves_for_exact_out(p1, asset_in=params.asset_in, asset_out=params.asset_out)
+    if reserves0 is None or reserves1 is None:
+        raise ValueError("pools do not support this direction (or are inactive)")
+    max0 = max(0, int(reserves0[1]) - 1)
+    max1 = max(0, int(reserves1[1]) - 1)
+    split_lo = max(0, int(params.amount_out_total) - max1)
+    split_hi = min(int(params.amount_out_total), max0)
+    if split_lo > split_hi:
+        raise ValueError("no feasible split for desired amount_out_total")
+    return _TwoPoolExactOutDomain(
+        pool0=p0,
+        pool1=p1,
+        reserves0=(int(reserves0[0]), int(reserves0[1])),
+        reserves1=(int(reserves1[0]), int(reserves1[1])),
+        amount_out_total=int(params.amount_out_total),
+        split_lo=int(split_lo),
+        split_hi=int(split_hi),
+    )
+
+
+def _exact_out_amount_in_for_split_leg(
+    pool: PoolState,
+    *,
+    reserves: tuple[int, int],
+    amount_out: int,
+) -> int:
+    if int(amount_out) <= 0:
+        return 0
+    amount_in, _ = swap_exact_out_for_pool(
+        pool,
+        reserve_in=int(reserves[0]),
+        reserve_out=int(reserves[1]),
+        amount_out=int(amount_out),
+    )
+    return int(amount_in)
+
+
+def _two_pool_candidate_for_split(
+    domain: _TwoPoolExactOutDomain,
+    *,
+    amount_out_pool0: int,
+) -> SplitManyPoolsExactOutQuote:
+    q0 = int(amount_out_pool0)
+    q1 = int(domain.amount_out_total) - q0
+    in0 = _exact_out_amount_in_for_split_leg(domain.pool0, reserves=domain.reserves0, amount_out=q0)
+    in1 = _exact_out_amount_in_for_split_leg(domain.pool1, reserves=domain.reserves1, amount_out=q1)
+    legs: list[SplitLegExactOutQuote] = []
+    if q0 > 0:
+        legs.append(SplitLegExactOutQuote(pool_id=domain.pool0.pool_id, amount_out=q0, amount_in=int(in0)))
+    if q1 > 0:
+        legs.append(SplitLegExactOutQuote(pool_id=domain.pool1.pool_id, amount_out=q1, amount_in=int(in1)))
+    return SplitManyPoolsExactOutQuote(
+        amount_out_total=int(domain.amount_out_total),
+        amount_in_total=int(in0 + in1),
+        legs=tuple(legs),
+    )
+
+
 def enumerate_exact_out_two_pool_candidates(
     pool0: PoolState,
     pool1: PoolState,
@@ -1889,61 +1975,19 @@ def enumerate_exact_out_two_pool_candidates(
     asset_out: str,
     amount_out_total: int,
 ) -> tuple[SplitManyPoolsExactOutQuote, ...]:
-    if int(amount_out_total) <= 0:
-        raise ValueError("amount_out_total must be positive")
-    p0, p1 = (pool0, pool1) if pool0.pool_id <= pool1.pool_id else (pool1, pool0)
-    r0 = _pool_reserves_for_exact_out(p0, asset_in=asset_in, asset_out=asset_out)
-    r1 = _pool_reserves_for_exact_out(p1, asset_in=asset_in, asset_out=asset_out)
-    if r0 is None or r1 is None:
-        raise ValueError("pools do not support this direction (or are inactive)")
-    _rin0, rout0 = r0
-    _rin1, rout1 = r1
-    max0 = max(0, int(rout0) - 1)
-    max1 = max(0, int(rout1) - 1)
-    lo = max(0, int(amount_out_total) - max1)
-    hi = min(int(amount_out_total), max0)
-    if lo > hi:
-        raise ValueError("no feasible split for desired amount_out_total")
-
+    params = _TwoPoolExactOutParams(
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out_total=amount_out_total,
+    )
+    domain = _two_pool_exact_out_domain(pool0, pool1, params=params)
     quotes: list[SplitManyPoolsExactOutQuote] = []
-    for q0 in range(int(lo), int(hi) + 1):
-        q1 = int(amount_out_total) - int(q0)
+    for q0 in range(domain.split_lo, domain.split_hi + 1):
         try:
-            in0, _ = (
-                swap_exact_out_for_pool(
-                    p0,
-                    reserve_in=int(r0[0]),
-                    reserve_out=int(r0[1]),
-                    amount_out=int(q0),
-                )
-                if q0 > 0
-                else (0, (int(r0[0]), int(r0[1])))
-            )
-            in1, _ = (
-                swap_exact_out_for_pool(
-                    p1,
-                    reserve_in=int(r1[0]),
-                    reserve_out=int(r1[1]),
-                    amount_out=int(q1),
-                )
-                if q1 > 0
-                else (0, (int(r1[0]), int(r1[1])))
-            )
+            quote = _two_pool_candidate_for_split(domain, amount_out_pool0=q0)
         except ValueError:
             continue
-
-        legs: list[SplitLegExactOutQuote] = []
-        if q0 > 0:
-            legs.append(SplitLegExactOutQuote(pool_id=p0.pool_id, amount_out=int(q0), amount_in=int(in0)))
-        if q1 > 0:
-            legs.append(SplitLegExactOutQuote(pool_id=p1.pool_id, amount_out=int(q1), amount_in=int(in1)))
-        quotes.append(
-            SplitManyPoolsExactOutQuote(
-                amount_out_total=int(amount_out_total),
-                amount_in_total=int(in0 + in1),
-                legs=tuple(legs),
-            )
-        )
+        quotes.append(quote)
     if not quotes:
         raise ValueError("no feasible exact-out candidates")
     return tuple(quotes)
