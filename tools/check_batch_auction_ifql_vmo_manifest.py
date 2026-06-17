@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = REPO_ROOT / "tools" / "batch_auction_ifql_vmo_manifest.json"
 
@@ -26,6 +25,15 @@ def _require(condition: bool, message: str) -> None:
 def _as_dict(obj: Any, *, ctx: str) -> Mapping[str, Any]:
     _require(isinstance(obj, dict), f"{ctx}: expected object")
     return obj
+
+
+def _require_json_bool(value: object, *, ctx: str) -> bool:
+    _require(isinstance(value, bool), f"{ctx}: expected bool")
+    return value
+
+
+def _require_true(value: object, *, ctx: str) -> None:
+    _require(_require_json_bool(value, ctx=ctx) is True, f"{ctx}=false")
 
 
 def _load_json(path: Path) -> Any:
@@ -114,7 +122,7 @@ def _check_source_files(entries: list[Mapping[str, Any]]) -> None:
 def _check_intent_lint(entry: Mapping[str, Any]) -> None:
     report_path = REPO_ROOT / str(entry["report_path"])
     report = _as_dict(_load_json(report_path), ctx=str(report_path))
-    _require(bool(report.get("ok", False)), f"{report_path}: ok=false")
+    _require_true(report.get("ok"), ctx=f"{report_path}: ok")
     _require(report.get("schema") == "esso-intent-report/v1", f"{report_path}: schema mismatch")
     _require(report.get("intent_hash") == entry["intent_hash"], f"{report_path}: intent_hash mismatch")
     intent_source = Path(str(report.get("intent_source", ""))).resolve()
@@ -142,14 +150,18 @@ def _check_intent_lint(entry: Mapping[str, Any]) -> None:
 
     coverage = _as_dict(report.get("coverage"), ctx=f"{report_path}: coverage")
     required = _as_dict(coverage.get("required"), ctx=f"{report_path}: coverage.required")
-    _require(bool(required.get("ok", False)) == bool(entry["required_ok"]), f"{report_path}: required coverage mismatch")
+    _require(
+        _require_json_bool(required.get("ok"), ctx=f"{report_path}: coverage.required.ok")
+        is _require_json_bool(entry.get("required_ok"), ctx=f"{report_path}: expected required_ok"),
+        f"{report_path}: required coverage mismatch",
+    )
 
 
 def _check_ifql_report(entry: Mapping[str, Any]) -> None:
     report_path = REPO_ROOT / str(entry["report_path"])
     report = _as_dict(_load_json(report_path), ctx=str(report_path))
-    _require(bool(report.get("ok", False)), f"{report_path}: report ok=false")
-    _require(bool(report.get("ok_effective", False)), f"{report_path}: report ok_effective=false")
+    _require_true(report.get("ok"), ctx=f"{report_path}: report ok")
+    _require_true(report.get("ok_effective"), ctx=f"{report_path}: report ok_effective")
     _require(report.get("schema") == "esso-ifql-report/v1", f"{report_path}: schema mismatch")
     _require(report.get("report_hash") == entry["report_hash"], f"{report_path}: report_hash mismatch")
     _require(report.get("issues") == [], f"{report_path}: IFQL issues present")
@@ -166,7 +178,7 @@ def _check_ifql_report(entry: Mapping[str, Any]) -> None:
 def _check_ifql_vmo(entry: Mapping[str, Any]) -> None:
     report_path = REPO_ROOT / str(entry["report_path"])
     out = _as_dict(_load_json(report_path), ctx=str(report_path))
-    _require(bool(out.get("ok", False)), f"{report_path}: out ok=false")
+    _require_true(out.get("ok"), ctx=f"{report_path}: out ok")
     _require(out.get("fiber") == entry["fiber"], f"{report_path}: fiber mismatch")
     _require(out.get("intent_id") == entry["intent_id"], f"{report_path}: intent_id mismatch")
     _require(out.get("schema") == "esso-ifql-vmo/v1", f"{report_path}: out schema mismatch")
@@ -175,7 +187,7 @@ def _check_ifql_vmo(entry: Mapping[str, Any]) -> None:
     _require(observables.get("effects") == [], f"{report_path}: observed effects mismatch")
 
     vmo = _as_dict(out.get("vmo"), ctx=f"{report_path}: vmo")
-    _require(bool(vmo.get("ok", False)), f"{report_path}: vmo ok=false")
+    _require_true(vmo.get("ok"), ctx=f"{report_path}: vmo ok")
     _require(vmo.get("schema") == "esso-vmo/v1", f"{report_path}: vmo schema mismatch")
     _require(vmo.get("vmo_hash") == entry["vmo_hash"], f"{report_path}: vmo_hash mismatch")
     _require(vmo.get("preserves") == entry["preserves"], f"{report_path}: preserves mismatch")
@@ -185,7 +197,7 @@ def _check_ifql_vmo(entry: Mapping[str, Any]) -> None:
     mode_check = next((c for c in checks if isinstance(c, dict) and c.get("kind") == "z3.observational_equivalence"), None)
     _require(mode_check is not None, f"{report_path}: missing observational equivalence check")
     _require(mode_check.get("mode") == entry["mode"], f"{report_path}: observational mode mismatch")
-    _require(bool(mode_check.get("ok", False)), f"{report_path}: observational equivalence failed")
+    _require_true(mode_check.get("ok"), ctx=f"{report_path}: observational equivalence")
     result = _as_dict(mode_check.get("result"), ctx=f"{report_path}: observational result")
     _require(result.get("status") == "PASS", f"{report_path}: observational status mismatch")
 
@@ -228,4 +240,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except ManifestError as exc:
         print(f"error: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from exc

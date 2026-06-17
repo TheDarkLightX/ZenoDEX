@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = REPO_ROOT / "tools" / "runtime_shell_assurance_manifest.json"
 
@@ -26,6 +25,15 @@ def _require(condition: bool, message: str) -> None:
 def _as_dict(obj: Any, *, ctx: str) -> Mapping[str, Any]:
     _require(isinstance(obj, dict), f"{ctx}: expected object")
     return obj
+
+
+def _require_json_bool(value: object, *, ctx: str) -> bool:
+    _require(isinstance(value, bool), f"{ctx}: expected bool")
+    return value
+
+
+def _require_true(value: object, *, ctx: str) -> None:
+    _require(_require_json_bool(value, ctx=ctx) is True, f"{ctx}=false")
 
 
 def _load_json(path: Path) -> Any:
@@ -114,7 +122,7 @@ def _check_source_files(entries: list[Mapping[str, Any]]) -> None:
 def _check_shell_lint(entry: Mapping[str, Any]) -> None:
     report_path = REPO_ROOT / str(entry["report_path"])
     report = _as_dict(_load_json(report_path), ctx=str(report_path))
-    _require(bool(report.get("ok", False)), f"{report_path}: ok=false")
+    _require_true(report.get("ok"), ctx=f"{report_path}: ok")
     _require(report.get("command") == "shell-lint", f"{report_path}: command mismatch")
     _require(report.get("ir_hash") == entry["ir_hash"], f"{report_path}: ir_hash mismatch")
 
@@ -133,7 +141,7 @@ def _check_shell_lint(entry: Mapping[str, Any]) -> None:
 def _check_verify_shell(entry: Mapping[str, Any]) -> None:
     report_path = REPO_ROOT / str(entry["report_path"])
     report = _as_dict(_load_json(report_path), ctx=str(report_path))
-    _require(bool(report.get("ok", False)), f"{report_path}: ok=false")
+    _require_true(report.get("ok"), ctx=f"{report_path}: ok")
     _require(report.get("command") == "verify-shell", f"{report_path}: command mismatch")
     _require(report.get("ir_hash") == entry["ir_hash"], f"{report_path}: ir_hash mismatch")
     _require(report.get("mode") == entry["mode"], f"{report_path}: mode mismatch")
@@ -154,7 +162,7 @@ def _check_verify_shell(entry: Mapping[str, Any]) -> None:
     )
 
     determinism = _as_dict(report.get("determinism"), ctx=f"{report_path}: determinism")
-    _require(bool(determinism.get("ok", False)), f"{report_path}: determinism.ok=false")
+    _require_true(determinism.get("ok"), ctx=f"{report_path}: determinism.ok")
     fingerprints = list(determinism.get("fingerprints") or [])
     _require(len(fingerprints) >= 2, f"{report_path}: fewer than 2 fingerprints")
     _require(len(set(fingerprints)) == 1, f"{report_path}: fingerprints diverged")
@@ -202,4 +210,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except ManifestError as exc:
         print(f"error: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from exc
