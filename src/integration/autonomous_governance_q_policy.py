@@ -1009,6 +1009,19 @@ def commit_autonomous_governance_surface_q_policy_v1(
     return {**body, "step_hash": hash_v0("autonomous_governance_q_surface_step_v1", body)}
 
 
+@dataclass(frozen=True)
+class _SurfaceAdmissionParsed:
+    request_obj: Mapping[str, Any]
+    committed: dict[str, int]
+    errors: tuple[str, ...]
+    unknown_fields: tuple[str, ...]
+    forbidden_fields: tuple[str, ...]
+    tx_id: object
+    time_ms: object
+    expected_policy_hash: object
+    expected_committed_context_hash: object
+
+
 def admit_autonomous_governance_surface_request_v1(request: object) -> dict[str, Any]:
     """Fail closed at the live autonomous-governance request boundary.
 
@@ -1018,16 +1031,23 @@ def admit_autonomous_governance_surface_request_v1(request: object) -> dict[str,
     caller.
     """
 
-    if isinstance(request, Mapping):
-        request_is_mapping = True
-        request_obj: Mapping[str, Any] = request
-    else:
-        request_is_mapping = False
-        request_obj = {}
-    raw_state = request_obj.get("surface_state", {})
-    committed, committed_errors = _normalize_surface_state(
-        raw_state if isinstance(raw_state, Mapping) else {}
-    )
+    parsed = _parse_surface_admission_request(request)
+    if parsed.errors:
+        return _surface_admission_rejection(
+            committed=parsed.committed,
+            request_obj=parsed.request_obj,
+            errors=parsed.errors,
+            unknown_fields=parsed.unknown_fields,
+            forbidden_fields=parsed.forbidden_fields,
+        )
+
+    step = _commit_surface_admission_step(parsed)
+    return _surface_admission_acceptance(parsed, step)
+
+
+def _parse_surface_admission_request(request: object) -> _SurfaceAdmissionParsed:
+    request_is_mapping, request_obj = _surface_admission_request_obj(request)
+    committed, committed_errors = _surface_admission_committed_state(request_obj)
     errors: list[str] = []
     if not request_is_mapping:
         errors.append("request_must_be_object")
@@ -1039,6 +1059,41 @@ def admit_autonomous_governance_surface_request_v1(request: object) -> dict[str,
         errors.append("admission_schema_invalid")
     errors.extend(f"committed_{error}" for error in committed_errors)
 
+    unknown_fields, forbidden_fields = _surface_admission_field_sets(request_obj)
+    errors.extend(f"unknown_admission_request_field:{field}" for field in unknown_fields)
+    errors.extend(f"direct_result_field_forbidden:{field}" for field in forbidden_fields)
+
+    tx_id, time_ms, expected_policy_hash, expected_committed_context_hash, scalar_errors = (
+        _surface_admission_scalar_fields(request_obj)
+    )
+    errors.extend(scalar_errors)
+    return _SurfaceAdmissionParsed(
+        request_obj=request_obj,
+        committed=committed,
+        errors=tuple(errors),
+        unknown_fields=unknown_fields,
+        forbidden_fields=forbidden_fields,
+        tx_id=tx_id,
+        time_ms=time_ms,
+        expected_policy_hash=expected_policy_hash,
+        expected_committed_context_hash=expected_committed_context_hash,
+    )
+
+
+def _surface_admission_request_obj(request: object) -> tuple[bool, Mapping[str, Any]]:
+    if isinstance(request, Mapping):
+        return True, request
+    return False, {}
+
+
+def _surface_admission_committed_state(request_obj: Mapping[str, Any]) -> tuple[dict[str, int], list[str]]:
+    raw_state = request_obj.get("surface_state", {})
+    return _normalize_surface_state(raw_state if isinstance(raw_state, Mapping) else {})
+
+
+def _surface_admission_field_sets(
+    request_obj: Mapping[str, Any],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
     unknown_fields = tuple(
         sorted(
             safe_field_label(field)
@@ -1050,9 +1105,13 @@ def admit_autonomous_governance_surface_request_v1(request: object) -> dict[str,
     forbidden_fields = tuple(
         sorted(str(field) for field in FORBIDDEN_SURFACE_ADMISSION_RESULT_FIELDS_V1 if field in request_obj)
     )
-    errors.extend(f"unknown_admission_request_field:{field}" for field in unknown_fields)
-    errors.extend(f"direct_result_field_forbidden:{field}" for field in forbidden_fields)
+    return unknown_fields, forbidden_fields
 
+
+def _surface_admission_scalar_fields(
+    request_obj: Mapping[str, Any],
+) -> tuple[object, object, object, object, list[str]]:
+    errors: list[str] = []
     tx_id = request_obj.get("tx_id")
     if tx_id is not None:
         if not isinstance(tx_id, str) or not tx_id.strip() or len(tx_id) > 128:
@@ -1075,33 +1134,34 @@ def admit_autonomous_governance_surface_request_v1(request: object) -> dict[str,
         and not _is_canonical_hash_v0(expected_committed_context_hash)
     ):
         errors.append("expected_committed_context_hash_invalid")
+    return tx_id, time_ms, expected_policy_hash, expected_committed_context_hash, errors
 
-    if errors:
-        return _surface_admission_rejection(
-            committed=committed,
-            request_obj=request_obj,
-            errors=errors,
-            unknown_fields=unknown_fields,
-            forbidden_fields=forbidden_fields,
-        )
 
-    step = commit_autonomous_governance_surface_q_policy_v1(
+def _commit_surface_admission_step(parsed: _SurfaceAdmissionParsed) -> dict[str, Any]:
+    request_obj = parsed.request_obj
+    return commit_autonomous_governance_surface_q_policy_v1(
         policy=request_obj.get("policy", {}),
         surface_state=request_obj.get("surface_state", {}),
         observation=request_obj.get("observation", {}),
         current_epoch=request_obj.get("current_epoch"),
         proposal_epoch=request_obj.get("proposal_epoch"),
         last_update_epoch=request_obj.get("last_update_epoch"),
-        expected_policy_hash=str(expected_policy_hash),
+        expected_policy_hash=str(parsed.expected_policy_hash),
         expected_committed_context_hash=(
-            str(expected_committed_context_hash)
-            if isinstance(expected_committed_context_hash, str)
+            str(parsed.expected_committed_context_hash)
+            if isinstance(parsed.expected_committed_context_hash, str)
             else None
         ),
         previous_approved_deltas=request_obj.get("previous_approved_deltas"),
         trajectory_budget=request_obj.get("trajectory_budget"),
         trajectory_used=request_obj.get("trajectory_used"),
     )
+
+
+def _surface_admission_acceptance(
+    parsed: _SurfaceAdmissionParsed,
+    step: Mapping[str, Any],
+) -> dict[str, Any]:
     admitted = step.get("admitted") is True
     receipt = step.get("receipt", {})
     step_errors = tuple(str(error) for error in step.get("errors", ()))
@@ -1113,15 +1173,15 @@ def admit_autonomous_governance_surface_request_v1(request: object) -> dict[str,
     admission_errors = step_errors if admitted else step_errors + receipt_errors
     body = {
         "schema": AUTONOMOUS_GOVERNANCE_SURFACE_ADMISSION_SCHEMA_V1,
-        "tx_id": tx_id if isinstance(tx_id, str) else "",
-        "time_ms": time_ms if type(time_ms) is int else None,
+        "tx_id": parsed.tx_id if isinstance(parsed.tx_id, str) else "",
+        "time_ms": parsed.time_ms if type(parsed.time_ms) is int else None,
         "step": step,
         "receipt": receipt,
         "receipt_hash": step.get("receipt_hash", ""),
         "step_hash": step.get("step_hash", ""),
-        "committed_state": step.get("committed_state", committed),
-        "proposed_state": step.get("proposed_state", committed),
-        "applied_state": step.get("applied_state", committed),
+        "committed_state": step.get("committed_state", parsed.committed),
+        "proposed_state": step.get("proposed_state", parsed.committed),
+        "applied_state": step.get("applied_state", parsed.committed),
         "gate_recheck": step.get("gate_recheck", {}),
         "trajectory_used_after": step.get("trajectory_used_after", {}),
         "admitted": admitted,
