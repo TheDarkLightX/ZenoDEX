@@ -182,7 +182,8 @@ def verify_operator_release_manifest(*, manifest_path: Path, archive_path: Path 
     files = manifest.get("files")
     if not isinstance(files, list) or not files:
         errors.append("manifest files must be a non-empty list")
-    if not isinstance(manifest.get("file_count"), int) or manifest.get("file_count") != len(files or []):
+    file_count = manifest.get("file_count")
+    if not isinstance(file_count, int) or isinstance(file_count, bool) or file_count != len(files or []):
         errors.append("manifest file_count mismatch")
 
     archive = archive_path or manifest_path.parent / str(manifest.get("archive_name", ""))

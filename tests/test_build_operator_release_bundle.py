@@ -200,6 +200,21 @@ def test_operator_release_bundle_verify_rejects_invalid_file_size(tmp_path: Path
     assert any(error.startswith("invalid file size:") for error in verify["errors"])
 
 
+def test_operator_release_bundle_verify_rejects_bool_file_count(tmp_path: Path) -> None:
+    root = _minimal_repo(tmp_path)
+    report = build_operator_release_bundle(root=root, out_dir=tmp_path / "out", version="bad-file-count")
+    manifest_path = Path(report["manifest_path"])
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"] = manifest["files"][:1]
+    manifest["file_count"] = True
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    verify = verify_operator_release_manifest(manifest_path=manifest_path)
+
+    assert verify["ok"] is False
+    assert "manifest file_count mismatch" in verify["errors"]
+
+
 def test_operator_release_bundle_verify_rejects_missing_required_operator_file(
     tmp_path: Path,
 ) -> None:
