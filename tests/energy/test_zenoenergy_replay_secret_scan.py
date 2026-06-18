@@ -54,6 +54,22 @@ def test_secret_scan_manifest_fragment_requires_strict_ok() -> None:
     assert fragment["ok"] is False
 
 
+def test_secret_scan_manifest_fragment_rejects_coerced_counts() -> None:
+    fragment = secret_scan_manifest_fragment(
+        {
+            "schema": SECRET_SCAN_SCHEMA,
+            "tool": "local-secret-scan-v1",
+            "ok": True,
+            "finding_count": "0",
+            "source_report_count": "1",
+        }
+    )
+
+    assert fragment["ok"] is False
+    assert fragment["finding_count"] == -1
+    assert fragment["source_report_count"] == 0
+
+
 def test_secret_scan_rejects_text_key_material(tmp_path: Path) -> None:
     report_path = tmp_path / "bad_report.json"
     report_path.write_text(

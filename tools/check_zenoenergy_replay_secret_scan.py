@@ -48,6 +48,19 @@ TEXT_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 
+def _json_int(value: object, *, name: str) -> int:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    raise ValueError(f"{name} must be a JSON integer")
+
+
+def _json_int_or_default(value: object, *, default: int = -1) -> int:
+    try:
+        return _json_int(value, name="value")
+    except ValueError:
+        return default
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-report", type=Path, action="append", required=True)
@@ -109,12 +122,14 @@ def scan_replay_reports(paths: list[Path]) -> dict[str, Any]:
 def secret_scan_manifest_fragment(report: dict[str, Any]) -> dict[str, Any]:
     if report.get("schema") != SECRET_SCAN_SCHEMA:
         raise ValueError("secret scan report must use replay_secret_scan/v1")
+    finding_count = _json_int_or_default(report.get("finding_count"))
+    source_report_count = _json_int_or_default(report.get("source_report_count"), default=0)
     return {
         "tool": str(report.get("tool", "")),
-        "ok": report.get("ok") is True,
-        "finding_count": int(report.get("finding_count", -1)),
+        "ok": report.get("ok") is True and finding_count == 0,
+        "finding_count": finding_count,
         "schema": SECRET_SCAN_SCHEMA,
-        "source_report_count": int(report.get("source_report_count", 0)),
+        "source_report_count": source_report_count,
     }
 
 

@@ -21,6 +21,26 @@ FORBIDDEN_SOURCE_MARKERS = ("synthetic", "fixture", "built-in", "generated")
 SHA256_RE = re.compile(r"^(sha256:)?[0-9a-f]{64}$")
 
 
+def _json_int(value: object, *, name: str) -> int:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    raise ValueError(f"{name} must be a JSON integer")
+
+
+def _json_int_or_default(value: object, *, default: int = 0) -> int:
+    try:
+        return _json_int(value, name="value")
+    except ValueError:
+        return default
+
+
+def _positive_json_int(value: object) -> bool:
+    try:
+        return _json_int(value, name="value") > 0
+    except ValueError:
+        return False
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
@@ -69,7 +89,7 @@ def validate_replay_source_manifest(
         ),
         _check(
             "market_day_count",
-            int(manifest.get("market_day_count", 0)) > 0,
+            _positive_json_int(manifest.get("market_day_count")),
             "market_day_count must be positive",
         ),
         _check(
@@ -105,7 +125,7 @@ def validate_replay_source_manifest(
         "manifest_id": str(manifest.get("manifest_id", "")),
         "source_kind": str(manifest.get("source_kind", "")),
         "source_descriptor": str(manifest.get("source_descriptor", "")),
-        "market_day_count": int(manifest.get("market_day_count", 0)),
+        "market_day_count": _json_int_or_default(manifest.get("market_day_count")),
         "deterministic_replay_ok": manifest.get("deterministic_replay_ok") is True,
         "no_live_secrets": manifest.get("no_live_secrets") is True,
         "artifact_count": len(artifacts),
@@ -122,16 +142,24 @@ def validate_replay_source_manifest(
 
 
 def source_manifest_summary(check_report: dict[str, Any]) -> dict[str, Any]:
+    market_day_count = _json_int_or_default(check_report.get("market_day_count"), default=-1)
+    source_report_count = _json_int_or_default(check_report.get("source_report_count"), default=-1)
+    source_report_match_count = _json_int_or_default(check_report.get("source_report_match_count"), default=-1)
+    failed_count = _json_int_or_default(check_report.get("failed_count"), default=-1)
     return {
         "schema": "zenodex/energy/replay_source_manifest_check/v1",
-        "ok": check_report.get("ok") is True,
+        "ok": check_report.get("ok") is True
+        and market_day_count >= 0
+        and source_report_count >= 0
+        and source_report_match_count >= 0
+        and failed_count == 0,
         "manifest_id": str(check_report.get("manifest_id", "")),
         "source_kind": str(check_report.get("source_kind", "")),
         "source_descriptor": str(check_report.get("source_descriptor", "")),
-        "market_day_count": int(check_report.get("market_day_count", 0)),
-        "source_report_count": int(check_report.get("source_report_count", 0)),
-        "source_report_match_count": int(check_report.get("source_report_match_count", 0)),
-        "failed_count": int(check_report.get("failed_count", 0)),
+        "market_day_count": max(market_day_count, 0),
+        "source_report_count": max(source_report_count, 0),
+        "source_report_match_count": max(source_report_match_count, 0),
+        "failed_count": max(failed_count, 0),
     }
 
 
@@ -197,7 +225,10 @@ def _secret_scan_clean(manifest: dict[str, Any]) -> bool:
     scan = manifest.get("secret_scan", {})
     if not isinstance(scan, dict):
         return False
-    return scan.get("ok") is True and int(scan.get("finding_count", -1)) == 0
+    try:
+        return scan.get("ok") is True and _json_int(scan.get("finding_count"), name="secret_scan.finding_count") == 0
+    except ValueError:
+        return False
 
 
 def _non_fixture_descriptor(value: str) -> bool:

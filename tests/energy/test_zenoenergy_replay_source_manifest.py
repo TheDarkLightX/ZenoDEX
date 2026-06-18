@@ -91,6 +91,37 @@ def test_manifest_check_rejects_truthy_string_secret_scan_ok() -> None:
     assert _check(report, "secret_scan_clean")["passed"] is False
 
 
+def test_manifest_check_rejects_numeric_string_market_day_count() -> None:
+    source = _source_report()
+    manifest = _manifest(source_reports=[source])
+    manifest["market_day_count"] = "9"
+
+    report = validate_replay_source_manifest(
+        manifest=manifest,
+        source_reports=[source],
+    )
+
+    assert report["ok"] is False
+    assert report["market_day_count"] == 0
+    assert _check(report, "market_day_count")["passed"] is False
+
+
+def test_manifest_check_rejects_numeric_string_secret_scan_count() -> None:
+    source = _source_report()
+    manifest = _manifest(source_reports=[source])
+    secret_scan = manifest["secret_scan"]
+    assert isinstance(secret_scan, dict)
+    secret_scan["finding_count"] = "0"
+
+    report = validate_replay_source_manifest(
+        manifest=manifest,
+        source_reports=[source],
+    )
+
+    assert report["ok"] is False
+    assert _check(report, "secret_scan_clean")["passed"] is False
+
+
 def test_source_manifest_summary_requires_strict_ok() -> None:
     summary = source_manifest_summary(
         {
@@ -106,6 +137,27 @@ def test_source_manifest_summary_requires_strict_ok() -> None:
     )
 
     assert summary["ok"] is False
+
+
+def test_source_manifest_summary_rejects_coerced_counts() -> None:
+    summary = source_manifest_summary(
+        {
+            "ok": True,
+            "manifest_id": "m",
+            "source_kind": "production-shadow",
+            "source_descriptor": "prod-shadow",
+            "market_day_count": "1",
+            "source_report_count": "1",
+            "source_report_match_count": True,
+            "failed_count": "0",
+        }
+    )
+
+    assert summary["ok"] is False
+    assert summary["market_day_count"] == 0
+    assert summary["source_report_count"] == 0
+    assert summary["source_report_match_count"] == 0
+    assert summary["failed_count"] == 0
 
 
 def test_manifest_check_rejects_source_report_hash_mismatch() -> None:
