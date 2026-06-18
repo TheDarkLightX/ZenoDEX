@@ -737,10 +737,10 @@ def _required_tokenomics_fields(
         "total_supply_1b": total_supply == TOTAL_SUPPLY,
         "allocation_total_1b": allocation_facts.get("allocation_total") == TOTAL_SUPPLY,
         "launch_circulation_cap": allocation_facts.get("launch_circulation_bps_within_cap") is True,
-        "gamification_policy": bool(gamification_policy.get("ok")),
-        "value_capture_budget": bool(value_capture.get("ok")),
+        "gamification_policy": gamification_policy.get("ok") is True,
+        "value_capture_budget": value_capture.get("ok") is True,
         "bonded_value_roles": REQUIRED_VALUE_ROLES <= role_ids,
-        "internal_promotion_boundary": bool(promotion_boundary.get("ok")),
+        "internal_promotion_boundary": promotion_boundary.get("ok") is True,
     }
     for allocation_id in sorted(REQUIRED_ALLOCATIONS):
         fields[f"allocation_{allocation_id}"] = (

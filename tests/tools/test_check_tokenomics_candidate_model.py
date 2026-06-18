@@ -5,6 +5,7 @@ import json
 
 from tools.check_tokenomics_candidate_model import (
     MANIFEST_SCHEMA,
+    _required_tokenomics_fields,
     main,
     validate_candidate_model_v0,
 )
@@ -288,6 +289,44 @@ def test_candidate_model_rejects_transferable_xp_policy() -> None:
         "gamification_policy.xp_transferable must be false"
         in report["gamification_policy"]["errors"]
     )
+
+
+def test_required_tokenomics_fields_reject_truthy_string_subreport_ok() -> None:
+    fields = _required_tokenomics_fields(
+        total_supply=1_000_000_000,
+        allocations={
+            "facts": {
+                "allocation_ids": [
+                    "founder_original_rd",
+                    "core_team_future_contributors",
+                    "dao_protocol_treasury",
+                    "ecosystem_lp_solver_operator_proof_incentives",
+                    "community_retroactive_airdrop_testnet_users",
+                    "security_audits_bounties_insurance_reserve",
+                    "liquidity_bootstrap_market_making",
+                    "strategic_partners_investors_chain_partners",
+                ],
+                "required_allocation_mismatches": [],
+                "allocation_total": 1_000_000_000,
+                "launch_circulation_bps_within_cap": True,
+            }
+        },
+        gamification_policy={"ok": "true"},
+        launch={"facts": {"precondition_ids": list({"production_boundary_gate"})}},
+        value_capture={"ok": 1},
+        roles={
+            "items": [
+                {"id": "oracle_reporter"},
+                {"id": "proof_miner"},
+                {"id": "operator"},
+            ]
+        },
+        promotion_boundary={"ok": "yes"},
+    )
+
+    assert fields["gamification_policy"] is False
+    assert fields["value_capture_budget"] is False
+    assert fields["internal_promotion_boundary"] is False
 
 
 def test_candidate_model_rejects_missing_reward_safety_gate() -> None:
