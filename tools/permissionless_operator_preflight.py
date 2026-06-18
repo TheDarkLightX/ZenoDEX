@@ -33,7 +33,7 @@ def build_report(*, repo_root: Path, engine: str, local_node: bool, ipfs: bool) 
         checks.append({"id": "ipfs_cli", "ok": _tool_present("ipfs")})
         checks.append({"id": "ipfs_publish_script", **_check_file(repo_root / "tools" / "publish_ui_ipfs.sh")})
 
-    ok = all(bool(item.get("ok")) for item in checks)
+    ok = all(item.get("ok") is True for item in checks)
     return {
         "schema": "zenodex/permissionless_operator_preflight/v1",
         "ok": ok,
@@ -66,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
             status = "OK" if item.get("ok") else "MISSING"
             detail = item.get("path") or item.get("engine") or ""
             print(f"[{status}] {item['id']}: {detail}")
-    return 0 if report["ok"] else 1
+    return 0 if report.get("ok") is True else 1
 
 
 if __name__ == "__main__":
