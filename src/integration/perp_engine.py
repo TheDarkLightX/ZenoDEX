@@ -1597,6 +1597,16 @@ class _ClearinghouseKernelCommit:
     args: Mapping[str, Any]
 
 
+@dataclass(frozen=True)
+class _ClearinghousePublishPriceRequest:
+    i: int
+    op: PerpOp
+    market: Any
+    version_ok: bool
+    step: Callable[..., tuple[Dict[str, Any], Dict[str, Any]]]
+    replace_state: Callable[..., PerpAnyMarketState]
+
+
 def _commit_clearinghouse_kernel_step(ctx: _PerpApplyCtx, commit: _ClearinghouseKernelCommit) -> str | None:
     try:
         next_state, eff = commit.step(commit.market.state, tag=commit.tag, args=commit.args)
@@ -1605,6 +1615,73 @@ def _commit_clearinghouse_kernel_step(ctx: _PerpApplyCtx, commit: _Clearinghouse
     ctx.markets[commit.op.market_id] = commit.replace_state(commit.market, state=next_state)
     ctx.effects.append({"i": commit.i, "market_id": commit.op.market_id, "action": commit.op.action, "effects": eff})
     return None
+
+
+def _apply_clearinghouse_publish_clearing_price(
+    ctx: _PerpApplyCtx, request: _ClearinghousePublishPriceRequest
+) -> str | None:
+    data = request.op.data
+    oracle_pubkey = (ctx.config.oracle_pubkey or "").strip()
+    if not oracle_pubkey:
+        return "oracle signer not configured (set PerpEngineConfig.oracle_pubkey)"
+    if not request.version_ok:
+        surface_err = _evaluate_signed_surface(
+            action_kind=ACTION_PUBLISH_CLEARING_PRICE,
+            action=request.op.action,
+            version_ok=False,
+            unknown_fields_ok=True,
+        )
+        return surface_err or "publish_clearing_price requires a clearinghouse perps.version"
+
+    oracle_nonce = _require_int_u32_pos(data.get("oracle_nonce"), name="oracle_nonce")
+    oracle_sig = _require_str(data.get("oracle_sig"), name="oracle_sig", non_empty=True, max_len=4096)
+
+    allowed = {"module", "version", "market_id", "action", "price_e8", "deadline", "oracle_nonce", "oracle_sig"}
+    unknown_fields_ok = not (set(data.keys()) - allowed)
+    if not unknown_fields_ok:
+        surface_err = _evaluate_signed_surface(
+            action_kind=ACTION_PUBLISH_CLEARING_PRICE,
+            action=request.op.action,
+            version_ok=request.version_ok,
+            unknown_fields_ok=False,
+        )
+        return surface_err or "publish_clearing_price has unknown fields"
+
+    price_e8 = _require_int(data.get("price_e8"), name="price_e8", non_negative=True)
+    surface_err = _evaluate_signed_surface(
+        action_kind=ACTION_PUBLISH_CLEARING_PRICE,
+        action=request.op.action,
+        version_ok=request.version_ok,
+        unknown_fields_ok=unknown_fields_ok,
+        positive_price_ok=price_e8 > 0,
+    )
+    if surface_err is not None:
+        return surface_err
+
+    sig_err = _verify_perp_op_signature(
+        config=ctx.config,
+        signer_pubkey=oracle_pubkey,
+        nonce=oracle_nonce,
+        signature=oracle_sig,
+        op=data,
+        nonces=ctx.nonces,
+        block_timestamp=ctx.block_timestamp,
+    )
+    if sig_err is not None:
+        return f"oracle signature invalid: {sig_err}"
+
+    return _commit_clearinghouse_kernel_step(
+        ctx,
+        _ClearinghouseKernelCommit(
+            request.i,
+            request.op,
+            request.market,
+            request.step,
+            request.replace_state,
+            "publish_clearing_price",
+            {"price_e8": price_e8},
+        ),
+    )
 
 
 def _apply_ch2p_advance_epoch(
@@ -1754,6 +1831,40 @@ def _apply_ch3p_clear_breaker(
     )
 
 
+def _apply_ch2p_publish_clearing_price(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch2p_market: PerpClearinghouse2pMarketState
+) -> str | None:
+    version_ok = op.version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+    return _apply_clearinghouse_publish_clearing_price(
+        ctx,
+        _ClearinghousePublishPriceRequest(
+            i,
+            op,
+            ch2p_market,
+            version_ok,
+            _ch2p_step,
+            _ch2p_market_with_state,
+        ),
+    )
+
+
+def _apply_ch3p_publish_clearing_price(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch3p_market: PerpClearinghouse3pTransferMarketState
+) -> str | None:
+    version_ok = op.version == PERP_OP_VERSION_CH3P_V1_1
+    return _apply_clearinghouse_publish_clearing_price(
+        ctx,
+        _ClearinghousePublishPriceRequest(
+            i,
+            op,
+            ch3p_market,
+            version_ok,
+            _ch3p_step,
+            _ch3p_market_with_state,
+        ),
+    )
+
+
 def _apply_ch2p_op(
     ctx: _PerpApplyCtx,
     *,
@@ -1776,65 +1887,7 @@ def _apply_ch2p_op(
         return _apply_ch2p_advance_epoch(ctx, i=i, op=op, ch2p_market=ch2p_market)
 
     if action == "publish_clearing_price":
-        oracle_pubkey = (config.oracle_pubkey or "").strip()
-        if not oracle_pubkey:
-            return "oracle signer not configured (set PerpEngineConfig.oracle_pubkey)"
-
-        version_ok = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
-        if not version_ok:
-            surface_err = _evaluate_signed_surface(
-                action_kind=ACTION_PUBLISH_CLEARING_PRICE,
-                action=action,
-                version_ok=False,
-                unknown_fields_ok=True,
-            )
-            return surface_err or "publish_clearing_price requires a clearinghouse perps.version"
-
-        oracle_nonce = _require_int_u32_pos(data.get("oracle_nonce"), name="oracle_nonce")
-        oracle_sig = _require_str(data.get("oracle_sig"), name="oracle_sig", non_empty=True, max_len=4096)
-
-        allowed = {"module", "version", "market_id", "action", "price_e8", "deadline", "oracle_nonce", "oracle_sig"}
-        unknown_fields_ok = not (set(data.keys()) - allowed)
-        if not unknown_fields_ok:
-            surface_err = _evaluate_signed_surface(
-                action_kind=ACTION_PUBLISH_CLEARING_PRICE,
-                action=action,
-                version_ok=version_ok,
-                unknown_fields_ok=False,
-            )
-            return surface_err or "publish_clearing_price has unknown fields"
-
-        # Cheap validation before signature verification (DoS resistance).
-        price_e8 = _require_int(data.get("price_e8"), name="price_e8", non_negative=True)
-        surface_err = _evaluate_signed_surface(
-            action_kind=ACTION_PUBLISH_CLEARING_PRICE,
-            action=action,
-            version_ok=version_ok,
-            unknown_fields_ok=unknown_fields_ok,
-            positive_price_ok=price_e8 > 0,
-        )
-        if surface_err is not None:
-            return surface_err
-
-        sig_err = _verify_perp_op_signature(
-            config=config,
-            signer_pubkey=oracle_pubkey,
-            nonce=oracle_nonce,
-            signature=oracle_sig,
-            op=data,
-            nonces=nonces,
-            block_timestamp=block_timestamp,
-        )
-        if sig_err is not None:
-            return f"oracle signature invalid: {sig_err}"
-
-        try:
-            next_state, eff = _ch2p_step(ch2p_market.state, tag="publish_clearing_price", args={"price_e8": price_e8})
-        except ValueError as exc:
-            return str(exc)
-        ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
-        ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
-        return None
+        return _apply_ch2p_publish_clearing_price(ctx, i=i, op=op, ch2p_market=ch2p_market)
 
     if action == "settle_epoch":
         return _apply_ch2p_settle_epoch(ctx, i=i, op=op, ch2p_market=ch2p_market)
@@ -2066,65 +2119,7 @@ def _apply_ch3p_op(
         return _apply_ch3p_advance_epoch(ctx, i=i, op=op, ch3p_market=ch3p_market)
 
     if action == "publish_clearing_price":
-        oracle_pubkey = (config.oracle_pubkey or "").strip()
-        if not oracle_pubkey:
-            return "oracle signer not configured (set PerpEngineConfig.oracle_pubkey)"
-
-        version_ok = version == PERP_OP_VERSION_CH3P_V1_1
-        if not version_ok:
-            surface_err = _evaluate_signed_surface(
-                action_kind=ACTION_PUBLISH_CLEARING_PRICE,
-                action=action,
-                version_ok=False,
-                unknown_fields_ok=True,
-            )
-            return surface_err or "publish_clearing_price requires a clearinghouse perps.version"
-
-        oracle_nonce = _require_int_u32_pos(data.get("oracle_nonce"), name="oracle_nonce")
-        oracle_sig = _require_str(data.get("oracle_sig"), name="oracle_sig", non_empty=True, max_len=4096)
-
-        allowed = {"module", "version", "market_id", "action", "price_e8", "deadline", "oracle_nonce", "oracle_sig"}
-        unknown_fields_ok = not (set(data.keys()) - allowed)
-        if not unknown_fields_ok:
-            surface_err = _evaluate_signed_surface(
-                action_kind=ACTION_PUBLISH_CLEARING_PRICE,
-                action=action,
-                version_ok=version_ok,
-                unknown_fields_ok=False,
-            )
-            return surface_err or "publish_clearing_price has unknown fields"
-
-        # Cheap validation before signature verification (DoS resistance).
-        price_e8 = _require_int(data.get("price_e8"), name="price_e8", non_negative=True)
-        surface_err = _evaluate_signed_surface(
-            action_kind=ACTION_PUBLISH_CLEARING_PRICE,
-            action=action,
-            version_ok=version_ok,
-            unknown_fields_ok=unknown_fields_ok,
-            positive_price_ok=price_e8 > 0,
-        )
-        if surface_err is not None:
-            return surface_err
-
-        sig_err = _verify_perp_op_signature(
-            config=config,
-            signer_pubkey=oracle_pubkey,
-            nonce=oracle_nonce,
-            signature=oracle_sig,
-            op=data,
-            nonces=nonces,
-            block_timestamp=block_timestamp,
-        )
-        if sig_err is not None:
-            return f"oracle signature invalid: {sig_err}"
-
-        try:
-            next_state, eff = _ch3p_step(ch3p_market.state, tag="publish_clearing_price", args={"price_e8": price_e8})
-        except ValueError as exc:
-            return str(exc)
-        ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
-        ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
-        return None
+        return _apply_ch3p_publish_clearing_price(ctx, i=i, op=op, ch3p_market=ch3p_market)
 
     if action == "settle_epoch":
         return _apply_ch3p_settle_epoch(ctx, i=i, op=op, ch3p_market=ch3p_market)
