@@ -2296,10 +2296,11 @@ def _check_dominance_cover(
     tool_text: str,
     test_text: str,
 ) -> list[EvidenceCheck]:
-    summary = report["summary"]
-    winner = summary["winner_only"]
-    weak = summary["weak_pruned"]
-    hand = summary["hand_top1"]
+    summary = report.get("summary")
+    winner = summary.get("winner_only") if isinstance(summary, dict) else {}
+    weak = summary.get("weak_pruned") if isinstance(summary, dict) else {}
+    hand = summary.get("hand_top1") if isinstance(summary, dict) else {}
+    safety = report.get("safety")
     doc_lower = doc_text.lower()
     limits_lower = " ".join(str(item).lower() for item in report.get("limits", []))
     negative_lower = " ".join(
@@ -2316,34 +2317,45 @@ def _check_dominance_cover(
         ),
         _expect_true(
             "dominance_cover.winner_only_passes",
-            int(winner["count"]) > 0
-            and int(winner["ok_count"]) == int(winner["count"])
-            and int(winner["structural_verify_ok_count"]) == int(winner["count"])
-            and int(winner["max_uncovered_full_count"]) == 0,
+            isinstance(winner, dict)
+            and _json_int_greater_than(winner.get("count"), 0)
+            and _json_int_values_equal(winner.get("ok_count"), winner.get("count"))
+            and _json_int_values_equal(
+                winner.get("structural_verify_ok_count"),
+                winner.get("count"),
+            )
+            and _json_int_equals(winner.get("max_uncovered_full_count"), 0),
             "winner-only certificates pass over the verified full list",
         ),
         _expect_true(
             "dominance_cover.weak_pruned_rejected",
-            int(weak["count"]) > 0
-            and int(weak["failed_count"]) == int(weak["count"])
-            and int(weak["dominance_cover_ok_count"]) == 0
-            and int(weak["max_uncovered_full_count"]) > 0
+            isinstance(weak, dict)
+            and _json_int_greater_than(weak.get("count"), 0)
+            and _json_int_values_equal(weak.get("failed_count"), weak.get("count"))
+            and _json_int_equals(weak.get("dominance_cover_ok_count"), 0)
+            and _json_int_greater_than(weak.get("max_uncovered_full_count"), 0)
             and "uncovered better verified candidate" in negative_lower,
             "weak pruned negative controls are rejected when better verified candidates are uncovered",
         ),
         _expect_true(
             "dominance_cover.hand_top1_nonvacuous",
-            int(hand["count"]) > 0
-            and 0 < int(hand["failed_count"]) < int(hand["count"])
-            and int(hand["ok_count"]) == int(hand["structural_verify_ok_count"]),
+            isinstance(hand, dict)
+            and _json_int_greater_than(hand.get("count"), 0)
+            and _json_int_greater_than(hand.get("failed_count"), 0)
+            and _json_int_less_than_value(hand.get("failed_count"), hand.get("count"))
+            and _json_int_values_equal(
+                hand.get("ok_count"),
+                hand.get("structural_verify_ok_count"),
+            ),
             "hand-energy top-1 pruning is a mixed baseline rather than a vacuous pass",
         ),
         _expect_true(
             "dominance_cover.safety_and_hooks",
-            int(report["safety"]["invalid_accept_count"]) == 0
-            and _is_true(report["safety"]["verifier_authoritative"])
-            and _is_false(report["safety"]["scorer_authorizes_settlement"])
-            and _is_false(report["safety"]["model_output_in_state_root"])
+            isinstance(safety, dict)
+            and _json_int_equals(safety.get("invalid_accept_count"), 0)
+            and _is_true(safety.get("verifier_authoritative"))
+            and _is_false(safety.get("scorer_authorizes_settlement"))
+            and _is_false(safety.get("model_output_in_state_root"))
             and "full_list_complete_for_claim" in source_text
             and "pruned_sound_ok" in source_text
             and "global_claim_ok" in source_text

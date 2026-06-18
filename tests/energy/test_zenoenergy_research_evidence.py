@@ -961,6 +961,52 @@ def test_research_evidence_replay_rejects_coerced_autotrader_shadow_objective_me
     assert check["passed"] is False
 
 
+def test_research_evidence_replay_rejects_coerced_dominance_cover_winner_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_dominance_winner_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_dominance_cover_benchmark_seed20260538.json":
+            summary = payload["summary"]
+            assert isinstance(summary, dict)
+            winner = summary["winner_only"]
+            assert isinstance(winner, dict)
+            winner["ok_count"] = "79"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_dominance_winner_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "dominance_cover.winner_only_passes")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_dominance_cover_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_dominance_safety(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_dominance_cover_benchmark_seed20260538.json":
+            safety = payload["safety"]
+            assert isinstance(safety, dict)
+            safety["invalid_accept_count"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_dominance_safety)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "dominance_cover.safety_and_hooks")
+    assert check["passed"] is False
+
+
 def test_research_evidence_replay_rejects_truthy_string_obligation_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
