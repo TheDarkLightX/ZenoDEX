@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MATRIX_PATH = ROOT / "formal" / "tau" / "dex_safety_property_matrix.json"
 DEFAULT_DELTA_QUEUE_PATH = ROOT / "formal" / "tau" / "semantic_delta_review_queue.json"
@@ -28,6 +27,13 @@ def _resolve_path(root: Path, raw: str) -> Path:
     if path.is_absolute():
         return path
     return root / path
+
+
+def _json_bool_or_error(value: object, *, name: str, errors: list[str]) -> bool:
+    if isinstance(value, bool):
+        return value
+    errors.append(f"{name}: expected bool")
+    return False
 
 
 def _load_contract_index(path: Path) -> dict[str, dict[str, Any]]:
@@ -165,7 +171,11 @@ def check_tau_shadow_assurance(
             continue
         seen_property_ids.add(property_id)
 
-        release_blocking = bool(entry.get("release_blocking", False))
+        release_blocking = _json_bool_or_error(
+            entry.get("release_blocking"),
+            name=f"{matrix_path}: properties[{index}].release_blocking",
+            errors=errors,
+        )
         if release_blocking:
             blocking_property_ids.add(property_id)
 

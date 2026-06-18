@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from tools.check_tau_shadow_assurance import (
     DEFAULT_CONTRACT_PATH,
     DEFAULT_DELTA_QUEUE_PATH,
@@ -23,6 +25,28 @@ def test_tau_shadow_assurance_repo_artifacts() -> None:
     assert result["shadow_scaffolded_property_count"] == 11
     assert result["assurance_scaffolded_property_count"] == 25
     assert result["pending_or_blocking_delta_count"] == 0
+
+
+@pytest.mark.parametrize("release_blocking", [0, "false", None])
+def test_tau_shadow_assurance_rejects_coerced_release_blocking_flag(
+    tmp_path: Path,
+    release_blocking: object,
+) -> None:
+    matrix = _load_json(DEFAULT_MATRIX_PATH)
+    first_property = matrix["properties"][0]
+    assert isinstance(first_property, dict)
+    first_property["release_blocking"] = release_blocking
+    matrix_path = tmp_path / "dex_safety_property_matrix.json"
+    matrix_path.write_text(json.dumps(matrix, indent=2), encoding="utf-8")
+
+    result = check_tau_shadow_assurance(
+        matrix_path=matrix_path,
+        delta_queue_path=DEFAULT_DELTA_QUEUE_PATH,
+        contract_path=DEFAULT_CONTRACT_PATH,
+    )
+
+    assert result["ok"] is False
+    assert any("release_blocking: expected bool" in err for err in result["errors"])
 
 
 def test_tau_shadow_assurance_blocks_pending_release_delta(tmp_path: Path) -> None:
