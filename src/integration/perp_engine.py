@@ -1541,6 +1541,23 @@ class _IsolatedSettleTotals:
     liquidation_penalty_cap_bound_count: int
 
 
+@dataclass(frozen=True)
+class _IsolatedFundingSnapshot:
+    now_epoch: int
+    pre_fee_pool_quote: int
+    pre_fee_income_quote: int
+    pre_insurance_balance_quote: int
+    max_fee_pool_quote: int
+    open_accounts: tuple[tuple[str, PerpAccountState], ...]
+    any_funding_applied_this_epoch: bool
+
+
+@dataclass(frozen=True)
+class _IsolatedFundingAccountApply:
+    accounts: Dict[str, PerpAccountState]
+    applied_accounts: int
+
+
 def _reject_unknown_fields(data: Mapping[str, Any], allowed: set[str], *, error: str) -> Optional[str]:
     if set(data.keys()) - allowed:
         return error
@@ -2594,35 +2611,48 @@ def _apply_isolated_publish_clearing_price(
     return None
 
 
-def _apply_isolated_apply_funding_auto(
-    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMarketState
+def _isolated_apply_funding_auto_admission_error(
+    ctx: _PerpApplyCtx,
+    *,
+    op: PerpOp,
 ) -> Optional[str]:
-    action = op.action
-    market_id = op.market_id
-    data = op.data
-
     allowed = {"module", "version", "market_id", "action"}
-    gate_error = _operator_gate_error(
+    return _operator_gate_error(
         action_kind=RUNTIME_ACTION_APPLY_FUNDING_AUTO,
-        action=action,
+        action=op.action,
         operator_err=_require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey),
-        unknown_fields_ok=not (set(data.keys()) - allowed),
+        unknown_fields_ok=not (set(op.data.keys()) - allowed),
     )
-    if gate_error is not None:
-        return gate_error
 
+
+def _isolated_funding_snapshot(market: PerpMarketState) -> _IsolatedFundingSnapshot:
     now_epoch = int(market.global_state.get("now_epoch", 0))
-    pre_fee_pool = int(market.global_state.get("fee_pool_quote", 0))
-    pre_fee_income = int(market.global_state.get("fee_income", 0))
-    pre_insurance_balance = int(market.global_state.get("insurance_balance", 0))
-    max_fee_pool = int(perp_epoch_isolated_default_fee_pool_max_quote())
-    sorted_accounts = tuple(sorted(market.accounts.items()))
-    open_accounts = tuple((pk, acct) for pk, acct in sorted_accounts if int(acct.position_base) != 0)
-
-    any_funding_applied_this_epoch = any(int(acct.funding_last_applied_epoch) >= now_epoch for _, acct in open_accounts)
-
-    provisional_gate = evaluate_perp_apply_funding_auto_gate(
+    open_accounts = tuple(
+        (pk, acct)
+        for pk, acct in tuple(sorted(market.accounts.items()))
+        if int(acct.position_base) != 0
+    )
+    return _IsolatedFundingSnapshot(
         now_epoch=now_epoch,
+        pre_fee_pool_quote=int(market.global_state.get("fee_pool_quote", 0)),
+        pre_fee_income_quote=int(market.global_state.get("fee_income", 0)),
+        pre_insurance_balance_quote=int(market.global_state.get("insurance_balance", 0)),
+        max_fee_pool_quote=int(perp_epoch_isolated_default_fee_pool_max_quote()),
+        open_accounts=open_accounts,
+        any_funding_applied_this_epoch=any(
+            int(acct.funding_last_applied_epoch) >= now_epoch for _, acct in open_accounts
+        ),
+    )
+
+
+def _evaluate_isolated_funding_gate(
+    market: PerpMarketState,
+    snapshot: _IsolatedFundingSnapshot,
+    *,
+    projected_net_funding_quote: int,
+) -> Any:
+    return evaluate_perp_apply_funding_auto_gate(
+        now_epoch=snapshot.now_epoch,
         mark_price_source_kind=int(market.global_state.get("mark_price_source_kind", 0)),
         clearing_price_seen=bool(market.global_state.get("clearing_price_seen", False)),
         clearing_price_epoch=int(market.global_state.get("clearing_price_epoch", 0)),
@@ -2633,91 +2663,144 @@ def _apply_isolated_apply_funding_auto(
         clearing_price_e8=int(market.global_state.get("clearing_price_e8", 0)),
         max_oracle_move_bps=int(market.global_state.get("max_oracle_move_bps", 0)),
         funding_cap_bps=int(market.global_state.get("funding_cap_bps", 0)),
-        projected_net_funding_quote=0,
-        any_funding_applied_this_epoch=any_funding_applied_this_epoch,
-        fee_pool_quote=pre_fee_pool,
-        fee_income_quote=pre_fee_income,
-        insurance_balance_quote=pre_insurance_balance,
-        max_fee_pool_quote=max_fee_pool,
+        projected_net_funding_quote=int(projected_net_funding_quote),
+        any_funding_applied_this_epoch=snapshot.any_funding_applied_this_epoch,
+        fee_pool_quote=snapshot.pre_fee_pool_quote,
+        fee_income_quote=snapshot.pre_fee_income_quote,
+        insurance_balance_quote=snapshot.pre_insurance_balance_quote,
+        max_fee_pool_quote=snapshot.max_fee_pool_quote,
     )
-    new_rate_bps = int(provisional_gate.funding_rate_bps)
 
+
+def _project_isolated_net_funding(
+    market: PerpMarketState,
+    snapshot: _IsolatedFundingSnapshot,
+    *,
+    new_rate_bps: int,
+) -> int:
     projected_net_funding = 0
-    for _, acct in open_accounts:
+    for _, acct in snapshot.open_accounts:
         projected_net_funding += _perp_v2_funding_payment(
             acct.position_base,
             int(market.global_state.get("index_price_e8", 0)),
-            new_rate_bps,
+            int(new_rate_bps),
         )
+    return int(projected_net_funding)
 
-    funding_gate = evaluate_perp_apply_funding_auto_gate(
-        now_epoch=now_epoch,
-        mark_price_source_kind=int(market.global_state.get("mark_price_source_kind", 0)),
-        clearing_price_seen=bool(market.global_state.get("clearing_price_seen", False)),
-        clearing_price_epoch=int(market.global_state.get("clearing_price_epoch", 0)),
-        oracle_last_update_epoch=int(market.global_state.get("oracle_last_update_epoch", 0)),
-        oracle_seen=bool(market.global_state.get("oracle_seen", False)),
-        index_price_e8=int(market.global_state.get("index_price_e8", 0)),
-        max_oracle_staleness_epochs=int(market.global_state.get("max_oracle_staleness_epochs", 0)),
-        clearing_price_e8=int(market.global_state.get("clearing_price_e8", 0)),
-        max_oracle_move_bps=int(market.global_state.get("max_oracle_move_bps", 0)),
-        funding_cap_bps=int(market.global_state.get("funding_cap_bps", 0)),
-        projected_net_funding_quote=int(projected_net_funding),
-        any_funding_applied_this_epoch=any_funding_applied_this_epoch,
-        fee_pool_quote=pre_fee_pool,
-        fee_income_quote=pre_fee_income,
-        insurance_balance_quote=pre_insurance_balance,
-        max_fee_pool_quote=max_fee_pool,
-    )
-    gate_error = perp_apply_funding_auto_gate_error(funding_gate)
-    if gate_error is not None:
-        return gate_error
 
+def _apply_isolated_funding_to_accounts(
+    market: PerpMarketState,
+    snapshot: _IsolatedFundingSnapshot,
+    *,
+    new_rate_bps: int,
+) -> tuple[Optional[str], Optional[_IsolatedFundingAccountApply]]:
     pre_global = dict(market.global_state)
     expected_account_global = dict(pre_global)
     expected_account_global["funding_rate_bps"] = int(new_rate_bps)
 
     new_accounts: Dict[str, PerpAccountState] = dict(market.accounts)
     applied_accounts = 0
-    for pk, acct in open_accounts:
+    for pk, acct in snapshot.open_accounts:
         res = perp_epoch_isolated_default_apply(
             state={**pre_global, **acct.to_kernel_state()},
             action="apply_funding",
             params={"new_rate_bps": int(new_rate_bps), "auth_ok": True},
         )
         if not res.ok or res.state is None:
-            return f"apply_funding rejected for account {pk}: {res.error or ''}".strip()
+            return f"apply_funding rejected for account {pk}: {res.error or ''}".strip(), None
         post_global, post_acct = _split_kernel_state(res.state)
         _preserve_isolated_shell_global_fields(pre_global=pre_global, post_global=post_global)
         if post_global != expected_account_global:
-            return "internal error: apply_funding mutated unexpected global fields"
+            return "internal error: apply_funding mutated unexpected global fields", None
         new_accounts[str(pk)] = post_acct
         applied_accounts += 1
+    return None, _IsolatedFundingAccountApply(accounts=new_accounts, applied_accounts=int(applied_accounts))
 
-    expected_global = dict(expected_account_global)
+
+def _commit_isolated_apply_funding_auto(
+    ctx: _PerpApplyCtx,
+    *,
+    i: int,
+    op: PerpOp,
+    market: PerpMarketState,
+    funding_gate: Any,
+    account_apply: _IsolatedFundingAccountApply,
+    projected_net_funding_quote: int,
+) -> None:
+    expected_global = dict(market.global_state)
+    expected_global["funding_rate_bps"] = int(funding_gate.funding_rate_bps)
     expected_global["fee_pool_quote"] = int(funding_gate.fee_pool_after_funding_quote)
     expected_global["fee_income"] = int(funding_gate.fee_income_after_funding_quote)
     expected_global["insurance_balance"] = int(funding_gate.insurance_after_funding_quote)
 
-    ctx.markets[market_id] = PerpMarketState(
+    ctx.markets[op.market_id] = PerpMarketState(
         quote_asset=market.quote_asset,
         global_state=expected_global,
-        accounts=new_accounts,
+        accounts=account_apply.accounts,
     )
     ctx.effects.append(
         {
             "i": i,
-            "market_id": market_id,
-            "action": action,
-            "funding_rate_bps": int(new_rate_bps),
+            "market_id": op.market_id,
+            "action": op.action,
+            "funding_rate_bps": int(funding_gate.funding_rate_bps),
             "mark_price_e8": int(funding_gate.mark_price_e8),
-            "accounts_applied": int(applied_accounts),
-            "projected_net_funding_quote": int(projected_net_funding),
-            "fee_pool_delta_quote": int(projected_net_funding),
+            "accounts_applied": int(account_apply.applied_accounts),
+            "projected_net_funding_quote": int(projected_net_funding_quote),
+            "fee_pool_delta_quote": int(projected_net_funding_quote),
             "fee_pool_after_quote": int(funding_gate.fee_pool_after_funding_quote),
             "fee_income_after_quote": int(funding_gate.fee_income_after_funding_quote),
             "insurance_after_quote": int(funding_gate.insurance_after_funding_quote),
         }
+    )
+
+
+def _apply_isolated_apply_funding_auto(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMarketState
+) -> Optional[str]:
+    gate_error = _isolated_apply_funding_auto_admission_error(ctx, op=op)
+    if gate_error is not None:
+        return gate_error
+
+    snapshot = _isolated_funding_snapshot(market)
+    provisional_gate = _evaluate_isolated_funding_gate(
+        market,
+        snapshot,
+        projected_net_funding_quote=0,
+    )
+    new_rate_bps = int(provisional_gate.funding_rate_bps)
+    projected_net_funding = _project_isolated_net_funding(
+        market,
+        snapshot,
+        new_rate_bps=new_rate_bps,
+    )
+    funding_gate = _evaluate_isolated_funding_gate(
+        market,
+        snapshot,
+        projected_net_funding_quote=projected_net_funding,
+    )
+    gate_error = perp_apply_funding_auto_gate_error(funding_gate)
+    if gate_error is not None:
+        return gate_error
+
+    err, account_apply = _apply_isolated_funding_to_accounts(
+        market,
+        snapshot,
+        new_rate_bps=int(funding_gate.funding_rate_bps),
+    )
+    if err is not None:
+        return err
+    if account_apply is None:
+        return "internal error: apply_funding account step missing"
+
+    _commit_isolated_apply_funding_auto(
+        ctx,
+        i=i,
+        op=op,
+        market=market,
+        funding_gate=funding_gate,
+        account_apply=account_apply,
+        projected_net_funding_quote=projected_net_funding,
     )
     return None
 
