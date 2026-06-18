@@ -149,7 +149,18 @@ def test_burn_receipt_expected_numeric_coercion_failures_are_bad_numeric_field()
     assert err == "bad_numeric_field"
 
 
-def test_burn_receipt_unexpected_numeric_coercion_bug_propagates() -> None:
+def test_burn_receipt_numeric_string_field_is_rejected_after_rehash() -> None:
+    receipt = _make_valid_receipt()
+    receipt["body"]["accounting"]["burn_amount"] = "20"
+    receipt["receipt_hash"] = burn_receipt_hash(receipt["body"])
+
+    ok, err = verify_burn_receipt(receipt)
+
+    assert not ok
+    assert err == "bad_numeric_field"
+
+
+def test_burn_receipt_unexpected_numeric_coercion_object_fails_closed() -> None:
     class BrokenInt(str):
         def __new__(cls) -> "BrokenInt":
             return super().__new__(cls, "5")
@@ -161,5 +172,29 @@ def test_burn_receipt_unexpected_numeric_coercion_bug_propagates() -> None:
     receipt["body"]["accounting"]["burn_amount"] = BrokenInt()
     receipt["receipt_hash"] = burn_receipt_hash(receipt["body"])
 
-    with pytest.raises(RuntimeError, match="numeric parser bug"):
-        verify_burn_receipt(receipt)
+    ok, err = verify_burn_receipt(receipt)
+
+    assert not ok
+    assert err == "bad_numeric_field"
+
+
+def test_make_burn_receipt_rejects_numeric_string_input() -> None:
+    with pytest.raises(TypeError, match="burn receipt integer must be an int"):
+        make_burn_receipt(
+            asset_id="TDEX",
+            batch_id="batch-1",
+            nullifier="n-1",
+            tx_ref="tx-1",
+            policy_version="burn-policy-v1",
+            do_burn=1,
+            receipt_bound=1,
+            nullifier_unused=1,
+            policy_ok=1,
+            burn_amount="20",
+            receipt_amount=20,
+            burn_budget=30,
+            supply_before=1000,
+            supply_after=980,
+            batch_burn_sum_before=50,
+            batch_burn_sum_after=70,
+        )

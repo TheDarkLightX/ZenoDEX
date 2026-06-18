@@ -40,6 +40,8 @@ class _BurnReceiptNumbers:
 def _receipt_int(value: Any) -> int:
     if isinstance(value, bool):
         raise TypeError("bool is not a burn receipt integer")
+    if not isinstance(value, int):
+        raise TypeError("burn receipt integer must be an int")
     return int(value)
 
 
