@@ -1636,3 +1636,129 @@ def test_research_evidence_replay_rejects_coerced_ensemble_top10_metric(
     assert report["ok"] is False
     check = _check_by_id(report, "ensemble.top10_and_default_negative")
     assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_epiplexity_source_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_epiplexity_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "zenoenergy_epiplexity_literature_receipt.json":
+            payload["source_count"] = "6"
+        return payload
+
+    monkeypatch.setattr(
+        research_mod, "_load_json", load_json_with_coerced_epiplexity_count
+    )
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "epiplexity_literature.schema")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_synthetic_source_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_synthetic_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "zenoenergy_synthetic_data_limits_receipt.json":
+            payload["passed_count"] = "6"
+        return payload
+
+    monkeypatch.setattr(
+        research_mod, "_load_json", load_json_with_coerced_synthetic_count
+    )
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "synthetic_data_limits.schema")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_langevin_candidate_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_langevin_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "gemini_langevin_discovery_receipt.json":
+            payload["candidate_count"] = "32"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_langevin_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "langevin_discovery.schema")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_langevin_energy_delta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_langevin_energy(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "gemini_langevin_discovery_receipt.json":
+            payload["energy_delta"] = str(payload["energy_delta"])
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_langevin_energy)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "langevin_discovery.energy_is_not_safety")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_refiner_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_refiner_safety(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "autotrader_refiner_boundary_seed20260529.json":
+            payload["selected_invalid_count"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_refiner_safety)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "autotrader_refiner_boundary.policy_selection")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_refiner_gain_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_refiner_gain(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "autotrader_refiner_boundary_seed20260529.json":
+            payload["selected_vs_initial_energy_delta_mean"] = str(
+                payload["selected_vs_initial_energy_delta_mean"]
+            )
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_refiner_gain)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "autotrader_refiner_boundary.synthetic_gain")
+    assert check["passed"] is False

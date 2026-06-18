@@ -3499,9 +3499,9 @@ def _check_epiplexity_literature(
             "epiplexity_literature.schema",
             report.get("schema") == "zenodex/energy/epiplexity_literature_receipt/v1"
             and _is_true(report.get("ok"))
-            and int(report["source_count"]) == 6
-            and int(report["passed_count"]) == 7
-            and int(report["failed_count"]) == 0,
+            and _json_int_equals(report.get("source_count"), 6)
+            and _json_int_equals(report.get("passed_count"), 7)
+            and _json_int_equals(report.get("failed_count"), 0),
             "epiplexity literature receipt schema and counts are stable",
         ),
         _expect_true(
@@ -3555,9 +3555,9 @@ def _check_synthetic_data_limits(
             "synthetic_data_limits.schema",
             report.get("schema") == "zenodex/energy/synthetic_data_limits_receipt/v1"
             and _is_true(report.get("ok"))
-            and int(report["source_count"]) == 8
-            and int(report["passed_count"]) == 6
-            and int(report["failed_count"]) == 0,
+            and _json_int_equals(report.get("source_count"), 8)
+            and _json_int_equals(report.get("passed_count"), 6)
+            and _json_int_equals(report.get("failed_count"), 0),
             "synthetic-data limits receipt schema and counts are stable",
         ),
         _expect_true(
@@ -3609,7 +3609,7 @@ def _check_langevin_discovery(
             report.get("schema")
             == "zenodex/energy/gemini_langevin_discovery_receipt/v1"
             and _is_true(report.get("ok"))
-            and int(report["candidate_count"]) == 32,
+            and _json_int_equals(report.get("candidate_count"), 32),
             "Langevin discovery receipt schema and deterministic seed are stable",
         ),
         _expect_true(
@@ -3622,7 +3622,7 @@ def _check_langevin_discovery(
         ),
         _expect_true(
             "langevin_discovery.energy_is_not_safety",
-            float(report["energy_delta"]) < 0.0
+            _json_number_less_than_value(report.get("energy_delta"), 0.0)
             and _is_false(report["refined_verifier_ok"])
             and "lower learned energy does not imply verifier acceptance" in negative_text
             and "ZenoGuard is an advisory soft prior" in doc_text,
@@ -3652,12 +3652,12 @@ def _check_autotrader_refiner_boundary(
             report.get("schema")
             == "zenodex/energy/autotrader_refiner_boundary_receipt/v1"
             and _is_true(report.get("ok"))
-            and int(report["evaluated_contexts"]) == 160,
+            and _json_int_equals(report.get("evaluated_contexts"), 160),
             "AutoTrader refiner boundary receipt schema and deterministic seed are stable",
         ),
         _expect_true(
             "autotrader_refiner_boundary.policy_selection",
-            int(report["selected_invalid_count"]) == 0
+            _json_int_equals(report.get("selected_invalid_count"), 0)
             and _is_true(report["policy_guards_authoritative"])
             and _is_false(report["model_authorizes_trade"])
             and _is_false(report["refined_proposal_authorizes_trade"]),
@@ -3665,9 +3665,13 @@ def _check_autotrader_refiner_boundary(
         ),
         _expect_true(
             "autotrader_refiner_boundary.synthetic_gain",
-            float(report["selected_vs_initial_objective_delta_mean"]) > 0.0
-            and float(report["selected_vs_initial_energy_delta_mean"]) < 0.0
-            and int(report["accepted_refinement_count"]) > 0,
+            _json_number_greater_than_value(
+                report.get("selected_vs_initial_objective_delta_mean"), 0.0
+            )
+            and _json_number_less_than_value(
+                report.get("selected_vs_initial_energy_delta_mean"), 0.0
+            )
+            and _json_int_greater_than(report.get("accepted_refinement_count"), 0),
             "bounded synthetic refiner improves selected objective while lowering advisory energy",
         ),
         _expect_true(
