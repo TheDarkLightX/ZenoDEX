@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from tools import check_zenoenergy_replay_source_manifest as source_manifest_checker
 from tools.check_zenoenergy_replay_source_manifest import (
     canonical_sha256,
     main,
@@ -147,6 +150,30 @@ def test_manifest_check_cli_writes_report(tmp_path: Path) -> None:
     assert rc == 0
     assert payload["ok"] is True
     assert payload["source_report_match_count"] == 1
+
+
+def test_manifest_check_cli_rejects_truthy_non_bool_ok(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps({"schema": "ignored"}), encoding="utf-8")
+
+    def forged_report(
+        *,
+        manifest: dict[str, object],
+        source_reports: list[dict[str, object]] | None = None,
+    ) -> dict[str, object]:
+        return {
+            "schema": "zenodex/energy/replay_source_manifest_check/v1",
+            "ok": "true",
+        }
+
+    monkeypatch.setattr(source_manifest_checker, "validate_replay_source_manifest", forged_report)
+
+    rc = main(["--manifest", str(manifest_path)])
+
+    assert rc == 1
 
 
 def _check(report: dict[str, object], check_id: str) -> dict[str, object]:
