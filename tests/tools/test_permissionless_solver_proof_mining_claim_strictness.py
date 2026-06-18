@@ -53,3 +53,19 @@ def test_validate_proof_mining_claim_rejects_string_condition_flags(field: str) 
         match=re.escape(f"claim.body.conditions.{field} must be a bool"),
     ):
         validate_proof_mining_claim_artifact(claim, require_admissible=True)
+
+
+def test_build_proof_mining_claim_rejects_truthy_string_round_ok() -> None:
+    round_obj = _round_obj()
+    round_obj["ok"] = "true"
+
+    with pytest.raises(ValueError, match="round must be ok"):
+        build_proof_mining_claim(
+            round_obj=round_obj,
+            round_id="round-ok-strictness",
+            reward_pool_before=20,
+            base_reward=8,
+            epoch=1,
+            proposal_slot=0,
+            prover_id=0,
+        )

@@ -109,7 +109,7 @@ def build_proof_mining_claim(
     dex_hash_after: str = "",
     allow_rejected: bool = False,
 ) -> dict[str, Any]:
-    if bool(round_obj.get("ok")) is not True:
+    if round_obj.get("ok") is not True:
         raise ValueError("round must be ok")
     if not isinstance(round_id, str) or not round_id:
         raise ValueError("round_id must be non-empty")

@@ -116,7 +116,7 @@ def build_round_ledger_record(
     reward_artifact: Mapping[str, Any],
     prev_record_hash: str,
 ) -> dict[str, Any]:
-    if bool(round_obj.get("ok")) is not True:
+    if round_obj.get("ok") is not True:
         raise ValueError("round must be ok")
     winner = _require_mapping(round_obj.get("winner"), name="winner")
     artifact = _extract_reward_artifact(reward_artifact)

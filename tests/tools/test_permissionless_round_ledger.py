@@ -105,6 +105,32 @@ def test_round_ledger_rejects_winner_mismatch() -> None:
         )
 
 
+def test_round_ledger_rejects_truthy_string_round_ok() -> None:
+    round_obj = _round_obj(
+        round_id="r1",
+        miner_id="alice",
+        witness_sha256="sha:a",
+        improvement_u64=7,
+        job_digest="job1",
+    )
+    round_obj["ok"] = "true"
+
+    with pytest.raises(ValueError, match="round must be ok"):
+        build_round_ledger_record(
+            round_obj=round_obj,
+            reward_artifact=_payout_plan(
+                round_id="r1",
+                miner_id="alice",
+                witness_sha256="sha:a",
+                improvement_u64=7,
+                payout_amount=5,
+                job_digest="job1",
+                reward_pool_before=10,
+            ),
+            prev_record_hash="",
+        )
+
+
 def test_round_ledger_detects_hash_chain_tamper(tmp_path: Path) -> None:
     ledger_path = tmp_path / "ledger.jsonl"
     record = build_round_ledger_record(
