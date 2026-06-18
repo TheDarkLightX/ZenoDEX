@@ -3426,43 +3426,62 @@ def _apply_isolated_set_market_params(
     return None
 
 
-def _apply_isolated_deposit_collateral(
-    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMarketState
-) -> Optional[str]:
-    action = op.action
-    market_id = op.market_id
-    data = op.data
+_ISOLATED_COLLATERAL_FIELDS = frozenset({"module", "version", "market_id", "action", "account_pubkey", "amount"})
 
-    allowed_common = {"module", "version", "market_id", "action", "account_pubkey"}
-    allowed = allowed_common | {"amount"}
-    unknown_fields_ok = not (set(data.keys()) - allowed)
+
+def _read_isolated_collateral_command(
+    ctx: _PerpApplyCtx,
+    *,
+    op: PerpOp,
+    action_kind: int,
+) -> tuple[Optional[str], Optional[str], Optional[int]]:
+    unknown_fields_ok = not (set(op.data.keys()) - _ISOLATED_COLLATERAL_FIELDS)
     gate_error = _sender_gate_error(
-        action_kind=RUNTIME_ACTION_DEPOSIT_COLLATERAL,
-        action=action,
+        action_kind=action_kind,
+        action=op.action,
         sender_err=None,
         unknown_fields_ok=unknown_fields_ok,
     )
     if gate_error is not None:
-        return gate_error
+        return gate_error, None, None
 
-    account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
+    account_pubkey = _require_str(op.data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
     sender_err = _require_sender_bound_account_pubkey(
         account_pubkey=account_pubkey,
         tx_sender_pubkey=ctx.tx_sender_pubkey,
     )
     gate_error = _sender_gate_error(
-        action_kind=RUNTIME_ACTION_DEPOSIT_COLLATERAL,
-        action=action,
+        action_kind=action_kind,
+        action=op.action,
         sender_err=sender_err,
         unknown_fields_ok=True,
     )
     if gate_error is not None:
-        return gate_error
+        return gate_error, None, None
+
+    amount = _require_int(op.data.get("amount"), name="amount", non_negative=True)
+    return None, account_pubkey, amount
+
+
+def _apply_isolated_deposit_collateral(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMarketState
+) -> Optional[str]:
+    action = op.action
+    market_id = op.market_id
+
+    err, account_pubkey, amount = _read_isolated_collateral_command(
+        ctx,
+        op=op,
+        action_kind=RUNTIME_ACTION_DEPOSIT_COLLATERAL,
+    )
+    if err is not None:
+        return err
+    if account_pubkey is None or amount is None:
+        return "internal error: deposit_collateral command missing"
 
     accounts = dict(market.accounts)
     acct = accounts.get(account_pubkey) or _kernel_initial_account_state()
 
-    amount = _require_int(data.get("amount"), name="amount", non_negative=True)
     if ctx.balances.get(account_pubkey, market.quote_asset) < amount:
         return "insufficient balance for deposit"
 
@@ -3501,38 +3520,20 @@ def _apply_isolated_withdraw_collateral(
 ) -> Optional[str]:
     action = op.action
     market_id = op.market_id
-    data = op.data
 
-    allowed_common = {"module", "version", "market_id", "action", "account_pubkey"}
-    allowed = allowed_common | {"amount"}
-    unknown_fields_ok = not (set(data.keys()) - allowed)
-    gate_error = _sender_gate_error(
+    err, account_pubkey, amount = _read_isolated_collateral_command(
+        ctx,
+        op=op,
         action_kind=RUNTIME_ACTION_WITHDRAW_COLLATERAL,
-        action=action,
-        sender_err=None,
-        unknown_fields_ok=unknown_fields_ok,
     )
-    if gate_error is not None:
-        return gate_error
-
-    account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
-    sender_err = _require_sender_bound_account_pubkey(
-        account_pubkey=account_pubkey,
-        tx_sender_pubkey=ctx.tx_sender_pubkey,
-    )
-    gate_error = _sender_gate_error(
-        action_kind=RUNTIME_ACTION_WITHDRAW_COLLATERAL,
-        action=action,
-        sender_err=sender_err,
-        unknown_fields_ok=True,
-    )
-    if gate_error is not None:
-        return gate_error
+    if err is not None:
+        return err
+    if account_pubkey is None or amount is None:
+        return "internal error: withdraw_collateral command missing"
 
     accounts = dict(market.accounts)
     acct = accounts.get(account_pubkey) or _kernel_initial_account_state()
 
-    amount = _require_int(data.get("amount"), name="amount", non_negative=True)
     res = perp_epoch_isolated_default_apply(
         state=market.kernel_state_for_account(acct),
         action="withdraw_collateral",
