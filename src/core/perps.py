@@ -74,11 +74,11 @@ def _infer_epoch_phase(gs: dict) -> int:
       - Settled: additionally oracle_last_update_epoch==now_epoch, oracle_seen=True
       - Open: otherwise (no clearing price published in the current epoch)
     """
-    now = int(gs.get("now_epoch", 0))
-    cp_seen = bool(gs.get("clearing_price_seen", False))
-    cp_epoch = int(gs.get("clearing_price_epoch", -1))
-    o_seen = bool(gs.get("oracle_seen", False))
-    o_epoch = int(gs.get("oracle_last_update_epoch", -1))
+    now = _legacy_global_int(gs, "now_epoch", 0)
+    cp_seen = _legacy_global_bool(gs, "clearing_price_seen", False)
+    cp_epoch = _legacy_global_int(gs, "clearing_price_epoch", -1)
+    o_seen = _legacy_global_bool(gs, "oracle_seen", False)
+    o_epoch = _legacy_global_int(gs, "oracle_last_update_epoch", -1)
 
     # Canonical kernel encoding: Open=0, PricePublished=1, Settled=2.
     if cp_seen and cp_epoch == now:
@@ -86,6 +86,22 @@ def _infer_epoch_phase(gs: dict) -> int:
             return 2
         return 1
     return 0
+
+
+def _legacy_global_int(gs: dict, key: str, default: int) -> int:
+    value = gs.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"global_state[{key!r}] must be an int")
+    return int(value)
+
+
+def _legacy_global_bool(gs: dict, key: str, default: bool) -> bool:
+    value = gs.get(key, default)
+    if isinstance(value, bool):
+        return bool(value)
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    raise TypeError(f"global_state[{key!r}] must be a bool or 0/1 int")
 
 
 _EPOCH_PHASE_STR_TO_INT: dict[str, int] = {"Open": 0, "PricePublished": 1, "Settled": 2}
