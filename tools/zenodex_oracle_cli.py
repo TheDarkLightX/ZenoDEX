@@ -79,6 +79,10 @@ def _script_path(script: str) -> Path:
     return path
 
 
+def _step_ok(step: dict[str, Any]) -> bool:
+    return step.get("ok") is True
+
+
 def _run_script(script: str, args: list[str]) -> int:
     path = _script_path(script)
     proc = subprocess.run(
@@ -423,13 +427,13 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
         submit_result = json.loads(report_receipt_path.read_text(encoding="utf-8")) if report_receipt_path.exists() else None
         add_step("submit_report_to_local_store", code=submit_code, path=report_receipt_path, result=submit_result)
 
-        ok = all(bool(step["ok"]) for step in steps)
+        ok = all(_step_ok(step) for step in steps)
         receipt = {
             "schema": "zenodex.oracle.cli_dry_run_receipt.v1",
             "ok": ok,
             "status": "accepted" if ok else "rejected",
             "step_count": len(steps),
-            "accepted_step_count": sum(1 for step in steps if step["ok"]),
+            "accepted_step_count": sum(1 for step in steps if _step_ok(step)),
             "artifact_dir": str(root) if args.workdir else None,
             "artifacts_persisted": bool(args.workdir),
             "local_store": str(store) if args.workdir else None,
