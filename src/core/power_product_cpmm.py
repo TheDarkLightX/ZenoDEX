@@ -134,6 +134,60 @@ def swap_exact_in_power_product(
     return out, (x1, y1)
 
 
+def _initial_exact_out_amount_in(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_out: int,
+    exp_in: int,
+    exp_out: int,
+) -> int:
+    y1 = int(reserve_out) - int(amount_out)
+    if y1 <= 0:
+        raise ValueError("cannot drain full reserve_out")
+
+    k0 = pow(int(reserve_in), int(exp_in)) * pow(int(reserve_out), int(exp_out))
+    denom = pow(y1, int(exp_out))
+    need = _ceil_div(k0, denom)
+    x1 = _ceil_iroot(need, int(exp_in))
+    if x1 < int(reserve_in):
+        x1 = int(reserve_in)
+    dx = int(x1) - int(reserve_in)
+    return int(dx) if dx > 0 else 1
+
+
+def _replay_exact_in_until_out_at_least(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_in: int,
+    target_amount_out: int,
+    exp_in: int,
+    exp_out: int,
+) -> Tuple[Amount, Tuple[Amount, Amount]]:
+    dx = int(amount_in)
+    out_check, reserves = swap_exact_in_power_product(
+        reserve_in,
+        reserve_out,
+        dx,
+        exp_in=exp_in,
+        exp_out=exp_out,
+        fee_bps=0,
+    )
+    # Monotone in dx, so a linear bump is safe for small regimes (research posture).
+    while out_check < int(target_amount_out):
+        dx += 1
+        out_check, reserves = swap_exact_in_power_product(
+            reserve_in,
+            reserve_out,
+            dx,
+            exp_in=exp_in,
+            exp_out=exp_out,
+            fee_bps=0,
+        )
+    return dx, reserves
+
+
 def swap_exact_out_power_product(
     reserve_in: Amount,
     reserve_out: Amount,
@@ -170,38 +224,18 @@ def swap_exact_out_power_product(
     if x == 0 or y == 0:
         raise ValueError("power_product_cpmm: reserves must be positive")
 
-    y1 = y - dy
-    if y1 <= 0:
-        raise ValueError("cannot drain full reserve_out")
-
-    k0 = pow(x, exp_in) * pow(y, exp_out)
-    denom = pow(y1, exp_out)
-    need = _ceil_div(k0, denom)
-    x1 = _ceil_iroot(need, exp_in)
-    if x1 < x:
-        x1 = x
-    dx = x1 - x
-    if dx <= 0:
-        dx = 1
-
-    out_check, (x2, y2) = swap_exact_in_power_product(
-        x,
-        y,
-        dx,
+    dx = _initial_exact_out_amount_in(
+        reserve_in=x,
+        reserve_out=y,
+        amount_out=dy,
         exp_in=exp_in,
         exp_out=exp_out,
-        fee_bps=0,
     )
-    # Monotone in dx, so a linear bump is safe for small regimes (research posture).
-    while out_check < dy:
-        dx += 1
-        out_check, (x2, y2) = swap_exact_in_power_product(
-            x,
-            y,
-            dx,
-            exp_in=exp_in,
-            exp_out=exp_out,
-            fee_bps=0,
-        )
-
-    return dx, (x2, y2)
+    return _replay_exact_in_until_out_at_least(
+        reserve_in=x,
+        reserve_out=y,
+        amount_in=dx,
+        target_amount_out=dy,
+        exp_in=exp_in,
+        exp_out=exp_out,
+    )

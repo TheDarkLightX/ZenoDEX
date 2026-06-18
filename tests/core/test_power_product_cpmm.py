@@ -99,6 +99,32 @@ def test_power_product_invariant_is_monotone_non_decreasing() -> None:
         assert k1 >= k0
 
 
+def test_power_product_exact_out_amount_in_is_minimal_for_integer_replay() -> None:
+    cases = [
+        (1, 1, 2, 3, 1),
+        (2, 1, 3, 10, 6),
+        (1, 2, 2, 10, 1),
+        (3, 2, 5, 7, 2),
+    ]
+    for exp_in, exp_out, x, y, dy in cases:
+        dx, (_x1, y1) = swap_exact_out_power_product(x, y, dy, exp_in=exp_in, exp_out=exp_out, fee_bps=0)
+        assert y - y1 >= dy
+        if dx <= 1:
+            continue
+        try:
+            prev_out, _prev_reserves = swap_exact_in_power_product(
+                x,
+                y,
+                dx - 1,
+                exp_in=exp_in,
+                exp_out=exp_out,
+                fee_bps=0,
+            )
+        except ValueError:
+            prev_out = 0
+        assert prev_out < dy
+
+
 def test_ceil_iroot_minimality_bva() -> None:
     # BVA around perfect powers.
     assert _ceil_iroot(0, 3) == 0
