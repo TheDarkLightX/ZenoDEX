@@ -132,10 +132,11 @@ def _morph_case() -> dict[str, Any]:
 
 def build_morph_oracle_clamp_envelope_status() -> dict[str, Any]:
     lane = _morph_case()
+    lane_ok = lane.get("ok") is True
     return {
         "schema": "zenodex.oracle.morph_oracle_clamp_envelope_replay.v1",
-        "ok": bool(lane.get("ok")),
-        "status": "accepted" if lane.get("ok") else "rejected",
+        "ok": lane_ok,
+        "status": "accepted" if lane_ok else "rejected",
         "lane": lane,
     }
 

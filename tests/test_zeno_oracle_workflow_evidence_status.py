@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from tools import zeno_oracle_workflow_evidence_status as workflow_status
 from tools.zeno_oracle_workflow_evidence_status import build_status
 
 
@@ -26,6 +27,16 @@ def test_workflow_evidence_status_accepts_public_lanes() -> None:
     assert lanes["morph_oracle_clamp_envelope_smoke"]["check"] == "CheckResult.PASS"
     assert lanes["morph_oracle_clamp_envelope_smoke"]["check2"] == "CheckResult.PASS"
     assert lanes["popperpad_append_only_smoke"]["summary"]["total_entries"] == 2
+
+
+def test_morph_lane_rejects_truthy_non_bool_ok(monkeypatch) -> None:
+    monkeypatch.setattr(workflow_status, "_morph_case", lambda: {"ok": "true"})
+
+    report = workflow_status.build_morph_oracle_clamp_envelope_status()
+
+    assert report["ok"] is False
+    assert report["status"] == "rejected"
+    assert report["lane"]["ok"] == "true"
 
 
 def test_workflow_evidence_status_cli_writes_receipt(tmp_path: Path) -> None:
