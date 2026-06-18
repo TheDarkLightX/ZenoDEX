@@ -17,6 +17,8 @@ from src.agents.autotrader_llm_provider import (
     build_autotrader_language_provider_from_config,
     load_autotrader_llm_provider_config_file,
 )
+from tools import check_autotrader_chatbot_production_readiness as readiness_mod
+from tools import check_autotrader_chatbot_provider_config as provider_config_mod
 from tools.check_autotrader_chatbot_advisor import SCHEMA, build_report
 from tools.check_autotrader_chatbot_production_readiness import (
     SCHEMA as PRODUCTION_READINESS_SCHEMA,
@@ -279,6 +281,41 @@ def test_provider_config_evaluation_fails_when_local_model_falls_back(tmp_path) 
     )
 
 
+def test_provider_config_rejects_truthy_string_evaluation_ok(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "provider.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "schema": AUTOTRADER_LLM_PROVIDER_CONFIG_SCHEMA,
+                "provider_kind": "deterministic",
+                "provider_label": "deterministic-test",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        provider_config_mod,
+        "build_eval_report",
+        lambda **_: {
+            "ok": "true",
+            "passed_count": 1,
+            "scenario_count": 1,
+            "metrics": {"authority_violations": 0},
+        },
+    )
+
+    report = build_provider_config_report(config_path, evaluate=True)
+
+    assert report["ok"] is False
+    assert any(
+        check["check_id"] == "evaluation.ok" and check["passed"] is False
+        for check in report["checks"]
+    )
+
+
 def test_autotrader_chatbot_production_readiness_report_passes() -> None:
     report = build_production_readiness_report(
         provider_config=Path("config/autotrader_llm_provider.local.example.json"),
@@ -297,6 +334,53 @@ def test_autotrader_chatbot_production_readiness_report_passes() -> None:
         "provider_config.no_inline_secrets",
         "provider_config.no_trade_authority_acknowledged",
     } <= check_ids
+
+
+def test_autotrader_chatbot_production_readiness_rejects_truthy_string_advisor_ok(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        readiness_mod,
+        "build_advisor_report",
+        lambda: {
+            "ok": "true",
+            "passed_count": 2,
+            "check_count": 2,
+            "checks": [
+                {
+                    "check_id": "local_openai.valid_loopback_parse_hint_remains_advisory",
+                    "passed": True,
+                },
+                {
+                    "check_id": "local_openai.invalid_authority_hint_falls_back",
+                    "passed": True,
+                },
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        readiness_mod,
+        "build_eval_report",
+        lambda **_: {
+            "ok": True,
+            "passed_count": 1,
+            "scenario_count": 1,
+            "metrics": {
+                "authority_violations": 0,
+                "elapsed_ms_max": 1.0,
+                "elapsed_ms_p95": 1.0,
+                "process_max_rss_kb": 1,
+            },
+        },
+    )
+
+    report = readiness_mod.build_report()
+
+    assert report["ok"] is False
+    assert any(
+        check["check_id"] == "advisor_promotion_check.ok" and check["passed"] is False
+        for check in report["checks"]
+    )
 
 
 def test_autotrader_chatbot_production_readiness_cli_exits_zero() -> None:

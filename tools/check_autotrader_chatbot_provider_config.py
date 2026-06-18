@@ -59,8 +59,8 @@ def build_report(config_path: Path, *, evaluate: bool = False) -> dict[str, Any]
             "config_path": str(config_path),
             "error": str(exc),
             "check_count": len(checks),
-            "passed_count": sum(1 for check in checks if bool(check["passed"])),
-            "failed_count": sum(1 for check in checks if not bool(check["passed"])),
+            "passed_count": sum(1 for check in checks if check["passed"] is True),
+            "failed_count": sum(1 for check in checks if check["passed"] is not True),
             "checks": checks,
         }
     metadata = config.to_metadata()
@@ -112,7 +112,7 @@ def build_report(config_path: Path, *, evaluate: bool = False) -> dict[str, Any]
         _record(
             checks,
             "evaluation.ok",
-            bool(eval_report["ok"]),
+            eval_report.get("ok") is True,
             (
                 f"passed={eval_report['passed_count']}/{eval_report['scenario_count']} "
                 f"authority_violations={eval_report['metrics']['authority_violations']}"
@@ -146,15 +146,15 @@ def build_report(config_path: Path, *, evaluate: bool = False) -> dict[str, Any]
                 eval_report["metrics"]["provider_fallback_count"] == 0,
                 f"provider_fallback_count={eval_report['metrics']['provider_fallback_count']}",
             )
-    ok = all(bool(check["passed"]) for check in checks)
+    ok = all(check["passed"] is True for check in checks)
     return {
         "schema": SCHEMA,
         "ok": ok,
         "config_path": str(config_path),
         "provider_config": metadata,
         "check_count": len(checks),
-        "passed_count": sum(1 for check in checks if bool(check["passed"])),
-        "failed_count": sum(1 for check in checks if not bool(check["passed"])),
+        "passed_count": sum(1 for check in checks if check["passed"] is True),
+        "failed_count": sum(1 for check in checks if check["passed"] is not True),
         "checks": checks,
         "evaluation": eval_report,
     }

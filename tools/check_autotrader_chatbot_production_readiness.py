@@ -36,7 +36,7 @@ def build_report(
     _record(
         checks,
         "advisor_promotion_check.ok",
-        bool(advisor_report["ok"]),
+        advisor_report.get("ok") is True,
         f"passed={advisor_report['passed_count']}/{advisor_report['check_count']}",
     )
     _record(
@@ -49,7 +49,7 @@ def build_report(
     _record(
         checks,
         "deterministic_provider_eval.ok",
-        bool(deterministic_eval_report["ok"]),
+        deterministic_eval_report.get("ok") is True,
         (
             f"passed={deterministic_eval_report['passed_count']}/"
             f"{deterministic_eval_report['scenario_count']}"
@@ -80,7 +80,7 @@ def build_report(
         _record(
             checks,
             "provider_config.ok",
-            bool(config_report["ok"]),
+            config_report.get("ok") is True,
             f"config_path={provider_config}",
         )
         _record(
@@ -95,13 +95,13 @@ def build_report(
             _has_passed_check(config_report, "config.no_trade_authority_acknowledged"),
             "provider config records no-trade-authority acknowledgement",
         )
-    ok = all(bool(check["passed"]) for check in checks)
+    ok = all(check["passed"] is True for check in checks)
     return {
         "schema": SCHEMA,
         "ok": ok,
         "check_count": len(checks),
-        "passed_count": sum(1 for check in checks if bool(check["passed"])),
-        "failed_count": sum(1 for check in checks if not bool(check["passed"])),
+        "passed_count": sum(1 for check in checks if check["passed"] is True),
+        "failed_count": sum(1 for check in checks if check["passed"] is not True),
         "summary": {
             "advisor_checks": advisor_report["check_count"],
             "deterministic_eval_scenarios": deterministic_eval_report["scenario_count"],
@@ -138,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def _has_passed_check(report: dict[str, Any], check_id: str) -> bool:
     return any(
-        check.get("check_id") == check_id and bool(check.get("passed"))
+        check.get("check_id") == check_id and check.get("passed") is True
         for check in report.get("checks", [])
     )
 
