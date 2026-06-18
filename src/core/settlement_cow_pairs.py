@@ -104,9 +104,40 @@ def _parse_cow_pair_intent_fields(
 
 
 def _check_cow_pair_fill_fee(*, intent_id: str, fill: Fill) -> Optional[str]:
-    if int(fill.fee_paid or 0) != 0:
+    fee_paid, err = _read_optional_cow_fill_int(
+        fill.fee_paid,
+        field_name="fee_paid",
+        intent_id=intent_id,
+    )
+    if err is not None:
+        return err
+    protocol_fee_paid, err = _read_optional_cow_fill_int(
+        fill.protocol_fee_paid,
+        field_name="protocol_fee_paid",
+        intent_id=intent_id,
+    )
+    if err is not None:
+        return err
+    if fee_paid != 0:
         return f"COW_NETTED fee_paid must be 0: intent_id={intent_id}"
+    if protocol_fee_paid != 0:
+        return f"COW_NETTED protocol_fee_paid must be 0: intent_id={intent_id}"
     return None
+
+
+def _read_optional_cow_fill_int(
+    value: object,
+    *,
+    field_name: str,
+    intent_id: str,
+) -> Tuple[Optional[int], Optional[str]]:
+    if value is None:
+        return 0, None
+    if not is_strict_int(value):
+        return None, f"COW_NETTED {field_name} must be int: intent_id={intent_id}"
+    if int(value) < 0:
+        return None, f"COW_NETTED {field_name} must be non-negative: intent_id={intent_id}"
+    return int(value), None
 
 
 def _parse_cow_pair_amount_in_filled(

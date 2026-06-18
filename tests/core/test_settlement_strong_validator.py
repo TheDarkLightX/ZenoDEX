@@ -1286,6 +1286,51 @@ def test_strong_validator_accepts_exact_reciprocal_cow_netted_pair() -> None:
     assert ok is True, err
     assert err is None
 
+    fee_bool_settlement = replace(settlement, fills=[replace(settlement.fills[0], fee_paid=False), settlement.fills[1]])
+    ok, err = validate_settlement_strong(
+        settlement=fee_bool_settlement,
+        intents=[intent0, intent1],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err == f"COW_NETTED fee_paid must be int: intent_id={intent0.intent_id}"
+
+    fee_string_settlement = replace(
+        settlement,
+        fills=[replace(settlement.fills[0], fee_paid="0"), settlement.fills[1]],
+    )
+    ok, err = validate_settlement_strong(
+        settlement=fee_string_settlement,
+        intents=[intent0, intent1],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err == f"COW_NETTED fee_paid must be int: intent_id={intent0.intent_id}"
+
+    protocol_fee_settlement = replace(
+        settlement,
+        fills=[replace(settlement.fills[0], protocol_fee_paid=1), settlement.fills[1]],
+    )
+    ok, err = validate_settlement_strong(
+        settlement=protocol_fee_settlement,
+        intents=[intent0, intent1],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err == f"COW_NETTED protocol_fee_paid must be 0: intent_id={intent0.intent_id}"
+
 
 def test_strong_validator_accepts_multiple_disjoint_cow_netted_pairs() -> None:
     pk0 = "0x" + "11" * 48

@@ -7,6 +7,7 @@ from typing import Optional, Tuple
 
 from ..state.balances import AssetId, PubKey
 from ..state.intents import Intent, IntentKind
+from .domain_limits import is_strict_int
 from .settlement import BalanceDelta, Fill
 from .settlement_replay_context import ReplayContext
 
@@ -88,14 +89,58 @@ def _parse_cow_netted_fill_amounts(
     intent_amounts: _CowNettingIntentAmounts,
 ) -> Tuple[Optional[_CowNettingReplayAmounts], Optional[str]]:
     fill = request.fill
-    if int(fill.fee_paid or 0) != 0:
+    fee_paid, err = _read_optional_cow_fill_int(
+        fill.fee_paid,
+        field_name="fee_paid",
+        intent_id=request.intent_id,
+    )
+    if err is not None:
+        return None, err
+    protocol_fee_paid, err = _read_optional_cow_fill_int(
+        fill.protocol_fee_paid,
+        field_name="protocol_fee_paid",
+        intent_id=request.intent_id,
+    )
+    if err is not None:
+        return None, err
+    if fee_paid != 0:
         return None, f"COW_NETTED fee_paid must be 0: intent_id={request.intent_id}"
-    if int(fill.amount_in_filled or 0) != intent_amounts.amount_in:
+    if protocol_fee_paid != 0:
+        return None, f"COW_NETTED protocol_fee_paid must be 0: intent_id={request.intent_id}"
+    amount_in_filled, err = _read_optional_cow_fill_int(
+        fill.amount_in_filled,
+        field_name="amount_in_filled",
+        intent_id=request.intent_id,
+    )
+    if err is not None:
+        return None, err
+    amount_out_filled, err = _read_optional_cow_fill_int(
+        fill.amount_out_filled,
+        field_name="amount_out_filled",
+        intent_id=request.intent_id,
+    )
+    if err is not None:
+        return None, err
+    if amount_in_filled != intent_amounts.amount_in:
         return None, f"COW_NETTED amount_in_filled mismatch: intent_id={request.intent_id}"
-    out_amt = int(fill.amount_out_filled or 0)
-    if out_amt < intent_amounts.min_out:
+    if amount_out_filled < intent_amounts.min_out:
         return None, f"COW_NETTED slippage: intent_id={request.intent_id}"
-    return _CowNettingReplayAmounts(amount_in=intent_amounts.amount_in, amount_out=out_amt), None
+    return _CowNettingReplayAmounts(amount_in=intent_amounts.amount_in, amount_out=amount_out_filled), None
+
+
+def _read_optional_cow_fill_int(
+    value: object,
+    *,
+    field_name: str,
+    intent_id: str,
+) -> Tuple[Optional[int], Optional[str]]:
+    if value is None:
+        return 0, None
+    if not is_strict_int(value):
+        return None, f"COW_NETTED {field_name} must be int: intent_id={intent_id}"
+    if int(value) < 0:
+        return None, f"COW_NETTED {field_name} must be non-negative: intent_id={intent_id}"
+    return int(value), None
 
 
 def _apply_cow_netted_balance_replay(
