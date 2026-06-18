@@ -14,8 +14,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.core.confidential_extension_receipts import (  # noqa: E402
-    confidential_measurement_registry_hash,
     confidential_measurement_registry_approves_receipt,
+    confidential_measurement_registry_hash,
     verify_confidential_extension_receipt,
     verify_confidential_measurement_registry,
 )
@@ -117,15 +117,18 @@ def validate_confidential_route_quote_bundle_v0(bundle: Any) -> dict[str, Any]:
     extension_ok = receipt_body.get("extension_id") == DEFAULT_EXTENSION_ID
     if receipt_body.get("extension_id") != DEFAULT_EXTENSION_ID:
         errors.append(f"TEE extension_id must be {DEFAULT_EXTENSION_ID}")
-    host_guards_ok = (
-        host.get("do_execute") == 1
-        and host.get("policy_ok") == 1
-        and host.get("nonce_unused") == 1
-        and host.get("output_bound_ok") == 1
-    )
-    if host.get("do_execute") != 1:
+    do_execute = _binary_int(host.get("do_execute"), "TEE host.do_execute", errors)
+    policy_ok = _binary_int(host.get("policy_ok"), "TEE host.policy_ok", errors)
+    nonce_unused = _binary_int(host.get("nonce_unused"), "TEE host.nonce_unused", errors)
+    output_bound_ok = _binary_int(host.get("output_bound_ok"), "TEE host.output_bound_ok", errors)
+    host_guards_ok = do_execute == 1 and policy_ok == 1 and nonce_unused == 1 and output_bound_ok == 1
+    if do_execute is not None and do_execute != 1:
         errors.append("TEE host.do_execute must be 1 for quote output admission")
-    if host.get("policy_ok") != 1 or host.get("nonce_unused") != 1 or host.get("output_bound_ok") != 1:
+    if (
+        (policy_ok is not None and policy_ok != 1)
+        or (nonce_unused is not None and nonce_unused != 1)
+        or (output_bound_ok is not None and output_bound_ok != 1)
+    ):
         errors.append("TEE host guards must all be 1 for quote output admission")
 
     quote_epoch = None
@@ -257,6 +260,13 @@ def _nonnegative_int(value: Any, name: str, errors: list[str]) -> int | None:
     if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
         return value
     errors.append(f"{name} must be a non-negative int")
+    return None
+
+
+def _binary_int(value: Any, name: str, errors: list[str]) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and value in (0, 1):
+        return value
+    errors.append(f"{name} must be a 0/1 int")
     return None
 
 

@@ -4,6 +4,8 @@ import copy
 import json
 from pathlib import Path
 
+import pytest
+
 from src.core.confidential_extension_receipts import (
     CONFIDENTIAL_MEASUREMENT_REGISTRY_SCHEMA,
     confidential_extension_receipt_hash,
@@ -250,6 +252,21 @@ def test_confidential_route_quote_bundle_rejects_registry_provider_mismatch() ->
         "receipt measurement/provider is not active in measurement_registry" in err
         for err in report["errors"]
     )
+
+
+@pytest.mark.parametrize("host_flag", ["do_execute", "policy_ok", "nonce_unused", "output_bound_ok"])
+def test_confidential_route_quote_bundle_rejects_bool_host_guard(host_flag: str) -> None:
+    bundle = _bundle()
+    receipt = copy.deepcopy(bundle["tee_receipt"])
+    receipt["body"]["host"][host_flag] = True  # type: ignore[index]
+    receipt["receipt_hash"] = confidential_extension_receipt_hash(receipt["body"])  # type: ignore[index]
+    bundle["tee_receipt"] = receipt
+
+    report = validate_confidential_route_quote_bundle_v0(bundle)
+
+    assert report["ok"] is False
+    assert f"TEE host.{host_flag} must be a 0/1 int" in report["errors"]
+    assert report["privacy_evidence"]["host_guards_ok"] is False
 
 
 def test_confidential_route_quote_bundle_cli_outputs_report(tmp_path: Path, capsys) -> None:
