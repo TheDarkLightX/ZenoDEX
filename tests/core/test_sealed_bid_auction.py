@@ -86,14 +86,7 @@ def test_make_commit_receipt_rejects_bool_numeric_input() -> None:
         )
 
 
-def test_commit_receipt_unexpected_numeric_parser_bug_propagates() -> None:
-    class BrokenInt(str):
-        def __new__(cls) -> "BrokenInt":
-            return super().__new__(cls, "1")
-
-        def __int__(self) -> int:
-            raise RuntimeError("numeric parser bug")
-
+def test_commit_receipt_numeric_string_field_is_rejected() -> None:
     commitment = sealed_bid_reveal_hash(quantity=4, limit_price=105, nonce="n1")
     receipt = make_sealed_bid_commit_receipt(
         batch_id="b1",
@@ -103,11 +96,27 @@ def test_commit_receipt_unexpected_numeric_parser_bug_propagates() -> None:
         reveal_deadline_epoch=2,
         units_for_sale=10,
     )
-    receipt["body"]["commit_epoch"] = BrokenInt()
+    receipt["body"]["commit_epoch"] = "1"
     receipt["receipt_hash"] = _commit_receipt_hash(receipt["body"])
 
-    with pytest.raises(RuntimeError, match="numeric parser bug"):
-        verify_commit_receipt(receipt)
+    ok, err = verify_commit_receipt(receipt)
+
+    assert not ok
+    assert err == "bad_numeric_field"
+
+
+def test_make_commit_receipt_rejects_numeric_string_input() -> None:
+    commitment = sealed_bid_reveal_hash(quantity=4, limit_price=105, nonce="n1")
+
+    with pytest.raises(TypeError, match="sealed-bid receipt integer must be an int"):
+        make_sealed_bid_commit_receipt(
+            batch_id="b1",
+            bidder_id="alice",
+            commitment=commitment,
+            commit_epoch="1",
+            reveal_deadline_epoch=2,
+            units_for_sale=10,
+        )
 
 
 def test_uniform_price_settlement_is_deterministic_under_reordering() -> None:

@@ -22,7 +22,9 @@ MAX_PRICE = 0xFFFF
 def _receipt_int(value: Any) -> int:
     if isinstance(value, bool):
         raise TypeError("bool is not a sealed-bid receipt integer")
-    return int(value)
+    if not isinstance(value, int):
+        raise TypeError("sealed-bid receipt integer must be an int")
+    return value
 
 
 @dataclass(frozen=True)
