@@ -85,13 +85,19 @@ def validate_replay_coverage_profile(
         ),
         _check(
             "market_day_count_match",
-            _as_int(profile.get("market_day_count")) == _as_int(real_report.get("market_day_count")),
+            _pass_if(
+                lambda: _json_int(profile.get("market_day_count"), name="profile.market_day_count")
+                == _json_int(real_report.get("market_day_count"), name="real_report.market_day_count")
+            ),
             "profile market_day_count must match real report",
         ),
         _check(
             "source_report_count_match",
-            _as_int(profile.get("source_report_count")) == source_report_count
-            and source_report_count > 0,
+            _pass_if(
+                lambda: _json_int(profile.get("source_report_count"), name="profile.source_report_count")
+                == source_report_count
+                and source_report_count > 0
+            ),
             "profile source_report_count must match at least one hashed source report",
         ),
     ]
@@ -116,8 +122,8 @@ def validate_replay_coverage_profile(
         "profile_type": expected_type,
         "source_kind": str(profile.get("source_kind", "")),
         "source_descriptor": str(profile.get("source_descriptor", "")),
-        "market_day_count": _as_int(profile.get("market_day_count")),
-        "source_report_count": _as_int(profile.get("source_report_count")),
+        "market_day_count": _safe_int(profile.get("market_day_count")),
+        "source_report_count": _safe_int(profile.get("source_report_count")),
         "check_count": len(checks),
         "failed_count": sum(1 for check in checks if check["passed"] is not True),
         "coverage": _coverage_summary(profile, expected_type),
@@ -131,15 +137,21 @@ def validate_replay_coverage_profile(
 
 
 def coverage_profile_summary(check_report: dict[str, Any]) -> dict[str, Any]:
+    market_day_count = _safe_int(check_report.get("market_day_count"), default=-1)
+    source_report_count = _safe_int(check_report.get("source_report_count"), default=-1)
+    failed_count = _safe_int(check_report.get("failed_count"), default=-1)
     return {
         "schema": PROFILE_CHECK_SCHEMA,
-        "ok": check_report.get("ok") is True,
+        "ok": check_report.get("ok") is True
+        and market_day_count >= 0
+        and source_report_count >= 0
+        and failed_count == 0,
         "profile_type": str(check_report.get("profile_type", "")),
         "source_kind": str(check_report.get("source_kind", "")),
         "source_descriptor": str(check_report.get("source_descriptor", "")),
-        "market_day_count": _as_int(check_report.get("market_day_count")),
-        "source_report_count": _as_int(check_report.get("source_report_count")),
-        "failed_count": _as_int(check_report.get("failed_count")),
+        "market_day_count": max(market_day_count, 0),
+        "source_report_count": max(source_report_count, 0),
+        "failed_count": max(failed_count, 0),
         "coverage": check_report.get("coverage", {}),
     }
 
@@ -151,37 +163,50 @@ def _upba_checks(
     return [
         _check(
             "upba_pool_count",
-            _as_int(profile.get("pool_count")) >= MIN_UPBA_POOL_COUNT,
+            _pass_if(lambda: _json_int(profile.get("pool_count"), name="profile.pool_count") >= MIN_UPBA_POOL_COUNT),
             "UPBA replay must cover multiple pools",
         ),
         _check(
             "upba_intent_size_bucket_count",
-            _as_int(profile.get("intent_size_bucket_count"))
-            >= MIN_UPBA_INTENT_SIZE_BUCKET_COUNT,
+            _pass_if(
+                lambda: _json_int(profile.get("intent_size_bucket_count"), name="profile.intent_size_bucket_count")
+                >= MIN_UPBA_INTENT_SIZE_BUCKET_COUNT
+            ),
             "UPBA replay must cover multiple intent-set size buckets",
         ),
         _check(
             "upba_candidate_family_count",
-            _as_int(profile.get("candidate_family_count"))
-            >= MIN_UPBA_CANDIDATE_FAMILY_COUNT,
+            _pass_if(
+                lambda: _json_int(profile.get("candidate_family_count"), name="profile.candidate_family_count")
+                >= MIN_UPBA_CANDIDATE_FAMILY_COUNT
+            ),
             "UPBA replay must cover multiple candidate families",
         ),
         _check(
             "upba_hard_negative_family_count",
-            _as_int(profile.get("hard_negative_family_count"))
-            >= MIN_UPBA_HARD_NEGATIVE_FAMILY_COUNT,
+            _pass_if(
+                lambda: _json_int(profile.get("hard_negative_family_count"), name="profile.hard_negative_family_count")
+                >= MIN_UPBA_HARD_NEGATIVE_FAMILY_COUNT
+            ),
             "UPBA replay must include hard negative families",
         ),
         _check(
             "upba_min_batches_per_market_day",
-            _as_int(profile.get("min_batches_per_market_day"))
-            >= MIN_UPBA_MIN_BATCHES_PER_MARKET_DAY,
+            _pass_if(
+                lambda: _json_int(
+                    profile.get("min_batches_per_market_day"),
+                    name="profile.min_batches_per_market_day",
+                )
+                >= MIN_UPBA_MIN_BATCHES_PER_MARKET_DAY
+            ),
             "UPBA replay must avoid a thin market-day tail",
         ),
         _check(
             "upba_profile_not_larger_than_report",
-            _as_int(profile.get("batch_count", real_report.get("batch_count")))
-            <= _as_int(real_report.get("batch_count")),
+            _pass_if(
+                lambda: _json_int(profile.get("batch_count", real_report.get("batch_count")), name="profile.batch_count")
+                <= _json_int(real_report.get("batch_count"), name="real_report.batch_count")
+            ),
             "profile batch_count cannot exceed real report batch_count",
         ),
     ]
@@ -194,32 +219,48 @@ def _autotrader_checks(
     return [
         _check(
             "autotrader_strategy_family_count",
-            _as_int(profile.get("strategy_family_count"))
-            >= MIN_AUTOTRADER_STRATEGY_FAMILY_COUNT,
+            _pass_if(
+                lambda: _json_int(profile.get("strategy_family_count"), name="profile.strategy_family_count")
+                >= MIN_AUTOTRADER_STRATEGY_FAMILY_COUNT
+            ),
             "AutoTrader replay must cover multiple strategy families",
         ),
         _check(
             "autotrader_guard_family_count",
-            _as_int(profile.get("guard_family_count"))
-            >= MIN_AUTOTRADER_GUARD_FAMILY_COUNT,
+            _pass_if(
+                lambda: _json_int(profile.get("guard_family_count"), name="profile.guard_family_count")
+                >= MIN_AUTOTRADER_GUARD_FAMILY_COUNT
+            ),
             "AutoTrader replay must cover multiple guard families",
         ),
         _check(
             "autotrader_decision_family_count",
-            _as_int(profile.get("decision_family_count"))
-            >= MIN_AUTOTRADER_DECISION_FAMILY_COUNT,
+            _pass_if(
+                lambda: _json_int(profile.get("decision_family_count"), name="profile.decision_family_count")
+                >= MIN_AUTOTRADER_DECISION_FAMILY_COUNT
+            ),
             "AutoTrader replay must cover multiple decision families",
         ),
         _check(
             "autotrader_min_contexts_per_market_day",
-            _as_int(profile.get("min_contexts_per_market_day"))
-            >= MIN_AUTOTRADER_MIN_CONTEXTS_PER_MARKET_DAY,
+            _pass_if(
+                lambda: _json_int(
+                    profile.get("min_contexts_per_market_day"),
+                    name="profile.min_contexts_per_market_day",
+                )
+                >= MIN_AUTOTRADER_MIN_CONTEXTS_PER_MARKET_DAY
+            ),
             "AutoTrader replay must avoid a thin market-day tail",
         ),
         _check(
             "autotrader_profile_not_larger_than_report",
-            _as_int(profile.get("context_count", real_report.get("context_count")))
-            <= _as_int(real_report.get("context_count")),
+            _pass_if(
+                lambda: _json_int(
+                    profile.get("context_count", real_report.get("context_count")),
+                    name="profile.context_count",
+                )
+                <= _json_int(real_report.get("context_count"), name="real_report.context_count")
+            ),
             "profile context_count cannot exceed real report context_count",
         ),
     ]
@@ -235,6 +276,7 @@ def _expected_profile_type(real_report: dict[str, Any]) -> str:
 
 
 def _coverage_summary(profile: dict[str, Any], profile_type: str) -> dict[str, int]:
+    keys: tuple[str, ...]
     if profile_type == "upba":
         keys = (
             "pool_count",
@@ -252,7 +294,7 @@ def _coverage_summary(profile: dict[str, Any], profile_type: str) -> dict[str, i
         )
     else:
         keys = ()
-    return {key: _as_int(profile.get(key)) for key in keys}
+    return {key: _safe_int(profile.get(key)) for key in keys}
 
 
 def _thresholds(profile_type: str) -> dict[str, int]:
@@ -281,11 +323,24 @@ def _source_reports(real_report: dict[str, Any]) -> list[dict[str, Any]]:
     return [item for item in reports if isinstance(item, dict)]
 
 
-def _as_int(value: Any) -> int:
+def _json_int(value: object, *, name: str) -> int:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    raise ValueError(f"{name} must be a JSON integer")
+
+
+def _safe_int(value: object, *, default: int = 0) -> int:
     try:
-        return int(value)
-    except (TypeError, ValueError):
-        return 0
+        return _json_int(value, name="value")
+    except ValueError:
+        return default
+
+
+def _pass_if(fn: Any) -> bool:
+    try:
+        return bool(fn())
+    except ValueError:
+        return False
 
 
 def _check(check_id: str, passed: bool, detail: str) -> dict[str, object]:

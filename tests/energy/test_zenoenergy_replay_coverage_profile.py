@@ -42,6 +42,26 @@ def test_coverage_profile_summary_requires_strict_ok() -> None:
     assert summary["ok"] is False
 
 
+def test_coverage_profile_summary_rejects_coerced_counts() -> None:
+    summary = coverage_profile_summary(
+        {
+            "ok": True,
+            "profile_type": "upba",
+            "source_kind": "production-shadow",
+            "source_descriptor": "prod-shadow",
+            "market_day_count": "1",
+            "source_report_count": True,
+            "failed_count": "0",
+            "coverage": {},
+        }
+    )
+
+    assert summary["ok"] is False
+    assert summary["market_day_count"] == 0
+    assert summary["source_report_count"] == 0
+    assert summary["failed_count"] == 0
+
+
 def test_upba_coverage_profile_rejects_thin_hard_negatives() -> None:
     profile = _upba_coverage_profile()
     profile["hard_negative_family_count"] = 1
@@ -58,6 +78,62 @@ def test_upba_coverage_profile_rejects_thin_hard_negatives() -> None:
 
     assert check["ok"] is False
     assert "upba_hard_negative_family_count" in failed
+
+
+def test_upba_coverage_profile_rejects_numeric_string_market_day_count() -> None:
+    profile = _upba_coverage_profile()
+    profile["market_day_count"] = "9"
+
+    check = validate_replay_coverage_profile(
+        real_report=_upba_real_report(),
+        profile=profile,
+    )
+    failed = {
+        str(item["check_id"])
+        for item in check["checks"]
+        if not bool(item["passed"])
+    }
+
+    assert check["ok"] is False
+    assert check["market_day_count"] == 0
+    assert "market_day_count_match" in failed
+
+
+def test_upba_coverage_profile_rejects_coerced_breadth_counts() -> None:
+    profile = _upba_coverage_profile()
+    profile["pool_count"] = "4"
+
+    check = validate_replay_coverage_profile(
+        real_report=_upba_real_report(),
+        profile=profile,
+    )
+    failed = {
+        str(item["check_id"])
+        for item in check["checks"]
+        if not bool(item["passed"])
+    }
+
+    assert check["ok"] is False
+    assert check["coverage"]["pool_count"] == 0
+    assert "upba_pool_count" in failed
+
+
+def test_upba_coverage_profile_rejects_coerced_real_report_counts() -> None:
+    real_report = _upba_real_report()
+    real_report["batch_count"] = "1250"
+
+    check = validate_replay_coverage_profile(
+        real_report=real_report,
+        profile=_upba_coverage_profile(),
+    )
+    failed = {
+        str(item["check_id"])
+        for item in check["checks"]
+        if not bool(item["passed"])
+    }
+
+    assert check["ok"] is False
+    assert "upba_profile_not_larger_than_report" in failed
 
 
 def test_autotrader_coverage_profile_passes_guard_breadth() -> None:
@@ -87,6 +163,24 @@ def test_autotrader_coverage_profile_rejects_source_mismatch() -> None:
 
     assert check["ok"] is False
     assert "source_descriptor_match" in failed
+
+
+def test_autotrader_coverage_profile_rejects_coerced_context_count() -> None:
+    profile = _autotrader_coverage_profile()
+    profile["context_count"] = "700"
+
+    check = validate_replay_coverage_profile(
+        real_report=_autotrader_real_report(),
+        profile=profile,
+    )
+    failed = {
+        str(item["check_id"])
+        for item in check["checks"]
+        if not bool(item["passed"])
+    }
+
+    assert check["ok"] is False
+    assert "autotrader_profile_not_larger_than_report" in failed
 
 
 def test_cli_writes_coverage_profile_check(tmp_path: Path) -> None:
