@@ -136,8 +136,33 @@ class MarketParams:
     max_position_abs: int = 1_000_000
     min_notional_for_bounty_e8: int = 100_000_000
 
+    def __post_init__(self) -> None:
+        _require_bps(self.initial_margin_bps, name="initial_margin_bps", allow_zero=False)
+        _require_bps(self.maintenance_margin_bps, name="maintenance_margin_bps", allow_zero=False)
+        _require_bps(self.depeg_buffer_bps, name="depeg_buffer_bps", allow_zero=True)
+        _require_bps(self.liquidation_penalty_bps, name="liquidation_penalty_bps", allow_zero=True)
+        _require_bps(self.max_oracle_move_bps, name="max_oracle_move_bps", allow_zero=False)
+        _require_bps(self.funding_cap_bps, name="funding_cap_bps", allow_zero=False)
+        if not isinstance(self.max_position_abs, int) or isinstance(self.max_position_abs, bool):
+            raise ValueError("max_position_abs must be an int")
+        if self.max_position_abs <= 0:
+            raise ValueError("max_position_abs out of range")
+        if not isinstance(self.min_notional_for_bounty_e8, int) or isinstance(self.min_notional_for_bounty_e8, bool):
+            raise ValueError("min_notional_for_bounty_e8 must be an int")
+        if self.min_notional_for_bounty_e8 < 0:
+            raise ValueError("min_notional_for_bounty_e8 must be non-negative")
+
     def match_params(self) -> MatchParams:
         return MatchParams(self.initial_margin_bps, self.max_position_abs)
+
+
+def _require_bps(value: object, *, name: str, allow_zero: bool) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{name} must be an int")
+    minimum = 0 if allow_zero else 1
+    if not (minimum <= int(value) <= BPS_SCALE):
+        raise ValueError(f"{name} out of range")
+    return int(value)
 
 
 @dataclass(frozen=True)

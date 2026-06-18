@@ -119,6 +119,25 @@ def test_match_params_rejects_bad_max_position_abs(bad_max_position_abs: object)
         MatchParams(initial_margin_bps=1000, max_position_abs=bad_max_position_abs)  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize(
+    "field,bad_value",
+    [
+        ("initial_margin_bps", True),
+        ("initial_margin_bps", 0),
+        ("maintenance_margin_bps", -1),
+        ("depeg_buffer_bps", 10_001),
+        ("liquidation_penalty_bps", False),
+        ("max_oracle_move_bps", 0),
+        ("funding_cap_bps", 10_001),
+        ("max_position_abs", 0),
+        ("min_notional_for_bounty_e8", -1),
+    ],
+)
+def test_market_params_rejects_bad_bounds(field: str, bad_value: object):
+    with pytest.raises(ValueError, match=field):
+        C.MarketParams(**{field: bad_value})  # type: ignore[arg-type]
+
+
 def test_matcher_higher_valid_nonce_supersedes_lower_valid_intent():
     params = MatchParams(initial_margin_bps=1000, max_position_abs=1_000_000)
     price = 100 * E8
