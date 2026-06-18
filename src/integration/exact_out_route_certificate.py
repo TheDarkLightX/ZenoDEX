@@ -2796,6 +2796,24 @@ def _build_exact_out_many_pool_repaired_key_cover_packet_from_components(
     )
 
 
+def _repaired_key_cover_packet_for_runtime_params(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> ExactOutManyPoolRepairedKeyCoverPacket:
+    selected_domain_contract = _selected_domain_contract_for_runtime_params(pools, params=params)
+    repaired_packet = _repaired_advisory_packet_for_runtime_params(pools, params=params)
+    repaired_full_domain_packet = _repaired_full_domain_packet_for_runtime_params(
+        repaired_packet,
+        pools,
+        params=params,
+    )
+    return _build_exact_out_many_pool_repaired_key_cover_packet_from_components(
+        selected_domain_contract=selected_domain_contract,
+        repaired_full_domain_packet=repaired_full_domain_packet,
+    )
+
+
 def build_exact_out_many_pool_repaired_key_cover_packet(
     pools: Sequence[PoolState],
     *,
@@ -2811,17 +2829,7 @@ def build_exact_out_many_pool_repaired_key_cover_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedKeyCoverPacket:
-    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
-    (
-        max_legs_i,
-        max_candidate_pools_i,
-        max_candidates_i,
-        max_iters_i,
-        window_i,
-        brute_force_max_i,
-        max_full_domain_pools_i,
-        max_enumerated_candidates_i,
-    ) = _require_runtime_control_values(
+    controls = _ExactOutManyPoolRuntimeControls(
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_candidates=max_candidates,
@@ -2831,38 +2839,12 @@ def build_exact_out_many_pool_repaired_key_cover_packet(
         max_full_domain_pools=max_full_domain_pools,
         max_enumerated_candidates=max_enumerated_candidates,
     )
-    selected_domain_contract = build_exact_out_many_pool_repaired_selected_domain_oracle_contract(
-        pools,
+    params = controls.to_runtime_params(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total_i,
-        max_legs=max_legs_i,
-        max_candidate_pools=max_candidate_pools_i,
-        max_candidates=max_candidates_i,
-        max_iters=max_iters_i,
-        window=window_i,
-        brute_force_max=brute_force_max_i,
-        max_full_domain_pools=max_full_domain_pools_i,
-        max_enumerated_candidates=max_enumerated_candidates_i,
+        amount_out_total=amount_out_total,
     )
-    repaired_full_domain_packet = build_exact_out_many_pool_repaired_full_domain_certified_packet(
-        pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=amount_out_total_i,
-        max_legs=max_legs_i,
-        max_candidate_pools=max_candidate_pools_i,
-        max_candidates=max_candidates_i,
-        max_iters=max_iters_i,
-        window=window_i,
-        brute_force_max=brute_force_max_i,
-        max_full_domain_pools=max_full_domain_pools_i,
-        max_enumerated_candidates=max_enumerated_candidates_i,
-    )
-    return _build_exact_out_many_pool_repaired_key_cover_packet_from_components(
-        selected_domain_contract=selected_domain_contract,
-        repaired_full_domain_packet=repaired_full_domain_packet,
-    )
+    return _repaired_key_cover_packet_for_runtime_params(pools, params=params)
 
 
 def _build_exact_out_many_pool_repaired_key_cover_interpretation_packet_from_key_cover_packet(
@@ -3390,17 +3372,7 @@ def build_exact_out_many_pool_oracle_contract(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolOracleContract:
-    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
-    (
-        max_legs_i,
-        max_candidate_pools_i,
-        max_candidates_i,
-        max_iters_i,
-        window_i,
-        brute_force_max_i,
-        max_full_domain_pools_i,
-        max_enumerated_candidates_i,
-    ) = _require_runtime_control_values(
+    controls = _ExactOutManyPoolRuntimeControls(
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_candidates=max_candidates,
@@ -3410,34 +3382,47 @@ def build_exact_out_many_pool_oracle_contract(
         max_full_domain_pools=max_full_domain_pools,
         max_enumerated_candidates=max_enumerated_candidates,
     )
-    if not asset_in or not asset_out or asset_in == asset_out:
+    params = controls.to_runtime_params(
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out_total=amount_out_total,
+    )
+    return _oracle_contract_for_runtime_params(pools, params=params)
+
+
+def _oracle_contract_for_runtime_params(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> ExactOutManyPoolOracleContract:
+    if not params.asset_in or not params.asset_out or params.asset_in == params.asset_out:
         raise ValueError("asset_in and asset_out must be non-empty and distinct")
     audit = audit_exact_out_many_pool_runtime_canonicality(
         pools,
-        asset_in=str(asset_in),
-        asset_out=str(asset_out),
-        amount_out_total=amount_out_total_i,
-        max_legs=max_legs_i,
-        max_candidate_pools=max_candidate_pools_i,
-        max_candidates=max_candidates_i,
-        max_iters=max_iters_i,
-        window=window_i,
-        brute_force_max=brute_force_max_i,
-        max_full_domain_pools=max_full_domain_pools_i,
-        max_enumerated_candidates=max_enumerated_candidates_i,
+        asset_in=str(params.asset_in),
+        asset_out=str(params.asset_out),
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
     )
     return ExactOutManyPoolOracleContract(
-        asset_in=str(asset_in),
-        asset_out=str(asset_out),
-        amount_out_total=amount_out_total_i,
-        max_legs=max_legs_i,
-        max_candidate_pools=max_candidate_pools_i,
-        max_candidates=max_candidates_i,
-        max_iters=max_iters_i,
-        window=window_i,
-        brute_force_max=brute_force_max_i,
-        max_full_domain_pools=max_full_domain_pools_i,
-        max_enumerated_candidates=max_enumerated_candidates_i,
+        asset_in=str(params.asset_in),
+        asset_out=str(params.asset_out),
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
         pool_snapshots=tuple(_pool_to_dict(pool) for pool in pools),
         audit=audit,
     )
@@ -4151,27 +4136,6 @@ class _BoundedWorkaroundComponents:
             and self.repaired_full_domain_packet.packet_ok
             and self.runtime_quotes_agree
         )
-
-
-def _oracle_contract_for_runtime_params(
-    pools: Sequence[PoolState],
-    *,
-    params: _ExactOutManyPoolRuntimeParams,
-) -> ExactOutManyPoolOracleContract:
-    return build_exact_out_many_pool_oracle_contract(
-        pools,
-        asset_in=params.asset_in,
-        asset_out=params.asset_out,
-        amount_out_total=int(params.amount_out_total),
-        max_legs=int(params.max_legs),
-        max_candidate_pools=int(params.max_candidate_pools),
-        max_candidates=int(params.max_candidates),
-        max_iters=int(params.max_iters),
-        window=int(params.window),
-        brute_force_max=int(params.brute_force_max),
-        max_full_domain_pools=int(params.max_full_domain_pools),
-        max_enumerated_candidates=int(params.max_enumerated_candidates),
-    )
 
 
 def _repaired_advisory_packet_for_runtime_params(
