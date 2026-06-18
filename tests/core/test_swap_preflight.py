@@ -8,7 +8,11 @@ from src.core.amm_dispatch import (
     CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
     swap_exact_out_for_pool,
 )
-from src.core.swap_preflight import preflight_swap_exact_in, preflight_swap_exact_out
+from src.core.swap_preflight import (
+    SwapPreflightResult,
+    preflight_swap_exact_in,
+    preflight_swap_exact_out,
+)
 from src.state.pools import PoolState, PoolStatus
 
 
@@ -24,6 +28,126 @@ def _pool(*, r0: int, r1: int, fee_bps: int = 0) -> PoolState:
         status=PoolStatus.ACTIVE,
         created_at=0,
     )
+
+
+def test_preflight_result_ok_flag_and_reason_must_match() -> None:
+    with pytest.raises(ValueError, match="ok must be bool"):
+        SwapPreflightResult(
+            ok=1,  # type: ignore[arg-type]
+            reason="ok",
+            kind="exact_in",
+            amount_in_quote=1,
+            amount_out_quote=1,
+            suggested_min_amount_out=1,
+            suggested_max_amount_in=None,
+            overdelivery_gap=None,
+            overdelivery_gap_bps=None,
+            policy_max_overdelivery_gap_bps=None,
+        )
+
+    with pytest.raises(ValueError, match="reason is 'ok'"):
+        SwapPreflightResult(
+            ok=False,
+            reason="ok",
+            kind="exact_in",
+            amount_in_quote=1,
+            amount_out_quote=1,
+            suggested_min_amount_out=1,
+            suggested_max_amount_in=None,
+            overdelivery_gap=None,
+            overdelivery_gap_bps=None,
+            policy_max_overdelivery_gap_bps=None,
+        )
+
+
+def test_preflight_result_rejects_cross_kind_fields() -> None:
+    with pytest.raises(ValueError, match="exact_out fields"):
+        SwapPreflightResult(
+            ok=True,
+            reason="ok",
+            kind="exact_in",
+            amount_in_quote=1,
+            amount_out_quote=1,
+            suggested_min_amount_out=1,
+            suggested_max_amount_in=1,
+            overdelivery_gap=None,
+            overdelivery_gap_bps=None,
+            policy_max_overdelivery_gap_bps=None,
+        )
+
+    with pytest.raises(ValueError, match="exact_in fields"):
+        SwapPreflightResult(
+            ok=True,
+            reason="ok",
+            kind="exact_out",
+            amount_in_quote=1,
+            amount_out_quote=1,
+            suggested_min_amount_out=1,
+            suggested_max_amount_in=1,
+            overdelivery_gap=None,
+            overdelivery_gap_bps=None,
+            policy_max_overdelivery_gap_bps=100,
+        )
+
+
+def test_preflight_result_requires_exact_out_policy_and_paired_gap_fields() -> None:
+    with pytest.raises(ValueError, match="policy_max_overdelivery_gap_bps"):
+        SwapPreflightResult(
+            ok=True,
+            reason="ok",
+            kind="exact_out",
+            amount_in_quote=1,
+            amount_out_quote=1,
+            suggested_min_amount_out=None,
+            suggested_max_amount_in=1,
+            overdelivery_gap=None,
+            overdelivery_gap_bps=None,
+            policy_max_overdelivery_gap_bps=None,
+        )
+
+    with pytest.raises(ValueError, match="gap fields"):
+        SwapPreflightResult(
+            ok=True,
+            reason="ok",
+            kind="exact_out",
+            amount_in_quote=1,
+            amount_out_quote=1,
+            suggested_min_amount_out=None,
+            suggested_max_amount_in=1,
+            overdelivery_gap=1,
+            overdelivery_gap_bps=None,
+            policy_max_overdelivery_gap_bps=100,
+        )
+
+
+def test_preflight_result_rejects_negative_or_bool_amounts() -> None:
+    with pytest.raises(ValueError, match="amount_in_quote"):
+        SwapPreflightResult(
+            ok=True,
+            reason="ok",
+            kind="exact_in",
+            amount_in_quote=-1,
+            amount_out_quote=1,
+            suggested_min_amount_out=1,
+            suggested_max_amount_in=None,
+            overdelivery_gap=None,
+            overdelivery_gap_bps=None,
+            policy_max_overdelivery_gap_bps=None,
+        )
+
+    with pytest.raises(ValueError, match="suggested_min_amount_out"):
+        SwapPreflightResult(
+            ok=True,
+            reason="ok",
+            kind="exact_in",
+            amount_in_quote=1,
+            amount_out_quote=1,
+            suggested_min_amount_out=True,  # type: ignore[arg-type]
+            suggested_max_amount_in=None,
+            overdelivery_gap=None,
+            overdelivery_gap_bps=None,
+            policy_max_overdelivery_gap_bps=None,
+        )
 
 
 def test_preflight_exact_in_ok() -> None:

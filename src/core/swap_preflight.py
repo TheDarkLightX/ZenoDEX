@@ -40,6 +40,49 @@ class SwapPreflightResult:
     overdelivery_gap_bps: int | None
     policy_max_overdelivery_gap_bps: int | None
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.ok, bool):
+            raise ValueError("ok must be bool")
+        if not isinstance(self.reason, str) or not self.reason:
+            raise ValueError("reason must be a non-empty string")
+        if self.ok != (self.reason == "ok"):
+            raise ValueError("ok must be true exactly when reason is 'ok'")
+        if self.kind not in {"exact_in", "exact_out"}:
+            raise ValueError("kind must be exact_in or exact_out")
+
+        _require_nonnegative_optional_int("amount_in_quote", self.amount_in_quote)
+        _require_nonnegative_optional_int("amount_out_quote", self.amount_out_quote)
+        _require_nonnegative_optional_int("suggested_min_amount_out", self.suggested_min_amount_out)
+        _require_nonnegative_optional_int("suggested_max_amount_in", self.suggested_max_amount_in)
+        _require_nonnegative_optional_int("overdelivery_gap", self.overdelivery_gap)
+        _require_nonnegative_optional_int("overdelivery_gap_bps", self.overdelivery_gap_bps)
+        _require_nonnegative_optional_int("policy_max_overdelivery_gap_bps", self.policy_max_overdelivery_gap_bps)
+
+        if (self.overdelivery_gap is None) != (self.overdelivery_gap_bps is None):
+            raise ValueError("overdelivery gap fields must be present or absent together")
+        if self.kind == "exact_in":
+            if (
+                self.suggested_max_amount_in is not None
+                or self.overdelivery_gap is not None
+                or self.policy_max_overdelivery_gap_bps is not None
+            ):
+                raise ValueError("exact_in preflight result cannot include exact_out fields")
+            return
+
+        if self.suggested_min_amount_out is not None:
+            raise ValueError("exact_out preflight result cannot include exact_in fields")
+        if self.policy_max_overdelivery_gap_bps is None:
+            raise ValueError("exact_out preflight result must include policy_max_overdelivery_gap_bps")
+
+
+def _require_nonnegative_optional_int(name: str, value: int | None) -> None:
+    if value is None:
+        return
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{name} must be a non-negative int")
+    if value < 0:
+        raise ValueError(f"{name} must be a non-negative int")
+
 
 @dataclass(frozen=True)
 class _ExactOutGapAnalysis:
