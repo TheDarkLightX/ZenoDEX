@@ -555,8 +555,16 @@ def sample_autonomous_governance_next_policy_v1() -> dict[str, Any]:
     policy.pop("policy_hash", None)
     policy["policy_id"] = "sample_autogovnext_governance_surface_q_policy_v1"
     policy["version"] = 2
-    policy["safety"] = {
-        **dict(policy["safety"]),
+    policy["safety"] = {**dict(policy["safety"]), **_sample_autogovnext_safety()}
+    policy["selection"] = _sample_autogovnext_selection()
+    policy["state_bins"] = {**dict(policy["state_bins"]), **_sample_autogovnext_state_bins()}
+    policy["actions"] = [*list(policy["actions"]), *_sample_autogovnext_actions()]
+    policy["q_layers"] = [*list(policy["q_layers"]), *_sample_autogovnext_q_layers()]
+    return {**policy, "policy_hash": policy_content_hash_v1(policy)}
+
+
+def _sample_autogovnext_safety() -> dict[str, int]:
+    return {
         "min_oracle_confidence_bps": 7_000,
         "max_liquidity_concentration_bps": 9_500,
         "max_recent_governance_churn_bps": 8,
@@ -564,7 +572,10 @@ def sample_autonomous_governance_next_policy_v1() -> dict[str, Any]:
         "max_validator_stress_bps": 8_000,
         "max_network_stress_bps": 8_000,
     }
-    policy["selection"] = {
+
+
+def _sample_autogovnext_selection() -> dict[str, Any]:
+    return {
         "mode": "first_admissible",
         "anti_oscillation": {
             "enabled": True,
@@ -587,8 +598,10 @@ def sample_autonomous_governance_next_policy_v1() -> dict[str, Any]:
             },
         },
     }
-    policy["state_bins"] = {
-        **dict(policy["state_bins"]),
+
+
+def _sample_autogovnext_state_bins() -> dict[str, list[int]]:
+    return {
         "fee_bps": [50, 200, 500, 990, 1_000],
         "funding_cap_bps": [0, 5, 120, 190, 200],
         "reserve_bps": [0, 2_500, 7_500, 9_000, 9_900, 10_000],
@@ -600,8 +613,10 @@ def sample_autonomous_governance_next_policy_v1() -> dict[str, Any]:
         "validator_stress_bps": [500, 2_000, 5_000, 8_000],
         "network_stress_bps": [500, 2_000, 5_000, 8_000],
     }
-    policy["actions"] = [
-        *list(policy["actions"]),
+
+
+def _sample_autogovnext_actions() -> list[dict[str, Any]]:
+    return [
         {"id": "lower_fee_10", "deltas": {"fee_bps": -10}},
         {
             "id": "lower_fee_10_relax_funding_5",
@@ -621,96 +636,162 @@ def sample_autonomous_governance_next_policy_v1() -> dict[str, Any]:
             "deltas": {"reserve_bps": -100, "buyburn_bps": 100},
         },
     ]
-    policy["q_layers"] = [
-        *list(policy["q_layers"]),
-        {
-            "id": "autogovnext_calm_fee_normalization_v1",
-            "features": [
-                "deviation_bps",
-                "volatility_bps",
-                "liquidity_depth_bps",
-                "oracle_confidence_bps",
-                "proof_market_health_bps",
-                "validator_stress_bps",
-                "network_stress_bps",
-                "recent_governance_churn_bps",
-                "fee_bps",
-                "funding_cap_bps",
-            ],
-            "q_table": {
-                "*": {},
-                "0|0|2|3|4|0|0|0|2|3": {
-                    "lower_fee_10_relax_funding_5": 120,
-                    "lower_fee_10": 80,
-                    "relax_funding_5": 35,
-                    "hold": -20,
-                },
-                "0|0|2|3|4|0|0|0|2|4": {
-                    "lower_fee_10_relax_funding_5": 120,
-                    "lower_fee_10": 80,
-                    "relax_funding_5": 35,
-                    "hold": -20,
-                },
-            },
-        },
-        {
-            "id": "autogovnext_proof_market_router_rebalance_v1",
-            "features": ["proof_market_health_bps", "reserve_bps", "hosts_bps"],
-            "q_table": {
-                "*": {},
-                "0|4|0": {
-                    "shift_router_reserve_to_hosts_100": 140,
-                    "hold": -20,
-                },
-                "1|4|0": {
-                    "shift_router_reserve_to_hosts_100": 120,
-                    "hold": -10,
-                },
-                "4|4|0": {
-                    "shift_router_reserve_to_buyburn_100": 90,
-                    "hold": 10,
-                },
-                "4|1|3": {
-                    "shift_router_hosts_to_reserve_100": 70,
-                    "hold": 10,
-                },
-            },
-        },
-        {
-            "id": "autogovnext_concentration_reserve_bias_v1",
-            "features": ["liquidity_concentration_bps", "liquidity_depth_bps"],
-            "q_table": {
-                "*": {},
-                "3|0": {"shift_router_to_reserve_100": 80, "hold": -10},
-                "4|0": {"shift_router_to_reserve_100": 100, "hold": -20},
-            },
-        },
-        {
-            "id": "autogovnext_stress_freeze_v1",
-            "features": [
-                "validator_stress_bps",
-                "network_stress_bps",
-                "recent_governance_churn_bps",
-            ],
-            "q_table": {
-                "*": {},
-                **{
-                    f"{validator_bin}|{network_bin}|{churn_bin}": {
-                        "hold": 220,
-                        "raise_fee_10": -40,
-                        "raise_fee_10_tighten_funding_5": -60,
-                        "lower_fee_10": -60,
-                        "lower_fee_10_relax_funding_5": -80,
-                        "relax_funding_5": -80,
-                    }
-                    for validator_bin in (2, 3)
-                    for network_bin in (2, 3)
-                    for churn_bin in range(5)
-                },
-            },
-        },
+
+
+def _sample_autogovnext_q_layers() -> list[dict[str, Any]]:
+    return [
+        _sample_autogovnext_calm_fee_layer(),
+        _sample_autogovnext_proof_market_layer(),
+        _sample_autogovnext_concentration_layer(),
+        _sample_autogovnext_stress_freeze_layer(),
     ]
-    return {**policy, "policy_hash": policy_content_hash_v1(policy)}
+
+
+def _sample_autogovnext_calm_fee_layer() -> dict[str, Any]:
+    return {
+        "id": "autogovnext_calm_fee_normalization_v1",
+        "features": [
+            "deviation_bps",
+            "volatility_bps",
+            "liquidity_depth_bps",
+            "oracle_confidence_bps",
+            "proof_market_health_bps",
+            "validator_stress_bps",
+            "network_stress_bps",
+            "recent_governance_churn_bps",
+            "fee_bps",
+            "funding_cap_bps",
+        ],
+        "q_table": {
+            "*": {},
+            "0|0|2|3|4|0|0|0|2|3": {
+                "lower_fee_10_relax_funding_5": 120,
+                "lower_fee_10": 80,
+                "relax_funding_5": 35,
+                "hold": -20,
+            },
+            "0|0|2|3|4|0|0|0|2|4": {
+                "lower_fee_10_relax_funding_5": 120,
+                "lower_fee_10": 80,
+                "relax_funding_5": 35,
+                "hold": -20,
+            },
+        },
+    }
+
+
+def _sample_autogovnext_proof_market_layer() -> dict[str, Any]:
+    return {
+        "id": "autogovnext_proof_market_router_rebalance_v1",
+        "features": ["proof_market_health_bps", "reserve_bps", "hosts_bps"],
+        "q_table": {
+            "*": {},
+            "0|4|0": {"shift_router_reserve_to_hosts_100": 140, "hold": -20},
+            "1|4|0": {"shift_router_reserve_to_hosts_100": 120, "hold": -10},
+            "4|4|0": {"shift_router_reserve_to_buyburn_100": 90, "hold": 10},
+            "4|1|3": {"shift_router_hosts_to_reserve_100": 70, "hold": 10},
+        },
+    }
+
+
+def _sample_autogovnext_concentration_layer() -> dict[str, Any]:
+    return {
+        "id": "autogovnext_concentration_reserve_bias_v1",
+        "features": ["liquidity_concentration_bps", "liquidity_depth_bps"],
+        "q_table": {
+            "*": {},
+            "3|0": {"shift_router_to_reserve_100": 80, "hold": -10},
+            "4|0": {"shift_router_to_reserve_100": 100, "hold": -20},
+        },
+    }
+
+
+def _sample_autogovnext_stress_freeze_layer() -> dict[str, Any]:
+    return {
+        "id": "autogovnext_stress_freeze_v1",
+        "features": [
+            "validator_stress_bps",
+            "network_stress_bps",
+            "recent_governance_churn_bps",
+        ],
+        "q_table": {
+            "*": {},
+            **{
+                f"{validator_bin}|{network_bin}|{churn_bin}": {
+                    "hold": 220,
+                    "raise_fee_10": -40,
+                    "raise_fee_10_tighten_funding_5": -60,
+                    "lower_fee_10": -60,
+                    "lower_fee_10_relax_funding_5": -80,
+                    "relax_funding_5": -80,
+                }
+                for validator_bin in (2, 3)
+                for network_bin in (2, 3)
+                for churn_bin in range(5)
+            },
+        },
+    }
+
+
+@dataclass(frozen=True)
+class _SurfaceEvaluationRequest:
+    policy: object
+    surface_state: object
+    observation: object
+    current_epoch: object
+    proposal_epoch: object
+    last_update_epoch: object | None
+    expected_policy_hash: str | None
+    expected_committed_context_hash: str | None
+    previous_approved_deltas: object | None
+    trajectory_budget: object | None
+    trajectory_used: object | None
+
+
+@dataclass(frozen=True)
+class _SurfaceEvaluationContext:
+    normalized_policy: dict[str, Any]
+    policy_hash: str
+    state: dict[str, int]
+    obs: dict[str, int]
+    trajectory_budget: dict[str, int]
+    trajectory_used: dict[str, int]
+    current_epoch: int
+    proposal_epoch: int
+    last_update_epoch: int | None
+    previous_deltas: dict[str, int]
+    committed_context: dict[str, Any]
+    committed_context_hash: str
+    errors: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _SurfaceEvaluationChoice:
+    action_id: str
+    selected_action: dict[str, Any]
+    scores: dict[str, int]
+    state_bins: dict[str, int]
+    candidate_search: dict[str, Any]
+    proposed: dict[str, int]
+    surface_report: dict[str, bool]
+    errors: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _SurfaceNormalizedInputs:
+    policy: dict[str, Any]
+    policy_hash: str
+    state: dict[str, int]
+    obs: dict[str, int]
+    trajectory_budget: dict[str, int]
+    trajectory_used: dict[str, int]
+
+
+@dataclass(frozen=True)
+class _SurfaceEpochInputs:
+    current_epoch: int
+    proposal_epoch: int
+    last_update_epoch: int | None
 
 
 def evaluate_autonomous_governance_surface_q_policy_v1(
@@ -733,165 +814,283 @@ def evaluate_autonomous_governance_surface_q_policy_v1(
     proposes, and the verified Python/Tau governance gates decide admissibility.
     """
 
-    errors: list[str] = []
-    normalized_policy, policy_errors = _normalize_policy(
-        policy, parameter_names=SURFACE_PARAMETER_NAMES_V1
+    request = _SurfaceEvaluationRequest(
+        policy=policy,
+        surface_state=surface_state,
+        observation=observation,
+        current_epoch=current_epoch,
+        proposal_epoch=proposal_epoch,
+        last_update_epoch=last_update_epoch,
+        expected_policy_hash=expected_policy_hash,
+        expected_committed_context_hash=expected_committed_context_hash,
+        previous_approved_deltas=previous_approved_deltas,
+        trajectory_budget=trajectory_budget,
+        trajectory_used=trajectory_used,
     )
-    errors.extend(policy_errors)
-
-    policy_hash = _policy_content_hash_for_receipt(policy, errors)
-    if expected_policy_hash is not None and expected_policy_hash != policy_hash:
-        errors.append("policy_hash_mismatch")
-
-    state, state_errors = _normalize_surface_state(surface_state)
-    errors.extend(state_errors)
-
-    obs, obs_errors = _normalize_observation(observation)
-    errors.extend(obs_errors)
-    normalized_trajectory_budget, trajectory_budget_errors = _normalize_trajectory_budget(
-        trajectory_budget,
-        policy=normalized_policy,
+    context = _build_surface_evaluation_context(request)
+    choice = _surface_evaluation_choice(context)
+    errors = [*context.errors, *choice.errors]
+    errors.extend(
+        _trajectory_budget_failures(
+            action=choice.selected_action,
+            trajectory_budget=context.trajectory_budget,
+            trajectory_used=context.trajectory_used,
+        )
     )
-    errors.extend(trajectory_budget_errors)
-    normalized_trajectory_used, trajectory_used_errors = _normalize_trajectory_used(trajectory_used)
-    errors.extend(trajectory_used_errors)
-
-    normalized_current_epoch = _require_nonnegative_int_or_error(
-        current_epoch, name="current_epoch", errors=errors
-    )
-    normalized_proposal_epoch = _require_nonnegative_int_or_error(
-        proposal_epoch, name="proposal_epoch", errors=errors
-    )
-    normalized_last_update_epoch = _normalize_optional_nonnegative_int(
-        last_update_epoch,
-        name="last_update_epoch",
+    for name, accepted in choice.surface_report.items():
+        if not accepted:
+            errors.append(f"governance_surface_gate_rejected:{name}")
+    return _surface_evaluation_receipt(
+        context=context,
+        choice=choice,
         errors=errors,
+        expected_committed_context_hash=expected_committed_context_hash,
     )
-    normalized_previous_deltas, previous_delta_errors = _normalize_previous_approved_deltas(
-        previous_approved_deltas
+
+
+def _build_surface_evaluation_context(request: _SurfaceEvaluationRequest) -> _SurfaceEvaluationContext:
+    errors: list[str] = []
+    normalized = _surface_normalized_inputs(request, errors)
+    epochs = _surface_epoch_inputs(request, errors)
+    previous_deltas, previous_delta_errors = _normalize_previous_approved_deltas(
+        request.previous_approved_deltas
     )
     errors.extend(previous_delta_errors)
     committed_context = _surface_context_payload(
-        state=state,
-        current_epoch=normalized_current_epoch,
-        proposal_epoch=normalized_proposal_epoch,
-        last_update_epoch=normalized_last_update_epoch,
-        previous_approved_deltas=normalized_previous_deltas,
-        trajectory_used=normalized_trajectory_used,
+        state=normalized.state,
+        current_epoch=epochs.current_epoch,
+        proposal_epoch=epochs.proposal_epoch,
+        last_update_epoch=epochs.last_update_epoch,
+        previous_approved_deltas=previous_deltas,
+        trajectory_used=normalized.trajectory_used,
     )
     committed_context_hash = _surface_context_hash(committed_context)
     if (
-        expected_committed_context_hash is not None
-        and expected_committed_context_hash != committed_context_hash
+        request.expected_committed_context_hash is not None
+        and request.expected_committed_context_hash != committed_context_hash
     ):
         errors.append("committed_context_hash_mismatch")
-    safety_errors = _safety_errors(
-        normalized_policy,
-        obs,
-        current_epoch=normalized_current_epoch,
-        last_update_epoch=normalized_last_update_epoch,
+    errors.extend(
+        _safety_errors(
+            normalized.policy,
+            normalized.obs,
+            current_epoch=epochs.current_epoch,
+            last_update_epoch=epochs.last_update_epoch,
+        )
     )
-    errors.extend(safety_errors)
+    return _SurfaceEvaluationContext(
+        normalized_policy=normalized.policy,
+        policy_hash=normalized.policy_hash,
+        state=normalized.state,
+        obs=normalized.obs,
+        trajectory_budget=normalized.trajectory_budget,
+        trajectory_used=normalized.trajectory_used,
+        current_epoch=epochs.current_epoch,
+        proposal_epoch=epochs.proposal_epoch,
+        last_update_epoch=epochs.last_update_epoch,
+        previous_deltas=previous_deltas,
+        committed_context=committed_context,
+        committed_context_hash=committed_context_hash,
+        errors=tuple(errors),
+    )
 
-    action_id = ""
-    scores: dict[str, int] = {}
-    state_bins: dict[str, int] = {}
-    selected_action: dict[str, Any] = {"id": "", "deltas": {}}
-    candidate_search: dict[str, Any] = {
-        "mode": "top_scored",
-        "checked_count": 0,
-        "fallback_used": False,
-        "rejected_candidates": (),
-    }
-    if normalized_policy and obs:
+
+def _surface_normalized_inputs(
+    request: _SurfaceEvaluationRequest,
+    errors: list[str],
+) -> _SurfaceNormalizedInputs:
+    normalized_policy, policy_errors = _normalize_policy(
+        request.policy, parameter_names=SURFACE_PARAMETER_NAMES_V1
+    )
+    errors.extend(policy_errors)
+    policy_hash = _policy_content_hash_for_receipt(request.policy, errors)
+    if request.expected_policy_hash is not None and request.expected_policy_hash != policy_hash:
+        errors.append("policy_hash_mismatch")
+
+    state, state_errors = _normalize_surface_state(request.surface_state)
+    errors.extend(state_errors)
+    obs, obs_errors = _normalize_observation(request.observation)
+    errors.extend(obs_errors)
+    trajectory_budget, trajectory_budget_errors = _normalize_trajectory_budget(
+        request.trajectory_budget,
+        policy=normalized_policy,
+    )
+    errors.extend(trajectory_budget_errors)
+    trajectory_used, trajectory_used_errors = _normalize_trajectory_used(request.trajectory_used)
+    errors.extend(trajectory_used_errors)
+    return _SurfaceNormalizedInputs(
+        policy=normalized_policy,
+        policy_hash=policy_hash,
+        state=state,
+        obs=obs,
+        trajectory_budget=trajectory_budget,
+        trajectory_used=trajectory_used,
+    )
+
+
+def _surface_epoch_inputs(
+    request: _SurfaceEvaluationRequest,
+    errors: list[str],
+) -> _SurfaceEpochInputs:
+    return _SurfaceEpochInputs(
+        current_epoch=_require_nonnegative_int_or_error(
+            request.current_epoch, name="current_epoch", errors=errors
+        ),
+        proposal_epoch=_require_nonnegative_int_or_error(
+            request.proposal_epoch, name="proposal_epoch", errors=errors
+        ),
+        last_update_epoch=_normalize_optional_nonnegative_int(
+            request.last_update_epoch,
+            name="last_update_epoch",
+            errors=errors,
+        ),
+    )
+
+
+def _surface_evaluation_choice(context: _SurfaceEvaluationContext) -> _SurfaceEvaluationChoice:
+    errors: list[str] = []
+    action_id, selected_action, scores, state_bins, candidate_search = _surface_evaluation_defaults()
+    if context.normalized_policy and context.obs:
         action_id, selected_action, scores, state_bins, selection_errors = _select_action(
-            normalized_policy, {**obs, **state}
+            context.normalized_policy,
+            {**context.obs, **context.state},
         )
         errors.extend(selection_errors)
 
-    first_admissible_mode = (
-        normalized_policy
-        and obs
-        and state
-        and normalized_policy.get("selection", {}).get("mode") == "first_admissible"
-    )
-    if first_admissible_mode:
+    if _surface_uses_first_admissible_mode(context):
         candidate_search = _select_first_admissible_surface_action(
-            policy=normalized_policy,
-            state=state,
+            policy=context.normalized_policy,
+            state=context.state,
             scores=scores,
             top_action_id=action_id,
-            proposal_epoch=normalized_proposal_epoch,
-            current_epoch=normalized_current_epoch,
-            existing_errors=errors,
-            previous_approved_deltas=normalized_previous_deltas,
-            trajectory_budget=normalized_trajectory_budget,
-            trajectory_used=normalized_trajectory_used,
+            proposal_epoch=context.proposal_epoch,
+            current_epoch=context.current_epoch,
+            existing_errors=(*context.errors, *errors),
+            previous_approved_deltas=context.previous_deltas,
+            trajectory_budget=context.trajectory_budget,
+            trajectory_used=context.trajectory_used,
         )
-        selected_candidate = candidate_search.get("selected_candidate", {})
-        if isinstance(selected_candidate, Mapping):
-            action_id = str(selected_candidate.get("action_id", action_id))
-            selected_action = dict(selected_candidate.get("action", selected_action))
-            selected_proposed = selected_candidate.get("proposed", {})
-            proposed = dict(selected_proposed) if isinstance(selected_proposed, Mapping) else _propose_surface_state(
-                state,
-                selected_action,
-            )
-            selected_gate_report = selected_candidate.get("gate_report", {})
-            surface_report = (
-                dict(selected_gate_report)
-                if isinstance(selected_gate_report, Mapping)
-                else _governance_surface_gate_report(
-                    current=state,
-                    proposed=proposed,
-                    proposal_epoch=normalized_proposal_epoch,
-                    current_epoch=normalized_current_epoch,
-                )
-            )
-        else:
-            proposed = _propose_surface_state(state, selected_action)
-            surface_report = _governance_surface_gate_report(
-                current=state,
-                proposed=proposed,
-                proposal_epoch=normalized_proposal_epoch,
-                current_epoch=normalized_current_epoch,
-            )
+        action_id, selected_action, proposed, surface_report = _surface_candidate_proposal_and_report(
+            candidate_search.get("selected_candidate", {}),
+            context=context,
+            selected_action=selected_action,
+            action_id=action_id,
+        )
     else:
-        proposed = _propose_surface_state(state, selected_action)
-        surface_report = _governance_surface_gate_report(
-            current=state,
-            proposed=proposed,
-            proposal_epoch=normalized_proposal_epoch,
-            current_epoch=normalized_current_epoch,
-        )
-    trajectory_failures = _trajectory_budget_failures(
-        action=selected_action,
-        trajectory_budget=normalized_trajectory_budget,
-        trajectory_used=normalized_trajectory_used,
+        proposed, surface_report = _default_surface_proposal_and_report(context, selected_action)
+    return _SurfaceEvaluationChoice(
+        action_id=action_id,
+        selected_action=selected_action,
+        scores=scores,
+        state_bins=state_bins,
+        candidate_search=candidate_search,
+        proposed=proposed,
+        surface_report=surface_report,
+        errors=tuple(errors),
     )
-    errors.extend(trajectory_failures)
-    for name, accepted in surface_report.items():
-        if not accepted:
-            errors.append(f"governance_surface_gate_rejected:{name}")
-    all_gates_ok = all(surface_report.values())
 
+
+def _surface_evaluation_defaults() -> tuple[
+    str,
+    dict[str, Any],
+    dict[str, int],
+    dict[str, int],
+    dict[str, Any],
+]:
+    return (
+        "",
+        {"id": "", "deltas": {}},
+        {},
+        {},
+        {
+            "mode": "top_scored",
+            "checked_count": 0,
+            "fallback_used": False,
+            "rejected_candidates": (),
+        },
+    )
+
+
+def _surface_uses_first_admissible_mode(context: _SurfaceEvaluationContext) -> bool:
+    return bool(
+        context.normalized_policy
+        and context.obs
+        and context.state
+        and context.normalized_policy.get("selection", {}).get("mode") == "first_admissible"
+    )
+
+
+def _surface_candidate_proposal_and_report(
+    selected_candidate: object,
+    *,
+    context: _SurfaceEvaluationContext,
+    selected_action: dict[str, Any],
+    action_id: str,
+) -> tuple[str, dict[str, Any], dict[str, int], dict[str, bool]]:
+    if isinstance(selected_candidate, Mapping):
+        action_id = str(selected_candidate.get("action_id", action_id))
+        selected_action = dict(selected_candidate.get("action", selected_action))
+        selected_proposed = selected_candidate.get("proposed", {})
+        proposed = (
+            dict(selected_proposed)
+            if isinstance(selected_proposed, Mapping)
+            else _propose_surface_state(context.state, selected_action)
+        )
+        selected_gate_report = selected_candidate.get("gate_report", {})
+        surface_report = (
+            dict(selected_gate_report)
+            if isinstance(selected_gate_report, Mapping)
+            else _governance_surface_gate_report(
+                current=context.state,
+                proposed=proposed,
+                proposal_epoch=context.proposal_epoch,
+                current_epoch=context.current_epoch,
+            )
+        )
+        return action_id, selected_action, proposed, surface_report
+
+    return action_id, selected_action, *_default_surface_proposal_and_report(context, selected_action)
+
+
+def _default_surface_proposal_and_report(
+    context: _SurfaceEvaluationContext,
+    selected_action: Mapping[str, Any],
+) -> tuple[dict[str, int], dict[str, bool]]:
+    proposed = _propose_surface_state(context.state, selected_action)
+    surface_report = _governance_surface_gate_report(
+        current=context.state,
+        proposed=proposed,
+        proposal_epoch=context.proposal_epoch,
+        current_epoch=context.current_epoch,
+    )
+    return proposed, surface_report
+
+
+def _surface_evaluation_receipt(
+    *,
+    context: _SurfaceEvaluationContext,
+    choice: _SurfaceEvaluationChoice,
+    errors: Sequence[str],
+    expected_committed_context_hash: str | None,
+) -> dict[str, Any]:
+    all_gates_ok = all(choice.surface_report.values())
     body = {
         "schema": AUTONOMOUS_GOVERNANCE_Q_RECEIPT_SCHEMA_V1,
-        "policy_hash": policy_hash,
-        "action_id": action_id,
-        "state_bins": state_bins,
-        "scores": scores,
-        "candidate_search": candidate_search,
-        "committed_context": committed_context,
-        "committed_context_hash": committed_context_hash,
+        "policy_hash": context.policy_hash,
+        "action_id": choice.action_id,
+        "state_bins": choice.state_bins,
+        "scores": choice.scores,
+        "candidate_search": choice.candidate_search,
+        "committed_context": context.committed_context,
+        "committed_context_hash": context.committed_context_hash,
         "expected_committed_context_hash": expected_committed_context_hash or "",
-        "previous_approved_deltas": normalized_previous_deltas,
-        "trajectory_budget": normalized_trajectory_budget,
-        "trajectory_used": normalized_trajectory_used,
-        "observation": obs,
-        "surface_state": state,
-        "proposed": proposed,
-        "governance_surface_gate_report": surface_report,
+        "previous_approved_deltas": context.previous_deltas,
+        "trajectory_budget": context.trajectory_budget,
+        "trajectory_used": context.trajectory_used,
+        "observation": context.obs,
+        "surface_state": context.state,
+        "proposed": choice.proposed,
+        "governance_surface_gate_report": choice.surface_report,
         "governance_surface_all_gates_ok": all_gates_ok,
         "revision_policy": "governance_pointwise_revision_v1",
         "approved": not errors,
