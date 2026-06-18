@@ -9,12 +9,22 @@ from .domain_limits import is_strict_int
 from .settlement import BalanceDelta, LPDelta, ReserveDelta, Settlement
 
 
+def _require_non_negative_delta_limb(value: Any, *, what: str) -> int:
+    if not is_strict_int(value):
+        raise TypeError(f"{what} must be a non-negative int")
+    if value < 0:
+        raise TypeError(f"{what} must be a non-negative int")
+    return int(value)
+
+
 def aggregate_balance_deltas(deltas: List[BalanceDelta]) -> List[BalanceDelta]:
     acc: Dict[Tuple[PubKey, AssetId], Tuple[int, int]] = {}
     for d in deltas:
         key = (d.pubkey, d.asset)
         add_prev, sub_prev = acc.get(key, (0, 0))
-        acc[key] = (int(add_prev) + int(d.delta_add), int(sub_prev) + int(d.delta_sub))
+        delta_add = _require_non_negative_delta_limb(d.delta_add, what="balance_deltas.delta_add")
+        delta_sub = _require_non_negative_delta_limb(d.delta_sub, what="balance_deltas.delta_sub")
+        acc[key] = (int(add_prev) + delta_add, int(sub_prev) + delta_sub)
     out: List[BalanceDelta] = []
     for key in sorted(acc.keys()):
         delta_add, delta_sub = acc[key]
@@ -29,7 +39,9 @@ def aggregate_reserve_deltas(deltas: List[ReserveDelta]) -> List[ReserveDelta]:
     for d in deltas:
         key = (d.pool_id, d.asset)
         add_prev, sub_prev = acc.get(key, (0, 0))
-        acc[key] = (int(add_prev) + int(d.delta_add), int(sub_prev) + int(d.delta_sub))
+        delta_add = _require_non_negative_delta_limb(d.delta_add, what="reserve_deltas.delta_add")
+        delta_sub = _require_non_negative_delta_limb(d.delta_sub, what="reserve_deltas.delta_sub")
+        acc[key] = (int(add_prev) + delta_add, int(sub_prev) + delta_sub)
     out: List[ReserveDelta] = []
     for key in sorted(acc.keys()):
         delta_add, delta_sub = acc[key]
@@ -44,7 +56,9 @@ def aggregate_lp_deltas(deltas: List[LPDelta]) -> List[LPDelta]:
     for d in deltas:
         key = (d.pubkey, d.pool_id)
         add_prev, sub_prev = acc.get(key, (0, 0))
-        acc[key] = (int(add_prev) + int(d.delta_add), int(sub_prev) + int(d.delta_sub))
+        delta_add = _require_non_negative_delta_limb(d.delta_add, what="lp_deltas.delta_add")
+        delta_sub = _require_non_negative_delta_limb(d.delta_sub, what="lp_deltas.delta_sub")
+        acc[key] = (int(add_prev) + delta_add, int(sub_prev) + delta_sub)
     out: List[LPDelta] = []
     for key in sorted(acc.keys()):
         delta_add, delta_sub = acc[key]

@@ -6,6 +6,8 @@ import ast
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 import src.core.settlement_quote_binding as settlement_quote_binding
 import src.core.settlement_replay_swap_exact_in as settlement_replay_swap_exact_in
 import src.core.settlement_replay_swap_exact_out as settlement_replay_swap_exact_out
@@ -327,6 +329,29 @@ def test_aggregate_helpers_drop_zero_entries() -> None:
     assert aggregated_lp == [
         LPDelta(pubkey="0x" + "22" * 48, pool_id=_iid(2), delta_add=9, delta_sub=0)
     ]
+
+
+def test_aggregate_helpers_reject_malformed_delta_limbs() -> None:
+    pk = "0x" + "11" * 48
+    asset = "0x" + "01" * 32
+    pool_id = _iid(2)
+
+    with pytest.raises(TypeError, match="balance_deltas.delta_add must be a non-negative int"):
+        strong_validator._aggregate_balance_deltas(
+            [BalanceDelta(pubkey=pk, asset=asset, delta_add=True, delta_sub=0)]
+        )
+    with pytest.raises(TypeError, match="balance_deltas.delta_sub must be a non-negative int"):
+        strong_validator._aggregate_balance_deltas(
+            [BalanceDelta(pubkey=pk, asset=asset, delta_add=0, delta_sub="1")]
+        )
+    with pytest.raises(TypeError, match="reserve_deltas.delta_add must be a non-negative int"):
+        strong_validator._aggregate_reserve_deltas(
+            [ReserveDelta(pool_id=pool_id, asset=asset, delta_add=-1, delta_sub=0)]
+        )
+    with pytest.raises(TypeError, match="lp_deltas.delta_sub must be a non-negative int"):
+        strong_validator._aggregate_lp_deltas(
+            [LPDelta(pubkey=pk, pool_id=pool_id, delta_add=0, delta_sub=False)]
+        )
 
 
 def test_check_canonical_deltas_rejects_invalid_balance_scalar_fields() -> None:

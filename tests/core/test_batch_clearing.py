@@ -1142,6 +1142,33 @@ def test_chunked_delta_aggregation_drops_zero_nets() -> None:
     ) == []
 
 
+def test_chunked_delta_aggregation_rejects_malformed_delta_limbs() -> None:
+    pk = "0x" + "11" * 48
+    asset = "0x" + "01" * 32
+    pool_id = "0x" + "aa" * 32
+
+    with pytest.raises(TypeError, match="balance_deltas.delta_add must be a non-negative int"):
+        _aggregate_balance_deltas_chunked(
+            [BalanceDelta(pubkey=pk, asset=asset, delta_add=True, delta_sub=0)],
+            chunk_size=1,
+        )
+    with pytest.raises(TypeError, match="balance_deltas.delta_sub must be a non-negative int"):
+        _aggregate_balance_deltas_chunked(
+            [BalanceDelta(pubkey=pk, asset=asset, delta_add=0, delta_sub="1")],
+            chunk_size=1,
+        )
+    with pytest.raises(TypeError, match="reserve_deltas.delta_add must be a non-negative int"):
+        _aggregate_reserve_deltas_chunked(
+            [ReserveDelta(pool_id=pool_id, asset=asset, delta_add=-1, delta_sub=0)],
+            chunk_size=1,
+        )
+    with pytest.raises(TypeError, match="lp_deltas.delta_sub must be a non-negative int"):
+        _aggregate_lp_deltas_chunked(
+            [LPDelta(pubkey=pk, pool_id=pool_id, delta_add=0, delta_sub=False)],
+            chunk_size=1,
+        )
+
+
 def test_parse_create_pool_event_payload_rejects_missing_pool_assets_curve_fields_and_status() -> None:
     try:
         _parse_create_pool_event_payload({"asset0": "0x" + "01" * 32, "asset1": "0x" + "02" * 32, "fee_bps": 30})

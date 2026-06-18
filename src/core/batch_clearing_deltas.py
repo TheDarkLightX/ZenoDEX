@@ -8,6 +8,14 @@ from ..state.balances import Amount, AssetId, PubKey
 from .settlement import BalanceDelta, LPDelta, ReserveDelta
 
 
+def _require_non_negative_delta_limb(value: object, *, what: str) -> Amount:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{what} must be a non-negative int")
+    if value < 0:
+        raise TypeError(f"{what} must be a non-negative int")
+    return value
+
+
 def _aggregate_balance_deltas_chunked(
     deltas: List[BalanceDelta], *, chunk_size: int
 ) -> List[BalanceDelta]:
@@ -18,7 +26,9 @@ def _aggregate_balance_deltas_chunked(
         for d in deltas[i : i + step]:
             key = (d.pubkey, d.asset)
             add_prev, sub_prev = chunk_acc.get(key, (0, 0))
-            chunk_acc[key] = (int(add_prev) + int(d.delta_add), int(sub_prev) + int(d.delta_sub))
+            delta_add = _require_non_negative_delta_limb(d.delta_add, what="balance_deltas.delta_add")
+            delta_sub = _require_non_negative_delta_limb(d.delta_sub, what="balance_deltas.delta_sub")
+            chunk_acc[key] = (int(add_prev) + delta_add, int(sub_prev) + delta_sub)
         for key, (add_chunk, sub_chunk) in chunk_acc.items():
             add_prev, sub_prev = global_acc.get(key, (0, 0))
             global_acc[key] = (int(add_prev) + int(add_chunk), int(sub_prev) + int(sub_chunk))
@@ -42,7 +52,9 @@ def _aggregate_reserve_deltas_chunked(
         for d in deltas[i : i + step]:
             key = (d.pool_id, d.asset)
             add_prev, sub_prev = chunk_acc.get(key, (0, 0))
-            chunk_acc[key] = (int(add_prev) + int(d.delta_add), int(sub_prev) + int(d.delta_sub))
+            delta_add = _require_non_negative_delta_limb(d.delta_add, what="reserve_deltas.delta_add")
+            delta_sub = _require_non_negative_delta_limb(d.delta_sub, what="reserve_deltas.delta_sub")
+            chunk_acc[key] = (int(add_prev) + delta_add, int(sub_prev) + delta_sub)
         for key, (add_chunk, sub_chunk) in chunk_acc.items():
             add_prev, sub_prev = global_acc.get(key, (0, 0))
             global_acc[key] = (int(add_prev) + int(add_chunk), int(sub_prev) + int(sub_chunk))
@@ -64,7 +76,9 @@ def _aggregate_lp_deltas_chunked(deltas: List[LPDelta], *, chunk_size: int) -> L
         for d in deltas[i : i + step]:
             key = (d.pubkey, d.pool_id)
             add_prev, sub_prev = chunk_acc.get(key, (0, 0))
-            chunk_acc[key] = (int(add_prev) + int(d.delta_add), int(sub_prev) + int(d.delta_sub))
+            delta_add = _require_non_negative_delta_limb(d.delta_add, what="lp_deltas.delta_add")
+            delta_sub = _require_non_negative_delta_limb(d.delta_sub, what="lp_deltas.delta_sub")
+            chunk_acc[key] = (int(add_prev) + delta_add, int(sub_prev) + delta_sub)
         for key, (add_chunk, sub_chunk) in chunk_acc.items():
             add_prev, sub_prev = global_acc.get(key, (0, 0))
             global_acc[key] = (int(add_prev) + int(add_chunk), int(sub_prev) + int(sub_chunk))
