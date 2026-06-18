@@ -11,6 +11,7 @@ from ..state.lp import LPTable
 from ..state.pools import PoolState
 from .domain_limits import is_strict_int
 from .settlement import Fill, FillAction
+from .settlement_fill_fields import read_optional_non_negative_fill_int
 
 _AnyFn = Callable[..., Any]
 
@@ -192,23 +193,71 @@ def _process_liquidity_for_single_pool(
             continue
         recipient = intent.get_field("recipient", intent.sender_pubkey)
         if intent.kind == IntentKind.ADD_LIQUIDITY:
-            runtime.current_reserves = (
-                runtime.current_reserves[0] + (fill.amount0_used or 0),
-                runtime.current_reserves[1] + (fill.amount1_used or 0),
+            amount0_used = _read_single_pool_fill_int(
+                fill.amount0_used,
+                operation="ADD_LIQUIDITY",
+                field_name="amount0_used",
+                fill=fill,
             )
-            runtime.current_lp_supply += fill.lp_minted or 0
-            runtime.balances_scratch.subtract(intent.sender_pubkey, snap_pool.asset0, fill.amount0_used or 0)
-            runtime.balances_scratch.subtract(intent.sender_pubkey, snap_pool.asset1, fill.amount1_used or 0)
-            runtime.lp_scratch.add(recipient, snap_pool.pool_id, fill.lp_minted or 0)
+            amount1_used = _read_single_pool_fill_int(
+                fill.amount1_used,
+                operation="ADD_LIQUIDITY",
+                field_name="amount1_used",
+                fill=fill,
+            )
+            lp_minted = _read_single_pool_fill_int(
+                fill.lp_minted,
+                operation="ADD_LIQUIDITY",
+                field_name="lp_minted",
+                fill=fill,
+            )
+            runtime.current_reserves = (
+                runtime.current_reserves[0] + amount0_used,
+                runtime.current_reserves[1] + amount1_used,
+            )
+            runtime.current_lp_supply += lp_minted
+            runtime.balances_scratch.subtract(intent.sender_pubkey, snap_pool.asset0, amount0_used)
+            runtime.balances_scratch.subtract(intent.sender_pubkey, snap_pool.asset1, amount1_used)
+            runtime.lp_scratch.add(recipient, snap_pool.pool_id, lp_minted)
         else:
-            runtime.current_reserves = (
-                runtime.current_reserves[0] - (fill.amount0_out or 0),
-                runtime.current_reserves[1] - (fill.amount1_out or 0),
+            amount0_out = _read_single_pool_fill_int(
+                fill.amount0_out,
+                operation="REMOVE_LIQUIDITY",
+                field_name="amount0_out",
+                fill=fill,
             )
-            runtime.current_lp_supply -= fill.lp_burned or 0
-            runtime.lp_scratch.subtract(intent.sender_pubkey, snap_pool.pool_id, fill.lp_burned or 0)
-            runtime.balances_scratch.add(recipient, snap_pool.asset0, fill.amount0_out or 0)
-            runtime.balances_scratch.add(recipient, snap_pool.asset1, fill.amount1_out or 0)
+            amount1_out = _read_single_pool_fill_int(
+                fill.amount1_out,
+                operation="REMOVE_LIQUIDITY",
+                field_name="amount1_out",
+                fill=fill,
+            )
+            lp_burned = _read_single_pool_fill_int(
+                fill.lp_burned,
+                operation="REMOVE_LIQUIDITY",
+                field_name="lp_burned",
+                fill=fill,
+            )
+            runtime.current_reserves = (
+                runtime.current_reserves[0] - amount0_out,
+                runtime.current_reserves[1] - amount1_out,
+            )
+            runtime.current_lp_supply -= lp_burned
+            runtime.lp_scratch.subtract(intent.sender_pubkey, snap_pool.pool_id, lp_burned)
+            runtime.balances_scratch.add(recipient, snap_pool.asset0, amount0_out)
+            runtime.balances_scratch.add(recipient, snap_pool.asset1, amount1_out)
+
+
+def _read_single_pool_fill_int(value: object, *, operation: str, field_name: str, fill: Fill) -> int:
+    parsed, err = read_optional_non_negative_fill_int(
+        value,
+        operation=operation,
+        field_name=field_name,
+        intent_id=fill.intent_id,
+    )
+    if err is not None:
+        raise TypeError(err)
+    return int(parsed)
 
 
 def clear_batch_single_pool_with_factories(

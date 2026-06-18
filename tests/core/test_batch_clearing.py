@@ -2864,6 +2864,45 @@ def test_clear_batch_single_pool_rejected_liquidity_exercises_non_fill_path() ->
     assert fills[0].action == FillAction.REJECT
 
 
+def test_clear_batch_single_pool_rejects_malformed_liquidity_fill_from_factory(monkeypatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000_000)
+    balances.set(pk, asset1, 10_000_000)
+    add_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(1367),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"pool_id": pool_id, "amount0_desired": 100, "amount1_desired": 100},
+    )
+
+    def _bad_process_liquidity_intent(*_args: object, **_kwargs: object) -> Fill:
+        return Fill(
+            intent_id=add_intent.intent_id,
+            action=FillAction.FILL,
+            amount0_used=False,
+            amount1_used=100,
+            lp_minted=100,
+        )
+
+    monkeypatch.setattr(batch_clearing_module, "_process_liquidity_intent", _bad_process_liquidity_intent)
+    with pytest.raises(TypeError, match="ADD_LIQUIDITY fill.amount0_used must be int"):
+        clear_batch_single_pool([add_intent], pool, balances, LPTable(), swap_ordering="limit_price")
+
+
 def test_clear_batch_single_pool_handles_successful_liquidity_and_reverse_exact_out() -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
