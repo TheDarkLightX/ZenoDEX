@@ -3680,6 +3680,59 @@ class _ExactOutManyPoolRuntimeParams:
 
 
 @dataclass(frozen=True)
+class _ExactOutManyPoolRuntimeControls:
+    max_legs: object
+    max_candidate_pools: object
+    max_candidates: object
+    max_iters: object
+    window: object
+    brute_force_max: object
+    max_full_domain_pools: object
+    max_enumerated_candidates: object
+
+    def to_runtime_params(
+        self,
+        *,
+        asset_in: str,
+        asset_out: str,
+        amount_out_total: object,
+    ) -> _ExactOutManyPoolRuntimeParams:
+        amount_out_total_i = _require_amount_out_total_int(amount_out_total)
+        (
+            max_legs_i,
+            max_candidate_pools_i,
+            max_candidates_i,
+            max_iters_i,
+            window_i,
+            brute_force_max_i,
+            max_full_domain_pools_i,
+            max_enumerated_candidates_i,
+        ) = _require_runtime_control_values(
+            max_legs=self.max_legs,
+            max_candidate_pools=self.max_candidate_pools,
+            max_candidates=self.max_candidates,
+            max_iters=self.max_iters,
+            window=self.window,
+            brute_force_max=self.brute_force_max,
+            max_full_domain_pools=self.max_full_domain_pools,
+            max_enumerated_candidates=self.max_enumerated_candidates,
+        )
+        return _ExactOutManyPoolRuntimeParams(
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_out_total=amount_out_total_i,
+            max_legs=max_legs_i,
+            max_candidate_pools=max_candidate_pools_i,
+            max_candidates=max_candidates_i,
+            max_iters=max_iters_i,
+            window=window_i,
+            brute_force_max=brute_force_max_i,
+            max_full_domain_pools=max_full_domain_pools_i,
+            max_enumerated_candidates=max_enumerated_candidates_i,
+        )
+
+
+@dataclass(frozen=True)
 class _RepairedAdvisorySuccessPayload:
     advisory_quote: SplitManyPoolsExactOutQuote
     runtime_quote: SplitManyPoolsExactOutQuote
@@ -5279,17 +5332,7 @@ def build_exact_out_many_pool_guarded_quote_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolGuardedQuotePacket:
-    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
-    (
-        max_legs_i,
-        max_candidate_pools_i,
-        max_candidates_i,
-        max_iters_i,
-        window_i,
-        brute_force_max_i,
-        max_full_domain_pools_i,
-        max_enumerated_candidates_i,
-    ) = _require_runtime_control_values(
+    controls = _ExactOutManyPoolRuntimeControls(
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_candidates=max_candidates,
@@ -5299,19 +5342,32 @@ def build_exact_out_many_pool_guarded_quote_packet(
         max_full_domain_pools=max_full_domain_pools,
         max_enumerated_candidates=max_enumerated_candidates,
     )
-    quote, err, contract = quote_exact_out_many_pool_guarded(
-        pools,
+    params = controls.to_runtime_params(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total_i,
-        max_legs=max_legs_i,
-        max_candidate_pools=max_candidate_pools_i,
-        max_candidates=max_candidates_i,
-        max_iters=max_iters_i,
-        window=window_i,
-        brute_force_max=brute_force_max_i,
-        max_full_domain_pools=max_full_domain_pools_i,
-        max_enumerated_candidates=max_enumerated_candidates_i,
+        amount_out_total=amount_out_total,
+    )
+    return _guarded_quote_packet_for_runtime_params(pools, params=params)
+
+
+def _guarded_quote_packet_for_runtime_params(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> ExactOutManyPoolGuardedQuotePacket:
+    quote, err, contract = quote_exact_out_many_pool_guarded(
+        pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_candidates=int(params.max_candidates),
+        max_iters=int(params.max_iters),
+        window=int(params.window),
+        brute_force_max=int(params.brute_force_max),
+        max_full_domain_pools=int(params.max_full_domain_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
     )
     if quote is None:
         return ExactOutManyPoolGuardedQuotePacket(
@@ -5343,17 +5399,7 @@ def build_exact_out_many_pool_certified_winner_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolCertifiedWinnerPacket:
-    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
-    (
-        max_legs_i,
-        max_candidate_pools_i,
-        max_candidates_i,
-        max_iters_i,
-        window_i,
-        brute_force_max_i,
-        max_full_domain_pools_i,
-        max_enumerated_candidates_i,
-    ) = _require_runtime_control_values(
+    controls = _ExactOutManyPoolRuntimeControls(
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_candidates=max_candidates,
@@ -5363,29 +5409,19 @@ def build_exact_out_many_pool_certified_winner_packet(
         max_full_domain_pools=max_full_domain_pools,
         max_enumerated_candidates=max_enumerated_candidates,
     )
-    domain_contract = build_exact_out_many_pool_candidate_domain_contract(
-        pools,
+    params = controls.to_runtime_params(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total_i,
-        max_legs=max_legs_i,
-        max_candidate_pools=max_candidate_pools_i,
-        max_enumerated_candidates=max_enumerated_candidates_i,
+        amount_out_total=amount_out_total,
     )
-    guarded_packet = build_exact_out_many_pool_guarded_quote_packet(
-        pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=amount_out_total_i,
-        max_legs=max_legs_i,
-        max_candidate_pools=max_candidate_pools_i,
-        max_candidates=max_candidates_i,
-        max_iters=max_iters_i,
-        window=window_i,
-        brute_force_max=brute_force_max_i,
-        max_full_domain_pools=max_full_domain_pools_i,
-        max_enumerated_candidates=max_enumerated_candidates_i,
-    )
+    return _certified_winner_packet_for_runtime_params(pools, params=params)
+
+
+def _certified_winner_packet_from_components(
+    *,
+    domain_contract: ExactOutManyPoolCandidateDomainContract,
+    guarded_packet: ExactOutManyPoolGuardedQuotePacket,
+) -> ExactOutManyPoolCertifiedWinnerPacket:
     gate = check_exact_out_many_pool_certified_winner_packet_gate(
         domain_contract_ok=bool(domain_contract.contract_ok),
         guard_ok=bool(guarded_packet.guard_ok),
@@ -5394,6 +5430,27 @@ def build_exact_out_many_pool_certified_winner_packet(
         domain_contract=domain_contract,
         guarded_packet=guarded_packet,
         packet_ok=bool(gate.ok),
+    )
+
+
+def _certified_winner_packet_for_runtime_params(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> ExactOutManyPoolCertifiedWinnerPacket:
+    domain_contract = build_exact_out_many_pool_candidate_domain_contract(
+        pools,
+        asset_in=params.asset_in,
+        asset_out=params.asset_out,
+        amount_out_total=int(params.amount_out_total),
+        max_legs=int(params.max_legs),
+        max_candidate_pools=int(params.max_candidate_pools),
+        max_enumerated_candidates=int(params.max_enumerated_candidates),
+    )
+    guarded_packet = _guarded_quote_packet_for_runtime_params(pools, params=params)
+    return _certified_winner_packet_from_components(
+        domain_contract=domain_contract,
+        guarded_packet=guarded_packet,
     )
 
 
@@ -5418,27 +5475,6 @@ class _CertifiedAdvisoryComponents:
             and self.advisory_packet.packet_ok
             and self.selected_runtime_quotes_agree
         )
-
-
-def _certified_winner_packet_for_runtime_params(
-    pools: Sequence[PoolState],
-    *,
-    params: _ExactOutManyPoolRuntimeParams,
-) -> ExactOutManyPoolCertifiedWinnerPacket:
-    return build_exact_out_many_pool_certified_winner_packet(
-        pools,
-        asset_in=params.asset_in,
-        asset_out=params.asset_out,
-        amount_out_total=int(params.amount_out_total),
-        max_legs=int(params.max_legs),
-        max_candidate_pools=int(params.max_candidate_pools),
-        max_candidates=int(params.max_candidates),
-        max_iters=int(params.max_iters),
-        window=int(params.window),
-        brute_force_max=int(params.brute_force_max),
-        max_full_domain_pools=int(params.max_full_domain_pools),
-        max_enumerated_candidates=int(params.max_enumerated_candidates),
-    )
 
 
 def _bounded_advisory_packet_for_runtime_params(
@@ -5519,6 +5555,15 @@ def _certified_advisory_packet_from_components(
     )
 
 
+def _certified_advisory_packet_for_runtime_params(
+    pools: Sequence[PoolState],
+    *,
+    params: _ExactOutManyPoolRuntimeParams,
+) -> ExactOutManyPoolCertifiedAdvisoryPacket:
+    components = _build_certified_advisory_components(pools, params=params)
+    return _certified_advisory_packet_from_components(components)
+
+
 def build_exact_out_many_pool_certified_advisory_packet(
     pools: Sequence[PoolState],
     *,
@@ -5534,11 +5579,7 @@ def build_exact_out_many_pool_certified_advisory_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolCertifiedAdvisoryPacket:
-    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
-    params = _ExactOutManyPoolRuntimeParams(
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=amount_out_total_i,
+    controls = _ExactOutManyPoolRuntimeControls(
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_candidates=max_candidates,
@@ -5548,8 +5589,12 @@ def build_exact_out_many_pool_certified_advisory_packet(
         max_full_domain_pools=max_full_domain_pools,
         max_enumerated_candidates=max_enumerated_candidates,
     )
-    components = _build_certified_advisory_components(pools, params=params)
-    return _certified_advisory_packet_from_components(components)
+    params = controls.to_runtime_params(
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out_total=amount_out_total,
+    )
+    return _certified_advisory_packet_for_runtime_params(pools, params=params)
 
 
 def quote_exact_out_many_pool_certified_advisory(
@@ -5567,17 +5612,7 @@ def quote_exact_out_many_pool_certified_advisory(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> tuple[SplitManyPoolsExactOutQuote | None, str | None, ExactOutManyPoolCertifiedAdvisoryPacket]:
-    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
-    (
-        max_legs_i,
-        max_candidate_pools_i,
-        max_candidates_i,
-        max_iters_i,
-        window_i,
-        brute_force_max_i,
-        max_full_domain_pools_i,
-        max_enumerated_candidates_i,
-    ) = _require_runtime_control_values(
+    controls = _ExactOutManyPoolRuntimeControls(
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_candidates=max_candidates,
@@ -5587,20 +5622,12 @@ def quote_exact_out_many_pool_certified_advisory(
         max_full_domain_pools=max_full_domain_pools,
         max_enumerated_candidates=max_enumerated_candidates,
     )
-    packet = build_exact_out_many_pool_certified_advisory_packet(
-        pools,
+    params = controls.to_runtime_params(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total_i,
-        max_legs=max_legs_i,
-        max_candidate_pools=max_candidate_pools_i,
-        max_candidates=max_candidates_i,
-        max_iters=max_iters_i,
-        window=window_i,
-        brute_force_max=brute_force_max_i,
-        max_full_domain_pools=max_full_domain_pools_i,
-        max_enumerated_candidates=max_enumerated_candidates_i,
+        amount_out_total=amount_out_total,
     )
+    packet = _certified_advisory_packet_for_runtime_params(pools, params=params)
     if packet.packet_ok:
         return packet.advisory_packet.advisory_quote, None, packet
     if not packet.certified_packet.packet_ok:
@@ -5627,17 +5654,7 @@ def build_exact_out_many_pool_repaired_replacement_shadow_packet(
     max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedReplacementShadowPacket:
-    amount_out_total_i = _require_amount_out_total_int(amount_out_total)
-    (
-        max_legs_i,
-        max_candidate_pools_i,
-        max_candidates_i,
-        max_iters_i,
-        window_i,
-        brute_force_max_i,
-        max_full_domain_pools_i,
-        max_enumerated_candidates_i,
-    ) = _require_runtime_control_values(
+    controls = _ExactOutManyPoolRuntimeControls(
         max_legs=max_legs,
         max_candidate_pools=max_candidate_pools,
         max_candidates=max_candidates,
@@ -5647,20 +5664,12 @@ def build_exact_out_many_pool_repaired_replacement_shadow_packet(
         max_full_domain_pools=max_full_domain_pools,
         max_enumerated_candidates=max_enumerated_candidates,
     )
-    default_packet = build_exact_out_many_pool_default_packet(
-        pools,
+    params = controls.to_runtime_params(
         asset_in=asset_in,
         asset_out=asset_out,
-        amount_out_total=amount_out_total_i,
-        max_legs=max_legs_i,
-        max_candidate_pools=max_candidate_pools_i,
-        max_candidates=max_candidates_i,
-        max_iters=max_iters_i,
-        window=window_i,
-        brute_force_max=brute_force_max_i,
-        max_full_domain_pools=max_full_domain_pools_i,
-        max_enumerated_candidates=max_enumerated_candidates_i,
+        amount_out_total=amount_out_total,
     )
+    default_packet = _certified_advisory_packet_for_runtime_params(pools, params=params)
     replacement_contract = default_packet.repaired_key_cover_packet.selected_domain_contract
     replacement_available = bool(replacement_contract.contract_ok)
     effective_quote_matches_replacement_quote = bool(
