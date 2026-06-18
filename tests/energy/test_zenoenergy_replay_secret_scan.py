@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from tools import check_zenoenergy_replay_secret_scan as secret_scan_tool
 from tools.check_zenoenergy_replay_secret_scan import (
     SECRET_SCAN_SCHEMA,
     main,
@@ -111,6 +112,26 @@ def test_secret_scan_cli_returns_one_on_findings(tmp_path: Path) -> None:
     assert rc == 1
     assert payload["ok"] is False
     assert payload["finding_count"] == 1
+
+
+def test_secret_scan_cli_rejects_truthy_string_ok(monkeypatch, tmp_path: Path) -> None:
+    report_path = tmp_path / "upba_report.json"
+    report_path.write_text(json.dumps(_clean_report()), encoding="utf-8")
+
+    def fake_scan(_paths: list[Path]) -> dict[str, object]:
+        return {
+            "schema": SECRET_SCAN_SCHEMA,
+            "tool": "tools/check_zenoenergy_replay_secret_scan.py",
+            "ok": "true",
+            "finding_count": 0,
+            "source_report_count": 1,
+        }
+
+    monkeypatch.setattr(secret_scan_tool, "scan_replay_reports", fake_scan)
+
+    rc = main(["--source-report", str(report_path)])
+
+    assert rc == 1
 
 
 def _clean_report() -> dict[str, object]:
