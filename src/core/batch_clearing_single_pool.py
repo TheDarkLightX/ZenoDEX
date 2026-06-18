@@ -9,6 +9,7 @@ from ..state.balances import Amount, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
 from ..state.pools import PoolState
+from .batch_clearing_swaps import _SwapFillReserveRequest
 from .domain_limits import is_strict_int
 from .settlement import Fill, FillAction
 from .settlement_fill_fields import read_optional_non_negative_fill_int
@@ -154,11 +155,13 @@ def _process_ordered_swaps_for_single_pool(
         if fill.action != FillAction.FILL:
             continue
         runtime.current_reserves = factories.reserves_after_swap_fill_fn(
-            intent,
-            fill,
-            pool_state,
-            runtime.current_reserves,
-            protocol_fee_share_bps=protocol_fee_share_bps,
+            _SwapFillReserveRequest(
+                intent=intent,
+                fill=fill,
+                pool_state=pool_state,
+                reserves=runtime.current_reserves,
+                protocol_fee_share_bps=protocol_fee_share_bps,
+            )
         )
         factories.apply_swap_fill_to_scratch_balances_fn(
             intent,

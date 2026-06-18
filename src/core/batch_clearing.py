@@ -91,6 +91,7 @@ from .batch_clearing_swaps import (
     _process_swap_intent_with_factories,
     _reserves_after_swap_fill,
     _SwapIntentFactories,
+    _SwapIntentProcessRequest,
 )
 from .batch_clearing_validate import (
     _SettlementValidationFactories,
@@ -325,17 +326,19 @@ def _process_swap_intent(
     protocol_fee_share_bps: int = 0,
 ) -> Fill:
     return _process_swap_intent_with_factories(
-        intent,
-        reserves,
-        pool_state,
-        balances,
-        protocol_fee_share_bps=protocol_fee_share_bps,
-        factories=_SwapIntentFactories(
-            quote_exact_in_fn=quote_cpmm_swap_exact_in,
-            quote_exact_out_fn=quote_cpmm_swap_exact_out,
-            swap_exact_in_fn=swap_exact_in_for_pool,
-            swap_exact_out_fn=swap_exact_out_for_pool,
-        ),
+        _SwapIntentProcessRequest(
+            intent=intent,
+            reserves=reserves,
+            pool_state=pool_state,
+            balances=balances,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            factories=_SwapIntentFactories(
+                quote_exact_in_fn=quote_cpmm_swap_exact_in,
+                quote_exact_out_fn=quote_cpmm_swap_exact_out,
+                swap_exact_in_fn=swap_exact_in_for_pool,
+                swap_exact_out_fn=swap_exact_out_for_pool,
+            ),
+        )
     )
 
 

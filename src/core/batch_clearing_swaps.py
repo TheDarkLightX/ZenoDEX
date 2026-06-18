@@ -32,6 +32,16 @@ class _SwapIntentFactories:
 
 
 @dataclass(frozen=True)
+class _SwapIntentProcessRequest:
+    intent: Intent
+    reserves: Tuple[Amount, Amount]
+    pool_state: PoolState
+    balances: BalanceTable
+    protocol_fee_share_bps: int
+    factories: _SwapIntentFactories
+
+
+@dataclass(frozen=True)
 class _SwapIntentContext:
     pool_state: PoolState
     balances: BalanceTable
@@ -47,6 +57,15 @@ class _ReserveQuoteContext:
     pool_state: PoolState
     reserve_in: Amount
     reserve_out: Amount
+    protocol_fee_share_bps: int
+
+
+@dataclass(frozen=True)
+class _SwapFillReserveRequest:
+    intent: Intent
+    fill: Fill
+    pool_state: PoolState
+    reserves: Tuple[Amount, Amount]
     protocol_fee_share_bps: int
 
 
@@ -176,28 +195,22 @@ def _process_exact_out_swap_intent(
     )
 
 
-def _process_swap_intent_with_factories(
-    intent: Intent,
-    reserves: Tuple[Amount, Amount],
-    pool_state: PoolState,
-    balances: BalanceTable,
-    *,
-    protocol_fee_share_bps: int,
-    factories: _SwapIntentFactories,
-) -> Fill:
+def _process_swap_intent_with_factories(request: _SwapIntentProcessRequest) -> Fill:
     """Process a single swap intent against a pool snapshot."""
-    resolved = _resolve_swap_reserves(intent, pool_state, reserves)
+    intent = request.intent
+    pool_state = request.pool_state
+    resolved = _resolve_swap_reserves(intent, pool_state, request.reserves)
     if isinstance(resolved, Fill):
         return resolved
     asset_in, _asset_out, reserve_in, reserve_out = resolved
     context = _SwapIntentContext(
         pool_state=pool_state,
-        balances=balances,
+        balances=request.balances,
         asset_in=asset_in,
         reserve_in=reserve_in,
         reserve_out=reserve_out,
-        protocol_fee_share_bps=protocol_fee_share_bps,
-        factories=factories,
+        protocol_fee_share_bps=request.protocol_fee_share_bps,
+        factories=request.factories,
     )
 
     try:
@@ -261,21 +274,18 @@ def _reserves_after_exact_out_direction(
     return next_reserves
 
 
-def _reserves_after_swap_fill(
-    intent: Intent,
-    fill: Fill,
-    pool_state: PoolState,
-    reserves: Tuple[Amount, Amount],
-    *,
-    protocol_fee_share_bps: int,
-) -> Tuple[Amount, Amount]:
+def _reserves_after_swap_fill(request: _SwapFillReserveRequest) -> Tuple[Amount, Amount]:
+    intent = request.intent
+    fill = request.fill
+    pool_state = request.pool_state
+    reserves = request.reserves
     asset_in = intent.get_field("asset_in")
     if asset_in == pool_state.asset0:
         context = _ReserveQuoteContext(
             pool_state=pool_state,
             reserve_in=reserves[0],
             reserve_out=reserves[1],
-            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_share_bps=request.protocol_fee_share_bps,
         )
         if intent.kind == IntentKind.SWAP_EXACT_IN:
             amount_in_filled = _read_swap_fill_int(
@@ -295,7 +305,7 @@ def _reserves_after_swap_fill(
         pool_state=pool_state,
         reserve_in=reserves[1],
         reserve_out=reserves[0],
-        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_share_bps=request.protocol_fee_share_bps,
     )
     if intent.kind == IntentKind.SWAP_EXACT_IN:
         amount_in_filled = _read_swap_fill_int(
