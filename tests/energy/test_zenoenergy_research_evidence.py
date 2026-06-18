@@ -1408,3 +1408,115 @@ def test_research_evidence_replay_rejects_truthy_string_obligation_passed(
     assert report["ok"] is False
     check = _check_by_id(report, "upba_v2_model_leaderboard.obligations")
     assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_registry_dimension(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_registry_dimension(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "zenoenergy_best_model_registry.json":
+            models = payload["models"]
+            assert isinstance(models, list)
+            first = models[0]
+            assert isinstance(first, dict)
+            first["parameter_count"] = str(first["parameter_count"])
+        return payload
+
+    monkeypatch.setattr(
+        research_mod, "_load_json", load_json_with_coerced_registry_dimension
+    )
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "best_model_registry.files_and_hashes")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_registry_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_registry_metric(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "zenoenergy_best_model_registry.json":
+            models = payload["models"]
+            assert isinstance(models, list)
+            promoted = next(
+                model
+                for model in models
+                if isinstance(model, dict)
+                and model.get("model_id") == "gemini_mlp_v6_seed20260519"
+            )
+            metrics = promoted["metrics"]
+            assert isinstance(metrics, dict)
+            metrics["holdout_invalid_accept_count"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_registry_metric)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "best_model_registry.upba_default")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_leaderboard_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_leaderboard_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_model_leaderboard.json":
+            payload["compared_model_count"] = "7"
+        return payload
+
+    monkeypatch.setattr(
+        research_mod, "_load_json", load_json_with_coerced_leaderboard_count
+    )
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "upba_v2_model_leaderboard.schema_and_decision")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_leaderboard_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_leaderboard_safety(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_model_leaderboard.json":
+            models = payload["models"]
+            assert isinstance(models, list)
+            promoted = next(
+                model
+                for model in models
+                if isinstance(model, dict)
+                and model.get("model_id") == "gemini_mlp_v6_seed20260519"
+            )
+            metrics = promoted["metrics"]
+            assert isinstance(metrics, dict)
+            holdout = metrics["holdout"]
+            assert isinstance(holdout, dict)
+            holdout["invalid_accept_count"] = "0"
+        return payload
+
+    monkeypatch.setattr(
+        research_mod, "_load_json", load_json_with_coerced_leaderboard_safety
+    )
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "upba_v2_model_leaderboard.safety_boundary")
+    assert check["passed"] is False

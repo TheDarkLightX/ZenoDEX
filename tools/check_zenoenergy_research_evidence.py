@@ -3128,9 +3128,13 @@ def _check_best_model_registry(
             continue
         if payload.get("schema") != model.get("schema"):
             files_ok = False
-        if _retained_model_parameter_count(payload) != int(model["parameter_count"]):
+        if not _json_int_equals(
+            model.get("parameter_count"), _retained_model_parameter_count(payload)
+        ):
             files_ok = False
-        if len(payload.get("feature_names", [])) != int(model["feature_dim"]):
+        if not _json_int_equals(
+            model.get("feature_dim"), len(payload.get("feature_names", []))
+        ):
             files_ok = False
     return [
         _expect_true(
@@ -3156,16 +3160,28 @@ def _check_best_model_registry(
         ),
         _expect_true(
             "best_model_registry.upba_default",
-            int(upba.get("parameter_count", 0)) == 6273
+            _json_int_equals(upba.get("parameter_count"), 6273)
             and _is_true(upba["metrics"]["promotion_allowed"])
-            and int(upba["metrics"]["holdout_invalid_accept_count"]) == 0
-            and int(upba["metrics"]["cross_seed_invalid_accept_count_total"]) == 0
-            and int(upba["metrics"]["cross_seed_permutation_violation_count_total"]) == 0
-            and float(upba["metrics"]["holdout_top_1_recall"]) > 0.997
-            and float(upba["metrics"]["cross_seed_top_1_recall_min"]) >= 0.983
-            and float(upba["metrics"]["cross_seed_top_10_recall_min"]) == 1.0
-            and float(upba["metrics"]["hard_case_top_1_recall"]) > 0.993
-            and int(upba["metrics"]["hard_case_top10_miss_count"]) == 0
+            and _json_int_equals(upba["metrics"]["holdout_invalid_accept_count"], 0)
+            and _json_int_equals(
+                upba["metrics"]["cross_seed_invalid_accept_count_total"], 0
+            )
+            and _json_int_equals(
+                upba["metrics"]["cross_seed_permutation_violation_count_total"], 0
+            )
+            and _json_number_greater_than_value(
+                upba["metrics"]["holdout_top_1_recall"], 0.997
+            )
+            and _json_number_at_least(
+                upba["metrics"]["cross_seed_top_1_recall_min"], 0.983
+            )
+            and _json_number_equals(
+                upba["metrics"]["cross_seed_top_10_recall_min"], 1.0
+            )
+            and _json_number_greater_than_value(
+                upba["metrics"]["hard_case_top_1_recall"], 0.993
+            )
+            and _json_int_equals(upba["metrics"]["hard_case_top10_miss_count"], 0)
             and upba.get("supersedes") == "gemini_highwinner_seed20260517"
             and upba_linear.get("superseded_by") == "gemini_mlp_v6_seed20260519"
             and upba_baseline.get("superseded_by") == "gemini_mlp_v6_seed20260519",
@@ -3176,11 +3192,26 @@ def _check_best_model_registry(
             len(autotrader) == 3
             and {str(model["model_id"]) for model in autotrader}
             == expected_autotrader_ids
-            and all(int(model["parameter_count"]) == 21 for model in autotrader)
-            and all(int(model["metrics"]["invalid_accept_count"]) == 0 for model in autotrader)
-            and all(float(model["metrics"]["top_5_recall"]) == 1.0 for model in autotrader)
-            and min(float(model["metrics"]["mean_guard_calls"]) for model in autotrader)
-            == 1.008,
+            and all(
+                _json_int_equals(model.get("parameter_count"), 21)
+                for model in autotrader
+            )
+            and all(
+                _json_int_equals(model["metrics"]["invalid_accept_count"], 0)
+                for model in autotrader
+            )
+            and all(
+                _json_number_equals(model["metrics"]["top_5_recall"], 1.0)
+                for model in autotrader
+            )
+            and all(
+                _json_number_at_least(model["metrics"]["mean_guard_calls"], 1.008)
+                for model in autotrader
+            )
+            and any(
+                _json_number_equals(model["metrics"]["mean_guard_calls"], 1.008)
+                for model in autotrader
+            ),
             "all three AutoTrader hard synthetic cross-seed models are retained",
         ),
         _expect_true(
@@ -3228,8 +3259,8 @@ def _check_upba_v2_model_leaderboard(
             and report.get("scope") == "advisory_ranking_only"
             and report.get("decision") == "promote_v6_research_candidate"
             and report.get("promoted_model_id") == "gemini_mlp_v6_seed20260519"
-            and int(report["compared_model_count"]) == 7
-            and int(report["full_three_lane_model_count"]) == 6
+            and _json_int_equals(report.get("compared_model_count"), 7)
+            and _json_int_equals(report.get("full_three_lane_model_count"), 6)
             and report.get("blocked_reasons") == [],
             "leaderboard promotes the v6 MLP advisory UPBA v2 ranker",
         ),
@@ -3241,38 +3272,55 @@ def _check_upba_v2_model_leaderboard(
         ),
         _expect_true(
             "upba_v2_model_leaderboard.metric_dominance",
-            float(promoted["metrics"]["holdout"]["mean_verifier_calls"])
-            < float(highwinner["metrics"]["holdout"]["mean_verifier_calls"])
-            and float(promoted["metrics"]["holdout"]["mean_verifier_calls"])
-            < float(gap["metrics"]["holdout"]["mean_verifier_calls"])
-            and float(promoted["metrics"]["holdout"]["mean_verifier_calls"])
-            < float(objective8["metrics"]["holdout"]["mean_verifier_calls"])
-            and float(promoted["metrics"]["holdout"]["mean_verifier_calls"])
-            < float(handinit["metrics"]["holdout"]["mean_verifier_calls"])
-            and float(promoted["metrics"]["cross_seed"]["top_1_recall_min"])
-            > float(gap["metrics"]["cross_seed"]["top_1_recall_min"])
-            and float(promoted["metrics"]["cross_seed"]["mean_verifier_calls_mean"])
-            < float(highwinner["metrics"]["cross_seed"]["mean_verifier_calls_mean"])
-            and int(promoted["metrics"]["hard_cases"]["top1_miss_count"])
-            < int(highwinner["metrics"]["hard_cases"]["top1_miss_count"])
-            and int(promoted["metrics"]["hard_cases"]["top1_miss_count"])
-            < int(gap["metrics"]["hard_cases"]["top1_miss_count"]),
+            _json_number_less_than(
+                promoted["metrics"]["holdout"]["mean_verifier_calls"],
+                highwinner["metrics"]["holdout"]["mean_verifier_calls"],
+            )
+            and _json_number_less_than(
+                promoted["metrics"]["holdout"]["mean_verifier_calls"],
+                gap["metrics"]["holdout"]["mean_verifier_calls"],
+            )
+            and _json_number_less_than(
+                promoted["metrics"]["holdout"]["mean_verifier_calls"],
+                objective8["metrics"]["holdout"]["mean_verifier_calls"],
+            )
+            and _json_number_less_than(
+                promoted["metrics"]["holdout"]["mean_verifier_calls"],
+                handinit["metrics"]["holdout"]["mean_verifier_calls"],
+            )
+            and _json_number_greater_than(
+                promoted["metrics"]["cross_seed"]["top_1_recall_min"],
+                gap["metrics"]["cross_seed"]["top_1_recall_min"],
+            )
+            and _json_number_less_than(
+                promoted["metrics"]["cross_seed"]["mean_verifier_calls_mean"],
+                highwinner["metrics"]["cross_seed"]["mean_verifier_calls_mean"],
+            )
+            and _json_int_less_than_value(
+                promoted["metrics"]["hard_cases"]["top1_miss_count"],
+                highwinner["metrics"]["hard_cases"]["top1_miss_count"],
+            )
+            and _json_int_less_than_value(
+                promoted["metrics"]["hard_cases"]["top1_miss_count"],
+                gap["metrics"]["hard_cases"]["top1_miss_count"],
+            ),
             "v6 beats the retained linear checkpoints on selected verifier-facing metrics",
         ),
         _expect_true(
             "upba_v2_model_leaderboard.safety_boundary",
             len(full_rows) == 6
-            and int(promoted["metrics"]["holdout"]["invalid_accept_count"]) == 0
-            and int(
-                promoted["metrics"]["cross_seed"]["invalid_accept_count_total"]
+            and _json_int_equals(
+                promoted["metrics"]["holdout"]["invalid_accept_count"], 0
             )
-            == 0
-            and int(
+            and _json_int_equals(
+                promoted["metrics"]["cross_seed"]["invalid_accept_count_total"], 0
+            )
+            and _json_int_equals(
                 promoted["metrics"]["cross_seed"][
                     "permutation_violation_count_total"
-                ]
+                ],
+                0,
             )
-            == 0
             and "advisory rankers only" in doc_text
             and "does not authorize settlement" in doc_text,
             "leaderboard keeps safety as verifier-authoritative and advisory only",
