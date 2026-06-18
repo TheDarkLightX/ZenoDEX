@@ -2,24 +2,179 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
 
 from ..state.balances import Amount, AssetId
 from ..state.pools import PoolState
 from .routing_types import RouteHop, RouteLeg, RouteQuote
 
+_QuoteExactIn = Callable[..., Optional[Tuple[Amount, str]]]
+_ReservesDirection = Callable[..., Optional[Tuple[int, int, int]]]
 
-def best_split_direct_vs_twohop_exact_in(
+
+@dataclass(frozen=True)
+class MixedSplitExactInRequest:
+    direct_pool: PoolState
+    hop1_pool: PoolState
+    hop2_pool: PoolState
+    asset_in: AssetId
+    mid: AssetId
+    asset_out: AssetId
+    quote_exact_in: _QuoteExactIn
+    reserves_direction: _ReservesDirection
+
+
+@dataclass(frozen=True)
+class _SplitQuoteParts:
+    direct_amount_in: int
+    twohop_amount_in: int
+    direct_output: int
+    mid_amount: int
+    twohop_output: int
+
+    @property
+    def total_output(self) -> int:
+        return int(self.direct_output + self.twohop_output)
+
+
+@dataclass(frozen=True)
+class _MixedSplitContext:
+    request: MixedSplitExactInRequest
+
+    def directions_supported(self) -> bool:
+        request = self.request
+        return (
+            request.reserves_direction(request.direct_pool, asset_in=request.asset_in, asset_out=request.asset_out)
+            is not None
+            and request.reserves_direction(request.hop1_pool, asset_in=request.asset_in, asset_out=request.mid)
+            is not None
+            and request.reserves_direction(request.hop2_pool, asset_in=request.mid, asset_out=request.asset_out)
+            is not None
+        )
+
+    def total_out(self, *, direct_amount_in: int, total_input: int) -> int | None:
+        if not (0 <= direct_amount_in <= total_input):
+            return None
+        twohop_amount_in = total_input - int(direct_amount_in)
+        if direct_amount_in == 0 or twohop_amount_in == 0:
+            return None
+        split_quote = self._quote_split(
+            direct_amount_in=int(direct_amount_in),
+            twohop_amount_in=int(twohop_amount_in),
+        )
+        if split_quote is None:
+            return None
+        return split_quote.total_output
+
+    def build_quote(
+        self,
+        *,
+        total_input: int,
+        best_direct_amount: int,
+        best_out: int,
+    ) -> Optional[RouteQuote]:
+        twohop_amount_in = int(total_input) - int(best_direct_amount)
+        split_quote = self._quote_split(
+            direct_amount_in=int(best_direct_amount),
+            twohop_amount_in=int(twohop_amount_in),
+        )
+        if split_quote is None:
+            return None
+        legs = self._build_legs(split_quote)
+        request = self.request
+        return RouteQuote(
+            asset_in=request.asset_in,
+            asset_out=request.asset_out,
+            amount_in=int(total_input),
+            amount_out=int(best_out),
+            legs=legs,
+        )
+
+    def _quote_split(
+        self,
+        *,
+        direct_amount_in: int,
+        twohop_amount_in: int,
+    ) -> _SplitQuoteParts | None:
+        request = self.request
+        direct_quote = request.quote_exact_in(
+            request.direct_pool,
+            asset_in=request.asset_in,
+            asset_out=request.asset_out,
+            amount_in=int(direct_amount_in),
+        )
+        if direct_quote is None:
+            return None
+        hop1_quote = request.quote_exact_in(
+            request.hop1_pool,
+            asset_in=request.asset_in,
+            asset_out=request.mid,
+            amount_in=int(twohop_amount_in),
+        )
+        if hop1_quote is None:
+            return None
+        direct_output, _pool_id = direct_quote
+        mid_amount, _pool_id = hop1_quote
+        hop2_quote = request.quote_exact_in(
+            request.hop2_pool,
+            asset_in=request.mid,
+            asset_out=request.asset_out,
+            amount_in=int(mid_amount),
+        )
+        if hop2_quote is None:
+            return None
+        twohop_output, _pool_id = hop2_quote
+        return _SplitQuoteParts(
+            direct_amount_in=int(direct_amount_in),
+            twohop_amount_in=int(twohop_amount_in),
+            direct_output=int(direct_output),
+            mid_amount=int(mid_amount),
+            twohop_output=int(twohop_output),
+        )
+
+    def _build_legs(self, quote: _SplitQuoteParts) -> tuple[RouteLeg, RouteLeg]:
+        request = self.request
+        direct_hop = RouteHop(
+            request.direct_pool.pool_id,
+            request.asset_in,
+            request.asset_out,
+            int(quote.direct_amount_in),
+            int(quote.direct_output),
+        )
+        hop1 = RouteHop(
+            request.hop1_pool.pool_id,
+            request.asset_in,
+            request.mid,
+            int(quote.twohop_amount_in),
+            int(quote.mid_amount),
+        )
+        hop2 = RouteHop(
+            request.hop2_pool.pool_id,
+            request.mid,
+            request.asset_out,
+            int(quote.mid_amount),
+            int(quote.twohop_output),
+        )
+        direct_leg = RouteLeg(
+            hops=(direct_hop,),
+            amount_in=int(quote.direct_amount_in),
+            amount_out=int(quote.direct_output),
+        )
+        twohop_leg = RouteLeg(
+            hops=(hop1, hop2),
+            amount_in=int(quote.twohop_amount_in),
+            amount_out=int(quote.twohop_output),
+        )
+        legs = [direct_leg, twohop_leg]
+        legs.sort(key=lambda leg: ",".join(hop.pool_id for hop in leg.hops))
+        return legs[0], legs[1]
+
+
+def best_split_direct_vs_twohop_exact_in_for_request(
     *,
-    direct_pool: PoolState,
-    hop1_pool: PoolState,
-    hop2_pool: PoolState,
-    asset_in: AssetId,
-    mid: AssetId,
-    asset_out: AssetId,
+    request: MixedSplitExactInRequest,
     amount_in_total: Amount,
-    quote_exact_in: Callable[..., Optional[Tuple[Amount, str]]],
-    reserves_direction: Callable[..., Optional[Tuple[int, int, int]]],
     window: int = 64,
     brute_force_max: int = 512,
 ) -> Optional[RouteQuote]:
@@ -35,114 +190,27 @@ def best_split_direct_vs_twohop_exact_in(
         return None
     if window < 0 or brute_force_max < 0:
         raise ValueError("window/brute_force_max must be non-negative")
-    if not _directions_supported(
-        direct_pool=direct_pool,
-        hop1_pool=hop1_pool,
-        hop2_pool=hop2_pool,
-        asset_in=asset_in,
-        mid=mid,
-        asset_out=asset_out,
-        reserves_direction=reserves_direction,
-    ):
+    context = _MixedSplitContext(request=request)
+    if not context.directions_supported():
         return None
-
-    def total_out(direct_amount_in: int) -> int | None:
-        return _total_split_output(
-            direct_amount_in=direct_amount_in,
-            total_input=total_input,
-            direct_pool=direct_pool,
-            hop1_pool=hop1_pool,
-            hop2_pool=hop2_pool,
-            asset_in=asset_in,
-            mid=mid,
-            asset_out=asset_out,
-            quote_exact_in=quote_exact_in,
-        )
 
     best = _best_split_amount(
         total_input=total_input,
-        total_out=total_out,
+        total_out=lambda direct_amount_in: context.total_out(
+            direct_amount_in=direct_amount_in,
+            total_input=total_input,
+        ),
         window=window,
         brute_force_max=brute_force_max,
     )
     if best is None:
         return None
     best_out, best_direct_amount = best
-    return _build_route_quote(
+    return context.build_quote(
         total_input=total_input,
         best_direct_amount=best_direct_amount,
         best_out=best_out,
-        direct_pool=direct_pool,
-        hop1_pool=hop1_pool,
-        hop2_pool=hop2_pool,
-        asset_in=asset_in,
-        mid=mid,
-        asset_out=asset_out,
-        quote_exact_in=quote_exact_in,
     )
-
-
-def _directions_supported(
-    *,
-    direct_pool: PoolState,
-    hop1_pool: PoolState,
-    hop2_pool: PoolState,
-    asset_in: AssetId,
-    mid: AssetId,
-    asset_out: AssetId,
-    reserves_direction: Callable[..., Optional[Tuple[int, int, int]]],
-) -> bool:
-    return (
-        reserves_direction(direct_pool, asset_in=asset_in, asset_out=asset_out) is not None
-        and reserves_direction(hop1_pool, asset_in=asset_in, asset_out=mid) is not None
-        and reserves_direction(hop2_pool, asset_in=mid, asset_out=asset_out) is not None
-    )
-
-
-def _total_split_output(
-    *,
-    direct_amount_in: int,
-    total_input: int,
-    direct_pool: PoolState,
-    hop1_pool: PoolState,
-    hop2_pool: PoolState,
-    asset_in: AssetId,
-    mid: AssetId,
-    asset_out: AssetId,
-    quote_exact_in: Callable[..., Optional[Tuple[Amount, str]]],
-) -> int | None:
-    if not (0 <= direct_amount_in <= total_input):
-        return None
-    twohop_amount_in = total_input - int(direct_amount_in)
-    if direct_amount_in == 0 or twohop_amount_in == 0:
-        return None
-    direct_quote = quote_exact_in(
-        direct_pool,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_in=int(direct_amount_in),
-    )
-    if direct_quote is None:
-        return None
-    hop1_quote = quote_exact_in(
-        hop1_pool,
-        asset_in=asset_in,
-        asset_out=mid,
-        amount_in=int(twohop_amount_in),
-    )
-    if hop1_quote is None:
-        return None
-    mid_amount, _pool_id = hop1_quote
-    hop2_quote = quote_exact_in(
-        hop2_pool,
-        asset_in=mid,
-        asset_out=asset_out,
-        amount_in=int(mid_amount),
-    )
-    if hop2_quote is None:
-        return None
-    twohop_output, _pool_id = hop2_quote
-    return int(direct_quote[0] + twohop_output)
 
 
 def _scan_split_range(
@@ -245,74 +313,3 @@ def _leftmost_equal_output(
             break
         direct_amount -= 1
     return int(direct_amount)
-
-
-def _build_route_quote(
-    *,
-    total_input: int,
-    best_direct_amount: int,
-    best_out: int,
-    direct_pool: PoolState,
-    hop1_pool: PoolState,
-    hop2_pool: PoolState,
-    asset_in: AssetId,
-    mid: AssetId,
-    asset_out: AssetId,
-    quote_exact_in: Callable[..., Optional[Tuple[Amount, str]]],
-) -> Optional[RouteQuote]:
-    twohop_amount_in = int(total_input) - int(best_direct_amount)
-    direct_quote = quote_exact_in(
-        direct_pool,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_in=int(best_direct_amount),
-    )
-    hop1_quote = quote_exact_in(
-        hop1_pool,
-        asset_in=asset_in,
-        asset_out=mid,
-        amount_in=int(twohop_amount_in),
-    )
-    if direct_quote is None or hop1_quote is None:
-        return None
-    direct_output, _pool_id = direct_quote
-    mid_amount, _pool_id = hop1_quote
-    hop2_quote = quote_exact_in(
-        hop2_pool,
-        asset_in=mid,
-        asset_out=asset_out,
-        amount_in=int(mid_amount),
-    )
-    if hop2_quote is None:
-        return None
-    twohop_output, _pool_id = hop2_quote
-
-    direct_hop = RouteHop(
-        direct_pool.pool_id,
-        asset_in,
-        asset_out,
-        int(best_direct_amount),
-        int(direct_output),
-    )
-    hop1 = RouteHop(hop1_pool.pool_id, asset_in, mid, int(twohop_amount_in), int(mid_amount))
-    hop2 = RouteHop(hop2_pool.pool_id, mid, asset_out, int(mid_amount), int(twohop_output))
-    direct_leg = RouteLeg(
-        hops=(direct_hop,),
-        amount_in=int(best_direct_amount),
-        amount_out=int(direct_output),
-    )
-    twohop_leg = RouteLeg(
-        hops=(hop1, hop2),
-        amount_in=int(twohop_amount_in),
-        amount_out=int(twohop_output),
-    )
-
-    legs = [direct_leg, twohop_leg]
-    legs.sort(key=lambda leg: ",".join(hop.pool_id for hop in leg.hops))
-    return RouteQuote(
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_in=int(total_input),
-        amount_out=int(best_out),
-        legs=tuple(legs),
-    )

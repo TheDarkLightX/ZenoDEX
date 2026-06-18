@@ -2,16 +2,22 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
 import src.core.routing as routing
+import src.core.routing_mixed_split as routing_mixed_split
 import src.core.split_routing_dispatch as split_routing_dispatch
 from src.core.routing import (
     best_route_exact_in_2hop,
     best_route_exact_out_2hop,
 )
-from src.core.routing_common import pool_quote_exact_in, pool_quote_exact_out
+from src.core.routing_common import (
+    pool_quote_exact_in,
+    pool_quote_exact_out,
+    pool_reserves_direction,
+)
 from src.integration.exact_in_route_certificate import (
     enumerate_route_candidates_exact_in_2hop,
     exact_in_route_canonical_key,
@@ -23,6 +29,7 @@ def test_routing_does_not_broadly_suppress_unexpected_exceptions() -> None:
     modules = (routing, split_routing_dispatch)
     broad_handlers: list[str] = []
     for module in modules:
+        assert module.__file__ is not None
         tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
         broad_handlers.extend(
             f"{module.__name__}:{node.lineno}"
@@ -105,7 +112,7 @@ def test_best_route_exact_in_rejects_non_strict_entrypoint_controls(
     values.update(kwargs)
 
     with pytest.raises(ValueError, match=message):
-        best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", **values)
+        best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", **cast(Any, values))
 
 
 @pytest.mark.parametrize(
@@ -127,7 +134,7 @@ def test_best_route_exact_out_rejects_non_strict_entrypoint_controls(
     values.update(kwargs)
 
     with pytest.raises(ValueError, match=message):
-        best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", **values)
+        best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", **cast(Any, values))
 
 
 def test_best_route_keeps_zero_amount_as_no_route() -> None:
@@ -310,6 +317,37 @@ def test_mixed_direct_twohop_split_bva_amount_in_boundary() -> None:
     assert q5 is not None
     assert q5.amount_out >= 2
     assert len(q5.legs) == 2
+
+
+def test_mixed_direct_twohop_request_rejects_negative_search_bounds() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 2, 2, 0),
+        "p_ac": _pool("p_ac", "A", "C", 2, 2, 0),
+        "p_cb": _pool("p_cb", "C", "B", 2, 3, 0),
+    }
+    request = routing_mixed_split.MixedSplitExactInRequest(
+        direct_pool=pools["p_ab"],
+        hop1_pool=pools["p_ac"],
+        hop2_pool=pools["p_cb"],
+        asset_in="A",
+        mid="C",
+        asset_out="B",
+        quote_exact_in=pool_quote_exact_in,
+        reserves_direction=pool_reserves_direction,
+    )
+
+    with pytest.raises(ValueError, match="window/brute_force_max must be non-negative"):
+        routing_mixed_split.best_split_direct_vs_twohop_exact_in_for_request(
+            request=request,
+            amount_in_total=4,
+            window=-1,
+        )
+    with pytest.raises(ValueError, match="window/brute_force_max must be non-negative"):
+        routing_mixed_split.best_split_direct_vs_twohop_exact_in_for_request(
+            request=request,
+            amount_in_total=4,
+            brute_force_max=-1,
+        )
 
 
 def test_best_route_can_split_across_three_parallel_pools():

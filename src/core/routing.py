@@ -23,7 +23,7 @@ Complexity:
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, TypeAlias
 
 from ..core.split_routing_dispatch import (
     best_split_many_pools_exact_in_for_pools,
@@ -43,8 +43,8 @@ from .routing_types import RouteLeg as RouteLeg
 from .routing_types import RouteQuote
 from .routing_types import quote_key as _quote_key
 
-ExactOutTwoHopGateConfig = _exact_out_gate.ExactOutTwoHopGateConfig
-ExactOutTwoHopGateDecision = _exact_out_gate.ExactOutTwoHopGateDecision
+ExactOutTwoHopGateConfig: TypeAlias = _exact_out_gate.ExactOutTwoHopGateConfig
+ExactOutTwoHopGateDecision: TypeAlias = _exact_out_gate.ExactOutTwoHopGateDecision
 decide_exact_out_two_hop_gate = _exact_out_gate.decide_exact_out_two_hop_gate
 should_consider_exact_out_two_hop = _exact_out_gate.should_consider_exact_out_two_hop
 _pool_reserves_direction = _routing_common.pool_reserves_direction
@@ -122,16 +122,19 @@ def _best_split_direct_vs_twohop_exact_in(
     window: int = 64,
     brute_force_max: int = 512,
 ) -> Optional[RouteQuote]:
-    return _routing_mixed_split.best_split_direct_vs_twohop_exact_in(
+    request = _routing_mixed_split.MixedSplitExactInRequest(
         direct_pool=direct_pool,
         hop1_pool=hop1_pool,
         hop2_pool=hop2_pool,
         asset_in=asset_in,
         mid=mid,
         asset_out=asset_out,
-        amount_in_total=amount_in_total,
         quote_exact_in=_pool_quote_exact_in,
         reserves_direction=_pool_reserves_direction,
+    )
+    return _routing_mixed_split.best_split_direct_vs_twohop_exact_in_for_request(
+        request=request,
+        amount_in_total=amount_in_total,
         window=window,
         brute_force_max=brute_force_max,
     )
