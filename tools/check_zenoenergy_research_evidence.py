@@ -2925,24 +2925,26 @@ def _check_negative_curriculum(
             and _is_true(report.get("ok"))
             and report["source_schema"]
             == "zenodex/energy/upba_v2_suffix_bound_adversarial_family_stress/v1"
-            and int(report["evaluated_batches"]) == 118
-            and int(report["family_count"]) == 8
-            and int(report["total_cases"]) == 944,
+            and _json_int_equals(report.get("evaluated_batches"), 118)
+            and _json_int_equals(report.get("family_count"), 8)
+            and _json_int_equals(report.get("total_cases"), 944),
             "negative curriculum receipt is tied to the committed adversarial family stress",
         ),
         _expect_true(
             "negative_curriculum.weights",
-            float(weights["output_mismatch_count"]) > 3.0
-            and float(weights["invariant_violation_flag"]) == 1.0
-            and int(report["disqualifier_histogram"]["output_mismatch_count"]) == 20,
+            _json_number_greater_than_value(weights.get("output_mismatch_count"), 3.0)
+            and _json_number_equals(weights.get("invariant_violation_flag"), 1.0)
+            and _json_int_equals(
+                report["disqualifier_histogram"]["output_mismatch_count"], 20
+            ),
             "rare output-mismatch disqualifiers receive the strongest curriculum weight",
         ),
         _expect_true(
             "negative_curriculum.epiplexity_proxy",
             proxy["schema"] == "zenodex/energy/bounded_epiplexity_proxy/v1"
             and proxy["classification"] == "measurable_bounded_structure"
-            and float(proxy["score"]) > 0.0
-            and float(proxy["policy_separation"]) == 0.375
+            and _json_number_greater_than_value(proxy.get("score"), 0.0)
+            and _json_number_equals(proxy.get("policy_separation"), 0.375)
             and "diagnostic proxy only" in str(proxy["boundary"]).lower(),
             "bounded epiplexity proxy reports measurable structure with a diagnostic-only boundary",
         ),
@@ -2981,25 +2983,33 @@ def _check_curriculum_ranker(
         _expect_true(
             "curriculum_ranker.schema",
             report.get("schema") == "zenodex/energy/upba_v2_curriculum_ranker_report/v1"
-            and int(report["max_train_batches"]) == 1000
-            and int(report["train_rows"]) < int(report["train_rows_available"])
+            and _json_int_equals(report.get("max_train_batches"), 1000)
+            and _json_int_less_than_value(
+                report.get("train_rows"), report.get("train_rows_available")
+            )
             and report["curriculum"].endswith("zenoenergy_negative_curriculum_seed20260545.json"),
             "curriculum ranker receipt records bounded training scope and source curriculum",
         ),
         _expect_true(
             "curriculum_ranker.safety",
-            int(stress_curriculum["invalid_accept_count_total"]) == 0
-            and int(stress_curriculum["permutation_violation_count_total"]) == 0
-            and float(stress_curriculum["top_10_recall_min"]) == 1.0
+            _json_int_equals(stress_curriculum.get("invalid_accept_count_total"), 0)
+            and _json_int_equals(
+                stress_curriculum.get("permutation_violation_count_total"), 0
+            )
+            and _json_number_equals(stress_curriculum.get("top_10_recall_min"), 1.0)
             and _is_true(interpretation["safety_clean"]),
             "curriculum ranker preserves safety, permutation, and top-10 fallback evidence",
         ),
         _expect_true(
             "curriculum_ranker.negative_result",
-            float(holdout_curriculum["mean_verifier_calls"])
-            > float(holdout_baseline["mean_verifier_calls"])
-            and float(stress_curriculum["mean_verifier_calls_mean"])
-            > float(stress_baseline["mean_verifier_calls_mean"])
+            _json_number_greater_than(
+                holdout_curriculum.get("mean_verifier_calls"),
+                holdout_baseline.get("mean_verifier_calls"),
+            )
+            and _json_number_greater_than(
+                stress_curriculum.get("mean_verifier_calls_mean"),
+                stress_baseline.get("mean_verifier_calls_mean"),
+            )
             and _is_false(interpretation["curriculum_improved_cross_seed_mean_calls"])
             and interpretation["promotion_decision"] == "keep_default",
             "rare-disqualifier curriculum does not beat the gap-weighted default",
@@ -3036,29 +3046,38 @@ def _check_data_scaling(
         _expect_true(
             "data_scaling.schema",
             report.get("schema") == "zenodex/energy/upba_v2_data_scaling_report/v1"
-            and int(report["available_train_batches"]) == 10000
-            and int(report["available_train_rows"]) == 199860
-            and int(report["holdout_rows"]) == 39979
+            and _json_int_equals(report.get("available_train_batches"), 10000)
+            and _json_int_equals(report.get("available_train_rows"), 199860)
+            and _json_int_equals(report.get("holdout_rows"), 39979)
             and len(runs) == 8,
             "data-scaling receipt records the committed synthetic corpus and eight budgets",
         ),
         _expect_true(
             "data_scaling.safety",
-            int(report["safety"]["invalid_accept_count_total"]) == 0
-            and all(int(row["metrics"]["invalid_accept_count"]) == 0 for row in runs)
+            _json_int_equals(report["safety"]["invalid_accept_count_total"], 0)
+            and all(
+                _json_int_equals(row["metrics"]["invalid_accept_count"], 0)
+                for row in runs
+            )
             and _is_true(report["safety"]["verifier_authoritative"]),
             "all scaling budgets preserve zero invalid accepts and verifier authority",
         ),
         _expect_true(
             "data_scaling.quantity_curve",
-            float(last["mean_verifier_calls"]) < float(first["mean_verifier_calls"])
-            and float(last["top_1_recall"]) > float(first["top_1_recall"])
-            and float(last["top_10_recall"]) == 1.0,
+            _json_number_less_than(
+                last.get("mean_verifier_calls"), first.get("mean_verifier_calls")
+            )
+            and _json_number_greater_than(
+                last.get("top_1_recall"), first.get("top_1_recall")
+            )
+            and _json_number_equals(last.get("top_10_recall"), 1.0),
             "more same-generator rows improve from the smallest budget",
         ),
         _expect_true(
             "data_scaling.saturates_below_current",
-            float(last["mean_verifier_calls"]) >= float(baseline["mean_verifier_calls"])
+            _json_number_at_least_value(
+                last.get("mean_verifier_calls"), baseline.get("mean_verifier_calls")
+            )
             and _is_false(interpretation["best_budget_beats_current_gap_weighted"])
             and _is_true(interpretation["best_budget_matches_current_gap_weighted_top10"]),
             "full same-generator scaling does not beat the current gap-weighted checkpoint",
@@ -4768,6 +4787,14 @@ def _json_number_less_than_value(value: object, maximum: float) -> bool:
         isinstance(value, (int, float))
         and not isinstance(value, bool)
         and float(value) < maximum
+    )
+
+
+def _json_number_greater_than_value(value: object, minimum: float) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and float(value) > minimum
     )
 
 

@@ -524,6 +524,152 @@ def test_research_evidence_replay_rejects_empty_suffix_required_families(
     assert check["passed"] is False
 
 
+def test_research_evidence_replay_rejects_coerced_negative_curriculum_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_negative_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "zenoenergy_negative_curriculum_seed20260545.json":
+            payload["evaluated_batches"] = "118"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_negative_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "negative_curriculum.schema")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_negative_curriculum_weight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_negative_weight(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "zenoenergy_negative_curriculum_seed20260545.json":
+            weights = payload["recommended_disqualifier_sample_weights"]
+            assert isinstance(weights, dict)
+            weights["output_mismatch_count"] = "4.0"
+        return payload
+
+    monkeypatch.setattr(
+        research_mod, "_load_json", load_json_with_coerced_negative_weight
+    )
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "negative_curriculum.weights")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_curriculum_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_curriculum_safety(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_curriculum_ranker_seed20260517.json":
+            stress = payload["stress"]
+            assert isinstance(stress, dict)
+            summary = stress["summary"]
+            assert isinstance(summary, dict)
+            curriculum = summary["curriculum_learned"]
+            assert isinstance(curriculum, dict)
+            curriculum["invalid_accept_count_total"] = "0"
+        return payload
+
+    monkeypatch.setattr(
+        research_mod, "_load_json", load_json_with_coerced_curriculum_safety
+    )
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "curriculum_ranker.safety")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_curriculum_negative_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_curriculum_metric(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_curriculum_ranker_seed20260517.json":
+            holdout = payload["holdout"]
+            assert isinstance(holdout, dict)
+            curriculum = holdout["curriculum"]
+            assert isinstance(curriculum, dict)
+            curriculum["mean_verifier_calls"] = str(curriculum["mean_verifier_calls"])
+        return payload
+
+    monkeypatch.setattr(
+        research_mod, "_load_json", load_json_with_coerced_curriculum_metric
+    )
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "curriculum_ranker.negative_result")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_data_scaling_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_scaling_safety(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_data_scaling_seed20260517.json":
+            safety = payload["safety"]
+            assert isinstance(safety, dict)
+            safety["invalid_accept_count_total"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_scaling_safety)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "data_scaling.safety")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_data_scaling_curve_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_scaling_metric(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_data_scaling_seed20260517.json":
+            runs = payload["runs"]
+            assert isinstance(runs, list)
+            last = runs[-1]
+            assert isinstance(last, dict)
+            metrics = last["metrics"]
+            assert isinstance(metrics, dict)
+            metrics["top_10_recall"] = "1.0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_scaling_metric)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "data_scaling.quantity_curve")
+    assert check["passed"] is False
+
+
 def test_research_evidence_replay_rejects_coerced_formal_command_exit_code(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
