@@ -849,6 +849,50 @@ def test_research_evidence_replay_rejects_coerced_topk_sweep_false_exclusion_met
     assert check["passed"] is False
 
 
+def test_research_evidence_replay_rejects_coerced_autotrader_cross_seed_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_autotrader_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "autotrader_energy_hard_cross_seed_3x_seed20260522_20260527.json":
+            safety = payload["safety"]
+            assert isinstance(safety, dict)
+            safety["invalid_accept_count_total"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_autotrader_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "autotrader_energy_hard_cross_seed.safety")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_autotrader_cross_seed_nonvacuity_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_autotrader_nonvacuity(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "autotrader_energy_hard_cross_seed_3x_seed20260522_20260527.json":
+            aggregate = payload["aggregate"]
+            assert isinstance(aggregate, dict)
+            aggregate["profile_nonvacuous_count"] = "3"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_autotrader_nonvacuity)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "autotrader_energy_hard_cross_seed.profile_nonvacuous")
+    assert check["passed"] is False
+
+
 def test_research_evidence_replay_rejects_truthy_string_obligation_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

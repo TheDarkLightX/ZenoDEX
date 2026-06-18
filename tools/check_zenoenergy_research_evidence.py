@@ -2130,10 +2130,12 @@ def _check_autotrader_energy_hard_cross_seed(
     report: dict[str, Any],
     doc_text: str,
 ) -> list[EvidenceCheck]:
-    aggregate = report["aggregate"]
-    learned = aggregate["modes"]["learned"]
-    hand = aggregate["modes"]["hand"]
-    random = aggregate["modes"]["random"]
+    aggregate = report.get("aggregate")
+    modes = aggregate.get("modes") if isinstance(aggregate, dict) else {}
+    learned = modes.get("learned") if isinstance(modes, dict) else {}
+    hand = modes.get("hand") if isinstance(modes, dict) else {}
+    random = modes.get("random") if isinstance(modes, dict) else {}
+    safety = report.get("safety")
     doc_lower = doc_text.lower()
     return [
         _expect_equal(
@@ -2143,31 +2145,58 @@ def _check_autotrader_energy_hard_cross_seed(
         ),
         _expect_true(
             "autotrader_energy_hard_cross_seed.safety",
-            int(report["safety"]["invalid_accept_count_total"]) == 0
-            and _is_true(report["safety"]["policy_guards_authoritative"])
-            and _is_false(report["safety"]["scorer_authorizes_trade"])
-            and int(aggregate["safety_pass_count"]) == int(report["run_count"]),
+            isinstance(safety, dict)
+            and isinstance(aggregate, dict)
+            and _json_int_equals(safety.get("invalid_accept_count_total"), 0)
+            and _is_true(safety.get("policy_guards_authoritative"))
+            and _is_false(safety.get("scorer_authorizes_trade"))
+            and _json_int_values_equal(
+                aggregate.get("safety_pass_count"),
+                report.get("run_count"),
+            ),
             "zero invalid accepts and deterministic AutoTrader policy guards remain authoritative",
         ),
         _expect_true(
             "autotrader_energy_hard_cross_seed.learned_beats_hand_all",
-            int(aggregate["learned_beats_hand_count"]) == int(report["run_count"])
-            and int(aggregate["learned_beats_random_count"]) == int(report["run_count"])
-            and float(learned["mean_guard_calls_mean"]) < float(hand["mean_guard_calls_mean"])
-            and float(learned["mean_guard_calls_mean"]) < float(random["mean_guard_calls_mean"]),
+            isinstance(aggregate, dict)
+            and isinstance(learned, dict)
+            and isinstance(hand, dict)
+            and isinstance(random, dict)
+            and _json_int_values_equal(
+                aggregate.get("learned_beats_hand_count"),
+                report.get("run_count"),
+            )
+            and _json_int_values_equal(
+                aggregate.get("learned_beats_random_count"),
+                report.get("run_count"),
+            )
+            and _json_number_less_than(
+                learned.get("mean_guard_calls_mean"),
+                hand.get("mean_guard_calls_mean"),
+            )
+            and _json_number_less_than(
+                learned.get("mean_guard_calls_mean"),
+                random.get("mean_guard_calls_mean"),
+            ),
             "learned AutoTraderEnergy ordering reduces mean guard calls versus hand and random on every seed pair",
         ),
         _expect_true(
             "autotrader_energy_hard_cross_seed.profile_nonvacuous",
             report["profile"] == "hard"
-            and int(aggregate["profile_nonvacuous_count"]) == int(report["run_count"])
-            and float(hand["mean_guard_calls_min"]) >= 2.0,
+            and isinstance(aggregate, dict)
+            and isinstance(hand, dict)
+            and _json_int_values_equal(
+                aggregate.get("profile_nonvacuous_count"),
+                report.get("run_count"),
+            )
+            and _json_number_at_least(hand.get("mean_guard_calls_min"), 2.0),
             "hard profile exercises nontrivial guard ordering",
         ),
         _expect_true(
             "autotrader_energy_hard_cross_seed.doc_and_recall",
-            float(learned["top_5_recall_min"]) >= 0.98
-            and float(learned["invalid_top_1_rate_max"]) == 0.0
+            isinstance(learned, dict)
+            and _json_number_at_least(learned.get("top_5_recall_min"), 0.98)
+            and _json_number_equals(learned.get("invalid_top_1_rate_max"), 0.0)
             and "every evaluated seed pair" in doc_lower
             and "production-shadow observations" in doc_lower,
             "receipt records high top-5 recall plus the synthetic-to-shadow evidence boundary",
