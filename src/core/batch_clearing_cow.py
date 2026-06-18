@@ -23,6 +23,37 @@ class _CowCandidateExactIn:
     asset_out: AssetId
 
 
+@dataclass(frozen=True)
+class _CowPartition:
+    side_01: List[_CowCandidateExactIn]
+    side_10: List[_CowCandidateExactIn]
+    remaining: List[Intent]
+
+
+@dataclass(frozen=True)
+class _CowSelectionContext:
+    balances: BalanceTable
+    asset0: AssetId
+    asset1: AssetId
+
+
+@dataclass(frozen=True)
+class _CowMaterializeRequest:
+    best_pairs: List["_CowPair"]
+    partition: _CowPartition
+    swap_intents: List[Intent]
+    balances: BalanceTable
+
+
+@dataclass(frozen=True)
+class _CowSearchState:
+    side01_index: int
+    used_side10_indices: set[int]
+    debits_asset0: Dict[PubKey, int]
+    debits_asset1: Dict[PubKey, int]
+    pairs: List["_CowPair"]
+
+
 _CowPair = tuple[_CowCandidateExactIn, _CowCandidateExactIn]
 _CowPairSelectionKey = tuple[int, int, Tuple[Tuple[str, str], ...]]
 
@@ -49,70 +80,71 @@ def _is_better_cow_pair_key(
     return cand_pair_ids < best_pair_ids
 
 
+def _candidate_from_intent(intent: Intent, pool_state: PoolState) -> _CowCandidateExactIn | None:
+    a0 = pool_state.asset0
+    a1 = pool_state.asset1
+    if intent.kind != IntentKind.SWAP_EXACT_IN:
+        return None
+
+    asset_in = intent.get_field("asset_in")
+    asset_out = intent.get_field("asset_out")
+    amount_in = intent.get_field("amount_in")
+    min_out = intent.get_field("min_amount_out", 0)
+    if not isinstance(asset_in, str) or not isinstance(asset_out, str):
+        return None
+    if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
+        return None
+    if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
+        return None
+
+    sender = intent.sender_pubkey
+    recipient = intent.get_field("recipient", sender)
+    if not isinstance(recipient, str) or not recipient:
+        return None
+
+    if asset_in == a0 and asset_out == a1:
+        return _CowCandidateExactIn(
+            intent=intent,
+            amount_in=int(amount_in),
+            min_amount_out=int(min_out),
+            sender=sender,
+            recipient=recipient,
+            asset_in=a0,
+            asset_out=a1,
+        )
+    if asset_in == a1 and asset_out == a0:
+        return _CowCandidateExactIn(
+            intent=intent,
+            amount_in=int(amount_in),
+            min_amount_out=int(min_out),
+            sender=sender,
+            recipient=recipient,
+            asset_in=a1,
+            asset_out=a0,
+        )
+    return None
+
+
 def _partition_cow_candidates(
     swap_intents: List[Intent],
     pool_state: PoolState,
-) -> tuple[List[_CowCandidateExactIn], List[_CowCandidateExactIn], List[Intent]]:
-    a0 = pool_state.asset0
-    a1 = pool_state.asset1
+) -> _CowPartition:
     side_01: List[_CowCandidateExactIn] = []
     side_10: List[_CowCandidateExactIn] = []
     remaining: List[Intent] = []
 
     for intent in swap_intents:
-        if intent.kind != IntentKind.SWAP_EXACT_IN:
+        candidate = _candidate_from_intent(intent, pool_state)
+        if candidate is None:
             remaining.append(intent)
-            continue
-        asset_in = intent.get_field("asset_in")
-        asset_out = intent.get_field("asset_out")
-        amount_in = intent.get_field("amount_in")
-        min_out = intent.get_field("min_amount_out", 0)
-        if not isinstance(asset_in, str) or not isinstance(asset_out, str):
-            remaining.append(intent)
-            continue
-        if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
-            remaining.append(intent)
-            continue
-        if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
-            remaining.append(intent)
-            continue
-
-        sender = intent.sender_pubkey
-        recipient = intent.get_field("recipient", sender)
-        if not isinstance(recipient, str) or not recipient:
-            remaining.append(intent)
-            continue
-
-        if asset_in == a0 and asset_out == a1:
-            side_01.append(
-                _CowCandidateExactIn(
-                    intent=intent,
-                    amount_in=int(amount_in),
-                    min_amount_out=int(min_out),
-                    sender=sender,
-                    recipient=recipient,
-                    asset_in=a0,
-                    asset_out=a1,
-                )
-            )
-        elif asset_in == a1 and asset_out == a0:
-            side_10.append(
-                _CowCandidateExactIn(
-                    intent=intent,
-                    amount_in=int(amount_in),
-                    min_amount_out=int(min_out),
-                    sender=sender,
-                    recipient=recipient,
-                    asset_in=a1,
-                    asset_out=a0,
-                )
-            )
+        elif candidate.asset_in == pool_state.asset0:
+            side_01.append(candidate)
         else:
-            remaining.append(intent)
+            side_10.append(candidate)
 
     side_01.sort(key=lambda c: c.intent.intent_id)
     side_10.sort(key=lambda c: c.intent.intent_id)
-    return side_01, side_10, remaining
+    return _CowPartition(side_01=side_01, side_10=side_10, remaining=remaining)
 
 
 def _pair_feasible(x: _CowCandidateExactIn, y: _CowCandidateExactIn) -> bool:
@@ -131,67 +163,73 @@ def _select_cow_pairs_bruteforce(
     side_01: List[_CowCandidateExactIn],
     side_10: List[_CowCandidateExactIn],
     *,
-    balances: BalanceTable,
-    asset0: AssetId,
-    asset1: AssetId,
+    context: _CowSelectionContext,
 ) -> List[_CowPair]:
     best_pairs: List[_CowPair] = []
     best_key: _CowPairSelectionKey | None = None
-    bal0 = _sender_asset_balances(side_01, balances, asset0)
-    bal1 = _sender_asset_balances(side_10, balances, asset1)
+    bal0 = _sender_asset_balances(side_01, context.balances, context.asset0)
+    bal1 = _sender_asset_balances(side_10, context.balances, context.asset1)
 
-    def rec(
-        i: int,
-        used_j: set[int],
-        deb0: Dict[PubKey, int],
-        deb1: Dict[PubKey, int],
-        acc: List[_CowPair],
-    ) -> None:
+    def rec(state: _CowSearchState) -> None:
         nonlocal best_pairs, best_key
-        if i >= len(side_01):
-            key = _cow_pair_selection_key(acc)
+        if state.side01_index >= len(side_01):
+            key = _cow_pair_selection_key(state.pairs)
             if _is_better_cow_pair_key(key, best_key):
                 best_key = key
-                best_pairs = list(acc)
+                best_pairs = list(state.pairs)
             return
 
-        rec(i + 1, used_j, deb0, deb1, acc)
+        rec(_skip_side01_candidate(state))
 
-        x = side_01[i]
-        cur_deb0 = int(deb0.get(x.sender, 0))
+        x = side_01[state.side01_index]
+        cur_deb0 = int(state.debits_asset0.get(x.sender, 0))
         if cur_deb0 + x.amount_in > int(bal0.get(x.sender, 0)):
             return
 
         for j, y in enumerate(side_10):
-            if j in used_j:
+            if j in state.used_side10_indices:
                 continue
             if not _pair_feasible(x, y):
                 continue
-            cur_deb1 = int(deb1.get(y.sender, 0))
+            cur_deb1 = int(state.debits_asset1.get(y.sender, 0))
             if cur_deb1 + y.amount_in > int(bal1.get(y.sender, 0)):
                 continue
 
-            used_j2 = set(used_j)
+            used_j2 = set(state.used_side10_indices)
+            deb0_2 = dict(state.debits_asset0)
+            deb1_2 = dict(state.debits_asset1)
             used_j2.add(j)
-            deb0_2 = dict(deb0)
-            deb1_2 = dict(deb1)
             deb0_2[x.sender] = cur_deb0 + x.amount_in
             deb1_2[y.sender] = cur_deb1 + y.amount_in
-            acc.append((x, y))
-            rec(i + 1, used_j2, deb0_2, deb1_2, acc)
-            acc.pop()
+            rec(
+                _CowSearchState(
+                    side01_index=int(state.side01_index) + 1,
+                    used_side10_indices=used_j2,
+                    debits_asset0=deb0_2,
+                    debits_asset1=deb1_2,
+                    pairs=[*state.pairs, (x, y)],
+                )
+            )
 
-    rec(0, set(), {}, {}, [])
+    rec(_CowSearchState(0, set(), {}, {}, []))
     return best_pairs
+
+
+def _skip_side01_candidate(state: _CowSearchState) -> _CowSearchState:
+    return _CowSearchState(
+        side01_index=int(state.side01_index) + 1,
+        used_side10_indices=state.used_side10_indices,
+        debits_asset0=state.debits_asset0,
+        debits_asset1=state.debits_asset1,
+        pairs=state.pairs,
+    )
 
 
 def _select_cow_pairs_greedy(
     side_01: List[_CowCandidateExactIn],
     side_10: List[_CowCandidateExactIn],
     *,
-    balances: BalanceTable,
-    asset0: AssetId,
-    asset1: AssetId,
+    context: _CowSelectionContext,
 ) -> List[_CowPair]:
     best_pairs: List[_CowPair] = []
     side_01_sorted = sorted(side_01, key=lambda c: (-c.min_amount_out, c.intent.intent_id))
@@ -200,14 +238,14 @@ def _select_cow_pairs_greedy(
     deb1: Dict[PubKey, int] = defaultdict(int)
 
     for x in side_01_sorted:
-        if deb0[x.sender] + x.amount_in > int(balances.get(x.sender, asset0)):
+        if deb0[x.sender] + x.amount_in > int(context.balances.get(x.sender, context.asset0)):
             continue
         best_j: int | None = None
         best_y: _CowCandidateExactIn | None = None
         for j, y in enumerate(side_10_pool):
             if not _pair_feasible(x, y):
                 continue
-            if deb1[y.sender] + y.amount_in > int(balances.get(y.sender, asset1)):
+            if deb1[y.sender] + y.amount_in > int(context.balances.get(y.sender, context.asset1)):
                 continue
             if best_y is None or (y.amount_in, y.intent.intent_id) < (best_y.amount_in, best_y.intent.intent_id):
                 best_j, best_y = j, y
@@ -225,34 +263,21 @@ def _select_cow_pairs(
     side_01: List[_CowCandidateExactIn],
     side_10: List[_CowCandidateExactIn],
     *,
-    balances: BalanceTable,
-    asset0: AssetId,
-    asset1: AssetId,
+    context: _CowSelectionContext,
 ) -> List[_CowPair]:
     brute_cap = 8
     if len(side_01) + len(side_10) <= brute_cap:
         return _select_cow_pairs_bruteforce(
             side_01,
             side_10,
-            balances=balances,
-            asset0=asset0,
-            asset1=asset1,
+            context=context,
         )
-    return _select_cow_pairs_greedy(side_01, side_10, balances=balances, asset0=asset0, asset1=asset1)
+    return _select_cow_pairs_greedy(side_01, side_10, context=context)
 
 
-def _materialize_cow_pairs(
+def _cow_pair_transfer_maps(
     best_pairs: List[_CowPair],
-    *,
-    side_01: List[_CowCandidateExactIn],
-    side_10: List[_CowCandidateExactIn],
-    remaining: List[Intent],
-    swap_intents: List[Intent],
-    balances: BalanceTable,
-) -> tuple[List[Fill], List[Intent]]:
-    matched_ids = {candidate.intent.intent_id for pair in best_pairs for candidate in pair}
-
-    # Apply to balances snapshot atomically: subtract all debits, then add all credits.
+) -> tuple[Dict[Tuple[PubKey, AssetId], int], Dict[Tuple[PubKey, AssetId], int]]:
     debit_by_sender_asset: Dict[Tuple[PubKey, AssetId], int] = defaultdict(int)
     credit_by_recipient_asset: Dict[Tuple[PubKey, AssetId], int] = defaultdict(int)
     for x, y in best_pairs:
@@ -261,47 +286,55 @@ def _materialize_cow_pairs(
         debit_by_sender_asset[(y.sender, y.asset_in)] += int(y.amount_in)
         credit_by_recipient_asset[(x.recipient, x.asset_out)] += int(y.amount_in)
         credit_by_recipient_asset[(y.recipient, y.asset_out)] += int(x.amount_in)
+    return debit_by_sender_asset, credit_by_recipient_asset
 
+
+def _cow_pair_fills(best_pairs: List[_CowPair]) -> List[Fill]:
+    fills: List[Fill] = []
+    for x, y in best_pairs:
+        fills.append(_cow_fill(candidate=x, amount_out=int(y.amount_in)))
+        fills.append(_cow_fill(candidate=y, amount_out=int(x.amount_in)))
+    fills.sort(key=lambda f: f.intent_id)
+    return fills
+
+
+def _cow_fill(candidate: _CowCandidateExactIn, *, amount_out: int) -> Fill:
+    return Fill(
+        intent_id=candidate.intent.intent_id,
+        action=FillAction.FILL,
+        reason="COW_NETTED",
+        amount_in_filled=int(candidate.amount_in),
+        amount_out_filled=int(amount_out),
+        fee_paid=0,
+    )
+
+
+def _unmatched_cow_intents(
+    partition: _CowPartition,
+    matched_ids: set[str],
+) -> List[Intent]:
+    remaining_out = list(partition.remaining)
+    remaining_out.extend([candidate.intent for candidate in partition.side_01 if candidate.intent.intent_id not in matched_ids])
+    remaining_out.extend([candidate.intent for candidate in partition.side_10 if candidate.intent.intent_id not in matched_ids])
+    remaining_out.sort(key=lambda intent: intent.intent_id)
+    return remaining_out
+
+
+def _materialize_cow_pairs(request: _CowMaterializeRequest) -> tuple[List[Fill], List[Intent]]:
+    matched_ids = {candidate.intent.intent_id for pair in request.best_pairs for candidate in pair}
+    debit_by_sender_asset, credit_by_recipient_asset = _cow_pair_transfer_maps(request.best_pairs)
     for (sender, asset), amount in debit_by_sender_asset.items():
-        if balances.get(sender, asset) < amount:
+        if request.balances.get(sender, asset) < amount:
             # Fail closed: fall back to no netting and leave the balances snapshot untouched.
-            swap_intents_sorted = sorted(list(swap_intents), key=lambda intent: intent.intent_id)
+            swap_intents_sorted = sorted(list(request.swap_intents), key=lambda intent: intent.intent_id)
             return [], swap_intents_sorted
 
     for (sender, asset), amount in debit_by_sender_asset.items():
-        balances.subtract(sender, asset, int(amount))
+        request.balances.subtract(sender, asset, int(amount))
     for (recipient, asset), amount in credit_by_recipient_asset.items():
-        balances.add(recipient, asset, int(amount))
+        request.balances.add(recipient, asset, int(amount))
 
-    fills: List[Fill] = []
-    for x, y in best_pairs:
-        fills.append(
-            Fill(
-                intent_id=x.intent.intent_id,
-                action=FillAction.FILL,
-                reason="COW_NETTED",
-                amount_in_filled=int(x.amount_in),
-                amount_out_filled=int(y.amount_in),
-                fee_paid=0,
-            )
-        )
-        fills.append(
-            Fill(
-                intent_id=y.intent.intent_id,
-                action=FillAction.FILL,
-                reason="COW_NETTED",
-                amount_in_filled=int(y.amount_in),
-                amount_out_filled=int(x.amount_in),
-                fee_paid=0,
-            )
-        )
-
-    fills.sort(key=lambda f: f.intent_id)
-    remaining_out = list(remaining)
-    remaining_out.extend([candidate.intent for candidate in side_01 if candidate.intent.intent_id not in matched_ids])
-    remaining_out.extend([candidate.intent for candidate in side_10 if candidate.intent.intent_id not in matched_ids])
-    remaining_out.sort(key=lambda intent: intent.intent_id)
-    return fills, remaining_out
+    return _cow_pair_fills(request.best_pairs), _unmatched_cow_intents(request.partition, matched_ids)
 
 
 def _cow_pair_netting_exact_in_v1(
@@ -327,13 +360,14 @@ def _cow_pair_netting_exact_in_v1(
     """
     asset0 = pool_state.asset0
     asset1 = pool_state.asset1
-    side_01, side_10, remaining = _partition_cow_candidates(swap_intents, pool_state)
-    best_pairs = _select_cow_pairs(side_01, side_10, balances=balances, asset0=asset0, asset1=asset1)
+    partition = _partition_cow_candidates(swap_intents, pool_state)
+    context = _CowSelectionContext(balances=balances, asset0=asset0, asset1=asset1)
+    best_pairs = _select_cow_pairs(partition.side_01, partition.side_10, context=context)
     return _materialize_cow_pairs(
-        best_pairs,
-        side_01=side_01,
-        side_10=side_10,
-        remaining=remaining,
-        swap_intents=swap_intents,
-        balances=balances,
+        _CowMaterializeRequest(
+            best_pairs=best_pairs,
+            partition=partition,
+            swap_intents=swap_intents,
+            balances=balances,
+        )
     )
