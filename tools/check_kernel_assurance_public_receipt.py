@@ -12,10 +12,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import sys
 from pathlib import Path
 from typing import Any, Mapping
-
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "tools" / "kernel_assurance_manifest.json"
@@ -124,7 +122,7 @@ def _validate_toolchain_pin(manifest: Mapping[str, Any], report: Mapping[str, An
             raise ReceiptError(f"{key} mismatch: expected {expected_value}, got {actual_value}")
         out[key] = actual_value
 
-    out["esso_dirty"] = bool(actual.get("esso_dirty"))
+    out["esso_dirty"] = _require_bool(actual.get("esso_dirty"), name="private report toolchain.esso_dirty")
     return out
 
 

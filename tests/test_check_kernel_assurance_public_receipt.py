@@ -4,7 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from tools.check_kernel_assurance_public_receipt import (
+    ReceiptError,
     build_public_receipt_from_report,
     check_receipt_file,
     verify_public_receipt,
@@ -129,6 +132,17 @@ def test_build_accepts_dirty_private_esso_checkout_when_tree_hash_matches(tmp_pa
 
     assert receipt["toolchain"]["esso_dirty"] is True
     assert "esso_dirty_entries" not in json.dumps(receipt)
+
+
+@pytest.mark.parametrize("esso_dirty", [0, "false", None])
+def test_build_rejects_coerced_private_esso_dirty_flag(tmp_path: Path, esso_dirty: object) -> None:
+    manifest = _manifest()
+    manifest_sha256, _manifest_path = _manifest_hash(manifest, tmp_path)
+    report = _private_report(manifest_sha256)
+    report["toolchain"]["esso_dirty"] = esso_dirty
+
+    with pytest.raises(ReceiptError, match="private report toolchain.esso_dirty must be a boolean"):
+        build_public_receipt_from_report(report, manifest=manifest, manifest_sha256=manifest_sha256)
 
 
 def test_receipt_file_checker_accepts_and_rejects_tampering(tmp_path: Path) -> None:
