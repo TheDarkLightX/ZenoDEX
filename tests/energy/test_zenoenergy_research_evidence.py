@@ -703,6 +703,56 @@ def test_research_evidence_replay_rejects_coerced_repair_selector_compression_me
     assert check["passed"] is False
 
 
+def test_research_evidence_replay_rejects_coerced_repair_selector_cross_seed_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_cross_seed_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_repair_selector_cross_seed_seed20260526_20260531.json":
+            safety = payload["safety"]
+            assert isinstance(safety, dict)
+            safety["invalid_accept_count"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_cross_seed_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "repair_selector_cross_seed.safety")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_repair_selector_cross_seed_regret_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_cross_seed_metric(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_repair_selector_cross_seed_seed20260526_20260531.json":
+            aggregate = payload["aggregate"]
+            assert isinstance(aggregate, dict)
+            modes = aggregate["modes"]
+            assert isinstance(modes, dict)
+            learned = modes["learned_selected"]
+            assert isinstance(learned, dict)
+            mean_volume_regret = learned["mean_volume_regret"]
+            assert isinstance(mean_volume_regret, dict)
+            mean_volume_regret["mean"] = "0.0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_cross_seed_metric)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "repair_selector_cross_seed.aggregate_regret")
+    assert check["passed"] is False
+
+
 def test_research_evidence_replay_rejects_truthy_string_obligation_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

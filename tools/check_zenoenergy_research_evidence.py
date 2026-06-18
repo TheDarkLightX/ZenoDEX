@@ -1168,9 +1168,13 @@ def _check_repair_selector(report: dict[str, Any]) -> list[EvidenceCheck]:
 
 
 def _check_repair_selector_cross_seed(report: dict[str, Any]) -> list[EvidenceCheck]:
-    aggregate = report["aggregate"]
-    learned = aggregate["modes"]["learned_selected"]
-    full = aggregate["modes"]["full_neighborhood"]
+    aggregate = report.get("aggregate")
+    modes = aggregate.get("modes") if isinstance(aggregate, dict) else {}
+    learned = modes.get("learned_selected") if isinstance(modes, dict) else {}
+    full = modes.get("full_neighborhood") if isinstance(modes, dict) else {}
+    learned_regret = learned.get("mean_volume_regret") if isinstance(learned, dict) else {}
+    full_regret = full.get("mean_volume_regret") if isinstance(full, dict) else {}
+    safety = report.get("safety")
     return [
         _expect_equal(
             "repair_selector_cross_seed.schema",
@@ -1179,26 +1183,40 @@ def _check_repair_selector_cross_seed(report: dict[str, Any]) -> list[EvidenceCh
         ),
         _expect_true(
             "repair_selector_cross_seed.safety",
-            _is_true(aggregate["all_safety_passed"])
-            and int(report["safety"]["invalid_accept_count"]) == 0
-            and int(report["safety"]["original_subset_violation_count"]) == 0,
+            isinstance(aggregate, dict)
+            and isinstance(safety, dict)
+            and _is_true(aggregate.get("all_safety_passed"))
+            and _json_int_equals(safety.get("invalid_accept_count"), 0)
+            and _json_int_equals(safety.get("original_subset_violation_count"), 0),
             "all cross-seed runs have zero invalid accepts and zero subset violations",
         ),
         _expect_true(
             "repair_selector_cross_seed.compression_all_pairs",
-            int(aggregate["compression_pass_count"]) == int(report["run_count"])
-            and int(aggregate["compression_fail_count"]) == 0,
+            isinstance(aggregate, dict)
+            and _json_int_values_equal(
+                aggregate.get("compression_pass_count"),
+                report.get("run_count"),
+            )
+            and _json_int_equals(aggregate.get("compression_fail_count"), 0),
             "compression passed on every seed pair",
         ),
         _expect_true(
             "repair_selector_cross_seed.aggregate_regret",
-            float(learned["mean_volume_regret"]["mean"])
-            <= float(full["mean_volume_regret"]["mean"]),
+            isinstance(learned_regret, dict)
+            and isinstance(full_regret, dict)
+            and _json_number_at_most_value(
+                learned_regret.get("mean"),
+                full_regret.get("mean"),
+            ),
             "learned selected aggregate mean regret is no worse than full neighborhood",
         ),
         _expect_true(
             "repair_selector_cross_seed.hand_negative",
-            int(aggregate["strict_hand_win_count"]) < int(report["run_count"]),
+            isinstance(aggregate, dict)
+            and _json_int_less_than_value(
+                aggregate.get("strict_hand_win_count"),
+                report.get("run_count"),
+            ),
             "learned selector does not strictly beat hand-selected subset on every seed pair",
         ),
     ]
@@ -4490,6 +4508,16 @@ def _json_int_values_equal(left: object, right: object) -> bool:
         and isinstance(right, int)
         and not isinstance(right, bool)
         and left == right
+    )
+
+
+def _json_int_less_than_value(left: object, right: object) -> bool:
+    return (
+        isinstance(left, int)
+        and not isinstance(left, bool)
+        and isinstance(right, int)
+        and not isinstance(right, bool)
+        and left < right
     )
 
 
