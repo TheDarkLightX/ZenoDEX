@@ -46,7 +46,7 @@ def _emit(path: Path | None, payload: Mapping[str, Any]) -> None:
 
 def _api_result_claimable(result: Mapping[str, Any]) -> bool:
     status = result.get("status")
-    return bool(result.get("ok")) and isinstance(status, Mapping) and status.get("claimable") is True
+    return result.get("ok") is True and isinstance(status, Mapping) and status.get("claimable") is True
 
 
 def _call_api(*, api_url: str, payload: Mapping[str, Any], timeout_s: float) -> Mapping[str, Any]:

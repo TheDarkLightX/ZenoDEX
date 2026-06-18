@@ -9,6 +9,7 @@ from http.client import HTTPConnection
 from pathlib import Path
 
 from src.integration.proof_mining_context import ProofMiningContext, proof_mining_context_to_obj
+from tools.permissionless_proof_mining_status import _api_result_claimable
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -98,6 +99,10 @@ def _start_test_server():
     thread.start()
     host, port = httpd.server_address[:2]
     return httpd, thread, str(host), int(port)
+
+
+def test_api_result_claimable_rejects_truthy_string_ok() -> None:
+    assert _api_result_claimable({"ok": "true", "status": {"claimable": True}}) is False
 
 
 def _stop_test_server(httpd, thread: threading.Thread) -> None:
