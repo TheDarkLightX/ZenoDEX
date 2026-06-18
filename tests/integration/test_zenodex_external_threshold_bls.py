@@ -176,6 +176,36 @@ def test_external_threshold_bls_rejects_unapproved_stack_missing_audit_and_bad_s
     assert err is not None and "aggregate signature invalid" in err
 
 
+def test_external_threshold_bls_rejects_duplicate_partial_signature_hashes() -> None:
+    public_bundle, partials, aggregate = _bundle_partials_and_aggregate()
+    evidence = _evidence(public_bundle)
+    receipt = build_external_threshold_bls_signature_receipt_v0(
+        evidence=evidence,
+        payload=PAYLOAD,
+        participant_ids=[str(item["participant_id"]) for item in partials],
+        partial_signature_hashes=[str(item["partial_signature_hash"]) for item in partials],
+        signature=str(aggregate["signature"]),
+    )
+
+    duplicated = copy.deepcopy(receipt)
+    duplicated["partial_signature_hashes"] = [
+        str(partials[0]["partial_signature_hash"]),
+        str(partials[0]["partial_signature_hash"]),
+    ]
+    duplicated["receipt_hash"] = ext.hash_v0(
+        "zenodex_external_threshold_bls_signature_receipt_v0",
+        {key: duplicated[key] for key in sorted(set(duplicated) - {"receipt_hash"})},
+    )
+
+    ok, err = verify_external_threshold_bls_signature_receipt_v0(
+        duplicated,
+        evidence=evidence,
+        payload=PAYLOAD,
+    )
+    assert ok is False
+    assert err is not None and "duplicate partial_signature_hash" in err
+
+
 def test_external_threshold_bls_verifier_fails_closed_when_backend_disappears(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

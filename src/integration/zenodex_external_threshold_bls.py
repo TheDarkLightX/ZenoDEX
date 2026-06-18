@@ -445,8 +445,11 @@ def verify_external_threshold_bls_signature_receipt_v0(
         partial_hashes = _require_sequence(obj.get("partial_signature_hashes"), name="partial_signature_hashes")
         if len(partial_hashes) != len(participant_ids):
             return False, "external threshold BLS receipt partial hash count mismatch"
+        partial_hash_roots: list[str] = []
         for index, root in enumerate(partial_hashes):
-            _require_root(root, name=f"partial_signature_hashes[{index}]")
+            partial_hash_roots.append(_require_root(root, name=f"partial_signature_hashes[{index}]"))
+        if len(set(partial_hash_roots)) != len(partial_hash_roots):
+            return False, "external threshold BLS receipt duplicate partial_signature_hash"
         if obj.get("raw_private_key_reconstructed_for_signing") is not False:
             return False, "external threshold BLS receipt reconstructed raw private key"
         if obj.get("production_security_claim") is not True:
