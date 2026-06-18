@@ -961,6 +961,12 @@ def _ui_token_catalog_v0(node_status: Mapping[str, Any]) -> tuple[dict[str, str]
     return by_asset, by_symbol
 
 
+def _strict_status_response_v0(status: Mapping[str, Any]) -> dict[str, Any]:
+    # Evidence wrappers must not accept truthy strings or integers as pass
+    # signals. Only the literal boolean True promotes the response.
+    return {"ok": status.get("ok") is True, "status": dict(status)}
+
+
 def _protocol_token_asset_id_from_status_v0(node_status: Mapping[str, Any]) -> str | None:
     distribution = node_status.get("token_distribution")
     if isinstance(distribution, Mapping) and isinstance(distribution.get("token_asset_id"), str):
@@ -1202,7 +1208,7 @@ def _ui_tokenomics_response_v0(*, data_dir: Path, node_status: Mapping[str, Any]
         "manifest_distribution_hash": manifest_hash_text,
         "production_security_claim": False,
     }
-    return {"ok": bool(status["ok"]), "status": status}
+    return _strict_status_response_v0(status)
 
 
 def _is_tokenomics_reward_claim_body_v0(body: Mapping[str, Any]) -> bool:
