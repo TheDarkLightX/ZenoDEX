@@ -1318,6 +1318,52 @@ def _perps_clearinghouse_settle_oracle_runtime_facts(
     }
 
 
+def _clearinghouse_settle_runtime_numbers(
+    runtime: Mapping[str, Any],
+) -> tuple[Optional[str], Optional[int], Optional[int]]:
+    runtime_value_e8 = runtime.get("runtime_value_e8")
+    now_epoch = runtime.get("now_epoch")
+    if (
+        not isinstance(runtime_value_e8, int)
+        or isinstance(runtime_value_e8, bool)
+        or not isinstance(now_epoch, int)
+        or isinstance(now_epoch, bool)
+    ):
+        # Runtime facts are produced locally, but this boundary feeds the typed
+        # oracle verifier. Reject malformed facts before verifier input.
+        return "clearinghouse_settle_oracle_authorization_rejected: malformed runtime facts", None, None
+    return None, runtime_value_e8, now_epoch
+
+
+def _check_clearinghouse_typed_oracle_authorization(
+    authorization: Mapping[str, Any],
+    *,
+    runtime: Mapping[str, Any],
+    runtime_value_e8: int,
+    now_epoch: int,
+) -> Optional[str]:
+    try:
+        result = check_critical_consumer_authorization(
+            authorization,
+            consumer_module="zenodex.perps",
+            action_kind="settle_epoch",
+            action_id=str(runtime["action_id"]),
+            action_facts_hash=str(runtime["action_facts_hash"]),
+            pre_state_hash=str(runtime["pre_state_hash"]),
+            query_id=str(runtime["query_id"]),
+            runtime_value_e8=runtime_value_e8,
+            now_epoch=now_epoch,
+            profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            max_freshness_window_epochs=2,
+        )
+    except Exception as exc:
+        return f"clearinghouse_settle_oracle_authorization_rejected: {_safe_error_str(exc)}"
+    if not bool(result.get("typed_ok", False)):
+        errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
+        return "clearinghouse_settle_oracle_authorization_rejected: " + "; ".join(str(err) for err in errors)
+    return None
+
+
 def _check_clearinghouse_settle_oracle_authorization(
     config: PerpEngineConfig,
     *,
@@ -1349,37 +1395,18 @@ def _check_clearinghouse_settle_oracle_authorization(
         state=state,
         participant_pubkeys=participant_pubkeys,
     )
-    runtime_value_e8 = runtime.get("runtime_value_e8")
-    now_epoch = runtime.get("now_epoch")
-    if (
-        not isinstance(runtime_value_e8, int)
-        or isinstance(runtime_value_e8, bool)
-        or not isinstance(now_epoch, int)
-        or isinstance(now_epoch, bool)
-    ):
-        # Runtime facts are produced locally, but this boundary feeds the typed
-        # oracle verifier. Reject malformed facts before verifier input.
+    err, runtime_value_e8, now_epoch = _clearinghouse_settle_runtime_numbers(runtime)
+    if err is not None:
+        return err
+    if runtime_value_e8 is None or now_epoch is None:
         return "clearinghouse_settle_oracle_authorization_rejected: malformed runtime facts"
-    try:
-        result = check_critical_consumer_authorization(
-            authorization,
-            consumer_module="zenodex.perps",
-            action_kind="settle_epoch",
-            action_id=str(runtime["action_id"]),
-            action_facts_hash=str(runtime["action_facts_hash"]),
-            pre_state_hash=str(runtime["pre_state_hash"]),
-            query_id=str(runtime["query_id"]),
-            runtime_value_e8=runtime_value_e8,
-            now_epoch=now_epoch,
-            profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-            max_freshness_window_epochs=2,
-        )
-    except Exception as exc:
-        return f"clearinghouse_settle_oracle_authorization_rejected: {_safe_error_str(exc)}"
-    if not bool(result.get("typed_ok", False)):
-        errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
-        return "clearinghouse_settle_oracle_authorization_rejected: " + "; ".join(str(err) for err in errors)
-    return None
+
+    return _check_clearinghouse_typed_oracle_authorization(
+        authorization,
+        runtime=runtime,
+        runtime_value_e8=runtime_value_e8,
+        now_epoch=now_epoch,
+    )
 
 
 def _oracle_reward_posture_error(config: PerpEngineConfig) -> Optional[str]:
