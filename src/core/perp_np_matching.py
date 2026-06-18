@@ -46,6 +46,17 @@ E8 = 100_000_000          # price scale (quote-per-base * 1e8)
 BPS_SCALE = 10_000        # basis-point scale
 
 
+def _require_plain_int(value: object, *, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
+def _account_int(table: Mapping[str, int], pubkey: str, default: int, *, name: str) -> int:
+    value = table.get(pubkey, default)
+    return _require_plain_int(value, name=f"{name}[{pubkey}]")
+
+
 # --- Pure focal functions (mirrored 1:1 by the Rust/Kani crate) ----------------
 def _ration(weights: Sequence[tuple[int, int]], volume: int) -> dict[int, int]:
     """Distribute ``volume`` units across weighted claimants by largest remainder.
@@ -226,15 +237,17 @@ def match_intents(
     re-check. Every rejection is a stable code; rejected intents do not move state.
     Output ``net`` is exactly 0.
     """
-    if clearing_price_e8 <= 0:
+    price_e8 = _require_plain_int(clearing_price_e8, name="clearing_price_e8")
+    epoch = _require_plain_int(now_epoch, name="now_epoch")
+    if price_e8 <= 0:
         raise ValueError("clearing_price_e8 must be positive")
 
     ctx = _MatchContext(
         current_positions=current_positions,
         collaterals=collaterals,
         last_nonces=last_nonces,
-        clearing_price_e8=clearing_price_e8,
-        now_epoch=now_epoch,
+        clearing_price_e8=price_e8,
+        now_epoch=epoch,
         params=params,
     )
     survivors, receipts = _select_survivors_by_account(intents=intents, ctx=ctx)
@@ -297,9 +310,9 @@ def _select_account_survivor(
     ctx: _MatchContext,
     receipts: dict[ReceiptKey, IntentReceipt],
 ) -> Survivor | None:
-    cur = int(ctx.current_positions.get(pubkey, 0))
-    coll = int(ctx.collaterals.get(pubkey, 0))
-    last_nonce = int(ctx.last_nonces.get(pubkey, -1))
+    cur = _account_int(ctx.current_positions, pubkey, 0, name="current_positions")
+    coll = _account_int(ctx.collaterals, pubkey, 0, name="collaterals")
+    last_nonce = _account_int(ctx.last_nonces, pubkey, -1, name="last_nonces")
     validation = _IntentValidationContext(
         current=cur,
         collateral=coll,
@@ -382,9 +395,9 @@ def _finalize_match_receipts(
         if it.pubkey in rationed.revoked:
             receipts[_rkey(it)] = IntentReceipt(it.pubkey, it.nonce, "filled", delta=0)
             continue
-        cur_pos = int(ctx.current_positions.get(it.pubkey, 0))
+        cur_pos = _account_int(ctx.current_positions, it.pubkey, 0, name="current_positions")
         new_pos = cur_pos + delta
-        coll = int(ctx.collaterals.get(it.pubkey, 0))
+        coll = _account_int(ctx.collaterals, it.pubkey, 0, name="collaterals")
         # Only RISK-INCREASING fills (grow same-side exposure or cross zero to the other side)
         # must satisfy initial margin. A pure same-side reduction never needs more margin than
         # already legally held, so it must NOT be dropped -- dropping it would unpair its
