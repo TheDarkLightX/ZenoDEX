@@ -1123,26 +1123,28 @@ def _oracle_adapter_error_summary(result: Any) -> str:
     return "bridge verifier rejected"
 
 
-def _require_oracle_adapter_bridge(
-    config: PerpEngineConfig,
-    *,
-    data: Mapping[str, Any],
-    consumer_module: str,
-    action_kind: str,
-    expected_query_id: Optional[str] = None,
-    expected_profile_id: Optional[str] = None,
-    expected_action_id: Optional[str] = None,
-    required: bool = False,
-) -> Optional[str]:
-    if "oracle_adapter_bridge" not in data:
-        if required:
-            return f"{action_kind} requires oracle_adapter_bridge"
+@dataclass(frozen=True)
+class _OracleAdapterBridgeRequirement:
+    config: PerpEngineConfig
+    data: Mapping[str, Any]
+    consumer_module: str
+    action_kind: str
+    expected_query_id: Optional[str] = None
+    expected_profile_id: Optional[str] = None
+    expected_action_id: Optional[str] = None
+    required: bool = False
+
+
+def _require_oracle_adapter_bridge(requirement: _OracleAdapterBridgeRequirement) -> Optional[str]:
+    if "oracle_adapter_bridge" not in requirement.data:
+        if requirement.required:
+            return f"{requirement.action_kind} requires oracle_adapter_bridge"
         return None
 
-    bridge = data.get("oracle_adapter_bridge")
+    bridge = requirement.data.get("oracle_adapter_bridge")
     if not isinstance(bridge, Mapping):
         return "oracle_adapter_bridge must be an object"
-    verifier = config.oracle_adapter_bridge_verifier
+    verifier = requirement.config.oracle_adapter_bridge_verifier
     if verifier is None:
         return "oracle_adapter_bridge verifier not configured"
     try:
@@ -1154,18 +1156,18 @@ def _require_oracle_adapter_bridge(
         return f"oracle_adapter_bridge rejected: {_oracle_adapter_error_summary(result)}"
     result_consumer = _oracle_adapter_result_get(result, "consumer_module")
     result_action = _oracle_adapter_result_get(result, "action_kind")
-    if result_consumer != consumer_module:
+    if result_consumer != requirement.consumer_module:
         return "oracle_adapter_bridge consumer mismatch"
-    if result_action != action_kind:
+    if result_action != requirement.action_kind:
         return "oracle_adapter_bridge action mismatch"
     result_query_id = _oracle_adapter_result_get(result, "query_id")
-    if expected_query_id is not None and result_query_id != expected_query_id:
+    if requirement.expected_query_id is not None and result_query_id != requirement.expected_query_id:
         return "oracle_adapter_bridge query mismatch"
     result_profile_id = _oracle_adapter_result_get(result, "profile_id")
-    if expected_profile_id is not None and result_profile_id != expected_profile_id:
+    if requirement.expected_profile_id is not None and result_profile_id != requirement.expected_profile_id:
         return "oracle_adapter_bridge profile mismatch"
     result_action_id = _oracle_adapter_result_get(result, "action_id")
-    if expected_action_id is not None and result_action_id != expected_action_id:
+    if requirement.expected_action_id is not None and result_action_id != requirement.expected_action_id:
         return "oracle_adapter_bridge action_id mismatch"
     return None
 
@@ -2128,22 +2130,24 @@ def _apply_ch2p_settle_epoch(
     if unknown is not None:
         return unknown
     err = _require_oracle_adapter_bridge(
-        ctx.config,
-        data=data,
-        consumer_module="zenodex.perps",
-        action_kind="settle_epoch",
-        expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
-        expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-        expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
-            ctx.config,
-            market_id=op.market_id,
+        _OracleAdapterBridgeRequirement(
+            config=ctx.config,
+            data=data,
+            consumer_module="zenodex.perps",
             action_kind="settle_epoch",
-            market_kind="clearinghouse_2p_v1",
-            quote_asset=ch2p_market.quote_asset,
-            state=ch2p_market.state,
-            participant_pubkeys=(ch2p_market.account_a_pubkey, ch2p_market.account_b_pubkey),
-        ),
-        required=ctx.config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
+                ctx.config,
+                market_id=op.market_id,
+                action_kind="settle_epoch",
+                market_kind="clearinghouse_2p_v1",
+                quote_asset=ch2p_market.quote_asset,
+                state=ch2p_market.state,
+                participant_pubkeys=(ch2p_market.account_a_pubkey, ch2p_market.account_b_pubkey),
+            ),
+            required=ctx.config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+        )
     )
     if err is not None:
         return err
@@ -2198,22 +2202,28 @@ def _apply_ch3p_settle_epoch(
     if unknown is not None:
         return unknown
     err = _require_oracle_adapter_bridge(
-        ctx.config,
-        data=data,
-        consumer_module="zenodex.perps",
-        action_kind="settle_epoch",
-        expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
-        expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-        expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
-            ctx.config,
-            market_id=op.market_id,
+        _OracleAdapterBridgeRequirement(
+            config=ctx.config,
+            data=data,
+            consumer_module="zenodex.perps",
             action_kind="settle_epoch",
-            market_kind="clearinghouse_3p_transfer_v1",
-            quote_asset=ch3p_market.quote_asset,
-            state=ch3p_market.state,
-            participant_pubkeys=(ch3p_market.account_a_pubkey, ch3p_market.account_b_pubkey, ch3p_market.account_c_pubkey),
-        ),
-        required=ctx.config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
+                ctx.config,
+                market_id=op.market_id,
+                action_kind="settle_epoch",
+                market_kind="clearinghouse_3p_transfer_v1",
+                quote_asset=ch3p_market.quote_asset,
+                state=ch3p_market.state,
+                participant_pubkeys=(
+                    ch3p_market.account_a_pubkey,
+                    ch3p_market.account_b_pubkey,
+                    ch3p_market.account_c_pubkey,
+                ),
+            ),
+            required=ctx.config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+        )
     )
     if err is not None:
         return err
@@ -3118,19 +3128,21 @@ def _isolated_settle_authorization_error(
         return gate_error
 
     err = _require_oracle_adapter_bridge(
-        ctx.config,
-        data=data,
-        consumer_module="zenodex.perps",
-        action_kind="settle_epoch",
-        expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
-        expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-        expected_action_id=_perps_runtime_oracle_action_id(
-            ctx.config,
-            market_id=op.market_id,
+        _OracleAdapterBridgeRequirement(
+            config=ctx.config,
+            data=data,
+            consumer_module="zenodex.perps",
             action_kind="settle_epoch",
-            market=market,
-        ),
-        required=ctx.config.require_oracle_adapter_for_isolated_settle_epoch,
+            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            expected_action_id=_perps_runtime_oracle_action_id(
+                ctx.config,
+                market_id=op.market_id,
+                action_kind="settle_epoch",
+                market=market,
+            ),
+            required=ctx.config.require_oracle_adapter_for_isolated_settle_epoch,
+        )
     )
     if err is not None:
         return err
@@ -3795,20 +3807,22 @@ def _partial_liquidate_oracle_bridge_error(
     fraction_bps: int,
 ) -> Optional[str]:
     return _require_oracle_adapter_bridge(
-        ctx.config,
-        data=op.data,
-        consumer_module="zenodex.perps",
-        action_kind="liquidate_account",
-        expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
-        expected_profile_id=_ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
-        expected_action_id=_perps_liquidate_account_runtime_oracle_action_id(
-            ctx.config,
-            market_id=op.market_id,
-            market=market,
-            account_pubkey=account_pubkey,
-            fraction_bps=fraction_bps,
-        ),
-        required=ctx.config.require_oracle_adapter_for_isolated_partial_liquidate,
+        _OracleAdapterBridgeRequirement(
+            config=ctx.config,
+            data=op.data,
+            consumer_module="zenodex.perps",
+            action_kind="liquidate_account",
+            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            expected_profile_id=_ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
+            expected_action_id=_perps_liquidate_account_runtime_oracle_action_id(
+                ctx.config,
+                market_id=op.market_id,
+                market=market,
+                account_pubkey=account_pubkey,
+                fraction_bps=fraction_bps,
+            ),
+            required=ctx.config.require_oracle_adapter_for_isolated_partial_liquidate,
+        )
     )
 
 
@@ -4062,14 +4076,16 @@ def _chnp_settle_oracle_bridge_error(
         participant_pubkeys=participant_pubkeys,
     )
     err = _require_oracle_adapter_bridge(
-        config,
-        data=data,
-        consumer_module="zenodex.perps",
-        action_kind="settle_epoch",
-        expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
-        expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-        expected_action_id=expected_action_id,
-        required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+        _OracleAdapterBridgeRequirement(
+            config=config,
+            data=data,
+            consumer_module="zenodex.perps",
+            action_kind="settle_epoch",
+            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            expected_action_id=expected_action_id,
+            required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+        )
     )
     if err is not None:
         return err
