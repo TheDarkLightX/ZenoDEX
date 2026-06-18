@@ -427,6 +427,30 @@ def test_research_evidence_replay_rejects_coerced_mode_safety_count(
     assert check["passed"] is False
 
 
+def test_research_evidence_replay_rejects_coerced_performance_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_metric(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_set_aware_compare_120x80_seed20260523_20260524.json":
+            modes = payload["modes"]
+            assert isinstance(modes, dict)
+            aggregate = modes["aggregate_learned"]
+            assert isinstance(aggregate, dict)
+            aggregate["top_10_recall"] = "1.0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_metric)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "set_aware.aggregate_top10_recall")
+    assert check["passed"] is False
+
+
 def test_research_evidence_replay_rejects_truthy_string_obligation_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

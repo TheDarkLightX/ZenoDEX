@@ -892,7 +892,8 @@ def _check_set_aware(report: dict[str, Any]) -> list[EvidenceCheck]:
     checks.append(
         _expect_true(
             "set_aware.aggregate_top10_recall",
-            float(modes["aggregate_learned"]["top_10_recall"]) >= 1.0,
+            isinstance(modes.get("aggregate_learned"), dict)
+            and _json_number_at_least(modes["aggregate_learned"].get("top_10_recall"), 1.0),
             "aggregate learned top_10_recall is 1.0",
         )
     )
@@ -4410,6 +4411,10 @@ def _json_int_at_least(value: object, minimum: int) -> bool:
 
 def _json_int_equals(value: object, expected: int) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value == expected
+
+
+def _json_number_at_least(value: object, minimum: float) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and float(value) >= minimum
 
 
 def _list_equals(value: object, expected: list[object]) -> bool:
