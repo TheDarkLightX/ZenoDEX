@@ -73,7 +73,7 @@ def main() -> int:
         args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
         args.output_markdown.write_text(_markdown_report(report), encoding="utf-8")
     print(encoded)
-    return 0 if report["ok"] else 1
+    return 0 if report.get("ok") is True else 1
 
 
 def run_dominance_prefix_benchmark(
@@ -133,15 +133,15 @@ def run_dominance_prefix_benchmark(
             mode_reports[mode].append(
                 {
                     "mode": mode,
-                    "ok": bool(audit["ok"]),
+                    "ok": audit.get("ok") is True,
                     "structural_verify_ok": verify_upba_v2_prefix_dominance_cover_audit(audit),
                     "prefix_checked_count": int(audit["prefix_checked_count"]),
                     "prefix_valid_count": int(audit["prefix_valid_count"]),
                     "prefix_invalid_count": int(audit["prefix_invalid_count"]),
                     "full_candidate_count": int(audit["full_candidate_count"]),
                     "full_valid_count": int(audit["full_valid_count"]),
-                    "permutation_ok": bool(audit["permutation_ok"]),
-                    "global_claim_ok": bool(audit["global_claim_ok"]),
+                    "permutation_ok": audit.get("permutation_ok") is True,
+                    "global_claim_ok": audit.get("global_claim_ok") is True,
                     "certificate_hash": audit["certificate_hash"],
                     "audit_hash": audit["audit_hash"],
                 }
@@ -295,12 +295,12 @@ def _summarize_reports(reports: Sequence[dict[str, object]]) -> dict[str, object
     ]
     return {
         "count": len(reports),
-        "ok_count": sum(1 for report in reports if bool(report["ok"])),
-        "failed_count": sum(1 for report in reports if not bool(report["ok"])),
+        "ok_count": sum(1 for report in reports if report.get("ok") is True),
+        "failed_count": sum(1 for report in reports if report.get("ok") is not True),
         "structural_verify_ok_count": sum(
-            1 for report in reports if bool(report["structural_verify_ok"])
+            1 for report in reports if report.get("structural_verify_ok") is True
         ),
-        "permutation_ok_count": sum(1 for report in reports if bool(report["permutation_ok"])),
+        "permutation_ok_count": sum(1 for report in reports if report.get("permutation_ok") is True),
         "mean_prefix_checked_count": mean(prefix_checked) if prefix_checked else 0.0,
         "p95_prefix_checked_count": _percentile(prefix_checked, 0.95),
         "p99_prefix_checked_count": _percentile(prefix_checked, 0.99),
