@@ -1900,3 +1900,49 @@ def test_research_evidence_replay_rejects_coerced_jepa_ux_efficiency_count(
     assert report["ok"] is False
     check = _check_by_id(report, "autotrader_jepa_ux.research_inputs")
     assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_set_aware_mean_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_set_aware_calls(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_set_aware_compare_120x80_seed20260523_20260524.json":
+            modes = payload["modes"]
+            assert isinstance(modes, dict)
+            set_aware = modes["set_aware_learned"]
+            assert isinstance(set_aware, dict)
+            set_aware["mean_verifier_calls"] = str(set_aware["mean_verifier_calls"])
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_set_aware_calls)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "set_aware.negative_knowledge_recorded")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_sota_source_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_sota_source_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_sota_decision_map_receipt.json":
+            payload["source_count"] = str(payload["source_count"])
+        return payload
+
+    monkeypatch.setattr(
+        research_mod, "_load_json", load_json_with_coerced_sota_source_count
+    )
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "sota_decision_map.sources_and_boundary")
+    assert check["passed"] is False

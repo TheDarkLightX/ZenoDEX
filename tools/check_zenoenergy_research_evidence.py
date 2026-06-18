@@ -901,8 +901,10 @@ def _check_set_aware(report: dict[str, Any]) -> list[EvidenceCheck]:
         _expect_true(
             "set_aware.negative_knowledge_recorded",
             _is_false(report["interpretation"]["set_aware_top1_improved"])
-            and float(modes["set_aware_learned"]["mean_verifier_calls"])
-            >= float(modes["aggregate_learned"]["mean_verifier_calls"]),
+            and _json_number_at_least_value(
+                modes["set_aware_learned"].get("mean_verifier_calls"),
+                modes["aggregate_learned"].get("mean_verifier_calls"),
+            ),
             "set-aware linear ranker did not beat aggregate learned baseline",
         )
     )
@@ -2095,7 +2097,7 @@ def _check_sota_decision_map(
         ),
         _expect_true(
             "sota_decision_map.sources_and_boundary",
-            int(report["source_count"]) >= len(required_sources)
+            _json_int_at_least(report.get("source_count"), len(required_sources))
             and all(source in doc_text for source in required_sources)
             and "model proposes" in doc_lower
             and "verifier decides" in doc_lower
