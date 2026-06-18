@@ -33,7 +33,7 @@ def _count_profile_calls(
         calls["n"] = int(calls["n"]) + 1
         return orig(pool, amount)
 
-    split_routing_mod.exact_out_for_pool_exact_in = wrapped  # type: ignore[assignment]
+    split_routing_mod.exact_out_for_pool_exact_in = wrapped
     try:
         result = best_split_two_pools_exact_in(
             pool0,
@@ -131,6 +131,67 @@ def test_staircase_exact_matches_bruteforce_on_seeded_integer_corpus() -> None:
 
         assert staircase_jump_best_split_two_pools_exact_in(p0, p1, amount_in) == expected
         assert best_split_two_pools_exact_in(p0, p1, amount_in, search_profile="staircase_exact") == expected
+
+
+def _structured_staircase_hostile_cases() -> tuple[tuple[PoolXY, PoolXY, int], ...]:
+    families = (
+        (
+            PoolXY(x=1_000, y=1_000, fee_bps=0),
+            PoolXY(x=1_000, y=1_000, fee_bps=0),
+            (17, 64, 257, 1_024),
+        ),
+        (
+            PoolXY(x=1, y=500_000, fee_bps=0),
+            PoolXY(x=500_000, y=500_000, fee_bps=0),
+            (5, 17, 64, 257, 1_024),
+        ),
+        (
+            PoolXY(x=500_000, y=500_000, fee_bps=0),
+            PoolXY(x=1, y=500_000, fee_bps=0),
+            (5, 17, 64, 257, 1_024),
+        ),
+        (
+            PoolXY(x=7, y=31, fee_bps=9_900),
+            PoolXY(x=11, y=37, fee_bps=9_800),
+            (101, 257, 1_024, 2_048),
+        ),
+        (
+            PoolXY(x=1_000_000, y=3, fee_bps=0),
+            PoolXY(x=5_000, y=4, fee_bps=0),
+            (2_048, 4_096),
+        ),
+        (
+            PoolXY(x=1, y=1_000, fee_bps=10_000),
+            PoolXY(x=100, y=1_000, fee_bps=0),
+            (5, 17, 64, 257),
+        ),
+        (
+            PoolXY(x=999_983, y=257, fee_bps=250),
+            PoolXY(x=257, y=999_983, fee_bps=250),
+            (257, 1_024, 2_048),
+        ),
+        (
+            PoolXY(x=2, y=115, fee_bps=424),
+            PoolXY(x=189, y=3, fee_bps=157),
+            (199, 257, 1_024),
+        ),
+    )
+    return tuple((pool0, pool1, amount_in) for pool0, pool1, amounts in families for amount_in in amounts)
+
+
+@pytest.mark.parametrize("pool0,pool1,amount_in", _structured_staircase_hostile_cases())
+def test_staircase_exact_matches_bruteforce_on_structured_hostile_grid(
+    pool0: PoolXY,
+    pool1: PoolXY,
+    amount_in: int,
+) -> None:
+    # Structured parity corpus for the public exact-staircase profile: symmetry,
+    # skew, high-fee plateaus, one-sided infeasible pools, dust outputs, and
+    # tie-break-heavy domains.
+    expected = brute_force_best_split_two_pools_exact_in(pool0, pool1, amount_in)
+
+    assert staircase_jump_best_split_two_pools_exact_in(pool0, pool1, amount_in) == expected
+    assert best_split_two_pools_exact_in(pool0, pool1, amount_in, search_profile="staircase_exact") == expected
 
 
 @pytest.mark.parametrize(
@@ -231,6 +292,14 @@ def test_staircase_exact_allows_endpoint_when_pool0_has_no_positive_domain() -> 
         exact_out_for_pool_exact_in(p1, 5),
         0,
     )
+
+
+def test_staircase_exact_rejects_when_no_split_has_positive_output() -> None:
+    p0 = PoolXY(x=1_000_000, y=1, fee_bps=0)
+    p1 = PoolXY(x=1_000_000, y=1, fee_bps=0)
+
+    with pytest.raises(ValueError, match="no feasible split"):
+        staircase_jump_best_split_two_pools_exact_in(p0, p1, 1)
 
 
 def test_unknown_search_profile_rejected():
