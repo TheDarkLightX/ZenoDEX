@@ -188,6 +188,26 @@ class UniformBatchOptimalityVerificationResult:
     candidate_set_hash: str | None = None
     table_root: str | None = None
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.ok, bool):
+            raise ValueError("ok must be bool")
+        if self.ok:
+            if self.error is not None:
+                raise ValueError("accepted optimality result cannot include error")
+            try:
+                _require_sha256_hex(self.certificate_hash, name="optimality.result.certificate_hash")
+                _require_sha256_hex(self.candidate_set_hash, name="optimality.result.candidate_set_hash")
+                if self.table_root is not None:
+                    _require_sha256_hex(self.table_root, name="optimality.result.table_root")
+            except (TypeError, ValueError) as exc:
+                raise ValueError(str(exc)) from exc
+            return
+
+        if not isinstance(self.error, str) or not self.error:
+            raise ValueError("rejected optimality result must include an error")
+        if self.certificate_hash is not None or self.candidate_set_hash is not None or self.table_root is not None:
+            raise ValueError("rejected optimality result cannot include accepted artifacts")
+
 
 @dataclass(frozen=True)
 class UniformBatchScoredCertificateCandidateV1:

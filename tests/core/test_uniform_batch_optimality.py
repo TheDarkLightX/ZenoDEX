@@ -19,6 +19,7 @@ from src.core.uniform_batch_clearing import (
 from src.core.uniform_batch_optimality import (
     UniformBatchAuditCandidateV1,
     UniformBatchOptimalityCertificateV1,
+    UniformBatchOptimalityVerificationResult,
     build_uniform_batch_exact_out_grid_audit_candidates_v1,
     build_uniform_batch_optimality_certificate_v1,
     build_uniform_batch_v2_bounded_grid_audit_candidates_v1,
@@ -116,6 +117,73 @@ def _pool() -> PoolState:
         status=PoolStatus.ACTIVE,
         created_at=0,
     )
+
+
+_HASH_A = "0x" + "a" * 64
+_HASH_B = "0x" + "b" * 64
+_HASH_C = "0x" + "c" * 64
+
+
+def test_uniform_batch_optimality_result_ok_flag_must_be_bool() -> None:
+    with pytest.raises(ValueError, match="ok must be bool"):
+        UniformBatchOptimalityVerificationResult(
+            ok=1,  # type: ignore[arg-type]
+            error=None,
+            certificate_hash=_HASH_A,
+            candidate_set_hash=_HASH_B,
+        )
+
+
+def test_uniform_batch_optimality_result_accept_requires_hashes() -> None:
+    with pytest.raises(ValueError, match="certificate_hash"):
+        UniformBatchOptimalityVerificationResult(ok=True, error=None)
+
+    with pytest.raises(ValueError, match="candidate_set_hash"):
+        UniformBatchOptimalityVerificationResult(
+            ok=True,
+            error=None,
+            certificate_hash=_HASH_A,
+        )
+
+    with pytest.raises(ValueError, match="cannot include error"):
+        UniformBatchOptimalityVerificationResult(
+            ok=True,
+            error="mismatch",
+            certificate_hash=_HASH_A,
+            candidate_set_hash=_HASH_B,
+        )
+
+
+def test_uniform_batch_optimality_result_reject_has_no_accepted_artifacts() -> None:
+    with pytest.raises(ValueError, match="include an error"):
+        UniformBatchOptimalityVerificationResult(ok=False, error=None)
+
+    with pytest.raises(ValueError, match="accepted artifacts"):
+        UniformBatchOptimalityVerificationResult(
+            ok=False,
+            error="mismatch",
+            certificate_hash=_HASH_A,
+        )
+
+    with pytest.raises(ValueError, match="accepted artifacts"):
+        UniformBatchOptimalityVerificationResult(
+            ok=False,
+            error="mismatch",
+            candidate_set_hash=_HASH_B,
+            table_root=_HASH_C,
+        )
+
+
+def test_uniform_batch_optimality_result_accepts_optional_table_root() -> None:
+    result = UniformBatchOptimalityVerificationResult(
+        ok=True,
+        error=None,
+        certificate_hash=_HASH_A,
+        candidate_set_hash=_HASH_B,
+        table_root=_HASH_C,
+    )
+
+    assert result.table_root == _HASH_C
 
 
 def _balances() -> BalanceTable:
