@@ -1510,6 +1510,37 @@ class _PerpApplyCtx:
     perps_version: int
 
 
+@dataclass(frozen=True)
+class _IsolatedSettleAccounting:
+    fee_pool_quote: int
+    fee_income_quote: int
+    initial_insurance_quote: int
+    claims_paid_quote: int
+    insurance_balance_quote: int
+
+
+@dataclass(frozen=True)
+class _IsolatedSettleGlobalStep:
+    global_state: Dict[str, Any]
+    effects: Dict[str, Any]
+
+
+@dataclass(frozen=True)
+class _IsolatedSettleAccountStep:
+    account: PerpAccountState
+    fee_pool_delta_quote: int
+    raw_liquidation_penalty_quote: int
+
+
+@dataclass(frozen=True)
+class _IsolatedSettleTotals:
+    accounts: Dict[str, PerpAccountState]
+    penalty_delta_quote: int
+    raw_liquidation_penalty_quote: int
+    liquidation_penalty_shortfall_quote: int
+    liquidation_penalty_cap_bound_count: int
+
+
 def _reject_unknown_fields(data: Mapping[str, Any], allowed: set[str], *, error: str) -> Optional[str]:
     if set(data.keys()) - allowed:
         return error
@@ -2586,20 +2617,23 @@ def _apply_isolated_apply_funding_auto(
     return None
 
 
-def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMarketState) -> Optional[str]:
-    action = op.action
-    market_id = op.market_id
+def _isolated_settle_authorization_error(
+    ctx: _PerpApplyCtx,
+    *,
+    op: PerpOp,
+    market: PerpMarketState,
+) -> Optional[str]:
     data = op.data
-
     allowed = {"module", "version", "market_id", "action", "oracle_authorization", "oracle_adapter_bridge"}
     gate_error = _operator_gate_error(
         action_kind=RUNTIME_ACTION_SETTLE_EPOCH,
-        action=action,
+        action=op.action,
         operator_err=_require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey),
         unknown_fields_ok=not (set(data.keys()) - allowed),
     )
     if gate_error is not None:
         return gate_error
+
     err = _require_oracle_adapter_bridge(
         ctx.config,
         data=data,
@@ -2609,7 +2643,7 @@ def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
         expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
         expected_action_id=_perps_runtime_oracle_action_id(
             ctx.config,
-            market_id=market_id,
+            market_id=op.market_id,
             action_kind="settle_epoch",
             market=market,
         ),
@@ -2617,137 +2651,252 @@ def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
     )
     if err is not None:
         return err
-    oracle_auth_error = _check_isolated_settle_oracle_authorization(ctx=ctx, op=op, market=market)
-    if oracle_auth_error is not None:
-        return oracle_auth_error
+    return _check_isolated_settle_oracle_authorization(ctx=ctx, op=op, market=market)
 
-    pre_market = market
-    pre_fee_pool = int(pre_market.global_state.get("fee_pool_quote", 0))
-    pre_fee_income = int(pre_market.global_state.get("fee_income", 0))
-    pre_initial_insurance = int(pre_market.global_state.get("initial_insurance", 0))
-    pre_claims_paid = int(pre_market.global_state.get("claims_paid", 0))
-    pre_insurance_balance = int(pre_market.global_state.get("insurance_balance", 0))
 
-    # Phase 1: compute the post-epoch *global* update that must be identical across all accounts
-    # (oracle/index, breaker flags, clearing-price bookkeeping). This is computed against a dummy
-    # account so it cannot depend on account-specific liquidation events.
+def _isolated_settle_pre_accounting(market: PerpMarketState) -> _IsolatedSettleAccounting:
+    return _IsolatedSettleAccounting(
+        fee_pool_quote=int(market.global_state.get("fee_pool_quote", 0)),
+        fee_income_quote=int(market.global_state.get("fee_income", 0)),
+        initial_insurance_quote=int(market.global_state.get("initial_insurance", 0)),
+        claims_paid_quote=int(market.global_state.get("claims_paid", 0)),
+        insurance_balance_quote=int(market.global_state.get("insurance_balance", 0)),
+    )
+
+
+def _derive_isolated_settle_global_step(
+    market: PerpMarketState,
+) -> tuple[Optional[str], Optional[_IsolatedSettleGlobalStep]]:
+    # This dummy-account step computes the global epoch update once. Account-local
+    # liquidation effects are checked later against this same global result.
     dummy = _kernel_initial_account_state()
-    res0 = perp_epoch_isolated_default_apply(
-        state=pre_market.kernel_state_for_account(dummy),
+    res = perp_epoch_isolated_default_apply(
+        state=market.kernel_state_for_account(dummy),
         action="settle_epoch",
         params={},
     )
-    if not res0.ok or res0.state is None:
-        return res0.error or "settle_epoch rejected"
-    base_global, new_dummy = _split_kernel_state(res0.state)
-    _preserve_isolated_shell_global_fields(pre_global=pre_market.global_state, post_global=base_global)
+    if not res.ok or res.state is None:
+        return res.error or "settle_epoch rejected", None
+
+    base_global, new_dummy = _split_kernel_state(res.state)
+    _preserve_isolated_shell_global_fields(pre_global=market.global_state, post_global=base_global)
     if new_dummy != dummy:
-        return "internal error: settle_epoch mutated dummy account state"
+        return "internal error: settle_epoch mutated dummy account state", None
+    return None, _IsolatedSettleGlobalStep(global_state=base_global, effects=dict(res.effects or {}))
 
-    # Phase 2: settle each account against the *same* pre-global state, but accumulate the
-    # liquidation penalty deltas into the global fee/insurance state deterministically
-    # (sorted account keys).
-    expected_global_no_accum = dict(base_global)
-    expected_global_no_accum["fee_pool_quote"] = pre_fee_pool
-    expected_global_no_accum["fee_income"] = pre_fee_income
-    expected_global_no_accum["insurance_balance"] = pre_insurance_balance
 
-    total_penalty_delta = 0
-    total_raw_liquidation_penalty = 0
-    total_liquidation_penalty_shortfall = 0
-    liquidation_penalty_cap_bound_count = 0
-    new_accounts: Dict[str, PerpAccountState] = {}
-    sorted_accounts = tuple(sorted(pre_market.accounts.items()))
-    for pk, acct in sorted_accounts:
-        # Optimization: when an account is strictly flat and already in a stable
-        # post-step shape, settle_epoch cannot change account-local fields.
-        # Keep a strict guard and fall back to kernel execution otherwise.
-        if (
-            int(acct.position_base) == 0
-            and int(acct.entry_price_e8) == 0
-            and not bool(acct.liquidated_this_step)
-            and 0 <= int(acct.collateral_quote) <= MAX_COLLATERAL
-        ):
-            new_accounts[str(pk)] = acct
-            continue
+def _global_without_isolated_settle_accumulators(
+    global_state: Mapping[str, Any],
+    *,
+    accounting: _IsolatedSettleAccounting,
+) -> Dict[str, Any]:
+    out = dict(global_state)
+    out["fee_pool_quote"] = int(accounting.fee_pool_quote)
+    out["fee_income"] = int(accounting.fee_income_quote)
+    out["insurance_balance"] = int(accounting.insurance_balance_quote)
+    return out
 
-        res = perp_epoch_isolated_default_apply(
-            state=pre_market.kernel_state_for_account(acct),
-            action="settle_epoch",
-            params={},
+
+def _is_stable_flat_isolated_account(acct: PerpAccountState) -> bool:
+    return (
+        int(acct.position_base) == 0
+        and int(acct.entry_price_e8) == 0
+        and not bool(acct.liquidated_this_step)
+        and 0 <= int(acct.collateral_quote) <= MAX_COLLATERAL
+    )
+
+
+def _apply_isolated_settle_account(
+    market: PerpMarketState,
+    *,
+    account_pubkey: str,
+    account: PerpAccountState,
+    expected_global_no_accum: Mapping[str, Any],
+    accounting: _IsolatedSettleAccounting,
+) -> tuple[Optional[str], Optional[_IsolatedSettleAccountStep]]:
+    # Flat accounts that are already in the kernel's stable post-step shape cannot
+    # change under settle_epoch. Other accounts still execute the kernel.
+    if _is_stable_flat_isolated_account(account):
+        return None, _IsolatedSettleAccountStep(
+            account=account,
+            fee_pool_delta_quote=0,
+            raw_liquidation_penalty_quote=0,
         )
-        if not res.ok or res.state is None:
-            return f"settle_epoch rejected for account {pk}: {res.error or ''}".strip()
-        post_global, post_acct = _split_kernel_state(res.state)
-        _preserve_isolated_shell_global_fields(pre_global=pre_market.global_state, post_global=post_global)
 
-        # All global fields except fee/insurance accumulators must match the dummy-derived post-global.
-        post_global_no_accum = dict(post_global)
-        post_global_no_accum["fee_pool_quote"] = pre_fee_pool
-        post_global_no_accum["fee_income"] = pre_fee_income
-        post_global_no_accum["insurance_balance"] = pre_insurance_balance
-        if post_global_no_accum != expected_global_no_accum:
-            return "internal error: global settle depended on account state"
+    res = perp_epoch_isolated_default_apply(
+        state=market.kernel_state_for_account(account),
+        action="settle_epoch",
+        params={},
+    )
+    if not res.ok or res.state is None:
+        return f"settle_epoch rejected for account {account_pubkey}: {res.error or ''}".strip(), None
 
-        post_fee_pool = int(post_global.get("fee_pool_quote", 0))
-        post_fee_income = int(post_global.get("fee_income", 0))
-        post_insurance = int(post_global.get("insurance_balance", 0))
+    post_global, post_acct = _split_kernel_state(res.state)
+    _preserve_isolated_shell_global_fields(pre_global=market.global_state, post_global=post_global)
+    post_global_no_accum = _global_without_isolated_settle_accumulators(post_global, accounting=accounting)
+    if post_global_no_accum != dict(expected_global_no_accum):
+        return "internal error: global settle depended on account state", None
 
-        fee_pool_delta = post_fee_pool - pre_fee_pool
-        fee_income_delta = post_fee_income - pre_fee_income
-        insurance_delta = post_insurance - pre_insurance_balance
+    fee_pool_delta = int(post_global.get("fee_pool_quote", 0)) - int(accounting.fee_pool_quote)
+    fee_income_delta = int(post_global.get("fee_income", 0)) - int(accounting.fee_income_quote)
+    insurance_delta = int(post_global.get("insurance_balance", 0)) - int(accounting.insurance_balance_quote)
+    if fee_pool_delta < 0 or fee_income_delta < 0 or insurance_delta < 0:
+        return "internal error: fee pool decreased during settle_epoch", None
+    if fee_pool_delta != fee_income_delta or fee_pool_delta != insurance_delta:
+        return "internal error: fee/insurance deltas inconsistent", None
 
-        if fee_pool_delta < 0 or fee_income_delta < 0 or insurance_delta < 0:
-            return "internal error: fee pool decreased during settle_epoch"
-        if fee_pool_delta != fee_income_delta or fee_pool_delta != insurance_delta:
-            return "internal error: fee/insurance deltas inconsistent"
+    raw_liquidation_penalty = 0
+    if bool(post_acct.liquidated_this_step):
+        raw_liquidation_penalty = _perp_v2_liq_penalty(
+            int(account.position_base),
+            int(post_global.get("index_price_e8", 0)),
+            int(post_global.get("liquidation_penalty_bps", 0)),
+            int(post_global.get("min_notional_for_bounty", 0)),
+        )
+    return None, _IsolatedSettleAccountStep(
+        account=post_acct,
+        fee_pool_delta_quote=int(fee_pool_delta),
+        raw_liquidation_penalty_quote=int(raw_liquidation_penalty),
+    )
 
-        raw_liquidation_penalty = 0
-        if bool(post_acct.liquidated_this_step):
-            raw_liquidation_penalty = _perp_v2_liq_penalty(
-                int(acct.position_base),
-                int(post_global.get("index_price_e8", 0)),
-                int(post_global.get("liquidation_penalty_bps", 0)),
-                int(post_global.get("min_notional_for_bounty", 0)),
-            )
 
-        total_penalty_delta += fee_pool_delta
-        total_raw_liquidation_penalty += int(raw_liquidation_penalty)
-        if int(raw_liquidation_penalty) > int(fee_pool_delta):
-            liquidation_penalty_cap_bound_count += 1
-            total_liquidation_penalty_shortfall += int(raw_liquidation_penalty) - int(fee_pool_delta)
-        new_accounts[str(pk)] = post_acct
+def _settle_isolated_accounts(
+    market: PerpMarketState,
+    *,
+    expected_global_no_accum: Mapping[str, Any],
+    accounting: _IsolatedSettleAccounting,
+) -> tuple[Optional[str], Optional[_IsolatedSettleTotals]]:
+    accounts: Dict[str, PerpAccountState] = {}
+    penalty_delta = 0
+    raw_liquidation_penalty = 0
+    penalty_shortfall = 0
+    cap_bound_count = 0
 
-    # Fail-closed on fee-pool overflow beyond the kernel's finite-domain bound.
+    for pk, acct in tuple(sorted(market.accounts.items())):
+        err, step = _apply_isolated_settle_account(
+            market,
+            account_pubkey=str(pk),
+            account=acct,
+            expected_global_no_accum=expected_global_no_accum,
+            accounting=accounting,
+        )
+        if err is not None:
+            return err, None
+        if step is None:
+            return "internal error: settle_epoch account step missing", None
+
+        penalty_delta += int(step.fee_pool_delta_quote)
+        raw_liquidation_penalty += int(step.raw_liquidation_penalty_quote)
+        if int(step.raw_liquidation_penalty_quote) > int(step.fee_pool_delta_quote):
+            cap_bound_count += 1
+            penalty_shortfall += int(step.raw_liquidation_penalty_quote) - int(step.fee_pool_delta_quote)
+        accounts[str(pk)] = step.account
+
+    return None, _IsolatedSettleTotals(
+        accounts=accounts,
+        penalty_delta_quote=int(penalty_delta),
+        raw_liquidation_penalty_quote=int(raw_liquidation_penalty),
+        liquidation_penalty_shortfall_quote=int(penalty_shortfall),
+        liquidation_penalty_cap_bound_count=int(cap_bound_count),
+    )
+
+
+def _build_isolated_settle_next_global(
+    expected_global_no_accum: Mapping[str, Any],
+    *,
+    accounting: _IsolatedSettleAccounting,
+    totals: _IsolatedSettleTotals,
+) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
     max_fee_pool = perp_epoch_isolated_default_fee_pool_max_quote()
-    next_fee_pool = pre_fee_pool + total_penalty_delta
-    next_fee_income = pre_fee_income + total_penalty_delta
-    next_insurance = pre_initial_insurance + next_fee_income - pre_claims_paid
+    next_fee_pool = int(accounting.fee_pool_quote) + int(totals.penalty_delta_quote)
+    next_fee_income = int(accounting.fee_income_quote) + int(totals.penalty_delta_quote)
+    next_insurance = int(accounting.initial_insurance_quote) + next_fee_income - int(accounting.claims_paid_quote)
     if next_fee_pool > max_fee_pool or next_fee_income > max_fee_pool or next_insurance > max_fee_pool:
-        return "fee/insurance overflow (post-settle)"
+        return "fee/insurance overflow (post-settle)", None
     if next_insurance < 0:
-        return "insurance negative (post-settle)"
+        return "insurance negative (post-settle)", None
 
-    expected_global_no_accum["fee_pool_quote"] = int(next_fee_pool)
-    expected_global_no_accum["fee_income"] = int(next_fee_income)
-    expected_global_no_accum["insurance_balance"] = int(next_insurance)
-    ctx.markets[market_id] = PerpMarketState(
+    next_global = dict(expected_global_no_accum)
+    next_global["fee_pool_quote"] = int(next_fee_pool)
+    next_global["fee_income"] = int(next_fee_income)
+    next_global["insurance_balance"] = int(next_insurance)
+    return None, next_global
+
+
+def _commit_isolated_settle_epoch(
+    ctx: _PerpApplyCtx,
+    *,
+    i: int,
+    op: PerpOp,
+    market: PerpMarketState,
+    next_global: Mapping[str, Any],
+    totals: _IsolatedSettleTotals,
+    kernel_effects: Mapping[str, Any],
+) -> None:
+    ctx.markets[op.market_id] = PerpMarketState(
         quote_asset=market.quote_asset,
-        global_state=expected_global_no_accum,
-        accounts=new_accounts,
+        global_state=dict(next_global),
+        accounts=totals.accounts,
     )
     ctx.effects.append(
         {
             "i": i,
-            "market_id": market_id,
-            "action": action,
-            "fee_pool_delta": int(total_penalty_delta),
-            "liquidation_penalty_raw_quote": int(total_raw_liquidation_penalty),
-            "liquidation_penalty_collected_quote": int(total_penalty_delta),
-            "liquidation_penalty_shortfall_quote": int(total_liquidation_penalty_shortfall),
-            "liquidation_penalty_cap_bound_count": int(liquidation_penalty_cap_bound_count),
-            "effects": dict(res0.effects or {}),
+            "market_id": op.market_id,
+            "action": op.action,
+            "fee_pool_delta": int(totals.penalty_delta_quote),
+            "liquidation_penalty_raw_quote": int(totals.raw_liquidation_penalty_quote),
+            "liquidation_penalty_collected_quote": int(totals.penalty_delta_quote),
+            "liquidation_penalty_shortfall_quote": int(totals.liquidation_penalty_shortfall_quote),
+            "liquidation_penalty_cap_bound_count": int(totals.liquidation_penalty_cap_bound_count),
+            "effects": dict(kernel_effects),
         }
+    )
+
+
+def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMarketState) -> Optional[str]:
+    auth_error = _isolated_settle_authorization_error(ctx, op=op, market=market)
+    if auth_error is not None:
+        return auth_error
+
+    accounting = _isolated_settle_pre_accounting(market)
+    err, global_step = _derive_isolated_settle_global_step(market)
+    if err is not None:
+        return err
+    if global_step is None:
+        return "internal error: settle_epoch global step missing"
+
+    expected_global_no_accum = _global_without_isolated_settle_accumulators(
+        global_step.global_state,
+        accounting=accounting,
+    )
+    err, totals = _settle_isolated_accounts(
+        market,
+        expected_global_no_accum=expected_global_no_accum,
+        accounting=accounting,
+    )
+    if err is not None:
+        return err
+    if totals is None:
+        return "internal error: settle_epoch totals missing"
+
+    err, next_global = _build_isolated_settle_next_global(
+        expected_global_no_accum,
+        accounting=accounting,
+        totals=totals,
+    )
+    if err is not None:
+        return err
+    if next_global is None:
+        return "internal error: settle_epoch next global missing"
+
+    _commit_isolated_settle_epoch(
+        ctx,
+        i=i,
+        op=op,
+        market=market,
+        next_global=next_global,
+        totals=totals,
+        kernel_effects=global_step.effects,
     )
     return None
 
