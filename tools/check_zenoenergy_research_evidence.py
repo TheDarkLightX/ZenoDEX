@@ -913,6 +913,7 @@ def _check_listwise_set(report: dict[str, Any]) -> list[EvidenceCheck]:
     modes = report["modes"]
     listwise = modes["listwise_set"]
     aggregate = modes["aggregate_pairwise"]
+    interpretation = report.get("interpretation")
     return [
         _expect_equal(
             "listwise_set.schema",
@@ -922,23 +923,32 @@ def _check_listwise_set(report: dict[str, Any]) -> list[EvidenceCheck]:
         _expect_true(
             "listwise_set.safety",
             _all_modes_zero(modes)
-            and int(listwise["permutation_violation_count"]) == 0
-            and int(report["interpretation"]["permutation_violation_count"]) == 0,
+            and isinstance(listwise, dict)
+            and isinstance(interpretation, dict)
+            and _json_int_equals(listwise.get("permutation_violation_count"), 0)
+            and _json_int_equals(interpretation.get("permutation_violation_count"), 0),
             "zero invalid accepts and zero listwise permutation violations",
         ),
         _expect_true(
             "listwise_set.top10_and_checked_stop",
-            float(listwise["top_10_recall"]) == 1.0
-            and float(listwise["false_exclusion_rate_top_10"]) == 0.0
-            and float(listwise["checked_stop_at_winner_rate"]) == 1.0,
+            isinstance(listwise, dict)
+            and _json_number_equals(listwise.get("top_10_recall"), 1.0)
+            and _json_number_equals(listwise.get("false_exclusion_rate_top_10"), 0.0)
+            and _json_number_equals(listwise.get("checked_stop_at_winner_rate"), 1.0),
             "listwise top-10 recall and checked-stop-at-winner audit remain complete",
         ),
         _expect_true(
             "listwise_set.negative_knowledge",
-            _is_false(report["interpretation"]["listwise_improved_over_best_pairwise"])
-            and float(listwise["mean_verifier_calls"]) > float(aggregate["mean_verifier_calls"])
+            isinstance(listwise, dict)
+            and isinstance(aggregate, dict)
+            and isinstance(interpretation, dict)
+            and _is_false(interpretation.get("listwise_improved_over_best_pairwise"))
+            and _json_number_greater_than(
+                listwise.get("mean_verifier_calls"),
+                aggregate.get("mean_verifier_calls"),
+            )
             and "did not improve mean verifier calls"
-            in str(report["interpretation"]["negative_knowledge"]),
+            in str(interpretation.get("negative_knowledge")),
             "listwise ranker did not beat the strongest pairwise baseline on mean calls",
         ),
     ]
@@ -4415,6 +4425,20 @@ def _json_int_equals(value: object, expected: int) -> bool:
 
 def _json_number_at_least(value: object, minimum: float) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and float(value) >= minimum
+
+
+def _json_number_equals(value: object, expected: float) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and float(value) == expected
+
+
+def _json_number_greater_than(left: object, right: object) -> bool:
+    return (
+        isinstance(left, (int, float))
+        and not isinstance(left, bool)
+        and isinstance(right, (int, float))
+        and not isinstance(right, bool)
+        and float(left) > float(right)
+    )
 
 
 def _list_equals(value: object, expected: list[object]) -> bool:

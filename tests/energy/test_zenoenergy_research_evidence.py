@@ -451,6 +451,54 @@ def test_research_evidence_replay_rejects_coerced_performance_metric(
     assert check["passed"] is False
 
 
+def test_research_evidence_replay_rejects_coerced_listwise_permutation_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_listwise_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_listwise_set_ranker_seed20260532_20260533.json":
+            modes = payload["modes"]
+            assert isinstance(modes, dict)
+            listwise = modes["listwise_set"]
+            assert isinstance(listwise, dict)
+            listwise["permutation_violation_count"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_listwise_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "listwise_set.safety")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_listwise_rate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_listwise_rate(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_listwise_set_ranker_seed20260532_20260533.json":
+            modes = payload["modes"]
+            assert isinstance(modes, dict)
+            listwise = modes["listwise_set"]
+            assert isinstance(listwise, dict)
+            listwise["top_10_recall"] = "1.0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_listwise_rate)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "listwise_set.top10_and_checked_stop")
+    assert check["passed"] is False
+
+
 def test_research_evidence_replay_rejects_truthy_string_obligation_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
