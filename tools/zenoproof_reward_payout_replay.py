@@ -319,7 +319,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"manager_ok = {manager['ok']}")
             print(f"claimable = {claimability['claimable']}")
             print(f"reward_amount_units = {proof_mining['units']['reward_amount']}")
-    return 0 if bool(status.get("ok")) else 1
+    return 0 if status.get("ok") is True else 1
 
 
 if __name__ == "__main__":

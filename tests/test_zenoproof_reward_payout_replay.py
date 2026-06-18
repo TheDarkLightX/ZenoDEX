@@ -76,3 +76,23 @@ def test_zenoproof_reward_payout_replay_cli_text_accepts() -> None:
     assert "status = accepted" in proc.stdout
     assert "manager_ok = True" in proc.stdout
     assert "claimable = True" in proc.stdout
+
+
+def test_zenoproof_reward_payout_replay_cli_rejects_truthy_string_ok(monkeypatch, capsys) -> None:
+    def fake_build_status(**_kwargs: Any) -> dict[str, Any]:
+        return {
+            "schema": replay.SCHEMA,
+            "ok": "true",
+            "status": "accepted",
+            "stage": "proof_mining",
+            "unit_scale_e8": 1,
+            "errors": [],
+        }
+
+    monkeypatch.setattr(replay, "build_status", fake_build_status)
+
+    rc = replay.main(["--format", "json", "--registry", str(MANIFEST_PATH)])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert rc == 1
+    assert payload["ok"] == "true"
