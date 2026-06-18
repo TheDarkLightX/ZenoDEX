@@ -360,6 +360,18 @@ def _state_with_epoch_phase_for_native_input(state: Mapping[str, Value]) -> dict
     return out
 
 
+def _require_native_int(value: object, *, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
+def _require_native_bool(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return bool(value)
+
+
 def perp_epoch_isolated_v2_native_initial_state() -> dict[str, Value]:
     from .perp_v2 import initial_state
     from .perp_v2.state import state_to_dict
@@ -418,9 +430,9 @@ def _action_params_from_dict(action: str, params: Mapping[str, Value] | None):
         if act is Action.PARTIAL_LIQUIDATE and dict_key not in p:
             kwargs[field_name] = 0
         else:
-            kwargs[field_name] = int(p[dict_key])
+            kwargs[field_name] = _require_native_int(p[dict_key], name=dict_key)
     if act in _auth_actions:
-        kwargs["auth_ok"] = bool(p.get("auth_ok", False))
+        kwargs["auth_ok"] = _require_native_bool(p.get("auth_ok", False), name="auth_ok")
     return ActionParams(**kwargs)
 
 
