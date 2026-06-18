@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from typing import Any, Dict, Mapping, Optional, Tuple
 from urllib.parse import urlsplit
@@ -17,16 +18,22 @@ from ..agents.policy_compiler import compile_policy_candidate
 from ..core.liquidity import create_pool
 from ..core.quote_receipts import make_route_quote_receipt
 from ..core.routing import best_route_exact_in_2hop
+from ..state.canonical import canonical_hex_fixed_allow_0x
 from ..state.pools import PoolState, PoolStatus
 from .autotrader_supervisor_profile import evaluate_autotrader_supervisor_profile_v1
 from .autotrader_controller import AutoTraderControllerState
 from .autotrader_live import AutoTraderLiveReport, prepare_autotrader_live_quote_receipt
 from .autotrader_risk_disclosure import build_autotrader_risk_disclosure
+from .dex_snapshot import state_from_snapshot
 from .tau_net_client import (
     TauNetTcpClient,
     TauNetTcpConfig,
+    TauNetRpcError,
     bls_pubkey_hex_from_privkey,
+    build_signed_tau_transaction,
     encode_tau_operations_for_wire,
+    tau_rpc_invalid_sequence_numbers,
+    tau_rpc_response_is_success,
     verify_tau_transaction_payload_signature,
 )
 from .zeno_ledger_v0 import hash_v0
@@ -42,6 +49,9 @@ _AUTOTRADER_LIVE_NOT_CLAIMED = [
 ]
 _AUTOTRADER_SUPERVISOR_PREFLIGHT_SCHEMA = "zenodex/autotrader-supervisor-preflight/v1"
 _SUPERVISOR_RUN_COUNTERS: dict[str, int] = {}
+_SUPERVISOR_EXECUTION_LOCK = threading.Lock()
+_PREPARE_BUDGET_LOCK = threading.Lock()
+_PREPARE_IN_FLIGHT = 0
 
 
 def _env_str(name: str, default: str) -> str:
@@ -65,7 +75,7 @@ def _env_float(name: str, default: float, *, lo: float, hi: float) -> float:
         return float(default)
     try:
         value = float(raw.strip())
-    except Exception:
+    except ValueError:
         return float(default)
     return min(max(value, lo), hi)
 
@@ -76,9 +86,96 @@ def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
         return int(default)
     try:
         value = int(raw.strip())
-    except Exception:
+    except ValueError:
         return int(default)
     return min(max(value, lo), hi)
+
+
+def _prepare_concurrency_limit() -> int:
+    return _env_int("AUTOTRADER_LIVE_PREPARE_MAX_CONCURRENT", 2, lo=1, hi=32)
+
+
+def _try_enter_prepare_budget() -> tuple[bool, int, int]:
+    global _PREPARE_IN_FLIGHT
+    limit = _prepare_concurrency_limit()
+    with _PREPARE_BUDGET_LOCK:
+        if _PREPARE_IN_FLIGHT >= limit:
+            return False, _PREPARE_IN_FLIGHT, limit
+        _PREPARE_IN_FLIGHT += 1
+        return True, _PREPARE_IN_FLIGHT, limit
+
+
+def _leave_prepare_budget() -> None:
+    global _PREPARE_IN_FLIGHT
+    with _PREPARE_BUDGET_LOCK:
+        _PREPARE_IN_FLIGHT = max(0, _PREPARE_IN_FLIGHT - 1)
+
+
+def _prepare_budget_status() -> dict[str, int]:
+    with _PREPARE_BUDGET_LOCK:
+        in_flight = int(_PREPARE_IN_FLIGHT)
+    return {
+        "max_concurrent": _prepare_concurrency_limit(),
+        "in_flight": in_flight,
+        "available": max(0, _prepare_concurrency_limit() - in_flight),
+    }
+
+
+def _execution_journal_path() -> str:
+    return _env_str("AUTOTRADER_LIVE_EXECUTION_JOURNAL_PATH", "")
+
+
+def _execution_journal_ids() -> set[str]:
+    path = _execution_journal_path()
+    if not path:
+        return set()
+    if not os.path.exists(path):
+        return set()
+    out: set[str] = set()
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            for line in handle:
+                text = line.strip()
+                if not text:
+                    continue
+                row = json.loads(text)
+                if not isinstance(row, Mapping):
+                    raise ValueError("execution journal row must be an object")
+                execution_id = row.get("execution_id")
+                if not isinstance(execution_id, str) or not execution_id.strip():
+                    raise ValueError("execution journal row missing execution_id")
+                out.add(execution_id.strip())
+    except OSError as exc:
+        raise ValueError(f"execution_journal_read_failed:{type(exc).__name__}") from exc
+    return out
+
+
+def _execution_already_consumed(execution_keys: set[str], execution_id: str) -> bool:
+    if execution_id in execution_keys:
+        return True
+    return execution_id in _execution_journal_ids()
+
+
+def _consume_execution_id(execution_keys: set[str], execution_id: str, *, surface: str) -> None:
+    path = _execution_journal_path()
+    if not path:
+        execution_keys.add(execution_id)
+        return
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    row = {
+        "schema": "zenodex/autotrader-execution-journal/v1",
+        "execution_id": execution_id,
+        "surface": surface,
+        "consumed_at_unix_s": int(time.time()),
+    }
+    try:
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
+    except OSError as exc:
+        raise ValueError(f"execution_journal_write_failed:{type(exc).__name__}") from exc
+    execution_keys.add(execution_id)
 
 
 def _allow_signing() -> bool:
@@ -121,6 +218,13 @@ def _pubkey_for_rpc(value: str) -> str:
     return s[2:] if s.startswith("0x") else s
 
 
+def _require_root_hash(value: object, *, name: str) -> str:
+    canonical = canonical_hex_fixed_allow_0x(value, nbytes=32, name=name)
+    if value != canonical:
+        raise ValueError(f"{name} must be canonical lowercase 0x-prefixed hex")
+    return canonical
+
+
 def _parse_json_body(body: Optional[bytes]) -> tuple[Optional[dict[str, Any]], Optional[str]]:
     if body is None or len(body) == 0:
         return None, "empty_body"
@@ -139,12 +243,73 @@ def _int_field(data: Mapping[str, Any], key: str, default: int) -> int:
     raw = data.get(key, default)
     if isinstance(raw, bool):
         raise ValueError(f"{key} must be an int")
-    if isinstance(raw, (int, str)):
+    if isinstance(raw, int):
         value = int(raw)
         if value < 0:
             raise ValueError(f"{key} must be non-negative")
         return value
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            raise ValueError(f"{key} must be int-like")
+        try:
+            value = int(text, 16) if text.lower().startswith("0x") else int(text)
+        except ValueError as exc:
+            raise ValueError(f"{key} must be int-like") from exc
+        if value < 0:
+            raise ValueError(f"{key} must be non-negative")
+        return value
     raise ValueError(f"{key} must be int-like")
+
+
+def _require_report_int(value: object, *, name: str) -> int:
+    # Supervisor bounded-surface limits are admission controls copied into a
+    # receipt hash; booleans must not inherit Python's int semantics here.
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{name} must be an int")
+    return int(value)
+
+
+def _upstream_safe_dex_operations(operations: Mapping[str, Any]) -> dict[str, Any]:
+    """Map internal DEX stream keys to Tau testnet app-bridge stream keys."""
+    out: dict[str, Any] = {}
+    for key, value in operations.items():
+        key_s = str(key)
+        if key_s == "2":
+            out["5"] = value
+        elif key_s == "3":
+            out["6"] = value
+        elif key_s == "4":
+            out["7"] = value
+        else:
+            out[key_s] = value
+    return out
+
+
+def _upstream_safe_dex_stream_map(operations: Mapping[str, Any]) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    if "2" in operations:
+        mapping["2"] = "5"
+    if "3" in operations:
+        mapping["3"] = "6"
+    if "4" in operations:
+        mapping["4"] = "7"
+    return mapping
+
+
+def _build_upstream_safe_tau_payload(
+    *,
+    tau_tx_payload: Mapping[str, Any],
+    report_operations: Mapping[str, Any],
+    signer_privkey: int,
+) -> dict[str, Any]:
+    return build_signed_tau_transaction(
+        privkey=signer_privkey,
+        sequence_number=_int_field(tau_tx_payload, "sequence_number", 0),
+        expiration_time=_int_field(tau_tx_payload, "expiration_time", 0),
+        operations=_upstream_safe_dex_operations(report_operations),
+        fee_limit=str(tau_tx_payload.get("fee_limit", "0")),
+    )
 
 
 def _request_mapping(body: Mapping[str, Any], *, name: str) -> Mapping[str, Any] | None:
@@ -164,6 +329,14 @@ def _request_mapping(body: Mapping[str, Any], *, name: str) -> Mapping[str, Any]
 
 def _request_signed_tau_tx_payload(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
     for name in ("signed_tau_tx_payload", "tau_tx_payload"):
+        value = _request_mapping(body, name=name)
+        if value is not None:
+            return value
+    return None
+
+
+def _request_prepared_report(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    for name in ("prepared_report", "report", "autotrader_live_report"):
         value = _request_mapping(body, name=name)
         if value is not None:
             return value
@@ -197,6 +370,21 @@ def _operation_count(operations: object) -> int:
     for value in operations.values():
         if isinstance(value, list):
             count += len(value)
+        elif isinstance(value, str):
+            text = value.strip()
+            if not text:
+                continue
+            try:
+                parsed = json.loads(text)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                count += 1
+                continue
+            if isinstance(parsed, list):
+                count += len(parsed)
+            elif parsed is not None:
+                count += 1
+        elif value is not None:
+            count += 1
     return count
 
 
@@ -244,6 +432,20 @@ def _validate_external_tau_tx_payload(
     return dict(payload)
 
 
+def _body_with_external_tau_fields(body: Mapping[str, Any]) -> dict[str, Any]:
+    out = dict(body)
+    external_payload = _request_signed_tau_tx_payload(body)
+    if external_payload is None:
+        return out
+    if out.get("tx_sequence_number") is None and isinstance(external_payload.get("sequence_number"), int):
+        out["tx_sequence_number"] = int(external_payload["sequence_number"])
+    if out.get("tx_expiration_time") is None and isinstance(external_payload.get("expiration_time"), int):
+        out["tx_expiration_time"] = int(external_payload["expiration_time"])
+    if out.get("tx_fee_limit") is None and external_payload.get("fee_limit") is not None:
+        out["tx_fee_limit"] = str(external_payload.get("fee_limit"))
+    return out
+
+
 def _pool_from_obj(data: Mapping[str, Any]) -> PoolState:
     status_raw = str(data.get("status", PoolStatus.ACTIVE.value)).strip().upper()
     return PoolState(
@@ -282,7 +484,88 @@ def _pools_from_obj(obj: object) -> dict[str, PoolState]:
     raise ValueError("pools must be a map or list")
 
 
+def _live_app_state_view() -> Any | None:
+    try:
+        raw = _tau_client().getappstate(full=True).strip()
+        obj = json.loads(raw)
+        if not isinstance(obj, Mapping):
+            return None
+        app_state = obj.get("app_state")
+        if not isinstance(app_state, Mapping):
+            return None
+        dex_state = app_state.get("dex_state") if isinstance(app_state.get("dex_state"), Mapping) else app_state
+        return state_from_snapshot(dex_state)
+    except (AttributeError, TauNetRpcError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return None
+
+
+def _default_fixture_from_live_app_state(*, signer_privkey: int, chain_id: str) -> dict[str, Any] | None:
+    state = _live_app_state_view()
+    if state is None:
+        return None
+    pools = {pool_id: pool for pool_id, pool in state.pools.items() if pool.status == PoolStatus.ACTIVE}
+    if not pools:
+        return None
+    owner = "0x" + bls_pubkey_hex_from_privkey(signer_privkey)
+    pool = next(iter(pools.values()))
+    amount_in = max(1, min(100, int(pool.reserve0) // 100 if int(pool.reserve0) > 0 else 1))
+    quote = best_route_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in=pool.asset0,
+        asset_out=pool.asset1,
+        amount_in=amount_in,
+    )
+    if quote is None:
+        return None
+    policy = {
+        "strategy_id": "dca.live.ui",
+        "owner_pubkey": owner,
+        "policy_backend": "local",
+        "template": "dca",
+        "asset_universe": [pool.asset0, pool.asset1],
+        "allowed_actions": ["PLACE_SWAP_EXACT_IN"],
+        "notional_caps": {
+            "per_order_max": amount_in,
+            "per_window_max": amount_in * 5,
+            "lifetime_max": amount_in * 10,
+        },
+        "risk_limits": {
+            "max_slippage_bps": 50,
+            "max_oracle_staleness_epochs": 3,
+        },
+        "strategy_window": {
+            "valid_from_epoch": 1,
+            "valid_until_epoch": 100,
+            "min_order_spacing_epochs": 4,
+        },
+        "controls": {
+            "kill_switch_enabled": True,
+            "max_live_orders": 3,
+        },
+        "template_params": {
+            "fixed_order_size": amount_in,
+            "cadence_epochs": 4,
+            "asset_in": pool.asset0,
+            "asset_out": pool.asset1,
+        },
+    }
+    receipt = make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools, quote_epoch=5)
+    return {
+        "policy": policy,
+        "pools_by_id": pools,
+        "receipt": receipt,
+        "current_epoch": 5,
+        "intent_deadline": _default_tx_expiration_time(),
+        "last_used_nonce": state.nonces.get_last(owner),
+        "chain_id": chain_id,
+    }
+
+
 def _default_fixture(*, signer_privkey: int, chain_id: str) -> dict[str, Any]:
+    live_fixture = _default_fixture_from_live_app_state(signer_privkey=signer_privkey, chain_id=chain_id)
+    if live_fixture is not None:
+        return live_fixture
+
     owner = "0x" + bls_pubkey_hex_from_privkey(signer_privkey)
     policy = {
         "strategy_id": "dca.live.ui",
@@ -303,7 +586,7 @@ def _default_fixture(*, signer_privkey: int, chain_id: str) -> dict[str, Any]:
         "strategy_window": {
             "valid_from_epoch": 1,
             "valid_until_epoch": 100,
-            "min_order_spacing_epochs": 0,
+            "min_order_spacing_epochs": 4,
         },
         "controls": {
             "kill_switch_enabled": True,
@@ -335,7 +618,7 @@ def _default_fixture(*, signer_privkey: int, chain_id: str) -> dict[str, Any]:
         "pools_by_id": pools,
         "receipt": receipt,
         "current_epoch": 5,
-        "intent_deadline": 999_999_999,
+        "intent_deadline": _default_tx_expiration_time(),
         "last_used_nonce": 0,
         "chain_id": chain_id,
     }
@@ -522,6 +805,7 @@ def _build_supervisor_preflight(
     max_runs_per_process = int(supervisor_status.get("max_runs_per_process") or 0)
     remaining_runs_in_process = max(0, max_runs_per_process - int(consumed_runs_in_process))
     intent_surface = _supervisor_report_intent_surface(report)
+    bounded_surface = _supervisor_report_bounded_surface(report)
     body = {
         "schema": _AUTOTRADER_SUPERVISOR_PREFLIGHT_SCHEMA,
         "supervisor_hash": supervisor_status.get("supervisor_hash"),
@@ -538,6 +822,14 @@ def _build_supervisor_preflight(
         "remaining_runs_in_process": remaining_runs_in_process,
         "template": intent_surface.get("template"),
         "allowed_actions": list(intent_surface.get("allowed_actions") or []),
+        "window_valid_from_epoch": bounded_surface.get("window_valid_from_epoch"),
+        "window_valid_until_epoch": bounded_surface.get("window_valid_until_epoch"),
+        "min_order_spacing_epochs": bounded_surface.get("min_order_spacing_epochs"),
+        "per_order_max": bounded_surface.get("per_order_max"),
+        "per_window_max": bounded_surface.get("per_window_max"),
+        "lifetime_max": bounded_surface.get("lifetime_max"),
+        "kill_switch_enabled": bounded_surface.get("kill_switch_enabled"),
+        "bounded_surface_hash": bounded_surface.get("bounded_surface_hash"),
         "stage_hash": stage_certificate.get("stage_hash") if isinstance(stage_certificate, Mapping) else None,
         "release_hash": live_release_certificate.get("release_hash") if isinstance(live_release_certificate, Mapping) else None,
         "release_ok": (
@@ -574,6 +866,77 @@ def _supervisor_report_intent_surface(report: Mapping[str, Any]) -> dict[str, An
     }
 
 
+def _supervisor_report_bounded_surface(report: Mapping[str, Any]) -> dict[str, Any]:
+    user_rule_summary = report.get("user_rule_summary")
+    if not isinstance(user_rule_summary, Mapping):
+        raise ValueError("supervisor_user_rule_summary_missing")
+    window = user_rule_summary.get("window")
+    if not isinstance(window, Mapping):
+        raise ValueError("supervisor_user_rule_window_missing")
+    sizing = user_rule_summary.get("sizing")
+    if not isinstance(sizing, Mapping):
+        raise ValueError("supervisor_user_rule_sizing_missing")
+    budget = user_rule_summary.get("budget")
+    if not isinstance(budget, Mapping):
+        raise ValueError("supervisor_user_rule_budget_missing")
+    controls = user_rule_summary.get("controls")
+    if not isinstance(controls, Mapping):
+        raise ValueError("supervisor_user_rule_controls_missing")
+
+    try:
+        valid_from_epoch = _require_report_int(
+            window.get("valid_from_epoch"),
+            name="user_rule_summary.window.valid_from_epoch",
+        )
+        valid_until_epoch = _require_report_int(
+            window.get("valid_until_epoch"),
+            name="user_rule_summary.window.valid_until_epoch",
+        )
+        min_order_spacing_epochs = _require_report_int(
+            window.get("min_order_spacing_epochs", 0),
+            name="user_rule_summary.window.min_order_spacing_epochs",
+        )
+        per_order_max = _require_report_int(
+            sizing.get("per_order_max"),
+            name="user_rule_summary.sizing.per_order_max",
+        )
+        per_window_max = _require_report_int(
+            budget.get("per_window_max"),
+            name="user_rule_summary.budget.per_window_max",
+        )
+        lifetime_max = _require_report_int(
+            budget.get("lifetime_max"),
+            name="user_rule_summary.budget.lifetime_max",
+        )
+    except (TypeError, ValueError):
+        raise ValueError("supervisor_user_rule_budget_invalid") from None
+    if not isinstance(controls.get("kill_switch_enabled"), bool):
+        raise ValueError("supervisor_user_rule_controls_invalid")
+    kill_switch_enabled = bool(controls.get("kill_switch_enabled"))
+    if valid_from_epoch > valid_until_epoch:
+        raise ValueError("supervisor_user_rule_window_invalid")
+    if min_order_spacing_epochs < 0:
+        raise ValueError("supervisor_user_rule_window_invalid")
+    if per_order_max <= 0 or per_window_max <= 0 or lifetime_max <= 0:
+        raise ValueError("supervisor_user_rule_budget_invalid")
+    if per_order_max > lifetime_max:
+        raise ValueError("supervisor_user_rule_budget_invalid")
+
+    body = {
+        "window_valid_from_epoch": valid_from_epoch,
+        "window_valid_until_epoch": valid_until_epoch,
+        "min_order_spacing_epochs": min_order_spacing_epochs,
+        "per_order_max": per_order_max,
+        "per_window_max": per_window_max,
+        "lifetime_max": lifetime_max,
+        "kill_switch_enabled": kill_switch_enabled,
+    }
+    return {
+        **body,
+        "bounded_surface_hash": hash_v0("autotrader_supervisor_bounded_surface_v1", body),
+    }
+
+
 def _check_supervisor_allowed_surface(
     *,
     supervisor_status: Mapping[str, Any],
@@ -601,7 +964,48 @@ def _check_supervisor_allowed_surface(
     return None
 
 
+def _check_supervisor_prepared_report_binding(
+    *,
+    supervisor_status: Mapping[str, Any],
+    report: Mapping[str, Any],
+) -> str | None:
+    if report.get("schema") != "zenodex/autotrader-live-api-report/v1":
+        return "supervisor_prepared_report_schema_mismatch"
+    if report.get("mode") != "live_prepare":
+        return "supervisor_prepared_report_mode_mismatch"
+    signing = report.get("signing")
+    if not isinstance(signing, Mapping):
+        return "supervisor_prepared_report_signing_missing"
+    report_chain_id = signing.get("chain_id")
+    if report_chain_id != supervisor_status.get("chain_id"):
+        return "supervisor_prepared_report_chain_id_mismatch"
+    signer_pubkey = signing.get("signer_pubkey")
+    if not isinstance(signer_pubkey, str) or not signer_pubkey.strip():
+        return "supervisor_prepared_report_signer_missing"
+    return None
+
+
 def _build_prepare_response(body: Mapping[str, Any]) -> dict[str, Any]:
+    acquired, in_flight, limit = _try_enter_prepare_budget()
+    if not acquired:
+        return {
+            "ok": False,
+            "error": "autotrader_prepare_busy",
+            "http_status": 429,
+            "prepare_budget": {
+                "max_concurrent": limit,
+                "in_flight": in_flight,
+                "available": 0,
+            },
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+        }
+    try:
+        return _build_prepare_response_inner(body)
+    finally:
+        _leave_prepare_budget()
+
+
+def _build_prepare_response_inner(body: Mapping[str, Any]) -> dict[str, Any]:
     risk_ack = _risk_acknowledged(body)
     if not risk_ack:
         return {
@@ -624,7 +1028,9 @@ def _build_prepare_response(body: Mapping[str, Any]) -> dict[str, Any]:
             ),
         }
 
-    signer_privkey = _int_field(body, "signer_privkey", 7)
+    if body.get("signer_privkey") is None:
+        return {"ok": False, "error": "missing_signer_privkey"}
+    signer_privkey = _int_field(body, "signer_privkey", 0)
     chain_id = str(body.get("chain_id") or _env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local"))
     fixture = _default_fixture(signer_privkey=signer_privkey, chain_id=chain_id)
     policy_obj = body.get("policy") or body.get("strategy") or fixture["policy"]
@@ -637,6 +1043,9 @@ def _build_prepare_response(body: Mapping[str, Any]) -> dict[str, Any]:
     receipt = body.get("receipt") or fixture["receipt"]
     if not isinstance(receipt, Mapping):
         raise ValueError("receipt must be an object")
+    default_intent_deadline = int(fixture["intent_deadline"])
+    if body.get("intent_deadline") is None and body.get("tx_expiration_time") is not None:
+        default_intent_deadline = _int_field(body, "tx_expiration_time", default_intent_deadline)
 
     report = prepare_autotrader_live_quote_receipt(
         strategy=strategy,
@@ -644,7 +1053,7 @@ def _build_prepare_response(body: Mapping[str, Any]) -> dict[str, Any]:
         receipt=receipt,
         pools_by_id=pools_by_id,
         current_epoch=_int_field(body, "current_epoch", int(fixture["current_epoch"])),
-        intent_deadline=_int_field(body, "intent_deadline", int(fixture["intent_deadline"])),
+        intent_deadline=_int_field(body, "intent_deadline", default_intent_deadline),
         signer_privkey=signer_privkey,
         last_used_nonce=_int_field(body, "last_used_nonce", int(fixture["last_used_nonce"])),
         chain_id=chain_id,
@@ -658,18 +1067,227 @@ def _build_prepare_response(body: Mapping[str, Any]) -> dict[str, Any]:
         tx_fee_limit=body.get("tx_fee_limit", "0"),
     )
 
+    report_obj = _report_to_obj(report, risk_acknowledged=risk_ack)
+    decision_obj = report_obj.get("decision")
+    decision: Mapping[str, Any] = decision_obj if isinstance(decision_obj, Mapping) else {}
+    live_admission_obj = report_obj.get("live_admission")
+    live_admission: Mapping[str, Any] = (
+        live_admission_obj if isinstance(live_admission_obj, Mapping) else {}
+    )
+    decision_tag = decision.get("tag")
+    prepared_ok = decision_tag == "submit" and live_admission.get("ok") is not False
+    return {
+        "ok": prepared_ok,
+        "status": "prepared" if prepared_ok else "prepared_rejected",
+        "surface": "autotrader_live_prepare",
+        "error": None if prepared_ok else str(live_admission.get("error") or f"decision_{decision_tag or 'unknown'}"),
+        "report": report_obj,
+        "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+    }
+
+
+def _build_external_prepared_response(body: Mapping[str, Any]) -> dict[str, Any] | None:
+    report = _request_prepared_report(body)
+    if report is None:
+        return None
+    if not _risk_acknowledged(body):
+        return {
+            "ok": False,
+            "error": _RISK_ACK_ERROR,
+            "risk_disclosure": build_autotrader_risk_disclosure(
+                mode="live_prepare",
+                requires_explicit_acknowledgement=True,
+                user_acknowledged=False,
+            ),
+        }
     return {
         "ok": True,
         "status": "prepared",
-        "surface": "autotrader_live_prepare",
-        "report": _report_to_obj(report, risk_acknowledged=risk_ack),
+        "surface": "autotrader_live_external_prepared_report",
+        "report": dict(report),
         "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
     }
 
 
 def _tx_send_ok(response: object) -> bool:
-    text = str(response)
-    return bool(text.strip()) and "ERROR" not in text.upper()
+    return tau_rpc_response_is_success(response)
+
+
+def _observe_app_hash(client: TauNetTcpClient) -> str | None:
+    try:
+        raw = client.getappstate(full=True).strip()
+        obj = json.loads(raw)
+        if not isinstance(obj, Mapping):
+            return None
+        app_hash = obj.get("app_hash")
+        if isinstance(app_hash, str) and app_hash.strip():
+            return app_hash.strip()
+        app_state = obj.get("app_state")
+        if isinstance(app_state, Mapping):
+            return hash_v0("tau_app_state_observation_v1", dict(app_state))
+    except (AttributeError, TauNetRpcError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+    return None
+
+
+def _app_hash_wait_timeout_s() -> float:
+    return _env_float("AUTOTRADER_LIVE_APP_HASH_WAIT_S", 2.0, lo=0.0, hi=30.0)
+
+
+def _wait_for_app_hash_change(
+    client: TauNetTcpClient,
+    app_hash_before: str | None,
+    *,
+    submission: dict[str, Any],
+) -> bool:
+    timeout_s = _app_hash_wait_timeout_s()
+    deadline = time.monotonic() + timeout_s
+    observed_app_hash: str | None = None
+    while True:
+        observed_app_hash = _observe_app_hash(client)
+        if observed_app_hash is not None:
+            submission["observed_app_hash_after_wait"] = observed_app_hash
+            if app_hash_before is not None and observed_app_hash != app_hash_before:
+                return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.25)
+
+
+def _mine_or_observe_sequence_advance(
+    *,
+    client: TauNetTcpClient,
+    signer_pubkey: str,
+    initial_sequence: int,
+    initial_app_hash: str | None,
+    submission: dict[str, Any],
+) -> bool:
+    createblock_response = client.createblock()
+    submission["createblock_response"] = createblock_response
+    if _tx_send_ok(createblock_response):
+        return True
+    observed_app_hash = _observe_app_hash(client)
+    if observed_app_hash is not None:
+        submission["observed_app_hash_after_createblock"] = observed_app_hash
+        if initial_app_hash is not None and observed_app_hash != initial_app_hash:
+            return True
+    if initial_app_hash is not None and _wait_for_app_hash_change(
+        client,
+        initial_app_hash,
+        submission=submission,
+    ):
+        return True
+    try:
+        observed_sequence = int(client.get_sequence(_pubkey_for_rpc(signer_pubkey)))
+        submission["observed_sequence_after_createblock"] = observed_sequence
+        if observed_sequence > int(initial_sequence):
+            submission["sequence_advanced_without_app_delta"] = True
+    except (AttributeError, OSError, TauNetRpcError, TypeError, ValueError) as exc:
+        submission["sequence_observation_error"] = f"{type(exc).__name__}: {exc}"
+    return False
+
+
+def _build_external_prepared_submit_response(
+    body: Mapping[str, Any],
+    *,
+    prepared: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not _allow_testnet_submission():
+        return {
+            "ok": False,
+            "error": "testnet_submission_disabled",
+            "risk_disclosure": build_autotrader_risk_disclosure(
+                mode="live_submit",
+                requires_explicit_acknowledgement=True,
+                user_acknowledged=_risk_acknowledged(body),
+            ),
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+        }
+    external_payload = _request_signed_tau_tx_payload(body)
+    if external_payload is None:
+        return {"ok": False, "error": "external_signed_tau_tx_payload_required"}
+    report = prepared.get("report")
+    if not isinstance(report, Mapping):
+        return {"ok": False, "error": "prepared_report_missing"}
+    if report.get("schema") != "zenodex/autotrader-live-api-report/v1":
+        return {"ok": False, "error": "prepared_report_schema_mismatch"}
+    if report.get("mode") != "live_prepare":
+        return {"ok": False, "error": "prepared_report_mode_mismatch"}
+    signing = report.get("signing")
+    if not isinstance(signing, Mapping):
+        return {"ok": False, "error": "prepared_report_signing_missing"}
+    expected_chain_id = str(body.get("chain_id") or _env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local"))
+    if signing.get("chain_id") != expected_chain_id:
+        return {"ok": False, "error": "prepared_report_chain_id_mismatch"}
+    signer_pubkey = signing.get("signer_pubkey")
+    if not isinstance(signer_pubkey, str) or not signer_pubkey.strip():
+        return {"ok": False, "error": "prepared_report_signer_missing"}
+    operations = report.get("operations")
+    if not isinstance(operations, Mapping):
+        return {"ok": False, "error": "prepared_report_operations_missing"}
+    sender_pubkey = external_payload.get("sender_pubkey")
+    if not isinstance(sender_pubkey, str) or not sender_pubkey.strip():
+        return {"ok": False, "error": "signed_tau_tx_payload missing sender_pubkey"}
+    expiration_time = external_payload.get("expiration_time")
+    if not isinstance(expiration_time, int) or isinstance(expiration_time, bool):
+        return {"ok": False, "error": "signed_tau_tx_payload bad expiration_time"}
+
+    client = _tau_client()
+    current_sequence = int(client.get_sequence(_pubkey_for_rpc(signer_pubkey)))
+    try:
+        tau_tx_payload = _validate_external_tau_tx_payload(
+            external_payload,
+            tx_sender_pubkey=signer_pubkey,
+            tx_sequence_number=current_sequence,
+            expiration_time=int(expiration_time),
+            operations=operations,
+            tx_fee_limit=external_payload.get("fee_limit"),
+        )
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+
+    prepared_report = {
+        **dict(report),
+        "tau_tx_payload": tau_tx_payload,
+        "tau_tx_signing_mode": "external_signed_payload",
+    }
+    prepared_payload = {**dict(prepared), "report": prepared_report}
+    initial_app_hash = _observe_app_hash(client)
+    send_response = client.sendtx(tau_tx_payload)
+    submission: dict[str, Any] = {"sendtx_response": send_response, "signing_mode": "external_signed_payload"}
+    if not _tx_send_ok(send_response):
+        return {
+            **prepared_payload,
+            "ok": False,
+            "status": "submit_rejected",
+            "surface": "autotrader_live_local_testnet_submit",
+            "error": "sendtx_failed",
+            "submission": submission,
+        }
+    if _auto_mine():
+        if not _mine_or_observe_sequence_advance(
+            client=client,
+            signer_pubkey=signer_pubkey,
+            initial_sequence=current_sequence,
+            initial_app_hash=initial_app_hash,
+            submission=submission,
+        ):
+            return {
+                **prepared_payload,
+                "ok": False,
+                "status": "submit_rejected",
+                "surface": "autotrader_live_local_testnet_submit",
+                "error": "createblock_failed",
+                "submission": submission,
+            }
+    return {
+        **prepared_payload,
+        "ok": True,
+        "status": "submitted",
+        "surface": "autotrader_live_local_testnet_submit",
+        "submission": submission,
+        "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+    }
 
 
 def _build_submit_response(body: Mapping[str, Any]) -> dict[str, Any]:
@@ -689,16 +1307,21 @@ def _build_submit_response(body: Mapping[str, Any]) -> dict[str, Any]:
             "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
         }
 
-    submit_body: dict[str, Any] = dict(body)
+    external_prepared = _build_external_prepared_response(body)
+    if external_prepared is not None:
+        return {
+            "ok": False,
+            "error": "external_prepared_report_untrusted",
+            "status": "submit_rejected",
+            "surface": "autotrader_live_local_testnet_submit",
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+        }
+
+    submit_body: dict[str, Any] = _body_with_external_tau_fields(body)
     external_payload = _request_signed_tau_tx_payload(body)
-    if external_payload is not None:
-        if submit_body.get("tx_sequence_number") is None and isinstance(external_payload.get("sequence_number"), int):
-            submit_body["tx_sequence_number"] = int(external_payload["sequence_number"])
-        if submit_body.get("tx_expiration_time") is None and isinstance(external_payload.get("expiration_time"), int):
-            submit_body["tx_expiration_time"] = int(external_payload["expiration_time"])
-        if submit_body.get("tx_fee_limit") is None and external_payload.get("fee_limit") is not None:
-            submit_body["tx_fee_limit"] = str(external_payload.get("fee_limit"))
-    signer_privkey = _int_field(submit_body, "signer_privkey", 7)
+    if submit_body.get("signer_privkey") is None:
+        return {"ok": False, "error": "missing_signer_privkey"}
+    signer_privkey = _int_field(submit_body, "signer_privkey", 0)
     signer_pubkey_raw = bls_pubkey_hex_from_privkey(signer_privkey)
     client = _tau_client()
     current_sequence = int(client.get_sequence(signer_pubkey_raw))
@@ -735,6 +1358,10 @@ def _build_submit_response(body: Mapping[str, Any]) -> dict[str, Any]:
     tau_tx_payload = report.get("tau_tx_payload")
     if not isinstance(tau_tx_payload, Mapping):
         return {"ok": False, "error": "tau_tx_payload_missing"}
+    report_operations = report.get("operations")
+    if not isinstance(report_operations, Mapping):
+        return {"ok": False, "error": "prepared_report_operations_missing"}
+    wire_tau_tx_payload = dict(tau_tx_payload)
     signing_mode = "local_test_signing"
     if external_payload is not None:
         signing = report.get("signing")
@@ -751,22 +1378,71 @@ def _build_submit_response(body: Mapping[str, Any]) -> dict[str, Any]:
         report = {**dict(report), "tau_tx_payload": tau_tx_payload, "tau_tx_signing_mode": "external_signed_payload"}
         prepared = {**prepared, "report": report}
         signing_mode = "external_signed_payload"
+        wire_tau_tx_payload = dict(tau_tx_payload)
+    else:
+        wire_tau_tx_payload = _build_upstream_safe_tau_payload(
+            tau_tx_payload=tau_tx_payload,
+            report_operations=report_operations,
+            signer_privkey=signer_privkey,
+        )
 
-    send_response = client.sendtx(tau_tx_payload)
-    submission: dict[str, Any] = {"sendtx_response": send_response, "signing_mode": signing_mode}
+    initial_app_hash = _observe_app_hash(client)
+    send_response = client.sendtx(wire_tau_tx_payload)
+    submission: dict[str, Any] = {
+        "sendtx_response": send_response,
+        "signing_mode": signing_mode,
+        "wire_stream_map": _upstream_safe_dex_stream_map(report_operations) if external_payload is None else {},
+        "wire_tau_tx_payload": wire_tau_tx_payload,
+    }
     if not _tx_send_ok(send_response):
-        return {
-            **prepared,
-            "ok": False,
-            "status": "submit_rejected",
-            "surface": "autotrader_live_local_testnet_submit",
-            "error": "sendtx_failed",
-            "submission": submission,
-        }
+        invalid_sequence = tau_rpc_invalid_sequence_numbers(send_response)
+        if (
+            external_payload is None
+            and invalid_sequence is not None
+            and int(invalid_sequence[1]) == int(current_sequence)
+            and int(invalid_sequence[0]) > int(current_sequence)
+        ):
+            current_sequence = int(invalid_sequence[0])
+            submit_body["tx_sequence_number"] = current_sequence
+            submission["retry_sequence_error"] = {
+                "expected": int(invalid_sequence[0]),
+                "got": int(invalid_sequence[1]),
+            }
+            submission["initial_wire_tau_tx_payload"] = wire_tau_tx_payload
+            prepared = _build_prepare_response(submit_body)
+            if prepared.get("ok") is True and isinstance(prepared.get("report"), Mapping):
+                report = prepared["report"]
+                tau_tx_payload = report.get("tau_tx_payload")
+                report_operations = report.get("operations")
+                if isinstance(tau_tx_payload, Mapping) and isinstance(report_operations, Mapping):
+                    wire_tau_tx_payload = _build_upstream_safe_tau_payload(
+                        tau_tx_payload=tau_tx_payload,
+                        report_operations=report_operations,
+                        signer_privkey=signer_privkey,
+                    )
+                    submission["wire_tau_tx_payload"] = wire_tau_tx_payload
+                    submission["wire_stream_map"] = _upstream_safe_dex_stream_map(report_operations)
+                    initial_app_hash = _observe_app_hash(client)
+                    retry_send_response = client.sendtx(wire_tau_tx_payload)
+                    submission["retry_sendtx_response"] = retry_send_response
+                    send_response = retry_send_response
+        if not _tx_send_ok(send_response):
+            return {
+                **prepared,
+                "ok": False,
+                "status": "submit_rejected",
+                "surface": "autotrader_live_local_testnet_submit",
+                "error": "sendtx_failed",
+                "submission": submission,
+            }
     if _auto_mine():
-        createblock_response = client.createblock()
-        submission["createblock_response"] = createblock_response
-        if not _tx_send_ok(createblock_response):
+        if not _mine_or_observe_sequence_advance(
+            client=client,
+            signer_pubkey=signer_pubkey_raw,
+            initial_sequence=current_sequence,
+            initial_app_hash=initial_app_hash,
+            submission=submission,
+        ):
             return {
                 **prepared,
                 "ok": False,
@@ -807,7 +1483,8 @@ def _build_supervisor_preflight_response(
             "supervisor": supervisor,
             "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
         }
-    runtime = supervisor.get("runtime") if isinstance(supervisor.get("runtime"), Mapping) else {}
+    runtime_obj = supervisor.get("runtime")
+    runtime: Mapping[str, Any] = runtime_obj if isinstance(runtime_obj, Mapping) else {}
     consumed_runs_in_process = int(runtime.get("consumed_runs_in_process") or 0)
     max_runs_per_process = int(supervisor.get("max_runs_per_process") or 0)
     if max_runs_per_process > 0 and consumed_runs_in_process >= max_runs_per_process:
@@ -818,12 +1495,44 @@ def _build_supervisor_preflight_response(
             "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
         }
     execution_id = _request_execution_id(body)
-    prepared = _build_prepare_response(body)
+    external_prepared = _build_external_prepared_response(body)
+    if external_prepared is not None:
+        if supervisor.get("require_local_preparation") is True:
+            return {
+                "ok": False,
+                "error": "supervisor_external_prepared_report_untrusted",
+                "supervisor": supervisor,
+                "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+            }
+        if (
+            supervisor.get("stage_certificate_required") is True
+            or supervisor.get("release_certificate_required") is True
+        ):
+            return {
+                "ok": False,
+                "error": "supervisor_external_prepared_report_certificates_untrusted",
+                "supervisor": supervisor,
+                "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+            }
+        prepared = external_prepared
+    else:
+        prepared = _build_prepare_response(_body_with_external_tau_fields(body))
     if prepared.get("ok") is not True:
         return prepared
     report = prepared.get("report")
     if not isinstance(report, Mapping):
         return {"ok": False, "error": "prepared_report_missing"}
+    binding_error = _check_supervisor_prepared_report_binding(
+        supervisor_status=supervisor,
+        report=report,
+    )
+    if binding_error is not None:
+        return {
+            "ok": False,
+            "error": binding_error,
+            "supervisor": supervisor,
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+        }
     try:
         surface_error = _check_supervisor_allowed_surface(
             supervisor_status=supervisor,
@@ -843,6 +1552,15 @@ def _build_supervisor_preflight_response(
             "supervisor": supervisor,
             "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
         }
+    try:
+        _supervisor_report_bounded_surface(report)
+    except ValueError as exc:
+        return {
+            "ok": False,
+            "error": str(exc),
+            "supervisor": supervisor,
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+        }
     operations = report.get("operations")
     operation_count = _operation_count(operations)
     max_actions_per_tick = int(supervisor.get("max_actions_per_tick") or 0)
@@ -853,13 +1571,32 @@ def _build_supervisor_preflight_response(
             "supervisor": supervisor,
             "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
         }
-    if supervisor.get("stage_certificate_required") is True and not isinstance(report.get("stage_certificate"), Mapping):
-        return {
-            "ok": False,
-            "error": "supervisor_stage_certificate_missing",
-            "supervisor": supervisor,
-            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
-        }
+    if supervisor.get("stage_certificate_required") is True:
+        stage_certificate = report.get("stage_certificate")
+        if not isinstance(stage_certificate, Mapping):
+            return {
+                "ok": False,
+                "error": "supervisor_stage_certificate_missing",
+                "supervisor": supervisor,
+                "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+            }
+        stage_hash = stage_certificate.get("stage_hash")
+        if not isinstance(stage_hash, str) or not stage_hash.strip():
+            return {
+                "ok": False,
+                "error": "supervisor_stage_certificate_hash_missing",
+                "supervisor": supervisor,
+                "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+            }
+        try:
+            _require_root_hash(stage_hash, name="stage_hash")
+        except (TypeError, ValueError):
+            return {
+                "ok": False,
+                "error": "supervisor_stage_certificate_hash_invalid",
+                "supervisor": supervisor,
+                "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+            }
     if supervisor.get("release_certificate_required") is True and not isinstance(
         report.get("live_release_certificate"),
         Mapping,
@@ -870,6 +1607,33 @@ def _build_supervisor_preflight_response(
             "supervisor": supervisor,
             "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
         }
+    if supervisor.get("release_certificate_required") is True:
+        live_release_certificate = report.get("live_release_certificate")
+        if isinstance(live_release_certificate, Mapping):
+            release_hash = live_release_certificate.get("release_hash")
+            if not isinstance(release_hash, str) or not release_hash.strip():
+                return {
+                    "ok": False,
+                    "error": "supervisor_release_certificate_hash_missing",
+                    "supervisor": supervisor,
+                    "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+                }
+            try:
+                _require_root_hash(release_hash, name="release_hash")
+            except (TypeError, ValueError):
+                return {
+                    "ok": False,
+                    "error": "supervisor_release_certificate_hash_invalid",
+                    "supervisor": supervisor,
+                    "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+                }
+            if live_release_certificate.get("release_ok") is not True:
+                return {
+                    "ok": False,
+                    "error": "supervisor_release_certificate_not_ok",
+                    "supervisor": supervisor,
+                    "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+                }
     preflight = _build_supervisor_preflight(
         supervisor_status=supervisor,
         execution_id=execution_id,
@@ -906,28 +1670,45 @@ def _build_supervisor_execute_response(
     if preflight_payload.get("ok") is not True:
         return preflight_payload
     execution_id = _request_execution_id(body)
-    if execution_id in execution_keys:
-        return {
-            "ok": False,
-            "error": "execution_replay",
-            "execution": {
-                "execution_id": execution_id,
-                "replay_guard": "already_consumed",
-                "mode": "supervised_manual_tick",
-            },
-            "supervisor": preflight_payload.get("supervisor"),
-            "preflight": preflight_payload.get("preflight"),
-        }
-    submitted = _build_submit_response(body)
-    if submitted.get("ok") is not True:
-        return submitted
-    execution_keys.add(execution_id)
-    supervisor = preflight_payload.get("supervisor") if isinstance(preflight_payload.get("supervisor"), Mapping) else {}
+    supervisor_obj = preflight_payload.get("supervisor")
+    supervisor: Mapping[str, Any] = supervisor_obj if isinstance(supervisor_obj, Mapping) else {}
     chain_id = str(body.get("chain_id") or _env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local"))
     run_scope_id = _supervisor_process_key(supervisor_status=supervisor, chain_id=chain_id)
-    consumed_runs_in_process = int(supervisor_runs.get(run_scope_id, 0)) + 1
-    supervisor_runs[run_scope_id] = consumed_runs_in_process
     max_runs_per_process = int(supervisor.get("max_runs_per_process") or 0)
+    with _SUPERVISOR_EXECUTION_LOCK:
+        if _execution_already_consumed(execution_keys, execution_id):
+            return {
+                "ok": False,
+                "error": "execution_replay",
+                "execution": {
+                    "execution_id": execution_id,
+                    "replay_guard": "already_consumed",
+                    "mode": "supervised_manual_tick",
+                },
+                "supervisor": preflight_payload.get("supervisor"),
+                "preflight": preflight_payload.get("preflight"),
+            }
+        consumed_before = int(supervisor_runs.get(run_scope_id, 0))
+        if max_runs_per_process > 0 and consumed_before >= max_runs_per_process:
+            return {
+                "ok": False,
+                "error": f"supervisor_max_runs_per_process_exceeded:{consumed_before}>={max_runs_per_process}",
+                "supervisor": preflight_payload.get("supervisor"),
+                "preflight": preflight_payload.get("preflight"),
+            }
+        _consume_execution_id(
+            execution_keys,
+            execution_id,
+            surface="autotrader_live_supervisor_execute",
+        )
+        if _request_prepared_report(body) is not None:
+            submitted = _build_external_prepared_submit_response(body, prepared=preflight_payload)
+        else:
+            submitted = _build_submit_response(body)
+        if submitted.get("ok") is not True:
+            return submitted
+        consumed_runs_in_process = consumed_before + 1
+        supervisor_runs[run_scope_id] = consumed_runs_in_process
     remaining_runs_in_process = max(0, max_runs_per_process - consumed_runs_in_process)
     return {
         **submitted,
@@ -962,7 +1743,7 @@ def _build_execute_once_response(
         return {"ok": False, "error": "execution_key_table_unavailable"}
 
     execution_id = _request_execution_id(body)
-    if execution_id in execution_keys:
+    if _execution_already_consumed(execution_keys, execution_id):
         return {
             "ok": False,
             "error": "execution_replay",
@@ -972,11 +1753,15 @@ def _build_execute_once_response(
             },
         }
 
+    _consume_execution_id(
+        execution_keys,
+        execution_id,
+        surface="autotrader_live_execute_once",
+    )
     submitted = _build_submit_response(body)
     if submitted.get("ok") is not True:
         return submitted
 
-    execution_keys.add(execution_id)
     return {
         **submitted,
         "status": "executed_once",
@@ -1003,6 +1788,7 @@ def _status_payload() -> dict[str, Any]:
         "execute_once_enabled": _allow_execute_once(),
         "supervisor_enabled": _allow_supervisor(),
         "auto_mine": _auto_mine(),
+        "prepare_budget": _prepare_budget_status(),
         "tau_host": _env_str("AUTOTRADER_LIVE_TAU_HOST", "127.0.0.1"),
         "tau_port": _env_int("AUTOTRADER_LIVE_TAU_PORT", 65432, lo=1, hi=65535),
         "supervisor": _supervisor_status_payload(
@@ -1024,6 +1810,15 @@ def _status_payload() -> dict[str, Any]:
         ),
         "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
     }
+
+
+def _payload_http_status(payload: Mapping[str, Any]) -> int:
+    if payload.get("ok") is True:
+        return 200
+    raw = payload.get("http_status")
+    if isinstance(raw, int) and not isinstance(raw, bool) and 400 <= raw <= 499:
+        return int(raw)
+    return 400
 
 
 def handle_autotrader_live_request(
@@ -1052,31 +1847,26 @@ def handle_autotrader_live_request(
             return 400, {"ok": False, "error": "bad_json"}
         if rest == ["prepare"]:
             payload = _build_prepare_response(parsed)
-            status = 200 if payload.get("ok") is True else 400
-            return status, payload
+            return _payload_http_status(payload), payload
         if rest == ["submit"]:
             payload = _build_submit_response(parsed)
-            status = 200 if payload.get("ok") is True else 400
-            return status, payload
+            return _payload_http_status(payload), payload
         if rest == ["execute-once"]:
             payload = _build_execute_once_response(parsed, execution_keys=execution_keys)
-            status = 200 if payload.get("ok") is True else 400
-            return status, payload
+            return _payload_http_status(payload), payload
         if rest == ["supervisor", "preflight"]:
             payload = _build_supervisor_preflight_response(
                 parsed,
                 supervisor_runs=_SUPERVISOR_RUN_COUNTERS if supervisor_runs is None else supervisor_runs,
             )
-            status = 200 if payload.get("ok") is True else 400
-            return status, payload
+            return _payload_http_status(payload), payload
         if rest == ["supervisor", "execute"]:
             payload = _build_supervisor_execute_response(
                 parsed,
                 execution_keys=execution_keys,
                 supervisor_runs=_SUPERVISOR_RUN_COUNTERS if supervisor_runs is None else supervisor_runs,
             )
-            status = 200 if payload.get("ok") is True else 400
-            return status, payload
+            return _payload_http_status(payload), payload
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:
         return 400, {"ok": False, "error": str(exc)}
