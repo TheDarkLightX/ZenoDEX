@@ -190,7 +190,7 @@ def _secret_scan_fragment(
             "finding_count": int(secret_scan_finding_count),
         }
     fragment = secret_scan_manifest_fragment(secret_scan_report)
-    if bool(fragment["ok"]) is not True or int(fragment["finding_count"]) != 0:
+    if fragment["ok"] is not True or int(fragment["finding_count"]) != 0:
         raise ValueError("secret scan report must be clean")
     if int(fragment["source_report_count"]) != int(source_report_count):
         raise ValueError("secret scan report source_report_count does not match source reports")

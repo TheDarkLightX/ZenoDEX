@@ -108,7 +108,7 @@ def validate_replay_coverage_profile(
             )
         )
 
-    ok = all(bool(check["passed"]) for check in checks)
+    ok = all(check["passed"] is True for check in checks)
     return {
         "schema": PROFILE_CHECK_SCHEMA,
         "ok": ok,
@@ -119,7 +119,7 @@ def validate_replay_coverage_profile(
         "market_day_count": _as_int(profile.get("market_day_count")),
         "source_report_count": _as_int(profile.get("source_report_count")),
         "check_count": len(checks),
-        "failed_count": sum(1 for check in checks if not bool(check["passed"])),
+        "failed_count": sum(1 for check in checks if check["passed"] is not True),
         "coverage": _coverage_summary(profile, expected_type),
         "thresholds": _thresholds(expected_type),
         "checks": checks,

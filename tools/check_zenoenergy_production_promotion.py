@@ -288,7 +288,7 @@ def _source_manifest_check_ok(report: dict[str, Any]) -> bool:
         isinstance(manifest, dict)
         and manifest.get("schema")
         == "zenodex/energy/replay_source_manifest_check/v1"
-        and bool(manifest.get("ok")) is True
+        and manifest.get("ok") is True
         and int(manifest.get("failed_count", -1)) == 0
         and int(manifest.get("source_report_count", 0)) > 0
         and int(manifest.get("source_report_match_count", 0))
@@ -306,7 +306,7 @@ def _coverage_profile_check_ok(
         isinstance(profile, dict)
         and profile.get("schema")
         == "zenodex/energy/replay_coverage_profile_check/v1"
-        and bool(profile.get("ok")) is True
+        and profile.get("ok") is True
         and str(profile.get("profile_type")) == expected_type
         and str(profile.get("source_kind", "")) == str(report.get("source_kind", ""))
         and str(profile.get("source_descriptor", ""))

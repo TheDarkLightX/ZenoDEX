@@ -105,6 +105,54 @@ def test_production_gate_blocks_real_report_without_coverage_profile() -> None:
     assert observed["coverage_profile_ok"] is False
 
 
+def test_production_gate_rejects_truthy_string_source_manifest_ok() -> None:
+    research_replay = json.loads(
+        (ROOT / "data/upba_energy/zenoenergy_research_evidence_replay_receipt.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    upba = _passing_upba_real_replay()
+    source_manifest = upba["source_manifest"]
+    assert isinstance(source_manifest, dict)
+    source_manifest["ok"] = "true"
+
+    report = build_production_gate_report(
+        research_replay=research_replay,
+        upba_real_replay=upba,
+        autotrader_real_shadow=_passing_autotrader_real_shadow(),
+        operator_release_enabled=True,
+    )
+
+    assert report["decision"] == "blocked"
+    observed = _obligation(report, "upba_real_replay_coverage")["observed"]
+    assert isinstance(observed, dict)
+    assert observed["source_manifest_ok"] is False
+
+
+def test_production_gate_rejects_truthy_string_coverage_profile_ok() -> None:
+    research_replay = json.loads(
+        (ROOT / "data/upba_energy/zenoenergy_research_evidence_replay_receipt.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    upba = _passing_upba_real_replay()
+    coverage_profile = upba["coverage_profile"]
+    assert isinstance(coverage_profile, dict)
+    coverage_profile["ok"] = "true"
+
+    report = build_production_gate_report(
+        research_replay=research_replay,
+        upba_real_replay=upba,
+        autotrader_real_shadow=_passing_autotrader_real_shadow(),
+        operator_release_enabled=True,
+    )
+
+    assert report["decision"] == "blocked"
+    observed = _obligation(report, "upba_real_replay_coverage")["observed"]
+    assert isinstance(observed, dict)
+    assert observed["coverage_profile_ok"] is False
+
+
 def test_production_gate_rejects_truthy_string_research_ok() -> None:
     research_replay = json.loads(
         (ROOT / "data/upba_energy/zenoenergy_research_evidence_replay_receipt.json").read_text(
