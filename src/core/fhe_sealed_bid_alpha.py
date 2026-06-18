@@ -65,7 +65,9 @@ def fhe_sealed_bid_alpha_receipt_hash(body: Dict[str, Any]) -> str:
 def _receipt_int(value: Any) -> int:
     if isinstance(value, bool):
         raise TypeError("bool is not an FHE sealed-bid receipt integer")
-    return int(value)
+    if not isinstance(value, int):
+        raise TypeError("FHE sealed-bid receipt integer must be an int")
+    return value
 
 
 def _next_power_of_two(value: int) -> int:

@@ -67,11 +67,45 @@ def test_fhe_plan_bool_budget_field_is_bad_budget_numeric() -> None:
     assert err == "bad_budget_numeric"
 
 
+def test_fhe_plan_numeric_string_budget_field_is_bad_budget_numeric() -> None:
+    receipt = _receipt()
+    budget = _body(receipt)["budget"]
+    assert isinstance(budget, dict)
+    budget["bid_count"] = "3"
+    _retag(receipt)
+
+    ok, err = verify_fhe_sealed_bid_alpha_plan(
+        receipt,
+        approved_key_ids=APPROVED_KEY_IDS,
+        trusted_plain_bids=_plain_bids(),
+    )
+
+    assert ok is False
+    assert err == "bad_budget_numeric"
+
+
 def test_fhe_plan_bool_public_result_field_is_bad_public_result_numeric() -> None:
     receipt = _receipt()
     public_result = _body(receipt)["public_result"]
     assert isinstance(public_result, dict)
     public_result["clearing_price"] = True
+    _retag(receipt)
+
+    ok, err = verify_fhe_sealed_bid_alpha_plan(
+        receipt,
+        approved_key_ids=APPROVED_KEY_IDS,
+        trusted_plain_bids=_plain_bids(),
+    )
+
+    assert ok is False
+    assert err == "bad_public_result_numeric"
+
+
+def test_fhe_plan_numeric_string_public_result_field_is_bad_public_result_numeric() -> None:
+    receipt = _receipt()
+    public_result = _body(receipt)["public_result"]
+    assert isinstance(public_result, dict)
+    public_result["clearing_price"] = "10"
     _retag(receipt)
 
     ok, err = verify_fhe_sealed_bid_alpha_plan(
@@ -93,6 +127,27 @@ def test_fhe_plan_bool_fill_field_is_bad_fill_numeric() -> None:
     first_fill = fills[0]
     assert isinstance(first_fill, dict)
     first_fill["filled_quantity"] = True
+    _retag(receipt)
+
+    ok, err = verify_fhe_sealed_bid_alpha_plan(
+        receipt,
+        approved_key_ids=APPROVED_KEY_IDS,
+        trusted_plain_bids=_plain_bids(),
+    )
+
+    assert ok is False
+    assert err == "bad_fill_numeric"
+
+
+def test_fhe_plan_numeric_string_fill_field_is_bad_fill_numeric() -> None:
+    receipt = _receipt()
+    public_result = _body(receipt)["public_result"]
+    assert isinstance(public_result, dict)
+    fills = public_result["fills"]
+    assert isinstance(fills, list)
+    first_fill = fills[0]
+    assert isinstance(first_fill, dict)
+    first_fill["filled_quantity"] = "3"
     _retag(receipt)
 
     ok, err = verify_fhe_sealed_bid_alpha_plan(
