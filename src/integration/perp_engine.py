@@ -1414,6 +1414,14 @@ def _oracle_reward_posture_error(config: PerpEngineConfig) -> Optional[str]:
 _SIGNED_FIELD_KEYS = PERP_OP_AUTH_SIGNED_FIELD_KEYS_V1
 
 
+@dataclass(frozen=True)
+class _PerpSignaturePrecheck:
+    signer_nonce_key: str
+    deadline_ok: bool
+    nonce_domain_ok: bool
+    nonce_expected_ok: bool
+
+
 def _perp_op_signing_dict(op: Mapping[str, Any], *, signer_pubkey: str, nonce: int) -> Dict[str, Any]:
     """Build the canonical dict that is signed for per-op authorization.
 
@@ -1431,6 +1439,85 @@ def _perp_op_signing_dict(op: Mapping[str, Any], *, signer_pubkey: str, nonce: i
     confusion.
     """
     return build_perp_op_auth_signing_dict_v1(op, signer_pubkey=signer_pubkey, nonce=nonce)
+
+
+def _perp_submission_auth_error(precheck: _PerpSignaturePrecheck, *, signature_ok: bool) -> Optional[str]:
+    outcome = evaluate_perp_submission_auth_gate(
+        mode_signed=True,
+        mode_sender_bound=False,
+        signed_surface_ok=True,
+        signer_role_set_ok=True,
+        deadline_ok=precheck.deadline_ok,
+        nonce_domain_ok=precheck.nonce_domain_ok,
+        nonce_expected_ok=precheck.nonce_expected_ok,
+        signature_ok=signature_ok,
+        tx_sender_binding_ok=True,
+    )
+    if outcome.admission_ok:
+        return None
+    return perp_submission_auth_gate_error(outcome) or "signed auth rejected"
+
+
+def _precheck_perp_signature(
+    *,
+    signer_pubkey: str,
+    nonce: int,
+    op: Mapping[str, Any],
+    nonces: NonceTable,
+    block_timestamp: int,
+) -> tuple[Optional[str], Optional[_PerpSignaturePrecheck]]:
+    try:
+        signer_nonce_key = canonical_hex_fixed_allow_0x(signer_pubkey, nbytes=48, name="signer_pubkey")
+    except (TypeError, ValueError) as exc:
+        return str(exc), None
+
+    try:
+        deadline = _require_int(op.get("deadline"), name="deadline", non_negative=True)
+    except ValueError as exc:
+        return _safe_error_str(exc), None
+
+    nonce_domain_ok = isinstance(nonce, int) and not isinstance(nonce, bool) and 0 < int(nonce) <= _U32_MAX
+    expected = int(nonces.get_last(signer_nonce_key)) + 1
+    precheck = _PerpSignaturePrecheck(
+        signer_nonce_key=signer_nonce_key,
+        deadline_ok=int(block_timestamp) <= int(deadline),
+        nonce_domain_ok=nonce_domain_ok,
+        nonce_expected_ok=bool(nonce_domain_ok and int(nonce) == expected),
+    )
+    auth_error = _perp_submission_auth_error(precheck, signature_ok=True)
+    if auth_error is not None:
+        return auth_error, None
+    return None, precheck
+
+
+def _perp_signature_bytes(*, signer_pubkey: str, signature: str) -> tuple[Optional[str], Optional[bytes], Optional[bytes]]:
+    try:
+        pubkey_bytes = _hex_to_bytes_allow_0x(signer_pubkey, name="signer_pubkey", expected_nbytes=48)
+        sig_bytes = _hex_to_bytes_allow_0x(signature, name="signature", expected_nbytes=96)
+    except (TypeError, ValueError) as exc:
+        return str(exc), None, None
+    return None, pubkey_bytes, sig_bytes
+
+
+def _verify_perp_bls_signature(
+    *,
+    config: PerpEngineConfig,
+    signer_pubkey: str,
+    nonce: int,
+    op: Mapping[str, Any],
+    pubkey_bytes: bytes,
+    sig_bytes: bytes,
+) -> tuple[Optional[str], bool]:
+    try:
+        msg_hash = hash_perp_op_auth_message_v1(
+            op,
+            chain_id=config.chain_id,
+            signer_pubkey=signer_pubkey,
+            nonce=int(nonce),
+        )
+        return None, bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))
+    except Exception as exc:
+        return f"signature verification error: {_safe_error_str(exc)}", False
 
 
 def _verify_perp_op_signature(
@@ -1453,75 +1540,44 @@ def _verify_perp_op_signature(
        a domain-separated hash (bound to `config.chain_id`).
     5) Consume the nonce **only after** successful signature verification.
 
-    Returns:
-        None on success, else a human-readable error string.
     """
     if not _BLS_AVAILABLE:
         return "BLS verification not available (install py-ecc)"
 
-    try:
-        signer_nonce_key = canonical_hex_fixed_allow_0x(signer_pubkey, nbytes=48, name="signer_pubkey")
-    except (TypeError, ValueError) as exc:
-        return str(exc)
-
-    # Deadline check first (cheap).
-    try:
-        deadline = _require_int(op.get("deadline"), name="deadline", non_negative=True)
-    except ValueError as exc:
-        return _safe_error_str(exc)
-    deadline_ok = int(block_timestamp) <= int(deadline)
-
-    # Nonce policy (cheap). We only commit after signature verification, but we
-    # validate expected value here to fail quickly.
-    nonce_domain_ok = isinstance(nonce, int) and not isinstance(nonce, bool) and 0 < int(nonce) <= _U32_MAX
-    expected = int(nonces.get_last(signer_nonce_key)) + 1
-    nonce_expected_ok = bool(nonce_domain_ok and int(nonce) == expected)
-    precheck = evaluate_perp_submission_auth_gate(
-        mode_signed=True,
-        mode_sender_bound=False,
-        signed_surface_ok=True,
-        signer_role_set_ok=True,
-        deadline_ok=deadline_ok,
-        nonce_domain_ok=nonce_domain_ok,
-        nonce_expected_ok=nonce_expected_ok,
-        signature_ok=True,
-        tx_sender_binding_ok=True,
+    err, precheck = _precheck_perp_signature(
+        signer_pubkey=signer_pubkey,
+        nonce=nonce,
+        op=op,
+        nonces=nonces,
+        block_timestamp=block_timestamp,
     )
-    if not precheck.admission_ok:
-        return perp_submission_auth_gate_error(precheck) or "signed auth rejected"
+    if err is not None:
+        return err
+    if precheck is None:
+        return "signed auth rejected"
 
-    try:
-        pubkey_bytes = _hex_to_bytes_allow_0x(signer_pubkey, name="signer_pubkey", expected_nbytes=48)
-        sig_bytes = _hex_to_bytes_allow_0x(signature, name="signature", expected_nbytes=96)
-    except (TypeError, ValueError) as exc:
-        return str(exc)
+    err, pubkey_bytes, sig_bytes = _perp_signature_bytes(signer_pubkey=signer_pubkey, signature=signature)
+    if err is not None:
+        return err
+    if pubkey_bytes is None or sig_bytes is None:
+        return "invalid signature"
 
-    try:
-        msg_hash = hash_perp_op_auth_message_v1(
-            op,
-            chain_id=config.chain_id,
-            signer_pubkey=signer_pubkey,
-            nonce=int(nonce),
-        )
-        ok = bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))
-    except Exception as exc:
-        return f"signature verification error: {_safe_error_str(exc)}"
-    outcome = evaluate_perp_submission_auth_gate(
-        mode_signed=True,
-        mode_sender_bound=False,
-        signed_surface_ok=True,
-        signer_role_set_ok=True,
-        deadline_ok=deadline_ok,
-        nonce_domain_ok=nonce_domain_ok,
-        nonce_expected_ok=nonce_expected_ok,
-        signature_ok=ok,
-        tx_sender_binding_ok=True,
+    err, signature_ok = _verify_perp_bls_signature(
+        config=config,
+        signer_pubkey=signer_pubkey,
+        nonce=nonce,
+        op=op,
+        pubkey_bytes=pubkey_bytes,
+        sig_bytes=sig_bytes,
     )
-    if not outcome.admission_ok:
-        return perp_submission_auth_gate_error(outcome) or "signed auth rejected"
+    if err is not None:
+        return err
+    auth_error = _perp_submission_auth_error(precheck, signature_ok=signature_ok)
+    if auth_error is not None:
+        return auth_error
 
     # Commit nonce consumption after signature verification.
-    nonces.set_last(signer_nonce_key, int(nonce))
+    nonces.set_last(precheck.signer_nonce_key, int(nonce))
     return None
 
 
