@@ -2459,11 +2459,12 @@ def _check_dominance_prefix(
     source_text: str,
     test_text: str,
 ) -> list[EvidenceCheck]:
-    summary = report["summary"]
-    learned = summary["learned"]
-    hybrid = summary["hybrid"]
-    hand = summary["hand"]
-    random = summary["random"]
+    summary = report.get("summary")
+    learned = summary.get("learned") if isinstance(summary, dict) else {}
+    hybrid = summary.get("hybrid") if isinstance(summary, dict) else {}
+    hand = summary.get("hand") if isinstance(summary, dict) else {}
+    random = summary.get("random") if isinstance(summary, dict) else {}
+    safety = report.get("safety")
     doc_lower = doc_text.lower()
     limits_lower = " ".join(str(item).lower() for item in report.get("limits", []))
     negative_lower = " ".join(
@@ -2481,33 +2482,52 @@ def _check_dominance_prefix(
         ),
         _expect_true(
             "dominance_prefix.safety",
-            int(report["safety"]["invalid_accept_count"]) == 0
-            and _is_true(report["safety"]["verifier_authoritative"])
-            and _is_false(report["safety"]["scorer_authorizes_settlement"])
-            and _is_false(report["safety"]["model_output_in_state_root"]),
+            isinstance(safety, dict)
+            and _json_int_equals(safety.get("invalid_accept_count"), 0)
+            and _is_true(safety.get("verifier_authoritative"))
+            and _is_false(safety.get("scorer_authorizes_settlement"))
+            and _is_false(safety.get("model_output_in_state_root")),
             "prefix audit preserves verifier authority and records zero invalid accepts",
         ),
         _expect_true(
             "dominance_prefix.learned_and_hybrid_cover_first",
-            int(learned["count"]) > 0
-            and int(learned["ok_count"]) == int(learned["count"])
-            and int(hybrid["ok_count"]) == int(hybrid["count"])
-            and int(learned["structural_verify_ok_count"]) == int(learned["count"])
-            and int(hybrid["structural_verify_ok_count"]) == int(hybrid["count"])
-            and float(learned["mean_prefix_checked_count"]) == 1.0
-            and float(hybrid["mean_prefix_checked_count"]) == 1.0
-            and float(learned["p99_prefix_checked_count"]) == 1.0
-            and float(hybrid["p99_prefix_checked_count"]) == 1.0,
+            isinstance(learned, dict)
+            and isinstance(hybrid, dict)
+            and _json_int_greater_than(learned.get("count"), 0)
+            and _json_int_values_equal(learned.get("ok_count"), learned.get("count"))
+            and _json_int_values_equal(hybrid.get("ok_count"), hybrid.get("count"))
+            and _json_int_values_equal(
+                learned.get("structural_verify_ok_count"),
+                learned.get("count"),
+            )
+            and _json_int_values_equal(
+                hybrid.get("structural_verify_ok_count"),
+                hybrid.get("count"),
+            )
+            and _json_number_equals(learned.get("mean_prefix_checked_count"), 1.0)
+            and _json_number_equals(hybrid.get("mean_prefix_checked_count"), 1.0)
+            and _json_number_equals(learned.get("p99_prefix_checked_count"), 1.0)
+            and _json_number_equals(hybrid.get("p99_prefix_checked_count"), 1.0),
             "learned and hybrid prefixes obtain dominance-cover certificates at the first checked candidate",
         ),
         _expect_true(
             "dominance_prefix.beats_controls",
-            float(learned["mean_prefix_checked_count"])
-            < float(hand["mean_prefix_checked_count"])
-            and float(learned["mean_prefix_checked_count"])
-            < float(random["mean_prefix_checked_count"])
-            and int(random["full_fallback_count"]) > 0
-            and int(hand["max_prefix_checked_count"]) > int(learned["max_prefix_checked_count"]),
+            isinstance(learned, dict)
+            and isinstance(hand, dict)
+            and isinstance(random, dict)
+            and _json_number_less_than(
+                learned.get("mean_prefix_checked_count"),
+                hand.get("mean_prefix_checked_count"),
+            )
+            and _json_number_less_than(
+                learned.get("mean_prefix_checked_count"),
+                random.get("mean_prefix_checked_count"),
+            )
+            and _json_int_greater_than(random.get("full_fallback_count"), 0)
+            and _json_int_greater_than_value(
+                hand.get("max_prefix_checked_count"),
+                learned.get("max_prefix_checked_count"),
+            ),
             "learned prefix cover beats hand and random controls on checked-call count",
         ),
         _expect_true(
@@ -4629,6 +4649,16 @@ def _json_int_at_least_value(left: object, right: object) -> bool:
         and isinstance(right, int)
         and not isinstance(right, bool)
         and left >= right
+    )
+
+
+def _json_int_greater_than_value(left: object, right: object) -> bool:
+    return (
+        isinstance(left, int)
+        and not isinstance(left, bool)
+        and isinstance(right, int)
+        and not isinstance(right, bool)
+        and left > right
     )
 
 
