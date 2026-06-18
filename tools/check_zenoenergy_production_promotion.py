@@ -29,6 +29,31 @@ MIN_AUTOTRADER_GUARD_FAMILY_COUNT = 4
 MIN_AUTOTRADER_DECISION_FAMILY_COUNT = 3
 
 
+def _json_bool(value: object, *, name: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    raise ValueError(f"{name} must be a JSON boolean")
+
+
+def _json_int(value: object, *, name: str) -> int:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    raise ValueError(f"{name} must be a JSON integer")
+
+
+def _json_number(value: object, *, name: str) -> float:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    raise ValueError(f"{name} must be a JSON number")
+
+
+def _strict_check(fn: Any) -> bool:
+    try:
+        return bool(fn())
+    except ValueError:
+        return False
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -131,18 +156,35 @@ def build_production_gate_report(
 
 def _research_replay_obligation(report: dict[str, Any]) -> dict[str, Any]:
     summary = report.get("summary", {})
+    if not isinstance(summary, dict):
+        summary = {}
     fallback = summary.get("fallback_permutation_audit", {})
     autotrader = summary.get("autotrader_energy_hard_cross_seed", {})
     shadow = summary.get("autotrader_energy_shadow_bridge", {})
-    passed = (
-        report.get("schema") == "zenodex/energy/research_evidence_replay_receipt/v1"
-        and report.get("ok") is True
-        and int(report.get("failed_count", -1)) == 0
-        and int(fallback.get("invalid_accept_count", -1)) == 0
-        and int(autotrader.get("invalid_accept_count_total", -1)) == 0
-        and int(shadow.get("invalid_accept_count_total", -1)) == 0
-        and float(fallback.get("learned_top_10_recall", 0.0)) >= 1.0
-        and int(fallback.get("learned_permutation_violation_count", -1)) == 0
+    passed = _strict_check(
+        lambda: (
+            isinstance(summary, dict)
+            and isinstance(fallback, dict)
+            and isinstance(autotrader, dict)
+            and isinstance(shadow, dict)
+            and report.get("schema") == "zenodex/energy/research_evidence_replay_receipt/v1"
+            and _json_bool(report.get("ok"), name="research_replay.ok") is True
+            and _json_int(report.get("failed_count"), name="research_replay.failed_count") == 0
+            and _json_int(fallback.get("invalid_accept_count"), name="fallback.invalid_accept_count") == 0
+            and _json_int(
+                autotrader.get("invalid_accept_count_total"),
+                name="autotrader.invalid_accept_count_total",
+            )
+            == 0
+            and _json_int(shadow.get("invalid_accept_count_total"), name="shadow.invalid_accept_count_total") == 0
+            and _json_number(fallback.get("learned_top_10_recall"), name="fallback.learned_top_10_recall")
+            >= 1.0
+            and _json_int(
+                fallback.get("learned_permutation_violation_count"),
+                name="fallback.learned_permutation_violation_count",
+            )
+            == 0
+        )
     )
     return {
         "id": "research_replay_clean",
@@ -150,7 +192,7 @@ def _research_replay_obligation(report: dict[str, Any]) -> dict[str, Any]:
         "reason": "research replay, fallback, and invalid-accept receipts must be clean",
         "observed": {
             "ok": report.get("ok") is True,
-            "failed_count": int(report.get("failed_count", -1)),
+            "failed_count": report.get("failed_count"),
             "fallback_invalid_accept_count": fallback.get("invalid_accept_count"),
             "autotrader_invalid_accept_count_total": autotrader.get(
                 "invalid_accept_count_total"
@@ -184,21 +226,23 @@ def _upba_real_replay_obligation(report: dict[str, Any] | None) -> dict[str, Any
             "reason": "missing real UPBA replay report",
             "observed": {"present": False},
         }
-    passed = (
-        report.get("schema") == "zenodex/energy/upba_real_replay_report/v1"
-        and str(report.get("source_kind")) in {"production-shadow", "historical-replay"}
-        and bool(report.get("deterministic_replay_ok")) is True
-        and bool(report.get("no_live_secrets")) is True
-        and _source_manifest_check_ok(report)
-        and _coverage_profile_check_ok(report, expected_type="upba")
-        and int(report.get("batch_count", 0)) >= MIN_UPBA_REAL_BATCHES
-        and int(report.get("candidate_count", 0)) >= MIN_UPBA_REAL_CANDIDATES
-        and int(report.get("market_day_count", 0)) >= MIN_REAL_MARKET_DAYS
-        and int(report.get("invalid_accept_count", -1)) == 0
-        and int(report.get("permutation_violation_count", -1)) == 0
-        and float(report.get("top_25_recall", 0.0)) >= MIN_TOP25_RECALL
-        and float(report.get("learned_mean_verifier_calls", 10**9))
-        < float(report.get("hand_mean_verifier_calls", -1.0))
+    passed = _strict_check(
+        lambda: (
+            report.get("schema") == "zenodex/energy/upba_real_replay_report/v1"
+            and str(report.get("source_kind")) in {"production-shadow", "historical-replay"}
+            and _json_bool(report.get("deterministic_replay_ok"), name="upba.deterministic_replay_ok") is True
+            and _json_bool(report.get("no_live_secrets"), name="upba.no_live_secrets") is True
+            and _source_manifest_check_ok(report)
+            and _coverage_profile_check_ok(report, expected_type="upba")
+            and _json_int(report.get("batch_count"), name="upba.batch_count") >= MIN_UPBA_REAL_BATCHES
+            and _json_int(report.get("candidate_count"), name="upba.candidate_count") >= MIN_UPBA_REAL_CANDIDATES
+            and _json_int(report.get("market_day_count"), name="upba.market_day_count") >= MIN_REAL_MARKET_DAYS
+            and _json_int(report.get("invalid_accept_count"), name="upba.invalid_accept_count") == 0
+            and _json_int(report.get("permutation_violation_count"), name="upba.permutation_violation_count") == 0
+            and _json_number(report.get("top_25_recall"), name="upba.top_25_recall") >= MIN_TOP25_RECALL
+            and _json_number(report.get("learned_mean_verifier_calls"), name="upba.learned_mean_verifier_calls")
+            < _json_number(report.get("hand_mean_verifier_calls"), name="upba.hand_mean_verifier_calls")
+        )
     )
     return {
         "id": "upba_real_replay_coverage",
@@ -235,23 +279,32 @@ def _autotrader_real_shadow_obligation(report: dict[str, Any] | None) -> dict[st
             "reason": "missing real AutoTrader shadow report",
             "observed": {"present": False},
         }
-    passed = (
-        report.get("schema") == "zenodex/energy/autotrader_real_shadow_report/v1"
-        and str(report.get("source_kind")) in {"production-shadow", "historical-replay"}
-        and bool(report.get("deterministic_replay_ok")) is True
-        and bool(report.get("no_live_secrets")) is True
-        and _source_manifest_check_ok(report)
-        and _coverage_profile_check_ok(report, expected_type="autotrader")
-        and bool(report.get("policy_guards_authoritative")) is True
-        and bool(report.get("scorer_authorizes_trade")) is False
-        and bool(report.get("model_output_in_state_root")) is False
-        and int(report.get("context_count", 0)) >= MIN_AUTOTRADER_REAL_CONTEXTS
-        and int(report.get("row_count", 0)) >= MIN_AUTOTRADER_REAL_ROWS
-        and int(report.get("market_day_count", 0)) >= MIN_REAL_MARKET_DAYS
-        and int(report.get("invalid_accept_count_total", -1)) == 0
-        and float(report.get("top_25_recall", 0.0)) >= MIN_TOP25_RECALL
-        and float(report.get("learned_mean_guard_calls", 10**9))
-        < float(report.get("hand_mean_guard_calls", -1.0))
+    passed = _strict_check(
+        lambda: (
+            report.get("schema") == "zenodex/energy/autotrader_real_shadow_report/v1"
+            and str(report.get("source_kind")) in {"production-shadow", "historical-replay"}
+            and _json_bool(report.get("deterministic_replay_ok"), name="autotrader.deterministic_replay_ok")
+            is True
+            and _json_bool(report.get("no_live_secrets"), name="autotrader.no_live_secrets") is True
+            and _source_manifest_check_ok(report)
+            and _coverage_profile_check_ok(report, expected_type="autotrader")
+            and _json_bool(report.get("policy_guards_authoritative"), name="autotrader.policy_guards_authoritative")
+            is True
+            and _json_bool(report.get("scorer_authorizes_trade"), name="autotrader.scorer_authorizes_trade")
+            is False
+            and _json_bool(report.get("model_output_in_state_root"), name="autotrader.model_output_in_state_root")
+            is False
+            and _json_int(report.get("context_count"), name="autotrader.context_count")
+            >= MIN_AUTOTRADER_REAL_CONTEXTS
+            and _json_int(report.get("row_count"), name="autotrader.row_count") >= MIN_AUTOTRADER_REAL_ROWS
+            and _json_int(report.get("market_day_count"), name="autotrader.market_day_count")
+            >= MIN_REAL_MARKET_DAYS
+            and _json_int(report.get("invalid_accept_count_total"), name="autotrader.invalid_accept_count_total")
+            == 0
+            and _json_number(report.get("top_25_recall"), name="autotrader.top_25_recall") >= MIN_TOP25_RECALL
+            and _json_number(report.get("learned_mean_guard_calls"), name="autotrader.learned_mean_guard_calls")
+            < _json_number(report.get("hand_mean_guard_calls"), name="autotrader.hand_mean_guard_calls")
+        )
     )
     return {
         "id": "autotrader_real_shadow_coverage",
@@ -284,15 +337,19 @@ def _autotrader_real_shadow_obligation(report: dict[str, Any] | None) -> dict[st
 
 def _source_manifest_check_ok(report: dict[str, Any]) -> bool:
     manifest = report.get("source_manifest", {})
-    return (
-        isinstance(manifest, dict)
-        and manifest.get("schema")
-        == "zenodex/energy/replay_source_manifest_check/v1"
-        and manifest.get("ok") is True
-        and int(manifest.get("failed_count", -1)) == 0
-        and int(manifest.get("source_report_count", 0)) > 0
-        and int(manifest.get("source_report_match_count", 0))
-        == int(manifest.get("source_report_count", -1))
+    return _strict_check(
+        lambda: (
+            isinstance(manifest, dict)
+            and manifest.get("schema") == "zenodex/energy/replay_source_manifest_check/v1"
+            and _json_bool(manifest.get("ok"), name="source_manifest.ok") is True
+            and _json_int(manifest.get("failed_count"), name="source_manifest.failed_count") == 0
+            and _json_int(manifest.get("source_report_count"), name="source_manifest.source_report_count") > 0
+            and _json_int(
+                manifest.get("source_report_match_count"),
+                name="source_manifest.source_report_match_count",
+            )
+            == _json_int(manifest.get("source_report_count"), name="source_manifest.source_report_count")
+        )
     )
 
 
@@ -302,19 +359,19 @@ def _coverage_profile_check_ok(
     expected_type: str,
 ) -> bool:
     profile = report.get("coverage_profile", {})
-    return (
-        isinstance(profile, dict)
-        and profile.get("schema")
-        == "zenodex/energy/replay_coverage_profile_check/v1"
-        and profile.get("ok") is True
-        and str(profile.get("profile_type")) == expected_type
-        and str(profile.get("source_kind", "")) == str(report.get("source_kind", ""))
-        and str(profile.get("source_descriptor", ""))
-        == str(report.get("source_descriptor", ""))
-        and int(profile.get("failed_count", -1)) == 0
-        and int(profile.get("source_report_count", 0)) > 0
-        and int(profile.get("market_day_count", 0))
-        == int(report.get("market_day_count", -1))
+    return _strict_check(
+        lambda: (
+            isinstance(profile, dict)
+            and profile.get("schema") == "zenodex/energy/replay_coverage_profile_check/v1"
+            and _json_bool(profile.get("ok"), name="coverage_profile.ok") is True
+            and str(profile.get("profile_type")) == expected_type
+            and str(profile.get("source_kind", "")) == str(report.get("source_kind", ""))
+            and str(profile.get("source_descriptor", "")) == str(report.get("source_descriptor", ""))
+            and _json_int(profile.get("failed_count"), name="coverage_profile.failed_count") == 0
+            and _json_int(profile.get("source_report_count"), name="coverage_profile.source_report_count") > 0
+            and _json_int(profile.get("market_day_count"), name="coverage_profile.market_day_count")
+            == _json_int(report.get("market_day_count"), name="report.market_day_count")
+        )
     )
 
 

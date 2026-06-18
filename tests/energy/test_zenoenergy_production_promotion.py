@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 
@@ -174,6 +175,110 @@ def test_production_gate_rejects_truthy_string_research_ok() -> None:
     assert obligation["observed"]["ok"] is False
 
 
+def test_production_gate_rejects_numeric_string_research_failed_count() -> None:
+    research_replay = json.loads(
+        (ROOT / "data/upba_energy/zenoenergy_research_evidence_replay_receipt.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    research_replay["failed_count"] = "0"
+
+    report = build_production_gate_report(
+        research_replay=research_replay,
+        upba_real_replay=_passing_upba_real_replay(),
+        autotrader_real_shadow=_passing_autotrader_real_shadow(),
+        operator_release_enabled=True,
+    )
+
+    obligation = _obligation(report, "research_replay_clean")
+    assert report["decision"] == "blocked"
+    assert obligation["passed"] is False
+    assert obligation["observed"]["failed_count"] == "0"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("deterministic_replay_ok", 1),
+        ("no_live_secrets", "true"),
+        ("batch_count", "1250"),
+        ("top_25_recall", "0.995"),
+    ],
+)
+def test_production_gate_rejects_coerced_upba_real_replay_fields(
+    field: str,
+    value: object,
+) -> None:
+    upba = _passing_upba_real_replay()
+    upba[field] = value
+
+    report = build_production_gate_report(
+        research_replay=_research_replay_fixture(),
+        upba_real_replay=upba,
+        autotrader_real_shadow=_passing_autotrader_real_shadow(),
+        operator_release_enabled=True,
+    )
+
+    assert report["decision"] == "blocked"
+    assert _obligation(report, "upba_real_replay_coverage")["passed"] is False
+
+
+@pytest.mark.parametrize(
+    ("container", "field", "value"),
+    [
+        ("source_manifest", "failed_count", "0"),
+        ("coverage_profile", "market_day_count", "9"),
+    ],
+)
+def test_production_gate_rejects_coerced_upba_nested_evidence_fields(
+    container: str,
+    field: str,
+    value: object,
+) -> None:
+    upba = _passing_upba_real_replay()
+    nested = upba[container]
+    assert isinstance(nested, dict)
+    nested[field] = value
+
+    report = build_production_gate_report(
+        research_replay=_research_replay_fixture(),
+        upba_real_replay=upba,
+        autotrader_real_shadow=_passing_autotrader_real_shadow(),
+        operator_release_enabled=True,
+    )
+
+    assert report["decision"] == "blocked"
+    assert _obligation(report, "upba_real_replay_coverage")["passed"] is False
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("policy_guards_authoritative", 1),
+        ("scorer_authorizes_trade", 0),
+        ("model_output_in_state_root", 0),
+        ("context_count", "700"),
+        ("learned_mean_guard_calls", "1.4"),
+    ],
+)
+def test_production_gate_rejects_coerced_autotrader_real_shadow_fields(
+    field: str,
+    value: object,
+) -> None:
+    autotrader = _passing_autotrader_real_shadow()
+    autotrader[field] = value
+
+    report = build_production_gate_report(
+        research_replay=_research_replay_fixture(),
+        upba_real_replay=_passing_upba_real_replay(),
+        autotrader_real_shadow=autotrader,
+        operator_release_enabled=True,
+    )
+
+    assert report["decision"] == "blocked"
+    assert _obligation(report, "autotrader_real_shadow_coverage")["passed"] is False
+
+
 def test_production_gate_rejects_truthy_string_obligation_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -251,6 +356,16 @@ def _obligation(report: dict[str, object], obligation_id: str) -> dict[str, obje
         if obligation["id"] == obligation_id:
             return obligation
     raise AssertionError(f"missing obligation {obligation_id}")
+
+
+def _research_replay_fixture() -> dict[str, object]:
+    return copy.deepcopy(
+        json.loads(
+            (ROOT / "data/upba_energy/zenoenergy_research_evidence_replay_receipt.json").read_text(
+                encoding="utf-8"
+            )
+        )
+    )
 
 
 def _passing_upba_real_replay() -> dict[str, object]:
