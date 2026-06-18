@@ -57,6 +57,29 @@ class _SinglePoolRuntime:
     fills: List[Fill]
 
 
+@dataclass(frozen=True)
+class _LiquidityRuntimeRequest:
+    intent: Intent
+    fill: Fill
+    snap_pool: PoolState
+    runtime: _SinglePoolRuntime
+    recipient: PubKey
+
+
+@dataclass(frozen=True)
+class _AddLiquidityFillAmounts:
+    amount0_used: int
+    amount1_used: int
+    lp_minted: int
+
+
+@dataclass(frozen=True)
+class _RemoveLiquidityFillAmounts:
+    amount0_out: int
+    amount1_out: int
+    lp_burned: int
+
+
 def _validate_single_pool_policy(
     policy: _SinglePoolOrderingPolicy,
     *,
@@ -196,59 +219,99 @@ def _process_liquidity_for_single_pool(
             continue
         recipient = intent.get_field("recipient", intent.sender_pubkey)
         if intent.kind == IntentKind.ADD_LIQUIDITY:
-            amount0_used = _read_single_pool_fill_int(
-                fill.amount0_used,
-                operation="ADD_LIQUIDITY",
-                field_name="amount0_used",
-                fill=fill,
+            _apply_add_liquidity_to_single_pool_runtime(
+                _LiquidityRuntimeRequest(
+                    intent=intent,
+                    fill=fill,
+                    snap_pool=snap_pool,
+                    runtime=runtime,
+                    recipient=recipient,
+                )
             )
-            amount1_used = _read_single_pool_fill_int(
-                fill.amount1_used,
-                operation="ADD_LIQUIDITY",
-                field_name="amount1_used",
-                fill=fill,
-            )
-            lp_minted = _read_single_pool_fill_int(
-                fill.lp_minted,
-                operation="ADD_LIQUIDITY",
-                field_name="lp_minted",
-                fill=fill,
-            )
-            runtime.current_reserves = (
-                runtime.current_reserves[0] + amount0_used,
-                runtime.current_reserves[1] + amount1_used,
-            )
-            runtime.current_lp_supply += lp_minted
-            runtime.balances_scratch.subtract(intent.sender_pubkey, snap_pool.asset0, amount0_used)
-            runtime.balances_scratch.subtract(intent.sender_pubkey, snap_pool.asset1, amount1_used)
-            runtime.lp_scratch.add(recipient, snap_pool.pool_id, lp_minted)
         else:
-            amount0_out = _read_single_pool_fill_int(
-                fill.amount0_out,
-                operation="REMOVE_LIQUIDITY",
-                field_name="amount0_out",
-                fill=fill,
+            _apply_remove_liquidity_to_single_pool_runtime(
+                _LiquidityRuntimeRequest(
+                    intent=intent,
+                    fill=fill,
+                    snap_pool=snap_pool,
+                    runtime=runtime,
+                    recipient=recipient,
+                )
             )
-            amount1_out = _read_single_pool_fill_int(
-                fill.amount1_out,
-                operation="REMOVE_LIQUIDITY",
-                field_name="amount1_out",
-                fill=fill,
-            )
-            lp_burned = _read_single_pool_fill_int(
-                fill.lp_burned,
-                operation="REMOVE_LIQUIDITY",
-                field_name="lp_burned",
-                fill=fill,
-            )
-            runtime.current_reserves = (
-                runtime.current_reserves[0] - amount0_out,
-                runtime.current_reserves[1] - amount1_out,
-            )
-            runtime.current_lp_supply -= lp_burned
-            runtime.lp_scratch.subtract(intent.sender_pubkey, snap_pool.pool_id, lp_burned)
-            runtime.balances_scratch.add(recipient, snap_pool.asset0, amount0_out)
-            runtime.balances_scratch.add(recipient, snap_pool.asset1, amount1_out)
+
+
+def _apply_add_liquidity_to_single_pool_runtime(request: _LiquidityRuntimeRequest) -> None:
+    amounts = _read_add_liquidity_fill_amounts(request.fill)
+    runtime = request.runtime
+    snap_pool = request.snap_pool
+    runtime.current_reserves = (
+        runtime.current_reserves[0] + amounts.amount0_used,
+        runtime.current_reserves[1] + amounts.amount1_used,
+    )
+    runtime.current_lp_supply += amounts.lp_minted
+    runtime.balances_scratch.subtract(request.intent.sender_pubkey, snap_pool.asset0, amounts.amount0_used)
+    runtime.balances_scratch.subtract(request.intent.sender_pubkey, snap_pool.asset1, amounts.amount1_used)
+    runtime.lp_scratch.add(request.recipient, snap_pool.pool_id, amounts.lp_minted)
+
+
+def _apply_remove_liquidity_to_single_pool_runtime(request: _LiquidityRuntimeRequest) -> None:
+    amounts = _read_remove_liquidity_fill_amounts(request.fill)
+    runtime = request.runtime
+    snap_pool = request.snap_pool
+    runtime.current_reserves = (
+        runtime.current_reserves[0] - amounts.amount0_out,
+        runtime.current_reserves[1] - amounts.amount1_out,
+    )
+    runtime.current_lp_supply -= amounts.lp_burned
+    runtime.lp_scratch.subtract(request.intent.sender_pubkey, snap_pool.pool_id, amounts.lp_burned)
+    runtime.balances_scratch.add(request.recipient, snap_pool.asset0, amounts.amount0_out)
+    runtime.balances_scratch.add(request.recipient, snap_pool.asset1, amounts.amount1_out)
+
+
+def _read_add_liquidity_fill_amounts(fill: Fill) -> _AddLiquidityFillAmounts:
+    return _AddLiquidityFillAmounts(
+        amount0_used=_read_single_pool_fill_int(
+            fill.amount0_used,
+            operation="ADD_LIQUIDITY",
+            field_name="amount0_used",
+            fill=fill,
+        ),
+        amount1_used=_read_single_pool_fill_int(
+            fill.amount1_used,
+            operation="ADD_LIQUIDITY",
+            field_name="amount1_used",
+            fill=fill,
+        ),
+        lp_minted=_read_single_pool_fill_int(
+            fill.lp_minted,
+            operation="ADD_LIQUIDITY",
+            field_name="lp_minted",
+            fill=fill,
+        ),
+    )
+
+
+def _read_remove_liquidity_fill_amounts(fill: Fill) -> _RemoveLiquidityFillAmounts:
+    return _RemoveLiquidityFillAmounts(
+        amount0_out=_read_single_pool_fill_int(
+            fill.amount0_out,
+            operation="REMOVE_LIQUIDITY",
+            field_name="amount0_out",
+            fill=fill,
+        ),
+        amount1_out=_read_single_pool_fill_int(
+            fill.amount1_out,
+            operation="REMOVE_LIQUIDITY",
+            field_name="amount1_out",
+            fill=fill,
+        ),
+        lp_burned=_read_single_pool_fill_int(
+            fill.lp_burned,
+            operation="REMOVE_LIQUIDITY",
+            field_name="lp_burned",
+            fill=fill,
+        ),
+    )
 
 
 def _read_single_pool_fill_int(value: object, *, operation: str, field_name: str, fill: Fill) -> int:
