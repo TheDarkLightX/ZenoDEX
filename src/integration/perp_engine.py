@@ -334,20 +334,14 @@ def _min_collectible_liquidation_penalty_quote(
     return int(value)
 
 
-def _apply_isolated_market_params(
-    market: PerpMarketState,
-    *,
-    params: Mapping[str, Any],
-    min_collectible_liquidation_penalty_quote: int,
-) -> PerpMarketState:
-    updates = _validated_control_params(params, bounds=_ISOLATED_CONTROL_PARAM_BOUNDS, name="params")
-    if not updates:
-        return market
-
+def _isolated_global_with_param_updates(market: PerpMarketState, updates: Mapping[str, int]) -> Mapping[str, Any]:
     new_global = dict(market.global_state)
     for k, v in updates.items():
         new_global[k] = int(v)
+    return new_global
 
+
+def _validate_isolated_liquidation_bounty_shock(market: PerpMarketState, new_global: Mapping[str, Any]) -> None:
     old_liquidation_penalty_bps = int(market.global_state["liquidation_penalty_bps"])
     old_min_notional_for_bounty = int(market.global_state["min_notional_for_bounty"])
     new_liquidation_penalty_bps = int(new_global["liquidation_penalty_bps"])
@@ -363,22 +357,22 @@ def _apply_isolated_market_params(
         if new_min_notional_for_bounty < old_min_notional_for_bounty:
             raise ValueError("invalid params: cannot decrease min_notional_for_bounty while positions are open")
 
-    # Enforce kernel-level invariants that depend on control params.
+
+def _clamp_isolated_funding_rate_to_cap(new_global: Dict[str, Any]) -> None:
+    # Funding cap changes can make the stored last rate out of bounds. The rate
+    # is informational for margin math, so clamp it to preserve state invariants.
+    funding_cap_bps = int(new_global["funding_cap_bps"])
+    funding_rate_bps = int(new_global["funding_rate_bps"])
+    if abs(funding_rate_bps) > funding_cap_bps:
+        new_global["funding_rate_bps"] = funding_cap_bps if funding_rate_bps >= 0 else -funding_cap_bps
+
+
+def _validate_isolated_margin_and_liquidation_params(new_global: Mapping[str, Any]) -> None:
     max_oracle_move_bps = int(new_global["max_oracle_move_bps"])
     initial_margin_bps = int(new_global["initial_margin_bps"])
     maintenance_margin_bps = int(new_global["maintenance_margin_bps"])
     depeg_buffer_bps = int(new_global["depeg_buffer_bps"])
     liquidation_penalty_bps = int(new_global["liquidation_penalty_bps"])
-    funding_cap_bps = int(new_global["funding_cap_bps"])
-    max_position_abs = int(new_global["max_position_abs"])
-    index_price_e8 = int(new_global["index_price_e8"])
-
-    # Funding cap changes can make the stored "last rate" out of bounds. The rate is informational,
-    # not a consensus-critical input to margin math, so we clamp it to preserve invariants.
-    funding_rate_bps = int(new_global["funding_rate_bps"])
-    if abs(funding_rate_bps) > funding_cap_bps:
-        new_global["funding_rate_bps"] = funding_cap_bps if funding_rate_bps >= 0 else -funding_cap_bps
-        funding_rate_bps = int(new_global["funding_rate_bps"])
 
     eff_maint_bps = maintenance_margin_bps + depeg_buffer_bps
     if depeg_buffer_bps <= 0:
@@ -403,6 +397,14 @@ def _apply_isolated_market_params(
             "10000 * (maintenance_margin_bps + depeg_buffer_bps - max_oracle_move_bps)"
         )
 
+
+def _validate_isolated_liquidation_bounty_floor(
+    new_global: Mapping[str, Any],
+    *,
+    min_collectible_liquidation_penalty_quote: int,
+) -> None:
+    liquidation_penalty_bps = int(new_global["liquidation_penalty_bps"])
+
     # Scientist-driven anti-farming guard:
     # if a liquidation is eligible for bounty accounting, the notional threshold must be
     # high enough to guarantee a non-zero collectible penalty under integer rounding.
@@ -422,6 +424,13 @@ def _apply_isolated_market_params(
                 f"ceil({int(min_collectible_liquidation_penalty_quote)} * 10000 / liquidation_penalty_bps)"
             )
 
+
+def _validate_isolated_open_account_safety(market: PerpMarketState, new_global: Mapping[str, Any]) -> None:
+    max_position_abs = int(new_global["max_position_abs"])
+    index_price_e8 = int(new_global["index_price_e8"])
+    maintenance_margin_bps = int(new_global["maintenance_margin_bps"])
+    depeg_buffer_bps = int(new_global["depeg_buffer_bps"])
+
     # Fail-closed: do not allow parameter changes that would invalidate any open position.
     for pk in sorted(market.accounts.keys()):
         acct = market.accounts[pk]
@@ -437,6 +446,27 @@ def _apply_isolated_market_params(
         )
         if acct.collateral_quote < maint_req:
             raise ValueError(f"invalid params: account {pk} would be under maintenance margin")
+
+
+def _apply_isolated_market_params(
+    market: PerpMarketState,
+    *,
+    params: Mapping[str, Any],
+    min_collectible_liquidation_penalty_quote: int,
+) -> PerpMarketState:
+    updates = _validated_control_params(params, bounds=_ISOLATED_CONTROL_PARAM_BOUNDS, name="params")
+    if not updates:
+        return market
+
+    new_global = dict(_isolated_global_with_param_updates(market, updates))
+    _validate_isolated_liquidation_bounty_shock(market, new_global)
+    _clamp_isolated_funding_rate_to_cap(new_global)
+    _validate_isolated_margin_and_liquidation_params(new_global)
+    _validate_isolated_liquidation_bounty_floor(
+        new_global,
+        min_collectible_liquidation_penalty_quote=min_collectible_liquidation_penalty_quote,
+    )
+    _validate_isolated_open_account_safety(market, new_global)
 
     return PerpMarketState(
         quote_asset=market.quote_asset,
