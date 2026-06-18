@@ -37,3 +37,14 @@ def test_lp_table_rejects_non_int_amounts_and_deltas() -> None:
         table.subtract("pk", "pool", "1")  # type: ignore[arg-type]
 
     assert table.get("pk", "pool") == 3
+
+
+def test_lp_table_rejects_corrupt_churn_tier_metadata() -> None:
+    table = LPTable()
+    table._churn_tiers[("pk", "pool")] = True  # type: ignore[assignment]
+
+    with pytest.raises(TypeError, match="LP churn tier must be an int"):
+        table.get_churn_tier("pk", "pool")
+
+    with pytest.raises(TypeError, match="LP churn tier must be an int"):
+        table.get_all_duration_risk_metadata()

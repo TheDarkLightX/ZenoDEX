@@ -23,6 +23,13 @@ def _require_lp_int(name: str, value: object) -> int:
     return int(value)
 
 
+def _require_lp_non_negative_int(name: str, value: object) -> int:
+    value_i = _require_lp_int(name, value)
+    if value_i < 0:
+        raise ValueError(f"{name} must be a non-negative int: {value!r}")
+    return value_i
+
+
 @dataclass(frozen=True)
 class LPDurationRiskMetadata:
     """Committed duration-risk metadata for one aggregate LP position key."""
@@ -92,11 +99,10 @@ class LPTable:
 
     def set_last_mint_timestamp(self, pubkey: PubKey, pool_id: PoolId, timestamp: int) -> None:
         """Bind a runtime mint timestamp to an existing LP balance."""
-        if not isinstance(timestamp, int) or isinstance(timestamp, bool) or timestamp < 0:
-            raise ValueError(f"last mint timestamp must be a non-negative int: {timestamp!r}")
+        timestamp_i = _require_lp_non_negative_int("last mint timestamp", timestamp)
         if self.get(pubkey, pool_id) <= 0:
             raise ValueError("cannot set LP mint timestamp for an empty balance")
-        self._last_mint_timestamps[(pubkey, pool_id)] = timestamp
+        self._last_mint_timestamps[(pubkey, pool_id)] = timestamp_i
 
     def clear_last_mint_timestamp(self, pubkey: PubKey, pool_id: PoolId) -> None:
         """Remove tracked LP mint timestamp metadata."""
@@ -116,9 +122,8 @@ class LPTable:
 
     def set_last_remove_timestamp(self, pubkey: PubKey, pool_id: PoolId, timestamp: int) -> None:
         """Bind a runtime remove timestamp to an LP position key."""
-        if not isinstance(timestamp, int) or isinstance(timestamp, bool) or timestamp < 0:
-            raise ValueError(f"last remove timestamp must be a non-negative int: {timestamp!r}")
-        self._last_remove_timestamps[(pubkey, pool_id)] = timestamp
+        timestamp_i = _require_lp_non_negative_int("last remove timestamp", timestamp)
+        self._last_remove_timestamps[(pubkey, pool_id)] = timestamp_i
 
     def clear_last_remove_timestamp(self, pubkey: PubKey, pool_id: PoolId) -> None:
         """Remove tracked LP remove timestamp metadata."""
@@ -130,17 +135,18 @@ class LPTable:
 
     def get_churn_tier(self, pubkey: PubKey, pool_id: PoolId) -> int:
         """Return the committed LP churn tier for a position key."""
-        return int(self._churn_tiers.get((pubkey, pool_id), 0))
+        return _require_lp_non_negative_int(
+            "LP churn tier", self._churn_tiers.get((pubkey, pool_id), 0)
+        )
 
     def set_churn_tier(self, pubkey: PubKey, pool_id: PoolId, tier: int) -> None:
         """Set the committed LP churn tier for a position key."""
-        if not isinstance(tier, int) or isinstance(tier, bool) or tier < 0:
-            raise ValueError(f"LP churn tier must be a non-negative int: {tier!r}")
+        tier_i = _require_lp_non_negative_int("LP churn tier", tier)
         key = (pubkey, pool_id)
-        if tier == 0:
+        if tier_i == 0:
             self._churn_tiers.pop(key, None)
         else:
-            self._churn_tiers[key] = tier
+            self._churn_tiers[key] = tier_i
 
     def get_all_churn_tiers(self) -> Dict[Tuple[PubKey, PoolId], int]:
         """Return tracked LP churn tiers."""
@@ -152,9 +158,8 @@ class LPTable:
 
     def set_last_churn_update_timestamp(self, pubkey: PubKey, pool_id: PoolId, timestamp: int) -> None:
         """Bind a timestamp to the committed LP churn-tier state."""
-        if not isinstance(timestamp, int) or isinstance(timestamp, bool) or timestamp < 0:
-            raise ValueError(f"last churn update timestamp must be a non-negative int: {timestamp!r}")
-        self._last_churn_update_timestamps[(pubkey, pool_id)] = timestamp
+        timestamp_i = _require_lp_non_negative_int("last churn update timestamp", timestamp)
+        self._last_churn_update_timestamps[(pubkey, pool_id)] = timestamp_i
 
     def clear_last_churn_update_timestamp(self, pubkey: PubKey, pool_id: PoolId) -> None:
         """Remove tracked LP churn update timestamp metadata."""
