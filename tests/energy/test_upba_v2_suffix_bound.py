@@ -13,6 +13,7 @@ from src.energy.upba_v2_suffix_bound import (
     suffix_bound_cannot_beat,
     verify_upba_v2_suffix_bound_certificate,
 )
+from tools import check_upba_v2_suffix_bound as suffix_bound_tool
 from tools.generate_upba_energy_dataset import generate_synthetic_batch
 
 
@@ -121,6 +122,30 @@ def test_suffix_bound_certificate_rejects_nonpartitioned_list() -> None:
     assert report["ok"] is False
     assert report["partition_ok"] is False
     assert verify_upba_v2_suffix_bound_certificate(report) is False
+
+
+def test_suffix_bound_tool_rejects_truthy_string_certificate_ok(monkeypatch) -> None:
+    batch, results = _batch_with_valid_candidates()
+    full_winner = deterministic_best_verified_candidate(results)
+    assert full_winner is not None
+    full_candidates = tuple(item.candidate for item in batch.candidates)
+    original_builder = suffix_bound_tool.build_upba_v2_suffix_bound_certificate
+
+    def fake_builder(*args, **kwargs):
+        report = dict(original_builder(*args, **kwargs))
+        report["ok"] = "true"
+        return report
+
+    monkeypatch.setattr(suffix_bound_tool, "build_upba_v2_suffix_bound_certificate", fake_builder)
+
+    row = suffix_bound_tool._simulate_suffix_bound_stop(
+        batch=batch,
+        full_candidates=full_candidates,
+        ordered_candidates=full_candidates,
+        full_winner=full_winner,
+    )
+
+    assert row["certificate_ok"] is False
 
 
 def _batch_with_valid_candidates(*, min_valid: int = 1):

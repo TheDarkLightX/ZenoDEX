@@ -240,7 +240,7 @@ def _simulate_suffix_bound_stop(
         "accepted_hash": accepted.certificate_hash if accepted is not None else None,
         "full_winner_hash": full_winner.certificate_hash,
         "calls_to_objective_winner": calls_to_objective_winner,
-        "certificate_ok": bool(final_certificate and final_certificate.get("ok")),
+        "certificate_ok": final_certificate is not None and final_certificate.get("ok") is True,
         "certificate_hash": final_certificate.get("certificate_hash") if final_certificate else None,
         "max_suffix_volume_upper": final_certificate.get("max_suffix_volume_upper") if final_certificate else None,
         "suffix_disqualified_count": final_certificate.get("suffix_disqualified_count") if final_certificate else 0,
