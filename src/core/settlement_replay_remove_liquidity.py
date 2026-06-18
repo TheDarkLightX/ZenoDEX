@@ -11,6 +11,7 @@ from ..state.pools import PoolState, PoolStatus
 from .domain_limits import is_strict_int
 from .liquidity import remove_liquidity
 from .settlement import BalanceDelta, Fill, LPDelta, ReserveDelta
+from .settlement_fill_fields import read_optional_non_negative_fill_int
 from .settlement_replay_context import ReplayContext
 
 
@@ -79,11 +80,35 @@ def _check_remove_liquidity_fill(
     replay_input: _RemoveLiquidityReplayInput,
     replay_result: _RemoveLiquidityReplayResult,
 ) -> Optional[str]:
-    if int(fill.lp_burned or 0) != int(replay_input.lp_amount):
+    lp_burned, err = read_optional_non_negative_fill_int(
+        fill.lp_burned,
+        operation="REMOVE_LIQUIDITY",
+        field_name="lp_burned",
+        intent_id=replay_input.intent_id,
+    )
+    if err is not None:
+        return err
+    amount0_out, err = read_optional_non_negative_fill_int(
+        fill.amount0_out,
+        operation="REMOVE_LIQUIDITY",
+        field_name="amount0_out",
+        intent_id=replay_input.intent_id,
+    )
+    if err is not None:
+        return err
+    amount1_out, err = read_optional_non_negative_fill_int(
+        fill.amount1_out,
+        operation="REMOVE_LIQUIDITY",
+        field_name="amount1_out",
+        intent_id=replay_input.intent_id,
+    )
+    if err is not None:
+        return err
+    if lp_burned != int(replay_input.lp_amount):
         return f"REMOVE_LIQUIDITY fill.lp_burned mismatch for intent_id={replay_input.intent_id}"
-    if int(fill.amount0_out or 0) != int(replay_result.amount0_out):
+    if amount0_out != int(replay_result.amount0_out):
         return f"REMOVE_LIQUIDITY fill.amount0_out mismatch for intent_id={replay_input.intent_id}"
-    if int(fill.amount1_out or 0) != int(replay_result.amount1_out):
+    if amount1_out != int(replay_result.amount1_out):
         return f"REMOVE_LIQUIDITY fill.amount1_out mismatch for intent_id={replay_input.intent_id}"
     return None
 

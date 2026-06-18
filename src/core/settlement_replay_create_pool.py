@@ -12,6 +12,7 @@ from .cpmm import MIN_LP_LOCK
 from .domain_limits import is_strict_int
 from .liquidity import create_pool
 from .settlement import BalanceDelta, Fill, LPDelta, ReserveDelta
+from .settlement_fill_fields import read_optional_non_negative_fill_int
 from .settlement_replay_context import ReplayContext
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
@@ -185,11 +186,35 @@ def _check_create_pool_fill(
     replay_input: _CreatePoolReplayInput,
     replay_result: _CreatePoolReplayResult,
 ) -> Optional[str]:
-    if int(fill.amount0_used or 0) != int(replay_input.amount0):
+    amount0_used, err = read_optional_non_negative_fill_int(
+        fill.amount0_used,
+        operation="CREATE_POOL",
+        field_name="amount0_used",
+        intent_id=replay_input.intent_id,
+    )
+    if err is not None:
+        return err
+    amount1_used, err = read_optional_non_negative_fill_int(
+        fill.amount1_used,
+        operation="CREATE_POOL",
+        field_name="amount1_used",
+        intent_id=replay_input.intent_id,
+    )
+    if err is not None:
+        return err
+    lp_minted, err = read_optional_non_negative_fill_int(
+        fill.lp_minted,
+        operation="CREATE_POOL",
+        field_name="lp_minted",
+        intent_id=replay_input.intent_id,
+    )
+    if err is not None:
+        return err
+    if amount0_used != int(replay_input.amount0):
         return f"CREATE_POOL fill.amount0_used mismatch for intent_id={replay_input.intent_id}"
-    if int(fill.amount1_used or 0) != int(replay_input.amount1):
+    if amount1_used != int(replay_input.amount1):
         return f"CREATE_POOL fill.amount1_used mismatch for intent_id={replay_input.intent_id}"
-    if int(fill.lp_minted or 0) != int(replay_result.lp_minted):
+    if lp_minted != int(replay_result.lp_minted):
         return f"CREATE_POOL fill.lp_minted mismatch for intent_id={replay_input.intent_id}"
     return None
 

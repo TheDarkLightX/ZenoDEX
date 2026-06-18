@@ -2729,6 +2729,19 @@ def test_strong_validator_rejects_create_pool_field_and_fill_failures() -> None:
     assert ok is False
     assert err == f"CREATE_POOL fill.amount1_used mismatch for intent_id={intent.intent_id}"
 
+    amount0_string = compute_settlement([intent], {}, balances, LPTable())
+    amount0_string.fills[0].amount0_used = str(amount0_string.fills[0].amount0_used)
+    ok, err = validate_settlement_strong(
+        settlement=amount0_string,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"CREATE_POOL fill.amount0_used must be int for intent_id={intent.intent_id}"
+
     lp_minted_mismatch = compute_settlement([intent], {}, balances, LPTable())
     lp_minted_mismatch.fills[0].lp_minted += 1
     ok, err = validate_settlement_strong(
@@ -2833,6 +2846,19 @@ def test_strong_validator_rejects_add_liquidity_field_fill_and_apply_failures() 
     assert ok is False
     assert err == f"ADD_LIQUIDITY fill.amount1_used mismatch for intent_id={intent.intent_id}"
 
+    lp_minted_string = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
+    lp_minted_string.fills[0].lp_minted = str(lp_minted_string.fills[0].lp_minted)
+    ok, err = validate_settlement_strong(
+        settlement=lp_minted_string,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"ADD_LIQUIDITY fill.lp_minted must be int for intent_id={intent.intent_id}"
+
     lp_minted_mismatch = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
     lp_minted_mismatch.fills[0].lp_minted += 1
     ok, err = validate_settlement_strong(
@@ -2926,6 +2952,19 @@ def test_strong_validator_rejects_remove_liquidity_field_fill_and_apply_failures
     )
     assert ok is False
     assert err == f"REMOVE_LIQUIDITY fill.lp_burned mismatch for intent_id={intent.intent_id}"
+
+    lp_burned_string = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
+    lp_burned_string.fills[0].lp_burned = str(lp_burned_string.fills[0].lp_burned)
+    ok, err = validate_settlement_strong(
+        settlement=lp_burned_string,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"REMOVE_LIQUIDITY fill.lp_burned must be int for intent_id={intent.intent_id}"
 
     amount0_out_mismatch = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
     amount0_out_mismatch.fills[0].amount0_out += 1
