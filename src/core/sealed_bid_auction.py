@@ -11,6 +11,7 @@ Scope is deliberately narrow and one-sided (buyers bid for a fixed inventory).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import groupby
 from typing import Any, Dict, Iterable, Tuple
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
@@ -131,6 +132,62 @@ def reveal_matches_commitment(*, commitment: str, quantity: int, limit_price: in
         return False
 
 
+def _sealed_bid_output_key(bid: RevealedSealedBid) -> tuple[str, str]:
+    return (str(bid.bidder_id), str(bid.commitment))
+
+
+def _validate_revealed_bid(bid: RevealedSealedBid) -> RevealedSealedBid:
+    if not isinstance(bid.bidder_id, str) or not bid.bidder_id:
+        raise ValueError("bidder_id must be non-empty")
+    if not isinstance(bid.commitment, str) or not bid.commitment:
+        raise ValueError("commitment must be non-empty")
+    if not isinstance(bid.quantity, int) or isinstance(bid.quantity, bool) or bid.quantity <= 0 or bid.quantity > MAX_UNITS:
+        raise ValueError("quantity out of range")
+    if (
+        not isinstance(bid.limit_price, int)
+        or isinstance(bid.limit_price, bool)
+        or bid.limit_price <= 0
+        or bid.limit_price > MAX_PRICE
+    ):
+        raise ValueError("limit_price out of range")
+    return bid
+
+
+def _pro_rata_marginal_bucket(
+    *, remaining: int, bucket: tuple[RevealedSealedBid, ...]
+) -> tuple[tuple[tuple[RevealedSealedBid, int], ...], int]:
+    """Allocate an oversubscribed same-price bucket by largest remainder."""
+    total_requested = sum(int(bid.quantity) for bid in bucket)
+    if remaining <= 0 or total_requested <= 0:
+        return (), 0
+
+    allocations: list[tuple[int, RevealedSealedBid, int, int]] = []
+    allocated = 0
+    for index, bid in enumerate(bucket):
+        numerator = int(bid.quantity) * int(remaining)
+        base = numerator // total_requested
+        remainder = numerator % total_requested
+        allocated += base
+        allocations.append((index, bid, int(base), int(remainder)))
+
+    leftover = int(remaining) - int(allocated)
+    if leftover > 0:
+        ranked = sorted(allocations, key=lambda item: (-item[3], _sealed_bid_output_key(item[1]), item[0]))
+        bonus_indices = {item[0] for item in ranked[:leftover]}
+    else:
+        bonus_indices = set()
+
+    result = []
+    total = 0
+    for index, bid, base, _remainder in allocations:
+        fill_qty = int(base) + (1 if index in bonus_indices else 0)
+        if fill_qty <= 0:
+            continue
+        result.append((bid, fill_qty))
+        total += fill_qty
+    return tuple(result), int(total)
+
+
 def settle_uniform_price_sealed_bids(
     *,
     units_for_sale: int,
@@ -139,54 +196,46 @@ def settle_uniform_price_sealed_bids(
     if not isinstance(units_for_sale, int) or isinstance(units_for_sale, bool) or units_for_sale < 0 or units_for_sale > MAX_UNITS:
         raise ValueError("units_for_sale out of range")
 
-    normalized: list[RevealedSealedBid] = []
-    for bid in bids:
-        if not isinstance(bid.bidder_id, str) or not bid.bidder_id:
-            raise ValueError("bidder_id must be non-empty")
-        if not isinstance(bid.commitment, str) or not bid.commitment:
-            raise ValueError("commitment must be non-empty")
-        if not isinstance(bid.quantity, int) or isinstance(bid.quantity, bool) or bid.quantity <= 0 or bid.quantity > MAX_UNITS:
-            raise ValueError("quantity out of range")
-        if not isinstance(bid.limit_price, int) or isinstance(bid.limit_price, bool) or bid.limit_price <= 0 or bid.limit_price > MAX_PRICE:
-            raise ValueError("limit_price out of range")
-        normalized.append(bid)
+    normalized = [_validate_revealed_bid(bid) for bid in bids]
 
-    ordered = sorted(normalized, key=lambda b: (-int(b.limit_price), str(b.commitment), str(b.bidder_id)))
     remaining = int(units_for_sale)
-    fills: list[SealedBidFill] = []
+    fill_entries: list[tuple[RevealedSealedBid, int]] = []
     clearing_price = 0
     total_filled = 0
-    for bid in ordered:
+
+    ordered = tuple(sorted(normalized, key=lambda bid: (-int(bid.limit_price), _sealed_bid_output_key(bid))))
+    for price, group in groupby(ordered, key=lambda bid: int(bid.limit_price)):
         if remaining <= 0:
             break
-        fill_qty = min(int(bid.quantity), remaining)
-        if fill_qty <= 0:
+        bucket = tuple(group)
+        bucket_quantity = sum(int(bid.quantity) for bid in bucket)
+        if bucket_quantity <= 0:
             continue
-        clearing_price = int(bid.limit_price)
-        total_filled += int(fill_qty)
-        remaining -= int(fill_qty)
-        fills.append(
-            SealedBidFill(
-                bidder_id=str(bid.bidder_id),
-                commitment=str(bid.commitment),
-                filled_quantity=int(fill_qty),
-                paid_price=0,
-            )
-        )
 
-    if clearing_price > 0:
-        fills = [
-            SealedBidFill(
-                bidder_id=f.bidder_id,
-                commitment=f.commitment,
-                filled_quantity=int(f.filled_quantity),
-                paid_price=int(clearing_price),
-            )
-            for f in fills
-        ]
+        clearing_price = int(price)
+        if bucket_quantity <= remaining:
+            fill_entries.extend((bid, int(bid.quantity)) for bid in bucket)
+            total_filled += int(bucket_quantity)
+            remaining -= int(bucket_quantity)
+            continue
+
+        marginal_fills, marginal_total = _pro_rata_marginal_bucket(remaining=remaining, bucket=bucket)
+        fill_entries.extend(marginal_fills)
+        total_filled += int(marginal_total)
+        remaining = 0
+
+    fills = tuple(
+        SealedBidFill(
+            bidder_id=str(bid.bidder_id),
+            commitment=str(bid.commitment),
+            filled_quantity=int(fill_qty),
+            paid_price=int(clearing_price) if clearing_price > 0 else 0,
+        )
+        for bid, fill_qty in sorted(fill_entries, key=lambda item: (-int(item[0].limit_price), _sealed_bid_output_key(item[0])))
+    )
 
     return SealedBidSettlement(
         clearing_price=int(clearing_price),
         total_filled=int(total_filled),
-        fills=tuple(fills),
+        fills=fills,
     )

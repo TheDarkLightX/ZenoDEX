@@ -146,4 +146,48 @@ def test_uniform_price_boundary_exact_units() -> None:
     s = settle_uniform_price_sealed_bids(units_for_sale=5, bids=bids)
     assert s.clearing_price == 110
     assert s.total_filled == 5
-    assert [(f.bidder_id, f.filled_quantity) for f in s.fills] == [("bob", 4), ("alice", 1)]
+    assert [(f.bidder_id, f.filled_quantity) for f in s.fills] == [("alice", 2), ("bob", 3)]
+
+
+def test_uniform_price_marginal_bucket_is_pro_rata_not_commitment_priority() -> None:
+    bids = [
+        RevealedSealedBid("alice", "zzzz-alice-commitment", 3, 110),
+        RevealedSealedBid("bob", "0000-bob-commitment", 4, 110),
+    ]
+
+    s = settle_uniform_price_sealed_bids(units_for_sale=5, bids=bids)
+
+    assert s.clearing_price == 110
+    assert s.total_filled == 5
+    assert [(f.bidder_id, f.filled_quantity) for f in s.fills] == [("alice", 2), ("bob", 3)]
+
+
+def test_uniform_price_commitment_grinding_does_not_change_pro_rata_quantity() -> None:
+    base = [
+        RevealedSealedBid("alice", "alice-commitment", 3, 110),
+        RevealedSealedBid("bob", "bob-late-commitment", 4, 110),
+    ]
+    ground = [
+        RevealedSealedBid("alice", "alice-commitment", 3, 110),
+        RevealedSealedBid("bob", "0000-bob-ground-commitment", 4, 110),
+    ]
+
+    s_base = settle_uniform_price_sealed_bids(units_for_sale=5, bids=base)
+    s_ground = settle_uniform_price_sealed_bids(units_for_sale=5, bids=ground)
+
+    assert {f.bidder_id: f.filled_quantity for f in s_base.fills} == {"alice": 2, "bob": 3}
+    assert {f.bidder_id: f.filled_quantity for f in s_ground.fills} == {"alice": 2, "bob": 3}
+
+
+def test_uniform_price_duplicate_equal_reveals_do_not_over_allocate_dust() -> None:
+    bids = [
+        RevealedSealedBid("alice", "same-commitment", 1, 110),
+        RevealedSealedBid("alice", "same-commitment", 1, 110),
+        RevealedSealedBid("alice", "same-commitment", 1, 110),
+    ]
+
+    s = settle_uniform_price_sealed_bids(units_for_sale=2, bids=bids)
+
+    assert s.total_filled == 2
+    assert sum(f.filled_quantity for f in s.fills) == 2
+    assert [f.filled_quantity for f in s.fills] == [1, 1]

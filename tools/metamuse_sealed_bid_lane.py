@@ -76,7 +76,7 @@ SEALED_BID_CURATED_CASES: tuple[SealedBidLaneCase, ...] = (
             SealedBidLaneBid("carol", 4, 108, "m3"),
         ),
         expected_clearing_price=110,
-        expected_fill_vector=(("bob", 4), ("alice", 1)),
+        expected_fill_vector=(("alice", 2), ("bob", 3)),
     ),
 )
 
@@ -92,7 +92,7 @@ STIMULI_BANK: tuple[dict[str, Any], ...] = (
         "stimulus_id": "auction.uniform_price",
         "family": "market",
         "prompt": "Which deterministic rule gives users one-shot bidding UX while reducing timing games?",
-        "design_shift": "Uniform-price settlement with deterministic tie-breaks on commitment.",
+        "design_shift": "Uniform-price settlement with pro-rata rationing inside the marginal price bucket.",
     },
     {
         "stimulus_id": "privacy.public_surface",
@@ -113,10 +113,12 @@ LANE_SPEC: dict[str, Any] = {
         "public commit receipts must not leak quantity, limit price, or nonce",
         "reveals must bind to prior commitments",
         "settlement must be deterministic under input reordering",
+        "same-price marginal bucket allocation must not depend on bidder-chosen commitments",
     ],
     "invariants": [
         "highest limit prices fill first",
         "all accepted bids pay the same clearing price",
+        "same-price marginal bids are rationed pro-rata before deterministic dust assignment",
         "commit receipts expose commitments only, not private bid state",
     ],
     "baseline_families": [
@@ -135,10 +137,16 @@ LANE_SPEC: dict[str, Any] = {
         "commit/reveal instead of open bidding",
         "uniform price instead of continuous undercutting",
         "public commitment receipts plus deterministic reveal settlement",
+        "pro-rata marginal-bucket rationing instead of commitment-priority ties",
     ],
     "performance_descriptors": {
         "asymptotic_profile": "O(n log n) settlement after O(1) commitment verification per bid",
-        "invariant_family": ["private_commit_surface", "commit_reveal_binding", "uniform_price_determinism"],
+        "invariant_family": [
+            "private_commit_surface",
+            "commit_reveal_binding",
+            "uniform_price_determinism",
+            "pro_rata_marginal_bucket",
+        ],
         "failure_envelope": ["late_reveal", "mismatched_commitment", "public_field_leakage"],
         "certificate_shape": ["curated_commit_reveal_corpus", "deterministic_fill_vector"],
     },
@@ -156,6 +164,7 @@ LANE_SPEC: dict[str, Any] = {
                 "commit receipts omit quantity, limit price, and nonce",
                 "reveal binds to commitment",
                 "deterministic clearing price and fill vector for fixed inputs",
+                "same-price marginal bucket allocation does not depend on bidder-chosen commitments",
             ],
             "risk_modes": ["griefing via non-reveal", "thin liquidity in small batches"],
             "status": "proposed",
