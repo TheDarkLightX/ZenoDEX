@@ -24,7 +24,7 @@
     },
     {
       "path": "src/integration/autonomous_governance_q_policy.py",
-      "sha256": "4c878e0ad3fa30c253b27f0f361c9b8e980d4382f782950db1d8fe09cfa9620c"
+      "sha256": "190c8f67b77c0d67a735a957647221ca389bdae1556d163cfca5b0c4ce5628bc"
     },
     {
       "path": "tools/autonomous_governance_q_policy.py",

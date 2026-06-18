@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, cast
 
 from src.integration.autonomous_governance_hostile_input import safe_field_label
 from src.integration.tau_witness import build_revision_policy_v1_step
@@ -128,7 +128,7 @@ SELECTION_BLOCKER_SCORE_PENALTY = 1_000_000_000
 
 # Bind the trusted governance gate call surface once at import. Runtime table
 # evaluation should not be able to pick up a later monkeypatch or forged wrapper.
-_GOV_MASTER_REVISION = gov_gate.MasterRevision
+_GOV_MASTER_REVISION: type[gov_gate.MasterRevision] = gov_gate.MasterRevision
 _GOV_FEE_REVISION_OK = gov_gate.fee_revision_ok
 _GOV_ROUTER_REVISION_OK = gov_gate.router_revision_ok
 _GOV_COLLATERAL_RATIO_REVISION_OK = gov_gate.collateral_ratio_revision_ok
@@ -141,46 +141,47 @@ def _trusted_master_revision_ok(revision: object) -> bool:
 
     if type(revision) is not _GOV_MASTER_REVISION:
         raise TypeError("master_revision_ok requires a MasterRevision (exact type)")
+    trusted_revision = cast(gov_gate.MasterRevision, revision)
     return (
         _GOV_FEE_REVISION_OK(
-            revision.approved,
-            revision.exec_req,
-            revision.proposal_ts,
-            revision.current_ts,
-            revision.fee_curr_bps,
-            revision.fee_next_bps,
+            trusted_revision.approved,
+            trusted_revision.exec_req,
+            trusted_revision.proposal_ts,
+            trusted_revision.current_ts,
+            trusted_revision.fee_curr_bps,
+            trusted_revision.fee_next_bps,
         )
         and _GOV_ROUTER_REVISION_OK(
-            revision.approved,
-            revision.exec_req,
-            revision.proposal_ts,
-            revision.current_ts,
-            revision.buyburn_next_bps,
-            revision.stakers_next_bps,
-            revision.reserve_next_bps,
-            revision.hosts_next_bps,
-            revision.buyburn_curr_bps,
-            revision.stakers_curr_bps,
-            revision.reserve_curr_bps,
-            revision.hosts_curr_bps,
+            trusted_revision.approved,
+            trusted_revision.exec_req,
+            trusted_revision.proposal_ts,
+            trusted_revision.current_ts,
+            trusted_revision.buyburn_next_bps,
+            trusted_revision.stakers_next_bps,
+            trusted_revision.reserve_next_bps,
+            trusted_revision.hosts_next_bps,
+            trusted_revision.buyburn_curr_bps,
+            trusted_revision.stakers_curr_bps,
+            trusted_revision.reserve_curr_bps,
+            trusted_revision.hosts_curr_bps,
         )
         and _GOV_COLLATERAL_RATIO_REVISION_OK(
-            revision.approved,
-            revision.exec_req,
-            revision.proposal_ts,
-            revision.current_ts,
-            revision.mcr_curr_bps,
-            revision.mcr_next_bps,
-            revision.ccr_curr_bps,
-            revision.ccr_next_bps,
+            trusted_revision.approved,
+            trusted_revision.exec_req,
+            trusted_revision.proposal_ts,
+            trusted_revision.current_ts,
+            trusted_revision.mcr_curr_bps,
+            trusted_revision.mcr_next_bps,
+            trusted_revision.ccr_curr_bps,
+            trusted_revision.ccr_next_bps,
         )
         and _GOV_WHALE_DEFENSE_REVISION_OK(
-            revision.approved,
-            revision.exec_req,
-            revision.proposal_ts,
-            revision.current_ts,
-            revision.staker_bps_curr,
-            revision.staker_bps_next,
+            trusted_revision.approved,
+            trusted_revision.exec_req,
+            trusted_revision.proposal_ts,
+            trusted_revision.current_ts,
+            trusted_revision.staker_bps_curr,
+            trusted_revision.staker_bps_next,
         )
     )
 
@@ -315,13 +316,13 @@ def q_learning_update_fixed_point_v1(
 
 def evaluate_autonomous_governance_q_policy_v1(
     *,
-    policy: Mapping[str, Any],
-    parameters: Mapping[str, Mapping[str, Any] | BoundedParameter],
-    observation: Mapping[str, Any],
-    current_epoch: int,
-    proposal_epoch: int,
-    min_delay_epochs: int,
-    last_update_epoch: int | None = None,
+    policy: object,
+    parameters: object,
+    observation: object,
+    current_epoch: object,
+    proposal_epoch: object,
+    min_delay_epochs: object,
+    last_update_epoch: object | None = None,
     expected_policy_hash: str | None = None,
 ) -> dict[str, Any]:
     """Evaluate a frozen Q-table policy and build a revision-policy packet.
@@ -353,12 +354,17 @@ def evaluate_autonomous_governance_q_policy_v1(
     normalized_min_delay = _require_nonnegative_int_or_error(
         min_delay_epochs, name="min_delay_epochs", errors=errors
     )
+    normalized_last_update_epoch = _normalize_optional_nonnegative_int(
+        last_update_epoch,
+        name="last_update_epoch",
+        errors=errors,
+    )
 
     safety_errors = _safety_errors(
         normalized_policy,
         obs,
         current_epoch=normalized_current_epoch,
-        last_update_epoch=last_update_epoch,
+        last_update_epoch=normalized_last_update_epoch,
     )
     errors.extend(safety_errors)
 
@@ -709,17 +715,17 @@ def sample_autonomous_governance_next_policy_v1() -> dict[str, Any]:
 
 def evaluate_autonomous_governance_surface_q_policy_v1(
     *,
-    policy: Mapping[str, Any],
-    surface_state: Mapping[str, Any],
-    observation: Mapping[str, Any],
-    current_epoch: int,
-    proposal_epoch: int,
-    last_update_epoch: int | None = None,
+    policy: object,
+    surface_state: object,
+    observation: object,
+    current_epoch: object,
+    proposal_epoch: object,
+    last_update_epoch: object | None = None,
     expected_policy_hash: str | None = None,
     expected_committed_context_hash: str | None = None,
-    previous_approved_deltas: Mapping[str, Any] | None = None,
-    trajectory_budget: Mapping[str, Any] | None = None,
-    trajectory_used: Mapping[str, Any] | None = None,
+    previous_approved_deltas: object | None = None,
+    trajectory_budget: object | None = None,
+    trajectory_used: object | None = None,
 ) -> dict[str, Any]:
     """Evaluate a Q-table action against the concrete governance PR gate suite.
 
@@ -903,17 +909,17 @@ def evaluate_autonomous_governance_surface_q_policy_v1(
 
 def commit_autonomous_governance_surface_q_policy_v1(
     *,
-    policy: Mapping[str, Any],
-    surface_state: Mapping[str, Any],
-    observation: Mapping[str, Any],
-    current_epoch: int,
-    proposal_epoch: int,
-    last_update_epoch: int | None = None,
+    policy: object,
+    surface_state: object,
+    observation: object,
+    current_epoch: object,
+    proposal_epoch: object,
+    last_update_epoch: object | None = None,
     expected_policy_hash: str | None = None,
     expected_committed_context_hash: str | None = None,
-    previous_approved_deltas: Mapping[str, Any] | None = None,
-    trajectory_budget: Mapping[str, Any] | None = None,
-    trajectory_used: Mapping[str, Any] | None = None,
+    previous_approved_deltas: object | None = None,
+    trajectory_budget: object | None = None,
+    trajectory_used: object | None = None,
 ) -> dict[str, Any]:
     """Evaluate and apply one autonomous governance-surface step.
 
@@ -1003,7 +1009,7 @@ def commit_autonomous_governance_surface_q_policy_v1(
     return {**body, "step_hash": hash_v0("autonomous_governance_q_surface_step_v1", body)}
 
 
-def admit_autonomous_governance_surface_request_v1(request: Mapping[str, Any]) -> dict[str, Any]:
+def admit_autonomous_governance_surface_request_v1(request: object) -> dict[str, Any]:
     """Fail closed at the live autonomous-governance request boundary.
 
     The caller supplies committed state, observations, timing, a frozen policy,
@@ -1012,8 +1018,12 @@ def admit_autonomous_governance_surface_request_v1(request: Mapping[str, Any]) -
     caller.
     """
 
-    request_is_mapping = isinstance(request, Mapping)
-    request_obj = request if request_is_mapping else {}
+    if isinstance(request, Mapping):
+        request_is_mapping = True
+        request_obj: Mapping[str, Any] = request
+    else:
+        request_is_mapping = False
+        request_obj = {}
     raw_state = request_obj.get("surface_state", {})
     committed, committed_errors = _normalize_surface_state(
         raw_state if isinstance(raw_state, Mapping) else {}
@@ -1175,7 +1185,7 @@ def _advance_trajectory_used_after_step(
     admitted: bool,
     committed: Mapping[str, int],
     applied: Mapping[str, int],
-    trajectory_used: Mapping[str, Any] | None,
+    trajectory_used: object | None,
 ) -> dict[str, int]:
     used, _errors = _normalize_trajectory_used(trajectory_used)
     out = dict(used)
@@ -1366,7 +1376,7 @@ def _select_first_admissible_surface_action(
     }
 
 
-def _normalize_delta_history(raw: Mapping[str, Any] | None) -> dict[str, int]:
+def _normalize_delta_history(raw: object | None) -> dict[str, int]:
     if not isinstance(raw, Mapping):
         return {}
     out: dict[str, int] = {}
@@ -1379,7 +1389,7 @@ def _normalize_delta_history(raw: Mapping[str, Any] | None) -> dict[str, int]:
 
 
 def _normalize_previous_approved_deltas(
-    raw: Mapping[str, Any] | None,
+    raw: object | None,
 ) -> tuple[dict[str, int], list[str]]:
     if raw is None:
         return {}, []
@@ -1531,14 +1541,8 @@ def _surface_context_hash(context: Mapping[str, Any]) -> str:
     return hash_v0("autonomous_governance_surface_context_v1", context)
 
 
-def _normalize_policy(
-    policy: Mapping[str, Any],
-    *,
-    parameter_names: Sequence[str] = PARAMETER_NAMES_V1,
-) -> tuple[dict[str, Any], list[str]]:
+def _normalize_policy_header(policy: Mapping[str, Any]) -> tuple[int, Mapping[str, Any], list[str]]:
     errors: list[str] = []
-    if not isinstance(policy, Mapping):
-        return {}, ["policy_must_be_object"]
     allowed = {
         "schema",
         "policy_id",
@@ -1569,8 +1573,15 @@ def _normalize_policy(
     if not isinstance(safety, Mapping):
         errors.append("safety_must_be_object")
         safety = {}
+    return normalized_version, safety, errors
 
-    selection_raw = policy.get("selection", {})
+
+def _normalize_policy_selection(
+    selection_raw: object,
+    *,
+    parameter_names: Sequence[str],
+) -> tuple[dict[str, Any], list[str]]:
+    errors: list[str] = []
     if not isinstance(selection_raw, Mapping):
         errors.append("selection_must_be_object")
         selection_raw = {}
@@ -1579,177 +1590,307 @@ def _normalize_policy(
         errors.append(f"selection_mode_invalid:{selection_mode}")
         selection_mode = "top_scored"
     normalized_selection: dict[str, Any] = {"mode": selection_mode}
+
     anti_raw = selection_raw.get("anti_oscillation", {})
     if anti_raw:
-        if not isinstance(anti_raw, Mapping):
-            errors.append("anti_oscillation_must_be_object")
-        else:
-            enabled = anti_raw.get("enabled", False)
-            if not isinstance(enabled, bool):
-                errors.append("anti_oscillation_enabled_must_be_bool")
-                enabled = False
-            parameters_raw = anti_raw.get("parameters", ())
-            parameters: list[str] = []
-            if not isinstance(parameters_raw, Sequence) or isinstance(
-                parameters_raw, (str, bytes, bytearray)
-            ):
-                errors.append("anti_oscillation_parameters_must_be_sequence")
-            else:
-                for parameter in parameters_raw:
-                    if not isinstance(parameter, str):
-                        errors.append(f"anti_oscillation_parameter_invalid:{parameter}")
-                    elif parameter in AUTOGOVNEXT_FORBIDDEN_AUTHORITY_PARAMETERS_V1:
-                        errors.append(f"authority_anti_oscillation_parameter_forbidden:{parameter}")
-                    elif parameter not in parameter_names:
-                        errors.append(f"anti_oscillation_unknown_parameter:{parameter}")
-                    else:
-                        parameters.append(parameter)
-            normalized_selection["anti_oscillation"] = {
-                "enabled": bool(enabled),
-                "parameters": parameters,
-            }
+        anti, anti_errors = _normalize_policy_anti_oscillation(
+            anti_raw,
+            parameter_names=parameter_names,
+        )
+        errors.extend(anti_errors)
+        if anti is not None:
+            normalized_selection["anti_oscillation"] = anti
+
     trajectory_raw = selection_raw.get("trajectory_budget", {})
     if trajectory_raw:
-        if not isinstance(trajectory_raw, Mapping):
-            errors.append("trajectory_budget_must_be_object")
-        else:
-            enabled = trajectory_raw.get("enabled", False)
-            if not isinstance(enabled, bool):
-                errors.append("trajectory_budget_enabled_must_be_bool")
-                enabled = False
-            limits_raw = trajectory_raw.get("limits", {})
-            limits: dict[str, int] = {}
-            if not isinstance(limits_raw, Mapping):
-                errors.append("trajectory_budget_limits_must_be_object")
-            else:
-                for parameter, raw_limit in limits_raw.items():
-                    if parameter in AUTOGOVNEXT_FORBIDDEN_AUTHORITY_PARAMETERS_V1:
-                        errors.append(f"authority_trajectory_budget_parameter_forbidden:{parameter}")
-                        continue
-                    if parameter not in parameter_names:
-                        errors.append(f"trajectory_budget_unknown_parameter:{parameter}")
-                        continue
-                    try:
-                        limits[str(parameter)] = _require_nonnegative_int(
-                            raw_limit,
-                            name=f"trajectory_budget.{parameter}",
-                        )
-                    except ValueError as exc:
-                        errors.append(str(exc))
-            normalized_selection["trajectory_budget"] = {
-                "enabled": bool(enabled),
-                "limits": limits,
-            }
+        trajectory, trajectory_errors = _normalize_policy_trajectory_budget(
+            trajectory_raw,
+            parameter_names=parameter_names,
+        )
+        errors.extend(trajectory_errors)
+        if trajectory is not None:
+            normalized_selection["trajectory_budget"] = trajectory
+    return normalized_selection, errors
 
-    state_bins = policy.get("state_bins", {})
+
+def _normalize_policy_anti_oscillation(
+    anti_raw: object,
+    *,
+    parameter_names: Sequence[str],
+) -> tuple[dict[str, Any] | None, list[str]]:
+    errors: list[str] = []
+    if not isinstance(anti_raw, Mapping):
+        return None, ["anti_oscillation_must_be_object"]
+
+    enabled = anti_raw.get("enabled", False)
+    if not isinstance(enabled, bool):
+        errors.append("anti_oscillation_enabled_must_be_bool")
+        enabled = False
+
+    parameters, parameter_errors = _normalize_policy_anti_oscillation_parameters(
+        anti_raw.get("parameters", ()),
+        parameter_names=parameter_names,
+    )
+    errors.extend(parameter_errors)
+    return {"enabled": bool(enabled), "parameters": parameters}, errors
+
+
+def _normalize_policy_anti_oscillation_parameters(
+    parameters_raw: object,
+    *,
+    parameter_names: Sequence[str],
+) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    parameters: list[str] = []
+    if not isinstance(parameters_raw, Sequence) or isinstance(
+        parameters_raw, (str, bytes, bytearray)
+    ):
+        return parameters, ["anti_oscillation_parameters_must_be_sequence"]
+    for parameter in parameters_raw:
+        if not isinstance(parameter, str):
+            errors.append(f"anti_oscillation_parameter_invalid:{parameter}")
+        elif parameter in AUTOGOVNEXT_FORBIDDEN_AUTHORITY_PARAMETERS_V1:
+            errors.append(f"authority_anti_oscillation_parameter_forbidden:{parameter}")
+        elif parameter not in parameter_names:
+            errors.append(f"anti_oscillation_unknown_parameter:{parameter}")
+        else:
+            parameters.append(parameter)
+    return parameters, errors
+
+
+def _normalize_policy_trajectory_budget(
+    trajectory_raw: object,
+    *,
+    parameter_names: Sequence[str],
+) -> tuple[dict[str, Any] | None, list[str]]:
+    errors: list[str] = []
+    if not isinstance(trajectory_raw, Mapping):
+        return None, ["trajectory_budget_must_be_object"]
+
+    enabled = trajectory_raw.get("enabled", False)
+    if not isinstance(enabled, bool):
+        errors.append("trajectory_budget_enabled_must_be_bool")
+        enabled = False
+
+    limits_raw = trajectory_raw.get("limits", {})
+    limits: dict[str, int] = {}
+    if not isinstance(limits_raw, Mapping):
+        errors.append("trajectory_budget_limits_must_be_object")
+    else:
+        for parameter, raw_limit in limits_raw.items():
+            if parameter in AUTOGOVNEXT_FORBIDDEN_AUTHORITY_PARAMETERS_V1:
+                errors.append(f"authority_trajectory_budget_parameter_forbidden:{parameter}")
+                continue
+            if parameter not in parameter_names:
+                errors.append(f"trajectory_budget_unknown_parameter:{parameter}")
+                continue
+            try:
+                limits[str(parameter)] = _require_nonnegative_int(
+                    raw_limit,
+                    name=f"trajectory_budget.{parameter}",
+                )
+            except ValueError as exc:
+                errors.append(str(exc))
+    return {"enabled": bool(enabled), "limits": limits}, errors
+
+
+def _normalize_policy_state_bins(
+    state_bins: object,
+    *,
+    parameter_names: Sequence[str],
+) -> tuple[dict[str, list[int]], list[str]]:
+    errors: list[str] = []
     normalized_bins: dict[str, list[int]] = {}
     allowed_bin_fields = set(OBSERVATION_FIELDS_V1).union(str(name) for name in parameter_names)
     if not isinstance(state_bins, Mapping):
-        errors.append("state_bins_must_be_object")
-    else:
-        for field, raw_thresholds in state_bins.items():
-            if field in AUTOGOVNEXT_FORBIDDEN_AUTHORITY_PARAMETERS_V1:
-                errors.append(f"authority_state_bin_forbidden:{field}")
-                continue
-            if field not in allowed_bin_fields:
-                errors.append(f"unknown_state_bin_field:{field}")
-                continue
-            if not isinstance(raw_thresholds, Sequence) or isinstance(raw_thresholds, (str, bytes, bytearray)):
-                errors.append(f"state_bin_thresholds_invalid:{field}")
-                continue
-            thresholds: list[int] = []
-            for index, raw in enumerate(raw_thresholds):
-                try:
-                    thresholds.append(_require_nonnegative_int(raw, name=f"state_bins.{field}[{index}]"))
-                except ValueError as exc:
-                    errors.append(str(exc))
-            if thresholds != sorted(thresholds):
-                errors.append(f"state_bin_thresholds_not_sorted:{field}")
-            normalized_bins[str(field)] = thresholds
+        return normalized_bins, ["state_bins_must_be_object"]
 
-    actions_raw = policy.get("actions", [])
+    for field, raw_thresholds in state_bins.items():
+        if field in AUTOGOVNEXT_FORBIDDEN_AUTHORITY_PARAMETERS_V1:
+            errors.append(f"authority_state_bin_forbidden:{field}")
+            continue
+        if field not in allowed_bin_fields:
+            errors.append(f"unknown_state_bin_field:{field}")
+            continue
+        if not isinstance(raw_thresholds, Sequence) or isinstance(raw_thresholds, (str, bytes, bytearray)):
+            errors.append(f"state_bin_thresholds_invalid:{field}")
+            continue
+        thresholds: list[int] = []
+        for index, raw in enumerate(raw_thresholds):
+            try:
+                thresholds.append(_require_nonnegative_int(raw, name=f"state_bins.{field}[{index}]"))
+            except ValueError as exc:
+                errors.append(str(exc))
+        if thresholds != sorted(thresholds):
+            errors.append(f"state_bin_thresholds_not_sorted:{field}")
+        normalized_bins[str(field)] = thresholds
+    return normalized_bins, errors
+
+
+def _normalize_policy_actions(
+    actions_raw: object,
+    *,
+    parameter_names: Sequence[str],
+) -> tuple[list[dict[str, Any]], set[str], list[str]]:
+    errors: list[str] = []
     actions: list[dict[str, Any]] = []
     action_ids: set[str] = set()
     if not isinstance(actions_raw, Sequence) or isinstance(actions_raw, (str, bytes, bytearray)):
-        errors.append("actions_must_be_sequence")
-    else:
-        for index, raw in enumerate(actions_raw):
-            if not isinstance(raw, Mapping):
-                errors.append(f"action_invalid:{index}")
+        return actions, action_ids, ["actions_must_be_sequence"]
+
+    for index, raw in enumerate(actions_raw):
+        if not isinstance(raw, Mapping):
+            errors.append(f"action_invalid:{index}")
+            continue
+        action_id = raw.get("id")
+        if not isinstance(action_id, str) or not action_id:
+            errors.append(f"action_id_invalid:{index}")
+            continue
+        if action_id in action_ids:
+            errors.append(f"duplicate_action_id:{action_id}")
+        action_ids.add(action_id)
+        deltas_raw = raw.get("deltas", {})
+        if not isinstance(deltas_raw, Mapping):
+            errors.append(f"action_deltas_invalid:{action_id}")
+            deltas_raw = {}
+        deltas: dict[str, int] = {}
+        for name, raw_delta in deltas_raw.items():
+            if name in AUTOGOVNEXT_FORBIDDEN_AUTHORITY_PARAMETERS_V1:
+                errors.append(f"authority_action_delta_forbidden:{name}")
                 continue
-            action_id = raw.get("id")
-            if not isinstance(action_id, str) or not action_id:
-                errors.append(f"action_id_invalid:{index}")
+            if name not in parameter_names:
+                errors.append(f"unknown_action_delta_parameter:{name}")
                 continue
-            if action_id in action_ids:
-                errors.append(f"duplicate_action_id:{action_id}")
-            action_ids.add(action_id)
-            deltas_raw = raw.get("deltas", {})
-            if not isinstance(deltas_raw, Mapping):
-                errors.append(f"action_deltas_invalid:{action_id}")
-                deltas_raw = {}
-            deltas: dict[str, int] = {}
-            for name, raw_delta in deltas_raw.items():
-                if name in AUTOGOVNEXT_FORBIDDEN_AUTHORITY_PARAMETERS_V1:
-                    errors.append(f"authority_action_delta_forbidden:{name}")
-                    continue
-                if name not in parameter_names:
-                    errors.append(f"unknown_action_delta_parameter:{name}")
-                    continue
-                try:
-                    deltas[str(name)] = _require_int(raw_delta, name=f"action.{action_id}.{name}")
-                except ValueError as exc:
-                    errors.append(str(exc))
-            actions.append({"id": action_id, "deltas": deltas})
+            try:
+                deltas[str(name)] = _require_int(raw_delta, name=f"action.{action_id}.{name}")
+            except ValueError as exc:
+                errors.append(str(exc))
+        actions.append({"id": action_id, "deltas": deltas})
+    return actions, action_ids, errors
+
+
+def _normalize_policy_q_layers(
+    q_layers_raw: object,
+    *,
+    normalized_bins: Mapping[str, list[int]],
+    action_ids: set[str],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    errors: list[str] = []
+    q_layers: list[dict[str, Any]] = []
+    if not isinstance(q_layers_raw, Sequence) or isinstance(q_layers_raw, (str, bytes, bytearray)):
+        return q_layers, ["q_layers_must_be_sequence"]
+
+    for index, raw in enumerate(q_layers_raw):
+        if not isinstance(raw, Mapping):
+            errors.append(f"q_layer_invalid:{index}")
+            continue
+        layer_id = raw.get("id")
+        if not isinstance(layer_id, str) or not layer_id:
+            errors.append(f"q_layer_id_invalid:{index}")
+            layer_id = f"layer_{index}"
+
+        features, feature_errors = _normalize_policy_q_layer_features(
+            raw.get("features", []),
+            layer_id=layer_id,
+            normalized_bins=normalized_bins,
+        )
+        errors.extend(feature_errors)
+        table, table_errors = _normalize_policy_q_layer_table(
+            raw.get("q_table", {}),
+            layer_id=layer_id,
+            action_ids=action_ids,
+        )
+        errors.extend(table_errors)
+        q_layers.append({"id": layer_id, "features": features, "q_table": table})
+    return q_layers, errors
+
+
+def _normalize_policy_q_layer_features(
+    features_raw: object,
+    *,
+    layer_id: str,
+    normalized_bins: Mapping[str, list[int]],
+) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    features: list[str] = []
+    if not isinstance(features_raw, Sequence) or isinstance(features_raw, (str, bytes, bytearray)):
+        return features, [f"q_layer_features_invalid:{layer_id}"]
+    for feature in features_raw:
+        if feature not in normalized_bins:
+            errors.append(f"q_layer_feature_not_binned:{layer_id}:{feature}")
+        else:
+            features.append(str(feature))
+    return features, errors
+
+
+def _normalize_policy_q_layer_table(
+    table_raw: object,
+    *,
+    layer_id: str,
+    action_ids: set[str],
+) -> tuple[dict[str, dict[str, int]], list[str]]:
+    errors: list[str] = []
+    table: dict[str, dict[str, int]] = {}
+    if not isinstance(table_raw, Mapping):
+        return table, [f"q_table_invalid:{layer_id}"]
+    for key, row_raw in table_raw.items():
+        if not isinstance(key, str) or not key:
+            errors.append(f"q_table_key_invalid:{layer_id}")
+            continue
+        if not isinstance(row_raw, Mapping):
+            errors.append(f"q_table_row_invalid:{layer_id}:{key}")
+            continue
+        row: dict[str, int] = {}
+        for action_id, raw_score in row_raw.items():
+            if action_id not in action_ids:
+                errors.append(f"q_table_unknown_action:{layer_id}:{key}:{action_id}")
+                continue
+            try:
+                row[str(action_id)] = _require_int(raw_score, name=f"q_table.{layer_id}.{key}.{action_id}")
+            except ValueError as exc:
+                errors.append(str(exc))
+        table[str(key)] = row
+    return table, errors
+
+
+def _normalize_policy(
+    policy: object,
+    *,
+    parameter_names: Sequence[str] = PARAMETER_NAMES_V1,
+) -> tuple[dict[str, Any], list[str]]:
+    errors: list[str] = []
+    if not isinstance(policy, Mapping):
+        return {}, ["policy_must_be_object"]
+
+    normalized_version, safety, header_errors = _normalize_policy_header(policy)
+    errors.extend(header_errors)
+
+    normalized_selection, selection_errors = _normalize_policy_selection(
+        policy.get("selection", {}),
+        parameter_names=parameter_names,
+    )
+    errors.extend(selection_errors)
+
+    normalized_bins, bin_errors = _normalize_policy_state_bins(
+        policy.get("state_bins", {}),
+        parameter_names=parameter_names,
+    )
+    errors.extend(bin_errors)
+
+    actions, action_ids, action_errors = _normalize_policy_actions(
+        policy.get("actions", []),
+        parameter_names=parameter_names,
+    )
+    errors.extend(action_errors)
     if not actions:
         errors.append("actions_empty")
 
-    q_layers_raw = policy.get("q_layers", [])
-    q_layers: list[dict[str, Any]] = []
-    if not isinstance(q_layers_raw, Sequence) or isinstance(q_layers_raw, (str, bytes, bytearray)):
-        errors.append("q_layers_must_be_sequence")
-    else:
-        for index, raw in enumerate(q_layers_raw):
-            if not isinstance(raw, Mapping):
-                errors.append(f"q_layer_invalid:{index}")
-                continue
-            layer_id = raw.get("id")
-            if not isinstance(layer_id, str) or not layer_id:
-                errors.append(f"q_layer_id_invalid:{index}")
-                layer_id = f"layer_{index}"
-            features_raw = raw.get("features", [])
-            features: list[str] = []
-            if not isinstance(features_raw, Sequence) or isinstance(features_raw, (str, bytes, bytearray)):
-                errors.append(f"q_layer_features_invalid:{layer_id}")
-            else:
-                for feature in features_raw:
-                    if feature not in normalized_bins:
-                        errors.append(f"q_layer_feature_not_binned:{layer_id}:{feature}")
-                    else:
-                        features.append(str(feature))
-            table_raw = raw.get("q_table", {})
-            table: dict[str, dict[str, int]] = {}
-            if not isinstance(table_raw, Mapping):
-                errors.append(f"q_table_invalid:{layer_id}")
-            else:
-                for key, row_raw in table_raw.items():
-                    if not isinstance(key, str) or not key:
-                        errors.append(f"q_table_key_invalid:{layer_id}")
-                        continue
-                    if not isinstance(row_raw, Mapping):
-                        errors.append(f"q_table_row_invalid:{layer_id}:{key}")
-                        continue
-                    row: dict[str, int] = {}
-                    for action_id, raw_score in row_raw.items():
-                        if action_id not in action_ids:
-                            errors.append(f"q_table_unknown_action:{layer_id}:{key}:{action_id}")
-                            continue
-                        try:
-                            row[str(action_id)] = _require_int(raw_score, name=f"q_table.{layer_id}.{key}.{action_id}")
-                        except ValueError as exc:
-                            errors.append(str(exc))
-                    table[str(key)] = row
-            q_layers.append({"id": layer_id, "features": features, "q_table": table})
+    q_layers, q_layer_errors = _normalize_policy_q_layers(
+        policy.get("q_layers", []),
+        normalized_bins=normalized_bins,
+        action_ids=action_ids,
+    )
+    errors.extend(q_layer_errors)
     if not q_layers:
         errors.append("q_layers_empty")
 
@@ -1766,7 +1907,7 @@ def _normalize_policy(
 
 
 def _normalize_parameters(
-    raw: Mapping[str, Mapping[str, Any] | BoundedParameter],
+    raw: object,
 ) -> tuple[dict[str, BoundedParameter], list[str]]:
     errors: list[str] = []
     params: dict[str, BoundedParameter] = {}
@@ -1808,7 +1949,7 @@ def _normalize_parameters(
     return params, errors
 
 
-def _normalize_surface_state(raw: Mapping[str, Any]) -> tuple[dict[str, int], list[str]]:
+def _normalize_surface_state(raw: object) -> tuple[dict[str, int], list[str]]:
     errors: list[str] = []
     state: dict[str, int] = {}
     if not isinstance(raw, Mapping):
@@ -1828,9 +1969,9 @@ def _normalize_surface_state(raw: Mapping[str, Any]) -> tuple[dict[str, int], li
 
 
 def _normalize_trajectory_budget(
-    raw: Mapping[str, Any] | None,
+    raw: object | None,
     *,
-    policy: Mapping[str, Any],
+    policy: object,
 ) -> tuple[dict[str, int], list[str]]:
     if raw is None:
         selection = policy.get("selection", {}) if isinstance(policy, Mapping) else {}
@@ -1841,13 +1982,13 @@ def _normalize_trajectory_budget(
     return _normalize_surface_int_map(raw, name="trajectory_budget")
 
 
-def _normalize_trajectory_used(raw: Mapping[str, Any] | None) -> tuple[dict[str, int], list[str]]:
+def _normalize_trajectory_used(raw: object | None) -> tuple[dict[str, int], list[str]]:
     if raw is None:
         return {}, []
     return _normalize_surface_int_map(raw, name="trajectory_used")
 
 
-def _normalize_surface_int_map(raw: Mapping[str, Any], *, name: str) -> tuple[dict[str, int], list[str]]:
+def _normalize_surface_int_map(raw: object, *, name: str) -> tuple[dict[str, int], list[str]]:
     errors: list[str] = []
     out: dict[str, int] = {}
     if not isinstance(raw, Mapping):
@@ -1954,7 +2095,7 @@ def _governance_surface_gate_report(
     }
 
 
-def _normalize_observation(raw: Mapping[str, Any]) -> tuple[dict[str, int], list[str]]:
+def _normalize_observation(raw: object) -> tuple[dict[str, int], list[str]]:
     errors: list[str] = []
     if not isinstance(raw, Mapping):
         return {}, ["observation_must_be_object"]
