@@ -2574,7 +2574,7 @@ def _check_suffix_bound(
         ),
         _expect_true(
             "suffix_bound.safety",
-            int(report["safety"]["invalid_accept_count"]) == 0
+            _json_int_equals(report["safety"]["invalid_accept_count"], 0)
             and _is_true(report["safety"]["verifier_authoritative"])
             and _is_false(report["safety"]["scorer_authorizes_settlement"])
             and _is_false(report["safety"]["model_output_in_state_root"])
@@ -2583,24 +2583,38 @@ def _check_suffix_bound(
         ),
         _expect_true(
             "suffix_bound.learned_and_hybrid_stop_first",
-            int(learned["count"]) > 0
-            and int(learned["certificate_ok_count"]) == int(learned["count"])
-            and int(hybrid["certificate_ok_count"]) == int(hybrid["count"])
-            and int(learned["objective_equiv_accept_count"]) == int(learned["count"])
-            and int(hybrid["objective_equiv_accept_count"]) == int(hybrid["count"])
-            and float(learned["mean_verifier_calls"]) <= 1.01
-            and float(hybrid["mean_verifier_calls"]) <= 1.01
-            and float(learned["p99_verifier_calls"]) == 1.0
-            and float(hybrid["p99_verifier_calls"]) == 1.0,
+            _json_int_greater_than(learned.get("count"), 0)
+            and _json_int_values_equal(
+                learned.get("certificate_ok_count"), learned.get("count")
+            )
+            and _json_int_values_equal(
+                hybrid.get("certificate_ok_count"), hybrid.get("count")
+            )
+            and _json_int_values_equal(
+                learned.get("objective_equiv_accept_count"), learned.get("count")
+            )
+            and _json_int_values_equal(
+                hybrid.get("objective_equiv_accept_count"), hybrid.get("count")
+            )
+            and _json_number_at_most(learned.get("mean_verifier_calls"), 1.01)
+            and _json_number_at_most(hybrid.get("mean_verifier_calls"), 1.01)
+            and _json_number_equals(learned.get("p99_verifier_calls"), 1.0)
+            and _json_number_equals(hybrid.get("p99_verifier_calls"), 1.0),
             "learned and hybrid suffix-bound certificates stop after roughly one verifier call",
         ),
         _expect_true(
             "suffix_bound.beats_controls",
-            float(learned["mean_verifier_calls"]) < float(hand["mean_verifier_calls"])
-            and float(learned["mean_verifier_calls"]) < float(random["mean_verifier_calls"])
-            and int(random["full_fallback_count"]) > 0
-            and float(learned["mean_checked_ratio"]) < 0.05
-            and float(hand["mean_checked_ratio"]) < float(random["mean_checked_ratio"]),
+            _json_number_less_than(
+                learned.get("mean_verifier_calls"), hand.get("mean_verifier_calls")
+            )
+            and _json_number_less_than(
+                learned.get("mean_verifier_calls"), random.get("mean_verifier_calls")
+            )
+            and _json_int_greater_than(random.get("full_fallback_count"), 0)
+            and _json_number_less_than_value(learned.get("mean_checked_ratio"), 0.05)
+            and _json_number_less_than(
+                hand.get("mean_checked_ratio"), random.get("mean_checked_ratio")
+            ),
             "learned suffix-bound early stop beats hand and random controls on verifier calls",
         ),
         _expect_true(
@@ -2651,37 +2665,47 @@ def _check_suffix_bound_cross_seed(
         ),
         _expect_true(
             "suffix_bound_cross_seed.safety",
-            int(report["safety"]["invalid_accept_count_total"]) == 0
+            _json_int_equals(report["safety"]["invalid_accept_count_total"], 0)
             and _is_true(report["safety"]["verifier_authoritative"])
             and _is_false(report["safety"]["scorer_authorizes_settlement"])
             and _is_false(report["safety"]["model_output_in_state_root"])
             and _is_true(report["safety"]["deterministic_suffix_bound_required"])
-            and int(learned["invalid_accept_count_total"]) == 0
-            and int(hybrid["invalid_accept_count_total"]) == 0,
+            and _json_int_equals(learned.get("invalid_accept_count_total"), 0)
+            and _json_int_equals(hybrid.get("invalid_accept_count_total"), 0),
             "cross-seed suffix-bound stress has zero invalid accepts and keeps verifier authority",
         ),
         _expect_true(
             "suffix_bound_cross_seed.learned_and_hybrid_hold",
-            int(learned["configs"]) == 9
-            and int(hybrid["configs"]) == 9
-            and float(learned["objective_equiv_accept_rate_min"]) == 1.0
-            and float(hybrid["objective_equiv_accept_rate_min"]) == 1.0
-            and float(learned["suffix_stop_rate_min"]) == 1.0
-            and float(hybrid["suffix_stop_rate_min"]) == 1.0
-            and float(learned["certificate_ok_rate_min"]) == 1.0
-            and float(hybrid["certificate_ok_rate_min"]) == 1.0,
+            _json_int_equals(learned.get("configs"), 9)
+            and _json_int_equals(hybrid.get("configs"), 9)
+            and _json_number_equals(
+                learned.get("objective_equiv_accept_rate_min"), 1.0
+            )
+            and _json_number_equals(
+                hybrid.get("objective_equiv_accept_rate_min"), 1.0
+            )
+            and _json_number_equals(learned.get("suffix_stop_rate_min"), 1.0)
+            and _json_number_equals(hybrid.get("suffix_stop_rate_min"), 1.0)
+            and _json_number_equals(learned.get("certificate_ok_rate_min"), 1.0)
+            and _json_number_equals(hybrid.get("certificate_ok_rate_min"), 1.0),
             "learned and hybrid keep complete objective-equivalent acceptance and suffix stops",
         ),
         _expect_true(
             "suffix_bound_cross_seed.beats_controls",
-            float(learned["mean_verifier_calls_mean"])
-            < float(hand["mean_verifier_calls_mean"])
-            and float(hybrid["mean_verifier_calls_mean"])
-            < float(hand["mean_verifier_calls_mean"])
-            and float(learned["mean_verifier_calls_mean"])
-            < float(random["mean_verifier_calls_mean"])
-            and int(random["full_fallback_count_total"]) > 0
-            and float(learned["p99_verifier_calls_max"]) <= 4.0,
+            _json_number_less_than(
+                learned.get("mean_verifier_calls_mean"),
+                hand.get("mean_verifier_calls_mean"),
+            )
+            and _json_number_less_than(
+                hybrid.get("mean_verifier_calls_mean"),
+                hand.get("mean_verifier_calls_mean"),
+            )
+            and _json_number_less_than(
+                learned.get("mean_verifier_calls_mean"),
+                random.get("mean_verifier_calls_mean"),
+            )
+            and _json_int_greater_than(random.get("full_fallback_count_total"), 0)
+            and _json_number_at_most(learned.get("p99_verifier_calls_max"), 4.0),
             "learned and hybrid beat hand and random on verifier-call stress metrics",
         ),
         _expect_true(
@@ -2709,7 +2733,7 @@ def _check_suffix_bound_adversarial(
     negative_lower = " ".join(
         str(item).lower() for item in report.get("negative_knowledge", [])
     )
-    evaluated = int(summary["evaluated_batches"])
+    evaluated = summary.get("evaluated_batches")
     return [
         _expect_true(
             "suffix_bound_adversarial.schema",
@@ -2723,7 +2747,7 @@ def _check_suffix_bound_adversarial(
         ),
         _expect_true(
             "suffix_bound_adversarial.safety",
-            int(report["safety"]["invalid_accept_count"]) == 0
+            _json_int_equals(report["safety"]["invalid_accept_count"], 0)
             and _is_true(report["safety"]["verifier_authoritative"])
             and _is_false(report["safety"]["scorer_authorizes_settlement"])
             and _is_false(report["safety"]["model_output_in_state_root"])
@@ -2732,18 +2756,28 @@ def _check_suffix_bound_adversarial(
         ),
         _expect_true(
             "suffix_bound_adversarial.disqualifier_closes",
-            evaluated == 119
-            and int(summary["adversary_invalid_count"]) == evaluated
-            and int(summary["adversary_disqualified_count"]) == evaluated
-            and int(summary["with_disqualifiers_certificate_ok_count"]) == evaluated
-            and str(summary["disqualifier_histogram"].get("invariant_violation_flag"))
-            == str(evaluated),
+            _json_int_equals(evaluated, 119)
+            and _json_int_values_equal(summary.get("adversary_invalid_count"), evaluated)
+            and _json_int_values_equal(
+                summary.get("adversary_disqualified_count"), evaluated
+            )
+            and _json_int_values_equal(
+                summary.get("with_disqualifiers_certificate_ok_count"), evaluated
+            )
+            and _json_int_values_equal(
+                summary["disqualifier_histogram"].get("invariant_violation_flag"),
+                evaluated,
+            ),
             "deterministic disqualifiers close every injected high-output suffix case",
         ),
         _expect_true(
             "suffix_bound_adversarial.declared_output_negative",
-            int(summary["without_disqualifiers_certificate_ok_count"]) == 0
-            and int(summary["declared_output_only_forced_fail_count"]) == evaluated
+            _json_int_equals(
+                summary.get("without_disqualifiers_certificate_ok_count"), 0
+            )
+            and _json_int_values_equal(
+                summary.get("declared_output_only_forced_fail_count"), evaluated
+            )
             and "declared-output suffix bounds alone fail" in negative_lower,
             "declared-output-only bounds fail on every injected adversarial suffix case",
         ),
@@ -2771,11 +2805,17 @@ def _check_suffix_bound_adversarial_families(
     negative_lower = " ".join(
         str(item).lower() for item in report.get("negative_knowledge", [])
     )
-    evaluated = int(summary["evaluated_batches"])
-    total_cases = int(summary["total_cases"])
-    required_families = set(summary["required_families"])
-    family_counts = summary["family_case_counts"]
-    histogram = summary["disqualifier_histogram"]
+    evaluated = summary.get("evaluated_batches")
+    total_cases = summary.get("total_cases")
+    required_families_source = summary.get("required_families")
+    required_families = (
+        set(required_families_source)
+        if isinstance(required_families_source, list)
+        and all(isinstance(family, str) for family in required_families_source)
+        else set()
+    )
+    family_counts = summary.get("family_case_counts")
+    histogram = summary.get("disqualifier_histogram")
     required_disqualifiers = {
         "all_zero_fill_vector_flag",
         "fill_coverage_violation_flag",
@@ -2798,7 +2838,7 @@ def _check_suffix_bound_adversarial_families(
         ),
         _expect_true(
             "suffix_bound_adversarial_families.safety",
-            int(report["safety"]["invalid_accept_count"]) == 0
+            _json_int_equals(report["safety"]["invalid_accept_count"], 0)
             and _is_true(report["safety"]["verifier_authoritative"])
             and _is_false(report["safety"]["scorer_authorizes_settlement"])
             and _is_false(report["safety"]["model_output_in_state_root"])
@@ -2807,29 +2847,50 @@ def _check_suffix_bound_adversarial_families(
         ),
         _expect_true(
             "suffix_bound_adversarial_families.family_coverage",
-            evaluated == 118
-            and int(summary["family_count"]) == 8
-            and total_cases == 944
-            and all(int(family_counts[family]) == evaluated for family in required_families)
-            and int(summary["observed_disqualifier_count"]) >= 8,
+            _json_int_equals(evaluated, 118)
+            and _json_int_equals(summary.get("family_count"), 8)
+            and _json_int_equals(total_cases, 944)
+            and len(required_families) == 8
+            and isinstance(family_counts, dict)
+            and required_families.issubset(set(family_counts))
+            and all(
+                _json_int_values_equal(family_counts[family], evaluated)
+                for family in required_families
+            )
+            and _json_int_at_least(summary.get("observed_disqualifier_count"), 8),
             "eight adversarial families are represented across all evaluated batches",
         ),
         _expect_true(
             "suffix_bound_adversarial_families.disqualifiers_close",
-            int(summary["adversary_invalid_count"]) == total_cases
-            and int(summary["adversary_disqualified_count"]) == total_cases
-            and int(summary["with_disqualifiers_certificate_ok_count"]) == total_cases
+            _json_int_values_equal(summary.get("adversary_invalid_count"), total_cases)
+            and _json_int_values_equal(
+                summary.get("adversary_disqualified_count"), total_cases
+            )
+            and _json_int_values_equal(
+                summary.get("with_disqualifiers_certificate_ok_count"), total_cases
+            )
+            and isinstance(histogram, dict)
             and required_disqualifiers.issubset(set(histogram))
-            and int(histogram["all_zero_fill_vector_flag"]) == evaluated
-            and int(histogram["fill_coverage_violation_flag"]) == evaluated
-            and int(histogram["price_objective_violation_flag"]) == evaluated
-            and int(histogram["schema_policy_mismatch_flag"]) == evaluated,
+            and _json_int_values_equal(
+                histogram["all_zero_fill_vector_flag"], evaluated
+            )
+            and _json_int_values_equal(
+                histogram["fill_coverage_violation_flag"], evaluated
+            )
+            and _json_int_values_equal(
+                histogram["price_objective_violation_flag"], evaluated
+            )
+            and _json_int_values_equal(
+                histogram["schema_policy_mismatch_flag"], evaluated
+            ),
             "deterministic disqualifiers close every multi-family adversarial suffix case",
         ),
         _expect_true(
             "suffix_bound_adversarial_families.declared_output_negative",
-            int(summary["high_declared_output_forced_fail_count"])
-            == int(summary["high_declared_output_cases"])
+            _json_int_values_equal(
+                summary.get("high_declared_output_forced_fail_count"),
+                summary.get("high_declared_output_cases"),
+            )
             and "high-declared-output suffix adversaries still force failure"
             in negative_lower,
             "declared-output-only bounds still fail on high-output family cases",
@@ -4700,6 +4761,14 @@ def _json_number_at_least(value: object, minimum: float) -> bool:
 
 def _json_number_at_most(value: object, maximum: float) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and float(value) <= maximum
+
+
+def _json_number_less_than_value(value: object, maximum: float) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and float(value) < maximum
+    )
 
 
 def _json_number_equals(value: object, expected: float) -> bool:

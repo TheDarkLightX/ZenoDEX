@@ -379,6 +379,151 @@ def test_research_evidence_replay_rejects_coerced_suffix_bound_parameters(
     assert check["passed"] is False
 
 
+def test_research_evidence_replay_rejects_coerced_suffix_bound_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_suffix_safety(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_suffix_bound_benchmark_seed20260541.json":
+            safety = payload["safety"]
+            assert isinstance(safety, dict)
+            safety["invalid_accept_count"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_suffix_safety)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "suffix_bound.safety")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_suffix_bound_stop_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_suffix_metric(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_suffix_bound_benchmark_seed20260541.json":
+            summary = payload["summary"]
+            assert isinstance(summary, dict)
+            learned = summary["learned"]
+            assert isinstance(learned, dict)
+            learned["certificate_ok_count"] = str(learned["count"])
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_suffix_metric)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "suffix_bound.learned_and_hybrid_stop_first")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_suffix_cross_seed_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_cross_seed_safety(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_suffix_bound_cross_seed_seed20260541_20260543.json":
+            summary = payload["summary"]
+            assert isinstance(summary, dict)
+            learned = summary["learned"]
+            assert isinstance(learned, dict)
+            learned["invalid_accept_count_total"] = "0"
+        return payload
+
+    monkeypatch.setattr(
+        research_mod, "_load_json", load_json_with_coerced_cross_seed_safety
+    )
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "suffix_bound_cross_seed.safety")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_suffix_adversarial_batch_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_adversarial_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_suffix_bound_adversarial_stress_seed20260544.json":
+            summary = payload["summary"]
+            assert isinstance(summary, dict)
+            summary["evaluated_batches"] = "119"
+        return payload
+
+    monkeypatch.setattr(
+        research_mod, "_load_json", load_json_with_coerced_adversarial_count
+    )
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "suffix_bound_adversarial.disqualifier_closes")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_suffix_family_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_family_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_suffix_bound_adversarial_family_stress_seed20260545.json":
+            summary = payload["summary"]
+            assert isinstance(summary, dict)
+            family_counts = summary["family_case_counts"]
+            assert isinstance(family_counts, dict)
+            family_name = sorted(family_counts)[0]
+            family_counts[family_name] = "118"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_family_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "suffix_bound_adversarial_families.family_coverage")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_empty_suffix_required_families(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_empty_required_families(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_suffix_bound_adversarial_family_stress_seed20260545.json":
+            summary = payload["summary"]
+            assert isinstance(summary, dict)
+            summary["required_families"] = []
+        return payload
+
+    monkeypatch.setattr(
+        research_mod, "_load_json", load_json_with_empty_required_families
+    )
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "suffix_bound_adversarial_families.family_coverage")
+    assert check["passed"] is False
+
+
 def test_research_evidence_replay_rejects_coerced_formal_command_exit_code(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
