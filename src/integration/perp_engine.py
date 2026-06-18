@@ -1449,6 +1449,17 @@ class _PerpSignaturePrecheck:
     nonce_expected_ok: bool
 
 
+@dataclass(frozen=True)
+class _PerpSignatureVerificationRequest:
+    config: PerpEngineConfig
+    signer_pubkey: str
+    nonce: int
+    signature: str
+    op: Mapping[str, Any]
+    nonces: NonceTable
+    block_timestamp: int
+
+
 def _perp_op_signing_dict(op: Mapping[str, Any], *, signer_pubkey: str, nonce: int) -> Dict[str, Any]:
     """Build the canonical dict that is signed for per-op authorization.
 
@@ -1486,30 +1497,27 @@ def _perp_submission_auth_error(precheck: _PerpSignaturePrecheck, *, signature_o
 
 
 def _precheck_perp_signature(
-    *,
-    signer_pubkey: str,
-    nonce: int,
-    op: Mapping[str, Any],
-    nonces: NonceTable,
-    block_timestamp: int,
+    request: _PerpSignatureVerificationRequest,
 ) -> tuple[Optional[str], Optional[_PerpSignaturePrecheck]]:
     try:
-        signer_nonce_key = canonical_hex_fixed_allow_0x(signer_pubkey, nbytes=48, name="signer_pubkey")
+        signer_nonce_key = canonical_hex_fixed_allow_0x(request.signer_pubkey, nbytes=48, name="signer_pubkey")
     except (TypeError, ValueError) as exc:
         return str(exc), None
 
     try:
-        deadline = _require_int(op.get("deadline"), name="deadline", non_negative=True)
+        deadline = _require_int(request.op.get("deadline"), name="deadline", non_negative=True)
     except ValueError as exc:
         return _safe_error_str(exc), None
 
-    nonce_domain_ok = isinstance(nonce, int) and not isinstance(nonce, bool) and 0 < int(nonce) <= _U32_MAX
-    expected = int(nonces.get_last(signer_nonce_key)) + 1
+    nonce_domain_ok = (
+        isinstance(request.nonce, int) and not isinstance(request.nonce, bool) and 0 < int(request.nonce) <= _U32_MAX
+    )
+    expected = int(request.nonces.get_last(signer_nonce_key)) + 1
     precheck = _PerpSignaturePrecheck(
         signer_nonce_key=signer_nonce_key,
-        deadline_ok=int(block_timestamp) <= int(deadline),
+        deadline_ok=int(request.block_timestamp) <= int(deadline),
         nonce_domain_ok=nonce_domain_ok,
-        nonce_expected_ok=bool(nonce_domain_ok and int(nonce) == expected),
+        nonce_expected_ok=bool(nonce_domain_ok and int(request.nonce) == expected),
     )
     auth_error = _perp_submission_auth_error(precheck, signature_ok=True)
     if auth_error is not None:
@@ -1527,36 +1535,24 @@ def _perp_signature_bytes(*, signer_pubkey: str, signature: str) -> tuple[Option
 
 
 def _verify_perp_bls_signature(
+    request: _PerpSignatureVerificationRequest,
     *,
-    config: PerpEngineConfig,
-    signer_pubkey: str,
-    nonce: int,
-    op: Mapping[str, Any],
     pubkey_bytes: bytes,
     sig_bytes: bytes,
 ) -> tuple[Optional[str], bool]:
     try:
         msg_hash = hash_perp_op_auth_message_v1(
-            op,
-            chain_id=config.chain_id,
-            signer_pubkey=signer_pubkey,
-            nonce=int(nonce),
+            request.op,
+            chain_id=request.config.chain_id,
+            signer_pubkey=request.signer_pubkey,
+            nonce=int(request.nonce),
         )
         return None, bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))
     except Exception as exc:
         return f"signature verification error: {_safe_error_str(exc)}", False
 
 
-def _verify_perp_op_signature(
-    *,
-    config: PerpEngineConfig,
-    signer_pubkey: str,
-    nonce: int,
-    signature: str,
-    op: Mapping[str, Any],
-    nonces: NonceTable,
-    block_timestamp: int,
-) -> Optional[str]:
+def _verify_perp_op_signature(request: _PerpSignatureVerificationRequest) -> Optional[str]:
     """Verify and consume a per-op signature (fail-closed).
 
     Verification steps (in order):
@@ -1571,29 +1567,23 @@ def _verify_perp_op_signature(
     if not _BLS_AVAILABLE:
         return "BLS verification not available (install py-ecc)"
 
-    err, precheck = _precheck_perp_signature(
-        signer_pubkey=signer_pubkey,
-        nonce=nonce,
-        op=op,
-        nonces=nonces,
-        block_timestamp=block_timestamp,
-    )
+    err, precheck = _precheck_perp_signature(request)
     if err is not None:
         return err
     if precheck is None:
         return "signed auth rejected"
 
-    err, pubkey_bytes, sig_bytes = _perp_signature_bytes(signer_pubkey=signer_pubkey, signature=signature)
+    err, pubkey_bytes, sig_bytes = _perp_signature_bytes(
+        signer_pubkey=request.signer_pubkey,
+        signature=request.signature,
+    )
     if err is not None:
         return err
     if pubkey_bytes is None or sig_bytes is None:
         return "invalid signature"
 
     err, signature_ok = _verify_perp_bls_signature(
-        config=config,
-        signer_pubkey=signer_pubkey,
-        nonce=nonce,
-        op=op,
+        request,
         pubkey_bytes=pubkey_bytes,
         sig_bytes=sig_bytes,
     )
@@ -1604,7 +1594,7 @@ def _verify_perp_op_signature(
         return auth_error
 
     # Commit nonce consumption after signature verification.
-    nonces.set_last(precheck.signer_nonce_key, int(nonce))
+    request.nonces.set_last(precheck.signer_nonce_key, int(request.nonce))
     return None
 
 
@@ -1963,13 +1953,15 @@ def _read_clearinghouse_signed_price(
         return surface_err, None
 
     sig_err = _verify_perp_op_signature(
-        config=ctx.config,
-        signer_pubkey=oracle_pubkey,
-        nonce=oracle_nonce,
-        signature=oracle_sig,
-        op=data,
-        nonces=ctx.nonces,
-        block_timestamp=ctx.block_timestamp,
+        _PerpSignatureVerificationRequest(
+            config=ctx.config,
+            signer_pubkey=oracle_pubkey,
+            nonce=oracle_nonce,
+            signature=oracle_sig,
+            op=data,
+            nonces=ctx.nonces,
+            block_timestamp=ctx.block_timestamp,
+        )
     )
     if sig_err is not None:
         return f"oracle signature invalid: {sig_err}", None
@@ -2404,13 +2396,15 @@ def _verify_ch2p_position_signatures(
     )
     for label, signer_pubkey, nonce, signature in signers:
         sig_err = _verify_perp_op_signature(
-            config=ctx.config,
-            signer_pubkey=signer_pubkey,
-            nonce=nonce,
-            signature=signature,
-            op=data,
-            nonces=ctx.nonces,
-            block_timestamp=ctx.block_timestamp,
+            _PerpSignatureVerificationRequest(
+                config=ctx.config,
+                signer_pubkey=signer_pubkey,
+                nonce=nonce,
+                signature=signature,
+                op=data,
+                nonces=ctx.nonces,
+                block_timestamp=ctx.block_timestamp,
+            )
         )
         if sig_err is not None:
             return f"{label} signature invalid: {sig_err}"
@@ -2602,13 +2596,15 @@ def _verify_ch3p_position_signatures(
     )
     for label, signer_pubkey, nonce, signature in signers:
         sig_err = _verify_perp_op_signature(
-            config=ctx.config,
-            signer_pubkey=signer_pubkey,
-            nonce=nonce,
-            signature=signature,
-            op=data,
-            nonces=ctx.nonces,
-            block_timestamp=ctx.block_timestamp,
+            _PerpSignatureVerificationRequest(
+                config=ctx.config,
+                signer_pubkey=signer_pubkey,
+                nonce=nonce,
+                signature=signature,
+                op=data,
+                nonces=ctx.nonces,
+                block_timestamp=ctx.block_timestamp,
+            )
         )
         if sig_err is not None:
             return f"{label} signature invalid: {sig_err}"
@@ -4262,13 +4258,15 @@ def _apply_chnp_publish_clearing_price(
     if price_e8 <= 0:
         return "publish_clearing_price requires price_e8 > 0"
     sig_err = _verify_perp_op_signature(
-        config=ctx.config,
-        signer_pubkey=oracle_pubkey,
-        nonce=oracle_nonce,
-        signature=oracle_sig,
-        op=data,
-        nonces=ctx.nonces,
-        block_timestamp=ctx.block_timestamp,
+        _PerpSignatureVerificationRequest(
+            config=ctx.config,
+            signer_pubkey=oracle_pubkey,
+            nonce=oracle_nonce,
+            signature=oracle_sig,
+            op=data,
+            nonces=ctx.nonces,
+            block_timestamp=ctx.block_timestamp,
+        )
     )
     if sig_err is not None:
         return f"oracle signature invalid: {sig_err}"
