@@ -7,7 +7,6 @@ import pytest
 from tools import check_zenoenergy_research_evidence as research_mod
 from tools.check_zenoenergy_research_evidence import replay_zenoenergy_evidence
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -270,6 +269,76 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     }.issubset(check_ids)
 
 
+def test_research_evidence_rejects_coerced_coverage_profile_thresholds() -> None:
+    report = _coverage_profile_receipt()
+    thresholds = report["thresholds"]
+    assert isinstance(thresholds, dict)
+    upba = thresholds["upba"]
+    assert isinstance(upba, dict)
+    upba["min_pool_count"] = "3"
+
+    checks = research_mod._check_replay_coverage_profile(
+        report,
+        doc_text=(
+            "zenodex/energy/replay_coverage_profile/v1 "
+            "zenodex/energy/replay_coverage_profile_check/v1"
+        ),
+        source_text=(
+            "MIN_UPBA_POOL_COUNT MIN_UPBA_HARD_NEGATIVE_FAMILY_COUNT "
+            "MIN_AUTOTRADER_GUARD_FAMILY_COUNT source_report_count_match "
+            "coverage_profile_summary"
+        ),
+        test_text=(
+            "test_upba_coverage_profile_rejects_thin_hard_negatives "
+            "test_autotrader_coverage_profile_rejects_source_mismatch"
+        ),
+        production_gate_source=(
+            "_coverage_profile_check_ok coverage_profile_ok replay coverage profile check"
+        ),
+    )
+
+    by_id = {check.check_id: check for check in checks}
+    assert by_id["replay_coverage_profile.schemas_thresholds_and_artifacts"].passed is False
+
+
+def _coverage_profile_receipt() -> dict[str, object]:
+    return {
+        "schema": "zenodex/energy/replay_coverage_profile_receipt/v1",
+        "profile_schema": "zenodex/energy/replay_coverage_profile/v1",
+        "profile_check_schema": "zenodex/energy/replay_coverage_profile_check/v1",
+        "artifacts": [
+            "tools/check_zenoenergy_replay_coverage_profile.py",
+            "tests/energy/test_zenoenergy_replay_coverage_profile.py",
+            "docs/ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md",
+        ],
+        "integrations": [
+            "tools/build_zenoenergy_real_replay_report.py",
+            "tools/check_zenoenergy_production_promotion.py",
+            "tools/build_zenoenergy_production_evidence_bundle.py",
+        ],
+        "thresholds": {
+            "upba": {
+                "min_pool_count": 3,
+                "min_hard_negative_family_count": 4,
+            },
+            "autotrader": {
+                "min_guard_family_count": 4,
+            },
+        },
+        "safety": {
+            "verifier_authoritative": True,
+            "policy_guards_authoritative": True,
+            "scorer_authorizes_settlement_or_trade": False,
+            "coverage_profile_authorizes_production": False,
+        },
+        "limits": ["representative traffic is an external assumption"],
+        "negative_knowledge": [
+            "Aggregate batch counts are insufficient.",
+            "This is not a production authorization path.",
+        ],
+    }
+
+
 def test_research_evidence_replay_rejects_truthy_string_receipt_ok(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -282,6 +351,26 @@ def test_research_evidence_replay_rejects_truthy_string_receipt_ok(
         return payload
 
     monkeypatch.setattr(research_mod, "_load_json", load_json_with_truthy_ok)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "suffix_bound_cross_seed.schema")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_suffix_bound_parameters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_parameter(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_suffix_bound_cross_seed_seed20260541_20260543.json":
+            payload["batches_per_config"] = "60"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_parameter)
 
     report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
 

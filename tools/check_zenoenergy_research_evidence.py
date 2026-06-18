@@ -1689,9 +1689,9 @@ def _check_replay_coverage_profile(
             == "zenodex/energy/replay_coverage_profile/v1"
             and report.get("profile_check_schema")
             == "zenodex/energy/replay_coverage_profile_check/v1"
-            and int(upba_thresholds.get("min_pool_count", 0)) >= 3
-            and int(upba_thresholds.get("min_hard_negative_family_count", 0)) >= 4
-            and int(autotrader_thresholds.get("min_guard_family_count", 0)) >= 4
+            and _json_int_at_least(upba_thresholds.get("min_pool_count"), 3)
+            and _json_int_at_least(upba_thresholds.get("min_hard_negative_family_count"), 4)
+            and _json_int_at_least(autotrader_thresholds.get("min_guard_family_count"), 4)
             and {
                 "tools/check_zenoenergy_replay_coverage_profile.py",
                 "tests/energy/test_zenoenergy_replay_coverage_profile.py",
@@ -2410,9 +2410,9 @@ def _check_suffix_bound_cross_seed(
             "suffix_bound_cross_seed.schema",
             report.get("schema") == "zenodex/energy/upba_v2_suffix_bound_cross_seed/v1"
             and _is_true(report.get("ok"))
-            and int(report.get("batches_per_config")) == 60
-            and list(report.get("seeds")) == [20260541, 20260542, 20260543]
-            and list(report.get("candidate_counts")) == [20, 32, 50],
+            and _json_int_equals(report.get("batches_per_config"), 60)
+            and _list_equals(report.get("seeds"), [20260541, 20260542, 20260543])
+            and _list_equals(report.get("candidate_counts"), [20, 32, 50]),
             "suffix-bound cross-seed stress schema and parameter grid are stable",
         ),
         _expect_true(
@@ -2482,9 +2482,9 @@ def _check_suffix_bound_adversarial(
             report.get("schema")
             == "zenodex/energy/upba_v2_suffix_bound_adversarial_stress/v1"
             and _is_true(report.get("ok"))
-            and int(report.get("batches")) == 120
-            and int(report.get("candidates_per_batch")) == 24
-            and int(report.get("seed")) == 20260544,
+            and _json_int_equals(report.get("batches"), 120)
+            and _json_int_equals(report.get("candidates_per_batch"), 24)
+            and _json_int_equals(report.get("seed"), 20260544),
             "suffix-bound adversarial stress schema and parameters are stable",
         ),
         _expect_true(
@@ -2557,9 +2557,9 @@ def _check_suffix_bound_adversarial_families(
             report.get("schema")
             == "zenodex/energy/upba_v2_suffix_bound_adversarial_family_stress/v1"
             and _is_true(report.get("ok"))
-            and int(report.get("batches")) == 120
-            and int(report.get("candidates_per_batch")) == 24
-            and int(report.get("seed")) == 20260545,
+            and _json_int_equals(report.get("batches"), 120)
+            and _json_int_equals(report.get("candidates_per_batch"), 24)
+            and _json_int_equals(report.get("seed"), 20260545),
             "suffix-bound adversarial family stress schema and parameters are stable",
         ),
         _expect_true(
@@ -4394,6 +4394,18 @@ def _is_true(value: object) -> bool:
 
 def _is_false(value: object) -> bool:
     return value is False
+
+
+def _json_int_at_least(value: object, minimum: int) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
+
+
+def _json_int_equals(value: object, expected: int) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value == expected
+
+
+def _list_equals(value: object, expected: list[object]) -> bool:
+    return isinstance(value, list) and value == expected
 
 
 def _expect_true(check_id: str, condition: bool, detail: str) -> EvidenceCheck:
