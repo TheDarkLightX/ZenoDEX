@@ -2049,6 +2049,252 @@ def _apply_ch3p_collateral(
     )
 
 
+def _apply_ch2p_set_position_pair(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch2p_market: PerpClearinghouse2pMarketState
+) -> str | None:
+    action = op.action
+    data = op.data
+    version_ok = op.version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+    if not version_ok:
+        surface_err = _evaluate_signed_surface(
+            action_kind=ACTION_SET_POSITION_PAIR,
+            action=action,
+            version_ok=False,
+            unknown_fields_ok=True,
+        )
+        return surface_err or "set_position_pair requires perps.version=0.2 or 1.0"
+
+    nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
+    sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
+    nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
+    sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
+
+    allowed = {
+        "module",
+        "version",
+        "market_id",
+        "action",
+        "account_a_pubkey",
+        "account_b_pubkey",
+        "new_position_base_a",
+        "new_position_base_b",
+        "deadline",
+        "nonce_a",
+        "sig_a",
+        "nonce_b",
+        "sig_b",
+    }
+    unknown_fields_ok = not (set(data.keys()) - allowed)
+    if not unknown_fields_ok:
+        surface_err = _evaluate_signed_surface(
+            action_kind=ACTION_SET_POSITION_PAIR,
+            action=action,
+            version_ok=version_ok,
+            unknown_fields_ok=False,
+        )
+        return surface_err or "set_position_pair has unknown fields"
+
+    account_a_pubkey = _require_str(data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512)
+    account_b_pubkey = _require_str(data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512)
+    try:
+        a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
+        b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
+        ma_b = _hex_to_bytes_allow_0x(ch2p_market.account_a_pubkey, name="market.account_a_pubkey", expected_nbytes=48)
+        mb_b = _hex_to_bytes_allow_0x(ch2p_market.account_b_pubkey, name="market.account_b_pubkey", expected_nbytes=48)
+    except (TypeError, ValueError) as exc:
+        return str(exc)
+    market_accounts_match_ok = bool(a_b == ma_b and b_b == mb_b)
+
+    new_a = _require_int(data.get("new_position_base_a"), name="new_position_base_a", non_negative=False)
+    new_b = _require_int(data.get("new_position_base_b"), name="new_position_base_b", non_negative=False)
+    surface_err = _evaluate_signed_surface(
+        action_kind=ACTION_SET_POSITION_PAIR,
+        action=action,
+        version_ok=version_ok,
+        unknown_fields_ok=unknown_fields_ok,
+        market_accounts_match_ok=market_accounts_match_ok,
+        net_zero_ok=new_b == -new_a,
+    )
+    if surface_err is not None:
+        return surface_err
+
+    sig_err_a = _verify_perp_op_signature(
+        config=ctx.config,
+        signer_pubkey=account_a_pubkey,
+        nonce=nonce_a,
+        signature=sig_a,
+        op=data,
+        nonces=ctx.nonces,
+        block_timestamp=ctx.block_timestamp,
+    )
+    if sig_err_a is not None:
+        return f"account_a signature invalid: {sig_err_a}"
+
+    sig_err_b = _verify_perp_op_signature(
+        config=ctx.config,
+        signer_pubkey=account_b_pubkey,
+        nonce=nonce_b,
+        signature=sig_b,
+        op=data,
+        nonces=ctx.nonces,
+        block_timestamp=ctx.block_timestamp,
+    )
+    if sig_err_b is not None:
+        return f"account_b signature invalid: {sig_err_b}"
+
+    return _commit_clearinghouse_kernel_step(
+        ctx,
+        _ClearinghouseKernelCommit(
+            i,
+            op,
+            ch2p_market,
+            _ch2p_step,
+            _ch2p_market_with_state,
+            "set_position_pair",
+            {"new_position_base_a": new_a, "auth_ok": True},
+        ),
+    )
+
+
+def _apply_ch3p_set_position_triplet(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch3p_market: PerpClearinghouse3pTransferMarketState
+) -> str | None:
+    action = op.action
+    data = op.data
+    version_ok = op.version == PERP_OP_VERSION_CH3P_V1_1
+    if not version_ok:
+        surface_err = _evaluate_signed_surface(
+            action_kind=ACTION_SET_POSITION_TRIPLET,
+            action=action,
+            version_ok=False,
+            unknown_fields_ok=True,
+        )
+        return surface_err or "set_position_triplet requires perps.version=1.1"
+
+    nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
+    sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
+    nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
+    sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
+    nonce_c = _require_int_u32_pos(data.get("nonce_c"), name="nonce_c")
+    sig_c = _require_str(data.get("sig_c"), name="sig_c", non_empty=True, max_len=4096)
+
+    allowed = {
+        "module",
+        "version",
+        "market_id",
+        "action",
+        "account_a_pubkey",
+        "account_b_pubkey",
+        "account_c_pubkey",
+        "new_position_base_a",
+        "new_position_base_b",
+        "new_position_base_c",
+        "deadline",
+        "nonce_a",
+        "sig_a",
+        "nonce_b",
+        "sig_b",
+        "nonce_c",
+        "sig_c",
+    }
+    unknown_fields_ok = not (set(data.keys()) - allowed)
+    if not unknown_fields_ok:
+        surface_err = _evaluate_signed_surface(
+            action_kind=ACTION_SET_POSITION_TRIPLET,
+            action=action,
+            version_ok=version_ok,
+            unknown_fields_ok=False,
+        )
+        return surface_err or "set_position_triplet has unknown fields"
+
+    account_a_pubkey = _require_str(data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512)
+    account_b_pubkey = _require_str(data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512)
+    account_c_pubkey = _require_str(data.get("account_c_pubkey"), name="account_c_pubkey", non_empty=True, max_len=512)
+    try:
+        a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
+        b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
+        c_b = _hex_to_bytes_allow_0x(account_c_pubkey, name="account_c_pubkey", expected_nbytes=48)
+        ma_b = _hex_to_bytes_allow_0x(ch3p_market.account_a_pubkey, name="market.account_a_pubkey", expected_nbytes=48)
+        mb_b = _hex_to_bytes_allow_0x(ch3p_market.account_b_pubkey, name="market.account_b_pubkey", expected_nbytes=48)
+        mc_b = _hex_to_bytes_allow_0x(ch3p_market.account_c_pubkey, name="market.account_c_pubkey", expected_nbytes=48)
+    except (TypeError, ValueError) as exc:
+        return str(exc)
+    market_accounts_match_ok = bool(a_b == ma_b and b_b == mb_b and c_b == mc_b)
+
+    new_a = _require_int(data.get("new_position_base_a"), name="new_position_base_a", non_negative=False)
+    new_b = _require_int(data.get("new_position_base_b"), name="new_position_base_b", non_negative=False)
+    new_c = _require_int(data.get("new_position_base_c"), name="new_position_base_c", non_negative=False)
+    surface_err = _evaluate_signed_surface(
+        action_kind=ACTION_SET_POSITION_TRIPLET,
+        action=action,
+        version_ok=version_ok,
+        unknown_fields_ok=unknown_fields_ok,
+        market_accounts_match_ok=market_accounts_match_ok,
+        net_zero_ok=(new_a + new_b + new_c == 0),
+        idle_leg_ok=(new_a == 0 or new_b == 0 or new_c == 0),
+    )
+    if surface_err is not None:
+        return surface_err
+
+    sig_err_a = _verify_perp_op_signature(
+        config=ctx.config,
+        signer_pubkey=account_a_pubkey,
+        nonce=nonce_a,
+        signature=sig_a,
+        op=data,
+        nonces=ctx.nonces,
+        block_timestamp=ctx.block_timestamp,
+    )
+    if sig_err_a is not None:
+        return f"account_a signature invalid: {sig_err_a}"
+
+    sig_err_b = _verify_perp_op_signature(
+        config=ctx.config,
+        signer_pubkey=account_b_pubkey,
+        nonce=nonce_b,
+        signature=sig_b,
+        op=data,
+        nonces=ctx.nonces,
+        block_timestamp=ctx.block_timestamp,
+    )
+    if sig_err_b is not None:
+        return f"account_b signature invalid: {sig_err_b}"
+
+    sig_err_c = _verify_perp_op_signature(
+        config=ctx.config,
+        signer_pubkey=account_c_pubkey,
+        nonce=nonce_c,
+        signature=sig_c,
+        op=data,
+        nonces=ctx.nonces,
+        block_timestamp=ctx.block_timestamp,
+    )
+    if sig_err_c is not None:
+        return f"account_c signature invalid: {sig_err_c}"
+
+    # Determine which pair is active: the idle account must remain flat.
+    if new_c == 0:
+        if new_b != -new_a:
+            return "clearinghouse_3p AB pair requires new_b == -new_a"
+        tag = "set_position_pair_ab"
+        args = {"new_position_base_a": new_a, "auth_ok": True}
+    elif new_b == 0:
+        if new_c != -new_a:
+            return "clearinghouse_3p AC pair requires new_c == -new_a"
+        tag = "set_position_pair_ac"
+        args = {"new_position_base_a": new_a, "auth_ok": True}
+    else:
+        if new_c != -new_b:
+            return "clearinghouse_3p BC pair requires new_c == -new_b"
+        tag = "set_position_pair_bc"
+        args = {"new_position_base_b": new_b, "auth_ok": True}
+
+    return _commit_clearinghouse_kernel_step(
+        ctx,
+        _ClearinghouseKernelCommit(i, op, ch3p_market, _ch3p_step, _ch3p_market_with_state, tag, args),
+    )
+
+
 def _apply_ch2p_op(
     ctx: _PerpApplyCtx,
     *,
@@ -2056,16 +2302,7 @@ def _apply_ch2p_op(
     op: PerpOp,
     ch2p_market: PerpClearinghouse2pMarketState,
 ) -> str | None:
-    config = ctx.config
-    balances = ctx.balances
-    nonces = ctx.nonces
-    tx_sender_pubkey = ctx.tx_sender_pubkey
-    block_timestamp = ctx.block_timestamp
-
     action = op.action
-    market_id = op.market_id
-    version = op.version
-    data = op.data
 
     if action == "advance_epoch":
         return _apply_ch2p_advance_epoch(ctx, i=i, op=op, ch2p_market=ch2p_market)
@@ -2086,110 +2323,7 @@ def _apply_ch2p_op(
         return _apply_ch2p_collateral(ctx, i=i, op=op, ch2p_market=ch2p_market)
 
     if action == "set_position_pair":
-        version_ok = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
-        if not version_ok:
-            surface_err = _evaluate_signed_surface(
-                action_kind=ACTION_SET_POSITION_PAIR,
-                action=action,
-                version_ok=False,
-                unknown_fields_ok=True,
-            )
-            return surface_err or "set_position_pair requires perps.version=0.2 or 1.0"
-
-        nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
-        sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
-        nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
-        sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
-
-        allowed = {
-            "module",
-            "version",
-            "market_id",
-            "action",
-            "account_a_pubkey",
-            "account_b_pubkey",
-            "new_position_base_a",
-            "new_position_base_b",
-            "deadline",
-            "nonce_a",
-            "sig_a",
-            "nonce_b",
-            "sig_b",
-        }
-        unknown_fields_ok = not (set(data.keys()) - allowed)
-        if not unknown_fields_ok:
-            surface_err = _evaluate_signed_surface(
-                action_kind=ACTION_SET_POSITION_PAIR,
-                action=action,
-                version_ok=version_ok,
-                unknown_fields_ok=False,
-            )
-            return surface_err or "set_position_pair has unknown fields"
-
-        account_a_pubkey = _require_str(
-            data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512
-        )
-        account_b_pubkey = _require_str(
-            data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512
-        )
-        try:
-            a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
-            b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
-            ma_b = _hex_to_bytes_allow_0x(ch2p_market.account_a_pubkey, name="market.account_a_pubkey", expected_nbytes=48)
-            mb_b = _hex_to_bytes_allow_0x(ch2p_market.account_b_pubkey, name="market.account_b_pubkey", expected_nbytes=48)
-        except (TypeError, ValueError) as exc:
-            return str(exc)
-        market_accounts_match_ok = bool(a_b == ma_b and b_b == mb_b)
-
-        new_a = _require_int(data.get("new_position_base_a"), name="new_position_base_a", non_negative=False)
-        new_b = _require_int(data.get("new_position_base_b"), name="new_position_base_b", non_negative=False)
-        surface_err = _evaluate_signed_surface(
-            action_kind=ACTION_SET_POSITION_PAIR,
-            action=action,
-            version_ok=version_ok,
-            unknown_fields_ok=unknown_fields_ok,
-            market_accounts_match_ok=market_accounts_match_ok,
-            net_zero_ok=new_b == -new_a,
-        )
-        if surface_err is not None:
-            return surface_err
-
-        sig_err_a = _verify_perp_op_signature(
-            config=config,
-            signer_pubkey=account_a_pubkey,
-            nonce=nonce_a,
-            signature=sig_a,
-            op=data,
-            nonces=nonces,
-            block_timestamp=block_timestamp,
-        )
-        if sig_err_a is not None:
-            return f"account_a signature invalid: {sig_err_a}"
-
-        sig_err_b = _verify_perp_op_signature(
-            config=config,
-            signer_pubkey=account_b_pubkey,
-            nonce=nonce_b,
-            signature=sig_b,
-            op=data,
-            nonces=nonces,
-            block_timestamp=block_timestamp,
-        )
-        if sig_err_b is not None:
-            return f"account_b signature invalid: {sig_err_b}"
-
-        try:
-            next_state, eff = _ch2p_step(
-                ch2p_market.state,
-                tag="set_position_pair",
-                args={"new_position_base_a": new_a, "auth_ok": True},
-            )
-        except ValueError as exc:
-            return str(exc)
-
-        ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
-        ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
-        return None
+        return _apply_ch2p_set_position_pair(ctx, i=i, op=op, ch2p_market=ch2p_market)
 
     return f"unknown perps action: {action}"
 
@@ -2201,16 +2335,7 @@ def _apply_ch3p_op(
     op: PerpOp,
     ch3p_market: PerpClearinghouse3pTransferMarketState,
 ) -> str | None:
-    config = ctx.config
-    balances = ctx.balances
-    nonces = ctx.nonces
-    tx_sender_pubkey = ctx.tx_sender_pubkey
-    block_timestamp = ctx.block_timestamp
-
     action = op.action
-    market_id = op.market_id
-    version = op.version
-    data = op.data
 
     if action == "advance_epoch":
         return _apply_ch3p_advance_epoch(ctx, i=i, op=op, ch3p_market=ch3p_market)
@@ -2231,148 +2356,7 @@ def _apply_ch3p_op(
         return _apply_ch3p_collateral(ctx, i=i, op=op, ch3p_market=ch3p_market)
 
     if action == "set_position_triplet":
-        version_ok = version == PERP_OP_VERSION_CH3P_V1_1
-        if not version_ok:
-            surface_err = _evaluate_signed_surface(
-                action_kind=ACTION_SET_POSITION_TRIPLET,
-                action=action,
-                version_ok=False,
-                unknown_fields_ok=True,
-            )
-            return surface_err or "set_position_triplet requires perps.version=1.1"
-
-        nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
-        sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
-        nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
-        sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
-        nonce_c = _require_int_u32_pos(data.get("nonce_c"), name="nonce_c")
-        sig_c = _require_str(data.get("sig_c"), name="sig_c", non_empty=True, max_len=4096)
-
-        allowed = {
-            "module",
-            "version",
-            "market_id",
-            "action",
-            "account_a_pubkey",
-            "account_b_pubkey",
-            "account_c_pubkey",
-            "new_position_base_a",
-            "new_position_base_b",
-            "new_position_base_c",
-            "deadline",
-            "nonce_a",
-            "sig_a",
-            "nonce_b",
-            "sig_b",
-            "nonce_c",
-            "sig_c",
-        }
-        unknown_fields_ok = not (set(data.keys()) - allowed)
-        if not unknown_fields_ok:
-            surface_err = _evaluate_signed_surface(
-                action_kind=ACTION_SET_POSITION_TRIPLET,
-                action=action,
-                version_ok=version_ok,
-                unknown_fields_ok=False,
-            )
-            return surface_err or "set_position_triplet has unknown fields"
-
-        account_a_pubkey = _require_str(
-            data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512
-        )
-        account_b_pubkey = _require_str(
-            data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512
-        )
-        account_c_pubkey = _require_str(
-            data.get("account_c_pubkey"), name="account_c_pubkey", non_empty=True, max_len=512
-        )
-        try:
-            a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
-            b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
-            c_b = _hex_to_bytes_allow_0x(account_c_pubkey, name="account_c_pubkey", expected_nbytes=48)
-            ma_b = _hex_to_bytes_allow_0x(ch3p_market.account_a_pubkey, name="market.account_a_pubkey", expected_nbytes=48)
-            mb_b = _hex_to_bytes_allow_0x(ch3p_market.account_b_pubkey, name="market.account_b_pubkey", expected_nbytes=48)
-            mc_b = _hex_to_bytes_allow_0x(ch3p_market.account_c_pubkey, name="market.account_c_pubkey", expected_nbytes=48)
-        except (TypeError, ValueError) as exc:
-            return str(exc)
-        market_accounts_match_ok = bool(a_b == ma_b and b_b == mb_b and c_b == mc_b)
-
-        new_a = _require_int(data.get("new_position_base_a"), name="new_position_base_a", non_negative=False)
-        new_b = _require_int(data.get("new_position_base_b"), name="new_position_base_b", non_negative=False)
-        new_c = _require_int(data.get("new_position_base_c"), name="new_position_base_c", non_negative=False)
-        surface_err = _evaluate_signed_surface(
-            action_kind=ACTION_SET_POSITION_TRIPLET,
-            action=action,
-            version_ok=version_ok,
-            unknown_fields_ok=unknown_fields_ok,
-            market_accounts_match_ok=market_accounts_match_ok,
-            net_zero_ok=(new_a + new_b + new_c == 0),
-            idle_leg_ok=(new_a == 0 or new_b == 0 or new_c == 0),
-        )
-        if surface_err is not None:
-            return surface_err
-
-        sig_err_a = _verify_perp_op_signature(
-            config=config,
-            signer_pubkey=account_a_pubkey,
-            nonce=nonce_a,
-            signature=sig_a,
-            op=data,
-            nonces=nonces,
-            block_timestamp=block_timestamp,
-        )
-        if sig_err_a is not None:
-            return f"account_a signature invalid: {sig_err_a}"
-
-        sig_err_b = _verify_perp_op_signature(
-            config=config,
-            signer_pubkey=account_b_pubkey,
-            nonce=nonce_b,
-            signature=sig_b,
-            op=data,
-            nonces=nonces,
-            block_timestamp=block_timestamp,
-        )
-        if sig_err_b is not None:
-            return f"account_b signature invalid: {sig_err_b}"
-
-        sig_err_c = _verify_perp_op_signature(
-            config=config,
-            signer_pubkey=account_c_pubkey,
-            nonce=nonce_c,
-            signature=sig_c,
-            op=data,
-            nonces=nonces,
-            block_timestamp=block_timestamp,
-        )
-        if sig_err_c is not None:
-            return f"account_c signature invalid: {sig_err_c}"
-
-        # Determine which pair is active: the idle account must remain flat.
-        if new_c == 0:
-            if new_b != -new_a:
-                return "clearinghouse_3p AB pair requires new_b == -new_a"
-            tag = "set_position_pair_ab"
-            args = {"new_position_base_a": new_a, "auth_ok": True}
-        elif new_b == 0:
-            if new_c != -new_a:
-                return "clearinghouse_3p AC pair requires new_c == -new_a"
-            tag = "set_position_pair_ac"
-            args = {"new_position_base_a": new_a, "auth_ok": True}
-        else:
-            if new_c != -new_b:
-                return "clearinghouse_3p BC pair requires new_c == -new_b"
-            tag = "set_position_pair_bc"
-            args = {"new_position_base_b": new_b, "auth_ok": True}
-
-        try:
-            next_state, eff = _ch3p_step(ch3p_market.state, tag=tag, args=args)
-        except ValueError as exc:
-            return str(exc)
-
-        ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
-        ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
-        return None
+        return _apply_ch3p_set_position_triplet(ctx, i=i, op=op, ch3p_market=ch3p_market)
 
     return f"unknown perps action: {action}"
 
