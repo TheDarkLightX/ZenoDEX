@@ -7,6 +7,7 @@ import pytest
 from src.core.uniform_batch_clearing import (
     UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2,
     UNIFORM_BATCH_CERTIFICATE_SCHEMA_V3,
+    UNIFORM_BATCH_MAX_FILLS,
     UNIFORM_BATCH_POLICY_V2_ID,
     UNIFORM_BATCH_POLICY_V3_ID,
     UniformBatchCertificateV1,
@@ -861,6 +862,45 @@ def test_uniform_batch_v2_bounded_grid_rejects_table_root_mismatch() -> None:
     assert result.error == "v2 bounded-grid table_root mismatch"
 
 
+def test_uniform_batch_v2_bounded_grid_counts_reduced_candidate_domain() -> None:
+    fill_vectors = (_v2_fill_vector(40), _v2_fill_vector(100))
+    reduced_pair_count = sum(
+        1
+        for price_num in range(1, 14)
+        for price_den in range(1, 14)
+        if gcd(price_num, price_den) == 1
+    )
+    assert 13 * 13 * len(fill_vectors) > UNIFORM_BATCH_MAX_FILLS
+    assert reduced_pair_count * len(fill_vectors) <= UNIFORM_BATCH_MAX_FILLS
+
+    scored_candidates = build_uniform_batch_v2_bounded_grid_audit_candidates_v1(
+        intents=_exact_in_intents(),
+        pool=_pool(),
+        balances=_balances(),
+        max_price_num=13,
+        max_price_den=13,
+        fill_vectors=fill_vectors,
+    )
+
+    assert scored_candidates
+    assert all(
+        gcd(candidate.certificate.price_num, candidate.certificate.price_den) == 1
+        for candidate in scored_candidates
+    )
+
+
+def test_uniform_batch_v2_bounded_grid_rejects_actual_reduced_domain_overflow() -> None:
+    with pytest.raises(ValueError, match="v2 bounded-grid candidate domain exceeds optimality candidate limit"):
+        build_uniform_batch_v2_bounded_grid_audit_candidates_v1(
+            intents=_exact_in_intents(),
+            pool=_pool(),
+            balances=_balances(),
+            max_price_num=UNIFORM_BATCH_MAX_FILLS + 1,
+            max_price_den=1,
+            fill_vectors=(_v2_fill_vector(40),),
+        )
+
+
 def test_uniform_batch_bound_optimality_rejects_winner_fill_vector_mismatch() -> None:
     uniform_certificate = _uniform_v2_partial_certificate()
     winner_id = uniform_batch_candidate_id_for_certificate(uniform_certificate)
@@ -1183,9 +1223,31 @@ def test_uniform_batch_exact_out_grid_candidates_reject_large_grid() -> None:
             intents=_exact_out_intents(),
             pool=_pool(),
             balances=_balances(),
-            max_price_num=17,
-            max_price_den=17,
+            max_price_num=UNIFORM_BATCH_MAX_FILLS + 1,
+            max_price_den=1,
         )
+
+
+def test_uniform_batch_exact_out_grid_counts_reduced_candidate_domain() -> None:
+    reduced_pair_count = sum(
+        1
+        for price_num in range(1, 18)
+        for price_den in range(1, 18)
+        if gcd(price_num, price_den) == 1
+    )
+    assert 17 * 17 > UNIFORM_BATCH_MAX_FILLS
+    assert reduced_pair_count <= UNIFORM_BATCH_MAX_FILLS
+
+    candidates = build_uniform_batch_exact_out_grid_audit_candidates_v1(
+        intents=_exact_out_intents(max_amount_in=1_000),
+        pool=_pool(),
+        balances=_balances(),
+        max_price_num=17,
+        max_price_den=17,
+    )
+
+    assert candidates
+    assert all(gcd(candidate.certificate.price_num, candidate.certificate.price_den) == 1 for candidate in candidates)
 
 
 def test_uniform_batch_bound_optimality_certificate_rejects_mismatched_uniform_certificate() -> None:

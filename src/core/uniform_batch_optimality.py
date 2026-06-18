@@ -643,8 +643,13 @@ def build_uniform_batch_v2_bounded_grid_audit_candidates_v1(
     )
     if not parsed_fill_vectors:
         raise ValueError("v2 bounded-grid enumeration requires at least one fill vector")
-    if max_num * max_den * len(parsed_fill_vectors) > UNIFORM_BATCH_OPTIMALITY_MAX_CANDIDATES:
-        raise ValueError("v2 bounded-grid candidate domain exceeds optimality candidate limit")
+    max_price_pairs = UNIFORM_BATCH_OPTIMALITY_MAX_CANDIDATES // len(parsed_fill_vectors)
+    price_pairs = _reduced_price_pairs_with_limit(
+        max_num=max_num,
+        max_den=max_den,
+        max_pairs=max_price_pairs,
+        error="v2 bounded-grid candidate domain exceeds optimality candidate limit",
+    )
     parsed_intents = tuple(intents)
     if not parsed_intents:
         raise ValueError("v2 bounded-grid candidate enumeration requires at least one intent")
@@ -662,45 +667,42 @@ def build_uniform_batch_v2_bounded_grid_audit_candidates_v1(
 
     candidates: list[UniformBatchScoredCertificateCandidateV1] = []
     seen_candidate_ids: set[str] = set()
-    for price_num in range(1, max_num + 1):
-        for price_den in range(1, max_den + 1):
-            if gcd(price_num, price_den) != 1:
+    for price_num, price_den in price_pairs:
+        for fill_vector in parsed_fill_vectors:
+            certificate = UniformBatchCertificateV1(
+                pool_id=pool.pool_id,
+                base_asset=pool.asset0,
+                quote_asset=pool.asset1,
+                pool_state_hash=uniform_batch_pool_state_hash(pool),
+                intent_set_hash=uniform_batch_intent_set_hash(parsed_intents),
+                price_num=price_num,
+                price_den=price_den,
+                fills=fill_vector,
+                policy_id=UNIFORM_BATCH_POLICY_V2_ID,
+                schema=UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2,
+            )
+            result = verify_uniform_batch_certificate_v1(
+                intents=parsed_intents,
+                pool=pool,
+                balances=balances,
+                certificate=certificate,
+            )
+            if not result.ok:
                 continue
-            for fill_vector in parsed_fill_vectors:
-                certificate = UniformBatchCertificateV1(
-                    pool_id=pool.pool_id,
-                    base_asset=pool.asset0,
-                    quote_asset=pool.asset1,
-                    pool_state_hash=uniform_batch_pool_state_hash(pool),
-                    intent_set_hash=uniform_batch_intent_set_hash(parsed_intents),
-                    price_num=price_num,
-                    price_den=price_den,
-                    fills=fill_vector,
-                    policy_id=UNIFORM_BATCH_POLICY_V2_ID,
-                    schema=UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2,
-                )
-                result = verify_uniform_batch_certificate_v1(
-                    intents=parsed_intents,
-                    pool=pool,
-                    balances=balances,
+            audit_candidate = _audit_candidate_for_uniform_batch_certificate(
+                certificate,
+                intents_by_id=intents_by_id,
+                include_fill_vector_hash=True,
+            )
+            if audit_candidate.candidate_id in seen_candidate_ids:
+                raise ValueError("duplicate accepted v2 bounded-grid candidate_id")
+            seen_candidate_ids.add(audit_candidate.candidate_id)
+            candidates.append(
+                UniformBatchScoredCertificateCandidateV1(
                     certificate=certificate,
+                    audit_candidate=audit_candidate,
                 )
-                if not result.ok:
-                    continue
-                audit_candidate = _audit_candidate_for_uniform_batch_certificate(
-                    certificate,
-                    intents_by_id=intents_by_id,
-                    include_fill_vector_hash=True,
-                )
-                if audit_candidate.candidate_id in seen_candidate_ids:
-                    raise ValueError("duplicate accepted v2 bounded-grid candidate_id")
-                seen_candidate_ids.add(audit_candidate.candidate_id)
-                candidates.append(
-                    UniformBatchScoredCertificateCandidateV1(
-                        certificate=certificate,
-                        audit_candidate=audit_candidate,
-                    )
-                )
+            )
     candidates.sort(key=lambda item: item.audit_candidate.candidate_id)
     return tuple(candidates)
 
@@ -725,8 +727,12 @@ def build_uniform_batch_exact_out_grid_audit_candidates_v1(
         name="max_price_den",
         maximum=UNIFORM_BATCH_PRICE_RATIO_MAX,
     )
-    if max_num * max_den > UNIFORM_BATCH_OPTIMALITY_MAX_CANDIDATES:
-        raise ValueError("exact-out price grid exceeds optimality candidate limit")
+    price_pairs = _reduced_price_pairs_with_limit(
+        max_num=max_num,
+        max_den=max_den,
+        max_pairs=UNIFORM_BATCH_OPTIMALITY_MAX_CANDIDATES,
+        error="exact-out price grid exceeds optimality candidate limit",
+    )
     parsed_intents = tuple(intents)
     if not parsed_intents:
         raise ValueError("exact-out candidate enumeration requires at least one intent")
@@ -734,35 +740,52 @@ def build_uniform_batch_exact_out_grid_audit_candidates_v1(
     if len(intents_by_id) != len(parsed_intents):
         raise ValueError("duplicate intent_id")
     candidates: list[UniformBatchScoredCertificateCandidateV1] = []
+    for price_num, price_den in price_pairs:
+        certificate = _build_uniform_batch_exact_out_certificate_for_price_v1(
+            intents=parsed_intents,
+            pool=pool,
+            price_num=price_num,
+            price_den=price_den,
+        )
+        result = verify_uniform_batch_certificate_v1(
+            intents=parsed_intents,
+            pool=pool,
+            balances=balances,
+            certificate=certificate,
+        )
+        if not result.ok:
+            continue
+        candidates.append(
+            UniformBatchScoredCertificateCandidateV1(
+                certificate=certificate,
+                audit_candidate=_audit_candidate_for_uniform_batch_certificate(
+                    certificate,
+                    intents_by_id=intents_by_id,
+                ),
+            )
+        )
+    candidates.sort(key=lambda item: item.audit_candidate.candidate_id)
+    return tuple(candidates)
+
+
+def _reduced_price_pairs_with_limit(
+    *,
+    max_num: int,
+    max_den: int,
+    max_pairs: int,
+    error: str,
+) -> tuple[tuple[int, int], ...]:
+    if max_pairs <= 0:
+        raise ValueError(error)
+    pairs: list[tuple[int, int]] = []
     for price_num in range(1, max_num + 1):
         for price_den in range(1, max_den + 1):
             if gcd(price_num, price_den) != 1:
                 continue
-            certificate = _build_uniform_batch_exact_out_certificate_for_price_v1(
-                intents=parsed_intents,
-                pool=pool,
-                price_num=price_num,
-                price_den=price_den,
-            )
-            result = verify_uniform_batch_certificate_v1(
-                intents=parsed_intents,
-                pool=pool,
-                balances=balances,
-                certificate=certificate,
-            )
-            if not result.ok:
-                continue
-            candidates.append(
-                UniformBatchScoredCertificateCandidateV1(
-                    certificate=certificate,
-                    audit_candidate=_audit_candidate_for_uniform_batch_certificate(
-                        certificate,
-                        intents_by_id=intents_by_id,
-                    ),
-                )
-            )
-    candidates.sort(key=lambda item: item.audit_candidate.candidate_id)
-    return tuple(candidates)
+            pairs.append((price_num, price_den))
+            if len(pairs) > max_pairs:
+                raise ValueError(error)
+    return tuple(pairs)
 
 
 def _build_uniform_batch_exact_out_certificate_for_price_v1(
