@@ -881,7 +881,11 @@ def _check_set_aware(report: dict[str, Any]) -> list[EvidenceCheck]:
     checks.append(
         _expect_true(
             "set_aware.zero_invalid_accepts",
-            all(int(mode["invalid_accept_count"]) == 0 for mode in modes.values()),
+            all(
+                isinstance(mode, dict)
+                and _json_int_equals(mode.get("invalid_accept_count"), 0)
+                for mode in modes.values()
+            ),
             "all modes have invalid_accept_count = 0",
         )
     )
@@ -4374,8 +4378,12 @@ def _sha256_file(path: Path) -> str:
 
 def _all_modes_zero(modes: dict[str, Any]) -> bool:
     return all(
-        int(mode["invalid_accept_count"]) == 0
-        and int(mode.get("original_subset_violation_count", 0)) == 0
+        isinstance(mode, dict)
+        and _json_int_equals(mode.get("invalid_accept_count"), 0)
+        and (
+            "original_subset_violation_count" not in mode
+            or _json_int_equals(mode.get("original_subset_violation_count"), 0)
+        )
         for mode in modes.values()
     )
 
