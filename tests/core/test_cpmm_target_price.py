@@ -13,6 +13,8 @@ from src.core.cpmm_target_price import (
     minimum_exact_in_to_reach_cpmm_price_at_most,
 )
 
+BPS_DENOM = 10_000
+
 
 def _price_at_most(
     *,
@@ -34,6 +36,26 @@ def _price_at_least(
     return reserve_out * target_price_den >= target_price_num * reserve_in
 
 
+def _ceil_div(numerator: int, denominator: int) -> int:
+    return (numerator + denominator - 1) // denominator
+
+
+def _minimum_gross_for_net_input(*, net_in: int, fee_bps: int) -> int | None:
+    if net_in <= 0:
+        return 0
+    fee_multiplier = BPS_DENOM - fee_bps
+    if fee_multiplier <= 0:
+        return None
+    return _ceil_div(net_in * BPS_DENOM, fee_multiplier)
+
+
+def _minimum_executable_amount(*, reserve_in: int, reserve_out: int, fee_bps: int) -> int | None:
+    if reserve_out <= 1:
+        return None
+    net_for_positive_output = _ceil_div(reserve_in, reserve_out - 1)
+    return _minimum_gross_for_net_input(net_in=net_for_positive_output, fee_bps=fee_bps)
+
+
 def _brute_force_minimum(
     *,
     reserve_in: int,
@@ -43,25 +65,31 @@ def _brute_force_minimum(
     target_price_den: int,
     max_amount_in: int,
 ) -> CpmmTargetPriceResult | None:
-    for amount_in in range(max_amount_in + 1):
-        if amount_in == 0:
-            amount_out = 0
-            new_reserves = (reserve_in, reserve_out)
-        else:
-            try:
-                amount_out, new_reserves = swap_exact_in(
-                    reserve_in,
-                    reserve_out,
-                    amount_in,
-                    fee_bps,
-                )
-            except ValueError as exc:
-                if str(exc) not in {
-                    "net_in must be positive after fees",
-                    "amount_out is zero (trade too small)",
-                }:
-                    raise
-                continue
+    if _price_at_most(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        target_price_num=target_price_num,
+        target_price_den=target_price_den,
+    ):
+        return CpmmTargetPriceResult(
+            amount_in=0,
+            amount_out=0,
+            new_reserves=(reserve_in, reserve_out),
+        )
+    start = _minimum_executable_amount(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        fee_bps=fee_bps,
+    )
+    if start is None:
+        return None
+    for amount_in in range(start, max_amount_in + 1):
+        amount_out, new_reserves = swap_exact_in(
+            reserve_in,
+            reserve_out,
+            amount_in,
+            fee_bps,
+        )
         if _price_at_most(
             reserve_in=new_reserves[0],
             reserve_out=new_reserves[1],
@@ -74,31 +102,6 @@ def _brute_force_minimum(
                 new_reserves=new_reserves,
             )
     return None
-
-
-def _try_swap_exact_in(
-    *,
-    reserve_in: int,
-    reserve_out: int,
-    amount_in: int,
-    fee_bps: int,
-) -> tuple[int, tuple[int, int]] | None:
-    if amount_in == 0:
-        return 0, (reserve_in, reserve_out)
-    try:
-        return swap_exact_in(
-            reserve_in,
-            reserve_out,
-            amount_in,
-            fee_bps,
-        )
-    except ValueError as exc:
-        if str(exc) not in {
-            "net_in must be positive after fees",
-            "amount_out is zero (trade too small)",
-        }:
-            raise
-        return None
 
 
 def _brute_force_pool_target(
@@ -119,16 +122,20 @@ def _brute_force_pool_target(
         )
 
     if reserve1 * target_price_den > target_price_num * reserve0:
-        for amount_in in range(max_amount_in + 1):
-            swap_result = _try_swap_exact_in(
-                reserve_in=reserve0,
-                reserve_out=reserve1,
-                amount_in=amount_in,
-                fee_bps=fee_bps,
+        start = _minimum_executable_amount(
+            reserve_in=reserve0,
+            reserve_out=reserve1,
+            fee_bps=fee_bps,
+        )
+        if start is None:
+            return None
+        for amount_in in range(start, max_amount_in + 1):
+            amount_out, new_reserves = swap_exact_in(
+                reserve0,
+                reserve1,
+                amount_in,
+                fee_bps,
             )
-            if swap_result is None:
-                continue
-            amount_out, new_reserves = swap_result
             if _price_at_most(
                 reserve_in=new_reserves[0],
                 reserve_out=new_reserves[1],
@@ -143,16 +150,20 @@ def _brute_force_pool_target(
                 )
         return None
 
-    for amount_in in range(max_amount_in + 1):
-        swap_result = _try_swap_exact_in(
-            reserve_in=reserve1,
-            reserve_out=reserve0,
-            amount_in=amount_in,
-            fee_bps=fee_bps,
+    start = _minimum_executable_amount(
+        reserve_in=reserve1,
+        reserve_out=reserve0,
+        fee_bps=fee_bps,
+    )
+    if start is None:
+        return None
+    for amount_in in range(start, max_amount_in + 1):
+        amount_out, reversed_reserves = swap_exact_in(
+            reserve1,
+            reserve0,
+            amount_in,
+            fee_bps,
         )
-        if swap_result is None:
-            continue
-        amount_out, reversed_reserves = swap_result
         new_reserve1, new_reserve0 = reversed_reserves
         if _price_at_least(
             reserve_in=new_reserve0,
@@ -239,6 +250,21 @@ def test_target_price_sizing_returns_none_when_bound_unreachable_within_amount_c
             target_price_num=1,
             target_price_den=1,
             max_amount_in=5,
+        )
+    )
+
+    assert got is None
+
+
+def test_target_price_sizing_returns_none_when_no_positive_output_is_possible() -> None:
+    got = minimum_exact_in_to_reach_cpmm_price_at_most(
+        CpmmTargetPriceRequest(
+            reserve_in=100,
+            reserve_out=1,
+            fee_bps=30,
+            target_price_num=1,
+            target_price_den=200,
+            max_amount_in=500,
         )
     )
 

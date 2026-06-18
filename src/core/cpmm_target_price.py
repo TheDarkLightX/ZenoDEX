@@ -16,6 +16,8 @@ from ..state.balances import Amount
 from .cpmm import swap_exact_in
 from .domain_limits import DEX_POOL_RESERVE_MAX, DEX_SWAP_AMOUNT_MAX, require_int_range
 
+BPS_DENOM = 10_000
+
 
 @dataclass(frozen=True)
 class CpmmTargetPriceResult:
@@ -118,6 +120,35 @@ def _price_equal(
     target_price_den: int,
 ) -> bool:
     return reserve_out * target_price_den == target_price_num * reserve_in
+
+
+def _ceil_div(numerator: int, denominator: int) -> int:
+    if denominator <= 0:
+        raise ValueError("denominator must be positive")
+    if numerator < 0:
+        raise ValueError("numerator must be non-negative")
+    return (numerator + denominator - 1) // denominator
+
+
+def _minimum_gross_for_net_input(*, net_in: int, fee_bps: int) -> int | None:
+    """Return the least gross input whose fee-rounded net input is at least net_in."""
+    if net_in <= 0:
+        return 0
+    fee_multiplier = BPS_DENOM - fee_bps
+    if fee_multiplier <= 0:
+        return None
+    return _ceil_div(net_in * BPS_DENOM, fee_multiplier)
+
+
+def _minimum_executable_amount(request: _ValidatedCpmmTargetPriceRequest) -> int | None:
+    """Return the least gross input that can produce a positive exact-in output."""
+    if request.reserve_out <= 1:
+        return None
+    net_for_positive_output = _ceil_div(request.reserve_in, request.reserve_out - 1)
+    return _minimum_gross_for_net_input(
+        net_in=net_for_positive_output,
+        fee_bps=request.fee_bps,
+    )
 
 
 def _validate_target_price_request(request: CpmmTargetPriceRequest) -> _ValidatedCpmmTargetPriceRequest:
@@ -225,32 +256,16 @@ def _simulate_for_request(
     )
 
 
-def _try_simulate_for_request(
-    *,
-    request: _ValidatedCpmmTargetPriceRequest,
-    amount_in: int,
-) -> CpmmTargetPriceResult | None:
-    try:
-        return _simulate_for_request(request=request, amount_in=amount_in)
-    except ValueError as exc:
-        if str(exc) not in {
-            "net_in must be positive after fees",
-            "amount_out is zero (trade too small)",
-        }:
-            raise
-        return None
-
-
 def _binary_search_minimum_amount(
     *,
     request: _ValidatedCpmmTargetPriceRequest,
+    low: int,
     high: int,
 ) -> CpmmTargetPriceResult:
-    low = 1
     while low < high:
         mid = (low + high) // 2
-        mid_result = _try_simulate_for_request(request=request, amount_in=mid)
-        if mid_result is not None and _result_reaches_target(mid_result, request):
+        mid_result = _simulate_for_request(request=request, amount_in=mid)
+        if _result_reaches_target(mid_result, request):
             high = mid
         else:
             low = mid + 1
@@ -284,16 +299,20 @@ def minimum_exact_in_to_reach_cpmm_price_at_most(
     ):
         return _simulate_for_request(request=checked, amount_in=0)
 
+    low = _minimum_executable_amount(checked)
+    if low is None:
+        return None
+
     domain_room = DEX_POOL_RESERVE_MAX - checked.reserve_in
     high = min(checked.max_amount_in, domain_room)
-    if high <= 0:
+    if high < low:
         return None
 
-    high_result = _try_simulate_for_request(request=checked, amount_in=high)
-    if high_result is None or not _result_reaches_target(high_result, checked):
+    high_result = _simulate_for_request(request=checked, amount_in=high)
+    if not _result_reaches_target(high_result, checked):
         return None
 
-    return _binary_search_minimum_amount(request=checked, high=high)
+    return _binary_search_minimum_amount(request=checked, low=low, high=high)
 
 
 def minimum_exact_in_to_reach_cpmm_pool_price(
