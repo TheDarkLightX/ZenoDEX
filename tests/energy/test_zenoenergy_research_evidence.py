@@ -543,6 +543,72 @@ def test_research_evidence_replay_rejects_coerced_listwise_cross_seed_pass_count
     assert check["passed"] is False
 
 
+def test_research_evidence_replay_rejects_coerced_gap_weighted_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_gap_weighted_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_gap_weighted_cross_seed_stress_250x3x3.json":
+            summary = payload["summary"]
+            assert isinstance(summary, dict)
+            learned = summary["learned"]
+            assert isinstance(learned, dict)
+            learned["invalid_accept_count_total"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_gap_weighted_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "gap_weighted_default.cross_seed_safety")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_gap_weighted_hard_case_rate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_hard_case_rate(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_gap_weighted_hard_cases_500x3x3.json":
+            summary = payload["summary"]
+            assert isinstance(summary, dict)
+            summary["top_10_recall"] = "1.0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_hard_case_rate)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "gap_weighted_default.hard_case_recall")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_gap_weighted_model_audit_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_model_audit_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_gap_weighted_model_audit.json":
+            payload["feature_dim"] = "96"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_model_audit_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "gap_weighted_default.model_audit_boundary")
+    assert check["passed"] is False
+
+
 def test_research_evidence_replay_rejects_truthy_string_obligation_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

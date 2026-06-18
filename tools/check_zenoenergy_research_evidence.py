@@ -1010,9 +1010,10 @@ def _check_gap_weighted_default(
     hard_cases: dict[str, Any],
     model_audit: dict[str, Any],
 ) -> list[EvidenceCheck]:
-    learned = stress["summary"]["learned"]
-    hand = stress["summary"]["hand"]
-    hard_summary = hard_cases["summary"]
+    stress_summary = stress.get("summary")
+    learned = stress_summary.get("learned") if isinstance(stress_summary, dict) else {}
+    hand = stress_summary.get("hand") if isinstance(stress_summary, dict) else {}
+    hard_summary = hard_cases.get("summary")
     return [
         _expect_true(
             "gap_weighted_default.schemas",
@@ -1023,36 +1024,49 @@ def _check_gap_weighted_default(
         ),
         _expect_true(
             "gap_weighted_default.cross_seed_safety",
-            int(learned["invalid_accept_count_total"]) == 0
-            and float(learned["top_10_recall_min"]) == 1.0
-            and float(learned["top_5_recall_min"]) == 1.0
-            and float(learned["p99_verifier_calls_max"]) <= 2.0
-            and float(learned["mean_verifier_calls_max"]) <= 1.04,
+            isinstance(learned, dict)
+            and _json_int_equals(learned.get("invalid_accept_count_total"), 0)
+            and _json_number_equals(learned.get("top_10_recall_min"), 1.0)
+            and _json_number_equals(learned.get("top_5_recall_min"), 1.0)
+            and _json_number_at_most(learned.get("p99_verifier_calls_max"), 2.0)
+            and _json_number_at_most(learned.get("mean_verifier_calls_max"), 1.04),
             "learned gap-weighted scorer has zero invalid accepts, complete top-10 recall, and low p99 calls",
         ),
         _expect_true(
             "gap_weighted_default.cross_seed_beats_hand",
-            float(learned["mean_verifier_calls_mean"]) < float(hand["mean_verifier_calls_mean"])
-            and float(learned["top_1_recall_mean"]) > float(hand["top_1_recall_mean"])
-            and float(learned["top_5_recall_min"]) >= float(hand["top_5_recall_min"]),
+            isinstance(learned, dict)
+            and isinstance(hand, dict)
+            and _json_number_less_than(
+                learned.get("mean_verifier_calls_mean"),
+                hand.get("mean_verifier_calls_mean"),
+            )
+            and _json_number_greater_than(
+                learned.get("top_1_recall_mean"),
+                hand.get("top_1_recall_mean"),
+            )
+            and _json_number_at_least_value(
+                learned.get("top_5_recall_min"),
+                hand.get("top_5_recall_min"),
+            ),
             "learned gap-weighted scorer improves mean verifier calls and top-1 recall over hand energy",
         ),
         _expect_true(
             "gap_weighted_default.hard_case_recall",
-            int(hard_summary["top5_miss_count"]) == 0
-            and int(hard_summary["top10_miss_count"]) == 0
-            and float(hard_summary["top_5_recall"]) == 1.0
-            and float(hard_summary["top_10_recall"]) == 1.0
-            and float(hard_summary["max_p99_winner_position"]) <= 2.0,
+            isinstance(hard_summary, dict)
+            and _json_int_equals(hard_summary.get("top5_miss_count"), 0)
+            and _json_int_equals(hard_summary.get("top10_miss_count"), 0)
+            and _json_number_equals(hard_summary.get("top_5_recall"), 1.0)
+            and _json_number_equals(hard_summary.get("top_10_recall"), 1.0)
+            and _json_number_at_most(hard_summary.get("max_p99_winner_position"), 2.0),
             "hard-case mining has no top-5/top-10 misses and p99 winner position at most 2",
         ),
         _expect_true(
             "gap_weighted_default.model_audit_boundary",
-            int(model_audit["feature_dim"]) == 96
-            and int(model_audit["parameter_count"]) == 97
-            and list(model_audit["forbidden_feature_names"]) == []
-            and int(model_audit["reserved_nonzero_count"]) == 0
-            and float(model_audit["reserved_weight_abs_sum"]) == 0.0,
+            _json_int_equals(model_audit.get("feature_dim"), 96)
+            and _json_int_equals(model_audit.get("parameter_count"), 97)
+            and _list_equals(model_audit.get("forbidden_feature_names"), [])
+            and _json_int_equals(model_audit.get("reserved_nonzero_count"), 0)
+            and _json_number_equals(model_audit.get("reserved_weight_abs_sum"), 0.0),
             "model audit keeps the tiny linear scorer away from forbidden and reserved features",
         ),
     ]
@@ -4451,8 +4465,32 @@ def _json_number_at_least(value: object, minimum: float) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and float(value) >= minimum
 
 
+def _json_number_at_most(value: object, maximum: float) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and float(value) <= maximum
+
+
 def _json_number_equals(value: object, expected: float) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and float(value) == expected
+
+
+def _json_number_less_than(left: object, right: object) -> bool:
+    return (
+        isinstance(left, (int, float))
+        and not isinstance(left, bool)
+        and isinstance(right, (int, float))
+        and not isinstance(right, bool)
+        and float(left) < float(right)
+    )
+
+
+def _json_number_at_least_value(left: object, right: object) -> bool:
+    return (
+        isinstance(left, (int, float))
+        and not isinstance(left, bool)
+        and isinstance(right, (int, float))
+        and not isinstance(right, bool)
+        and float(left) >= float(right)
+    )
 
 
 def _json_number_greater_than(left: object, right: object) -> bool:
