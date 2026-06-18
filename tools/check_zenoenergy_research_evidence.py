@@ -1427,9 +1427,16 @@ def _check_fallback_permutation_audit(report: dict[str, Any]) -> list[EvidenceCh
 
 
 def _check_topk_sweep(report: dict[str, Any]) -> list[EvidenceCheck]:
-    modes = report["modes"]
-    learned = modes["learned"]
-    hybrid = modes["hybrid"]
+    modes = report.get("modes")
+    learned = modes.get("learned") if isinstance(modes, dict) else {}
+    hybrid = modes.get("hybrid") if isinstance(modes, dict) else {}
+    random = modes.get("random") if isinstance(modes, dict) else {}
+    learned_top_k = learned.get("top_k") if isinstance(learned, dict) else {}
+    hybrid_top_k = hybrid.get("top_k") if isinstance(hybrid, dict) else {}
+    random_top_k = random.get("top_k") if isinstance(random, dict) else {}
+    learned_k2 = learned_top_k.get("2") if isinstance(learned_top_k, dict) else {}
+    hybrid_k2 = hybrid_top_k.get("2") if isinstance(hybrid_top_k, dict) else {}
+    random_k10 = random_top_k.get("10") if isinstance(random_top_k, dict) else {}
     return [
         _expect_equal(
             "topk_sweep.schema",
@@ -1438,34 +1445,51 @@ def _check_topk_sweep(report: dict[str, Any]) -> list[EvidenceCheck]:
         ),
         _expect_true(
             "topk_sweep.permutation_premise",
-            all(int(mode["permutation_violation_count"]) == 0 for mode in modes.values()),
+            isinstance(modes, dict)
+            and all(
+                isinstance(mode, dict)
+                and _json_int_equals(mode.get("permutation_violation_count"), 0)
+                for mode in modes.values()
+            ),
             "all top-k sweep modes preserve hash-permutation ordering",
         ),
         _expect_true(
             "topk_sweep.learned_checked_stop_k2",
-            float(learned["top_k"]["2"]["checked_stop_top_k_rate"]) == 1.0
-            and float(learned["top_k"]["2"]["false_exclusion_rate"]) == 0.0
-            and float(hybrid["top_k"]["2"]["checked_stop_top_k_rate"]) == 1.0,
+            isinstance(learned_k2, dict)
+            and isinstance(hybrid_k2, dict)
+            and _json_number_equals(learned_k2.get("checked_stop_top_k_rate"), 1.0)
+            and _json_number_equals(learned_k2.get("false_exclusion_rate"), 0.0)
+            and _json_number_equals(hybrid_k2.get("checked_stop_top_k_rate"), 1.0),
             "learned and hybrid checked-stop audits reach 100% by k=2 on holdout",
         ),
         _expect_true(
             "topk_sweep.checked_stop_at_winner",
-            all(float(mode["checked_stop_at_winner_rate"]) == 1.0 for mode in modes.values()),
+            isinstance(modes, dict)
+            and all(
+                isinstance(mode, dict)
+                and _json_number_equals(mode.get("checked_stop_at_winner_rate"), 1.0)
+                for mode in modes.values()
+            ),
             "checked-stop certificate holds at the exact winner for every mode",
         ),
         _expect_true(
             "topk_sweep.objective_equivalence_metrics",
-            float(learned["top_k"]["2"]["objective_top_k_recall"]) == 1.0
-            and float(learned["top_k"]["2"]["objective_false_exclusion_rate"]) == 0.0
-            and float(learned["checked_stop_at_objective_winner_rate"]) == 1.0
-            and float(learned["mean_objective_winner_position"])
-            <= float(learned["mean_winner_position"])
-            and float(learned["objective_argmax_class_size_mean"]) >= 1.0,
+            isinstance(learned, dict)
+            and isinstance(learned_k2, dict)
+            and _json_number_equals(learned_k2.get("objective_top_k_recall"), 1.0)
+            and _json_number_equals(learned_k2.get("objective_false_exclusion_rate"), 0.0)
+            and _json_number_equals(learned.get("checked_stop_at_objective_winner_rate"), 1.0)
+            and _json_number_at_most_value(
+                learned.get("mean_objective_winner_position"),
+                learned.get("mean_winner_position"),
+            )
+            and _json_number_at_least(learned.get("objective_argmax_class_size_mean"), 1.0),
             "top-k sweep reports objective-equivalent recall and call position",
         ),
         _expect_true(
             "topk_sweep.random_top10_negative",
-            float(modes["random"]["top_k"]["10"]["false_exclusion_rate"]) > 0.0,
+            isinstance(random_k10, dict)
+            and _json_number_greater_than(random_k10.get("false_exclusion_rate"), 0.0),
             "random top-10 misses many winners, so the sweep is not vacuous",
         ),
     ]
