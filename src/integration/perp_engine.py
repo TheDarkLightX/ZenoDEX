@@ -1607,6 +1607,16 @@ class _ClearinghousePublishPriceRequest:
     replace_state: Callable[..., PerpAnyMarketState]
 
 
+@dataclass(frozen=True)
+class _ClearinghouseMarketParamsRequest:
+    i: int
+    op: PerpOp
+    market: Any
+    market_kind: int
+    kind: str
+    replace_state: Callable[..., PerpAnyMarketState]
+
+
 def _commit_clearinghouse_kernel_step(ctx: _PerpApplyCtx, commit: _ClearinghouseKernelCommit) -> str | None:
     try:
         next_state, eff = commit.step(commit.market.state, tag=commit.tag, args=commit.args)
@@ -1682,6 +1692,54 @@ def _apply_clearinghouse_publish_clearing_price(
             {"price_e8": price_e8},
         ),
     )
+
+
+def _apply_clearinghouse_set_market_params(
+    ctx: _PerpApplyCtx, request: _ClearinghouseMarketParamsRequest
+) -> str | None:
+    data = request.op.data
+    state = request.market.state
+    operator_ok = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey) is None
+    epoch_settled_ok = int(state.get("oracle_last_update_epoch", 0)) == int(state.get("now_epoch", 0))
+    pre_guard = evaluate_perp_clearinghouse_market_params_guard(
+        market_kind=request.market_kind,
+        operator_ok=operator_ok,
+        epoch_settled_ok=epoch_settled_ok,
+        position_base_a=int(state.get("position_base_a", 0)),
+        position_base_b=int(state.get("position_base_b", 0)),
+        position_base_c=int(state.get("position_base_c", 0)),
+        old_liquidation_penalty_bps=int(state.get("liquidation_penalty_bps", 0)),
+        new_liquidation_penalty_bps=int(state.get("liquidation_penalty_bps", 0)),
+        new_maintenance_margin_bps=int(state.get("maintenance_margin_bps", 0)),
+    )
+    pre_guard_error = perp_clearinghouse_market_params_guard_error(pre_guard)
+    if pre_guard_error is not None:
+        return pre_guard_error
+
+    unknown = _reject_unknown_fields(
+        data,
+        {"module", "version", "market_id", "action", "params"},
+        error="set_market_params has unknown fields",
+    )
+    if unknown is not None:
+        return unknown
+
+    params = data.get("params")
+    if not isinstance(params, Mapping):
+        return "params must be an object"
+    try:
+        next_state = _apply_clearinghouse_market_params(
+            state,
+            params=params,
+            kind=request.kind,
+            operator_ok=operator_ok,
+            epoch_settled_ok=epoch_settled_ok,
+        )
+    except ValueError as exc:
+        return str(exc)
+    ctx.markets[request.op.market_id] = request.replace_state(request.market, state=next_state)
+    ctx.effects.append({"i": request.i, "market_id": request.op.market_id, "action": request.op.action, "params": dict(params)})
+    return None
 
 
 def _apply_ch2p_advance_epoch(
@@ -1865,6 +1923,38 @@ def _apply_ch3p_publish_clearing_price(
     )
 
 
+def _apply_ch2p_set_market_params(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch2p_market: PerpClearinghouse2pMarketState
+) -> str | None:
+    return _apply_clearinghouse_set_market_params(
+        ctx,
+        _ClearinghouseMarketParamsRequest(
+            i,
+            op,
+            ch2p_market,
+            MARKET_KIND_CH2P,
+            "ch2p",
+            _ch2p_market_with_state,
+        ),
+    )
+
+
+def _apply_ch3p_set_market_params(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch3p_market: PerpClearinghouse3pTransferMarketState
+) -> str | None:
+    return _apply_clearinghouse_set_market_params(
+        ctx,
+        _ClearinghouseMarketParamsRequest(
+            i,
+            op,
+            ch3p_market,
+            MARKET_KIND_CH3P,
+            "ch3p",
+            _ch3p_market_with_state,
+        ),
+    )
+
+
 def _apply_ch2p_op(
     ctx: _PerpApplyCtx,
     *,
@@ -1896,45 +1986,7 @@ def _apply_ch2p_op(
         return _apply_ch2p_clear_breaker(ctx, i=i, op=op, ch2p_market=ch2p_market)
 
     if action == "set_market_params":
-        operator_ok = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey) is None
-        epoch_settled_ok = int(ch2p_market.state.get("oracle_last_update_epoch", 0)) == int(
-            ch2p_market.state.get("now_epoch", 0)
-        )
-        pre_guard = evaluate_perp_clearinghouse_market_params_guard(
-            market_kind=MARKET_KIND_CH2P,
-            operator_ok=operator_ok,
-            epoch_settled_ok=epoch_settled_ok,
-            position_base_a=int(ch2p_market.state.get("position_base_a", 0)),
-            position_base_b=int(ch2p_market.state.get("position_base_b", 0)),
-            position_base_c=0,
-            old_liquidation_penalty_bps=int(ch2p_market.state.get("liquidation_penalty_bps", 0)),
-            new_liquidation_penalty_bps=int(ch2p_market.state.get("liquidation_penalty_bps", 0)),
-            new_maintenance_margin_bps=int(ch2p_market.state.get("maintenance_margin_bps", 0)),
-        )
-        pre_guard_error = perp_clearinghouse_market_params_guard_error(pre_guard)
-        if pre_guard_error is not None:
-            return pre_guard_error
-        allowed = {"module", "version", "market_id", "action", "params"}
-        unknown = _reject_unknown_fields(data, allowed, error="set_market_params has unknown fields")
-        if unknown is not None:
-            return unknown
-
-        params = data.get("params")
-        if not isinstance(params, Mapping):
-            return "params must be an object"
-        try:
-            next_state = _apply_clearinghouse_market_params(
-                ch2p_market.state,
-                params=params,
-                kind="ch2p",
-                operator_ok=operator_ok,
-                epoch_settled_ok=epoch_settled_ok,
-            )
-        except ValueError as exc:
-            return str(exc)
-        ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
-        ctx.effects.append({"i": i, "market_id": market_id, "action": action, "params": dict(params)})
-        return None
+        return _apply_ch2p_set_market_params(ctx, i=i, op=op, ch2p_market=ch2p_market)
 
     if action in ("deposit_collateral", "withdraw_collateral"):
         allowed_common = {"module", "version", "market_id", "action", "account_pubkey"}
@@ -2128,45 +2180,7 @@ def _apply_ch3p_op(
         return _apply_ch3p_clear_breaker(ctx, i=i, op=op, ch3p_market=ch3p_market)
 
     if action == "set_market_params":
-        operator_ok = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey) is None
-        epoch_settled_ok = int(ch3p_market.state.get("oracle_last_update_epoch", 0)) == int(
-            ch3p_market.state.get("now_epoch", 0)
-        )
-        pre_guard = evaluate_perp_clearinghouse_market_params_guard(
-            market_kind=MARKET_KIND_CH3P,
-            operator_ok=operator_ok,
-            epoch_settled_ok=epoch_settled_ok,
-            position_base_a=int(ch3p_market.state.get("position_base_a", 0)),
-            position_base_b=int(ch3p_market.state.get("position_base_b", 0)),
-            position_base_c=int(ch3p_market.state.get("position_base_c", 0)),
-            old_liquidation_penalty_bps=int(ch3p_market.state.get("liquidation_penalty_bps", 0)),
-            new_liquidation_penalty_bps=int(ch3p_market.state.get("liquidation_penalty_bps", 0)),
-            new_maintenance_margin_bps=int(ch3p_market.state.get("maintenance_margin_bps", 0)),
-        )
-        pre_guard_error = perp_clearinghouse_market_params_guard_error(pre_guard)
-        if pre_guard_error is not None:
-            return pre_guard_error
-        allowed = {"module", "version", "market_id", "action", "params"}
-        unknown = _reject_unknown_fields(data, allowed, error="set_market_params has unknown fields")
-        if unknown is not None:
-            return unknown
-
-        params = data.get("params")
-        if not isinstance(params, Mapping):
-            return "params must be an object"
-        try:
-            next_state = _apply_clearinghouse_market_params(
-                ch3p_market.state,
-                params=params,
-                kind="ch3p",
-                operator_ok=operator_ok,
-                epoch_settled_ok=epoch_settled_ok,
-            )
-        except ValueError as exc:
-            return str(exc)
-        ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
-        ctx.effects.append({"i": i, "market_id": market_id, "action": action, "params": dict(params)})
-        return None
+        return _apply_ch3p_set_market_params(ctx, i=i, op=op, ch3p_market=ch3p_market)
 
     if action in ("deposit_collateral", "withdraw_collateral"):
         allowed_common = {"module", "version", "market_id", "action", "account_pubkey"}
