@@ -27,6 +27,18 @@ def _as_dict(obj: Any, *, ctx: str) -> Mapping[str, Any]:
     return obj
 
 
+def _require_json_bool(value: object, *, ctx: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    raise ManifestError(f"{ctx}: expected bool")
+
+
+def _require_optional_json_bool(value: object, *, ctx: str) -> bool | None:
+    if value is None or isinstance(value, bool):
+        return value
+    raise ManifestError(f"{ctx}: expected bool or null")
+
+
 def _require_json_int(value: object, *, ctx: str) -> int:
     if isinstance(value, int) and not isinstance(value, bool):
         return value
@@ -123,31 +135,44 @@ def _check_verify_multi(entry: Mapping[str, Any]) -> None:
     _require(report.get("model_id") == entry["model_id"], f"{report_path}: model_id mismatch")
     _require(report.get("ir_hash") == entry["ir_hash"], f"{report_path}: ir_hash mismatch")
     _require(report.get("verdict") == "VERIFIED", f"{report_path}: verdict must be VERIFIED")
-    _require(int(report.get("failed_queries", -1)) == 0, f"{report_path}: failed_queries != 0")
-    _require(int(report.get("inconclusive_queries", -1)) == 0, f"{report_path}: inconclusive_queries != 0")
-    _require(int(report.get("passed_queries", -1)) == int(entry["passed_queries"]), f"{report_path}: passed_queries mismatch")
+    _require(_require_json_int(report.get("failed_queries"), ctx=f"{report_path}: failed_queries") == 0, f"{report_path}: failed_queries != 0")
+    _require(
+        _require_json_int(report.get("inconclusive_queries"), ctx=f"{report_path}: inconclusive_queries") == 0,
+        f"{report_path}: inconclusive_queries != 0",
+    )
+    _require(
+        _require_json_int(report.get("passed_queries"), ctx=f"{report_path}: passed_queries")
+        == _require_json_int(entry.get("passed_queries"), ctx=f"{report_path}: expected passed_queries"),
+        f"{report_path}: passed_queries mismatch",
+    )
 
     scope = _as_dict(report.get("scope"), ctx=f"{report_path}: scope")
     _require(scope.get("kind") == "inductive", f"{report_path}: scope.kind mismatch")
-    _require(int(scope.get("k", -1)) == 1, f"{report_path}: scope.k mismatch")
+    _require(_require_json_int(scope.get("k"), ctx=f"{report_path}: scope.k") == 1, f"{report_path}: scope.k mismatch")
     _require(
-        int(scope.get("solver_timeout_ms", -1)) == int(entry["solver_timeout_ms"]),
+        _require_json_int(scope.get("solver_timeout_ms"), ctx=f"{report_path}: scope.solver_timeout_ms")
+        == _require_json_int(entry.get("solver_timeout_ms"), ctx=f"{report_path}: expected solver_timeout_ms"),
         f"{report_path}: solver_timeout_ms mismatch",
     )
-    _require(bool(scope.get("fail_closed", False)), f"{report_path}: scope.fail_closed=false")
+    _require(_require_json_bool(scope.get("fail_closed"), ctx=f"{report_path}: scope.fail_closed"), f"{report_path}: scope.fail_closed=false")
 
     expected_solvers = list(entry["solvers"])
     z3_expected = "z3" in expected_solvers
     cvc5_expected = "cvc5" in expected_solvers
-    _require(bool(report.get("z3_passed", False)) == z3_expected, f"{report_path}: z3_passed mismatch")
+    _require(_require_json_bool(report.get("z3_passed"), ctx=f"{report_path}: z3_passed") == z3_expected, f"{report_path}: z3_passed mismatch")
     if cvc5_expected:
-        _require(bool(report.get("cvc5_available", False)), f"{report_path}: cvc5_available=false")
-        _require(bool(report.get("cvc5_passed", False)), f"{report_path}: cvc5_passed=false")
+        _require(_require_json_bool(report.get("cvc5_available"), ctx=f"{report_path}: cvc5_available"), f"{report_path}: cvc5_available=false")
+        _require(_require_json_bool(report.get("cvc5_passed"), ctx=f"{report_path}: cvc5_passed"), f"{report_path}: cvc5_passed=false")
     else:
-        _require(report.get("cvc5_available") in (False, None), f"{report_path}: unexpected cvc5 availability")
-        _require(report.get("cvc5_passed") in (False, None), f"{report_path}: unexpected cvc5_passed value")
+        cvc5_available = _require_optional_json_bool(
+            report.get("cvc5_available"),
+            ctx=f"{report_path}: cvc5_available",
+        )
+        cvc5_passed = _require_optional_json_bool(report.get("cvc5_passed"), ctx=f"{report_path}: cvc5_passed")
+        _require(cvc5_available is not True, f"{report_path}: unexpected cvc5 availability")
+        _require(cvc5_passed is not True, f"{report_path}: unexpected cvc5_passed value")
 
-    _require(bool(report.get("solvers_agreed", False)), f"{report_path}: solvers_agreed=false")
+    _require(_require_json_bool(report.get("solvers_agreed"), ctx=f"{report_path}: solvers_agreed"), f"{report_path}: solvers_agreed=false")
 
     tool_versions = _as_dict(report.get("tool_versions"), ctx=f"{report_path}: tool_versions")
     expected_toolchain = _as_dict(entry["toolchain"], ctx=f"{report_path}: toolchain")
