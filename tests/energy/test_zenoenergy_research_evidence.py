@@ -753,6 +753,50 @@ def test_research_evidence_replay_rejects_coerced_repair_selector_cross_seed_reg
     assert check["passed"] is False
 
 
+def test_research_evidence_replay_rejects_coerced_fallback_permutation_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_fallback_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_fallback_permutation_audit_200_seed20260518.json":
+            payload["invalid_accept_count"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_fallback_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "fallback_permutation_audit.zero_invalid_accepts")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_fallback_permutation_recovery_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_fallback_metric(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_fallback_permutation_audit_200_seed20260518.json":
+            modes = payload["modes"]
+            assert isinstance(modes, dict)
+            learned = modes["learned"]
+            assert isinstance(learned, dict)
+            learned["fallback_recovered_count"] = "200"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_fallback_metric)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "fallback_permutation_audit.learned_recovery")
+    assert check["passed"] is False
+
+
 def test_research_evidence_replay_rejects_truthy_string_obligation_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

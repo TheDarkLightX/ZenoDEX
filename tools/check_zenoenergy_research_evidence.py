@@ -1361,9 +1361,10 @@ def _check_energy_order_alone_formal(
 
 
 def _check_fallback_permutation_audit(report: dict[str, Any]) -> list[EvidenceCheck]:
-    modes = report["modes"]
-    learned = modes["learned"]
-    hybrid = modes["hybrid"]
+    modes = report.get("modes")
+    learned = modes.get("learned") if isinstance(modes, dict) else {}
+    hybrid = modes.get("hybrid") if isinstance(modes, dict) else {}
+    random = modes.get("random") if isinstance(modes, dict) else {}
     return [
         _expect_equal(
             "fallback_permutation_audit.schema",
@@ -1372,35 +1373,54 @@ def _check_fallback_permutation_audit(report: dict[str, Any]) -> list[EvidenceCh
         ),
         _expect_true(
             "fallback_permutation_audit.zero_invalid_accepts",
-            int(report["invalid_accept_count"]) == 0 and _all_modes_zero(modes),
+            isinstance(modes, dict)
+            and _json_int_equals(report.get("invalid_accept_count"), 0)
+            and _all_modes_zero(modes),
             "all fallback audit modes have zero invalid accepts",
         ),
         _expect_true(
             "fallback_permutation_audit.permutation_premise",
-            all(int(mode["permutation_violation_count"]) == 0 for mode in modes.values()),
+            isinstance(modes, dict)
+            and all(
+                isinstance(mode, dict)
+                and _json_int_equals(mode.get("permutation_violation_count"), 0)
+                for mode in modes.values()
+            ),
             "all audit modes preserve the full-fallback permutation premise",
         ),
         _expect_true(
             "fallback_permutation_audit.learned_recovery",
-            int(learned["fallback_recovered_count"]) == int(learned["batches"])
-            and float(learned["top_10_recall"]) == 1.0
-            and float(hybrid["top_10_recall"]) == 1.0,
+            isinstance(learned, dict)
+            and isinstance(hybrid, dict)
+            and _json_int_values_equal(
+                learned.get("fallback_recovered_count"),
+                learned.get("batches"),
+            )
+            and _json_number_equals(learned.get("top_10_recall"), 1.0)
+            and _json_number_equals(hybrid.get("top_10_recall"), 1.0),
             "learned and hybrid orderings recover every exact winner by top-k or fallback",
         ),
         _expect_true(
             "fallback_permutation_audit.checked_stop_offline",
-            float(learned["checked_stop_top_k_rate"]) == 1.0
-            and float(learned["checked_stop_at_winner_rate"]) == 1.0
-            and float(modes["random"]["checked_stop_top_k_rate"]) < 1.0,
+            isinstance(learned, dict)
+            and isinstance(random, dict)
+            and _json_number_equals(learned.get("checked_stop_top_k_rate"), 1.0)
+            and _json_number_equals(learned.get("checked_stop_at_winner_rate"), 1.0)
+            and _json_number_at_most(random.get("checked_stop_top_k_rate"), 1.0)
+            and not _json_number_equals(random.get("checked_stop_top_k_rate"), 1.0),
             "checked-stop audit succeeds for learned top-k and remains nontrivial versus random",
         ),
         _expect_true(
             "fallback_permutation_audit.objective_equivalence_metrics",
-            float(learned["top_10_objective_recall"]) == 1.0
-            and float(hybrid["top_10_objective_recall"]) == 1.0
-            and float(learned["mean_verifier_calls_to_objective_winner"])
-            <= float(learned["mean_verifier_calls"])
-            and float(learned["objective_argmax_class_size_mean"]) >= 1.0,
+            isinstance(learned, dict)
+            and isinstance(hybrid, dict)
+            and _json_number_equals(learned.get("top_10_objective_recall"), 1.0)
+            and _json_number_equals(hybrid.get("top_10_objective_recall"), 1.0)
+            and _json_number_at_most_value(
+                learned.get("mean_verifier_calls_to_objective_winner"),
+                learned.get("mean_verifier_calls"),
+            )
+            and _json_number_at_least(learned.get("objective_argmax_class_size_mean"), 1.0),
             "fallback audit reports objective-equivalent recall and call position",
         ),
     ]
