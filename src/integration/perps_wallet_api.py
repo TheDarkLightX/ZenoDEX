@@ -1060,6 +1060,10 @@ def _hash_payload(domain: str, payload: Mapping[str, Any]) -> str:
     return sha256_hex(domain_sep_bytes(domain) + canonical_json_bytes(dict(payload)))
 
 
+def _preflight_ok(preflight: Mapping[str, Any]) -> bool:
+    return preflight.get("ok") is True
+
+
 def _redacted_tau_tx_payload(payload: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
     if payload is None:
         return None
@@ -1238,7 +1242,7 @@ def _perps_proof_intent_receipt(
         "app_hash_after": app_hash_after,
         "operation_hash": _hash_payload("zenodex.perps_wallet.operation/v1", operation),
         "operations_hash": _hash_payload("zenodex.perps_wallet.operations/v1", operations),
-        "preflight_ok": bool(preflight.get("ok")),
+        "preflight_ok": _preflight_ok(preflight),
         "preflight_error": preflight.get("error"),
         "tx_sender_pubkey": tx_sender_pubkey,
         "tx_sequence_number": int(tx_sequence_number),

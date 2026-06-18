@@ -120,6 +120,10 @@ def _hash_payload(domain: str, payload: Mapping[str, Any]) -> str:
     return sha256_hex(domain_sep_bytes(domain) + canonical_json_bytes(dict(payload)))
 
 
+def _preflight_ok(preflight: Mapping[str, Any]) -> bool:
+    return preflight.get("ok") is True
+
+
 def _zusd_proof_profile() -> dict[str, Any]:
     return {
         "schema": _ZUSD_PROOF_PROFILE_SCHEMA,
@@ -184,7 +188,7 @@ def _zusd_proof_intent_receipt(
         "app_hash_after": app_hash_after,
         "operation_hash": _hash_payload("zenodex.zusd_monetary_wallet.operation/v1", operation),
         "operations_hash": _hash_payload("zenodex.zusd_monetary_wallet.operations/v1", operations),
-        "preflight_ok": bool(preflight.get("ok")),
+        "preflight_ok": _preflight_ok(preflight),
         "preflight_error": preflight.get("error"),
         "actor_pubkey": actor_pubkey,
         "nonce_before": int(nonce_before),
@@ -664,13 +668,14 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         block_timestamp=block_timestamp,
         native_balance=native_balance,
     )
-    if for_submit and not preflight.get("ok"):
+    if for_submit and not _preflight_ok(preflight):
         raise ValueError(f"preflight_failed: {preflight.get('error') or 'unknown'}")
 
     tau_tx_payload: dict[str, Any] | None = None
     signing_mode = "prepare_only"
     signer_privkey = body.get("signer_privkey")
     external_payload = _request_signed_tau_tx_payload(body) if for_submit else None
+    may_sign = _preflight_ok(preflight)
     if external_payload is not None:
         tau_tx_payload = _validate_external_tau_tx_payload(
             external_payload,
@@ -681,7 +686,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             tx_fee_limit=tx_fee_limit,
         )
         signing_mode = "external_signed_payload"
-    elif for_submit or signer_privkey is not None:
+    elif may_sign and (for_submit or signer_privkey is not None):
         if not isinstance(signer_privkey, (str, int)):
             raise ValueError("missing_signer_privkey")
         if not _allow_signing():
