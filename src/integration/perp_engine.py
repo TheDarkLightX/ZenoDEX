@@ -3620,40 +3620,57 @@ def _apply_isolated_deposit_insurance(
     return None
 
 
-def _apply_isolated_set_position(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMarketState) -> Optional[str]:
-    action = op.action
-    market_id = op.market_id
-    data = op.data
+_ISOLATED_SET_POSITION_FIELDS = frozenset(
+    {"module", "version", "market_id", "action", "account_pubkey", "new_position_base"}
+)
 
-    allowed = {"module", "version", "market_id", "action", "account_pubkey", "new_position_base"}
-    unknown_fields_ok = not (set(data.keys()) - allowed)
+
+def _read_isolated_set_position_command(
+    ctx: _PerpApplyCtx,
+    *,
+    op: PerpOp,
+) -> tuple[Optional[str], Optional[str], Optional[int]]:
+    unknown_fields_ok = not (set(op.data.keys()) - _ISOLATED_SET_POSITION_FIELDS)
     gate_error = _sender_gate_error(
         action_kind=RUNTIME_ACTION_SET_POSITION,
-        action=action,
+        action=op.action,
         sender_err=None,
         unknown_fields_ok=unknown_fields_ok,
     )
     if gate_error is not None:
-        return gate_error
+        return gate_error, None, None
 
-    account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
+    account_pubkey = _require_str(op.data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
     sender_err = _require_sender_bound_account_pubkey(
         account_pubkey=account_pubkey,
         tx_sender_pubkey=ctx.tx_sender_pubkey,
     )
     gate_error = _sender_gate_error(
         action_kind=RUNTIME_ACTION_SET_POSITION,
-        action=action,
+        action=op.action,
         sender_err=sender_err,
         unknown_fields_ok=True,
     )
     if gate_error is not None:
-        return gate_error
+        return gate_error, None, None
+
+    new_pos = _require_int(op.data.get("new_position_base"), name="new_position_base", non_negative=False)
+    return None, account_pubkey, new_pos
+
+
+def _apply_isolated_set_position(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMarketState) -> Optional[str]:
+    action = op.action
+    market_id = op.market_id
+
+    err, account_pubkey, new_pos = _read_isolated_set_position_command(ctx, op=op)
+    if err is not None:
+        return err
+    if account_pubkey is None or new_pos is None:
+        return "internal error: set_position command missing"
 
     accounts = dict(market.accounts)
     acct = accounts.get(account_pubkey) or _kernel_initial_account_state()
 
-    new_pos = _require_int(data.get("new_position_base"), name="new_position_base", non_negative=False)
     res = perp_epoch_isolated_default_apply(
         state=market.kernel_state_for_account(acct),
         action="set_position",
