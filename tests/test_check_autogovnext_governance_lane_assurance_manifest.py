@@ -68,6 +68,20 @@ def test_autogovnext_governance_lane_manifest_rejects_production_claim_flip(tmp_
         check_manifest(manifest_path=manifest_path)
 
 
+@pytest.mark.parametrize("manifest_version", [True, "1"])
+def test_autogovnext_governance_lane_manifest_rejects_coerced_manifest_version(
+    tmp_path: Path,
+    manifest_version: object,
+) -> None:
+    manifest_path = _copy_manifest(tmp_path)
+    manifest = _load(manifest_path)
+    manifest["manifest_version"] = manifest_version
+    _write(manifest_path, manifest)
+
+    with pytest.raises(ManifestError, match="manifest_version: expected int"):
+        check_manifest(manifest_path=manifest_path)
+
+
 def test_autogovnext_governance_lane_manifest_requires_upgrade_authority_non_claim(tmp_path: Path) -> None:
     manifest_path = _copy_manifest(tmp_path)
     manifest = _load(manifest_path)
@@ -121,6 +135,27 @@ def test_autogovnext_governance_lane_manifest_rejects_missing_proof_client_check
     _write(manifest_path, manifest)
 
     with pytest.raises(ManifestError, match="missing required command"):
+        check_manifest(manifest_path=manifest_path)
+
+
+@pytest.mark.parametrize("expected_exit", [False, "0"])
+def test_autogovnext_governance_lane_manifest_rejects_coerced_expected_exit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    expected_exit: object,
+) -> None:
+    monkeypatch.setattr(manifest_checker, "_check_source_files", lambda _entries: [])
+    manifest_path = _copy_manifest(tmp_path)
+    manifest = _load(manifest_path)
+    commands = manifest["required_commands"]
+    assert isinstance(commands, list)
+    for command in commands:
+        assert isinstance(command, dict)
+        if command.get("id") == "focused_pytest":
+            command["expected_exit"] = expected_exit
+    _write(manifest_path, manifest)
+
+    with pytest.raises(ManifestError, match="focused_pytest: expected_exit: expected int"):
         check_manifest(manifest_path=manifest_path)
 
 

@@ -47,6 +47,11 @@ def _as_dict(value: Any, *, ctx: str) -> Mapping[str, Any]:
     return value
 
 
+def _as_plain_int(value: Any, *, ctx: str) -> int:
+    _require(isinstance(value, int) and not isinstance(value, bool), f"{ctx}: expected int")
+    return int(value)
+
+
 def _load_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -84,14 +89,18 @@ def _repo_path(rel: str) -> Path:
 
 
 def _check_source_files(entries: object) -> list[dict[str, str]]:
-    _require(isinstance(entries, list) and entries, "source_files must be a non-empty list")
+    if not isinstance(entries, list):
+        raise ManifestError("source_files must be a non-empty list")
+    entries_list = entries
+    if not entries_list:
+        raise ManifestError("source_files must be a non-empty list")
     seen: set[str] = set()
     checked: list[dict[str, str]] = []
-    for raw in entries:
+    for raw in entries_list:
         entry = _as_dict(raw, ctx="source_files[]")
         rel = str(entry.get("path", ""))
         expected = str(entry.get("sha256", ""))
-        _require(rel and rel not in seen, f"duplicate or empty source path: {rel!r}")
+        _require(bool(rel) and rel not in seen, f"duplicate or empty source path: {rel!r}")
         _require(len(expected) == 64 and all(ch in "0123456789abcdef" for ch in expected), f"{rel}: invalid sha256")
         seen.add(rel)
         path = _repo_path(rel)
@@ -104,21 +113,29 @@ def _check_source_files(entries: object) -> list[dict[str, str]]:
 
 
 def _normalize_argv(argv: object) -> list[str]:
-    _require(isinstance(argv, list) and argv, "command argv must be a non-empty list")
+    if not isinstance(argv, list):
+        raise ManifestError("command argv must be a non-empty list")
+    argv_list = argv
+    if not argv_list:
+        raise ManifestError("command argv must be a non-empty list")
     out: list[str] = []
-    for raw in argv:
-        _require(isinstance(raw, str) and raw, "command argv entries must be non-empty strings")
+    for raw in argv_list:
+        _require(isinstance(raw, str) and bool(raw), "command argv entries must be non-empty strings")
         out.append(sys.executable if raw == "{python}" else raw)
     return out
 
 
 def _check_commands(commands: object, *, run_commands: bool) -> list[dict[str, Any]]:
-    _require(isinstance(commands, list) and commands, "required_commands must be a non-empty list")
+    if not isinstance(commands, list):
+        raise ManifestError("required_commands must be a non-empty list")
+    command_list = commands
+    if not command_list:
+        raise ManifestError("required_commands must be a non-empty list")
     by_id: dict[str, Mapping[str, Any]] = {}
-    for raw in commands:
+    for raw in command_list:
         command = _as_dict(raw, ctx="required_commands[]")
         command_id = str(command.get("id", ""))
-        _require(command_id and command_id not in by_id, f"duplicate or empty command id: {command_id!r}")
+        _require(bool(command_id) and command_id not in by_id, f"duplicate or empty command id: {command_id!r}")
         by_id[command_id] = command
     missing = sorted(REQUIRED_COMMAND_IDS - set(by_id))
     _require(not missing, f"missing required command(s): {', '.join(missing)}")
@@ -126,7 +143,7 @@ def _check_commands(commands: object, *, run_commands: bool) -> list[dict[str, A
     results: list[dict[str, Any]] = []
     for command_id in sorted(REQUIRED_COMMAND_IDS):
         command = by_id[command_id]
-        expected_exit = int(command.get("expected_exit", -1))
+        expected_exit = _as_plain_int(command.get("expected_exit"), ctx=f"{command_id}: expected_exit")
         _require(expected_exit == 0, f"{command_id}: expected_exit must be 0")
         argv = _normalize_argv(command.get("argv"))
         if not run_commands:
@@ -142,12 +159,14 @@ def _check_commands(commands: object, *, run_commands: bool) -> list[dict[str, A
 
 def check_manifest(*, manifest_path: Path, run_commands: bool = False) -> dict[str, Any]:
     manifest = _as_dict(_load_json(manifest_path), ctx=str(manifest_path))
-    _require(int(manifest.get("manifest_version", -1)) == 1, "manifest_version mismatch")
+    _require(_as_plain_int(manifest.get("manifest_version"), ctx="manifest_version") == 1, "manifest_version mismatch")
     _require(manifest.get("production_security_claim") is False, "production_security_claim must remain false")
 
     non_claims = manifest.get("non_claims")
-    _require(isinstance(non_claims, list), "non_claims must be a list")
-    missing_non_claims = sorted(REQUIRED_NON_CLAIMS - {str(item) for item in non_claims})
+    if not isinstance(non_claims, list):
+        raise ManifestError("non_claims must be a list")
+    non_claims_list = non_claims
+    missing_non_claims = sorted(REQUIRED_NON_CLAIMS - {str(item) for item in non_claims_list})
     _require(not missing_non_claims, f"missing non_claim(s): {', '.join(missing_non_claims)}")
 
     checked_files = _check_source_files(manifest.get("source_files"))
