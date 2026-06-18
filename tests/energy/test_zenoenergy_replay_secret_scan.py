@@ -39,6 +39,20 @@ def test_secret_scan_rejects_sensitive_json_key(tmp_path: Path) -> None:
     assert report["findings"][0]["evidence"] == "priv..._key"
 
 
+def test_secret_scan_manifest_fragment_requires_strict_ok() -> None:
+    fragment = secret_scan_manifest_fragment(
+        {
+            "schema": SECRET_SCAN_SCHEMA,
+            "tool": "local-secret-scan-v1",
+            "ok": "true",
+            "finding_count": 0,
+            "source_report_count": 1,
+        }
+    )
+
+    assert fragment["ok"] is False
+
+
 def test_secret_scan_rejects_text_key_material(tmp_path: Path) -> None:
     report_path = tmp_path / "bad_report.json"
     report_path.write_text(

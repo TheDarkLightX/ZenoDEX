@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from tools import build_zenoenergy_replay_source_manifest as builder_mod
 from tools.build_zenoenergy_replay_source_manifest import (
     build_replay_source_manifest,
     main,
@@ -143,6 +146,44 @@ def test_cli_accepts_clean_secret_scan_report(tmp_path: Path) -> None:
     assert rc == 0
     assert manifest["secret_scan"]["schema"] == "zenodex/energy/replay_secret_scan/v1"
     assert manifest["secret_scan"]["source_report_count"] == 1
+
+
+def test_cli_rejects_malformed_truthy_manifest_check(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_path = tmp_path / "upba_benchmark.json"
+    manifest_path = tmp_path / "manifest.json"
+    source_path.write_text(json.dumps(_source_payload()), encoding="utf-8")
+
+    monkeypatch.setattr(
+        builder_mod,
+        "validate_manifest_against_named_reports",
+        lambda *_: {"ok": "true", "checks": [{"check_id": "malformed", "passed": "true"}]},
+    )
+
+    rc = main(
+        [
+            "--manifest-id",
+            "prod-shadow-upba-20260501-20260509",
+            "--source-kind",
+            "production-shadow",
+            "--source-descriptor",
+            "prod-shadow:2026-05-01..2026-05-09",
+            "--market-day-count",
+            "9",
+            "--source-report",
+            f"upba-benchmark={source_path}",
+            "--deterministic-replay-ok",
+            "--no-live-secrets",
+            "--secret-scan-ok",
+            "--output-json",
+            str(manifest_path),
+        ]
+    )
+
+    assert rc == 2
+    assert not manifest_path.exists()
 
 
 def test_cli_rejects_dirty_secret_scan_report(tmp_path: Path) -> None:

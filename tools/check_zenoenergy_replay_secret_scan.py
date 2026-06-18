@@ -111,7 +111,7 @@ def secret_scan_manifest_fragment(report: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("secret scan report must use replay_secret_scan/v1")
     return {
         "tool": str(report.get("tool", "")),
-        "ok": bool(report.get("ok")),
+        "ok": report.get("ok") is True,
         "finding_count": int(report.get("finding_count", -1)),
         "schema": SECRET_SCAN_SCHEMA,
         "source_report_count": int(report.get("source_report_count", 0)),

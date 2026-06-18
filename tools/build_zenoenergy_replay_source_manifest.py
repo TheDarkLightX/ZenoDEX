@@ -75,11 +75,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    if bool(check["ok"]) is not True:
+    if check["ok"] is not True:
         failed = ", ".join(
             str(item["check_id"])
             for item in check.get("checks", [])
-            if not bool(item.get("passed"))
+            if item.get("passed") is not True
         )
         print(f"error: replay source manifest check failed: {failed}", file=sys.stderr)
         return 2

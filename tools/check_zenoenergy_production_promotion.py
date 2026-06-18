@@ -87,7 +87,7 @@ def build_production_gate_report(
         _upba_real_replay_obligation(upba_real_replay),
         _autotrader_real_shadow_obligation(autotrader_real_shadow),
     ]
-    all_passed = all(bool(item["passed"]) for item in obligations)
+    all_passed = all(item["passed"] is True for item in obligations)
     decision = "allow_ranking_only" if all_passed else "blocked"
     return {
         "schema": "zenodex/energy/production_promotion_gate/v1",
@@ -113,7 +113,7 @@ def build_production_gate_report(
         },
         "obligations": obligations,
         "blocked_reasons": [
-            str(item["reason"]) for item in obligations if not bool(item["passed"])
+            str(item["reason"]) for item in obligations if item["passed"] is not True
         ],
         "safety_contract": {
             "verifier_authoritative": True,

@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from tools import check_zenoenergy_production_promotion as promotion_mod
 from tools.check_zenoenergy_production_promotion import (
     build_production_gate_report,
     main,
@@ -121,6 +124,52 @@ def test_production_gate_rejects_truthy_string_research_ok() -> None:
     obligation = _obligation(report, "research_replay_clean")
     assert obligation["passed"] is False
     assert obligation["observed"]["ok"] is False
+
+
+def test_production_gate_rejects_truthy_string_obligation_passed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        promotion_mod,
+        "_research_replay_obligation",
+        lambda _: {
+            "id": "research_replay_clean",
+            "passed": "true",
+            "reason": "malformed truthy obligation",
+            "observed": {},
+        },
+    )
+    monkeypatch.setattr(
+        promotion_mod,
+        "_ranking_only_obligation",
+        lambda _: {"id": "ranking_only_scope", "passed": True, "reason": "ok", "observed": {}},
+    )
+    monkeypatch.setattr(
+        promotion_mod,
+        "_upba_real_replay_obligation",
+        lambda _: {"id": "upba_real_replay_coverage", "passed": True, "reason": "ok", "observed": {}},
+    )
+    monkeypatch.setattr(
+        promotion_mod,
+        "_autotrader_real_shadow_obligation",
+        lambda _: {
+            "id": "autotrader_real_shadow_coverage",
+            "passed": True,
+            "reason": "ok",
+            "observed": {},
+        },
+    )
+
+    report = promotion_mod.build_production_gate_report(
+        research_replay={},
+        upba_real_replay={},
+        autotrader_real_shadow={},
+        operator_release_enabled=True,
+    )
+
+    assert report["decision"] == "blocked"
+    assert report["promotion_allowed"] is False
+    assert report["blocked_reasons"] == ["malformed truthy obligation"]
 
 
 def test_production_gate_cli_writes_blocked_receipt(tmp_path: Path) -> None:
