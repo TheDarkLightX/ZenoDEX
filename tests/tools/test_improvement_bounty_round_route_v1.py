@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from src.integration.tau_runner import find_tau_bin, run_tau_spec_steps
-from tools.gpu_jobs.improvement_bounty_round_route_v1 import _compute_payout_amount
+from tools.gpu_jobs.improvement_bounty_round_route_v1 import _build_payout_plan, _compute_payout_amount
 from tools.proof_verifiers.route_improvement_v1 import verify_route_improvement_witness
 
 
@@ -267,6 +267,28 @@ def test_improvement_bounty_round_bva_no_valid_submissions_outputs_ok_false(tmp_
     rnd = json.loads(out_path.read_text(encoding="utf-8"))
     assert rnd["ok"] is False
     assert "no valid submissions" in rnd["error"]
+
+
+def test_build_payout_plan_rejects_truthy_string_round_ok() -> None:
+    # Payout admission is evidence-gated: only the literal JSON bool true may
+    # unlock a plan. Truthy strings are malformed evidence, not success.
+    with pytest.raises(ValueError, match="round must be ok"):
+        _build_payout_plan(
+            round_obj={
+                "ok": "true",
+                "job_digest": "digest",
+                "winner": {
+                    "miner_id": "alice",
+                    "witness_sha256": "0" * 64,
+                    "improvement_u64": 1,
+                },
+            },
+            round_id="route-round-1",
+            reward_pool_before=10,
+            base_reward=1,
+            improvement_reward_bps=0,
+            max_reward=10,
+        )
 
 
 def test_improvement_bounty_round_emits_capped_payout_plan(tmp_path: Path) -> None:

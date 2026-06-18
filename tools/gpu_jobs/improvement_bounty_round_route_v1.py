@@ -298,7 +298,7 @@ def _build_payout_plan(
 ) -> Dict[str, Any]:
     if not isinstance(round_id, str) or not round_id:
         raise ValueError("round_id must be non-empty")
-    if not bool(round_obj.get("ok")):
+    if round_obj.get("ok") is not True:
         raise ValueError("round must be ok")
 
     winner = _require_mapping(round_obj.get("winner"), name="winner")
