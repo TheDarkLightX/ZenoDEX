@@ -893,6 +893,74 @@ def test_research_evidence_replay_rejects_coerced_autotrader_cross_seed_nonvacui
     assert check["passed"] is False
 
 
+def test_research_evidence_replay_rejects_coerced_autotrader_shadow_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_shadow_safety(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "autotrader_energy_shadow_bridge_baseline_seed20260528.json":
+            safety = payload["safety"]
+            assert isinstance(safety, dict)
+            safety["invalid_accept_count_total"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_shadow_safety)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "autotrader_energy_shadow_bridge.safety")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_autotrader_shadow_fixture_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_shadow_fixture(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "autotrader_energy_shadow_bridge_baseline_seed20260528.json":
+            shadow = payload["shadow"]
+            assert isinstance(shadow, dict)
+            shadow["context_count"] = "4"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_shadow_fixture)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "autotrader_energy_shadow_bridge.nonvacuous_fixture")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_autotrader_shadow_objective_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_shadow_objective(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "autotrader_energy_shadow_bridge_baseline_seed20260528.json":
+            modes = payload["modes"]
+            assert isinstance(modes, dict)
+            hybrid = modes["hybrid"]
+            assert isinstance(hybrid, dict)
+            hybrid["top_1_objective_recall"] = "1.0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_shadow_objective)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "autotrader_energy_shadow_bridge.objective_equiv_argmax")
+    assert check["passed"] is False
+
+
 def test_research_evidence_replay_rejects_truthy_string_obligation_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

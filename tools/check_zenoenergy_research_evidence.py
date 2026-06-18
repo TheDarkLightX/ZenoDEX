@@ -2208,11 +2208,13 @@ def _check_autotrader_energy_shadow_bridge(
     report: dict[str, Any],
     doc_text: str,
 ) -> list[EvidenceCheck]:
-    shadow = report["shadow"]
-    modes = report["modes"]
-    learned = modes["hybrid"]
-    hand = modes["hand"]
-    random = modes["random"]
+    shadow = report.get("shadow")
+    modes = report.get("modes")
+    learned = modes.get("hybrid") if isinstance(modes, dict) else {}
+    hand = modes.get("hand") if isinstance(modes, dict) else {}
+    random = modes.get("random") if isinstance(modes, dict) else {}
+    safety = report.get("safety")
+    interpretation = report.get("interpretation")
     doc_lower = doc_text.lower()
     return [
         _expect_equal(
@@ -2222,38 +2224,59 @@ def _check_autotrader_energy_shadow_bridge(
         ),
         _expect_true(
             "autotrader_energy_shadow_bridge.safety",
-            int(report["safety"]["invalid_accept_count_total"]) == 0
-            and _is_true(report["safety"]["policy_guards_authoritative"])
-            and _is_false(report["safety"]["scorer_authorizes_trade"])
-            and _is_false(report["safety"]["model_output_in_state_root"])
+            isinstance(safety, dict)
+            and isinstance(modes, dict)
+            and _json_int_equals(safety.get("invalid_accept_count_total"), 0)
+            and _is_true(safety.get("policy_guards_authoritative"))
+            and _is_false(safety.get("scorer_authorizes_trade"))
+            and _is_false(safety.get("model_output_in_state_root"))
             and _all_modes_zero(modes),
             "zero invalid accepts and deterministic AutoTrader policy guards remain authoritative",
         ),
         _expect_true(
             "autotrader_energy_shadow_bridge.nonvacuous_fixture",
-            int(shadow["context_count"]) >= 4
-            and int(shadow["row_count"]) >= 20
-            and int(shadow["valid_count"]) > 0
-            and int(shadow["invalid_count"]) > 0
-            and int(shadow["winner_count"]) == int(shadow["context_count"])
-            and all(int(count) >= 2 for count in shadow["group_counts"].values()),
+            isinstance(shadow, dict)
+            and _json_int_at_least(shadow.get("context_count"), 4)
+            and _json_int_at_least(shadow.get("row_count"), 20)
+            and _json_int_greater_than(shadow.get("valid_count"), 0)
+            and _json_int_greater_than(shadow.get("invalid_count"), 0)
+            and _json_int_values_equal(
+                shadow.get("winner_count"),
+                shadow.get("context_count"),
+            )
+            and _all_json_int_values_at_least(shadow.get("group_counts"), 2),
             "shadow fixture has multiple candidates per context plus valid and invalid outcomes",
         ),
         _expect_true(
             "autotrader_energy_shadow_bridge.learned_ties_hand_negative",
-            _is_false(report["interpretation"]["learned_beats_hand_on_mean_guard_calls"])
-            and float(learned["mean_guard_calls"]) == float(hand["mean_guard_calls"])
-            and float(learned["mean_guard_calls"]) < float(random["mean_guard_calls"])
-            and float(learned["top_5_recall"]) == 1.0
-            and float(learned["top_1_recall"]) == 0.0,
+            isinstance(interpretation, dict)
+            and isinstance(learned, dict)
+            and isinstance(hand, dict)
+            and isinstance(random, dict)
+            and _is_false(interpretation.get("learned_beats_hand_on_mean_guard_calls"))
+            and _json_number_values_equal(
+                learned.get("mean_guard_calls"),
+                hand.get("mean_guard_calls"),
+            )
+            and _json_number_less_than(
+                learned.get("mean_guard_calls"),
+                random.get("mean_guard_calls"),
+            )
+            and _json_number_equals(learned.get("top_5_recall"), 1.0)
+            and _json_number_equals(learned.get("top_1_recall"), 0.0),
             "learned ordering ties hand energy, beats random mean calls, and records top-1 miss knowledge",
         ),
         _expect_true(
             "autotrader_energy_shadow_bridge.objective_equiv_argmax",
-            float(learned["top_1_objective_recall"]) == 1.0
-            and float(learned["mean_guard_calls_to_objective_winner"]) == 1.0
-            and int(learned["objective_tie_batch_count"]) == int(shadow["context_count"])
-            and float(learned["objective_tie_batch_rate"]) == 1.0,
+            isinstance(learned, dict)
+            and isinstance(shadow, dict)
+            and _json_number_equals(learned.get("top_1_objective_recall"), 1.0)
+            and _json_number_equals(learned.get("mean_guard_calls_to_objective_winner"), 1.0)
+            and _json_int_values_equal(
+                learned.get("objective_tie_batch_count"),
+                shadow.get("context_count"),
+            )
+            and _json_number_equals(learned.get("objective_tie_batch_rate"), 1.0),
             "objective-equivalent argmax recall separates tied maxima from hash-selected exact winner misses",
         ),
         _expect_true(
@@ -4570,8 +4593,20 @@ def _json_int_at_least(value: object, minimum: int) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
 
 
+def _json_int_greater_than(value: object, minimum: int) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > minimum
+
+
 def _json_int_equals(value: object, expected: int) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value == expected
+
+
+def _all_json_int_values_at_least(value: object, minimum: int) -> bool:
+    return (
+        isinstance(value, dict)
+        and len(value) > 0
+        and all(_json_int_at_least(item, minimum) for item in value.values())
+    )
 
 
 def _json_int_values_equal(left: object, right: object) -> bool:
@@ -4604,6 +4639,16 @@ def _json_number_at_most(value: object, maximum: float) -> bool:
 
 def _json_number_equals(value: object, expected: float) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and float(value) == expected
+
+
+def _json_number_values_equal(left: object, right: object) -> bool:
+    return (
+        isinstance(left, (int, float))
+        and not isinstance(left, bool)
+        and isinstance(right, (int, float))
+        and not isinstance(right, bool)
+        and float(left) == float(right)
+    )
 
 
 def _json_number_less_than(left: object, right: object) -> bool:
