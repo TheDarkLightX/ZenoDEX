@@ -1507,6 +1507,7 @@ class _PerpApplyCtx:
     effects: List[Dict[str, Any]]
     tx_sender_pubkey: str
     block_timestamp: int
+    perps_version: int
 
 
 def _reject_unknown_fields(data: Mapping[str, Any], allowed: set[str], *, error: str) -> Optional[str]:
@@ -3694,6 +3695,460 @@ def _apply_chnp_op(
     return f"unknown perps action: {action}"
 
 
+_PERP_INIT_ACTIONS = frozenset({"init_market", "init_market_2p", "init_market_3p", "init_market_np"})
+_CLEARINGHOUSE_VERSIONS = frozenset(
+    {
+        PERP_OP_VERSION_CH2P_V0_2,
+        PERP_OP_VERSION_CH2P_V1_0,
+        PERP_OP_VERSION_CH3P_V1_1,
+        PERP_OP_VERSION_CHNP_V1_2,
+    }
+)
+
+
+def _is_clearinghouse_version(version: str) -> bool:
+    return version in _CLEARINGHOUSE_VERSIONS
+
+
+def _apply_init_market(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | None:
+    action = op.action
+    market_id = op.market_id
+    version = op.version
+    data = op.data
+    if version != PERP_OP_VERSION_V0_1:
+        return "init_market requires perps.version=0.1"
+    err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
+    if err is not None:
+        return err
+    if market_id in ctx.markets:
+        return "market already exists"
+
+    quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
+    allowed = {"module", "version", "market_id", "action", "quote_asset"}
+    extra = set(data.keys()) - allowed
+    if extra:
+        return "init_market has unknown fields"
+
+    ctx.markets[market_id] = PerpMarketState(
+        quote_asset=quote_asset,
+        global_state=_kernel_initial_global_state(),
+        accounts={},
+    )
+    ctx.effects.append({"i": i, "market_id": market_id, "action": action})
+    return None
+
+
+def _apply_init_market_2p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | None:
+    action = op.action
+    market_id = op.market_id
+    version = op.version
+    data = op.data
+    version_ok = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+    if not version_ok:
+        surface_err = _evaluate_signed_surface(
+            action_kind=ACTION_INIT_MARKET_2P,
+            action=action,
+            version_ok=False,
+            unknown_fields_ok=True,
+        )
+        return surface_err or "init_market_2p requires perps.version=0.2 or 1.0"
+    if market_id in ctx.markets:
+        return "market already exists"
+
+    quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
+    account_a_pubkey = _require_str(
+        data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512
+    )
+    account_b_pubkey = _require_str(
+        data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512
+    )
+    distinct_accounts_ok = account_a_pubkey != account_b_pubkey
+
+    # Distinctness must be enforced by pubkey bytes (not string representation).
+    try:
+        a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
+        b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
+        distinct_accounts_ok = bool(distinct_accounts_ok and a_b != b_b)
+    except (TypeError, ValueError):
+        # Fail later via signature verification (keeps errors attributed to the signer).
+        pass
+
+    nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
+    sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
+    nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
+    sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
+
+    allowed = {
+        "module",
+        "version",
+        "market_id",
+        "action",
+        "quote_asset",
+        "account_a_pubkey",
+        "account_b_pubkey",
+        "deadline",
+        "nonce_a",
+        "sig_a",
+        "nonce_b",
+        "sig_b",
+    }
+    surface_err = _evaluate_signed_surface(
+        action_kind=ACTION_INIT_MARKET_2P,
+        action=action,
+        version_ok=version_ok,
+        unknown_fields_ok=not (set(data.keys()) - allowed),
+        distinct_accounts_ok=distinct_accounts_ok,
+    )
+    if surface_err is not None:
+        return surface_err
+
+    sig_err_a = _verify_perp_op_signature(
+        config=ctx.config,
+        signer_pubkey=account_a_pubkey,
+        nonce=nonce_a,
+        signature=sig_a,
+        op=data,
+        nonces=ctx.nonces,
+        block_timestamp=ctx.block_timestamp,
+    )
+    if sig_err_a is not None:
+        return f"account_a signature invalid: {sig_err_a}"
+
+    sig_err_b = _verify_perp_op_signature(
+        config=ctx.config,
+        signer_pubkey=account_b_pubkey,
+        nonce=nonce_b,
+        signature=sig_b,
+        op=data,
+        nonces=ctx.nonces,
+        block_timestamp=ctx.block_timestamp,
+    )
+    if sig_err_b is not None:
+        return f"account_b signature invalid: {sig_err_b}"
+
+    # Clearinghouse markets require perps state v5+ (market kind tags).
+    ctx.perps_version = max(ctx.perps_version, PERPS_STATE_VERSION_V5)
+    # Only generated-model domain rejects are user-facing here; internal
+    # helper defects must bubble to apply_perp_ops' sanitizer.
+    try:
+        init_state = _ch2p_init_state_dict()
+    except ValueError as exc:
+        return str(exc)
+    ctx.markets[market_id] = PerpClearinghouse2pMarketState(
+        quote_asset=quote_asset,
+        account_a_pubkey=account_a_pubkey,
+        account_b_pubkey=account_b_pubkey,
+        state=init_state,
+    )
+    ctx.effects.append(
+        {
+            "i": i,
+            "market_id": market_id,
+            "action": action,
+            "account_a_pubkey": account_a_pubkey,
+            "account_b_pubkey": account_b_pubkey,
+        }
+    )
+    return None
+
+
+def _apply_init_market_3p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | None:
+    action = op.action
+    market_id = op.market_id
+    version = op.version
+    data = op.data
+    version_ok = version == PERP_OP_VERSION_CH3P_V1_1
+    if not version_ok:
+        surface_err = _evaluate_signed_surface(
+            action_kind=ACTION_INIT_MARKET_3P,
+            action=action,
+            version_ok=False,
+            unknown_fields_ok=True,
+        )
+        return surface_err or "init_market_3p requires perps.version=1.1"
+    if market_id in ctx.markets:
+        return "market already exists"
+
+    quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
+    account_a_pubkey = _require_str(
+        data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512
+    )
+    account_b_pubkey = _require_str(
+        data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512
+    )
+    account_c_pubkey = _require_str(
+        data.get("account_c_pubkey"), name="account_c_pubkey", non_empty=True, max_len=512
+    )
+    distinct_accounts_ok = len({account_a_pubkey, account_b_pubkey, account_c_pubkey}) == 3
+
+    # Distinctness must be enforced by pubkey bytes (not string representation).
+    try:
+        a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
+        b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
+        c_b = _hex_to_bytes_allow_0x(account_c_pubkey, name="account_c_pubkey", expected_nbytes=48)
+        distinct_accounts_ok = bool(distinct_accounts_ok and len({a_b, b_b, c_b}) == 3)
+    except (TypeError, ValueError):
+        pass
+
+    nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
+    sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
+    nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
+    sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
+    nonce_c = _require_int_u32_pos(data.get("nonce_c"), name="nonce_c")
+    sig_c = _require_str(data.get("sig_c"), name="sig_c", non_empty=True, max_len=4096)
+
+    allowed = {
+        "module",
+        "version",
+        "market_id",
+        "action",
+        "quote_asset",
+        "account_a_pubkey",
+        "account_b_pubkey",
+        "account_c_pubkey",
+        "deadline",
+        "nonce_a",
+        "sig_a",
+        "nonce_b",
+        "sig_b",
+        "nonce_c",
+        "sig_c",
+    }
+    surface_err = _evaluate_signed_surface(
+        action_kind=ACTION_INIT_MARKET_3P,
+        action=action,
+        version_ok=version_ok,
+        unknown_fields_ok=not (set(data.keys()) - allowed),
+        distinct_accounts_ok=distinct_accounts_ok,
+    )
+    if surface_err is not None:
+        return surface_err
+
+    sig_err_a = _verify_perp_op_signature(
+        config=ctx.config,
+        signer_pubkey=account_a_pubkey,
+        nonce=nonce_a,
+        signature=sig_a,
+        op=data,
+        nonces=ctx.nonces,
+        block_timestamp=ctx.block_timestamp,
+    )
+    if sig_err_a is not None:
+        return f"account_a signature invalid: {sig_err_a}"
+
+    sig_err_b = _verify_perp_op_signature(
+        config=ctx.config,
+        signer_pubkey=account_b_pubkey,
+        nonce=nonce_b,
+        signature=sig_b,
+        op=data,
+        nonces=ctx.nonces,
+        block_timestamp=ctx.block_timestamp,
+    )
+    if sig_err_b is not None:
+        return f"account_b signature invalid: {sig_err_b}"
+
+    sig_err_c = _verify_perp_op_signature(
+        config=ctx.config,
+        signer_pubkey=account_c_pubkey,
+        nonce=nonce_c,
+        signature=sig_c,
+        op=data,
+        nonces=ctx.nonces,
+        block_timestamp=ctx.block_timestamp,
+    )
+    if sig_err_c is not None:
+        return f"account_c signature invalid: {sig_err_c}"
+
+    ctx.perps_version = max(ctx.perps_version, PERPS_STATE_VERSION_V5)
+    # Only generated-model domain rejects are user-facing here; internal
+    # helper defects must bubble to apply_perp_ops' sanitizer.
+    try:
+        init_state = _ch3p_init_state_dict()
+    except ValueError as exc:
+        return str(exc)
+    ctx.markets[market_id] = PerpClearinghouse3pTransferMarketState(
+        quote_asset=quote_asset,
+        account_a_pubkey=account_a_pubkey,
+        account_b_pubkey=account_b_pubkey,
+        account_c_pubkey=account_c_pubkey,
+        state=init_state,
+    )
+    ctx.effects.append(
+        {
+            "i": i,
+            "market_id": market_id,
+            "action": action,
+            "account_a_pubkey": account_a_pubkey,
+            "account_b_pubkey": account_b_pubkey,
+            "account_c_pubkey": account_c_pubkey,
+        }
+    )
+    return None
+
+
+def _apply_init_market_np(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | None:
+    action = op.action
+    market_id = op.market_id
+    version = op.version
+    data = op.data
+    if version != PERP_OP_VERSION_CHNP_V1_2:
+        return "init_market_np requires perps.version=1.2"
+    err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
+    if err is not None:
+        return err
+    if market_id in ctx.markets:
+        return "market already exists"
+    if not market_id.startswith(PERP_CHNP_MARKET_PREFIX):
+        return "clearinghouse_np market_id must start with perp:chnp:"
+    quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
+    index_price_e8 = _require_int(data.get("index_price_e8"), name="index_price_e8", non_negative=True)
+    if index_price_e8 <= 0:
+        return "index_price_e8 must be positive"
+    allowed = {
+        "module",
+        "version",
+        "market_id",
+        "action",
+        "quote_asset",
+        "index_price_e8",
+        "insurance_seed_e8",
+        "params",
+    }
+    if set(data.keys()) - allowed:
+        return "init_market_np has unknown fields"
+    insurance_seed_e8 = _require_int(
+        data.get("insurance_seed_e8", 0),
+        name="insurance_seed_e8",
+        non_negative=True,
+    )
+    insurance_seed_quote = 0
+    if insurance_seed_e8:
+        if insurance_seed_e8 % _E8_SCALE != 0:
+            return "insurance_seed_e8 must be quote-unit aligned"
+        insurance_seed_quote = insurance_seed_e8 // _E8_SCALE
+        if ctx.balances.get(ctx.tx_sender_pubkey, quote_asset) < insurance_seed_quote:
+            return "insufficient balance for insurance seed"
+    params_obj = data.get("params", {})
+    if not isinstance(params_obj, Mapping):
+        return "params must be an object"
+    ctx.perps_version = max(ctx.perps_version, PERPS_STATE_VERSION_V5)
+    try:
+        param_overrides = _validated_control_params(
+            params_obj,
+            bounds=_CLEARINGHOUSE_NP_CONTROL_PARAM_BOUNDS,
+            name="params",
+        )
+        init_ms = _np_core.init_market(
+            index_price_e8,
+            params=_np_core.MarketParams(**param_overrides),
+            insurance_seed_e8=insurance_seed_e8,
+        )
+        next_market = _chnp_core_to_market(quote_asset, init_ms, pending_intents=())
+    except Exception as exc:
+        return _safe_error_str(exc)
+    if insurance_seed_quote:
+        ctx.balances.subtract(ctx.tx_sender_pubkey, quote_asset, insurance_seed_quote)
+    ctx.markets[market_id] = next_market
+    ctx.effects.append(
+        {
+            "i": i,
+            "market_id": market_id,
+            "action": action,
+            "quote_asset": quote_asset,
+            "insurance_seed_e8": int(insurance_seed_e8),
+        }
+    )
+    return None
+
+
+def _apply_perp_init_op(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | None:
+    if op.action == "init_market":
+        return _apply_init_market(ctx, i=i, op=op)
+    if op.action == "init_market_2p":
+        return _apply_init_market_2p(ctx, i=i, op=op)
+    if op.action == "init_market_3p":
+        return _apply_init_market_3p(ctx, i=i, op=op)
+    if op.action == "init_market_np":
+        return _apply_init_market_np(ctx, i=i, op=op)
+    return f"unknown perps action: {op.action}"
+
+
+def _apply_existing_perp_market_op(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | None:
+    market_any = ctx.markets.get(op.market_id)
+    if market_any is None:
+        return "unknown market_id"
+
+    is_ch2p = op.version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+    is_ch3p = op.version == PERP_OP_VERSION_CH3P_V1_1
+    is_chnp = op.version == PERP_OP_VERSION_CHNP_V1_2
+    if is_ch2p:
+        if not isinstance(market_any, PerpClearinghouse2pMarketState):
+            return "market kind mismatch for clearinghouse_2p operation"
+        return _apply_ch2p_op(ctx, i=i, op=op, ch2p_market=market_any)
+    if is_ch3p:
+        if not isinstance(market_any, PerpClearinghouse3pTransferMarketState):
+            return "market kind mismatch for clearinghouse_3p operation"
+        return _apply_ch3p_op(ctx, i=i, op=op, ch3p_market=market_any)
+    if is_chnp:
+        if not isinstance(market_any, _NpMarketState):
+            return "market kind mismatch for clearinghouse_np operation"
+        return _apply_chnp_op(ctx, i=i, op=op, chnp_market=market_any)
+    if not isinstance(market_any, PerpMarketState):
+        return "market kind mismatch for isolated operation"
+    return _apply_isolated_op(ctx, i=i, op=op, market=market_any)
+
+
+def _perp_ops_batch_posture_error(config: PerpEngineConfig, ops: List[PerpOp]) -> str | None:
+    if any(op.action == "publish_clearing_price" for op in ops):
+        posture_err = _oracle_reward_posture_error(config)
+        if posture_err is not None:
+            return posture_err
+
+    has_isolated = any(op.version == PERP_OP_VERSION_V0_1 for op in ops)
+    has_clearinghouse = any(_is_clearinghouse_version(op.version) for op in ops)
+    if has_isolated and has_clearinghouse:
+        return "cannot mix isolated and clearinghouse perps ops in one tx"
+    if has_isolated and not config.allow_isolated_markets:
+        return "isolated perps disabled by config (enable allow_isolated_markets)"
+    return None
+
+
+def _build_perp_apply_ctx(
+    *,
+    config: PerpEngineConfig,
+    state: DexState,
+    ops: List[PerpOp],
+    tx_sender_pubkey: str,
+    block_timestamp: int,
+) -> _PerpApplyCtx:
+    balances = _copy_balance_table(state.balances)
+    nonces = _copy_nonce_table(state.nonces)
+
+    perps = state.perps
+    perps_version = PERPS_STATE_VERSION
+    if perps is None:
+        perps = PerpsState(version=PERPS_STATE_VERSION, markets={})
+    else:
+        perps_version = int(perps.version)
+
+    markets = dict(perps.markets)
+    # Perps state v5 is a strict superset of v4 (adds per-market kind tags).
+    if any(_is_clearinghouse_version(op.version) for op in ops):
+        perps_version = max(perps_version, PERPS_STATE_VERSION_V5)
+
+    return _PerpApplyCtx(
+        config=config,
+        balances=balances,
+        nonces=nonces,
+        markets=markets,
+        effects=[],
+        tx_sender_pubkey=tx_sender_pubkey,
+        block_timestamp=block_timestamp,
+        perps_version=perps_version,
+    )
+
+
 def apply_perp_ops(
     *,
     config: PerpEngineConfig,
@@ -3714,449 +4169,29 @@ def apply_perp_ops(
         if not ops:
             return PerpTxResult(ok=True, state=state, effects=[])
 
-        if any(op.action == "publish_clearing_price" for op in ops):
-            posture_err = _oracle_reward_posture_error(config)
-            if posture_err is not None:
-                return PerpTxResult(ok=False, error=posture_err)
+        posture_err = _perp_ops_batch_posture_error(config, ops)
+        if posture_err is not None:
+            return PerpTxResult(ok=False, error=posture_err)
 
-        has_isolated = any(op.version == PERP_OP_VERSION_V0_1 for op in ops)
-        has_clearinghouse = any(
-            op.version in (
-                PERP_OP_VERSION_CH2P_V0_2,
-                PERP_OP_VERSION_CH2P_V1_0,
-                PERP_OP_VERSION_CH3P_V1_1,
-                PERP_OP_VERSION_CHNP_V1_2,
-            )
-            for op in ops
-        )
-        if has_isolated and has_clearinghouse:
-            return PerpTxResult(ok=False, error="cannot mix isolated and clearinghouse perps ops in one tx")
-        if has_isolated and not config.allow_isolated_markets:
-            return PerpTxResult(ok=False, error="isolated perps disabled by config (enable allow_isolated_markets)")
-
-        # Work on copies; only commit to `DexState` if everything succeeds.
-        balances = _copy_balance_table(state.balances)
-        nonces = _copy_nonce_table(state.nonces)
-
-        perps = state.perps
-        perps_version = PERPS_STATE_VERSION
-        if perps is None:
-            perps = PerpsState(version=PERPS_STATE_VERSION, markets={})
-        else:
-            perps_version = int(perps.version)
-
-        markets = dict(perps.markets)
-        # Perps state v5 is a strict superset of v4 (adds per-market kind tags). If
-        # any op uses the clearinghouse posture, upgrade in-memory to v5.
-        if any(
-            op.version in (
-                PERP_OP_VERSION_CH2P_V0_2,
-                PERP_OP_VERSION_CH2P_V1_0,
-                PERP_OP_VERSION_CH3P_V1_1,
-                PERP_OP_VERSION_CHNP_V1_2,
-            )
-            for op in ops
-        ):
-            perps_version = max(perps_version, PERPS_STATE_VERSION_V5)
-        effects: List[Dict[str, Any]] = []
-        ctx = _PerpApplyCtx(
+        ctx = _build_perp_apply_ctx(
             config=config,
-            balances=balances,
-            nonces=nonces,
-            markets=markets,
-            effects=effects,
+            state=state,
+            ops=ops,
             tx_sender_pubkey=tx_sender_pubkey,
             block_timestamp=block_timestamp,
         )
 
         for i, op in enumerate(ops):
-            action = op.action
-            market_id = op.market_id
-            version = op.version
-            data = op.data
-
-            if action == "init_market":
-                if version != PERP_OP_VERSION_V0_1:
-                    return PerpTxResult(ok=False, error="init_market requires perps.version=0.1")
-                err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
-                if err is not None:
-                    return PerpTxResult(ok=False, error=err)
-                if market_id in markets:
-                    return PerpTxResult(ok=False, error="market already exists")
-
-                quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
-                allowed = {"module", "version", "market_id", "action", "quote_asset"}
-                extra = set(data.keys()) - allowed
-                if extra:
-                    return PerpTxResult(ok=False, error="init_market has unknown fields")
-
-                markets[market_id] = PerpMarketState(
-                    quote_asset=quote_asset,
-                    global_state=_kernel_initial_global_state(),
-                    accounts={},
-                )
-                effects.append({"i": i, "market_id": market_id, "action": action})
-                continue
-
-            if action == "init_market_2p":
-                version_ok = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
-                if not version_ok:
-                    surface_err = _evaluate_signed_surface(
-                        action_kind=ACTION_INIT_MARKET_2P,
-                        action=action,
-                        version_ok=False,
-                        unknown_fields_ok=True,
-                    )
-                    return PerpTxResult(ok=False, error=surface_err or "init_market_2p requires perps.version=0.2 or 1.0")
-                if market_id in markets:
-                    return PerpTxResult(ok=False, error="market already exists")
-
-                quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
-                account_a_pubkey = _require_str(
-                    data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512
-                )
-                account_b_pubkey = _require_str(
-                    data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512
-                )
-                distinct_accounts_ok = account_a_pubkey != account_b_pubkey
-
-                # Distinctness must be enforced by pubkey bytes (not string representation).
-                try:
-                    a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
-                    b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
-                    distinct_accounts_ok = bool(distinct_accounts_ok and a_b != b_b)
-                except (TypeError, ValueError):
-                    # Fail later via signature verification (keeps errors attributed to the signer).
-                    pass
-
-                nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
-                sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
-                nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
-                sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
-
-                allowed = {
-                    "module",
-                    "version",
-                    "market_id",
-                    "action",
-                    "quote_asset",
-                    "account_a_pubkey",
-                    "account_b_pubkey",
-                    "deadline",
-                    "nonce_a",
-                    "sig_a",
-                    "nonce_b",
-                    "sig_b",
-                }
-                surface_err = _evaluate_signed_surface(
-                    action_kind=ACTION_INIT_MARKET_2P,
-                    action=action,
-                    version_ok=version_ok,
-                    unknown_fields_ok=not (set(data.keys()) - allowed),
-                    distinct_accounts_ok=distinct_accounts_ok,
-                )
-                if surface_err is not None:
-                    return PerpTxResult(ok=False, error=surface_err)
-
-                sig_err_a = _verify_perp_op_signature(
-                    config=config,
-                    signer_pubkey=account_a_pubkey,
-                    nonce=nonce_a,
-                    signature=sig_a,
-                    op=data,
-                    nonces=nonces,
-                    block_timestamp=block_timestamp,
-                )
-                if sig_err_a is not None:
-                    return PerpTxResult(ok=False, error=f"account_a signature invalid: {sig_err_a}")
-
-                sig_err_b = _verify_perp_op_signature(
-                    config=config,
-                    signer_pubkey=account_b_pubkey,
-                    nonce=nonce_b,
-                    signature=sig_b,
-                    op=data,
-                    nonces=nonces,
-                    block_timestamp=block_timestamp,
-                )
-                if sig_err_b is not None:
-                    return PerpTxResult(ok=False, error=f"account_b signature invalid: {sig_err_b}")
-
-                # Clearinghouse markets require perps state v5+ (market kind tags).
-                perps_version = max(perps_version, PERPS_STATE_VERSION_V5)
-                # Only generated-model domain rejects are user-facing here; internal
-                # helper defects must bubble to apply_perp_ops' sanitizer.
-                try:
-                    init_state = _ch2p_init_state_dict()
-                except ValueError as exc:
-                    return PerpTxResult(ok=False, error=str(exc))
-                markets[market_id] = PerpClearinghouse2pMarketState(
-                    quote_asset=quote_asset,
-                    account_a_pubkey=account_a_pubkey,
-                    account_b_pubkey=account_b_pubkey,
-                    state=init_state,
-                )
-                effects.append(
-                    {
-                        "i": i,
-                        "market_id": market_id,
-                        "action": action,
-                        "account_a_pubkey": account_a_pubkey,
-                        "account_b_pubkey": account_b_pubkey,
-                    }
-                )
-                continue
-
-            if action == "init_market_3p":
-                version_ok = version == PERP_OP_VERSION_CH3P_V1_1
-                if not version_ok:
-                    surface_err = _evaluate_signed_surface(
-                        action_kind=ACTION_INIT_MARKET_3P,
-                        action=action,
-                        version_ok=False,
-                        unknown_fields_ok=True,
-                    )
-                    return PerpTxResult(ok=False, error=surface_err or "init_market_3p requires perps.version=1.1")
-                if market_id in markets:
-                    return PerpTxResult(ok=False, error="market already exists")
-
-                quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
-                account_a_pubkey = _require_str(
-                    data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512
-                )
-                account_b_pubkey = _require_str(
-                    data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512
-                )
-                account_c_pubkey = _require_str(
-                    data.get("account_c_pubkey"), name="account_c_pubkey", non_empty=True, max_len=512
-                )
-                distinct_accounts_ok = len({account_a_pubkey, account_b_pubkey, account_c_pubkey}) == 3
-
-                # Distinctness must be enforced by pubkey bytes (not string representation).
-                try:
-                    a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
-                    b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
-                    c_b = _hex_to_bytes_allow_0x(account_c_pubkey, name="account_c_pubkey", expected_nbytes=48)
-                    distinct_accounts_ok = bool(distinct_accounts_ok and len({a_b, b_b, c_b}) == 3)
-                except (TypeError, ValueError):
-                    pass
-
-                nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
-                sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
-                nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
-                sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
-                nonce_c = _require_int_u32_pos(data.get("nonce_c"), name="nonce_c")
-                sig_c = _require_str(data.get("sig_c"), name="sig_c", non_empty=True, max_len=4096)
-
-                allowed = {
-                    "module",
-                    "version",
-                    "market_id",
-                    "action",
-                    "quote_asset",
-                    "account_a_pubkey",
-                    "account_b_pubkey",
-                    "account_c_pubkey",
-                    "deadline",
-                    "nonce_a",
-                    "sig_a",
-                    "nonce_b",
-                    "sig_b",
-                    "nonce_c",
-                    "sig_c",
-                }
-                surface_err = _evaluate_signed_surface(
-                    action_kind=ACTION_INIT_MARKET_3P,
-                    action=action,
-                    version_ok=version_ok,
-                    unknown_fields_ok=not (set(data.keys()) - allowed),
-                    distinct_accounts_ok=distinct_accounts_ok,
-                )
-                if surface_err is not None:
-                    return PerpTxResult(ok=False, error=surface_err)
-
-                sig_err_a = _verify_perp_op_signature(
-                    config=config,
-                    signer_pubkey=account_a_pubkey,
-                    nonce=nonce_a,
-                    signature=sig_a,
-                    op=data,
-                    nonces=nonces,
-                    block_timestamp=block_timestamp,
-                )
-                if sig_err_a is not None:
-                    return PerpTxResult(ok=False, error=f"account_a signature invalid: {sig_err_a}")
-
-                sig_err_b = _verify_perp_op_signature(
-                    config=config,
-                    signer_pubkey=account_b_pubkey,
-                    nonce=nonce_b,
-                    signature=sig_b,
-                    op=data,
-                    nonces=nonces,
-                    block_timestamp=block_timestamp,
-                )
-                if sig_err_b is not None:
-                    return PerpTxResult(ok=False, error=f"account_b signature invalid: {sig_err_b}")
-
-                sig_err_c = _verify_perp_op_signature(
-                    config=config,
-                    signer_pubkey=account_c_pubkey,
-                    nonce=nonce_c,
-                    signature=sig_c,
-                    op=data,
-                    nonces=nonces,
-                    block_timestamp=block_timestamp,
-                )
-                if sig_err_c is not None:
-                    return PerpTxResult(ok=False, error=f"account_c signature invalid: {sig_err_c}")
-
-                perps_version = max(perps_version, PERPS_STATE_VERSION_V5)
-                # Only generated-model domain rejects are user-facing here; internal
-                # helper defects must bubble to apply_perp_ops' sanitizer.
-                try:
-                    init_state = _ch3p_init_state_dict()
-                except ValueError as exc:
-                    return PerpTxResult(ok=False, error=str(exc))
-                markets[market_id] = PerpClearinghouse3pTransferMarketState(
-                    quote_asset=quote_asset,
-                    account_a_pubkey=account_a_pubkey,
-                    account_b_pubkey=account_b_pubkey,
-                    account_c_pubkey=account_c_pubkey,
-                    state=init_state,
-                )
-                effects.append(
-                    {
-                        "i": i,
-                        "market_id": market_id,
-                        "action": action,
-                        "account_a_pubkey": account_a_pubkey,
-                        "account_b_pubkey": account_b_pubkey,
-                        "account_c_pubkey": account_c_pubkey,
-                    }
-                )
-                continue
-
-            if action == "init_market_np":
-                if version != PERP_OP_VERSION_CHNP_V1_2:
-                    return PerpTxResult(ok=False, error="init_market_np requires perps.version=1.2")
-                err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
-                if err is not None:
-                    return PerpTxResult(ok=False, error=err)
-                if market_id in markets:
-                    return PerpTxResult(ok=False, error="market already exists")
-                if not market_id.startswith(PERP_CHNP_MARKET_PREFIX):
-                    return PerpTxResult(ok=False, error="clearinghouse_np market_id must start with perp:chnp:")
-                quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
-                index_price_e8 = _require_int(data.get("index_price_e8"), name="index_price_e8", non_negative=True)
-                if index_price_e8 <= 0:
-                    return PerpTxResult(ok=False, error="index_price_e8 must be positive")
-                allowed = {
-                    "module",
-                    "version",
-                    "market_id",
-                    "action",
-                    "quote_asset",
-                    "index_price_e8",
-                    "insurance_seed_e8",
-                    "params",
-                }
-                if set(data.keys()) - allowed:
-                    return PerpTxResult(ok=False, error="init_market_np has unknown fields")
-                insurance_seed_e8 = _require_int(
-                    data.get("insurance_seed_e8", 0),
-                    name="insurance_seed_e8",
-                    non_negative=True,
-                )
-                insurance_seed_quote = 0
-                if insurance_seed_e8:
-                    if insurance_seed_e8 % _E8_SCALE != 0:
-                        return PerpTxResult(ok=False, error="insurance_seed_e8 must be quote-unit aligned")
-                    insurance_seed_quote = insurance_seed_e8 // _E8_SCALE
-                    if balances.get(tx_sender_pubkey, quote_asset) < insurance_seed_quote:
-                        return PerpTxResult(ok=False, error="insufficient balance for insurance seed")
-                params_obj = data.get("params", {})
-                if not isinstance(params_obj, Mapping):
-                    return PerpTxResult(ok=False, error="params must be an object")
-                perps_version = max(perps_version, PERPS_STATE_VERSION_V5)
-                try:
-                    param_overrides = _validated_control_params(
-                        params_obj,
-                        bounds=_CLEARINGHOUSE_NP_CONTROL_PARAM_BOUNDS,
-                        name="params",
-                    )
-                    init_ms = _np_core.init_market(
-                        index_price_e8,
-                        params=_np_core.MarketParams(**param_overrides),
-                        insurance_seed_e8=insurance_seed_e8,
-                    )
-                    next_market = _chnp_core_to_market(quote_asset, init_ms, pending_intents=())
-                except Exception as exc:
-                    return PerpTxResult(ok=False, error=_safe_error_str(exc))
-                if insurance_seed_quote:
-                    balances.subtract(tx_sender_pubkey, quote_asset, insurance_seed_quote)
-                markets[market_id] = next_market
-                effects.append(
-                    {
-                        "i": i,
-                        "market_id": market_id,
-                        "action": action,
-                        "quote_asset": quote_asset,
-                        "insurance_seed_e8": int(insurance_seed_e8),
-                    }
-                )
-                continue
-
-            market_any = markets.get(market_id)
-            if market_any is None:
-                return PerpTxResult(ok=False, error="unknown market_id")
-
-            is_ch2p = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
-            is_ch3p = version == PERP_OP_VERSION_CH3P_V1_1
-            is_chnp = version == PERP_OP_VERSION_CHNP_V1_2
-            if is_ch2p:
-                if not isinstance(market_any, PerpClearinghouse2pMarketState):
-                    return PerpTxResult(ok=False, error="market kind mismatch for clearinghouse_2p operation")
-                ch2p_market = market_any
-            elif is_ch3p:
-                if not isinstance(market_any, PerpClearinghouse3pTransferMarketState):
-                    return PerpTxResult(ok=False, error="market kind mismatch for clearinghouse_3p operation")
-                ch3p_market = market_any
-            elif is_chnp:
-                if not isinstance(market_any, _NpMarketState):
-                    return PerpTxResult(ok=False, error="market kind mismatch for clearinghouse_np operation")
-                chnp_market = market_any
+            if op.action in _PERP_INIT_ACTIONS:
+                err = _apply_perp_init_op(ctx, i=i, op=op)
             else:
-                if not isinstance(market_any, PerpMarketState):
-                    return PerpTxResult(ok=False, error="market kind mismatch for isolated operation")
-                market = market_any
-
-            if is_ch2p:
-                err = _apply_ch2p_op(ctx, i=i, op=op, ch2p_market=ch2p_market)
-                if err is not None:
-                    return PerpTxResult(ok=False, error=err)
-                continue
-
-            if is_ch3p:
-                err = _apply_ch3p_op(ctx, i=i, op=op, ch3p_market=ch3p_market)
-                if err is not None:
-                    return PerpTxResult(ok=False, error=err)
-                continue
-
-            if is_chnp:
-                err = _apply_chnp_op(ctx, i=i, op=op, chnp_market=chnp_market)
-                if err is not None:
-                    return PerpTxResult(ok=False, error=err)
-                continue
-
-            err = _apply_isolated_op(ctx, i=i, op=op, market=market)
+                err = _apply_existing_perp_market_op(ctx, i=i, op=op)
             if err is not None:
                 return PerpTxResult(ok=False, error=err)
-            continue
 
-        next_perps = PerpsState(version=perps_version, markets=markets) if markets else None
-        next_state = replace(state, balances=balances, nonces=nonces, perps=next_perps)
-        return PerpTxResult(ok=True, state=next_state, effects=effects)
+        next_perps = PerpsState(version=ctx.perps_version, markets=ctx.markets) if ctx.markets else None
+        next_state = replace(state, balances=ctx.balances, nonces=ctx.nonces, perps=next_perps)
+        return PerpTxResult(ok=True, state=next_state, effects=ctx.effects)
 
     except Exception as exc:
         return PerpTxResult(ok=False, error=_safe_error_str(exc))
