@@ -609,6 +609,54 @@ def test_research_evidence_replay_rejects_coerced_gap_weighted_model_audit_count
     assert check["passed"] is False
 
 
+def test_research_evidence_replay_rejects_coerced_neighborhood_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_neighborhood_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_neighborhood_benchmark_seed20260525.json":
+            modes = payload["modes"]
+            assert isinstance(modes, dict)
+            neighborhood = modes["neighborhood"]
+            assert isinstance(neighborhood, dict)
+            neighborhood["invalid_accept_count"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_neighborhood_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "neighborhood.safety")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_neighborhood_regret_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_neighborhood_metric(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_neighborhood_benchmark_seed20260525.json":
+            modes = payload["modes"]
+            assert isinstance(modes, dict)
+            neighborhood = modes["neighborhood"]
+            assert isinstance(neighborhood, dict)
+            neighborhood["mean_volume_regret"] = "4.7"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_neighborhood_metric)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "neighborhood.regret_reduced")
+    assert check["passed"] is False
+
+
 def test_research_evidence_replay_rejects_truthy_string_obligation_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

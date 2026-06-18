@@ -1073,8 +1073,10 @@ def _check_gap_weighted_default(
 
 
 def _check_neighborhood(report: dict[str, Any]) -> list[EvidenceCheck]:
-    limited = report["modes"]["limited"]
-    neighborhood = report["modes"]["neighborhood"]
+    modes = report.get("modes")
+    limited = modes.get("limited") if isinstance(modes, dict) else {}
+    neighborhood = modes.get("neighborhood") if isinstance(modes, dict) else {}
+    safety = report.get("safety")
     return [
         _expect_equal(
             "neighborhood.schema",
@@ -1083,20 +1085,31 @@ def _check_neighborhood(report: dict[str, Any]) -> list[EvidenceCheck]:
         ),
         _expect_true(
             "neighborhood.safety",
-            int(neighborhood["invalid_accept_count"]) == 0
-            and int(neighborhood["original_subset_violation_count"]) == 0
-            and _is_true(report["safety"]["verifier_authoritative"]),
+            isinstance(neighborhood, dict)
+            and isinstance(safety, dict)
+            and _json_int_equals(neighborhood.get("invalid_accept_count"), 0)
+            and _json_int_equals(neighborhood.get("original_subset_violation_count"), 0)
+            and _is_true(safety.get("verifier_authoritative")),
             "zero invalid accepts, zero subset violations, verifier authoritative",
         ),
         _expect_true(
             "neighborhood.regret_reduced",
-            float(neighborhood["mean_volume_regret"]) < float(limited["mean_volume_regret"]),
+            isinstance(neighborhood, dict)
+            and isinstance(limited, dict)
+            and _json_number_less_than(
+                neighborhood.get("mean_volume_regret"),
+                limited.get("mean_volume_regret"),
+            ),
             "neighborhood reduces mean volume regret versus limited",
         ),
         _expect_true(
             "neighborhood.call_cost_negative",
-            float(neighborhood["mean_calls_until_full_winner_or_exhausted"])
-            > float(limited["mean_calls_until_full_winner_or_exhausted"]),
+            isinstance(neighborhood, dict)
+            and isinstance(limited, dict)
+            and _json_number_greater_than(
+                neighborhood.get("mean_calls_until_full_winner_or_exhausted"),
+                limited.get("mean_calls_until_full_winner_or_exhausted"),
+            ),
             "neighborhood increases calls until full winner, negative knowledge preserved",
         ),
     ]
