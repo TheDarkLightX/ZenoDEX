@@ -14,6 +14,15 @@ from .types import EpochPhase, PerpState
 # Auto-derived from PerpState field definitions (single source of truth).
 STATE_VAR_NAMES: tuple[str, ...] = tuple(PerpState.__dataclass_fields__)
 
+_BOOL_STATE_VAR_NAMES = frozenset(
+    {
+        "breaker_active",
+        "clearing_price_seen",
+        "oracle_seen",
+        "liquidated_this_step",
+    }
+)
+
 
 _EPOCH_PHASE_INT_MAP: dict[int, EpochPhase] = {
     0: EpochPhase.OPEN,
@@ -38,6 +47,20 @@ def _coerce_epoch_phase(val: Any) -> EpochPhase:
             return _EPOCH_PHASE_INT_MAP[val]
         raise ValueError(f"state var 'epoch_phase' int value {val} out of range [0,2]")
     raise TypeError(f"state var 'epoch_phase' must be EpochPhase|str|int, got {type(val).__name__}")
+
+
+def _coerce_state_bool(name: str, val: Any) -> bool:
+    if isinstance(val, bool):
+        return bool(val)
+    if isinstance(val, int) and val in (0, 1):
+        return bool(val)
+    raise TypeError(f"state var {name!r} must be bool or 0/1 int, got {type(val).__name__}")
+
+
+def _coerce_state_int(name: str, val: Any) -> int:
+    if isinstance(val, bool) or not isinstance(val, int):
+        raise TypeError(f"state var {name!r} must be int, got {type(val).__name__}")
+    return int(val)
 
 
 def initial_state() -> PerpState:
@@ -69,10 +92,8 @@ def state_from_dict(d: Mapping[str, Any]) -> PerpState:
         val = d[name]
         if name == "epoch_phase":
             kwargs[name] = _coerce_epoch_phase(val)
-        elif isinstance(val, bool):
-            kwargs[name] = val
-        elif isinstance(val, int):
-            kwargs[name] = int(val)  # normalize int subclasses (e.g. numpy)
+        elif name in _BOOL_STATE_VAR_NAMES:
+            kwargs[name] = _coerce_state_bool(name, val)
         else:
-            raise TypeError(f"state var {name!r} must be bool|int, got {type(val).__name__}")
+            kwargs[name] = _coerce_state_int(name, val)
     return PerpState(**kwargs)
