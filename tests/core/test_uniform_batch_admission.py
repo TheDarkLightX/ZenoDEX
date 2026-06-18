@@ -5,6 +5,7 @@ import pytest
 from src.core.uniform_batch_admission import (
     UNIFORM_BATCH_ADMISSION_CERTIFICATE_SCHEMA_V1,
     UNIFORM_BATCH_ADMISSION_POLICY_V1_ID,
+    UniformBatchAdmissionVerificationResult,
     build_uniform_batch_admission_certificate_v1,
     select_uniform_batch_admitted_intents_v1,
     uniform_batch_admission_certificate_hash,
@@ -70,6 +71,46 @@ def _exact_out_intent(
             "recipient": f"recipient-{index}",
         },
     )
+
+
+def test_uniform_batch_admission_result_ok_flag_must_be_bool() -> None:
+    with pytest.raises(ValueError, match="ok must be bool"):
+        UniformBatchAdmissionVerificationResult(
+            ok=1,  # type: ignore[arg-type]
+            error=None,
+            certificate_hash="a" * 64,
+        )
+
+
+def test_uniform_batch_admission_result_accept_requires_certificate_hash() -> None:
+    with pytest.raises(ValueError, match="certificate_hash"):
+        UniformBatchAdmissionVerificationResult(ok=True, error=None)
+
+    with pytest.raises(ValueError, match="cannot include error"):
+        UniformBatchAdmissionVerificationResult(
+            ok=True,
+            error="mismatch",
+            certificate_hash="a" * 64,
+        )
+
+
+def test_uniform_batch_admission_result_reject_has_no_accepted_artifacts() -> None:
+    with pytest.raises(ValueError, match="include an error"):
+        UniformBatchAdmissionVerificationResult(ok=False, error=None)
+
+    with pytest.raises(ValueError, match="accepted artifacts"):
+        UniformBatchAdmissionVerificationResult(
+            ok=False,
+            error="mismatch",
+            admitted=(_intent(1),),
+        )
+
+    with pytest.raises(ValueError, match="accepted artifacts"):
+        UniformBatchAdmissionVerificationResult(
+            ok=False,
+            error="mismatch",
+            certificate_hash="0xabc",
+        )
 
 
 def test_uniform_batch_admission_selects_canonical_intent_id_prefix() -> None:

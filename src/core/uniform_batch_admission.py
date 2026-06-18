@@ -132,6 +132,28 @@ class UniformBatchAdmissionVerificationResult:
     overflow: tuple[Intent, ...] = ()
     certificate_hash: str | None = None
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.ok, bool):
+            raise ValueError("ok must be bool")
+        if not isinstance(self.admitted, tuple) or not isinstance(self.overflow, tuple):
+            raise ValueError("admitted and overflow must be tuples")
+        if self.ok:
+            if self.error is not None:
+                raise ValueError("accepted admission result cannot include error")
+            try:
+                _require_sha256_hex(
+                    self.certificate_hash,
+                    name="admission.result.certificate_hash",
+                )
+            except (TypeError, ValueError) as exc:
+                raise ValueError(str(exc)) from exc
+            return
+
+        if not isinstance(self.error, str) or not self.error:
+            raise ValueError("rejected admission result must include an error")
+        if self.admitted or self.overflow or self.certificate_hash is not None:
+            raise ValueError("rejected admission result cannot include accepted artifacts")
+
 
 def uniform_batch_admission_certificate_hash(
     certificate: UniformBatchAdmissionCertificateV1 | Mapping[str, Any],
