@@ -1690,6 +1690,13 @@ class _IsolatedFundingAccountApply:
     applied_accounts: int
 
 
+@dataclass(frozen=True)
+class _IsolatedPartialLiquidateResult:
+    global_state: Mapping[str, Any]
+    account: PerpAccountState
+    effects: Mapping[str, Any]
+
+
 def _reject_unknown_fields(data: Mapping[str, Any], allowed: set[str], *, error: str) -> Optional[str]:
     if set(data.keys()) - allowed:
         return error
@@ -3666,14 +3673,8 @@ def _apply_isolated_set_position(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
     return None
 
 
-def _apply_isolated_partial_liquidate(
-    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMarketState
-) -> Optional[str]:
-    action = op.action
-    market_id = op.market_id
-    data = op.data
-
-    allowed = {
+_ISOLATED_PARTIAL_LIQUIDATE_FIELDS = frozenset(
+    {
         "module",
         "version",
         "market_id",
@@ -3682,75 +3683,153 @@ def _apply_isolated_partial_liquidate(
         "fraction_bps",
         "oracle_adapter_bridge",
     }
-    unknown_fields_ok = not (set(data.keys()) - allowed)
+)
+
+
+def _partial_liquidate_bound_account(
+    ctx: _PerpApplyCtx,
+    *,
+    op: PerpOp,
+) -> tuple[Optional[str], Optional[str]]:
+    unknown_fields_ok = not (set(op.data.keys()) - _ISOLATED_PARTIAL_LIQUIDATE_FIELDS)
     gate_error = _sender_gate_error(
         action_kind=RUNTIME_ACTION_PARTIAL_LIQUIDATE,
-        action=action,
+        action=op.action,
         sender_err=None,
         unknown_fields_ok=unknown_fields_ok,
     )
     if gate_error is not None:
-        return gate_error
+        return gate_error, None
 
-    account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
+    account_pubkey = _require_str(op.data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
     sender_err = _require_sender_bound_account_pubkey(
         account_pubkey=account_pubkey,
         tx_sender_pubkey=ctx.tx_sender_pubkey,
     )
     gate_error = _sender_gate_error(
         action_kind=RUNTIME_ACTION_PARTIAL_LIQUIDATE,
-        action=action,
+        action=op.action,
         sender_err=sender_err,
         unknown_fields_ok=True,
     )
     if gate_error is not None:
-        return gate_error
+        return gate_error, None
+    return None, account_pubkey
 
-    accounts = dict(market.accounts)
-    acct = accounts.get(account_pubkey) or _kernel_initial_account_state()
 
-    fraction_bps = _require_int(data.get("fraction_bps", 0), name="fraction_bps", non_negative=True)
-    err = _require_oracle_adapter_bridge(
+def _partial_liquidate_oracle_bridge_error(
+    ctx: _PerpApplyCtx,
+    *,
+    op: PerpOp,
+    market: PerpMarketState,
+    account_pubkey: str,
+    fraction_bps: int,
+) -> Optional[str]:
+    return _require_oracle_adapter_bridge(
         ctx.config,
-        data=data,
+        data=op.data,
         consumer_module="zenodex.perps",
         action_kind="liquidate_account",
         expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
         expected_profile_id=_ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
         expected_action_id=_perps_liquidate_account_runtime_oracle_action_id(
             ctx.config,
-            market_id=market_id,
+            market_id=op.market_id,
             market=market,
             account_pubkey=account_pubkey,
             fraction_bps=fraction_bps,
         ),
         required=ctx.config.require_oracle_adapter_for_isolated_partial_liquidate,
     )
-    if err is not None:
-        return err
+
+
+def _run_isolated_partial_liquidate(
+    market: PerpMarketState,
+    *,
+    account: PerpAccountState,
+    fraction_bps: int,
+) -> tuple[Optional[str], Optional[_IsolatedPartialLiquidateResult]]:
     res = perp_epoch_isolated_default_apply(
-        state=market.kernel_state_for_account(acct),
+        state=market.kernel_state_for_account(account),
         action="partial_liquidate",
         params={"fraction_bps": fraction_bps, "auth_ok": True},
     )
     if not res.ok or res.state is None:
-        return res.error or "partial_liquidate rejected"
+        return res.error or "partial_liquidate rejected", None
     post_global, post_acct = _split_kernel_state(res.state)
     _preserve_isolated_shell_global_fields(pre_global=market.global_state, post_global=post_global)
-    accounts[account_pubkey] = post_acct
-    ctx.markets[market_id] = PerpMarketState(
-        quote_asset=market.quote_asset,
+    return None, _IsolatedPartialLiquidateResult(
         global_state=post_global,
+        account=post_acct,
+        effects=dict(res.effects or {}),
+    )
+
+
+def _commit_isolated_partial_liquidate(
+    ctx: _PerpApplyCtx,
+    *,
+    i: int,
+    op: PerpOp,
+    market: PerpMarketState,
+    account_pubkey: str,
+    result: _IsolatedPartialLiquidateResult,
+) -> None:
+    accounts = dict(market.accounts)
+    accounts[account_pubkey] = result.account
+    ctx.markets[op.market_id] = PerpMarketState(
+        quote_asset=market.quote_asset,
+        global_state=dict(result.global_state),
         accounts=accounts,
     )
     ctx.effects.append(
         {
             "i": i,
-            "market_id": market_id,
-            "action": action,
+            "market_id": op.market_id,
+            "action": op.action,
             "account_pubkey": account_pubkey,
-            "effects": dict(res.effects or {}),
+            "effects": dict(result.effects),
         }
+    )
+
+
+def _apply_isolated_partial_liquidate(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMarketState
+) -> Optional[str]:
+    err, account_pubkey = _partial_liquidate_bound_account(ctx, op=op)
+    if err is not None:
+        return err
+    if account_pubkey is None:
+        return "internal error: partial_liquidate account missing"
+
+    fraction_bps = _require_int(op.data.get("fraction_bps", 0), name="fraction_bps", non_negative=True)
+    err = _partial_liquidate_oracle_bridge_error(
+        ctx,
+        op=op,
+        market=market,
+        account_pubkey=account_pubkey,
+        fraction_bps=fraction_bps,
+    )
+    if err is not None:
+        return err
+
+    acct = market.accounts.get(account_pubkey) or _kernel_initial_account_state()
+    err, result = _run_isolated_partial_liquidate(
+        market,
+        account=acct,
+        fraction_bps=fraction_bps,
+    )
+    if err is not None:
+        return err
+    if result is None:
+        return "internal error: partial_liquidate result missing"
+
+    _commit_isolated_partial_liquidate(
+        ctx,
+        i=i,
+        op=op,
+        market=market,
+        account_pubkey=account_pubkey,
+        result=result,
     )
     return None
 
