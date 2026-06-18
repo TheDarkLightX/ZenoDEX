@@ -133,6 +133,34 @@ def test_staircase_exact_matches_bruteforce_on_seeded_integer_corpus() -> None:
         assert best_split_two_pools_exact_in(p0, p1, amount_in, search_profile="staircase_exact") == expected
 
 
+@pytest.mark.parametrize(
+    "pool0,pool1,amount_in",
+    [
+        (PoolXY(x=1, y=1_000_000, fee_bps=0), PoolXY(x=1_000_000, y=1_000_000, fee_bps=0), 128),
+        (PoolXY(x=1_000_000, y=1_000_000, fee_bps=0), PoolXY(x=1, y=1_000_000, fee_bps=0), 128),
+        (PoolXY(x=1_000, y=1_000, fee_bps=0), PoolXY(x=1_000, y=1_000, fee_bps=0), 256),
+        (PoolXY(x=10_000, y=3, fee_bps=0), PoolXY(x=5_000, y=4, fee_bps=0), 4_096),
+        (PoolXY(x=1, y=2, fee_bps=0), PoolXY(x=2, y=1, fee_bps=0), 4_096),
+        (PoolXY(x=7, y=31, fee_bps=9_900), PoolXY(x=11, y=37, fee_bps=9_800), 4_096),
+        (PoolXY(x=87, y=80, fee_bps=75), PoolXY(x=46, y=66, fee_bps=11), 4_096),
+        (PoolXY(x=108, y=48, fee_bps=85), PoolXY(x=83, y=41, fee_bps=35), 4_096),
+        (PoolXY(x=999_983, y=257, fee_bps=250), PoolXY(x=257, y=999_983, fee_bps=250), 3_000),
+        (PoolXY(x=2, y=115, fee_bps=424), PoolXY(x=189, y=3, fee_bps=157), 199),
+    ],
+)
+def test_staircase_exact_matches_bruteforce_on_hostile_edge_corpus(
+    pool0: PoolXY,
+    pool1: PoolXY,
+    amount_in: int,
+) -> None:
+    # These cases are hand-selected for promotion evidence: skewed reserves,
+    # high fees, endpoint-heavy dust domains, and tie-heavy plateaus.
+    expected = brute_force_best_split_two_pools_exact_in(pool0, pool1, amount_in)
+
+    assert staircase_jump_best_split_two_pools_exact_in(pool0, pool1, amount_in) == expected
+    assert best_split_two_pools_exact_in(pool0, pool1, amount_in, search_profile="staircase_exact") == expected
+
+
 def test_staircase_exact_recovers_known_gap_case_with_bounded_quote_count() -> None:
     p0 = PoolXY(x=87, y=80, fee_bps=75)
     p1 = PoolXY(x=46, y=66, fee_bps=11)
