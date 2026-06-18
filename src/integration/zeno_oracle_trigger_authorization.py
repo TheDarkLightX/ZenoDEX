@@ -71,6 +71,8 @@ class TriggerExecutionFacts:
             non_negative=True,
         )
         _require_int(self.order_amount, name="order_amount", non_negative=True)
+        if self.order_amount <= 0:
+            raise ValueError("order_amount must be positive")
         _require_non_empty_str(self.asset_in, name="asset_in")
         _require_non_empty_str(self.asset_out, name="asset_out")
         if self.pre_state_hash is not None:

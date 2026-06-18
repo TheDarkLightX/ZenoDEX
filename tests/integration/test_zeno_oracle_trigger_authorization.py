@@ -170,6 +170,16 @@ def test_trigger_execution_facts_rejects_bool_numeric_fields() -> None:
         )
 
 
+def test_trigger_execution_facts_rejects_zero_order_amount() -> None:
+    with pytest.raises(ValueError, match="order_amount must be positive"):
+        TriggerExecutionFacts(
+            **{
+                **_facts().__dict__,
+                "order_amount": 0,
+            }
+        )
+
+
 def test_trigger_execution_facts_rejects_numeric_string_fields() -> None:
     with pytest.raises(ValueError, match="current_epoch must be an int"):
         TriggerExecutionFacts(
