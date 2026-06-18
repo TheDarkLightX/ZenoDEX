@@ -12,7 +12,6 @@ from src.integration.zeno_ledger_signature import (
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.state.canonical import canonical_hex_fixed_allow_0x
 
-
 SIGNER_REGISTRY_SCHEMA_V0 = "zenodex/zeno_ledger/signer_registry/v0"
 SIGNATURE_QUORUM_REPORT_SCHEMA_V0 = "zenodex/zeno_ledger/signature_quorum_report/v0"
 
@@ -84,6 +83,7 @@ def build_signer_registry_v0(
 
     entries: list[dict[str, Any]] = []
     seen_keys: set[tuple[str, str]] = set()
+    seen_active_public_keys: set[str] = set()
     active_weight = 0
     for index, raw in enumerate(signers):
         obj = _require_mapping(raw, name=f"signers[{index}]")
@@ -99,6 +99,10 @@ def build_signer_registry_v0(
             raise ValueError("duplicate signer_id/key_id")
         seen_keys.add(identity)
         if entry["status"] == "active":
+            public_key = str(entry["public_key"])
+            if public_key in seen_active_public_keys:
+                raise ValueError("duplicate active public_key")
+            seen_active_public_keys.add(public_key)
             active_weight += int(entry["weight"])
         entries.append(entry)
     entries.sort(key=lambda item: (str(item["signer_id"]), str(item["key_id"])))

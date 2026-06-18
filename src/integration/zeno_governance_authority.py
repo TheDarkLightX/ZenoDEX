@@ -205,6 +205,8 @@ def evaluate_governance_authority_v0(
                 str(item.get("envelope_hash")) if isinstance(item, Mapping) else "",
             ),
         )
+        if not sorted_envelopes:
+            errors.append("signature_quorum_missing")
 
     quorum_report: dict[str, Any] | None = None
     if normalized_payload_kind and normalized_payload_hash and sorted_envelopes:
