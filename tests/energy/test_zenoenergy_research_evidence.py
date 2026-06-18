@@ -657,6 +657,52 @@ def test_research_evidence_replay_rejects_coerced_neighborhood_regret_metric(
     assert check["passed"] is False
 
 
+def test_research_evidence_replay_rejects_coerced_repair_selector_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_repair_selector_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_repair_selector_benchmark_seed20260526_20260527.json":
+            safety = payload["safety"]
+            assert isinstance(safety, dict)
+            safety["invalid_accept_count"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_repair_selector_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "repair_selector.safety")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_repair_selector_compression_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_repair_selector_metric(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_repair_selector_benchmark_seed20260526_20260527.json":
+            modes = payload["modes"]
+            assert isinstance(modes, dict)
+            learned = modes["learned_selected"]
+            assert isinstance(learned, dict)
+            learned["candidate_count_mean"] = "8"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_repair_selector_metric)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "repair_selector.compression")
+    assert check["passed"] is False
+
+
 def test_research_evidence_replay_rejects_truthy_string_obligation_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

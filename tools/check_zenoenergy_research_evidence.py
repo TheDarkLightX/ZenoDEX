@@ -1116,10 +1116,11 @@ def _check_neighborhood(report: dict[str, Any]) -> list[EvidenceCheck]:
 
 
 def _check_repair_selector(report: dict[str, Any]) -> list[EvidenceCheck]:
-    modes = report["modes"]
-    full = modes["full_neighborhood"]
-    learned = modes["learned_selected"]
-    hand = modes["hand_selected"]
+    modes = report.get("modes")
+    full = modes.get("full_neighborhood") if isinstance(modes, dict) else {}
+    learned = modes.get("learned_selected") if isinstance(modes, dict) else {}
+    hand = modes.get("hand_selected") if isinstance(modes, dict) else {}
+    safety = report.get("safety")
     return [
         _expect_equal(
             "repair_selector.schema",
@@ -1128,21 +1129,39 @@ def _check_repair_selector(report: dict[str, Any]) -> list[EvidenceCheck]:
         ),
         _expect_true(
             "repair_selector.safety",
-            _all_modes_zero(modes)
-            and int(report["safety"]["invalid_accept_count"]) == 0
-            and _is_true(report["safety"]["verifier_authoritative"]),
+            isinstance(modes, dict)
+            and isinstance(safety, dict)
+            and _all_modes_zero(modes)
+            and _json_int_equals(safety.get("invalid_accept_count"), 0)
+            and _is_true(safety.get("verifier_authoritative")),
             "zero invalid accepts and verifier authoritative",
         ),
         _expect_true(
             "repair_selector.compression",
-            float(learned["candidate_count_mean"]) < float(full["candidate_count_mean"])
-            and float(learned["mean_added_count"]) < float(full["mean_added_count"])
-            and float(learned["mean_volume_regret"]) <= float(full["mean_volume_regret"]),
+            isinstance(learned, dict)
+            and isinstance(full, dict)
+            and _json_number_less_than(
+                learned.get("candidate_count_mean"),
+                full.get("candidate_count_mean"),
+            )
+            and _json_number_less_than(
+                learned.get("mean_added_count"),
+                full.get("mean_added_count"),
+            )
+            and _json_number_at_most_value(
+                learned.get("mean_volume_regret"),
+                full.get("mean_volume_regret"),
+            ),
             "learned selector compresses full neighborhood without higher mean volume regret",
         ),
         _expect_true(
             "repair_selector.hand_baseline_negative",
-            float(learned["mean_volume_regret"]) >= float(hand["mean_volume_regret"]),
+            isinstance(learned, dict)
+            and isinstance(hand, dict)
+            and _json_number_at_least_value(
+                learned.get("mean_volume_regret"),
+                hand.get("mean_volume_regret"),
+            ),
             "learned selector does not strictly beat hand-selected subset on this split",
         ),
     ]
@@ -4503,6 +4522,16 @@ def _json_number_at_least_value(left: object, right: object) -> bool:
         and isinstance(right, (int, float))
         and not isinstance(right, bool)
         and float(left) >= float(right)
+    )
+
+
+def _json_number_at_most_value(left: object, right: object) -> bool:
+    return (
+        isinstance(left, (int, float))
+        and not isinstance(left, bool)
+        and isinstance(right, (int, float))
+        and not isinstance(right, bool)
+        and float(left) <= float(right)
     )
 
 
