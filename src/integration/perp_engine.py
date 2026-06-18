@@ -864,6 +864,117 @@ def _assert_ints_within_bits(obj: Any, *, max_bits: int, name: str) -> None:
             continue
 
 
+_PERP_SUPPORTED_VERSIONS = frozenset(
+    {
+        PERP_OP_VERSION_V0_1,
+        PERP_OP_VERSION_CH2P_V0_2,
+        PERP_OP_VERSION_CH2P_V1_0,
+        PERP_OP_VERSION_CH3P_V1_1,
+        PERP_OP_VERSION_CHNP_V1_2,
+    }
+)
+
+
+def _select_perp_ops_stream(operations: Mapping[str, Any]) -> tuple[str, Any]:
+    if PERP_OPS_KEY in operations and LEGACY_PERP_OPS_KEY in operations:
+        raise ValueError("ambiguous perps streams: use either upstream stream 8 or legacy stream 5")
+    selected_key = PERP_OPS_KEY if PERP_OPS_KEY in operations else LEGACY_PERP_OPS_KEY
+    return selected_key, operations.get(selected_key)
+
+
+def _validated_perp_op_obj(
+    entry: Any,
+    *,
+    index: int,
+    max_op_bytes: int,
+    max_int_bits: int,
+) -> tuple[Dict[str, Any], int]:
+    if not isinstance(entry, Mapping):
+        raise ValueError(f"perps op {index} must be an object")
+    op_obj = dict(entry)
+    _assert_ints_within_bits(op_obj, max_bits=max_int_bits, name=f"perps op {index}")
+    try:
+        op_bytes = bounded_json_utf8_size(op_obj, max_bytes=max_op_bytes)
+    except ValueError:
+        raise ValueError(f"perps op {index} too large") from None
+    except TypeError as exc:
+        raise ValueError(f"invalid perps op {index}: {exc}") from exc
+    return op_obj, int(op_bytes)
+
+
+def _parse_perp_module(op_obj: Mapping[str, Any]) -> str:
+    module = _require_ascii_token(
+        op_obj.get("module"),
+        name="perps.module",
+        max_len=64,
+        allowed=_ASCII_TOKEN_CHARS_MODULE,
+    )
+    if module != PERP_OP_MODULE:
+        raise ValueError(f"invalid perps module: {module}")
+    return module
+
+
+def _parse_perp_version(op_obj: Mapping[str, Any]) -> str:
+    version = _require_ascii_token(
+        op_obj.get("version"),
+        name="perps.version",
+        max_len=64,
+        allowed=_ASCII_TOKEN_CHARS_VERSION,
+    )
+    if version not in _PERP_SUPPORTED_VERSIONS:
+        raise ValueError(f"invalid perps version: {version}")
+    return version
+
+
+def _parse_perp_market_id(op_obj: Mapping[str, Any]) -> str:
+    return _require_ascii_token(
+        op_obj.get("market_id"),
+        name="perps.market_id",
+        max_len=256,
+        allowed=_ASCII_TOKEN_CHARS_MARKET_ID,
+    )
+
+
+def _validate_perp_market_version_prefix(*, version: str, market_id: str) -> None:
+    is_ch2p = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+    is_ch3p = version == PERP_OP_VERSION_CH3P_V1_1
+    is_chnp = version == PERP_OP_VERSION_CHNP_V1_2
+    if is_chnp:
+        if not market_id.startswith(PERP_CHNP_MARKET_PREFIX):
+            raise ValueError(f"clearinghouse_np markets must start with {PERP_CHNP_MARKET_PREFIX!r}")
+        return
+    if market_id.startswith(PERP_CHNP_MARKET_PREFIX):
+        raise ValueError("non-NP perps markets cannot start with clearinghouse_np prefix")
+
+    version_prefix_guard = evaluate_perp_market_version_prefix_guard(
+        version_is_v0_1=version == PERP_OP_VERSION_V0_1,
+        version_is_ch2p=is_ch2p,
+        version_is_ch3p=is_ch3p,
+        market_has_ch2p_prefix=market_id.startswith(PERP_CH2P_MARKET_PREFIX),
+        market_has_ch3p_prefix=market_id.startswith(PERP_CH3P_MARKET_PREFIX),
+    )
+    if version_prefix_guard.admission_ok:
+        return
+    if version_prefix_guard.reject_code == REJECT_INVALID_VERSION:
+        raise ValueError(f"invalid perps version: {version}")
+    if version_prefix_guard.reject_code == REJECT_CH2P_PREFIX_MISMATCH:
+        raise ValueError(f"clearinghouse markets must start with {PERP_CH2P_MARKET_PREFIX!r}")
+    if version_prefix_guard.reject_code == REJECT_CH3P_PREFIX_MISMATCH:
+        raise ValueError(f"clearinghouse markets must start with {PERP_CH3P_MARKET_PREFIX!r}")
+    if version_prefix_guard.reject_code == REJECT_ISOLATED_PREFIX_CONFLICT:
+        raise ValueError("isolated markets cannot start with clearinghouse prefixes")
+    raise ValueError("invalid perps version/prefix posture")
+
+
+def _parse_perp_action(op_obj: Mapping[str, Any]) -> str:
+    return _require_ascii_token(
+        op_obj.get("action"),
+        name="perps.action",
+        max_len=64,
+        allowed=_ASCII_TOKEN_CHARS_ACTION,
+    )
+
+
 def parse_perp_ops(
     operations: Mapping[str, Any],
     *,
@@ -875,10 +986,7 @@ def parse_perp_ops(
     if not isinstance(operations, Mapping):
         raise ValueError(f"operations must be an object, got {type(operations)}")
 
-    if PERP_OPS_KEY in operations and LEGACY_PERP_OPS_KEY in operations:
-        raise ValueError("ambiguous perps streams: use either upstream stream 8 or legacy stream 5")
-    selected_key = PERP_OPS_KEY if PERP_OPS_KEY in operations else LEGACY_PERP_OPS_KEY
-    raw = operations.get(selected_key)
+    selected_key, raw = _select_perp_ops_stream(operations)
     if raw is None:
         return []
     if not isinstance(raw, list):
@@ -889,83 +997,21 @@ def parse_perp_ops(
     total_bytes = 0
     out: List[PerpOp] = []
     for i, entry in enumerate(raw):
-        if not isinstance(entry, Mapping):
-            raise ValueError(f"perps op {i} must be an object")
-        op_obj = dict(entry)
-        _assert_ints_within_bits(op_obj, max_bits=max_int_bits, name=f"perps op {i}")
-        try:
-            op_bytes = bounded_json_utf8_size(op_obj, max_bytes=max_op_bytes)
-        except ValueError:
-            raise ValueError(f"perps op {i} too large") from None
-        except TypeError as exc:
-            raise ValueError(f"invalid perps op {i}: {exc}") from exc
+        op_obj, op_bytes = _validated_perp_op_obj(
+            entry,
+            index=i,
+            max_op_bytes=max_op_bytes,
+            max_int_bits=max_int_bits,
+        )
         total_bytes += op_bytes
         if total_bytes > max_total_ops_bytes:
             raise ValueError("perps ops too large (total bytes limit)")
 
-        module = _require_ascii_token(
-            op_obj.get("module"),
-            name="perps.module",
-            max_len=64,
-            allowed=_ASCII_TOKEN_CHARS_MODULE,
-        )
-        if module != PERP_OP_MODULE:
-            raise ValueError(f"invalid perps module: {module}")
-        version = _require_ascii_token(
-            op_obj.get("version"),
-            name="perps.version",
-            max_len=64,
-            allowed=_ASCII_TOKEN_CHARS_VERSION,
-        )
-        if version not in (
-            PERP_OP_VERSION_V0_1,
-            PERP_OP_VERSION_CH2P_V0_2,
-            PERP_OP_VERSION_CH2P_V1_0,
-            PERP_OP_VERSION_CH3P_V1_1,
-            PERP_OP_VERSION_CHNP_V1_2,
-        ):
-            raise ValueError(f"invalid perps version: {version}")
-
-        market_id = _require_ascii_token(
-            op_obj.get("market_id"),
-            name="perps.market_id",
-            max_len=256,
-            allowed=_ASCII_TOKEN_CHARS_MARKET_ID,
-        )
-        is_ch2p = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
-        is_ch3p = version == PERP_OP_VERSION_CH3P_V1_1
-        is_chnp = version == PERP_OP_VERSION_CHNP_V1_2
-        if is_chnp:
-            if not market_id.startswith(PERP_CHNP_MARKET_PREFIX):
-                raise ValueError(f"clearinghouse_np markets must start with {PERP_CHNP_MARKET_PREFIX!r}")
-        elif market_id.startswith(PERP_CHNP_MARKET_PREFIX):
-            raise ValueError("non-NP perps markets cannot start with clearinghouse_np prefix")
-        else:
-            version_prefix_guard = evaluate_perp_market_version_prefix_guard(
-                version_is_v0_1=version == PERP_OP_VERSION_V0_1,
-                version_is_ch2p=is_ch2p,
-                version_is_ch3p=is_ch3p,
-                market_has_ch2p_prefix=market_id.startswith(PERP_CH2P_MARKET_PREFIX),
-                market_has_ch3p_prefix=market_id.startswith(PERP_CH3P_MARKET_PREFIX),
-            )
-            if not version_prefix_guard.admission_ok:
-                if version_prefix_guard.reject_code == REJECT_INVALID_VERSION:
-                    raise ValueError(f"invalid perps version: {version}")
-                if version_prefix_guard.reject_code == REJECT_CH2P_PREFIX_MISMATCH:
-                    raise ValueError(f"clearinghouse markets must start with {PERP_CH2P_MARKET_PREFIX!r}")
-                if version_prefix_guard.reject_code == REJECT_CH3P_PREFIX_MISMATCH:
-                    raise ValueError(f"clearinghouse markets must start with {PERP_CH3P_MARKET_PREFIX!r}")
-                if version_prefix_guard.reject_code == REJECT_ISOLATED_PREFIX_CONFLICT:
-                    raise ValueError("isolated markets cannot start with clearinghouse prefixes")
-                raise ValueError("invalid perps version/prefix posture")
-
-        action = _require_ascii_token(
-            op_obj.get("action"),
-            name="perps.action",
-            max_len=64,
-            allowed=_ASCII_TOKEN_CHARS_ACTION,
-        )
-
+        _parse_perp_module(op_obj)
+        version = _parse_perp_version(op_obj)
+        market_id = _parse_perp_market_id(op_obj)
+        _validate_perp_market_version_prefix(version=version, market_id=market_id)
+        action = _parse_perp_action(op_obj)
         out.append(PerpOp(market_id=market_id, action=action, version=version, data=op_obj))
     return out
 
