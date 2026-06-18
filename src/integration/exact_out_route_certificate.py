@@ -978,20 +978,20 @@ class ExactOutManyPoolRepairedKeyCoverPacket:
             raise TypeError("packet_ok must be a bool")
         if self.error is not None and (not isinstance(self.error, str) or not self.error):
             raise ValueError("error must be a non-empty string or None")
-        for field_name, value in (
+        for field_name, flag_value in (
             ("selected_keys_subset_full_keys", self.selected_keys_subset_full_keys),
             ("key_cover_holds", self.key_cover_holds),
             ("selected_domain_canonical_matches_full_domain_canonical", self.selected_domain_canonical_matches_full_domain_canonical),
         ):
-            if not isinstance(value, bool):
+            if not isinstance(flag_value, bool):
                 raise TypeError(f"{field_name} must be a bool")
-        for field_name, value in (
+        for field_name, count_value in (
             ("selected_candidate_count", self.selected_candidate_count),
             ("full_candidate_count", self.full_candidate_count),
         ):
-            if not isinstance(value, int) or isinstance(value, bool):
+            if not isinstance(count_value, int) or isinstance(count_value, bool):
                 raise TypeError(f"{field_name} must be an int")
-            if int(value) <= 0:
+            if int(count_value) <= 0:
                 raise ValueError(f"{field_name} must be positive")
         if not all(isinstance(witness, ExactOutManyPoolKeyCoverDominationWitness) for witness in self.domination_witnesses):
             raise TypeError("domination_witnesses must be ExactOutManyPoolKeyCoverDominationWitness values")
@@ -1356,6 +1356,10 @@ def _effective_projection_cover_summary_items(
     repaired_canonical_projected_path: list[list[object]] | None,
     advisory_projected_path: list[list[object]] | None,
 ) -> _PayloadItems:
+    side: str | None
+    cover_holds: bool | None
+    canonical_projected_path: list[list[object]] | None
+    quote_projected_path: list[list[object]] | None
     if quote_source == "selected_domain_runtime":
         side = "selected_domain"
         cover_holds = selected_projection_cover_holds
@@ -1937,13 +1941,15 @@ def _select_many_pool_audit_candidates(
     max_legs: int,
     max_candidate_pools: int,
 ) -> tuple[PoolState, ...]:
+    max_legs_i = _require_control_int(max_legs, name="max_legs")
+    max_candidate_pools_i = _require_control_int(max_candidate_pools, name="max_candidate_pools")
     return _kernel_select_many_pool_audit_candidates(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
+        max_legs=max_legs_i,
+        max_candidate_pools=max_candidate_pools_i,
     )
 
 
@@ -2133,10 +2139,11 @@ def _prefilter_rows_rank_sorted_unique(rows: Sequence[ExactOutManyPoolPrefilterR
 
 
 def _top_capacity_sum(caps_by_pool_id: dict[str, int], *, max_legs: int) -> int:
-    if int(max_legs) <= 0:
+    max_legs_i = _require_control_int(max_legs, name="max_legs")
+    if max_legs_i <= 0:
         return 0
     caps = sorted((int(cap) for cap in caps_by_pool_id.values() if int(cap) > 0), reverse=True)
-    return int(sum(caps[: int(max_legs)]))
+    return int(sum(caps[:max_legs_i]))
 
 
 @dataclass(frozen=True)
@@ -2581,7 +2588,7 @@ def _repaired_selected_pools_from_contract(
     return tuple(pools_by_id[pool_id] for pool_id in repaired_contract.repaired_selected_pool_ids)
 
 
-def _candidate_quote_to_core_quote(quote: object) -> SplitManyPoolsExactOutQuote:
+def _candidate_quote_to_core_quote(quote: Any) -> SplitManyPoolsExactOutQuote:
     amount_out_total = int(quote.amount_out_total)
     amount_in_total = int(quote.amount_in_total)
     legs = tuple(
@@ -2609,6 +2616,12 @@ def _build_exact_out_many_pool_full_domain_certificate(
     max_full_domain_pools: int,
     max_enumerated_candidates: int,
 ) -> tuple[tuple[str, ...], tuple[SplitManyPoolsExactOutQuote, ...], ExactOutRouteCanonicalCertificate]:
+    max_legs_i = _require_control_int(max_legs, name="max_legs")
+    max_full_domain_pools_i = _require_control_int(max_full_domain_pools, name="max_full_domain_pools")
+    max_enumerated_candidates_i = _require_control_int(
+        max_enumerated_candidates,
+        name="max_enumerated_candidates",
+    )
     feasible_rows = _feasible_exact_out_pools(
         pools,
         asset_in=asset_in,
@@ -2618,15 +2631,15 @@ def _build_exact_out_many_pool_full_domain_certificate(
     feasible_pools = tuple(pool for pool, _cap, _amount_in in feasible_rows)
     if not feasible_pools:
         raise ValueError("no feasible pools for repaired full-domain certification")
-    if len(feasible_pools) > int(max_full_domain_pools):
+    if len(feasible_pools) > max_full_domain_pools_i:
         raise ValueError("repaired full-domain certification exceeded max_full_domain_pools")
     full_domain = _kernel_build_exact_out_many_pool_selected_domain(
         feasible_pools,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        max_legs=max_legs_i,
+        max_enumerated_candidates=max_enumerated_candidates_i,
     )
     full_candidates = tuple(_candidate_quote_to_core_quote(candidate) for candidate in full_domain.candidates)
     return (
@@ -2799,33 +2812,52 @@ def build_exact_out_many_pool_repaired_key_cover_packet(
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedKeyCoverPacket:
     amount_out_total_i = _require_amount_out_total_int(amount_out_total)
+    (
+        max_legs_i,
+        max_candidate_pools_i,
+        max_candidates_i,
+        max_iters_i,
+        window_i,
+        brute_force_max_i,
+        max_full_domain_pools_i,
+        max_enumerated_candidates_i,
+    ) = _require_runtime_control_values(
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_candidates=max_candidates,
+        max_iters=max_iters,
+        window=window,
+        brute_force_max=brute_force_max,
+        max_full_domain_pools=max_full_domain_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
+    )
     selected_domain_contract = build_exact_out_many_pool_repaired_selected_domain_oracle_contract(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=amount_out_total_i,
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        max_legs=max_legs_i,
+        max_candidate_pools=max_candidate_pools_i,
+        max_candidates=max_candidates_i,
+        max_iters=max_iters_i,
+        window=window_i,
+        brute_force_max=brute_force_max_i,
+        max_full_domain_pools=max_full_domain_pools_i,
+        max_enumerated_candidates=max_enumerated_candidates_i,
     )
     repaired_full_domain_packet = build_exact_out_many_pool_repaired_full_domain_certified_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=amount_out_total_i,
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        max_legs=max_legs_i,
+        max_candidate_pools=max_candidate_pools_i,
+        max_candidates=max_candidates_i,
+        max_iters=max_iters_i,
+        window=window_i,
+        brute_force_max=brute_force_max_i,
+        max_full_domain_pools=max_full_domain_pools_i,
+        max_enumerated_candidates=max_enumerated_candidates_i,
     )
     return _build_exact_out_many_pool_repaired_key_cover_packet_from_components(
         selected_domain_contract=selected_domain_contract,
@@ -2893,19 +2925,38 @@ def build_exact_out_many_pool_repaired_key_cover_interpretation_packet(
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedKeyCoverInterpretationPacket:
     amount_out_total_i = _require_amount_out_total_int(amount_out_total)
+    (
+        max_legs_i,
+        max_candidate_pools_i,
+        max_candidates_i,
+        max_iters_i,
+        window_i,
+        brute_force_max_i,
+        max_full_domain_pools_i,
+        max_enumerated_candidates_i,
+    ) = _require_runtime_control_values(
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_candidates=max_candidates,
+        max_iters=max_iters,
+        window=window,
+        brute_force_max=brute_force_max,
+        max_full_domain_pools=max_full_domain_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
+    )
     key_cover_packet = build_exact_out_many_pool_repaired_key_cover_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=amount_out_total_i,
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        max_legs=max_legs_i,
+        max_candidate_pools=max_candidate_pools_i,
+        max_candidates=max_candidates_i,
+        max_iters=max_iters_i,
+        window=window_i,
+        brute_force_max=brute_force_max_i,
+        max_full_domain_pools=max_full_domain_pools_i,
+        max_enumerated_candidates=max_enumerated_candidates_i,
     )
     return _build_exact_out_many_pool_repaired_key_cover_interpretation_packet_from_key_cover_packet(
         key_cover_packet
@@ -3864,14 +3915,20 @@ def _build_exact_out_many_pool_repaired_full_domain_certified_packet_from_repair
     max_full_domain_pools: int,
     max_enumerated_candidates: int,
 ) -> ExactOutManyPoolRepairedFullDomainCertifiedPacket:
+    max_legs_i = _require_control_int(max_legs, name="max_legs")
+    max_full_domain_pools_i = _require_control_int(max_full_domain_pools, name="max_full_domain_pools")
+    max_enumerated_candidates_i = _require_control_int(
+        max_enumerated_candidates,
+        name="max_enumerated_candidates",
+    )
     feasible_pool_ids, full_candidates, full_domain_certificate = _build_exact_out_many_pool_full_domain_certificate(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        max_legs=max_legs_i,
+        max_full_domain_pools=max_full_domain_pools_i,
+        max_enumerated_candidates=max_enumerated_candidates_i,
     )
     repaired_quote = repaired_packet.advisory_quote
     repaired_matches_full_canonical = bool(
@@ -3914,19 +3971,38 @@ def build_exact_out_many_pool_repaired_full_domain_certified_packet(
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedFullDomainCertifiedPacket:
     amount_out_total_i = _require_amount_out_total_int(amount_out_total)
+    (
+        max_legs_i,
+        max_candidate_pools_i,
+        max_candidates_i,
+        max_iters_i,
+        window_i,
+        brute_force_max_i,
+        max_full_domain_pools_i,
+        max_enumerated_candidates_i,
+    ) = _require_runtime_control_values(
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_candidates=max_candidates,
+        max_iters=max_iters,
+        window=window,
+        brute_force_max=brute_force_max,
+        max_full_domain_pools=max_full_domain_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
+    )
     repaired_packet = build_exact_out_many_pool_repaired_advisory_quote_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=amount_out_total_i,
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        max_legs=max_legs_i,
+        max_candidate_pools=max_candidate_pools_i,
+        max_candidates=max_candidates_i,
+        max_iters=max_iters_i,
+        window=window_i,
+        brute_force_max=brute_force_max_i,
+        max_full_domain_pools=max_full_domain_pools_i,
+        max_enumerated_candidates=max_enumerated_candidates_i,
     )
     return _build_exact_out_many_pool_repaired_full_domain_certified_packet_from_repaired_packet(
         repaired_packet,
@@ -3934,9 +4010,9 @@ def build_exact_out_many_pool_repaired_full_domain_certified_packet(
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=amount_out_total_i,
-        max_legs=int(max_legs),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        max_legs=max_legs_i,
+        max_full_domain_pools=max_full_domain_pools_i,
+        max_enumerated_candidates=max_enumerated_candidates_i,
     )
 
 
@@ -3956,19 +4032,38 @@ def quote_exact_out_many_pool_repaired_full_domain_certified(
     max_enumerated_candidates: int = 20_000,
 ) -> tuple[SplitManyPoolsExactOutQuote | None, str | None, ExactOutManyPoolRepairedFullDomainCertifiedPacket]:
     amount_out_total_i = _require_amount_out_total_int(amount_out_total)
+    (
+        max_legs_i,
+        max_candidate_pools_i,
+        max_candidates_i,
+        max_iters_i,
+        window_i,
+        brute_force_max_i,
+        max_full_domain_pools_i,
+        max_enumerated_candidates_i,
+    ) = _require_runtime_control_values(
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_candidates=max_candidates,
+        max_iters=max_iters,
+        window=window,
+        brute_force_max=brute_force_max,
+        max_full_domain_pools=max_full_domain_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
+    )
     packet = build_exact_out_many_pool_repaired_full_domain_certified_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=amount_out_total_i,
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        max_legs=max_legs_i,
+        max_candidate_pools=max_candidate_pools_i,
+        max_candidates=max_candidates_i,
+        max_iters=max_iters_i,
+        window=window_i,
+        brute_force_max=brute_force_max_i,
+        max_full_domain_pools=max_full_domain_pools_i,
+        max_enumerated_candidates=max_enumerated_candidates_i,
     )
     if packet.packet_ok:
         return packet.repaired_quote, None, packet
@@ -5249,28 +5344,47 @@ def build_exact_out_many_pool_certified_winner_packet(
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolCertifiedWinnerPacket:
     amount_out_total_i = _require_amount_out_total_int(amount_out_total)
+    (
+        max_legs_i,
+        max_candidate_pools_i,
+        max_candidates_i,
+        max_iters_i,
+        window_i,
+        brute_force_max_i,
+        max_full_domain_pools_i,
+        max_enumerated_candidates_i,
+    ) = _require_runtime_control_values(
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_candidates=max_candidates,
+        max_iters=max_iters,
+        window=window,
+        brute_force_max=brute_force_max,
+        max_full_domain_pools=max_full_domain_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
+    )
     domain_contract = build_exact_out_many_pool_candidate_domain_contract(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=amount_out_total_i,
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        max_legs=max_legs_i,
+        max_candidate_pools=max_candidate_pools_i,
+        max_enumerated_candidates=max_enumerated_candidates_i,
     )
     guarded_packet = build_exact_out_many_pool_guarded_quote_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=amount_out_total_i,
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        max_legs=max_legs_i,
+        max_candidate_pools=max_candidate_pools_i,
+        max_candidates=max_candidates_i,
+        max_iters=max_iters_i,
+        window=window_i,
+        brute_force_max=brute_force_max_i,
+        max_full_domain_pools=max_full_domain_pools_i,
+        max_enumerated_candidates=max_enumerated_candidates_i,
     )
     gate = check_exact_out_many_pool_certified_winner_packet_gate(
         domain_contract_ok=bool(domain_contract.contract_ok),
@@ -5514,19 +5628,38 @@ def build_exact_out_many_pool_repaired_replacement_shadow_packet(
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolRepairedReplacementShadowPacket:
     amount_out_total_i = _require_amount_out_total_int(amount_out_total)
+    (
+        max_legs_i,
+        max_candidate_pools_i,
+        max_candidates_i,
+        max_iters_i,
+        window_i,
+        brute_force_max_i,
+        max_full_domain_pools_i,
+        max_enumerated_candidates_i,
+    ) = _require_runtime_control_values(
+        max_legs=max_legs,
+        max_candidate_pools=max_candidate_pools,
+        max_candidates=max_candidates,
+        max_iters=max_iters,
+        window=window,
+        brute_force_max=brute_force_max,
+        max_full_domain_pools=max_full_domain_pools,
+        max_enumerated_candidates=max_enumerated_candidates,
+    )
     default_packet = build_exact_out_many_pool_default_packet(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=amount_out_total_i,
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+        max_legs=max_legs_i,
+        max_candidate_pools=max_candidate_pools_i,
+        max_candidates=max_candidates_i,
+        max_iters=max_iters_i,
+        window=window_i,
+        brute_force_max=brute_force_max_i,
+        max_full_domain_pools=max_full_domain_pools_i,
+        max_enumerated_candidates=max_enumerated_candidates_i,
     )
     replacement_contract = default_packet.repaired_key_cover_packet.selected_domain_contract
     replacement_available = bool(replacement_contract.contract_ok)
@@ -5554,7 +5687,7 @@ def build_exact_out_many_pool_repaired_replacement_shadow_packet(
 def verify_exact_out_route_canonical_certificate(
     quotes: Sequence[SplitManyPoolsExactOutQuote],
     *,
-    certificate: ExactOutRouteCanonicalCertificate,
+    certificate: object,
     expected_binding_ok: int = 1,
 ) -> tuple[bool, str | None]:
     if not isinstance(certificate, ExactOutRouteCanonicalCertificate):

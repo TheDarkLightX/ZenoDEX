@@ -1644,6 +1644,55 @@ def test_exact_out_many_pool_oracle_contract_rejects_bool_integer_fields() -> No
     assert err == "reserve0 must be an int"
 
 
+def test_exact_out_many_pool_repaired_replacement_shadow_rejects_bool_runtime_controls() -> None:
+    pools = (
+        _pool(pool_id="pool_a", reserve0=120, reserve1=40),
+        _pool(pool_id="pool_b", reserve0=100, reserve1=34),
+    )
+    for field in (
+        "max_legs",
+        "max_candidate_pools",
+        "max_candidates",
+        "max_iters",
+        "window",
+        "brute_force_max",
+        "max_full_domain_pools",
+        "max_enumerated_candidates",
+    ):
+        with pytest.raises(ValueError, match=f"{field} must be an int"):
+            build_exact_out_many_pool_repaired_replacement_shadow_packet(
+                pools,
+                asset_in="A",
+                asset_out="B",
+                amount_out_total=3,
+                **{field: True},
+            )
+
+
+@pytest.mark.parametrize(
+    "builder",
+    [
+        build_exact_out_many_pool_repaired_key_cover_packet,
+        build_exact_out_many_pool_repaired_key_cover_interpretation_packet,
+        build_exact_out_many_pool_repaired_full_domain_certified_packet,
+        build_exact_out_many_pool_certified_winner_packet,
+    ],
+)
+def test_exact_out_many_pool_public_packet_builders_reject_bool_runtime_controls(builder: object) -> None:
+    pools = (
+        _pool(pool_id="pool_a", reserve0=120, reserve1=40),
+        _pool(pool_id="pool_b", reserve0=100, reserve1=34),
+    )
+    with pytest.raises(ValueError, match="max_legs must be an int"):
+        builder(
+            pools,
+            asset_in="A",
+            asset_out="B",
+            amount_out_total=3,
+            max_legs=True,
+        )
+
+
 def test_guard_exact_out_many_pool_runtime_canonicality_accepts_small_match() -> None:
     pools = (
         _pool(pool_id="pool_b", reserve0=100, reserve1=34),
