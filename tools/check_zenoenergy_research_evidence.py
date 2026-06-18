@@ -1139,7 +1139,7 @@ def _check_formal_boundary(report: dict[str, Any]) -> list[EvidenceCheck]:
         ),
         _expect_true(
             "formal_boundary.commands",
-            all(int(command["exit_code"]) == 0 for command in report["commands"]),
+            _all_command_exit_codes_zero(report.get("commands")),
             "Lean target and focused formal regression are recorded as passing",
         ),
         _expect_true(
@@ -1197,7 +1197,7 @@ def _check_fallback_checked_stop_formal(
         ),
         _expect_true(
             "fallback_checked_stop_formal.commands",
-            all(int(command["exit_code"]) == 0 for command in report["commands"]),
+            _all_command_exit_codes_zero(report.get("commands")),
             "Lean target and focused formal regression are recorded as passing",
         ),
         _expect_true(
@@ -1246,7 +1246,7 @@ def _check_energy_order_alone_formal(
         ),
         _expect_true(
             "energy_order_alone_formal.commands",
-            all(int(command["exit_code"]) == 0 for command in report["commands"]),
+            _all_command_exit_codes_zero(report.get("commands")),
             "Lean boundary target and focused formal regression are recorded as passing",
         ),
         _expect_true(
@@ -4406,6 +4406,18 @@ def _json_int_equals(value: object, expected: int) -> bool:
 
 def _list_equals(value: object, expected: list[object]) -> bool:
     return isinstance(value, list) and value == expected
+
+
+def _all_command_exit_codes_zero(commands: object) -> bool:
+    return (
+        isinstance(commands, list)
+        and len(commands) > 0
+        and all(
+            isinstance(command, dict)
+            and _json_int_equals(command.get("exit_code"), 0)
+            for command in commands
+        )
+    )
 
 
 def _expect_true(check_id: str, condition: bool, detail: str) -> EvidenceCheck:
