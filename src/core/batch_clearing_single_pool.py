@@ -48,6 +48,18 @@ class _SinglePoolFactories:
     process_liquidity_intent_fn: _AnyFn
 
 
+@dataclass(frozen=True)
+class _ClearSinglePoolRequest:
+    intents: List[Intent]
+    pool_state: PoolState
+    balances: BalanceTable
+    lp_balances: LPTable
+    policy: _SinglePoolOrderingPolicy
+    factories: _SinglePoolFactories
+    protocol_fee_share_bps: int
+    protocol_fee_recipient_pubkey: Optional[PubKey]
+
+
 @dataclass
 class _SinglePoolRuntime:
     balances_scratch: BalanceTable
@@ -55,6 +67,16 @@ class _SinglePoolRuntime:
     current_reserves: Tuple[Amount, Amount]
     current_lp_supply: Amount
     fills: List[Fill]
+
+
+@dataclass(frozen=True)
+class _SinglePoolExecutionContext:
+    pool_state: PoolState
+    runtime: _SinglePoolRuntime
+    policy: _SinglePoolOrderingPolicy
+    factories: _SinglePoolFactories
+    protocol_fee_share_bps: int
+    protocol_fee_recipient_pubkey: Optional[PubKey]
 
 
 @dataclass(frozen=True)
@@ -106,20 +128,18 @@ def _partition_single_pool_intents(intents: List[Intent]) -> Tuple[List[Intent],
 
 def _apply_cow_pair_netting_pass(
     swap_intents: List[Intent],
-    pool_state: PoolState,
-    runtime: _SinglePoolRuntime,
-    policy: _SinglePoolOrderingPolicy,
-    factories: _SinglePoolFactories,
+    context: _SinglePoolExecutionContext,
 ) -> Tuple[str, List[Intent]]:
+    policy = context.policy
     if policy.swap_ordering != policy.cow_pair_netting_v1:
         return policy.swap_ordering, swap_intents
 
-    netted_fills, remaining_swaps = factories.cow_pair_netting_fn(
+    netted_fills, remaining_swaps = context.factories.cow_pair_netting_fn(
         swap_intents,
-        pool_state=pool_state,
-        balances=runtime.balances_scratch,
+        pool_state=context.pool_state,
+        balances=context.runtime.balances_scratch,
     )
-    runtime.fills.extend(netted_fills)
+    context.runtime.fills.extend(netted_fills)
     post_swap_ordering = (
         policy.optimal_ab_bounded if len(remaining_swaps) <= policy.max_brute_force_n else policy.greedy_ab_refined
     )
@@ -128,12 +148,13 @@ def _apply_cow_pair_netting_pass(
 
 def _order_swaps_for_single_pool(
     swap_intents: List[Intent],
-    pool_state: PoolState,
-    runtime: _SinglePoolRuntime,
     post_swap_ordering: str,
-    policy: _SinglePoolOrderingPolicy,
-    factories: _SinglePoolFactories,
+    context: _SinglePoolExecutionContext,
 ) -> List[Intent]:
+    policy = context.policy
+    factories = context.factories
+    pool_state = context.pool_state
+    runtime = context.runtime
     if post_swap_ordering == policy.optimal_ab_bounded:
         return factories.order_optimal_ab_bounded_fn(
             swap_intents,
@@ -158,20 +179,17 @@ def _order_swaps_for_single_pool(
 
 def _process_ordered_swaps_for_single_pool(
     sorted_swaps: List[Intent],
-    pool_state: PoolState,
-    runtime: _SinglePoolRuntime,
-    factories: _SinglePoolFactories,
-    *,
-    protocol_fee_share_bps: int,
-    protocol_fee_recipient_pubkey: Optional[PubKey],
+    context: _SinglePoolExecutionContext,
 ) -> None:
+    runtime = context.runtime
+    factories = context.factories
     for intent in sorted_swaps:
         fill = factories.process_swap_intent_fn(
             intent,
             runtime.current_reserves,
-            pool_state,
+            context.pool_state,
             runtime.balances_scratch,
-            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_share_bps=context.protocol_fee_share_bps,
         )
         runtime.fills.append(fill)
 
@@ -181,33 +199,32 @@ def _process_ordered_swaps_for_single_pool(
             _SwapFillReserveRequest(
                 intent=intent,
                 fill=fill,
-                pool_state=pool_state,
+                pool_state=context.pool_state,
                 reserves=runtime.current_reserves,
-                protocol_fee_share_bps=protocol_fee_share_bps,
+                protocol_fee_share_bps=context.protocol_fee_share_bps,
             )
         )
         factories.apply_swap_fill_to_scratch_balances_fn(
             intent,
             fill,
             runtime.balances_scratch,
-            protocol_fee_recipient_pubkey,
+            context.protocol_fee_recipient_pubkey,
         )
 
 
 def _process_liquidity_for_single_pool(
     liquidity_intents: List[Intent],
-    pool_state: PoolState,
-    runtime: _SinglePoolRuntime,
-    factories: _SinglePoolFactories,
+    context: _SinglePoolExecutionContext,
 ) -> None:
+    runtime = context.runtime
     for intent in liquidity_intents:
         snap_pool = replace(
-            pool_state,
+            context.pool_state,
             reserve0=runtime.current_reserves[0],
             reserve1=runtime.current_reserves[1],
             lp_supply=runtime.current_lp_supply,
         )
-        fill = factories.process_liquidity_intent_fn(
+        fill = context.factories.process_liquidity_intent_fn(
             intent,
             snap_pool,
             runtime.lp_scratch,
@@ -326,52 +343,40 @@ def _read_single_pool_fill_int(value: object, *, operation: str, field_name: str
     return int(parsed)
 
 
-def clear_batch_single_pool_with_factories(
-    intents: List[Intent],
-    pool_state: PoolState,
-    balances: BalanceTable,
-    lp_balances: LPTable,
-    *,
-    policy: _SinglePoolOrderingPolicy,
-    factories: _SinglePoolFactories,
-    protocol_fee_share_bps: int,
-    protocol_fee_recipient_pubkey: Optional[PubKey],
-) -> List[Fill]:
+def clear_batch_single_pool_with_factories(request: _ClearSinglePoolRequest) -> List[Fill]:
     _validate_single_pool_policy(
-        policy,
-        protocol_fee_share_bps=protocol_fee_share_bps,
-        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+        request.policy,
+        protocol_fee_share_bps=request.protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=request.protocol_fee_recipient_pubkey,
     )
-    swap_intents, liquidity_intents = _partition_single_pool_intents(intents)
+    swap_intents, liquidity_intents = _partition_single_pool_intents(request.intents)
     runtime = _SinglePoolRuntime(
-        balances_scratch=factories.copy_balance_table_fn(balances),
-        lp_scratch=factories.copy_lp_table_fn(lp_balances),
-        current_reserves=(pool_state.reserve0, pool_state.reserve1),
-        current_lp_supply=pool_state.lp_supply,
+        balances_scratch=request.factories.copy_balance_table_fn(request.balances),
+        lp_scratch=request.factories.copy_lp_table_fn(request.lp_balances),
+        current_reserves=(request.pool_state.reserve0, request.pool_state.reserve1),
+        current_lp_supply=request.pool_state.lp_supply,
         fills=[],
+    )
+    context = _SinglePoolExecutionContext(
+        pool_state=request.pool_state,
+        runtime=runtime,
+        policy=request.policy,
+        factories=request.factories,
+        protocol_fee_share_bps=request.protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=request.protocol_fee_recipient_pubkey,
     )
     post_swap_ordering, remaining_swaps = _apply_cow_pair_netting_pass(
         swap_intents,
-        pool_state,
-        runtime,
-        policy,
-        factories,
+        context,
     )
     sorted_swaps = _order_swaps_for_single_pool(
         remaining_swaps,
-        pool_state,
-        runtime,
         post_swap_ordering,
-        policy,
-        factories,
+        context,
     )
     _process_ordered_swaps_for_single_pool(
         sorted_swaps,
-        pool_state,
-        runtime,
-        factories,
-        protocol_fee_share_bps=protocol_fee_share_bps,
-        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+        context,
     )
-    _process_liquidity_for_single_pool(liquidity_intents, pool_state, runtime, factories)
+    _process_liquidity_for_single_pool(liquidity_intents, context)
     return runtime.fills

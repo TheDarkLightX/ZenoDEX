@@ -82,6 +82,7 @@ from .batch_clearing_ordering import (
     _simulate_swap_reserves,
 )
 from .batch_clearing_single_pool import (
+    _ClearSinglePoolRequest,
     _SinglePoolFactories,
     _SinglePoolOrderingPolicy,
     clear_batch_single_pool_with_factories,
@@ -281,39 +282,41 @@ def clear_batch_single_pool(
         List of Fill objects
     """
     return clear_batch_single_pool_with_factories(
-        intents,
-        pool_state,
-        balances,
-        lp_balances,
-        policy=_SinglePoolOrderingPolicy(
-            swap_ordering=swap_ordering,
-            ordering_choices=_SWAP_ORDERING_CHOICES,
-            limit_price=_SWAP_ORDERING_LIMIT_PRICE,
-            optimal_ab_bounded=_SWAP_ORDERING_OPTIMAL_AB_BOUNDED,
-            greedy_ab=_SWAP_ORDERING_GREEDY_AB,
-            greedy_ab_refined=_SWAP_ORDERING_GREEDY_AB_REFINED,
-            greedy_ab_global=_SWAP_ORDERING_GREEDY_AB_GLOBAL,
-            mci_ab_global=_SWAP_ORDERING_MCI_AB_GLOBAL,
-            cow_pair_netting_v1=_SWAP_ORDERING_COW_PAIR_NETTING_V1,
-            max_brute_force_n=_MAX_SWAP_ORDERING_BRUTE_FORCE_N,
-        ),
-        factories=_SinglePoolFactories(
-            copy_balance_table_fn=_copy_balance_table,
-            copy_lp_table_fn=_copy_lp_table,
-            cow_pair_netting_fn=_cow_pair_netting_exact_in_v1,
-            order_limit_price_fn=_order_swaps_limit_price,
-            order_optimal_ab_bounded_fn=_order_swaps_optimal_ab_bounded,
-            order_greedy_ab_fn=_order_swaps_greedy_ab,
-            order_mci_ab_fn=_order_swaps_mci_ab,
-            refine_b_ordering_fn=_refine_b_ordering,
-            refine_ab_ordering_global_fn=_refine_ab_ordering_global,
-            process_swap_intent_fn=_process_swap_intent,
-            reserves_after_swap_fill_fn=_reserves_after_swap_fill,
-            apply_swap_fill_to_scratch_balances_fn=_apply_swap_fill_to_scratch_balances,
-            process_liquidity_intent_fn=_process_liquidity_intent,
-        ),
-        protocol_fee_share_bps=protocol_fee_share_bps,
-        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+        _ClearSinglePoolRequest(
+            intents=intents,
+            pool_state=pool_state,
+            balances=balances,
+            lp_balances=lp_balances,
+            policy=_SinglePoolOrderingPolicy(
+                swap_ordering=swap_ordering,
+                ordering_choices=_SWAP_ORDERING_CHOICES,
+                limit_price=_SWAP_ORDERING_LIMIT_PRICE,
+                optimal_ab_bounded=_SWAP_ORDERING_OPTIMAL_AB_BOUNDED,
+                greedy_ab=_SWAP_ORDERING_GREEDY_AB,
+                greedy_ab_refined=_SWAP_ORDERING_GREEDY_AB_REFINED,
+                greedy_ab_global=_SWAP_ORDERING_GREEDY_AB_GLOBAL,
+                mci_ab_global=_SWAP_ORDERING_MCI_AB_GLOBAL,
+                cow_pair_netting_v1=_SWAP_ORDERING_COW_PAIR_NETTING_V1,
+                max_brute_force_n=_MAX_SWAP_ORDERING_BRUTE_FORCE_N,
+            ),
+            factories=_SinglePoolFactories(
+                copy_balance_table_fn=_copy_balance_table,
+                copy_lp_table_fn=_copy_lp_table,
+                cow_pair_netting_fn=_cow_pair_netting_exact_in_v1,
+                order_limit_price_fn=_order_swaps_limit_price,
+                order_optimal_ab_bounded_fn=_order_swaps_optimal_ab_bounded,
+                order_greedy_ab_fn=_order_swaps_greedy_ab,
+                order_mci_ab_fn=_order_swaps_mci_ab,
+                refine_b_ordering_fn=_refine_b_ordering,
+                refine_ab_ordering_global_fn=_refine_ab_ordering_global,
+                process_swap_intent_fn=_process_swap_intent,
+                reserves_after_swap_fill_fn=_reserves_after_swap_fill,
+                apply_swap_fill_to_scratch_balances_fn=_apply_swap_fill_to_scratch_balances,
+                process_liquidity_intent_fn=_process_liquidity_intent,
+            ),
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+        )
     )
 
 
