@@ -22,6 +22,7 @@ from .fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult, split_fee
 from .oracle import OracleState
 from .perps import PerpsState
 from .settlement import Settlement
+from .settlement_fill_fields import read_optional_non_negative_fill_int
 from .settlement_strong_validator import validate_settlement_strong
 from .vault import VaultState
 
@@ -119,7 +120,7 @@ def _validate_and_apply_settlement(
         lp_balances=state.lp_balances,
     )
 
-    total_fees = sum(int(fill.fee_paid or 0) for fill in settlement.fills)
+    total_fees = _sum_settlement_swap_fees(settlement)
 
     fee_split = None
     next_fee_state = state.fee_accumulator
@@ -150,6 +151,21 @@ def _validate_and_apply_settlement(
             "fee_split": fee_split,
         },
     )
+
+
+def _sum_settlement_swap_fees(settlement: Settlement) -> int:
+    total = 0
+    for fill in settlement.fills:
+        fee_paid, err = read_optional_non_negative_fill_int(
+            fill.fee_paid,
+            operation="SWAP",
+            field_name="fee_paid",
+            intent_id=fill.intent_id,
+        )
+        if err is not None:
+            raise TypeError(err)
+        total += int(fee_paid)
+    return total
 
 
 def step_with_candidate_settlement(
