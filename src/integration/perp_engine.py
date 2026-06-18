@@ -1364,36 +1364,40 @@ def _check_clearinghouse_typed_oracle_authorization(
     return None
 
 
+@dataclass(frozen=True)
+class _ClearinghouseSettleOracleAuthorizationRequest:
+    config: PerpEngineConfig
+    data: Mapping[str, Any]
+    market_id: str
+    market_kind: str
+    quote_asset: str
+    state: Mapping[str, Any]
+    participant_pubkeys: tuple[str, ...]
+
+
 def _check_clearinghouse_settle_oracle_authorization(
-    config: PerpEngineConfig,
-    *,
-    data: Mapping[str, Any],
-    market_id: str,
-    market_kind: str,
-    quote_asset: str,
-    state: Mapping[str, Any],
-    participant_pubkeys: tuple[str, ...],
+    request: _ClearinghouseSettleOracleAuthorizationRequest,
 ) -> Optional[str]:
-    authorization_required = bool(config.require_oracle_authorization_for_clearinghouse_settle_epoch)
-    authorization = data.get("oracle_authorization")
+    authorization_required = bool(request.config.require_oracle_authorization_for_clearinghouse_settle_epoch)
+    authorization = request.data.get("oracle_authorization")
     if authorization is None:
         if authorization_required:
             return "clearinghouse_settle_oracle_authorization_required"
         return None
     if not isinstance(authorization, Mapping):
         return "clearinghouse settle oracle_authorization must be an object"
-    if authorization_required and "oracle_adapter_bridge" not in data:
+    if authorization_required and "oracle_adapter_bridge" not in request.data:
         return "settle_epoch requires oracle_adapter_bridge"
-    if int(state.get("clearing_price_e8", 0)) <= 0:
+    if int(request.state.get("clearing_price_e8", 0)) <= 0:
         return "clearinghouse_settle_oracle_authorization_rejected: clearing_price_e8 must be positive"
 
     runtime = _perps_clearinghouse_settle_oracle_runtime_facts(
-        config,
-        market_id=market_id,
-        market_kind=market_kind,
-        quote_asset=quote_asset,
-        state=state,
-        participant_pubkeys=participant_pubkeys,
+        request.config,
+        market_id=request.market_id,
+        market_kind=request.market_kind,
+        quote_asset=request.quote_asset,
+        state=request.state,
+        participant_pubkeys=request.participant_pubkeys,
     )
     err, runtime_value_e8, now_epoch = _clearinghouse_settle_runtime_numbers(runtime)
     if err is not None:
@@ -4070,13 +4074,15 @@ def _chnp_settle_oracle_bridge_error(
     if err is not None:
         return err
     return _check_clearinghouse_settle_oracle_authorization(
-        config,
-        data=data,
-        market_id=market_id,
-        market_kind=PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
-        quote_asset=market.quote_asset,
-        state=state_for_oracle,
-        participant_pubkeys=participant_pubkeys,
+        _ClearinghouseSettleOracleAuthorizationRequest(
+            config=config,
+            data=data,
+            market_id=market_id,
+            market_kind=PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
+            quote_asset=market.quote_asset,
+            state=state_for_oracle,
+            participant_pubkeys=participant_pubkeys,
+        )
     )
 
 

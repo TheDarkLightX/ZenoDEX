@@ -262,19 +262,21 @@ def test_clearinghouse_settle_sanitizes_oracle_verifier_internal_error(monkeypat
     monkeypatch.setattr(perp_engine, "check_critical_consumer_authorization", broken_verifier)
 
     err = perp_engine._check_clearinghouse_settle_oracle_authorization(
-        perp_engine.PerpEngineConfig(),
-        data={"oracle_authorization": {"present": True}},
-        market_id="perp:ch2p:auth-verifier-bug",
-        market_kind="clearinghouse_2p_v1",
-        quote_asset="zUSD",
-        state={
-            "now_epoch": 1,
-            "clearing_price_epoch": 1,
-            "clearing_price_e8": 100_000_000,
-            "index_price_e8": 100_000_000,
-            "oracle_last_update_epoch": 1,
-        },
-        participant_pubkeys=("00" * 48, "11" * 48),
+        perp_engine._ClearinghouseSettleOracleAuthorizationRequest(
+            config=perp_engine.PerpEngineConfig(),
+            data={"oracle_authorization": {"present": True}},
+            market_id="perp:ch2p:auth-verifier-bug",
+            market_kind="clearinghouse_2p_v1",
+            quote_asset="zUSD",
+            state={
+                "now_epoch": 1,
+                "clearing_price_epoch": 1,
+                "clearing_price_e8": 100_000_000,
+                "index_price_e8": 100_000_000,
+                "oracle_last_update_epoch": 1,
+            },
+            participant_pubkeys=("00" * 48, "11" * 48),
+        )
     )
 
     assert err == "clearinghouse_settle_oracle_authorization_rejected: internal error: RuntimeError"
