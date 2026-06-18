@@ -1697,6 +1697,15 @@ class _IsolatedPartialLiquidateResult:
     effects: Mapping[str, Any]
 
 
+@dataclass(frozen=True)
+class _InitMarketNpInputs:
+    quote_asset: str
+    index_price_e8: int
+    insurance_seed_e8: int
+    insurance_seed_quote: int
+    params_obj: Mapping[str, Any]
+
+
 def _reject_unknown_fields(data: Mapping[str, Any], allowed: set[str], *, error: str) -> Optional[str]:
     if set(data.keys()) - allowed:
         return error
@@ -4639,25 +4648,8 @@ def _apply_init_market_3p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | No
     )
 
 
-def _apply_init_market_np(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | None:
-    action = op.action
-    market_id = op.market_id
-    version = op.version
-    data = op.data
-    if version != PERP_OP_VERSION_CHNP_V1_2:
-        return "init_market_np requires perps.version=1.2"
-    err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
-    if err is not None:
-        return err
-    if market_id in ctx.markets:
-        return "market already exists"
-    if not market_id.startswith(PERP_CHNP_MARKET_PREFIX):
-        return "clearinghouse_np market_id must start with perp:chnp:"
-    quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
-    index_price_e8 = _require_int(data.get("index_price_e8"), name="index_price_e8", non_negative=True)
-    if index_price_e8 <= 0:
-        return "index_price_e8 must be positive"
-    allowed = {
+_INIT_MARKET_NP_FIELDS = frozenset(
+    {
         "module",
         "version",
         "market_id",
@@ -4667,8 +4659,31 @@ def _apply_init_market_np(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | No
         "insurance_seed_e8",
         "params",
     }
-    if set(data.keys()) - allowed:
-        return "init_market_np has unknown fields"
+)
+
+
+def _init_market_np_header_error(ctx: _PerpApplyCtx, *, op: PerpOp) -> str | None:
+    if op.version != PERP_OP_VERSION_CHNP_V1_2:
+        return "init_market_np requires perps.version=1.2"
+    err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
+    if err is not None:
+        return err
+    if op.market_id in ctx.markets:
+        return "market already exists"
+    if not op.market_id.startswith(PERP_CHNP_MARKET_PREFIX):
+        return "clearinghouse_np market_id must start with perp:chnp:"
+    return None
+
+
+def _read_init_market_np_inputs(ctx: _PerpApplyCtx, *, op: PerpOp) -> tuple[str | None, _InitMarketNpInputs | None]:
+    data = op.data
+    quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
+    index_price_e8 = _require_int(data.get("index_price_e8"), name="index_price_e8", non_negative=True)
+    if index_price_e8 <= 0:
+        return "index_price_e8 must be positive", None
+    if set(data.keys()) - _INIT_MARKET_NP_FIELDS:
+        return "init_market_np has unknown fields", None
+
     insurance_seed_e8 = _require_int(
         data.get("insurance_seed_e8", 0),
         name="insurance_seed_e8",
@@ -4677,38 +4692,68 @@ def _apply_init_market_np(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | No
     insurance_seed_quote = 0
     if insurance_seed_e8:
         if insurance_seed_e8 % _E8_SCALE != 0:
-            return "insurance_seed_e8 must be quote-unit aligned"
+            return "insurance_seed_e8 must be quote-unit aligned", None
         insurance_seed_quote = insurance_seed_e8 // _E8_SCALE
         if ctx.balances.get(ctx.tx_sender_pubkey, quote_asset) < insurance_seed_quote:
-            return "insufficient balance for insurance seed"
+            return "insufficient balance for insurance seed", None
+
     params_obj = data.get("params", {})
     if not isinstance(params_obj, Mapping):
-        return "params must be an object"
-    ctx.perps_version = max(ctx.perps_version, PERPS_STATE_VERSION_V5)
+        return "params must be an object", None
+    return None, _InitMarketNpInputs(
+        quote_asset=quote_asset,
+        index_price_e8=index_price_e8,
+        insurance_seed_e8=insurance_seed_e8,
+        insurance_seed_quote=insurance_seed_quote,
+        params_obj=params_obj,
+    )
+
+
+def _build_init_market_np_market(inputs: _InitMarketNpInputs) -> tuple[str | None, _NpMarketState | None]:
     try:
         param_overrides = _validated_control_params(
-            params_obj,
+            inputs.params_obj,
             bounds=_CLEARINGHOUSE_NP_CONTROL_PARAM_BOUNDS,
             name="params",
         )
         init_ms = _np_core.init_market(
-            index_price_e8,
+            inputs.index_price_e8,
             params=_np_core.MarketParams(**param_overrides),
-            insurance_seed_e8=insurance_seed_e8,
+            insurance_seed_e8=inputs.insurance_seed_e8,
         )
-        next_market = _chnp_core_to_market(quote_asset, init_ms, pending_intents=())
+        return None, _chnp_core_to_market(inputs.quote_asset, init_ms, pending_intents=())
     except Exception as exc:
-        return _safe_error_str(exc)
-    if insurance_seed_quote:
-        ctx.balances.subtract(ctx.tx_sender_pubkey, quote_asset, insurance_seed_quote)
-    ctx.markets[market_id] = next_market
+        return _safe_error_str(exc), None
+
+
+def _apply_init_market_np(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | None:
+    err = _init_market_np_header_error(ctx, op=op)
+    if err is not None:
+        return err
+
+    err, inputs = _read_init_market_np_inputs(ctx, op=op)
+    if err is not None:
+        return err
+    if inputs is None:
+        return "internal error: init_market_np inputs missing"
+
+    ctx.perps_version = max(ctx.perps_version, PERPS_STATE_VERSION_V5)
+    err, next_market = _build_init_market_np_market(inputs)
+    if err is not None:
+        return err
+    if next_market is None:
+        return "internal error: init_market_np market missing"
+
+    if inputs.insurance_seed_quote:
+        ctx.balances.subtract(ctx.tx_sender_pubkey, inputs.quote_asset, inputs.insurance_seed_quote)
+    ctx.markets[op.market_id] = next_market
     ctx.effects.append(
         {
             "i": i,
-            "market_id": market_id,
-            "action": action,
-            "quote_asset": quote_asset,
-            "insurance_seed_e8": int(insurance_seed_e8),
+            "market_id": op.market_id,
+            "action": op.action,
+            "quote_asset": inputs.quote_asset,
+            "insurance_seed_e8": int(inputs.insurance_seed_e8),
         }
     )
     return None
