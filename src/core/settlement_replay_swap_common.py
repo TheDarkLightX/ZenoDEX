@@ -41,6 +41,21 @@ class SwapReplayAmounts:
     protocol_fee: int
 
 
+def read_optional_fill_int(
+    value: object,
+    *,
+    field_name: str,
+    intent_id: str,
+) -> tuple[Optional[int], Optional[str]]:
+    if value is None:
+        return 0, None
+    if not isinstance(value, int) or isinstance(value, bool):
+        return None, f"swap {field_name} must be int for intent_id={intent_id}"
+    if value < 0:
+        return None, f"swap {field_name} must be non-negative for intent_id={intent_id}"
+    return int(value), None
+
+
 def check_swap_fee_fields(
     *,
     fill: Fill,
@@ -49,9 +64,23 @@ def check_swap_fee_fields(
     protocol_fee_paid: int,
 ) -> Optional[str]:
     fee = compute_fee_total(int(fee_basis_amount), int(target.pool.fee_bps))
-    if int(fill.fee_paid or 0) != int(fee):
+    fee_paid, err = read_optional_fill_int(
+        fill.fee_paid,
+        field_name="fee_paid",
+        intent_id=target.intent_id,
+    )
+    if err is not None:
+        return err
+    protocol_fee_paid_fill, err = read_optional_fill_int(
+        fill.protocol_fee_paid,
+        field_name="protocol_fee_paid",
+        intent_id=target.intent_id,
+    )
+    if err is not None:
+        return err
+    if fee_paid != int(fee):
         return f"swap fee_paid mismatch for intent_id={target.intent_id}"
-    if int(fill.protocol_fee_paid or 0) != int(protocol_fee_paid):
+    if protocol_fee_paid_fill != int(protocol_fee_paid):
         return f"swap protocol_fee_paid mismatch for intent_id={target.intent_id}"
     return None
 

@@ -17,6 +17,7 @@ from .settlement_replay_swap_common import (
     SwapReplayTarget,
     apply_swap_replay,
     check_swap_fee_fields,
+    read_optional_fill_int,
     record_swap_replay_deltas,
 )
 
@@ -40,7 +41,14 @@ def replay_swap_exact_out_fill(*, request: SwapExactOutReplayRequest) -> Optiona
     replay_input, err = _parse_swap_exact_out_replay_input(request.intent)
     if replay_input is None:
         return err or f"invalid amount_out for intent_id={request.target.intent_id}"
-    if int(request.fill.amount_out_filled or 0) != int(replay_input.amount_out):
+    amount_out_filled, err = read_optional_fill_int(
+        request.fill.amount_out_filled,
+        field_name="amount_out_filled",
+        intent_id=request.target.intent_id,
+    )
+    if err is not None:
+        return err
+    if amount_out_filled != int(replay_input.amount_out):
         return f"swap amount_out_filled mismatch for intent_id={request.target.intent_id}"
 
     replay_amounts, err = _quote_swap_exact_out_replay(
@@ -169,9 +177,23 @@ def _check_swap_exact_out_amount_fields(
     replay_input: _SwapExactOutReplayInput,
     replay_amounts: SwapReplayAmounts,
 ) -> Optional[str]:
-    if int(fill.amount_out_filled or 0) != int(replay_input.amount_out):
+    amount_out_filled, err = read_optional_fill_int(
+        fill.amount_out_filled,
+        field_name="amount_out_filled",
+        intent_id=target.intent_id,
+    )
+    if err is not None:
+        return err
+    amount_in_filled, err = read_optional_fill_int(
+        fill.amount_in_filled,
+        field_name="amount_in_filled",
+        intent_id=target.intent_id,
+    )
+    if err is not None:
+        return err
+    if amount_out_filled != int(replay_input.amount_out):
         return f"swap amount_out_filled mismatch for intent_id={target.intent_id}"
-    if int(fill.amount_in_filled or 0) != int(replay_amounts.amount_in):
+    if amount_in_filled != int(replay_amounts.amount_in):
         return f"swap amount_in_filled mismatch for intent_id={target.intent_id}"
     return None
 

@@ -125,6 +125,36 @@ def test_strong_validator_rejects_exact_in_protocol_fee_without_recipient() -> N
     assert err is not None and "protocol_fee_recipient_pubkey is required" in err
 
 
+def test_strong_validator_rejects_numeric_string_protocol_fee_paid() -> None:
+    pools = {POOL_ID: _pool()}
+    balances = _balances()
+    lp = LPTable()
+    intent = _exact_in_intent()
+    settlement = compute_settlement(
+        intents=[intent],
+        pools=pools,
+        balances=balances,
+        lp_balances=lp,
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=TREASURY,
+    )
+    settlement.fills[0].protocol_fee_paid = str(settlement.fills[0].protocol_fee_paid)
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=lp,
+        mode="strong_proof_carrying",
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=TREASURY,
+    )
+
+    assert ok is False
+    assert err == f"swap protocol_fee_paid must be int for intent_id={intent.intent_id}"
+
+
 def test_compute_settlement_captures_exact_out_protocol_fee_to_treasury() -> None:
     pools = {POOL_ID: _pool()}
     balances = _balances()

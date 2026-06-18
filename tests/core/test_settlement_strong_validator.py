@@ -2334,6 +2334,19 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     assert ok is False
     assert err == f"swap amount_in_filled mismatch for intent_id={intent.intent_id}"
 
+    amount_in_string = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
+    amount_in_string.fills[0].amount_in_filled = str(amount_in_string.fills[0].amount_in_filled)
+    ok, err = validate_settlement_strong(
+        settlement=amount_in_string,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap amount_in_filled must be int for intent_id={intent.intent_id}"
+
     def _boom_exact_in(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise ValueError("boom")
 
@@ -2408,6 +2421,32 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     assert ok is False
     assert err == f"swap fee_paid mismatch for intent_id={intent.intent_id}"
 
+    fee_string = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
+    fee_string.fills[0].fee_paid = str(fee_string.fills[0].fee_paid)
+    ok, err = validate_settlement_strong(
+        settlement=fee_string,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap fee_paid must be int for intent_id={intent.intent_id}"
+
+    protocol_fee_bool = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
+    protocol_fee_bool.fills[0].protocol_fee_paid = False
+    ok, err = validate_settlement_strong(
+        settlement=protocol_fee_bool,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap protocol_fee_paid must be int for intent_id={intent.intent_id}"
+
     low_balances = BalanceTable()
     low_balances.set(intent.sender_pubkey, asset0, 1)
     low_balances.set(intent.sender_pubkey, asset1, 0)
@@ -2465,6 +2504,21 @@ def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monk
     )
     assert ok is False
     assert err == f"swap amount_out_filled mismatch for intent_id={intent.intent_id}"
+
+    amount_out_string = compute_settlement(
+        [intent], {pool_id: pool}, balances, LPTable(), swap_ordering="greedy_ab_refined"
+    )
+    amount_out_string.fills[0].amount_out_filled = str(amount_out_string.fills[0].amount_out_filled)
+    ok, err = validate_settlement_strong(
+        settlement=amount_out_string,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap amount_out_filled must be int for intent_id={intent.intent_id}"
 
     def _boom_exact_out(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise ValueError("boom")
