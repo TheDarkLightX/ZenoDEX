@@ -59,7 +59,7 @@ def main() -> int:
         args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
         args.output_markdown.write_text(_markdown(report), encoding="utf-8")
     print(encoded)
-    return 0 if report["ok"] else 1
+    return 0 if report.get("ok") is True else 1
 
 
 def check_zenoenergy_autotrader_jepa_ux(
@@ -178,8 +178,8 @@ def check_zenoenergy_autotrader_jepa_ux(
         and prediction_ok
         and controls_ok
         and warnings_ok
-        and bool(research_inputs["ok"])
-        and bool(efficiency["ok"])
+        and research_inputs["ok"] is True
+        and efficiency["ok"] is True
     )
     return {
         "schema": "zenodex/energy/autotrader_jepa_ux_receipt/v1",

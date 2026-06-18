@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tools import check_zenoenergy_autotrader_jepa_ux as jepa_ux_tool
 from tools.check_zenoenergy_autotrader_jepa_ux import check_zenoenergy_autotrader_jepa_ux
 
 
@@ -62,3 +63,46 @@ def test_autotrader_jepa_ux_receipt_explains_future_risk_and_controls() -> None:
         for effect in fragile_card["control_effects"]
     )
     assert report["ux"]["ux_explains_status_and_controls"] is True
+
+
+def test_autotrader_jepa_ux_rejects_truthy_string_subreport_ok(monkeypatch) -> None:
+    original_research_inputs = jepa_ux_tool._research_inputs
+    original_efficiency = jepa_ux_tool._efficiency_profile
+
+    def fake_research_inputs():
+        report = dict(original_research_inputs())
+        report["ok"] = "true"
+        return report
+
+    def fake_efficiency_profile(*, model):
+        report = dict(original_efficiency(model=model))
+        report["ok"] = 1
+        return report
+
+    monkeypatch.setattr(jepa_ux_tool, "_research_inputs", fake_research_inputs)
+    monkeypatch.setattr(jepa_ux_tool, "_efficiency_profile", fake_efficiency_profile)
+
+    report = check_zenoenergy_autotrader_jepa_ux(
+        seed=20260531,
+        contexts=8,
+        candidates_per_context=8,
+        future_weight=0.1,
+    )
+
+    assert report["research_inputs"]["ok"] == "true"
+    assert report["efficiency"]["ok"] == 1
+    assert report["ok"] is False
+
+
+def test_autotrader_jepa_ux_main_rejects_truthy_string_top_level_ok(monkeypatch, capsys) -> None:
+    def fake_check(**_kwargs):
+        return {"schema": "zenodex/energy/autotrader_jepa_ux_receipt/v1", "ok": "true"}
+
+    monkeypatch.setattr(jepa_ux_tool, "check_zenoenergy_autotrader_jepa_ux", fake_check)
+    monkeypatch.setattr(jepa_ux_tool.sys, "argv", ["check_zenoenergy_autotrader_jepa_ux.py"])
+
+    rc = jepa_ux_tool.main()
+    payload = capsys.readouterr().out
+
+    assert rc == 1
+    assert '"ok": "true"' in payload
