@@ -2711,14 +2711,25 @@ def test_cow_pair_netting_direct_helper_fallbacks_and_clear_batch_mci_path() -> 
         deadline=9999999999,
         fields={"pool_id": pool_id, "asset_in": "0x" + "03" * 32, "asset_out": asset1, "amount_in": 100, "min_amount_out": 1},
     )
+    wrong_pool = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(1334),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"pool_id": "0x" + "bb" * 32, "asset_in": asset0, "asset_out": asset1, "amount_in": 100, "min_amount_out": 1},
+    )
 
     fills, remaining = _cow_pair_netting_exact_in_v1(
-        [weird, bad_asset, bad_amount, bad_min, bad_recipient, out_of_pair],
+        [weird, bad_asset, bad_amount, bad_min, bad_recipient, out_of_pair, wrong_pool],
         pool_state=pool,
         balances=balances,
     )
     assert fills == []
-    assert [it.intent_id for it in remaining] == sorted(it.intent_id for it in [weird, bad_asset, bad_amount, bad_min, bad_recipient, out_of_pair])
+    assert [it.intent_id for it in remaining] == sorted(
+        it.intent_id for it in [weird, bad_asset, bad_amount, bad_min, bad_recipient, out_of_pair, wrong_pool]
+    )
 
     mci_intents = [
         Intent(

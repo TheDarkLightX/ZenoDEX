@@ -86,6 +86,10 @@ def _candidate_from_intent(intent: Intent, pool_state: PoolState) -> _CowCandida
     if intent.kind != IntentKind.SWAP_EXACT_IN:
         return None
 
+    pool_id = intent.get_field("pool_id")
+    if pool_id != pool_state.pool_id:
+        return None
+
     asset_in = intent.get_field("asset_in")
     asset_out = intent.get_field("asset_out")
     amount_in = intent.get_field("amount_in")
