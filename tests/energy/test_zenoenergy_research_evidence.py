@@ -499,6 +499,50 @@ def test_research_evidence_replay_rejects_coerced_listwise_rate(
     assert check["passed"] is False
 
 
+def test_research_evidence_replay_rejects_coerced_listwise_cross_seed_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_cross_seed_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_listwise_set_ranker_cross_seed_seed20260532_20260537.json":
+            safety = payload["safety"]
+            assert isinstance(safety, dict)
+            safety["invalid_accept_count"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_cross_seed_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "listwise_cross_seed.safety")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_listwise_cross_seed_pass_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_cross_seed_pass_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_listwise_set_ranker_cross_seed_seed20260532_20260537.json":
+            aggregate = payload["aggregate"]
+            assert isinstance(aggregate, dict)
+            aggregate["listwise_top10_pass_count"] = str(payload["run_count"])
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_cross_seed_pass_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "listwise_cross_seed.top10_and_checked_stop")
+    assert check["passed"] is False
+
+
 def test_research_evidence_replay_rejects_truthy_string_obligation_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

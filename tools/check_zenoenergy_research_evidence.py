@@ -955,9 +955,14 @@ def _check_listwise_set(report: dict[str, Any]) -> list[EvidenceCheck]:
 
 
 def _check_listwise_cross_seed(report: dict[str, Any]) -> list[EvidenceCheck]:
-    aggregate = report["aggregate"]
-    listwise = aggregate["modes"]["listwise_set"]
-    pairwise = aggregate["modes"]["aggregate_pairwise"]
+    aggregate = report.get("aggregate")
+    modes = aggregate.get("modes") if isinstance(aggregate, dict) else {}
+    listwise = modes.get("listwise_set") if isinstance(modes, dict) else {}
+    pairwise = modes.get("aggregate_pairwise") if isinstance(modes, dict) else {}
+    safety = report.get("safety")
+    interpretation = report.get("interpretation")
+    listwise_mean = listwise.get("mean_verifier_calls") if isinstance(listwise, dict) else {}
+    pairwise_mean = pairwise.get("mean_verifier_calls") if isinstance(pairwise, dict) else {}
     return [
         _expect_equal(
             "listwise_cross_seed.schema",
@@ -966,26 +971,35 @@ def _check_listwise_cross_seed(report: dict[str, Any]) -> list[EvidenceCheck]:
         ),
         _expect_true(
             "listwise_cross_seed.safety",
-            _is_true(aggregate["all_safety_passed"])
-            and int(report["safety"]["invalid_accept_count"]) == 0
-            and int(report["safety"]["permutation_violation_count"]) == 0,
+            isinstance(aggregate, dict)
+            and isinstance(safety, dict)
+            and _is_true(aggregate.get("all_safety_passed"))
+            and _json_int_equals(safety.get("invalid_accept_count"), 0)
+            and _json_int_equals(safety.get("permutation_violation_count"), 0),
             "all cross-seed listwise runs have zero invalid accepts and zero permutation violations",
         ),
         _expect_true(
             "listwise_cross_seed.top10_and_checked_stop",
-            int(aggregate["listwise_top10_pass_count"]) == int(report["run_count"])
-            and int(aggregate["listwise_top10_fail_count"]) == 0
-            and int(aggregate["checked_stop_at_winner_pass_count"]) == int(report["run_count"])
-            and int(aggregate["checked_stop_at_winner_fail_count"]) == 0,
+            isinstance(aggregate, dict)
+            and _json_int_values_equal(aggregate.get("listwise_top10_pass_count"), report.get("run_count"))
+            and _json_int_equals(aggregate.get("listwise_top10_fail_count"), 0)
+            and _json_int_values_equal(aggregate.get("checked_stop_at_winner_pass_count"), report.get("run_count"))
+            and _json_int_equals(aggregate.get("checked_stop_at_winner_fail_count"), 0),
             "listwise top-10 recall and checked-stop-at-winner audits pass on every seed pair",
         ),
         _expect_true(
             "listwise_cross_seed.negative_knowledge",
-            int(aggregate["strict_improvement_count"]) == 0
-            and float(listwise["mean_verifier_calls"]["mean"])
-            > float(pairwise["mean_verifier_calls"]["mean"])
+            isinstance(aggregate, dict)
+            and isinstance(listwise_mean, dict)
+            and isinstance(pairwise_mean, dict)
+            and isinstance(interpretation, dict)
+            and _json_int_equals(aggregate.get("strict_improvement_count"), 0)
+            and _json_number_greater_than(
+                listwise_mean.get("mean"),
+                pairwise_mean.get("mean"),
+            )
             and "did not strictly improve"
-            in str(report["interpretation"]["negative_knowledge"]),
+            in str(interpretation.get("negative_knowledge")),
             "listwise ranker does not strictly improve over pairwise on cross-seed stress",
         ),
     ]
@@ -4421,6 +4435,16 @@ def _json_int_at_least(value: object, minimum: int) -> bool:
 
 def _json_int_equals(value: object, expected: int) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value == expected
+
+
+def _json_int_values_equal(left: object, right: object) -> bool:
+    return (
+        isinstance(left, int)
+        and not isinstance(left, bool)
+        and isinstance(right, int)
+        and not isinstance(right, bool)
+        and left == right
+    )
 
 
 def _json_number_at_least(value: object, minimum: float) -> bool:
