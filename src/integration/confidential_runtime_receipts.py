@@ -11,7 +11,6 @@ from typing import Any, Mapping
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 
-
 CONFIDENTIAL_RUNTIME_EXECUTION_RECEIPT_SCHEMA_V1 = "zenodex/confidential_runtime_execution_receipt/v1"
 _CONFIDENTIAL_RUNTIME_EXECUTION_RECEIPT_HASH_DOMAIN_V1 = "zenodex.confidential_runtime_execution_receipt/v1"
 _CONFIDENTIAL_RUNTIME_EFFECT_HASH_DOMAIN_V1 = "zenodex.confidential_runtime_execution_effect/v1"
@@ -122,11 +121,19 @@ def build_confidential_runtime_execution_receipt_v1(
     receipt_fee = _require_bounded_int(accounting.get("receipt_fee"), name="receipt.body.accounting.receipt_fee")
     if fee_charged != receipt_fee:
         raise ValueError("receipt fee mismatch")
-    if host.get("do_execute") != 1:
+    do_execute = _require_bounded_int(host.get("do_execute"), name="receipt.body.host.do_execute", lo=0, hi=1)
+    policy_ok = _require_bounded_int(host.get("policy_ok"), name="receipt.body.host.policy_ok", lo=0, hi=1)
+    output_bound_ok = _require_bounded_int(
+        host.get("output_bound_ok"),
+        name="receipt.body.host.output_bound_ok",
+        lo=0,
+        hi=1,
+    )
+    if do_execute != 1:
         raise ValueError("receipt host must admit execution")
-    if host.get("policy_ok") != 1:
+    if policy_ok != 1:
         raise ValueError("receipt host policy guard must pass")
-    if host.get("output_bound_ok") != 1:
+    if output_bound_ok != 1:
         raise ValueError("receipt host output-bound guard must pass")
 
     body = {
