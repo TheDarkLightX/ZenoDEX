@@ -39,6 +39,14 @@ def _require_optional_int_field(payload: Mapping[str, Any], field: str) -> int |
     return _require_int_field(payload, field)
 
 
+def _require_binary_int(value: Any, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{name} must be a 0/1 int, got {value!r}")
+    if value not in (0, 1):
+        raise ValueError(f"{name} must be 0 or 1, got {value!r}")
+    return int(value)
+
+
 @dataclass(frozen=True)
 class SettlementProofFlags:
     cpmm_ok: int
@@ -63,9 +71,7 @@ class SettlementProofFlags:
             "proof_ok",
             "binding_ok",
         ):
-            value = getattr(self, name)
-            if value not in (0, 1):
-                raise ValueError(f"{name} must be 0 or 1, got {value!r}")
+            _require_binary_int(getattr(self, name), name=name)
 
     def to_dict(self) -> dict[str, int]:
         return {
@@ -217,13 +223,11 @@ class SettlementStrongCertificate:
         _require_hex_digest(self.settlement_commitment_sha256, name="settlement_commitment_sha256")
         _require_hex_digest(self.delta_commitment_sha256, name="delta_commitment_sha256")
         for name in ("core_module_ok", "feature_extension_ok", "proof_binding_ok", "module_bundle_ok"):
-            value = getattr(self, name)
-            if value not in (0, 1):
-                raise ValueError(f"{name} must be 0 or 1, got {value!r}")
-        if self.compact_bundle_ok is not None and self.compact_bundle_ok not in (0, 1):
-            raise ValueError(f"compact_bundle_ok must be 0 or 1, got {self.compact_bundle_ok!r}")
-        if self.full_price_rails_ok is not None and self.full_price_rails_ok not in (0, 1):
-            raise ValueError(f"full_price_rails_ok must be 0 or 1, got {self.full_price_rails_ok!r}")
+            _require_binary_int(getattr(self, name), name=name)
+        if self.compact_bundle_ok is not None:
+            _require_binary_int(self.compact_bundle_ok, name="compact_bundle_ok")
+        if self.full_price_rails_ok is not None:
+            _require_binary_int(self.full_price_rails_ok, name="full_price_rails_ok")
         if (self.semantic_summary is None) != (self.compact_bundle_step is None):
             raise ValueError("semantic_summary and compact_bundle_step must either both be present or both be absent")
         if (self.semantic_summary is None) != (self.compact_bundle_ok is None):
@@ -266,12 +270,25 @@ class SettlementStrongCertificate:
             "module_bundle_step": dict(self.module_bundle_step),
         }
         if self.semantic_summary is not None:
+            price_history_certificate = self.price_history_certificate
+            compact_bundle_step = self.compact_bundle_step
+            compact_bundle_ok = self.compact_bundle_ok
+            full_price_rails_step = self.full_price_rails_step
+            full_price_rails_ok = self.full_price_rails_ok
+            if (
+                price_history_certificate is None
+                or compact_bundle_step is None
+                or compact_bundle_ok is None
+                or full_price_rails_step is None
+                or full_price_rails_ok is None
+            ):
+                raise ValueError("semantic settlement certificate fields are incomplete")
             out["semantic_summary"] = self.semantic_summary.to_dict()
-            out["price_history_certificate"] = self.price_history_certificate.to_dict()
-            out["compact_bundle_step"] = dict(self.compact_bundle_step or {})
-            out["compact_bundle_ok"] = int(self.compact_bundle_ok or 0)
-            out["full_price_rails_step"] = dict(self.full_price_rails_step or {})
-            out["full_price_rails_ok"] = int(self.full_price_rails_ok or 0)
+            out["price_history_certificate"] = price_history_certificate.to_dict()
+            out["compact_bundle_step"] = dict(compact_bundle_step)
+            out["compact_bundle_ok"] = int(compact_bundle_ok)
+            out["full_price_rails_step"] = dict(full_price_rails_step)
+            out["full_price_rails_ok"] = int(full_price_rails_ok)
         return out
 
     @classmethod

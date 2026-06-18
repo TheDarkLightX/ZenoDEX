@@ -63,6 +63,77 @@ def _semantic_payload() -> dict[str, object]:
 
 
 @pytest.mark.parametrize("field", ("cpmm_ok", "balance_ok", "binding_ok"))
+def test_settlement_proof_flags_constructor_rejects_bool_fields(field: str) -> None:
+    values = dict(SettlementProofFlags.all_true().to_dict())
+    values[field] = True
+
+    with pytest.raises(ValueError, match=rf"{field} must be a 0/1 int"):
+        SettlementProofFlags(**values)
+
+
+@pytest.mark.parametrize("field", ("core_module_ok", "feature_extension_ok", "proof_binding_ok", "module_bundle_ok"))
+def test_settlement_strong_certificate_constructor_rejects_bool_ok_fields(field: str) -> None:
+    values = {
+        "settlement_commitment_sha256": "0" * 64,
+        "delta_commitment_sha256": "1" * 64,
+        "proof_flags": SettlementProofFlags.all_true(),
+        "core_module_ok": 1,
+        "feature_extension_ok": 1,
+        "proof_binding_ok": 1,
+        "module_bundle_ok": 1,
+        "core_module_step": {},
+        "feature_extension_step": {},
+        "proof_binding_step": {},
+        "module_bundle_step": {},
+    }
+    values[field] = True
+
+    with pytest.raises(ValueError, match=rf"{field} must be a 0/1 int"):
+        SettlementStrongCertificate(**values)
+
+
+@pytest.mark.parametrize("field", ("compact_bundle_ok", "full_price_rails_ok"))
+def test_settlement_strong_certificate_constructor_rejects_bool_optional_ok_fields(field: str) -> None:
+    summary = SettlementSemanticSummary(
+        a=1,
+        b=2,
+        c=3,
+        d=4,
+        price_pp=5,
+        price_prev=6,
+        price_curr=7,
+    )
+    values = {
+        "settlement_commitment_sha256": "0" * 64,
+        "delta_commitment_sha256": "1" * 64,
+        "proof_flags": SettlementProofFlags.all_true(),
+        "core_module_ok": 1,
+        "feature_extension_ok": 1,
+        "proof_binding_ok": 1,
+        "module_bundle_ok": 1,
+        "core_module_step": {},
+        "feature_extension_step": {},
+        "proof_binding_step": {},
+        "module_bundle_step": {},
+        "semantic_summary": summary,
+        "price_history_certificate": SettlementPriceHistoryCertificate(
+            price_pp=summary.price_pp,
+            price_prev=summary.price_prev,
+            price_curr=summary.price_curr,
+            price_trace_sha256="2" * 64,
+        ),
+        "compact_bundle_step": {},
+        "compact_bundle_ok": 1,
+        "full_price_rails_step": {},
+        "full_price_rails_ok": 1,
+    }
+    values[field] = True
+
+    with pytest.raises(ValueError, match=rf"{field} must be a 0/1 int"):
+        SettlementStrongCertificate(**values)
+
+
+@pytest.mark.parametrize("field", ("cpmm_ok", "balance_ok", "binding_ok"))
 def test_settlement_proof_flags_from_dict_rejects_bool_fields(field: str) -> None:
     payload = _minimal_payload()
     proof_flags = dict(payload["proof_flags"])  # type: ignore[arg-type]
