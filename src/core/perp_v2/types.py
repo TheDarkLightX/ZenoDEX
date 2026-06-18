@@ -161,3 +161,18 @@ class StepResult:
     state: PerpState | None = None
     effect: Effect | None = None
     rejection: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.accepted, bool):
+            raise ValueError("accepted must be bool")
+        if self.accepted:
+            if self.state is None or self.effect is None:
+                raise ValueError("accepted step result must include state and effect")
+            if self.rejection is not None:
+                raise ValueError("accepted step result cannot include rejection")
+            return
+
+        if self.state is not None or self.effect is not None:
+            raise ValueError("rejected step result cannot include state or effect")
+        if not isinstance(self.rejection, str) or not self.rejection:
+            raise ValueError("rejected step result must include a rejection reason")
