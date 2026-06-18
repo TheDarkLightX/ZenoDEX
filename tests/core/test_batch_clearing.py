@@ -984,6 +984,84 @@ def test_apply_settlement_rejects_reserve_and_lp_failures() -> None:
         assert False, "expected negative LP supply to raise"
 
 
+def test_legacy_validate_settlement_rejects_malformed_delta_limbs() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+
+    invalid_balance = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[BalanceDelta(pubkey=pk, asset=asset0, delta_add=True, delta_sub=0)],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+    ok, err = validate_settlement(invalid_balance, BalanceTable(), {pool_id: pool}, LPTable())
+    assert ok is False
+    assert err == "balance_delta.delta_add must be a non-negative int"
+
+    invalid_reserve = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=-1, delta_sub=0)],
+        lp_deltas=[],
+        events=None,
+    )
+    ok, err = validate_settlement(invalid_reserve, BalanceTable(), {pool_id: pool}, LPTable())
+    assert ok is False
+    assert err == "reserve_delta.delta_add must be a non-negative int"
+
+    invalid_lp = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[LPDelta(pubkey=pk, pool_id=pool_id, delta_add=0, delta_sub="1")],
+        events=None,
+    )
+    ok, err = validate_settlement(invalid_lp, BalanceTable(), {pool_id: pool}, LPTable())
+    assert ok is False
+    assert err == "lp_delta.delta_sub must be a non-negative int"
+
+
+def test_apply_settlement_rejects_malformed_delta_limbs() -> None:
+    pk = "0x" + "11" * 48
+    asset = "0x" + "01" * 32
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[BalanceDelta(pubkey=pk, asset=asset, delta_add=True, delta_sub=0)],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    with pytest.raises(TypeError, match="balance_delta.delta_add must be a non-negative int"):
+        apply_settlement(settlement, BalanceTable(), {}, LPTable())
+
+
 def test_apply_settlement_pure_returns_copies_and_applies_create_pool_event() -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32

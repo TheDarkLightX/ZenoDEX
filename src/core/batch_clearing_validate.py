@@ -148,13 +148,16 @@ def validate_settlement_with_factories(
     pools_view: Dict[str, PoolState] = {**pre_pools, **(created_pools or {})}
     lp_view = pre_lp_balances or LPTable()
 
-    for check_err in (
-        _check_balance_nonnegative(settlement, pre_balances),
-        _check_reserve_nonnegative(settlement, pools_view),
-        _check_lp_balance_nonnegative(settlement, lp_view),
-        _check_asset_conservation(settlement),
-        _check_lp_supply_nonnegative(settlement, pre_pools, pools_view),
-    ):
-        if check_err is not None:
-            return False, check_err
+    try:
+        for check_err in (
+            _check_balance_nonnegative(settlement, pre_balances),
+            _check_reserve_nonnegative(settlement, pools_view),
+            _check_lp_balance_nonnegative(settlement, lp_view),
+            _check_asset_conservation(settlement),
+            _check_lp_supply_nonnegative(settlement, pre_pools, pools_view),
+        ):
+            if check_err is not None:
+                return False, check_err
+    except TypeError as exc:
+        return False, str(exc)
     return True, None

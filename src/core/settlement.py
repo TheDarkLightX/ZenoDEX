@@ -9,9 +9,18 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from ..state.balances import Amount, AssetId, PubKey
+from .domain_limits import is_strict_int
 
 # Type alias
 PoolId = str  # 32-byte hex string
+
+
+def _require_non_negative_delta_limb(value: Any, *, name: str) -> int:
+    if not is_strict_int(value):
+        raise TypeError(f"{name} must be a non-negative int")
+    if value < 0:
+        raise TypeError(f"{name} must be a non-negative int")
+    return int(value)
 
 
 class FillAction(Enum):
@@ -86,7 +95,9 @@ class BalanceDelta:
     
     def net_delta(self) -> Amount:
         """Compute net delta (add - sub)."""
-        return self.delta_add - self.delta_sub
+        delta_add = _require_non_negative_delta_limb(self.delta_add, name="balance_delta.delta_add")
+        delta_sub = _require_non_negative_delta_limb(self.delta_sub, name="balance_delta.delta_sub")
+        return delta_add - delta_sub
 
 
 @dataclass
@@ -107,7 +118,9 @@ class ReserveDelta:
     
     def net_delta(self) -> Amount:
         """Compute net delta (add - sub)."""
-        return self.delta_add - self.delta_sub
+        delta_add = _require_non_negative_delta_limb(self.delta_add, name="reserve_delta.delta_add")
+        delta_sub = _require_non_negative_delta_limb(self.delta_sub, name="reserve_delta.delta_sub")
+        return delta_add - delta_sub
 
 
 @dataclass
@@ -128,7 +141,9 @@ class LPDelta:
     
     def net_delta(self) -> Amount:
         """Compute net delta (add - sub)."""
-        return self.delta_add - self.delta_sub
+        delta_add = _require_non_negative_delta_limb(self.delta_add, name="lp_delta.delta_add")
+        delta_sub = _require_non_negative_delta_limb(self.delta_sub, name="lp_delta.delta_sub")
+        return delta_add - delta_sub
 
 
 @dataclass
