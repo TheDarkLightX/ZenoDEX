@@ -1114,6 +1114,26 @@ def test_strong_proof_carrying_requires_swap_reserve_witnesses() -> None:
     )
     assert ok_pc2 is True, err_pc2
 
+    for bad_in, bad_out in (
+        (str(witness_in), witness_out),
+        (witness_in, str(witness_out)),
+        (True, witness_out),
+        (witness_in, False),
+    ):
+        fill.reserve_in_before = bad_in  # type: ignore[assignment]
+        fill.reserve_out_before = bad_out  # type: ignore[assignment]
+        ok_bad, err_bad = validate_settlement_strong(
+            settlement=settlement,
+            intents=[intent],
+            pre_balances=balances,
+            pre_pools={pool_id: pool_state},
+            pre_lp_balances=LPTable(),
+            mode="strong_proof_carrying",
+        )
+        assert ok_bad is False
+        assert err_bad is not None
+        assert "invalid swap witness reserve type" in err_bad
+
     fill.reserve_in_before = witness_in + 1
     fill.reserve_out_before = witness_out
     ok_pc3, err_pc3 = validate_settlement_strong(

@@ -8,6 +8,7 @@ from typing import Optional, Tuple
 from ..state.balances import AssetId, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.pools import PoolState, PoolStatus
+from .domain_limits import is_strict_int
 from .quote_receipts import pool_state_fingerprint
 from .settlement import Fill
 from .settlement_quote_binding import quote_binding_context, quote_binding_error
@@ -137,7 +138,11 @@ def _check_swap_reserve_witness(
         return None
     if fill.reserve_in_before is None or fill.reserve_out_before is None:
         return f"missing swap witness reserves for intent_id={target.intent_id}"
-    if int(fill.reserve_in_before) != int(target.reserve_in) or int(fill.reserve_out_before) != int(target.reserve_out):
+    if not is_strict_int(fill.reserve_in_before) or not is_strict_int(fill.reserve_out_before):
+        return f"invalid swap witness reserve type for intent_id={target.intent_id}"
+    if fill.reserve_in_before < 0 or fill.reserve_out_before < 0:
+        return f"invalid swap witness reserve value for intent_id={target.intent_id}"
+    if fill.reserve_in_before != target.reserve_in or fill.reserve_out_before != target.reserve_out:
         return f"swap witness reserve mismatch for intent_id={target.intent_id}"
     return None
 
