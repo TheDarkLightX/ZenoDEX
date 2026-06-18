@@ -58,6 +58,21 @@ class TierStepResult:
     effects: TierEffects | None = None
     rejection: str | None = None
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.accepted, bool):
+            raise ValueError("accepted must be bool")
+        if self.accepted:
+            if self.state is None or self.effects is None:
+                raise ValueError("accepted tier result must include state and effects")
+            if self.rejection is not None:
+                raise ValueError("accepted tier result cannot include rejection")
+            return
+
+        if self.state is not None or self.effects is not None:
+            raise ValueError("rejected tier result cannot include state or effects")
+        if not isinstance(self.rejection, str) or not self.rejection:
+            raise ValueError("rejected tier result must include a rejection reason")
+
 
 def _is_plain_int(value: object) -> TypeGuard[int]:
     """Return True for ints but reject bools."""
