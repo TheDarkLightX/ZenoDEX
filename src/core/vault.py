@@ -54,6 +54,21 @@ class VaultStepResult:
     effects: Mapping[str, Any] | None = None
     error: str | None = None
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.ok, bool):
+            raise ValueError("ok must be bool")
+        if self.ok:
+            if self.state is None or self.effects is None:
+                raise ValueError("accepted vault result must include state and effects")
+            if self.error is not None:
+                raise ValueError("accepted vault result cannot include error")
+            return
+
+        if self.state is not None or self.effects is not None:
+            raise ValueError("rejected vault result cannot include state or effects")
+        if not isinstance(self.error, str) or not self.error:
+            raise ValueError("rejected vault result must include an error reason")
+
 
 def init_vault_state() -> VaultState:
     return VaultState(
