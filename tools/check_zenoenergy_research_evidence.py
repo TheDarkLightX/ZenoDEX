@@ -3708,7 +3708,10 @@ def _check_jepa_logic_boundary(
         _expect_true(
             "jepa_logic_boundary.future_score_advisory",
             _is_true(jepa["future_tension_prefers_balanced"])
-            and float(jepa["balanced_action_tension"]) < float(jepa["draining_action_tension"])
+            and _json_number_less_than(
+                jepa.get("balanced_action_tension"),
+                jepa.get("draining_action_tension"),
+            )
             and _is_false(jepa["model_authorizes_settlement"]),
             "future-tension score ranks proposals but does not authorize settlement",
         ),
@@ -3758,6 +3761,7 @@ def _check_autotrader_jepa_ux(
     research_inputs = report["research_inputs"]
     efficiency = report["efficiency"]
     correlations = prediction["stress_correlations"]
+    control_effects = ux["fragile_card"]["control_effects"]
     return [
         _expect_true(
             "autotrader_jepa_ux.schema",
@@ -3770,43 +3774,53 @@ def _check_autotrader_jepa_ux(
         _expect_true(
             "autotrader_jepa_ux.future_tension",
             _is_true(scenario["future_tension_differentiates_fragility"])
-            and float(scenario["fragile_future_tension"])
-            > float(scenario["balanced_future_tension"]),
+            and _json_number_greater_than(
+                scenario.get("fragile_future_tension"),
+                scenario.get("balanced_future_tension"),
+            ),
             "future tension distinguishes fragile and balanced proposal scenarios",
         ),
         _expect_true(
             "autotrader_jepa_ux.future_policy_prediction",
-            float(prediction["later_policy_failure_auc"]) >= 0.80
-            and float(prediction["future_failure_tension_delta_mean"]) > 0.25
-            and int(prediction["later_policy_failure_count"]) > 0
+            _json_number_at_least(prediction.get("later_policy_failure_auc"), 0.80)
+            and _json_number_greater_than_value(
+                prediction.get("future_failure_tension_delta_mean"), 0.25
+            )
+            and _json_int_greater_than(
+                prediction.get("later_policy_failure_count"), 0
+            )
             and _is_false(prediction["model_authorizes_trade"]),
             "future tension separates later policy failures from non-failures",
         ),
         _expect_true(
             "autotrader_jepa_ux.stress_correlations",
-            float(correlations["slippage_stress"]) >= 0.55
-            and float(correlations["budget_stress"]) >= 0.55
-            and float(correlations["drawdown_stress"]) >= 0.55,
+            _json_number_at_least(correlations.get("slippage_stress"), 0.55)
+            and _json_number_at_least(correlations.get("budget_stress"), 0.55)
+            and _json_number_at_least(correlations.get("drawdown_stress"), 0.55),
             "future tension correlates with slippage, budget, and drawdown stress",
         ),
         _expect_true(
             "autotrader_jepa_ux.counterfactual_controls",
-            float(controls["safer_counterfactual_reduction_rate"]) >= 0.95
-            and float(controls["suggested_control_best_reduction_rate"]) >= 0.95
+            _json_number_at_least(
+                controls.get("safer_counterfactual_reduction_rate"), 0.95
+            )
+            and _json_number_at_least(
+                controls.get("suggested_control_best_reduction_rate"), 0.95
+            )
             and _is_true(controls["suggested_control_authority_ok"])
             and _is_false(controls["model_authorizes_trade"]),
             "safer counterfactual controls and suggested controls reduce future tension",
         ),
         _expect_true(
             "autotrader_jepa_ux.warning_match",
-            float(warnings["blocked_status_match_rate"]) == 1.0
-            and float(warnings["future_warning_match_rate"]) >= 0.80
-            and int(warnings["ux_card_authorizes_trade_count"]) == 0,
+            _json_number_equals(warnings.get("blocked_status_match_rate"), 1.0)
+            and _json_number_at_least(warnings.get("future_warning_match_rate"), 0.80)
+            and _json_int_equals(warnings.get("ux_card_authorizes_trade_count"), 0),
             "UX warnings match deterministic guard outcomes and later-risk positives",
         ),
         _expect_true(
             "autotrader_jepa_ux.policy_boundary",
-            int(future_eval["invalid_accept_count"]) == 0
+            _json_int_equals(future_eval.get("invalid_accept_count"), 0)
             and _is_true(future_eval["policy_guards_authoritative"])
             and _is_false(safety["model_authorizes_trade"])
             and _is_false(safety["future_tension_authorizes_trade"])
@@ -3816,8 +3830,12 @@ def _check_autotrader_jepa_ux(
         _expect_true(
             "autotrader_jepa_ux.ranking_quality",
             future_eval["mode"] == "learned_future_aware"
-            and float(ranking["learned_future_top_5_recall"]) >= 0.99
-            and float(ranking["learned_future_mean_guard_calls"]) <= 1.10
+            and _json_number_at_least(
+                ranking.get("learned_future_top_5_recall"), 0.99
+            )
+            and _json_number_at_most(
+                ranking.get("learned_future_mean_guard_calls"), 1.10
+            )
             and _is_true(ranking["ranking_guardrail_passed"]),
             "learned+JEPA ranking remains a guardrail with high top-k recall",
         ),
@@ -3828,9 +3846,14 @@ def _check_autotrader_jepa_ux(
             and "stale signal or quote" in ux["blocked_card"]["blocked_reasons"]
             and ux["fragile_card"]["status"]
             in {"needs_risk_review", "policy_valid_with_caution"}
+            and isinstance(control_effects, list)
+            and all(
+                _is_json_number(effect.get("future_tension_delta"))
+                for effect in control_effects
+            )
             and any(
-                float(effect["future_tension_delta"]) < 0.0
-                for effect in ux["fragile_card"]["control_effects"]
+                _json_number_less_than_value(effect.get("future_tension_delta"), 0.0)
+                for effect in control_effects
             )
             and "warning and proposal-shaping feature" in negative_text,
             "UX cards explain blocked states, future risk, and controls",
@@ -3841,7 +3864,7 @@ def _check_autotrader_jepa_ux(
             and "experiments_ideas" in research_inputs["artifacts"]
             and "experiments_breakthroughs" in research_inputs["artifacts"]
             and "popperpad_zenoenergy_readme" in research_inputs["artifacts"]
-            and int(efficiency["parameter_count"]) == 68
+            and _json_int_equals(efficiency.get("parameter_count"), 68)
             and _is_true(efficiency["ok"]),
             "ideas, breakthroughs, PopperPad, and a small JEPA profile are linked",
         ),
@@ -4853,6 +4876,10 @@ def _json_number_at_least(value: object, minimum: float) -> bool:
 
 def _json_number_at_most(value: object, maximum: float) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and float(value) <= maximum
+
+
+def _is_json_number(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def _json_number_less_than_value(value: object, maximum: float) -> bool:

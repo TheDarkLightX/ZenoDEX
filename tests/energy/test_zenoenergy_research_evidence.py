@@ -1762,3 +1762,141 @@ def test_research_evidence_replay_rejects_coerced_refiner_gain_metric(
     assert report["ok"] is False
     check = _check_by_id(report, "autotrader_refiner_boundary.synthetic_gain")
     assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_jepa_tension_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_jepa_tension(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "gemini_jepa_logic_boundary_receipt.json":
+            jepa = payload["jepa"]
+            assert isinstance(jepa, dict)
+            jepa["balanced_action_tension"] = str(jepa["balanced_action_tension"])
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_jepa_tension)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "jepa_logic_boundary.future_score_advisory")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_jepa_ux_prediction_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_prediction_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "autotrader_jepa_ux_receipt_seed20260531.json":
+            prediction = payload["future_risk_prediction"]
+            assert isinstance(prediction, dict)
+            prediction["later_policy_failure_count"] = "48"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_prediction_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "autotrader_jepa_ux.future_policy_prediction")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_jepa_ux_warning_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_warning_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "autotrader_jepa_ux_receipt_seed20260531.json":
+            warnings = payload["warning_metrics"]
+            assert isinstance(warnings, dict)
+            warnings["ux_card_authorizes_trade_count"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_warning_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "autotrader_jepa_ux.warning_match")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_jepa_ux_policy_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_policy_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "autotrader_jepa_ux_receipt_seed20260531.json":
+            future_eval = payload["future_aware_evaluation"]
+            assert isinstance(future_eval, dict)
+            future_eval["invalid_accept_count"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_policy_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "autotrader_jepa_ux.policy_boundary")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_jepa_ux_control_effect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_control_effect(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "autotrader_jepa_ux_receipt_seed20260531.json":
+            ux = payload["ux"]
+            assert isinstance(ux, dict)
+            fragile = ux["fragile_card"]
+            assert isinstance(fragile, dict)
+            effects = fragile["control_effects"]
+            assert isinstance(effects, list)
+            effect = effects[0]
+            assert isinstance(effect, dict)
+            effect["future_tension_delta"] = str(effect["future_tension_delta"])
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_control_effect)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "autotrader_jepa_ux.ux_explanations")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_jepa_ux_efficiency_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_efficiency_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "autotrader_jepa_ux_receipt_seed20260531.json":
+            efficiency = payload["efficiency"]
+            assert isinstance(efficiency, dict)
+            efficiency["parameter_count"] = "68"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_efficiency_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "autotrader_jepa_ux.research_inputs")
+    assert check["passed"] is False
