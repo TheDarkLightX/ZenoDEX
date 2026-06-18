@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from random import Random
 
+from src.energy import upba_v2_dominance_cover as dominance_cover_module
 from src.energy.upba_v2_dominance_cover import (
     DOMINANCE_COVER_SCHEMA,
     PREFIX_DOMINANCE_COVER_SCHEMA,
@@ -54,6 +55,36 @@ def test_winner_only_dominance_cover_passes_over_verified_full_list() -> None:
     assert report["dominance_cover_ok"] is True
     assert report["uncovered_full_count"] == 0
     assert verify_upba_v2_dominance_cover_certificate(report) is True
+
+
+def test_dominance_cover_certificate_rejects_truthy_string_ok_with_valid_hash() -> None:
+    batch = generate_synthetic_batch(
+        rng=Random(900),
+        batch_index=0,
+        target_candidate_count=20,
+    )
+    full_results = verify_candidates_in_order(
+        pool=batch.pool,
+        intents=batch.intents,
+        balances=batch.balances,
+        candidates=tuple(item.candidate for item in batch.candidates),
+    )
+    winner = deterministic_best_verified_candidate(full_results)
+    assert winner is not None
+    report = build_upba_v2_dominance_cover_certificate(
+        full_results=full_results,
+        pruned_results=(winner,),
+        winner_hash=winner.certificate_hash,
+        full_list_complete_for_claim=True,
+        scope="unit-test-full-list",
+    )
+    mutated = dict(report)
+    mutated["ok"] = "true"
+    mutated["certificate_hash"] = dominance_cover_module._certificate_hash(
+        {key: value for key, value in mutated.items() if key != "certificate_hash"}
+    )
+
+    assert verify_upba_v2_dominance_cover_certificate(mutated) is False
 
 
 def test_weak_pruned_set_fails_when_better_verified_candidate_is_uncovered() -> None:
@@ -172,6 +203,38 @@ def test_prefix_dominance_cover_audit_passes_when_winner_is_checked_first() -> N
     assert audit["prefix_checked_count"] == 1
     assert audit["prefix_valid_count"] == 1
     assert verify_upba_v2_prefix_dominance_cover_audit(audit) is True
+
+
+def test_prefix_dominance_cover_audit_rejects_truthy_string_ok_with_valid_hash() -> None:
+    batch = generate_synthetic_batch(
+        rng=Random(900),
+        batch_index=0,
+        target_candidate_count=20,
+    )
+    full_results = verify_candidates_in_order(
+        pool=batch.pool,
+        intents=batch.intents,
+        balances=batch.balances,
+        candidates=tuple(item.candidate for item in batch.candidates),
+    )
+    winner = deterministic_best_verified_candidate(full_results)
+    assert winner is not None
+    ordered = (winner,) + tuple(
+        result for result in full_results if result.certificate_hash != winner.certificate_hash
+    )
+    audit = build_upba_v2_prefix_dominance_cover_audit(
+        full_results=full_results,
+        ordered_results=ordered,
+        full_list_complete_for_claim=True,
+        scope="unit-test-prefix",
+    )
+    mutated = dict(audit)
+    mutated["ok"] = "true"
+    mutated["audit_hash"] = dominance_cover_module._prefix_audit_hash(
+        {key: value for key, value in mutated.items() if key != "audit_hash"}
+    )
+
+    assert verify_upba_v2_prefix_dominance_cover_audit(mutated) is False
 
 
 def test_prefix_dominance_cover_audit_waits_past_weak_candidate() -> None:

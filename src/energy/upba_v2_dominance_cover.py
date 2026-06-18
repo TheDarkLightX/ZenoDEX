@@ -133,12 +133,12 @@ def verify_upba_v2_dominance_cover_certificate(report: dict[str, object]) -> boo
     observed = _certificate_hash(without_hash)
     if observed != expected_hash:
         return False
-    return bool(
-        report.get("ok")
-        and report.get("pruned_sound_ok")
-        and report.get("winner_in_pruned")
-        and report.get("upper_bound_ok")
-        and report.get("dominance_cover_ok")
+    return (
+        report.get("ok") is True
+        and report.get("pruned_sound_ok") is True
+        and report.get("winner_in_pruned") is True
+        and report.get("upper_bound_ok") is True
+        and report.get("dominance_cover_ok") is True
         and int(report.get("uncovered_full_count", -1)) == 0
         and int(report.get("invalid_accept_count", -1)) == 0
     )
@@ -204,8 +204,8 @@ def build_upba_v2_prefix_dominance_cover_audit(
     prefix_checked_count = len(checked_hashes)
     prefix_valid_count = len(accepted_prefix)
     prefix_invalid_count = prefix_checked_count - prefix_valid_count
-    certificate_ok = bool(selected_certificate and selected_certificate.get("ok"))
-    ok = bool(permutation_ok and certificate_verify_ok and certificate_ok)
+    certificate_ok = selected_certificate is not None and selected_certificate.get("ok") is True
+    ok = permutation_ok and certificate_verify_ok and certificate_ok
     report: dict[str, object] = {
         "schema": PREFIX_DOMINANCE_COVER_SCHEMA,
         "ok": ok,
@@ -256,10 +256,10 @@ def verify_upba_v2_prefix_dominance_cover_audit(report: dict[str, object]) -> bo
     certificate = report.get("certificate")
     if not isinstance(certificate, dict):
         return False
-    return bool(
-        report.get("ok")
-        and report.get("permutation_ok")
-        and report.get("certificate_verify_ok")
+    return (
+        report.get("ok") is True
+        and report.get("permutation_ok") is True
+        and report.get("certificate_verify_ok") is True
         and int(report.get("invalid_accept_count", -1)) == 0
         and verify_upba_v2_dominance_cover_certificate(certificate)
     )
