@@ -107,14 +107,37 @@ class _IsolatedValidationContext:
     claims_paid: int
 
 
+def _read_global_int(global_state: Mapping[str, Value], key: str) -> int:
+    value = global_state[key]
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"global_state[{key!r}] must be an int")
+    return int(value)
+
+
+def _read_global_bool(global_state: Mapping[str, Value], key: str) -> bool:
+    value = global_state[key]
+    if isinstance(value, bool):
+        return bool(value)
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    raise TypeError(f"global_state[{key!r}] must be a bool or 0/1 int")
+
+
+def _read_account_int(acct: Any, field_name: str) -> int:
+    value = getattr(acct, field_name)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"account {field_name} must be an int")
+    return int(value)
+
+
 def _read_context(
     *,
     global_state: Mapping[str, Value],
     accounts: Mapping[str, Any],
     epoch_phase_int_to_str: Mapping[int, str],
 ) -> _IsolatedValidationContext:
-    now_epoch = int(global_state["now_epoch"])
-    epoch_phase = int(global_state["epoch_phase"])
+    now_epoch = _read_global_int(global_state, "now_epoch")
+    epoch_phase = _read_global_int(global_state, "epoch_phase")
     epoch_phase_str = epoch_phase_int_to_str.get(epoch_phase, str(epoch_phase))
 
     return _IsolatedValidationContext(
@@ -122,27 +145,27 @@ def _read_context(
         now_epoch=now_epoch,
         epoch_phase=epoch_phase,
         epoch_phase_str=epoch_phase_str,
-        breaker_active=bool(global_state["breaker_active"]),
-        breaker_last_trigger_epoch=int(global_state["breaker_last_trigger_epoch"]),
-        clearing_price_seen=bool(global_state["clearing_price_seen"]),
-        clearing_price_epoch=int(global_state["clearing_price_epoch"]),
-        clearing_price_e8=int(global_state["clearing_price_e8"]),
-        mark_price_source_kind=int(global_state["mark_price_source_kind"]),
-        oracle_seen=bool(global_state["oracle_seen"]),
-        oracle_last_update_epoch=int(global_state["oracle_last_update_epoch"]),
-        index_price_e8=int(global_state["index_price_e8"]),
-        max_oracle_move_bps=int(global_state["max_oracle_move_bps"]),
-        initial_margin_bps=int(global_state["initial_margin_bps"]),
-        maintenance_margin_bps=int(global_state["maintenance_margin_bps"]),
-        depeg_buffer_bps=int(global_state["depeg_buffer_bps"]),
-        liquidation_penalty_bps=int(global_state["liquidation_penalty_bps"]),
-        fee_pool_quote=int(global_state["fee_pool_quote"]),
-        funding_rate_bps=int(global_state["funding_rate_bps"]),
-        funding_cap_bps=int(global_state["funding_cap_bps"]),
-        insurance_balance=int(global_state["insurance_balance"]),
-        initial_insurance=int(global_state["initial_insurance"]),
-        fee_income=int(global_state["fee_income"]),
-        claims_paid=int(global_state["claims_paid"]),
+        breaker_active=_read_global_bool(global_state, "breaker_active"),
+        breaker_last_trigger_epoch=_read_global_int(global_state, "breaker_last_trigger_epoch"),
+        clearing_price_seen=_read_global_bool(global_state, "clearing_price_seen"),
+        clearing_price_epoch=_read_global_int(global_state, "clearing_price_epoch"),
+        clearing_price_e8=_read_global_int(global_state, "clearing_price_e8"),
+        mark_price_source_kind=_read_global_int(global_state, "mark_price_source_kind"),
+        oracle_seen=_read_global_bool(global_state, "oracle_seen"),
+        oracle_last_update_epoch=_read_global_int(global_state, "oracle_last_update_epoch"),
+        index_price_e8=_read_global_int(global_state, "index_price_e8"),
+        max_oracle_move_bps=_read_global_int(global_state, "max_oracle_move_bps"),
+        initial_margin_bps=_read_global_int(global_state, "initial_margin_bps"),
+        maintenance_margin_bps=_read_global_int(global_state, "maintenance_margin_bps"),
+        depeg_buffer_bps=_read_global_int(global_state, "depeg_buffer_bps"),
+        liquidation_penalty_bps=_read_global_int(global_state, "liquidation_penalty_bps"),
+        fee_pool_quote=_read_global_int(global_state, "fee_pool_quote"),
+        funding_rate_bps=_read_global_int(global_state, "funding_rate_bps"),
+        funding_cap_bps=_read_global_int(global_state, "funding_cap_bps"),
+        insurance_balance=_read_global_int(global_state, "insurance_balance"),
+        initial_insurance=_read_global_int(global_state, "initial_insurance"),
+        fee_income=_read_global_int(global_state, "fee_income"),
+        claims_paid=_read_global_int(global_state, "claims_paid"),
     )
 
 
@@ -292,9 +315,10 @@ def _validate_account_key(pk: Any) -> None:
 
 def _validate_account(ctx: _IsolatedValidationContext, pk: Any, acct: Any) -> None:
     _validate_account_key(pk)
-    pos = int(acct.position_base)
-    entry = int(acct.entry_price_e8)
-    if int(acct.funding_last_applied_epoch) > ctx.now_epoch:
+    pos = _read_account_int(acct, "position_base")
+    entry = _read_account_int(acct, "entry_price_e8")
+    funding_last_applied_epoch = _read_account_int(acct, "funding_last_applied_epoch")
+    if funding_last_applied_epoch > ctx.now_epoch:
         raise ValueError("account funding_last_applied_epoch must be <= now_epoch")
     if pos == 0:
         if entry != 0:
