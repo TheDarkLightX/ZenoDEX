@@ -659,7 +659,7 @@ def _adapter_error_summary(result: Any) -> str:
 
 def _routing_pool_int(row: Mapping[str, Any], field: str, default: int) -> int:
     value = row.get(field, default)
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{field}_must_be_int")
     return int(value)
 
