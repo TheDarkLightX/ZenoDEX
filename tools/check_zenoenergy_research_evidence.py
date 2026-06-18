@@ -3362,36 +3362,50 @@ def _check_quality_selection(
         _expect_true(
             "quality_selection.schema",
             report.get("schema") == "zenodex/energy/upba_v2_quality_selection_report/v1"
-            and int(report["available_train_batches"]) == 10000
-            and int(report["winner_bearing_train_batches"]) == 9916
-            and int(report["selection"]["excluded_no_winner_train_batches"]) == 84
+            and _json_int_equals(report.get("available_train_batches"), 10000)
+            and _json_int_equals(report.get("winner_bearing_train_batches"), 9916)
+            and _json_int_equals(
+                report["selection"]["excluded_no_winner_train_batches"], 84
+            )
             and len(raw) == 6
             and len(quality) == 6,
             "quality-selection receipt records winner-bearing filtering and six budgets",
         ),
         _expect_true(
             "quality_selection.safety",
-            int(report["safety"]["invalid_accept_count_total"]) == 0
+            _json_int_equals(report["safety"]["invalid_accept_count_total"], 0)
             and _is_true(report["safety"]["verifier_authoritative"])
             and _is_false(report["safety"]["model_authorizes_settlement"])
-            and all(int(run["metrics"]["invalid_accept_count"]) == 0 for run in raw)
-            and all(int(run["metrics"]["invalid_accept_count"]) == 0 for run in quality),
+            and all(
+                _json_int_equals(run["metrics"]["invalid_accept_count"], 0)
+                for run in raw
+            )
+            and all(
+                _json_int_equals(run["metrics"]["invalid_accept_count"], 0)
+                for run in quality
+            ),
             "all quality-selection policies preserve verifier authority and zero invalid accepts",
         ),
         _expect_true(
             "quality_selection.medium_budget_gain",
-            int(interpretation["quality_beats_raw_budget_count"]) == 4
-            and float(quality[1]["metrics"]["mean_verifier_calls"])
-            < float(raw[1]["metrics"]["mean_verifier_calls"])
-            and float(quality[3]["metrics"]["mean_verifier_calls"])
-            < float(raw[3]["metrics"]["mean_verifier_calls"]),
+            _json_int_equals(interpretation.get("quality_beats_raw_budget_count"), 4)
+            and _json_number_less_than(
+                quality[1]["metrics"]["mean_verifier_calls"],
+                raw[1]["metrics"]["mean_verifier_calls"],
+            )
+            and _json_number_less_than(
+                quality[3]["metrics"]["mean_verifier_calls"],
+                raw[3]["metrics"]["mean_verifier_calls"],
+            ),
             "quality selection improves medium-budget mean verifier calls over raw winner-bearing samples",
         ),
         _expect_true(
             "quality_selection.small_budget_negative",
-            int(interpretation["quality_worse_than_raw_budget_count"]) == 1
-            and float(quality[0]["metrics"]["mean_verifier_calls"])
-            > float(raw[0]["metrics"]["mean_verifier_calls"])
+            _json_int_equals(interpretation.get("quality_worse_than_raw_budget_count"), 1)
+            and _json_number_greater_than(
+                quality[0]["metrics"]["mean_verifier_calls"],
+                raw[0]["metrics"]["mean_verifier_calls"],
+            )
             and "hard-only quality budgets" in interpretation["negative_knowledge"],
             "small hard-only quality budget can overfocus on current-model misses",
         ),
@@ -3417,39 +3431,46 @@ def _check_ensemble(
     baseline = report["baselines"]["current_gap_weighted"]
     interpretation = report["interpretation"]
     uncertainty = report["uncertainty"]
-    best_auc = float(interpretation["best_uncertainty_auc"])
+    best_auc = interpretation.get("best_uncertainty_auc")
     return [
         _expect_true(
             "ensemble.schema",
             report.get("schema") == "zenodex/energy/upba_v2_ensemble_report/v1"
-            and int(report["ensemble"]["member_count"]) == 6
-            and int(report["ensemble"]["total_parameter_count"]) == 582
+            and _json_int_equals(report["ensemble"]["member_count"], 6)
+            and _json_int_equals(report["ensemble"]["total_parameter_count"], 582)
             and len(modes) == 6,
             "ensemble receipt records six tiny advisory members and six aggregation modes",
         ),
         _expect_true(
             "ensemble.safety",
-            int(report["safety"]["invalid_accept_count_total"]) == 0
+            _json_int_equals(report["safety"]["invalid_accept_count_total"], 0)
             and _is_true(report["safety"]["verifier_authoritative"])
             and _is_false(report["safety"]["model_authorizes_settlement"])
             and _is_true(report["safety"]["deterministic_fallback_required"])
-            and all(int(mode["invalid_accept_count"]) == 0 for mode in modes.values()),
+            and all(
+                _json_int_equals(mode["invalid_accept_count"], 0)
+                for mode in modes.values()
+            ),
             "ensemble preserves verifier authority, deterministic fallback, and zero invalid accepts",
         ),
         _expect_true(
             "ensemble.top10_and_default_negative",
-            all(float(mode["top_10_recall"]) == 1.0 for mode in modes.values())
+            all(_json_number_equals(mode["top_10_recall"], 1.0) for mode in modes.values())
             and _is_false(interpretation["best_ensemble_beats_current_gap_weighted"])
-            and float(baseline["mean_verifier_calls"])
-            < float(interpretation["best_ensemble_mean_verifier_calls"])
+            and _json_number_less_than(
+                baseline.get("mean_verifier_calls"),
+                interpretation.get("best_ensemble_mean_verifier_calls"),
+            )
             and "keep the single retained UPBA model" in interpretation["negative_knowledge"],
             "ensemble keeps top-10 recall but does not beat the current gap-weighted default",
         ),
         _expect_true(
             "ensemble.uncertainty_signal",
-            best_auc > 0.6
-            and float(uncertainty["ensemble_mean_rank"]["top1_uncertainty_miss_mean"])
-            > float(uncertainty["ensemble_mean_rank"]["top1_uncertainty_hit_mean"]),
+            _json_number_greater_than_value(best_auc, 0.6)
+            and _json_number_greater_than(
+                uncertainty["ensemble_mean_rank"]["top1_uncertainty_miss_mean"],
+                uncertainty["ensemble_mean_rank"]["top1_uncertainty_hit_mean"],
+            ),
             "rank disagreement has moderate signal for top-1 misses",
         ),
         _expect_true(

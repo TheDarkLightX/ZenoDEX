@@ -1520,3 +1520,119 @@ def test_research_evidence_replay_rejects_coerced_leaderboard_safety_count(
     assert report["ok"] is False
     check = _check_by_id(report, "upba_v2_model_leaderboard.safety_boundary")
     assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_quality_selection_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_quality_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_quality_selection_seed20260517.json":
+            payload["winner_bearing_train_batches"] = "9916"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_quality_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "quality_selection.schema")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_quality_selection_safety_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_quality_safety(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_quality_selection_seed20260517.json":
+            safety = payload["safety"]
+            assert isinstance(safety, dict)
+            safety["invalid_accept_count_total"] = "0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_quality_safety)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "quality_selection.safety")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_quality_selection_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_quality_metric(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_quality_selection_seed20260517.json":
+            runs = payload["runs"]
+            assert isinstance(runs, dict)
+            quality = runs["quality_hard_winner_bearing"]
+            assert isinstance(quality, list)
+            row = quality[1]
+            assert isinstance(row, dict)
+            metrics = row["metrics"]
+            assert isinstance(metrics, dict)
+            metrics["mean_verifier_calls"] = str(metrics["mean_verifier_calls"])
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_quality_metric)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "quality_selection.medium_budget_gain")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_ensemble_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_ensemble_count(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_ensemble_seed20260556.json":
+            ensemble = payload["ensemble"]
+            assert isinstance(ensemble, dict)
+            ensemble["member_count"] = "6"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_ensemble_count)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "ensemble.schema")
+    assert check["passed"] is False
+
+
+def test_research_evidence_replay_rejects_coerced_ensemble_top10_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load_json = research_mod._load_json
+
+    def load_json_with_coerced_ensemble_metric(path: Path) -> dict[str, object]:
+        payload = original_load_json(path)
+        if path.name == "upba_v2_energy_ensemble_seed20260556.json":
+            modes = payload["modes"]
+            assert isinstance(modes, dict)
+            mode = modes["ensemble_mean_energy"]
+            assert isinstance(mode, dict)
+            mode["top_10_recall"] = "1.0"
+        return payload
+
+    monkeypatch.setattr(research_mod, "_load_json", load_json_with_coerced_ensemble_metric)
+
+    report = replay_zenoenergy_evidence(root=ROOT, run_popperpad_doctor=False)
+
+    assert report["ok"] is False
+    check = _check_by_id(report, "ensemble.top10_and_default_negative")
+    assert check["passed"] is False
