@@ -1586,6 +1586,174 @@ def _ch3p_market_with_state(
     )
 
 
+@dataclass(frozen=True)
+class _ClearinghouseKernelCommit:
+    i: int
+    op: PerpOp
+    market: Any
+    step: Callable[..., tuple[Dict[str, Any], Dict[str, Any]]]
+    replace_state: Callable[..., PerpAnyMarketState]
+    tag: str
+    args: Mapping[str, Any]
+
+
+def _commit_clearinghouse_kernel_step(ctx: _PerpApplyCtx, commit: _ClearinghouseKernelCommit) -> str | None:
+    try:
+        next_state, eff = commit.step(commit.market.state, tag=commit.tag, args=commit.args)
+    except ValueError as exc:
+        return str(exc)
+    ctx.markets[commit.op.market_id] = commit.replace_state(commit.market, state=next_state)
+    ctx.effects.append({"i": commit.i, "market_id": commit.op.market_id, "action": commit.op.action, "effects": eff})
+    return None
+
+
+def _apply_ch2p_advance_epoch(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch2p_market: PerpClearinghouse2pMarketState
+) -> str | None:
+    data = op.data
+    unknown = _reject_unknown_fields(data, {"module", "version", "market_id", "action", "delta"}, error="advance_epoch has unknown fields")
+    if unknown is not None:
+        return unknown
+    # Scheduler rule: only advance when the current epoch is settled.
+    if int(ch2p_market.state.get("oracle_last_update_epoch", 0)) != int(ch2p_market.state.get("now_epoch", 0)):
+        return "cannot advance epoch before settling current epoch"
+    delta = _require_int(data.get("delta"), name="delta", non_negative=True)
+    # Hard cap: prevent relayers from jumping many epochs in a single call.
+    # This keeps the price publication cadence predictable and avoids "stale by epoch" freezes.
+    if delta != 1:
+        return "advance_epoch delta must be 1 for clearinghouse markets"
+    return _commit_clearinghouse_kernel_step(
+        ctx,
+        _ClearinghouseKernelCommit(i, op, ch2p_market, _ch2p_step, _ch2p_market_with_state, "advance_epoch", {"delta": delta}),
+    )
+
+
+def _apply_ch2p_settle_epoch(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch2p_market: PerpClearinghouse2pMarketState
+) -> str | None:
+    data = op.data
+    unknown = _reject_unknown_fields(
+        data,
+        {"module", "version", "market_id", "action", "oracle_adapter_bridge"},
+        error="settle_epoch has unknown fields",
+    )
+    if unknown is not None:
+        return unknown
+    err = _require_oracle_adapter_bridge(
+        ctx.config,
+        data=data,
+        consumer_module="zenodex.perps",
+        action_kind="settle_epoch",
+        expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+        expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
+            ctx.config,
+            market_id=op.market_id,
+            action_kind="settle_epoch",
+            market_kind="clearinghouse_2p_v1",
+            quote_asset=ch2p_market.quote_asset,
+            state=ch2p_market.state,
+            participant_pubkeys=(ch2p_market.account_a_pubkey, ch2p_market.account_b_pubkey),
+        ),
+        required=ctx.config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+    )
+    if err is not None:
+        return err
+    return _commit_clearinghouse_kernel_step(
+        ctx,
+        _ClearinghouseKernelCommit(i, op, ch2p_market, _ch2p_step, _ch2p_market_with_state, "settle_epoch", {}),
+    )
+
+
+def _apply_ch2p_clear_breaker(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch2p_market: PerpClearinghouse2pMarketState
+) -> str | None:
+    data = op.data
+    unknown = _reject_unknown_fields(data, {"module", "version", "market_id", "action"}, error="clear_breaker has unknown fields")
+    if unknown is not None:
+        return unknown
+    if int(ch2p_market.state.get("position_base_a", 0)) != 0 or int(ch2p_market.state.get("position_base_b", 0)) != 0:
+        return "cannot clear breaker while positions are open"
+    return _commit_clearinghouse_kernel_step(
+        ctx,
+        _ClearinghouseKernelCommit(i, op, ch2p_market, _ch2p_step, _ch2p_market_with_state, "clear_breaker", {"auth_ok": True}),
+    )
+
+
+def _apply_ch3p_advance_epoch(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch3p_market: PerpClearinghouse3pTransferMarketState
+) -> str | None:
+    data = op.data
+    unknown = _reject_unknown_fields(data, {"module", "version", "market_id", "action", "delta"}, error="advance_epoch has unknown fields")
+    if unknown is not None:
+        return unknown
+    if int(ch3p_market.state.get("oracle_last_update_epoch", 0)) != int(ch3p_market.state.get("now_epoch", 0)):
+        return "cannot advance epoch before settling current epoch"
+    delta = _require_int(data.get("delta"), name="delta", non_negative=True)
+    if delta != 1:
+        return "advance_epoch delta must be 1 for clearinghouse markets"
+    return _commit_clearinghouse_kernel_step(
+        ctx,
+        _ClearinghouseKernelCommit(i, op, ch3p_market, _ch3p_step, _ch3p_market_with_state, "advance_epoch", {"delta": delta}),
+    )
+
+
+def _apply_ch3p_settle_epoch(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch3p_market: PerpClearinghouse3pTransferMarketState
+) -> str | None:
+    data = op.data
+    unknown = _reject_unknown_fields(
+        data,
+        {"module", "version", "market_id", "action", "oracle_adapter_bridge"},
+        error="settle_epoch has unknown fields",
+    )
+    if unknown is not None:
+        return unknown
+    err = _require_oracle_adapter_bridge(
+        ctx.config,
+        data=data,
+        consumer_module="zenodex.perps",
+        action_kind="settle_epoch",
+        expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+        expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
+            ctx.config,
+            market_id=op.market_id,
+            action_kind="settle_epoch",
+            market_kind="clearinghouse_3p_transfer_v1",
+            quote_asset=ch3p_market.quote_asset,
+            state=ch3p_market.state,
+            participant_pubkeys=(ch3p_market.account_a_pubkey, ch3p_market.account_b_pubkey, ch3p_market.account_c_pubkey),
+        ),
+        required=ctx.config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+    )
+    if err is not None:
+        return err
+    return _commit_clearinghouse_kernel_step(
+        ctx,
+        _ClearinghouseKernelCommit(i, op, ch3p_market, _ch3p_step, _ch3p_market_with_state, "settle_epoch", {}),
+    )
+
+
+def _apply_ch3p_clear_breaker(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch3p_market: PerpClearinghouse3pTransferMarketState
+) -> str | None:
+    data = op.data
+    unknown = _reject_unknown_fields(data, {"module", "version", "market_id", "action"}, error="clear_breaker has unknown fields")
+    if unknown is not None:
+        return unknown
+    if (
+        int(ch3p_market.state.get("position_base_a", 0)) != 0
+        or int(ch3p_market.state.get("position_base_b", 0)) != 0
+        or int(ch3p_market.state.get("position_base_c", 0)) != 0
+    ):
+        return "cannot clear breaker while positions are open"
+    return _commit_clearinghouse_kernel_step(
+        ctx,
+        _ClearinghouseKernelCommit(i, op, ch3p_market, _ch3p_step, _ch3p_market_with_state, "clear_breaker", {"auth_ok": True}),
+    )
+
+
 def _apply_ch2p_op(
     ctx: _PerpApplyCtx,
     *,
@@ -1605,25 +1773,7 @@ def _apply_ch2p_op(
     data = op.data
 
     if action == "advance_epoch":
-        allowed = {"module", "version", "market_id", "action", "delta"}
-        unknown = _reject_unknown_fields(data, allowed, error="advance_epoch has unknown fields")
-        if unknown is not None:
-            return unknown
-        # Scheduler rule: only advance when the current epoch is settled.
-        if int(ch2p_market.state.get("oracle_last_update_epoch", 0)) != int(ch2p_market.state.get("now_epoch", 0)):
-            return "cannot advance epoch before settling current epoch"
-        delta = _require_int(data.get("delta"), name="delta", non_negative=True)
-        # Hard cap: prevent relayers from jumping many epochs in a single call.
-        # This keeps the price publication cadence predictable and avoids "stale by epoch" freezes.
-        if delta != 1:
-            return "advance_epoch delta must be 1 for clearinghouse markets"
-        try:
-            next_state, eff = _ch2p_step(ch2p_market.state, tag="advance_epoch", args={"delta": delta})
-        except ValueError as exc:
-            return str(exc)
-        ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
-        ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
-        return None
+        return _apply_ch2p_advance_epoch(ctx, i=i, op=op, ch2p_market=ch2p_market)
 
     if action == "publish_clearing_price":
         oracle_pubkey = (config.oracle_pubkey or "").strip()
@@ -1687,52 +1837,10 @@ def _apply_ch2p_op(
         return None
 
     if action == "settle_epoch":
-        allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge"}
-        unknown = _reject_unknown_fields(data, allowed, error="settle_epoch has unknown fields")
-        if unknown is not None:
-            return unknown
-        err = _require_oracle_adapter_bridge(
-            config,
-            data=data,
-            consumer_module="zenodex.perps",
-            action_kind="settle_epoch",
-            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
-            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
-                config,
-                market_id=market_id,
-                action_kind="settle_epoch",
-                market_kind="clearinghouse_2p_v1",
-                quote_asset=ch2p_market.quote_asset,
-                state=ch2p_market.state,
-                participant_pubkeys=(ch2p_market.account_a_pubkey, ch2p_market.account_b_pubkey),
-            ),
-            required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
-        )
-        if err is not None:
-            return err
-        try:
-            next_state, eff = _ch2p_step(ch2p_market.state, tag="settle_epoch", args={})
-        except ValueError as exc:
-            return str(exc)
-        ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
-        ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
-        return None
+        return _apply_ch2p_settle_epoch(ctx, i=i, op=op, ch2p_market=ch2p_market)
 
     if action == "clear_breaker":
-        allowed = {"module", "version", "market_id", "action"}
-        unknown = _reject_unknown_fields(data, allowed, error="clear_breaker has unknown fields")
-        if unknown is not None:
-            return unknown
-        if int(ch2p_market.state.get("position_base_a", 0)) != 0 or int(ch2p_market.state.get("position_base_b", 0)) != 0:
-            return "cannot clear breaker while positions are open"
-        try:
-            next_state, eff = _ch2p_step(ch2p_market.state, tag="clear_breaker", args={"auth_ok": True})
-        except ValueError as exc:
-            return str(exc)
-        ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
-        ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
-        return None
+        return _apply_ch2p_clear_breaker(ctx, i=i, op=op, ch2p_market=ch2p_market)
 
     if action == "set_market_params":
         operator_ok = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey) is None
@@ -1955,22 +2063,7 @@ def _apply_ch3p_op(
     data = op.data
 
     if action == "advance_epoch":
-        allowed = {"module", "version", "market_id", "action", "delta"}
-        unknown = _reject_unknown_fields(data, allowed, error="advance_epoch has unknown fields")
-        if unknown is not None:
-            return unknown
-        if int(ch3p_market.state.get("oracle_last_update_epoch", 0)) != int(ch3p_market.state.get("now_epoch", 0)):
-            return "cannot advance epoch before settling current epoch"
-        delta = _require_int(data.get("delta"), name="delta", non_negative=True)
-        if delta != 1:
-            return "advance_epoch delta must be 1 for clearinghouse markets"
-        try:
-            next_state, eff = _ch3p_step(ch3p_market.state, tag="advance_epoch", args={"delta": delta})
-        except ValueError as exc:
-            return str(exc)
-        ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
-        ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
-        return None
+        return _apply_ch3p_advance_epoch(ctx, i=i, op=op, ch3p_market=ch3p_market)
 
     if action == "publish_clearing_price":
         oracle_pubkey = (config.oracle_pubkey or "").strip()
@@ -2034,60 +2127,10 @@ def _apply_ch3p_op(
         return None
 
     if action == "settle_epoch":
-        allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge"}
-        unknown = _reject_unknown_fields(data, allowed, error="settle_epoch has unknown fields")
-        if unknown is not None:
-            return unknown
-        err = _require_oracle_adapter_bridge(
-            config,
-            data=data,
-            consumer_module="zenodex.perps",
-            action_kind="settle_epoch",
-            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
-            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
-                config,
-                market_id=market_id,
-                action_kind="settle_epoch",
-                market_kind="clearinghouse_3p_transfer_v1",
-                quote_asset=ch3p_market.quote_asset,
-                state=ch3p_market.state,
-                participant_pubkeys=(
-                    ch3p_market.account_a_pubkey,
-                    ch3p_market.account_b_pubkey,
-                    ch3p_market.account_c_pubkey,
-                ),
-            ),
-            required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
-        )
-        if err is not None:
-            return err
-        try:
-            next_state, eff = _ch3p_step(ch3p_market.state, tag="settle_epoch", args={})
-        except ValueError as exc:
-            return str(exc)
-        ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
-        ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
-        return None
+        return _apply_ch3p_settle_epoch(ctx, i=i, op=op, ch3p_market=ch3p_market)
 
     if action == "clear_breaker":
-        allowed = {"module", "version", "market_id", "action"}
-        unknown = _reject_unknown_fields(data, allowed, error="clear_breaker has unknown fields")
-        if unknown is not None:
-            return unknown
-        if (
-            int(ch3p_market.state.get("position_base_a", 0)) != 0
-            or int(ch3p_market.state.get("position_base_b", 0)) != 0
-            or int(ch3p_market.state.get("position_base_c", 0)) != 0
-        ):
-            return "cannot clear breaker while positions are open"
-        try:
-            next_state, eff = _ch3p_step(ch3p_market.state, tag="clear_breaker", args={"auth_ok": True})
-        except ValueError as exc:
-            return str(exc)
-        ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
-        ctx.effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
-        return None
+        return _apply_ch3p_clear_breaker(ctx, i=i, op=op, ch3p_market=ch3p_market)
 
     if action == "set_market_params":
         operator_ok = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey) is None
