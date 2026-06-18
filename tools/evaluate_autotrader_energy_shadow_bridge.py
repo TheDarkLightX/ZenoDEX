@@ -57,7 +57,7 @@ def main() -> int:
         args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
         args.output_markdown.write_text(_markdown_report(report), encoding="utf-8")
     print(encoded)
-    return 0 if bool(report["ok"]) else 1
+    return 0 if report.get("ok") is True else 1
 
 
 def evaluate_shadow_bridge(
