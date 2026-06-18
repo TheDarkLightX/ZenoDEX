@@ -22,9 +22,29 @@ def test_slippage_advice_handler_rejects_bool_amount() -> None:
     assert body == {"ok": False, "error": "slippage_advice_error", "details": "request failed"}
 
 
+def test_slippage_advice_handler_rejects_numeric_string_amount() -> None:
+    status, body = _handle_slippage_advice(
+        {"reserve_in": 1_000, "reserve_out": 1_000, "amount_in": "100"},
+        _ctx(),
+    )
+
+    assert status == 400
+    assert body == {"ok": False, "error": "slippage_advice_error", "details": "request failed"}
+
+
 def test_pokayoke_suggest_handler_rejects_bool_amount() -> None:
     status, body = _handle_pokayoke_swap_suggest(
         {"reserve_in": 1_000, "reserve_out": 1_000, "amount_in": True},
+        _ctx(),
+    )
+
+    assert status == 400
+    assert body == {"ok": False, "error": "pokayoke_swap_suggest_error", "details": "request failed"}
+
+
+def test_pokayoke_suggest_handler_rejects_numeric_string_amount() -> None:
+    status, body = _handle_pokayoke_swap_suggest(
+        {"reserve_in": 1_000, "reserve_out": 1_000, "amount_in": "100"},
         _ctx(),
     )
 
@@ -39,6 +59,25 @@ def test_pokayoke_heavy_handler_rejects_bool_numeric_fields() -> None:
             "reserve_out": 1_000,
             "amount_in": 100,
             "user_slippage_bps": True,
+        },
+        _ctx(),
+    )
+
+    assert status == 400
+    assert body == {
+        "ok": False,
+        "error": "pokayoke_swap_suggest_heavy_error",
+        "details": "request failed",
+    }
+
+
+def test_pokayoke_heavy_handler_rejects_numeric_string_user_slippage() -> None:
+    status, body = _handle_pokayoke_swap_suggest_heavy(
+        {
+            "reserve_in": 1_000,
+            "reserve_out": 1_000,
+            "amount_in": 100,
+            "user_slippage_bps": "25",
         },
         _ctx(),
     )

@@ -19,7 +19,7 @@ BOUNDARY_DOMAIN_ERRORS: tuple[type[Exception], ...] = (TypeError, ValueError, Ar
 
 
 def _coerce_int(value: Any, field: str) -> int:
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{field} must be an int")
     return int(value)
 
