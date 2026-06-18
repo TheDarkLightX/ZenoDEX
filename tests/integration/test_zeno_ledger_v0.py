@@ -365,6 +365,23 @@ def test_validator_set_rejects_duplicate_ids_and_zero_voting_power() -> None:
     with pytest.raises(ValueError, match="duplicate validator_id"):
         validate_validator_set_v0(duplicate)
 
+    duplicate_key = _validator_set(
+        validators=[
+            {
+                "validator_id": "sequencer-dev-0",
+                "public_key": "pubkey-a",
+                "voting_power": 1,
+            },
+            {
+                "validator_id": "sequencer-dev-1",
+                "public_key": "pubkey-a",
+                "voting_power": 1,
+            },
+        ]
+    )
+    with pytest.raises(ValueError, match="duplicate validator.public_key"):
+        validate_validator_set_v0(duplicate_key)
+
     zero_power = _validator_set(
         validators=[
             {

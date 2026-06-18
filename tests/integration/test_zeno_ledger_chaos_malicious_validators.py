@@ -216,17 +216,13 @@ class TestPublicKeyImpersonation:
     surface: one active BLS key must not occupy multiple active signer slots.
     """
 
-    def test_two_validators_with_same_public_key_accepted_by_schema(self) -> None:
+    def test_two_validators_with_same_public_key_rejected_by_schema(self) -> None:
         vs = _vset(validators=[
             _validator("alice", pk_byte=0xAA),
             _validator("bob", pk_byte=0xAA),  # SAME key
         ])
-        # Schema validation passes.
-        validate_validator_set_v0(vs)
-        # Hash is determined by IDs + powers + keys, so this set hashes
-        # differently from a set with one validator.
-        h_one = validator_set_hash_v0(_vset(validators=[_validator("alice", pk_byte=0xAA)]))
-        assert validator_set_hash_v0(vs) != h_one
+        with pytest.raises(ValueError, match="duplicate validator.public_key"):
+            validate_validator_set_v0(vs)
 
     def test_signer_registry_rejects_duplicate_active_public_key(self) -> None:
         """One active key holder cannot claim quorum weight twice."""

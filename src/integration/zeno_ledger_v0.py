@@ -1085,6 +1085,7 @@ def validate_validator_set_v0(validator_set: dict[str, Any]) -> None:
     if not validators:
         raise ValueError("validator_set.validators must be non-empty")
     seen_ids: set[str] = set()
+    seen_public_keys: set[str] = set()
     for index, raw_validator in enumerate(validators):
         validator = _require_mapping(raw_validator, name=f"validator_set.validators[{index}]")
         if set(validator.keys()) != {"validator_id", "public_key", "voting_power"}:
@@ -1093,7 +1094,10 @@ def validate_validator_set_v0(validator_set: dict[str, Any]) -> None:
         if validator_id in seen_ids:
             raise ValueError("duplicate validator_id")
         seen_ids.add(validator_id)
-        _require_str(validator.get("public_key"), name="validator.public_key")
+        public_key = _require_str(validator.get("public_key"), name="validator.public_key")
+        if public_key in seen_public_keys:
+            raise ValueError("duplicate validator.public_key")
+        seen_public_keys.add(public_key)
         voting_power = _require_nonnegative_int(validator.get("voting_power"), name="validator.voting_power")
         if voting_power == 0:
             raise ValueError("validator.voting_power must be positive")
