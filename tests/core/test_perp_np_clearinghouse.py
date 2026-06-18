@@ -107,6 +107,18 @@ def test_matcher_selftest_is_deterministic_and_passes():
     assert result["failures"] == []
 
 
+@pytest.mark.parametrize("bad_initial_margin_bps", [True, 0, -1, 10_001])
+def test_match_params_rejects_bad_initial_margin_bps(bad_initial_margin_bps: object):
+    with pytest.raises(ValueError, match="initial_margin_bps"):
+        MatchParams(initial_margin_bps=bad_initial_margin_bps, max_position_abs=1_000_000)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("bad_max_position_abs", [False, 0, -1])
+def test_match_params_rejects_bad_max_position_abs(bad_max_position_abs: object):
+    with pytest.raises(ValueError, match="max_position_abs"):
+        MatchParams(initial_margin_bps=1000, max_position_abs=bad_max_position_abs)  # type: ignore[arg-type]
+
+
 def test_matcher_higher_valid_nonce_supersedes_lower_valid_intent():
     params = MatchParams(initial_margin_bps=1000, max_position_abs=1_000_000)
     price = 100 * E8

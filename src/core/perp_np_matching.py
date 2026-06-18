@@ -156,6 +156,16 @@ class MatchParams:
     initial_margin_bps: int
     max_position_abs: int
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.initial_margin_bps, int) or isinstance(self.initial_margin_bps, bool):
+            raise ValueError("initial_margin_bps must be an int")
+        if not (0 < self.initial_margin_bps <= BPS_SCALE):
+            raise ValueError("initial_margin_bps out of range")
+        if not isinstance(self.max_position_abs, int) or isinstance(self.max_position_abs, bool):
+            raise ValueError("max_position_abs must be an int")
+        if self.max_position_abs <= 0:
+            raise ValueError("max_position_abs out of range")
+
 
 @dataclass(frozen=True)
 class MatchResult:
