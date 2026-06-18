@@ -30,9 +30,16 @@ BRANCH_THRESHOLDS = {
 }
 
 
-def _branch_pct(summary: dict[str, object]) -> float:
-    branches = int(summary.get("num_branches", 0) or 0)
-    covered = int(summary.get("covered_branches", 0) or 0)
+def _coverage_count(summary: dict[str, object], key: str, *, path: str) -> int:
+    value = summary.get(key)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{path}: summary.{key} must be a non-negative integer")
+    if value < 0:
+        raise ValueError(f"{path}: summary.{key} must be non-negative")
+    return value
+
+
+def _branch_pct(*, branches: int, covered: int) -> float:
     if branches <= 0:
         return 100.0
     return (100.0 * covered) / float(branches)
@@ -75,9 +82,16 @@ def main(argv: list[str]) -> int:
         if not isinstance(summary, dict):
             failures.append(f"{path}: missing summary")
             continue
-        branches = int(summary.get("num_branches", 0) or 0)
-        covered = int(summary.get("covered_branches", 0) or 0)
-        pct = _branch_pct(summary)
+        try:
+            branches = _coverage_count(summary, "num_branches", path=path)
+            covered = _coverage_count(summary, "covered_branches", path=path)
+        except ValueError as exc:
+            failures.append(str(exc))
+            continue
+        if covered > branches:
+            failures.append(f"{path}: covered_branches exceeds num_branches")
+            continue
+        pct = _branch_pct(branches=branches, covered=covered)
         total_branches += branches
         total_covered += covered
         status = "ok" if pct >= threshold else "fail"
