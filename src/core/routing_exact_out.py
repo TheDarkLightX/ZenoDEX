@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..state.balances import Amount, AssetId
@@ -21,6 +22,24 @@ def _require_bool_control(value: object, *, name: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{name} must be a bool")
     return bool(value)
+
+
+@dataclass(frozen=True)
+class _ExactOutScanContext:
+    pools: Tuple[PoolState, ...]
+    by_asset: Dict[AssetId, Tuple[int, ...]]
+    asset_in: AssetId
+    asset_out: AssetId
+    amount_out: Amount
+    pool_connects: Callable[[PoolState, AssetId, AssetId], bool]
+    pool_quote_exact_out: Callable[..., Optional[Tuple[Amount, str, Amount]]]
+    quote_key: Callable[[RouteQuote], tuple]
+
+
+@dataclass(frozen=True)
+class _ExactOutSecondHopProbe:
+    pool1: PoolState
+    mid: AssetId
 
 
 def best_route_exact_out_2hop(
@@ -46,18 +65,18 @@ def best_route_exact_out_2hop(
     if asset_in == asset_out:
         return None
 
-    pools: Tuple[PoolState, ...] = tuple(sorted(pools_by_id.values(), key=lambda p: p.pool_id))
-    by_asset: Dict[AssetId, Tuple[int, ...]] = build_asset_pool_index(pools)
-
-    best_direct, direct_candidates, gate_inputs = _direct_exact_out_candidates(
-        pools=pools,
-        by_asset=by_asset,
+    context = _build_exact_out_scan_context(
+        pools_by_id=pools_by_id,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out=amount_out_i,
+        build_asset_pool_index=build_asset_pool_index,
         pool_connects=pool_connects,
         pool_quote_exact_out=pool_quote_exact_out,
         quote_key=quote_key,
+    )
+    best_direct, direct_candidates, gate_inputs = _direct_exact_out_candidates(
+        context=context,
     )
     consider_two_hop = _should_scan_two_hop(
         amount_out=amount_out_i,
@@ -72,65 +91,70 @@ def best_route_exact_out_2hop(
     best = _best_parallel_split_exact_out(
         best=best,
         direct_candidates=direct_candidates,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out=amount_out_i,
-        quote_key=quote_key,
+        context=context,
         split_two_pools_exact_out=split_two_pools_exact_out,
     )
     if consider_two_hop:
         best = _best_two_hop_exact_out(
             best=best,
-            pools=pools,
-            by_asset=by_asset,
-            asset_in=asset_in,
-            asset_out=asset_out,
-            amount_out=amount_out_i,
-            pool_connects=pool_connects,
-            pool_quote_exact_out=pool_quote_exact_out,
-            quote_key=quote_key,
+            context=context,
         )
     return best
 
 
-def _direct_exact_out_candidates(
+def _build_exact_out_scan_context(
     *,
-    pools: Tuple[PoolState, ...],
-    by_asset: Dict[AssetId, Tuple[int, ...]],
+    pools_by_id: Dict[str, PoolState],
     asset_in: AssetId,
     asset_out: AssetId,
     amount_out: Amount,
+    build_asset_pool_index: Callable[[Tuple[PoolState, ...]], Dict[AssetId, Tuple[int, ...]]],
     pool_connects: Callable[[PoolState, AssetId, AssetId], bool],
     pool_quote_exact_out: Callable[..., Optional[Tuple[Amount, str, Amount]]],
     quote_key: Callable[[RouteQuote], tuple],
+) -> _ExactOutScanContext:
+    pools: Tuple[PoolState, ...] = tuple(sorted(pools_by_id.values(), key=lambda p: p.pool_id))
+    return _ExactOutScanContext(
+        pools=pools,
+        by_asset=build_asset_pool_index(pools),
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out=amount_out,
+        pool_connects=pool_connects,
+        pool_quote_exact_out=pool_quote_exact_out,
+        quote_key=quote_key,
+    )
+
+
+def _direct_exact_out_candidates(
+    *,
+    context: _ExactOutScanContext,
 ) -> tuple[Optional[RouteQuote], List[PoolState], tuple[Amount | None, int | None]]:
     best_direct: Optional[RouteQuote] = None
     best_direct_reserve_out: Amount | None = None
     best_direct_fee_bps: int | None = None
     direct_candidates: List[PoolState] = []
 
-    for idx in by_asset.get(asset_in, ()):
-        pool = pools[idx]
-        if not pool_connects(pool, asset_in, asset_out):
+    for idx in context.by_asset.get(context.asset_in, ()):
+        pool = context.pools[idx]
+        if not context.pool_connects(pool, context.asset_in, context.asset_out):
             continue
         direct_candidates.append(pool)
-        quote = pool_quote_exact_out(
+        quote = context.pool_quote_exact_out(
             pool,
-            asset_in=asset_in,
-            asset_out=asset_out,
-            amount_out=amount_out,
+            asset_in=context.asset_in,
+            asset_out=context.asset_out,
+            amount_out=context.amount_out,
         )
         if quote is None:
             continue
         amount_in, _pool_id, reserve_out = quote
         route = _single_hop_exact_out_quote(
+            context=context,
             pool=pool,
-            asset_in=asset_in,
-            asset_out=asset_out,
             amount_in=amount_in,
-            amount_out=amount_out,
         )
-        if _is_better_exact_out(route, best_direct, quote_key=quote_key):
+        if _is_better_exact_out(route, best_direct, quote_key=context.quote_key):
             best_direct = route
             best_direct_reserve_out = reserve_out
             best_direct_fee_bps = int(pool.fee_bps)
@@ -139,19 +163,17 @@ def _direct_exact_out_candidates(
 
 def _single_hop_exact_out_quote(
     *,
+    context: _ExactOutScanContext,
     pool: PoolState,
-    asset_in: AssetId,
-    asset_out: AssetId,
     amount_in: Amount,
-    amount_out: Amount,
 ) -> RouteQuote:
-    hop = RouteHop(pool.pool_id, asset_in, asset_out, amount_in, amount_out)
+    hop = RouteHop(pool.pool_id, context.asset_in, context.asset_out, amount_in, context.amount_out)
     return RouteQuote(
-        asset_in=asset_in,
-        asset_out=asset_out,
+        asset_in=context.asset_in,
+        asset_out=context.asset_out,
         amount_in=amount_in,
-        amount_out=amount_out,
-        legs=(RouteLeg(hops=(hop,), amount_in=amount_in, amount_out=amount_out),),
+        amount_out=context.amount_out,
+        legs=(RouteLeg(hops=(hop,), amount_in=amount_in, amount_out=context.amount_out),),
     )
 
 
@@ -182,30 +204,25 @@ def _best_parallel_split_exact_out(
     *,
     best: Optional[RouteQuote],
     direct_candidates: List[PoolState],
-    asset_in: AssetId,
-    asset_out: AssetId,
-    amount_out: Amount,
-    quote_key: Callable[[RouteQuote], tuple],
+    context: _ExactOutScanContext,
     split_two_pools_exact_out: Callable[..., Any],
 ) -> Optional[RouteQuote]:
     if len(direct_candidates) < 2:
         return best
     candidates = _bounded_direct_candidates(
         direct_candidates=direct_candidates,
-        asset_in=asset_in,
-        asset_out=asset_out,
+        asset_in=context.asset_in,
+        asset_out=context.asset_out,
     )
     for i in range(len(candidates)):
         for j in range(i + 1, len(candidates)):
             route = _parallel_split_exact_out_quote(
+                context=context,
                 pool0=candidates[i],
                 pool1=candidates[j],
-                asset_in=asset_in,
-                asset_out=asset_out,
-                amount_out=amount_out,
                 split_two_pools_exact_out=split_two_pools_exact_out,
             )
-            if route is not None and _is_better_exact_out(route, best, quote_key=quote_key):
+            if route is not None and _is_better_exact_out(route, best, quote_key=context.quote_key):
                 best = route
     return best
 
@@ -236,40 +253,38 @@ def _bounded_direct_candidates(
 
 def _parallel_split_exact_out_quote(
     *,
+    context: _ExactOutScanContext,
     pool0: PoolState,
     pool1: PoolState,
-    asset_in: AssetId,
-    asset_out: AssetId,
-    amount_out: Amount,
     split_two_pools_exact_out: Callable[..., Any],
 ) -> Optional[RouteQuote]:
     try:
         split = split_two_pools_exact_out(
             pool0,
             pool1,
-            asset_in=asset_in,
-            asset_out=asset_out,
-            amount_out_total=amount_out,
+            asset_in=context.asset_in,
+            asset_out=context.asset_out,
+            amount_out_total=context.amount_out,
         )
     except ValueError:
         return None
     if split.amount_in_total <= 0:
         return None
     leg0 = RouteLeg(
-        hops=(RouteHop(split.pool0_id, asset_in, asset_out, split.amount_in_0, split.amount_out_0),),
+        hops=(RouteHop(split.pool0_id, context.asset_in, context.asset_out, split.amount_in_0, split.amount_out_0),),
         amount_in=split.amount_in_0,
         amount_out=split.amount_out_0,
     )
     leg1 = RouteLeg(
-        hops=(RouteHop(split.pool1_id, asset_in, asset_out, split.amount_in_1, split.amount_out_1),),
+        hops=(RouteHop(split.pool1_id, context.asset_in, context.asset_out, split.amount_in_1, split.amount_out_1),),
         amount_in=split.amount_in_1,
         amount_out=split.amount_out_1,
     )
     return RouteQuote(
-        asset_in=asset_in,
-        asset_out=asset_out,
+        asset_in=context.asset_in,
+        asset_out=context.asset_out,
         amount_in=split.amount_in_total,
-        amount_out=amount_out,
+        amount_out=context.amount_out,
         legs=(leg0, leg1),
     )
 
@@ -277,32 +292,17 @@ def _parallel_split_exact_out_quote(
 def _best_two_hop_exact_out(
     *,
     best: Optional[RouteQuote],
-    pools: Tuple[PoolState, ...],
-    by_asset: Dict[AssetId, Tuple[int, ...]],
-    asset_in: AssetId,
-    asset_out: AssetId,
-    amount_out: Amount,
-    pool_connects: Callable[[PoolState, AssetId, AssetId], bool],
-    pool_quote_exact_out: Callable[..., Optional[Tuple[Amount, str, Amount]]],
-    quote_key: Callable[[RouteQuote], tuple],
+    context: _ExactOutScanContext,
 ) -> Optional[RouteQuote]:
-    for idx1 in by_asset.get(asset_in, ()):
-        pool1 = pools[idx1]
-        mid = _first_hop_mid_asset(pool1, asset_in=asset_in)
-        if mid is None or mid == asset_out or mid == asset_in:
+    for idx1 in context.by_asset.get(context.asset_in, ()):
+        pool1 = context.pools[idx1]
+        mid = _first_hop_mid_asset(pool1, asset_in=context.asset_in)
+        if mid is None or mid == context.asset_out or mid == context.asset_in:
             continue
         best = _best_second_hop_exact_out(
             best=best,
-            pool1=pool1,
-            pools=pools,
-            second_hop_indices=by_asset.get(mid, ()),
-            asset_in=asset_in,
-            mid=mid,
-            asset_out=asset_out,
-            amount_out=amount_out,
-            pool_connects=pool_connects,
-            pool_quote_exact_out=pool_quote_exact_out,
-            quote_key=quote_key,
+            context=context,
+            probe=_ExactOutSecondHopProbe(pool1=pool1, mid=mid),
         )
     return best
 
@@ -318,72 +318,56 @@ def _first_hop_mid_asset(pool: PoolState, *, asset_in: AssetId) -> AssetId | Non
 def _best_second_hop_exact_out(
     *,
     best: Optional[RouteQuote],
-    pool1: PoolState,
-    pools: Tuple[PoolState, ...],
-    second_hop_indices: Tuple[int, ...],
-    asset_in: AssetId,
-    mid: AssetId,
-    asset_out: AssetId,
-    amount_out: Amount,
-    pool_connects: Callable[[PoolState, AssetId, AssetId], bool],
-    pool_quote_exact_out: Callable[..., Optional[Tuple[Amount, str, Amount]]],
-    quote_key: Callable[[RouteQuote], tuple],
+    context: _ExactOutScanContext,
+    probe: _ExactOutSecondHopProbe,
 ) -> Optional[RouteQuote]:
-    for idx2 in second_hop_indices:
-        pool2 = pools[idx2]
-        if not pool_connects(pool2, mid, asset_out):
+    for idx2 in context.by_asset.get(probe.mid, ()):
+        pool2 = context.pools[idx2]
+        if not context.pool_connects(pool2, probe.mid, context.asset_out):
             continue
         route = _two_hop_exact_out_quote(
-            pool1=pool1,
+            context=context,
             pool2=pool2,
-            asset_in=asset_in,
-            mid=mid,
-            asset_out=asset_out,
-            amount_out=amount_out,
-            pool_quote_exact_out=pool_quote_exact_out,
+            probe=probe,
         )
-        if route is not None and _is_better_exact_out(route, best, quote_key=quote_key):
+        if route is not None and _is_better_exact_out(route, best, quote_key=context.quote_key):
             best = route
     return best
 
 
 def _two_hop_exact_out_quote(
     *,
-    pool1: PoolState,
+    context: _ExactOutScanContext,
     pool2: PoolState,
-    asset_in: AssetId,
-    mid: AssetId,
-    asset_out: AssetId,
-    amount_out: Amount,
-    pool_quote_exact_out: Callable[..., Optional[Tuple[Amount, str, Amount]]],
+    probe: _ExactOutSecondHopProbe,
 ) -> Optional[RouteQuote]:
-    second_quote = pool_quote_exact_out(
+    second_quote = context.pool_quote_exact_out(
         pool2,
-        asset_in=mid,
-        asset_out=asset_out,
-        amount_out=amount_out,
+        asset_in=probe.mid,
+        asset_out=context.asset_out,
+        amount_out=context.amount_out,
     )
     if second_quote is None:
         return None
     mid_in, _pool_id, _reserve_out = second_quote
-    first_quote = pool_quote_exact_out(
-        pool1,
-        asset_in=asset_in,
-        asset_out=mid,
+    first_quote = context.pool_quote_exact_out(
+        probe.pool1,
+        asset_in=context.asset_in,
+        asset_out=probe.mid,
         amount_out=mid_in,
     )
     if first_quote is None:
         return None
     amount_in, _pool_id, _reserve_out = first_quote
 
-    hop1 = RouteHop(pool1.pool_id, asset_in, mid, amount_in, mid_in)
-    hop2 = RouteHop(pool2.pool_id, mid, asset_out, mid_in, amount_out)
+    hop1 = RouteHop(probe.pool1.pool_id, context.asset_in, probe.mid, amount_in, mid_in)
+    hop2 = RouteHop(pool2.pool_id, probe.mid, context.asset_out, mid_in, context.amount_out)
     return RouteQuote(
-        asset_in=asset_in,
-        asset_out=asset_out,
+        asset_in=context.asset_in,
+        asset_out=context.asset_out,
         amount_in=amount_in,
-        amount_out=amount_out,
-        legs=(RouteLeg(hops=(hop1, hop2), amount_in=amount_in, amount_out=amount_out),),
+        amount_out=context.amount_out,
+        legs=(RouteLeg(hops=(hop1, hop2), amount_in=amount_in, amount_out=context.amount_out),),
     )
 
 
