@@ -15,6 +15,7 @@ from ..state.pools import CURVE_TAG_CPMM, PoolState
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .cpmm import compute_fee_total
 from .settlement import Fill, FillAction
+from .settlement_fill_fields import read_optional_non_negative_fill_int
 
 _QuoteExactInFn = Callable[..., Any]
 _QuoteExactOutFn = Callable[..., Any]
@@ -277,8 +278,18 @@ def _reserves_after_swap_fill(
             protocol_fee_share_bps=protocol_fee_share_bps,
         )
         if intent.kind == IntentKind.SWAP_EXACT_IN:
-            return _reserves_after_exact_in_direction(context, fill.amount_in_filled or 0)
-        return _reserves_after_exact_out_direction(context, fill.amount_out_filled or 0)
+            amount_in_filled = _read_swap_fill_int(
+                fill.amount_in_filled,
+                field_name="amount_in_filled",
+                fill=fill,
+            )
+            return _reserves_after_exact_in_direction(context, amount_in_filled)
+        amount_out_filled = _read_swap_fill_int(
+            fill.amount_out_filled,
+            field_name="amount_out_filled",
+            fill=fill,
+        )
+        return _reserves_after_exact_out_direction(context, amount_out_filled)
 
     context = _ReserveQuoteContext(
         pool_state=pool_state,
@@ -287,16 +298,38 @@ def _reserves_after_swap_fill(
         protocol_fee_share_bps=protocol_fee_share_bps,
     )
     if intent.kind == IntentKind.SWAP_EXACT_IN:
+        amount_in_filled = _read_swap_fill_int(
+            fill.amount_in_filled,
+            field_name="amount_in_filled",
+            fill=fill,
+        )
         next_reserve_in, next_reserve_out = _reserves_after_exact_in_direction(
             context,
-            fill.amount_in_filled or 0,
+            amount_in_filled,
         )
         return next_reserve_out, next_reserve_in
+    amount_out_filled = _read_swap_fill_int(
+        fill.amount_out_filled,
+        field_name="amount_out_filled",
+        fill=fill,
+    )
     next_reserve_in, next_reserve_out = _reserves_after_exact_out_direction(
         context,
-        fill.amount_out_filled or 0,
+        amount_out_filled,
     )
     return next_reserve_out, next_reserve_in
+
+
+def _read_swap_fill_int(value: object, *, field_name: str, fill: Fill) -> int:
+    parsed, err = read_optional_non_negative_fill_int(
+        value,
+        operation="SWAP",
+        field_name=field_name,
+        intent_id=fill.intent_id,
+    )
+    if err is not None:
+        raise TypeError(err)
+    return int(parsed)
 
 
 def _apply_swap_fill_to_scratch_balances(
@@ -308,9 +341,23 @@ def _apply_swap_fill_to_scratch_balances(
     asset_in = intent.get_field("asset_in")
     asset_out = intent.get_field("asset_out")
     recipient = intent.get_field("recipient", intent.sender_pubkey)
-    balances.subtract(intent.sender_pubkey, asset_in, fill.amount_in_filled or 0)
-    balances.add(recipient, asset_out, fill.amount_out_filled or 0)
-    protocol_fee = int(fill.protocol_fee_paid or 0)
+    amount_in_filled = _read_swap_fill_int(
+        fill.amount_in_filled,
+        field_name="amount_in_filled",
+        fill=fill,
+    )
+    amount_out_filled = _read_swap_fill_int(
+        fill.amount_out_filled,
+        field_name="amount_out_filled",
+        fill=fill,
+    )
+    protocol_fee = _read_swap_fill_int(
+        fill.protocol_fee_paid,
+        field_name="protocol_fee_paid",
+        fill=fill,
+    )
+    balances.subtract(intent.sender_pubkey, asset_in, amount_in_filled)
+    balances.add(recipient, asset_out, amount_out_filled)
     if protocol_fee:
         if not protocol_fee_recipient_pubkey:
             raise ValueError("protocol_fee_recipient_pubkey is required for protocol fee capture")

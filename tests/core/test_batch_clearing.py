@@ -37,6 +37,7 @@ from src.core.batch_clearing import (
     compute_settlement,
     validate_settlement,
 )
+from src.core.batch_clearing_swaps import _apply_swap_fill_to_scratch_balances
 from src.core.liquidity import create_pool
 from src.core.settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta, Settlement
 from src.state.balances import BalanceTable
@@ -1522,6 +1523,40 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
     assert len(swap_deltas) == 2
     assert len(swap_reserves) == 2
     assert swap_lp == []
+
+    with pytest.raises(TypeError, match="protocol_fee_paid must be int"):
+        _apply_filled_intent_to_locals(
+            intent=swap_intent,
+            fill=Fill(
+                intent_id=swap_intent.intent_id,
+                action=FillAction.FILL,
+                amount_in_filled=100,
+                amount_out_filled=90,
+                protocol_fee_paid=False,
+            ),
+            pool_id=pool_id,
+            pool_state=pool,
+            balances=_fresh_balances(),
+            lp_balances=LPTable(),
+            balance_deltas=[],
+            reserve_deltas=[],
+            lp_deltas=[],
+            protocol_fee_recipient_pubkey=recipient,
+        )
+
+    with pytest.raises(TypeError, match="protocol_fee_paid must be int"):
+        _apply_swap_fill_to_scratch_balances(
+            swap_intent,
+            Fill(
+                intent_id=swap_intent.intent_id,
+                action=FillAction.FILL,
+                amount_in_filled=100,
+                amount_out_filled=90,
+                protocol_fee_paid=False,
+            ),
+            _fresh_balances(),
+            recipient,
+        )
 
     reverse_balances = _fresh_balances()
     reverse_pool = PoolState(**{**pool.__dict__, "reserve0": 2_000_000, "reserve1": 2_000_000, "lp_supply": lp_minted + 1000})
