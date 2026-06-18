@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Any, Mapping
 
 REJECT_OK = "Ok"
 REJECT_NO_PERP_STREAM = "NoPerpStream"
@@ -19,6 +19,12 @@ class PerpTauIngressStreamOutcome:
     checks: Mapping[str, bool]
 
 
+def _require_bool(value: Any, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return bool(value)
+
+
 def evaluate_perp_tau_ingress_stream(
     *,
     upstream_stream_present: bool,
@@ -28,11 +34,11 @@ def evaluate_perp_tau_ingress_stream(
     legacy_candidate_perp_like: bool,
 ) -> PerpTauIngressStreamOutcome:
     checks = {
-        "upstream_stream_present": bool(upstream_stream_present),
-        "legacy_stream_present": bool(legacy_stream_present),
-        "legacy_dex_stream_present": bool(legacy_dex_stream_present),
-        "legacy_candidate_dex_like": bool(legacy_candidate_dex_like),
-        "legacy_candidate_perp_like": bool(legacy_candidate_perp_like),
+        "upstream_stream_present": _require_bool(upstream_stream_present, name="upstream_stream_present"),
+        "legacy_stream_present": _require_bool(legacy_stream_present, name="legacy_stream_present"),
+        "legacy_dex_stream_present": _require_bool(legacy_dex_stream_present, name="legacy_dex_stream_present"),
+        "legacy_candidate_dex_like": _require_bool(legacy_candidate_dex_like, name="legacy_candidate_dex_like"),
+        "legacy_candidate_perp_like": _require_bool(legacy_candidate_perp_like, name="legacy_candidate_perp_like"),
     }
     upstream_selected = bool(checks["upstream_stream_present"])
     legacy_fallback_used = bool(

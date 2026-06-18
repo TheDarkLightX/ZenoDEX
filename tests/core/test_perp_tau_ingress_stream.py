@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.perp_tau_ingress_stream import (
     REJECT_LEGACY_DEX_CONFLICT,
     REJECT_NO_PERP_STREAM,
@@ -65,3 +67,27 @@ def test_perp_tau_ingress_stream_rejects_when_no_stream_is_available() -> None:
     assert outcome.upstream_stream_selected is False
     assert outcome.legacy_fallback_used is False
     assert outcome.reject_code == REJECT_NO_PERP_STREAM
+
+
+@pytest.mark.parametrize(
+    ("field", "bad_value"),
+    [
+        ("upstream_stream_present", "False"),
+        ("legacy_stream_present", "1"),
+        ("legacy_dex_stream_present", 1),
+        ("legacy_candidate_dex_like", 0),
+        ("legacy_candidate_perp_like", "yes"),
+    ],
+)
+def test_perp_tau_ingress_stream_rejects_coerced_flags(field: str, bad_value: object) -> None:
+    kwargs = {
+        "upstream_stream_present": False,
+        "legacy_stream_present": True,
+        "legacy_dex_stream_present": False,
+        "legacy_candidate_dex_like": False,
+        "legacy_candidate_perp_like": True,
+    }
+    kwargs[field] = bad_value
+
+    with pytest.raises(TypeError, match=f"{field} must be a bool"):
+        evaluate_perp_tau_ingress_stream(**kwargs)  # type: ignore[arg-type]
