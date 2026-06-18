@@ -1617,6 +1617,16 @@ class _ClearinghouseMarketParamsRequest:
     replace_state: Callable[..., PerpAnyMarketState]
 
 
+@dataclass(frozen=True)
+class _ClearinghouseCollateralRequest:
+    i: int
+    op: PerpOp
+    market: Any
+    market_label: str
+    step: Callable[..., tuple[Dict[str, Any], Dict[str, Any]]]
+    replace_state: Callable[..., PerpAnyMarketState]
+
+
 def _commit_clearinghouse_kernel_step(ctx: _PerpApplyCtx, commit: _ClearinghouseKernelCommit) -> str | None:
     try:
         next_state, eff = commit.step(commit.market.state, tag=commit.tag, args=commit.args)
@@ -1739,6 +1749,58 @@ def _apply_clearinghouse_set_market_params(
         return str(exc)
     ctx.markets[request.op.market_id] = request.replace_state(request.market, state=next_state)
     ctx.effects.append({"i": request.i, "market_id": request.op.market_id, "action": request.op.action, "params": dict(params)})
+    return None
+
+
+def _apply_clearinghouse_collateral(ctx: _PerpApplyCtx, request: _ClearinghouseCollateralRequest) -> str | None:
+    action = request.op.action
+    data = request.op.data
+    allowed = {"module", "version", "market_id", "action", "account_pubkey", "amount"}
+    unknown = _reject_unknown_fields(data, allowed, error=f"{action} has unknown fields")
+    if unknown is not None:
+        return unknown
+
+    account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
+    sender_err = _require_sender_bound_account_pubkey(
+        account_pubkey=account_pubkey,
+        tx_sender_pubkey=ctx.tx_sender_pubkey,
+    )
+    if sender_err is not None:
+        return sender_err
+
+    role = request.market.role_for_pubkey(account_pubkey)
+    if role is None:
+        return f"unknown account_pubkey for this {request.market_label} market"
+
+    amount = _require_int(data.get("amount"), name="amount", non_negative=True)
+    # Protocol balances are in quote units; the clearinghouse kernel tracks quote-e8 for exact PnL.
+    amount_e8 = int(amount) * _E8_SCALE
+
+    if action == "deposit_collateral":
+        if ctx.balances.get(account_pubkey, request.market.quote_asset) < amount:
+            return "insufficient balance for deposit"
+        tag = f"deposit_collateral_{role}"
+    else:
+        tag = f"withdraw_collateral_{role}"
+
+    try:
+        next_state, eff = request.step(
+            request.market.state,
+            tag=tag,
+            args={"amount_e8": amount_e8, "auth_ok": True},
+        )
+    except ValueError as exc:
+        return str(exc)
+
+    if action == "deposit_collateral":
+        ctx.balances.subtract(account_pubkey, request.market.quote_asset, amount)
+    else:
+        ctx.balances.add(account_pubkey, request.market.quote_asset, amount)
+
+    ctx.markets[request.op.market_id] = request.replace_state(request.market, state=next_state)
+    ctx.effects.append(
+        {"i": request.i, "market_id": request.op.market_id, "action": action, "account_pubkey": account_pubkey, "effects": eff}
+    )
     return None
 
 
@@ -1955,6 +2017,38 @@ def _apply_ch3p_set_market_params(
     )
 
 
+def _apply_ch2p_collateral(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch2p_market: PerpClearinghouse2pMarketState
+) -> str | None:
+    return _apply_clearinghouse_collateral(
+        ctx,
+        _ClearinghouseCollateralRequest(
+            i,
+            op,
+            ch2p_market,
+            "clearinghouse_2p",
+            _ch2p_step,
+            _ch2p_market_with_state,
+        ),
+    )
+
+
+def _apply_ch3p_collateral(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch3p_market: PerpClearinghouse3pTransferMarketState
+) -> str | None:
+    return _apply_clearinghouse_collateral(
+        ctx,
+        _ClearinghouseCollateralRequest(
+            i,
+            op,
+            ch3p_market,
+            "clearinghouse_3p",
+            _ch3p_step,
+            _ch3p_market_with_state,
+        ),
+    )
+
+
 def _apply_ch2p_op(
     ctx: _PerpApplyCtx,
     *,
@@ -1989,56 +2083,7 @@ def _apply_ch2p_op(
         return _apply_ch2p_set_market_params(ctx, i=i, op=op, ch2p_market=ch2p_market)
 
     if action in ("deposit_collateral", "withdraw_collateral"):
-        allowed_common = {"module", "version", "market_id", "action", "account_pubkey"}
-        allowed = allowed_common | {"amount"}
-        unknown = _reject_unknown_fields(data, allowed, error=f"{action} has unknown fields")
-        if unknown is not None:
-            return unknown
-
-        account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
-        sender_err = _require_sender_bound_account_pubkey(
-            account_pubkey=account_pubkey,
-            tx_sender_pubkey=tx_sender_pubkey,
-        )
-        if sender_err is not None:
-            return sender_err
-
-        role = ch2p_market.role_for_pubkey(account_pubkey)
-        if role is None:
-            return "unknown account_pubkey for this clearinghouse_2p market"
-
-        amount = _require_int(data.get("amount"), name="amount", non_negative=True)
-        # Protocol balances are in quote units; the clearinghouse kernel tracks quote-e8 for exact PnL.
-        amount_e8 = int(amount) * _E8_SCALE
-
-        if action == "deposit_collateral":
-            if balances.get(account_pubkey, ch2p_market.quote_asset) < amount:
-                return "insufficient balance for deposit"
-            tag = "deposit_collateral_a" if role == "a" else "deposit_collateral_b"
-            try:
-                next_state, eff = _ch2p_step(
-                    ch2p_market.state,
-                    tag=tag,
-                    args={"amount_e8": amount_e8, "auth_ok": True},
-                )
-            except ValueError as exc:
-                return str(exc)
-            balances.subtract(account_pubkey, ch2p_market.quote_asset, amount)
-        else:
-            tag = "withdraw_collateral_a" if role == "a" else "withdraw_collateral_b"
-            try:
-                next_state, eff = _ch2p_step(
-                    ch2p_market.state,
-                    tag=tag,
-                    args={"amount_e8": amount_e8, "auth_ok": True},
-                )
-            except ValueError as exc:
-                return str(exc)
-            balances.add(account_pubkey, ch2p_market.quote_asset, amount)
-
-        ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
-        ctx.effects.append({"i": i, "market_id": market_id, "action": action, "account_pubkey": account_pubkey, "effects": eff})
-        return None
+        return _apply_ch2p_collateral(ctx, i=i, op=op, ch2p_market=ch2p_market)
 
     if action == "set_position_pair":
         version_ok = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
@@ -2183,55 +2228,7 @@ def _apply_ch3p_op(
         return _apply_ch3p_set_market_params(ctx, i=i, op=op, ch3p_market=ch3p_market)
 
     if action in ("deposit_collateral", "withdraw_collateral"):
-        allowed_common = {"module", "version", "market_id", "action", "account_pubkey"}
-        allowed = allowed_common | {"amount"}
-        unknown = _reject_unknown_fields(data, allowed, error=f"{action} has unknown fields")
-        if unknown is not None:
-            return unknown
-
-        account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
-        sender_err = _require_sender_bound_account_pubkey(
-            account_pubkey=account_pubkey,
-            tx_sender_pubkey=tx_sender_pubkey,
-        )
-        if sender_err is not None:
-            return sender_err
-
-        role = ch3p_market.role_for_pubkey(account_pubkey)
-        if role is None:
-            return "unknown account_pubkey for this clearinghouse_3p market"
-
-        amount = _require_int(data.get("amount"), name="amount", non_negative=True)
-        amount_e8 = int(amount) * _E8_SCALE
-
-        if action == "deposit_collateral":
-            if balances.get(account_pubkey, ch3p_market.quote_asset) < amount:
-                return "insufficient balance for deposit"
-            tag = f"deposit_collateral_{role}"
-            try:
-                next_state, eff = _ch3p_step(
-                    ch3p_market.state,
-                    tag=tag,
-                    args={"amount_e8": amount_e8, "auth_ok": True},
-                )
-            except ValueError as exc:
-                return str(exc)
-            balances.subtract(account_pubkey, ch3p_market.quote_asset, amount)
-        else:
-            tag = f"withdraw_collateral_{role}"
-            try:
-                next_state, eff = _ch3p_step(
-                    ch3p_market.state,
-                    tag=tag,
-                    args={"amount_e8": amount_e8, "auth_ok": True},
-                )
-            except ValueError as exc:
-                return str(exc)
-            balances.add(account_pubkey, ch3p_market.quote_asset, amount)
-
-        ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
-        ctx.effects.append({"i": i, "market_id": market_id, "action": action, "account_pubkey": account_pubkey, "effects": eff})
-        return None
+        return _apply_ch3p_collateral(ctx, i=i, op=op, ch3p_market=ch3p_market)
 
     if action == "set_position_triplet":
         version_ok = version == PERP_OP_VERSION_CH3P_V1_1
