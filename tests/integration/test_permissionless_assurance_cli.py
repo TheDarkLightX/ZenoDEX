@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from argparse import Namespace
 from pathlib import Path
 
 from tools import permissionless_assurance as assurance_cli
@@ -82,3 +83,19 @@ def test_replay_missing_environment_fails_closed(monkeypatch) -> None:
     assert result["missing_environment"] == [
         {"name": "external/ESSO", "hint": "clone or update external/ESSO"}
     ]
+
+
+def test_replay_rejects_truthy_string_lane_ok(monkeypatch, capsys) -> None:
+    def fake_run_lane(_lane):
+        return {"name": "critical", "ok": "true", "duration_s": 0.0}
+
+    monkeypatch.setattr(assurance_cli, "_run_lane", fake_run_lane)
+
+    rc = assurance_cli.cmd_replay(
+        Namespace(lanes=["critical"], plan=False, format="json", keep_going=False)
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert rc == 1
+    assert payload["ok"] is False
+    assert payload["results"][0]["ok"] == "true"

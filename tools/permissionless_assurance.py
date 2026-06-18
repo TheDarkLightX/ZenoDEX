@@ -645,9 +645,10 @@ def cmd_replay(args: argparse.Namespace) -> int:
             print(f"== assurance: {lane.name} ==")
         result = _run_lane(lane)
         results.append(result)
-        overall_ok = overall_ok and bool(result["ok"])
+        result_ok = result.get("ok") is True
+        overall_ok = overall_ok and result_ok
         if args.format != "json":
-            status = "OK" if result["ok"] else "FAIL"
+            status = "OK" if result_ok else "FAIL"
             print(f"[{status}] {lane.name} ({result['duration_s']}s)")
             for rel in result.get("missing_files", []):
                 print(f"  missing: {rel}")
@@ -655,7 +656,7 @@ def cmd_replay(args: argparse.Namespace) -> int:
                 print(f"  missing env: {env_item['name']} ({env_item['hint']})")
             if result.get("error") == "command failed":
                 print("  failed command: " + " ".join(result["failed_command"]))
-        if not result["ok"] and not args.keep_going:
+        if not result_ok and not args.keep_going:
             break
 
     if args.format == "json":
