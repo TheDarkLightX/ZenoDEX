@@ -1890,13 +1890,18 @@ def _commit_clearinghouse_kernel_step(ctx: _PerpApplyCtx, commit: _Clearinghouse
     return None
 
 
-def _apply_clearinghouse_publish_clearing_price(
+_PUBLISH_CLEARING_PRICE_FIELDS = frozenset(
+    {"module", "version", "market_id", "action", "price_e8", "deadline", "oracle_nonce", "oracle_sig"}
+)
+
+
+def _read_clearinghouse_signed_price(
     ctx: _PerpApplyCtx, request: _ClearinghousePublishPriceRequest
-) -> str | None:
+) -> tuple[str | None, int | None]:
     data = request.op.data
     oracle_pubkey = (ctx.config.oracle_pubkey or "").strip()
     if not oracle_pubkey:
-        return "oracle signer not configured (set PerpEngineConfig.oracle_pubkey)"
+        return "oracle signer not configured (set PerpEngineConfig.oracle_pubkey)", None
     if not request.version_ok:
         surface_err = _evaluate_signed_surface(
             action_kind=ACTION_PUBLISH_CLEARING_PRICE,
@@ -1904,13 +1909,12 @@ def _apply_clearinghouse_publish_clearing_price(
             version_ok=False,
             unknown_fields_ok=True,
         )
-        return surface_err or "publish_clearing_price requires a clearinghouse perps.version"
+        return surface_err or "publish_clearing_price requires a clearinghouse perps.version", None
 
     oracle_nonce = _require_int_u32_pos(data.get("oracle_nonce"), name="oracle_nonce")
     oracle_sig = _require_str(data.get("oracle_sig"), name="oracle_sig", non_empty=True, max_len=4096)
 
-    allowed = {"module", "version", "market_id", "action", "price_e8", "deadline", "oracle_nonce", "oracle_sig"}
-    unknown_fields_ok = not (set(data.keys()) - allowed)
+    unknown_fields_ok = not (set(data.keys()) - _PUBLISH_CLEARING_PRICE_FIELDS)
     if not unknown_fields_ok:
         surface_err = _evaluate_signed_surface(
             action_kind=ACTION_PUBLISH_CLEARING_PRICE,
@@ -1918,7 +1922,7 @@ def _apply_clearinghouse_publish_clearing_price(
             version_ok=request.version_ok,
             unknown_fields_ok=False,
         )
-        return surface_err or "publish_clearing_price has unknown fields"
+        return surface_err or "publish_clearing_price has unknown fields", None
 
     price_e8 = _require_int(data.get("price_e8"), name="price_e8", non_negative=True)
     surface_err = _evaluate_signed_surface(
@@ -1929,7 +1933,7 @@ def _apply_clearinghouse_publish_clearing_price(
         positive_price_ok=price_e8 > 0,
     )
     if surface_err is not None:
-        return surface_err
+        return surface_err, None
 
     sig_err = _verify_perp_op_signature(
         config=ctx.config,
@@ -1941,7 +1945,18 @@ def _apply_clearinghouse_publish_clearing_price(
         block_timestamp=ctx.block_timestamp,
     )
     if sig_err is not None:
-        return f"oracle signature invalid: {sig_err}"
+        return f"oracle signature invalid: {sig_err}", None
+    return None, price_e8
+
+
+def _apply_clearinghouse_publish_clearing_price(
+    ctx: _PerpApplyCtx, request: _ClearinghousePublishPriceRequest
+) -> str | None:
+    err, price_e8 = _read_clearinghouse_signed_price(ctx, request)
+    if err is not None:
+        return err
+    if price_e8 is None:
+        return "internal error: publish_clearing_price missing price"
 
     return _commit_clearinghouse_kernel_step(
         ctx,
