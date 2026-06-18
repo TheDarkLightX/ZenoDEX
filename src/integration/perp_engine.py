@@ -1683,6 +1683,12 @@ class _Ch3pPositionValues:
     new_c: int
 
 
+@dataclass(frozen=True)
+class _InitMarket3pSpec:
+    quote_asset: str
+    accounts: _Ch3pPositionAccounts
+
+
 def _commit_clearinghouse_kernel_step(ctx: _PerpApplyCtx, commit: _ClearinghouseKernelCommit) -> str | None:
     try:
         next_state, eff = commit.step(commit.market.state, tag=commit.tag, args=commit.args)
@@ -4100,52 +4106,8 @@ def _apply_init_market_2p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | No
     return None
 
 
-def _apply_init_market_3p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | None:
-    action = op.action
-    market_id = op.market_id
-    version = op.version
-    data = op.data
-    version_ok = version == PERP_OP_VERSION_CH3P_V1_1
-    if not version_ok:
-        surface_err = _evaluate_signed_surface(
-            action_kind=ACTION_INIT_MARKET_3P,
-            action=action,
-            version_ok=False,
-            unknown_fields_ok=True,
-        )
-        return surface_err or "init_market_3p requires perps.version=1.1"
-    if market_id in ctx.markets:
-        return "market already exists"
-
-    quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
-    account_a_pubkey = _require_str(
-        data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512
-    )
-    account_b_pubkey = _require_str(
-        data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512
-    )
-    account_c_pubkey = _require_str(
-        data.get("account_c_pubkey"), name="account_c_pubkey", non_empty=True, max_len=512
-    )
-    distinct_accounts_ok = len({account_a_pubkey, account_b_pubkey, account_c_pubkey}) == 3
-
-    # Distinctness must be enforced by pubkey bytes (not string representation).
-    try:
-        a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
-        b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
-        c_b = _hex_to_bytes_allow_0x(account_c_pubkey, name="account_c_pubkey", expected_nbytes=48)
-        distinct_accounts_ok = bool(distinct_accounts_ok and len({a_b, b_b, c_b}) == 3)
-    except (TypeError, ValueError):
-        pass
-
-    nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
-    sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
-    nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
-    sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
-    nonce_c = _require_int_u32_pos(data.get("nonce_c"), name="nonce_c")
-    sig_c = _require_str(data.get("sig_c"), name="sig_c", non_empty=True, max_len=4096)
-
-    allowed = {
+_INIT_MARKET_3P_FIELDS = frozenset(
+    {
         "module",
         "version",
         "market_id",
@@ -4162,77 +4124,116 @@ def _apply_init_market_3p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | No
         "nonce_c",
         "sig_c",
     }
+)
+
+
+def _init_market_3p_version_error(action: str, *, version_ok: bool) -> Optional[str]:
+    if version_ok:
+        return None
     surface_err = _evaluate_signed_surface(
         action_kind=ACTION_INIT_MARKET_3P,
         action=action,
+        version_ok=False,
+        unknown_fields_ok=True,
+    )
+    return surface_err or "init_market_3p requires perps.version=1.1"
+
+
+def _init_market_3p_distinct_accounts_ok(accounts: _Ch3pPositionAccounts) -> bool:
+    distinct_accounts_ok = len(
+        {
+            accounts.account_a_pubkey,
+            accounts.account_b_pubkey,
+            accounts.account_c_pubkey,
+        }
+    ) == 3
+    try:
+        a_b = _hex_to_bytes_allow_0x(accounts.account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
+        b_b = _hex_to_bytes_allow_0x(accounts.account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
+        c_b = _hex_to_bytes_allow_0x(accounts.account_c_pubkey, name="account_c_pubkey", expected_nbytes=48)
+    except (TypeError, ValueError):
+        return bool(distinct_accounts_ok)
+    return bool(distinct_accounts_ok and len({a_b, b_b, c_b}) == 3)
+
+
+def _init_market_3p_surface_error(
+    action: str,
+    *,
+    data: Mapping[str, Any],
+    version_ok: bool,
+    distinct_accounts_ok: bool,
+) -> Optional[str]:
+    return _evaluate_signed_surface(
+        action_kind=ACTION_INIT_MARKET_3P,
+        action=action,
         version_ok=version_ok,
-        unknown_fields_ok=not (set(data.keys()) - allowed),
+        unknown_fields_ok=not (set(data.keys()) - _INIT_MARKET_3P_FIELDS),
         distinct_accounts_ok=distinct_accounts_ok,
     )
-    if surface_err is not None:
-        return surface_err
 
-    sig_err_a = _verify_perp_op_signature(
-        config=ctx.config,
-        signer_pubkey=account_a_pubkey,
-        nonce=nonce_a,
-        signature=sig_a,
-        op=data,
-        nonces=ctx.nonces,
-        block_timestamp=ctx.block_timestamp,
-    )
-    if sig_err_a is not None:
-        return f"account_a signature invalid: {sig_err_a}"
 
-    sig_err_b = _verify_perp_op_signature(
-        config=ctx.config,
-        signer_pubkey=account_b_pubkey,
-        nonce=nonce_b,
-        signature=sig_b,
-        op=data,
-        nonces=ctx.nonces,
-        block_timestamp=ctx.block_timestamp,
-    )
-    if sig_err_b is not None:
-        return f"account_b signature invalid: {sig_err_b}"
-
-    sig_err_c = _verify_perp_op_signature(
-        config=ctx.config,
-        signer_pubkey=account_c_pubkey,
-        nonce=nonce_c,
-        signature=sig_c,
-        op=data,
-        nonces=ctx.nonces,
-        block_timestamp=ctx.block_timestamp,
-    )
-    if sig_err_c is not None:
-        return f"account_c signature invalid: {sig_err_c}"
-
+def _commit_init_market_3p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, spec: _InitMarket3pSpec) -> str | None:
     ctx.perps_version = max(ctx.perps_version, PERPS_STATE_VERSION_V5)
-    # Only generated-model domain rejects are user-facing here; internal
-    # helper defects must bubble to apply_perp_ops' sanitizer.
     try:
         init_state = _ch3p_init_state_dict()
     except ValueError as exc:
         return str(exc)
-    ctx.markets[market_id] = PerpClearinghouse3pTransferMarketState(
-        quote_asset=quote_asset,
-        account_a_pubkey=account_a_pubkey,
-        account_b_pubkey=account_b_pubkey,
-        account_c_pubkey=account_c_pubkey,
+    ctx.markets[op.market_id] = PerpClearinghouse3pTransferMarketState(
+        quote_asset=spec.quote_asset,
+        account_a_pubkey=spec.accounts.account_a_pubkey,
+        account_b_pubkey=spec.accounts.account_b_pubkey,
+        account_c_pubkey=spec.accounts.account_c_pubkey,
         state=init_state,
     )
     ctx.effects.append(
         {
             "i": i,
-            "market_id": market_id,
-            "action": action,
-            "account_a_pubkey": account_a_pubkey,
-            "account_b_pubkey": account_b_pubkey,
-            "account_c_pubkey": account_c_pubkey,
+            "market_id": op.market_id,
+            "action": op.action,
+            "account_a_pubkey": spec.accounts.account_a_pubkey,
+            "account_b_pubkey": spec.accounts.account_b_pubkey,
+            "account_c_pubkey": spec.accounts.account_c_pubkey,
         }
     )
     return None
+
+
+def _apply_init_market_3p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | None:
+    action = op.action
+    market_id = op.market_id
+    version = op.version
+    data = op.data
+    version_ok = version == PERP_OP_VERSION_CH3P_V1_1
+    version_err = _init_market_3p_version_error(action, version_ok=version_ok)
+    if version_err is not None:
+        return version_err
+    if market_id in ctx.markets:
+        return "market already exists"
+
+    quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
+    accounts = _read_ch3p_position_accounts(data)
+    distinct_accounts_ok = _init_market_3p_distinct_accounts_ok(accounts)
+    auth = _read_ch3p_position_auth(data)
+
+    surface_err = _init_market_3p_surface_error(
+        action=action,
+        data=data,
+        version_ok=version_ok,
+        distinct_accounts_ok=distinct_accounts_ok,
+    )
+    if surface_err is not None:
+        return surface_err
+
+    sig_err = _verify_ch3p_position_signatures(ctx, data=data, accounts=accounts, auth=auth)
+    if sig_err is not None:
+        return sig_err
+
+    return _commit_init_market_3p(
+        ctx,
+        i=i,
+        op=op,
+        spec=_InitMarket3pSpec(quote_asset=quote_asset, accounts=accounts),
+    )
 
 
 def _apply_init_market_np(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | None:
