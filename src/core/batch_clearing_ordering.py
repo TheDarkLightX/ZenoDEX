@@ -170,6 +170,18 @@ def _is_better_ab_key(candidate: Tuple[int, int, Tuple[str, ...]], best: Tuple[i
     return cand_ids < best_ids
 
 
+def _is_strict_ab_improvement(
+    candidate_a: Amount,
+    candidate_b: Amount,
+    base_a: Amount,
+    base_b: Amount,
+) -> bool:
+    """Return true when `(A, B)` improves lexicographically."""
+    if candidate_a != base_a:
+        return candidate_a > base_a
+    return candidate_b > base_b
+
+
 def _greedy_marginal_ab(
     remaining: List[Intent],
     pool_state: PoolState,
@@ -187,33 +199,21 @@ def _greedy_marginal_ab(
     best_idx = -1
     best_a: Amount = 0
     best_b: Amount = 0
-    best_id: str = ""
-    best_tightness: int = -1  # surplus; lower = tighter
+    best_key: tuple[int, int, str] | None = None
     best_new_reserves = reserves
 
     for i, intent in enumerate(remaining):
         a, b, new_r = _simulate_swap_reserves(intent, pool_state, reserves)
         if a == 0:
             continue
-        iid = intent.intent_id
-        # Tightest first: lowest absolute surplus (b), then highest A, then lowest id.
-        is_better = False
-        if best_idx == -1:
-            is_better = True
-        elif b < best_tightness:
-            is_better = True
-        elif b == best_tightness:
-            if a > best_a:
-                is_better = True
-            elif a == best_a and iid < best_id:
-                is_better = True
 
-        if is_better:
+        # Tightest first: lowest surplus, then highest A, then lowest id.
+        candidate_key = (int(b), -int(a), str(intent.intent_id))
+        if best_key is None or candidate_key < best_key:
             best_idx = i
             best_a = a
             best_b = b
-            best_id = iid
-            best_tightness = b
+            best_key = candidate_key
             best_new_reserves = new_r
 
     return best_idx, best_a, best_b, best_new_reserves
@@ -368,20 +368,11 @@ def _refine_b_ordering(
             result[i], result[i + 1] = result[i + 1], result[i]
             new_a, new_b = _eval_ordering_ab(result, pool_state, reserves)
 
-            if new_a < base_a:
-                # A decreased: revert swap
-                result[i], result[i + 1] = result[i + 1], result[i]
-            elif new_a == base_a and new_b > base_b:
-                # A unchanged, B improved: keep the swap
-                base_b = new_b
-                improved = True
-            elif new_a > base_a:
-                # A increased (unexpected but beneficial): keep the swap
+            if _is_strict_ab_improvement(new_a, new_b, base_a, base_b):
                 base_a = new_a
                 base_b = new_b
                 improved = True
             else:
-                # A unchanged, B not improved: revert swap
                 result[i], result[i + 1] = result[i + 1], result[i]
 
     return result
@@ -424,13 +415,7 @@ def _refine_ab_ordering_global(
                 cand_a, cand_b = _eval_ordering_ab(result, pool_state, reserves)
                 result[i], result[j] = result[j], result[i]
 
-                better = False
-                if cand_a > best_a:
-                    better = True
-                elif cand_a == best_a and cand_b > best_b:
-                    better = True
-
-                if not better:
+                if not _is_strict_ab_improvement(cand_a, cand_b, best_a, best_b):
                     continue
 
                 best_pair = (i, j)
