@@ -153,7 +153,7 @@ def _template_non_negative_int(value: Any, *, name: str) -> int:
 
 
 def _template_coerced_int(value: Any, *, name: str) -> int:
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{name} must be an int")
     return int(value)
 
