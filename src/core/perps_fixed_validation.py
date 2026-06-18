@@ -135,6 +135,13 @@ def _validate_state_values(*, state: Mapping[str, Value], bool_keys: set[str]) -
         raise TypeError(f"state[{key!r}] must be an int")
 
 
+def _state_int(state: Mapping[str, Value], key: str) -> int:
+    value = state[key]
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"state[{key!r}] must be an int")
+    return value
+
+
 def validate_fixed_clearinghouse_shape(request: FixedClearinghouseValidationRequest) -> None:
     """Validate shared fixed-participant clearinghouse constructor shape."""
     _validate_market_identity(request)
@@ -147,15 +154,15 @@ def validate_fixed_clearinghouse_shape(request: FixedClearinghouseValidationRequ
 
 def validate_two_party_clearinghouse_invariants(state: Mapping[str, Value]) -> None:
     """Validate 2-party net-zero exposure and quote-e8 conservation."""
-    pos_a = int(state["position_base_a"])
-    pos_b = int(state["position_base_b"])
+    pos_a = _state_int(state, "position_base_a")
+    pos_b = _state_int(state, "position_base_b")
     if pos_a + pos_b != 0:
         raise ValueError("clearinghouse state must satisfy position_base_a + position_base_b == 0")
 
-    coll_a = int(state["collateral_e8_a"])
-    coll_b = int(state["collateral_e8_b"])
-    fee_pool = int(state["fee_pool_e8"])
-    net_deposited = int(state["net_deposited_e8"])
+    coll_a = _state_int(state, "collateral_e8_a")
+    coll_b = _state_int(state, "collateral_e8_b")
+    fee_pool = _state_int(state, "fee_pool_e8")
+    net_deposited = _state_int(state, "net_deposited_e8")
     if net_deposited != coll_a + coll_b + fee_pool:
         raise ValueError(
             "clearinghouse state must satisfy "
@@ -165,19 +172,19 @@ def validate_two_party_clearinghouse_invariants(state: Mapping[str, Value]) -> N
 
 def validate_three_party_transfer_clearinghouse_invariants(state: Mapping[str, Value]) -> None:
     """Validate 3-party transfer netting, flat-slot, and quote-e8 conservation."""
-    pos_a = int(state["position_base_a"])
-    pos_b = int(state["position_base_b"])
-    pos_c = int(state["position_base_c"])
+    pos_a = _state_int(state, "position_base_a")
+    pos_b = _state_int(state, "position_base_b")
+    pos_c = _state_int(state, "position_base_c")
     if pos_a + pos_b + pos_c != 0:
         raise ValueError("clearinghouse state must satisfy position_base_a + position_base_b + position_base_c == 0")
     if not (pos_a == 0 or pos_b == 0 or pos_c == 0):
         raise ValueError("clearinghouse state must satisfy at least one flat position")
 
-    coll_a = int(state["collateral_e8_a"])
-    coll_b = int(state["collateral_e8_b"])
-    coll_c = int(state["collateral_e8_c"])
-    fee_pool = int(state["fee_pool_e8"])
-    net_deposited = int(state["net_deposited_e8"])
+    coll_a = _state_int(state, "collateral_e8_a")
+    coll_b = _state_int(state, "collateral_e8_b")
+    coll_c = _state_int(state, "collateral_e8_c")
+    fee_pool = _state_int(state, "fee_pool_e8")
+    net_deposited = _state_int(state, "net_deposited_e8")
     if net_deposited != coll_a + coll_b + coll_c + fee_pool:
         raise ValueError(
             "clearinghouse state must satisfy "
