@@ -133,11 +133,19 @@ Required promotion evidence:
 4. Replay review: explicit sign-off that changing the default route selector is
    acceptable for the target network/version.
 
+Reproducible advisory benchmark:
+
+```bash
+python3 tools/benchmark_split_routing_profiles.py --profiles adaptive_v6,dense24,staircase_exact
+```
+
+The report compares deterministic quote counts and brute-force oracle parity.
+It is promotion evidence, not a default-profile flip.
+
 ## Next Work
 
 Short-term, safe:
 
-- Add a benchmark/report tool for exact-in split profiles.
 - Add a larger deterministic hostile corpus comparing staircase against brute
   force for bounded `D`.
 - Keep `adaptive_v6` as default until replay compatibility is reviewed.
