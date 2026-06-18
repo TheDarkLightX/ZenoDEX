@@ -237,9 +237,9 @@ def _candidate_hash_for_sort(candidate: UniformBatchCertificateV1) -> str:
 
 
 def _summarize_reports(reports: Sequence[dict[str, object]]) -> dict[str, object]:
-    ok_values = [bool(report["ok"]) for report in reports]
-    cover_values = [bool(report["dominance_cover_ok"]) for report in reports]
-    structural_values = [bool(report["structural_verify_ok"]) for report in reports]
+    ok_values = [report.get("ok") is True for report in reports]
+    cover_values = [report.get("dominance_cover_ok") is True for report in reports]
+    structural_values = [report.get("structural_verify_ok") is True for report in reports]
     uncovered = [int(report["uncovered_full_count"]) for report in reports]
     return {
         "count": len(reports),
