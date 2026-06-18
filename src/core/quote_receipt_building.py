@@ -5,6 +5,11 @@ from __future__ import annotations
 from typing import Any, Dict, Tuple
 
 from ..core.quote_receipt_gates import _require_receipt_int
+from ..core.quote_receipt_limits import (
+    ROUTE_QUOTE_RECEIPT_MAX_HOPS_PER_LEG,
+    ROUTE_QUOTE_RECEIPT_MAX_LEGS,
+    ROUTE_QUOTE_RECEIPT_MAX_POOLS,
+)
 from ..core.routing import RouteQuote
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 from ..state.pools import PoolState
@@ -86,9 +91,13 @@ def _route_quote_receipt_legs_and_pool_fingerprints(
     quote: RouteQuote,
     pools_by_id: Dict[str, PoolState],
 ) -> Tuple[list[Dict[str, Any]], Dict[str, str]]:
+    if not quote.legs or len(quote.legs) > ROUTE_QUOTE_RECEIPT_MAX_LEGS:
+        raise ValueError(f"quote legs must be in [1, {ROUTE_QUOTE_RECEIPT_MAX_LEGS}]")
     legs: list[Dict[str, Any]] = []
     pool_fps: Dict[str, str] = {}
     for leg in quote.legs:
+        if not leg.hops or len(leg.hops) > ROUTE_QUOTE_RECEIPT_MAX_HOPS_PER_LEG:
+            raise ValueError(f"quote leg hops must be in [1, {ROUTE_QUOTE_RECEIPT_MAX_HOPS_PER_LEG}]")
         hops = [
             _route_quote_receipt_hop_payload(
                 hop=hop,
@@ -104,6 +113,8 @@ def _route_quote_receipt_legs_and_pool_fingerprints(
                 "hops": hops,
             }
         )
+        if len(pool_fps) > ROUTE_QUOTE_RECEIPT_MAX_POOLS:
+            raise ValueError(f"quote pools exceeds maximum {ROUTE_QUOTE_RECEIPT_MAX_POOLS}")
     return legs, pool_fps
 
 

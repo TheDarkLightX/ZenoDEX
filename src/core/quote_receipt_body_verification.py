@@ -17,6 +17,10 @@ from ..core.quote_receipt_gates import (
     evaluate_route_quote_receipt_pool_snapshot_gate,
     evaluate_route_quote_receipt_precheck_gate,
 )
+from ..core.quote_receipt_limits import (
+    ROUTE_QUOTE_RECEIPT_MAX_LEGS,
+    ROUTE_QUOTE_RECEIPT_MAX_POOLS,
+)
 from ..state.pools import PoolState
 
 
@@ -138,9 +142,9 @@ def _precheck_receipt_body(
         quote_epoch_value = _require_receipt_int(body.get("quote_epoch"))
         quote_epoch_ok = quote_epoch_value is not None and quote_epoch_value >= 0
     pools = body.get("pools")
-    pools_object_ok = isinstance(pools, dict)
+    pools_object_ok = isinstance(pools, dict) and len(pools) <= ROUTE_QUOTE_RECEIPT_MAX_POOLS
     legs = body.get("legs")
-    legs_list_ok = isinstance(legs, list) and bool(legs)
+    legs_list_ok = isinstance(legs, list) and 0 < len(legs) <= ROUTE_QUOTE_RECEIPT_MAX_LEGS
     precheck = evaluate_route_quote_receipt_precheck_gate(
         schema_ok=schema_ok,
         receipt_hash_present=receipt_hash_present,

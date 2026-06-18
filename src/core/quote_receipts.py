@@ -46,6 +46,7 @@ from ..core.quote_receipt_hop_replay import _ReceiptHopData
 from ..core.quote_receipt_hop_replay import (
     replay_and_apply_hop as _replay_and_apply_hop_with_reserve_lookup,
 )
+from ..core.quote_receipt_limits import ROUTE_QUOTE_RECEIPT_MAX_HOPS_PER_LEG
 from ..state.pools import PoolState
 
 __all__ = [
@@ -196,7 +197,7 @@ def _verify_receipt_leg(ctx: _ReceiptLegContext, leg: object) -> Tuple[bool, str
     if not isinstance(leg, dict):
         return False, "bad_leg", 0, 0
     hops = leg.get("hops")
-    if not isinstance(hops, list) or not hops:
+    if not isinstance(hops, list) or not hops or len(hops) > ROUTE_QUOTE_RECEIPT_MAX_HOPS_PER_LEG:
         return False, "bad_hops", 0, 0
 
     leg_in = _require_receipt_int(leg.get("amount_in"))

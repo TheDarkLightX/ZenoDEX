@@ -1,0 +1,5 @@
+"""Shape limits for route quote receipts."""
+
+ROUTE_QUOTE_RECEIPT_MAX_POOLS = 16
+ROUTE_QUOTE_RECEIPT_MAX_LEGS = 8
+ROUTE_QUOTE_RECEIPT_MAX_HOPS_PER_LEG = 4

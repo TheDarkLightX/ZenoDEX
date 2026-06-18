@@ -7,6 +7,11 @@ import pytest
 
 import src.core.quote_receipts as quote_receipts_module
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
+from src.core.quote_receipt_limits import (
+    ROUTE_QUOTE_RECEIPT_MAX_HOPS_PER_LEG,
+    ROUTE_QUOTE_RECEIPT_MAX_LEGS,
+    ROUTE_QUOTE_RECEIPT_MAX_POOLS,
+)
 from src.core.quote_receipts import (
     QUOTE_RECEIPT_CERTIFICATE_AMOUNT_OUT_MISMATCH,
     QUOTE_RECEIPT_CERTIFICATE_ASSET_IN_MISMATCH,
@@ -1092,6 +1097,66 @@ def test_quote_receipt_verifier_rejects_missing_working_pool_via_inconsistent_po
     ok, err = verify_route_quote_receipt(mutated, pools_by_id=pools)
     assert not ok
     assert err == "missing_working_pool"
+
+
+def test_quote_receipt_verifier_rejects_oversized_pool_snapshot_map() -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+    mutated = copy.deepcopy(receipt)
+    mutated["body"]["pools"] = {
+        f"pool-{index}": "0x" + f"{index:064x}"[-64:]
+        for index in range(ROUTE_QUOTE_RECEIPT_MAX_POOLS + 1)
+    }
+    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+
+    ok, err = verify_route_quote_receipt(mutated, pools_by_id=pools)
+
+    assert not ok
+    assert err == "bad_pools"
+
+
+def test_quote_receipt_verifier_rejects_oversized_leg_list() -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+    mutated = copy.deepcopy(receipt)
+    leg = copy.deepcopy(mutated["body"]["legs"][0])
+    mutated["body"]["legs"] = [copy.deepcopy(leg) for _ in range(ROUTE_QUOTE_RECEIPT_MAX_LEGS + 1)]
+    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+
+    ok, err = verify_route_quote_receipt(mutated, pools_by_id=pools)
+
+    assert not ok
+    assert err == "bad_legs"
+
+
+def test_quote_receipt_verifier_rejects_oversized_hop_list() -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+    mutated = copy.deepcopy(receipt)
+    hop = copy.deepcopy(mutated["body"]["legs"][0]["hops"][0])
+    mutated["body"]["legs"][0]["hops"] = [
+        copy.deepcopy(hop)
+        for _ in range(ROUTE_QUOTE_RECEIPT_MAX_HOPS_PER_LEG + 1)
+    ]
+    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+
+    ok, err = verify_route_quote_receipt(mutated, pools_by_id=pools)
+
+    assert not ok
+    assert err == "bad_hops"
+
+
+def test_quote_receipt_builder_rejects_quote_outside_shape_limits() -> None:
+    pools = {"p_ab": _pool("p_ab", "A", "B", 1_000, 1_000, 0)}
+    hop = RouteHop(pool_id="p_ab", asset_in="A", asset_out="B", amount_in=1, amount_out=1)
+    leg = RouteLeg(hops=(hop,), amount_in=1, amount_out=1)
+    quote = RouteQuote(
+        asset_in="A",
+        asset_out="B",
+        amount_in=ROUTE_QUOTE_RECEIPT_MAX_LEGS + 1,
+        amount_out=ROUTE_QUOTE_RECEIPT_MAX_LEGS + 1,
+        legs=tuple(copy.deepcopy(leg) for _ in range(ROUTE_QUOTE_RECEIPT_MAX_LEGS + 1)),
+    )
+
+    with pytest.raises(ValueError, match="quote legs must be"):
+        make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools)
 
 
 def test_quote_receipt_verifier_rejects_exact_out_impossible_hop_as_quote_error() -> None:
