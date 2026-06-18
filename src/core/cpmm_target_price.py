@@ -9,6 +9,7 @@ continuous formula as design guidance and solves the integer refinement exactly.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import Tuple
 
 from ..state.balances import Amount
@@ -37,10 +38,50 @@ class CpmmTargetPriceRequest:
     max_amount_in: Amount = DEX_SWAP_AMOUNT_MAX
 
 
+class CpmmTargetPriceAction(str, Enum):
+    """Trade direction selected to cross a target reserve-ratio price."""
+
+    NONE = "none"
+    SELL_ASSET0_FOR_ASSET1 = "sell_asset0_for_asset1"
+    SELL_ASSET1_FOR_ASSET0 = "sell_asset1_for_asset0"
+
+
+@dataclass(frozen=True)
+class CpmmPoolTargetPriceRequest:
+    """Inputs for moving the canonical pool price reserve1 / reserve0."""
+
+    reserve0: Amount
+    reserve1: Amount
+    fee_bps: int
+    target_price_num: int
+    target_price_den: int
+    max_amount_in: Amount = DEX_SWAP_AMOUNT_MAX
+
+
+@dataclass(frozen=True)
+class CpmmPoolTargetPriceResult:
+    """Minimum trade that crosses a target reserve1 / reserve0 price."""
+
+    action: CpmmTargetPriceAction
+    amount_in: Amount
+    amount_out: Amount
+    new_reserves: Tuple[Amount, Amount]
+
+
 @dataclass(frozen=True)
 class _ValidatedCpmmTargetPriceRequest:
     reserve_in: int
     reserve_out: int
+    fee_bps: int
+    target_price_num: int
+    target_price_den: int
+    max_amount_in: int
+
+
+@dataclass(frozen=True)
+class _ValidatedCpmmPoolTargetPriceRequest:
+    reserve0: int
+    reserve1: int
     fee_bps: int
     target_price_num: int
     target_price_den: int
@@ -56,6 +97,27 @@ def _price_at_most(
 ) -> bool:
     """Return whether reserve_out / reserve_in <= target_price_num / target_price_den."""
     return reserve_out * target_price_den <= target_price_num * reserve_in
+
+
+def _price_at_least(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    target_price_num: int,
+    target_price_den: int,
+) -> bool:
+    """Return whether reserve_out / reserve_in >= target_price_num / target_price_den."""
+    return reserve_out * target_price_den >= target_price_num * reserve_in
+
+
+def _price_equal(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    target_price_num: int,
+    target_price_den: int,
+) -> bool:
+    return reserve_out * target_price_den == target_price_num * reserve_in
 
 
 def _validate_target_price_request(request: CpmmTargetPriceRequest) -> _ValidatedCpmmTargetPriceRequest:
@@ -91,6 +153,29 @@ def _validate_target_price_request(request: CpmmTargetPriceRequest) -> _Validate
             minimum=0,
             maximum=DEX_SWAP_AMOUNT_MAX,
         ),
+    )
+
+
+def _validate_pool_target_price_request(
+    request: CpmmPoolTargetPriceRequest,
+) -> _ValidatedCpmmPoolTargetPriceRequest:
+    checked = _validate_target_price_request(
+        CpmmTargetPriceRequest(
+            reserve_in=request.reserve0,
+            reserve_out=request.reserve1,
+            fee_bps=request.fee_bps,
+            target_price_num=request.target_price_num,
+            target_price_den=request.target_price_den,
+            max_amount_in=request.max_amount_in,
+        )
+    )
+    return _ValidatedCpmmPoolTargetPriceRequest(
+        reserve0=checked.reserve_in,
+        reserve1=checked.reserve_out,
+        fee_bps=checked.fee_bps,
+        target_price_num=checked.target_price_num,
+        target_price_den=checked.target_price_den,
+        max_amount_in=checked.max_amount_in,
     )
 
 
@@ -209,3 +294,84 @@ def minimum_exact_in_to_reach_cpmm_price_at_most(
         return None
 
     return _binary_search_minimum_amount(request=checked, high=high)
+
+
+def minimum_exact_in_to_reach_cpmm_pool_price(
+    request: CpmmPoolTargetPriceRequest,
+) -> CpmmPoolTargetPriceResult | None:
+    """Find the minimum trade that crosses a target reserve1/reserve0 price.
+
+    If the current pool price is above the target, the selected trade sells
+    asset0 into the pool and buys asset1. If it is below the target, the selected
+    trade sells asset1 and buys asset0. The result is exact under the same
+    integer CPMM semantics as ``minimum_exact_in_to_reach_cpmm_price_at_most``.
+    """
+    checked = _validate_pool_target_price_request(request)
+    if _price_equal(
+        reserve_in=checked.reserve0,
+        reserve_out=checked.reserve1,
+        target_price_num=checked.target_price_num,
+        target_price_den=checked.target_price_den,
+    ):
+        return CpmmPoolTargetPriceResult(
+            action=CpmmTargetPriceAction.NONE,
+            amount_in=0,
+            amount_out=0,
+            new_reserves=(checked.reserve0, checked.reserve1),
+        )
+
+    if _price_at_most(
+        reserve_in=checked.reserve0,
+        reserve_out=checked.reserve1,
+        target_price_num=checked.target_price_num,
+        target_price_den=checked.target_price_den,
+    ):
+        return _minimum_asset1_in_to_reach_pool_price_at_least(checked)
+    return _minimum_asset0_in_to_reach_pool_price_at_most(checked)
+
+
+def _minimum_asset0_in_to_reach_pool_price_at_most(
+    request: _ValidatedCpmmPoolTargetPriceRequest,
+) -> CpmmPoolTargetPriceResult | None:
+    result = minimum_exact_in_to_reach_cpmm_price_at_most(
+        CpmmTargetPriceRequest(
+            reserve_in=request.reserve0,
+            reserve_out=request.reserve1,
+            fee_bps=request.fee_bps,
+            target_price_num=request.target_price_num,
+            target_price_den=request.target_price_den,
+            max_amount_in=request.max_amount_in,
+        )
+    )
+    if result is None:
+        return None
+    return CpmmPoolTargetPriceResult(
+        action=CpmmTargetPriceAction.SELL_ASSET0_FOR_ASSET1,
+        amount_in=result.amount_in,
+        amount_out=result.amount_out,
+        new_reserves=result.new_reserves,
+    )
+
+
+def _minimum_asset1_in_to_reach_pool_price_at_least(
+    request: _ValidatedCpmmPoolTargetPriceRequest,
+) -> CpmmPoolTargetPriceResult | None:
+    result = minimum_exact_in_to_reach_cpmm_price_at_most(
+        CpmmTargetPriceRequest(
+            reserve_in=request.reserve1,
+            reserve_out=request.reserve0,
+            fee_bps=request.fee_bps,
+            target_price_num=request.target_price_den,
+            target_price_den=request.target_price_num,
+            max_amount_in=request.max_amount_in,
+        )
+    )
+    if result is None:
+        return None
+    new_reserve1, new_reserve0 = result.new_reserves
+    return CpmmPoolTargetPriceResult(
+        action=CpmmTargetPriceAction.SELL_ASSET1_FOR_ASSET0,
+        amount_in=result.amount_in,
+        amount_out=result.amount_out,
+        new_reserves=(new_reserve0, new_reserve1),
+    )

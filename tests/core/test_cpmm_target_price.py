@@ -4,8 +4,12 @@ import pytest
 
 from src.core.cpmm import swap_exact_in
 from src.core.cpmm_target_price import (
+    CpmmPoolTargetPriceRequest,
+    CpmmPoolTargetPriceResult,
+    CpmmTargetPriceAction,
     CpmmTargetPriceRequest,
     CpmmTargetPriceResult,
+    minimum_exact_in_to_reach_cpmm_pool_price,
     minimum_exact_in_to_reach_cpmm_price_at_most,
 )
 
@@ -18,6 +22,16 @@ def _price_at_most(
     target_price_den: int,
 ) -> bool:
     return reserve_out * target_price_den <= target_price_num * reserve_in
+
+
+def _price_at_least(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    target_price_num: int,
+    target_price_den: int,
+) -> bool:
+    return reserve_out * target_price_den >= target_price_num * reserve_in
 
 
 def _brute_force_minimum(
@@ -58,6 +72,99 @@ def _brute_force_minimum(
                 amount_in=amount_in,
                 amount_out=amount_out,
                 new_reserves=new_reserves,
+            )
+    return None
+
+
+def _try_swap_exact_in(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_in: int,
+    fee_bps: int,
+) -> tuple[int, tuple[int, int]] | None:
+    if amount_in == 0:
+        return 0, (reserve_in, reserve_out)
+    try:
+        return swap_exact_in(
+            reserve_in,
+            reserve_out,
+            amount_in,
+            fee_bps,
+        )
+    except ValueError as exc:
+        if str(exc) not in {
+            "net_in must be positive after fees",
+            "amount_out is zero (trade too small)",
+        }:
+            raise
+        return None
+
+
+def _brute_force_pool_target(
+    *,
+    reserve0: int,
+    reserve1: int,
+    fee_bps: int,
+    target_price_num: int,
+    target_price_den: int,
+    max_amount_in: int,
+) -> CpmmPoolTargetPriceResult | None:
+    if reserve1 * target_price_den == target_price_num * reserve0:
+        return CpmmPoolTargetPriceResult(
+            action=CpmmTargetPriceAction.NONE,
+            amount_in=0,
+            amount_out=0,
+            new_reserves=(reserve0, reserve1),
+        )
+
+    if reserve1 * target_price_den > target_price_num * reserve0:
+        for amount_in in range(max_amount_in + 1):
+            swap_result = _try_swap_exact_in(
+                reserve_in=reserve0,
+                reserve_out=reserve1,
+                amount_in=amount_in,
+                fee_bps=fee_bps,
+            )
+            if swap_result is None:
+                continue
+            amount_out, new_reserves = swap_result
+            if _price_at_most(
+                reserve_in=new_reserves[0],
+                reserve_out=new_reserves[1],
+                target_price_num=target_price_num,
+                target_price_den=target_price_den,
+            ):
+                return CpmmPoolTargetPriceResult(
+                    action=CpmmTargetPriceAction.SELL_ASSET0_FOR_ASSET1,
+                    amount_in=amount_in,
+                    amount_out=amount_out,
+                    new_reserves=new_reserves,
+                )
+        return None
+
+    for amount_in in range(max_amount_in + 1):
+        swap_result = _try_swap_exact_in(
+            reserve_in=reserve1,
+            reserve_out=reserve0,
+            amount_in=amount_in,
+            fee_bps=fee_bps,
+        )
+        if swap_result is None:
+            continue
+        amount_out, reversed_reserves = swap_result
+        new_reserve1, new_reserve0 = reversed_reserves
+        if _price_at_least(
+            reserve_in=new_reserve0,
+            reserve_out=new_reserve1,
+            target_price_num=target_price_num,
+            target_price_den=target_price_den,
+        ):
+            return CpmmPoolTargetPriceResult(
+                action=CpmmTargetPriceAction.SELL_ASSET1_FOR_ASSET0,
+                amount_in=amount_in,
+                amount_out=amount_out,
+                new_reserves=(new_reserve0, new_reserve1),
             )
     return None
 
@@ -190,4 +297,90 @@ def test_target_price_sizing_rejects_bool_numeric_fields(kwargs: dict[str, objec
     with pytest.raises(TypeError):
         minimum_exact_in_to_reach_cpmm_price_at_most(
             CpmmTargetPriceRequest(**base)  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize(
+    "reserve0,reserve1,fee_bps,target_num,target_den,max_amount",
+    [
+        (100, 200, 0, 1, 1, 200),
+        (100, 200, 30, 1, 1, 200),
+        (200, 100, 30, 1, 1, 200),
+        (500, 250, 100, 3, 2, 300),
+        (75, 300, 50, 2, 1, 500),
+        (1_000, 1_000, 30, 1, 1, 600),
+        (100, 200, 10_000, 1, 1, 200),
+    ],
+)
+def test_pool_target_price_sizing_matches_bruteforce_oracle(
+    reserve0: int,
+    reserve1: int,
+    fee_bps: int,
+    target_num: int,
+    target_den: int,
+    max_amount: int,
+) -> None:
+    expected = _brute_force_pool_target(
+        reserve0=reserve0,
+        reserve1=reserve1,
+        fee_bps=fee_bps,
+        target_price_num=target_num,
+        target_price_den=target_den,
+        max_amount_in=max_amount,
+    )
+
+    got = minimum_exact_in_to_reach_cpmm_pool_price(
+        CpmmPoolTargetPriceRequest(
+            reserve0=reserve0,
+            reserve1=reserve1,
+            fee_bps=fee_bps,
+            target_price_num=target_num,
+            target_price_den=target_den,
+            max_amount_in=max_amount,
+        )
+    )
+
+    assert got == expected
+
+
+def test_pool_target_price_sizing_returns_none_when_raising_price_unreachable() -> None:
+    got = minimum_exact_in_to_reach_cpmm_pool_price(
+        CpmmPoolTargetPriceRequest(
+            reserve0=10_000,
+            reserve1=100,
+            fee_bps=30,
+            target_price_num=1,
+            target_price_den=1,
+            max_amount_in=5,
+        )
+    )
+
+    assert got is None
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"reserve0": True},
+        {"reserve1": True},
+        {"fee_bps": True},
+        {"target_price_num": True},
+        {"target_price_den": True},
+        {"max_amount_in": True},
+    ],
+)
+def test_pool_target_price_sizing_rejects_bool_numeric_fields(kwargs: dict[str, object]) -> None:
+    base: dict[str, object] = {
+        "reserve0": 100,
+        "reserve1": 200,
+        "fee_bps": 30,
+        "target_price_num": 1,
+        "target_price_den": 1,
+        "max_amount_in": 200,
+    }
+    base.update(kwargs)
+
+    with pytest.raises(TypeError):
+        minimum_exact_in_to_reach_cpmm_pool_price(
+            CpmmPoolTargetPriceRequest(**base)  # type: ignore[arg-type]
         )
