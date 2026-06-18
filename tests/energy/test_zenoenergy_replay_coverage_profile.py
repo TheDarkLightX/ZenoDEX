@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from tools import check_zenoenergy_replay_coverage_profile as coverage_tool
 from tools.check_zenoenergy_replay_coverage_profile import (
     coverage_profile_summary,
     main,
@@ -110,6 +111,31 @@ def test_cli_writes_coverage_profile_check(tmp_path: Path) -> None:
     assert rc == 0
     assert payload["ok"] is True
     assert payload["profile_type"] == "upba"
+
+
+def test_cli_rejects_truthy_string_coverage_ok(monkeypatch, tmp_path: Path) -> None:
+    real_report = tmp_path / "upba_real.json"
+    profile = tmp_path / "coverage.json"
+    real_report.write_text(json.dumps(_upba_real_report()), encoding="utf-8")
+    profile.write_text(json.dumps(_upba_coverage_profile()), encoding="utf-8")
+
+    def fake_validate_replay_coverage_profile(*, real_report, profile):
+        return {
+            "schema": "zenodex/energy/replay_coverage_profile_check/v1",
+            "ok": "true",
+            "profile_type": "upba",
+            "failed_count": 0,
+        }
+
+    monkeypatch.setattr(
+        coverage_tool,
+        "validate_replay_coverage_profile",
+        fake_validate_replay_coverage_profile,
+    )
+
+    rc = main(["--real-report", str(real_report), "--coverage-profile", str(profile)])
+
+    assert rc == 1
 
 
 def _upba_real_report() -> dict[str, object]:
