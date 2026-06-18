@@ -1677,6 +1677,32 @@ class _ClearinghouseCollateralRequest:
 
 
 @dataclass(frozen=True)
+class _Ch2pPositionAuth:
+    nonce_a: int
+    sig_a: str
+    nonce_b: int
+    sig_b: str
+
+
+@dataclass(frozen=True)
+class _Ch2pPositionAccounts:
+    account_a_pubkey: str
+    account_b_pubkey: str
+
+
+@dataclass(frozen=True)
+class _Ch2pPositionValues:
+    new_a: int
+    new_b: int
+
+
+@dataclass(frozen=True)
+class _InitMarket2pSpec:
+    quote_asset: str
+    accounts: _Ch2pPositionAccounts
+
+
+@dataclass(frozen=True)
 class _Ch3pPositionAuth:
     nonce_a: int
     sig_a: str
@@ -2128,27 +2154,81 @@ def _apply_ch3p_collateral(
     )
 
 
-def _apply_ch2p_set_position_pair(
-    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch2p_market: PerpClearinghouse2pMarketState
-) -> str | None:
-    action = op.action
-    data = op.data
-    version_ok = op.version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
-    if not version_ok:
-        surface_err = _evaluate_signed_surface(
-            action_kind=ACTION_SET_POSITION_PAIR,
-            action=action,
-            version_ok=False,
-            unknown_fields_ok=True,
+def _read_ch2p_position_auth(data: Mapping[str, Any]) -> _Ch2pPositionAuth:
+    return _Ch2pPositionAuth(
+        nonce_a=_require_int_u32_pos(data.get("nonce_a"), name="nonce_a"),
+        sig_a=_require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096),
+        nonce_b=_require_int_u32_pos(data.get("nonce_b"), name="nonce_b"),
+        sig_b=_require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096),
+    )
+
+
+def _read_ch2p_position_accounts(data: Mapping[str, Any]) -> _Ch2pPositionAccounts:
+    return _Ch2pPositionAccounts(
+        account_a_pubkey=_require_str(
+            data.get("account_a_pubkey"),
+            name="account_a_pubkey",
+            non_empty=True,
+            max_len=512,
+        ),
+        account_b_pubkey=_require_str(
+            data.get("account_b_pubkey"),
+            name="account_b_pubkey",
+            non_empty=True,
+            max_len=512,
+        ),
+    )
+
+
+def _read_ch2p_position_values(data: Mapping[str, Any]) -> _Ch2pPositionValues:
+    return _Ch2pPositionValues(
+        new_a=_require_int(data.get("new_position_base_a"), name="new_position_base_a", non_negative=False),
+        new_b=_require_int(data.get("new_position_base_b"), name="new_position_base_b", non_negative=False),
+    )
+
+
+def _ch2p_market_accounts_match_error(
+    accounts: _Ch2pPositionAccounts,
+    market: PerpClearinghouse2pMarketState,
+) -> tuple[Optional[str], bool]:
+    try:
+        a_b = _hex_to_bytes_allow_0x(accounts.account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
+        b_b = _hex_to_bytes_allow_0x(accounts.account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
+        ma_b = _hex_to_bytes_allow_0x(market.account_a_pubkey, name="market.account_a_pubkey", expected_nbytes=48)
+        mb_b = _hex_to_bytes_allow_0x(market.account_b_pubkey, name="market.account_b_pubkey", expected_nbytes=48)
+    except (TypeError, ValueError) as exc:
+        return str(exc), False
+    return None, bool(a_b == ma_b and b_b == mb_b)
+
+
+def _verify_ch2p_position_signatures(
+    ctx: _PerpApplyCtx,
+    *,
+    data: Mapping[str, Any],
+    accounts: _Ch2pPositionAccounts,
+    auth: _Ch2pPositionAuth,
+) -> Optional[str]:
+    signers = (
+        ("account_a", accounts.account_a_pubkey, auth.nonce_a, auth.sig_a),
+        ("account_b", accounts.account_b_pubkey, auth.nonce_b, auth.sig_b),
+    )
+    for label, signer_pubkey, nonce, signature in signers:
+        sig_err = _verify_perp_op_signature(
+            config=ctx.config,
+            signer_pubkey=signer_pubkey,
+            nonce=nonce,
+            signature=signature,
+            op=data,
+            nonces=ctx.nonces,
+            block_timestamp=ctx.block_timestamp,
         )
-        return surface_err or "set_position_pair requires perps.version=0.2 or 1.0"
+        if sig_err is not None:
+            return f"{label} signature invalid: {sig_err}"
+    return None
 
-    nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
-    sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
-    nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
-    sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
 
-    allowed = {
+_CH2P_SET_POSITION_PAIR_FIELDS = frozenset(
+    {
         "module",
         "version",
         "market_id",
@@ -2163,63 +2243,88 @@ def _apply_ch2p_set_position_pair(
         "nonce_b",
         "sig_b",
     }
-    unknown_fields_ok = not (set(data.keys()) - allowed)
-    if not unknown_fields_ok:
-        surface_err = _evaluate_signed_surface(
-            action_kind=ACTION_SET_POSITION_PAIR,
-            action=action,
-            version_ok=version_ok,
-            unknown_fields_ok=False,
-        )
-        return surface_err or "set_position_pair has unknown fields"
+)
 
-    account_a_pubkey = _require_str(data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512)
-    account_b_pubkey = _require_str(data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512)
-    try:
-        a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
-        b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
-        ma_b = _hex_to_bytes_allow_0x(ch2p_market.account_a_pubkey, name="market.account_a_pubkey", expected_nbytes=48)
-        mb_b = _hex_to_bytes_allow_0x(ch2p_market.account_b_pubkey, name="market.account_b_pubkey", expected_nbytes=48)
-    except (TypeError, ValueError) as exc:
-        return str(exc)
-    market_accounts_match_ok = bool(a_b == ma_b and b_b == mb_b)
 
-    new_a = _require_int(data.get("new_position_base_a"), name="new_position_base_a", non_negative=False)
-    new_b = _require_int(data.get("new_position_base_b"), name="new_position_base_b", non_negative=False)
+def _ch2p_position_version_error(action: str, *, version_ok: bool) -> Optional[str]:
+    if version_ok:
+        return None
+    surface_err = _evaluate_signed_surface(
+        action_kind=ACTION_SET_POSITION_PAIR,
+        action=action,
+        version_ok=False,
+        unknown_fields_ok=True,
+    )
+    return surface_err or "set_position_pair requires perps.version=0.2 or 1.0"
+
+
+def _ch2p_position_unknown_fields_error(
+    action: str,
+    *,
+    data: Mapping[str, Any],
+    version_ok: bool,
+) -> Optional[str]:
+    if not (set(data.keys()) - _CH2P_SET_POSITION_PAIR_FIELDS):
+        return None
     surface_err = _evaluate_signed_surface(
         action_kind=ACTION_SET_POSITION_PAIR,
         action=action,
         version_ok=version_ok,
-        unknown_fields_ok=unknown_fields_ok,
+        unknown_fields_ok=False,
+    )
+    return surface_err or "set_position_pair has unknown fields"
+
+
+def _ch2p_position_surface_error(
+    action: str,
+    *,
+    version_ok: bool,
+    market_accounts_match_ok: bool,
+    values: _Ch2pPositionValues,
+) -> Optional[str]:
+    return _evaluate_signed_surface(
+        action_kind=ACTION_SET_POSITION_PAIR,
+        action=action,
+        version_ok=version_ok,
+        unknown_fields_ok=True,
         market_accounts_match_ok=market_accounts_match_ok,
-        net_zero_ok=new_b == -new_a,
+        net_zero_ok=values.new_b == -values.new_a,
+    )
+
+
+def _apply_ch2p_set_position_pair(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, ch2p_market: PerpClearinghouse2pMarketState
+) -> str | None:
+    action = op.action
+    data = op.data
+    version_ok = op.version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+    version_err = _ch2p_position_version_error(action, version_ok=version_ok)
+    if version_err is not None:
+        return version_err
+
+    auth = _read_ch2p_position_auth(data)
+    field_err = _ch2p_position_unknown_fields_error(action, data=data, version_ok=version_ok)
+    if field_err is not None:
+        return field_err
+
+    accounts = _read_ch2p_position_accounts(data)
+    account_err, market_accounts_match_ok = _ch2p_market_accounts_match_error(accounts, ch2p_market)
+    if account_err is not None:
+        return account_err
+
+    values = _read_ch2p_position_values(data)
+    surface_err = _ch2p_position_surface_error(
+        action=action,
+        version_ok=version_ok,
+        market_accounts_match_ok=market_accounts_match_ok,
+        values=values,
     )
     if surface_err is not None:
         return surface_err
 
-    sig_err_a = _verify_perp_op_signature(
-        config=ctx.config,
-        signer_pubkey=account_a_pubkey,
-        nonce=nonce_a,
-        signature=sig_a,
-        op=data,
-        nonces=ctx.nonces,
-        block_timestamp=ctx.block_timestamp,
-    )
-    if sig_err_a is not None:
-        return f"account_a signature invalid: {sig_err_a}"
-
-    sig_err_b = _verify_perp_op_signature(
-        config=ctx.config,
-        signer_pubkey=account_b_pubkey,
-        nonce=nonce_b,
-        signature=sig_b,
-        op=data,
-        nonces=ctx.nonces,
-        block_timestamp=ctx.block_timestamp,
-    )
-    if sig_err_b is not None:
-        return f"account_b signature invalid: {sig_err_b}"
+    sig_err = _verify_ch2p_position_signatures(ctx, data=data, accounts=accounts, auth=auth)
+    if sig_err is not None:
+        return sig_err
 
     return _commit_clearinghouse_kernel_step(
         ctx,
@@ -2230,7 +2335,7 @@ def _apply_ch2p_set_position_pair(
             _ch2p_step,
             _ch2p_market_with_state,
             "set_position_pair",
-            {"new_position_base_a": new_a, "auth_ok": True},
+            {"new_position_base_a": values.new_a, "auth_ok": True},
         ),
     )
 
@@ -4075,47 +4180,8 @@ def _apply_init_market(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | None:
     return None
 
 
-def _apply_init_market_2p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | None:
-    action = op.action
-    market_id = op.market_id
-    version = op.version
-    data = op.data
-    version_ok = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
-    if not version_ok:
-        surface_err = _evaluate_signed_surface(
-            action_kind=ACTION_INIT_MARKET_2P,
-            action=action,
-            version_ok=False,
-            unknown_fields_ok=True,
-        )
-        return surface_err or "init_market_2p requires perps.version=0.2 or 1.0"
-    if market_id in ctx.markets:
-        return "market already exists"
-
-    quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
-    account_a_pubkey = _require_str(
-        data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512
-    )
-    account_b_pubkey = _require_str(
-        data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512
-    )
-    distinct_accounts_ok = account_a_pubkey != account_b_pubkey
-
-    # Distinctness must be enforced by pubkey bytes (not string representation).
-    try:
-        a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
-        b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
-        distinct_accounts_ok = bool(distinct_accounts_ok and a_b != b_b)
-    except (TypeError, ValueError):
-        # Fail later via signature verification (keeps errors attributed to the signer).
-        pass
-
-    nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
-    sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
-    nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
-    sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
-
-    allowed = {
+_INIT_MARKET_2P_FIELDS = frozenset(
+    {
         "module",
         "version",
         "market_id",
@@ -4129,64 +4195,107 @@ def _apply_init_market_2p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | No
         "nonce_b",
         "sig_b",
     }
+)
+
+
+def _init_market_2p_version_error(action: str, *, version_ok: bool) -> Optional[str]:
+    if version_ok:
+        return None
     surface_err = _evaluate_signed_surface(
         action_kind=ACTION_INIT_MARKET_2P,
         action=action,
+        version_ok=False,
+        unknown_fields_ok=True,
+    )
+    return surface_err or "init_market_2p requires perps.version=0.2 or 1.0"
+
+
+def _init_market_2p_distinct_accounts_ok(accounts: _Ch2pPositionAccounts) -> bool:
+    distinct_accounts_ok = accounts.account_a_pubkey != accounts.account_b_pubkey
+    try:
+        a_b = _hex_to_bytes_allow_0x(accounts.account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
+        b_b = _hex_to_bytes_allow_0x(accounts.account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
+    except (TypeError, ValueError):
+        return bool(distinct_accounts_ok)
+    return bool(distinct_accounts_ok and a_b != b_b)
+
+
+def _init_market_2p_surface_error(
+    action: str,
+    *,
+    data: Mapping[str, Any],
+    version_ok: bool,
+    distinct_accounts_ok: bool,
+) -> Optional[str]:
+    return _evaluate_signed_surface(
+        action_kind=ACTION_INIT_MARKET_2P,
+        action=action,
         version_ok=version_ok,
-        unknown_fields_ok=not (set(data.keys()) - allowed),
+        unknown_fields_ok=not (set(data.keys()) - _INIT_MARKET_2P_FIELDS),
         distinct_accounts_ok=distinct_accounts_ok,
     )
-    if surface_err is not None:
-        return surface_err
 
-    sig_err_a = _verify_perp_op_signature(
-        config=ctx.config,
-        signer_pubkey=account_a_pubkey,
-        nonce=nonce_a,
-        signature=sig_a,
-        op=data,
-        nonces=ctx.nonces,
-        block_timestamp=ctx.block_timestamp,
-    )
-    if sig_err_a is not None:
-        return f"account_a signature invalid: {sig_err_a}"
 
-    sig_err_b = _verify_perp_op_signature(
-        config=ctx.config,
-        signer_pubkey=account_b_pubkey,
-        nonce=nonce_b,
-        signature=sig_b,
-        op=data,
-        nonces=ctx.nonces,
-        block_timestamp=ctx.block_timestamp,
-    )
-    if sig_err_b is not None:
-        return f"account_b signature invalid: {sig_err_b}"
-
-    # Clearinghouse markets require perps state v5+ (market kind tags).
+def _commit_init_market_2p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, spec: _InitMarket2pSpec) -> str | None:
     ctx.perps_version = max(ctx.perps_version, PERPS_STATE_VERSION_V5)
-    # Only generated-model domain rejects are user-facing here; internal
-    # helper defects must bubble to apply_perp_ops' sanitizer.
     try:
         init_state = _ch2p_init_state_dict()
     except ValueError as exc:
         return str(exc)
-    ctx.markets[market_id] = PerpClearinghouse2pMarketState(
-        quote_asset=quote_asset,
-        account_a_pubkey=account_a_pubkey,
-        account_b_pubkey=account_b_pubkey,
+    ctx.markets[op.market_id] = PerpClearinghouse2pMarketState(
+        quote_asset=spec.quote_asset,
+        account_a_pubkey=spec.accounts.account_a_pubkey,
+        account_b_pubkey=spec.accounts.account_b_pubkey,
         state=init_state,
     )
     ctx.effects.append(
         {
             "i": i,
-            "market_id": market_id,
-            "action": action,
-            "account_a_pubkey": account_a_pubkey,
-            "account_b_pubkey": account_b_pubkey,
+            "market_id": op.market_id,
+            "action": op.action,
+            "account_a_pubkey": spec.accounts.account_a_pubkey,
+            "account_b_pubkey": spec.accounts.account_b_pubkey,
         }
     )
     return None
+
+
+def _apply_init_market_2p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) -> str | None:
+    action = op.action
+    market_id = op.market_id
+    version = op.version
+    data = op.data
+    version_ok = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+    version_err = _init_market_2p_version_error(action, version_ok=version_ok)
+    if version_err is not None:
+        return version_err
+    if market_id in ctx.markets:
+        return "market already exists"
+
+    quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
+    accounts = _read_ch2p_position_accounts(data)
+    distinct_accounts_ok = _init_market_2p_distinct_accounts_ok(accounts)
+    auth = _read_ch2p_position_auth(data)
+
+    surface_err = _init_market_2p_surface_error(
+        action=action,
+        data=data,
+        version_ok=version_ok,
+        distinct_accounts_ok=distinct_accounts_ok,
+    )
+    if surface_err is not None:
+        return surface_err
+
+    sig_err = _verify_ch2p_position_signatures(ctx, data=data, accounts=accounts, auth=auth)
+    if sig_err is not None:
+        return sig_err
+
+    return _commit_init_market_2p(
+        ctx,
+        i=i,
+        op=op,
+        spec=_InitMarket2pSpec(quote_asset=quote_asset, accounts=accounts),
+    )
 
 
 _INIT_MARKET_3P_FIELDS = frozenset(
