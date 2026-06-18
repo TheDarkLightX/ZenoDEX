@@ -145,13 +145,19 @@ def _check_intent_lint(entry: Mapping[str, Any]) -> None:
     _require(not hard_issues, f"{report_path}: intent lint reported hard issues")
 
     stats = _as_dict(report.get("stats"), ctx=f"{report_path}: stats")
-    _require(int(stats.get("nodes", -1)) == int(entry["nodes"]), f"{report_path}: nodes mismatch")
     _require(
-        int(stats.get("leaf_nodes", -1)) == int(entry["leaf_nodes"]),
+        _require_json_int(stats.get("nodes"), ctx=f"{report_path}: stats.nodes")
+        == _require_json_int(entry.get("nodes"), ctx=f"{report_path}: expected nodes"),
+        f"{report_path}: nodes mismatch",
+    )
+    _require(
+        _require_json_int(stats.get("leaf_nodes"), ctx=f"{report_path}: stats.leaf_nodes")
+        == _require_json_int(entry.get("leaf_nodes"), ctx=f"{report_path}: expected leaf_nodes"),
         f"{report_path}: leaf_nodes mismatch",
     )
     _require(
-        int(stats.get("leaf_nodes_mapped", -1)) == int(entry["leaf_nodes_mapped"]),
+        _require_json_int(stats.get("leaf_nodes_mapped"), ctx=f"{report_path}: stats.leaf_nodes_mapped")
+        == _require_json_int(entry.get("leaf_nodes_mapped"), ctx=f"{report_path}: expected leaf_nodes_mapped"),
         f"{report_path}: leaf_nodes_mapped mismatch",
     )
 
