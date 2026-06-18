@@ -2376,7 +2376,8 @@ def _check_wes_dominance_search(
     tool_text: str,
     test_text: str,
 ) -> list[EvidenceCheck]:
-    summary = report["summary"]
+    summary = report.get("summary")
+    safety = report.get("safety")
     doc_lower = doc_text.lower()
     limits_lower = " ".join(str(item).lower() for item in report.get("limits", []))
     negative_lower = " ".join(
@@ -2394,33 +2395,45 @@ def _check_wes_dominance_search(
         ),
         _expect_true(
             "wes_dominance_search.candidate_corpus",
-            int(report["input_candidates"]) == 120
-            and int(report["budget"]) == 60
-            and int(report["top_k"]) == 25
-            and int(summary["input_candidates"]) == int(report["input_candidates"])
+            isinstance(summary, dict)
+            and _json_int_equals(report.get("input_candidates"), 120)
+            and _json_int_equals(report.get("budget"), 60)
+            and _json_int_equals(report.get("top_k"), 25)
+            and _json_int_values_equal(
+                summary.get("input_candidates"),
+                report.get("input_candidates"),
+            )
             and "external/witnessenergysearch" in tool_text.lower()
             and "WES commit" in doc_text,
             "bounded WES candidate corpus and external source reference are stable",
         ),
         _expect_true(
             "wes_dominance_search.useful_ordering",
-            int(summary["model_online_checked"]) == int(report["budget"])
-            and int(summary["model_online_useful_at_k"]) >= 24
-            and int(summary["declared_priority_useful_at_k"]) >= 24
-            and int(summary["model_online_useful_at_k"])
-            >= int(summary["random_seeded_useful_at_k"])
-            and int(summary["model_online_calls_to_first_useful"]) == 1
-            and int(summary["random_seeded_calls_to_first_useful"]) >= 1,
+            isinstance(summary, dict)
+            and _json_int_values_equal(
+                summary.get("model_online_checked"),
+                report.get("budget"),
+            )
+            and _json_int_at_least(summary.get("model_online_useful_at_k"), 24)
+            and _json_int_at_least(summary.get("declared_priority_useful_at_k"), 24)
+            and _json_int_at_least_value(
+                summary.get("model_online_useful_at_k"),
+                summary.get("random_seeded_useful_at_k"),
+            )
+            and _json_int_equals(summary.get("model_online_calls_to_first_useful"), 1)
+            and _json_int_at_least(summary.get("random_seeded_calls_to_first_useful"), 1),
             "WES-ranked policies find useful dominance-cover checks early under the static budget",
         ),
         _expect_true(
             "wes_dominance_search.safety",
-            int(report["safety"]["invalid_accept_count"]) == 0
-            and _is_true(report["safety"]["verifier_authoritative"])
-            and _is_true(report["safety"]["wes_ranks_only"])
-            and _is_false(report["safety"]["scorer_authorizes_settlement"])
-            and _is_false(report["safety"]["model_output_in_state_root"])
-            and int(summary["checker_invalid_accept_count"]) == 0,
+            isinstance(safety, dict)
+            and isinstance(summary, dict)
+            and _json_int_equals(safety.get("invalid_accept_count"), 0)
+            and _is_true(safety.get("verifier_authoritative"))
+            and _is_true(safety.get("wes_ranks_only"))
+            and _is_false(safety.get("scorer_authorizes_settlement"))
+            and _is_false(safety.get("model_output_in_state_root"))
+            and _json_int_equals(summary.get("checker_invalid_accept_count"), 0),
             "WES ranks checker calls only and records zero invalid accepts",
         ),
         _expect_true(
@@ -4607,6 +4620,16 @@ def _json_int_at_least(value: object, minimum: int) -> bool:
 
 def _json_int_greater_than(value: object, minimum: int) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > minimum
+
+
+def _json_int_at_least_value(left: object, right: object) -> bool:
+    return (
+        isinstance(left, int)
+        and not isinstance(left, bool)
+        and isinstance(right, int)
+        and not isinstance(right, bool)
+        and left >= right
+    )
 
 
 def _json_int_equals(value: object, expected: int) -> bool:
