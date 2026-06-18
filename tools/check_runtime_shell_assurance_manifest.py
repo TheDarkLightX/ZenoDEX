@@ -28,8 +28,15 @@ def _as_dict(obj: Any, *, ctx: str) -> Mapping[str, Any]:
 
 
 def _require_json_bool(value: object, *, ctx: str) -> bool:
-    _require(isinstance(value, bool), f"{ctx}: expected bool")
-    return value
+    if isinstance(value, bool):
+        return value
+    raise ManifestError(f"{ctx}: expected bool")
+
+
+def _require_json_int(value: object, *, ctx: str) -> int:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    raise ManifestError(f"{ctx}: expected int")
 
 
 def _require_true(value: object, *, ctx: str) -> None:
@@ -177,7 +184,10 @@ def main(argv: list[str] | None = None) -> int:
     manifest_path = Path(args.manifest).resolve()
     manifest = _as_dict(_load_json(manifest_path), ctx=str(manifest_path))
 
-    _require(int(manifest.get("manifest_version", 0)) == 1, "unsupported runtime shell assurance manifest version")
+    _require(
+        _require_json_int(manifest.get("manifest_version"), ctx="manifest_version") == 1,
+        "unsupported runtime shell assurance manifest version",
+    )
 
     toolchain = _as_dict(manifest.get("toolchain"), ctx="toolchain")
     esso_root = REPO_ROOT / "external" / "ESSO"

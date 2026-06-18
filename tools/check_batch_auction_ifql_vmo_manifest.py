@@ -28,8 +28,15 @@ def _as_dict(obj: Any, *, ctx: str) -> Mapping[str, Any]:
 
 
 def _require_json_bool(value: object, *, ctx: str) -> bool:
-    _require(isinstance(value, bool), f"{ctx}: expected bool")
-    return value
+    if isinstance(value, bool):
+        return value
+    raise ManifestError(f"{ctx}: expected bool")
+
+
+def _require_json_int(value: object, *, ctx: str) -> int:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    raise ManifestError(f"{ctx}: expected int")
 
 
 def _require_true(value: object, *, ctx: str) -> None:
@@ -195,7 +202,8 @@ def _check_ifql_vmo(entry: Mapping[str, Any]) -> None:
     checks = vmo.get("checks") or []
     _require(isinstance(checks, list) and len(checks) == 2, f"{report_path}: expected 2 VMO checks")
     mode_check = next((c for c in checks if isinstance(c, dict) and c.get("kind") == "z3.observational_equivalence"), None)
-    _require(mode_check is not None, f"{report_path}: missing observational equivalence check")
+    if mode_check is None:
+        raise ManifestError(f"{report_path}: missing observational equivalence check")
     _require(mode_check.get("mode") == entry["mode"], f"{report_path}: observational mode mismatch")
     _require_true(mode_check.get("ok"), ctx=f"{report_path}: observational equivalence")
     result = _as_dict(mode_check.get("result"), ctx=f"{report_path}: observational result")
@@ -209,7 +217,10 @@ def main(argv: list[str] | None = None) -> int:
 
     manifest_path = args.manifest.resolve()
     manifest = _as_dict(_load_json(manifest_path), ctx=str(manifest_path))
-    _require(int(manifest.get("manifest_version", -1)) == 1, "manifest_version mismatch")
+    _require(
+        _require_json_int(manifest.get("manifest_version"), ctx="manifest_version") == 1,
+        "manifest_version mismatch",
+    )
 
     toolchain = _as_dict(manifest.get("toolchain"), ctx="toolchain")
     esso_root = REPO_ROOT / "external" / "ESSO"
@@ -224,7 +235,8 @@ def main(argv: list[str] | None = None) -> int:
         _require(_solver_version(str(solver_name)) == expected_version, f"solver version drift for {solver_name}")
 
     source_files = manifest.get("source_files")
-    _require(isinstance(source_files, list), "source_files must be a list")
+    if not isinstance(source_files, list):
+        raise ManifestError("source_files must be a list")
     _check_source_files([_as_dict(entry, ctx="source_files[]") for entry in source_files])
 
     _check_intent_lint(_as_dict(manifest.get("intent_lint"), ctx="intent_lint"))

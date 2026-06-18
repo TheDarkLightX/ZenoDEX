@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = REPO_ROOT / "tools" / "derivatives_evidence_manifest.json"
 
@@ -26,6 +25,12 @@ def _require(condition: bool, message: str) -> None:
 def _as_dict(obj: Any, *, ctx: str) -> Mapping[str, Any]:
     _require(isinstance(obj, dict), f"{ctx}: expected object")
     return obj
+
+
+def _require_json_int(value: object, *, ctx: str) -> int:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    raise ManifestError(f"{ctx}: expected int")
 
 
 def _load_json(path: Path) -> Any:
@@ -166,7 +171,10 @@ def main(argv: list[str] | None = None) -> int:
     manifest_path = Path(args.manifest).resolve()
     manifest = _as_dict(_load_json(manifest_path), ctx=str(manifest_path))
 
-    _require(int(manifest.get("manifest_version", 0)) == 1, "unsupported derivatives evidence manifest version")
+    _require(
+        _require_json_int(manifest.get("manifest_version"), ctx="manifest_version") == 1,
+        "unsupported derivatives evidence manifest version",
+    )
 
     toolchain = _as_dict(manifest.get("toolchain"), ctx="toolchain")
     esso_root = REPO_ROOT / "external" / "ESSO"
@@ -193,4 +201,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except ManifestError as exc:
         print(f"error: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from exc
