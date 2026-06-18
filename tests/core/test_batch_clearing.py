@@ -3245,8 +3245,8 @@ def test_cow_pair_netting_bruteforce_prunes_overdrawn_x_sender() -> None:
     fills, remaining = _cow_pair_netting_exact_in_v1(intents, pool_state=pool, balances=balances)
 
     assert len(fills) == 2
-    assert [fill.intent_id for fill in fills] == [_iid(1372), _iid(1374)]
-    assert sorted(it.intent_id for it in remaining) == [_iid(1371), _iid(1373)]
+    assert [fill.intent_id for fill in fills] == [_iid(1371), _iid(1373)]
+    assert sorted(it.intent_id for it in remaining) == [_iid(1372), _iid(1374)]
 
 
 def test_cow_pair_netting_bruteforce_tracks_used_y_and_sender_balance() -> None:
@@ -3311,8 +3311,60 @@ def test_cow_pair_netting_bruteforce_tracks_used_y_and_sender_balance() -> None:
     fills, remaining = _cow_pair_netting_exact_in_v1(intents, pool_state=pool, balances=balances)
 
     assert len(fills) == 2
-    assert [fill.intent_id for fill in fills] == [_iid(1376), _iid(1378)]
-    assert sorted(it.intent_id for it in remaining) == [_iid(1375), _iid(1377)]
+    assert [fill.intent_id for fill in fills] == [_iid(1375), _iid(1377)]
+    assert sorted(it.intent_id for it in remaining) == [_iid(1376), _iid(1378)]
+
+
+def test_cow_pair_netting_bruteforce_tie_breaks_to_smallest_pair_ids() -> None:
+    pk_x1 = "0x" + "31" * 48
+    pk_x2 = "0x" + "32" * 48
+    pk_y1 = "0x" + "41" * 48
+    pk_y2 = "0x" + "42" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool = PoolState(
+        pool_id="0x" + "ad" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+    for sender in (pk_x1, pk_x2):
+        balances.set(sender, asset0, 100)
+    balances.set(pk_y1, asset1, 80)
+    balances.set(pk_y2, asset1, 120)
+
+    def _swap(intent_id: int, sender: str, asset_in: str, asset_out: str, amount_in: int) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(intent_id),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={"pool_id": pool.pool_id, "asset_in": asset_in, "asset_out": asset_out, "amount_in": amount_in, "min_amount_out": 0},
+        )
+
+    intents = [
+        _swap(1379, pk_x2, asset0, asset1, 100),
+        _swap(1375, pk_x1, asset0, asset1, 100),
+        _swap(1378, pk_y2, asset1, asset0, 120),
+        _swap(1376, pk_y1, asset1, asset0, 80),
+    ]
+
+    fills, remaining = _cow_pair_netting_exact_in_v1(intents, pool_state=pool, balances=balances)
+
+    by_id = {fill.intent_id: fill for fill in fills}
+    assert by_id[_iid(1375)].amount_out_filled == 80
+    assert by_id[_iid(1379)].amount_out_filled == 120
+    assert by_id[_iid(1376)].amount_out_filled == 100
+    assert by_id[_iid(1378)].amount_out_filled == 100
+    assert remaining == []
 
 
 def test_cow_pair_netting_greedy_fallback_filters_balance_and_feasibility() -> None:

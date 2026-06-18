@@ -24,6 +24,29 @@ class _CowCandidateExactIn:
 
 
 _CowPair = tuple[_CowCandidateExactIn, _CowCandidateExactIn]
+_CowPairSelectionKey = tuple[int, int, Tuple[Tuple[str, str], ...]]
+
+
+def _cow_pair_selection_key(pairs: List[_CowPair]) -> _CowPairSelectionKey:
+    volume = sum(int(x.amount_in + y.amount_in) for x, y in pairs)
+    surplus = sum(int(y.amount_in - x.min_amount_out + x.amount_in - y.min_amount_out) for x, y in pairs)
+    pair_ids = tuple(sorted((x.intent.intent_id, y.intent.intent_id) for x, y in pairs))
+    return int(volume), int(surplus), pair_ids
+
+
+def _is_better_cow_pair_key(
+    candidate: _CowPairSelectionKey,
+    best: _CowPairSelectionKey | None,
+) -> bool:
+    if best is None:
+        return True
+    cand_volume, cand_surplus, cand_pair_ids = candidate
+    best_volume, best_surplus, best_pair_ids = best
+    if cand_volume != best_volume:
+        return cand_volume > best_volume
+    if cand_surplus != best_surplus:
+        return cand_surplus > best_surplus
+    return cand_pair_ids < best_pair_ids
 
 
 def _partition_cow_candidates(
@@ -96,6 +119,14 @@ def _pair_feasible(x: _CowCandidateExactIn, y: _CowCandidateExactIn) -> bool:
     return y.amount_in >= x.min_amount_out and x.amount_in >= y.min_amount_out
 
 
+def _sender_asset_balances(
+    candidates: List[_CowCandidateExactIn],
+    balances: BalanceTable,
+    asset: AssetId,
+) -> Dict[PubKey, int]:
+    return {candidate.sender: int(balances.get(candidate.sender, asset)) for candidate in candidates}
+
+
 def _select_cow_pairs_bruteforce(
     side_01: List[_CowCandidateExactIn],
     side_10: List[_CowCandidateExactIn],
@@ -105,13 +136,9 @@ def _select_cow_pairs_bruteforce(
     asset1: AssetId,
 ) -> List[_CowPair]:
     best_pairs: List[_CowPair] = []
-    best_key: tuple[int, int, Tuple[Tuple[str, str], ...]] | None = None
-    bal0: Dict[PubKey, int] = {}
-    bal1: Dict[PubKey, int] = {}
-    for candidate in side_01:
-        bal0[candidate.sender] = int(balances.get(candidate.sender, asset0))
-    for candidate in side_10:
-        bal1[candidate.sender] = int(balances.get(candidate.sender, asset1))
+    best_key: _CowPairSelectionKey | None = None
+    bal0 = _sender_asset_balances(side_01, balances, asset0)
+    bal1 = _sender_asset_balances(side_10, balances, asset1)
 
     def rec(
         i: int,
@@ -122,16 +149,12 @@ def _select_cow_pairs_bruteforce(
     ) -> None:
         nonlocal best_pairs, best_key
         if i >= len(side_01):
-            volume = sum(int(x.amount_in + y.amount_in) for x, y in acc)
-            surplus = sum(int(y.amount_in - x.min_amount_out + x.amount_in - y.min_amount_out) for x, y in acc)
-            pair_ids = tuple(sorted((x.intent.intent_id, y.intent.intent_id) for x, y in acc))
-            key = (volume, surplus, pair_ids)
-            if best_key is None or key > best_key:
+            key = _cow_pair_selection_key(acc)
+            if _is_better_cow_pair_key(key, best_key):
                 best_key = key
                 best_pairs = list(acc)
             return
 
-        # Option: leave side_01[i] unmatched.
         rec(i + 1, used_j, deb0, deb1, acc)
 
         x = side_01[i]
