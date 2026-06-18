@@ -152,11 +152,24 @@ def _check_verify_shell(entry: Mapping[str, Any]) -> None:
     _require(report.get("command") == "verify-shell", f"{report_path}: command mismatch")
     _require(report.get("ir_hash") == entry["ir_hash"], f"{report_path}: ir_hash mismatch")
     _require(report.get("mode") == entry["mode"], f"{report_path}: mode mismatch")
-    _require(int(report.get("seed", -1)) == int(entry["seed"]), f"{report_path}: seed mismatch")
-    _require(int(report.get("traces", -1)) == int(entry["traces"]), f"{report_path}: traces mismatch")
-    _require(int(report.get("max_steps", -1)) == int(entry["max_steps"]), f"{report_path}: max_steps mismatch")
     _require(
-        int(report.get("determinism_trials", -1)) == int(entry["determinism_trials"]),
+        _require_json_int(report.get("seed"), ctx=f"{report_path}: seed")
+        == _require_json_int(entry.get("seed"), ctx=f"{report_path}: expected seed"),
+        f"{report_path}: seed mismatch",
+    )
+    _require(
+        _require_json_int(report.get("traces"), ctx=f"{report_path}: traces")
+        == _require_json_int(entry.get("traces"), ctx=f"{report_path}: expected traces"),
+        f"{report_path}: traces mismatch",
+    )
+    _require(
+        _require_json_int(report.get("max_steps"), ctx=f"{report_path}: max_steps")
+        == _require_json_int(entry.get("max_steps"), ctx=f"{report_path}: expected max_steps"),
+        f"{report_path}: max_steps mismatch",
+    )
+    _require(
+        _require_json_int(report.get("determinism_trials"), ctx=f"{report_path}: determinism_trials")
+        == _require_json_int(entry.get("determinism_trials"), ctx=f"{report_path}: expected determinism_trials"),
         f"{report_path}: determinism_trials mismatch",
     )
     _require(report.get("failure") is None, f"{report_path}: verify-shell failure is not null")
