@@ -198,4 +198,4 @@ def evaluate_sign_admission_v0(request: SignAdmissionRequest) -> dict[str, Any]:
 
 def sign_ok_decision_v0(request: SignAdmissionRequest) -> PolicyDecision:
     receipt = evaluate_sign_admission_v0(request)
-    return PolicyDecision(ok=bool(receipt["ok"]), errors=tuple(receipt["errors"]))
+    return PolicyDecision(ok=receipt["ok"] is True, errors=tuple(receipt["errors"]))

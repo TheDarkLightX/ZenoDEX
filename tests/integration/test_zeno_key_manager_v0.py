@@ -5,6 +5,7 @@ import json
 import pytest
 
 from src.integration import zeno_key_manager as zeno_key_manager_module
+from src.integration import zeno_key_manager_v0 as zeno_key_manager_v0_module
 from src.integration.zeno_key_import_v0 import (
     build_tau_import_challenge_v0,
     import_tau_bls_key_descriptor_v0,
@@ -24,6 +25,7 @@ from src.integration.zeno_key_manager_v0 import (
     KeyBackendDescriptor,
     SignAdmissionRequest,
     evaluate_sign_admission_v0,
+    sign_ok_decision_v0,
 )
 from src.integration.zeno_key_recovery_v0 import evaluate_recovery_rotation_v0
 from tools import zeno_key_manager as zeno_key_manager_cli
@@ -89,6 +91,22 @@ def test_sign_admission_rejects_secret_fields_and_reused_nonce() -> None:
         assert "private key material" in str(exc)
     else:  # pragma: no cover
         raise AssertionError("secret field was accepted")
+
+
+def test_sign_ok_decision_rejects_truthy_string_receipt_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The sign decision is a policy boundary. If the receipt producer ever emits
+    # malformed evidence, truthy strings must not become approval.
+    def fake_evaluate(_request: SignAdmissionRequest) -> dict[str, object]:
+        return {"ok": "true", "errors": ()}
+
+    monkeypatch.setattr(zeno_key_manager_v0_module, "evaluate_sign_admission_v0", fake_evaluate)
+
+    decision = sign_ok_decision_v0(
+        _sign_request({"domain": "zenodex.ledger.checkpoint.v0", "chain_id": "tau-testnet-1", "nonce": 8})
+    )
+
+    assert decision.ok is False
+    assert decision.errors == ()
 
 
 def test_tau_import_receipt_imports_public_descriptor_without_private_key() -> None:
