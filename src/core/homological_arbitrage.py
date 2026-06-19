@@ -129,6 +129,74 @@ def _canonicalize_cycle(edges: Tuple[MarginalEdge, ...]) -> Tuple[MarginalEdge, 
     return best
 
 
+def _predecessor_edge_key(edge: MarginalEdge) -> Tuple[str, AssetId, AssetId]:
+    return edge.pool_id, edge.asset_in, edge.asset_out
+
+
+def _relax_marginal_edges(
+    *,
+    edges_sorted: Sequence[MarginalEdge],
+    best: Dict[AssetId, Fraction],
+    pred: Dict[AssetId, Tuple[AssetId, MarginalEdge] | None],
+) -> AssetId | None:
+    improved: AssetId | None = None
+    for edge in edges_sorted:
+        asset_in, asset_out = edge.asset_in, edge.asset_out
+        candidate = best[asset_in] * edge.rate
+        current = best[asset_out]
+        if candidate > current:
+            best[asset_out] = candidate
+            pred[asset_out] = (asset_in, edge)
+            improved = asset_out
+        elif candidate == current and pred[asset_out] is not None:
+            _prev_asset, prev_edge = pred[asset_out]
+            if _predecessor_edge_key(edge) < _predecessor_edge_key(prev_edge):
+                pred[asset_out] = (asset_in, edge)
+    return improved
+
+
+def _rewind_into_cycle(
+    *,
+    start: AssetId,
+    steps: int,
+    pred: Dict[AssetId, Tuple[AssetId, MarginalEdge] | None],
+) -> AssetId | None:
+    current = start
+    for _ in range(steps):
+        predecessor = pred.get(current)
+        if predecessor is None:
+            return None
+        current = predecessor[0]
+    return current
+
+
+def _collect_cycle_edges(
+    *,
+    start: AssetId,
+    max_edges: int,
+    pred: Dict[AssetId, Tuple[AssetId, MarginalEdge] | None],
+) -> Tuple[MarginalEdge, ...] | None:
+    cycle_edges_rev: List[MarginalEdge] = []
+    current = start
+    for _ in range(max_edges + 1):
+        predecessor = pred.get(current)
+        if predecessor is None:
+            return None
+        prev_asset, edge = predecessor
+        cycle_edges_rev.append(edge)
+        current = prev_asset
+        if current == start:
+            return tuple(reversed(cycle_edges_rev))
+    return None
+
+
+def _cycle_gain(edges: Sequence[MarginalEdge]) -> Fraction:
+    gain = Fraction(1, 1)
+    for edge in edges:
+        gain *= edge.rate
+    return gain
+
+
 def find_marginal_arbitrage_cycle(edges: Sequence[MarginalEdge]) -> Optional[MarginalArbitrageCycle]:
     """Find any marginal-arbitrage cycle using multiplicative Bellman-Ford.
 
@@ -154,59 +222,24 @@ def find_marginal_arbitrage_cycle(edges: Sequence[MarginalEdge]) -> Optional[Mar
 
     improved: AssetId | None = None
     for _ in range(len(nodes)):
-        improved = None
-        for e in edges_sorted:
-            u, v = e.asset_in, e.asset_out
-            cand = best[u] * e.rate
-            cur = best[v]
-            if cand > cur:
-                best[v] = cand
-                pred[v] = (u, e)
-                improved = v
-            elif cand == cur and pred[v] is not None:
-                # Deterministic tie-break for witness stability.
-                prev_u, prev_e = pred[v]
-                if (e.pool_id, e.asset_in, e.asset_out) < (
-                    prev_e.pool_id,
-                    prev_e.asset_in,
-                    prev_e.asset_out,
-                ):
-                    pred[v] = (u, e)
+        improved = _relax_marginal_edges(edges_sorted=edges_sorted, best=best, pred=pred)
         if improved is None:
             return None
 
     # Improvement on the V-th iteration implies a profitable cycle exists.
     if improved is None:
         return None
-    x = improved
-    for _ in range(len(nodes)):
-        p = pred.get(x)
-        if p is None:
-            # Should not happen, but treat as inconclusive rather than claiming "no arb".
-            return None
-        x = p[0]
-
-    start = x
-    cycle_edges_rev: List[MarginalEdge] = []
-    cur = start
-    for _ in range(len(nodes) + 1):
-        p = pred.get(cur)
-        if p is None:
-            return None
-        prev, edge = p
-        cycle_edges_rev.append(edge)
-        cur = prev
-        if cur == start:
-            break
-    else:
+    start = _rewind_into_cycle(start=improved, steps=len(nodes), pred=pred)
+    if start is None:
+        # Should not happen, but treat as inconclusive rather than claiming "no arb".
         return None
 
-    cycle_edges = tuple(reversed(cycle_edges_rev))
+    cycle_edges = _collect_cycle_edges(start=start, max_edges=len(nodes), pred=pred)
+    if cycle_edges is None:
+        return None
     cycle_edges = _canonicalize_cycle(cycle_edges)
 
-    gain = Fraction(1, 1)
-    for e in cycle_edges:
-        gain *= e.rate
+    gain = _cycle_gain(cycle_edges)
     if gain <= 1:
         # Defensive: if this happens, treat as inconclusive.
         return None
