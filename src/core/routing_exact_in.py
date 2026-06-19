@@ -191,27 +191,37 @@ def _scan_direct_exact_in(
 ) -> tuple[Optional[RouteQuote], Optional[RouteQuote]]:
     for idx in context.by_asset.get(context.asset_in, ()):
         pool = context.pools[idx]
-        if not context.pool_connects(pool, context.asset_in, context.asset_out):
+        route = _direct_exact_in_quote(context=context, pool=pool)
+        if route is None:
             continue
-        quote = context.pool_quote_exact_in(
-            pool,
-            asset_in=context.asset_in,
-            asset_out=context.asset_out,
-            amount_in=context.amount_in,
-        )
-        if quote is None:
-            continue
-        amount_out, _pool_id = quote
-        route = _single_hop_exact_in_quote(
-            context=context,
-            pool=pool,
-            amount_out=amount_out,
-        )
         if _is_better_exact_in(route, best, quote_key=context.quote_key):
             best = route
         if _is_better_exact_in(route, best_direct_1hop, quote_key=context.quote_key):
             best_direct_1hop = route
     return best, best_direct_1hop
+
+
+def _direct_exact_in_quote(
+    *,
+    context: _ExactInScanContext,
+    pool: PoolState,
+) -> Optional[RouteQuote]:
+    if not context.pool_connects(pool, context.asset_in, context.asset_out):
+        return None
+    quote = context.pool_quote_exact_in(
+        pool,
+        asset_in=context.asset_in,
+        asset_out=context.asset_out,
+        amount_in=context.amount_in,
+    )
+    if quote is None:
+        return None
+    amount_out, _pool_id = quote
+    return _single_hop_exact_in_quote(
+        context=context,
+        pool=pool,
+        amount_out=amount_out,
+    )
 
 
 def _single_hop_exact_in_quote(
