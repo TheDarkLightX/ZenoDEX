@@ -103,7 +103,7 @@ def test_quote_receipt_transport_grammar_fuzz_cli_emits_expected_schema() -> Non
 def test_quote_receipt_transport_minimizer_removes_dead_blob_without_changing_path() -> None:
     witness = minimize_case("quote_receipt_transport", "QuoteReceipt->ExactOut ; ReceiptHash->MissingWithDeadBlob")
     assert witness.outcome_label == "reject:missing_receipt_hash"
-    assert witness.path_id == "7ba7d8be36e043d2"
+    assert witness.path_id == "dd37d9d12583f53f"
     assert witness.original_size > witness.minimized_size
     assert witness.original_size == 631
     assert witness.minimized_size == 104
@@ -136,7 +136,7 @@ def test_quote_receipt_transport_minimizer_cli_emits_expected_schema() -> None:
     assert witness["target"] == "quote_receipt_transport"
     assert witness["derivation"] == "QuoteReceipt->ExactOut ; ReceiptHash->MissingWithDeadBlob"
     assert witness["outcome_label"] == "reject:missing_receipt_hash"
-    assert witness["path_id"] == "7ba7d8be36e043d2"
+    assert witness["path_id"] == "dd37d9d12583f53f"
     assert witness["original_size"] > witness["minimized_size"]
     assert witness["original_size"] == 631
     assert witness["minimized_size"] == 104

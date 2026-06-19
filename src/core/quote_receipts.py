@@ -101,6 +101,17 @@ class _ReceiptLegsContext:
     snapshotted_pools: Dict[str, Any]
 
 
+@dataclass(frozen=True)
+class _ReceiptHopFields:
+    hop_dict_ok: bool
+    pool_id: object
+    pool: PoolState | None
+    asset_in: object
+    asset_out: object
+    amount_in: int | None
+    amount_out: int | None
+
+
 def _pool_reserves_for_hop(pool: PoolState, *, asset_in: str, asset_out: str) -> Tuple[int, int] | None:
     if asset_in == pool.asset0 and asset_out == pool.asset1:
         return int(pool.reserve0), int(pool.reserve1)
@@ -123,59 +134,83 @@ def _replay_and_apply_hop(
     )
 
 
+def _hop_field(hop: object, key: str) -> object:
+    if not isinstance(hop, dict):
+        return None
+    return hop.get(key)
+
+
+def _extract_receipt_hop_fields(ctx: _ReceiptHopContext) -> _ReceiptHopFields:
+    hop_dict_ok = isinstance(ctx.hop, dict)
+    pid = _hop_field(ctx.hop, "pool_id")
+    pool_id_ok = isinstance(pid, str) and bool(pid)
+    pool = ctx.working_pools.get(pid) if pool_id_ok else None
+    return _ReceiptHopFields(
+        hop_dict_ok=hop_dict_ok,
+        pool_id=pid,
+        pool=pool,
+        asset_in=_hop_field(ctx.hop, "asset_in"),
+        asset_out=_hop_field(ctx.hop, "asset_out"),
+        amount_in=_require_receipt_int(_hop_field(ctx.hop, "amount_in")),
+        amount_out=_require_receipt_int(_hop_field(ctx.hop, "amount_out")),
+    )
+
+
+def _evaluate_receipt_hop_structure(ctx: _ReceiptHopContext, fields: _ReceiptHopFields):
+    pool_id_ok = isinstance(fields.pool_id, str) and bool(fields.pool_id)
+    assets_shaped_ok = isinstance(fields.asset_in, str) and isinstance(fields.asset_out, str)
+    is_first_hop = ctx.hop_index == 0
+    hop_amounts_ok = (
+        fields.amount_in is not None
+        and fields.amount_out is not None
+        and fields.amount_in > 0
+        and fields.amount_out > 0
+    )
+    return evaluate_route_quote_receipt_hop_structure_gate(
+        hop_dict_ok=fields.hop_dict_ok,
+        pool_id_ok=pool_id_ok,
+        snapshotted_pool_present=bool(pool_id_ok and fields.pool_id in ctx.snapshotted_pools),
+        working_pool_present=bool(fields.pool is not None),
+        assets_shaped_ok=assets_shaped_ok,
+        is_first_hop=is_first_hop,
+        first_hop_asset_in_ok=bool((not is_first_hop) or fields.asset_in == ctx.body_asset_in),
+        hop_asset_chain_ok=bool(is_first_hop or fields.asset_in == ctx.prev_asset_out),
+        hop_amounts_ok=hop_amounts_ok,
+        hop_amount_chain_ok=bool(ctx.prev_out is None or fields.amount_in == ctx.prev_out),
+    )
+
+
+def _receipt_hop_data_from_fields(fields: _ReceiptHopFields) -> _ReceiptHopData | None:
+    if (
+        not isinstance(fields.pool_id, str)
+        or fields.pool is None
+        or not isinstance(fields.asset_in, str)
+        or not isinstance(fields.asset_out, str)
+        or fields.amount_in is None
+        or fields.amount_out is None
+    ):
+        return None
+    return _ReceiptHopData(
+        pool_id=fields.pool_id,
+        pool=fields.pool,
+        asset_in=fields.asset_in,
+        asset_out=fields.asset_out,
+        amount_in=fields.amount_in,
+        amount_out=fields.amount_out,
+    )
+
+
 def _parse_receipt_hop_structure(
     ctx: _ReceiptHopContext,
 ) -> Tuple[bool, str, _ReceiptHopData | None]:
-    hop_dict_ok = isinstance(ctx.hop, dict)
-    pid = ctx.hop.get("pool_id") if hop_dict_ok else None
-    pool_id_ok = isinstance(pid, str) and bool(pid)
-    snapshotted_pool_present = bool(pool_id_ok and pid in ctx.snapshotted_pools)
-    pool = ctx.working_pools.get(pid) if pool_id_ok else None
-    working_pool_present = bool(pool is not None)
-
-    asset_in = ctx.hop.get("asset_in") if hop_dict_ok else None
-    asset_out = ctx.hop.get("asset_out") if hop_dict_ok else None
-    assets_shaped_ok = isinstance(asset_in, str) and isinstance(asset_out, str)
-    is_first_hop = ctx.hop_index == 0
-    first_hop_asset_in_ok = bool((not is_first_hop) or asset_in == ctx.body_asset_in)
-    hop_asset_chain_ok = bool(is_first_hop or asset_in == ctx.prev_asset_out)
-
-    amt_in = _require_receipt_int(ctx.hop.get("amount_in")) if hop_dict_ok else None
-    amt_out = _require_receipt_int(ctx.hop.get("amount_out")) if hop_dict_ok else None
-    hop_amounts_ok = amt_in is not None and amt_out is not None and amt_in > 0 and amt_out > 0
-    hop_amount_chain_ok = bool(ctx.prev_out is None or amt_in == ctx.prev_out)
-
-    hop_gate = evaluate_route_quote_receipt_hop_structure_gate(
-        hop_dict_ok=hop_dict_ok,
-        pool_id_ok=pool_id_ok,
-        snapshotted_pool_present=snapshotted_pool_present,
-        working_pool_present=working_pool_present,
-        assets_shaped_ok=assets_shaped_ok,
-        is_first_hop=is_first_hop,
-        first_hop_asset_in_ok=first_hop_asset_in_ok,
-        hop_asset_chain_ok=hop_asset_chain_ok,
-        hop_amounts_ok=hop_amounts_ok,
-        hop_amount_chain_ok=hop_amount_chain_ok,
-    )
+    fields = _extract_receipt_hop_fields(ctx)
+    hop_gate = _evaluate_receipt_hop_structure(ctx, fields)
     if not hop_gate.hop_ok:
         return False, route_quote_receipt_hop_structure_error(hop_gate), None
-    if (
-        not isinstance(pid, str)
-        or pool is None
-        or not isinstance(asset_in, str)
-        or not isinstance(asset_out, str)
-        or amt_in is None
-        or amt_out is None
-    ):
+    hop_data = _receipt_hop_data_from_fields(fields)
+    if hop_data is None:
         return False, route_quote_receipt_hop_structure_error(hop_gate), None
-    return True, "ok", _ReceiptHopData(
-        pool_id=pid,
-        pool=pool,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_in=amt_in,
-        amount_out=amt_out,
-    )
+    return True, "ok", hop_data
 
 
 def _verify_receipt_hop(
