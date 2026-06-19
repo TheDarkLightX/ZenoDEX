@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import combinations
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..state.balances import Amount, AssetId
@@ -214,16 +215,15 @@ def _best_parallel_split_exact_out(
         asset_in=context.asset_in,
         asset_out=context.asset_out,
     )
-    for i in range(len(candidates)):
-        for j in range(i + 1, len(candidates)):
-            route = _parallel_split_exact_out_quote(
-                context=context,
-                pool0=candidates[i],
-                pool1=candidates[j],
-                split_two_pools_exact_out=split_two_pools_exact_out,
-            )
-            if route is not None and _is_better_exact_out(route, best, quote_key=context.quote_key):
-                best = route
+    for pool0, pool1 in combinations(candidates, 2):
+        route = _parallel_split_exact_out_quote(
+            context=context,
+            pool0=pool0,
+            pool1=pool1,
+            split_two_pools_exact_out=split_two_pools_exact_out,
+        )
+        if route is not None and _is_better_exact_out(route, best, quote_key=context.quote_key):
+            best = route
     return best
 
 
@@ -237,18 +237,19 @@ def _bounded_direct_candidates(
     if len(direct_candidates) <= max_split_candidates:
         return direct_candidates
 
-    def direct_reserve_out(pool: PoolState) -> int:
-        if asset_in == pool.asset0 and asset_out == pool.asset1:
-            return int(pool.reserve1)
-        if asset_in == pool.asset1 and asset_out == pool.asset0:
-            return int(pool.reserve0)
-        return 0
-
     candidates = sorted(
         direct_candidates,
-        key=lambda pool: (-direct_reserve_out(pool), pool.pool_id),
+        key=lambda pool: (-_direct_reserve_out(pool, asset_in=asset_in, asset_out=asset_out), pool.pool_id),
     )[:max_split_candidates]
     return sorted(candidates, key=lambda pool: pool.pool_id)
+
+
+def _direct_reserve_out(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId) -> int:
+    if asset_in == pool.asset0 and asset_out == pool.asset1:
+        return int(pool.reserve1)
+    if asset_in == pool.asset1 and asset_out == pool.asset0:
+        return int(pool.reserve0)
+    return 0
 
 
 def _parallel_split_exact_out_quote(
