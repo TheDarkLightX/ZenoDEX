@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 from typing import List, Optional, Tuple
 
 from ..kernels.python.settlement_swap_runtime_v1 import (
@@ -12,6 +13,7 @@ from ..state.balances import Amount, BalanceTable
 from ..state.intents import Intent, IntentKind
 from ..state.pools import PoolState
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
+from .neutral_tiebreak import tiebreak_token
 from .batch_clearing_ab_order import (
     _OptimalAbOrderingFactories,
     _SwapReserveSimulationFactories,
@@ -28,12 +30,12 @@ _MAX_SWAP_ORDERING_GLOBAL_REFINE_N = 24
 _MAX_SWAP_ORDERING_MCI_N = 18
 
 
-def _order_swaps_limit_price(intents: List[Intent]) -> List[Intent]:
+def _order_swaps_limit_price(intents: List[Intent], *, seed: bytes | None = None) -> List[Intent]:
     return sorted(
         intents,
         key=lambda i: (
             -_get_limit_price(i),  # Best price first (descending)
-            i.intent_id,  # Tie-break by intent_id
+            tiebreak_token(i.intent_id, seed),  # Tie-break (grindable id unless seeded)
         ),
     )
 
@@ -44,6 +46,7 @@ def _order_swaps_optimal_ab_bounded(
     pool_state: PoolState,
     balances: BalanceTable,
     reserves: Tuple[Amount, Amount],
+    seed: bytes | None = None,
 ) -> List[Intent]:
     """
     Choose a deterministic swap order that maximizes the (A,B)+tie-break key:
@@ -70,8 +73,8 @@ def _order_swaps_optimal_ab_bounded(
             quote_exact_out_fn=quote_cpmm_swap_exact_out,
             swap_exact_in_fn=swap_exact_in_for_pool,
             swap_exact_out_fn=swap_exact_out_for_pool,
-            order_limit_price_fn=_order_swaps_limit_price,
-            ab_ordering_key_fn=_ab_ordering_key,
+            order_limit_price_fn=functools.partial(_order_swaps_limit_price, seed=seed),
+            ab_ordering_key_fn=functools.partial(_ab_ordering_key, seed=seed),
             is_better_ab_key_fn=_is_better_ab_key,
         ),
     )
@@ -147,13 +150,24 @@ def _ab_ordering_key(
     reserves: Tuple[Amount, Amount] | None = None,
     *,
     A_B_order: Tuple[Amount, Amount, Tuple[str, ...]] | None = None,
+    seed: bytes | None = None,
 ) -> Tuple[int, int, Tuple[str, ...]]:
+    # `seed is None` (the default, and the only value any current caller passes)
+    # keeps the tie-break component as the raw intent_id tuple -> byte-identical to
+    # the pre-seam canonical order. A non-None seed swaps the grindable intent_id
+    # for a grinding-resistant token (neutral_tiebreak.py); enabling that path is a
+    # deliberate follow-up gated on an unbiasable seed source. `tiebreak_token` is
+    # the identity when seed is None, so this seam is behavior-preserving by default.
     if A_B_order is not None:
-        return int(A_B_order[0]), int(A_B_order[1]), tuple(str(x) for x in A_B_order[2])
+        return int(A_B_order[0]), int(A_B_order[1]), tuple(
+            tiebreak_token(str(x), seed) for x in A_B_order[2]
+        )
     if ordering is None or pool_state is None or reserves is None:
         raise ValueError("ordering, pool_state, and reserves are required unless A_B_order is provided")
     amount_a, surplus_b = _eval_ordering_ab(ordering, pool_state, reserves)
-    return int(amount_a), int(surplus_b), tuple(it.intent_id for it in ordering)
+    return int(amount_a), int(surplus_b), tuple(
+        tiebreak_token(it.intent_id, seed) for it in ordering
+    )
 
 
 def _is_better_ab_key(candidate: Tuple[int, int, Tuple[str, ...]], best: Tuple[int, int, Tuple[str, ...]]) -> bool:
@@ -186,6 +200,8 @@ def _greedy_marginal_ab(
     remaining: List[Intent],
     pool_state: PoolState,
     reserves: Tuple[Amount, Amount],
+    *,
+    seed: bytes | None = None,
 ) -> Tuple[int, Amount, Amount, Tuple[Amount, Amount]]:
     """Find the swap with tightest slippage that is still executable.
 
@@ -208,7 +224,7 @@ def _greedy_marginal_ab(
             continue
 
         # Tightest first: lowest surplus, then highest A, then lowest id.
-        candidate_key = (int(b), -int(a), str(intent.intent_id))
+        candidate_key = (int(b), -int(a), tiebreak_token(str(intent.intent_id), seed))
         if best_key is None or candidate_key < best_key:
             best_idx = i
             best_a = a
@@ -224,6 +240,7 @@ def _order_swaps_greedy_ab(
     *,
     pool_state: PoolState,
     reserves: Tuple[Amount, Amount],
+    seed: bytes | None = None,
 ) -> List[Intent]:
     """Greedy O(n^2) swap ordering that approximates AB-optimal.
 
@@ -249,23 +266,23 @@ def _order_swaps_greedy_ab(
     first_asset_out = intents[0].get_field("asset_out")
     for it in intents[1:]:
         if it.get_field("asset_in") != first_asset_in or it.get_field("asset_out") != first_asset_out:
-            return _order_swaps_limit_price(intents)
+            return _order_swaps_limit_price(intents, seed=seed)
 
     remaining = list(intents)
     greedy_ordered: List[Intent] = []
     current_reserves = reserves
 
     while remaining:
-        idx, _a, _b, new_r = _greedy_marginal_ab(remaining, pool_state, current_reserves)
+        idx, _a, _b, new_r = _greedy_marginal_ab(remaining, pool_state, current_reserves, seed=seed)
         if idx == -1:
             # No more executable swaps; append rest in limit-price order
-            greedy_ordered.extend(_order_swaps_limit_price(remaining))
+            greedy_ordered.extend(_order_swaps_limit_price(remaining, seed=seed))
             break
         greedy_ordered.append(remaining.pop(idx))
         current_reserves = new_r
 
     # Guarantee: greedy >= limit_price. Compare and take the better.
-    limit_ordered = _order_swaps_limit_price(intents)
+    limit_ordered = _order_swaps_limit_price(intents, seed=seed)
     greedy_ab = _eval_ordering_ab(greedy_ordered, pool_state, reserves)
     limit_ab = _eval_ordering_ab(limit_ordered, pool_state, reserves)
 
@@ -279,6 +296,7 @@ def _order_swaps_mci_ab(
     *,
     pool_state: PoolState,
     reserves: Tuple[Amount, Amount],
+    seed: bytes | None = None,
 ) -> List[Intent]:
     """Marginal-contribution insertion seed for AB ordering.
 
@@ -291,25 +309,25 @@ def _order_swaps_mci_ab(
     if len(intents) <= 1:
         return list(intents)
     if len(intents) > _MAX_SWAP_ORDERING_MCI_N:
-        greedy = _order_swaps_greedy_ab(intents, pool_state=pool_state, reserves=reserves)
+        greedy = _order_swaps_greedy_ab(intents, pool_state=pool_state, reserves=reserves, seed=seed)
         return _refine_b_ordering(greedy, pool_state=pool_state, reserves=reserves)
 
     first_asset_in = intents[0].get_field("asset_in")
     first_asset_out = intents[0].get_field("asset_out")
     if not isinstance(first_asset_in, str) or not isinstance(first_asset_out, str):
-        return _order_swaps_limit_price(intents)
+        return _order_swaps_limit_price(intents, seed=seed)
     if first_asset_in == first_asset_out:
-        return _order_swaps_limit_price(intents)
+        return _order_swaps_limit_price(intents, seed=seed)
     if not (
         (first_asset_in == pool_state.asset0 and first_asset_out == pool_state.asset1)
         or (first_asset_in == pool_state.asset1 and first_asset_out == pool_state.asset0)
     ):
-        return _order_swaps_limit_price(intents)
+        return _order_swaps_limit_price(intents, seed=seed)
     for it in intents[1:]:
         if it.get_field("asset_in") != first_asset_in or it.get_field("asset_out") != first_asset_out:
-            return _order_swaps_limit_price(intents)
+            return _order_swaps_limit_price(intents, seed=seed)
 
-    remaining = sorted(intents, key=lambda it: it.intent_id)
+    remaining = sorted(intents, key=lambda it: tiebreak_token(it.intent_id, seed))
     ordered: List[Intent] = []
 
     while remaining:
@@ -319,7 +337,7 @@ def _order_swaps_mci_ab(
         for rem_idx, candidate in enumerate(remaining):
             for pos in range(len(ordered) + 1):
                 trial = ordered[:pos] + [candidate] + ordered[pos:]
-                trial_key = _ab_ordering_key(trial, pool_state, reserves)
+                trial_key = _ab_ordering_key(trial, pool_state, reserves, seed=seed)
                 if best_order is None or _is_better_ab_key(
                     trial_key,
                     best_key if best_key is not None else (-1, -1, tuple()),

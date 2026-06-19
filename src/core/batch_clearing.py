@@ -267,6 +267,7 @@ def clear_batch_single_pool(
     swap_ordering: str = _SWAP_ORDERING_GREEDY_AB_REFINED,
     protocol_fee_share_bps: int = 0,
     protocol_fee_recipient_pubkey: Optional[PubKey] = None,
+    swap_tiebreak_seed: bytes | None = None,
 ) -> List[Fill]:
     """
     Process batch of intents for a single pool.
@@ -316,6 +317,7 @@ def clear_batch_single_pool(
             ),
             protocol_fee_share_bps=protocol_fee_share_bps,
             protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+            swap_tiebreak_seed=swap_tiebreak_seed,
         )
     )
 

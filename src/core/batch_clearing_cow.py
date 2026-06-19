@@ -9,6 +9,7 @@ from typing import Dict, List, Tuple
 from ..state.balances import AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.pools import PoolState
+from .neutral_tiebreak import tiebreak_token
 from .settlement import Fill, FillAction
 
 
@@ -35,6 +36,8 @@ class _CowSelectionContext:
     balances: BalanceTable
     asset0: AssetId
     asset1: AssetId
+    # Default-off grinding-resistant tie-break seed; None => raw intent_id (byte-identical).
+    seed: bytes | None = None
 
 
 @dataclass(frozen=True)
@@ -43,6 +46,7 @@ class _CowMaterializeRequest:
     partition: _CowPartition
     swap_intents: List[Intent]
     balances: BalanceTable
+    seed: bytes | None = None
 
 
 @dataclass(frozen=True)
@@ -58,10 +62,13 @@ _CowPair = tuple[_CowCandidateExactIn, _CowCandidateExactIn]
 _CowPairSelectionKey = tuple[int, int, Tuple[Tuple[str, str], ...]]
 
 
-def _cow_pair_selection_key(pairs: List[_CowPair]) -> _CowPairSelectionKey:
+def _cow_pair_selection_key(pairs: List[_CowPair], *, seed: bytes | None = None) -> _CowPairSelectionKey:
     volume = sum(int(x.amount_in + y.amount_in) for x, y in pairs)
     surplus = sum(int(y.amount_in - x.min_amount_out + x.amount_in - y.min_amount_out) for x, y in pairs)
-    pair_ids = tuple(sorted((x.intent.intent_id, y.intent.intent_id) for x, y in pairs))
+    pair_ids = tuple(sorted(
+        (tiebreak_token(x.intent.intent_id, seed), tiebreak_token(y.intent.intent_id, seed))
+        for x, y in pairs
+    ))
     return int(volume), int(surplus), pair_ids
 
 
@@ -132,6 +139,8 @@ def _candidate_from_intent(intent: Intent, pool_state: PoolState) -> _CowCandida
 def _partition_cow_candidates(
     swap_intents: List[Intent],
     pool_state: PoolState,
+    *,
+    seed: bytes | None = None,
 ) -> _CowPartition:
     side_01: List[_CowCandidateExactIn] = []
     side_10: List[_CowCandidateExactIn] = []
@@ -146,8 +155,8 @@ def _partition_cow_candidates(
         else:
             side_10.append(candidate)
 
-    side_01.sort(key=lambda c: c.intent.intent_id)
-    side_10.sort(key=lambda c: c.intent.intent_id)
+    side_01.sort(key=lambda c: tiebreak_token(c.intent.intent_id, seed))
+    side_10.sort(key=lambda c: tiebreak_token(c.intent.intent_id, seed))
     return _CowPartition(side_01=side_01, side_10=side_10, remaining=remaining)
 
 
@@ -177,7 +186,7 @@ def _select_cow_pairs_bruteforce(
     def rec(state: _CowSearchState) -> None:
         nonlocal best_pairs, best_key
         if state.side01_index >= len(side_01):
-            key = _cow_pair_selection_key(state.pairs)
+            key = _cow_pair_selection_key(state.pairs, seed=context.seed)
             if _is_better_cow_pair_key(key, best_key):
                 best_key = key
                 best_pairs = list(state.pairs)
@@ -236,7 +245,7 @@ def _select_cow_pairs_greedy(
     context: _CowSelectionContext,
 ) -> List[_CowPair]:
     best_pairs: List[_CowPair] = []
-    side_01_sorted = sorted(side_01, key=lambda c: (-c.min_amount_out, c.intent.intent_id))
+    side_01_sorted = sorted(side_01, key=lambda c: (-c.min_amount_out, tiebreak_token(c.intent.intent_id, context.seed)))
     side_10_pool = list(side_10)
     deb0: Dict[PubKey, int] = defaultdict(int)
     deb1: Dict[PubKey, int] = defaultdict(int)
@@ -251,7 +260,7 @@ def _select_cow_pairs_greedy(
                 continue
             if deb1[y.sender] + y.amount_in > int(context.balances.get(y.sender, context.asset1)):
                 continue
-            if best_y is None or (y.amount_in, y.intent.intent_id) < (best_y.amount_in, best_y.intent.intent_id):
+            if best_y is None or (y.amount_in, tiebreak_token(y.intent.intent_id, context.seed)) < (best_y.amount_in, tiebreak_token(best_y.intent.intent_id, context.seed)):
                 best_j, best_y = j, y
         if best_j is None or best_y is None:
             continue
@@ -293,12 +302,12 @@ def _cow_pair_transfer_maps(
     return debit_by_sender_asset, credit_by_recipient_asset
 
 
-def _cow_pair_fills(best_pairs: List[_CowPair]) -> List[Fill]:
+def _cow_pair_fills(best_pairs: List[_CowPair], *, seed: bytes | None = None) -> List[Fill]:
     fills: List[Fill] = []
     for x, y in best_pairs:
         fills.append(_cow_fill(candidate=x, amount_out=int(y.amount_in)))
         fills.append(_cow_fill(candidate=y, amount_out=int(x.amount_in)))
-    fills.sort(key=lambda f: f.intent_id)
+    fills.sort(key=lambda f: tiebreak_token(f.intent_id, seed))
     return fills
 
 
@@ -316,11 +325,13 @@ def _cow_fill(candidate: _CowCandidateExactIn, *, amount_out: int) -> Fill:
 def _unmatched_cow_intents(
     partition: _CowPartition,
     matched_ids: set[str],
+    *,
+    seed: bytes | None = None,
 ) -> List[Intent]:
     remaining_out = list(partition.remaining)
     remaining_out.extend([candidate.intent for candidate in partition.side_01 if candidate.intent.intent_id not in matched_ids])
     remaining_out.extend([candidate.intent for candidate in partition.side_10 if candidate.intent.intent_id not in matched_ids])
-    remaining_out.sort(key=lambda intent: intent.intent_id)
+    remaining_out.sort(key=lambda intent: tiebreak_token(intent.intent_id, seed))
     return remaining_out
 
 
@@ -330,7 +341,7 @@ def _materialize_cow_pairs(request: _CowMaterializeRequest) -> tuple[List[Fill],
     for (sender, asset), amount in debit_by_sender_asset.items():
         if request.balances.get(sender, asset) < amount:
             # Fail closed: fall back to no netting and leave the balances snapshot untouched.
-            swap_intents_sorted = sorted(list(request.swap_intents), key=lambda intent: intent.intent_id)
+            swap_intents_sorted = sorted(list(request.swap_intents), key=lambda intent: tiebreak_token(intent.intent_id, request.seed))
             return [], swap_intents_sorted
 
     for (sender, asset), amount in debit_by_sender_asset.items():
@@ -338,7 +349,10 @@ def _materialize_cow_pairs(request: _CowMaterializeRequest) -> tuple[List[Fill],
     for (recipient, asset), amount in credit_by_recipient_asset.items():
         request.balances.add(recipient, asset, int(amount))
 
-    return _cow_pair_fills(request.best_pairs), _unmatched_cow_intents(request.partition, matched_ids)
+    return (
+        _cow_pair_fills(request.best_pairs, seed=request.seed),
+        _unmatched_cow_intents(request.partition, matched_ids, seed=request.seed),
+    )
 
 
 def _cow_pair_netting_exact_in_v1(
@@ -346,6 +360,7 @@ def _cow_pair_netting_exact_in_v1(
     *,
     pool_state: PoolState,
     balances: BalanceTable,
+    swap_tiebreak_seed: bytes | None = None,
 ) -> tuple[List[Fill], List[Intent]]:
     """Try to net opposite-direction exact-in swaps directly between users.
 
@@ -364,8 +379,8 @@ def _cow_pair_netting_exact_in_v1(
     """
     asset0 = pool_state.asset0
     asset1 = pool_state.asset1
-    partition = _partition_cow_candidates(swap_intents, pool_state)
-    context = _CowSelectionContext(balances=balances, asset0=asset0, asset1=asset1)
+    partition = _partition_cow_candidates(swap_intents, pool_state, seed=swap_tiebreak_seed)
+    context = _CowSelectionContext(balances=balances, asset0=asset0, asset1=asset1, seed=swap_tiebreak_seed)
     best_pairs = _select_cow_pairs(partition.side_01, partition.side_10, context=context)
     return _materialize_cow_pairs(
         _CowMaterializeRequest(
@@ -373,5 +388,6 @@ def _cow_pair_netting_exact_in_v1(
             partition=partition,
             swap_intents=swap_intents,
             balances=balances,
+            seed=swap_tiebreak_seed,
         )
     )

@@ -58,6 +58,9 @@ class _ClearSinglePoolRequest:
     factories: _SinglePoolFactories
     protocol_fee_share_bps: int
     protocol_fee_recipient_pubkey: Optional[PubKey]
+    # Default-off grinding-resistant tie-break seed (see neutral_tiebreak.py).
+    # None => byte-identical to the pre-seam canonical order.
+    swap_tiebreak_seed: bytes | None = None
 
 
 @dataclass
@@ -77,6 +80,7 @@ class _SinglePoolExecutionContext:
     factories: _SinglePoolFactories
     protocol_fee_share_bps: int
     protocol_fee_recipient_pubkey: Optional[PubKey]
+    swap_tiebreak_seed: bytes | None = None
 
 
 @dataclass(frozen=True)
@@ -138,6 +142,7 @@ def _apply_cow_pair_netting_pass(
         swap_intents,
         pool_state=context.pool_state,
         balances=context.runtime.balances_scratch,
+        swap_tiebreak_seed=context.swap_tiebreak_seed,
     )
     context.runtime.fills.extend(netted_fills)
     post_swap_ordering = (
@@ -155,26 +160,28 @@ def _order_swaps_for_single_pool(
     factories = context.factories
     pool_state = context.pool_state
     runtime = context.runtime
+    seed = context.swap_tiebreak_seed  # None => grindable status quo (byte-identical)
     if post_swap_ordering == policy.optimal_ab_bounded:
         return factories.order_optimal_ab_bounded_fn(
             swap_intents,
             pool_state=pool_state,
             balances=runtime.balances_scratch,
             reserves=runtime.current_reserves,
+            seed=seed,
         )
     if post_swap_ordering == policy.greedy_ab:
-        return factories.order_greedy_ab_fn(swap_intents, pool_state=pool_state, reserves=runtime.current_reserves)
+        return factories.order_greedy_ab_fn(swap_intents, pool_state=pool_state, reserves=runtime.current_reserves, seed=seed)
     if post_swap_ordering == policy.greedy_ab_refined:
-        greedy = factories.order_greedy_ab_fn(swap_intents, pool_state=pool_state, reserves=runtime.current_reserves)
+        greedy = factories.order_greedy_ab_fn(swap_intents, pool_state=pool_state, reserves=runtime.current_reserves, seed=seed)
         return factories.refine_b_ordering_fn(greedy, pool_state=pool_state, reserves=runtime.current_reserves)
     if post_swap_ordering == policy.greedy_ab_global:
-        greedy = factories.order_greedy_ab_fn(swap_intents, pool_state=pool_state, reserves=runtime.current_reserves)
+        greedy = factories.order_greedy_ab_fn(swap_intents, pool_state=pool_state, reserves=runtime.current_reserves, seed=seed)
         refined = factories.refine_b_ordering_fn(greedy, pool_state=pool_state, reserves=runtime.current_reserves)
         return factories.refine_ab_ordering_global_fn(refined, pool_state=pool_state, reserves=runtime.current_reserves)
     if post_swap_ordering == policy.mci_ab_global:
-        mci = factories.order_mci_ab_fn(swap_intents, pool_state=pool_state, reserves=runtime.current_reserves)
+        mci = factories.order_mci_ab_fn(swap_intents, pool_state=pool_state, reserves=runtime.current_reserves, seed=seed)
         return factories.refine_ab_ordering_global_fn(mci, pool_state=pool_state, reserves=runtime.current_reserves)
-    return factories.order_limit_price_fn(swap_intents)
+    return factories.order_limit_price_fn(swap_intents, seed=seed)
 
 
 def _process_ordered_swaps_for_single_pool(
@@ -364,6 +371,7 @@ def clear_batch_single_pool_with_factories(request: _ClearSinglePoolRequest) -> 
         factories=request.factories,
         protocol_fee_share_bps=request.protocol_fee_share_bps,
         protocol_fee_recipient_pubkey=request.protocol_fee_recipient_pubkey,
+        swap_tiebreak_seed=request.swap_tiebreak_seed,
     )
     post_swap_ordering, remaining_swaps = _apply_cow_pair_netting_pass(
         swap_intents,
