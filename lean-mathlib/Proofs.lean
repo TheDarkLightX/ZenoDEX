@@ -54,6 +54,7 @@ import Proofs.CPMMLiquidityDonationDefense
 import Proofs.CPMMOutputMonotonicity
 import Proofs.CPMMRuntimeCertificateBridge
 import Proofs.CPMMSettlement
+import Proofs.CpmmTargetPriceExecutableBound
 import Proofs.CpmmSwapV8ExactInAdmissibility
 import Proofs.CpmmSwapV8ExactOutMinimality
 import Proofs.CrossProtocolRecaptureGate
