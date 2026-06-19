@@ -68,6 +68,19 @@ class _MixedDirectTwoHopContext:
 
 
 @dataclass(frozen=True)
+class ExactInMixedSplitRequest:
+    direct_pool: PoolState
+    hop1_pool: PoolState
+    hop2_pool: PoolState
+    asset_in: AssetId
+    mid: AssetId
+    asset_out: AssetId
+    amount_in_total: Amount
+    window: int = 64
+    brute_force_max: int = 512
+
+
+@dataclass(frozen=True)
 class _SecondHopProbe:
     pool1: PoolState
     mid: AssetId
@@ -343,13 +356,15 @@ def _scan_mixed_direct_twohop_split(
     twohop_candidates.sort(key=lambda item: (-int(item[0].amount_out), context.quote_key(item[0])))
     for _route, pool1, pool2, mid in twohop_candidates[: min(4, len(twohop_candidates))]:
         mixed = context.mixed_split_direct_vs_twohop(
-            direct_pool=direct_pool,
-            hop1_pool=pool1,
-            hop2_pool=pool2,
-            asset_in=context.asset_in,
-            mid=mid,
-            asset_out=context.asset_out,
-            amount_in_total=context.amount_in,
+            request=ExactInMixedSplitRequest(
+                direct_pool=direct_pool,
+                hop1_pool=pool1,
+                hop2_pool=pool2,
+                asset_in=context.asset_in,
+                mid=mid,
+                asset_out=context.asset_out,
+                amount_in_total=context.amount_in,
+            ),
         )
         if mixed is not None and _is_better_exact_in(mixed, best, quote_key=context.quote_key):
             best = mixed

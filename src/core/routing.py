@@ -116,31 +116,23 @@ def best_route_exact_in_2hop(
 
 def _best_split_direct_vs_twohop_exact_in(
     *,
-    direct_pool: PoolState,
-    hop1_pool: PoolState,
-    hop2_pool: PoolState,
-    asset_in: AssetId,
-    mid: AssetId,
-    asset_out: AssetId,
-    amount_in_total: Amount,
-    window: int = 64,
-    brute_force_max: int = 512,
+    request: _routing_exact_in.ExactInMixedSplitRequest,
 ) -> Optional[RouteQuote]:
-    request = _routing_mixed_split.MixedSplitExactInRequest(
-        direct_pool=direct_pool,
-        hop1_pool=hop1_pool,
-        hop2_pool=hop2_pool,
-        asset_in=asset_in,
-        mid=mid,
-        asset_out=asset_out,
+    mixed_request = _routing_mixed_split.MixedSplitExactInRequest(
+        direct_pool=request.direct_pool,
+        hop1_pool=request.hop1_pool,
+        hop2_pool=request.hop2_pool,
+        asset_in=request.asset_in,
+        mid=request.mid,
+        asset_out=request.asset_out,
         quote_exact_in=_pool_quote_exact_in,
         reserves_direction=_pool_reserves_direction,
     )
     return _routing_mixed_split.best_split_direct_vs_twohop_exact_in_for_request(
-        request=request,
-        amount_in_total=amount_in_total,
-        window=window,
-        brute_force_max=brute_force_max,
+        request=mixed_request,
+        amount_in_total=request.amount_in_total,
+        window=request.window,
+        brute_force_max=request.brute_force_max,
     )
 
 
