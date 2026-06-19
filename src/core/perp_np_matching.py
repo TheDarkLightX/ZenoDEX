@@ -429,9 +429,7 @@ def _increases_risk(current: int, target: int) -> bool:
     return current * target < 0 or abs(target) > abs(current)
 
 
-def _validate_intent(it: Intent, ctx: _IntentValidationContext) -> str | None:
-    """Return a reject code, or None if the intent may participate. Precedence order
-    matches the listing (expiry -> nonce -> bound -> overflow -> margin -> price)."""
+def _validate_intent_basic_rejects(it: Intent, ctx: _IntentValidationContext) -> str | None:
     if it.expiry_epoch < ctx.now_epoch:
         return REJ_EXPIRED
     if it.nonce <= ctx.last_nonce:
@@ -440,24 +438,58 @@ def _validate_intent(it: Intent, ctx: _IntentValidationContext) -> str | None:
         return REJ_POS_BOUND
     if abs(it.target_base) * ctx.price_e8 > I128_MAX:
         return REJ_OVERFLOW
+    return None
+
+
+def _validate_intent_initial_margin(it: Intent, ctx: _IntentValidationContext) -> str | None:
+    if not _increases_risk(ctx.current, it.target_base):
+        return None
+    if ctx.collateral < initial_margin_req_e8(
+        it.target_base,
+        ctx.price_e8,
+        ctx.params.initial_margin_bps,
+    ):
+        return REJ_MARGIN
+    return None
+
+
+def _limit_price_violated(*, desired: int, price_e8: int, limit_price_e8: int) -> bool:
+    if desired > 0:
+        return price_e8 > limit_price_e8  # buyer wants p_c <= limit
+    return price_e8 < limit_price_e8  # seller wants p_c >= limit
+
+
+def _validate_intent_limit_price(it: Intent, ctx: _IntentValidationContext) -> str | None:
+    desired = it.target_base - ctx.current
+    if it.limit_price_e8 == 0:
+        return None
+    if desired == 0:
+        return None
+    if _limit_price_violated(
+        desired=desired,
+        price_e8=ctx.price_e8,
+        limit_price_e8=it.limit_price_e8,
+    ):
+        return REJ_PRICE
+    return None
+
+
+def _validate_intent(it: Intent, ctx: _IntentValidationContext) -> str | None:
+    """Return a reject code, or None if the intent may participate. Precedence order
+    matches the listing (expiry -> nonce -> bound -> overflow -> margin -> price)."""
     # Initial-margin gate applies whenever the target takes on NEW directional risk: either it
     # grows the same-side exposure (|target| > |current|) OR it CROSSES ZERO to the other side
     # (current * target < 0) -- a flip like long 10 -> short 9 is new short risk, not de-risking,
     # so it must post initial margin (cross-model review caught this zero-crossing bypass). A pure
     # same-side reduction (|target| <= |current|, no sign flip) is always allowed.
-    if (_increases_risk(ctx.current, it.target_base)
-            and ctx.collateral < initial_margin_req_e8(
-                it.target_base,
-                ctx.price_e8,
-                ctx.params.initial_margin_bps,
-            )):
-        return REJ_MARGIN
-    desired = it.target_base - ctx.current
-    if it.limit_price_e8 != 0 and desired != 0:
-        if desired > 0 and ctx.price_e8 > it.limit_price_e8:   # buyer wants p_c <= limit
-            return REJ_PRICE
-        if desired < 0 and ctx.price_e8 < it.limit_price_e8:   # seller wants p_c >= limit
-            return REJ_PRICE
+    for check in (
+        _validate_intent_basic_rejects,
+        _validate_intent_initial_margin,
+        _validate_intent_limit_price,
+    ):
+        code = check(it, ctx)
+        if code is not None:
+            return code
     return None
 
 
