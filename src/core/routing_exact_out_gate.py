@@ -98,6 +98,41 @@ class _ExactOutGateContext:
         return _ceil_div_nonneg(int(slope_e4) * self.direct_fee_bps, _EXACT_OUT_GATE_SCALE)
 
 
+@dataclass(frozen=True)
+class _ExactOutBaseThresholds:
+    stress_threshold_bps: int
+    pressure_threshold_e4: int
+    pressure_slope_e4: int
+
+
+@dataclass(frozen=True)
+class _ExactOutPiecewiseThresholds:
+    stress_threshold_bps: int
+    stress_cutoff_bps: int
+    pressure_mid_e4: int
+    pressure_low_e4: int
+
+
+@dataclass(frozen=True)
+class _ExactOutFeePiecewiseThresholds:
+    stress_threshold_bps: int
+    stress_cutoff_bps: int
+    pressure_mid_e4: int
+    pressure_low_e4: int
+    fee_slope_e4: int
+
+
+@dataclass(frozen=True)
+class _ExactOutTripieceThresholds:
+    stress_threshold_bps: int
+    stress_lower_cutoff_bps: int
+    stress_upper_cutoff_bps: int
+    pressure_mid_band_e4: int
+    pressure_upper_band_e4: int
+    pressure_low_base_e4: int
+    fee_slope_e4: int
+
+
 def _normalize_exact_out_gate_policy(policy: str) -> str:
     p = str(policy).strip().lower()
     if p in {
@@ -158,7 +193,7 @@ def _build_exact_out_gate_context(
     )
 
 
-def _base_exact_out_gate_thresholds(cfg: ExactOutTwoHopGateConfig) -> tuple[int, int, int]:
+def _base_exact_out_gate_thresholds(cfg: ExactOutTwoHopGateConfig) -> _ExactOutBaseThresholds:
     stress_threshold_bps = _require_gate_int("stress_threshold_bps", cfg.stress_threshold_bps)
     pressure_threshold_e4 = _require_gate_int("pressure_threshold_e4", cfg.pressure_threshold_e4)
     pressure_slope_e4 = _require_gate_int("pressure_slope_e4", cfg.pressure_slope_e4)
@@ -168,72 +203,116 @@ def _base_exact_out_gate_thresholds(cfg: ExactOutTwoHopGateConfig) -> tuple[int,
         raise ValueError("pressure_threshold_e4 must be non-negative")
     if pressure_slope_e4 < 0:
         raise ValueError("pressure_slope_e4 must be non-negative")
-    return stress_threshold_bps, pressure_threshold_e4, pressure_slope_e4
+    return _ExactOutBaseThresholds(
+        stress_threshold_bps=stress_threshold_bps,
+        pressure_threshold_e4=pressure_threshold_e4,
+        pressure_slope_e4=pressure_slope_e4,
+    )
+
+
+def _piecewise_exact_out_gate_thresholds(
+    *,
+    cfg: ExactOutTwoHopGateConfig,
+    base: _ExactOutBaseThresholds,
+) -> _ExactOutPiecewiseThresholds:
+    return _ExactOutPiecewiseThresholds(
+        stress_threshold_bps=base.stress_threshold_bps,
+        stress_cutoff_bps=_require_gate_int("piecewise_stress_cutoff_bps", cfg.piecewise_stress_cutoff_bps),
+        pressure_mid_e4=_require_gate_int("piecewise_pressure_mid_e4", cfg.piecewise_pressure_mid_e4),
+        pressure_low_e4=_require_gate_int("piecewise_pressure_low_e4", cfg.piecewise_pressure_low_e4),
+    )
+
+
+def _fee_piecewise_exact_out_gate_thresholds(
+    *,
+    cfg: ExactOutTwoHopGateConfig,
+    base: _ExactOutBaseThresholds,
+) -> _ExactOutFeePiecewiseThresholds:
+    return _ExactOutFeePiecewiseThresholds(
+        stress_threshold_bps=base.stress_threshold_bps,
+        stress_cutoff_bps=_require_gate_int(
+            "fee_piecewise_stress_cutoff_bps",
+            cfg.fee_piecewise_stress_cutoff_bps,
+        ),
+        pressure_mid_e4=_require_gate_int("fee_piecewise_pressure_mid_e4", cfg.fee_piecewise_pressure_mid_e4),
+        pressure_low_e4=_require_gate_int("fee_piecewise_pressure_low_e4", cfg.fee_piecewise_pressure_low_e4),
+        fee_slope_e4=_require_gate_int("fee_piecewise_fee_slope_e4", cfg.fee_piecewise_fee_slope_e4),
+    )
+
+
+def _tripiece_exact_out_gate_thresholds(
+    *,
+    cfg: ExactOutTwoHopGateConfig,
+    base: _ExactOutBaseThresholds,
+) -> _ExactOutTripieceThresholds:
+    return _ExactOutTripieceThresholds(
+        stress_threshold_bps=base.stress_threshold_bps,
+        stress_lower_cutoff_bps=_require_gate_int(
+            "tripiece_stress_lower_cutoff_bps",
+            cfg.tripiece_stress_lower_cutoff_bps,
+        ),
+        stress_upper_cutoff_bps=_require_gate_int(
+            "tripiece_stress_upper_cutoff_bps",
+            cfg.tripiece_stress_upper_cutoff_bps,
+        ),
+        pressure_mid_band_e4=_require_gate_int("tripiece_pressure_mid_band_e4", cfg.tripiece_pressure_mid_band_e4),
+        pressure_upper_band_e4=_require_gate_int(
+            "tripiece_pressure_upper_band_e4",
+            cfg.tripiece_pressure_upper_band_e4,
+        ),
+        pressure_low_base_e4=_require_gate_int("tripiece_pressure_low_base_e4", cfg.tripiece_pressure_low_base_e4),
+        fee_slope_e4=_require_gate_int("tripiece_fee_slope_e4", cfg.tripiece_fee_slope_e4),
+    )
 
 
 def _consider_adaptive_exact_out_gate(
     ctx: _ExactOutGateContext,
     *,
-    stress_threshold_bps: int,
-    pressure_threshold_e4: int,
-    pressure_slope_e4: int,
+    base: _ExactOutBaseThresholds,
 ) -> bool:
-    diff = _clamp_nonneg(int(stress_threshold_bps) - int(ctx.stress_bps))
-    inc = _ceil_div_nonneg(int(pressure_slope_e4) * int(diff), _EXACT_OUT_GATE_SCALE)
-    adaptive_threshold = int(pressure_threshold_e4) + int(inc)
-    return bool(ctx.stress_ge(stress_threshold_bps) or ctx.pressure_ge(adaptive_threshold))
+    diff = _clamp_nonneg(int(base.stress_threshold_bps) - int(ctx.stress_bps))
+    inc = _ceil_div_nonneg(int(base.pressure_slope_e4) * int(diff), _EXACT_OUT_GATE_SCALE)
+    adaptive_threshold = int(base.pressure_threshold_e4) + int(inc)
+    return bool(ctx.stress_ge(base.stress_threshold_bps) or ctx.pressure_ge(adaptive_threshold))
 
 
 def _consider_piecewise_exact_out_gate(
     ctx: _ExactOutGateContext,
     *,
-    stress_threshold_bps: int,
-    stress_cutoff_bps: int,
-    pressure_mid_e4: int,
-    pressure_low_e4: int,
+    thresholds: _ExactOutPiecewiseThresholds,
 ) -> bool:
-    if ctx.stress_ge(stress_threshold_bps):
+    if ctx.stress_ge(thresholds.stress_threshold_bps):
         return True
-    if ctx.stress_ge(stress_cutoff_bps):
-        return bool(ctx.pressure_ge(pressure_mid_e4))
-    return bool(ctx.pressure_ge(pressure_low_e4))
+    if ctx.stress_ge(thresholds.stress_cutoff_bps):
+        return bool(ctx.pressure_ge(thresholds.pressure_mid_e4))
+    return bool(ctx.pressure_ge(thresholds.pressure_low_e4))
 
 
 def _consider_fee_piecewise_exact_out_gate(
     ctx: _ExactOutGateContext,
     *,
-    stress_threshold_bps: int,
-    stress_cutoff_bps: int,
-    pressure_mid_e4: int,
-    pressure_low_e4: int,
-    fee_slope_e4: int,
+    thresholds: _ExactOutFeePiecewiseThresholds,
 ) -> bool:
-    if ctx.stress_ge(stress_threshold_bps):
+    if ctx.stress_ge(thresholds.stress_threshold_bps):
         return True
-    if ctx.stress_ge(stress_cutoff_bps):
-        return bool(ctx.pressure_ge(pressure_mid_e4))
-    threshold = int(pressure_low_e4) + ctx.fee_slope_increment(fee_slope_e4)
+    if ctx.stress_ge(thresholds.stress_cutoff_bps):
+        return bool(ctx.pressure_ge(thresholds.pressure_mid_e4))
+    threshold = int(thresholds.pressure_low_e4) + ctx.fee_slope_increment(thresholds.fee_slope_e4)
     return bool(ctx.pressure_ge(threshold))
 
 
 def _consider_tripiece_exact_out_gate(
     ctx: _ExactOutGateContext,
     *,
-    stress_threshold_bps: int,
-    stress_lower_cutoff_bps: int,
-    stress_upper_cutoff_bps: int,
-    pressure_mid_band_e4: int,
-    pressure_upper_band_e4: int,
-    pressure_low_base_e4: int,
-    fee_slope_e4: int,
+    thresholds: _ExactOutTripieceThresholds,
 ) -> bool:
-    if ctx.stress_ge(stress_threshold_bps):
+    if ctx.stress_ge(thresholds.stress_threshold_bps):
         return True
-    if ctx.stress_ge(stress_upper_cutoff_bps):
-        return bool(ctx.pressure_ge(pressure_upper_band_e4))
-    if ctx.stress_ge(stress_lower_cutoff_bps):
-        return bool(ctx.pressure_ge(pressure_mid_band_e4))
-    threshold = int(pressure_low_base_e4) + ctx.fee_slope_increment(fee_slope_e4)
+    if ctx.stress_ge(thresholds.stress_upper_cutoff_bps):
+        return bool(ctx.pressure_ge(thresholds.pressure_upper_band_e4))
+    if ctx.stress_ge(thresholds.stress_lower_cutoff_bps):
+        return bool(ctx.pressure_ge(thresholds.pressure_mid_band_e4))
+    threshold = int(thresholds.pressure_low_base_e4) + ctx.fee_slope_increment(thresholds.fee_slope_e4)
     return bool(ctx.pressure_ge(threshold))
 
 
@@ -242,68 +321,33 @@ def _evaluate_exact_out_gate_policy(
     policy: str,
     cfg: ExactOutTwoHopGateConfig,
     ctx: _ExactOutGateContext,
-    stress_threshold_bps: int,
-    pressure_threshold_e4: int,
-    pressure_slope_e4: int,
+    base: _ExactOutBaseThresholds,
 ) -> bool:
     if policy == "stress":
-        return bool(ctx.stress_ge(stress_threshold_bps))
+        return bool(ctx.stress_ge(base.stress_threshold_bps))
     if policy == "pressure":
-        return bool(ctx.pressure_ge(pressure_threshold_e4))
+        return bool(ctx.pressure_ge(base.pressure_threshold_e4))
     if policy == "stress_or_pressure_adaptive":
         return _consider_adaptive_exact_out_gate(
             ctx,
-            stress_threshold_bps=stress_threshold_bps,
-            pressure_threshold_e4=pressure_threshold_e4,
-            pressure_slope_e4=pressure_slope_e4,
+            base=base,
         )
     if policy == "stress_or_pressure_piecewise":
         return _consider_piecewise_exact_out_gate(
             ctx,
-            stress_threshold_bps=stress_threshold_bps,
-            stress_cutoff_bps=_require_gate_int("piecewise_stress_cutoff_bps", cfg.piecewise_stress_cutoff_bps),
-            pressure_mid_e4=_require_gate_int("piecewise_pressure_mid_e4", cfg.piecewise_pressure_mid_e4),
-            pressure_low_e4=_require_gate_int("piecewise_pressure_low_e4", cfg.piecewise_pressure_low_e4),
+            thresholds=_piecewise_exact_out_gate_thresholds(cfg=cfg, base=base),
         )
     if policy == "stress_or_pressure_piecewise_fee":
         return _consider_fee_piecewise_exact_out_gate(
             ctx,
-            stress_threshold_bps=stress_threshold_bps,
-            stress_cutoff_bps=_require_gate_int(
-                "fee_piecewise_stress_cutoff_bps",
-                cfg.fee_piecewise_stress_cutoff_bps,
-            ),
-            pressure_mid_e4=_require_gate_int("fee_piecewise_pressure_mid_e4", cfg.fee_piecewise_pressure_mid_e4),
-            pressure_low_e4=_require_gate_int("fee_piecewise_pressure_low_e4", cfg.fee_piecewise_pressure_low_e4),
-            fee_slope_e4=_require_gate_int("fee_piecewise_fee_slope_e4", cfg.fee_piecewise_fee_slope_e4),
+            thresholds=_fee_piecewise_exact_out_gate_thresholds(cfg=cfg, base=base),
         )
     if policy == "stress_or_pressure_tripiece":
         return _consider_tripiece_exact_out_gate(
             ctx,
-            stress_threshold_bps=stress_threshold_bps,
-            stress_lower_cutoff_bps=_require_gate_int(
-                "tripiece_stress_lower_cutoff_bps",
-                cfg.tripiece_stress_lower_cutoff_bps,
-            ),
-            stress_upper_cutoff_bps=_require_gate_int(
-                "tripiece_stress_upper_cutoff_bps",
-                cfg.tripiece_stress_upper_cutoff_bps,
-            ),
-            pressure_mid_band_e4=_require_gate_int(
-                "tripiece_pressure_mid_band_e4",
-                cfg.tripiece_pressure_mid_band_e4,
-            ),
-            pressure_upper_band_e4=_require_gate_int(
-                "tripiece_pressure_upper_band_e4",
-                cfg.tripiece_pressure_upper_band_e4,
-            ),
-            pressure_low_base_e4=_require_gate_int(
-                "tripiece_pressure_low_base_e4",
-                cfg.tripiece_pressure_low_base_e4,
-            ),
-            fee_slope_e4=_require_gate_int("tripiece_fee_slope_e4", cfg.tripiece_fee_slope_e4),
+            thresholds=_tripiece_exact_out_gate_thresholds(cfg=cfg, base=base),
         )
-    return bool(ctx.stress_ge(stress_threshold_bps) or ctx.pressure_ge(pressure_threshold_e4))
+    return bool(ctx.stress_ge(base.stress_threshold_bps) or ctx.pressure_ge(base.pressure_threshold_e4))
 
 
 def decide_exact_out_two_hop_gate(
@@ -322,14 +366,12 @@ def decide_exact_out_two_hop_gate(
         direct_amount_in=direct_amount_in,
         direct_fee_bps=direct_fee_bps,
     )
-    stress_threshold_bps, pressure_threshold_e4, pressure_slope_e4 = _base_exact_out_gate_thresholds(cfg)
+    base_thresholds = _base_exact_out_gate_thresholds(cfg)
     consider = _evaluate_exact_out_gate_policy(
         policy=policy,
         cfg=cfg,
         ctx=ctx,
-        stress_threshold_bps=stress_threshold_bps,
-        pressure_threshold_e4=pressure_threshold_e4,
-        pressure_slope_e4=pressure_slope_e4,
+        base=base_thresholds,
     )
     return ExactOutTwoHopGateDecision(
         consider_two_hop=consider,
