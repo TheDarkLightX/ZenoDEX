@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Deterministic grammar-based transport explorer for `src.core.quote_receipts`.
 
@@ -18,6 +16,8 @@ offline discovery and regression pinning, not as acceptance proof for
 functional-core correctness.
 """
 
+from __future__ import annotations
+
 import argparse
 import copy
 import hashlib
@@ -33,11 +33,14 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
-from src.core.quote_receipts import make_route_quote_receipt, receipt_hash, verify_route_quote_receipt
-from src.core.routing import RouteHop, RouteLeg, RouteQuote
-from src.state.pools import PoolState, PoolStatus
-
+from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool  # noqa: E402
+from src.core.quote_receipts import (  # noqa: E402
+    make_route_quote_receipt,
+    receipt_hash,
+    verify_route_quote_receipt,
+)
+from src.core.routing import RouteHop, RouteLeg, RouteQuote  # noqa: E402
+from src.state.pools import PoolState, PoolStatus  # noqa: E402
 
 RunnerFn = Callable[[object], str]
 RepairFn = Callable[[str, object], Sequence["GrammarCase"]]
@@ -88,6 +91,15 @@ class GrammarTarget:
 
 
 QUOTE_RECEIPTS_FILE = ROOT_DIR / "src/core/quote_receipts.py"
+QUOTE_RECEIPT_BODY_VERIFICATION_FILE = ROOT_DIR / "src/core/quote_receipt_body_verification.py"
+QUOTE_RECEIPT_GATES_FILE = ROOT_DIR / "src/core/quote_receipt_gates.py"
+QUOTE_RECEIPT_GATE_CONTRACT_FILE = ROOT_DIR / "src/core/quote_receipt_gate_contract.py"
+QUOTE_RECEIPT_TRACE_FILES = (
+    QUOTE_RECEIPTS_FILE,
+    QUOTE_RECEIPT_BODY_VERIFICATION_FILE,
+    QUOTE_RECEIPT_GATES_FILE,
+    QUOTE_RECEIPT_GATE_CONTRACT_FILE,
+)
 
 
 def _pool(pid: str, a0: str, a1: str, r0: int, r1: int, fee_bps: int = 0) -> PoolState:
@@ -439,14 +451,14 @@ TARGETS: tuple[GrammarTarget, ...] = (
     GrammarTarget(
         name="quote_receipt_transport",
         runner=_quote_receipt_outcome,
-        trace_files=(QUOTE_RECEIPTS_FILE,),
+        trace_files=QUOTE_RECEIPT_TRACE_FILES,
         cases=_receipt_cases(),
         repair_fn=_derive_receipt_repairs,
     ),
     GrammarTarget(
         name="quote_receipt_exact_in_certificate",
         runner=_quote_receipt_outcome,
-        trace_files=(QUOTE_RECEIPTS_FILE,),
+        trace_files=QUOTE_RECEIPT_TRACE_FILES,
         cases=_certificate_cases(),
         repair_fn=_derive_certificate_repairs,
     ),
