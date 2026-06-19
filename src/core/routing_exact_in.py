@@ -25,6 +25,27 @@ def _require_bool_control(value: object, *, name: str) -> bool:
 
 
 @dataclass(frozen=True)
+class ExactInRouteRequest:
+    pools_by_id: Dict[str, PoolState]
+    asset_in: AssetId
+    asset_out: AssetId
+    amount_in: Amount
+    split_search_profile: str = "adaptive_v6"
+    enable_mixed_direct_twohop_split: bool = False
+
+
+@dataclass(frozen=True)
+class ExactInRouteDependencies:
+    build_asset_pool_index: Callable[[Tuple[PoolState, ...]], Dict[AssetId, Tuple[int, ...]]]
+    pool_connects: Callable[[PoolState, AssetId, AssetId], bool]
+    pool_quote_exact_in: Callable[..., Optional[Tuple[Amount, str]]]
+    quote_key: Callable[[RouteQuote], tuple]
+    split_many_exact_in: Callable[..., Any]
+    split_two_exact_in: Callable[..., Any]
+    mixed_split_direct_vs_twohop: Callable[..., Optional[RouteQuote]]
+
+
+@dataclass(frozen=True)
 class _ExactInScanContext:
     pools: Tuple[PoolState, ...]
     by_asset: Dict[AssetId, Tuple[int, ...]]
@@ -55,48 +76,31 @@ class _SecondHopProbe:
 
 def best_route_exact_in_2hop(
     *,
-    pools_by_id: Dict[str, PoolState],
-    asset_in: AssetId,
-    asset_out: AssetId,
-    amount_in: Amount,
-    build_asset_pool_index: Callable[[Tuple[PoolState, ...]], Dict[AssetId, Tuple[int, ...]]],
-    pool_connects: Callable[[PoolState, AssetId, AssetId], bool],
-    pool_quote_exact_in: Callable[..., Optional[Tuple[Amount, str]]],
-    quote_key: Callable[[RouteQuote], tuple],
-    split_many_exact_in: Callable[..., Any],
-    split_two_exact_in: Callable[..., Any],
-    mixed_split_direct_vs_twohop: Callable[..., Optional[RouteQuote]],
-    split_search_profile: str = "adaptive_v6",
-    enable_mixed_direct_twohop_split: bool = False,
+    request: ExactInRouteRequest,
+    dependencies: ExactInRouteDependencies,
 ) -> Optional[RouteQuote]:
     """Compute the best exact-in route up to 2 hops."""
-    amount_in_i = _require_int_control(amount_in, name="amount_in")
+    amount_in_i = _require_int_control(request.amount_in, name="amount_in")
     mixed_split_enabled = _require_bool_control(
-        enable_mixed_direct_twohop_split,
+        request.enable_mixed_direct_twohop_split,
         name="enable_mixed_direct_twohop_split",
     )
     if amount_in_i <= 0:
         return None
-    if asset_in == asset_out:
+    if request.asset_in == request.asset_out:
         return None
 
     context = _build_exact_in_scan_context(
-        pools_by_id=pools_by_id,
-        asset_in=asset_in,
-        asset_out=asset_out,
+        request=request,
         amount_in=amount_in_i,
-        build_asset_pool_index=build_asset_pool_index,
-        pool_connects=pool_connects,
-        pool_quote_exact_in=pool_quote_exact_in,
-        quote_key=quote_key,
+        dependencies=dependencies,
     )
     best, best_direct_1hop, twohop_candidates = _scan_direct_and_twohop_exact_in(context)
     best = _scan_parallel_split_exact_in(
         context=context,
         best=best,
-        split_many_exact_in=split_many_exact_in,
-        split_two_exact_in=split_two_exact_in,
-        split_search_profile=split_search_profile,
+        request=request,
+        dependencies=dependencies,
     )
     if mixed_split_enabled and best_direct_1hop is not None and twohop_candidates:
         best = _scan_mixed_direct_twohop_split(
@@ -104,12 +108,12 @@ def best_route_exact_in_2hop(
             best_direct_1hop=best_direct_1hop,
             twohop_candidates=twohop_candidates,
             context=_MixedDirectTwoHopContext(
-                pools_by_id=pools_by_id,
-                asset_in=asset_in,
-                asset_out=asset_out,
+                pools_by_id=request.pools_by_id,
+                asset_in=request.asset_in,
+                asset_out=request.asset_out,
                 amount_in=amount_in_i,
-                quote_key=quote_key,
-                mixed_split_direct_vs_twohop=mixed_split_direct_vs_twohop,
+                quote_key=dependencies.quote_key,
+                mixed_split_direct_vs_twohop=dependencies.mixed_split_direct_vs_twohop,
             ),
     )
     return best
@@ -117,25 +121,20 @@ def best_route_exact_in_2hop(
 
 def _build_exact_in_scan_context(
     *,
-    pools_by_id: Dict[str, PoolState],
-    asset_in: AssetId,
-    asset_out: AssetId,
     amount_in: Amount,
-    build_asset_pool_index: Callable[[Tuple[PoolState, ...]], Dict[AssetId, Tuple[int, ...]]],
-    pool_connects: Callable[[PoolState, AssetId, AssetId], bool],
-    pool_quote_exact_in: Callable[..., Optional[Tuple[Amount, str]]],
-    quote_key: Callable[[RouteQuote], tuple],
+    request: ExactInRouteRequest,
+    dependencies: ExactInRouteDependencies,
 ) -> _ExactInScanContext:
-    pools: Tuple[PoolState, ...] = tuple(sorted(pools_by_id.values(), key=lambda p: p.pool_id))
+    pools: Tuple[PoolState, ...] = tuple(sorted(request.pools_by_id.values(), key=lambda p: p.pool_id))
     return _ExactInScanContext(
         pools=pools,
-        by_asset=build_asset_pool_index(pools),
-        asset_in=asset_in,
-        asset_out=asset_out,
+        by_asset=dependencies.build_asset_pool_index(pools),
+        asset_in=request.asset_in,
+        asset_out=request.asset_out,
         amount_in=amount_in,
-        pool_connects=pool_connects,
-        pool_quote_exact_in=pool_quote_exact_in,
-        quote_key=quote_key,
+        pool_connects=dependencies.pool_connects,
+        pool_quote_exact_in=dependencies.pool_quote_exact_in,
+        quote_key=dependencies.quote_key,
     )
 
 
@@ -163,9 +162,8 @@ def _scan_parallel_split_exact_in(
     *,
     context: _ExactInScanContext,
     best: Optional[RouteQuote],
-    split_many_exact_in: Callable[..., Any],
-    split_two_exact_in: Callable[..., Any],
-    split_search_profile: str,
+    request: ExactInRouteRequest,
+    dependencies: ExactInRouteDependencies,
 ) -> Optional[RouteQuote]:
     return _exact_in_split.scan_parallel_split_exact_in(
         best=best,
@@ -177,9 +175,9 @@ def _scan_parallel_split_exact_in(
         pool_connects=context.pool_connects,
         pool_quote_exact_in=context.pool_quote_exact_in,
         quote_key=context.quote_key,
-        split_many_exact_in=split_many_exact_in,
-        split_two_exact_in=split_two_exact_in,
-        split_search_profile=split_search_profile,
+        split_many_exact_in=dependencies.split_many_exact_in,
+        split_two_exact_in=dependencies.split_two_exact_in,
+        split_search_profile=request.split_search_profile,
     )
 
 

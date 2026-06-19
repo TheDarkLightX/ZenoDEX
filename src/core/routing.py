@@ -94,19 +94,23 @@ def best_route_exact_in_2hop(
     enable_mixed_direct_twohop_split: bool = False,
 ) -> Optional[RouteQuote]:
     return _routing_exact_in.best_route_exact_in_2hop(
-        pools_by_id=pools_by_id,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_in=amount_in,
-        build_asset_pool_index=_build_asset_pool_index,
-        pool_connects=_pool_connects,
-        pool_quote_exact_in=_pool_quote_exact_in,
-        quote_key=_quote_key,
-        split_many_exact_in=best_split_many_pools_exact_in_for_pools,
-        split_two_exact_in=best_split_two_pools_exact_in_for_pools,
-        mixed_split_direct_vs_twohop=_best_split_direct_vs_twohop_exact_in,
-        split_search_profile=split_search_profile,
-        enable_mixed_direct_twohop_split=enable_mixed_direct_twohop_split,
+        request=_routing_exact_in.ExactInRouteRequest(
+            pools_by_id=pools_by_id,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_in=amount_in,
+            split_search_profile=split_search_profile,
+            enable_mixed_direct_twohop_split=enable_mixed_direct_twohop_split,
+        ),
+        dependencies=_routing_exact_in.ExactInRouteDependencies(
+            build_asset_pool_index=_build_asset_pool_index,
+            pool_connects=_pool_connects,
+            pool_quote_exact_in=_pool_quote_exact_in,
+            quote_key=_quote_key,
+            split_many_exact_in=best_split_many_pools_exact_in_for_pools,
+            split_two_exact_in=best_split_two_pools_exact_in_for_pools,
+            mixed_split_direct_vs_twohop=_best_split_direct_vs_twohop_exact_in,
+        ),
     )
 
 
