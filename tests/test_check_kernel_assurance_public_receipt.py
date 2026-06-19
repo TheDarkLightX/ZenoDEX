@@ -164,3 +164,31 @@ def test_receipt_file_checker_accepts_and_rejects_tampering(tmp_path: Path) -> N
     rejected = check_receipt_file(receipt_path=receipt_path, manifest_path=manifest_path)
     assert rejected["ok"] is False
     assert any("receipt_sha256 mismatch" in error for error in rejected["errors"])
+
+
+def test_build_public_receipt_rejects_not_proved_report(tmp_path: Path) -> None:
+    # Fail-closed promotion boundary: a kernel-assurance run whose verification did
+    # NOT prove (ok=false) must NOT be mintable into a public assurance receipt.
+    # This is the gate that keeps a failing ESSO->Rust codegen kernel out of any
+    # "verified" public claim -- e.g. the settlement swap_exact_out apply kernel,
+    # whose inductive invariant is SMT-inconclusive (NIA-unprovable): _verify_kernel
+    # raises on the non-UNSAT query -> dex_kernel_assurance sets report ok=false ->
+    # this builder must refuse to produce a public receipt.
+    manifest = _manifest()
+    manifest_sha256, _manifest_path = _manifest_hash(manifest, tmp_path)
+    report = _private_report(manifest_sha256)
+    report["ok"] = False  # NOT PROVED
+    report["error"] = "verification failed: query invariant_inductive => unknown"
+    with pytest.raises(ReceiptError, match="not ok=true"):
+        build_public_receipt_from_report(report, manifest=manifest, manifest_sha256=manifest_sha256)
+
+
+def test_build_public_receipt_rejects_missing_ok(tmp_path: Path) -> None:
+    # Defense-in-depth: a report that omits `ok` entirely is also rejected (the gate
+    # requires ok to be exactly True), so a garbled/unproven report cannot slip through.
+    manifest = _manifest()
+    manifest_sha256, _manifest_path = _manifest_hash(manifest, tmp_path)
+    report = _private_report(manifest_sha256)
+    del report["ok"]
+    with pytest.raises(ReceiptError, match="not ok=true"):
+        build_public_receipt_from_report(report, manifest=manifest, manifest_sha256=manifest_sha256)
