@@ -64,6 +64,18 @@ def _pubkey_bytes48_or_none(pubkey: str) -> bytes | None:
         return None
 
 
+def _is_non_bool_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_zero_one_int(value: object) -> bool:
+    return _is_non_bool_int(value) and value in (0, 1)
+
+
+def _is_non_empty_str(value: object) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
 def _infer_epoch_phase(gs: dict) -> int:
     """Infer epoch_phase from existing global_state fields for legacy snapshots.
 
@@ -102,6 +114,90 @@ def _legacy_global_bool(gs: dict, key: str, default: bool) -> bool:
     if isinstance(value, int) and value in (0, 1):
         return bool(value)
     raise TypeError(f"global_state[{key!r}] must be a bool or 0/1 int")
+
+
+def _validate_isolated_market_header(
+    *,
+    kind: str,
+    quote_asset: str,
+    global_state: object,
+    accounts: object,
+) -> None:
+    if kind != PERP_MARKET_KIND_ISOLATED_V2:
+        raise ValueError(f"unsupported perps market kind: {kind}")
+    if not _is_non_empty_str(quote_asset):
+        raise TypeError("quote_asset must be a non-empty string")
+    if not isinstance(global_state, dict):
+        raise TypeError("global_state must be a dict")
+    if not isinstance(accounts, dict):
+        raise TypeError("accounts must be a dict")
+
+
+def _ensure_isolated_global_defaults(global_state: Dict[str, Value]) -> None:
+    # Backward compat: infer epoch_phase from existing state for legacy snapshots.
+    if "epoch_phase" not in global_state:
+        global_state["epoch_phase"] = _infer_epoch_phase(global_state)
+    if "mark_price_source_kind" not in global_state:
+        global_state["mark_price_source_kind"] = MARK_PRICE_SOURCE_EXTERNAL_MEDIAN
+
+
+def _validate_isolated_global_keys(global_state: Dict[str, Value]) -> None:
+    keys = set(global_state.keys())
+    extra = keys - PERP_ISOLATED_GLOBAL_KEYS
+    missing = PERP_ISOLATED_GLOBAL_KEYS - keys
+    if extra:
+        raise ValueError(f"global_state has unknown keys: {sorted(extra)[:8]}")
+    if missing:
+        raise ValueError(f"global_state missing required keys: {sorted(missing)[:8]}")
+
+
+def _normalize_isolated_epoch_phase(global_state: Dict[str, Value]) -> None:
+    # Canonical kernel encoding: Open=0, PricePublished=1, Settled=2.
+    ep = global_state.get("epoch_phase")
+    if isinstance(ep, str):
+        if ep not in _EPOCH_PHASE_STR_TO_INT:
+            raise ValueError(f"global_state['epoch_phase'] invalid: {ep!r}")
+        global_state["epoch_phase"] = _EPOCH_PHASE_STR_TO_INT[ep]
+        return
+    if _is_non_bool_int(ep):
+        if ep not in _EPOCH_PHASE_INT_TO_STR:
+            raise ValueError(f"global_state['epoch_phase'] int value {ep} out of range [0,2]")
+        return
+    raise TypeError("global_state['epoch_phase'] must be a str or int")
+
+
+def _validate_normalized_isolated_epoch_phase(value: Value) -> None:
+    if not _is_non_bool_int(value) or value not in _EPOCH_PHASE_INT_TO_STR:
+        raise ValueError(f"global_state['epoch_phase'] invalid: {value!r}")
+
+
+def _normalize_isolated_bool_global_value(global_state: Dict[str, Value], key: str, value: Value) -> None:
+    if isinstance(value, bool):
+        return
+    if _is_zero_one_int(value):
+        global_state[key] = bool(value)
+        return
+    raise TypeError(f"global_state[{key!r}] must be a bool (or 0/1 int)")
+
+
+def _normalize_isolated_global_value(global_state: Dict[str, Value], key: str, value: Value) -> None:
+    if key == "epoch_phase":
+        _validate_normalized_isolated_epoch_phase(value)
+        return
+
+    if key in _PERP_ISOLATED_GLOBAL_BOOL_KEYS:
+        # Some upstreams historically used 0/1 ints for booleans; normalize.
+        _normalize_isolated_bool_global_value(global_state, key, value)
+        return
+
+    if _is_non_bool_int(value):
+        return
+    raise TypeError(f"global_state[{key!r}] must be an int")
+
+
+def _normalize_isolated_global_values(global_state: Dict[str, Value]) -> None:
+    for key, value in list(global_state.items()):
+        _normalize_isolated_global_value(global_state, key, value)
 
 
 _EPOCH_PHASE_STR_TO_INT: dict[str, int] = {"Open": 0, "PricePublished": 1, "Settled": 2}
@@ -167,63 +263,16 @@ class PerpMarketState:
     kind: Literal["isolated_v2"] = PERP_MARKET_KIND_ISOLATED_V2
 
     def __post_init__(self) -> None:
-        if self.kind != PERP_MARKET_KIND_ISOLATED_V2:
-            raise ValueError(f"unsupported perps market kind: {self.kind}")
-        if not isinstance(self.quote_asset, str) or not self.quote_asset:
-            raise TypeError("quote_asset must be a non-empty string")
-        if not isinstance(self.global_state, dict):
-            raise TypeError("global_state must be a dict")
-        if not isinstance(self.accounts, dict):
-            raise TypeError("accounts must be a dict")
-
-        # Fail-closed: validate global_state shape and types (no unknown keys).
-        # Backward compat: infer epoch_phase from existing state for legacy snapshots.
-        if "epoch_phase" not in self.global_state:
-            # frozen=True prevents direct assignment; use dict mutation.
-            self.global_state["epoch_phase"] = _infer_epoch_phase(self.global_state)
-        if "mark_price_source_kind" not in self.global_state:
-            self.global_state["mark_price_source_kind"] = MARK_PRICE_SOURCE_EXTERNAL_MEDIAN
-        keys = set(self.global_state.keys())
-        extra = keys - PERP_ISOLATED_GLOBAL_KEYS
-        missing = PERP_ISOLATED_GLOBAL_KEYS - keys
-        if extra:
-            raise ValueError(f"global_state has unknown keys: {sorted(extra)[:8]}")
-        if missing:
-            raise ValueError(f"global_state missing required keys: {sorted(missing)[:8]}")
-
-        # Normalize epoch_phase encoding to the canonical kernel representation:
-        # Open=0, PricePublished=1, Settled=2.
-        ep = self.global_state.get("epoch_phase")
-        if isinstance(ep, str):
-            if ep not in _EPOCH_PHASE_STR_TO_INT:
-                raise ValueError(f"global_state['epoch_phase'] invalid: {ep!r}")
-            self.global_state["epoch_phase"] = _EPOCH_PHASE_STR_TO_INT[ep]
-        elif isinstance(ep, int) and not isinstance(ep, bool):
-            if ep not in _EPOCH_PHASE_INT_TO_STR:
-                raise ValueError(f"global_state['epoch_phase'] int value {ep} out of range [0,2]")
-        else:
-            raise TypeError("global_state['epoch_phase'] must be a str or int")
-        for k, v in list(self.global_state.items()):
-            # epoch_phase must be the canonical int encoding (never bool/str after normalization).
-            if k == "epoch_phase":
-                if not isinstance(v, int) or isinstance(v, bool) or v not in _EPOCH_PHASE_INT_TO_STR:
-                    raise ValueError(f"global_state['epoch_phase'] invalid: {v!r}")
-                continue
-
-            # Some upstreams historically used 0/1 ints for booleans; normalize.
-            if k in _PERP_ISOLATED_GLOBAL_BOOL_KEYS:
-                if isinstance(v, bool):
-                    continue
-                if isinstance(v, int) and not isinstance(v, bool):
-                    if v in (0, 1):
-                        self.global_state[k] = bool(v)
-                        continue
-                raise TypeError(f"global_state[{k!r}] must be a bool (or 0/1 int)")
-
-            if isinstance(v, int) and not isinstance(v, bool):
-                continue
-            raise TypeError(f"global_state[{k!r}] must be an int")
-
+        _validate_isolated_market_header(
+            kind=self.kind,
+            quote_asset=self.quote_asset,
+            global_state=self.global_state,
+            accounts=self.accounts,
+        )
+        _ensure_isolated_global_defaults(self.global_state)
+        _validate_isolated_global_keys(self.global_state)
+        _normalize_isolated_epoch_phase(self.global_state)
+        _normalize_isolated_global_values(self.global_state)
         self._validate_isolated_state_consistency()
 
     def _validate_isolated_state_consistency(self) -> None:
