@@ -154,16 +154,20 @@ def best_route_exact_out_2hop(
     gate_config: ExactOutTwoHopGateConfig | None = None,
 ) -> Optional[RouteQuote]:
     return _routing_exact_out.best_route_exact_out_2hop(
-        pools_by_id=pools_by_id,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out=amount_out,
-        build_asset_pool_index=_build_asset_pool_index,
-        pool_connects=_pool_connects,
-        pool_quote_exact_out=_pool_quote_exact_out,
-        quote_key=_quote_key,
-        should_consider_exact_out_two_hop=should_consider_exact_out_two_hop,
-        split_two_pools_exact_out=best_split_two_pools_exact_out_for_pools,
-        apply_two_hop_gate=apply_two_hop_gate,
-        gate_config=gate_config,
+        request=_routing_exact_out.ExactOutRouteRequest(
+            pools_by_id=pools_by_id,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_out=amount_out,
+            apply_two_hop_gate=apply_two_hop_gate,
+            gate_config=gate_config,
+        ),
+        dependencies=_routing_exact_out.ExactOutRouteDependencies(
+            build_asset_pool_index=_build_asset_pool_index,
+            pool_connects=_pool_connects,
+            pool_quote_exact_out=_pool_quote_exact_out,
+            quote_key=_quote_key,
+            should_consider_exact_out_two_hop=should_consider_exact_out_two_hop,
+            split_two_pools_exact_out=best_split_two_pools_exact_out_for_pools,
+        ),
     )

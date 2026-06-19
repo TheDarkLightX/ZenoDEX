@@ -26,6 +26,26 @@ def _require_bool_control(value: object, *, name: str) -> bool:
 
 
 @dataclass(frozen=True)
+class ExactOutRouteRequest:
+    pools_by_id: Dict[str, PoolState]
+    asset_in: AssetId
+    asset_out: AssetId
+    amount_out: Amount
+    apply_two_hop_gate: bool = False
+    gate_config: ExactOutTwoHopGateConfig | None = None
+
+
+@dataclass(frozen=True)
+class ExactOutRouteDependencies:
+    build_asset_pool_index: Callable[[Tuple[PoolState, ...]], Dict[AssetId, Tuple[int, ...]]]
+    pool_connects: Callable[[PoolState, AssetId, AssetId], bool]
+    pool_quote_exact_out: Callable[..., Optional[Tuple[Amount, str, Amount]]]
+    quote_key: Callable[[RouteQuote], tuple]
+    should_consider_exact_out_two_hop: Callable[..., bool]
+    split_two_pools_exact_out: Callable[..., Any]
+
+
+@dataclass(frozen=True)
 class _ExactOutScanContext:
     pools: Tuple[PoolState, ...]
     by_asset: Dict[AssetId, Tuple[int, ...]]
@@ -38,6 +58,19 @@ class _ExactOutScanContext:
 
 
 @dataclass(frozen=True)
+class _ExactOutTwoHopGateSettings:
+    apply_two_hop_gate: bool
+    config: ExactOutTwoHopGateConfig | None
+
+
+@dataclass(frozen=True)
+class _ExactOutDirectGateEvidence:
+    best_direct: Optional[RouteQuote]
+    direct_reserve_out: Amount | None
+    direct_fee_bps: int | None
+
+
+@dataclass(frozen=True)
 class _ExactOutSecondHopProbe:
     pool1: PoolState
     mid: AssetId
@@ -45,47 +78,36 @@ class _ExactOutSecondHopProbe:
 
 def best_route_exact_out_2hop(
     *,
-    pools_by_id: Dict[str, PoolState],
-    asset_in: AssetId,
-    asset_out: AssetId,
-    amount_out: Amount,
-    build_asset_pool_index: Callable[[Tuple[PoolState, ...]], Dict[AssetId, Tuple[int, ...]]],
-    pool_connects: Callable[[PoolState, AssetId, AssetId], bool],
-    pool_quote_exact_out: Callable[..., Optional[Tuple[Amount, str, Amount]]],
-    quote_key: Callable[[RouteQuote], tuple],
-    should_consider_exact_out_two_hop: Callable[..., bool],
-    split_two_pools_exact_out: Callable[..., Any],
-    apply_two_hop_gate: bool = False,
-    gate_config: ExactOutTwoHopGateConfig | None = None,
+    request: ExactOutRouteRequest,
+    dependencies: ExactOutRouteDependencies,
 ) -> Optional[RouteQuote]:
     """Compute the best exact-out route up to 2 hops."""
-    amount_out_i = _require_int_control(amount_out, name="amount_out")
-    apply_gate = _require_bool_control(apply_two_hop_gate, name="apply_two_hop_gate")
+    amount_out_i = _require_int_control(request.amount_out, name="amount_out")
+    gate_settings = _ExactOutTwoHopGateSettings(
+        apply_two_hop_gate=_require_bool_control(
+            request.apply_two_hop_gate,
+            name="apply_two_hop_gate",
+        ),
+        config=request.gate_config,
+    )
     if amount_out_i <= 0:
         return None
-    if asset_in == asset_out:
+    if request.asset_in == request.asset_out:
         return None
 
     context = _build_exact_out_scan_context(
-        pools_by_id=pools_by_id,
-        asset_in=asset_in,
-        asset_out=asset_out,
         amount_out=amount_out_i,
-        build_asset_pool_index=build_asset_pool_index,
-        pool_connects=pool_connects,
-        pool_quote_exact_out=pool_quote_exact_out,
-        quote_key=quote_key,
+        request=request,
+        dependencies=dependencies,
     )
-    best_direct, direct_candidates, gate_inputs = _direct_exact_out_candidates(
+    best_direct, direct_candidates, gate_evidence = _direct_exact_out_candidates(
         context=context,
     )
     consider_two_hop = _should_scan_two_hop(
         amount_out=amount_out_i,
-        best_direct=best_direct,
-        gate_inputs=gate_inputs,
-        apply_two_hop_gate=apply_gate,
-        gate_config=gate_config,
-        should_consider_exact_out_two_hop=should_consider_exact_out_two_hop,
+        gate_evidence=gate_evidence,
+        gate_settings=gate_settings,
+        dependencies=dependencies,
     )
 
     best: Optional[RouteQuote] = best_direct
@@ -93,7 +115,7 @@ def best_route_exact_out_2hop(
         best=best,
         direct_candidates=direct_candidates,
         context=context,
-        split_two_pools_exact_out=split_two_pools_exact_out,
+        dependencies=dependencies,
     )
     if consider_two_hop:
         best = _best_two_hop_exact_out(
@@ -105,32 +127,27 @@ def best_route_exact_out_2hop(
 
 def _build_exact_out_scan_context(
     *,
-    pools_by_id: Dict[str, PoolState],
-    asset_in: AssetId,
-    asset_out: AssetId,
     amount_out: Amount,
-    build_asset_pool_index: Callable[[Tuple[PoolState, ...]], Dict[AssetId, Tuple[int, ...]]],
-    pool_connects: Callable[[PoolState, AssetId, AssetId], bool],
-    pool_quote_exact_out: Callable[..., Optional[Tuple[Amount, str, Amount]]],
-    quote_key: Callable[[RouteQuote], tuple],
+    request: ExactOutRouteRequest,
+    dependencies: ExactOutRouteDependencies,
 ) -> _ExactOutScanContext:
-    pools: Tuple[PoolState, ...] = tuple(sorted(pools_by_id.values(), key=lambda p: p.pool_id))
+    pools: Tuple[PoolState, ...] = tuple(sorted(request.pools_by_id.values(), key=lambda p: p.pool_id))
     return _ExactOutScanContext(
         pools=pools,
-        by_asset=build_asset_pool_index(pools),
-        asset_in=asset_in,
-        asset_out=asset_out,
+        by_asset=dependencies.build_asset_pool_index(pools),
+        asset_in=request.asset_in,
+        asset_out=request.asset_out,
         amount_out=amount_out,
-        pool_connects=pool_connects,
-        pool_quote_exact_out=pool_quote_exact_out,
-        quote_key=quote_key,
+        pool_connects=dependencies.pool_connects,
+        pool_quote_exact_out=dependencies.pool_quote_exact_out,
+        quote_key=dependencies.quote_key,
     )
 
 
 def _direct_exact_out_candidates(
     *,
     context: _ExactOutScanContext,
-) -> tuple[Optional[RouteQuote], List[PoolState], tuple[Amount | None, int | None]]:
+) -> tuple[Optional[RouteQuote], List[PoolState], _ExactOutDirectGateEvidence]:
     best_direct: Optional[RouteQuote] = None
     best_direct_reserve_out: Amount | None = None
     best_direct_fee_bps: int | None = None
@@ -159,7 +176,15 @@ def _direct_exact_out_candidates(
             best_direct = route
             best_direct_reserve_out = reserve_out
             best_direct_fee_bps = int(pool.fee_bps)
-    return best_direct, direct_candidates, (best_direct_reserve_out, best_direct_fee_bps)
+    return (
+        best_direct,
+        direct_candidates,
+        _ExactOutDirectGateEvidence(
+            best_direct=best_direct,
+            direct_reserve_out=best_direct_reserve_out,
+            direct_fee_bps=best_direct_fee_bps,
+        ),
+    )
 
 
 def _single_hop_exact_out_quote(
@@ -181,23 +206,20 @@ def _single_hop_exact_out_quote(
 def _should_scan_two_hop(
     *,
     amount_out: Amount,
-    best_direct: Optional[RouteQuote],
-    gate_inputs: tuple[Amount | None, int | None],
-    apply_two_hop_gate: bool,
-    gate_config: ExactOutTwoHopGateConfig | None,
-    should_consider_exact_out_two_hop: Callable[..., bool],
+    gate_evidence: _ExactOutDirectGateEvidence,
+    gate_settings: _ExactOutTwoHopGateSettings,
+    dependencies: ExactOutRouteDependencies,
 ) -> bool:
-    if not apply_two_hop_gate:
+    if not gate_settings.apply_two_hop_gate:
         return True
-    best_direct_reserve_out, best_direct_fee_bps = gate_inputs
-    if best_direct is None or best_direct_reserve_out is None:
+    if gate_evidence.best_direct is None or gate_evidence.direct_reserve_out is None:
         return True
-    return should_consider_exact_out_two_hop(
+    return dependencies.should_consider_exact_out_two_hop(
         amount_out=amount_out,
-        direct_reserve_out=int(best_direct_reserve_out),
-        direct_amount_in=int(best_direct.amount_in),
-        direct_fee_bps=int(best_direct_fee_bps or 0),
-        config=gate_config,
+        direct_reserve_out=int(gate_evidence.direct_reserve_out),
+        direct_amount_in=int(gate_evidence.best_direct.amount_in),
+        direct_fee_bps=int(gate_evidence.direct_fee_bps or 0),
+        config=gate_settings.config,
     )
 
 
@@ -206,7 +228,7 @@ def _best_parallel_split_exact_out(
     best: Optional[RouteQuote],
     direct_candidates: List[PoolState],
     context: _ExactOutScanContext,
-    split_two_pools_exact_out: Callable[..., Any],
+    dependencies: ExactOutRouteDependencies,
 ) -> Optional[RouteQuote]:
     if len(direct_candidates) < 2:
         return best
@@ -220,7 +242,7 @@ def _best_parallel_split_exact_out(
             context=context,
             pool0=pool0,
             pool1=pool1,
-            split_two_pools_exact_out=split_two_pools_exact_out,
+            split_two_pools_exact_out=dependencies.split_two_pools_exact_out,
         )
         if route is not None and _is_better_exact_out(route, best, quote_key=context.quote_key):
             best = route
