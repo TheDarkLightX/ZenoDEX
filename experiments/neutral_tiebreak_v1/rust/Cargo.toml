@@ -1,0 +1,11 @@
+[package]
+name = "neutral_tiebreak"
+version = "0.1.0"
+edition = "2021"
+description = "Rust shadow of the grinding-resistant tie-break primitive (parity with the Python prototype)."
+
+[dependencies]
+sha2 = { version = "0.10.9", default-features = false }
+
+[lib]
+path = "src/lib.rs"
