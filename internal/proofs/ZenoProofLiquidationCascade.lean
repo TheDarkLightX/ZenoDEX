@@ -163,10 +163,13 @@ theorem cascade_terminates_in_position_steps
     omega
   exact hLe
 
-/-- Repeated liquidation reaches zero in at most `pos` steps.
-Formally: each step reduces position by at least 1, so after at most `pos`
-steps the position reaches zero. -/
-theorem liquidation_reaches_zero_bounded
+/-- One-step position decrease: for any valid fraction, a single
+liquidation step reduces the position by at least 1 unit.
+
+This is the one-step progress lemma. The full iterated termination
+result is `iterated_cascade_terminates`, which proves that repeated
+application reaches zero in at most `pos` steps. -/
+theorem one_step_position_decrease
     (pos : Nat) (hpos : pos ≥ BPS) :
     ∀ fraction : Nat, 1 ≤ fraction → fraction ≤ BPS →
       remainingPosition pos fraction ≤ pos - 1 := by
