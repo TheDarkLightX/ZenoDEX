@@ -243,6 +243,25 @@ theorem max_safe_gas_comp_maximal_unprofitable
     ¬ selfLiquidationUnprofitable (BPS * (mcr_bps - BPS) / mcr_bps + 1) mcr_bps :=
   max_safe_gas_comp_maximal mcr_bps hMCR
 
+/- **Greatest Safe Gas Compensation**: if `gas_comp_bps` is safe at
+`mcr_bps`, then `gas_comp_bps ≤ max_safe = BPS * (mcr - BPS) / mcr`.
+
+This is the all-gases maximality theorem. Combined with
+`max_safe_gas_comp` (floor is safe) and `max_safe_gas_comp_maximal`
+(floor+1 is unsafe), this establishes that `max_safe` is the greatest
+safe gas compensation.
+
+Proof: `safe gas` means `gas * mcr ≤ BPS * (mcr - BPS)`. Dividing by
+`mcr > 0` gives `gas ≤ BPS * (mcr - BPS) / mcr = max_safe`. -/
+theorem max_safe_gas_comp_greatest
+    (gas_comp_bps mcr_bps : Nat) (hMCR : BPS < mcr_bps)
+    (hSafe : selfLiquidationUnprofitable gas_comp_bps mcr_bps) :
+    gas_comp_bps ≤ BPS * (mcr_bps - BPS) / mcr_bps := by
+  have hMCRPos : 0 < mcr_bps := by omega
+  -- hSafe: gas * mcr ≤ BPS * (mcr - BPS)
+  -- Divide both sides by mcr > 0
+  exact (Nat.le_div_iff_mul_le hMCRPos).mpr hSafe
+
 /-- **Cross-Multiplied Model Implies Floored Model**: if the cross-multiplied
 condition `C * gas_comp * P + BPS * D * E8 ≤ BPS * P * C` holds, then the
 floored condition `liquidatorComp C gas_comp ≤ fairRepayment C D P` also holds.
@@ -310,7 +329,7 @@ theorem exists_profitable_floored_at_succ_max
     (mcr_bps : Nat) (hMCR : BPS < mcr_bps) :
     ∃ C D P,
       C * P * BPS = D * mcr_bps * E8 ∧
-      0 < C ∧ 0 < P ∧
+      0 < C ∧ 0 < D ∧ 0 < P ∧
       fairRepayment C D P < liquidatorComp C (BPS * (mcr_bps - BPS) / mcr_bps + 1) := by
   have hBPSPos : 0 < BPS := by norm_num [BPS]
   have hE8 : E8 = BPS * BPS := by norm_num [BPS, E8]
@@ -324,13 +343,15 @@ theorem exists_profitable_floored_at_succ_max
   let C := mcr_bps * BPS
   let D := 1
   let P := 1
-  refine ⟨C, D, P, ⟨?_, ?_, ?_, ?_⟩⟩
+  refine ⟨C, D, P, ⟨?_, ?_, ?_, ?_, ?_⟩⟩
   -- Boundary: C * P * BPS = D * mcr * E8
   · rw [hE8]
     show mcr_bps * BPS * 1 * BPS = 1 * mcr_bps * (BPS * BPS)
     rw [Nat.mul_one, Nat.one_mul, Nat.mul_assoc]
   -- 0 < C
   · exact Nat.mul_pos hMCRPos hBPSPos
+  -- 0 < D
+  · norm_num
   -- 0 < P
   · norm_num
   -- fairRepayment < liquidatorComp at maxSafe + 1
