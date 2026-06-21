@@ -101,7 +101,7 @@ theorem closedPortion_le_pos
 /-- Each partial liquidation with `fraction >= 1 BPS` closes at least 1 unit
 when `pos >= BPS`. The position strictly decreases. -/
 theorem position_strictly_decreases
-    (pos fraction : Nat) (hpos : pos ≥ BPS) (hfrac : 1 ≤ fraction) (hfrac2 : fraction ≤ BPS) :
+    (pos fraction : Nat) (hpos : pos ≥ BPS) (hfrac : 1 ≤ fraction) (_hfrac2 : fraction ≤ BPS) :
     remainingPosition pos fraction < pos := by
   unfold remainingPosition closedPortion
   have hClosed : 1 ≤ pos * fraction / BPS := by
@@ -124,7 +124,7 @@ the position for any positive position with fraction in [1, BPS].
 When closedPortion = 0 (dust), liqStep full-closes to 0.
 When closedPortion >= 1, liqStep = remainingPosition < pos. -/
 theorem liqStep_strictly_decreases
-    (pos fraction : Nat) (hpos : pos > 0) (hfrac : 1 ≤ fraction) (hfrac2 : fraction ≤ BPS) :
+    (pos fraction : Nat) (hpos : pos > 0) (hfrac : 1 ≤ fraction) (_hfrac2 : fraction ≤ BPS) :
     liqStep pos fraction < pos := by
   unfold liqStep
   by_cases hDust : closedPortion pos fraction = 0
@@ -194,7 +194,7 @@ theorem post_liquidation_safe
 /-- Fraction = BPS (100%) always closes the entire position, regardless of size.
 This handles the dust tail: even when `pos < BPS`, full close reaches zero. -/
 theorem full_close_reaches_zero
-    (pos : Nat) (hpos : pos > 0) :
+    (pos : Nat) (_hpos : pos > 0) :
     remainingPosition pos BPS = 0 := by
   unfold remainingPosition closedPortion
   have hFull : pos * BPS / BPS = pos := by
@@ -208,7 +208,7 @@ This closes the dust tail gap: when `pos < BPS` and `fraction = 1`,
 `closed = 0` so the position does not decrease. But `fraction = BPS`
 closes the entire position. -/
 theorem dust_tail_terminates
-    (pos : Nat) (hpos : pos > 0) (hSmall : pos < BPS) :
+    (pos : Nat) (hpos : pos > 0) (_hSmall : pos < BPS) :
     remainingPosition pos BPS = 0 := by
   exact full_close_reaches_zero pos hpos
 
