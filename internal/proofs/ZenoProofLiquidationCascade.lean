@@ -29,18 +29,22 @@ The guard ensures: after liquidation, `new_collateral >= maint_margin_req(remain
 
 - `position_strictly_decreases`: each partial liquidation with `1 ≤ f ≤ BPS` and
   `pos ≥ BPS` strictly reduces the position size by at least 1 unit
-- `cascade_terminates`: a position of size `n` requires at most `n` partial
-  liquidations to reach zero (measure-based termination)
+- `iterated_cascade_terminates`: a position of size `pos` reaches zero after
+  at most `pos` applications of `liqStep` with any fixed fraction in `[1, BPS]`
+  (strong induction on `pos`, using `liqStep_strictly_decreases` as measure)
+- `iterated_cascade_terminates_variable`: same bound holds when the fraction
+  may vary at each step (schedule-based termination)
 - `post_liquidation_safe`: after a guarded partial liquidation, the remaining
-  position satisfies the maintenance margin invariant
+  position satisfies the maintenance margin invariant (assuming the guard holds)
 - `full_close_reaches_zero`: fraction = BPS always closes the entire position
 - `dust_tail_terminates`: positions below BPS with full close reach zero
 
 ## Protocol Design Implication
 
-The liquidation cascade is bounded by the total position size. With bounded
-oracle moves and the funded liquidation condition, the insurance fund never
-needs to cover liquidation penalties. The cascade is self-terminating.
+The liquidation cascade is bounded by the total position size: each step
+strictly decreases the position, so the cascade terminates in at most `pos`
+steps. The guard condition (`post_liquidation_safe`) ensures the remaining
+position satisfies the maintenance margin invariant after each step.
 -/
 
 namespace Internal
@@ -319,11 +323,71 @@ theorem iterated_cascade_terminates_bounded
       (liqStep · fraction)^[k] pos = 0 :=
   iterated_cascade_terminates pos fraction hfrac hfrac2
 
+/-! ## Variable-Fraction Cascade Termination -/
+
+/-- **Variable-Fraction Cascade Termination**: when the liquidator may choose
+a different valid fraction at each step, the cascade still terminates in
+at most `pos` steps. This generalizes `iterated_cascade_terminates` from
+a fixed fraction to a fraction schedule.
+
+The proof uses strong induction on `pos`. Since `liqStep pos f < pos`
+for any valid fraction `f`, the recursive call on the smaller position
+terminates by the induction hypothesis. -/
+theorem iterated_cascade_terminates_variable
+    (pos : Nat) (fractions : Nat → Nat)
+    (hfrac1 : ∀ i, 1 ≤ fractions i) (hfrac2 : ∀ i, fractions i ≤ BPS) :
+    ∃ k : Nat, k ≤ pos ∧
+      ∀ step : Nat → Nat,
+        step 0 = pos →
+        (∀ j : Nat, j < k → step (j + 1) = liqStep (step j) (fractions j)) →
+        step k = 0 := by
+  -- Revert fraction arguments so IH is universally quantified over all schedules
+  revert fractions hfrac1 hfrac2
+  induction pos using Nat.strong_induction_on with
+  | _ pos ih =>
+    intro fractions hfrac1 hfrac2
+    by_cases hPos : pos = 0
+    · -- Base case: pos = 0, zero steps needed, step 0 = pos = 0
+      refine ⟨0, Nat.zero_le _, ?_⟩
+      intro step hs0 _
+      rw [hs0, hPos]
+    · -- Inductive case: pos > 0, first step reduces position
+      have hPosPos : 0 < pos := Nat.pos_of_ne_zero hPos
+      have hStep : liqStep pos (fractions 0) < pos :=
+        liqStep_strictly_decreases pos (fractions 0) hPosPos (hfrac1 0) (hfrac2 0)
+      -- By IH on the smaller position after first step, with tail fractions
+      obtain ⟨k, hkLe, hkProof⟩ :=
+        ih (liqStep pos (fractions 0)) hStep
+          (fun i => fractions (i + 1)) (fun i => hfrac1 (i + 1)) (fun i => hfrac2 (i + 1))
+      refine ⟨k + 1, ?_, ?_⟩
+      · -- k ≤ liqStep pos (fractions 0) < pos, so k + 1 ≤ pos
+        omega
+      · -- For any step schedule starting at pos, step (k+1) = 0
+        intro step hs0 hsteps
+        -- step 1 = liqStep (step 0) (fractions 0) = liqStep pos (fractions 0)
+        have hStep1 : step 1 = liqStep pos (fractions 0) := by
+          have h01 : 0 < k + 1 := Nat.zero_lt_succ _
+          have := hsteps 0 h01
+          -- this: step (0 + 1) = liqStep (step 0) (fractions 0)
+          -- = step 1 = liqStep pos (fractions 0) after hs0 and 0+1=1
+          rw [Nat.zero_add] at this
+          rw [this, hs0]
+        -- Apply IH proof to the tail schedule: step' j = step (j + 1)
+        have hTail : ∀ j : Nat, j < k → step (j + 1 + 1) = liqStep (step (j + 1)) (fractions (j + 1)) := by
+          intro j hj
+          have hj1 : j + 1 < k + 1 := Nat.succ_lt_succ hj
+          exact hsteps (j + 1) hj1
+        -- hkProof: for any step' with step' 0 = liqStep pos (fractions 0)
+        -- and step' (j+1) = liqStep (step' j) (fractions (j+1)) for j < k,
+        -- then step' k = 0
+        exact hkProof (fun j => step (j + 1)) hStep1 hTail
+
 /-! ## Protocol Design Corollary -/
 
-/-- **Protocol Design Rule**: the liquidation cascade is bounded by the
-total position size. With bounded oracle moves and funded liquidation,
-the cascade terminates without insurance fund depletion. -/
+/-- **Position Decrease Rule**: each partial liquidation with a valid
+fraction strictly decreases the position size. Combined with
+`iterated_cascade_terminates`, this establishes that the cascade
+terminates in at most `pos` steps. -/
 theorem protocol_design_rule
     (pos : Nat) (hpos : pos ≥ BPS) :
     ∀ fraction : Nat, 1 ≤ fraction → fraction ≤ BPS →
