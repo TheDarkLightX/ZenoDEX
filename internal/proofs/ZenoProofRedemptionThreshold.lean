@@ -23,6 +23,12 @@ Redemption of `amount` zUSD at oracle price `oracle_price` with fee `fee_bps`:
 3. `net_collateral = gross_collateral - fee`
 4. `payout_value = net_collateral * oracle_price / E8` (floor)
 
+In exact arithmetic, the oracle price cancels in the round-trip:
+  payout = (amount * E8 / oracle) * (BPS - fee) / BPS * oracle / E8
+         = amount * (BPS - fee) / BPS
+
+So the payout per unit is `E8 * (BPS - fee_bps) / BPS`, independent of oracle.
+
 The arbitrageur buys zUSD at `market_price` (in E8 units), so:
 - `market_cost = ceil(amount * market_price / E8)` (ceil)
 - `profit = payout_value - market_cost`
@@ -31,24 +37,36 @@ The arbitrageur buys zUSD at `market_price` (in E8 units), so:
 
 In exact arithmetic (ignoring rounding), the profitability condition is:
 
-`market_price * BPS < oracle_price * (BPS - fee_bps)`
+`market_price * BPS < E8 * (BPS - fee_bps)`
 
-This means the peg floor is `oracle_price * (BPS - fee_bps) / BPS`.
-With oracle at $1 (E8) and fee = 50 bps, the floor is $0.995.
+This means the peg floor is `E8 * (BPS - fee_bps) / BPS`.
+With fee = 50 bps, the floor is $0.995 (E8 * 9995 / 10000).
 
 Theorems:
 - `redemptionProfitable`: exact profitability condition (definition)
-- `zero_fee_profitable_at_par`: with zero fee, profitable iff market < oracle
+- `zero_fee_profitable_at_par`: with zero fee, profitable iff market < E8
 - `fee_increase_narrows_profit_window`: higher fee makes profitability harder
-- `oracle_increase_widens_profit_window`: higher oracle makes profitability easier
-- `zero_fee_payout_equals_oracle`: with zero fee, payout per unit equals oracle
-- `profitable_implies_market_below_oracle`: profitable implies market < oracle
+- `zero_fee_payout_equals_par`: with zero fee, payout per unit equals E8
+- `profitable_implies_market_below_par`: profitable implies market < E8
+- `fee_collateral_le_floor_plus_one`: ceiling division bound
+- `net_collateral_le_gross`: net collateral never exceeds gross
+- `fee_collateral_nonneg`: fee collateral is non-negative
 
-## Protocol Design Implication
-
-The redemption fee creates a band around the peg. zUSD cannot trade below
-`oracle * (1 - fee_bps/BPS)` without triggering profitable redemptions that
+The redemption fee creates a band around par ($1 = E8). zUSD cannot trade below
+`E8 * (1 - fee_bps/BPS)` without triggering profitable redemptions that
 burn supply and restore the peg. The fee floor is the peg defense mechanism.
+The threshold is independent of the collateral oracle price because the
+oracle cancels in the round-trip: zUSD -> collateral -> value.
+
+## Scope
+
+This file formalizes the EXACT profitability threshold (no rounding).
+The theorems prove properties of the exact condition
+`market_price * BPS < E8 * (BPS - fee_bps)`.
+Rounded execution (floor/ceil division) can disagree with the exact
+threshold for small amounts due to compounding rounding errors.
+The Python verifier reports both `exact_profitable` and `rounded_profitable`
+to distinguish the two cases.
 -/
 
 import Mathlib
@@ -86,35 +104,38 @@ def redeemerProfit (amount market_price oracle_price fee_bps : Nat) : Int :=
   Int.ofNat (payoutValue amount oracle_price fee_bps) -
   Int.ofNat (marketCost amount market_price)
 
-/-- Exact payout per unit (no rounding): `oracle_price * (BPS - fee_bps) / BPS`. -/
-def exactPayoutPerUnit (oracle_price fee_bps : Nat) : Nat :=
-  oracle_price * (BPS - fee_bps) / BPS
+/-- Exact payout per unit (no rounding): `E8 * (BPS - fee_bps) / BPS`.
+Independent of oracle price because oracle cancels in the round-trip. -/
+def exactPayoutPerUnit (fee_bps : Nat) : Nat :=
+  E8 * (BPS - fee_bps) / BPS
 
 /-! ## Theorem 1: Profitability Condition -/
 
 /-- Redemption is profitable (in exact arithmetic) when
-`market_price * BPS < oracle_price * (BPS - fee_bps)`.
+`market_price * BPS < E8 * (BPS - fee_bps)`.
 
 This is the core profitability condition without floor-division rounding.
 The left side is the cost of acquiring zUSD on the market (scaled by BPS).
-The right side is the redemption payout value (scaled by BPS). -/
-def redemptionProfitable (market_price oracle_price fee_bps : Nat) : Prop :=
-  market_price * BPS < oracle_price * (BPS - fee_bps)
+The right side is the redemption payout value (scaled by BPS).
+The oracle price cancels in the round-trip, so the threshold is
+independent of the collateral oracle. -/
+def redemptionProfitable (market_price fee_bps : Nat) : Prop :=
+  market_price * BPS < E8 * (BPS - fee_bps)
 
 /-! ## Theorem 2: Zero Fee at Par -/
 
-/-- With zero fee, redemption is profitable iff market_price < oracle_price.
-The peg floor equals the oracle price. -/
+/-- With zero fee, redemption is profitable iff market_price < E8 (par).
+The peg floor equals E8 ($1). -/
 theorem zero_fee_profitable_at_par
-    (market_price oracle_price : Nat) :
-    redemptionProfitable market_price oracle_price 0 ↔ market_price < oracle_price := by
+    (market_price : Nat) :
+    redemptionProfitable market_price 0 ↔ market_price < E8 := by
   unfold redemptionProfitable
   rw [Nat.sub_zero]
   constructor
   · intro h
     by_contra hNot
-    have hGe : market_price ≥ oracle_price := by omega
-    have : market_price * BPS ≥ oracle_price * BPS := Nat.mul_le_mul_right BPS hGe
+    have hGe : market_price ≥ E8 := by omega
+    have : market_price * BPS ≥ E8 * BPS := Nat.mul_le_mul_right BPS hGe
     omega
   · intro h
     exact Nat.mul_lt_mul_of_pos_right h (by decide : 0 < BPS)
@@ -123,76 +144,52 @@ theorem zero_fee_profitable_at_par
 
 /-- Higher fee makes the profitability condition harder to satisfy.
 If `fee1 < fee2`, then profitable(fee2) implies profitable(fee1).
-The right side `oracle * (BPS - fee)` decreases as fee increases. -/
+The right side `E8 * (BPS - fee)` decreases as fee increases. -/
 theorem fee_increase_narrows_profit_window
-    (market_price oracle_price fee1 fee2 : Nat)
+    (market_price fee1 fee2 : Nat)
     (hFee : fee1 < fee2)
     (hFee2 : fee2 < BPS) :
-    redemptionProfitable market_price oracle_price fee2 →
-    redemptionProfitable market_price oracle_price fee1 := by
+    redemptionProfitable market_price fee2 →
+    redemptionProfitable market_price fee1 := by
   unfold redemptionProfitable
   intro h
   have hDiff : (BPS - fee2) < (BPS - fee1) := by omega
-  by_cases hOracle : oracle_price > 0
-  · have hMul : oracle_price * (BPS - fee2) < oracle_price * (BPS - fee1) :=
-      Nat.mul_lt_mul_of_pos_left hDiff hOracle
-    exact Nat.lt_trans h hMul
-  · -- oracle_price = 0: both sides are 0, contradiction with h
-    have : oracle_price = 0 := by omega
-    rw [this] at h
-    have hBPS : 0 < BPS := by decide
-    simp at h
-
-/-! ## Theorem 4: Oracle Increase Widens Profit Window -/
-
-/-- Higher oracle price makes the profitability condition easier to satisfy.
-If `oracle1 < oracle2`, then profitable(oracle1) implies profitable(oracle2).
-The right side increases with oracle price. -/
-theorem oracle_increase_widens_profit_window
-    (market_price oracle1 oracle2 fee_bps : Nat)
-    (hFee : fee_bps < BPS)
-    (hOracle : oracle1 < oracle2) :
-    redemptionProfitable market_price oracle1 fee_bps →
-    redemptionProfitable market_price oracle2 fee_bps := by
-  unfold redemptionProfitable
-  intro h
-  have hDiff : 0 < BPS - fee_bps := by omega
-  have hMul : oracle1 * (BPS - fee_bps) < oracle2 * (BPS - fee_bps) :=
-    Nat.mul_lt_mul_of_pos_right hOracle hDiff
+  have hE8 : 0 < E8 := by decide
+  have hMul : E8 * (BPS - fee2) < E8 * (BPS - fee1) :=
+    Nat.mul_lt_mul_of_pos_left hDiff hE8
   exact Nat.lt_trans h hMul
 
-/-! ## Theorem 5: Zero Fee Payout Equals Oracle -/
+/-! ## Theorem 4: Zero Fee Payout Equals Par -/
 
-/-- With zero fee, the exact payout per unit equals the oracle price. -/
-theorem zero_fee_payout_equals_oracle
-    (oracle_price : Nat) :
-    exactPayoutPerUnit oracle_price 0 = oracle_price := by
+/-- With zero fee, the exact payout per unit equals E8 (par = $1). -/
+theorem zero_fee_payout_equals_par :
+    exactPayoutPerUnit 0 = E8 := by
   unfold exactPayoutPerUnit
-  rw [Nat.sub_zero, Nat.mul_div_cancel oracle_price (by decide : 0 < BPS)]
+  rw [Nat.sub_zero, Nat.mul_div_cancel E8 (by decide : 0 < BPS)]
 
-/-! ## Theorem 6: Profitable Implies Market Below Oracle -/
+/-! ## Theorem 5: Profitable Implies Market Below Par -/
 
-/-- If redemption is profitable with any fee > 0, then market < oracle.
-The fee creates a strict gap below the oracle price. -/
-theorem profitable_implies_market_below_oracle
-    (market_price oracle_price fee_bps : Nat)
+/-- If redemption is profitable with any fee > 0, then market < E8 (par).
+The fee creates a strict gap below par. -/
+theorem profitable_implies_market_below_par
+    (market_price fee_bps : Nat)
     (hFee : 0 < fee_bps)
     (hFee2 : fee_bps < BPS) :
-    redemptionProfitable market_price oracle_price fee_bps →
-    market_price < oracle_price := by
+    redemptionProfitable market_price fee_bps →
+    market_price < E8 := by
   unfold redemptionProfitable
   intro h
   have hDiff : 0 < BPS - fee_bps := by omega
-  have hRHS : oracle_price * (BPS - fee_bps) ≤ oracle_price * BPS := by
+  have hRHS : E8 * (BPS - fee_bps) ≤ E8 * BPS := by
     have hLe : BPS - fee_bps ≤ BPS := by omega
-    exact Nat.mul_le_mul_left oracle_price hLe
-  have hChain : market_price * BPS < oracle_price * BPS := Nat.lt_of_lt_of_le h hRHS
+    exact Nat.mul_le_mul_left E8 hLe
+  have hChain : market_price * BPS < E8 * BPS := Nat.lt_of_lt_of_le h hRHS
   by_contra hNot
-  have hGe : market_price ≥ oracle_price := by omega
-  have : market_price * BPS ≥ oracle_price * BPS := Nat.mul_le_mul_right BPS hGe
+  have hGe : market_price ≥ E8 := by omega
+  have : market_price * BPS ≥ E8 * BPS := Nat.mul_le_mul_right BPS hGe
   omega
 
-/-! ## Theorem 7: Fee Collateral Bounded by Gross -/
+/-! ## Theorem 6: Fee Collateral Bounded by Gross -/
 
 /-- The fee collateral never exceeds gross * fee_bps / BPS + 1 (ceiling bound).
 This follows from the standard ceiling division bound: ceil(a/n) ≤ floor(a/n) + 1. -/
@@ -213,17 +210,24 @@ theorem fee_collateral_le_floor_plus_one
   simp [hcond] at h2
   exact h2
 
-/-! ## Theorem 8: Exact Profitability Implies Market Below Payout -/
+/-! ## Theorem 7: Fee Collateral Non-Negative -/
 
-/-- If the exact profitability condition holds, then market_price is strictly
-below the exact payout per unit (in real arithmetic). This connects the
-profitability definition to the threshold. -/
-theorem profitable_implies_below_payout
-    (market_price oracle_price fee_bps : Nat)
-    (hFee : fee_bps < BPS) :
-    redemptionProfitable market_price oracle_price fee_bps →
-    market_price * BPS < oracle_price * (BPS - fee_bps) := by
-  unfold redemptionProfitable
-  exact id
+/-- The fee collateral is always non-negative (trivially true for Nat division). -/
+theorem fee_collateral_nonneg
+    (gross fee_bps : Nat) :
+    0 ≤ feeCollateral gross fee_bps := by
+  unfold feeCollateral
+  apply Nat.zero_le
+
+/-! ## Theorem 8: Net Collateral Never Exceeds Gross -/
+
+/-- The net collateral after fee deduction is at most the gross collateral.
+In Nat arithmetic, subtraction never underflows below 0, so
+`gross - fee ≤ gross` holds unconditionally. -/
+theorem net_collateral_le_gross
+    (gross fee_bps : Nat) :
+    netCollateral gross fee_bps ≤ gross := by
+  unfold netCollateral
+  exact Nat.sub_le gross (feeCollateral gross fee_bps)
 
 end Internal.ZenoProofRedemptionThreshold

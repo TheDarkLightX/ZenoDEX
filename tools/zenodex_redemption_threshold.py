@@ -12,8 +12,14 @@ Mathematical model:
   - market_cost = ceil(amount * market_price / E8)      (ceil)
   - profit = payout_value - market_cost
 
-Exact profitability condition (no rounding):
-  market_price * BPS < oracle_price * (BPS - fee_bps)
+In exact arithmetic, the oracle price cancels in the round-trip:
+  payout = (amount * E8 / oracle) * (BPS - fee) / BPS * oracle / E8
+         = amount * (BPS - fee) / BPS
+
+So the exact profitability condition (no rounding) is:
+  market_price * BPS < E8 * (BPS - fee_bps)
+
+The threshold is independent of oracle_price.
 
 CLI:
   python3 tools/zenodex_redemption_threshold.py sample
@@ -36,6 +42,13 @@ def _ceil_div(a: int, b: int) -> int:
     if b <= 0:
         raise ValueError("divisor must be positive")
     return (a + b - 1) // b
+
+
+def _safe_int(v: Any) -> int:
+    """Safely extract an int from any value. Returns 0 for non-int inputs."""
+    if isinstance(v, int) and not isinstance(v, bool):
+        return v
+    return 0
 
 
 def gross_collateral(amount_e8: int, oracle_price_e8: int) -> int:
@@ -79,40 +92,48 @@ def redeemer_profit_e8(
     return payout - cost
 
 
-def exact_payout_per_unit(oracle_price_e8: int, fee_bps: int) -> int:
-    return (oracle_price_e8 * (BPS_SCALE - fee_bps)) // BPS_SCALE
+def exact_payout_per_unit(fee_bps: int) -> int:
+    """Exact payout per unit (E8): E8 * (BPS - fee_bps) / BPS.
+
+    Independent of oracle price because oracle cancels in the round-trip.
+    """
+    return (E8 * (BPS_SCALE - fee_bps)) // BPS_SCALE
 
 
 def redemption_profitable_exact(
     market_price_e8: int,
-    oracle_price_e8: int,
     fee_bps: int,
 ) -> bool:
-    return market_price_e8 * BPS_SCALE < oracle_price_e8 * (BPS_SCALE - fee_bps)
+    """Exact profitability: market * BPS < E8 * (BPS - fee_bps).
+
+    Independent of oracle price.
+    """
+    return market_price_e8 * BPS_SCALE < E8 * (BPS_SCALE - fee_bps)
 
 
-def redemption_profitable_threshold(oracle_price_e8: int, fee_bps: int) -> int:
-    return exact_payout_per_unit(oracle_price_e8, fee_bps)
+def redemption_profitable_threshold(fee_bps: int) -> int:
+    """Peg floor: E8 * (BPS - fee_bps) / BPS. Independent of oracle."""
+    return exact_payout_per_unit(fee_bps)
 
 
-def largest_profitable_market_e8(oracle_price_e8: int, fee_bps: int) -> int:
+def largest_profitable_market_e8(fee_bps: int) -> int:
     """Largest integer market price (E8) at which redemption is still profitable.
 
-    Profitable when market * BPS < oracle * (BPS - fee).
-    Largest profitable: (oracle * (BPS - fee) - 1) // BPS.
+    Profitable when market * BPS < E8 * (BPS - fee).
+    Largest profitable: (E8 * (BPS - fee) - 1) // BPS.
     """
-    rhs = oracle_price_e8 * (BPS_SCALE - fee_bps)
+    rhs = E8 * (BPS_SCALE - fee_bps)
     if rhs <= 0:
         return 0
     return (rhs - 1) // BPS_SCALE
 
 
-def first_nonprofitable_market_e8(oracle_price_e8: int, fee_bps: int) -> int:
+def first_nonprofitable_market_e8(fee_bps: int) -> int:
     """Smallest integer market price (E8) at which redemption is NOT profitable.
 
-    This is ceil(oracle * (BPS - fee) / BPS).
+    This is ceil(E8 * (BPS - fee) / BPS).
     """
-    rhs = oracle_price_e8 * (BPS_SCALE - fee_bps)
+    rhs = E8 * (BPS_SCALE - fee_bps)
     return _ceil_div(rhs, BPS_SCALE)
 
 
@@ -132,6 +153,7 @@ class RedemptionResult:
     redeemer_profit_e8: int
     exact_payout_per_unit_e8: int
     exact_profitable: bool
+    rounded_profitable: bool
     threshold_e8: int
     largest_profitable_market_e8: int
     first_nonprofitable_market_e8: int
@@ -174,53 +196,68 @@ def _validate_envelope(env: Mapping[str, Any]) -> list[str]:
     return errors
 
 
+def _empty_result(status: str, errors: list[str], amount: int, market: int, oracle: int, fee: int) -> RedemptionResult:
+    return RedemptionResult(
+        status=status,
+        errors=errors,
+        amount_e8=amount,
+        market_price_e8=market,
+        oracle_price_e8=oracle,
+        fee_bps=fee,
+        gross_collateral_e8=0,
+        fee_collateral_e8=0,
+        net_collateral_e8=0,
+        payout_value_e8=0,
+        market_cost_e8=0,
+        redeemer_profit_e8=0,
+        exact_payout_per_unit_e8=0,
+        exact_profitable=False,
+        rounded_profitable=False,
+        threshold_e8=0,
+        largest_profitable_market_e8=0,
+        first_nonprofitable_market_e8=0,
+    )
+
+
 def verify_redemption_envelope(env: Mapping[str, Any]) -> RedemptionResult:
     if not isinstance(env, dict):
-        return RedemptionResult(
-            status="rejected",
-            errors=["envelope_must_be_object"],
-            amount_e8=0,
-            market_price_e8=0,
-            oracle_price_e8=0,
-            fee_bps=0,
-            gross_collateral_e8=0,
-            fee_collateral_e8=0,
-            net_collateral_e8=0,
-            payout_value_e8=0,
-            market_cost_e8=0,
-            redeemer_profit_e8=0,
-            exact_payout_per_unit_e8=0,
-            exact_profitable=False,
-            threshold_e8=0,
-            largest_profitable_market_e8=0,
-            first_nonprofitable_market_e8=0,
-        )
+        return _empty_result("rejected", ["envelope_must_be_object"], 0, 0, 0, 0)
+
     errors = _validate_envelope(env)
 
-    amount = int(env.get("amount_e8", 0))
-    market_price = int(env.get("market_price_e8", 0))
-    oracle_price = int(env.get("oracle_price_e8", 0))
-    fee_bps = int(env.get("fee_bps", 0))
+    amount = _safe_int(env.get("amount_e8", 0))
+    market_price = _safe_int(env.get("market_price_e8", 0))
+    oracle_price = _safe_int(env.get("oracle_price_e8", 0))
+    fee_bps = _safe_int(env.get("fee_bps", 0))
+
+    if errors:
+        return _empty_result("rejected", errors, amount, market_price, oracle_price, fee_bps)
 
     gross = gross_collateral(amount, oracle_price) if oracle_price > 0 else 0
     fee = fee_collateral(gross, fee_bps) if gross > 0 else 0
     net = gross - fee if gross > 0 else 0
     payout = payout_value(amount, oracle_price, fee_bps) if oracle_price > 0 else 0
     cost = market_cost(amount, market_price) if market_price > 0 else 0
-    profit = payout - cost if payout > 0 and cost > 0 else 0
+    profit = payout - cost
 
-    exact_per_unit = exact_payout_per_unit(oracle_price, fee_bps) if oracle_price > 0 and fee_bps < BPS_SCALE else 0
-    profitable = redemption_profitable_exact(market_price, oracle_price, fee_bps) if oracle_price > 0 and fee_bps < BPS_SCALE else False
-    threshold = redemption_profitable_threshold(oracle_price, fee_bps) if oracle_price > 0 and fee_bps < BPS_SCALE else 0
-    largest_profit = largest_profitable_market_e8(oracle_price, fee_bps) if oracle_price > 0 and fee_bps < BPS_SCALE else 0
-    first_nonprofit = first_nonprofitable_market_e8(oracle_price, fee_bps) if oracle_price > 0 and fee_bps < BPS_SCALE else 0
+    exact_per_unit = exact_payout_per_unit(fee_bps) if fee_bps < BPS_SCALE else 0
+    profitable = redemption_profitable_exact(market_price, fee_bps) if fee_bps < BPS_SCALE else False
+    rounded_profitable = profit > 0
+    threshold = redemption_profitable_threshold(fee_bps) if fee_bps < BPS_SCALE else 0
+    largest_profit = largest_profitable_market_e8(fee_bps) if fee_bps < BPS_SCALE else 0
+    first_nonprofit = first_nonprofitable_market_e8(fee_bps) if fee_bps < BPS_SCALE else 0
 
     if gross <= 0 and not errors:
         errors.append("gross_collateral_too_small")
     if fee >= gross and gross > 0 and not errors:
         errors.append("fee_consumes_all_collateral")
 
-    status = "accepted" if not errors else "rejected"
+    if errors:
+        status = "rejected"
+    elif profitable:
+        status = "accepted_exact_profitable"
+    else:
+        status = "accepted_not_exact_profitable"
 
     return RedemptionResult(
         status=status,
@@ -237,6 +274,7 @@ def verify_redemption_envelope(env: Mapping[str, Any]) -> RedemptionResult:
         redeemer_profit_e8=profit,
         exact_payout_per_unit_e8=exact_per_unit,
         exact_profitable=profitable,
+        rounded_profitable=rounded_profitable,
         threshold_e8=threshold,
         largest_profitable_market_e8=largest_profit,
         first_nonprofitable_market_e8=first_nonprofit,
@@ -288,7 +326,7 @@ def main() -> int:
             return 1
         result = verify_redemption_envelope(env)
         _print_json(result)
-        return 0 if result.status == "accepted" else 1
+        return 0 if not result.errors else 1
 
     print(f"Unknown command: {cmd}", file=sys.stderr)
     return 1
