@@ -234,9 +234,9 @@ theorem witness_full_close_reaches_zero :
   unfold remainingPosition closedPortion BPS
   decide
 
-/-- Witness: position 100, fraction 1 (0.01%), remaining = 99.
-`100 * 1 / 10000 = 0` in integer division, so remaining = 100.
-Need position >= BPS for fraction=1 to close at least 1 unit. -/
+/-- Witness: position 10000, fraction 1 (0.01%), remaining = 9999.
+`10000 * 1 / 10000 = 1` in integer division, so remaining = 9999.
+Position >= BPS ensures fraction=1 closes at least 1 unit. -/
 theorem witness_small_fraction_large_position :
     remainingPosition 10000 1 = 9999 := by
   unfold remainingPosition closedPortion BPS
@@ -267,6 +267,54 @@ theorem witness_full_fraction_closes_all :
     remainingPosition 50 10000 = 0 := by
   unfold remainingPosition closedPortion BPS
   decide
+
+/-! ## Iterated Termination Theorem -/
+
+/-- **Iterated Cascade Termination**: after at most `pos` applications of
+`liqStep` with any fixed fraction in `[1, BPS]`, the position reaches zero.
+
+This is the real iterated termination theorem. It uses strong induction
+on `pos`: since `liqStep pos fraction < pos` for `pos > 0`, the recursive
+call on the smaller position terminates by the induction hypothesis.
+
+Proof: By strong induction on `pos`.
+- Base case `pos = 0`: zero applications needed, position is already 0.
+- Inductive case `pos > 0`: `liqStep pos fraction < pos`, so by IH,
+  after at most `liqStep pos fraction` more steps, position reaches 0.
+  Total: `1 + liqStep pos fraction ≤ 1 + (pos - 1) = pos` steps. -/
+theorem iterated_cascade_terminates :
+    ∀ pos fraction : Nat,
+      1 ≤ fraction → fraction ≤ BPS →
+      ∃ k : Nat, k ≤ pos ∧
+        (liqStep · fraction)^[k] pos = 0 := by
+  intro pos fraction hfrac hfrac2
+  induction pos using Nat.strong_induction_on with
+  | _ pos ih =>
+    by_cases hPos : pos = 0
+    · -- Base case: pos = 0, zero steps needed
+      refine ⟨0, Nat.zero_le _, ?_⟩
+      simp [hPos, Function.iterate_zero]
+    · -- Inductive case: pos > 0, liqStep reduces position
+      have hPosPos : 0 < pos := Nat.pos_of_ne_zero hPos
+      have hStep : liqStep pos fraction < pos :=
+        liqStep_strictly_decreases pos fraction hPosPos hfrac hfrac2
+      -- By IH on the smaller position liqStep pos fraction:
+      obtain ⟨k, hkLe, hkEq⟩ := ih (liqStep pos fraction) hStep
+      -- After k+1 iterations: iterate k+1 pos = iterate k (liqStep pos fraction) = 0
+      refine ⟨k + 1, ?_, ?_⟩
+      · -- k ≤ liqStep pos fraction < pos, so k + 1 ≤ pos
+        omega
+      · -- iterate (k+1) pos = iterate k (liqStep pos fraction) = 0
+        rw [Function.iterate_succ_apply, hkEq]
+
+/-- **Iterated Cascade Termination (explicit bound)**: after at most `pos`
+applications of `liqStep`, the position reaches zero. This is a corollary
+of `iterated_cascade_terminates` with the explicit step bound. -/
+theorem iterated_cascade_terminates_bounded
+    (pos fraction : Nat) (_hpos : pos ≥ BPS) (hfrac : 1 ≤ fraction) (hfrac2 : fraction ≤ BPS) :
+    ∃ k : Nat, k ≤ pos ∧
+      (liqStep · fraction)^[k] pos = 0 :=
+  iterated_cascade_terminates pos fraction hfrac hfrac2
 
 /-! ## Protocol Design Corollary -/
 
