@@ -248,18 +248,20 @@ def verify_liquidation_cascade_envelope(obj: dict[str, Any]) -> LiquidationCasca
     post_collat = collateral - capped_pen
 
     liq = is_liquidatable(pos, collateral, price, maint_bps, depeg_bps)
-    pos_decreases = fraction >= 1 and pos >= BPS_SCALE and remaining < pos
+    # Use liq_step (with dust escalation) to match Lean liqStep theorem surface.
+    # liq_step handles dust positions (pos < BPS, fraction < BPS) by full-closing
+    # to 0, whereas remaining_position alone would leave them unchanged.
+    liq_remaining = liq_step(pos, fraction)
+    pos_decreases = fraction >= 1 and pos > 0 and liq_remaining < pos
     rem_mreq = maint_margin_req(remaining, price, maint_bps, depeg_bps) if remaining > 0 else 0
     post_safe = post_collat >= rem_mreq
-    cascade_term = remaining <= pos - 1 if pos > 0 else True
+    cascade_term = liq_remaining < pos if pos > 0 else True
     max_steps = pos if pos > 0 else 0
     funded_ok = funded_liquidation_ok(penalty_bps, max_oracle_move, maint_bps, depeg_bps)
 
     if fraction < 1 and pos > 0:
         errors.append("fraction_must_be_at_least_1_bps")
-    if pos < BPS_SCALE and pos > 0 and fraction < BPS_SCALE:
-        errors.append("position_must_be_at_least_bps_for_termination")
-    if not pos_decreases and pos > 0 and fraction >= 1 and pos >= BPS_SCALE:
+    if not pos_decreases and pos > 0 and fraction >= 1:
         errors.append("position_does_not_decrease")
     if not post_safe and remaining > 0:
         errors.append("post_liquidation_unsafe")

@@ -172,11 +172,14 @@ class TestPositionDecrease:
         assert result.position_decreases is False
         assert "fraction_must_be_at_least_1_bps" in result.errors
 
-    def test_position_below_bps_no_termination(self) -> None:
+    def test_position_below_bps_dust_escalation(self) -> None:
+        # pos=5000, fraction=1: closed = 5000*1/10000 = 0 (dust)
+        # With dust escalation (liq_step), position full-closes to 0
+        # This matches the Lean liqStep_strictly_decreases theorem
         env = _base_envelope(position_base=5_000, liquidation_fraction_bps=1)
         result = verify_liquidation_cascade_envelope(env)
-        assert result.position_decreases is False
-        assert "position_must_be_at_least_bps_for_termination" in result.errors
+        assert result.position_decreases is True
+        assert result.cascade_terminates is True
 
 
 # --- Cascade Termination Bound ---
