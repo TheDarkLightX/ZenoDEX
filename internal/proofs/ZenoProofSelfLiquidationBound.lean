@@ -297,6 +297,70 @@ theorem cross_implies_floored
   have hGoal : C * gas_comp_bps / BPS ≤ C - D * E8 / P := by omega
   exact hGoal
 
+/- **Exact Tightness of the Floored Bound**: the parameter bound
+`max_safe = BPS * (mcr - BPS) / mcr` is not merely sufficient for the
+floored execution model, but also necessary. There exists a boundary
+vault (`C = mcr * BPS`, `D = 1`, `P = 1`) where `max_safe + 1` is
+profitable in the actual floored model.
+
+This closes the gap between the cross-multiplied maximality proof and
+the floored execution semantics. The witness uses `E8 = BPS^2`, so all
+divisions are exact and the floor does not add slack. -/
+theorem exists_profitable_floored_at_succ_max
+    (mcr_bps : Nat) (hMCR : BPS < mcr_bps) :
+    ∃ C D P,
+      C * P * BPS = D * mcr_bps * E8 ∧
+      0 < C ∧ 0 < P ∧
+      fairRepayment C D P < liquidatorComp C (BPS * (mcr_bps - BPS) / mcr_bps + 1) := by
+  have hBPSPos : 0 < BPS := by norm_num [BPS]
+  have hE8 : E8 = BPS * BPS := by norm_num [BPS, E8]
+  have hMCRPos : 0 < mcr_bps := lt_trans hBPSPos hMCR
+  -- Witness: C = mcr * BPS, D = 1, P = 1
+  -- Boundary: C * P * BPS = mcr * BPS * BPS = mcr * BPS^2 = mcr * E8 = D * mcr * E8
+  -- liquidatorComp = mcr * BPS * (maxSafe+1) / BPS = mcr * (maxSafe+1) (exact)
+  -- fairRepayment = mcr * BPS - E8/1 = mcr * BPS - BPS^2 = BPS * (mcr - BPS)
+  -- Profitable iff BPS * (mcr - BPS) < mcr * (maxSafe+1)
+  -- which is the contrapositive of max_safe_gas_comp_maximal
+  let C := mcr_bps * BPS
+  let D := 1
+  let P := 1
+  refine ⟨C, D, P, ⟨?_, ?_, ?_, ?_⟩⟩
+  -- Boundary: C * P * BPS = D * mcr * E8
+  · rw [hE8]
+    show mcr_bps * BPS * 1 * BPS = 1 * mcr_bps * (BPS * BPS)
+    rw [Nat.mul_one, Nat.one_mul, Nat.mul_assoc]
+  -- 0 < C
+  · exact Nat.mul_pos hMCRPos hBPSPos
+  -- 0 < P
+  · norm_num
+  -- fairRepayment < liquidatorComp at maxSafe + 1
+  · -- liquidatorComp C (maxSafe+1) = C * (maxSafe+1) / BPS
+    -- C = mcr * BPS, so = mcr * BPS * (maxSafe+1) / BPS = mcr * (maxSafe+1)
+    have hLiqExact : liquidatorComp C (BPS * (mcr_bps - BPS) / mcr_bps + 1) =
+        mcr_bps * (BPS * (mcr_bps - BPS) / mcr_bps + 1) := by
+      show mcr_bps * BPS * (BPS * (mcr_bps - BPS) / mcr_bps + 1) / BPS =
+        mcr_bps * (BPS * (mcr_bps - BPS) / mcr_bps + 1)
+      -- (mcr * BPS) * X / BPS = BPS * (mcr * X) / BPS = mcr * X
+      rw [Nat.mul_comm mcr_bps BPS, Nat.mul_assoc, Nat.mul_div_cancel_left _ hBPSPos]
+    -- fairRepayment C D P = C - D * E8 / P
+    -- C = mcr * BPS, D = 1, P = 1, E8 = BPS^2
+    -- = mcr * BPS - 1 * BPS^2 / 1 = mcr * BPS - BPS^2 = BPS * (mcr - BPS)
+    have hFairExact : fairRepayment C D P = BPS * (mcr_bps - BPS) := by
+      show mcr_bps * BPS - 1 * E8 / 1 = BPS * (mcr_bps - BPS)
+      rw [hE8, Nat.div_one, Nat.one_mul, Nat.mul_sub, Nat.mul_comm mcr_bps BPS]
+    -- Goal: fairRepayment < liquidatorComp
+    -- i.e., BPS * (mcr - BPS) < mcr * (maxSafe + 1)
+    -- This is the contrapositive of max_safe_gas_comp_maximal
+    rw [hFairExact, hLiqExact]
+    -- BPS * (mcr - BPS) < mcr * (BPS * (mcr - BPS) / mcr + 1)
+    have hMax := max_safe_gas_comp_maximal mcr_bps hMCR
+    -- hMax: ¬ (maxSafe+1) * mcr ≤ BPS * (mcr - BPS)
+    -- i.e., BPS * (mcr - BPS) < (maxSafe+1) * mcr
+    have hComm : mcr_bps * (BPS * (mcr_bps - BPS) / mcr_bps + 1) =
+        (BPS * (mcr_bps - BPS) / mcr_bps + 1) * mcr_bps := Nat.mul_comm _ _
+    rw [hComm]
+    exact Nat.lt_of_not_le hMax
+
 /-! ## Non-Vacuity Witnesses -/
 
 /-- Witness: `mcr = 13000` (130%), `gas_comp = 2307`.

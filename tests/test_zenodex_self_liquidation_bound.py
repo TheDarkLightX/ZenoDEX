@@ -269,6 +269,94 @@ class TestBoundedSweepMaxSafe:
         assert r_unsafe.self_liquidation_unprofitable is False
 
 
+class TestNonDivisibleRounding:
+    """Exercise the rounding bridge between cross-multiplied and floored models.
+
+    The Lean theorem cross_implies_floored proves that the cross-multiplied
+    condition implies the floored condition. These tests verify that the
+    rounding direction (floor) is correctly applied for non-divisible cases
+    where C * gas_comp is not a multiple of BPS.
+    """
+
+    def test_mcr_13000_nondivisible_gas_comp(self) -> None:
+        # mcr=13000, max_safe = 10000 * 3000 / 13000 = 2307 (floor)
+        # 2307 * 13000 = 29991000 <= 10000 * 3000 = 30000000 (safe)
+        # Non-divisible: 2307 * BPS = 23070000, C * gas = 2307 * 10000
+        env = _base_envelope(mcr_bps=13000, gas_comp_bps=2307)
+        result = verify_self_liquidation_envelope(env)
+        assert result.self_liquidation_unprofitable is True
+        assert result.max_safe_gas_comp_bps == 2307
+
+    def test_mcr_13001_nondivisible_boundary(self) -> None:
+        # mcr=13001, max_safe = 10000 * 3001 / 13001 = 2308 (floor of 2308.4...)
+        # 2308 * 13001 = 30006308 > 30010000? Check: 10000*3001 = 30010000
+        # 2308 * 13001 = 30006308 <= 30010000 (safe)
+        # 2309 * 13001 = 30019309 > 30010000 (unsafe)
+        env = _base_envelope(mcr_bps=13001, gas_comp_bps=0)
+        result = verify_self_liquidation_envelope(env)
+        assert result.max_safe_gas_comp_bps == 2308
+        env_safe = _base_envelope(mcr_bps=13001, gas_comp_bps=2308)
+        assert verify_self_liquidation_envelope(env_safe).self_liquidation_unprofitable is True
+        env_unsafe = _base_envelope(mcr_bps=13001, gas_comp_bps=2309)
+        assert verify_self_liquidation_envelope(env_unsafe).self_liquidation_unprofitable is False
+
+    def test_mcr_15003_prime_nondivisible(self) -> None:
+        # mcr=15003 (prime), max_safe = 10000 * 5003 / 15003 = 3334 (floor)
+        # 3334 * 15003 = 50019902, 10000 * 5003 = 50030000
+        # 3334 * 15003 = 50019902 <= 50030000 (safe)
+        # 3335 * 15003 = 50034905 > 50030000 (unsafe)
+        env = _base_envelope(mcr_bps=15003, gas_comp_bps=0)
+        result = verify_self_liquidation_envelope(env)
+        assert result.max_safe_gas_comp_bps == 3334
+        env_safe = _base_envelope(mcr_bps=15003, gas_comp_bps=3334)
+        assert verify_self_liquidation_envelope(env_safe).self_liquidation_unprofitable is True
+        env_unsafe = _base_envelope(mcr_bps=15003, gas_comp_bps=3335)
+        assert verify_self_liquidation_envelope(env_unsafe).self_liquidation_unprofitable is False
+
+    def test_witness_exact_tightness_mcr_13000(self) -> None:
+        # Witness from Lean theorem exists_profitable_floored_at_succ_max:
+        # C = mcr * BPS = 13000 * 10000 = 130000000
+        # D = 1, P = 1
+        # liquidatorComp = C * (maxSafe+1) / BPS = 130000000 * 2308 / 10000 = 30004000
+        # fairRepayment = C - D * E8 / P = 130000000 - 100000000 = 30000000
+        # 30000000 < 30004000 => profitable (self-liquidation IS profitable)
+        # This verifies the exact tightness witness from the Lean proof
+        mcr_bps = 13000
+        max_safe = 10000 * (mcr_bps - 10000) // mcr_bps  # 2307
+        gas_comp = max_safe + 1  # 2308
+        C = mcr_bps * 10000  # 130000000
+        D = 1
+        P = 1
+        E8 = 100_000_000
+        liquidator_comp = C * gas_comp // 10000  # 30004000
+        fair_repayment = C - D * E8 // P  # 30000000
+        assert liquidator_comp > fair_repayment, (
+            f"max_safe+1={gas_comp} should be profitable: "
+            f"liq={liquidator_comp} > fair={fair_repayment}"
+        )
+        # Also verify max_safe itself is NOT profitable at this witness
+        gas_comp_safe = max_safe  # 2307
+        liquidator_comp_safe = C * gas_comp_safe // 10000  # 29991000
+        assert liquidator_comp_safe <= fair_repayment, (
+            f"max_safe={gas_comp_safe} should not be profitable: "
+            f"liq={liquidator_comp_safe} <= fair={fair_repayment}"
+        )
+
+    def test_witness_exact_tightness_mcr_15003(self) -> None:
+        # Same witness pattern with prime mcr to stress non-divisible rounding
+        mcr_bps = 15003
+        max_safe = 10000 * (mcr_bps - 10000) // mcr_bps  # 3334
+        gas_comp = max_safe + 1  # 3335
+        C = mcr_bps * 10000  # 150030000
+        E8 = 100_000_000
+        liquidator_comp = C * gas_comp // 10000  # 50034905
+        fair_repayment = C - E8  # 50030000
+        assert liquidator_comp > fair_repayment, (
+            f"max_safe+1={gas_comp} should be profitable: "
+            f"liq={liquidator_comp} > fair={fair_repayment}"
+        )
+
+
 # --- CLI Subprocess Tests ---
 
 
