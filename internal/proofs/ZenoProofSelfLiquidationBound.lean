@@ -191,9 +191,111 @@ theorem mcr_must_exceed_100pct
 self-liquidation unprofitable is `BPS * (mcr_bps - BPS) / mcr_bps` (integer
 floor). Any compensation above this enables self-liquidation. -/
 theorem max_safe_gas_comp
-    (mcr_bps : Nat) (hMCR : BPS < mcr_bps) :
+    (mcr_bps : Nat) (_hMCR : BPS < mcr_bps) :
     BPS * (mcr_bps - BPS) / mcr_bps * mcr_bps ≤ BPS * (mcr_bps - BPS) := by
   exact Nat.div_mul_le_self (BPS * (mcr_bps - BPS)) mcr_bps
+
+/-- **Maximality of Safe Gas Compensation**: the floor
+`BPS * (mcr_bps - BPS) / mcr_bps` is the maximum safe compensation. Any
+compensation strictly above this floor enables self-liquidation.
+
+Proof: Let `n = BPS * (mcr - BPS)` and `floor = n / mcr`. The division
+remainder `r = n % mcr` satisfies `r < mcr` (standard mod property) and
+`n = floor * mcr + r` (division decomposition). So
+`(floor + 1) * mcr = floor * mcr + mcr > floor * mcr + r = n`,
+proving `floor + 1` is unsafe. -/
+/- **Helper: `(A / m + 1) * m > A` for `m > 0`** (Euclidean division
+maximality). The successor of the quotient times the divisor strictly
+exceeds the dividend, because the remainder is strictly less than the
+divisor. -/
+private lemma succ_div_mul_not_le_self (A m : Nat) (hm : 0 < m) :
+    ¬ (A / m + 1) * m ≤ A := by
+  have hr : A % m < m := Nat.mod_lt A hm
+  have hdecomp : A = m * (A / m) + A % m :=
+    (Nat.div_add_mod A m).symm
+  have hsucc : (A / m + 1) * m = m * (A / m) + m := by
+    rw [Nat.succ_mul, Nat.mul_comm (A / m) m]
+  intro h
+  conv at h => lhs; rw [hsucc]
+  conv at h => rhs; rw [hdecomp]
+  exact (not_le_of_gt hr) (Nat.add_le_add_iff_left.mp h)
+
+/- **Maximality of Safe Gas Compensation**: the floor
+`BPS * (mcr_bps - BPS) / mcr_bps` is the maximum safe compensation. Any
+compensation strictly above this floor enables self-liquidation.
+
+Proof: Let `A = BPS * (mcr - BPS)` and `floor = A / mcr`. By
+`succ_div_mul_not_le_self`, `(floor + 1) * mcr > A`, so `floor + 1`
+violates the unprofitability condition. -/
+theorem max_safe_gas_comp_maximal
+    (mcr_bps : Nat) (hMCR : BPS < mcr_bps) :
+    ¬ (BPS * (mcr_bps - BPS) / mcr_bps + 1) * mcr_bps ≤
+      BPS * (mcr_bps - BPS) := by
+  have hBPSPos : 0 < BPS := by norm_num [BPS]
+  exact succ_div_mul_not_le_self (BPS * (mcr_bps - BPS)) mcr_bps
+    (lt_trans hBPSPos hMCR)
+
+/-- **Maximality in terms of `selfLiquidationUnprofitable`**: the direct
+maximality theorem above implies that `floor + 1` violates the
+`selfLiquidationUnprofitable` condition. -/
+theorem max_safe_gas_comp_maximal_unprofitable
+    (mcr_bps : Nat) (hMCR : BPS < mcr_bps) :
+    ¬ selfLiquidationUnprofitable (BPS * (mcr_bps - BPS) / mcr_bps + 1) mcr_bps :=
+  max_safe_gas_comp_maximal mcr_bps hMCR
+
+/-- **Cross-Multiplied Model Implies Floored Model**: if the cross-multiplied
+condition `C * gas_comp * P + BPS * D * E8 ≤ BPS * P * C` holds, then the
+floored condition `liquidatorComp C gas_comp ≤ fairRepayment C D P` also holds.
+
+This establishes that the parameter bound (equivalent to the cross-multiplied
+model at MCR) is sufficient for the integer-floor execution model.
+
+Proof: From the cross-multiplied condition and floor properties
+`C * gas_comp / BPS * BPS ≤ C * gas_comp` and `D * E8 / P * P ≤ D * E8`,
+we derive `(C * gas_comp / BPS) * BPS * P + (D * E8 / P) * P * BPS ≤
+BPS * P * C`. Dividing by `BPS * P > 0` gives
+`C * gas_comp / BPS + D * E8 / P ≤ C`. -/
+theorem cross_implies_floored
+    (C D P gas_comp_bps : Nat)
+    (_hC : 0 < C) (hP : 0 < P)
+    (hCross : selfLiquidationUnprofitableCross C D P gas_comp_bps) :
+    liquidatorComp C gas_comp_bps ≤ fairRepayment C D P := by
+  have hFloorGas : C * gas_comp_bps / BPS * BPS ≤ C * gas_comp_bps :=
+    Nat.div_mul_le_self (C * gas_comp_bps) BPS
+  have hFloorDE8 : D * E8 / P * P ≤ D * E8 :=
+    Nat.div_mul_le_self (D * E8) P
+  have hBPSPos : 0 < BPS := by norm_num [BPS]
+  have hBPSP : 0 < BPS * P := by positivity
+  -- (C * gas_comp / BPS) * BPS * P ≤ C * gas_comp * P
+  have hLHS1 : C * gas_comp_bps / BPS * BPS * P ≤ C * gas_comp_bps * P :=
+    Nat.mul_le_mul_right P hFloorGas
+  -- (D * E8 / P) * P * BPS ≤ BPS * D * E8
+  have hLHS2 : D * E8 / P * P * BPS ≤ BPS * D * E8 := by
+    have hLe : D * E8 / P * P * BPS ≤ D * E8 * BPS :=
+      Nat.mul_le_mul_right BPS hFloorDE8
+    have hComm : D * E8 * BPS = BPS * D * E8 := by ac_rfl
+    exact hLe.trans_eq hComm
+  -- Combined: (C * gas_comp / BPS) * BPS * P + (D * E8 / P) * P * BPS ≤ BPS * P * C
+  have hCombined : C * gas_comp_bps / BPS * BPS * P + D * E8 / P * P * BPS ≤
+      BPS * P * C := (Nat.add_le_add hLHS1 hLHS2).trans hCross
+  -- Factor: (C * gas_comp / BPS + D * E8 / P) * (BPS * P) ≤ BPS * P * C
+  have hFactored : (C * gas_comp_bps / BPS + D * E8 / P) * (BPS * P) ≤
+      BPS * P * C := by
+    have hDistrib : (C * gas_comp_bps / BPS + D * E8 / P) * (BPS * P) =
+        C * gas_comp_bps / BPS * BPS * P + D * E8 / P * P * BPS := by
+      rw [Nat.add_mul]
+      ac_rfl
+    rw [hDistrib]; exact hCombined
+  -- Divide: C * gas_comp / BPS + D * E8 / P ≤ BPS * P * C / (BPS * P)
+  have hDivLe : C * gas_comp_bps / BPS + D * E8 / P ≤
+      BPS * P * C / (BPS * P) :=
+    (Nat.le_div_iff_mul_le hBPSP).mpr hFactored
+  -- BPS * P * C / (BPS * P) = C (exact division)
+  have hExact : BPS * P * C / (BPS * P) = C := Nat.mul_div_cancel_left _ hBPSP
+  -- C * gas_comp / BPS + D * E8 / P ≤ C
+  -- Hence C * gas_comp / BPS ≤ C - D * E8 / P
+  have hGoal : C * gas_comp_bps / BPS ≤ C - D * E8 / P := by omega
+  exact hGoal
 
 /-! ## Non-Vacuity Witnesses -/
 
@@ -239,7 +341,7 @@ theorem witness_lower_mcr_tight_bound :
 
 /-- Boundary: zero gas compensation is always unprofitable (trivially). -/
 theorem witness_zero_comp_always_safe
-    (mcr_bps : Nat) (hMCR : BPS < mcr_bps) :
+    (mcr_bps : Nat) (_hMCR : BPS < mcr_bps) :
     selfLiquidationUnprofitable 0 mcr_bps := by
   unfold selfLiquidationUnprofitable
   simp [BPS]
