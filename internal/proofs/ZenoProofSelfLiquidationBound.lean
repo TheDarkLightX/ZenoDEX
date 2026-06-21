@@ -62,35 +62,104 @@ namespace ZenoProofSelfLiquidationBound
 /-- Basis points scale (10000 = 100%). -/
 def BPS : Nat := 10000
 
-/-- E8 scale (1e8). -/
+/-- E8 scale (1e8) for price representation. -/
 def E8 : Nat := 100_000_000
 
-/-- Self-liquidation unprofitability condition (integer form).
+/-! ## Attack Model
 
-At the MCR boundary with collateral `C`, debt `D`, price `P`, gas compensation
-`gas_comp_bps`, and MCR `mcr_bps`, self-liquidation is unprofitable iff:
+We model the self-liquidation attack with explicit collateral `C`, debt `D`,
+and price `P`. The vault is at the MCR boundary: `C * P * BPS = D * mcr * E8`.
 
-```text
-gas_comp_bps * mcr_bps ≤ BPS * (mcr_bps - BPS)
-```
+The liquidator receives compensation `C * gas_comp_bps / BPS` (integer floor).
+Without self-liquidation, the borrower repays debt `D` and recovers collateral
+`C - D * E8 / P` (integer floor). Self-liquidation is unprofitable when the
+compensation does not exceed the recovered collateral.
 
-This is independent of `C`, `D`, and `P`: the bound is purely a function of
-the protocol parameters `gas_comp_bps` and `mcr_bps`. -/
+To avoid integer division floor effects in the proof, we work with the
+cross-multiplied form: `C * gas_comp * P + BPS * D * E8 ≤ BPS * P * C`.
+This is the exact algebraic condition that implies the floored form.
+-/
+
+/-- Liquidator compensation: `C * gas_comp_bps / BPS` (integer floor). -/
+def liquidatorComp (C gas_comp_bps : Nat) : Nat :=
+  C * gas_comp_bps / BPS
+
+/-- Collateral recovered by fair repayment: `C - D * E8 / P` (integer floor). -/
+def fairRepayment (C D P : Nat) : Nat :=
+  C - D * E8 / P
+
+/-- Self-liquidation unprofitability (cross-multiplied form, no division).
+
+This is the exact algebraic condition: the liquidator compensation times `P`,
+plus the debt value times `BPS`, does not exceed the collateral times `BPS * P`.
+At the MCR boundary, this reduces to the parameter bound. -/
+def selfLiquidationUnprofitableCross (C D P gas_comp_bps : Nat) : Prop :=
+  C * gas_comp_bps * P + BPS * D * E8 ≤ BPS * P * C
+
+/-- Self-liquidation unprofitability condition (parameter form).
+
+At the MCR boundary, this is equivalent to the cross-multiplied attack model.
+The bound is purely a function of protocol parameters `gas_comp_bps` and `mcr_bps`. -/
 def selfLiquidationUnprofitable (gas_comp_bps mcr_bps : Nat) : Prop :=
   gas_comp_bps * mcr_bps ≤ BPS * (mcr_bps - BPS)
 
-/-- **Self-Liquidation Bound Theorem**: the condition
-`gas_comp_bps * mcr_bps ≤ BPS * (mcr_bps - BPS)` is the exact threshold for
-self-liquidation unprofitability at the MCR boundary.
+/-- The parameter-only bound (alias for `selfLiquidationUnprofitable`). -/
+def paramBound (gas_comp_bps mcr_bps : Nat) : Prop :=
+  gas_comp_bps * mcr_bps ≤ BPS * (mcr_bps - BPS)
 
-The proof shows that the collateral `C`, debt `D`, and price `P` cancel out
-when the vault is at MCR, leaving a pure parameter bound. -/
+/-! ## Main Theorem: Attack Model Reduces to Parameter Bound -/
+
+/-- **Self-Liquidation Bound Theorem**: at the MCR boundary
+(`C * P * BPS = D * mcr_bps * E8`), the cross-multiplied attack model with
+collateral `C`, debt `D`, and price `P` is equivalent to the pure parameter
+bound `gas_comp_bps * mcr_bps ≤ BPS * (mcr_bps - BPS)`.
+
+Forward (model => paramBound): Multiply the model by `mcr`, then the goal
+`gas_comp * mcr + BPS^2 ≤ BPS * mcr` multiplied by `C * P > 0` follows by
+`linear_combination hModelMcr + BPS * hBoundary` (no Nat subtraction in goal
+or hypotheses). Cancel `C * P > 0`, then convert to paramBound form via `omega`.
+
+Backward (paramBound => model): Rearrange paramBound to
+`gas_comp * mcr + BPS^2 ≤ BPS * mcr`, then the goal multiplied by `mcr > 0`
+follows by `linear_combination C * P * hRearr - BPS * hBoundary`. Cancel `mcr`. -/
 theorem self_liquidation_unprofitable_iff_param_bound
-    (gas_comp_bps mcr_bps : Nat) (_hMCR : BPS < mcr_bps) :
-    selfLiquidationUnprofitable gas_comp_bps mcr_bps ↔
-    gas_comp_bps * mcr_bps ≤ BPS * (mcr_bps - BPS) := by
-  unfold selfLiquidationUnprofitable
-  rfl
+    (C D P gas_comp_bps mcr_bps : Nat)
+    (hC : 0 < C) (hP : 0 < P) (hMCR : BPS < mcr_bps)
+    (hBoundary : C * P * BPS = D * mcr_bps * E8) :
+    selfLiquidationUnprofitableCross C D P gas_comp_bps ↔
+    paramBound gas_comp_bps mcr_bps := by
+  unfold selfLiquidationUnprofitableCross paramBound
+  have hMCRPos : 0 < mcr_bps := by omega
+  have hCP : 0 < C * P := by nlinarith [hC, hP]
+  -- Additive identity: BPS * (mcr - BPS) + BPS * BPS = BPS * mcr
+  have hDistrib : BPS * (mcr_bps - BPS) + BPS * BPS = BPS * mcr_bps := by
+    have hSplit : mcr_bps = (mcr_bps - BPS) + BPS := by omega
+    conv_rhs => rw [hSplit, Nat.mul_add]
+  constructor
+  · -- Forward: model => paramBound
+    intro hModel
+    have hModelMcr : (C * gas_comp_bps * P + BPS * D * E8) * mcr_bps ≤
+        BPS * P * C * mcr_bps := Nat.mul_le_mul_right mcr_bps hModel
+    -- Prove: C*P*(gas_comp*mcr + BPS^2) ≤ C*P*(BPS*mcr) via linear_combination
+    have hGoalMult : C * P * (gas_comp_bps * mcr_bps + BPS * BPS) ≤
+        C * P * (BPS * mcr_bps) := by
+      linear_combination hModelMcr + BPS * hBoundary
+    -- Cancel C*P > 0: gas_comp*mcr + BPS^2 ≤ BPS*mcr
+    have hCancelled : gas_comp_bps * mcr_bps + BPS * BPS ≤ BPS * mcr_bps :=
+      Nat.le_of_mul_le_mul_left hGoalMult hCP
+    -- Convert to paramBound form: gas_comp*mcr ≤ BPS*(mcr-BPS)
+    -- Using hDistrib: BPS*mcr = BPS*(mcr-BPS) + BPS^2, so cancel BPS^2
+    nlinarith [hDistrib]
+  · -- Backward: paramBound => model
+    intro hParam
+    -- Rearrange paramBound: gas_comp*mcr + BPS^2 ≤ BPS*mcr
+    have hRearr : gas_comp_bps * mcr_bps + BPS * BPS ≤ BPS * mcr_bps := by nlinarith [hDistrib]
+    -- Prove: (C*gas_comp*P + BPS*D*E8)*mcr ≤ BPS*P*C*mcr via linear_combination
+    have hGoalMult : (C * gas_comp_bps * P + BPS * D * E8) * mcr_bps ≤
+        BPS * P * C * mcr_bps := by
+      linear_combination C * P * hRearr - BPS * hBoundary
+    -- Cancel mcr > 0
+    exact Nat.le_of_mul_le_mul_right hGoalMult hMCRPos
 
 /-- **MCR Must Exceed 100%**: for self-liquidation unprofitability to be
 achievable with positive compensation, the MCR must exceed 100% (BPS). If

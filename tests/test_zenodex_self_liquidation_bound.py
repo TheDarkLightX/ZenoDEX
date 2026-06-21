@@ -215,6 +215,60 @@ class TestMCRMonotonicity:
         assert r_low.self_liquidation_unprofitable is False
 
 
+# --- Bounded Sweep: max_safe accepted, max_safe+1 rejected across MCR range ---
+
+
+class TestBoundedSweepMaxSafe:
+    """Sweep mcr_bps in 10001..30000 asserting max_safe is accepted and
+    max_safe + 1 is rejected. Covers edge cases 10001 and 30000."""
+
+    def test_max_safe_accepted_across_mcr_range(self) -> None:
+        for mcr_bps in range(10001, 30001):
+            env = _base_envelope(mcr_bps=mcr_bps, gas_comp_bps=0)
+            result = verify_self_liquidation_envelope(env)
+            max_safe = result.max_safe_gas_comp_bps
+            assert max_safe >= 0
+            env_safe = _base_envelope(mcr_bps=mcr_bps, gas_comp_bps=max_safe)
+            r_safe = verify_self_liquidation_envelope(env_safe)
+            assert r_safe.self_liquidation_unprofitable is True, (
+                f"max_safe={max_safe} should be safe at mcr={mcr_bps}"
+            )
+
+    def test_max_safe_plus_one_rejected_across_mcr_range(self) -> None:
+        for mcr_bps in range(10001, 30001):
+            env = _base_envelope(mcr_bps=mcr_bps, gas_comp_bps=0)
+            result = verify_self_liquidation_envelope(env)
+            max_safe = result.max_safe_gas_comp_bps
+            env_unsafe = _base_envelope(
+                mcr_bps=mcr_bps, gas_comp_bps=max_safe + 1
+            )
+            r_unsafe = verify_self_liquidation_envelope(env_unsafe)
+            assert r_unsafe.self_liquidation_unprofitable is False, (
+                f"max_safe+1={max_safe + 1} should be unsafe at mcr={mcr_bps}"
+            )
+
+    def test_edge_case_mcr_10001(self) -> None:
+        # Lowest valid MCR: max_safe = 10000 * 1 / 10001 = 0 (floor)
+        env = _base_envelope(mcr_bps=10001, gas_comp_bps=0)
+        result = verify_self_liquidation_envelope(env)
+        assert result.max_safe_gas_comp_bps == 0
+        env_unsafe = _base_envelope(mcr_bps=10001, gas_comp_bps=1)
+        r_unsafe = verify_self_liquidation_envelope(env_unsafe)
+        assert r_unsafe.self_liquidation_unprofitable is False
+
+    def test_edge_case_mcr_30000(self) -> None:
+        # Highest valid MCR: max_safe = 10000 * 20000 / 30000 = 6666 (floor)
+        env = _base_envelope(mcr_bps=30000, gas_comp_bps=0)
+        result = verify_self_liquidation_envelope(env)
+        assert result.max_safe_gas_comp_bps == 6666
+        env_safe = _base_envelope(mcr_bps=30000, gas_comp_bps=6666)
+        r_safe = verify_self_liquidation_envelope(env_safe)
+        assert r_safe.self_liquidation_unprofitable is True
+        env_unsafe = _base_envelope(mcr_bps=30000, gas_comp_bps=6667)
+        r_unsafe = verify_self_liquidation_envelope(env_unsafe)
+        assert r_unsafe.self_liquidation_unprofitable is False
+
+
 # --- CLI Subprocess Tests ---
 
 
