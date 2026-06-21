@@ -21,10 +21,13 @@ from pathlib import Path
 from tools.zenodex_liquidation_cascade import (
     BPS_SCALE,
     capped_penalty,
+    cascade_run_fixed,
+    cascade_run_variable,
     closed_portion,
     funded_liquidation_ok,
     is_liquidatable,
     liq_penalty,
+    liq_step,
     maint_margin_req,
     remaining_position,
     sample_envelope,
@@ -276,6 +279,128 @@ class TestFundedLiquidation:
         result = verify_liquidation_cascade_envelope(env)
         assert result.raw_penalty > result.collateral_quote
         assert "raw_penalty_exceeds_collateral" in result.errors
+
+
+# --- Boundary Cases ---
+
+
+class TestLiqStepDustEscalation:
+    """Test liqStep with dust escalation, matching the Lean `liqStep` definition.
+
+    When closedPortion = 0 (dust) and pos > 0 and fraction >= 1,
+    liqStep full-closes to 0 instead of returning pos unchanged.
+    """
+
+    def test_dust_position_full_closes(self) -> None:
+        # pos=50, fraction=1: closed = 50*1/10000 = 0 (dust)
+        # liqStep should escalate to full close = 0
+        assert liq_step(50, 1) == 0
+
+    def test_dust_position_fraction_100(self) -> None:
+        # pos=99, fraction=100: closed = 99*100/10000 = 0 (dust)
+        # liqStep should escalate to full close = 0
+        assert liq_step(99, 100) == 0
+
+    def test_non_dust_position_decreases(self) -> None:
+        # pos=10000, fraction=1: closed = 10000*1/10000 = 1 (not dust)
+        # liqStep = remaining = 9999
+        assert liq_step(10000, 1) == 9999
+
+    def test_full_close_reaches_zero(self) -> None:
+        # pos=100, fraction=10000: closed = 100*10000/10000 = 100
+        # liqStep = remaining = 0
+        assert liq_step(100, 10000) == 0
+
+    def test_zero_position_stays_zero(self) -> None:
+        assert liq_step(0, 5000) == 0
+
+    def test_liq_step_strictly_decreases(self) -> None:
+        # For pos > 0 and 1 <= fraction <= BPS, liqStep < pos
+        for pos in [1, 50, 99, 100, 1000, 10000, 50000]:
+            for frac in [1, 100, 1000, 5000, 10000]:
+                result = liq_step(pos, frac)
+                assert result < pos, f"liq_step({pos},{frac})={result} should be < {pos}"
+
+
+class TestCascadeRunFixed:
+    """Test cascade_run_fixed matches the Lean iterated_cascade_terminates theorem.
+
+    For any pos and fixed fraction in [1, BPS], the cascade terminates
+    in at most pos steps.
+    """
+
+    def test_small_position_terminates(self) -> None:
+        steps = cascade_run_fixed(100, 1000)
+        assert steps <= 100
+        assert steps > 0
+
+    def test_large_position_terminates(self) -> None:
+        steps = cascade_run_fixed(10000, 5000)
+        assert steps <= 10000
+        assert steps > 0
+
+    def test_dust_position_terminates_quickly(self) -> None:
+        # pos=50, fraction=1: dust escalation full-closes in 1 step
+        steps = cascade_run_fixed(50, 1)
+        assert steps == 1
+
+    def test_full_close_one_step(self) -> None:
+        steps = cascade_run_fixed(10000, 10000)
+        assert steps == 1
+
+    def test_zero_position_zero_steps(self) -> None:
+        steps = cascade_run_fixed(0, 5000)
+        assert steps == 0
+
+    def test_steps_bounded_by_position(self) -> None:
+        # For all tested positions and fractions, steps <= pos
+        for pos in [1, 10, 100, 1000, 10000]:
+            for frac in [1, 100, 5000, 10000]:
+                steps = cascade_run_fixed(pos, frac)
+                assert steps <= pos, f"steps={steps} should be <= pos={pos} (frac={frac})"
+
+
+class TestCascadeRunVariable:
+    """Test cascade_run_variable matches the Lean iterated_cascade_terminates_variable theorem.
+
+    For any pos and variable fraction schedule (each fraction in [1, BPS]),
+    the cascade terminates in at most pos steps.
+    """
+
+    def test_variable_schedule_terminates(self) -> None:
+        # Alternating between fraction=1 and fraction=5000
+        steps = cascade_run_variable(10000, [1, 5000])
+        assert steps <= 10000
+        assert steps > 0
+
+    def test_variable_schedule_dust_escalation(self) -> None:
+        # Start with dust fraction, then escalate
+        steps = cascade_run_variable(50, [1, 10000])
+        assert steps == 1  # First step: dust escalation to 0
+
+    def test_variable_schedule_all_full_close(self) -> None:
+        steps = cascade_run_variable(10000, [10000, 10000, 10000])
+        assert steps == 1
+
+    def test_variable_schedule_steps_bounded_by_position(self) -> None:
+        for pos in [1, 10, 100, 1000, 10000]:
+            for schedule in [[1, 5000], [1, 100, 10000], [5000], [1], [10000]]:
+                steps = cascade_run_variable(pos, schedule)
+                assert steps <= pos, (
+                    f"steps={steps} should be <= pos={pos} (schedule={schedule})"
+                )
+
+    def test_variable_schedule_mixed_fractions(self) -> None:
+        # Mix of small and large fractions
+        steps = cascade_run_variable(10000, [1, 100, 1000, 5000, 10000])
+        assert steps <= 10000
+        assert steps > 0
+
+    def test_variable_schedule_single_fraction(self) -> None:
+        # Single fraction schedule should match fixed fraction
+        steps_var = cascade_run_variable(10000, [5000])
+        steps_fixed = cascade_run_fixed(10000, 5000)
+        assert steps_var == steps_fixed
 
 
 # --- Boundary Cases ---

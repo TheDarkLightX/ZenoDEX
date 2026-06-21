@@ -144,6 +144,50 @@ def remaining_position(pos_abs: int, fraction: int) -> int:
     return pos_abs - closed_portion(pos_abs, fraction)
 
 
+def liq_step(pos_abs: int, fraction: int) -> int:
+    """Liquidation step with dust escalation.
+
+    If partial close yields 0 (dust) and position is positive with
+    fraction >= 1, full-close to 0 instead. This matches the Lean
+    `liqStep` definition used by `iterated_cascade_terminates`.
+    """
+    if fraction >= 1 and closed_portion(pos_abs, fraction) == 0 and pos_abs > 0:
+        return 0
+    return remaining_position(pos_abs, fraction)
+
+
+def cascade_run_fixed(pos_abs: int, fraction: int, max_steps: int = 100_000) -> int:
+    """Run cascade with fixed fraction until position reaches 0 or max_steps.
+
+    Returns the number of steps taken. Matches the Lean
+    `iterated_cascade_terminates` theorem (fixed fraction).
+    """
+    steps = 0
+    pos = pos_abs
+    while pos > 0 and steps < max_steps:
+        pos = liq_step(pos, fraction)
+        steps += 1
+    return steps
+
+
+def cascade_run_variable(
+    pos_abs: int, fractions: list[int], max_steps: int = 100_000
+) -> int:
+    """Run cascade with variable fraction schedule until position reaches 0.
+
+    Each step uses fractions[step % len(fractions)] as the fraction.
+    Returns the number of steps taken. Matches the Lean
+    `iterated_cascade_terminates_variable` theorem.
+    """
+    steps = 0
+    pos = pos_abs
+    while pos > 0 and steps < max_steps:
+        frac = fractions[steps % len(fractions)]
+        pos = liq_step(pos, frac)
+        steps += 1
+    return steps
+
+
 def funded_liquidation_ok(penalty_bps: int, max_oracle_move: int,
                           maint_bps: int, depeg_bps: int) -> bool:
     eff_maint = maint_bps + depeg_bps

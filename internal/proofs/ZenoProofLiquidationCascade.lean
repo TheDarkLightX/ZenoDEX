@@ -143,11 +143,15 @@ theorem liqStep_strictly_decreases
     unfold remainingPosition
     exact Nat.sub_lt hpos hClosed
 
-/-! ## Theorem 2: Cascade Terminates in Bounded Steps -/
+/-! ## Theorem 2: One-Step Position Decrease Bound -/
 
-/-- A position of size `n` requires at most `n` partial liquidations to reach
-zero. Each step reduces the position by at least 1 unit. -/
-theorem cascade_terminates_in_position_steps
+/-- One-step position decrease: a single partial liquidation with
+`1 ≤ fraction ≤ BPS` and `pos ≥ BPS` reduces the position by at least
+1 unit. This is the per-step progress lemma used by
+`iterated_cascade_terminates` (fixed fraction) and
+`iterated_cascade_terminates_variable` (variable fraction) to prove
+full cascade termination. -/
+theorem one_step_decrease_bound
     (pos fraction : Nat) (hpos : pos ≥ BPS) (hfrac : 1 ≤ fraction) (hfrac2 : fraction ≤ BPS) :
     remainingPosition pos fraction ≤ pos - 1 := by
   unfold remainingPosition closedPortion
@@ -178,7 +182,7 @@ theorem one_step_position_decrease
     ∀ fraction : Nat, 1 ≤ fraction → fraction ≤ BPS →
       remainingPosition pos fraction ≤ pos - 1 := by
   intro fraction hfrac hfrac2
-  exact cascade_terminates_in_position_steps pos fraction hpos hfrac hfrac2
+  exact one_step_decrease_bound pos fraction hpos hfrac hfrac2
 
 /-! ## Theorem 3: Post-Liquidation Safety -/
 
