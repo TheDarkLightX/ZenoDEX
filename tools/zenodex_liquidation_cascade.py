@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """ZenoDEX Liquidation Cascade Termination Verifier.
 
-Verifies that the liquidation cascade terminates in bounded steps. Each
-partial liquidation with fraction >= 1 BPS strictly reduces the position
-size by at least 1 unit when pos >= BPS. A position of size n requires
-at most n partial liquidations to reach zero.
+Validates that a partial liquidation cascade terminates in bounded steps
+under the ZenoDEX perp model. Uses exact BPS-scaled integer arithmetic.
 
-Mathematical model (integer arithmetic, no floats):
-  closed = pos * fraction / BPS (integer division)
+Model (matching Lean ZenoProofLiquidationCascade):
+  closed = pos * fraction // BPS
   remaining = pos - closed
-  maint_margin_req = pos * price * maint_bps / BPS
-  penalty = min(collateral, closed * price * penalty_bps / BPS)
+  maint_margin_req = pos * price * (maint_bps + depeg_bps) // BPS
+  penalty = min(collateral, closed * price * penalty_bps // BPS)
   post_collateral = collateral - penalty
+  Guard: post_collateral >= maint_margin_req(remaining, price, maint_bps + depeg_bps)
 
-Key invariants:
-  - position_strictly_decreases: fraction >= 1 and pos >= BPS => remaining < pos
-  - cascade_terminates: remaining <= pos - 1 (at most pos steps to zero)
-  - post_liquidation_safe: guard ensures post_collateral >= maint_margin_req(remaining)
+Termination bound:
+  - Each liquidation with fraction >= 1 and pos >= BPS reduces pos by >= 1
+  - Cascade terminates in at most pos steps for a single position
+
+Funded liquidation condition:
+  penalty_bps * (BPS + max_oracle_move) <= BPS * (maint_eff - max_oracle_move)
+  ensures penalty is funded by collateral, not insurance.
 
 Usage:
     python3 tools/zenodex_liquidation_cascade.py sample > envelope.json
@@ -34,6 +36,7 @@ from pathlib import Path
 from typing import Any
 
 BPS_SCALE = 10_000
+MAX_AMOUNT = 10**18
 MAX_POSITION = 10**18
 MAX_PRICE = 10**18
 MAX_BPS = 30_000
@@ -44,21 +47,25 @@ REQUIRED_FIELDS = (
     "collateral_quote",
     "index_price_e8",
     "maint_bps",
+    "depeg_buffer_bps",
     "penalty_bps",
+    "max_oracle_move_bps",
     "liquidation_fraction_bps",
 )
 
 
 @dataclass(frozen=True)
 class LiquidationCascadeResult:
-    status: str  # "accepted" | "rejected" | "inconclusive"
+    status: str
     errors: list[str] = field(default_factory=list)
     position_id: str = ""
     position_base: int = 0
     collateral_quote: int = 0
     index_price_e8: int = 0
     maint_bps: int = 0
+    depeg_buffer_bps: int = 0
     penalty_bps: int = 0
+    max_oracle_move_bps: int = 0
     liquidation_fraction_bps: int = 0
     closed_portion: int = 0
     remaining_position: int = 0
@@ -70,6 +77,8 @@ class LiquidationCascadeResult:
     position_decreases: bool | None = None
     post_liquidation_safe: bool | None = None
     cascade_terminates: bool | None = None
+    max_cascade_steps: int | None = None
+    funded_liquidation_ok: bool | None = None
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -104,14 +113,55 @@ def _token(obj: dict[str, Any], key: str) -> str:
     return val
 
 
+def notional_quote(pos_abs: int, price: int) -> int:
+    return pos_abs * price
+
+
+def maint_margin_req(pos_abs: int, price: int, maint_bps: int, depeg_bps: int) -> int:
+    return notional_quote(pos_abs, price) * (maint_bps + depeg_bps) // BPS_SCALE
+
+
+def liq_penalty(closed: int, price: int, penalty_bps: int) -> int:
+    return closed * price * penalty_bps // BPS_SCALE
+
+
+def capped_penalty(collateral: int, closed: int, price: int, penalty_bps: int) -> int:
+    return min(collateral, liq_penalty(closed, price, penalty_bps))
+
+
+def is_liquidatable(pos_abs: int, collateral: int, price: int,
+                    maint_bps: int, depeg_bps: int) -> bool:
+    if pos_abs == 0:
+        return False
+    return collateral < maint_margin_req(pos_abs, price, maint_bps, depeg_bps)
+
+
+def closed_portion(pos_abs: int, fraction: int) -> int:
+    return pos_abs * fraction // BPS_SCALE
+
+
+def remaining_position(pos_abs: int, fraction: int) -> int:
+    return pos_abs - closed_portion(pos_abs, fraction)
+
+
+def funded_liquidation_ok(penalty_bps: int, max_oracle_move: int,
+                          maint_bps: int, depeg_bps: int) -> bool:
+    eff_maint = maint_bps + depeg_bps
+    return penalty_bps * (BPS_SCALE + max_oracle_move) <= (
+        BPS_SCALE * (eff_maint - max_oracle_move)
+    )
+
+
 def sample_envelope() -> dict[str, Any]:
     return {
         "position_id": "zenodex.perp-position-001",
         "position_base": 10_000,
-        "collateral_quote": 2_000_000_000,
+        "collateral_quote": 100_000_000_000,
         "index_price_e8": 100_000_000,
-        "maint_bps": 6_000,
-        "penalty_bps": 500,
+        "maint_bps": 500,
+        "depeg_buffer_bps": 100,
+        "penalty_bps": 200,
+        "max_oracle_move_bps": 300,
         "liquidation_fraction_bps": 5_000,
     }
 
@@ -135,36 +185,48 @@ def verify_liquidation_cascade_envelope(obj: dict[str, Any]) -> LiquidationCasca
     try:
         position_id = _token(obj, "position_id")
         pos = _int_between(obj, "position_base", minimum=0, maximum=MAX_POSITION)
-        collateral = _int_between(obj, "collateral_quote", minimum=0, maximum=MAX_POSITION)
+        collateral = _int_between(obj, "collateral_quote", minimum=0, maximum=MAX_AMOUNT)
         price = _int_between(obj, "index_price_e8", minimum=1, maximum=MAX_PRICE)
         maint_bps = _int_between(obj, "maint_bps", minimum=1, maximum=MAX_BPS)
+        depeg_bps = _int_between(obj, "depeg_buffer_bps", minimum=0, maximum=MAX_BPS)
         penalty_bps = _int_between(obj, "penalty_bps", minimum=0, maximum=BPS_SCALE)
+        max_oracle_move = _int_between(obj, "max_oracle_move_bps", minimum=0, maximum=MAX_BPS)
         fraction = _int_between(obj, "liquidation_fraction_bps", minimum=0, maximum=BPS_SCALE)
     except ValueError as exc:
         return LiquidationCascadeResult(status="rejected", errors=[str(exc)])
 
-    closed = (pos * fraction) // BPS_SCALE
-    remaining = pos - closed
-    maint_margin = (pos * price * maint_bps) // (BPS_SCALE * 100_000_000) if price > 0 else 0
-    raw_penalty = (closed * price * penalty_bps) // (BPS_SCALE * 100_000_000) if price > 0 else 0
-    capped_penalty = min(collateral, raw_penalty)
-    post_collateral = collateral - capped_penalty
+    eff_maint = maint_bps + depeg_bps
+    closed = closed_portion(pos, fraction)
+    remaining = remaining_position(pos, fraction)
+    mreq = maint_margin_req(pos, price, maint_bps, depeg_bps)
+    raw_pen = liq_penalty(closed, price, penalty_bps)
+    capped_pen = capped_penalty(collateral, closed, price, penalty_bps)
+    post_collat = collateral - capped_pen
 
-    is_liquidatable = pos > 0 and collateral < maint_margin
-    position_decreases = fraction >= 1 and pos >= BPS_SCALE and remaining < pos
-    post_liquidation_safe = post_collateral >= (remaining * price * maint_bps) // (BPS_SCALE * 100_000_000) if price > 0 else True
-    cascade_terminates = remaining <= pos - 1 if pos > 0 else True
+    liq = is_liquidatable(pos, collateral, price, maint_bps, depeg_bps)
+    pos_decreases = fraction >= 1 and pos >= BPS_SCALE and remaining < pos
+    rem_mreq = maint_margin_req(remaining, price, maint_bps, depeg_bps) if remaining > 0 else 0
+    post_safe = post_collat >= rem_mreq
+    cascade_term = remaining <= pos - 1 if pos > 0 else True
+    max_steps = pos if pos > 0 else 0
+    funded_ok = funded_liquidation_ok(penalty_bps, max_oracle_move, maint_bps, depeg_bps)
 
-    if fraction < 1:
+    if fraction < 1 and pos > 0:
         errors.append("fraction_must_be_at_least_1_bps")
-    if pos < BPS_SCALE and pos > 0:
+    if pos < BPS_SCALE and pos > 0 and fraction < BPS_SCALE:
         errors.append("position_must_be_at_least_bps_for_termination")
-    if not position_decreases and pos > 0 and fraction >= 1:
+    if not pos_decreases and pos > 0 and fraction >= 1 and pos >= BPS_SCALE:
         errors.append("position_does_not_decrease")
-    if not post_liquidation_safe:
+    if not post_safe and remaining > 0:
         errors.append("post_liquidation_unsafe")
-    if penalty_bps > maint_bps:
-        errors.append("penalty_exceeds_maint_margin")
+    if penalty_bps >= eff_maint:
+        errors.append("penalty_exceeds_eff_maint_margin")
+    if max_oracle_move > eff_maint:
+        errors.append("oracle_move_exceeds_eff_maint")
+    if not funded_ok:
+        errors.append("funded_liquidation_violated")
+    if raw_pen > collateral and capped_pen < raw_pen:
+        errors.append("raw_penalty_exceeds_collateral")
 
     status = "accepted" if not errors else "rejected"
 
@@ -176,18 +238,22 @@ def verify_liquidation_cascade_envelope(obj: dict[str, Any]) -> LiquidationCasca
         collateral_quote=collateral,
         index_price_e8=price,
         maint_bps=maint_bps,
+        depeg_buffer_bps=depeg_bps,
         penalty_bps=penalty_bps,
+        max_oracle_move_bps=max_oracle_move,
         liquidation_fraction_bps=fraction,
         closed_portion=closed,
         remaining_position=remaining,
-        maint_margin_req=maint_margin,
-        raw_penalty=raw_penalty,
-        capped_penalty=capped_penalty,
-        post_collateral=post_collateral,
-        is_liquidatable=is_liquidatable,
-        position_decreases=position_decreases,
-        post_liquidation_safe=post_liquidation_safe,
-        cascade_terminates=cascade_terminates,
+        maint_margin_req=mreq,
+        raw_penalty=raw_pen,
+        capped_penalty=capped_pen,
+        post_collateral=post_collat,
+        is_liquidatable=liq,
+        position_decreases=pos_decreases,
+        post_liquidation_safe=post_safe,
+        cascade_terminates=cascade_term,
+        max_cascade_steps=max_steps,
+        funded_liquidation_ok=funded_ok,
     )
 
 
