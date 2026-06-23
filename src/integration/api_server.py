@@ -7262,7 +7262,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                             ),
                             ("local_demo", bool(autotrader_live_enabled)),
                             ("local_demo", bool(confidential_attestation_enabled)),
-                            ("signed_intents", bool(dex_enabled)),
+                            ("local_demo", bool(dex_enabled)),
                         )
                         if enabled
                     ),

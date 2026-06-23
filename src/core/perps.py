@@ -72,6 +72,20 @@ def _infer_epoch_phase(gs: dict) -> int:
 
 _EPOCH_PHASE_STR_TO_INT: dict[str, int] = {"Open": 0, "PricePublished": 1, "Settled": 2}
 _EPOCH_PHASE_INT_TO_STR: dict[int, str] = {0: "Open", 1: "PricePublished", 2: "Settled"}
+_BPS_SCALE = 10_000
+
+
+def _funded_liquidation_params_ok(
+    *,
+    maintenance_margin_bps: int,
+    depeg_buffer_bps: int,
+    max_oracle_move_bps: int,
+    liquidation_penalty_bps: int,
+) -> bool:
+    effective_maintenance_bps = int(maintenance_margin_bps) + int(depeg_buffer_bps)
+    return int(liquidation_penalty_bps) * (
+        _BPS_SCALE + int(max_oracle_move_bps)
+    ) <= _BPS_SCALE * (effective_maintenance_bps - int(max_oracle_move_bps))
 
 PERP_MARKET_KIND_ISOLATED_V2: Literal["isolated_v2"] = "isolated_v2"
 PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1: Literal["clearinghouse_2p_v1"] = "clearinghouse_2p_v1"
@@ -379,6 +393,15 @@ class PerpMarketState:
             raise ValueError("invalid margin params ordering (max_move <= maint+depeg <= initial)")
         if liquidation_penalty_bps >= eff_maint:
             raise ValueError("invalid liquidation_penalty_bps (must be < maintenance_margin_bps + depeg_buffer_bps)")
+        if not _funded_liquidation_params_ok(
+            maintenance_margin_bps=maintenance_margin_bps,
+            depeg_buffer_bps=depeg_buffer_bps,
+            max_oracle_move_bps=max_oracle_move_bps,
+            liquidation_penalty_bps=liquidation_penalty_bps,
+        ):
+            raise ValueError(
+                "invalid liquidation params (require funded liquidation after max_oracle_move_bps)"
+            )
 
         # Funding bounds + gate.
         if abs(funding_rate_bps) > funding_cap_bps:
@@ -841,6 +864,15 @@ class PerpClearinghouseNpMarketState:
             raise ValueError(
                 "clearinghouse_np invalid liquidation_penalty_bps "
                 "(must be < maintenance_margin_bps + depeg_buffer_bps)")
+        if not _funded_liquidation_params_ok(
+            maintenance_margin_bps=int(self.global_state["maintenance_margin_bps"]),
+            depeg_buffer_bps=int(self.global_state["depeg_buffer_bps"]),
+            max_oracle_move_bps=int(self.global_state["max_oracle_move_bps"]),
+            liquidation_penalty_bps=int(self.global_state["liquidation_penalty_bps"]),
+        ):
+            raise ValueError(
+                "clearinghouse_np invalid liquidation params "
+                "(require funded liquidation after max_oracle_move_bps)")
 
         if not isinstance(self.accounts, tuple):
             raise TypeError("accounts must be a tuple")

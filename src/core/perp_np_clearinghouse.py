@@ -21,7 +21,7 @@ this reference focuses on the accounting math and the ADL algorithm.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
 from typing import Mapping, Sequence
 
 from src.core.perp_np_matching import (
@@ -40,6 +40,37 @@ REJ_INSOLVENT = "REJ_INSOLVENT"
 
 class SettleInsolvent(Exception):
     """Raised when bad debt exceeds insurance + winner profit — settle must revert."""
+
+
+_MARKET_PARAM_BOUNDS: dict[str, tuple[int, int]] = {
+    "initial_margin_bps": (0, 10_000),
+    "maintenance_margin_bps": (0, 10_000),
+    "depeg_buffer_bps": (0, 5_000),
+    "liquidation_penalty_bps": (0, 10_000),
+    "max_oracle_move_bps": (0, 10_000),
+    "funding_cap_bps": (1, 10_000),
+    "max_position_abs": (1, 1_000_000),
+    "min_notional_for_bounty_e8": (0, I128_MAX),
+}
+
+
+def _plain_int(value: object, *, name: str) -> int:
+    if type(value) is not int:
+        raise TypeError(f"{name} must be a plain int")
+    return int(value)
+
+
+def _funded_liquidation_params_ok(
+    *,
+    maintenance_margin_bps: int,
+    depeg_buffer_bps: int,
+    max_oracle_move_bps: int,
+    liquidation_penalty_bps: int,
+) -> bool:
+    effective_maintenance_bps = int(maintenance_margin_bps) + int(depeg_buffer_bps)
+    return int(liquidation_penalty_bps) * (
+        BPS_SCALE + int(max_oracle_move_bps)
+    ) <= BPS_SCALE * (effective_maintenance_bps - int(max_oracle_move_bps))
 
 
 # --- Pure math primitives (e8 ledger) -----------------------------------------
@@ -140,6 +171,49 @@ class MarketParams:
         return MatchParams(self.initial_margin_bps, self.max_position_abs)
 
 
+def _validate_market_params_for_admission(params: MarketParams) -> None:
+    values: dict[str, int] = {}
+    for param_field in fields(MarketParams):
+        name = param_field.name
+        value = _plain_int(getattr(params, name), name=f"params.{name}")
+        lo, hi = _MARKET_PARAM_BOUNDS[name]
+        if value < lo or value > hi:
+            raise ValueError(f"params.{name} out of range: {value} not in [{lo}, {hi}]")
+        values[name] = value
+
+    effective_maintenance_bps = (
+        values["maintenance_margin_bps"] + values["depeg_buffer_bps"]
+    )
+    if values["depeg_buffer_bps"] <= 0:
+        raise ValueError("invalid params: require depeg_buffer_bps > 0")
+    if values["max_oracle_move_bps"] > effective_maintenance_bps:
+        raise ValueError(
+            "invalid params: require max_oracle_move_bps <= "
+            "maintenance_margin_bps + depeg_buffer_bps"
+        )
+    if effective_maintenance_bps > values["initial_margin_bps"]:
+        raise ValueError(
+            "invalid params: require maintenance_margin_bps + "
+            "depeg_buffer_bps <= initial_margin_bps"
+        )
+    if values["liquidation_penalty_bps"] <= 0:
+        raise ValueError("invalid params: require liquidation_penalty_bps > 0")
+    if values["liquidation_penalty_bps"] >= effective_maintenance_bps:
+        raise ValueError(
+            "invalid params: require liquidation_penalty_bps < "
+            "maintenance_margin_bps + depeg_buffer_bps"
+        )
+    if not _funded_liquidation_params_ok(
+        maintenance_margin_bps=values["maintenance_margin_bps"],
+        depeg_buffer_bps=values["depeg_buffer_bps"],
+        max_oracle_move_bps=values["max_oracle_move_bps"],
+        liquidation_penalty_bps=values["liquidation_penalty_bps"],
+    ):
+        raise ValueError(
+            "invalid params: require funded liquidation after max_oracle_move_bps"
+        )
+
+
 @dataclass(frozen=True)
 class MarketState:
     index_price_e8: int                       # the common current mark
@@ -168,6 +242,7 @@ def init_market(index_price_e8: int, params: MarketParams | None = None,
     if insurance_seed_e8 < 0:
         raise ValueError("insurance seed must be non-negative")
     p = params or MarketParams()
+    _validate_market_params_for_admission(p)
     return MarketState(
         index_price_e8=index_price_e8,
         params=p,

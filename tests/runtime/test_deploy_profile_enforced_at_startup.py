@@ -248,8 +248,8 @@ def test_deploy_profile_rejects_non_trusted_core_authority_surface():
 
 def test_public_testnet_profile_rejects_missing_trusted_core_surface():
     profile = load_deploy_profile("public-testnet")
-    del profile["runtime_authority_policy"]["per_surface"]["perp_stateful"]
-    profile["runtime_authority_policy"]["promoted_surfaces"].remove("perp_stateful")
+    del profile["runtime_authority_policy"]["per_surface"]["fee_router"]
+    profile["runtime_authority_policy"]["promoted_surfaces"].remove("fee_router")
 
     conflicts = evaluate_deploy_profile_consistency(profile, {})
 
@@ -258,12 +258,22 @@ def test_public_testnet_profile_rejects_missing_trusted_core_surface():
 
 def test_public_testnet_profile_rejects_trusted_core_rust_shadow():
     profile = load_deploy_profile("public-testnet")
-    profile["runtime_authority_policy"]["per_surface"]["perp_stateful"] = "rust_shadow"
-    profile["runtime_authority_policy"]["promoted_surfaces"].remove("perp_stateful")
+    profile["runtime_authority_policy"]["per_surface"]["fee_router"] = "rust_shadow"
+    profile["runtime_authority_policy"]["promoted_surfaces"].remove("fee_router")
 
     conflicts = evaluate_deploy_profile_consistency(profile, {})
 
     assert any("trusted-core surfaces must use" in conflict for conflict in conflicts)
+
+
+def test_public_testnet_profile_allows_perp_stateful_rust_shadow():
+    # perp_stateful is demoted to rust_shadow on public-testnet (PR #359):
+    # Python authority with Rust checking after the fact, not Rust authority.
+    profile = load_deploy_profile("public-testnet")
+    assert profile["runtime_authority_policy"]["per_surface"]["perp_stateful"] == "rust_shadow"
+    assert "perp_stateful" not in profile["runtime_authority_policy"]["promoted_surfaces"]
+    conflicts = evaluate_deploy_profile_consistency(profile, {})
+    assert not any("perp_stateful" in c for c in conflicts)
 
 
 def test_deploy_profile_rejects_stale_promoted_surface_entry():
@@ -339,9 +349,11 @@ def test_unknown_deploy_profile_rejects_at_startup(clean_env):
 
 def test_load_deploy_profile_rejects_malformed_profile_request():
     with pytest.raises(ValueError, match="profile must be a non-empty string"):
-        load_deploy_profile(" production-strict")
-    with pytest.raises(ValueError, match="profile must be a non-empty string"):
         load_deploy_profile("")
+    with pytest.raises(ValueError, match="invalid deploy profile id"):
+        load_deploy_profile("../etc/passwd")
+    with pytest.raises(ValueError, match="unknown deploy profile id"):
+        load_deploy_profile("not-a-real-profile")
 
 
 def test_load_deploy_profile_rejects_mismatched_named_profile(tmp_path, monkeypatch):
@@ -362,24 +374,27 @@ def test_load_deploy_profile_rejects_mismatched_named_profile(tmp_path, monkeypa
         ),
         encoding="utf-8",
     )
-    # Exact paths are allowed for custom profiles and are validated by their
-    # declared profile_id; named profile loads must match the requested id.
-    assert load_deploy_profile(str(path))["profile_id"] == "local-dev"
-
+    # Path hardening: arbitrary filesystem paths are rejected; only allowlisted
+    # profile ids are accepted. Monkeypatch the deploy dir and allowlist to
+    # admit the test profile, then verify the id mismatch is caught.
     monkeypatch.setattr(deploy_profile_module, "_DEPLOY_DIR", profile_dir)
+    monkeypatch.setattr(deploy_profile_module, "_DEPLOY_PROFILE_IDS", frozenset({"production-strict"}))
     with pytest.raises(ValueError, match="deploy profile id mismatch"):
         load_deploy_profile("production-strict")
 
 
-def test_load_deploy_profile_rejects_unknown_top_level_keys(tmp_path):
+def test_load_deploy_profile_rejects_unknown_top_level_keys(tmp_path, monkeypatch):
     profile = load_deploy_profile("production-strict")
     profile["runtime_polciy"] = dict(profile["runtime_policy"])
     del profile["runtime_policy"]
-    path = tmp_path / "production-strict-typo.yaml"
+    profile["profile_id"] = "test-typo"
+    path = tmp_path / "test-typo.yaml"
     path.write_text(yaml.safe_dump(profile, sort_keys=True), encoding="utf-8")
 
+    monkeypatch.setattr(deploy_profile_module, "_DEPLOY_DIR", tmp_path)
+    monkeypatch.setattr(deploy_profile_module, "_DEPLOY_PROFILE_IDS", frozenset({"test-typo"}))
     with pytest.raises(ValueError, match="unknown top-level keys"):
-        load_deploy_profile(str(path))
+        load_deploy_profile("test-typo")
 
 
 def test_local_dev_profile_allows_local_signing_facts():
