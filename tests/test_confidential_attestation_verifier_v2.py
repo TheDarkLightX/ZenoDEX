@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import struct
+import datetime
 
 import cbor2
 
@@ -27,15 +28,46 @@ PCR0 = b"\xaa" * 48
 PCR1 = b"\xbb" * 48
 PCR2 = b"\xcc" * 48
 PCR8 = b"\xdd" * 48
-CERT_DER = b"\x30\x82\x01\x00" + b"\x42" * 252
-CERT_HASH = hashlib.sha256(CERT_DER).hexdigest()
 POLICY_DIGEST = "0x" + "e" * 64
+
+
+def _generate_self_signed_cert() -> tuple[bytes, object]:
+    """Generate a real self-signed RSA certificate for testing."""
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = issuer = x509.Name([
+        x509.NameAttribute(NameOID.COMMON_NAME, "test-nitro-attestation"),
+    ])
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(private_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.datetime(2024, 1, 1))
+        .not_valid_after(datetime.datetime(2030, 1, 1))
+        .sign(private_key, hashes.SHA384())
+    )
+    cert_der = cert.public_bytes(serialization.Encoding.DER)
+    return cert_der, private_key
+
+
+_CERT_DER, _CERT_KEY = _generate_self_signed_cert()
+CERT_DER = _CERT_DER
+CERT_HASH = hashlib.sha256(CERT_DER).hexdigest()
 NITRO_MEASUREMENT = f"nitro:pcr0:{PCR0.hex()}:pcr8:{PCR8.hex()}"
 SMOKE_MEASUREMENT = f"nitro:pcr0:{'0123456789abcdef' * 6}:pcr8:{'fedcba9876543210' * 6}"
 
 
 def _build_nitro_attestation_document() -> bytes:
-    """Build a real COSE_Sign1 attestation document using cbor2."""
+    """Build a real COSE_Sign1 attestation document with valid signature."""
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import padding
+
     doc = {
         "version": 1, "certificate": CERT_DER, "cabundle": [CERT_DER],
         "digest": 1, "pcrs": {0: PCR0, 1: PCR1, 2: PCR2, 8: PCR8},
@@ -43,18 +75,33 @@ def _build_nitro_attestation_document() -> bytes:
         "publicKey": b"\x04" + b"\x00" * 64,
     }
     payload = cbor2.dumps(doc)
-    cose_sign1 = [cbor2.dumps({1: -7}), {}, payload, b"\x00" * 64]
+    protected_header = cbor2.dumps({1: -7})  # alg: RS256
+    # Build COSE Sig_structure: ["Signature1", b"", protected_header, payload]
+    sig_structure = cbor2.dumps(["Signature1", b"", protected_header, payload])
+    signature = _CERT_KEY.sign(sig_structure, padding.PKCS1v15(), hashes.SHA384())
+    cose_sign1 = [protected_header, {}, payload, signature]
     return cbor2.dumps(cbor2.CBORTag(18, cose_sign1))
 
 
 def _build_sgx_quote() -> bytes:
-    """Build a minimal SGX quote with known MRENCLAVE and MRSIGNER."""
+    """Build a minimal SGX quote with known MRENCLAVE and MRSIGNER.
+
+    Uses correct Intel SGX SDK report body offsets:
+    - MRENCLAVE at absolute offset 48 + 128 = 176
+    - MRSIGNER at absolute offset 48 + 192 = 240
+    - ISV_PROD_ID at absolute offset 48 + 240 = 288
+    - ISV_SVN at absolute offset 48 + 242 = 290
+    """
     quote = bytearray(48 + 384 + 64)
-    struct.pack_into("<H", quote, 0, 1)
-    quote[80:112] = b"\xab" * 32
-    quote[112:144] = b"\xcd" * 32
-    struct.pack_into("<H", quote, 304, 1)
-    struct.pack_into("<H", quote, 306, 2)
+    struct.pack_into("<H", quote, 0, 1)  # version
+    # MRENCLAVE at body offset 128 (absolute 176)
+    quote[176:208] = b"\xab" * 32
+    # MRSIGNER at body offset 192 (absolute 240)
+    quote[240:272] = b"\xcd" * 32
+    # ISV_PROD_ID at body offset 240 (absolute 288)
+    struct.pack_into("<H", quote, 288, 1)
+    # ISV_SVN at body offset 242 (absolute 290)
+    struct.pack_into("<H", quote, 290, 2)
     return bytes(quote)
 
 

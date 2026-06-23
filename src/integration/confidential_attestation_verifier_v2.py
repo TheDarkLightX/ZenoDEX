@@ -42,9 +42,23 @@ _NITRO_PCR_HEX_LEN = 96  # 48 bytes * 2 hex chars
 _SGX_MEASUREMENT_HEX_LEN = 64  # 32 bytes * 2 hex chars
 _SGX_QUOTE_HEADER_SIZE = 48
 _SGX_REPORT_BODY_OFFSET = 48
-_SGX_REPORT_DATA_OFFSET = 48 + 0   # report_data starts at body offset 0
-_SGX_MRENCLAVE_OFFSET = 48 + 32    # mr_enclave at body offset 32
-_SGX_MRSIGNER_OFFSET = 48 + 64     # mr_signer at body offset 64
+# Intel SGX SDK sgx_report_body_t layout (384 bytes total):
+#   0-15:   cpu_svn (16 bytes)
+#   16-19:  misc_select (4 bytes)
+#   20-47:  reserved1 (28 bytes)
+#   48-63:  isv_ext_prod_id (16 bytes, SGX2)
+#   64-127: report_data (64 bytes)
+#   128-159: mr_enclave (32 bytes) — MRENCLAVE
+#   160-191: reserved2 (32 bytes)
+#   192-223: mr_signer (32 bytes) — MRSIGNER
+#   224-239: attributes (16 bytes)
+#   240-241: isv_prod_id (2 bytes)
+#   242-243: isv_svn (2 bytes)
+_SGX_REPORT_DATA_OFFSET = _SGX_REPORT_BODY_OFFSET + 64
+_SGX_MRENCLAVE_OFFSET = _SGX_REPORT_BODY_OFFSET + 128
+_SGX_MRSIGNER_OFFSET = _SGX_REPORT_BODY_OFFSET + 192
+_SGX_ISV_PROD_ID_OFFSET = _SGX_REPORT_BODY_OFFSET + 240
+_SGX_ISV_SVN_OFFSET = _SGX_REPORT_BODY_OFFSET + 242
 _SGX_REPORT_BODY_SIZE = 384
 _COSE_SIGN1_TAG = 18  # CBOR tag for COSE_Sign1
 
@@ -144,6 +158,61 @@ def _decode_cose_sign1(data: bytes) -> tuple[bytes, bytes, bytes, bytes]:
     if not isinstance(signature, bytes):
         raise ValueError("COSE_Sign1 signature must be bytes")
     return protected_header, payload, signature, unprotected_header
+
+
+def _verify_cose_sign1_signature(
+    protected_header: bytes,
+    payload: bytes,
+    signature: bytes,
+    cert_der: bytes,
+) -> bool:
+    """Verify the COSE_Sign1 signature using the certificate's public key.
+
+    Builds the COSE Sig_structure per RFC 8152 section 4.4:
+        ["Signature1", b'', protected_header, payload]
+    and verifies the signature using the public key extracted from the
+    DER-encoded certificate.
+
+    AWS Nitro Enclave attestation documents use RSASSA-PKCS1-v1_5 with
+    SHA-384 by default. We try SHA-384 first, then SHA-256.
+    """
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import padding, rsa, ec
+    except ImportError:
+        raise RuntimeError("cryptography package is required for COSE signature verification")
+
+    _ensure_cbor2()
+    sig_structure = cbor2.dumps(["Signature1", b"", protected_header, payload])
+    try:
+        cert = x509.load_der_x509_certificate(cert_der)
+    except Exception:
+        return False
+    public_key = cert.public_key()
+
+    if isinstance(public_key, rsa.RSAPublicKey):
+        for hash_algo in (hashes.SHA384(), hashes.SHA256()):
+            try:
+                public_key.verify(
+                    signature,
+                    sig_structure,
+                    padding.PKCS1v15(),
+                    hash_algo,
+                )
+                return True
+            except Exception:
+                continue
+        return False
+    elif isinstance(public_key, ec.EllipticCurvePublicKey):
+        for hash_algo in (hashes.SHA384(), hashes.SHA256()):
+            try:
+                public_key.verify(signature, sig_structure, ec.ECDSA(hash_algo))
+                return True
+            except Exception:
+                continue
+        return False
+    return False
 
 
 def _parse_nitro_attestation_document(payload: bytes) -> dict[str, Any]:
@@ -254,8 +323,8 @@ def parse_sgx_quote(quote_bytes: bytes) -> SGXQuoteInfo:
     mr_enclave = quote_bytes[_SGX_MRENCLAVE_OFFSET:_SGX_MRENCLAVE_OFFSET + 32]
     mr_signer = quote_bytes[_SGX_MRSIGNER_OFFSET:_SGX_MRSIGNER_OFFSET + 32]
     # ISV prod ID and SVN are at body offset 256 and 258 (absolute 304, 306)
-    isv_prod_id_offset = _SGX_REPORT_BODY_OFFSET + 256
-    isv_svn_offset = _SGX_REPORT_BODY_OFFSET + 258
+    isv_prod_id_offset = _SGX_ISV_PROD_ID_OFFSET
+    isv_svn_offset = _SGX_ISV_SVN_OFFSET
     if len(quote_bytes) >= isv_svn_offset + 2:
         isv_prod_id = struct.unpack_from("<H", quote_bytes, isv_prod_id_offset)[0]
         isv_svn = struct.unpack_from("<H", quote_bytes, isv_svn_offset)[0]
@@ -360,7 +429,7 @@ class ProductionAttestationVerifier:
         epoch_length_s: int,
     ) -> tuple[Optional[ProductionVerifiedAttestation], Optional[str]]:
         try:
-            _protected, payload_bytes, _sig, _unprotected = _decode_cose_sign1(doc_bytes)
+            protected, payload_bytes, sig, _unprotected = _decode_cose_sign1(doc_bytes)
             doc = _parse_nitro_attestation_document(payload_bytes)
         except Exception as exc:
             return None, f"failed to parse nitro attestation document: {exc}"
@@ -368,9 +437,15 @@ class ProductionAttestationVerifier:
         cert_der = doc["certificate"]
         if not isinstance(cert_der, (bytes, bytearray)):
             return None, "attestation document certificate must be bytes"
-        cert_hash = _certificate_hash(bytes(cert_der))
+        cert_der_bytes = bytes(cert_der)
+        # Verify COSE_Sign1 signature using the embedded certificate's public key
+        if not _verify_cose_sign1_signature(protected, payload_bytes, sig, cert_der_bytes):
+            return None, "COSE_Sign1 signature verification failed — attestation document is not authentic"
+        cert_hash = _certificate_hash(cert_der_bytes)
         # Certificate hash binding for TLS channel establishment
-        if self._config.require_certificate_binding and self._config.expected_certificate_hash:
+        if self._config.require_certificate_binding:
+            if not self._config.expected_certificate_hash:
+                return None, "certificate binding required but no expected hash configured"
             if cert_hash != self._config.expected_certificate_hash:
                 return None, "certificate hash mismatch: attestation not bound to expected TLS cert"
         # Build measurement from extracted PCRs
@@ -413,7 +488,9 @@ class ProductionAttestationVerifier:
         if measurement not in self._allowlist_set:
             return None, f"measurement {measurement} not in approved allowlist"
         cert_hash = str(payload.get("certificate_hash", "")).strip().lower()
-        if self._config.require_certificate_binding and self._config.expected_certificate_hash:
+        if self._config.require_certificate_binding:
+            if not self._config.expected_certificate_hash:
+                return None, "certificate binding required but no expected hash configured"
             if cert_hash != self._config.expected_certificate_hash:
                 return None, "certificate hash mismatch: attestation not bound to expected TLS cert"
         epoch = self._compute_epoch(issued_at_s, epoch_length_s)
@@ -457,7 +534,9 @@ class ProductionAttestationVerifier:
             return None, f"measurement {measurement} not in approved allowlist"
         # SGX report data can carry certificate hash for TLS binding
         cert_hash = str(payload.get("certificate_hash", "")).strip().lower()
-        if self._config.require_certificate_binding and self._config.expected_certificate_hash:
+        if self._config.require_certificate_binding:
+            if not self._config.expected_certificate_hash:
+                return None, "certificate binding required but no expected hash configured"
             if cert_hash != self._config.expected_certificate_hash:
                 return None, "certificate hash mismatch: attestation not bound to expected TLS cert"
         epoch = self._compute_epoch(issued_at_s, epoch_length_s)
