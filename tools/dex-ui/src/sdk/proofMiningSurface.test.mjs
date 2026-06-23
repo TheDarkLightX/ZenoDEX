@@ -16,8 +16,10 @@
 //       LIVE on the zeno-ledger node (tools/zeno_ledger_node.py), NOT on the local
 //       DEX API. Live only when the UI is pointed at a running ledger node.
 //   - apiBuildProofMiningPayoutTemplate -> POST /api/dex/proof_mining_payout_template
-//       MISSING BACKEND: no handler exists anywhere in src/. The "Load sample"
-//       primary path 404s and falls back to an offline preview sample.
+//       LIVE: src/integration/api_server.py serves a deterministic payout
+//       template (real claim via build_proof_mining_claim + the submit tx). The
+//       "Load sample" primary path now resolves a live, preflight-consistent
+//       template. See tests/integration/test_api_server_proof_mining_payout_template.py.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -109,17 +111,65 @@ test(
   ),
 );
 
-// Skipped-with-reason: the live payout-template backend route is not served by
-// the local DEX API (no handler for POST /api/dex/proof_mining_payout_template in
-// src/). The UI "Load sample" primary path 404s and falls back to an offline
-// preview sample. This test documents the exact missing piece and stays skipped
-// (fail-closed/visible) until a backend handler is added.
+// Now LIVE: the payout-template backend route is served by the local DEX API
+// (src/integration/api_server.py). This pins the api.js client contract — the
+// exact route, method, request passthrough, and the response shape the
+// ProofMiningWorkbench consumes (status_request + submit tx + reward fields).
 test(
-  'apiBuildProofMiningPayoutTemplate has no live backend handler (preview only)',
-  { skip: 'no backend handler for POST /api/dex/proof_mining_payout_template (src/ has no route); Load sample falls back to an offline preview sample' },
-  async () => {
-    // When a handler is added, mock fetch returning a status_request + tx, assert
-    // the route + response shape, and remove the skip.
-    await apiBuildProofMiningPayoutTemplate({});
-  },
+  'apiBuildProofMiningPayoutTemplate posts to the live payout-template route',
+  withMockFetch(
+    () => ({
+      ok: true,
+      text: async () =>
+        JSON.stringify({
+          ok: true,
+          template_mode: 'preview_v1',
+          status_request: {
+            claim: { body: { proposal_hash: '0xfeed' } },
+            chain_balances: { [`0x${'cd'.repeat(48)}`]: 64, [`0x${'ab'.repeat(48)}`]: 0 },
+            app_state_json: '{"schema":"zenodex/tau_app_state/v1"}',
+            tx_sender_pubkey: `0x${'ab'.repeat(48)}`,
+            expected_proposal_hash: '0xfeed',
+          },
+          proof_mining_context: { proposal_hash: '0xfeed', proof_scheme: 'template_preview_v1' },
+          tx: {
+            tx_id: 'proof-mining-payout-deadbeef',
+            tx_sender_pubkey: `0x${'ab'.repeat(48)}`,
+            operations: {
+              10: { module: 'ZenoProofMining', action: 'submit_proof', claim: { body: {} }, recipient_pubkey: `0x${'ab'.repeat(48)}` },
+            },
+          },
+          reward_pool_pubkey: `0x${'cd'.repeat(48)}`,
+          reward_asset_id: null,
+          reward_pool_before: 64,
+          reward_amount: 4,
+        }),
+    }),
+    async (calls) => {
+      const result = await apiBuildProofMiningPayoutTemplate({
+        chain_id: 'zeno-ledger-localtest-v0',
+        tx_sender_pubkey: `0x${'ab'.repeat(48)}`,
+        reward_pool_pubkey: `0x${'cd'.repeat(48)}`,
+        reward_pool_before: 64,
+        base_reward: 8,
+        epoch: 1,
+      });
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].url, '/api/dex/proof_mining_payout_template');
+      assert.equal(calls[0].options.method, 'POST');
+      const sentBody = JSON.parse(calls[0].options.body);
+      assert.equal(sentBody.reward_pool_before, 64);
+      assert.equal(sentBody.reward_pool_pubkey, `0x${'cd'.repeat(48)}`);
+      // Response shape the ProofMiningWorkbench consumes.
+      assert.equal(result.ok, true);
+      assert.equal(result.template_mode, 'preview_v1');
+      assert.ok(result.status_request.claim);
+      assert.equal(
+        result.status_request.expected_proposal_hash,
+        result.status_request.claim.body.proposal_hash,
+      );
+      assert.equal(result.tx.operations['10'].action, 'submit_proof');
+      assert.equal(result.reward_pool_before, 64);
+    },
+  ),
 );

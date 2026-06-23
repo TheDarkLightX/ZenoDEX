@@ -25,12 +25,15 @@ const DEFAULT_DEX_AFTER = `0x${'03'.repeat(32)}`;
 
 // Honest live-vs-preview classification for this surface.
 //
-// - The live payout-template backend route is NOT served by the local DEX API
-//   (`POST /api/dex/proof_mining_payout_template` has no handler). When it 404s
-//   we fall back to an offline sample, which is PREVIEW-only.
+// - The payout-template backend route IS served by the local DEX API
+//   (`POST /api/dex/proof_mining_payout_template`): it returns a deterministic,
+//   request-bound PREVIEW template (real claim via the canonical core builder +
+//   the submit tx), labelled `template_mode: preview_v1`. The offline sample is
+//   only the fallback if the route is unreachable.
 // - `POST /api/dex/proof_mining_status` is a LIVE preflight only: it rejects any
 //   `proof_mining_context` and never accepts a verified DEX proof context, so it
-//   reports claim shape but can never return `claimable: true` over HTTP.
+//   reports claim consistency but can never return `claimable: true` over HTTP
+//   (full claimability is established with the verified proof at submission).
 // - `POST /tx` is served by the zeno-ledger node, not the local DEX API, so the
 //   payout submit is live only when the UI is pointed at a running ledger node.
 const PAYOUT_TEMPLATE_ROUTE = '/api/dex/proof_mining_payout_template';
@@ -393,7 +396,7 @@ function dexIntentSignerForWallet(wallet) {
 async function buildLiveProofMiningPayoutTemplate() {
   const chainId = 'zeno-ledger-localtest-v0';
   const wallet = await connectProofMiningSigningWallet(chainId);
-  const { rewardPool } = await resolveDemoRewardPool();
+  const { rewardPool, rewardPoolBefore } = await resolveDemoRewardPool();
   const seed = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   const rawAsset0 = await hashV0('proof_mining_demo_asset0_v0', { seed });
   const rawAsset1 = await hashV0('proof_mining_demo_asset1_v0', { seed });
@@ -428,14 +431,35 @@ async function buildLiveProofMiningPayoutTemplate() {
     proposal_slot: 0,
     prover_id: 1,
     reward_pool_pubkey: rewardPool,
+    // The reward pool balance the UI already resolved from tokenomics; the
+    // backend binds the template to it (and rejects an under-funded pool).
+    reward_pool_before: rewardPoolBefore,
   }, { timeoutMs: 20_000 });
   return {
     ...response.status_request,
+    // The backend returns the proof context SEPARATELY from status_request
+    // (the preflight rejects a body carrying proof_mining_context). Carry it
+    // here for display; statusCheckPayload() strips it before the status call.
+    proof_mining_context: response.proof_mining_context,
     tx: response.tx,
     wallet,
     reward_pool_pubkey: response.reward_pool_pubkey,
     reward_asset_id: response.reward_asset_id,
     reward_pool_before: response.reward_pool_before,
+  };
+}
+
+// /api/dex/proof_mining_status accepts ONLY these fields and fail-closes on a
+// body that carries proof_mining_context (it verifies the context internally,
+// never from the caller). Build the exact accepted payload so display objects
+// can still carry the context for the user without breaking the status call.
+function statusCheckPayload(request) {
+  return {
+    claim: request.claim,
+    chain_balances: request.chain_balances,
+    app_state_json: request.app_state_json,
+    tx_sender_pubkey: request.tx_sender_pubkey,
+    expected_proposal_hash: request.expected_proposal_hash,
   };
 }
 
@@ -510,8 +534,9 @@ function ProofMiningWorkbench() {
         setAppStateText(request.app_state_json);
         setSender(request.tx_sender_pubkey);
         setSubmitTxText(formatJson(buildProofMiningSubmitTemplate(request)));
-        // The live payout-template backend (POST /api/dex/proof_mining_payout_template)
-        // has no handler in the local DEX API and 404s, so this is a PREVIEW sample.
+        // Reached only when the live payout-template route is unreachable (e.g.
+        // the DEX API is down or the UI is not pointed at it); this is the
+        // offline PREVIEW sample built entirely in-browser.
         setProofStatus({ state: 'preview_sample_loaded', data: null, error: '' });
       } catch (fallbackErr) {
         setProofStatus({ state: 'error', data: null, error: fallbackErr?.message || err?.message || 'sample_build_failed' });
@@ -530,7 +555,7 @@ function ProofMiningWorkbench() {
     setAppStateText(request.app_state_json);
     setSender(request.tx_sender_pubkey);
     setSubmitTxText(formatJson({ tx: request.tx }));
-    const result = await apiCheckProofMiningStatus(request, { timeoutMs: 15_000 });
+    const result = await apiCheckProofMiningStatus(statusCheckPayload(request), { timeoutMs: 15_000 });
     setProofStatus({ state: 'done', data: result?.status || null, error: '' });
     const bundle = await buildDemoBrowserCheckpointBundle();
     setBundleText(formatJson(bundle));
@@ -546,11 +571,13 @@ function ProofMiningWorkbench() {
         app_state_json: appStateText,
         chain_balances: parseJson(balancesText, 'chain_balances'),
         claim: parseJson(claimText, 'claim'),
-        proof_mining_context: parseJson(contextText, 'proof_mining_context'),
         tx_sender_pubkey: String(sender || '').trim(),
       };
       request.expected_proposal_hash = String(request.claim?.body?.proposal_hash || '');
-      const result = await apiCheckProofMiningStatus(request, { timeoutMs: 15_000 });
+      // The status preflight fail-closes on a body carrying proof_mining_context
+      // (it derives/verifies the context itself), so send only the accepted
+      // fields — the context box is for display, not the status request.
+      const result = await apiCheckProofMiningStatus(statusCheckPayload(request), { timeoutMs: 15_000 });
       setProofStatus({ state: 'done', data: result?.status || null, error: '' });
     } catch (err) {
       setProofStatus({ state: 'error', data: null, error: err?.message || 'proof_mining_status_failed' });
