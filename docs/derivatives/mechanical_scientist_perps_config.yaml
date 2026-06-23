@@ -1,0 +1,99 @@
+schema: zenodex/mechanical-scientist-perps/v1
+
+runtime:
+  python: python3.11
+  domain_import: tests.morph_perps_parity_domain:PerpsParityDomain
+  runtime_import: tests.morph_perps_parity_domain:build_runtime
+  output_root: runs/morph/mechanical_scientist_perps
+
+campaign:
+  rounds: 4
+  candidates_per_round: 6
+  min_new_candidates_per_round: 2
+  train_seeds_per_hypothesis: 2
+  holdout_seeds_per_hypothesis: 2
+  max_parallel_bundles: 3
+  seed_start: 0
+  seed_step: 1
+  holdout_seed_offset: 1000000
+  round_seed_stride: 100
+  stop_after_rounds_without_promotion: 2
+  run_timeout_seconds: 120
+  hard_timeout_seconds: 150
+
+search:
+  max_depth_grid: [18, 28, 40]
+  max_expanded_grid: [20000, 40000, 60000]
+  mdl_portal_options: [true]
+  strategy_templates:
+    - name: solve_then_step
+      source: "TrySolve <+ ({TACTICS})"
+    - name: step_then_solve
+      source: "({TACTICS}) + TrySolve"
+    - name: solve_step_solve
+      source: "TrySolve <+ ({TACTICS}) <+ TrySolve"
+  tactic_packs:
+    core:
+      - Bootstrap
+      - CycleLow
+      - Cycle2
+      - CycleHigh
+      - Deposit1e8
+      - Withdraw1e8
+      - SetPos10
+      - SetPosN10
+      - FundingP10000
+      - FundingN10000
+      - DepositIns1e12
+      - Claim1e8
+      - ClearBreaker
+    stress:
+      - Bootstrap
+      - Deposit1e12
+      - SetPosMax
+      - SetPosNMax
+      - CycleHigh
+      - FundingP10000
+      - FundingN10000
+      - DepositIns1e12
+      - Claim1e8
+      - ClearBreaker
+      - LiqLongShock
+      - LiqShortShock
+      - FundingWhipsawLong
+      - FundingWhipsawShort
+      - BreakerPulse
+      - EpochWarpFlip
+    minimal:
+      - Bootstrap
+      - SetPos10
+      - SetPosN10
+      - Cycle2
+      - FundingP10000
+      - ClearBreaker
+    macro_edge:
+      - LiqLongShock
+      - LiqShortShock
+      - FundingWhipsawLong
+      - FundingWhipsawShort
+      - InsuranceDrain
+      - RoundTripCollateral
+      - BreakerPulse
+      - EpochWarpFlip
+      - InsuranceOscillation
+
+promotion:
+  success_outcomes: ["SOLVED"]
+  min_train_successes: 1
+  min_holdout_successes: 1
+  require_all_strict: true
+  max_promoted_per_round: 2
+  allow_coverage_frontier_promotion: true
+  require_holdout_for_coverage: true
+  coverage_min_avg_visited: 1000
+  coverage_min_avg_expanded: 1000
+  coverage_prefer_non_archive: true
+  allow_frontier_promotion_without_success: false
+
+archive:
+  global_promoted_jsonl: runs/morph/mechanical_scientist_perps/archive/promoted_hypotheses.jsonl
