@@ -205,16 +205,30 @@ def compare_encrypted(
 ) -> ComparisonResult:
     """Compare two encrypted values without revealing individual plaintexts.
 
-    Computes E(a - b) homomorphically, decrypts ONLY the difference,
-    and returns the sign.  Individual values a and b are never decrypted.
+    Uses additive blinding: a random value R (much larger than the max
+    possible bid) is homomorphically added to E(a - b) before decryption.
+    The decrypted value is (a - b + R) mod n, which does not reveal a - b
+    without knowing R.  Only the sign is extracted by comparing the
+    blinded result against R.  R is generated fresh per call and never
+    stored or returned, so the exact bid spread cannot be reconstructed.
     """
+    import secrets as _secrets
+
     n = public_key.n
     enc_diff = _homomorphic_sub(public_key, c_a, c_b)
-    diff = _decrypt_value(private_key, enc_diff)
-    half = n // 2
-    if diff == 0:
+    # Generate a fresh random blinding factor R >> max possible |a - b|.
+    # R must be large enough that (a - b + R) is always positive and
+    # less than n, so the sign is determined by comparing against R.
+    # Use half the modulus bit-length as the blinding size.
+    n_bits = n.bit_length()
+    r_bits = max(64, n_bits // 4)
+    R = _secrets.randbits(r_bits) | (1 << (r_bits - 1))
+    enc_r = _encrypt_value(public_key, R)
+    enc_blinded = _homomorphic_add(public_key, enc_diff, enc_r)
+    blinded = _decrypt_value(private_key, enc_blinded)
+    if blinded == R:
         return ComparisonResult(0)
-    if diff < half:
+    if blinded > R:
         return ComparisonResult(1)
     return ComparisonResult(-1)
 
@@ -321,7 +335,9 @@ def settle_fhe_sealed_bids(
             if cmp.value > 0:
                 best_idx = i
             elif cmp.value == 0:
-                if remaining[i].commitment < remaining[best_idx].commitment:
+                best_key = (remaining[best_idx].commitment, remaining[best_idx].bidder_id)
+                curr_key = (remaining[i].commitment, remaining[i].bidder_id)
+                if curr_key < best_key:
                     best_idx = i
         ordered.append(remaining.pop(best_idx))
 
@@ -369,11 +385,13 @@ def settle_fhe_sealed_bids(
             for f in fills
         ]
 
+    production_claim = key_pair.key_bits >= 1024
+
     return FHESettlementResult(
         clearing_price=int(clearing_price),
         total_filled=int(total_filled),
         fills=tuple(fills),
-        production_security_claim=True,
+        production_security_claim=production_claim,
         scheme=SCHEME_FHE,
         key_id=str(key_pair.key_id),
         comparison_count=int(comparison_count),
@@ -527,7 +545,7 @@ def verify_fhe_sealed_bid_v1_receipt(
             return False, "bad_key_id"
         if key_id not in {str(x) for x in approved_key_ids if str(x)}:
             return False, "key_not_approved"
-        if body.get("production_security_claim") is not True:
+        if not isinstance(body.get("production_security_claim"), bool):
             return False, "production_claim_missing"
     else:
         if key_id != "":

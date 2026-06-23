@@ -148,9 +148,19 @@ class TestHomomorphicSettlement:
 
 
 class TestProductionSecurityClaim:
-    def test_fhe_sets_production_claim_true_with_fhe_scheme(self, key_pair):
+    def test_fhe_sets_production_claim_false_for_weak_keys(self, key_pair):
+        """Test keys (64-bit) must not get production security claim."""
         result = settle_fhe_sealed_bids(auction_id="a7", units_for_sale=2,
                                         encrypted_bids=_enc_bids(key_pair, [("a", "c", 2, 100)]), key_pair=key_pair)
+        assert result.production_security_claim is False
+        assert result.scheme == SCHEME_FHE
+
+    def test_fhe_sets_production_claim_true_for_strong_keys(self):
+        """Keys with key_bits >= 1024 get production security claim."""
+        strong_key = generate_paillier_keypair(key_bits=1024, key_id="prod-fhe-v1")
+        result = settle_fhe_sealed_bids(auction_id="a7b", units_for_sale=2,
+                                        encrypted_bids=_enc_bids(strong_key, [("a", "c", 2, 100)]),
+                                        key_pair=strong_key)
         assert result.production_security_claim is True
         assert result.scheme == SCHEME_FHE
 
