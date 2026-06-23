@@ -723,7 +723,7 @@ function ZUSDMonetarySurface({ wallet = null }) {
           {branchTcrPct != null && (
             <span className="zusd-chip mono">TCR {num(branchTcrPct, 1)}%</span>
           )}
-          <span className="zusd-chip zusd-chip-accent">{status?.node_reachable ? 'Tau node connected' : 'Tau node required'}</span>
+          <span className="zusd-chip zusd-chip-accent">{status?.node_reachable ? 'Network connected' : 'Network required'}</span>
         </div>
       </div>
 

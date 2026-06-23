@@ -187,7 +187,7 @@ function ZUSDTauWalletSurface({ wallet = null }) {
         </div>
         <div className="zusd-hero-meta">
           <span className="zusd-chip">Live posture</span>
-          <span className="zusd-chip zusd-chip-accent">{status?.node_reachable ? 'Tau node connected' : 'Tau node required'}</span>
+          <span className="zusd-chip zusd-chip-accent">{status?.node_reachable ? 'Network connected' : 'Network required'}</span>
         </div>
       </div>
 
