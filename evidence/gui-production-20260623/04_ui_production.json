@@ -1,0 +1,41 @@
+{
+  "schema": "zenodex.evidence.ui_production.v1",
+  "timestamp": "2026-06-23",
+  "verdict": "PASS",
+  "build": {
+    "result": "built in 783ms",
+    "largest_chunk_kb": "vendor-react 192.36 kB (gzip 60.30 kB)",
+    "total_js_chunks": 18
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 0,
+    "exit": 0
+  },
+  "tests": {
+    "total": 90,
+    "pass": 90,
+    "fail": 0,
+    "skipped": 0
+  },
+  "audit": {
+    "vulnerabilities": 0
+  },
+  "ui_contract": "zenodex.dex_ui.surface_contract.v2 ok",
+  "live_ui": {
+    "pool_feed": "Live (200 from ZenoLedger node)",
+    "swap_quote": "100 AGRS -> 193 ZDEX (rate 1.9606, impact 0.56%, fee 1 AGRS)",
+    "tabs_rendering": [
+      "Swap",
+      "Pools",
+      "ZDEX Stats",
+      "Perpetuals",
+      "Strategy",
+      "zUSD",
+      "Oracle",
+      "Confidential",
+      "Keys"
+    ],
+    "console_errors": 0
+  }
+}

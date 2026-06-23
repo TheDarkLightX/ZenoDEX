@@ -1,0 +1,53 @@
+{
+  "schema": "zenodex.evidence.zusd_peg.v1",
+  "timestamp": "2026-06-23",
+  "verdict": "PASS - zUSD peg holds end-to-end",
+  "summary": "bootstrap oracle -> deposit collateral -> mint zUSD -> redeem at peg ($1 zUSD = $1 collateral) -> repay. All invariants hold throughout. TCR 200% > MCR 110%.",
+  "E8": 100000000,
+  "trace": [
+    {
+      "step": "init",
+      "debt": 0.0,
+      "collateral": 0.0,
+      "price": 0.0,
+      "invariants": "HOLD"
+    },
+    {
+      "step": "bootstrap_oracle",
+      "price": 100.0,
+      "invariants": "HOLD"
+    },
+    {
+      "step": "deposit_collateral",
+      "amount_AGRS": 10,
+      "collateral": 10.0,
+      "coll_value_USD": 1000.0,
+      "invariants": "HOLD"
+    },
+    {
+      "step": "mint_zusd",
+      "amount_zUSD": 500,
+      "debt": 500.0,
+      "collateral": 10.0,
+      "TCR_pct": 200.0,
+      "MCR_pct": 110.0,
+      "solvent": true,
+      "invariants": "HOLD"
+    },
+    {
+      "step": "redeem_zusd",
+      "amount_zUSD": 100,
+      "collateral_redeemed_AGRS": 1,
+      "debt": 400.0,
+      "collateral": 9.0,
+      "peg_note": "100 zUSD redeemed for 1 AGRS at $100 oracle price = $100",
+      "invariants": "HOLD"
+    },
+    {
+      "step": "repay_zusd",
+      "debt": 0.0,
+      "collateral": 9.0,
+      "invariants": "HOLD"
+    }
+  ]
+}

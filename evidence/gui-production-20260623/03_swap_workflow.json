@@ -1,0 +1,144 @@
+{
+  "schema": "zenodex.evidence.swap_workflow.v1",
+  "timestamp": "2026-06-23",
+  "verdict": "PASS",
+  "input": {
+    "kind": "exact_in",
+    "asset_in": "AGRS",
+    "asset_out": "zUSD",
+    "amount_in": 10000,
+    "pool": "AGRS/zUSD CPMM 30bps reserves 1e9/1e9"
+  },
+  "response": {
+    "ok": true,
+    "kind": "exact_in",
+    "routing_mode": "exact",
+    "quote": {
+      "asset_in": "AGRS",
+      "asset_out": "zUSD",
+      "amount_in": 10000,
+      "amount_out": 9969,
+      "legs": [
+        {
+          "amount_in": 10000,
+          "amount_out": 9969,
+          "hops": [
+            {
+              "pool_id": "p1",
+              "asset_in": "AGRS",
+              "asset_out": "zUSD",
+              "amount_in": 10000,
+              "amount_out": 9969
+            }
+          ]
+        }
+      ]
+    },
+    "receipt": {
+      "body": {
+        "schema": "zenodex/route_quote_receipt/v1",
+        "kind": "exact_in",
+        "asset_in": "AGRS",
+        "asset_out": "zUSD",
+        "amount_in": 10000,
+        "amount_out": 9969,
+        "legs": [
+          {
+            "amount_in": 10000,
+            "amount_out": 9969,
+            "hops": [
+              {
+                "pool_id": "p1",
+                "asset_in": "AGRS",
+                "asset_out": "zUSD",
+                "amount_in": 10000,
+                "amount_out": 9969
+              }
+            ]
+          }
+        ],
+        "pools": {
+          "p1": "0x40088b2d25ed01690f265cb7965803ad2bb5ca5582166004fec4fac007eccd3e"
+        },
+        "canonical_route_certificate": {
+          "schema": "zenodex/exact-in-route-certificate/v1",
+          "tau_spec_id": "argmin_stream_certificate_v1",
+          "asset_in": "AGRS",
+          "asset_out": "zUSD",
+          "amount_in": 10000,
+          "candidate_set_hash": "0x1cf6e799920ec0276038408554065a4267cfdc69995d75ac7e34d3543731407b",
+          "winner_index": 0,
+          "winner_route_key_rank_u64": 0,
+          "winner_quote": {
+            "asset_in": "AGRS",
+            "asset_out": "zUSD",
+            "amount_in": 10000,
+            "amount_out": 9969,
+            "legs": [
+              {
+                "amount_in": 10000,
+                "amount_out": 9969,
+                "hops": [
+                  {
+                    "pool_id": "p1",
+                    "asset_in": "AGRS",
+                    "asset_out": "zUSD",
+                    "amount_in": 10000,
+                    "amount_out": 9969
+                  }
+                ]
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "candidate_index": 0,
+              "route_key_rank_u64": 0,
+              "route_key": {
+                "amount_out": 9969,
+                "amount_out_neg": -9969,
+                "hop_count": 1,
+                "leg_count": 1,
+                "pool_sequence": "p1",
+                "intermediate_asset": "",
+                "asset_out": "zUSD"
+              },
+              "quote": {
+                "asset_in": "AGRS",
+                "asset_out": "zUSD",
+                "amount_in": 10000,
+                "amount_out": 9969,
+                "legs": [
+                  {
+                    "amount_in": 10000,
+                    "amount_out": 9969,
+                    "hops": [
+                      {
+                        "pool_id": "p1",
+                        "asset_in": "AGRS",
+                        "asset_out": "zUSD",
+                        "amount_in": 10000,
+                        "amount_out": 9969
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "argmin_steps": [
+            {
+              "i1": 0,
+              "i2": 0,
+              "i3": 0,
+              "i4": 0,
+              "i5": 1
+            }
+          ],
+          "certificate_hash": "0x3b5a5a45c5433a3b31ab983cdf2b86e76d04c48213499f2d144604282c45a02b"
+        }
+      },
+      "receipt_hash": "0x8793d57a7c5e5ebd77307949cd599c3d1b516c270194fd116ae2390c314ae115"
+    }
+  }
+}
