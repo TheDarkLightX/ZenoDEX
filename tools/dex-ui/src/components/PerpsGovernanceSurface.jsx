@@ -851,7 +851,7 @@ export default function PerpsGovernanceSurface() {
                 </label>
                 <label className="label gov-form-label">
                   <span>Signature Envelopes (JSON Array)</span>
-                  <textarea className="input" className="mono" rows={3} value={sigEnvelopesJson} onChange={(e) => setSigEnvelopesJson(e.target.value)} />
+                  <textarea className="input mono" rows={3} value={sigEnvelopesJson} onChange={(e) => setSigEnvelopesJson(e.target.value)} />
                 </label>
                 <button
                   className="btn btn-primary btn-sm"
@@ -941,11 +941,11 @@ export default function PerpsGovernanceSurface() {
                 </label>
                 <label className="label gov-form-label">
                   <span>Signature Envelopes (JSON Array)</span>
-                  <textarea className="input" className="mono" rows={2} value={rotationSigEnvelopesJson} onChange={(e) => setRotationSigEnvelopesJson(e.target.value)} />
+                  <textarea className="input mono" rows={2} value={rotationSigEnvelopesJson} onChange={(e) => setRotationSigEnvelopesJson(e.target.value)} />
                 </label>
                 <label className="label gov-form-label">
                   <span>Next Wallet Authority Profile (JSON)</span>
-                  <textarea className="input" className="mono" rows={3} value={nextProfileJson} onChange={(e) => setNextProfileJson(e.target.value)} />
+                  <textarea className="input mono" rows={3} value={nextProfileJson} onChange={(e) => setNextProfileJson(e.target.value)} />
                 </label>
                 <button
                   className="btn btn-primary btn-sm"
