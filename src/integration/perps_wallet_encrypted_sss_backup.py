@@ -49,7 +49,16 @@ SHAMIR_GF256_ALGORITHM_V1 = "shamir-gf256-v1"
 AEAD_AES_256_GCM = "AES-256-GCM"
 KDF_HKDF_SHA256 = "HKDF-SHA256"
 
-_BACKUP_NON_HASH_FIELDS = frozenset({"backup_hash", "production_ceremony", "custodian_registry"})
+_BACKUP_NON_HASH_FIELDS = frozenset(
+    {
+        "backup_hash",
+        "audit_evidence",
+        "audit_status",
+        "custodian_registry",
+        "production_ceremony",
+        "production_security_claim",
+    }
+)
 _ENVELOPE_NON_HASH_FIELDS = frozenset({"envelope_hash"})
 _DELIVERY_NON_HASH_FIELDS = frozenset({"delivery_hash"})
 _AUDIT_NON_HASH_FIELDS = frozenset({"audit_hash", "signature_envelope"})
@@ -274,6 +283,7 @@ def build_perps_wallet_encrypted_sss_backup_v1(
     }
     hostile_share_tests["suite_hash"] = perps_wallet_encrypted_sss_hostile_suite_hash_v1(hostile_share_tests)
 
+    audit_status = "external-audit-in-progress" if production_mode else "local-fixture-unaudited"
     backup: dict[str, Any] = {
         "schema": PERPS_WALLET_ENCRYPTED_SSS_BACKUP_SCHEMA_V1,
         "authority_id": authority_id,
@@ -312,12 +322,12 @@ def build_perps_wallet_encrypted_sss_backup_v1(
         },
         "audit_evidence": {
             "audit_required_for_production": True,
-            "external_audit_ready": production_mode,
-            "audit_status": "external-audit-completed" if production_mode else "local-fixture-unaudited",
+            "external_audit_ready": False,
+            "audit_status": audit_status,
             "audit_report_hash": None,
         },
-        "production_security_claim": production_mode,
-        "audit_status": "external-audit-completed" if production_mode else "local-fixture-unaudited",
+        "production_security_claim": False,
+        "audit_status": audit_status,
         "not_claimed": [
             "does_not_claim_server_side_custody",
             "does_not_claim_plaintext_share_storage",
@@ -705,17 +715,17 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
 
     if obj.get("production_security_claim") is True:
         ceremony = obj.get("production_ceremony")
-        if not isinstance(ceremony, Mapping):
-            errors.append("encrypted SSS backup claims production security but has no production ceremony")
-        else:
+        registry = obj.get("custodian_registry")
+        if ceremony is not None or registry is not None:
             from src.integration.perps_wallet_sss_production_v1 import (
                 SSS_CUSTODIAN_REGISTRY_SCHEMA_V1,
                 SSS_PRODUCTION_CEREMONY_SCHEMA_V1,
                 evaluate_production_ceremony_v1,
             )
-            registry = obj.get("custodian_registry")
-            if not isinstance(registry, Mapping) or registry.get("schema") != SSS_CUSTODIAN_REGISTRY_SCHEMA_V1:
-                errors.append("encrypted SSS backup claims production security but has no valid custodian registry")
+            if not isinstance(ceremony, Mapping) or ceremony.get("schema") != SSS_PRODUCTION_CEREMONY_SCHEMA_V1:
+                errors.append("encrypted SSS backup has invalid production ceremony evidence")
+            elif not isinstance(registry, Mapping) or registry.get("schema") != SSS_CUSTODIAN_REGISTRY_SCHEMA_V1:
+                errors.append("encrypted SSS backup has production ceremony but no valid custodian registry")
             else:
                 ceremony_result = evaluate_production_ceremony_v1(
                     ceremony,
@@ -725,14 +735,13 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
                 )
                 if not ceremony_result["production_ready"]:
                     errors.append("encrypted SSS backup production ceremony is not ready")
-                if not live_provider_delivery_ready:
-                    errors.append("encrypted SSS backup claims production security but delivery is not live")
-                if not external_audit_ready:
-                    errors.append("encrypted SSS backup claims production security but external audit is not ready")
+        if not live_provider_delivery_ready:
+            errors.append("encrypted SSS backup claims production security but delivery is not live")
+        if not external_audit_ready:
+            errors.append("encrypted SSS backup claims production security but external audit is not ready")
     elif obj.get("production_security_claim") is not False:
         errors.append("encrypted SSS backup production_security_claim must be true or false")
 
-    production_claim = obj.get("production_security_claim") is True and not errors
     return _status(
         errors=errors,
         profile=profile,
@@ -752,7 +761,6 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
         replay_recovery_ready=replay_recovery_ready,
         subject_public_key_matches=subject_public_key_matches,
         replay_hostile_tests_ready=replay_hostile_tests_ready,
-        production_security_claim=production_claim,
     )
 
 
@@ -825,9 +833,11 @@ def _status(
     replay_recovery_ready: bool = False,
     subject_public_key_matches: bool = False,
     replay_hostile_tests_ready: bool = False,
-    production_security_claim: bool = False,
 ) -> dict[str, Any]:
     ready = not errors
+    production_security_claim = bool(
+        ready and backup is not None and backup.get("production_security_claim") is True
+    )
     body: dict[str, Any] = {
         "schema": PERPS_WALLET_ENCRYPTED_SSS_BACKUP_STATUS_SCHEMA_V1,
         "ok": ready,

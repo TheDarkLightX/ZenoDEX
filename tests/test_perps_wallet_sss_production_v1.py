@@ -19,6 +19,7 @@ from src.integration.perps_wallet_encrypted_sss_backup import (
     SssBackupRecipient,
     build_perps_wallet_encrypted_sss_backup_v1,
     evaluate_perps_wallet_encrypted_sss_backup_v1,
+    perps_wallet_encrypted_sss_backup_hash_v1,
 )
 from src.integration.perps_wallet_sss_production_v1 import (
     Custodian,
@@ -103,6 +104,35 @@ def test_custodian_registry_requires_distinct_organizations() -> None:
             threshold=3,
             created_at_epoch=1,
         )
+
+
+def test_custodian_registry_rejects_threshold_below_three() -> None:
+    custodians, _ = _make_custodians()
+    with pytest.raises(ValueError, match="threshold must be at least 3"):
+        build_custodian_registry_v1(
+            authority_id="a",
+            chain_id="c",
+            custodians=custodians,
+            threshold=2,
+            created_at_epoch=1,
+        )
+
+
+def test_custodian_registry_validation_rejects_threshold_below_three() -> None:
+    custodians, _ = _make_custodians()
+    registry = build_custodian_registry_v1(
+        authority_id="auth-1",
+        chain_id="chain-1",
+        custodians=custodians,
+        threshold=3,
+        created_at_epoch=100,
+    )
+    malformed = {**registry, "threshold": 2}
+
+    result = validate_custodian_registry_v1(malformed, expected_authority_id="auth-1")
+
+    assert result["ok"] is False
+    assert "custodian registry threshold must be >= 3" in result["errors"]
 
 
 def test_custodian_registry_rejects_duplicate_keys() -> None:
@@ -327,6 +357,7 @@ def test_key_rotation_ceremony_builds_and_validates() -> None:
     assert ceremony["quorum_satisfied"] is True
     assert ceremony["old_key_invalidated"] is True
     assert ceremony["production_security_claim"] is True
+    assert ceremony["distinct_organizations"] == 3
     result = evaluate_key_rotation_ceremony_v1(ceremony, registry=registry)
     assert result["ok"], result["errors"]
     assert result["rotation_ready"] is True
@@ -382,10 +413,33 @@ def test_key_rotation_ceremony_rejects_insufficient_quorum() -> None:
         )
 
 
-def test_backup_production_mode_sets_production_security_claim_true() -> None:
+def test_backup_production_mode_does_not_self_claim_production_security() -> None:
     backup = _build_test_backup(production_mode=True)
-    assert backup["production_security_claim"] is True
-    assert backup["audit_status"] == "external-audit-completed"
+    assert backup["production_security_claim"] is False
+    assert backup["audit_status"] == "external-audit-in-progress"
+    assert backup["audit_evidence"]["external_audit_ready"] is False
+
+
+def test_backup_production_claim_does_not_require_custodian_ceremony() -> None:
+    backup = _build_test_backup(production_mode=True)
+    backup["production_security_claim"] = True
+
+    result = evaluate_perps_wallet_encrypted_sss_backup_v1(profile=None, backup=backup)
+
+    assert result["ok"] is False
+    assert "encrypted SSS backup claims production security but external audit is not ready" in result["errors"]
+    assert "encrypted SSS backup claims production security but has no production ceremony" not in result["errors"]
+
+
+def test_backup_attached_invalid_custodian_ceremony_still_fails_closed() -> None:
+    backup = _build_test_backup(production_mode=True)
+    backup["production_security_claim"] = True
+    backup["production_ceremony"] = {}
+
+    result = evaluate_perps_wallet_encrypted_sss_backup_v1(profile=None, backup=backup)
+
+    assert result["ok"] is False
+    assert "encrypted SSS backup has invalid production ceremony evidence" in result["errors"]
 
 
 def test_backup_local_mode_keeps_production_security_claim_false() -> None:
@@ -394,14 +448,7 @@ def test_backup_local_mode_keeps_production_security_claim_false() -> None:
     assert backup["audit_status"] == "local-fixture-unaudited"
 
 
-def test_backup_hash_stable_after_attaching_ceremony_and_registry() -> None:
-    """Attaching production_ceremony and custodian_registry after backup creation
-    must not invalidate the backup_hash.
-
-    The ceremony and registry are assembled metadata verified independently by
-    the evaluator. They are excluded from the backup hash so the assembled
-    production artifact passes the hash consistency check.
-    """
+def test_backup_hash_is_stable_after_attaching_production_metadata() -> None:
     custodians, privkeys = _make_custodians()
     registry = build_custodian_registry_v1(
         authority_id="auth-1",
@@ -411,7 +458,6 @@ def test_backup_hash_stable_after_attaching_ceremony_and_registry() -> None:
         created_at_epoch=100,
     )
     backup = _build_test_backup(production_mode=True)
-    original_hash = backup["backup_hash"]
     attestations = [
         collect_custodian_attestation_v1(
             custodian_id=custodians[i].custodian_id,
@@ -423,10 +469,16 @@ def test_backup_hash_stable_after_attaching_ceremony_and_registry() -> None:
         )
         for i in range(3)
     ]
-    ceremony = build_production_ceremony_v1(backup=backup, registry=registry, attestations=attestations)
-    backup["production_ceremony"] = ceremony
+    ceremony = build_production_ceremony_v1(
+        backup=backup,
+        registry=registry,
+        attestations=attestations,
+    )
+    original_hash = backup["backup_hash"]
+
     backup["custodian_registry"] = registry
-    assert backup["backup_hash"] == original_hash
-    result = evaluate_perps_wallet_encrypted_sss_backup_v1(None, backup)
-    backup_hash_errors = [e for e in result["errors"] if "encrypted SSS backup hash mismatch" in e]
-    assert not backup_hash_errors, f"backup hash should be stable after attaching ceremony/registry: {backup_hash_errors}"
+    backup["production_ceremony"] = ceremony
+    backup["production_security_claim"] = True
+    backup["audit_status"] = "external-audit-completed"
+
+    assert perps_wallet_encrypted_sss_backup_hash_v1(backup) == original_hash

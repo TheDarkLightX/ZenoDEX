@@ -64,8 +64,10 @@ def build_custodian_registry_v1(
         raise ValueError(f"custodian registry requires at least {_MIN_CUSTODIANS} custodians")
     if len(custodians) > _MAX_CUSTODIANS:
         raise ValueError(f"custodian registry supports at most {_MAX_CUSTODIANS} custodians")
-    if threshold < 2:
-        raise ValueError("threshold must be at least 2")
+    if threshold < _MIN_DISTINCT_CUSTODIANS:
+        raise ValueError(
+            f"threshold must be at least {_MIN_DISTINCT_CUSTODIANS} for production custody"
+        )
     if threshold > len(custodians):
         raise ValueError("threshold must not exceed custodian count")
     ids = [c.custodian_id for c in custodians]
@@ -114,8 +116,14 @@ def validate_custodian_registry_v1(
     if expected_authority_id and registry.get("authority_id") != expected_authority_id:
         errs.append("custodian registry authority_id mismatch")
     threshold = registry.get("threshold")
-    if not isinstance(threshold, int) or threshold < 2:
-        errs.append("custodian registry threshold must be >= 2")
+    if (
+        not isinstance(threshold, int)
+        or isinstance(threshold, bool)
+        or threshold < _MIN_DISTINCT_CUSTODIANS
+    ):
+        errs.append(
+            f"custodian registry threshold must be >= {_MIN_DISTINCT_CUSTODIANS}"
+        )
     custodians = registry.get("custodians")
     if not isinstance(custodians, list) or len(custodians) < _MIN_CUSTODIANS:
         errs.append(f"custodian registry requires at least {_MIN_CUSTODIANS} custodians")
@@ -235,8 +243,12 @@ def build_production_ceremony_v1(
     if registry.get("schema") != SSS_CUSTODIAN_REGISTRY_SCHEMA_V1:
         raise ValueError("registry schema mismatch")
     threshold = registry.get("threshold")
-    if not isinstance(threshold, int) or threshold < 2:
-        raise ValueError("registry threshold must be >= 2")
+    if (
+        not isinstance(threshold, int)
+        or isinstance(threshold, bool)
+        or threshold < _MIN_DISTINCT_CUSTODIANS
+    ):
+        raise ValueError(f"registry threshold must be >= {_MIN_DISTINCT_CUSTODIANS}")
     custodian_map: dict[str, dict[str, Any]] = {}
     for c in registry.get("custodians", []):
         custodian_map[c["custodian_id"]] = c
@@ -261,6 +273,14 @@ def build_production_ceremony_v1(
         raise ValueError(
             f"production ceremony requires {threshold} attestations, got {len(verified_attestations)}"
         )
+    distinct_organizations = len(
+        {custodian_map[a["attested_by"]]["organization"] for a in verified_attestations}
+    )
+    if distinct_organizations < _MIN_DISTINCT_CUSTODIANS:
+        raise ValueError(
+            f"production ceremony requires {_MIN_DISTINCT_CUSTODIANS} "
+            f"distinct organizations, got {distinct_organizations}"
+        )
     ceremony: dict[str, Any] = {
         "schema": SSS_PRODUCTION_CEREMONY_SCHEMA_V1,
         "authority_id": registry.get("authority_id"),
@@ -270,9 +290,7 @@ def build_production_ceremony_v1(
         "attestation_count": len(verified_attestations),
         "attestations": verified_attestations,
         "quorum_satisfied": len(verified_attestations) >= threshold,
-        "distinct_organizations": len(
-            {custodian_map[a["attested_by"]]["organization"] for a in verified_attestations}
-        ),
+        "distinct_organizations": distinct_organizations,
         "production_security_claim": True,
         "not_claimed": [
             "does_not_claim_server_side_key_custody",
@@ -322,6 +340,14 @@ def evaluate_production_ceremony_v1(
             expected_public_key=custodian_map[cid]["bls_public_key"],
             errors=errs,
         )
+    if (
+        not isinstance(threshold, int)
+        or isinstance(threshold, bool)
+        or threshold < _MIN_DISTINCT_CUSTODIANS
+    ):
+        errs.append(
+            f"production ceremony registry threshold must be >= {_MIN_DISTINCT_CUSTODIANS}"
+        )
     if isinstance(threshold, int) and len(seen) < threshold:
         errs.append(
             f"production ceremony has {len(seen)} attestations, needs {threshold}"
@@ -352,8 +378,12 @@ def build_key_rotation_ceremony_v1(
     rotated_at_epoch: int,
 ) -> dict[str, Any]:
     threshold = registry.get("threshold")
-    if not isinstance(threshold, int) or threshold < 2:
-        raise ValueError("registry threshold must be >= 2")
+    if (
+        not isinstance(threshold, int)
+        or isinstance(threshold, bool)
+        or threshold < _MIN_DISTINCT_CUSTODIANS
+    ):
+        raise ValueError(f"registry threshold must be >= {_MIN_DISTINCT_CUSTODIANS}")
     custodian_map: dict[str, dict[str, Any]] = {
         c["custodian_id"]: c for c in registry.get("custodians", [])
     }
@@ -393,10 +423,13 @@ def build_key_rotation_ceremony_v1(
         raise ValueError(
             f"key rotation requires {threshold} attestations, got {len(verified)}"
         )
-    rotation_orgs = {custodian_map[a["attested_by"]]["organization"] for a in verified}
-    if len(rotation_orgs) < _MIN_DISTINCT_CUSTODIANS:
+    distinct_organizations = len(
+        {custodian_map[a["attested_by"]]["organization"] for a in verified}
+    )
+    if distinct_organizations < _MIN_DISTINCT_CUSTODIANS:
         raise ValueError(
-            f"key rotation requires {_MIN_DISTINCT_CUSTODIANS} distinct organizations, got {len(rotation_orgs)}"
+            f"key rotation requires {_MIN_DISTINCT_CUSTODIANS} "
+            f"distinct organizations, got {distinct_organizations}"
         )
     ceremony: dict[str, Any] = {
         **rotation_payload,
@@ -405,6 +438,7 @@ def build_key_rotation_ceremony_v1(
         "attestation_count": len(verified),
         "attestations": verified,
         "quorum_satisfied": len(verified) >= threshold,
+        "distinct_organizations": distinct_organizations,
         "old_key_invalidated": True,
         "production_security_claim": True,
     }
@@ -471,13 +505,24 @@ def evaluate_key_rotation_ceremony_v1(
             errs.append(f"key rotation attestation[{i}] signature invalid: {exc}")
     if isinstance(threshold, int) and len(seen) < threshold:
         errs.append(f"key rotation has {len(seen)} attestations, needs {threshold}")
-    rotation_orgs = {
-        custodian_map[cid]["organization"] for cid in seen if cid in custodian_map
-    }
-    if len(rotation_orgs) < _MIN_DISTINCT_CUSTODIANS:
+    if (
+        not isinstance(threshold, int)
+        or isinstance(threshold, bool)
+        or threshold < _MIN_DISTINCT_CUSTODIANS
+    ):
         errs.append(
-            f"key rotation requires {_MIN_DISTINCT_CUSTODIANS} distinct organizations, got {len(rotation_orgs)}"
+            f"key rotation registry threshold must be >= {_MIN_DISTINCT_CUSTODIANS}"
         )
+    distinct_orgs = len(
+        {custodian_map[cid]["organization"] for cid in seen if cid in custodian_map}
+    )
+    if distinct_orgs < _MIN_DISTINCT_CUSTODIANS:
+        errs.append(
+            f"key rotation requires {_MIN_DISTINCT_CUSTODIANS} "
+            f"distinct organizations, got {distinct_orgs}"
+        )
+    if ceremony.get("distinct_organizations") != distinct_orgs:
+        errs.append("key rotation distinct_organizations mismatch")
     if ceremony.get("old_key_invalidated") is not True:
         errs.append("key rotation must invalidate old key")
     if ceremony.get("quorum_satisfied") is not True:
