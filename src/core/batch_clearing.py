@@ -47,6 +47,16 @@ from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .cpmm import MIN_LP_LOCK, compute_fee_total
 from .domain_limits import DEX_LP_AMOUNT_MAX, is_strict_int
 from .liquidity import add_liquidity, create_pool, remove_liquidity
+from .route_settlement import (
+    ROUTE_REJECT_BINDING_MISSING,
+    ROUTE_REJECT_INSUFFICIENT_BALANCE,
+    ROUTE_REJECT_INVALID_PARAMS,
+    RouteBinding,
+    is_route_intent_kind,
+    replay_route_legs,
+    route_totals_violation,
+    validate_route_intent_against_binding,
+)
 from .settlement import (
     BalanceDelta,
     Fill,
@@ -117,6 +127,7 @@ def compute_settlement(
     swap_ordering: str = _SWAP_ORDERING_GREEDY_AB_REFINED,
     protocol_fee_share_bps: int = 0,
     protocol_fee_recipient_pubkey: Optional[PubKey] = None,
+    route_bindings: Optional[Dict[str, RouteBinding]] = None,
 ) -> Settlement:
     """
     Compute settlement for a batch of intents.
@@ -152,11 +163,16 @@ def compute_settlement(
     # Group intents by pool
     intents_by_pool: Dict[str, List[Intent]] = defaultdict(list)
     create_pool_intents: List[Intent] = []
+    route_intents: List[Intent] = []
     non_pool_intents: List[Intent] = []
 
     for intent in intents:
         if intent.kind == IntentKind.CREATE_POOL:
             create_pool_intents.append(intent)
+            continue
+
+        if is_route_intent_kind(intent.kind):
+            route_intents.append(intent)
             continue
 
         pool_id = intent.get_field("pool_id")
@@ -198,6 +214,21 @@ def compute_settlement(
             lp_deltas=all_lp_deltas,
             events=events,
         )
+
+    # Process atomic route intents (snapshot-bound; before per-pool clearing,
+    # whose fills would otherwise invalidate the receipt-pinned pool states).
+    # Deterministic order: intent_id ascending.
+    for intent in sorted(route_intents, key=lambda i: i.intent_id):
+        fill = _clear_route_intent_against_locals(
+            intent=intent,
+            binding=(route_bindings or {}).get(intent.intent_id),
+            pool_states=pool_states,
+            balances=balances_local,
+            balance_deltas=all_balance_deltas,
+            reserve_deltas=all_reserve_deltas,
+        )
+        included_intents.append((intent.intent_id, fill.action))
+        all_fills.append(fill)
 
     # Process pool intents
     for pool_id in sorted(intents_by_pool.keys()):
@@ -576,6 +607,77 @@ def _apply_create_pool_to_locals(
 
     lp_deltas.append(LPDelta(pubkey=sender, pool_id=pool_id, delta_add=lp_minted, delta_sub=0))
     lp_deltas.append(LPDelta(pubkey=LP_LOCK_PUBKEY, pool_id=pool_id, delta_add=MIN_LP_LOCK, delta_sub=0))
+
+
+def _clear_route_intent_against_locals(
+    *,
+    intent: Intent,
+    binding: Optional[RouteBinding],
+    pool_states: Dict[str, PoolState],
+    balances: BalanceTable,
+    balance_deltas: List[BalanceDelta],
+    reserve_deltas: List[ReserveDelta],
+) -> Fill:
+    """
+    Clear one atomic route intent against the local candidate state.
+
+    Two-phase (atomic by construction): replay EVERY leg first against the
+    current locals (pure, no mutation), then apply all legs only on full
+    success. Any failure returns a REJECT fill with a stable reason and the
+    locals untouched.
+    """
+
+    def _reject(reason: str) -> Fill:
+        return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason=reason)
+
+    if binding is None:
+        return _reject(ROUTE_REJECT_BINDING_MISSING)
+
+    err = validate_route_intent_against_binding(intent, binding)
+    if err is not None:
+        return _reject(ROUTE_REJECT_INVALID_PARAMS)
+
+    sender = intent.sender_pubkey
+    recipient = intent.get_field("recipient", sender)
+
+    replay = replay_route_legs(binding=binding, pools=pool_states)
+    if not replay.ok:
+        return _reject(replay.reject_reason or ROUTE_REJECT_INVALID_PARAMS)
+
+    totals_err = route_totals_violation(intent, replay)
+    if totals_err is not None:
+        return _reject(totals_err)
+
+    if balances.get(sender, binding.asset_in) < int(replay.total_amount_in):
+        return _reject(ROUTE_REJECT_INSUFFICIENT_BALANCE)
+
+    # All legs replayed; commit to the locals.
+    for leg in replay.legs:
+        balances.subtract(sender, leg.asset_in, int(leg.amount_in))
+        balances.add(recipient, leg.asset_out, int(leg.amount_out))
+        balance_deltas.append(
+            BalanceDelta(pubkey=sender, asset=leg.asset_in, delta_add=0, delta_sub=int(leg.amount_in))
+        )
+        balance_deltas.append(
+            BalanceDelta(pubkey=recipient, asset=leg.asset_out, delta_add=int(leg.amount_out), delta_sub=0)
+        )
+        reserve_deltas.append(
+            ReserveDelta(pool_id=leg.pool_id, asset=leg.asset_in, delta_add=int(leg.amount_in), delta_sub=0)
+        )
+        reserve_deltas.append(
+            ReserveDelta(pool_id=leg.pool_id, asset=leg.asset_out, delta_add=0, delta_sub=int(leg.amount_out))
+        )
+        pool_state = pool_states[leg.pool_id]
+        pool_state.reserve0 = int(leg.new_reserve0)
+        pool_state.reserve1 = int(leg.new_reserve1)
+
+    return Fill(
+        intent_id=intent.intent_id,
+        action=FillAction.FILL,
+        amount_in_filled=int(replay.total_amount_in),
+        amount_out_filled=int(replay.total_amount_out),
+        fee_paid=int(replay.total_fee_paid),
+    )
 
 
 def _apply_filled_intent_to_locals(

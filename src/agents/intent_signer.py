@@ -371,6 +371,94 @@ def create_swap_intent_from_quote_receipt(
     )
 
 
+def create_route_intent_from_quote_receipt(
+    *,
+    receipt: Dict[str, Any],
+    pools_by_id: Dict[str, Any],
+    sender_pubkey: PubKey,
+    deadline: int,
+    slippage_bps: int = 50,
+    recipient: Optional[PubKey] = None,
+    salt: Optional[str] = None,
+    nonce: Optional[int] = None,
+) -> Intent:
+    """
+    Create ONE atomic route intent from a verified quote receipt.
+
+    The intent binds the whole receipt (all legs) under a single signature;
+    the engine settles it atomically: every leg fills or the route rejects
+    with no state change.
+
+    Supported receipt shapes (v1): multi-leg split routing where every leg has
+    exactly one hop spanning the receipt's (asset_in, asset_out) endpoints.
+
+    Slippage:
+    - exact_in:  total_min_amount_out = floor(quoted_out * (1 - s/10_000))
+    - exact_out: total_max_amount_in  = ceil(quoted_in * (1 + s/10_000))
+    """
+    if not isinstance(slippage_bps, int) or isinstance(slippage_bps, bool) or slippage_bps < 0 or slippage_bps > 10_000:
+        raise ValueError("slippage_bps must be an int in [0, 10_000]")
+    if nonce is not None:
+        if not isinstance(nonce, int) or isinstance(nonce, bool) or nonce <= 0 or nonce > 0xFFFFFFFF:
+            raise ValueError("nonce must be an int in [1, 2^32-1]")
+
+    from src.core.quote_receipts import verify_route_quote_receipt
+    from src.core.route_settlement import resolve_route_binding_from_receipt
+
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools_by_id)
+    if not ok:
+        raise ValueError(f"invalid_quote_receipt:{err}")
+
+    binding, resolve_err = resolve_route_binding_from_receipt(receipt)
+    if binding is None:
+        raise ValueError(f"unsupported_route_receipt:{resolve_err}")
+
+    receipt_hash = receipt.get("receipt_hash")
+    if not isinstance(receipt_hash, str) or not receipt_hash:
+        raise ValueError("invalid_quote_receipt_hash")
+
+    if binding.kind == "exact_in":
+        kind = IntentKind.ROUTE_EXACT_IN
+        total_min_amount_out = (int(binding.total_amount_out) * (10_000 - int(slippage_bps))) // 10_000
+        total_fields = {
+            "total_amount_in": int(binding.total_amount_in),
+            "total_min_amount_out": int(total_min_amount_out),
+        }
+    else:
+        kind = IntentKind.ROUTE_EXACT_OUT
+        total_max_amount_in = (int(binding.total_amount_in) * (10_000 + int(slippage_bps)) + 9_999) // 10_000
+        total_fields = {
+            "total_amount_out": int(binding.total_amount_out),
+            "total_max_amount_in": int(total_max_amount_in),
+        }
+
+    fields: Dict[str, Any] = {
+        "quote_receipt_hash": receipt_hash,
+        "asset_in": binding.asset_in,
+        "asset_out": binding.asset_out,
+        "leg_indices": list(range(len(binding.legs))),
+        "recipient": recipient or sender_pubkey,
+        **total_fields,
+    }
+    if nonce is not None:
+        fields["nonce"] = int(nonce)
+
+    intent_id = _generate_intent_id(sender_pubkey, deadline, kind.value, fields, salt)
+
+    from src.state.intents import RouteIntent
+
+    return RouteIntent(
+        module="TauSwap",
+        version="0.1",
+        kind=kind,
+        intent_id=intent_id,
+        sender_pubkey=sender_pubkey,
+        deadline=int(deadline),
+        salt=salt,
+        fields=fields,
+    )
+
+
 def create_swap_intents_from_quote_receipt(
     *,
     receipt: Dict[str, Any],

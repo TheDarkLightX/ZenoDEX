@@ -200,7 +200,7 @@ def _patch_apply_ops_happy_path(
         ),
     )
     monkeypatch.setattr(dex_engine, "_verify_all_intent_signatures", lambda *args, **kwargs: (True, None))
-    monkeypatch.setattr(dex_engine, "_validate_quote_receipt_witnesses", lambda **kwargs: None)
+    monkeypatch.setattr(dex_engine, "_validate_quote_receipt_witnesses", lambda **kwargs: (None, {}))
     monkeypatch.setattr(dex_engine, "_validate_and_apply_nonce_batch", lambda **kwargs: (True, None, kwargs["nonces"]))
     monkeypatch.setattr(dex_engine, "compute_settlement", lambda **kwargs: settlement)
     monkeypatch.setattr(dex_engine, "validate_operations", lambda **kwargs: validate_result)
@@ -586,16 +586,17 @@ def test_validate_intent_against_quote_receipt_covers_remaining_defensive_contin
 
 def test_validate_quote_receipt_witnesses_covers_missing_hash_invalid_hash_and_group_checks(monkeypatch: pytest.MonkeyPatch) -> None:
     env_missing_hash = SignedIntentEnvelope(intent=_swap_intent(intent_id=_iid(44)), quote_receipt=_receipt())
+    # _validate_quote_receipt_witnesses now returns (error, route_bindings).
     assert "quote receipt provided without quote_receipt_hash" in _validate_quote_receipt_witnesses(
         signed_intents=[env_missing_hash],
         pools={},
-    )  # type: ignore[arg-type]
+    )[0]  # type: ignore[arg-type]
 
     env_invalid_hash = SignedIntentEnvelope(
         intent=_swap_intent(intent_id=_iid(45), fields={"quote_receipt_hash": ""}),
         quote_receipt=_receipt(),
     )
-    assert "invalid quote_receipt_hash" in _validate_quote_receipt_witnesses(signed_intents=[env_invalid_hash], pools={})  # type: ignore[arg-type]
+    assert "invalid quote_receipt_hash" in _validate_quote_receipt_witnesses(signed_intents=[env_invalid_hash], pools={})[0]  # type: ignore[arg-type]
 
     monkeypatch.setattr("src.integration.dex_engine.verify_route_quote_receipt", lambda receipt, pools_by_id: (True, None))
     monkeypatch.setattr("src.integration.dex_engine._validate_intent_against_quote_receipt", lambda intent, receipt: None)
@@ -604,7 +605,7 @@ def test_validate_quote_receipt_witnesses_covers_missing_hash_invalid_hash_and_g
         intent=_swap_intent(intent_id=_iid(46), fields={"quote_receipt_hash": "0x" + "ab" * 32, "quote_receipt_leg_index": 0}),
         quote_receipt=_receipt(legs="bad"),  # type: ignore[arg-type]
     )
-    assert _validate_quote_receipt_witnesses(signed_intents=[good_env], pools={}) == f"invalid quote receipt legs: {good_env.intent.intent_id}"
+    assert _validate_quote_receipt_witnesses(signed_intents=[good_env], pools={})[0] == f"invalid quote receipt legs: {good_env.intent.intent_id}"
 
     calls = {"n": 0}
 
@@ -616,7 +617,7 @@ def test_validate_quote_receipt_witnesses_covers_missing_hash_invalid_hash_and_g
 
     good_env.intent.get_field = _stateful_get_field  # type: ignore[method-assign]
     object.__setattr__(good_env, "quote_receipt", _receipt())
-    assert "missing quote_receipt_leg_index" in _validate_quote_receipt_witnesses(signed_intents=[good_env], pools={})  # type: ignore[arg-type]
+    assert "missing quote_receipt_leg_index" in _validate_quote_receipt_witnesses(signed_intents=[good_env], pools={})[0]  # type: ignore[arg-type]
 
 
 def test_build_signing_payloads_rejects_invalid_or_oversized_signing_dicts() -> None:
@@ -1323,7 +1324,7 @@ def test_apply_ops_rejects_proof_without_settlement(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(dex_engine, "parse_settlement_envelope", lambda operations: SimpleNamespace(settlement=None, proof=proof))
     monkeypatch.setattr(dex_engine, "_build_signing_payloads", lambda *args, **kwargs: ([], []))
     monkeypatch.setattr(dex_engine, "_verify_all_intent_signatures", lambda *args, **kwargs: (True, None))
-    monkeypatch.setattr(dex_engine, "_validate_quote_receipt_witnesses", lambda **kwargs: None)
+    monkeypatch.setattr(dex_engine, "_validate_quote_receipt_witnesses", lambda **kwargs: (None, {}))
     monkeypatch.setattr(dex_engine, "validate_operations", lambda **kwargs: (True, None))
     monkeypatch.setattr(dex_engine, "make_proof_verifier", lambda config: _DummyVerifier((True, None)))
 
