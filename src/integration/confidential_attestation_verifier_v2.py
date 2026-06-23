@@ -1,4 +1,4 @@
-"""Production TEE attestation verifier with real document parsing.
+"""TEE attestation verifier with real document parsing.
 
 This module implements real attestation document verification for:
 - AWS Nitro Enclave: COSE_Sign1 / CBOR attestation document parsing
@@ -9,7 +9,8 @@ Key security properties:
 - PCR values are extracted from real attestation documents, never hardcoded.
 - A measurement allowlist must be configured — no smoke fixtures in production.
 - Attestation is bound to a certificate hash for TLS channel establishment.
-- ``production_security_claim`` is True only when real attestation is verified.
+- ``production_security_claim`` remains False until Nitro CA-chain verification
+  or SGX quote collateral verification is implemented and checked.
 - Smoke fixture mode is available ONLY when explicitly configured for
   local-testnet deployments.
 
@@ -22,13 +23,11 @@ import hashlib
 import os
 import struct
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Mapping, Optional
 
 from .confidential_attestation import (
-    VerifiedConfidentialAttestation,
     nitro_measurement_from_summary,
 )
-from ..state.canonical import sha256_hex
 
 try:
     import cbor2  # type: ignore[import-untyped]
@@ -104,7 +103,8 @@ class ProductionVerifiedAttestation:
         measurement: Canonical measurement string (e.g. ``nitro:pcr0:...:pcr8:...``).
         policy_digest: Policy digest bound to the attestation.
         attestation_epoch: Epoch number derived from attestation timestamp.
-        production_security_claim: True only when real attestation was verified.
+        production_security_claim: True only after platform trust evidence has
+            been verified, not merely when a document was parsed.
         certificate_hash: SHA-256 hex of the attestation certificate, or empty.
         attestation_source: ``"nitro"``, ``"sgx"``, or ``"smoke"``.
         pcrs: Dictionary of PCR index to hex value (Nitro only).
@@ -179,9 +179,11 @@ def _verify_cose_sign1_signature(
     try:
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes
-        from cryptography.hazmat.primitives.asymmetric import padding, rsa, ec
-    except ImportError:
-        raise RuntimeError("cryptography package is required for COSE signature verification")
+        from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
+    except ImportError as err:
+        raise RuntimeError(
+            "cryptography package is required for COSE signature verification"
+        ) from err
 
     _ensure_cbor2()
     sig_structure = cbor2.dumps(["Signature1", b"", protected_header, payload])
@@ -352,11 +354,17 @@ def sgx_measurement_from_quote(quote_info: SGXQuoteInfo) -> str:
 
 
 class ProductionAttestationVerifier:
-    """Production TEE attestation verifier.
+    """TEE attestation verifier.
 
     Verifies real attestation documents from AWS Nitro Enclave and Intel SGX.
     Enforces a measurement allowlist and certificate hash binding for TLS.
     Falls back to smoke fixtures ONLY when ``local_testnet_mode`` is True.
+
+    The current Nitro path verifies the COSE signature with the embedded
+    certificate, but it does not yet validate the AWS Nitro certificate chain.
+    The current SGX path parses quote measurements, but it does not yet verify
+    quote signatures or Intel collateral. Both paths therefore produce accepted
+    verification evidence without asserting ``production_security_claim``.
     """
 
     def __init__(self, config: ProductionAttestationVerifierConfig) -> None:
@@ -461,7 +469,7 @@ class ProductionAttestationVerifier:
             measurement=measurement,
             policy_digest=policy_digest,
             attestation_epoch=epoch,
-            production_security_claim=True,
+            production_security_claim=False,
             certificate_hash=cert_hash,
             attestation_source="nitro",
             pcrs=pcrs,
@@ -494,16 +502,11 @@ class ProductionAttestationVerifier:
             if cert_hash != self._config.expected_certificate_hash:
                 return None, "certificate hash mismatch: attestation not bound to expected TLS cert"
         epoch = self._compute_epoch(issued_at_s, epoch_length_s)
-        # Summary path: production_security_claim is True only if cert binding verified
-        has_cert_binding = bool(cert_hash) and (
-            not self._config.expected_certificate_hash
-            or cert_hash == self._config.expected_certificate_hash
-        )
         return ProductionVerifiedAttestation(
             measurement=measurement,
             policy_digest=policy_digest,
             attestation_epoch=epoch,
-            production_security_claim=has_cert_binding,
+            production_security_claim=False,
             certificate_hash=cert_hash,
             attestation_source="nitro",
             is_smoke=False,
@@ -544,7 +547,7 @@ class ProductionAttestationVerifier:
             measurement=measurement,
             policy_digest=policy_digest,
             attestation_epoch=epoch,
-            production_security_claim=True,
+            production_security_claim=False,
             certificate_hash=cert_hash,
             attestation_source="sgx",
             is_smoke=False,

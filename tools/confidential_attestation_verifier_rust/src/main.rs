@@ -1,4 +1,4 @@
-// Production TEE attestation verifier with real document parsing.
+// TEE attestation verifier with real document parsing.
 //
 // Supports:
 // - AWS Nitro Enclave: COSE_Sign1 / CBOR attestation document parsing
@@ -100,7 +100,7 @@ fn verify_nitro(
         check_cert_binding(&cert_hash, expected_cert_hash, require_cert_binding)?;
         return Ok(VerifiedAttestation {
             measurement, policy_digest, attestation_epoch,
-            certificate_hash: cert_hash, production_security_claim: true,
+            certificate_hash: cert_hash, production_security_claim: false,
             attestation_source: "nitro".to_string(),
         });
     }
@@ -110,11 +110,9 @@ fn verify_nitro(
     let cert_hash = optional_string_field(payload, "certificate_hash")
         .map(|s| s.to_lowercase()).unwrap_or_default();
     check_cert_binding(&cert_hash, expected_cert_hash, require_cert_binding)?;
-    let has_binding = !cert_hash.is_empty()
-        && expected_cert_hash.map_or(true, |e| cert_hash == e.to_lowercase());
     Ok(VerifiedAttestation {
         measurement, policy_digest, attestation_epoch,
-        certificate_hash: cert_hash, production_security_claim: has_binding,
+        certificate_hash: cert_hash, production_security_claim: false,
         attestation_source: "nitro".to_string(),
     })
 }
@@ -139,7 +137,7 @@ fn verify_sgx(
     check_cert_binding(&cert_hash, expected_cert_hash, require_cert_binding)?;
     Ok(VerifiedAttestation {
         measurement, policy_digest, attestation_epoch,
-        certificate_hash: cert_hash, production_security_claim: true,
+        certificate_hash: cert_hash, production_security_claim: false,
         attestation_source: "sgx".to_string(),
     })
 }
@@ -485,6 +483,6 @@ mod tests {
         let verified = verify_payload(payload.as_object().unwrap()).unwrap();
         assert_eq!(verified.measurement, measurement);
         assert_eq!(verified.attestation_source, "sgx");
-        assert!(verified.production_security_claim);
+        assert!(!verified.production_security_claim);
     }
 }
