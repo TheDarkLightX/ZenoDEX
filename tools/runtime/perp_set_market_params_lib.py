@@ -52,7 +52,13 @@ def _reason_category(error: str) -> str:
         return "set_market_params_param_domain"
     if "require min_notional_for_bounty" in e:
         return "set_market_params_min_notional"
-    if "require depeg" in e or "require max_oracle_move" in e or "require maintenance_margin" in e or "require liquidation_penalty" in e:
+    if (
+        "require depeg" in e
+        or "require max_oracle_move" in e
+        or "require maintenance_margin" in e
+        or "require liquidation_penalty" in e
+        or "require funded liquidation" in e
+    ):
         return "set_market_params_ordering"
     if "position exceeds" in e or "under maintenance margin" in e:
         return "set_market_params_account_unsafe"

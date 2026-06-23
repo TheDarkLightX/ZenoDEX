@@ -477,9 +477,11 @@ def test_production_profile_allows_promoted_surface():
 
 
 def test_public_testnet_profile_requires_every_trusted_core_surface():
+    # perp_stateful is demoted to rust_shadow and excluded from the required
+    # rust-authority surfaces, so use fee_router to test the missing-surface check.
     policy = _complete_public_testnet_policy(
-        per_surface_overrides={"perp_stateful": None},
-        promoted_surfaces=PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES - {"perp_stateful"},
+        per_surface_overrides={"fee_router": None},
+        promoted_surfaces=PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES - {"fee_router"},
     )
     with pytest.raises(AuthorityError, match="missing trusted-core authority surfaces"):
         validate_authority_policy(policy, profile_id="public-testnet")
@@ -593,7 +595,7 @@ def test_real_deploy_profiles_load_and_validate():
             assert policy.mode_for("cpmm_settlement") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("fee_router") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("perp_math") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
-            assert policy.mode_for("perp_stateful") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
+            assert policy.mode_for("perp_stateful") is AuthorityMode.RUST_SHADOW
             assert policy.mode_for("state_root") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("replay_guard") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("zusd") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
@@ -605,7 +607,6 @@ def test_real_deploy_profiles_load_and_validate():
                     "cpmm_settlement",
                     "fee_router",
                     "perp_math",
-                    "perp_stateful",
                     "replay_guard",
                     "state_root",
                     "zusd",

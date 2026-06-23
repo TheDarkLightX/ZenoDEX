@@ -14,7 +14,8 @@
 //!   * `set_market_params_anti_farming` — raising penalty / lowering bounty
 //!     notional while positions are open.
 //!   * `set_market_params_ordering`     — margin-ordering invariants
-//!     (`depeg > 0`, `max_move ≤ maint+depeg ≤ initial`, `0 < liq < maint+depeg`).
+//!     (`depeg > 0`, `max_move ≤ maint+depeg ≤ initial`, `0 < liq < maint+depeg`,
+//!     and liquidation remains funded after the max oracle move).
 //!   * `set_market_params_min_notional` — bounty notional below the
 //!     positive-penalty / policy floor.
 //!   * `set_market_params_account_unsafe` — an open position would exceed the new
@@ -116,6 +117,20 @@ fn merge_checked(cur: i128, upd: Option<i128>, bound: (i128, i128)) -> Result<i1
             }
         }
     }
+}
+
+fn funded_liquidation_params_ok(
+    maintenance_margin_bps: i128,
+    depeg_buffer_bps: i128,
+    max_oracle_move_bps: i128,
+    liquidation_penalty_bps: i128,
+) -> bool {
+    let eff_maint_bps = maintenance_margin_bps + depeg_buffer_bps;
+    if eff_maint_bps < max_oracle_move_bps {
+        return false;
+    }
+    liquidation_penalty_bps * (BPS_SCALE + max_oracle_move_bps)
+        <= BPS_SCALE * (eff_maint_bps - max_oracle_move_bps)
 }
 
 pub fn set_market_params(
@@ -225,6 +240,14 @@ pub fn set_market_params(
         || liquidation_penalty_bps >= eff_maint_bps
         || liquidation_penalty_bps <= 0
     {
+        return Err(REJ_ORDERING);
+    }
+    if !funded_liquidation_params_ok(
+        maintenance_margin_bps,
+        depeg_buffer_bps,
+        max_oracle_move_bps,
+        liquidation_penalty_bps,
+    ) {
         return Err(REJ_ORDERING);
     }
 
@@ -365,6 +388,13 @@ mod tests {
     fn liq_penalty_zero_rejects_ordering() {
         let mut inp = base();
         inp.upd_liquidation_penalty_bps = Some(0);
+        assert_eq!(set_market_params(&inp).unwrap_err(), REJ_ORDERING);
+    }
+
+    #[test]
+    fn unfunded_liquidation_after_oracle_move_rejects_ordering() {
+        let mut inp = base();
+        inp.upd_liquidation_penalty_bps = Some(200);
         assert_eq!(set_market_params(&inp).unwrap_err(), REJ_ORDERING);
     }
 

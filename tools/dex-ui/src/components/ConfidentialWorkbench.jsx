@@ -809,6 +809,19 @@ function ConfidentialWorkbench() {
                   <div><dt>Filled units</dt><dd>{Number(sealedSettlement.total_filled || 0).toLocaleString()}</dd></div>
                   <div><dt>Slashed bond</dt><dd>{Number(sealedBondOutcome.total_slashed || 0).toLocaleString()}</dd></div>
                   <div><dt>Asset settlement</dt><dd>{sealedBidResult.settled?.asset_settlement_executed ? 'executed' : 'external adapter required'}</dd></div>
+                  <div>
+                    <dt>Settlement mode</dt>
+                    <dd>
+                      {sealedSettlement.scheme === 'paillier-homomorphic-v1'
+                        ? <span className="cwb-fhe-active">FHE (homomorphic) — bids compared under encryption</span>
+                        : sealedSettlement.scheme === 'commit_reveal_v1'
+                          ? <span className="cwb-fhe-fallback">Commit/reveal fallback — bids decrypted at reveal</span>
+                          : 'commit/reveal (default)'}
+                    </dd>
+                  </div>
+                  {sealedSettlement.production_security_claim === true && (
+                    <div><dt>Security claim</dt><dd className="cwb-fhe-active">Production FHE — individual bids never decrypted</dd></div>
+                  )}
                 </dl>
               )}
             </div>

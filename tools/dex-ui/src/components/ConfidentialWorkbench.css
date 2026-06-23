@@ -106,6 +106,9 @@
 .cwb-status-err   { color: var(--accent-danger);  }
 .cwb-status-idle  { color: var(--text-muted);     }
 
+.cwb-fhe-active   { color: var(--accent-confirm); font-weight: 600; }
+.cwb-fhe-fallback { color: var(--accent-warn);    font-weight: 600; }
+
 /* ─── Attestation mode badges ──────────────────────────────────── */
 
 .cwb-attestation-mode {

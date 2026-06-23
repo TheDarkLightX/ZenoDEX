@@ -940,13 +940,18 @@ def _state_from_app_state(app_state: Mapping[str, Any]) -> DexState:
     return state_from_snapshot(snapshot_with_legacy_lp_metadata_defaults(_dex_state_view(app_state)))
 
 
-def _balance_for_asset(app_state: Mapping[str, Any], *, pubkey: str, asset_id: str) -> int:
+def _normalized_balance_key(*, pubkey: object, asset_id: object) -> tuple[str, str]:
+    if not isinstance(pubkey, str) or not isinstance(asset_id, str):
+        raise TauNetRpcError("balance lookup key invalid")
+    return (pubkey.strip().lower(), asset_id.strip().lower())
+
+
+def _balance_index(app_state: Mapping[str, Any]) -> dict[tuple[str, str], int]:
     state_view = _dex_state_view(app_state)
     raw = state_view.get("balances") or []
     if not isinstance(raw, list):
         raise TauNetRpcError("app_state balances must be a list")
-    target_pubkey = pubkey.strip().lower()
-    target_asset = asset_id.strip().lower()
+    balances: dict[tuple[str, str], int] = {}
     for index, entry in enumerate(raw):
         if not isinstance(entry, Mapping):
             raise TauNetRpcError(f"app_state.balances[{index}] must be an object")
@@ -957,9 +962,30 @@ def _balance_for_asset(app_state: Mapping[str, Any], *, pubkey: str, asset_id: s
             raise TauNetRpcError(f"app_state.balances[{index}] has invalid keys")
         if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
             raise TauNetRpcError(f"app_state.balances[{index}] amount invalid")
-        if entry_pubkey.strip().lower() == target_pubkey and entry_asset.strip().lower() == target_asset:
-            return int(amount)
-    return 0
+        balances.setdefault(
+            _normalized_balance_key(pubkey=entry_pubkey, asset_id=entry_asset),
+            int(amount),
+        )
+    return balances
+
+
+def _indexed_balance_for_asset(
+    balance_index: Mapping[tuple[str, str], int],
+    *,
+    pubkey: str,
+    asset_id: str,
+) -> int:
+    return int(
+        balance_index.get(_normalized_balance_key(pubkey=pubkey, asset_id=asset_id), 0)
+    )
+
+
+def _balance_for_asset(app_state: Mapping[str, Any], *, pubkey: str, asset_id: str) -> int:
+    return _indexed_balance_for_asset(
+        _balance_index(app_state),
+        pubkey=pubkey,
+        asset_id=asset_id,
+    )
 
 
 def _market_quote_asset(app_state: Mapping[str, Any], *, market_id: str) -> str:
@@ -2100,6 +2126,7 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
     state = _state_from_app_state(app_state)
     if state.perps is None:
         return []
+    balance_index = _balance_index(app_state) if state.perps.markets else {}
     summaries: list[dict[str, Any]] = []
     for market_id, market in sorted(state.perps.markets.items()):
         item: dict[str, Any] = {"market_id": market_id, "kind": getattr(market, "kind", "unknown")}
@@ -2109,13 +2136,13 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
                     "quote_asset": market.quote_asset,
                     "account_a_pubkey": market.account_a_pubkey,
                     "account_b_pubkey": market.account_b_pubkey,
-                    "account_a_quote_balance": _balance_for_asset(
-                        app_state,
+                    "account_a_quote_balance": _indexed_balance_for_asset(
+                        balance_index,
                         pubkey=market.account_a_pubkey,
                         asset_id=market.quote_asset,
                     ),
-                    "account_b_quote_balance": _balance_for_asset(
-                        app_state,
+                    "account_b_quote_balance": _indexed_balance_for_asset(
+                        balance_index,
                         pubkey=market.account_b_pubkey,
                         asset_id=market.quote_asset,
                     ),
@@ -2164,8 +2191,8 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
                         "collateral_quote": collateral_e8 // 100_000_000,
                         "funding_paid_cum_e8": int(account.funding_paid_cum_e8),
                         "nonce": int(account.nonce),
-                        "quote_balance": _balance_for_asset(
-                            app_state,
+                        "quote_balance": _indexed_balance_for_asset(
+                            balance_index,
                             pubkey=account.pubkey,
                             asset_id=market.quote_asset,
                         ),
@@ -2227,8 +2254,8 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
                         # like the 2p/NP branches — otherwise _account_perps_view
                         # defaults it to 0 and a funded isolated-perp account shows a
                         # zero perps balance (Codex F5, sibling of the F4 2p fix).
-                        "quote_balance": _balance_for_asset(
-                            app_state,
+                        "quote_balance": _indexed_balance_for_asset(
+                            balance_index,
                             pubkey=account_pubkey,
                             asset_id=market.quote_asset,
                         ),
