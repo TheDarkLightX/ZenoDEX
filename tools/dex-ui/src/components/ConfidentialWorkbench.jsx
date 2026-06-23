@@ -464,6 +464,32 @@ function ConfidentialWorkbench() {
   const receiptHash = String(attestationResult?.receipt_hash || '');
   const measurement = String(attestationResult?.measurement || attestationResult?.measurement_provider || '');
   const executionAdmitted = attestationResult?.execution_admitted === true;
+  // Attestation mode: real vs smoke. The v2 verifier exposes
+  // production_security_claim, attestation_source, certificate_hash, and is_smoke
+  // in the result. When these fields are absent (legacy verifier), we infer
+  // smoke mode from the known smoke PCR pattern.
+  const attestationSource = String(
+    attestationResult?.attestation_source
+    || attestationResult?.result?.attestation_source
+    || ''
+  );
+  const productionSecurityClaim = attestationResult?.production_security_claim === true
+    || attestationResult?.result?.production_security_claim === true;
+  const attestationCertHash = String(
+    attestationResult?.certificate_hash
+    || attestationResult?.result?.certificate_hash
+    || ''
+  );
+  const isSmokeAttestation = attestationSource === 'smoke'
+    || attestationResult?.is_smoke === true
+    || (!attestationSource && measurement.includes('0123456789abcdef'));
+  const attestationModeLabel = productionSecurityClaim
+    ? 'Production-verified (real TEE attestation)'
+    : isSmokeAttestation
+      ? 'Smoke fixture (local-testnet only)'
+      : attestationSource
+        ? `Verified via ${attestationSource}`
+        : 'Verification mode unknown';
   const runtimeReceiptHash = String(runtimeResult?.receipt_hash || '');
   const runtimeBody = runtimeResult?.body || {};
   const runtimeEffectDigest = String(runtimeBody?.public_effect_digest || '');
@@ -610,8 +636,19 @@ function ConfidentialWorkbench() {
                   <div><dt>Receipt</dt><dd><CopyHash value={receiptHash} label="receipt hash" /></dd></div>
                   <div>
                     <dt>Measurement</dt>
-                    <dd>{measurement.startsWith('nitro:') ? 'AWS Nitro' : (measurement || <span className="cwb-empty">unknown</span>)}</dd>
+                    <dd>{measurement.startsWith('nitro:') ? 'AWS Nitro' : (measurement.startsWith('sgx:') ? 'Intel SGX' : (measurement || <span className="cwb-empty">unknown</span>))}</dd>
                   </div>
+                  <div>
+                    <dt>Attestation mode</dt>
+                    <dd>
+                      <span className={`cwb-attestation-mode ${productionSecurityClaim ? 'cwb-attestation-real' : isSmokeAttestation ? 'cwb-attestation-smoke' : ''}`}>
+                        {attestationModeLabel}
+                      </span>
+                    </dd>
+                  </div>
+                  {attestationCertHash && (
+                    <div><dt>Cert hash</dt><dd><CopyHash value={attestationCertHash} label="certificate hash" /></dd></div>
+                  )}
                   <div>
                     <dt>Request</dt>
                     <dd>{attestationState.result?.request_consumed ? 'consumed' : 'unconsumed'}</dd>
@@ -673,11 +710,12 @@ function ConfidentialWorkbench() {
 
         <article className="cwb-action panel">
           <div className="cwb-action-head">
-            <h2 className="cwb-action-title">3 · Run sealed-bid commit/reveal</h2>
+            <h2 className="cwb-action-title">3 · Run sealed-bid auction</h2>
             <p className="cwb-action-lede">
               Commitments are computed in the browser. The commit request sends only
               bidder identity, commitment, and bond; quantity, price, and nonce are
-              sent only during reveal.
+              sent only during reveal. When FHE is provisioned, bids are compared
+              homomorphically without individual decryption.
             </p>
           </div>
 
