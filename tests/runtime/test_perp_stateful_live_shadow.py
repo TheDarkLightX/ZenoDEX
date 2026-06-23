@@ -34,6 +34,21 @@ PK_B = "bb" * 48
 QUOTE = "0x" + "51" * 32
 
 
+def _set_synthetic_liquidation_params(gs: dict, *, liquidation_penalty_bps: int) -> None:
+    """Make hand-mutated liquidation fixtures valid under the funded-liquidation guard."""
+    gs["min_notional_for_bounty"] = 0
+    gs["liquidation_penalty_bps"] = liquidation_penalty_bps
+    if liquidation_penalty_bps <= 200:
+        gs["maintenance_margin_bps"] = 700
+        gs["depeg_buffer_bps"] = 100
+        gs["initial_margin_bps"] = max(int(gs["initial_margin_bps"]), 1000)
+        return
+    gs["max_oracle_move_bps"] = 500
+    gs["maintenance_margin_bps"] = 900
+    gs["depeg_buffer_bps"] = 200
+    gs["initial_margin_bps"] = max(int(gs["initial_margin_bps"]), 1200)
+
+
 def _policy(mode: AuthorityMode) -> AuthorityPolicy:
     return AuthorityPolicy(
         default=AuthorityMode.PYTHON_AUTHORITY,
@@ -715,8 +730,7 @@ def test_rust_authority_commits_settle_epoch_liquidation_without_python_handler(
     )
     market = state.perps.markets[market_id]
     gs = dict(market.global_state)
-    gs["min_notional_for_bounty"] = 0
-    gs["liquidation_penalty_bps"] = 200
+    _set_synthetic_liquidation_params(gs, liquidation_penalty_bps=200)
     accts = dict(market.accounts)
     accts[PK_A] = replace(accts[PK_A], collateral_quote=1)
     markets = dict(state.perps.markets)
@@ -767,8 +781,7 @@ def test_rust_authority_commits_partial_liquidate_without_python_handler(rust_en
     )
     market = state.perps.markets[market_id]
     gs = dict(market.global_state)
-    gs["min_notional_for_bounty"] = 0
-    gs["liquidation_penalty_bps"] = 500
+    _set_synthetic_liquidation_params(gs, liquidation_penalty_bps=500)
     accts = dict(market.accounts)
     accts[PK_A] = replace(accts[PK_A], collateral_quote=25_000)
     markets = dict(state.perps.markets)
@@ -816,8 +829,7 @@ def test_rust_authority_rejects_partial_liquidate_unknown_fields(rust_env):
     )
     market = state.perps.markets[market_id]
     gs = dict(market.global_state)
-    gs["min_notional_for_bounty"] = 0
-    gs["liquidation_penalty_bps"] = 500
+    _set_synthetic_liquidation_params(gs, liquidation_penalty_bps=500)
     accts = dict(market.accounts)
     accts[PK_A] = replace(accts[PK_A], collateral_quote=25_000)
     markets = dict(state.perps.markets)
@@ -974,8 +986,7 @@ def test_rust_shadow_settle_liquidation_parity(rust_env):
     )  # PricePublished
     market = state.perps.markets[market_id]
     gs = dict(market.global_state)
-    gs["min_notional_for_bounty"] = 0
-    gs["liquidation_penalty_bps"] = 200
+    _set_synthetic_liquidation_params(gs, liquidation_penalty_bps=200)
     accts = dict(market.accounts)
     accts[PK_A] = replace(accts[PK_A], collateral_quote=1)  # make it liquidatable
     markets = dict(state.perps.markets)
@@ -1399,8 +1410,7 @@ def test_rust_shadow_deposit_resets_liquidated_flag(rust_env):
     )  # PricePublished
     market = state.perps.markets[market_id]
     gs = dict(market.global_state)
-    gs["min_notional_for_bounty"] = 0
-    gs["liquidation_penalty_bps"] = 200
+    _set_synthetic_liquidation_params(gs, liquidation_penalty_bps=200)
     accts = dict(market.accounts)
     accts[PK_A] = replace(accts[PK_A], collateral_quote=1)  # liquidatable
     markets = dict(state.perps.markets)
@@ -1607,10 +1617,9 @@ def test_rust_shadow_partial_liquidate_nonzero_penalty_parity(rust_env):
     )
     market = state.perps.markets[market_id]
     gs = dict(market.global_state)
-    gs["min_notional_for_bounty"] = 0
-    gs["liquidation_penalty_bps"] = 500  # 5% -> sizable penalty
+    _set_synthetic_liquidation_params(gs, liquidation_penalty_bps=500)  # 5% -> sizable penalty
     accts = dict(market.accounts)
-    accts[PK_A] = replace(accts[PK_A], collateral_quote=25_000)  # underwater (maint 30000)
+    accts[PK_A] = replace(accts[PK_A], collateral_quote=25_000)  # underwater (maint 55_000)
     markets = dict(state.perps.markets)
     markets[market_id] = type(market)(quote_asset=market.quote_asset, global_state=gs, accounts=accts)
     state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))

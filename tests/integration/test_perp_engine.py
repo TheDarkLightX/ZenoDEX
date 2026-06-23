@@ -95,6 +95,34 @@ def _settle_ready_state(*, market_id: str, quote_asset: str, operator: str) -> D
     )
 
 
+def test_init_market_np_rejects_unfunded_liquidation_params() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    operator = "00" * 48
+    quote_asset = "0x" + "77" * 32
+    res = apply_perp_ops(
+        config=PerpEngineConfig(operator_pubkey=operator),
+        state=DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()),
+        operations={
+            "8": [
+                _op(
+                    "perp:chnp:unfunded",
+                    "init_market_np",
+                    version="1.2",
+                    quote_asset=quote_asset,
+                    index_price_e8=100_000_000,
+                    params={"max_oracle_move_bps": 548},
+                )
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+
+    assert res.ok is False
+    assert res.error is not None and "funded liquidation" in res.error
+
+
 def _perps_oracle_authorization_bundle(config: object, state: DexState, market_id: str, *, value_e8: int | None = None) -> dict[str, object]:
     from src.integration.perp_engine import (
         _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
@@ -1847,6 +1875,19 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     )
     assert res_zero_depeg.ok is False
     assert res_zero_depeg.error is not None and "depeg_buffer_bps > 0" in res_zero_depeg.error
+
+    # Hardening: penalty must remain funded after the worst configured oracle move.
+    res_unfunded_liquidation = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "set_market_params", params={"max_oracle_move_bps": 548})],
+    )
+    assert res_unfunded_liquidation.ok is False
+    assert (
+        res_unfunded_liquidation.error is not None
+        and "funded liquidation" in res_unfunded_liquidation.error
+    )
 
     # Hardening: while positions are open, do not allow increasing liquidation penalty.
     res_penalty_up = _apply_result(

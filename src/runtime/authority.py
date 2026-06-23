@@ -80,9 +80,14 @@ TRUSTED_CORE_AUTHORITY_SURFACES = frozenset(
 
 # Public testnet is the shadow-checked Rust-authority soak lane for the trusted
 # core. Every current TCB surface must be present, promoted, and configured as
-# Rust authority with Python shadow. Production-strict intentionally remains
-# all-Python until a later release decision.
-PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES = TRUSTED_CORE_AUTHORITY_SURFACES
+# Rust authority with Python shadow, except ``perp_stateful`` which is demoted
+# to ``rust_shadow`` (Python authority with Rust checking after the fact) until
+# bounded touched-account/page materialization and soak evidence justify
+# promotion. Production-strict intentionally remains all-Python until a later
+# release decision.
+PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES = (
+    TRUSTED_CORE_AUTHORITY_SURFACES - frozenset({"perp_stateful"})
+)
 
 
 class AuthorityError(RuntimeError):
