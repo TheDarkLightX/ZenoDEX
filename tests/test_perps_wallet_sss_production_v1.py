@@ -392,3 +392,41 @@ def test_backup_local_mode_keeps_production_security_claim_false() -> None:
     backup = _build_test_backup(production_mode=False)
     assert backup["production_security_claim"] is False
     assert backup["audit_status"] == "local-fixture-unaudited"
+
+
+def test_backup_hash_stable_after_attaching_ceremony_and_registry() -> None:
+    """Attaching production_ceremony and custodian_registry after backup creation
+    must not invalidate the backup_hash.
+
+    The ceremony and registry are assembled metadata verified independently by
+    the evaluator. They are excluded from the backup hash so the assembled
+    production artifact passes the hash consistency check.
+    """
+    custodians, privkeys = _make_custodians()
+    registry = build_custodian_registry_v1(
+        authority_id="auth-1",
+        chain_id="chain-1",
+        custodians=custodians,
+        threshold=3,
+        created_at_epoch=100,
+    )
+    backup = _build_test_backup(production_mode=True)
+    original_hash = backup["backup_hash"]
+    attestations = [
+        collect_custodian_attestation_v1(
+            custodian_id=custodians[i].custodian_id,
+            private_key_hex=privkeys[i],
+            public_key_hex=custodians[i].bls_public_key_hex,
+            backup_hash=backup["backup_hash"],
+            authority_id="auth-1",
+            chain_id="chain-1",
+        )
+        for i in range(3)
+    ]
+    ceremony = build_production_ceremony_v1(backup=backup, registry=registry, attestations=attestations)
+    backup["production_ceremony"] = ceremony
+    backup["custodian_registry"] = registry
+    assert backup["backup_hash"] == original_hash
+    result = evaluate_perps_wallet_encrypted_sss_backup_v1(None, backup)
+    backup_hash_errors = [e for e in result["errors"] if "encrypted SSS backup hash mismatch" in e]
+    assert not backup_hash_errors, f"backup hash should be stable after attaching ceremony/registry: {backup_hash_errors}"

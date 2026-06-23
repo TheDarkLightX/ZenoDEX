@@ -49,7 +49,7 @@ SHAMIR_GF256_ALGORITHM_V1 = "shamir-gf256-v1"
 AEAD_AES_256_GCM = "AES-256-GCM"
 KDF_HKDF_SHA256 = "HKDF-SHA256"
 
-_BACKUP_NON_HASH_FIELDS = frozenset({"backup_hash"})
+_BACKUP_NON_HASH_FIELDS = frozenset({"backup_hash", "production_ceremony", "custodian_registry"})
 _ENVELOPE_NON_HASH_FIELDS = frozenset({"envelope_hash"})
 _DELIVERY_NON_HASH_FIELDS = frozenset({"delivery_hash"})
 _AUDIT_NON_HASH_FIELDS = frozenset({"audit_hash", "signature_envelope"})
