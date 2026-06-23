@@ -11,7 +11,6 @@ from src.integration.perps_wallet_social_recovery_v1 import (
     PAYLOAD_KIND_DEVICE_APPROVAL,
     PAYLOAD_KIND_RECOVERY,
     PAYLOAD_KIND_ROTATION,
-    PROPOSAL_STATUS_EXECUTED,
     SocialRecoveryCoordinatorV1,
 )
 from src.integration.zeno_key_manager import generate_tau_testnet_compatible_private_key_hex
@@ -230,6 +229,37 @@ def test_production_security_claim_true_for_live_mode() -> None:
     status = coord.coordinator_status()
     assert status["production_security_claim"] is True
     assert status["fixture_mode"] is False
+
+
+def test_production_security_claim_false_without_recovery_policy() -> None:
+    coord = SocialRecoveryCoordinatorV1(
+        chain_id="tau-local", authority_id="perps-authority-1",
+    )
+    assert coord.production_security_claim is False
+    assert coord.coordinator_status()["production_security_claim"] is False
+
+
+def test_weak_live_policy_executes_without_production_claim() -> None:
+    coord, guardians, _ = _make_coordinator_with_guardians(2, 1, fixture_mode=False)
+    _gid_a, sk_a, _ = guardians[0]
+    new_pk = bls_public_key_hex_from_private_key_v0(
+        generate_tau_testnet_compatible_private_key_hex()
+    )
+    proposal = coord.submit_recovery_proposal(
+        proposal_id="rec-weak-policy-1", subject_key_id="perps-wallet-a",
+        replacement_key_id="perps-wallet-b", replacement_public_key=new_pk,
+        requested_at_epoch=10, policy_id="recovery-policy-1",
+    )
+    env_a = coord.guardian_sign_proposal(
+        guardian_id="guardian-a", guardian_private_key_hex=sk_a, proposal=proposal,
+    )
+    result = coord.execute_recovery(
+        proposal=proposal, envelopes=[env_a], current_epoch=10,
+    )
+    assert result["executed"] is True
+    assert result["production_security_claim"] is False
+    assert result["quorum_report"]["production_security_claim"] is False
+    assert result["quorum_report"]["aggregate_verified"] is True
 
 
 # -- Fixture fallback for local-testnet ---------------------------------------
