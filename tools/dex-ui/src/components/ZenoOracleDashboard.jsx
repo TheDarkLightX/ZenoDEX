@@ -2347,10 +2347,14 @@ function ZenoOracleDashboard({ wallet = null } = {}) {
       }
       : { targetNetwork: smokeTargetNetwork || 'local' };
     void runAuthorityExercise(smokeOptions).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const emptyMetrics = ORACLE_NETWORK_SUMMARY.map(m => ({ ...m, value: 'N/A', delta: '—', tone: 'neutral' }));
-  const feeds = remoteData?.feeds?.length ? remoteData.feeds : (demoMode ? ORACLE_FEEDS : []);
+  const feeds = useMemo(
+    () => (remoteData?.feeds?.length ? remoteData.feeds : (demoMode ? ORACLE_FEEDS : [])),
+    [remoteData?.feeds, demoMode],
+  );
   const reporters = remoteData?.reporters?.length ? remoteData.reporters : (demoMode ? ORACLE_REPORTERS : []);
   const disputes = [
     ...(remoteData?.disputes?.length ? remoteData.disputes : (demoMode ? ORACLE_DISPUTES : [])),
@@ -3015,6 +3019,7 @@ function FeedDetailInspector({ feed, reporters, disputes, onAddDispute, demoMode
       reasonOverride: reason || 'price-deviation',
       bondAmountOverride: bondAmount || '100000000',
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bondAmount, reason, reportId, reporterId]);
 
   return (

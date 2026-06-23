@@ -143,6 +143,7 @@ function MintPanel({ onClose, demoMode = false, showClose = true, wallet = null 
       });
     }
     void runSmoke();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, demoMode, status]);
 
   const oraclePrice = ZUSD_SUMMARY.oraclePrice;

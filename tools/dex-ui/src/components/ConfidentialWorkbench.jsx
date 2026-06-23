@@ -404,12 +404,14 @@ function ConfidentialWorkbench() {
       await runRuntimeExecute();
     }
     void runSmoke().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demoMode]);
 
   useEffect(() => {
     if (demoMode || !confidentialSealedBidSmokeEnabled() || sealedBidSmokeRan.current) return;
     sealedBidSmokeRan.current = true;
     void runSealedBidFlow().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demoMode]);
 
   // --- Derived display values ---------------------------------------------

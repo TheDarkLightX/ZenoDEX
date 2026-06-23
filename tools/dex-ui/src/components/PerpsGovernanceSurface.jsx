@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import {
   apiGetPerpsWalletStatus,
   apiEvaluatePerpsRecovery,
@@ -95,7 +95,10 @@ export default function PerpsGovernanceSurface() {
   const smokeRan = useRef(false);
 
   const runtimeConfig = getRuntimeConfig();
-  const fixtures = runtimeConfig.localTestnetGovernanceFixtures || {};
+  const fixtures = useMemo(
+    () => runtimeConfig.localTestnetGovernanceFixtures || {},
+    [runtimeConfig.localTestnetGovernanceFixtures],
+  );
   const fixturePreview = expandedFixture
     ? (fixtures[`${expandedFixture}Exercise`] || fixtures[expandedFixture])
     : null;
@@ -230,6 +233,7 @@ export default function PerpsGovernanceSurface() {
     };
 
     void runSmoke();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fixtures]);
 
   async function handleEvaluate(key, apiFn, fixture) {

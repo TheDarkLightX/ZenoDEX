@@ -549,6 +549,7 @@ function PerpLiveWalletSurface() {
         setResult(null);
         setError(err?.message || 'submit_failed');
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, status]);
 
   const preflight = result?.report?.preflight;
