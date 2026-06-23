@@ -6,6 +6,9 @@ members = [
     "crates/zenodex-launcher",
     "crates/zenodex-governance-gate",
 ]
+# The cargo-fuzz crate needs a nightly toolchain (libFuzzer); keep it out of the
+# stable workspace so `cargo test/clippy/fmt` never depend on it. See fuzz/README.md.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.1.0"

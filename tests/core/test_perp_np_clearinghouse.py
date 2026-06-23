@@ -183,14 +183,20 @@ def test_state_type_rejects_penalty_at_or_above_maintenance_buffer():
         PerpClearinghouseNpMarketState(quote_asset="zUSD", global_state=gs, accounts=())
 
 
-def test_state_type_accepts_valid_boundary_margin_ordering():
-    """Equality boundaries are valid: max_move == maint+depeg == initial_margin and
-    penalty == maint+depeg-1 are all accepted (regression guard against an
-    over-strict ordering check)."""
+def test_state_type_rejects_unfunded_liquidation_after_oracle_move():
+    gs = _global_state(0)
+    gs["max_oracle_move_bps"] = 548
+    with pytest.raises(ValueError, match="funded liquidation"):
+        PerpClearinghouseNpMarketState(quote_asset="zUSD", global_state=gs, accounts=())
+
+
+def test_state_type_accepts_valid_margin_safety_boundary():
+    """A tight but funded boundary remains valid: maint+depeg == initial_margin and
+    liquidation penalty is still collectible after the configured oracle move."""
     gs = _global_state(3 * 10 ** 15)
-    gs["max_oracle_move_bps"] = 600              # == maintenance+depeg
+    gs["max_oracle_move_bps"] = 500
     gs["initial_margin_bps"] = 600               # == maintenance+depeg
-    gs["liquidation_penalty_bps"] = 599          # < maintenance+depeg
+    gs["liquidation_penalty_bps"] = 95
     accts = (
         PerpClearinghouseNpAccount(_pk("11"), 10, 100 * E8, 10 ** 15),
         PerpClearinghouseNpAccount(_pk("22"), -6, 100 * E8, 10 ** 15),
@@ -199,6 +205,16 @@ def test_state_type_accepts_valid_boundary_margin_ordering():
     m = PerpClearinghouseNpMarketState(
         quote_asset="zUSD", global_state=gs, accounts=accts)
     assert len(m.accounts) == 3
+
+
+def test_init_market_rejects_unfunded_liquidation_params():
+    with pytest.raises(ValueError, match="funded liquidation"):
+        C.init_market(100 * E8, C.MarketParams(max_oracle_move_bps=548))
+
+
+def test_init_market_rejects_bool_market_params():
+    with pytest.raises(TypeError, match="plain int"):
+        C.init_market(100 * E8, C.MarketParams(max_oracle_move_bps=True))
 
 
 def test_state_type_rejects_duplicate_members():
