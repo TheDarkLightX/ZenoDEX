@@ -88,8 +88,12 @@ export async function apiFetchZenoOracleJson(path, options = {}) {
 }
 
 export function getApiToken() {
-  const v = (import.meta?.env?.VITE_API_TOKEN ?? '').toString().trim();
-  return v || '';
+  const envToken = (import.meta?.env?.VITE_API_TOKEN ?? '').toString().trim();
+  if (envToken) {
+    return envToken;
+  }
+  const runtimeToken = (getRuntimeConfig()?.apiToken ?? '').toString().trim();
+  return runtimeToken || '';
 }
 
 function shouldAttachApiToken(url, { pathIsAbsolute }) {
