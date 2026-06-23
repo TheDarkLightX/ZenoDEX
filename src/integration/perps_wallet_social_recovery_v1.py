@@ -280,6 +280,16 @@ class SocialRecoveryCoordinatorV1:
         _require_str(policy_id, name="policy_id")
         if policy_id not in self._policies:
             raise ValueError(f"recovery policy {policy_id} not found")
+        policy = self._policies[policy_id]
+        target_key = (
+            body_fields.get("subject_key_id")
+            or body_fields.get("rotated_key_id")
+            or body_fields.get("key_id")
+        )
+        if target_key and target_key != policy.subject_key_id:
+            raise ValueError(
+                f"proposal target key {target_key} does not match policy subject_key_id {policy.subject_key_id}"
+            )
         body: dict[str, Any] = {
             "schema": schema, "authority_id": self._authority_id,
             "chain_id": self._chain_id, "proposal_id": proposal_id,
@@ -489,7 +499,12 @@ class SocialRecoveryCoordinatorV1:
             proposal.get("policy_id", "") if isinstance(proposal, Mapping) else ""
         )
         if policy is not None:
-            requested_at = proposal.get("requested_at_epoch", 0)
+            stored_proposal = self._proposals.get(proposal_hash)
+            if stored_proposal is not None:
+                requested_at = stored_proposal.body.get("requested_at_epoch", 0)
+            else:
+                errors.append("proposal not found in stored proposals — cannot verify delay")
+                requested_at = None
             if isinstance(requested_at, int) and current_epoch < requested_at + policy.delay_epochs:
                 errors.append("recovery delay period not elapsed")
         if not errors:
