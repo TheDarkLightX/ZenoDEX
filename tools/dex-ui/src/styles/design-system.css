@@ -122,11 +122,6 @@
   --perp-extreme: #dc2626;
   --perp-extreme-bg: rgba(220, 38, 38, 0.15);
 
-  /* Atmosphere — the original radial vignette + cyan-purple gradient */
-  --gradient-bg: radial-gradient(ellipse 1200px 600px at 10% 0%, #16202a, #0f0f12);
-  --gradient-accent: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-  --gradient-panel: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0));
-
   --border-primary: rgba(255, 255, 255, 0.08);
   --border-subtle: rgba(255, 255, 255, 0.04);
   --border-strong: rgba(255, 255, 255, 0.16);
@@ -214,11 +209,6 @@
   --perp-warning-bg: rgba(194, 65, 12, 0.10);
   --perp-extreme: #991b1b;
   --perp-extreme-bg: rgba(153, 27, 27, 0.10);
-
-  /* Atmosphere — pure, clean workspace */
-  --gradient-bg: radial-gradient(ellipse 1200px 600px at 10% 0%, #f1f3f5, #f8f9fa);
-  --gradient-accent: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-  --gradient-panel: linear-gradient(180deg, rgba(0, 0, 0, 0.01), rgba(0, 0, 0, 0));
 
   --border-primary: rgba(26, 26, 31, 0.10);
   --border-subtle: rgba(26, 26, 31, 0.06);

@@ -128,7 +128,6 @@
     border-radius: var(--radius-md);
     padding: var(--space-md);
     box-shadow: var(--shadow-lg);
-    backdrop-filter: blur(8px);
 }
 
 .settings-row {
