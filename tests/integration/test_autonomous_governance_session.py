@@ -562,6 +562,39 @@ def test_session_verifier_refuses_budget_swap_midsession() -> None:
     assert verification["checks"]["budget_consistent_ok"] is False
 
 
+def test_session_verifier_refuses_genesis_budget_above_policy_limit() -> None:
+    policy = _policy()
+    inflated_budget = {**_BUDGET, "fee_bps": 5_000}
+    genesis = run_autonomous_governance_surface_trajectory_v1(
+        policy=policy,
+        initial_surface_state=_surface_state(),
+        steps=_pressure_steps(3, 100),
+        expected_policy_hash=str(policy["policy_hash"]),
+        trajectory_budget=inflated_budget,
+    )
+    assert genesis["status"] == STATUS_COMPLETED
+    assert genesis["trajectory_budget"] == inflated_budget
+    assert (
+        verify_autonomous_governance_surface_trajectory_v1(
+            receipt=genesis,
+            policy=policy,
+        )["ok"]
+        is True
+    )
+
+    child = _continue(policy, genesis, _pressure_steps(1, 103))
+    assert child["status"] == STATUS_REJECTED_STRUCTURAL
+    assert "session_trajectory_budget_policy_mismatch" in child["errors"]
+
+    verification = verify_autonomous_governance_surface_session_v1(
+        receipts=[genesis],
+        policy=policy,
+    )
+    assert verification["ok"] is False
+    assert "session_trajectory_budget_policy_mismatch" in verification["errors"]
+    assert verification["checks"]["budget_policy_bound_ok"] is False
+
+
 def test_session_verifier_refuses_structural_member() -> None:
     policy = _policy()
     genesis = _genesis(policy)
