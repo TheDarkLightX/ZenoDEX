@@ -393,6 +393,11 @@ def build_key_rotation_ceremony_v1(
         raise ValueError(
             f"key rotation requires {threshold} attestations, got {len(verified)}"
         )
+    rotation_orgs = {custodian_map[a["attested_by"]]["organization"] for a in verified}
+    if len(rotation_orgs) < _MIN_DISTINCT_CUSTODIANS:
+        raise ValueError(
+            f"key rotation requires {_MIN_DISTINCT_CUSTODIANS} distinct organizations, got {len(rotation_orgs)}"
+        )
     ceremony: dict[str, Any] = {
         **rotation_payload,
         "schema": SSS_KEY_ROTATION_CEREMONY_SCHEMA_V1,
@@ -466,6 +471,13 @@ def evaluate_key_rotation_ceremony_v1(
             errs.append(f"key rotation attestation[{i}] signature invalid: {exc}")
     if isinstance(threshold, int) and len(seen) < threshold:
         errs.append(f"key rotation has {len(seen)} attestations, needs {threshold}")
+    rotation_orgs = {
+        custodian_map[cid]["organization"] for cid in seen if cid in custodian_map
+    }
+    if len(rotation_orgs) < _MIN_DISTINCT_CUSTODIANS:
+        errs.append(
+            f"key rotation requires {_MIN_DISTINCT_CUSTODIANS} distinct organizations, got {len(rotation_orgs)}"
+        )
     if ceremony.get("old_key_invalidated") is not True:
         errs.append("key rotation must invalidate old key")
     if ceremony.get("quorum_satisfied") is not True:

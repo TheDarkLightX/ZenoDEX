@@ -732,6 +732,7 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
     elif obj.get("production_security_claim") is not False:
         errors.append("encrypted SSS backup production_security_claim must be true or false")
 
+    production_claim = obj.get("production_security_claim") is True and not errors
     return _status(
         errors=errors,
         profile=profile,
@@ -751,6 +752,7 @@ def evaluate_perps_wallet_encrypted_sss_backup_v1(
         replay_recovery_ready=replay_recovery_ready,
         subject_public_key_matches=subject_public_key_matches,
         replay_hostile_tests_ready=replay_hostile_tests_ready,
+        production_security_claim=production_claim,
     )
 
 
@@ -823,6 +825,7 @@ def _status(
     replay_recovery_ready: bool = False,
     subject_public_key_matches: bool = False,
     replay_hostile_tests_ready: bool = False,
+    production_security_claim: bool = False,
 ) -> dict[str, Any]:
     ready = not errors
     body: dict[str, Any] = {
@@ -858,7 +861,7 @@ def _status(
         "custody_path": "optional encrypted backup; not on-chain or server-side custody",
         "external_audit_ready": external_audit_ready,
         "audit_required_for_production": True,
-        "production_security_claim": False,
+        "production_security_claim": production_security_claim,
         "audit_status": audit_status,
     }
     body["status_hash"] = hash_v0("perps_wallet_encrypted_sss_backup_status_v1", body)
