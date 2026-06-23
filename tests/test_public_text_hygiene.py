@@ -14,6 +14,7 @@ SEARCH_GLOBS = (
     "src/**/*.py",
     "tests/**/*.py",
     "tools/**/*.py",
+    "internal/**/*.json",
 )
 
 FORBIDDEN_SNIPPETS = (

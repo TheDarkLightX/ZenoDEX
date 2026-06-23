@@ -250,7 +250,7 @@ services:
     volumes:
       - .:/work
       - ${TAU_TESTNET_DIR:?TAU_TESTNET_DIR must be set by the orchestrator}:/work/external/tau-testnet:ro
-      - ${TAU_CVC5_LIB_DIR:-${TAU_CVC5_LIB_DIR}}:/tau-cvc5-lib:ro
+      - ${TAU_CVC5_LIB_DIR:?TAU_CVC5_LIB_DIR must be set by the orchestrator (host path to cvc5 shared libraries)}:/tau-cvc5-lib:ro
       - tau-local-testnet-venv:/opt/zenodex-tau-venv
       - tau-local-testnet-db:/data
     networks: [zenodex-local-testnet]
@@ -411,6 +411,9 @@ services:
       CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED: "true"
       CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON: ${CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON:?CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON must be set by the orchestrator}
       ZENODEX_API_BEARER_TOKEN: ${ZENODEX_API_BEARER_TOKEN:?ZENODEX_API_BEARER_TOKEN must be set by the orchestrator}
+      # Nginx front door enforces bearer-token auth as an external boundary,
+      # so the stdlib API server can start with protected lanes enabled.
+      ZENODEX_EXTERNAL_AUTH_ENFORCED: "true"
     volumes:
       - zeno-local-testnet-data:/app/data
       - ${FIXTURES_DIR:?FIXTURES_DIR must be set by the orchestrator}:/app/fixtures:ro

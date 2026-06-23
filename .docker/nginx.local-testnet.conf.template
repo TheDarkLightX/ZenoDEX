@@ -43,6 +43,15 @@ map "$request_method:$http_content_type" $zenodex_write_content_type_ok {
     default 0;
 }
 
+# Combined mutation-origin check: avoids nested `if` (which nginx rejects).
+# Returns 1 when the request is a non-mutation (GET/HEAD) OR a same-origin
+# mutation. Returns 0 when a mutation (POST) arrives from a disallowed origin.
+map "$request_method:$zenodex_allowed_origin" $zenodex_mutation_origin_ok {
+    "~^(GET|HEAD):" 1;
+    "~^POST:1" 1;
+    default 0;
+}
+
 server {
     listen 8080;
     server_name _;
@@ -212,10 +221,8 @@ server {
 
     # --- Writer-owned mutation routes (ledger node) -----------------------
     location = /api/pools {
-        if ($request_method = POST) {
-            if ($zenodex_allowed_origin = 0) { return 403; }
-            if ($http_content_type !~* '^application/json(?:[[:space:]]*;.*)?$') { return 415; }
-        }
+        if ($zenodex_mutation_origin_ok = 0) { return 403; }
+        if ($zenodex_write_content_type_ok = 0) { return 415; }
         limit_req zone=zenodex_api_per_ip burst=30 nodelay;
         limit_conn zenodex_addr 20;
         client_max_body_size 512k;
@@ -232,10 +239,8 @@ server {
         proxy_read_timeout 60s;
     }
     location = /api/swap {
-        if ($request_method = POST) {
-            if ($zenodex_allowed_origin = 0) { return 403; }
-            if ($http_content_type !~* '^application/json(?:[[:space:]]*;.*)?$') { return 415; }
-        }
+        if ($zenodex_mutation_origin_ok = 0) { return 403; }
+        if ($zenodex_write_content_type_ok = 0) { return 415; }
         limit_req zone=zenodex_api_per_ip burst=30 nodelay;
         limit_conn zenodex_addr 20;
         client_max_body_size 512k;
@@ -372,10 +377,8 @@ server {
 
     # --- Oracle routes -----------------------------------------------------
     location ^~ /api/oracle/ {
-        if ($request_method = POST) {
-            if ($zenodex_allowed_origin = 0) { return 403; }
-            if ($http_content_type !~* '^application/json(?:[[:space:]]*;.*)?$') { return 415; }
-        }
+        if ($zenodex_mutation_origin_ok = 0) { return 403; }
+        if ($zenodex_write_content_type_ok = 0) { return 415; }
         limit_req zone=zenodex_api_per_ip burst=30 nodelay;
         limit_conn zenodex_addr 20;
         client_max_body_size 512k;

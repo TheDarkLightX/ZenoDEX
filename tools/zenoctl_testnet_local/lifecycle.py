@@ -870,6 +870,17 @@ def _compose_env(
         "TAU_DEX_ZUSD_ORACLE_PUBKEY": str(roles["alice"]["public_key"]),
         "TAU_DEX_PROOF_MINING_POOL_PUBKEY": _proof_mining_pool_pubkey_from_roles(roles),
     }
+    # Resolve the host cvc5 library directory for the tau-local bind mount.
+    # The compose file defaults to a developer-specific path; override with
+    # either an explicit env var or the standard ~/.tau/cvc5/dist/lib location.
+    cvc5_lib_dir = os.environ.get("TAU_CVC5_LIB_DIR", "")
+    if not cvc5_lib_dir:
+        home = Path.home()
+        candidate = home / ".tau" / "cvc5" / "dist" / "lib"
+        if candidate.is_dir():
+            cvc5_lib_dir = str(candidate)
+    if cvc5_lib_dir:
+        env["TAU_CVC5_LIB_DIR"] = cvc5_lib_dir
     if zk_required:
         env["TAU_DEX_ALLOW_EXTERNAL_TOOLS"] = "1"
         env["TAU_DEX_CONSENSUS_MODE"] = "0"
