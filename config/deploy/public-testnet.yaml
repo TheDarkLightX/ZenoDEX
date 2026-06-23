@@ -59,7 +59,7 @@ runtime_authority_policy:
     cpmm_settlement: rust_authority_with_python_shadow
     fee_router: rust_authority_with_python_shadow
     perp_math: rust_authority_with_python_shadow
-    perp_stateful: rust_authority_with_python_shadow
+    perp_stateful: rust_shadow
     replay_guard: rust_authority_with_python_shadow
     state_root: rust_authority_with_python_shadow
     zusd: rust_authority_with_python_shadow
@@ -70,7 +70,6 @@ runtime_authority_policy:
     - cpmm_settlement
     - fee_router
     - perp_math
-    - perp_stateful
     - replay_guard
     - state_root
     - zusd

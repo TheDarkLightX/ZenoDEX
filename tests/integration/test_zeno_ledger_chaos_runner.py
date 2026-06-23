@@ -207,7 +207,10 @@ class TestSubprocessConfigValidation:
 
 class TestSubprocessAdversarialIO:
     def test_process_that_ignores_stdin_succeeds(self) -> None:
-        rc, _out, _err = _caps(_sh("true"), input_text="ignored input")
+        rc, _out, _err = _caps(
+            _sh("python3 -c 'import time; time.sleep(0.2)'"),
+            input_text="ignored input",
+        )
         assert rc == 0
 
     def test_process_that_closes_stdout_then_writes_to_stderr(self) -> None:

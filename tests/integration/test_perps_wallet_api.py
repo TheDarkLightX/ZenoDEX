@@ -4154,6 +4154,48 @@ def test_isolated_market_account_view_surfaces_quote_balance(monkeypatch) -> Non
     assert int(isolated[0]["quote_balance"]) == 5_000
 
 
+def test_status_indexes_balances_once_for_market_summaries(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))
+    real_balance_index = perps_wallet_api._balance_index
+    calls = 0
+
+    def counting_balance_index(state: Mapping[str, object]) -> dict[tuple[str, str], int]:
+        nonlocal calls
+        calls += 1
+        return real_balance_index(state)
+
+    monkeypatch.setattr(perps_wallet_api, "_balance_index", counting_balance_index)
+
+    markets = perps_wallet_api._market_summaries(app_state)
+
+    assert calls == 1
+    market = next(item for item in markets if item["market_id"] == MARKET_ID)
+    assert market["account_a_quote_balance"] == 5_000
+
+
+def test_balance_index_preserves_linear_lookup_semantics_for_duplicate_keys() -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    app_state: dict[str, object] = {
+        "balances": [
+            {"pubkey": f" {ALICE.upper()} ", "asset": f" {quote_asset.upper()} ", "amount": 5_000},
+            {"pubkey": ALICE, "asset": quote_asset, "amount": 9_999},
+        ]
+    }
+    balance_index = perps_wallet_api._balance_index(app_state)
+
+    assert perps_wallet_api._indexed_balance_for_asset(
+        balance_index,
+        pubkey=ALICE,
+        asset_id=quote_asset,
+    ) == 5_000
+    assert perps_wallet_api._balance_for_asset(
+        app_state,
+        pubkey=ALICE,
+        asset_id=quote_asset,
+    ) == 5_000
+
+
 def test_status_without_account_omits_account_view(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))

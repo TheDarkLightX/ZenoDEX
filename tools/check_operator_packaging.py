@@ -337,6 +337,7 @@ def _check_testnet_demo_compose(root: Path, checks: list[dict[str, Any]], errors
     for token in (
         "ZENODEX_TESTNET_DEMO=1",
         "API_HOST=127.0.0.1",
+        "DEMO_API_TOKEN=${DEMO_API_TOKEN:-zenodex-local-demo-token}",
         "DEX_API_ENABLED=true",
         "PERPS_API_ENABLED=true",
         "ZUSD_API_ENABLED=true",

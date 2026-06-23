@@ -115,6 +115,24 @@ def _kind_specific_intent_fields(kind: str) -> dict[str, Any]:
             "amount0_min": 0,
             "amount1_min": 0,
         }
+    if kind == IntentKind.ROUTE_EXACT_IN.value:
+        return {
+            "quote_receipt_hash": "0x" + "11" * 32,
+            "asset_in": "asset-a",
+            "asset_out": "asset-b",
+            "leg_indices": [0],
+            "total_amount_in": 1,
+            "total_min_amount_out": 0,
+        }
+    if kind == IntentKind.ROUTE_EXACT_OUT.value:
+        return {
+            "quote_receipt_hash": "0x" + "22" * 32,
+            "asset_in": "asset-a",
+            "asset_out": "asset-b",
+            "leg_indices": [0],
+            "total_amount_out": 1,
+            "total_max_amount_in": 1,
+        }
     raise AssertionError(f"unhandled intent kind: {kind}")
 
 

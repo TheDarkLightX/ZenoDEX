@@ -192,6 +192,28 @@ _BPS_SCALE = 10_000
 OracleAdapterBridgeVerifier = Callable[[Mapping[str, Any]], Any]
 
 
+def _funded_liquidation_params_ok(
+    *,
+    maintenance_margin_bps: int,
+    depeg_buffer_bps: int,
+    max_oracle_move_bps: int,
+    liquidation_penalty_bps: int,
+) -> bool:
+    """DbC invariant: liquidation penalty remains funded after one clamped oracle move.
+
+    Ensures that after a single-epoch oracle move of ``max_oracle_move_bps`` bps,
+    the liquidation penalty is still covered by the effective maintenance margin.
+    This is the funded-liquidation inequality (R1 of the perps mechanism doc):
+    ``liquidation_penalty_bps * (BPS_SCALE + max_oracle_move_bps)
+    <= BPS_SCALE * (eff_maint_bps - max_oracle_move_bps)``
+    where ``eff_maint_bps = maintenance_margin_bps + depeg_buffer_bps``.
+    """
+    eff_maint_bps = int(maintenance_margin_bps) + int(depeg_buffer_bps)
+    return int(liquidation_penalty_bps) * (_BPS_SCALE + int(max_oracle_move_bps)) <= _BPS_SCALE * (
+        eff_maint_bps - int(max_oracle_move_bps)
+    )
+
+
 def _safe_error_str(exc: Exception) -> str:
     """Convert an exception to a stable, single-line error string.
 
@@ -388,6 +410,13 @@ def _apply_isolated_market_params(
         raise ValueError("invalid params: require liquidation_penalty_bps < maintenance_margin_bps + depeg_buffer_bps")
     if liquidation_penalty_bps <= 0:
         raise ValueError("invalid params: require liquidation_penalty_bps > 0")
+    if not _funded_liquidation_params_ok(
+        maintenance_margin_bps=maintenance_margin_bps,
+        depeg_buffer_bps=depeg_buffer_bps,
+        max_oracle_move_bps=max_oracle_move_bps,
+        liquidation_penalty_bps=liquidation_penalty_bps,
+    ):
+        raise ValueError("invalid params: require funded liquidation after max_oracle_move_bps")
 
     # Scientist-driven anti-farming guard:
     # if a liquidation is eligible for bounty accounting, the notional threshold must be
@@ -461,6 +490,21 @@ def _apply_clearinghouse_market_params(
     )
     if not guard.admission_ok:
         raise ValueError(perp_clearinghouse_market_params_guard_error(guard) or "invalid clearinghouse market params")
+
+    # Funded-liquidation invariant: the liquidation penalty must remain covered
+    # after one clamped oracle move. Clearinghouse markets do not carry an
+    # explicit depeg_buffer_bps, so the effective maintenance margin is just
+    # maintenance_margin_bps.
+    ch_max_oracle_move_bps = int(new_state.get("max_oracle_move_bps", 0))
+    ch_maintenance_margin_bps = int(new_state.get("maintenance_margin_bps", 0))
+    ch_liquidation_penalty_bps = int(new_state.get("liquidation_penalty_bps", 0))
+    if not _funded_liquidation_params_ok(
+        maintenance_margin_bps=ch_maintenance_margin_bps,
+        depeg_buffer_bps=0,
+        max_oracle_move_bps=ch_max_oracle_move_bps,
+        liquidation_penalty_bps=ch_liquidation_penalty_bps,
+    ):
+        raise ValueError("invalid params: require funded liquidation after max_oracle_move_bps")
 
     try:
         if kind == "ch2p":
@@ -5201,6 +5245,16 @@ def apply_perp_ops(
                         bounds=_CLEARINGHOUSE_NP_CONTROL_PARAM_BOUNDS,
                         name="params",
                     )
+                    if not _funded_liquidation_params_ok(
+                        maintenance_margin_bps=int(param_overrides.get("maintenance_margin_bps", 0)),
+                        depeg_buffer_bps=int(param_overrides.get("depeg_buffer_bps", 0)),
+                        max_oracle_move_bps=int(param_overrides.get("max_oracle_move_bps", 0)),
+                        liquidation_penalty_bps=int(param_overrides.get("liquidation_penalty_bps", 0)),
+                    ):
+                        return PerpTxResult(
+                            ok=False,
+                            error="invalid params: require funded liquidation after max_oracle_move_bps",
+                        )
                     init_ms = _np_core.init_market(
                         index_price_e8,
                         params=_np_core.MarketParams(**param_overrides),

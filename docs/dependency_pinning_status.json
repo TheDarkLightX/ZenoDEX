@@ -21,6 +21,7 @@
     "requirements-dev.txt:pytest-cov>=4.1.0",
     "requirements-dev.txt:pytest>=7.4.0",
     "requirements-dev.txt:ruff>=0.8,<1",
+    "requirements-dev.txt:z3-solver>=4.15.4,<5",
     "requirements.txt:pytest-cov>=4.1.0",
     "requirements.txt:pytest>=7.4.0"
   ],
@@ -36,13 +37,13 @@
   ],
   "required_lock_artifact_sha256": {
     "requirements-core.lock.txt": "5eb655035d6277b1ce9819880bad15e612d06cb82ede7b7076413eac807581da",
-    "requirements-agents.lock.txt": "8d7afaee429fef0b90e149897059ef04fafdd0a0efe717684ba7f4acbc5ebada",
-    "requirements-dev.lock.txt": "8f01c7a58a5c31f2a0ed6767b6859a026f47869edac5a2e0c7300b4b3fdb8a64",
+    "requirements-agents.lock.txt": "6873f7be8fe8ba655bba4fc475808e373e6d1bac7cb8b9007e70c92d0dec3fdf",
+    "requirements-dev.lock.txt": "fd1507a436a0bdcf1e393c1fae8ff7698bb96b471df49a72d311fb0dfb90d2b0",
     "lean-mathlib/lean-toolchain": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb",
     "lean-mathlib/lakefile.lean": "d34c0792dcb7073fcf4cbaf63fc582931f6bcd885c7df6ff9f3d8537d94a42d2",
     "tools/confidential_attestation_verifier_rust/Cargo.lock": "a50820080531e3f60e075e050287279f808ad7a3daba0682399e2fa9c90a23f5",
-    "tools/dex-ui/package-lock.json": "b9dc074f8e55dee0ed5850076eaa956fcac0594a47158cdca23cd747e3ee5282",
-    "zk/state_proof_risc0/Cargo.lock": "7587569abe6af7da7d0f7e0766079b5a4f64135cf18a485792fc9646ea3b9752"
+    "tools/dex-ui/package-lock.json": "f3eb2cbe5d1809f61438a803b829de8188ba5eb2ce1230dabb932a745c7b4be2",
+    "zk/state_proof_risc0/Cargo.lock": "fe4f0f9bd29409f23b13e942b279d2e4e046dc06f5b84d2b3eb72f160fa9afb9"
   },
   "exact_python_pins_required": [],
   "residual_limits": [
