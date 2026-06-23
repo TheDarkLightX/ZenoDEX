@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { formatNumber } from '../lib/cpmm';
+import Modal from './Modal.jsx';
 import './TokenSelectModal.css';
 
 /**
@@ -133,18 +134,7 @@ function TokenSelectModal({
     if (!isOpen) return null;
 
     return (
-        <div className="token-modal-overlay" onClick={onClose}>
-            <div
-                className="token-modal animate-slide-up"
-                onClick={e => e.stopPropagation()}
-            >
-                <div className="token-modal-header">
-                    <h3>Select Token</h3>
-                    <button className="modal-close-btn" onClick={onClose}>
-                        ✕
-                    </button>
-                </div>
-
+        <Modal open onClose={onClose} title="Select Token" size="md">
                 <div className="token-search-container">
                     <input
                         type="text"
@@ -260,8 +250,7 @@ function TokenSelectModal({
                         </div>
                     )}
                 </div>
-            </div>
-        </div>
+        </Modal>
     );
 }
 

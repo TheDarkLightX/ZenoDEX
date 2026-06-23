@@ -14,6 +14,7 @@ import { createQuoteCertificate, verifyQuoteCertificate } from '../lib/quoteCert
 import { useTransactionCenter } from '../lib/TransactionCenterContext.jsx';
 import { useDemoMode } from '../lib/DemoModeContext.jsx';
 import TokenSelectModal from './TokenSelectModal.jsx';
+import Modal from './Modal.jsx';
 import {
     FALLBACK_SWAP_POOLS,
     FALLBACK_SWAP_TOKENS,
@@ -1587,10 +1588,16 @@ function SwapInterface({ wallet }) {
             <div className={`swap-input-container ${validation.error && amountIn ? 'has-error' : ''}`}>
                 <div className="swap-input-header">
                     <span className="label">From</span>
-                    <span className="balance" onClick={handleMaxAmount} style={{ cursor: wallet ? 'pointer' : 'default' }}>
+                    <button
+                        type="button"
+                        className="balance"
+                        onClick={handleMaxAmount}
+                        disabled={!wallet || fromBalance == null || fromBalance <= 0}
+                        style={{ cursor: wallet && fromBalance != null && fromBalance > 0 ? 'pointer' : 'default' }}
+                    >
                         Balance: {wallet ? (fromBalance == null ? 'N/A' : formatNumber(fromBalance)) : '-'}
                         {wallet && fromBalance != null && fromBalance > 0 && <span className="max-label"> (MAX)</span>}
-                    </span>
+                    </button>
                 </div>
                 <div className="swap-input-row">
                     <input
@@ -1814,9 +1821,9 @@ function SwapInterface({ wallet }) {
 
             {/* Confirmation Modal (Poka-yoke interlocks) */}
             {showConfirm && activePreview && (
-                <div
-                    className="confirm-overlay"
-                    onClick={() => {
+                <Modal
+                    open
+                    onClose={() => {
                         setShowConfirm(false);
                         setConfirmConfig(null);
                         setTypedConfirmText('');
@@ -1825,9 +1832,10 @@ function SwapInterface({ wallet }) {
                         setPokayokeHeavySuggestions(null);
                         setPokayokeHeavySuggestError('');
                     }}
+                    title={confirmConfig?.title || 'Confirm Swap'}
+                    size="sm"
                 >
-                    <div className="confirm-modal animate-slide-up" onClick={e => e.stopPropagation()}>
-                        <h3 className="confirm-title"><AlertIcon /> {confirmConfig?.title || 'Confirm Swap'}</h3>
+                        <p>This swap has a <strong className="impact-high">{formatPercent(activePreview.priceImpact)}</strong> price impact.</p>
                         <p>This swap has a <strong className="impact-high">{formatPercent(activePreview.priceImpact)}</strong> price impact.</p>
                         <div className="confirm-details">
                             <div className="confirm-row">
@@ -2066,15 +2074,12 @@ function SwapInterface({ wallet }) {
                                 {isSubmitting ? 'Submitting...' : (confirmConfig?.proceedText || 'Proceed Anyway')}
                             </button>
                         </div>
-                    </div>
-                </div>
+                </Modal>
             )}
 
             {/* Submitted Modal */}
             {submittedSwap && (
-                <div className="confirm-overlay" onClick={() => setSubmittedSwap(null)}>
-                    <div className="confirm-modal submitted-modal animate-slide-up" onClick={e => e.stopPropagation()}>
-                        <h3>{submittedSwap.status === 'pending' ? 'Transaction Pending' : 'Swap Confirmed'}</h3>
+                <Modal open onClose={() => setSubmittedSwap(null)} title={submittedSwap.status === 'pending' ? 'Transaction Pending' : 'Swap Confirmed'} size="sm">
                         <p className="submitted-copy">
                             {submittedSwap.status === 'pending'
                                 ? 'Broadcasting transaction to Tau Net Alpha...'
@@ -2149,8 +2154,7 @@ function SwapInterface({ wallet }) {
                                 Done
                             </button>
                         </div>
-                    </div>
-                </div>
+                </Modal>
             )}
 
                 <div className="swap-footer">

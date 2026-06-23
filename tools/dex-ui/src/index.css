@@ -71,17 +71,16 @@
   flex: 1 1 auto;
   min-width: 0;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-tertiary);
   padding: 4px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border-subtle);
   max-width: max-content;
   margin: 0 auto;
-  backdrop-filter: blur(8px);
 }
 
 [data-theme="light"] .nav {
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--bg-secondary);
 }
 
 .nav-link {

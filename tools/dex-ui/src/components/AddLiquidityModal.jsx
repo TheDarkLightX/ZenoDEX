@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { calcLpTokensMint, calcPoolShare, formatNumber, formatPercent, getSpotPrice } from '../lib/cpmm';
 import { validateAddLiquidity } from '../lib/validation';
+import Modal from './Modal.jsx';
 import './AddLiquidityModal.css';
 
 /**
@@ -130,14 +131,8 @@ function AddLiquidityModal({ pool, wallet, onClose, onSubmit }) {
     };
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-container animate-slide-up" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h2>Add Liquidity</h2>
-                    <button className="modal-close" onClick={onClose}>✕</button>
-                </div>
-
-                <div className="modal-body">
+        <Modal open onClose={onClose} title="Add Liquidity" size="md">
+            <div className="modal-body">
                     {/* Pool Info */}
                     <div className="pool-info-banner">
                         <span className="pool-icons">
@@ -153,10 +148,10 @@ function AddLiquidityModal({ pool, wallet, onClose, onSubmit }) {
                     <div className={`input-group ${validation.error?.includes('token 0') ? 'has-error' : ''}`}>
                         <div className="input-header">
                             <span className="input-label">{token0.symbol}</span>
-                            <span className="input-balance" onClick={handleMax0}>
+                            <button type="button" className="input-balance" onClick={handleMax0} disabled={balance0 <= 0}>
                                 Balance: {formatNumber(balance0)}
                                 {balance0 > 0 && <span className="max-tag"> MAX</span>}
-                            </span>
+                            </button>
                         </div>
                         <div className="input-row">
                             <input
@@ -190,10 +185,10 @@ function AddLiquidityModal({ pool, wallet, onClose, onSubmit }) {
                     <div className={`input-group ${validation.error?.includes('token 1') ? 'has-error' : ''}`}>
                         <div className="input-header">
                             <span className="input-label">{token1.symbol}</span>
-                            <span className="input-balance" onClick={handleMax1}>
+                            <button type="button" className="input-balance" onClick={handleMax1} disabled={balance1 <= 0}>
                                 Balance: {formatNumber(balance1)}
                                 {balance1 > 0 && <span className="max-tag"> MAX</span>}
-                            </span>
+                            </button>
                         </div>
                         <div className="input-row">
                             <input
@@ -253,57 +248,53 @@ function AddLiquidityModal({ pool, wallet, onClose, onSubmit }) {
 
                 {/* Confirmation Modal for Imbalanced Adds */}
                 {showConfirm && (
-                    <div className="confirm-overlay" onClick={() => { setShowConfirm(false); setTypedConfirmText(''); }}>
-                        <div className="confirm-modal animate-slide-up" onClick={e => e.stopPropagation()}>
-                            <h3>⚠️ Imbalanced Liquidity</h3>
-                            <p>
-                                Your deposit is <strong>{formatPercent(preview.imbalanceRatio)}</strong> off
-                                the optimal ratio. This may result in fewer LP tokens than expected.
-                            </p>
-                            {preview.imbalanceRatio >= 0.05 && (
-                                <div className="confirm-typed">
-                                    <p className="confirm-warning">
-                                        Type <strong>ADD</strong> to confirm a highly imbalanced deposit.
-                                    </p>
-                                    <input
-                                        type="text"
-                                        value={typedConfirmText}
-                                        onChange={(e) => setTypedConfirmText(e.target.value)}
-                                        placeholder="ADD"
-                                    />
-                                </div>
-                            )}
-                            <div className="confirm-details">
-                                <div className="confirm-row">
-                                    <span>You deposit:</span>
-                                    <span>{formatNumber(parseFloat(amount0))} {token0.symbol}</span>
-                                </div>
-                                <div className="confirm-row">
-                                    <span>You deposit:</span>
-                                    <span>{formatNumber(parseFloat(amount1))} {token1.symbol}</span>
-                                </div>
-                                <div className="confirm-row">
-                                    <span>You receive:</span>
-                                    <span>{formatNumber(preview.lpTokens)} LP Tokens</span>
-                                </div>
+                    <Modal open onClose={() => { setShowConfirm(false); setTypedConfirmText(''); }} title="⚠️ Imbalanced Liquidity" size="sm">
+                        <p>
+                            Your deposit is <strong>{formatPercent(preview.imbalanceRatio)}</strong> off
+                            the optimal ratio. This may result in fewer LP tokens than expected.
+                        </p>
+                        {preview.imbalanceRatio >= 0.05 && (
+                            <div className="confirm-typed">
+                                <p className="confirm-warning">
+                                    Type <strong>ADD</strong> to confirm a highly imbalanced deposit.
+                                </p>
+                                <input
+                                    type="text"
+                                    value={typedConfirmText}
+                                    onChange={(e) => setTypedConfirmText(e.target.value)}
+                                    placeholder="ADD"
+                                />
                             </div>
-                            <div className="confirm-actions">
-                                <button className="btn btn-secondary" onClick={() => { setShowConfirm(false); setTypedConfirmText(''); }}>
-                                    Cancel
-                                </button>
-                                <button
-                                    className="btn btn-primary btn-warning"
-                                    onClick={handleSubmit}
-                                    disabled={preview.imbalanceRatio >= 0.05 && String(typedConfirmText || '').trim().toUpperCase() !== 'ADD'}
-                                >
-                                    Add Anyway
-                                </button>
+                        )}
+                        <div className="confirm-details">
+                            <div className="confirm-row">
+                                <span>You deposit:</span>
+                                <span>{formatNumber(parseFloat(amount0))} {token0.symbol}</span>
+                            </div>
+                            <div className="confirm-row">
+                                <span>You deposit:</span>
+                                <span>{formatNumber(parseFloat(amount1))} {token1.symbol}</span>
+                            </div>
+                            <div className="confirm-row">
+                                <span>You receive:</span>
+                                <span>{formatNumber(preview.lpTokens)} LP Tokens</span>
                             </div>
                         </div>
-                    </div>
+                        <div className="confirm-actions">
+                            <button className="btn btn-secondary" onClick={() => { setShowConfirm(false); setTypedConfirmText(''); }}>
+                                Cancel
+                            </button>
+                            <button
+                                className="btn btn-primary btn-warning"
+                                onClick={handleSubmit}
+                                disabled={preview.imbalanceRatio >= 0.05 && String(typedConfirmText || '').trim().toUpperCase() !== 'ADD'}
+                            >
+                                Add Anyway
+                            </button>
+                        </div>
+                    </Modal>
                 )}
-            </div>
-        </div>
+        </Modal>
     );
 }
 

@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { toBigInt } from '../../lib/perpMath.js';
 import { validateDeposit, validateWithdraw } from '../../lib/perpValidation.js';
+import Modal from '../Modal.jsx';
 import './PerpCollateralModal.css';
 
 /**
@@ -65,13 +66,7 @@ function PerpCollateralModal({ market, position, wallet, onDeposit, onWithdraw, 
     }, [tab, walletBalance, collateral]);
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="perp-collateral-modal animate-slide-up" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h2>Manage Collateral</h2>
-                    <button className="modal-close" onClick={onClose}>&times;</button>
-                </div>
-
+        <Modal open onClose={onClose} title="Manage Collateral" size="md">
                 {/* Tab Toggle */}
                 <div className="perp-collateral-tabs">
                     <button
@@ -107,9 +102,9 @@ function PerpCollateralModal({ market, position, wallet, onDeposit, onWithdraw, 
                     <div className="perp-collateral-input-group">
                         <div className="input-header">
                             <span className="input-label">Amount (quote units)</span>
-                            <span className="input-balance" onClick={handleMax}>
+                            <button type="button" className="input-balance" onClick={handleMax}>
                                 MAX
-                            </span>
+                            </button>
                         </div>
                         <input
                             type="number"
@@ -153,8 +148,7 @@ function PerpCollateralModal({ market, position, wallet, onDeposit, onWithdraw, 
                             : tab === 'deposit' ? 'Deposit' : 'Withdraw'}
                     </button>
                 </div>
-            </div>
-        </div>
+        </Modal>
     );
 }
 
